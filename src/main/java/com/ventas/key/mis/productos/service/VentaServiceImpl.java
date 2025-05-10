@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -9,28 +10,41 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ventas.key.mis.productos.entity.DetalleVenta;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.Venta;
+import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.DetalleVentaDto;
+import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.repository.IDetalleVentaRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 @Service
-public class VentaServiceImpl {
+public class VentaServiceImpl extends CrudAbstract<Venta, Venta,List<Venta>,Optional<Venta>, Integer> {
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final IVentaRepository iVentaRepository;
     private final IProductosRepository iRepository;
     private final IDetalleVentaRepository iDetalleVentaRepository;
+    private final ErrorGenerico errorGenerico;
     public VentaServiceImpl(
         final IVentaRepository iVentaRepository,
         final IProductosRepository iRepository,
-        final IDetalleVentaRepository iDetalleVentaRepository
+        final IDetalleVentaRepository iDetalleVentaRepository,
+        final ErrorGenerico errorGenerico
     ){
+        super(iVentaRepository, errorGenerico);
         this.iVentaRepository = iVentaRepository;
         this.iRepository = iRepository;
         this.iDetalleVentaRepository = iDetalleVentaRepository;
+        this.errorGenerico = errorGenerico;
     }
 
-    Venta save(final Venta venta){
+    
+    Venta saveVenta(final Venta venta){
         return iVentaRepository.save(venta);
     }
 
@@ -68,4 +82,14 @@ public class VentaServiceImpl {
         return ve;
 
     }
+
+        
+    @Transactional
+    @SuppressWarnings("unchecked")
+    public List<TotalDetalle> getTotalDetalle() {
+        return  entityManager.createNativeQuery("CALL inventario_key.TOTAL_DETALLE()", TotalDetalle.class)
+                            .getResultList();
+
+    }
+    
 }

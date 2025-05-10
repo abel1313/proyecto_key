@@ -15,6 +15,7 @@ import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.models.DetalleVentaDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
+import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.service.VentaServiceImpl;
 
 @RestController
@@ -31,5 +32,15 @@ public class VentaController {
     @PostMapping("/save")
     public ResponseEntity<Venta> save(@RequestBody List<DetalleVentaDto> lista ) throws Exception{
         return ResponseEntity.status(HttpStatus.OK).body(this.vImpl.saveVentaDetalle(lista) );
+    }
+    @PostMapping("/getVentas")
+    public ResponseEntity<List<Venta>> getVentas(@RequestParam int size, 
+                                            @RequestParam int page,
+                                            @RequestParam String nombre ) throws Exception{
+        return ResponseEntity.status(HttpStatus.OK).body(this.vImpl.findAll(page,size) );
+    }
+        @GetMapping("/getTotalVentas")
+    public ResponseEntity<List<TotalDetalle>> getTotalVentas() throws Exception{
+        return ResponseEntity.status(HttpStatus.OK).body(this.vImpl.getTotalDetalle() );
     }
 }

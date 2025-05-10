@@ -15,6 +15,7 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
+import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 
@@ -114,6 +115,8 @@ private final ErrorGenerico error;
                 })
                 .collect(Collectors.toList());
     }
+
+
 
 
 

@@ -74,7 +74,7 @@ public abstract class CrudAbstract<Request,
     public ListResponse findAll(int pagina, int size) throws Exception {
         try {
         
-        Pageable pageable2 = PageRequest.of(1, 1);
+        Pageable pageable2 = PageRequest.of(pagina, size);
 
         Page<Response> productosPaginados = repoGenerico.findAll(pageable2);
         ListResponse listaProductos = (ListResponse)productosPaginados.getContent(); 
