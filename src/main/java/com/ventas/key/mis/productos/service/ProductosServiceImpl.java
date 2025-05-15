@@ -23,7 +23,14 @@ import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 
 @Service
-public class ProductosServiceImpl extends CrudAbstract<Producto, Producto, List<Producto>, Optional<Producto>, Integer>
+public class ProductosServiceImpl extends 
+        CrudAbstract<Producto, 
+                     Producto, 
+                     List<Producto>, 
+                     Optional<Producto>, 
+                     Integer,
+                      PginaDto<List<Producto>>
+                      >
         implements IProductoService {
 
     private final IProductosRepository iProductosRepository;

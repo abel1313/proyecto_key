@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ventas.key.mis.productos.entity.Gastos;
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.service.api.IGastosService;
 
 @RestController
@@ -32,9 +33,9 @@ public class GastosControllerImpl {
     }
 
     @GetMapping("/getGastos")
-    public ResponseEntity<List<Gastos>> getVentas(@RequestParam int size, 
+    public ResponseEntity<PginaDto<List<Gastos>>> getVentas(@RequestParam int size, 
                                                  @RequestParam int page) throws Exception{
-        return ResponseEntity.status(HttpStatus.OK).body(this.iService.findAll(page,size) );
+        return ResponseEntity.status(HttpStatus.OK).body(this.iService.findAllNew(page,size) );
     }
 
 }

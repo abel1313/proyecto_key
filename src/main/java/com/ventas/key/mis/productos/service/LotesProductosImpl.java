@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.ventas.key.mis.productos.entity.LotesProductos;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.service.api.ILoteProductoService;
 
@@ -16,7 +17,8 @@ public class LotesProductosImpl extends CrudAbstract<LotesProductos,
                                                 LotesProductos,
                                                 List<LotesProductos>, 
                                                 Optional<LotesProductos>, 
-                                                Integer> implements ILoteProductoService {
+                                                Integer,
+                                                PginaDto<List<LotesProductos>>> implements ILoteProductoService {
 
         private final ILostesProductosRepository iRepository;
         private final ErrorGenerico error;

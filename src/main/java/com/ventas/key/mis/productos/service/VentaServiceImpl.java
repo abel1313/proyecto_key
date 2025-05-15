@@ -12,6 +12,7 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.DetalleVentaDto;
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.repository.IDetalleVentaRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
@@ -21,7 +22,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 @Service
-public class VentaServiceImpl extends CrudAbstract<Venta, Venta,List<Venta>,Optional<Venta>, Integer> {
+public class VentaServiceImpl extends CrudAbstract<Venta, Venta,List<Venta>,Optional<Venta>, Integer, PginaDto<List<Venta>>> {
 
     @PersistenceContext
     private EntityManager entityManager;

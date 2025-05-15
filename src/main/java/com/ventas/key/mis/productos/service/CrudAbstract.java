@@ -13,18 +13,21 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ICrud;
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 
 public abstract class CrudAbstract<Request,
                                     Response,
                                     ListResponse extends List<Response>, 
                                     ResponseOptional extends Optional<Response>, 
-                                    TiopoDato>
+                                    TiopoDato,
+                                    Paginacion extends PginaDto<List<Response>>>
                                     implements ICrud<
                                     Response,
                                     ListResponse, 
                                     ResponseOptional, 
-                                    TiopoDato> {
+                                    TiopoDato,
+                                    Paginacion> {
     protected final BaseRepository<Response,TiopoDato> repoGenerico;
     protected final ErrorGenerico error;
     public CrudAbstract(
@@ -83,5 +86,18 @@ public abstract class CrudAbstract<Request,
             error.error(e);
         }
         return (ListResponse) new ArrayList<>();
+    }
+
+        @Override
+    public Paginacion findAllNew(int pagina, int size) throws Exception{
+        PginaDto<List<Response>> pginaDto = new PginaDto<>();
+        Pageable pageable = PageRequest.of(pagina - 1, size);
+        Page<Response> dataPaginacion = this.repoGenerico.findAll(pageable);
+        pginaDto.setPagina(pagina);
+        pginaDto.setTotalPaginas(dataPaginacion.getTotalPages());
+        pginaDto.setTotalRegistros((int) dataPaginacion.getTotalElements());
+        pginaDto.setT(dataPaginacion.getContent() );
+
+        return (Paginacion) pginaDto;
     }
 }

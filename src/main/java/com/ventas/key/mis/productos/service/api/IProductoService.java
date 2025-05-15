@@ -14,7 +14,8 @@ public interface IProductoService extends ICrud<
                                                 Producto,
                                                 List<Producto>, 
                                                 Optional<Producto>, 
-                                                Integer> {
+                                                Integer,
+                                                PginaDto<List<Producto>>> {
 
     Producto actualizarStock(Integer id, Integer nuevoStock);
 

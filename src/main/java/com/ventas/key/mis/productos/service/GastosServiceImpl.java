@@ -6,7 +6,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.ventas.key.mis.productos.entity.Gastos;
+import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IGastosRepository;
 import com.ventas.key.mis.productos.service.api.IGastosService;
@@ -16,7 +18,8 @@ public class GastosServiceImpl extends CrudAbstract<Gastos,
                                                 Gastos,
                                                 List<Gastos>, 
                                                 Optional<Gastos>, 
-                                                Integer> implements IGastosService{
+                                                Integer,
+                                                PginaDto<List<Gastos>>> implements IGastosService{
 
     private final IGastosRepository iRepository;
     private final ErrorGenerico eGenerico;
