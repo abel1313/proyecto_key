@@ -21,7 +21,6 @@ public abstract class CrudAbstract<Request,
                                     ResponseOptional extends Optional<Response>, 
                                     TiopoDato>
                                     implements ICrud<
-                                    Request,
                                     Response,
                                     ListResponse, 
                                     ResponseOptional, 
@@ -60,9 +59,9 @@ public abstract class CrudAbstract<Request,
     }
 
     @Override
-    public Response save(Request req) throws Exception {
+    public Response save(Response req) throws Exception {
     try {
-        return this.save(req);
+        return (Response) this.repoGenerico.save(req);
     } catch (Exception e) {
         error.error(e);
     }
