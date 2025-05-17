@@ -1,30 +1,36 @@
 package com.ventas.key.mis.productos.entity;
 
+import java.sql.Date;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+
 @Entity
-@Table(name = "lotes_productos")
+@Table(name = "ganador_rifa")
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class LotesProductos extends BaseId{
+public class GanadorRifa extends BaseId{
 
-    @Column(name = "precio_unitario")
-    private Double precioUnitario;
-    @Column(name = "stock")
-    private Integer stock;
+    @Valid
+    @OneToOne(cascade = {CascadeType.PERSIST})
+    @JoinColumn( name = "cliente_id")
+    private Cliente cliente;
 
-    @ManyToOne
+    @OneToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "producto_id")
     private Producto producto;
 

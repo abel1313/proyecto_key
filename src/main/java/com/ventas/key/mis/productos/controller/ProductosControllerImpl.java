@@ -5,24 +5,30 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ventas.key.mis.productos.entity.LotesProductos;
+import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
+import com.ventas.key.mis.productos.models.ProductoDetalle;
 import com.ventas.key.mis.productos.service.ProductosServiceImpl;
+import com.ventas.key.mis.productos.service.api.ILoteProductoService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("productos")
+@RequiredArgsConstructor
 public class ProductosControllerImpl {
 
     private final ProductosServiceImpl pServiceImpl;
-    public ProductosControllerImpl(
-        final ProductosServiceImpl pServiceImpl
-    ){
-        this.pServiceImpl = pServiceImpl;
-    }
+    private final ILoteProductoService iLoteProductoService;
+    
 
 
     @GetMapping("getProductos2")
@@ -35,5 +41,10 @@ public class ProductosControllerImpl {
                                                                                 @RequestParam int page,
                                                                                 @RequestParam String nombre) throws Exception{
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre) );
+    }
+
+    @PostMapping("save")
+    public ResponseEntity<Producto> save(@RequestBody ProductoDetalle producto) throws Exception{
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );
     }
 }

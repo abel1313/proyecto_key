@@ -1,11 +1,12 @@
 package com.ventas.key.mis.productos.models;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ICrud<
                 Response,
-                ListResponse, 
-                ResponseOptional, 
+                ListResponse extends List<Response>, 
+                ResponseOptional extends Optional<Response>, 
                 TiopoDato,
                 Paginacion extends PginaDto<List<Response>>
                 > {

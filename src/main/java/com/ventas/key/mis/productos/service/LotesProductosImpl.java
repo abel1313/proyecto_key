@@ -13,7 +13,7 @@ import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.service.api.ILoteProductoService;
 
 @Service
-public class LotesProductosImpl extends CrudAbstract<LotesProductos,
+public class LotesProductosImpl extends CrudAbstractServiceImpl<
                                                 LotesProductos,
                                                 List<LotesProductos>, 
                                                 Optional<LotesProductos>, 

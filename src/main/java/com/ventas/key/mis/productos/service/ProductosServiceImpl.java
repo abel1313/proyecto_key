@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -10,27 +11,29 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.LotesProductos;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
+import com.ventas.key.mis.productos.models.ProductoDetalle;
 import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.repository.IDetalleVentaRepository;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+
 @Service
-public class ProductosServiceImpl extends 
-        CrudAbstract<Producto, 
-                     Producto, 
-                     List<Producto>, 
-                     Optional<Producto>, 
-                     Integer,
-                      PginaDto<List<Producto>>
-                      >
+public class ProductosServiceImpl extends
+        CrudAbstractServiceImpl<Producto, List<Producto>, Optional<Producto>, Integer, PginaDto<List<Producto>>>
         implements IProductoService {
 
     private final IProductosRepository iProductosRepository;
@@ -122,36 +125,78 @@ public class ProductosServiceImpl extends
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     @Override
-    public Producto saveProductoLote(Producto producto) throws Exception {
+    public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
 
         try {
+            Producto producto = new Producto();
+            producto.setId(productoDetalle.getId());
+            producto.setNombre(productoDetalle.getNombre());
+            producto.setPrecioCosto(productoDetalle.getPrecioCosto());
+            producto.setPiezas(productoDetalle.getPiezas());
+            producto.setColor(productoDetalle.getColor());
+            producto.setPrecioVenta(productoDetalle.getPrecioVenta());
+            producto.setPrecioRebaja(productoDetalle.getPrecioRebaja());
+            producto.setDescripcion(productoDetalle.getDescripcion());
+            producto.setStock(productoDetalle.getStock());
+            producto.setMarca(productoDetalle.getMarca());
+            producto.setContenido(productoDetalle.getContenido());
+            CodigoBarra codigoBarras = new CodigoBarra();
+            codigoBarras.setId(productoDetalle.getCodigoBarras().getId());
+            codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
+            producto.setCodigoBarras(codigoBarras);
+
             Optional<Producto> prodExistente = this.iProductosRepository
                     .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras());
-            
+
             if (prodExistente.isPresent()) {
                 Producto prductoPtional = prodExistente.get();
-                if (prductoPtional.getPrecioVenta() == producto.getPrecioVenta()) {
-                    int totalStock = prductoPtional.getStock() + producto.getStock();
-                    prductoPtional.setStock(totalStock);
-                    return this.iProductosRepository.save(prductoPtional);
-                } else {
-                    Optional<LotesProductos> optionalLote = this.iLoteProducto
-                            .findByProducto_CodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras());
-                    LotesProductos saveLote = null;
-                    if (optionalLote.isPresent()) {
-                        LotesProductos productoExistente = optionalLote.get();
-                        int totalStock = productoExistente.getStock() + producto.getStock();
-                        productoExistente.setStock(totalStock);
-                        saveLote = this.iLoteProducto.save(productoExistente);
-                        if( saveLote != null ){
-                            return producto;
-                        }
-                        
-                    }
-                     throw new Exception("No se guardo el producto ");
+                Producto prductoEdicion = prductoPtional;
+                BigDecimal precioBase = new BigDecimal(prductoPtional.getPrecioVenta());
+                BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
+
+
+                
+
+                if( productoDetalle.getStock() == 0   ){
+                    throw new Exception("El stock no debe de ser 0");
                 }
-            } else{
+                if (precioBase.compareTo(precioReq) == 0) {
+
+                    prductoPtional = producto;
+                    producto.setId(prductoEdicion.getId());
+                    prductoPtional.setCodigoBarras(prductoEdicion.getCodigoBarras());
+                    prductoPtional.setStock(productoDetalle.getStock());
+
+                    Producto prd = this.iProductosRepository.save(prductoPtional);
+                    System.out.println(prd + "-----------------------------------------------");
+                    return prd;
+                } else {
+                    Optional<LotesProductos> existeProducto = this.iLoteProducto
+                                                                  .findByProducto_CodigoBarras_CodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
+
+                    LotesProductos saveLote = new LotesProductos();
+                    if( existeProducto.isPresent()){
+                        LotesProductos optionalLot = existeProducto.get();
+                        saveLote.setId(optionalLot.getId());
+                        saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
+                        saveLote.setStock(productoDetalle.getStock());
+                        saveLote.setProducto(prductoEdicion);
+                    }else{
+                    saveLote.setProducto(prductoEdicion);
+                    int totalStock = productoDetalle.getStock();
+                    saveLote.setStock(totalStock);
+                    saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
+                    }
+
+                    saveLote = this.iLoteProducto.save(saveLote);
+                    if (saveLote != null) {
+                        return producto;
+                    }
+                }
+            } else {
+                
                 return this.iProductosRepository.save(producto);
             }
         } catch (Exception e) {
@@ -159,7 +204,6 @@ public class ProductosServiceImpl extends
         }
         throw new Exception("No se guardo el producto ");
     }
-
 
     // total 4337.0
 }

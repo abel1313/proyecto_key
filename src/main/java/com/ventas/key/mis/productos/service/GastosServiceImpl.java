@@ -14,7 +14,7 @@ import com.ventas.key.mis.productos.repository.IGastosRepository;
 import com.ventas.key.mis.productos.service.api.IGastosService;
 
 @Service
-public class GastosServiceImpl extends CrudAbstract<Gastos,
+public class GastosServiceImpl extends CrudAbstractServiceImpl<
                                                 Gastos,
                                                 List<Gastos>, 
                                                 Optional<Gastos>, 

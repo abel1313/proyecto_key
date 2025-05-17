@@ -1,32 +1,26 @@
 package com.ventas.key.mis.productos.entity;
 
-import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
 @Entity
-@Table(name = "lotes_productos")
+@Table(name = "rifas")
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class LotesProductos extends BaseId{
+public class Rifa extends BaseId {
 
-    @Column(name = "precio_unitario")
-    private Double precioUnitario;
-    @Column(name = "stock")
-    private Integer stock;
-
-    @ManyToOne
-    @JoinColumn(name = "producto_id")
-    private Producto producto;
-
+    @Valid
+    @OneToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn( name = "cliente_id")
+    private Cliente cliente;
 
 }

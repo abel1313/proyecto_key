@@ -20,11 +20,11 @@ import com.ventas.key.mis.productos.service.VentaServiceImpl;
 
 @RestController
 @RequestMapping("ventas")
-public class VentaController {
+public class VentaControllerImpl {
 
 
     private final VentaServiceImpl vImpl;
-    public VentaController(
+    public VentaControllerImpl(
         final VentaServiceImpl vImpl
     ){
         this.vImpl = vImpl;

@@ -8,15 +8,12 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 
-public abstract class CrudAbstract<Request,
+public abstract class CrudAbstractServiceImpl<
                                     Response,
                                     ListResponse extends List<Response>, 
                                     ResponseOptional extends Optional<Response>, 
@@ -30,7 +27,7 @@ public abstract class CrudAbstract<Request,
                                     Paginacion> {
     protected final BaseRepository<Response,TiopoDato> repoGenerico;
     protected final ErrorGenerico error;
-    public CrudAbstract(
+    public CrudAbstractServiceImpl(
         final BaseRepository<Response,TiopoDato> repoGenerico,
         final ErrorGenerico error
     ){

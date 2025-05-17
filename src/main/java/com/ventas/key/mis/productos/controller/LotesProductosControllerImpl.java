@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping(name = "lote-producto")
-public class LotesProductosController {
+public class LotesProductosControllerImpl {
 
     
 

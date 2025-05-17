@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("productos-eje/")
-public class PruebaController {
+public class PruebaControllerImpl {
 
 
     @GetMapping("data")

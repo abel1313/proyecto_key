@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
+import com.ventas.key.mis.productos.models.ProductoDetalle;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +24,7 @@ public interface IProductoService extends ICrud<
 
     PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre);
 
-    Producto saveProductoLote(Producto producto) throws Exception;
+    Producto saveProductoLote(ProductoDetalle producto) throws Exception;
 
 
 }

@@ -22,7 +22,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 @Service
-public class VentaServiceImpl extends CrudAbstract<Venta, Venta,List<Venta>,Optional<Venta>, Integer, PginaDto<List<Venta>>> {
+public class VentaServiceImpl extends CrudAbstractServiceImpl< Venta,List<Venta>,Optional<Venta>, Integer, PginaDto<List<Venta>>> {
 
     @PersistenceContext
     private EntityManager entityManager;
