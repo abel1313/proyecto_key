@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
@@ -19,8 +20,11 @@ import lombok.Setter;
 public class Rifa extends BaseId {
 
     @Valid
-    @OneToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @OneToOne(cascade = {CascadeType.MERGE})
     @JoinColumn( name = "cliente_id")
     private Cliente cliente;
+
+    @Column(name = "palabra_rifa")
+    private String palabraRifa;
 
 }

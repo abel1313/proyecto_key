@@ -91,7 +91,8 @@ public abstract class AbstractController<
         try {
             if( result.hasErrors()){
                 String errores = result.getAllErrors().stream().map(m-> m.getDefaultMessage()).collect(Collectors.joining(", "));
-                ResponseGeneric<Response> erroResponse = new ResponseGeneric<>((Response) null, errores);
+                ResponseGeneric<Response> erroResponse = new ResponseGeneric<>((Response) null);
+                erroResponse.setMensaje(errores);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
             }
             Response response = this.sGenerico.save(requestG);
