@@ -1,10 +1,8 @@
 package com.ventas.key.mis.productos.service;
 
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -12,8 +10,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.LotesProductos;
 import com.ventas.key.mis.productos.entity.Producto;
@@ -21,15 +17,11 @@ import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
 import com.ventas.key.mis.productos.models.ProductoDetalle;
-import com.ventas.key.mis.productos.models.TotalDetalle;
-import com.ventas.key.mis.productos.repository.IDetalleVentaRepository;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
+import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 
 @Service
 public class ProductosServiceImpl extends
@@ -38,15 +30,18 @@ public class ProductosServiceImpl extends
 
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
+    private final ICodigoBarrasService iBarrasService;
     private final ErrorGenerico error;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
-            final ILostesProductosRepository iLoteProducto) {
+            final ILostesProductosRepository iLoteProducto,
+            final ICodigoBarrasService iBarrasService) {
         super(iProductosRepository, error);
         this.iProductosRepository = iProductosRepository;
         this.error = error;
         this.iLoteProducto = iLoteProducto;
+        this.iBarrasService = iBarrasService;
         // TODO Auto-generated constructor stub
     }
 
@@ -63,6 +58,7 @@ public class ProductosServiceImpl extends
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> lista = productosPaginados.getContent()
                 .stream()
+                .filter(stock-> stock.getStock() > 0)
                 .map(m -> {
                     final ProductoDTO pro = new ProductoDTO();
                     pro.setNombre(m.getNombre());
@@ -107,6 +103,7 @@ public class ProductosServiceImpl extends
     private List<ProductoDTO> listaProductos(List<Producto> lista) {
         return lista
                 .stream()
+                .filter(stock-> stock.getStock() > 0)
                 .map(m -> {
                     final ProductoDTO pro = new ProductoDTO();
                     pro.setNombre(m.getNombre());
@@ -196,7 +193,15 @@ public class ProductosServiceImpl extends
                     }
                 }
             } else {
-                
+                CodigoBarra codigoBarra = new CodigoBarra();
+                Optional<CodigoBarra> optBarra = iBarrasService.findByCodigoBarra(producto.getCodigoBarras().getCodigoBarras());
+                if( optBarra.isPresent()){
+                    codigoBarra = optBarra.get();
+                }else{
+                    codigoBarra.setCodigoBarras(producto.getCodigoBarras().getCodigoBarras());
+                    codigoBarra = iBarrasService.save(codigoBarra);
+                }
+                producto.setCodigoBarras(codigoBarra);
                 return this.iProductosRepository.save(producto);
             }
         } catch (Exception e) {

@@ -37,7 +37,7 @@ public class Producto  extends BaseId{
     @Column(name = "contenido_neto")
     private String contenido;
     
-    @ManyToOne( cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToOne( cascade = { CascadeType.MERGE})
     @JoinColumn(name = "codigo_barras_id") //
      @JsonManagedReference
     private CodigoBarra codigoBarras;
