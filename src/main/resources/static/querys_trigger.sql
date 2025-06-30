@@ -44,13 +44,17 @@ END
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-CREATE DEFINER=`root`@`localhost` TRIGGER `update_stock` AFTER INSERT ON `detalle_venta` FOR EACH ROW if NEW.producto_id < 30 then 
+CREATE DEFINER=`root`@`localhost` TRIGGER `update_stock` AFTER INSERT ON `detalle_venta` 
+FOR EACH ROW 
 
+DECLARE validar_stock INT;
 
+select stock from producto
+where id = NEW.producto_id;
+IF stock >= 0  then
 		UPDATE producto 
         SET stock = stock - NEW.cantidad
         WHERE id = NEW.producto_id;
-
 end if
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
