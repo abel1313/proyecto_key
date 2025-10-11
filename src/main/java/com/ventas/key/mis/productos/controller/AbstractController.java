@@ -66,7 +66,7 @@ public abstract class AbstractController<
     public ResponseEntity<ResponseGeneric<ListResponse>> findAll(@RequestParam int page, @RequestParam int size) {
         try {
             ListResponse listResponse  = this.sGenerico.findAll(page, size);
-            ResponseGeneric<ListResponse> respo = new ResponseGeneric<>(listResponse);
+            ResponseGeneric<ListResponse> respo = new ResponseGeneric<ListResponse>(listResponse);
             return ResponseEntity.status(HttpStatus.OK).body(respo);
         } catch (Exception e) {
             return null;

@@ -2,17 +2,13 @@ package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.List;
 
 @Entity
 @Table(name = "producto")
@@ -41,6 +37,11 @@ public class Producto  extends BaseId{
     @JoinColumn(name = "codigo_barras_id") //
      @JsonManagedReference
     private CodigoBarra codigoBarras;
+
+
+
+    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductoImagen> productosRelacionados;
 
 
     
