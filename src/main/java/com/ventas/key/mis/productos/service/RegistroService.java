@@ -18,7 +18,7 @@ public class RegistroService {
         Usuario nuevo = new Usuario();
         nuevo.setUsername(username);
         nuevo.setPassword(passwordEncoder.encode(rawPassword)); // encriptación
-        nuevo.setRol("USER");
+        nuevo.setRol("CLIENTE");
         nuevo.setEnabled(true);
         usuarioRepository.save(nuevo);
     }

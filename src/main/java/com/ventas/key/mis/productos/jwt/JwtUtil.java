@@ -15,8 +15,8 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private final Key SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-
+    private final String SECRET = "miClaveSuperSecreta1234567890ABCDEF";
+    private final Key SECRET_KEY = Keys.hmacShaKeyFor(SECRET.getBytes());
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())

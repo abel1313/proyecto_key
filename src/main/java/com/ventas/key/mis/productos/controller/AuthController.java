@@ -27,12 +27,12 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
-        Authentication auth = authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUserName(), request.getPassword())
-        );
-
+        Authentication auth = null;
         String token = "";
         try {
+            auth = authManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUserName(), request.getPassword())
+            );
             token = jwtUtil.generateToken((UserDetails) auth.getPrincipal());
         }catch (Exception e){
             System.out.println(e.getMessage());
