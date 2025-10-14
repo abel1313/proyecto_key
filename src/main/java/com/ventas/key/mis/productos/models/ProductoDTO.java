@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Setter
 @Getter
 @AllArgsConstructor
@@ -22,4 +24,5 @@ public class ProductoDTO {
     private String marca;
     private String contenido;
     private String codigoBarras;
+    private List<ImagenDTO> listImgs;
 }

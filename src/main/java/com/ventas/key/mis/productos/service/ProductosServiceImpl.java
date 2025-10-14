@@ -1,18 +1,25 @@
 package com.ventas.key.mis.productos.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.entity.*;
+import com.ventas.key.mis.productos.models.ImagenDTO;
+import com.ventas.key.mis.productos.service.api.IImagenService;
+import com.ventas.key.mis.productos.service.api.IProductoImagenService;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.ventas.key.mis.productos.entity.CodigoBarra;
-import com.ventas.key.mis.productos.entity.LotesProductos;
-import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
@@ -27,20 +34,27 @@ public class ProductosServiceImpl extends
         CrudAbstractServiceImpl<Producto, List<Producto>, Optional<Producto>, Integer, PginaDto<List<Producto>>>
         implements IProductoService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProductosServiceImpl.class);
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
     private final ErrorGenerico error;
+    private final IImagenService iImagenService;
+    private final IProductoImagenService iProductoImagenService;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
             final ILostesProductosRepository iLoteProducto,
-            final ICodigoBarrasService iBarrasService) {
+            final ICodigoBarrasService iBarrasService,
+            final IImagenService iImagenService,
+            final IProductoImagenService iProductoImagenService) {
         super(iProductosRepository, error);
         this.iProductosRepository = iProductosRepository;
         this.error = error;
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
+        this.iImagenService = iImagenService;
+        this.iProductoImagenService = iProductoImagenService;
         // TODO Auto-generated constructor stub
     }
 
@@ -60,18 +74,12 @@ public class ProductosServiceImpl extends
                 .filter(stock -> stock.getStock() > 0)
                 .map(m -> {
                     final ProductoDTO pro = new ProductoDTO();
-                    pro.setNombre(m.getNombre());
-                    pro.setPrecioCosto(m.getPrecioCosto());
-                    pro.setPiezas(m.getPiezas());
-                    pro.setColor(m.getColor());
-                    pro.setPrecioVenta(m.getPrecioVenta());
-                    pro.setPrecioRebaja(m.getPrecioRebaja());
-                    pro.setDescripcion(m.getDescripcion());
-                    pro.setStock(m.getStock());
-                    pro.setMarca(m.getMarca());
-                    pro.setContenido(m.getContenido());
-                    pro.setCodigoBarras(m.getCodigoBarras().getCodigoBarras());
-                    return pro;
+                    try {
+                        pro.setListImgs(llenarListaImagenSoloUna(m.getId()));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    return getProductoDTO(m, pro);
                 })
                 .collect(Collectors.toList());
 
@@ -80,6 +88,26 @@ public class ProductosServiceImpl extends
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
         pginaDto.setT(lista);
         return pginaDto;
+    }
+
+    private ProductoDTO getProductoDTO(Producto m, ProductoDTO pro) {
+        List<ProductoImagen> lstImg = this.iProductoImagenService.findByProductoId(m.getId())
+                .stream()
+                .findFirst()
+                .stream().toList();
+        pro.setNombre(m.getNombre());
+        pro.setPrecioCosto(m.getPrecioCosto());
+        pro.setPiezas(m.getPiezas());
+        pro.setColor(m.getColor());
+        pro.setPrecioVenta(m.getPrecioVenta());
+        pro.setPrecioRebaja(m.getPrecioRebaja());
+        pro.setDescripcion(m.getDescripcion());
+        pro.setStock(m.getStock());
+        pro.setMarca(m.getMarca());
+        pro.setContenido(m.getContenido());
+        pro.setCodigoBarras(m.getCodigoBarras().getCodigoBarras());
+        pro.setListImgs(llenarListaImagenSoloUna(m.getId()));
+        return pro;
     }
 
     @Override
@@ -105,18 +133,7 @@ public class ProductosServiceImpl extends
                 .filter(stock -> stock.getStock() > 0)
                 .map(m -> {
                     final ProductoDTO pro = new ProductoDTO();
-                    pro.setNombre(m.getNombre());
-                    pro.setPrecioCosto(m.getPrecioCosto());
-                    pro.setPiezas(m.getPiezas());
-                    pro.setColor(m.getColor());
-                    pro.setPrecioVenta(m.getPrecioVenta());
-                    pro.setPrecioRebaja(m.getPrecioRebaja());
-                    pro.setDescripcion(m.getDescripcion());
-                    pro.setStock(m.getStock());
-                    pro.setMarca(m.getMarca());
-                    pro.setContenido(m.getContenido());
-                    pro.setCodigoBarras(m.getCodigoBarras().getCodigoBarras());
-                    return pro;
+                    return getProductoDTO(m, pro);
                 })
                 .collect(Collectors.toList());
     }
@@ -126,18 +143,8 @@ public class ProductosServiceImpl extends
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
 
         try {
-            Producto producto = new Producto();
-            producto.setId(productoDetalle.getId());
-            producto.setNombre(productoDetalle.getNombre());
-            producto.setPrecioCosto(productoDetalle.getPrecioCosto());
-            producto.setPiezas(productoDetalle.getPiezas());
-            producto.setColor(productoDetalle.getColor());
-            producto.setPrecioVenta(productoDetalle.getPrecioVenta());
-            producto.setPrecioRebaja(productoDetalle.getPrecioRebaja());
-            producto.setDescripcion(productoDetalle.getDescripcion());
-            producto.setStock(productoDetalle.getStock());
-            producto.setMarca(productoDetalle.getMarca());
-            producto.setContenido(productoDetalle.getContenido());
+            Producto producto = llenarProductoDTO(productoDetalle);
+
             CodigoBarra codigoBarras = new CodigoBarra();
             codigoBarras.setId(productoDetalle.getCodigoBarras().getId());
             codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
@@ -150,7 +157,7 @@ public class ProductosServiceImpl extends
             if (productoDetalle.getStock() == 0) {
                 throw new Exception("El stock no debe de ser 0");
             }
-            if (prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
+            if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
                 Producto prductoPtional = prodExistenteNoOpt;
                 Producto prductoEdicion = prductoPtional;
                 BigDecimal precioBase = new BigDecimal(prductoPtional.getPrecioVenta());
@@ -170,19 +177,7 @@ public class ProductosServiceImpl extends
                             .findByProducto_CodigoBarras_CodigoBarras(
                                     productoDetalle.getCodigoBarras().getCodigoBarras());
 
-                    LotesProductos saveLote = new LotesProductos();
-                    if (existeProducto.isPresent()) {
-                        LotesProductos optionalLot = existeProducto.get();
-                        saveLote.setId(optionalLot.getId());
-                        saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-                        saveLote.setStock(productoDetalle.getStock());
-                        saveLote.setProducto(prductoEdicion);
-                    } else {
-                        saveLote.setProducto(prductoEdicion);
-                        int totalStock = productoDetalle.getStock();
-                        saveLote.setStock(totalStock);
-                        saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-                    }
+                    LotesProductos saveLote = getLotesProductos(productoDetalle, existeProducto, prductoEdicion);
 
                     saveLote = this.iLoteProducto.save(saveLote);
                     if (saveLote != null) {
@@ -191,8 +186,8 @@ public class ProductosServiceImpl extends
                 }
 
             } else {
-                Producto prodNoOpt = this.iProductosRepository.findById(producto.getId()).orElse(new Producto());
-                if (prodNoOpt.getId() != 0) {
+                Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
+                if (prodNoOpt.getId() != null && prodNoOpt.getId() != 0) {
                     BigDecimal precioBase = new BigDecimal(prodNoOpt.getPrecioVenta());
                     BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
                     if (precioBase.compareTo(precioReq) == 0) {
@@ -216,8 +211,33 @@ public class ProductosServiceImpl extends
                     }
 
                 }
+                List<Imagen> lstImg = List.of();
+                List<ProductoImagen> productoImagen = new ArrayList<>();
+                if (!productoDetalle.getListImagenes().isEmpty()){
+                    List<Imagen> img = productoDetalle.getListImagenes().stream().map(mpa->{
+                        Imagen imagen = new Imagen();
+                        byte[] decodedBytes = Base64.getDecoder().decode(mpa.getBase64());
+                        imagen.setBase64(decodedBytes);
+                        imagen.setNombreImagen(mpa.getNombreImagen());
+                        imagen.setExtension(mpa.getExtension());
+                        return imagen;
+                    }).toList();
+
+                    lstImg = this.iImagenService.saveAll(img);
+                    log.info(" img {}", lstImg);
+                }
+                CodigoBarra codBarra = saveCodigoBarra(producto.getCodigoBarras());
+                producto.setCodigoBarras(codBarra);
                 Producto prd = this.iProductosRepository.save(producto);
                 System.out.println(prd + "-----------------------------------------------");
+                productoImagen = lstImg.stream().map(mpa->{
+                    ProductoImagen p = new ProductoImagen();
+                    p.setImagen(mpa);
+                    p.setProducto(prd);
+                    return p;
+                }).toList();
+                log.info(" img {}", new ObjectMapper().writeValueAsString(productoImagen));
+                this.iProductoImagenService.saveAll(productoImagen);
                 return prd;
             }
         } catch (Exception e) {
@@ -226,5 +246,75 @@ public class ProductosServiceImpl extends
         throw new Exception("No se guardo el producto ");
     }
 
+    private static LotesProductos getLotesProductos(ProductoDetalle productoDetalle, Optional<LotesProductos> existeProducto, Producto prductoEdicion) {
+        LotesProductos saveLote = new LotesProductos();
+        if (existeProducto.isPresent()) {
+            LotesProductos optionalLot = existeProducto.get();
+            saveLote.setId(optionalLot.getId());
+            saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
+            saveLote.setStock(productoDetalle.getStock());
+            saveLote.setProducto(prductoEdicion);
+        } else {
+            saveLote.setProducto(prductoEdicion);
+            int totalStock = productoDetalle.getStock();
+            saveLote.setStock(totalStock);
+            saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
+        }
+        return saveLote;
+    }
+
+
+    private CodigoBarra saveCodigoBarra(CodigoBarra codigoBarra) throws Exception {
+
+        Optional<CodigoBarra> findCodigoBarra = this.iBarrasService.findByCodigoBarra(codigoBarra.getCodigoBarras());
+        CodigoBarra newCodigoBarra;
+        if (findCodigoBarra.isPresent()) {
+            newCodigoBarra = findCodigoBarra.get();
+        }else{
+            codigoBarra.setId(null);
+            newCodigoBarra = this.iBarrasService.save(codigoBarra);
+        }
+        return newCodigoBarra;
+    }
+
+    private Producto llenarProductoDTO(ProductoDetalle productoDetalle) {
+        Producto producto = new Producto();
+        producto.setId(productoDetalle.getId());
+        producto.setNombre(productoDetalle.getNombre());
+        producto.setPrecioCosto(productoDetalle.getPrecioCosto());
+        producto.setPiezas(productoDetalle.getPiezas());
+        producto.setColor(productoDetalle.getColor());
+        producto.setPrecioVenta(productoDetalle.getPrecioVenta());
+        producto.setPrecioRebaja(productoDetalle.getPrecioRebaja());
+        producto.setDescripcion(productoDetalle.getDescripcion());
+        producto.setStock(productoDetalle.getStock());
+        producto.setMarca(productoDetalle.getMarca());
+        producto.setContenido(productoDetalle.getContenido());
+        return producto;
+    }
+
+    private List<ImagenDTO> llenarListaImagenSoloUna(Integer id){
+        try {
+            List<ProductoImagen> listImg = this.iProductoImagenService.findByProductoId(id)
+                    .stream()
+                    .findFirst()
+                    .stream()
+                    .toList();
+
+            if(!listImg.isEmpty()){
+                return listImg.stream().map(mpaDto-> {
+                    Imagen imagen = mpaDto.getImagen();
+                    ImagenDTO img = new ImagenDTO();
+                    img.setBase64(imagen.getBase64());
+                    img.setExtension(imagen.getExtension());
+                    img.setNombreImagen(imagen.getNombreImagen());
+                    return img;
+                }).toList();
+            }
+            return  new ArrayList<>();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
     // total 4337.0
 }

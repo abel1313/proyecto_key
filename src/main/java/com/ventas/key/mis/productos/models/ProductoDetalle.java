@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.models;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 
+import com.ventas.key.mis.productos.entity.Imagen;
 import jakarta.persistence.Column;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -10,6 +11,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.List;
 
 @Setter
 @Getter
@@ -30,4 +33,5 @@ public class ProductoDetalle {
     private String contenido;
 
     private CodigoBarraDetalle codigoBarras;
+    private List<ImagenDTO> listImagenes;
 }
