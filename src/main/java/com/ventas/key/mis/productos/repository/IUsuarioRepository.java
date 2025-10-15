@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     Optional<Usuario> findByUsername(String username);
+    Optional<Usuario> findByRol(String rol);
 }
