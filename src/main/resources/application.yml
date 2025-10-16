@@ -15,12 +15,15 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:mysql://167.88.164.132:3306/inventarioRespaldo
-    username: trece
-    password: Luvianos*13
+    #url: jdbc:mysql://167.88.164.132:3306/inventarioRespaldo
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    #username: trece
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    #password: Luvianos*13
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: none
     properties:
