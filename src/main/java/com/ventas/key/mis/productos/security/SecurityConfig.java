@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -25,7 +26,11 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/auth/**", "/productos/getProductos2/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/productos/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/productos/**").permitAll()
+                        .requestMatchers( "/ventas/**","/rifa/**","/gastos/**","/gfanadorRifa/**","/configurarRifa/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
