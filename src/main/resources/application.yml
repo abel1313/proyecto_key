@@ -29,10 +29,10 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+#logging:
+#  level:
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.orm.jdbc.bind: TRACE
 
 ---
 
@@ -47,7 +47,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: false
-logging:
-  level:
-    org.hibernate.SQL: INFO
-    org.hibernate.orm.jdbc.bind: INFO
+#logging:
+#  level:
+#    org.hibernate.SQL: INFO
+#    org.hibernate.orm.jdbc.bind: INFO

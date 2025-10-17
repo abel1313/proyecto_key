@@ -26,5 +26,8 @@ public class CorsOtros {
         return source;
     }
 
-
+    @Bean
+    public CorsFilter corsFilter() {
+        return new CorsFilter(corsConfigurationSource());
+    }
 }

@@ -67,11 +67,10 @@ public class ProductosServiceImpl extends
     @Override
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = iProductosRepository.findAll(pageable);
+        Page<Producto> productosPaginados = iProductosRepository.findByStockGreaterThan(0, pageable);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> lista = productosPaginados.getContent()
                 .stream()
-                .filter(stock -> stock.getStock() > 0)
                 .map(m -> {
                     final ProductoDTO pro = new ProductoDTO();
                     try {
