@@ -3,6 +3,8 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +22,9 @@ public class ImageneController {
     @Autowired
     private IImagenService iImagenService;
 
+
     @GetMapping("/{id}")
+    @Cacheable(value = "imagenes", key = "#id")
     public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
         Imagen imagen = iImagenService.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen no encontrada"));
@@ -38,4 +42,10 @@ public class ImageneController {
             default -> MediaType.APPLICATION_OCTET_STREAM;
         };
     }
+    @GetMapping("/cache/imagen/limpiar")
+    @CacheEvict(value = "imagenes", allEntries = true)
+    public void limpiarTodaLaCacheDeImagenes() {
+
+    }
+
 }
