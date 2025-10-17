@@ -24,5 +24,5 @@ public class ProductoDTO {
     private String marca;
     private String contenido;
     private String codigoBarras;
-    private List<ImagenDTO> listImgs;
+    private int idProducto;
 }

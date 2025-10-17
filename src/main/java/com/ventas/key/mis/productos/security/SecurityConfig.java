@@ -26,7 +26,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/productos/getProductos2/**").permitAll()
+                        .requestMatchers("/auth/**", "/productos/getProductos2/**", "/imagen/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/productos/**").permitAll()

@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.LotesProductos;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.models.ImagenProductoResult;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
@@ -31,5 +32,16 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public List<Imagen> saveAll(List<Imagen> list) {
         return this.iImagenRepository.saveAll(list);
+    }
+
+    @Override
+    public List<ImagenProductoResult> findIdsImagenesProducto(List<Integer> list) {
+        return this.iImagenRepository.findImagenPrincipalPorProductoIds(list);
+    }
+
+
+    @Override
+    public Optional<Imagen> findById(Integer id) {
+        return this.iImagenRepository.findById(id);
     }
 }

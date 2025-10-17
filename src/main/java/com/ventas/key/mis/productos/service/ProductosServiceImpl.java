@@ -1,15 +1,12 @@
 package com.ventas.key.mis.productos.service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.entity.*;
-import com.ventas.key.mis.productos.models.ImagenDTO;
+import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +18,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.models.ProductoDTO;
-import com.ventas.key.mis.productos.models.ProductoDetalle;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
@@ -69,45 +63,47 @@ public class ProductosServiceImpl extends
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findByStockGreaterThan(0, pageable);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
-        List<ProductoDTO> lista = productosPaginados.getContent()
-                .stream()
-                .map(m -> {
-                    final ProductoDTO pro = new ProductoDTO();
-                    try {
-                        pro.setListImgs(llenarListaImagenSoloUna(m.getId()));
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                    return getProductoDTO(m, pro);
-                })
-                .collect(Collectors.toList());
 
+        List<Integer> productoIds = productosPaginados.getContent()
+                .stream()
+                .map(Producto::getId)
+                .toList();
+        Map<Integer, Integer> imagenesPorProducto = iImagenService
+                .findIdsImagenesProducto(productoIds) // este método lo defines tú
+                .stream()
+                .collect(Collectors.toMap(
+                        ImagenProductoResult::getProductoId,
+                        ImagenProductoResult::getImagenId
+                ));
+
+        List<ProductoDTO> listPtroductos = productosPaginados.getContent()
+                .stream()
+                .map(p -> {
+                    ProductoDTO dto = new ProductoDTO();
+                    dto.setNombre(p.getNombre());
+                    dto.setPrecioCosto(p.getPrecioCosto());
+                    dto.setPiezas(p.getPiezas());
+                    dto.setColor(p.getColor());
+                    dto.setPrecioVenta(p.getPrecioVenta());
+                    dto.setPrecioRebaja(p.getPrecioRebaja());
+                    dto.setDescripcion(p.getDescripcion());
+                    dto.setStock(p.getStock());
+                    dto.setMarca(p.getMarca());
+                    dto.setContenido(p.getContenido());
+                    dto.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
+                    dto.setIdProducto(imagenesPorProducto.get(p.getId()) != null ? imagenesPorProducto.get(p.getId()) : 0 );
+                    return dto;
+                })
+                .toList();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
-        pginaDto.setT(lista);
+        pginaDto.setT(listPtroductos);
         return pginaDto;
     }
 
-    private ProductoDTO getProductoDTO(Producto m, ProductoDTO pro) {
-        List<ProductoImagen> lstImg = this.iProductoImagenService.findByProductoId(m.getId())
-                .stream()
-                .findFirst()
-                .stream().toList();
-        pro.setNombre(m.getNombre());
-        pro.setPrecioCosto(m.getPrecioCosto());
-        pro.setPiezas(m.getPiezas());
-        pro.setColor(m.getColor());
-        pro.setPrecioVenta(m.getPrecioVenta());
-        pro.setPrecioRebaja(m.getPrecioRebaja());
-        pro.setDescripcion(m.getDescripcion());
-        pro.setStock(m.getStock());
-        pro.setMarca(m.getMarca());
-        pro.setContenido(m.getContenido());
-        pro.setCodigoBarras(m.getCodigoBarras().getCodigoBarras());
-        pro.setListImgs(llenarListaImagenSoloUna(m.getId()));
-        return pro;
-    }
+
+
 
     @Override
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
@@ -130,9 +126,20 @@ public class ProductosServiceImpl extends
         return lista
                 .stream()
                 .filter(stock -> stock.getStock() > 0)
-                .map(m -> {
-                    final ProductoDTO pro = new ProductoDTO();
-                    return getProductoDTO(m, pro);
+                .map(p -> {
+                    final ProductoDTO dto = new ProductoDTO();
+                    dto.setNombre(p.getNombre());
+                    dto.setPrecioCosto(p.getPrecioCosto());
+                    dto.setPiezas(p.getPiezas());
+                    dto.setColor(p.getColor());
+                    dto.setPrecioVenta(p.getPrecioVenta());
+                    dto.setPrecioRebaja(p.getPrecioRebaja());
+                    dto.setDescripcion(p.getDescripcion());
+                    dto.setStock(p.getStock());
+                    dto.setMarca(p.getMarca());
+                    dto.setContenido(p.getContenido());
+                    dto.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
+                    return dto;
                 })
                 .collect(Collectors.toList());
     }
