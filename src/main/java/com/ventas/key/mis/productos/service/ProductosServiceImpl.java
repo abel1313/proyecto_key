@@ -186,9 +186,7 @@ public class ProductosServiceImpl extends
                     LotesProductos saveLote = getLotesProductos(productoDetalle, existeProducto, prductoEdicion);
 
                     saveLote = this.iLoteProducto.save(saveLote);
-                    if (saveLote != null) {
-                        return producto;
-                    }
+                    return producto;
                 }
 
             } else {
@@ -212,9 +210,7 @@ public class ProductosServiceImpl extends
                             saveLote.setStock(productoDetalle.getStock());
                             saveLote.setProducto(prodNoOpt);
                         saveLote = this.iLoteProducto.save(saveLote);
-                        if (saveLote != null) {
-                            return producto;
-                        }
+                        return producto;
                     }
 
                 }
