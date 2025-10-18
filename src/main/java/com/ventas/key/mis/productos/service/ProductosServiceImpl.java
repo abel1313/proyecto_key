@@ -171,6 +171,14 @@ public class ProductosServiceImpl extends
                 Producto prductoEdicion = prductoPtional;
                 BigDecimal precioBase = new BigDecimal(prductoPtional.getPrecioVenta());
                 BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
+
+                List<Imagen> lstImg = List.of();
+                if (!productoDetalle.getListImagenes().isEmpty()){
+                    lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prductoPtional);
+                    relacionProductoImagen(mapperRelacionProductoImagen);
+                }
+
                 if (precioBase.compareTo(precioReq) == 0) {
 
                     prductoPtional = producto;
@@ -188,7 +196,6 @@ public class ProductosServiceImpl extends
                                     productoDetalle.getCodigoBarras().getCodigoBarras());
 
                     LotesProductos saveLote = getLotesProductos(productoDetalle, existeProducto, prductoEdicion);
-
                     saveLote = this.iLoteProducto.save(saveLote);
                     return producto;
                 }
@@ -204,7 +211,6 @@ public class ProductosServiceImpl extends
                         producto.setId(prodNoOpt.getId());
                         producto.setCodigoBarras(prodNoOpt.getCodigoBarras());
                         producto.setStock(productoDetalle.getStock());
-
                         Producto prd = this.iProductosRepository.save(producto);
                         System.out.println(prd + "-----------------------------------------------");
                         return prd;
@@ -218,15 +224,9 @@ public class ProductosServiceImpl extends
                     }
 
                 }
-                List<Imagen> lstImg = List.of();
-                if (!productoDetalle.getListImagenes().isEmpty()){
-                    lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                }
                 CodigoBarra codBarra = saveCodigoBarra(producto.getCodigoBarras());
                 producto.setCodigoBarras(codBarra);
-                Producto prd = this.iProductosRepository.save(producto);
-                relacionProductoImagen(mapperRelacionProductoImagen(lstImg, prd));
-                return prd;
+                return this.iProductosRepository.save(producto);
             }
         } catch (Exception e) {
             this.error.error(e);
@@ -249,7 +249,7 @@ public class ProductosServiceImpl extends
     private List<Imagen> mappImagenes( List<ImagenDTO> list){
         return list.stream().map(mpa->{
             Imagen imagen = new Imagen();
-            byte[] decodedBytes = Base64.getDecoder().decode(mpa.getBase64());
+            byte[] decodedBytes = mpa.getBase64();
             imagen.setBase64(decodedBytes);
             imagen.setNombreImagen(mpa.getNombreImagen());
             imagen.setExtension(mpa.getExtension());
