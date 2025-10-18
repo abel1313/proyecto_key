@@ -35,6 +35,11 @@ spring:
 #    org.hibernate.SQL: DEBUG
 #    org.hibernate.orm.jdbc.bind: TRACE
 
+logging:
+  level:
+    root: INFO
+    com.miempresa: DEBUG
+
 ---
 
 spring:

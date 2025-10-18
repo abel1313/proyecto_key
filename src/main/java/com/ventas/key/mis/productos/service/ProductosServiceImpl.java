@@ -196,8 +196,9 @@ public class ProductosServiceImpl extends
                 if (prodNoOpt.getId() != null && prodNoOpt.getId() != 0) {
                     BigDecimal precioBase = new BigDecimal(prodNoOpt.getPrecioVenta());
                     BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
-                    if (precioBase.compareTo(precioReq) == 0) {
 
+
+                    if (precioBase.compareTo(precioReq) == 0) {
                         producto.setId(prodNoOpt.getId());
                         producto.setCodigoBarras(prodNoOpt.getCodigoBarras());
                         producto.setStock(productoDetalle.getStock());
@@ -271,7 +272,6 @@ public class ProductosServiceImpl extends
 
 
     private CodigoBarra saveCodigoBarra(CodigoBarra codigoBarra) throws Exception {
-
         Optional<CodigoBarra> findCodigoBarra = this.iBarrasService.findByCodigoBarra(codigoBarra.getCodigoBarras());
         CodigoBarra newCodigoBarra;
         if (findCodigoBarra.isPresent()) {
