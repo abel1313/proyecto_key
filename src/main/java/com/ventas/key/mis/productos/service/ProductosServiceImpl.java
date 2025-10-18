@@ -148,6 +148,9 @@ public class ProductosServiceImpl extends
     @Override
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
 
+        if (productoDetalle.getStock() == 0) {
+            throw new Exception("El stock no debe de ser 0");
+        }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
 
@@ -160,9 +163,9 @@ public class ProductosServiceImpl extends
                     .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras())
                     .orElse(new Producto());
 
-            if (productoDetalle.getStock() == 0) {
-                throw new Exception("El stock no debe de ser 0");
-            }
+
+
+
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
                 Producto prductoPtional = prodExistenteNoOpt;
                 Producto prductoEdicion = prductoPtional;
@@ -173,9 +176,10 @@ public class ProductosServiceImpl extends
                     prductoPtional = producto;
                     producto.setId(prductoEdicion.getId());
                     prductoPtional.setCodigoBarras(prductoEdicion.getCodigoBarras());
-                    prductoPtional.setStock(productoDetalle.getStock());
+                    prductoPtional.setStock(productoDetalle.getStock() + prductoPtional.getStock());
 
                     Producto prd = this.iProductosRepository.save(prductoPtional);
+
                     System.out.println(prd + "-----------------------------------------------");
                     return prd;
                 } else {
@@ -215,32 +219,13 @@ public class ProductosServiceImpl extends
 
                 }
                 List<Imagen> lstImg = List.of();
-                List<ProductoImagen> productoImagen = new ArrayList<>();
                 if (!productoDetalle.getListImagenes().isEmpty()){
-                    List<Imagen> img = productoDetalle.getListImagenes().stream().map(mpa->{
-                        Imagen imagen = new Imagen();
-                        byte[] decodedBytes = Base64.getDecoder().decode(mpa.getBase64());
-                        imagen.setBase64(decodedBytes);
-                        imagen.setNombreImagen(mpa.getNombreImagen());
-                        imagen.setExtension(mpa.getExtension());
-                        return imagen;
-                    }).toList();
-
-                    lstImg = this.iImagenService.saveAll(img);
-                    log.info(" img {}", lstImg);
+                    lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                 }
                 CodigoBarra codBarra = saveCodigoBarra(producto.getCodigoBarras());
                 producto.setCodigoBarras(codBarra);
                 Producto prd = this.iProductosRepository.save(producto);
-                System.out.println(prd + "-----------------------------------------------");
-                productoImagen = lstImg.stream().map(mpa->{
-                    ProductoImagen p = new ProductoImagen();
-                    p.setImagen(mpa);
-                    p.setProducto(prd);
-                    return p;
-                }).toList();
-                log.info(" img {}", new ObjectMapper().writeValueAsString(productoImagen));
-                this.iProductoImagenService.saveAll(productoImagen);
+                relacionProductoImagen(mapperRelacionProductoImagen(lstImg, prd));
                 return prd;
             }
         } catch (Exception e) {
@@ -249,18 +234,41 @@ public class ProductosServiceImpl extends
         throw new Exception("No se guardo el producto ");
     }
 
+    private List<ProductoImagen> mapperRelacionProductoImagen(List<Imagen> lstImg,
+                                                              Producto prd){
+        return lstImg.stream().map(mpa->{
+            ProductoImagen p = new ProductoImagen();
+            p.setImagen(mpa);
+            p.setProducto(prd);
+            return p;
+        }).toList();
+    }
+    private void relacionProductoImagen(List<ProductoImagen>  productoImagens){
+        this.iProductoImagenService.saveAll(productoImagens);
+    }
+    private List<Imagen> mappImagenes( List<ImagenDTO> list){
+        return list.stream().map(mpa->{
+            Imagen imagen = new Imagen();
+            byte[] decodedBytes = Base64.getDecoder().decode(mpa.getBase64());
+            imagen.setBase64(decodedBytes);
+            imagen.setNombreImagen(mpa.getNombreImagen());
+            imagen.setExtension(mpa.getExtension());
+            return imagen;
+        }).toList();
+    }
+
     private static LotesProductos getLotesProductos(ProductoDetalle productoDetalle, Optional<LotesProductos> existeProducto, Producto prductoEdicion) {
         LotesProductos saveLote = new LotesProductos();
+        int totStock = productoDetalle.getStock() + prductoEdicion.getStock();
         if (existeProducto.isPresent()) {
             LotesProductos optionalLot = existeProducto.get();
             saveLote.setId(optionalLot.getId());
             saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-            saveLote.setStock(productoDetalle.getStock());
+            saveLote.setStock(totStock);
             saveLote.setProducto(prductoEdicion);
         } else {
             saveLote.setProducto(prductoEdicion);
-            int totalStock = productoDetalle.getStock();
-            saveLote.setStock(totalStock);
+            saveLote.setStock(totStock);
             saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
         }
         return saveLote;
