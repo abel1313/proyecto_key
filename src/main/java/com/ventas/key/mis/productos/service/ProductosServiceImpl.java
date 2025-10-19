@@ -91,7 +91,7 @@ public class ProductosServiceImpl extends
                     dto.setMarca(p.getMarca());
                     dto.setContenido(p.getContenido());
                     dto.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
-                    dto.setIdProducto(imagenesPorProducto.get(p.getId()) != null ? imagenesPorProducto.get(p.getId()) : 0 );
+                    dto.setIdProducto(p.getId());
                     return dto;
                 })
                 .toList();
@@ -238,7 +238,7 @@ public class ProductosServiceImpl extends
                                                               Producto prd){
         return lstImg.stream().map(mpa->{
             ProductoImagen p = new ProductoImagen();
-            p.setImagen(mpa);
+            p.setImagen(mpa!= null? mpa : new Imagen());
             p.setProducto(prd);
             return p;
         }).toList();
@@ -249,8 +249,8 @@ public class ProductosServiceImpl extends
     private List<Imagen> mappImagenes( List<ImagenDTO> list){
         return list.stream().map(mpa->{
             Imagen imagen = new Imagen();
-            byte[] decodedBytes = mpa.getBase64();
-            imagen.setBase64(decodedBytes);
+            //byte[] decodedBytes = mpa.getBase64();
+            imagen.setBase64(null);
             imagen.setNombreImagen(mpa.getNombreImagen());
             imagen.setExtension(mpa.getExtension());
             return imagen;
@@ -313,9 +313,10 @@ public class ProductosServiceImpl extends
 
             if(!listImg.isEmpty()){
                 return listImg.stream().map(mpaDto-> {
+                   // Imagen imagen = mpaDto.getImagen();
                     Imagen imagen = mpaDto.getImagen();
                     ImagenDTO img = new ImagenDTO();
-                    img.setBase64(imagen.getBase64());
+                    img.setBase64(null);
                     img.setExtension(imagen.getExtension());
                     img.setNombreImagen(imagen.getNombreImagen());
                     return img;

@@ -8,11 +8,10 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/imagen")
@@ -23,16 +22,25 @@ public class ImageneController {
     private IImagenService iImagenService;
 
 
-    @GetMapping("/{id}")
-    @Cacheable(value = "imagenes", key = "#id")
-    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
-        Imagen imagen = iImagenService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen no encontrada"));
-        MediaType mediaType = getMediaType(imagen.getExtension());
-        return ResponseEntity.ok()
-                .contentType(mediaType)
-                .body(imagen.getBase64());
-    }
+//    @GetMapping("/{id}")
+//    @Cacheable(value = "imagenes", key = "#id")
+//    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
+//        Imagen imagen = iImagenService.findById(id)
+//                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen no encontrada"));
+//        MediaType mediaType = getMediaType(imagen.getExtension());
+//        return ResponseEntity.ok()
+//                .contentType(mediaType)
+//                .body(imagen.getBase64());
+//    }
+//    @GetMapping("/{id}/detalle")
+//    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
+//    public ResponseEntity<List<byte[]>> getDetalle(@PathVariable Integer id,
+//                                                   @RequestParam int size,
+//                                                   @RequestParam int page) {
+//        List<byte[]> imagen = iImagenService.findImagenPrincipalPorProductoIds(id, page, size);
+//        return ResponseEntity.ok()
+//                .body(imagen);
+//    }
 
     private MediaType getMediaType(String extension) {
         return switch (extension.toLowerCase()) {

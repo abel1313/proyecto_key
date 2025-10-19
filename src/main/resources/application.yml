@@ -53,7 +53,16 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: false
-#logging:
-#  level:
-#    org.hibernate.SQL: INFO
-#    org.hibernate.orm.jdbc.bind: INFO
+logging:
+  level:
+    org.hibernate.SQL: INFO
+    org.hibernate.orm.jdbc.bind: INFO
+
+
+#springdoc:
+#  swagger-ui:
+#    enabled: true
+#    url: /openapi.yml
+#    path: /swagger-ui.html
+
+

@@ -1,4 +1,5 @@
 package com.ventas.key.mis.productos.entity;
+import com.ventas.key.mis.productos.models.ImagenDTO;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -25,4 +26,12 @@ public class Imagen  extends BaseId{
 
     @OneToMany(mappedBy = "imagen", cascade = CascadeType.MERGE, orphanRemoval = true)
     private List<ProductoImagen> listProductoImanen;
+
+    public Imagen(byte[] base64, String extension, String nombreImagen) {
+        this.base64 = base64;
+        this.extension = extension;
+        this.nombreImagen = nombreImagen;
+
+    }
+
 }
