@@ -35,7 +35,7 @@ public class ImageneController {
                 .body(imagen.getBase64());
     }
     @GetMapping("/{id}/detalle")
-    //@Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
+    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
     public ResponseEntity<PageableDto> getDetalle(@PathVariable Integer id,
                                                   @RequestParam int size,
                                                   @RequestParam int page) {
