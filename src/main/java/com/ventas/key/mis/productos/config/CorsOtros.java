@@ -16,7 +16,7 @@ public class CorsOtros {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:4200", "https://venta-bolsas-online.netlify.app"));
+        config.setAllowedOrigins(List.of("http://localhost:4200", "https://venta-bolsas-online.netlify.app","https://novedades-jade.com.mx/"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         config.setAllowCredentials(true);
