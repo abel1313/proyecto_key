@@ -1,4 +1,5 @@
 package com.ventas.key.mis.productos.entity;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.ventas.key.mis.productos.models.ImagenDTO;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -24,7 +25,7 @@ public class Imagen  extends BaseId{
     @Column(name = "nombre_imagen")
     private String nombreImagen;
 
-    @OneToMany(mappedBy = "imagen", cascade = CascadeType.MERGE, orphanRemoval = true)
+    @OneToMany(mappedBy = "imagen", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductoImagen> listProductoImanen;
 
     public Imagen(byte[] base64, String extension, String nombreImagen) {

@@ -40,7 +40,7 @@ public class Producto  extends BaseId{
 
 
 
-    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL)
     private List<ProductoImagen> productosRelacionados;
 
 

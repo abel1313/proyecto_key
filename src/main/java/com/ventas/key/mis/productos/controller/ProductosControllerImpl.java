@@ -1,7 +1,9 @@
 package com.ventas.key.mis.productos.controller;
 
 import java.util.List;
+import java.util.Optional;
 
+import com.ventas.key.mis.productos.models.ProductoResumen;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -46,4 +48,9 @@ public class ProductosControllerImpl {
     public ResponseEntity<Producto> update(@RequestBody ProductoDetalle producto) throws Exception{
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );
     }
+    @GetMapping("findById/{id}")
+    public ResponseEntity<Optional<ProductoResumen>> update(@PathVariable int id) throws Exception{
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getResumen(id) );
+    }
+
 }

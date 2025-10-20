@@ -139,6 +139,7 @@ public class ProductosServiceImpl extends
                     dto.setMarca(p.getMarca());
                     dto.setContenido(p.getContenido());
                     dto.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
+                    dto.setIdProducto(p.getId());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -234,6 +235,9 @@ public class ProductosServiceImpl extends
         throw new Exception("No se guardo el producto ");
     }
 
+    public Optional<ProductoResumen> getResumen(int id){
+        return Optional.of(this.iProductosRepository.findProductoConImagenes(id));
+    }
     private List<ProductoImagen> mapperRelacionProductoImagen(List<Imagen> lstImg,
                                                               Producto prd){
         return lstImg.stream().map(mpa->{
@@ -249,8 +253,8 @@ public class ProductosServiceImpl extends
     private List<Imagen> mappImagenes( List<ImagenDTO> list){
         return list.stream().map(mpa->{
             Imagen imagen = new Imagen();
-            //byte[] decodedBytes = mpa.getBase64();
-            imagen.setBase64(null);
+            byte[] decodedBytes = mpa.getBase64();
+            imagen.setBase64(decodedBytes);
             imagen.setNombreImagen(mpa.getNombreImagen());
             imagen.setExtension(mpa.getExtension());
             return imagen;

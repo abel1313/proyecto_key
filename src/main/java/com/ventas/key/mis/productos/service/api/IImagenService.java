@@ -2,9 +2,7 @@ package com.ventas.key.mis.productos.service.api;
 
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.LotesProductos;
-import com.ventas.key.mis.productos.models.ICrud;
-import com.ventas.key.mis.productos.models.ImagenProductoResult;
-import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.*;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 
@@ -21,6 +19,6 @@ public interface IImagenService extends ICrud<
     List<Imagen> saveAll(List<Imagen> list);
     List<ImagenProductoResult> findIdsImagenesProducto(List<Integer> list);
 
-//    List<byte[]> findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
+    PageableDto findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
 
 }

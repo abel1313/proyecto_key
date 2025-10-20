@@ -1,6 +1,8 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Imagen;
+import com.ventas.key.mis.productos.models.ImagenProductoDto;
+import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -22,25 +24,25 @@ public class ImageneController {
     private IImagenService iImagenService;
 
 
-//    @GetMapping("/{id}")
-//    @Cacheable(value = "imagenes", key = "#id")
-//    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
-//        Imagen imagen = iImagenService.findById(id)
-//                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen no encontrada"));
-//        MediaType mediaType = getMediaType(imagen.getExtension());
-//        return ResponseEntity.ok()
-//                .contentType(mediaType)
-//                .body(imagen.getBase64());
-//    }
-//    @GetMapping("/{id}/detalle")
-//    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
-//    public ResponseEntity<List<byte[]>> getDetalle(@PathVariable Integer id,
-//                                                   @RequestParam int size,
-//                                                   @RequestParam int page) {
-//        List<byte[]> imagen = iImagenService.findImagenPrincipalPorProductoIds(id, page, size);
-//        return ResponseEntity.ok()
-//                .body(imagen);
-//    }
+    @GetMapping("/{id}")
+    @Cacheable(value = "imagenes", key = "#id")
+    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
+        Imagen imagen = iImagenService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen no encontrada"));
+        MediaType mediaType = getMediaType(imagen.getExtension());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .body(imagen.getBase64());
+    }
+    @GetMapping("/{id}/detalle")
+    //@Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
+    public ResponseEntity<PageableDto> getDetalle(@PathVariable Integer id,
+                                                  @RequestParam int size,
+                                                  @RequestParam int page) {
+        PageableDto imagen = iImagenService.findImagenPrincipalPorProductoIds(id, page, size);
+        return ResponseEntity.ok()
+                .body(imagen);
+    }
 
     private MediaType getMediaType(String extension) {
         return switch (extension.toLowerCase()) {
