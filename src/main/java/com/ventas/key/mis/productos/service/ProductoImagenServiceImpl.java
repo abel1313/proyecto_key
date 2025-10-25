@@ -3,7 +3,9 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.ProductoImagenDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
@@ -35,5 +37,14 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public List<ProductoImagen> findByProductoId(Integer productoId) {
         return this.iProductoImagenRepository.findByProductoId(productoId);
+    }
+
+    @Override
+    public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
+        ProductoImagenDto productoImagenDto = new ProductoImagenDto();
+        List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
+        productoImagenDto.setProductoId(productoId);
+        productoImagenDto.setListaImagenes(imagenDtoList);
+        return productoImagenDto;
     }
 }

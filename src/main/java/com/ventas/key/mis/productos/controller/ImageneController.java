@@ -3,7 +3,12 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.models.ImagenProductoDto;
 import com.ventas.key.mis.productos.models.PageableDto;
+import com.ventas.key.mis.productos.models.ProductoImagenDto;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
+import com.ventas.key.mis.productos.service.api.IProductoImagenService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -16,12 +21,13 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/imagen")
 public class ImageneController {
 
 
-    @Autowired
-    private IImagenService iImagenService;
+    private final IImagenService iImagenService;
+    private final IProductoImagenService iProductoImagenService;
 
 
     @GetMapping("/{id}")
@@ -43,7 +49,19 @@ public class ImageneController {
         return ResponseEntity.ok()
                 .body(imagen);
     }
+    @GetMapping("/{idProducto}/imagenes")
+    @Cacheable(value = "detalleImagen", key = "#idProducto")
+    public ResponseEntity<ProductoImagenDto> getImagenesPorProductoId(@PathVariable Integer idProducto){
+        return ResponseEntity.ok(this.iProductoImagenService.findByImagenesPorIdProducto(idProducto));
+    }
 
+    @DeleteMapping("/{idImagen}")
+    @CacheEvict(value = "detalleImagen", allEntries = true)
+    public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Integer idImagen) throws Exception {
+        ResponseGeneric<String> response = new ResponseGeneric<>("Se eleimino correctamente");
+        this.iImagenService.deleteById(idImagen);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
     private MediaType getMediaType(String extension) {
         return switch (extension.toLowerCase()) {
             case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
@@ -55,6 +73,11 @@ public class ImageneController {
     @GetMapping("/cache/imagen/limpiar")
     @CacheEvict(value = "imagenes", allEntries = true)
     public void limpiarTodaLaCacheDeImagenes() {
+
+    }
+
+    @CacheEvict(value = "detalleImagen", allEntries = true)
+    public void deleteByImg() {
 
     }
 

@@ -44,9 +44,7 @@ public class AuthController {
 
     @PostMapping("/registrar")
     public ResponseEntity<?> registrar(@RequestBody AuthRequest request) {
-         registroService.registrarUsuario(request.getUserName(), request.getPassword());
-
-        return ResponseEntity.ok("Se registro");
+        return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail()));
     }
 
     @GetMapping("/validar")

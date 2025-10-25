@@ -138,7 +138,7 @@ public class ProductosServiceImpl extends
                     dto.setStock(p.getStock());
                     dto.setMarca(p.getMarca());
                     dto.setContenido(p.getContenido());
-                    dto.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
+                    dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras(): null);
                     dto.setIdProducto(p.getId());
                     return dto;
                 })
@@ -157,14 +157,32 @@ public class ProductosServiceImpl extends
 
             CodigoBarra codigoBarras = new CodigoBarra();
             codigoBarras.setId(productoDetalle.getCodigoBarras().getId());
-            codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
+            codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras().isEmpty() ? null : productoDetalle.getCodigoBarras().getCodigoBarras());
             producto.setCodigoBarras(codigoBarras);
 
-            Producto prodExistenteNoOpt = this.iProductosRepository
-                    .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras())
-                    .orElse(new Producto());
+            Producto prodExistenteNoOpt = null;
+            if( producto.getCodigoBarras().getCodigoBarras() != null ){
+                prodExistenteNoOpt = this.iProductosRepository
+                        .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras())
+                        .orElse(null);
+            }
 
 
+
+            if(prodExistenteNoOpt == null) {
+                List<Imagen> lstImg;
+                if (!productoDetalle.getListImagenes().isEmpty()){
+                    producto.setCodigoBarras(null);
+                    lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                    Producto prodGuar = this.iProductosRepository.save(producto);
+                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodGuar);
+                    relacionProductoImagen(mapperRelacionProductoImagen);
+                }else{
+                    CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
+                    producto.setCodigoBarras(codBarr);
+                }
+                return this.iProductosRepository.save(producto);
+            }
 
 
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {

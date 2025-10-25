@@ -32,10 +32,10 @@ public class Producto  extends BaseId{
     private String marca;
     @Column(name = "contenido_neto")
     private String contenido;
-    
-    @ManyToOne( cascade = { CascadeType.MERGE})
-    @JoinColumn(name = "codigo_barras_id") //
-     @JsonManagedReference
+
+    @OneToOne(optional = true, cascade = CascadeType.MERGE)
+    @JoinColumn(name = "codigo_barras_id", unique = true)
+    @JsonManagedReference
     private CodigoBarra codigoBarras;
 
 

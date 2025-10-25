@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.ventas.key.mis.productos.models.ProductoResumen;

@@ -62,6 +62,11 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
         return pageableDto;
     }
 
+    @Override
+    public void deleteById(Integer id) {
+        this.iImagenRepository.deleteById(id);
+    }
+
 
     @Override
     public Optional<Imagen> findById(Integer id) {

@@ -28,8 +28,10 @@ public class Usuario  implements UserDetails {
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String password;
+
+    private String email;
 
     @Column(length = 50)
     private String rol = "USER";
@@ -48,4 +50,13 @@ public class Usuario  implements UserDetails {
     @Override public boolean isCredentialsNonExpired() { return true; }
     @Override public boolean isEnabled() { return enabled; }
 
+
+    @Override
+    public String toString() {
+        return "Usuario{" +
+                "username='" + username + '\'' +
+                ", password='" + password + '\'' +
+                ", email='" + email + '\'' +
+                '}';
+    }
 }
