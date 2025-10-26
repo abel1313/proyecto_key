@@ -1,10 +1,14 @@
 package com.ventas.key.mis.productos.service;
 
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.List;
 
 import java.util.Optional;
 
+import com.ventas.key.mis.productos.handleExeption.GenericException;
+import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +17,7 @@ import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 
+@Slf4j
 public abstract class CrudAbstractServiceImpl<
                                     Response,
                                     ListResponse extends List<Response>, 
@@ -25,6 +30,7 @@ public abstract class CrudAbstractServiceImpl<
                                     ResponseOptional, 
                                     TiopoDato,
                                     Paginacion> {
+    private static final int CODIGO_UNICO_SQL = 1062;
     protected final BaseRepository<Response,TiopoDato> repoGenerico;
     protected final ErrorGenerico error;
     public CrudAbstractServiceImpl(
@@ -62,10 +68,10 @@ public abstract class CrudAbstractServiceImpl<
     public Response save(Response req) throws Exception {
     try {
         return (Response) this.repoGenerico.save(req);
-    } catch (Exception e) {
-        error.error(e);
-    }
-    return null;
+        } catch (Exception e) {
+            error.error(e);
+            throw typeError(e);
+        }
     }
 
     @Override
@@ -96,5 +102,33 @@ public abstract class CrudAbstractServiceImpl<
         pginaDto.setT(dataPaginacion.getContent() );
 
         return (Paginacion) pginaDto;
+    }
+
+    @Override
+    public Response update(TiopoDato tipoDato, Response req) throws Exception {
+        ResponseOptional responseOptional;
+        Response response = null;
+        try{
+            responseOptional = findById(tipoDato);
+            if(responseOptional.isPresent()){
+                response = save(req);
+            }
+        }catch(Exception e){
+            error.error(e);
+            throw new Exception(e.getMessage());
+        }
+        return response;
+    }
+
+    private GenericException typeError(Exception ex){
+        Throwable causa = ex.getCause();
+        if (causa instanceof ConstraintViolationException sqlEx) {
+            int codigoSql = sqlEx.getErrorCode(); // ← aquí está el código del motor
+            String estadoSql = sqlEx.getSQLState(); // ← también puedes usar esto
+            log.info("info {}",codigoSql);
+            throw new GenericException(codigoSql,"El codigo postal ya existe, ingrese uno diferente");
+        }
+
+        throw new GenericException(500, ex.getMessage());
     }
 }

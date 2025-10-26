@@ -12,6 +12,7 @@ public interface ICrud<
                 > {
 
     Response save(Response req) throws Exception;
+    Response update(TiopoDato tipoDato,Response req) throws Exception;
     ResponseOptional findById(TiopoDato tipo) throws Exception;
     ListResponse findAll(int pagina, int size) throws Exception;
     Response delete(TiopoDato tipo) throws Exception;

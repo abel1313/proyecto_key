@@ -32,6 +32,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers( "/ventas/**","/rifa/**","/gastos/**","/gfanadorRifa/**","/configurarRifa/**").hasRole("ADMIN")
+                        .requestMatchers( HttpMethod.POST,"clientes/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -2,8 +2,10 @@ package com.ventas.key.mis.productos.entity;
 
 
 import java.sql.Date;
+import java.time.LocalDate;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -37,8 +39,8 @@ public class Cliente extends BaseId{
       @NotNull( message = "El apeido materno es requerido")
       @Column(name = "apeido_materno")
       private String apeidoMaterno;
-      @Column(name = "fecha_Nacimiento")
-      private Date fechaNacimiento;
+      @Column(name = "fecha_nacimiento")
+      private LocalDate fechaNacimiento;
 
       private String sexo;
 
@@ -48,7 +50,8 @@ public class Cliente extends BaseId{
       @Column(name = "numero_telefonico")
       private String numeroTelefonico;
 
-      @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
+      @OneToMany(mappedBy = "cliente", cascade = CascadeType.PERSIST, orphanRemoval = true)
+      @JsonManagedReference
       private Set<Direccion> listDirecciones;
 
 

@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -17,7 +18,7 @@ public class Direccion extends BaseId{
     private String calle;
     private String colonia;
 
-    @Column(name = "codigo_postal", unique = true)
+    @Column(name = "codigo_postal")
     private int codigoPostal;
 
     private String municipio;
@@ -25,7 +26,8 @@ public class Direccion extends BaseId{
     private String referencias;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "producto_id", nullable = false)
+    @JoinColumn(name = "cliente_id", nullable = false)
+    @JsonBackReference
     private Cliente cliente;
 }
 

@@ -4,15 +4,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import com.ventas.key.mis.productos.controller.api.IControllerGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -73,9 +70,9 @@ public abstract class AbstractController<
         }
     }
 
-    @GetMapping("/getOne")
+    @GetMapping("/getOne/{tipoDato}")
     @Override
-    public ResponseEntity<ResponseGeneric<OptionalResponse>> findBy(@RequestParam TipoDato tipoDato) {
+    public ResponseEntity<ResponseGeneric<OptionalResponse>> findBy(@PathVariable TipoDato tipoDato) {
         try {
             OptionalResponse listResponse  = this.sGenerico.findById(tipoDato);
             ResponseGeneric<OptionalResponse> respo = new ResponseGeneric<>(listResponse);
@@ -90,7 +87,7 @@ public abstract class AbstractController<
     public ResponseEntity<ResponseGeneric<Response>> save(@Validated @RequestBody Response requestG, BindingResult result) {
         try {
             if( result.hasErrors()){
-                String errores = result.getAllErrors().stream().map(m-> m.getDefaultMessage()).collect(Collectors.joining(", "));
+                String errores = result.getAllErrors().stream().map(DefaultMessageSourceResolvable::getDefaultMessage).collect(Collectors.joining(", "));
                 ResponseGeneric<Response> erroResponse = new ResponseGeneric<>((Response) null);
                 erroResponse.setMensaje(errores);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
@@ -103,8 +100,23 @@ public abstract class AbstractController<
         }
     }
 
+    @Override
+    @PostMapping("/update/{tipoDato}")
+    public ResponseEntity<ResponseGeneric<Response>> update(TipoDato tipoDato, Response requestG, BindingResult result) throws Exception {
+        try {
+            if( result.hasErrors()){
+                ResponseGeneric<Response> erroResponse = new ResponseGeneric<>((Response) null);
+                erroResponse.setMensaje(getErroresGeneric(result));
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
+            }
+            Response response = this.sGenerico.save(requestG);
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
+        } catch (Exception e) {
+            throw new Exception(e.getMessage());
+        }
+    }
 
-    
-
-
+    private String  getErroresGeneric(BindingResult result){
+        return result.getAllErrors().stream().map(DefaultMessageSourceResolvable::getDefaultMessage).collect(Collectors.joining(", "));
+    }
 }

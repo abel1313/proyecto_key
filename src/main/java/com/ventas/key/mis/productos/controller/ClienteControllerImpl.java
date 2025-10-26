@@ -1,8 +1,15 @@
 package com.ventas.key.mis.productos.controller;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import com.ventas.key.mis.productos.entity.Direccion;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,4 +34,32 @@ public class ClienteControllerImpl extends AbstractController<
         super(sGenerico);
     }
 
+    @Override
+    public ResponseEntity<ResponseGeneric<Cliente>> save(Cliente requestG, BindingResult result) {
+        Set<Direccion> setDirecciones = requestG.getListDirecciones().stream().map(mpa->{
+            Direccion direccion = new Direccion();
+            direccion.setCalle(mpa.getCalle());
+            direccion.setColonia(mpa.getColonia());
+            direccion.setMunicipio(mpa.getMunicipio());
+            direccion.setReferencias(mpa.getReferencias());
+            direccion.setCodigoPostal(mpa.getCodigoPostal());
+            direccion.setCliente(requestG);
+            return direccion;
+        }).collect(Collectors.toSet());
+        requestG.setListDirecciones(setDirecciones);
+        return super.save(requestG, result);
+    }
+
+    private static Cliente getCliente(Cliente requestG) {
+        Cliente cliente = new Cliente();
+        cliente.setApeidoMaterno(requestG.getApeidoMaterno());
+        cliente.setApeidoPaterno(requestG.getApeidoPaterno());
+        cliente.setSexo(requestG.getSexo());
+        cliente.setCorreoElectronico(requestG.getCorreoElectronico());
+        cliente.setFechaNacimiento(requestG.getFechaNacimiento());
+        cliente.setNumeroTelefonico(requestG.getNumeroTelefonico());
+        cliente.setSegundoNombre(requestG.getSegundoNombre() );
+        cliente.setNombrePersona(requestG.getSegundoNombre());
+        return cliente;
+    }
 }
