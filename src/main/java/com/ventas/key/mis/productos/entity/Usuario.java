@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -38,6 +39,10 @@ public class Usuario  implements UserDetails {
 
     @Column(nullable = false)
     private boolean enabled = true;
+
+    @OneToOne(mappedBy = "usuario")
+    @JsonManagedReference
+    private Cliente cliente;
 
     // Métodos requeridos por UserDetails
     @Override

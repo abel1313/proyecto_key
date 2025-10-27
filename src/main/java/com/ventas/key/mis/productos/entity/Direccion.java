@@ -25,6 +25,8 @@ public class Direccion extends BaseId{
 
     private String referencias;
 
+    private boolean predefinida;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "cliente_id", nullable = false)
     @JsonBackReference

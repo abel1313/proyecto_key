@@ -19,6 +19,6 @@ public class CodigoPostal {
     private String municipio;
     private String centro_reparto;
     private String codigo_postal;
-    private List<Colonia> colonias;
+    private List<String> colonias;
 
 }

@@ -5,6 +5,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotEmpty;
@@ -50,7 +51,12 @@ public class Cliente extends BaseId{
       @Column(name = "numero_telefonico")
       private String numeroTelefonico;
 
-      @OneToMany(mappedBy = "cliente", cascade = CascadeType.PERSIST, orphanRemoval = true)
+    @OneToOne
+    @JoinColumn(name = "usuario_id")
+    @JsonBackReference
+    private Usuario usuario;
+
+      @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
       @JsonManagedReference
       private Set<Direccion> listDirecciones;
 

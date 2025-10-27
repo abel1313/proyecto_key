@@ -21,13 +21,15 @@ public class JwtUtil {
 
     private final String SECRET = "miClaveSuperSecreta1234567890ABCDEF";
     private final Key SECRET_KEY = Keys.hmacShaKeyFor(SECRET.getBytes());
-    public String generateToken(UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList()));
+        claims.put("idUsuario", idUsuarioRegistrado);
         return Jwts.builder()
                 .setClaims(claims)
+                .setSubject(userDetails.getUsername())
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 horas

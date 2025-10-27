@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
@@ -27,13 +28,14 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest request) {
-        Authentication auth = null;
+        Authentication auth;
         String token = "";
         try {
             auth = authManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUserName(), request.getPassword())
             );
-            token = jwtUtil.generateToken((UserDetails) auth.getPrincipal());
+            Usuario usr = (Usuario)auth.getPrincipal();
+            token = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
         }catch (Exception e){
             System.out.println(e.getMessage());
         }

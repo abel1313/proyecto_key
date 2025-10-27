@@ -26,13 +26,13 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/productos/getProductos2/**", "/imagen/**", "/swagger-ui/**").permitAll()
+                        .requestMatchers("/auth/**", "/productos/getProductos2/**", "/imagen/**", "/swagger-ui/**","/dipomex/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers( "/ventas/**","/rifa/**","/gastos/**","/gfanadorRifa/**","/configurarRifa/**").hasRole("ADMIN")
-                        .requestMatchers( HttpMethod.POST,"clientes/**").hasRole("ADMIN")
+                        .requestMatchers( HttpMethod.POST,"clientes/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
