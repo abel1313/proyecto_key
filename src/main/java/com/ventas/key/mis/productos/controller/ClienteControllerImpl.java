@@ -9,10 +9,14 @@ import java.util.stream.Collectors;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.service.UsuarioDetailsService;
+import com.ventas.key.mis.productos.service.api.IClienteService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -34,9 +38,12 @@ public class ClienteControllerImpl extends AbstractController<
                                                             > {
 
     private final UsuarioDetailsService usuarioDetailsService;
-    public ClienteControllerImpl(ClienteServiceImpl sGenerico, UsuarioDetailsService usuarioDetailsService) {
+    private final IClienteService iClienteService;
+    public ClienteControllerImpl(ClienteServiceImpl sGenerico, UsuarioDetailsService usuarioDetailsService,
+                                 final IClienteService iClienteService) {
         super(sGenerico);
         this.usuarioDetailsService = usuarioDetailsService;
+        this.iClienteService = iClienteService;
     }
 
     @Override
@@ -62,6 +69,13 @@ public class ClienteControllerImpl extends AbstractController<
         requestG.setListDirecciones(setDirecciones);
         return super.save(requestG, result);
     }
+
+
+    @RequestMapping("buscarPorIdCliente/{idCliente}")
+    public ResponseEntity<ResponseGeneric<Optional<Cliente>>> findByIdCliente(@PathVariable int idCliente) {
+        return ResponseEntity.status(HttpStatus.OK).body(this.iClienteService.findClienteById(idCliente));
+    }
+
 
     private static Cliente getCliente(Cliente requestG) {
         Cliente cliente = new Cliente();

@@ -60,5 +60,28 @@ public class Cliente extends BaseId{
       @JsonManagedReference
       private Set<Direccion> listDirecciones;
 
+      public Cliente(
+            String nombrePersona,
+            String segundoNombre,
+            String apeidoPaterno,
+            String apeidoMaterno,
+            LocalDate fechaNacimiento,
+            String sexo,
+            String correoElectronico,
+            String numeroTelefonico,
+            Set<Direccion> listDirecciones){
+
+            this.nombrePersona = nombrePersona;
+            this.segundoNombre = segundoNombre;
+            this.apeidoPaterno = apeidoPaterno;
+            this.apeidoMaterno = apeidoMaterno;
+            this.fechaNacimiento = fechaNacimiento;
+            this.sexo = sexo;
+            this.correoElectronico = correoElectronico;
+            this.numeroTelefonico = numeroTelefonico;
+            this.listDirecciones = listDirecciones;
+
+      }
+
 
 }

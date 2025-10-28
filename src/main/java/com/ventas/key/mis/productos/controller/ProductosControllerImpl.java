@@ -36,7 +36,7 @@ public class ProductosControllerImpl {
     @GetMapping("buscarNombreOrCodigoBarra")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(@RequestParam int size, 
                                                                                 @RequestParam int page,
-                                                                                @RequestParam String nombre) throws Exception{
+                                                                                @RequestParam String nombre) {
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre) );
     }
 
