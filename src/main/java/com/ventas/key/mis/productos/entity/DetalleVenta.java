@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -9,6 +10,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "detalle_venta")
@@ -22,6 +25,7 @@ public class DetalleVenta extends BaseId{
 
     @ManyToOne
     @JoinColumn(name = "venta_id", nullable = false)
+    @JsonIgnore
     private Venta venta;
 
     @ManyToOne
@@ -37,5 +41,7 @@ public class DetalleVenta extends BaseId{
     @Column(name = "sub_total", nullable = false)
     private Double subTotal;
 
+    @Column(name = "fecha_venta")
+    private LocalDate fechaVenta;
 
 }

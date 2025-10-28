@@ -54,9 +54,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl< Venta,List<Venta>
     public Venta saveVentaDetalle(List<DetalleVentaDto> detall){
 
         
-        Double tot = detall.stream().mapToDouble(m-> m.getSubTotal()).sum();
+        Double tot = detall.stream().mapToDouble(DetalleVentaDto::getSubTotal).sum();
         Venta venta = new Venta();
-        venta.setUsuarioId(1);
+        //venta.setUsuarioId(1);
         venta.setEstadoVenta("null");
         venta.setFormaPago("null");
         venta.setTotalVenta(tot);
