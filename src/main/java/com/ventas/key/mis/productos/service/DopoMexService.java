@@ -19,8 +19,8 @@ public class DopoMexService implements IDopoMexService {
     private WebClient webClientCopaMex;
 
     public DopoMexService(WebClient.Builder builder) {
-        this.webClient = builder.baseUrl("https://api.tau.com.mx/dipomex/v1/").build(); // cambia la URL real
-        this.webClientCopaMex = builder.baseUrl("https://api.copomex.com/query/").build(); // cambia la URL real
+        this.webClient = builder.baseUrl("https://api.tau.com.mx/dipomex/v1/").build();
+        this.webClientCopaMex = builder.baseUrl("https://api.copomex.com/query/").build();
     }
 
     @Override

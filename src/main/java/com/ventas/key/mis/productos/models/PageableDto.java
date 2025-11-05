@@ -10,7 +10,7 @@ import java.util.List;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class PageableDto {
-    private List<ImagenProductoDto> list;
+public class PageableDto<T> {
+    private T list;
     private int totalPaginas;
 }

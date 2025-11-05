@@ -67,7 +67,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl< Venta,List<Venta>
             DetalleVenta det = new DetalleVenta();
             det.setCantidad(m.getCantidad());
             det.setPrecioUnitario(m.getPrecioVenta());
-            Producto pro = new Producto();
+            Producto pro;
             pro = this.iRepository.findByCodigoBarras_CodigoBarrasAndNombre(m.getCodigoBarras(),m.getNombre()).orElse(new Producto());
             det.setVenta(ve);
             det.setProducto(pro);

@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -16,6 +17,7 @@ public class DetallePedido extends  BaseId{
 
     @ManyToOne
     @JoinColumn(name = "pedido_id", nullable = false)
+    @JsonBackReference
     private Pedido pedido;
 
     @ManyToOne

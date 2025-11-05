@@ -1,16 +1,11 @@
 package com.ventas.key.mis.productos.controller;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
-import com.ventas.key.mis.productos.repository.IClienteRepository;
-import com.ventas.key.mis.productos.repository.IUsuarioRepository;
+import com.ventas.key.mis.productos.service.ClienteServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioDetailsService;
 import com.ventas.key.mis.productos.service.api.IClienteService;
 import org.springframework.http.HttpStatus;
@@ -20,11 +15,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ventas.key.mis.productos.entity.Cliente;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.service.ClienteServiceImpl;
-
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("clientes")

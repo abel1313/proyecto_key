@@ -32,7 +32,7 @@ public class ResponseGeneric<T> {
 
         public ResponseGeneric(T data, String mensaje){
         if( data == null){
-            this.data = data;
+            this.data = null;
             this.code = 404;
             this.mensaje = mensaje;
         }
@@ -44,6 +44,7 @@ public class ResponseGeneric<T> {
             this.code = 404;
             this.mensaje = "Ocurrio un error en la peticion";
         }
+        this.lista = lista;
     }
 
         public ResponseGeneric(List<T> lista, String mensaje){
