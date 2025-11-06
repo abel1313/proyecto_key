@@ -44,4 +44,14 @@ public class DetalleVenta extends BaseId{
     @Column(name = "fecha_venta")
     private LocalDate fechaVenta;
 
+    @Override
+    public String toString() {
+        return "DetalleVenta{" +
+                ", producto=" + producto +
+                ", cantidad=" + cantidad +
+                ", precioUnitario=" + precioUnitario +
+                ", subTotal=" + subTotal +
+                ", fechaVenta=" + fechaVenta +
+                '}';
+    }
 }

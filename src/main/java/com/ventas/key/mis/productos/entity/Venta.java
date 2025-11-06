@@ -45,8 +45,20 @@ public class Venta  extends BaseId{
     @JoinColumn(name = "pedido_id")
     private Pedido pedido;
 
-    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVenta> detalles;
 
-    
+    @Override
+    public String toString() {
+        return "Venta{" +
+                "totalVenta=" + totalVenta +
+                ", formaPago='" + formaPago + '\'' +
+                ", estadoVenta='" + estadoVenta + '\'' +
+                ", usuario=" + usuario +
+                ", fechaVenta=" + fechaVenta +
+                ", pagosMesesInteres=" + pagosMesesInteres +
+                ", pedido=" + pedido +
+                ", detalles=" + detalles +
+                '}';
+    }
 }

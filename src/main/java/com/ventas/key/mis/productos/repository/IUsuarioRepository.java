@@ -16,13 +16,13 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     boolean existsByUsername(String username);
     boolean existsByRol(String rol);
 
-//    @Query("""
-//    SELECT new com.ventas.key.mis.productos.models.UsuarioDto(
-//        u.id,u.username
-//        ) FROM Usuario u
-//    INNER JOIN  Cliente c
-//        ON c.id = u.id
-//    WHERE c.id = :id
-//    """)
-//    Optional<UsuarioDto> findUserByIdCliente(@Param("id") int id);
+    @Query("""
+    SELECT new com.ventas.key.mis.productos.models.UsuarioDto(
+        u.id,u.username
+        ) FROM Usuario u
+    INNER JOIN  Cliente c
+        ON c.usuario.id = u.id
+    WHERE c.id = :id
+    """)
+    Optional<UsuarioDto> findUserByIdCliente(@Param("id") int id);
 }

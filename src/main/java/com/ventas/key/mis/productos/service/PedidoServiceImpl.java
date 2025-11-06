@@ -5,27 +5,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
-import com.ventas.key.mis.productos.models.DetalleVentaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
-import com.ventas.key.mis.productos.repository.*;
+import com.ventas.key.mis.productos.repository.IClienteRepository;
+import com.ventas.key.mis.productos.repository.IPedidoRepository;
+import com.ventas.key.mis.productos.repository.IProductosRepository;
+import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import javax.swing.text.html.Option;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -86,36 +87,51 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         return this.iPedidoRepository.save(pedido);
     }
 
+    @Transactional
     @Override
     public PedidoGenerico updatePedido(int id, PedidoGenerico requestG) throws Exception {
         Optional<Pedido> optPedido = this.iPedidoRepository.findById(id);
 
         if(optPedido.isPresent()) {
+
+
             this.iPedidoRepository.save(optPedido.get());
             Pedido pedido = optPedido.get();
+            pedido.setEstadoPedido("Entregado");
+            Venta venta = new Venta();
+            venta.setEstadoVenta("Entregado");
+            venta.setFormaPago("efectivo");
+            venta.setFechaVenta(LocalDateTime.now());
+            venta.setPedido(pedido);
+            UsuarioDto usr = iUsuarioRepository.findUserByIdCliente(requestG.getCliente().getId())
+                    .orElseThrow(()-> new Exception("Ocurrio un error al buscar el usuario"));
+
+            Usuario u = this.iUsuarioRepository.findById((int) usr.getIdUsuario()).orElseThrow(()-> new Exception("Ocurrio un error al buscar el usuario"));
+
+            venta.setUsuario(u);
             List<DetalleVenta> det = requestG.getPedido().getDetalles().stream().map(sa->{
                 DetalleVenta deta = new DetalleVenta();
                 deta.setCantidad(sa.getCantidad());
                 deta.setPrecioUnitario(sa.getPrecio_unitario());
                 deta.setSubTotal(sa.getSub_total());
+                deta.setProducto(new Producto());
+                deta.setFechaVenta(LocalDate.now());
                 deta.getProducto().setId(sa.getProducto().intValue());
+                deta.setVenta(venta);
                 return deta;
             }).toList();
-            Venta venta = new Venta();
-            venta.setEstadoVenta("Entregado");
+
             venta.setTotalVenta(det.stream().mapToDouble(DetalleVenta::getSubTotal).sum());
-            venta.setFormaPago("efectivo");
-            venta.setFechaVenta(LocalDateTime.now());
-            venta.setPedido(pedido);
             venta.setDetalles(det);
-//            UsuarioDto usr = iUsuarioRepository.findUserByIdCliente(requestG.getCliente().getId())
-//                    .orElseThrow(()-> new Exception("Ocurrio un error al buscar el usuario"));
-//
-//            Usuario u = new Usuario();
-//            u.setId(usr.getIdUsuario());
-//            venta.setUsuario(u);
-//            venta.setDetalles(det);
-            this.vImpl.save(venta);
+
+            venta.setDetalles(det);
+            try{
+                this.vImpl.save(venta);
+                return new PedidoGenerico();
+            } catch (RuntimeException e) {
+                log.info("info {}",e);
+                throw new RuntimeException(e);
+            }
 
         }
         throw new GenericException(500,"El pedido no existe");
@@ -150,7 +166,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     public void deletePedidoById(int id) {
-        this.iPedidoRepository.deleteById(id);
+        Pedido pedido = iPedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+        pedido.setEstadoPedido("cancelado");
+        iPedidoRepository.save(pedido);
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {
