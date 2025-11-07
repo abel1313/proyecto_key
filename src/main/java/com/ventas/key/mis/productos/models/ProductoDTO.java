@@ -25,4 +25,5 @@ public class ProductoDTO {
     private String contenido;
     private String codigoBarras;
     private int idProducto;
+    private char habilitado;
 }

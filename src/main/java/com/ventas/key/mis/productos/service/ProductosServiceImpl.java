@@ -61,7 +61,7 @@ public class ProductosServiceImpl extends
     @Override
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = iProductosRepository.findByStockGreaterThan(0, pageable);
+        Page<Producto> productosPaginados = iProductosRepository.findByStockGreaterThanAndHabilitado(0, '1',pageable);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
 
         List<Integer> productoIds = productosPaginados.getContent()
@@ -90,7 +90,7 @@ public class ProductosServiceImpl extends
                     dto.setStock(p.getStock());
                     dto.setMarca(p.getMarca());
                     dto.setContenido(p.getContenido());
-                    dto.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
+                    dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras() : "");
                     dto.setIdProducto(p.getId());
                     return dto;
                 })
@@ -108,10 +108,10 @@ public class ProductosServiceImpl extends
     @Override
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = iProductosRepository.findByNombreContaining(nombre, pageable);
+        Page<Producto> productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
 
         if (productosPaginados.isEmpty()) {
-            productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContaining(nombre, pageable);
+            productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContainingAndHabilitado(nombre,'1', pageable);
         }
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
 
@@ -154,6 +154,7 @@ public class ProductosServiceImpl extends
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
+            producto.setHabilitado('1');
 
             CodigoBarra codigoBarras = new CodigoBarra();
             codigoBarras.setId(productoDetalle.getCodigoBarras().getId());

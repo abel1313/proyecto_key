@@ -33,6 +33,8 @@ public class Producto  extends BaseId{
     @Column(name = "contenido_neto")
     private String contenido;
 
+    private char habilitado;
+
     @OneToOne(optional = true, cascade = CascadeType.MERGE)
     @JoinColumn(name = "codigo_barras_id", unique = true)
     @JsonManagedReference
