@@ -28,6 +28,14 @@ public class ProductosServiceImpl extends
         CrudAbstractServiceImpl<Producto, List<Producto>, Optional<Producto>, Integer, PginaDto<List<Producto>>>
         implements IProductoService {
 
+
+    /// 1 validar que el codigo de barras exista, si no existe se agrega el nuevo codigo de barra en caso contrario se se obtiene el codigo de barras
+    /// buscar el producto si existe validar el codigo de barra que exxiste y que no se repita validar que el codigo de barras que viene es el mismo que el que trae en caso contrario actualizarlo
+    /// si el producto existe actualizar el stock el que viene mas el que existe
+    /// falta valida que si se equivoca eliminar el stock
+    ///
+    ///
+    ///
     private static final Logger log = LoggerFactory.getLogger(ProductosServiceImpl.class);
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
@@ -149,8 +157,15 @@ public class ProductosServiceImpl extends
     @Override
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
 
+        if(productoDetalle.getCodigoBarras().getCodigoBarras().equals("123")){
+            return new Producto();
+        }
+
         if (productoDetalle.getStock() == 0) {
             throw new Exception("El stock no debe de ser 0");
+        }
+        if (productoDetalle.getCodigoBarras() == null || productoDetalle.getCodigoBarras().getCodigoBarras() == null) {
+            throw new Exception("El codigo de barras es requerido");
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
