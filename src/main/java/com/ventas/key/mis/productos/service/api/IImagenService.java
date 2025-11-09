@@ -19,7 +19,7 @@ public interface IImagenService extends ICrud<
     List<Imagen> saveAll(List<Imagen> list);
     List<ImagenProductoResult> findIdsImagenesProducto(List<Integer> list);
 
-    PageableDto findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
+    PageableDto<List<ImagenProductoDto>> findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
     void deleteById(Integer id);
 
 }
