@@ -11,8 +11,6 @@ import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,9 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -41,7 +37,7 @@ public class ProductosServiceImpl extends
     ///
     ///
     ///
-    private static final Logger log = LoggerFactory.getLogger(ProductosServiceImpl.class);
+
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
@@ -76,18 +72,6 @@ public class ProductosServiceImpl extends
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findByStockGreaterThanAndHabilitado(0, '1',pageable);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
-
-        List<Integer> productoIds = productosPaginados.getContent()
-                .stream()
-                .map(Producto::getId)
-                .toList();
-        Map<Integer, Integer> imagenesPorProducto = iImagenService
-                .findIdsImagenesProducto(productoIds) // este método lo defines tú
-                .stream()
-                .collect(Collectors.toMap(
-                        ImagenProductoResult::getProductoId,
-                        ImagenProductoResult::getImagenId
-                ));
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
                 .map(this::mapperByRol)
@@ -145,11 +129,6 @@ public class ProductosServiceImpl extends
             productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContainingAndHabilitado(nombre,'1', pageable);
         }
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
-
-        List<ProductoDTO> listPtroductos = productosPaginados.getContent()
-                .stream()
-                .map(this::mapperByRol)
-                .toList();
 
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
@@ -268,7 +247,7 @@ public class ProductosServiceImpl extends
                             saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
                             saveLote.setStock(productoDetalle.getStock());
                             saveLote.setProducto(prodNoOpt);
-                        saveLote = this.iLoteProducto.save(saveLote);
+                         this.iLoteProducto.save(saveLote);
                         return producto;
                     }
 
@@ -309,24 +288,6 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    private static LotesProductos getLotesProductos(ProductoDetalle productoDetalle, Optional<LotesProductos> existeProducto, Producto prductoEdicion) {
-        LotesProductos saveLote = new LotesProductos();
-        int totStock = productoDetalle.getStock() + prductoEdicion.getStock();
-        if (existeProducto.isPresent()) {
-            LotesProductos optionalLot = existeProducto.get();
-            saveLote.setId(optionalLot.getId());
-            saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-            saveLote.setStock(totStock);
-            saveLote.setProducto(prductoEdicion);
-        } else {
-            saveLote.setProducto(prductoEdicion);
-            saveLote.setStock(totStock);
-            saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-        }
-        return saveLote;
-    }
-
-
     private CodigoBarra saveCodigoBarra(CodigoBarra codigoBarra) throws Exception {
         Optional<CodigoBarra> findCodigoBarra = this.iBarrasService.findByCodigoBarra(codigoBarra.getCodigoBarras());
         CodigoBarra newCodigoBarra;
@@ -355,29 +316,4 @@ public class ProductosServiceImpl extends
         return producto;
     }
 
-    private List<ImagenDTO> llenarListaImagenSoloUna(Integer id){
-        try {
-            List<ProductoImagen> listImg = this.iProductoImagenService.findByProductoId(id)
-                    .stream()
-                    .findFirst()
-                    .stream()
-                    .toList();
-
-            if(!listImg.isEmpty()){
-                return listImg.stream().map(mpaDto-> {
-                   // Imagen imagen = mpaDto.getImagen();
-                    Imagen imagen = mpaDto.getImagen();
-                    ImagenDTO img = new ImagenDTO();
-                    img.setBase64(null);
-                    img.setExtension(imagen.getExtension());
-                    img.setNombreImagen(imagen.getNombreImagen());
-                    return img;
-                }).toList();
-            }
-            return  new ArrayList<>();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-    // total 4337.0
 }

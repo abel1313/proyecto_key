@@ -1,7 +1,5 @@
 package com.ventas.key.mis.productos.repository;
 
-import com.ventas.key.mis.productos.entity.Cliente;
-import com.ventas.key.mis.productos.entity.Rifa;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;

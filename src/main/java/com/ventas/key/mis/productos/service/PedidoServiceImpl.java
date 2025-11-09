@@ -81,9 +81,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             return dta;
         }).toList();
         pedido.setDetalles(detallePedido);
-        
-       // log.info("info {}",new ObjectMapper().writeValueAsString(pedido));
-
         return this.iPedidoRepository.save(pedido);
     }
 
@@ -129,7 +126,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 this.vImpl.save(venta);
                 return new PedidoGenerico();
             } catch (RuntimeException e) {
-                log.info("info {}",e);
                 throw new RuntimeException(e);
             }
 
@@ -154,7 +150,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, int size, int pageSize) {
         Pageable pageable = PageRequest.of(pageSize, size);
-        Page<String> jsonList = null;
+        Page<String> jsonList;
         if(buscar.isEmpty()){
             jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, pageable);
         }else{

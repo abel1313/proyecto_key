@@ -50,7 +50,7 @@ public class PedidoController extends AbstractController<
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
             }
             Pedido response = iPedidoService.savePedido(requestG,result);
-            log.info("ingo data {} ",response);
+
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
             return null;
@@ -58,7 +58,7 @@ public class PedidoController extends AbstractController<
     }
 
     @PutMapping("/update/{id}")
-    public ResponseEntity<ResponseGeneric<PedidoGenerico>> updatePedido(@PathVariable int id, @Validated @RequestBody PedidoGenerico requestG, BindingResult result) {
+    public ResponseEntity<ResponseGeneric<PedidoGenerico>> updatePedido(@PathVariable int id, @Validated @RequestBody PedidoGenerico requestG) {
         try {
             PedidoGenerico response = iPedidoService.updatePedido(id, requestG);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));

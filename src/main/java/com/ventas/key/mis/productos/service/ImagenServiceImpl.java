@@ -1,8 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Imagen;
-import com.ventas.key.mis.productos.entity.LotesProductos;
-import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ImagenProductoDto;
 import com.ventas.key.mis.productos.models.ImagenProductoResult;
@@ -11,7 +9,6 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
-import com.ventas.key.mis.productos.service.api.ILoteProductoService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -50,12 +47,11 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    public PageableDto findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
+    public PageableDto<List<ImagenProductoDto>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
 
 
         Pageable pageable = PageRequest.of(page, size);
-        List<ImagenProductoDto> prodIm = this.iImagenRepository.findImagenPrincipalPorProductoIds55(id);
-        PageableDto pageableDto = new PageableDto();
+        PageableDto<List<ImagenProductoDto>> pageableDto = new PageableDto<>();
         Page<ImagenProductoDto> pageImgDto = this.iImagenRepository.findImagenPrincipalPorProductoIds(id, pageable);
         pageableDto.setList(pageImgDto.getContent());
         pageableDto.setTotalPaginas(pageImgDto.getTotalPages());
@@ -71,9 +67,6 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public Optional<Imagen> findById(Integer id) {
         Optional<ImagenProductoResult> imfRes = this.iImagenRepository.findImagenByImg(id);
-        if(imfRes.isPresent()) {
-            log.info("info {}",1);
-        }
         return this.iImagenRepository.findById(imfRes.isPresent() ? imfRes.get().getImagenId() : 0);
     }
 }

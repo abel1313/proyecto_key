@@ -65,7 +65,7 @@ public abstract class CrudAbstractServiceImpl<
     @Override
     public Response save(Response req) throws Exception {
     try {
-        return (Response) this.repoGenerico.save(req);
+        return this.repoGenerico.save(req);
         } catch (Exception e) {
             error.error(e);
             throw typeError(e);
@@ -74,23 +74,22 @@ public abstract class CrudAbstractServiceImpl<
 
     @Override
     @SuppressWarnings("unchecked")
-    public ListResponse findAll(int pagina, int size) throws Exception {
+    public ListResponse findAll(int pagina, int size) {
         try {
         
         Pageable pageable2 = PageRequest.of(pagina, size);
 
         Page<Response> productosPaginados = repoGenerico.findAll(pageable2);
-        ListResponse listaProductos = (ListResponse)productosPaginados.getContent(); 
-
-            return listaProductos;
+        return (ListResponse)productosPaginados.getContent();
         } catch (Exception e) {
             error.error(e);
         }
         return (ListResponse) new ArrayList<>();
     }
 
-        @Override
-    public Paginacion findAllNew(int pagina, int size) throws Exception{
+    @Override
+    @SuppressWarnings("unchecked")
+    public Paginacion findAllNew(int pagina, int size){
         PginaDto<List<Response>> pginaDto = new PginaDto<>();
         Pageable pageable = PageRequest.of(pagina - 1, size);
         Page<Response> dataPaginacion = this.repoGenerico.findAll(pageable);
@@ -122,7 +121,7 @@ public abstract class CrudAbstractServiceImpl<
         if (causa instanceof ConstraintViolationException sqlEx) {
             int codigoSql = sqlEx.getErrorCode(); // ← aquí está el código del motor
             String estadoSql = sqlEx.getSQLState(); // ← también puedes usar esto
-            log.info("info {}",codigoSql);
+
             throw new GenericException(codigoSql,"El codigo postal ya existe, ingrese uno diferente");
         }
 

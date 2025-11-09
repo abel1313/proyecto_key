@@ -90,7 +90,6 @@ public abstract class AbstractController<
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
             }
             Response response = this.sGenerico.save(requestG);
-            log.info("ingo data {} ",response);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
             return null;
