@@ -1,9 +1,10 @@
 package com.ventas.key.mis.productos.controller;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
+import com.ventas.key.mis.productos.controller.api.IControllerGenerico;
+import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.service.CrudAbstractServiceImpl;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,13 +12,9 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import com.ventas.key.mis.productos.controller.api.IControllerGenerico;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.models.ResponseGeneric;
-import com.ventas.key.mis.productos.service.CrudAbstractServiceImpl;
-
-import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 public abstract class AbstractController<
@@ -101,10 +98,10 @@ public abstract class AbstractController<
     }
 
     @Override
-    @PostMapping("/update/{tipoDato}")
-    public ResponseEntity<ResponseGeneric<Response>> update(TipoDato tipoDato, Response requestG, BindingResult result) throws Exception {
+    @PutMapping("/update/{tipoDato}")
+    public ResponseEntity<ResponseGeneric<Response>> update(@PathVariable TipoDato tipoDato, Response requestG, BindingResult result) throws Exception {
         try {
-            if( result.hasErrors()){
+            if(result.hasErrors()){
                 ResponseGeneric<Response> erroResponse = new ResponseGeneric<>((Response) null);
                 erroResponse.setMensaje(getErroresGeneric(result));
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);

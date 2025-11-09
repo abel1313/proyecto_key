@@ -1,12 +1,5 @@
 package com.ventas.key.mis.productos.models;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
-import com.ventas.key.mis.productos.entity.CodigoBarra;
-
-import com.ventas.key.mis.productos.entity.Imagen;
-import jakarta.persistence.Column;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,6 +24,8 @@ public class ProductoDetalle {
     private Integer stock;
     private String marca;
     private String contenido;
+    private int actualizarStock;
+    private int eliminarStock;
 
     private CodigoBarraDetalle codigoBarras;
     private List<ImagenDTO> listImagenes;

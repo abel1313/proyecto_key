@@ -19,7 +19,7 @@ import java.util.Collections;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Usuario  implements UserDetails {
+public class Usuario implements UserDetails {
 
 
     @Id

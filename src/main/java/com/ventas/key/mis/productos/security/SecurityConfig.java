@@ -32,7 +32,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.DELETE, "/pedidos/**").authenticated()
-                        .requestMatchers( "/ventas/**","/rifa/**","/gastos/**","/gfanadorRifa/**","/configurarRifa/**").hasRole("ADMIN")
+                        .requestMatchers( "/ventas/**","/rifa/**","/gastos/**","/gfanadorRifa/**","/configurarRifa/**", "/usuarios/**").hasRole("ADMIN")
                         .requestMatchers( HttpMethod.POST,"/clientes/**","/pedidos/**").permitAll()
                         .anyRequest().authenticated()
                 )

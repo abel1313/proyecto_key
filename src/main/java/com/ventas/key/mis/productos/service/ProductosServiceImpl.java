@@ -1,27 +1,32 @@
 package com.ventas.key.mis.productos.service;
 
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.entity.*;
+import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.mapper.ProductoAdmin;
+import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
+import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
+import com.ventas.key.mis.productos.repository.IProductosRepository;
+import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
-import lombok.RequiredArgsConstructor;
+import com.ventas.key.mis.productos.service.api.IProductoService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.ventas.key.mis.productos.errores.ErrorGenerico;
-import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
-import com.ventas.key.mis.productos.repository.IProductosRepository;
-import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
-import com.ventas.key.mis.productos.service.api.IProductoService;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductosServiceImpl extends
@@ -83,25 +88,9 @@ public class ProductosServiceImpl extends
                         ImagenProductoResult::getProductoId,
                         ImagenProductoResult::getImagenId
                 ));
-
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
-                .map(p -> {
-                    ProductoDTO dto = new ProductoDTO();
-                    dto.setNombre(p.getNombre());
-                    dto.setPrecioCosto(p.getPrecioCosto());
-                    dto.setPiezas(p.getPiezas());
-                    dto.setColor(p.getColor());
-                    dto.setPrecioVenta(p.getPrecioVenta());
-                    dto.setPrecioRebaja(p.getPrecioRebaja());
-                    dto.setDescripcion(p.getDescripcion());
-                    dto.setStock(p.getStock());
-                    dto.setMarca(p.getMarca());
-                    dto.setContenido(p.getContenido());
-                    dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras() : "");
-                    dto.setIdProducto(p.getId());
-                    return dto;
-                })
+                .map(this::mapperByRol)
                 .toList();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
@@ -110,7 +99,41 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
-
+    private ProductoDTO mapperByRol(Producto p){
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+        if(isAdmin){
+            ProductoAdmin productoAdmin = getProductoAdmin(p);
+            return new ProductoDTO(productoAdmin);
+        }else{
+            ProductoUser productoUser = new ProductoUser();
+            productoUser.setNombre(p.getNombre());
+            productoUser.setColor(p.getColor());
+            productoUser.setPrecioVenta(p.getPrecioVenta());
+            productoUser.setDescripcion(p.getDescripcion());
+            productoUser.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
+            productoUser.setIdProducto(p.getId());
+            return new ProductoDTO(productoUser);
+        }
+    }
+    private static ProductoAdmin getProductoAdmin(Producto p) {
+        ProductoAdmin productoAdmin = new ProductoAdmin();
+        productoAdmin.setNombre(p.getNombre());
+        productoAdmin.setColor(p.getColor());
+        productoAdmin.setPrecioVenta(p.getPrecioVenta());
+        productoAdmin.setDescripcion(p.getDescripcion());
+        productoAdmin.setCodigoBarras(p.getCodigoBarras() != null && p.getCodigoBarras().getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras(): "");
+        productoAdmin.setIdProducto(p.getId());
+        productoAdmin.setPrecioCosto(p.getPrecioCosto());
+        productoAdmin.setPiezas(p.getPiezas());
+        productoAdmin.setPrecioRebaja(p.getPrecioRebaja());
+        productoAdmin.setStock(p.getStock());
+        productoAdmin.setMarca(p.getMarca());
+        productoAdmin.setContenido(p.getContenido());
+        productoAdmin.setHabilitado(p.getHabilitado());
+        return productoAdmin;
+    }
 
 
     @Override
@@ -122,6 +145,11 @@ public class ProductosServiceImpl extends
             productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContainingAndHabilitado(nombre,'1', pageable);
         }
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
+
+        List<ProductoDTO> listPtroductos = productosPaginados.getContent()
+                .stream()
+                .map(this::mapperByRol)
+                .toList();
 
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
@@ -157,14 +185,11 @@ public class ProductosServiceImpl extends
     @Override
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
 
-        if(productoDetalle.getCodigoBarras().getCodigoBarras().equals("123")){
-            return new Producto();
-        }
 
         if (productoDetalle.getStock() == 0) {
             throw new Exception("El stock no debe de ser 0");
         }
-        if (productoDetalle.getCodigoBarras() == null || productoDetalle.getCodigoBarras().getCodigoBarras() == null) {
+        if (productoDetalle.getCodigoBarras() == null) {
             throw new Exception("El codigo de barras es requerido");
         }
         try {
@@ -182,9 +207,6 @@ public class ProductosServiceImpl extends
                         .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras())
                         .orElse(null);
             }
-
-
-
             if(prodExistenteNoOpt == null) {
                 List<Imagen> lstImg;
                 if (!productoDetalle.getListImagenes().isEmpty()){
@@ -204,37 +226,29 @@ public class ProductosServiceImpl extends
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
                 Producto prductoPtional = prodExistenteNoOpt;
                 Producto prductoEdicion = prductoPtional;
-                BigDecimal precioBase = new BigDecimal(prductoPtional.getPrecioVenta());
-                BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
-
-                List<Imagen> lstImg = List.of();
+                List<Imagen> lstImg;
                 if (!productoDetalle.getListImagenes().isEmpty()){
                     lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prductoPtional);
                     relacionProductoImagen(mapperRelacionProductoImagen);
                 }
 
-                if (precioBase.compareTo(precioReq) == 0) {
-
                     prductoPtional = producto;
                     producto.setId(prductoEdicion.getId());
                     prductoPtional.setCodigoBarras(prductoEdicion.getCodigoBarras());
-                    prductoPtional.setStock(productoDetalle.getStock() + prductoPtional.getStock());
+                    if(productoDetalle.getActualizarStock() > 0){
+                        prductoPtional.setStock(productoDetalle.getActualizarStock() + prductoPtional.getStock());
+                        productoDetalle.setEliminarStock(0);
+                    }
+                if(productoDetalle.getEliminarStock() > 0){
+                    prductoPtional.setStock(prductoPtional.getStock() -  productoDetalle.getEliminarStock());
+                    productoDetalle.setActualizarStock(0);
+                }
 
                     Producto prd = this.iProductosRepository.save(prductoPtional);
 
                     System.out.println(prd + "-----------------------------------------------");
                     return prd;
-                } else {
-                    Optional<LotesProductos> existeProducto = this.iLoteProducto
-                            .findByProducto_CodigoBarras_CodigoBarras(
-                                    productoDetalle.getCodigoBarras().getCodigoBarras());
-
-                    LotesProductos saveLote = getLotesProductos(productoDetalle, existeProducto, prductoEdicion);
-                    saveLote = this.iLoteProducto.save(saveLote);
-                    return producto;
-                }
-
             } else {
                 Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
                 if (prodNoOpt.getId() != null && prodNoOpt.getId() != 0) {

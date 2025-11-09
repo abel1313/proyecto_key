@@ -1,21 +1,19 @@
 package com.ventas.key.mis.productos.service;
 
-import java.sql.SQLIntegrityConstraintViolationException;
-import java.util.ArrayList;
-import java.util.List;
-
-import java.util.Optional;
-
+import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
+import com.ventas.key.mis.productos.models.ICrud;
+import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.repository.BaseRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import com.ventas.key.mis.productos.errores.ErrorGenerico;
-import com.ventas.key.mis.productos.models.ICrud;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.repository.BaseRepository;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 public abstract class CrudAbstractServiceImpl<
@@ -100,7 +98,6 @@ public abstract class CrudAbstractServiceImpl<
         pginaDto.setTotalPaginas(dataPaginacion.getTotalPages());
         pginaDto.setTotalRegistros((int) dataPaginacion.getTotalElements());
         pginaDto.setT(dataPaginacion.getContent() );
-
         return (Paginacion) pginaDto;
     }
 
