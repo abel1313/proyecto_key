@@ -10,13 +10,18 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 
-@Configuration
+/**
+ * 
+ * @Configuration
 public class CorsOtros {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:4200", "https://venta-bolsas-online.netlify.app","https://novedades-jade.com.mx/"));
+        config.setAllowedOrigins(List.of("http://localhost:4200", 
+        "https://venta-bolsas-online.netlify.app",
+        "https://novedades-jade.com.mx",
+        "https://71bfb71f-e8f3-403b-bb8d-1f490a8d38bf.cfargotunnel.com"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         config.setAllowCredentials(true);
@@ -31,3 +36,5 @@ public class CorsOtros {
         return new CorsFilter(corsConfigurationSource());
     }
 }
+    
+ */

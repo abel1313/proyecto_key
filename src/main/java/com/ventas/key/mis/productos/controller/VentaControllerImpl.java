@@ -13,8 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.models.DetalleVentaDto;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.models.ProductoDTO;
 import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.service.VentaServiceImpl;
 
