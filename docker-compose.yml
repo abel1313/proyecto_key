@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  backend:
+    build: .
+    container_name: backend
+    ports:
+      - "8081:8081"
+    networks:
+      - webnet
+
+  nginx:
+    image: nginx:stable
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./src/nginx/default.conf:/etc/nginx/conf.d/custom.conf:ro
+    networks:
+      - webnet
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    # Usa el token que te dio Cloudflare en el Dashboard
+    command: tunnel --no-autoupdate run --token eyJhIjoiODYyNWYzNWZkYzNkYjJmNTAyNDU0MDlkZWJjZTVjNDgiLCJ0IjoiMTNkZDIxZTgtZjk4Mi00OWVlLTkxODItNTE3N2E4MTI3YzZmIiwicyI6IlpqUTFOR1ZqTXprdE9EYzVPUzAwWmpObUxUaGxOelF0T1RVek5HRTVZVFF6T1dFNSJ9
+    container_name: cloudflared
+    networks:
+      - webnet
+
+networks:
+  webnet:
+    driver: bridge
