@@ -142,3 +142,49 @@ Si quieres, te preparo un paquete “lista de archivos” (docker-compose.yml y 
 
 
 
+
+
+docker-compose up -d	Levanta todos los servicios definidos en tu docker-compose.yml en segundo plano.	Cada vez que quieras iniciar tu proyecto.
+docker-compose down	Detiene y elimina los contenedores, redes y volúmenes creados por Compose.	Cuando quieras apagar todo limpio.
+docker-compose restart	Reinicia los servicios.	Si cambiaste configuración y quieres que se recargue.
+docker-compose logs -f <servicio>	Muestra los logs en tiempo real de un servicio (ej. backend, cloudflared).	Para ver qué está pasando en tu app o túnel.
+docker-compose ps	Lista los contenedores activos de tu proyecto.	Para confirmar que todo está corriendo.
+docker-compose build	Reconstruye las imágenes según tu Dockerfile.	Cuando cambias código o dependencias.
+🔹 Comandos de Docker (individuales)
+Comando	Qué hace	Ejemplo
+docker ps	Lista todos los contenedores activos.	Ver qué está corriendo.
+docker logs -f <nombre>	Muestra logs de un contenedor específico.	docker logs -f backend
+docker exec -it <nombre> bash	Entra dentro de un contenedor con una terminal interactiva.	docker exec -it backend bash
+docker stop <nombre>	Detiene un contenedor.	docker stop backend
+docker rm <nombre>	Elimina un contenedor detenido.	docker rm backend
+docker images	Lista las imágenes disponibles en tu máquina.	Ver qué imágenes tienes.
+docker rmi <imagen>	Elimina una imagen.	Limpiar espacio.
+
+
+
+
+Flujo típico de trabajo
+Levantar proyecto:
+
+bash
+docker-compose up -d
+Verificar contenedores activos:
+
+bash
+docker-compose ps
+Ver logs del backend:
+
+bash
+docker-compose logs -f backend
+Ver logs del túnel:
+
+bash
+docker-compose logs -f cloudflared
+Apagar todo:
+
+bash
+docker-compose down
+
+
+
+
