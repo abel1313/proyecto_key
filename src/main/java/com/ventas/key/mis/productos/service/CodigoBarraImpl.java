@@ -6,11 +6,9 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.ventas.key.mis.productos.entity.CodigoBarra;
-import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.ICodigoBarrasRepository;
-import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 
 @Service

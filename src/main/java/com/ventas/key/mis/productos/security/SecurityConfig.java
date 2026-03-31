@@ -10,6 +10,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,7 +31,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http        .cors(cors -> cors.configurationSource(corsConfigurationSource())) // habilita CORS con tu bean
-        .csrf(csrf -> csrf.disable()) // desactiva CSRF
+        .csrf(AbstractHttpConfigurer::disable) // desactiva CSRF
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**", "/productos/getProductos2/**", "/imagen/**", "/swagger-ui/**","/dipomex/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()

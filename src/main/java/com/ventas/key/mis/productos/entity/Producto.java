@@ -40,8 +40,6 @@ public class Producto  extends BaseId{
     @JsonManagedReference
     private CodigoBarra codigoBarras;
 
-
-
     @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL)
     private List<ProductoImagen> productosRelacionados;
 
