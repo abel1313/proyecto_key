@@ -1,12 +1,13 @@
 package com.ventas.key.mis.productos.filter;
 
 import com.ventas.key.mis.productos.jwt.JwtUtil;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,13 +19,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    
+    private final JwtUtil jwtUtil;
+    private final UserDetailsService userDetailsService;
 
-    @Autowired
-    private UserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -54,6 +55,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
+
+                            try {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                } catch (Exception e) {
+                    SecurityContextHolder.clearContext();
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token inválido");
+                    return;
+                }
+
         }
 
         filterChain.doFilter(request, response);

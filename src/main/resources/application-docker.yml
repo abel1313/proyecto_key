@@ -22,12 +22,9 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:mysql://167.88.164.132:3306/dummy_pruebas
-#    url: ${SPRING_DATASOURCE_URL}
-#    username: ${SPRING_DATASOURCE_USERNAME}
-    username: trece
-#    password: ${SPRING_DATASOURCE_PASSWORD}
-    password: Luvianos*13
+    url: jdbc:mysql://${db-host}:3306/${db-name}
+    username: ${db-username}
+    password: ${db-password}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: false
@@ -53,9 +50,9 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASS}
+    url: jdbc:mysql://${db-host}:3306/${db-name}
+    username: ${db-username}
+    password: ${db-password}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: false
@@ -66,7 +63,7 @@ logging:
 
 
 clave-seguridad:
-  clave: miClaveSuperSeguraDe32Caracteres
+  clave: ${toke-jwt}
   
 #springdoc:
 #  swagger-ui:
