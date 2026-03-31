@@ -1,6 +1,4 @@
 spring:
-  profiles:
-    active: dev
   cache:
     type: simple
 
@@ -33,6 +31,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+
+clave-seguridad:
+  clave: ${toke-jwt}
 #logging:
 #  level:
 #    org.hibernate.SQL: DEBUG
