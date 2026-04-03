@@ -36,7 +36,7 @@ clave-seguridad:
   clave: ${toke-jwt}
 
 api:
-  imagenes: ${endpoint}/mis-productos
+  imagenes: ${ENDPOINT_IMAGENES}
 #logging:
 #  level:
 #    org.hibernate.SQL: DEBUG
