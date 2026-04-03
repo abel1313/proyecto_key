@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
@@ -15,8 +16,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Usuario>, Optional<Usuario>, Integer, PginaDto<List<Usuario>>>
@@ -38,9 +41,29 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Pageable pageable = PageRequest.of(pagina - 1, size);
         Page<UserDto> dataPaginacion;
         if(buscar.isEmpty()){
-            dataPaginacion = this.usuarioRepository.findAllPage(pageable);
+            dataPaginacion = this.usuarioRepository.findAll(pageable)
+                    .map(u -> {
+                        UserDto  usuarioDto = new UserDto();
+                        usuarioDto.setId(u.getId());
+                        usuarioDto.setUsername(u.getUsername());
+                        usuarioDto.setEmail(u.getEmail());
+                        Set<String> rol = new HashSet<>();
+                        rol.add(u.getRoles().getNombreRol());
+                        usuarioDto.setRol(rol);
+                        return usuarioDto;
+                    });
         }else{
-            dataPaginacion = this.usuarioRepository.findAllPage(pageable, buscar);
+            dataPaginacion = this.usuarioRepository.findAllPage(buscar, pageable)
+                    .map(u -> {
+                        UserDto  usuarioDto = new UserDto();
+                        usuarioDto.setId(u.getId());
+                        usuarioDto.setUsername(u.getUsername());
+                        usuarioDto.setEmail(u.getEmail());
+                        Set<String> rol = new HashSet<>();
+                        rol.add(u.getRoles().getNombreRol());
+                        usuarioDto.setRol(rol);
+                        return usuarioDto;
+                    });
         }
         pginaDto.setPagina(pagina);
         pginaDto.setTotalPaginas(dataPaginacion.getTotalPages());
@@ -54,7 +77,10 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Usuario existe = this.usuarioRepository.findById(tipoDato).orElseThrow(()-> new GenericException(404, "Ocurrio un erro al restablecer la contrasena"));
         existe.setPassword(passwordEncoder.encode(usuarioDto.getPassword()));
         existe.setEmail(usuarioDto.getEmail());
-        existe.setRol(usuarioDto.getRol().toUpperCase());
+        Roles roles = new Roles();
+        Set<Roles> rolesSet = new HashSet<>();
+        rolesSet.add(roles);
+        existe.setRoles(roles);
         existe.setUsername(usuarioDto.getUsername());
         existe.setEnabled(usuarioDto.isEnabled());
         this.usuarioRepository.save(existe);

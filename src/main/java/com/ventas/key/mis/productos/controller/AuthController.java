@@ -45,7 +45,7 @@ public class AuthController {
 
 
     @PostMapping("/registrar")
-    public ResponseEntity<?> registrar(@RequestBody AuthRequest request) {
+    public ResponseEntity<?> registrar(@RequestBody AuthRequest request) throws Exception {
         return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail()));
     }
 

@@ -4,10 +4,9 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +18,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class JwtUtil {
 
     @Value("${clave-seguridad.clave}")
@@ -38,7 +38,10 @@ public class JwtUtil {
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
+                .map(mpa-> {
+                    log.info("info {}",mpa);
+                    return mpa.getAuthority();
+                })
                 .collect(Collectors.toList()));
         claims.put("idUsuario", idUsuarioRegistrado);
         return Jwts.builder()

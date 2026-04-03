@@ -181,7 +181,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         )
       ) AS pedido_json
     FROM pedidos p
-    INNER JOIN detalle_pedido dp ON p.id = dp.pedido_id
+    INNER JOIN detalle_pedidos dp ON p.id = dp.pedido_id
     INNER JOIN clientes c ON c.id = p.cliente_id
         INNER JOIN producto pro
         on pro.id = dp.producto_id\s

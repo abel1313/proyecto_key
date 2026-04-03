@@ -1,7 +1,6 @@
 package com.ventas.key.mis.productos.repository;
 
 import com.ventas.key.mis.productos.entity.Usuario;
-import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +14,7 @@ import java.util.Optional;
 public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     Optional<Usuario> findByUsername(String username);
     boolean existsByUsername(String username);
-    boolean existsByRol(String rol);
+
 
     @Query("""
     SELECT new com.ventas.key.mis.productos.models.UsuarioDto(
@@ -28,27 +27,13 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     Optional<UsuarioDto> findUserByIdCliente(@Param("id") int id);
 
 
-    @Query("""
-    SELECT new com.ventas.key.mis.productos.mapper.UserDto(
-        u.id,
-        u.username,
-        u.email,
-        u.rol,
-        u.enabled
-        ) FROM Usuario u
-    """)
-    Page<UserDto> findAllPage(Pageable pageable);
 
     @Query("""
-    SELECT new com.ventas.key.mis.productos.mapper.UserDto(
-        u.id,
-        u.username,
-        u.email,
-        u.rol,
-        u.enabled
-        ) FROM Usuario u
-            where u.username LIKE CONCAT('%', :buscar, '%')
-    """)
-    Page<UserDto> findAllPage(Pageable pageable, @Param("buscar") String buscar);
+    SELECT u
+    FROM Usuario u
+    WHERE u.username LIKE CONCAT('%', :buscar, '%')
+""")
+    Page<Usuario> findAllPage(@Param("buscar") String buscar, Pageable pageable);
+
 
 }

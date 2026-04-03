@@ -1,13 +1,18 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.repository.IRolRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class RegistroService {
@@ -15,9 +20,13 @@ public class RegistroService {
     private IUsuarioRepository usuarioRepository;
 
     @Autowired
+    private IRolRepository rolRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
-    public Usuario registrarUsuario(String username, String rawPassword, String email) {
+    @Transactional
+    public Usuario registrarUsuario(String username, String rawPassword, String email) throws Exception {
         // Verificar si el username ya existe
         if (usuarioRepository.existsByUsername(username)) {
             throw new RuntimeException("El nombre de usuario ya está en uso");
@@ -29,10 +38,25 @@ public class RegistroService {
         nuevo.setPassword(passwordEncoder.encode(rawPassword));
         nuevo.setEmail(email);
         nuevo.setEnabled(true);
-
+        Roles rolAdmin = new Roles();
+        rolAdmin.setNombreRol("ROLE_USUARIO");
         // Asignar rol: solo el primer usuario será ADMIN
-        boolean yaExisteAdmin = usuarioRepository.existsByRol("ADMIN");
-        nuevo.setRol(yaExisteAdmin ? "USER" : "ADMIN");
+        Optional<Roles> yaExisteAdmin = rolRepository.findByNombreRol("ROLE_ADMIN");
+        Roles rol = new Roles();
+        Set<Roles> roles = new HashSet<>();
+        rol.setNombreRol("ROLE_USUARIO");
+        if(yaExisteAdmin.isEmpty()){
+            rol.setNombreRol("ROLE_ADMIN");
+            yaExisteAdmin = Optional.of(rolRepository.save(rol));
+        }else{
+            yaExisteAdmin = rolRepository.findByNombreRol(rol.getNombreRol());
+            if(yaExisteAdmin.isEmpty()){
+                yaExisteAdmin = Optional.of(rolRepository.save(rol));
+            }
+        }
+        roles.add(yaExisteAdmin.orElseThrow(()-> new Exception("Ocurrio un error ")));
+        nuevo.setRoles(rol);
+
 
         // Guardar usuario y capturar errores
         try {

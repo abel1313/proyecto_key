@@ -1,15 +1,14 @@
 package com.ventas.key.mis.productos.repository;
 
-import java.util.Optional;
-
+import com.ventas.key.mis.productos.entity.Producto;
+import com.ventas.key.mis.productos.models.ProductoResumen;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.models.ProductoResumen;
+import java.util.Optional;
 
 @Repository
 public interface IProductosRepository extends BaseRepository<Producto,Integer>{
@@ -17,7 +16,7 @@ public interface IProductosRepository extends BaseRepository<Producto,Integer>{
     Page<Producto> findByCodigoBarras_CodigoBarrasContainingAndHabilitado(String codigoBarras, char habilitadot, Pageable pageable); // 🔍 Busca por código de barras
     Optional<Producto> findByCodigoBarras_CodigoBarrasAndNombre(String codigoBarras, String nombre); // 🔍 Busca por código de barras
     Optional<Producto> findByCodigoBarras_CodigoBarras(String codigoBarras); // 🔍 Busca por código de barras
-    Page<Producto> findByStockGreaterThanAndHabilitado(int stock, char habilitadot, Pageable pageable);
+    Page<Producto> findDistinctByStockGreaterThanAndHabilitado(int stock, char habilitadot, Pageable pageable);
 
 
     @Query("""

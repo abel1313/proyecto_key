@@ -2,6 +2,10 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
@@ -11,9 +15,13 @@ import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
+import lombok.SneakyThrows;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -45,12 +53,20 @@ public class ProductosServiceImpl extends
     private final IImagenService iImagenService;
     private final IProductoImagenService iProductoImagenService;
 
+    private final ImageneClienteAWS imageneClienteAWS;
+    private final ImagenProductoClienteAWS imagenProductoClienteAWS;
+
+    @Value("${api.imagenes}")
+    private String endPontImagenes;
+
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
             final IImagenService iImagenService,
-            final IProductoImagenService iProductoImagenService) {
+            final IProductoImagenService iProductoImagenService,
+                                final ImageneClienteAWS imageneClienteAWS,
+                                final ImagenProductoClienteAWS imagenProductoClienteAWS) {
         super(iProductosRepository, error);
         this.iProductosRepository = iProductosRepository;
         this.error = error;
@@ -58,6 +74,8 @@ public class ProductosServiceImpl extends
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
         this.iProductoImagenService = iProductoImagenService;
+        this.imageneClienteAWS = imageneClienteAWS;
+        this.imagenProductoClienteAWS = imagenProductoClienteAWS;
         // TODO Auto-generated constructor stub
     }
 
@@ -67,10 +85,11 @@ public class ProductosServiceImpl extends
         return null;
     }
 
+    @SneakyThrows
     @Override
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = iProductosRepository.findByStockGreaterThanAndHabilitado(0, '1',pageable);
+        Page<Producto> productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
@@ -83,12 +102,20 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
-    private ProductoDTO mapperByRol(Producto p){
+    private ProductoDTO mapperByRol(Producto p) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img = null;
+        try {
+            img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
         if(isAdmin){
             ProductoAdmin productoAdmin = getProductoAdmin(p);
+            productoAdmin.setImagen(img);
             return new ProductoDTO(productoAdmin);
         }else{
             ProductoUser productoUser = new ProductoUser();
@@ -98,10 +125,11 @@ public class ProductosServiceImpl extends
             productoUser.setDescripcion(p.getDescripcion());
             productoUser.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
             productoUser.setIdProducto(p.getId());
+            productoUser.setImagen(img);
             return new ProductoDTO(productoUser);
         }
     }
-    private static ProductoAdmin getProductoAdmin(Producto p) {
+    private ProductoAdmin getProductoAdmin(Producto p) {
         ProductoAdmin productoAdmin = new ProductoAdmin();
         productoAdmin.setNombre(p.getNombre());
         productoAdmin.setColor(p.getColor());
@@ -116,6 +144,7 @@ public class ProductosServiceImpl extends
         productoAdmin.setMarca(p.getMarca());
         productoAdmin.setContenido(p.getContenido());
         productoAdmin.setHabilitado(p.getHabilitado());
+
         return productoAdmin;
     }
 
@@ -155,16 +184,29 @@ public class ProductosServiceImpl extends
                     dto.setContenido(p.getContenido());
                     dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras(): null);
                     dto.setIdProducto(p.getId());
+                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img = null;
+                    try {
+                        img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                    dto.setImagen(img);
                     return dto;
                 })
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+
     @Override
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
+        Producto prod = guardarProducto(productoDetalle);
+        List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(mappImagenes(productoDetalle.getListImagenes()), prod);
+        relacionProductoImagen(mapperRelacionProductoImagen);
 
-
+        return prod;
+    }
+    @Transactional
+    private Producto guardarProducto(ProductoDetalle productoDetalle) throws Exception {
         if (productoDetalle.getStock() == 0) {
             throw new Exception("El stock no debe de ser 0");
         }
@@ -189,11 +231,12 @@ public class ProductosServiceImpl extends
             if(prodExistenteNoOpt == null) {
                 List<Imagen> lstImg;
                 if (!productoDetalle.getListImagenes().isEmpty()){
-                    producto.setCodigoBarras(null);
-                    lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                    Producto prodGuar = this.iProductosRepository.save(producto);
-                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodGuar);
-                    relacionProductoImagen(mapperRelacionProductoImagen);
+                    CodigoBarra codigoBarra = new CodigoBarra();
+                    codigoBarra.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
+                    CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
+                    producto.setCodigoBarras(codBarr);
+                    //lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                    return this.iProductosRepository.save(producto);
                 }else{
                     CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
                     producto.setCodigoBarras(codBarr);
@@ -212,22 +255,22 @@ public class ProductosServiceImpl extends
                     relacionProductoImagen(mapperRelacionProductoImagen);
                 }
 
-                    prductoPtional = producto;
-                    producto.setId(prductoEdicion.getId());
-                    prductoPtional.setCodigoBarras(prductoEdicion.getCodigoBarras());
-                    if(productoDetalle.getActualizarStock() > 0){
-                        prductoPtional.setStock(productoDetalle.getActualizarStock() + prductoPtional.getStock());
-                        productoDetalle.setEliminarStock(0);
-                    }
+                prductoPtional = producto;
+                producto.setId(prductoEdicion.getId());
+                prductoPtional.setCodigoBarras(prductoEdicion.getCodigoBarras());
+                if(productoDetalle.getActualizarStock() > 0){
+                    prductoPtional.setStock(productoDetalle.getActualizarStock() + prductoPtional.getStock());
+                    productoDetalle.setEliminarStock(0);
+                }
                 if(productoDetalle.getEliminarStock() > 0){
                     prductoPtional.setStock(prductoPtional.getStock() -  productoDetalle.getEliminarStock());
                     productoDetalle.setActualizarStock(0);
                 }
 
-                    Producto prd = this.iProductosRepository.save(prductoPtional);
+                Producto prd = this.iProductosRepository.save(prductoPtional);
 
-                    System.out.println(prd + "-----------------------------------------------");
-                    return prd;
+                System.out.println(prd + "-----------------------------------------------");
+                return prd;
             } else {
                 Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
                 if (prodNoOpt.getId() != null && prodNoOpt.getId() != 0) {
@@ -243,11 +286,11 @@ public class ProductosServiceImpl extends
                         System.out.println(prd + "-----------------------------------------------");
                         return prd;
                     } else {
-                            LotesProductos saveLote = new LotesProductos();
-                            saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-                            saveLote.setStock(productoDetalle.getStock());
-                            saveLote.setProducto(prodNoOpt);
-                         this.iLoteProducto.save(saveLote);
+                        LotesProductos saveLote = new LotesProductos();
+                        saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
+                        saveLote.setStock(productoDetalle.getStock());
+                        saveLote.setProducto(prodNoOpt);
+                        this.iLoteProducto.save(saveLote);
                         return producto;
                     }
 
@@ -261,7 +304,6 @@ public class ProductosServiceImpl extends
         }
         throw new Exception("No se guardo el producto ");
     }
-
     public Optional<ProductoResumen> getResumen(int id){
         return Optional.of(this.iProductosRepository.findProductoConImagenes(id));
     }
@@ -275,7 +317,40 @@ public class ProductosServiceImpl extends
         }).toList();
     }
     private void relacionProductoImagen(List<ProductoImagen>  productoImagens){
-        this.iProductoImagenService.saveAll(productoImagens);
+
+        MultipartBodyBuilder builder = new MultipartBodyBuilder();
+
+        for (ProductoImagen p : productoImagens) {
+           // byte[] imagenBytes = Base64.getDecoder().decode(p.getImagen().getBase64());
+
+            ByteArrayResource recurso = new ByteArrayResource(p.getImagen().getBase64()) {
+                @Override
+                public String getFilename() {
+                    return p.getImagen().getNombreImagen();
+                }
+            };
+
+            builder.part("files", recurso)
+                    .header("Content-Disposition",
+                            "form-data; name=files; filename=" + p.getImagen().getNombreImagen());
+        }
+
+        // Aquí ya no pasas MultipartFile[], sino el builder
+        List<ImagenDto> listImg = imageneClienteAWS.save(builder.build());
+        List<RequestProductoImagen> productoImagen = listImg.stream().map(datos->{
+            RequestProductoImagen prdoImg = new RequestProductoImagen();
+            try {
+                Optional<ProductoImagen> primer  = Optional.of(productoImagens.stream().findFirst()).orElseThrow();
+                primer.ifPresent(imagen -> prdoImg.setProductoId(imagen.getProducto().getId()));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+            prdoImg.setImagenId(datos.getId());
+            return prdoImg;
+        }).toList();
+        imagenProductoClienteAWS.saveAll(productoImagen);
+
     }
     private List<Imagen> mappImagenes( List<ImagenDTO> list){
         return list.stream().map(mpa->{

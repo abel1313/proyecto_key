@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.models;
 
 
+import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import lombok.AllArgsConstructor;
@@ -26,6 +27,7 @@ public class ProductoDTO {
     private String codigoBarras;
     private int idProducto;
     private char habilitado;
+    private Imagen imagen;
 
 
     public ProductoDTO(ProductoAdmin productoAdmin) {
@@ -43,6 +45,7 @@ public class ProductoDTO {
         this.codigoBarras = productoAdmin.getCodigoBarras();
         this.idProducto = productoAdmin.getIdProducto();
         this.habilitado = productoAdmin.getHabilitado();
+        this.imagen = productoAdmin.getImagen();
     }
 
     public ProductoDTO(ProductoUser productoUser) {
@@ -52,6 +55,7 @@ public class ProductoDTO {
         this.descripcion = productoUser.getDescripcion();
         this.codigoBarras = productoUser.getCodigoBarras();
         this.idProducto = productoUser.getIdProducto();
+        this.imagen =  productoUser.getImagen();
 
     }
 }

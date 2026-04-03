@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.mapper;
 
+import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,5 +18,6 @@ public class ProductoUser {
     private String descripcion;
     private String codigoBarras;
     private int idProducto;
+    private Imagen imagen;
 
 }
