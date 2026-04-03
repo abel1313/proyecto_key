@@ -1,6 +1,6 @@
 
 server:
-  port: 9091
+  port: 9010
   servlet:
     context-path: /mis-productos
 
@@ -11,9 +11,9 @@ spring:
     activate:
       on-profile: docker
   datasource:
-    url: jdbc:mysql://${db-host}:3306/${db-name}
-    username: ${db-username}
-    password: ${db-password}
+    url: jdbc:mysql://${SPRING_DATASOURCE_URL}:3306/${SPRING_DB_NAME}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: false
@@ -26,7 +26,7 @@ spring:
     type: simple
 
 clave-seguridad:
-  clave: ${token-jwt}
+  clave: ${TOKEN_JWT}
 
 api:
   imagenes: ${ENDPOINT_IMAGENES}

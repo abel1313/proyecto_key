@@ -36,6 +36,7 @@ public class ImageneClienteAWS implements ImagenPort {
     @PostConstruct
     public void init() {
         this.webClient = builder.baseUrl(endpointImg).build();
+        log.info(" endpoint imagenes ImageneClienteAWS {}", endpointImg);
     }
 
 

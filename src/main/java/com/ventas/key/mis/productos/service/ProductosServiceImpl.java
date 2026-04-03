@@ -16,7 +16,6 @@ import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 import lombok.SneakyThrows;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -55,9 +54,6 @@ public class ProductosServiceImpl extends
 
     private final ImageneClienteAWS imageneClienteAWS;
     private final ImagenProductoClienteAWS imagenProductoClienteAWS;
-
-    @Value("${api.imagenes}")
-    private String endPontImagenes;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
@@ -106,7 +102,7 @@ public class ProductosServiceImpl extends
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
-        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img = null;
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
         try {
             img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
         } catch (Exception e) {
@@ -184,7 +180,7 @@ public class ProductosServiceImpl extends
                     dto.setContenido(p.getContenido());
                     dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras(): null);
                     dto.setIdProducto(p.getId());
-                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img = null;
+                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
                     try {
                         img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
                     } catch (Exception e) {

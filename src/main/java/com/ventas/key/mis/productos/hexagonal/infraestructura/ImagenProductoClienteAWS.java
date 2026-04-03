@@ -37,6 +37,8 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     @PostConstruct
     public void init() {
         this.webClient = builder.baseUrl(endpointImg).build();
+        log.info(" endpoint imagenes ImagenProductoClienteAWS {}", endpointImg);
+
     }
 
     @Override
@@ -54,7 +56,6 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     @Override
     public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String jwtToken = authentication.getCredentials().toString();
         return webClient.post()
                 .uri("/producto-imagen/saveAll") // ajusta la ruta de tu endpoint
                 .contentType(MediaType.APPLICATION_JSON)
