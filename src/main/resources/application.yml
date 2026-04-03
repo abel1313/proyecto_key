@@ -5,7 +5,7 @@ spring:
     type: simple
 
 server:
-  port: 8083
+  port: 9091
   servlet:
     context-path: /mis-productos
 ---
