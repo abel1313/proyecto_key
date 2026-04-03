@@ -1,17 +1,8 @@
-spring:
-  cache:
-    type: simple
 
 server:
   port: 9091
   servlet:
     context-path: /mis-productos
----
-
-spring:
-  jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
-
 
 ---
 
@@ -31,9 +22,11 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+  cache:
+    type: simple
 
 clave-seguridad:
-  clave: ${toke-jwt}
+  clave: ${token-jwt}
 
 api:
   imagenes: ${ENDPOINT_IMAGENES}
@@ -42,37 +35,10 @@ api:
 #    org.hibernate.SQL: DEBUG
 #    org.hibernate.orm.jdbc.bind: TRACE
 
-logging:
-  level:
-    root: INFO
-    com.miempresa: DEBUG
+#logging:
+#  level:
+#    root: INFO
+#    com.miempresa: DEBUG
 
----
-
-spring:
-  config:
-    activate:
-      on-profile: prod
-  datasource:
-    url: jdbc:mysql://${db-host}:3306/${db-name}
-    username: ${db-username}
-    password: ${db-password}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    show-sql: false
-logging:
-  level:
-    org.hibernate.SQL: INFO
-    org.hibernate.orm.jdbc.bind: INFO
-
-
-clave-seguridad:
-  clave: ${toke-jwt}
-  
-#springdoc:
-#  swagger-ui:
-#    enabled: true
-#    url: /openapi.yml
-#    path: /swagger-ui.html
 
 
