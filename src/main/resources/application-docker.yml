@@ -18,7 +18,7 @@ spring:
 spring:
   config:
     activate:
-      on-profile: dev
+      on-profile: docker
   datasource:
     url: jdbc:mysql://${db-host}:3306/${db-name}
     username: ${db-username}
@@ -34,6 +34,9 @@ spring:
 
 clave-seguridad:
   clave: ${toke-jwt}
+
+api:
+  imagenes: ${endpoint}/mis-productos
 #logging:
 #  level:
 #    org.hibernate.SQL: DEBUG
