@@ -12,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface IImagenRepository extends BaseRepository<Imagen,Integer>{
+public interface IImagenRepository extends BaseRepository<Imagen,Long>{
 
     @Query("""
     SELECT new com.ventas.key.mis.productos.models.ImagenProductoResult(
@@ -66,14 +66,14 @@ public interface IImagenRepository extends BaseRepository<Imagen,Integer>{
             END)
         FROM ProductoImagen pi
         WHERE pi.producto.id = :id
-        """,
-            countQuery = """
-        SELECT COUNT(pi)
-        FROM ProductoImagen pi
-        WHERE pi.producto.id = :id
         """)
     Page<ImagenProductoDto> findImagenPrincipalPorProductoIds(@Param("id") Integer id, Pageable pageable);
-
+    @Query("""
+    SELECT pi
+    FROM ProductoImagen pi
+    WHERE pi.producto.id = :id
+    """)
+    Page<ProductoImagen> findImagenPrincipalPorProductoIds11111(@Param("id") Integer id, Pageable pageable);
 
 //    @Query("""
 //    SELECT pi.producto,pi.imagen

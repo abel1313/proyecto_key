@@ -26,9 +26,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -312,14 +318,18 @@ public class ProductosServiceImpl extends
             return p;
         }).toList();
     }
-    private void relacionProductoImagen(List<ProductoImagen>  productoImagens){
+
+    private static String RUTA = "D:\\Imagenes";
+    private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
 
         for (ProductoImagen p : productoImagens) {
-           // byte[] imagenBytes = Base64.getDecoder().decode(p.getImagen().getBase64());
 
-            ByteArrayResource recurso = new ByteArrayResource(p.getImagen().getBase64()) {
+                Path path = Paths.get(RUTA, p.getImagen().getBase64());
+                byte[] imagenBytes = Files.readAllBytes(path);
+
+            ByteArrayResource recurso = new ByteArrayResource(imagenBytes) {
                 @Override
                 public String getFilename() {
                     return p.getImagen().getNombreImagen();
@@ -348,11 +358,33 @@ public class ProductosServiceImpl extends
         imagenProductoClienteAWS.saveAll(productoImagen);
 
     }
+
+    String ruta = "D:\\imagenes";
+
     private List<Imagen> mappImagenes( List<ImagenDTO> list){
         return list.stream().map(mpa->{
             Imagen imagen = new Imagen();
             byte[] decodedBytes = mpa.getBase64();
-            imagen.setBase64(decodedBytes);
+            String urlImagen = UUID.randomUUID() + "_" + mpa.getNombreImagen();
+            Path path = Paths.get(ruta, urlImagen);
+            try {
+                File directorio = new File(ruta);
+                if (!directorio.exists()) {
+                    directorio.mkdirs();
+                }
+                Files.write(path, decodedBytes);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            Long idImagen = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+//            try {
+//                buscarArchivo(mpa.getNombreImagen());
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+            imagen.setId(idImagen);
+            imagen.setBase64(urlImagen);
             imagen.setNombreImagen(mpa.getNombreImagen());
             imagen.setExtension(mpa.getExtension());
             return imagen;
@@ -387,4 +419,8 @@ public class ProductosServiceImpl extends
         return producto;
     }
 
+    private byte[] buscarArchivo(String nombreImagen) throws IOException {
+        Path path = Paths.get(RUTA, nombreImagen);
+        return Files.readAllBytes(path);
+    }
 }

@@ -2,10 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
-import com.ventas.key.mis.productos.models.ImagenProductoDto;
-import com.ventas.key.mis.productos.models.ImagenProductoResult;
-import com.ventas.key.mis.productos.models.PageableDto;
-import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
@@ -15,6 +12,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,12 +25,12 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
         Imagen,
         List<Imagen>,
         Optional<Imagen>,
-        Integer,
+        Long,
         PginaDto<List<Imagen>>> implements IImagenService {
     private final IImagenRepository iImagenRepository;
 
 
-    public ImagenServiceImpl(BaseRepository<Imagen, Integer> repoGenerico, ErrorGenerico error,
+    public ImagenServiceImpl(BaseRepository<Imagen, Long> repoGenerico, ErrorGenerico error,
                              final IImagenRepository iImagenRepository) {
         super(repoGenerico, error);
         this.iImagenRepository = iImagenRepository;
@@ -45,28 +46,57 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     public List<ImagenProductoResult> findIdsImagenesProducto(List<Integer> list) {
         return this.iImagenRepository.findImagenPrincipalPorProductoIds(list);
     }
-
+    private static String RUTA = "D:\\Imagenes";
     @Override
-    public PageableDto<List<ImagenProductoDto>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
+    public PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
 
 
         Pageable pageable = PageRequest.of(page, size);
-        PageableDto<List<ImagenProductoDto>> pageableDto = new PageableDto<>();
-        Page<ImagenProductoDto> pageImgDto = this.iImagenRepository.findImagenPrincipalPorProductoIds(id, pageable);
+        PageableDto<List<ImagenProductoBase64>> pageableDto = new PageableDto<>();
+        Page<ImagenProductoBase64> pageImgDto = this.iImagenRepository.findImagenPrincipalPorProductoIds(id, pageable)
+                .map(mpa->{
+                    ImagenProductoBase64 imagenProductoBase64 = new ImagenProductoBase64();
+                    imagenProductoBase64.setIdProducto(mpa.getIdProducto());
+                    imagenProductoBase64.setIdImagen(mpa.getIdImagen());
+                    imagenProductoBase64.setName(mpa.getName());
+                    imagenProductoBase64.setPrice(mpa.getPrice());
+                    imagenProductoBase64.setInventoryStatus(mpa.getInventoryStatus());
+                    Optional<Imagen> imagenOpt = iImagenRepository.findById(mpa.getIdImagen());
+
+                    if (imagenOpt.isPresent()){
+                        Imagen imf = imagenOpt.get();
+                        Path path = Paths.get(RUTA, imf.getBase64());
+                        try {
+                            byte[] imagenBytes = Files.readAllBytes(path);
+                            imagenProductoBase64.setImage(imagenBytes);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    return imagenProductoBase64;
+                });
         pageableDto.setList(pageImgDto.getContent());
         pageableDto.setTotalPaginas(pageImgDto.getTotalPages());
         return pageableDto;
     }
 
     @Override
-    public void deleteById(Integer id) {
+    public void deleteById(Long id) {
         this.iImagenRepository.deleteById(id);
     }
 
-
     @Override
-    public Optional<Imagen> findById(Integer id) {
+    public com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByIdImg(Integer id) throws IOException {
         Optional<ImagenProductoResult> imfRes = this.iImagenRepository.findImagenByImg(id);
-        return this.iImagenRepository.findById(imfRes.isPresent() ? imfRes.get().getImagenId() : 0);
+        Optional<Imagen> img = this.iImagenRepository.findById(imfRes.isPresent() ? imfRes.get().getImagenId() : 0L);
+        if (img.isPresent()) {
+            Path path = Paths.get(RUTA, img.get().getBase64());
+            log.info("info {}",path);
+            com.ventas.key.mis.productos.hexagonal.dominio.Imagen devolverImagen = new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
+            devolverImagen.setImagen(Files.readAllBytes(path));
+            devolverImagen.setContentType(img.get().getExtension());
+            return devolverImagen;
+        }
+        throw new IOException("No se encontro el imagen");
     }
 }

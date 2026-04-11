@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.models.*;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,13 +14,17 @@ public interface IImagenService extends ICrud<
                                     Imagen,
                                     List<Imagen>,
                                     Optional<Imagen>,
-                                    Integer,
+                                    Long,
                                     PginaDto<List<Imagen>>> {
 
     List<Imagen> saveAll(List<Imagen> list);
     List<ImagenProductoResult> findIdsImagenesProducto(List<Integer> list);
 
-    PageableDto<List<ImagenProductoDto>> findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
-    void deleteById(Integer id);
+    PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
+    void deleteById(Long id);
+
+    com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByIdImg(Integer id) throws IOException;
+
+
 
 }

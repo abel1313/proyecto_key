@@ -9,12 +9,12 @@ import lombok.Setter;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class ImagenProductoDto {
+public class ImagenProductoBase64 {
     private Integer idProducto;
     private Long idImagen;
     private String name;
     private double price;
     private String extencion;
-    private String image;
+    private byte[] image;
     private String inventoryStatus;
 }

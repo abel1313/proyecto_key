@@ -10,15 +10,18 @@ import lombok.Setter;
 import java.util.List;
 
 @Entity
-@Table(name = "imagenes")
+@Table(name = "imagenes_copy")
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Imagen  extends BaseId{
-    @Lob
-    @Column(name = "base_64", columnDefinition = "BLOB")
-    private byte[] base64;
+public class Imagen{
+
+    @Id
+    private Long id;
+
+    @Column(name = "base_64")
+    private String base64;
 
     private String extension;
 
@@ -28,7 +31,7 @@ public class Imagen  extends BaseId{
     @OneToMany(mappedBy = "imagen", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductoImagen> listProductoImanen;
 
-    public Imagen(byte[] base64, String extension, String nombreImagen) {
+    public Imagen(String base64, String extension, String nombreImagen) {
         this.base64 = base64;
         this.extension = extension;
         this.nombreImagen = nombreImagen;

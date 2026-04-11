@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "producto_imagenes")
+@Table(name = "producto_imagen_copy")
 @Setter
 @Getter
 @AllArgsConstructor

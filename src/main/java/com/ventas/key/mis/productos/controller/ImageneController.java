@@ -33,12 +33,11 @@ public class ImageneController {
     @GetMapping("/{id}")
     @Cacheable(value = "imagenes", key = "#id")
     public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
-        Imagen imagen = iImagenService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagen no encontrada"));
-        MediaType mediaType = getMediaType(imagen.getExtension());
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen imagen = iImagenService.findByIdImg(id);
+        MediaType mediaType = getMediaType(imagen.getContentType());
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .body(imagen.getBase64());
+                .body(imagen.getImagen());
     }
     @GetMapping("/{id}/detalle")
     @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
@@ -57,7 +56,7 @@ public class ImageneController {
 
     @DeleteMapping("/{idImagen}")
     @CacheEvict(value = "detalleImagen", allEntries = true)
-    public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Integer idImagen) throws Exception {
+    public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Long idImagen) throws Exception {
         ResponseGeneric<String> response = new ResponseGeneric<>("Se eleimino correctamente");
         this.iImagenService.deleteById(idImagen);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
