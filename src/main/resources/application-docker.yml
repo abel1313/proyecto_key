@@ -30,6 +30,9 @@ clave-seguridad:
 
 api:
   imagenes: ${ENDPOINT_IMAGENES}
+
+guardar-imagenes:
+  ruta_imagenes: /app/imagenes
 #logging:
 #  level:
 #    org.hibernate.SQL: DEBUG

@@ -16,6 +16,7 @@ import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 import lombok.SneakyThrows;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -50,7 +51,8 @@ public class ProductosServiceImpl extends
     ///
     ///
     ///
-
+    @Value("${guardar-imagenes.ruta_imagenes}")
+    private String rutaImagenes;
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
@@ -319,14 +321,13 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    private static String RUTA = "D:\\Imagenes";
     private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
 
         for (ProductoImagen p : productoImagens) {
 
-                Path path = Paths.get(RUTA, p.getImagen().getBase64());
+                Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
                 byte[] imagenBytes = Files.readAllBytes(path);
 
             ByteArrayResource recurso = new ByteArrayResource(imagenBytes) {
@@ -420,7 +421,7 @@ public class ProductosServiceImpl extends
     }
 
     private byte[] buscarArchivo(String nombreImagen) throws IOException {
-        Path path = Paths.get(RUTA, nombreImagen);
+        Path path = Paths.get(rutaImagenes, nombreImagen);
         return Files.readAllBytes(path);
     }
 }
