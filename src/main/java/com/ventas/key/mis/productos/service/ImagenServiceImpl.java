@@ -52,9 +52,10 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
 
 
         Pageable pageable = PageRequest.of(page, size);
+        log.info("detalle page {} size {}", page, size);
         PageableDto<List<ImagenProductoBase64>> pageableDto = new PageableDto<>();
         Page<ImagenProductoBase64> pageImgDto = this.iImagenRepository.findImagenPrincipalPorProductoIds(id, pageable)
-                .map(mpa->{
+                .map(mpa-> {
                     ImagenProductoBase64 imagenProductoBase64 = new ImagenProductoBase64();
                     imagenProductoBase64.setIdProducto(mpa.getIdProducto());
                     imagenProductoBase64.setIdImagen(mpa.getIdImagen());
@@ -75,6 +76,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
                     }
                     return imagenProductoBase64;
                 });
+        log.info("imagenes paginadas {}", pageableDto);
         pageableDto.setList(pageImgDto.getContent());
         pageableDto.setTotalPaginas(pageImgDto.getTotalPages());
         return pageableDto;

@@ -9,6 +9,7 @@ import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -23,6 +24,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/imagen")
+@Slf4j
 public class ImageneController {
 
 
@@ -44,7 +46,9 @@ public class ImageneController {
     public ResponseEntity<PageableDto> getDetalle(@PathVariable Integer id,
                                                   @RequestParam int size,
                                                   @RequestParam int page) {
+        log.info("llegamos al detalle {}", id);
         PageableDto imagen = iImagenService.findImagenPrincipalPorProductoIds(id, page, size);
+        log.info("despues de la imagen {}", imagen);
         return ResponseEntity.ok()
                 .body(imagen);
     }
