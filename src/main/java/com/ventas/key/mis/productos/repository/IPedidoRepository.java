@@ -120,7 +120,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
 
     @Query(value = """
 
-            SELECT\s
+            SELECT
       JSON_OBJECT(
         'cliente', JSON_OBJECT(
        	'id', c.id,
