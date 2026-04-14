@@ -8,12 +8,6 @@ server:
   port: 9091
   servlet:
     context-path: /mis-productos
----
-
-spring:
-  jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
-
 
 ---
 
@@ -46,6 +40,8 @@ logging:
     root: INFO
     com.miempresa: DEBUG
 
+guardar-imagenes:
+  ruta_imagenes: D:\\Imagenes
 ---
 
 spring:
@@ -67,7 +63,9 @@ logging:
 
 clave-seguridad:
   clave: miClaveSuperSeguraDe32Caracteres
-  
+
+guardar-imagenes:
+  ruta_imagenes: D:\\Imagenes
 #springdoc:
 #  swagger-ui:
 #    enabled: true

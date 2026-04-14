@@ -47,7 +47,6 @@ public class JwtUtil {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(userDetails.getUsername())
-                .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 horas
                 .signWith(getSecretKey(), SignatureAlgorithm.HS256)
@@ -55,7 +54,7 @@ public class JwtUtil {
     }
 
     public String extractUsername(String token) {
-        return Jwts.parser().setSigningKey(getSecretKey()).parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parserBuilder().setSigningKey(getSecretKey()).build().parseClaimsJws(token).getBody().getSubject();
     }
 
     public boolean validateToken(String token, UserDetails userDetails) {

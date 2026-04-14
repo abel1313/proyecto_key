@@ -36,6 +36,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Service
@@ -202,20 +203,19 @@ public class ProductosServiceImpl extends
 
 
     @Override
-    public Producto saveProductoLote(ProductoDetalle productoDetalle) throws Exception {
+    public Producto saveProductoLote(ProductoDetalle productoDetalle) throws IOException {
         Producto prod = guardarProducto(productoDetalle);
         List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(mappImagenes(productoDetalle.getListImagenes()), prod);
         relacionProductoImagen(mapperRelacionProductoImagen);
-
         return prod;
     }
     @Transactional
-    private Producto guardarProducto(ProductoDetalle productoDetalle) throws Exception {
+    private Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {
-            throw new Exception("El stock no debe de ser 0");
+            throw new RuntimeException("El stock no debe de ser 0");
         }
         if (productoDetalle.getCodigoBarras() == null) {
-            throw new Exception("El codigo de barras es requerido");
+            throw new RuntimeException("El codigo de barras es requerido");
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
@@ -306,7 +306,7 @@ public class ProductosServiceImpl extends
         } catch (Exception e) {
             this.error.error(e);
         }
-        throw new Exception("No se guardo el producto ");
+        throw new RuntimeException("No se guardo el producto ");
     }
     public Optional<ProductoResumen> getResumen(int id){
         return Optional.of(this.iProductosRepository.findProductoConImagenes(id));

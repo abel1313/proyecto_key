@@ -1,31 +1,26 @@
-spring:
-  cache:
-    type: simple
 
 server:
-  port: 8083
+  port: 9091
   servlet:
     context-path: /mis-productos
 ---
 
 spring:
-  jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
-
-
----
-
-spring:
+  cache:
+    type: simple
   config:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:mysql://167.88.164.132:3306/dummy_pruebas
+    url: jdbc:mysql://localhost:3306/inventario_key
+#    url: jdbc:mysql://db-bolsas-key.cuf6ai4u4jfs.us-east-1.rds.amazonaws.com:3306/inventario_key
 #    url: ${SPRING_DATASOURCE_URL}
 #    username: ${SPRING_DATASOURCE_USERNAME}
-    username: trece
+#    username: admin
+    username: root
 #    password: ${SPRING_DATASOURCE_PASSWORD}
-    password: Luvianos*13
+#    password: tpM9EBgFzQ![<NTfvJu2g$6S9Ele
+    password: 130594
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     show-sql: false
@@ -37,6 +32,11 @@ spring:
 
 clave-seguridad:
   clave: miClaveSuperSeguraDe32Caracteres
+
+api:
+#  imagenes: http://k8s-default-imagenes-65ff6abba3-120698284f8297cf.elb.us-east-1.amazonaws.com/mis-productos
+#  imagenes: http://localhost:9096/mis-productos
+  imagenes: http://localhost:30096/mis-productos
 #logging:
 #  level:
 #    org.hibernate.SQL: DEBUG
@@ -47,32 +47,7 @@ logging:
     root: INFO
     com.miempresa: DEBUG
 
----
-
-spring:
-  config:
-    activate:
-      on-profile: prod
-  datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    show-sql: false
-logging:
-  level:
-    org.hibernate.SQL: INFO
-    org.hibernate.orm.jdbc.bind: INFO
-
-
-clave-seguridad:
-  clave: miClaveSuperSeguraDe32Caracteres
-  
-#springdoc:
-#  swagger-ui:
-#    enabled: true
-#    url: /openapi.yml
-#    path: /swagger-ui.html
+guardar-imagenes:
+  ruta_imagenes: D:\\Imagenes
 
 

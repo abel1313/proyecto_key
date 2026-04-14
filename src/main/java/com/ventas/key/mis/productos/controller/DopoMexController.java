@@ -2,7 +2,6 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.dipomex.CodigoPostalResponse;
 import com.ventas.key.mis.productos.service.api.IDopoMexService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;

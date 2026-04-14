@@ -39,8 +39,8 @@ public abstract class AbstractController<
                                          > {
 
 
-    private final ServiceG sGenerico;
-    public AbstractController(
+    protected final ServiceG sGenerico;
+    protected AbstractController(
         final ServiceG sGenerico
     ){
         this.sGenerico = sGenerico;

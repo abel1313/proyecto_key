@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +36,7 @@ public class ProductosControllerImpl {
 
 
     @GetMapping("getProductos2")
-    public ResponseEntity<PginaDto<List<ProductoDTO>>> getProductos2(@RequestParam int size, @RequestParam int page) throws Exception{
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> getProductos2(@RequestParam int size, @RequestParam int page) {
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getAll(size,page) );
     }
 
@@ -50,12 +51,12 @@ public class ProductosControllerImpl {
     public ResponseEntity<Producto> save(@RequestBody ProductoDetalle producto) throws Exception{
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );
     }
-    @PutMapping("save")
-    public ResponseEntity<Producto> update(@RequestBody ProductoDetalle producto) throws Exception{
-        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );
+    @PutMapping("update")
+    public ResponseEntity<Producto> update(@RequestBody ProductoDetalle producto) throws IOException {
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto));
     }
     @GetMapping("findById/{id}")
-    public ResponseEntity<Optional<ProductoResumen>> update(@PathVariable int id) throws Exception{
+    public ResponseEntity<Optional<ProductoResumen>> update(@PathVariable int id){
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getResumen(id) );
     }
 
