@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.security;
 
 import java.util.List;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +26,7 @@ import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
+@Slf4j
 public class SecurityConfig {
 
     @Value("api.cors_angular")
@@ -34,6 +36,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        log.info("Se ejecutan los cors desde security {}",corsAngular);
         return http        .cors(cors -> cors.configurationSource(corsConfigurationSource())) // habilita CORS con tu bean
         .csrf(AbstractHttpConfigurer::disable) // desactiva CSRF
                 .authorizeHttpRequests(auth -> auth
@@ -65,7 +68,8 @@ public class SecurityConfig {
 public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
     config.setAllowedOrigins(List.of(
-         corsAngular,
+        "http://localhost:4200",
+        "http://51.178.29.99:30001",
         "https://venta-bolsas-online.netlify.app",
         "https://novedades-jade.com.mx",
         "https://www.novedades-jade.com.mx"
