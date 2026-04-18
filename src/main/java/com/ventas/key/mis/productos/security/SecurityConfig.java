@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.security;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,6 +26,9 @@ import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    @Value("api.cors_angular")
+    private String corsAngular;
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
 
@@ -61,7 +65,7 @@ public class SecurityConfig {
 public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
     config.setAllowedOrigins(List.of(
-        "http://localhost:4200",
+         corsAngular,
         "https://venta-bolsas-online.netlify.app",
         "https://novedades-jade.com.mx",
         "https://www.novedades-jade.com.mx"
