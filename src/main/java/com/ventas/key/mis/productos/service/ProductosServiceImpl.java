@@ -16,6 +16,7 @@ import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class ProductosServiceImpl extends
         CrudAbstractServiceImpl<Producto, List<Producto>, Optional<Producto>, Integer, PginaDto<List<Producto>>>
         implements IProductoService {
@@ -204,6 +206,7 @@ public class ProductosServiceImpl extends
 
     @Override
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws IOException {
+        log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto prod = guardarProducto(productoDetalle);
         List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(mappImagenes(productoDetalle.getListImagenes()), prod);
         relacionProductoImagen(mapperRelacionProductoImagen);
@@ -221,6 +224,7 @@ public class ProductosServiceImpl extends
             Producto producto = llenarProductoDTO(productoDetalle);
             producto.setHabilitado('1');
 
+            log.info("Se va a guardar el codigo de barras {}",2);
             CodigoBarra codigoBarras = new CodigoBarra();
             codigoBarras.setId(productoDetalle.getCodigoBarras().getId());
             codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras().isEmpty() ? null : productoDetalle.getCodigoBarras().getCodigoBarras());
@@ -228,9 +232,11 @@ public class ProductosServiceImpl extends
 
             Producto prodExistenteNoOpt = null;
             if( producto.getCodigoBarras().getCodigoBarras() != null ){
+                log.info("El codigo de barras no es nul {}",producto.getCodigoBarras().getCodigoBarras());
                 prodExistenteNoOpt = this.iProductosRepository
                         .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras())
                         .orElse(null);
+                log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
             if(prodExistenteNoOpt == null) {
                 List<Imagen> lstImg;
@@ -238,8 +244,10 @@ public class ProductosServiceImpl extends
                     CodigoBarra codigoBarra = new CodigoBarra();
                     codigoBarra.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
                     CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
+                    log.info("se guardo el codigo de barras {}", codBarr);
                     producto.setCodigoBarras(codBarr);
                     //lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                    log.info("Se guardo el producto y se regreso la respuesta {}", producto);
                     return this.iProductosRepository.save(producto);
                 }else{
                     CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
@@ -325,6 +333,7 @@ public class ProductosServiceImpl extends
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
 
+        log.info("Se prepara las imagenes para subirse al servidor {}", 3);
         for (ProductoImagen p : productoImagens) {
 
                 Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
@@ -341,9 +350,9 @@ public class ProductosServiceImpl extends
                     .header("Content-Disposition",
                             "form-data; name=files; filename=" + p.getImagen().getNombreImagen());
         }
-
-        // Aquí ya no pasas MultipartFile[], sino el builder
+        log.info("Se envia la peticion al servicio de iamges {}",4);
         List<ImagenDto> listImg = imageneClienteAWS.save(builder.build());
+        log.info("Se guardaron las imagenes en el servidor imageneClienteAWS {}",listImg);
         List<RequestProductoImagen> productoImagen = listImg.stream().map(datos->{
             RequestProductoImagen prdoImg = new RequestProductoImagen();
             try {
@@ -356,20 +365,21 @@ public class ProductosServiceImpl extends
             prdoImg.setImagenId(datos.getId());
             return prdoImg;
         }).toList();
+        log.info("Se guardara la relacion de las imagenes con el producto {}",productoImagen);
         imagenProductoClienteAWS.saveAll(productoImagen);
+        log.info("termino de guardar la relacion de los productos {}", 6);
 
     }
 
-    String ruta = "D:\\imagenes";
 
     private List<Imagen> mappImagenes( List<ImagenDTO> list){
         return list.stream().map(mpa->{
             Imagen imagen = new Imagen();
             byte[] decodedBytes = mpa.getBase64();
             String urlImagen = UUID.randomUUID() + "_" + mpa.getNombreImagen();
-            Path path = Paths.get(ruta, urlImagen);
+            Path path = Paths.get(rutaImagenes, urlImagen);
             try {
-                File directorio = new File(ruta);
+                File directorio = new File(rutaImagenes);
                 if (!directorio.exists()) {
                     directorio.mkdirs();
                 }

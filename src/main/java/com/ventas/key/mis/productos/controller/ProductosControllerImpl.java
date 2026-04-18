@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("productos")
 @RequiredArgsConstructor
+@Slf4j
 public class ProductosControllerImpl {
 
     private final ProductosServiceImpl pServiceImpl;
@@ -49,10 +51,12 @@ public class ProductosControllerImpl {
 
     @PostMapping("save")
     public ResponseEntity<Producto> save(@RequestBody ProductoDetalle producto) throws Exception{
+        log.info("iniciamos en el contralador de producto {}", producto);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );
     }
     @PutMapping("update")
     public ResponseEntity<Producto> update(@RequestBody ProductoDetalle producto) throws IOException {
+
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto));
     }
     @GetMapping("findById/{id}")
