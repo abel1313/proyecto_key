@@ -27,7 +27,7 @@ clave-seguridad:
 
 api:
   imagenes: ${ENDPOINT_IMAGENES}
-  cors_angular: http://51.178.29.99:30001
+  cors_angular: https://shop.novedades-jade.com.mx
 
 guardar-imagenes:
   ruta_imagenes: /app/imagenes

@@ -68,7 +68,8 @@ public class SecurityConfig {
 public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
     config.setAllowedOrigins(List.of(
-         "https://front.novedades-jade.com.mx",
+        "https://shop.novedades-jade.com.mx",
+        "https://front.novedades-jade.com.mx",
         "http://localhost:4200",
         "http://51.178.29.99:30001",
         "https://venta-bolsas-online.netlify.app",
