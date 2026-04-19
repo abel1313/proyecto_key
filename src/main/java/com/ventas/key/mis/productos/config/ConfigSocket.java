@@ -15,7 +15,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @Slf4j
 public class ConfigSocket implements WebSocketMessageBrokerConfigurer {
 
-    @Value("api.cors_angular")
+    @Value("${api.cors_angular}")
     private String corsAngular;
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {

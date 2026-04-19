@@ -29,7 +29,7 @@ import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 @Slf4j
 public class SecurityConfig {
 
-    @Value("api.cors_angular")
+    @Value("${api.cors_angular}")
     private String corsAngular;
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
@@ -68,6 +68,7 @@ public class SecurityConfig {
 public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration config = new CorsConfiguration();
     config.setAllowedOrigins(List.of(
+         "https://front.novedades-jade.com.mx",
         "http://localhost:4200",
         "http://51.178.29.99:30001",
         "https://venta-bolsas-online.netlify.app",
