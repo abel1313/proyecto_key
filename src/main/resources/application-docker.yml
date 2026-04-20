@@ -43,5 +43,8 @@ guardar-imagenes:
 #    root: INFO
 #    com.miempresa: DEBUG
 
+redis:
+  dns: redis
+
 
 

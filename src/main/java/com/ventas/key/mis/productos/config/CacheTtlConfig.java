@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.config;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -14,10 +16,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
+@Slf4j
 public class CacheTtlConfig {
 
 
 
+    @Value("${redis.dns}")
+    private String dnsRedis;
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         // Serializer JSON
@@ -33,6 +38,7 @@ public class CacheTtlConfig {
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
         cacheConfigs.put("detalleImagen", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("detalle", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigs.put("buscarImagenIdCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("obtenerProductosCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("buscarNombreOrCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofMinutes(15)));
         cacheConfigs.put("findByIdCache", defaultConfig.entryTtl(Duration.ofHours(1)));
@@ -46,7 +52,8 @@ public class CacheTtlConfig {
 
     @Bean
     public LettuceConnectionFactory redisConnectionFactory() {
-        return new LettuceConnectionFactory("redis", 6379);
+        log.info("se agregi redis {}",dnsRedis);
+        return new LettuceConnectionFactory(dnsRedis, 6379);
     }
 
 }

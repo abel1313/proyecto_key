@@ -97,7 +97,6 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
     @Override
-    @Cacheable(value = "buscarImagenIdCache", key = "'producto:' + #productoId")
     public Imagen buscarImagenProducto(Integer id) {
         log.info("micro imagenes, buscar imagen por ID {}",id);
         return webClient.get()
