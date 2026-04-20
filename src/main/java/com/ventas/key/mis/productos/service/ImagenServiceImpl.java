@@ -8,6 +8,8 @@ import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -53,6 +55,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
+    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
     public PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
 
 
@@ -88,6 +91,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
+    @CacheEvict(value = "detalleImagen", allEntries = true)
     public void deleteById(Long id) {
         this.iImagenRepository.deleteById(id);
     }

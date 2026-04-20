@@ -42,7 +42,6 @@ public class ImageneController {
                 .body(imagen.getImagen());
     }
     @GetMapping("/{id}/detalle")
-    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
     public ResponseEntity<PageableDto> getDetalle(@PathVariable Integer id,
                                                   @RequestParam int size,
                                                   @RequestParam int page) {
@@ -53,13 +52,11 @@ public class ImageneController {
                 .body(imagen);
     }
     @GetMapping("/{idProducto}/imagenes")
-    @Cacheable(value = "detalleImagen", key = "#idProducto")
     public ResponseEntity<ProductoImagenDto> getImagenesPorProductoId(@PathVariable Integer idProducto){
         return ResponseEntity.ok(this.iProductoImagenService.findByImagenesPorIdProducto(idProducto));
     }
 
     @DeleteMapping("/{idImagen}")
-    @CacheEvict(value = "detalleImagen", allEntries = true)
     public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Long idImagen) throws Exception {
         ResponseGeneric<String> response = new ResponseGeneric<>("Se eleimino correctamente");
         this.iImagenService.deleteById(idImagen);

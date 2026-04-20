@@ -9,6 +9,7 @@ import com.ventas.key.mis.productos.models.ProductoImagenDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -40,6 +41,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
+    @Cacheable(value = "detalleImagen", key = "#idProducto")
     public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
         ProductoImagenDto productoImagenDto = new ProductoImagenDto();
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);

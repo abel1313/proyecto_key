@@ -31,6 +31,8 @@ public class CacheTtlConfig {
 
         // Configuración específica por cache
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
+        cacheConfigs.put("detalleImagen", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigs.put("detalle", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("obtenerProductosCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("buscarNombreOrCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofMinutes(15)));
         cacheConfigs.put("findByIdCache", defaultConfig.entryTtl(Duration.ofHours(1)));
