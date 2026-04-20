@@ -37,7 +37,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,7 +60,6 @@ public class ProductosServiceImpl extends
     private final ICodigoBarrasService iBarrasService;
     private final ErrorGenerico error;
     private final IImagenService iImagenService;
-    private final IProductoImagenService iProductoImagenService;
 
     private final ImageneClienteAWS imageneClienteAWS;
     private final ImagenProductoClienteAWS imagenProductoClienteAWS;
@@ -80,7 +78,6 @@ public class ProductosServiceImpl extends
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
-        this.iProductoImagenService = iProductoImagenService;
         this.imageneClienteAWS = imageneClienteAWS;
         this.imagenProductoClienteAWS = imagenProductoClienteAWS;
         // TODO Auto-generated constructor stub

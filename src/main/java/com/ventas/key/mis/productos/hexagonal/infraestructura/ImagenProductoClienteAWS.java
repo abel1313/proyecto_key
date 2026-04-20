@@ -10,6 +10,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -96,7 +97,9 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
     @Override
-    public Imagen buscarImagenProducto(Integer id) throws Exception {
+    @Cacheable(value = "buscarImagenIdCache", key = "'producto:' + #productoId")
+    public Imagen buscarImagenProducto(Integer id) {
+        log.info("micro imagenes, buscar imagen por ID {}",id);
         return webClient.get()
                 .uri("/producto-imagen/buscarImagenProducto/{id}", id)
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())

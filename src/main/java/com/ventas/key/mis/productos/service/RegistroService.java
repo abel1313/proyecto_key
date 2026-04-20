@@ -55,7 +55,7 @@ public class RegistroService {
             }
         }
         roles.add(yaExisteAdmin.orElseThrow(()-> new Exception("Ocurrio un error ")));
-        nuevo.setRoles(rol);
+        nuevo.setRoles(yaExisteAdmin.orElseThrow(()-> new Exception("Ocurrio un error ")));
 
 
         // Guardar usuario y capturar errores
@@ -63,6 +63,8 @@ public class RegistroService {
             return usuarioRepository.save(nuevo);
         } catch (DataIntegrityViolationException e) {
             throw new RuntimeException("Error al guardar usuario: posible duplicado");
+        } catch (RuntimeException e) {
+            throw new RuntimeException(e);
         }
 
     }
