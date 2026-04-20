@@ -18,6 +18,8 @@ import com.ventas.key.mis.productos.service.api.IProductoService;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -91,6 +93,7 @@ public class ProductosServiceImpl extends
 
     @SneakyThrows
     @Override
+    @Cacheable(value = "obtenerProductosCache", key = "#size + '-' + #page")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
@@ -154,6 +157,7 @@ public class ProductosServiceImpl extends
 
 
     @Override
+    @Cacheable(value = "buscarNombreOrCodigoBarrasCache", key = "#size + '-' + #page + '-' + #nombre")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
@@ -202,6 +206,7 @@ public class ProductosServiceImpl extends
 
 
     @Override
+    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws IOException {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto prod = guardarProducto(productoDetalle);
@@ -313,6 +318,8 @@ public class ProductosServiceImpl extends
         }
         throw new RuntimeException("No se guardo el producto ");
     }
+
+    @Cacheable(value = "findByIdCache", key = "#id")
     public Optional<ProductoResumen> getResumen(int id){
         return Optional.of(this.iProductosRepository.findProductoConImagenes(id));
     }

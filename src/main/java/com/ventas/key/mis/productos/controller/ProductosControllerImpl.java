@@ -27,14 +27,12 @@ public class ProductosControllerImpl {
     private final ProductosServiceImpl pServiceImpl;
 
     @GetMapping("obtenerProductos")
-    @Cacheable(value = "obtenerProductosCache", key = "#size + '-' + #page")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> obtenerProductos(@RequestParam int size, @RequestParam int page) {
         log.info("obtener productos cahce size {} page {}", size, page);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getAll(size,page) );
     }
 
     @GetMapping("buscarNombreOrCodigoBarra")
-    @Cacheable(value = "buscarNombreOrCodigoBarrasCache", key = "#size + '-' + #page + '-' + #nombre")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(@RequestParam int size, 
                                                                                 @RequestParam int page,
                                                                                 @RequestParam String nombre) {
@@ -50,14 +48,12 @@ public class ProductosControllerImpl {
     }
 
     @PutMapping("update")
-    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
     public ResponseEntity<Producto> update(@RequestBody ProductoDetalle producto) throws IOException {
         log.info("se actualizo el producto {}", producto);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto));
     }
 
     @GetMapping("findById/{id}")
-    @Cacheable(value = "findByIdCache", key = "#id")
     public ResponseEntity<Optional<ProductoResumen>> update(@PathVariable int id){
         log.info("Se busca producto por ID {}",id);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getResumen(id) );
