@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -37,9 +38,11 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
     @PostConstruct
     public void init() {
-        this.webClient = builder.baseUrl(endpointImg).build();
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
+                .build();
+        this.webClient = builder.baseUrl(endpointImg).exchangeStrategies(strategies).build();
         log.info(" endpoint imagenes ImagenProductoClienteAWS {}", endpointImg);
-
     }
 
     @Override

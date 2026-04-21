@@ -149,16 +149,26 @@ public class ProductosServiceImpl extends
 
 
     @Override
-    @Cacheable(value = "buscarNombreOrCodigoBarrasCache", key = "#size + '-' + #page + '-' + #nombre")
+    //@Cacheable(value = "buscarNombreOrCodigoBarrasCache", key = "#size + '-' + #page + '-' + #nombre")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
+        Page<Producto> productosPaginados;
 
-        if (productosPaginados.isEmpty()) {
-            productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContainingAndHabilitado(nombre,'1', pageable);
+        // 1. Buscar por código de barras exacto primero (más preciso)
+        Optional<Producto> productoExacto = iProductosRepository.findByCodigoBarras_CodigoBarras(nombre);
+        if (productoExacto.isPresent()) {
+            productosPaginados = new org.springframework.data.domain.PageImpl<>(
+                    List.of(productoExacto.get()), pageable, 1);
+        } else {
+            // 2. Buscar por nombre
+            productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
+            // 3. Si nombre no encontró nada, buscar por código de barras parcial
+            if (productosPaginados.isEmpty()) {
+                productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContainingAndHabilitado(nombre, '1', pageable);
+            }
         }
-        PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
 
+        PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
@@ -202,8 +212,10 @@ public class ProductosServiceImpl extends
     public Producto saveProductoLote(ProductoDetalle productoDetalle) throws IOException {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto prod = guardarProducto(productoDetalle);
-        List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(mappImagenes(productoDetalle.getListImagenes()), prod);
-        relacionProductoImagen(mapperRelacionProductoImagen);
+//        List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(mappImagenes(productoDetalle.getListImagenes()), prod);
+//        if(!mapperRelacionProductoImagen.isEmpty()){
+//            relacionProductoImagen(mapperRelacionProductoImagen);
+//        }
         return prod;
     }
     @Transactional
@@ -252,30 +264,35 @@ public class ProductosServiceImpl extends
 
 
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
-                Producto prductoPtional = prodExistenteNoOpt;
-                Producto prductoEdicion = prductoPtional;
                 List<Imagen> lstImg;
                 if (!productoDetalle.getListImagenes().isEmpty()){
                     lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prductoPtional);
-                    relacionProductoImagen(mapperRelacionProductoImagen);
+                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
+                    relacionProductoImagen(mapperRelacionProductoImagen, productoDetalle.getListImagenes());
                 }
 
-                prductoPtional = producto;
-                producto.setId(prductoEdicion.getId());
-                prductoPtional.setCodigoBarras(prductoEdicion.getCodigoBarras());
-                if(productoDetalle.getActualizarStock() > 0){
-                    prductoPtional.setStock(productoDetalle.getActualizarStock() + prductoPtional.getStock());
-                    productoDetalle.setEliminarStock(0);
-                }
-                if(productoDetalle.getEliminarStock() > 0){
-                    prductoPtional.setStock(prductoPtional.getStock() -  productoDetalle.getEliminarStock());
-                    productoDetalle.setActualizarStock(0);
+                // Actualizar los campos del producto existente con los nuevos valores
+                prodExistenteNoOpt.setNombre(productoDetalle.getNombre());
+                prodExistenteNoOpt.setPrecioCosto(productoDetalle.getPrecioCosto());
+                prodExistenteNoOpt.setPiezas(productoDetalle.getPiezas());
+                prodExistenteNoOpt.setColor(productoDetalle.getColor());
+                prodExistenteNoOpt.setPrecioVenta(productoDetalle.getPrecioVenta());
+                prodExistenteNoOpt.setPrecioRebaja(productoDetalle.getPrecioRebaja());
+                prodExistenteNoOpt.setDescripcion(productoDetalle.getDescripcion());
+                prodExistenteNoOpt.setMarca(productoDetalle.getMarca());
+                prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
+
+                // Ajuste de stock contra el stock real de la BD
+                if (productoDetalle.getActualizarStock() > 0) {
+                    prodExistenteNoOpt.setStock(prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock());
+                } else if (productoDetalle.getEliminarStock() > 0) {
+                    prodExistenteNoOpt.setStock(prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock());
+                } else {
+                    prodExistenteNoOpt.setStock(productoDetalle.getStock());
                 }
 
-                Producto prd = this.iProductosRepository.save(prductoPtional);
-
-                System.out.println(prd + "-----------------------------------------------");
+                Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
+                log.info("Producto actualizado: {}", prd);
                 return prd;
             } else {
                 Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
@@ -325,7 +342,7 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
+    private void relacionProductoImagen(List<ProductoImagen>  productoImagens, List<ImagenDTO> list) throws IOException {
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
 
@@ -347,9 +364,9 @@ public class ProductosServiceImpl extends
                             "form-data; name=files; filename=" + p.getImagen().getNombreImagen());
         }
         log.info("Se envia la peticion al servicio de iamges {}",4);
-        List<ImagenDto> listImg = imageneClienteAWS.save(builder.build());
-        log.info("Se guardaron las imagenes en el servidor imageneClienteAWS {}",listImg);
-        List<RequestProductoImagen> productoImagen = listImg.stream().map(datos->{
+        //List<ImagenDto> listImg = imageneClienteAWS.save(builder.build());
+        log.info("Se guardaron las imagenes en el servidor imageneClienteAWS {}",productoImagens);
+        List<RequestProductoImagen> productoImagen = productoImagens.stream().map(datos->{
             RequestProductoImagen prdoImg = new RequestProductoImagen();
             try {
                 Optional<ProductoImagen> primer  = Optional.of(productoImagens.stream().findFirst()).orElseThrow();
@@ -357,8 +374,7 @@ public class ProductosServiceImpl extends
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-
-            prdoImg.setImagenId(datos.getId());
+            prdoImg.setImagenId(datos.getImagen().getId());
             return prdoImg;
         }).toList();
         log.info("Se guardara la relacion de las imagenes con el producto {}",productoImagen);

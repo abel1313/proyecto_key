@@ -55,7 +55,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
+//    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
     public PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
 
 
@@ -74,12 +74,13 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
 
                     if (imagenOpt.isPresent()){
                         Imagen imf = imagenOpt.get();
+                        log.info("imf {}",imf.getBase64());
                         Path path = Paths.get(rutaImagenes, imf.getBase64());
                         try {
                             byte[] imagenBytes = Files.readAllBytes(path);
                             imagenProductoBase64.setImage(imagenBytes);
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            log.info("No se encontro el archivo {0}", e.getCause());
                         }
                     }
                     return imagenProductoBase64;
