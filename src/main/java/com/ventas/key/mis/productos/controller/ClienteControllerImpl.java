@@ -3,6 +3,8 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
+import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.ClienteServiceImpl;
@@ -11,10 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 import java.util.List;
 import java.util.Optional;
@@ -72,5 +73,18 @@ public class ClienteControllerImpl extends AbstractController<
     @GetMapping("buscarPorIdCliente/{idCliente}")
     public ResponseEntity<ResponseGeneric<Optional<Cliente>>> findByIdCliente(@PathVariable int idCliente) {
         return ResponseEntity.status(HttpStatus.OK).body(sGenerico.findClienteById(idCliente));
+    }
+
+    @GetMapping("/buscar")
+    public ResponseEntity<ResponseGeneric<PageableDto<List<ClienteBusquedaDto>>>> buscarClientes(
+            @RequestParam String nombre,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            PageableDto<List<ClienteBusquedaDto>> resultado = sGenerico.buscarClientes(nombre, page, size);
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(resultado));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
