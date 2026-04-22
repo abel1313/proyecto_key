@@ -28,6 +28,10 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         this.iProductosRepository = iProductosRepository;
     }
 
+    public List<ConfigurarRifa> buscarActivas() {
+        return iRifaRepository.findByActivaTrue();
+    }
+
     @Override
     public ConfigurarRifa save(ConfigurarRifa req) throws Exception {
         if (req.getProducto() == null || req.getProducto().getId() == null) {
