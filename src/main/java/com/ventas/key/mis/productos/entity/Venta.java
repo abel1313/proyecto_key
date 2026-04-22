@@ -4,10 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "ventas")
@@ -15,31 +12,36 @@ import lombok.Setter;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
+@ToString
 public class Venta  extends BaseId{
 
     @Column(name = "total_venta", nullable = false)
     private Double totalVenta;
 
-    @Column(name = "forma_pago", nullable = false)
-    private String formaPago;
+    @Column(name = "ganancia_total")
+    private Double gananciaTotal;
 
     @Column(name = "estado_venta", nullable = false)
     private String estadoVenta;
 
     @ManyToOne
+    @JoinColumn(name = "pagos_y_meses_id")
+    private PagosYMeses pagosYMeses;
+
+    @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    @ManyToOne
+    @JoinColumns({
+        @JoinColumn(name = "forma_pago_id",      referencedColumnName = "tipo_pago_id"),
+        @JoinColumn(name = "tarifa_terminal_id",  referencedColumnName = "tarifa_terminal_id"),
+        @JoinColumn(name = "iva_id",              referencedColumnName = "iva_id")
+    })
+    private DetallePago detallePago;
+
     @Column(name = "fecha_venta")
     private LocalDateTime fechaVenta;
-
-
-//    @ManyToOne
-//    @JoinColumn(name = "pagos_y_meses_id")
-//    private PagosYMeses pagosYMeses;
-
-    @Column(name = "pagos_y_meses_id")
-    private int pagosMesesInteres;
 
     @ManyToOne
     @JoinColumn(name = "pedido_id")
@@ -48,17 +50,4 @@ public class Venta  extends BaseId{
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVenta> detalles;
 
-    @Override
-    public String toString() {
-        return "Venta{" +
-                "totalVenta=" + totalVenta +
-                ", formaPago='" + formaPago + '\'' +
-                ", estadoVenta='" + estadoVenta + '\'' +
-                ", usuario=" + usuario +
-                ", fechaVenta=" + fechaVenta +
-                ", pagosMesesInteres=" + pagosMesesInteres +
-                ", pedido=" + pedido +
-                ", detalles=" + detalles +
-                '}';
-    }
 }

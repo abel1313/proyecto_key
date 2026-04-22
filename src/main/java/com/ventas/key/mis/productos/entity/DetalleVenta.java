@@ -41,6 +41,12 @@ public class DetalleVenta extends BaseId{
     @Column(name = "sub_total", nullable = false)
     private Double subTotal;
 
+    @Column(name = "precio_costo", nullable = false)
+    private Double precioCosto;
+
+    @Column(name = "ganancia", nullable = false)
+    private Double ganancia;
+
     @Column(name = "fecha_venta")
     private LocalDate fechaVenta;
 

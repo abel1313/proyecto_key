@@ -58,7 +58,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl< Venta,List<Venta>
         Venta venta = new Venta();
         //venta.setUsuarioId(1);
         venta.setEstadoVenta("null");
-        venta.setFormaPago("null");
         venta.setTotalVenta(tot);
 
         Venta ve = this.iVentaRepository.save(venta); 

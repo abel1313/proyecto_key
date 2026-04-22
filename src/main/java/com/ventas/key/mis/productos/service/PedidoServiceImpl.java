@@ -3,6 +3,8 @@ package com.ventas.key.mis.productos.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.entity.*;
+import com.ventas.key.mis.productos.entity.MesesIntereses;
+import com.ventas.key.mis.productos.entity.PagosYMeses;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.PageableDto;
@@ -11,6 +13,8 @@ import com.ventas.key.mis.productos.models.UsuarioDto;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
+import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
+import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
@@ -19,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.BindingResult;
@@ -45,12 +50,17 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IPedidoRepository iPedidoRepository;
     private final VentaServiceImpl vImpl;
     private final IUsuarioRepository iUsuarioRepository;
+    private final IDetallePagoRepository iDetallePagoRepository;
+    private final IPagosYMesesRepository iPagosYMesesRepository;
+
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
                              final IClienteRepository iClienteRepository,
                              final IProductosRepository iProductoRepository,
                              final VentaServiceImpl vImpl,
                              final IUsuarioRepository iUsuarioRepository,
-                             final ObjectMapper objectMapper) {
+                             final ObjectMapper objectMapper,
+                             final IDetallePagoRepository iDetallePagoRepository,
+                             final IPagosYMesesRepository iPagosYMesesRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -58,28 +68,42 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iUsuarioRepository = iUsuarioRepository;
         this.vImpl = vImpl;
         this.objectMapper = objectMapper;
+        this.iDetallePagoRepository = iDetallePagoRepository;
+        this.iPagosYMesesRepository = iPagosYMesesRepository;
     }
 
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
+    @Transactional
     public Pedido savePedido(@RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
 
         Cliente cliente = this.iClienteRepository.findById(requestG.getCliente().getId())
-                .orElseThrow(()-> new Exception("Ocurrio un erro al buscar al cliente"));
+                .orElseThrow(() -> new Exception("Ocurrio un erro al buscar al cliente"));
         Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
         pedido.setEstadoPedido(requestG.getEstadoPedido());
         pedido.setFechaPedido(requestG.getFechaPedido());
         pedido.setObservaciones(requestG.getObservaciones());
 
-        List<DetallePedido> detallePedido = requestG.getDetalles().stream().map(mpa->{
+        List<DetallePedido> detallePedido = new ArrayList<>();
+        for (var mpa : requestG.getDetalles()) {
+            Producto prod = this.iProductoRepository.findByIdWithLock(mpa.getProducto().getId())
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId()));
+
+            if (prod.getStock() < mpa.getCantidad()) {
+                throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
+                        + ". Disponible: " + prod.getStock() + ", solicitado: " + mpa.getCantidad());
+            }
+            prod.setStock(prod.getStock() - mpa.getCantidad());
+            this.iProductoRepository.save(prod);
+
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());
             dta.setPrecioUnitario(mpa.getPrecioUnitario());
             dta.setSubTotal(mpa.getSubTotal());
             dta.setPedido(pedido);
-            Producto prod = this.iProductoRepository.findById(mpa.getProducto().getId()).orElseThrow(()-> new RuntimeException("Ocurrio un erro al buscar al producto") );
             dta.setProducto(prod);
-            return dta;
-        }).toList();
+            detallePedido.add(dta);
+        }
         pedido.setDetalles(detallePedido);
         return this.iPedidoRepository.save(pedido);
     }
@@ -87,50 +111,86 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     @Override
     public PedidoGenerico updatePedido(int id, PedidoGenerico requestG) throws Exception {
-        Optional<Pedido> optPedido = this.iPedidoRepository.findById(id);
+        Pedido pedido = this.iPedidoRepository.findById(id)
+                .orElseThrow(() -> new GenericException(500, "El pedido no existe"));
 
-        if(optPedido.isPresent()) {
-
-
-            this.iPedidoRepository.save(optPedido.get());
-            Pedido pedido = optPedido.get();
-            pedido.setEstadoPedido("Entregado");
-            Venta venta = new Venta();
-            venta.setEstadoVenta("Entregado");
-            venta.setFormaPago("efectivo");
-            venta.setFechaVenta(LocalDateTime.now());
-            venta.setPedido(pedido);
-            UsuarioDto usr = iUsuarioRepository.findUserByIdCliente(requestG.getCliente().getId())
-                    .orElseThrow(()-> new Exception("Ocurrio un error al buscar el usuario"));
-
-            Usuario u = this.iUsuarioRepository.findById((int) usr.getIdUsuario()).orElseThrow(()-> new Exception("Ocurrio un error al buscar el usuario"));
-
-            venta.setUsuario(u);
-            List<DetalleVenta> det = requestG.getPedido().getDetalles().stream().map(sa->{
-                DetalleVenta deta = new DetalleVenta();
-                deta.setCantidad(sa.getCantidad());
-                deta.setPrecioUnitario(sa.getPrecio_unitario());
-                deta.setSubTotal(sa.getSub_total());
-                deta.setProducto(new Producto());
-                deta.setFechaVenta(LocalDate.now());
-                deta.getProducto().setId(sa.getProducto().intValue());
-                deta.setVenta(venta);
-                return deta;
-            }).toList();
-
-            venta.setTotalVenta(det.stream().mapToDouble(DetalleVenta::getSubTotal).sum());
-            venta.setDetalles(det);
-
-            venta.setDetalles(det);
-            try{
-                this.vImpl.save(venta);
-                return new PedidoGenerico();
-            } catch (RuntimeException e) {
-                throw new RuntimeException(e);
-            }
-
+        if ("Entregado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("El pedido ya fue confirmado");
         }
-        throw new GenericException(500,"El pedido no existe");
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("El pedido está cancelado y no se puede confirmar");
+        }
+
+        PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(requestG.getPagosYMesesId())
+                .orElseThrow(() -> new RuntimeException("Opción de pago no válida"));
+
+        MesesIntereses mesesIntereses = pagosYMeses.getMesesIntereses();
+
+        // tarifa e IVA son null cuando es efectivo/transferencia → se tratan como 0
+        double tasaTarifa = mesesIntereses.getTarifaTerminal() != null
+                ? mesesIntereses.getTarifaTerminal().getTarifa() / 100.0 : 0.0;
+        double tasaIva = mesesIntereses.getIvaTerminal() != null
+                ? mesesIntereses.getIvaTerminal().getIva() / 100.0 : 0.0;
+
+        // detallePago solo aplica cuando hay tarifa/IVA (para tarjetas)
+        DetallePago detallePago = null;
+        if (mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getIvaTerminal() != null) {
+            DetallePagoId detallePagoId = new DetallePagoId(
+                    pagosYMeses.getTipoPago().getId(),
+                    mesesIntereses.getTarifaTerminal().getId(),
+                    mesesIntereses.getIvaTerminal().getId()
+            );
+            detallePago = iDetallePagoRepository.findById(detallePagoId).orElse(null);
+        }
+
+        UsuarioDto usr = iUsuarioRepository.findUserByIdCliente(requestG.getCliente().getId())
+                .orElseThrow(() -> new Exception("Ocurrio un error al buscar el usuario"));
+        Usuario u = this.iUsuarioRepository.findById((int) usr.getIdUsuario())
+                .orElseThrow(() -> new Exception("Ocurrio un error al buscar el usuario"));
+
+        Venta venta = new Venta();
+        venta.setEstadoVenta("Entregado");
+        venta.setFechaVenta(LocalDateTime.now());
+        venta.setPedido(pedido);
+        venta.setUsuario(u);
+        venta.setDetallePago(detallePago);
+        venta.setPagosYMeses(pagosYMeses);
+
+        List<DetalleVenta> det = new ArrayList<>();
+        for (var sa : requestG.getPedido().getDetalles()) {
+            Producto prod = this.iProductoRepository.findById(sa.getProducto().intValue())
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + sa.getProducto()));
+
+            double precioCosto  = prod.getPrecioCosto();
+            double subTotal     = sa.getSub_total();
+            double costoTotal   = precioCosto * sa.getCantidad();
+            double comision     = subTotal * (tasaTarifa + tasaIva);
+            double ganancia     = subTotal - costoTotal - comision;
+
+            DetalleVenta deta = new DetalleVenta();
+            deta.setCantidad(sa.getCantidad());
+            deta.setPrecioUnitario(sa.getPrecio_unitario());
+            deta.setSubTotal(subTotal);
+            deta.setPrecioCosto(precioCosto);
+            deta.setGanancia(ganancia);
+            deta.setFechaVenta(LocalDate.now());
+            deta.setProducto(prod);
+            deta.setVenta(venta);
+            det.add(deta);
+        }
+
+        double totalVenta    = det.stream().mapToDouble(DetalleVenta::getSubTotal).sum();
+        double gananciaTotal = det.stream().mapToDouble(DetalleVenta::getGanancia).sum();
+
+        venta.setTotalVenta(totalVenta);
+        venta.setGananciaTotal(gananciaTotal);
+        venta.setDetalles(det);
+
+        pedido.setEstadoPedido("Entregado");
+        this.iPedidoRepository.save(pedido);
+        this.vImpl.save(venta);
+
+        return new PedidoGenerico();
     }
 
     @Override
@@ -160,10 +220,24 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
 
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
+    @Transactional
     @Override
     public void deletePedidoById(int id) {
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+
+        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("No se puede cancelar un pedido en estado: " + pedido.getEstadoPedido());
+        }
+
+        pedido.getDetalles().forEach(detalle -> {
+            Producto prod = iProductoRepository.findByIdWithLock(detalle.getProducto().getId())
+                    .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
+            prod.setStock(prod.getStock() + detalle.getCantidad());
+            iProductoRepository.save(prod);
+        });
+
         pedido.setEstadoPedido("cancelado");
         iPedidoRepository.save(pedido);
     }

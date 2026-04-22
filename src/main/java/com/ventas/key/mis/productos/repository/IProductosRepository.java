@@ -2,8 +2,10 @@ package com.ventas.key.mis.productos.repository;
 
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.models.ProductoResumen;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,6 +20,10 @@ public interface IProductosRepository extends BaseRepository<Producto,Integer>{
     Optional<Producto> findByCodigoBarras_CodigoBarras(String codigoBarras); // 🔍 Busca por código de barras
     Page<Producto> findDistinctByStockGreaterThanAndHabilitado(int stock, char habilitadot, Pageable pageable);
 
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Producto p WHERE p.id = :id")
+    Optional<Producto> findByIdWithLock(@Param("id") Integer id);
 
     @Query("""
     SELECT new com.ventas.key.mis.productos.models.ProductoResumen(

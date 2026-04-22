@@ -11,4 +11,5 @@ public class PedidoGenerico {
 
     private ClienteQuery cliente;
     private PedidoQuery pedido;
+    private Integer pagosYMesesId;
 }
