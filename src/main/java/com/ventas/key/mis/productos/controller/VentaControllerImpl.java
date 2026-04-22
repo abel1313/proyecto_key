@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ventas.key.mis.productos.entity.Venta;
-import com.ventas.key.mis.productos.models.DetalleVentaDto;
 import com.ventas.key.mis.productos.models.TotalDetalle;
+import com.ventas.key.mis.productos.models.VentaDirectaRequest;
 import com.ventas.key.mis.productos.service.VentaServiceImpl;
 
 @RestController
@@ -28,8 +28,9 @@ public class VentaControllerImpl {
         this.vImpl = vImpl;
     }
     @PostMapping("/save")
-    public ResponseEntity<Venta> save(@RequestBody List<DetalleVentaDto> lista ) throws Exception{
-        return ResponseEntity.status(HttpStatus.OK).body(this.vImpl.saveVentaDetalle(lista) );
+    public ResponseEntity<Integer> save(@RequestBody VentaDirectaRequest request) throws Exception {
+        Venta venta = this.vImpl.saveVentaDetalle(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(venta.getId());
     }
     @PostMapping("/getVentas")
     public ResponseEntity<List<Venta>> getVentas(@RequestParam int size, 
