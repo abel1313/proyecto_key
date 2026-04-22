@@ -14,6 +14,7 @@ import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
+import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
@@ -51,6 +52,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final VentaServiceImpl vImpl;
     private final IUsuarioRepository iUsuarioRepository;
     private final IDetallePagoRepository iDetallePagoRepository;
+    private final IDetallePedidoRepository iDetallePedidoRepository;
     private final IPagosYMesesRepository iPagosYMesesRepository;
 
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
@@ -60,6 +62,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final IUsuarioRepository iUsuarioRepository,
                              final ObjectMapper objectMapper,
                              final IDetallePagoRepository iDetallePagoRepository,
+                             final IDetallePedidoRepository iDetallePedidoRepository,
                              final IPagosYMesesRepository iPagosYMesesRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
@@ -69,6 +72,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.vImpl = vImpl;
         this.objectMapper = objectMapper;
         this.iDetallePagoRepository = iDetallePagoRepository;
+        this.iDetallePedidoRepository = iDetallePedidoRepository;
         this.iPagosYMesesRepository = iPagosYMesesRepository;
     }
 
@@ -240,6 +244,41 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         pedido.setEstadoPedido("cancelado");
         iPedidoRepository.save(pedido);
+    }
+
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
+    @Transactional
+    @Override
+    public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad) {
+        Pedido pedido = iPedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+
+        if ("Entregado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("No se puede modificar un pedido ya entregado");
+        }
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("No se puede modificar un pedido cancelado");
+        }
+
+        DetallePedido detalle = pedido.getDetalles().stream()
+                .filter(d -> d.getProducto().getId().equals(productoId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
+
+        Producto prod = iProductoRepository.findByIdWithLock(productoId)
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+
+        if (cantidad >= detalle.getCantidad()) {
+            prod.setStock(prod.getStock() + detalle.getCantidad());
+            iProductoRepository.save(prod);
+            iDetallePedidoRepository.delete(detalle);
+        } else {
+            prod.setStock(prod.getStock() + cantidad);
+            iProductoRepository.save(prod);
+            detalle.setCantidad(detalle.getCantidad() - cantidad);
+            detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
+            iDetallePedidoRepository.save(detalle);
+        }
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {

@@ -108,4 +108,19 @@ public class PedidoController extends AbstractController<
             return null;
         }
     }
+
+    @DeleteMapping("/{pedidoId}/detalle/{productoId}")
+    public ResponseEntity<ResponseGeneric<String>> eliminarDetalle(
+            @PathVariable int pedidoId,
+            @PathVariable int productoId,
+            @RequestParam(defaultValue = "1") int cantidad) {
+        try {
+            iPedidoService.eliminarDetallePedido(pedidoId, productoId, cantidad);
+            return ResponseEntity.ok(new ResponseGeneric<>("Detalle actualizado correctamente"));
+        } catch (Exception e) {
+            ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
 }

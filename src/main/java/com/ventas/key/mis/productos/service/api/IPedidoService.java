@@ -27,6 +27,7 @@ public interface IPedidoService extends ICrud<
     PageableDto<List<PedidoGenerico>> obtenerPedidoPorId(int id, int idCliente, int size, int pageSize);
     PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, int size, int pageSize);
     void deletePedidoById(int id);
+    void eliminarDetallePedido(int pedidoId, int productoId, int cantidad);
 
 
 

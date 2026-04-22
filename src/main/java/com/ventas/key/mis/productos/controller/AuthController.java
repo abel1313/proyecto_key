@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -35,6 +36,9 @@ public class AuthController {
     private final RegistroService registroService;
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
+
+    @Value("${cookie.secure:true}")
+    private boolean cookieSecure;
 
     private static final String REFRESH_COOKIE = "refreshToken";
     private static final int REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 días en segundos
@@ -126,21 +130,17 @@ public class AuthController {
     }
 
     private void agregarRefreshCookie(HttpServletResponse response, String refreshToken) {
-        Cookie cookie = new Cookie(REFRESH_COOKIE, refreshToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);       // solo HTTPS
-        cookie.setPath("/auth");      // solo se envía a /auth/*
-        cookie.setMaxAge(REFRESH_MAX_AGE);
-        // SameSite=None necesario para peticiones cross-origin desde el frontend
+        String secureFlag = cookieSecure ? "; Secure; SameSite=None" : "; SameSite=Lax";
         response.addHeader("Set-Cookie",
-                String.format("%s=%s; Max-Age=%d; Path=/auth; HttpOnly; Secure; SameSite=None",
-                        REFRESH_COOKIE, refreshToken, REFRESH_MAX_AGE));
+                String.format("%s=%s; Max-Age=%d; Path=/auth; HttpOnly%s",
+                        REFRESH_COOKIE, refreshToken, REFRESH_MAX_AGE, secureFlag));
     }
 
     private void limpiarRefreshCookie(HttpServletResponse response) {
+        String secureFlag = cookieSecure ? "; Secure; SameSite=None" : "; SameSite=Lax";
         response.addHeader("Set-Cookie",
-                String.format("%s=; Max-Age=0; Path=/auth; HttpOnly; Secure; SameSite=None",
-                        REFRESH_COOKIE));
+                String.format("%s=; Max-Age=0; Path=/auth; HttpOnly%s",
+                        REFRESH_COOKIE, secureFlag));
     }
 
     private String leerRefreshCookie(HttpServletRequest request) {
