@@ -1,16 +1,13 @@
 package com.ventas.key.mis.productos.entity;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.persistence.*;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 @Entity
 @Table(name = "rifas")
 @Setter
@@ -20,11 +17,15 @@ import lombok.Setter;
 public class Rifa extends BaseId {
 
     @Valid
-    @OneToOne(cascade = {CascadeType.MERGE})
-    @JoinColumn( name = "cliente_id")
+    @ManyToOne(cascade = CascadeType.MERGE)
+    @JoinColumn(name = "cliente_id")
     private Cliente cliente;
 
     @Column(name = "palabra_rifa")
     private String palabraRifa;
 
+    @ManyToOne
+    @JoinColumn(name = "configurar_rifa_id")
+    @JsonIgnoreProperties("producto")
+    private ConfigurarRifa configurarRifa;
 }

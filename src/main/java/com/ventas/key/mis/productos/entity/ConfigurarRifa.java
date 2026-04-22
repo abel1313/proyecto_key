@@ -1,17 +1,12 @@
 package com.ventas.key.mis.productos.entity;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "configurar_rifa")
@@ -19,10 +14,15 @@ import lombok.Setter;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class ConfigurarRifa extends BaseId{
+public class ConfigurarRifa extends BaseId {
 
-    @OneToOne(cascade = CascadeType.PERSIST)
-    @JoinColumn(name = "producto_id")
+    @OneToOne
+    @JoinColumn(name = "producto_id", nullable = false)
     private Producto producto;
 
+    @Column(name = "fecha_hora_limite", nullable = false)
+    private LocalDateTime fechaHoraLimite;
+
+    @Column(name = "activa")
+    private Boolean activa = true;
 }

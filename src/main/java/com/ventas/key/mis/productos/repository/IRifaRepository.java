@@ -13,7 +13,8 @@ import com.ventas.key.mis.productos.entity.Rifa;
 public interface IRifaRepository extends BaseRepository<Rifa,Integer>{
 
     @Query(value = "SELECT * FROM rifas WHERE fechaRifa BETWEEN :inicio AND :fin AND palabra_Rifa = :palabraRifa", nativeQuery = true)
-
     List<Rifa> buscarPorRangoDeHora(@Param("inicio") LocalDateTime inicio, @Param("fin") LocalDateTime fin, @Param("palabraRifa") String palabraRifa);
+
+    List<Rifa> findByConfigurarRifaId(Integer configurarRifaId);
 
 }

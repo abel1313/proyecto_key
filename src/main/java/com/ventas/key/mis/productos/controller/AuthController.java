@@ -40,6 +40,9 @@ public class AuthController {
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
 
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
+
     private static final String REFRESH_COOKIE = "refreshToken";
     private static final int REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 días en segundos
 
@@ -131,16 +134,18 @@ public class AuthController {
 
     private void agregarRefreshCookie(HttpServletResponse response, String refreshToken) {
         String secureFlag = cookieSecure ? "; Secure; SameSite=None" : "; SameSite=Lax";
+        String cookiePath = contextPath + "/auth";
         response.addHeader("Set-Cookie",
-                String.format("%s=%s; Max-Age=%d; Path=/auth; HttpOnly%s",
-                        REFRESH_COOKIE, refreshToken, REFRESH_MAX_AGE, secureFlag));
+                String.format("%s=%s; Max-Age=%d; Path=%s; HttpOnly%s",
+                        REFRESH_COOKIE, refreshToken, REFRESH_MAX_AGE, cookiePath, secureFlag));
     }
 
     private void limpiarRefreshCookie(HttpServletResponse response) {
         String secureFlag = cookieSecure ? "; Secure; SameSite=None" : "; SameSite=Lax";
+        String cookiePath = contextPath + "/auth";
         response.addHeader("Set-Cookie",
-                String.format("%s=; Max-Age=0; Path=/auth; HttpOnly%s",
-                        REFRESH_COOKIE, secureFlag));
+                String.format("%s=; Max-Age=0; Path=%s; HttpOnly%s",
+                        REFRESH_COOKIE, cookiePath, secureFlag));
     }
 
     private String leerRefreshCookie(HttpServletRequest request) {

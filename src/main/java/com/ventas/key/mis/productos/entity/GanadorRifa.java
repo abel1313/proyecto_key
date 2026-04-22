@@ -1,21 +1,10 @@
 package com.ventas.key.mis.productos.entity;
 
-import java.sql.Date;
-
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
 
 @Entity
 @Table(name = "ganador_rifa")
@@ -23,16 +12,16 @@ import lombok.Setter;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class GanadorRifa extends BaseId{
+public class GanadorRifa extends BaseId {
 
-    @Valid
-    @OneToOne(cascade = {CascadeType.PERSIST})
-    @JoinColumn( name = "cliente_id")
-    private Cliente cliente;
+    @ManyToOne
+    @JoinColumn(name = "concursante_id", nullable = false)
+    private Concursante concursante;
 
-    @OneToOne(cascade = CascadeType.PERSIST)
-    @JoinColumn(name = "producto_id")
+    @ManyToOne
+    @JoinColumn(name = "producto_id", nullable = false)
     private Producto producto;
 
-
+    @Column(name = "descartado", nullable = false)
+    private boolean descartado = false;
 }

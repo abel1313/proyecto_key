@@ -20,6 +20,9 @@ public interface IRifaService extends ICrud<
 
 
 
-    List<Rifa> buscarPorRangoDeHora(String inicio, String fin, String palabraRifa)throws Exception;
+    List<Rifa> buscarPorRangoDeHora(String inicio, String fin, String palabraRifa) throws Exception;
 
+    Rifa registrar(Rifa rifa, boolean forzar) throws Exception;
+
+    List<Rifa> buscarPorConfiguracion(Integer configurarRifaId);
 }
