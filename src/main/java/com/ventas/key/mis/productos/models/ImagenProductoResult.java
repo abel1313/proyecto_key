@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 public class ImagenProductoResult {
 
     private Integer productoId;
-    private Integer imagenId;
+    private Long imagenId;
 
 }
