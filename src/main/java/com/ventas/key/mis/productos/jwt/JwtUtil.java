@@ -48,9 +48,33 @@ public class JwtUtil {
                 .setClaims(claims)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 horas
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15)) // 15 minutos
                 .signWith(getSecretKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public String generateRefreshToken(UserDetails userDetails, long idUsuarioRegistrado) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("idUsuario", idUsuarioRegistrado);
+        claims.put("type", "refresh");
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(userDetails.getUsername())
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 días
+                .signWith(getSecretKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean isRefreshToken(String token) {
+        try {
+            String type = (String) Jwts.parserBuilder()
+                    .setSigningKey(getSecretKey()).build()
+                    .parseClaimsJws(token).getBody().get("type");
+            return "refresh".equals(type);
+        } catch (JwtException e) {
+            return false;
+        }
     }
 
     public String extractUsername(String token) {

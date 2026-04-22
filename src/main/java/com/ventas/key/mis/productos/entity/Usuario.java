@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -30,6 +31,7 @@ public class Usuario implements UserDetails {
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 

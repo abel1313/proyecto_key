@@ -6,11 +6,12 @@ import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.RegistroService;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,7 +19,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Arrays;
 
 @RestController
 @RequestMapping("/auth")
@@ -30,22 +34,15 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final RegistroService registroService;
     private final LoginRateLimiterService rateLimiterService;
+    private final UserDetailsService userDetailsService;
 
-    @Value("${spring.datasource.url}")
-    private String url;
-    @Value("${spring.datasource.username}")
-    private String username;
-    @Value("${spring.datasource.password}")
-    private String password;
-
+    private static final String REFRESH_COOKIE = "refreshToken";
+    private static final int REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 días en segundos
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request, HttpServletRequest httpRequest) {
-
-        log.info("url {}", url);
-        log.info("username {}", username);
-        log.info("password {}", password);
-
+    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request,
+                                   HttpServletRequest httpRequest,
+                                   HttpServletResponse response) {
         String clientIp = resolverIp(httpRequest);
 
         if (!rateLimiterService.tryConsume(clientIp)) {
@@ -59,8 +56,12 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(request.getUserName(), request.getPassword())
             );
             Usuario usr = (Usuario) auth.getPrincipal();
-            String token = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
-            return ResponseEntity.ok(new AuthResponse(token));
+            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
+            String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId());
+
+            agregarRefreshCookie(response, refreshToken);
+
+            return ResponseEntity.ok(new AuthResponse(accessToken));
         } catch (BadCredentialsException e) {
             log.warn("Intento de login fallido para usuario: {} desde IP: {}", request.getUserName(), clientIp);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
@@ -70,13 +71,40 @@ public class AuthController {
         }
     }
 
-    private String resolverIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            // Puede venir una lista separada por comas: tomar solo la primera (IP real del cliente)
-            return xForwardedFor.split(",")[0].trim();
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = leerRefreshCookie(request);
+
+        if (refreshToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No hay refresh token");
         }
-        return request.getRemoteAddr();
+        if (!jwtUtil.validateToken(refreshToken) || !jwtUtil.isRefreshToken(refreshToken)) {
+            limpiarRefreshCookie(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token inválido o expirado");
+        }
+
+        try {
+            String username = jwtUtil.extractUsername(refreshToken);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            Usuario usr = (Usuario) userDetails;
+
+            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId());
+            String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId());
+
+            agregarRefreshCookie(response, newRefreshToken);
+
+            return ResponseEntity.ok(new AuthResponse(newAccessToken));
+        } catch (Exception e) {
+            log.error("Error al refrescar token: {}", e.getMessage());
+            limpiarRefreshCookie(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No se pudo renovar la sesión");
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse response) {
+        limpiarRefreshCookie(response);
+        return ResponseEntity.ok("Sesión cerrada");
     }
 
     @PostMapping("/registrar")
@@ -97,4 +125,38 @@ public class AuthController {
         }
     }
 
+    private void agregarRefreshCookie(HttpServletResponse response, String refreshToken) {
+        Cookie cookie = new Cookie(REFRESH_COOKIE, refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);       // solo HTTPS
+        cookie.setPath("/auth");      // solo se envía a /auth/*
+        cookie.setMaxAge(REFRESH_MAX_AGE);
+        // SameSite=None necesario para peticiones cross-origin desde el frontend
+        response.addHeader("Set-Cookie",
+                String.format("%s=%s; Max-Age=%d; Path=/auth; HttpOnly; Secure; SameSite=None",
+                        REFRESH_COOKIE, refreshToken, REFRESH_MAX_AGE));
+    }
+
+    private void limpiarRefreshCookie(HttpServletResponse response) {
+        response.addHeader("Set-Cookie",
+                String.format("%s=; Max-Age=0; Path=/auth; HttpOnly; Secure; SameSite=None",
+                        REFRESH_COOKIE));
+    }
+
+    private String leerRefreshCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) return null;
+        return Arrays.stream(request.getCookies())
+                .filter(c -> REFRESH_COOKIE.equals(c.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String resolverIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
 }
