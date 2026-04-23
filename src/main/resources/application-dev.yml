@@ -6,8 +6,11 @@ server:
 ---
 
 spring:
+  codec:
+    max-in-memory-size: 10MB
   cache:
-    type: redis
+    #type: redis
+    type: simple
   redis:
     host: 127.0.0.1
     port: 6379
@@ -15,26 +18,23 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:mysql://51.178.29.99:3306/inventario_key
-    username: user_ventas
-    password: Luvianos#130594
-    #url: jdbc:mysql://localhost:3306/inventario_key
+    url: jdbc:mysql://localhost:3306/inventario_key
 #    url: jdbc:mysql://db-bolsas-key.cuf6ai4u4jfs.us-east-1.rds.amazonaws.com:3306/inventario_key
 #    url: ${SPRING_DATASOURCE_URL}
 #    username: ${SPRING_DATASOURCE_USERNAME}
 #    username: admin
-    #username: root
+    username: root
 #    password: ${SPRING_DATASOURCE_PASSWORD}
 #    password: tpM9EBgFzQ![<NTfvJu2g$6S9Ele
-    #password: 130594
+    password: 130594
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1
-      idle-timeout: 300000
-      max-lifetime: 540000
-      connection-timeout: 20000
-      keepalive-time: 30000
+      idle-timeout: 60000         # 1 min: libera conexiones idle rápido en VPS con poca RAM
+      max-lifetime: 300000        # 5 min: rota conexiones antes de que MySQL las corte
+      connection-timeout: 20000   # 20 seg: tiempo máximo esperando una conexión del pool
+      keepalive-time: 30000       # 30 seg: ping para mantener la conexión viva
       connection-test-query: SELECT 1
   jpa:
     show-sql: false
@@ -47,9 +47,12 @@ spring:
 clave-seguridad:
   clave: miClaveSuperSeguraDe32Caracteres
 
+cookie:
+  secure: false  # true en producción (requiere HTTPS)
+
 api:
 #  imagenes: http://k8s-default-imagenes-65ff6abba3-120698284f8297cf.elb.us-east-1.amazonaws.com/mis-productos
-  #imagenes: http://localhost:9092/mis-productos
+#  imagenes: http://localhost:9096/mis-productos
   imagenes: https://backend-imagenes.novedades-jade.com.mx/mis-productos
   cors_angular: http://localhost:4200
 #logging:
@@ -61,6 +64,12 @@ logging:
   level:
     root: INFO
     com.miempresa: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: caches,health
 
 guardar-imagenes:
   ruta_imagenes: D:\\Imagenes
