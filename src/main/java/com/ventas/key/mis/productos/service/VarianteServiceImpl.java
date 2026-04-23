@@ -4,10 +4,13 @@ import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.ImagenDTO;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
+import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
@@ -15,43 +18,37 @@ import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @Slf4j
 public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List<Variantes>, Optional<Variantes>, Integer, PginaDto<List<Variantes>>>
         implements IVarianteService {
 
-    @Value("${guardar-imagenes.ruta_imagenes}")
-    private String rutaImagenes;
-
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
-    private final IImagenService iImagenService;
     private final IProductosRepository iProductosRepository;
+    private final ImageneClienteAWS imageneClienteAWS;
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
-                               IImagenService iImagenService,
                                IProductosRepository iProductosRepository,
+                               ImageneClienteAWS imageneClienteAWS,
                                ErrorGenerico error) {
         super(iVarianteRepository, error);
         this.iVarianteRepository = iVarianteRepository;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
-        this.iImagenService = iImagenService;
         this.iProductosRepository = iProductosRepository;
+        this.imageneClienteAWS = imageneClienteAWS;
     }
 
     public List<Variantes> buscarPorProducto(Integer productoId) {
@@ -106,11 +103,25 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Variantes saved = save(variante);
 
         if (detalle.getListImagenes() != null && !detalle.getListImagenes().isEmpty()) {
-            List<Imagen> imagenes = mappImagenes(detalle.getListImagenes());
-            List<Imagen> savedImagenes = iImagenService.saveAll(imagenes);
-            List<VarianteImagen> relaciones = savedImagenes.stream().map(img -> {
+            LinkedMultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+            for (ImagenDTO dto : detalle.getListImagenes()) {
+                byte[] bytes = dto.getBase64();
+                String nombre = dto.getNombreImagen();
+                ByteArrayResource recurso = new ByteArrayResource(bytes) {
+                    @Override
+                    public String getFilename() { return nombre; }
+                };
+                formData.add("files", recurso);
+            }
+
+            // micro_imagenes escribe en disco Y guarda en imagenes_copy, devuelve los IDs
+            List<ImagenDto> savedImagenes = imageneClienteAWS.save(formData);
+
+            List<VarianteImagen> relaciones = savedImagenes.stream().map(dto -> {
                 VarianteImagen vi = new VarianteImagen();
                 vi.setVariante(saved);
+                Imagen img = new Imagen();
+                img.setId(dto.getId());
                 vi.setImagen(img);
                 return vi;
             }).toList();
@@ -133,25 +144,74 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return v;
     }
 
-    private List<Imagen> mappImagenes(List<ImagenDTO> list) {
-        return list.stream().map(dto -> {
-            Imagen imagen = new Imagen();
-            byte[] decodedBytes = dto.getBase64();
-            String urlImagen = UUID.randomUUID() + "_" + dto.getNombreImagen();
-            Path path = Paths.get(rutaImagenes, urlImagen);
-            try {
-                File directorio = new File(rutaImagenes);
-                if (!directorio.exists()) directorio.mkdirs();
-                Files.write(path, decodedBytes);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            Long idImagen = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
-            imagen.setId(idImagen);
-            imagen.setBase64(urlImagen);
-            imagen.setNombreImagen(dto.getNombreImagen());
-            imagen.setExtension(dto.getExtension());
-            return imagen;
-        }).toList();
+    public PginaDto<List<VarianteResumenDto>> buscarPorNombrePaginadoResumen(String nombre, int pagina, int size) {
+        return toResumenPagina(buscarPorNombrePaginado(nombre, pagina, size));
     }
+
+    public PginaDto<List<VarianteResumenDto>> buscarPorCodigoBarrasPaginadoResumen(String codigoBarras, int pagina, int size) {
+        return toResumenPagina(buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size));
+    }
+
+    public PginaDto<List<VarianteResumenDto>> findAllResumen(int pagina, int size) {
+        return toResumenPagina(findAllNew(pagina, size));
+    }
+
+    private PginaDto<List<VarianteResumenDto>> toResumenPagina(PginaDto<List<Variantes>> origen) {
+        PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
+        resultado.setPagina(origen.getPagina());
+        resultado.setTotalPaginas(origen.getTotalPaginas());
+        resultado.setTotalRegistros(origen.getTotalRegistros());
+        resultado.setT(origen.getT().stream().map(this::toResumenDto).toList());
+        return resultado;
+    }
+
+    private VarianteResumenDto toResumenSinImagen(Variantes v) {
+        VarianteResumenDto dto = new VarianteResumenDto();
+        dto.setId(v.getId());
+        dto.setTalla(v.getTalla());
+        dto.setDescripcion(v.getDescripcion());
+        dto.setColor(v.getColor());
+        dto.setPresentacion(v.getPresentacion());
+        dto.setStock(v.getStock());
+        dto.setMarca(v.getMarca());
+        dto.setContenidoNeto(v.getContenidoNeto());
+        return dto;
+    }
+
+    public PginaDto<List<VarianteResumenDto>> buscarPorProductoPaginadoResumen(Integer productoId, int pagina, int size) {
+        Page<Variantes> page = iVarianteRepository.findByProductoId(productoId, PageRequest.of(pagina - 1, size));
+        PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(page.getContent().stream().map(this::toResumenDto).toList());
+        return resultado;
+    }
+
+    private VarianteResumenDto toResumenDto(Variantes v) {
+        VarianteResumenDto dto = new VarianteResumenDto();
+        dto.setId(v.getId());
+        dto.setTalla(v.getTalla());
+        dto.setDescripcion(v.getDescripcion());
+        dto.setColor(v.getColor());
+        dto.setPresentacion(v.getPresentacion());
+        dto.setStock(v.getStock());
+        dto.setMarca(v.getMarca());
+        dto.setContenidoNeto(v.getContenidoNeto());
+
+        List<VarianteImagen> imagenes = iVarianteImagenRepository.findByVarianteId(v.getId());
+        if (!imagenes.isEmpty()) {
+            Long imagenId = imagenes.get(0).getImagen().getId();
+            try {
+                List<ImagenDto> bytesList = imageneClienteAWS.getAll(List.of(imagenId));
+                if (bytesList != null && !bytesList.isEmpty() && bytesList.get(0).getImagen() != null) {
+                    dto.setImagenBase64(Base64.getEncoder().encodeToString(bytesList.get(0).getImagen()));
+                }
+            } catch (Exception e) {
+                log.warn("No se pudo obtener imagen para variante {}: {}", v.getId(), e.getMessage());
+            }
+        }
+        return dto;
+    }
+
 }

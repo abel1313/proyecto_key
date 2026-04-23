@@ -8,6 +8,6 @@ import java.util.List;
 
 public interface ImagenPort {
 
-    List<ImagenDto> save(MultiValueMap<String, HttpEntity<?>> multipartData);
+    List<ImagenDto> save(MultiValueMap<String, ?> multipartData);
     List<ImagenDto> getAll(List<Long> ids);
 }

@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
+import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -49,18 +50,18 @@ public class VarianteController extends AbstractController<
     }
 
     @GetMapping("/buscar")
-    public ResponseEntity<ResponseGeneric<PginaDto<List<Variantes>>>> buscar(
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscar(
             @RequestParam(required = false) String nombre,
             @RequestParam(required = false) String codigoBarras,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         if (codigoBarras != null && !codigoBarras.isBlank()) {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size)));
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorCodigoBarrasPaginadoResumen(codigoBarras, pagina, size)));
         }
         if (nombre != null && !nombre.isBlank()) {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorNombrePaginado(nombre, pagina, size)));
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorNombrePaginadoResumen(nombre, pagina, size)));
         }
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.findAllNew(pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.findAllResumen(pagina, size)));
     }
 
     @PostMapping("/guardarConImagenes")
@@ -77,5 +78,13 @@ public class VarianteController extends AbstractController<
     @GetMapping("/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenes(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVariante(varianteId)));
+    }
+
+    @GetMapping("/porProducto/{productoId}/paginado/resumen")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> getPorProductoPaginadoResumen(
+            @PathVariable Integer productoId,
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, size)));
     }
 }

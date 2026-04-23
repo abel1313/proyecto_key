@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.hexagonal.infraestructura;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
@@ -8,7 +9,6 @@ import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -35,17 +36,20 @@ public class ImageneClienteAWS implements ImagenPort {
     }
     @PostConstruct
     public void init() {
-        this.webClient = builder.baseUrl(endpointImg).build();
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+                .codecs(config -> config.defaultCodecs().maxInMemorySize(40 * 1024 * 1024))
+                .build();
+        this.webClient = builder.baseUrl(endpointImg).exchangeStrategies(strategies).build();
         log.info(" endpoint imagenes ImageneClienteAWS {}", endpointImg);
     }
 
 
     @Override
-    public List<ImagenDto> save(MultiValueMap<String, HttpEntity<?>> multipartData) {
+    public List<ImagenDto> save(MultiValueMap<String, ?> multipartData) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String jwtToken = authentication.getCredentials().toString();
         return webClient.post()
-                .uri("/imagenes") // la ruta de tu controlador
+                .uri("/imagenes")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer ".concat(jwtToken))
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipartData))
@@ -68,6 +72,7 @@ public class ImageneClienteAWS implements ImagenPort {
                         .path("/imagenes")
                         .queryParam("ids", ids.toArray())
                         .build())
+                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {
                 }).flatMap(flat-> Mono.just(flat.stream().map(mpa->{

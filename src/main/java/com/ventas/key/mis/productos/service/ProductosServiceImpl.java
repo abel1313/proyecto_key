@@ -85,8 +85,9 @@ public class ProductosServiceImpl extends
 
     @SneakyThrows
     @Override
-    @Cacheable(value = "obtenerProductosCache", key = "#size + '-' + #page")
+    //@Cacheable(value = "obtenerProductosCache", key = "#size + '-' + #page")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
+
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
