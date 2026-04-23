@@ -1,7 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Imagen;
-import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
@@ -9,6 +8,7 @@ import com.ventas.key.mis.productos.models.ImagenDTO;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
+import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
@@ -40,15 +40,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IImagenService iImagenService;
+    private final IProductosRepository iProductosRepository;
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
                                IImagenService iImagenService,
+                               IProductosRepository iProductosRepository,
                                ErrorGenerico error) {
         super(iVarianteRepository, error);
         this.iVarianteRepository = iVarianteRepository;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.iImagenService = iImagenService;
+        this.iProductosRepository = iProductosRepository;
     }
 
     public List<Variantes> buscarPorProducto(Integer productoId) {
@@ -69,8 +72,28 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre);
     }
 
+    public PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size) {
+        Page<Variantes> page = iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre, PageRequest.of(pagina - 1, size));
+        PginaDto<List<Variantes>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(page.getContent());
+        return resultado;
+    }
+
     public List<Variantes> buscarPorCodigoBarras(String codigoBarras) {
         return iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras);
+    }
+
+    public PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size) {
+        Page<Variantes> page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras, PageRequest.of(pagina - 1, size));
+        PginaDto<List<Variantes>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(page.getContent());
+        return resultado;
     }
 
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
@@ -99,9 +122,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private Variantes buildVariante(VarianteDetalle detalle) {
         Variantes v = new Variantes();
         if (detalle.getId() != null) v.setId(detalle.getId());
-        Producto producto = new Producto();
-        producto.setId(detalle.getProductoId());
-        v.setProducto(producto);
+        v.setProducto(iProductosRepository.getReferenceById(detalle.getProductoId()));
         v.setTalla(detalle.getTalla());
         v.setColor(detalle.getColor());
         v.setMarca(detalle.getMarca());

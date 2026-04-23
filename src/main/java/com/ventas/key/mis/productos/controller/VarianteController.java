@@ -49,16 +49,16 @@ public class VarianteController extends AbstractController<
     }
 
     @GetMapping("/buscar")
-    public ResponseEntity<?> buscar(
+    public ResponseEntity<ResponseGeneric<PginaDto<List<Variantes>>>> buscar(
             @RequestParam(required = false) String nombre,
             @RequestParam(required = false) String codigoBarras,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         if (codigoBarras != null && !codigoBarras.isBlank()) {
-            return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.buscarPorCodigoBarras(codigoBarras)));
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size)));
         }
         if (nombre != null && !nombre.isBlank()) {
-            return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.buscarPorNombre(nombre)));
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorNombrePaginado(nombre, pagina, size)));
         }
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.findAllNew(pagina, size)));
     }

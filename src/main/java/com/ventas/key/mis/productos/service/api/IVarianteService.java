@@ -14,6 +14,7 @@ public interface IVarianteService extends ICrud<
                                             Integer,
                                             PginaDto<List<Variantes>>> {
 
-
+    PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size);
+    PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size);
 
 }

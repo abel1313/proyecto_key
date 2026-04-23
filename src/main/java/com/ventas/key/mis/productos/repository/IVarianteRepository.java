@@ -16,6 +16,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     Page<Variantes> findByProductoId(Integer productoId, Pageable pageable);
 
     List<Variantes> findByProductoNombreContainingIgnoreCase(String nombre);
+    Page<Variantes> findByProductoNombreContainingIgnoreCase(String nombre, Pageable pageable);
 
     List<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras);
+    Page<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras, Pageable pageable);
 }
