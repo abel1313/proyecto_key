@@ -115,18 +115,21 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private List<Imagen> mappImagenes(List<ImagenDTO> list) {
         return list.stream().map(dto -> {
             Imagen imagen = new Imagen();
+            byte[] decodedBytes = dto.getBase64();
             String urlImagen = UUID.randomUUID() + "_" + dto.getNombreImagen();
             Path path = Paths.get(rutaImagenes, urlImagen);
             try {
                 File directorio = new File(rutaImagenes);
                 if (!directorio.exists()) directorio.mkdirs();
-                Files.write(path, dto.getBase64());
+                Files.write(path, decodedBytes);
             } catch (IOException e) {
-                log.error("Error al guardar imagen en disco: {}", e.getMessage());
+                throw new RuntimeException(e);
             }
+            Long idImagen = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+            imagen.setId(idImagen);
             imagen.setBase64(urlImagen);
-            imagen.setExtension(dto.getExtension());
             imagen.setNombreImagen(dto.getNombreImagen());
+            imagen.setExtension(dto.getExtension());
             return imagen;
         }).toList();
     }
