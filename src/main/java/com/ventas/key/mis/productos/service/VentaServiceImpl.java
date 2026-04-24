@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,13 +71,13 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     }
 
     @Transactional
-    public Venta saveVentaDetalle(VentaDirectaRequest request) throws Exception {
+    public Venta saveVentaDetalle(VentaDirectaRequest request) throws ExceptionErrorInesperado, ExceptionDataNotFound {
 
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
-                .orElseThrow(() -> new Exception("Usuario no encontrado"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
 
         PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(request.getPagosYMesesId())
-                .orElseThrow(() -> new Exception("Opción de pago no válida"));
+                .orElseThrow(() -> new ExceptionErrorInesperado("Opción de pago no válida"));
 
         MesesIntereses mesesIntereses = pagosYMeses.getMesesIntereses();
 
@@ -115,7 +117,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
             if (item.getVarianteId() != null) {
                 Variantes variante = iVarianteRepository.findById(item.getVarianteId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + item.getVarianteId()));
+                        .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
                 if (variante.getStock() < item.getCantidad()) {
                     throw new RuntimeException("Stock insuficiente en variante id " + item.getVarianteId()
                             + ". Disponible: " + variante.getStock() + ", solicitado: " + item.getCantidad());

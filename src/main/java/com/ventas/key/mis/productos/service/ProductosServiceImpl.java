@@ -126,6 +126,7 @@ public class ProductosServiceImpl extends
             productoUser.setCodigoBarras(p.getCodigoBarras().getCodigoBarras());
             productoUser.setIdProducto(p.getId());
             productoUser.setImagen(img);
+            productoUser.setStock(p.getStock());
             return new ProductoDTO(productoUser);
         }
     }

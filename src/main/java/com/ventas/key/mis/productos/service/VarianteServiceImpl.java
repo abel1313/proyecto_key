@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteAWS;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.ImagenDTO;
@@ -98,15 +99,15 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Transactional
-    public Variantes guardarConImagenes(VarianteDetalle detalle) throws Exception {
+    public Variantes guardarConImagenes(VarianteDetalle detalle) throws ExceptionDataNotFound {
         if (detalle.getId() != null) {
             Variantes actual = iVarianteRepository.findById(detalle.getId())
-                    .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + detalle.getId()));
+                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
             int diff = detalle.getStock() - actual.getStock();
             if (diff != 0) {
                 com.ventas.key.mis.productos.entity.Producto producto =
                         iProductosRepository.findById(detalle.getProductoId())
-                                .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + detalle.getProductoId()));
+                                .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + detalle.getProductoId()));
                 producto.setStock(producto.getStock() + diff);
                 iProductosRepository.save(producto);
             }

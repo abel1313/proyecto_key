@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -63,7 +64,7 @@ public abstract class CrudAbstractServiceImpl<
     }
 
     @Override
-    public Response save(Response req) throws Exception {
+    public Response save(Response req) throws ExceptionDataNotFound {
     try {
         return this.repoGenerico.save(req);
         } catch (Exception e) {

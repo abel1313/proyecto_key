@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import java.util.List;
 import java.util.Optional;
 
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import org.springframework.stereotype.Service;
 
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
@@ -33,12 +34,12 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
     }
 
     @Override
-    public ConfigurarRifa save(ConfigurarRifa req) throws Exception {
+    public ConfigurarRifa save(ConfigurarRifa req) throws ExceptionErrorInesperado {
         if (req.getProducto() == null || req.getProducto().getId() == null) {
-            throw new Exception("Debe indicar el producto de la rifa");
+            throw new ExceptionErrorInesperado("Debe indicar el producto de la rifa");
         }
         Producto producto = iProductosRepository.findById(req.getProducto().getId())
-                .orElseThrow(() -> new Exception("Producto no encontrado"));
+                .orElseThrow(() -> new ExceptionErrorInesperado("Producto no encontrado"));
         req.setProducto(producto);
         return super.save(req);
     }

@@ -61,4 +61,14 @@ public class UsuarioController extends AbstractController<
             return null;
         }
     }
+
+    @GetMapping("/buscarClientePorIdUsuario/{idUsuario}")
+    public ResponseEntity<Boolean> existeClientePorIdUsuario(@PathVariable int idUsuario) {
+        try {
+            this.usu.eliminarUsuario(idUsuario);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

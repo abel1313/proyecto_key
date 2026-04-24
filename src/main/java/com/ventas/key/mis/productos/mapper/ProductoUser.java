@@ -18,6 +18,7 @@ public class ProductoUser {
     private String descripcion;
     private String codigoBarras;
     private int idProducto;
+    private int stock;
     private Imagen imagen;
 
 }

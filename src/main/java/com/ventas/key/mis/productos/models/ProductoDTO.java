@@ -56,6 +56,7 @@ public class ProductoDTO {
         this.codigoBarras = productoUser.getCodigoBarras();
         this.idProducto = productoUser.getIdProducto();
         this.imagen =  productoUser.getImagen();
+        this.stock = productoUser.getStock();
 
     }
 }

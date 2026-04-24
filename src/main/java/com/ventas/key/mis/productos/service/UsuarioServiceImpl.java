@@ -3,6 +3,8 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
@@ -74,7 +76,7 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
 
     @Override
     public UserUpdate updateUserDto(UserUpdate usuarioDto, int tipoDato) {
-        Usuario existe = this.usuarioRepository.findById(tipoDato).orElseThrow(()-> new GenericException(404, "Ocurrio un erro al restablecer la contrasena"));
+        Usuario existe = this.usuarioRepository.findById(tipoDato).orElseThrow(()-> new ExceptionErrorInesperado("Ocurrio un erro al restablecer la contrasena"));
         existe.setPassword(passwordEncoder.encode(usuarioDto.getPassword()));
         existe.setEmail(usuarioDto.getEmail());
         Roles roles = new Roles();
@@ -88,8 +90,13 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     }
     @Override
     public void eliminarUsuario(int tipoDato) {
-        Usuario existe = this.usuarioRepository.findById(tipoDato).orElseThrow(()-> new GenericException(404, "El usuario no existe"));
+        Usuario existe = this.usuarioRepository.findById(tipoDato).orElseThrow(()-> new ExceptionDataNotFound("El usuario no existe"));
         existe.setEnabled(false);
         this.usuarioRepository.save(existe);
+    }
+
+    @Override
+    public boolean existeClientePorIdUsuario(int idUsuario) {
+        return usuarioRepository.existsUsuarioByClienteId(idUsuario);
     }
 }
