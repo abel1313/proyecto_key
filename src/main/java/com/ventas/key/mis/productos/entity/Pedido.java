@@ -32,6 +32,10 @@ public class Pedido extends BaseId{
     @Column(name = "estado_pedido")
     private String estadoPedido;
 
+    @Column(name = "fecha_recogida")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate fechaRecogida;
+
     private String observaciones;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL)

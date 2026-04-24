@@ -13,6 +13,7 @@ import java.util.List;
 public class PedidosDTOPedido {
     private ClienteDTOPedido cliente;
     private LocalDate fechaPedido;
+    private LocalDate fechaRecogida;
     private String estadoPedido;
     private String observaciones;
     private List<DetallePedidosDTOPedido> detalles;

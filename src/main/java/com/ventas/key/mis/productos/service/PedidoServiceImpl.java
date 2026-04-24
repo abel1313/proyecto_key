@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.MesesIntereses;
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.entity.PagosYMeses;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
@@ -19,6 +20,7 @@ import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
+import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -54,6 +56,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IDetallePagoRepository iDetallePagoRepository;
     private final IDetallePedidoRepository iDetallePedidoRepository;
     private final IPagosYMesesRepository iPagosYMesesRepository;
+    private final IVarianteRepository iVarianteRepository;
 
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
                              final IClienteRepository iClienteRepository,
@@ -63,7 +66,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final ObjectMapper objectMapper,
                              final IDetallePagoRepository iDetallePagoRepository,
                              final IDetallePedidoRepository iDetallePedidoRepository,
-                             final IPagosYMesesRepository iPagosYMesesRepository) {
+                             final IPagosYMesesRepository iPagosYMesesRepository,
+                             final IVarianteRepository iVarianteRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -74,6 +78,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iDetallePagoRepository = iDetallePagoRepository;
         this.iDetallePedidoRepository = iDetallePedidoRepository;
         this.iPagosYMesesRepository = iPagosYMesesRepository;
+        this.iVarianteRepository = iVarianteRepository;
     }
 
     @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
@@ -86,6 +91,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setCliente(cliente);
         pedido.setEstadoPedido(requestG.getEstadoPedido());
         pedido.setFechaPedido(requestG.getFechaPedido());
+        pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
 
         List<DetallePedido> detallePedido = new ArrayList<>();
@@ -100,12 +106,25 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             prod.setStock(prod.getStock() - mpa.getCantidad());
             this.iProductoRepository.save(prod);
 
+            Variantes variante = null;
+            if (mpa.getVarianteId() != null) {
+                variante = iVarianteRepository.findById(mpa.getVarianteId())
+                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + mpa.getVarianteId()));
+                if (variante.getStock() < mpa.getCantidad()) {
+                    throw new RuntimeException("Stock insuficiente en variante id " + mpa.getVarianteId()
+                            + ". Disponible: " + variante.getStock() + ", solicitado: " + mpa.getCantidad());
+                }
+                variante.setStock(variante.getStock() - mpa.getCantidad());
+                iVarianteRepository.save(variante);
+            }
+
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());
             dta.setPrecioUnitario(mpa.getPrecioUnitario());
             dta.setSubTotal(mpa.getSubTotal());
             dta.setPedido(pedido);
             dta.setProducto(prod);
+            dta.setVariante(variante);
             detallePedido.add(dta);
         }
         pedido.setDetalles(detallePedido);
@@ -240,6 +259,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                     .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
             prod.setStock(prod.getStock() + detalle.getCantidad());
             iProductoRepository.save(prod);
+
+            if (detalle.getVariante() != null) {
+                Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
+                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                variante.setStock(variante.getStock() + detalle.getCantidad());
+                iVarianteRepository.save(variante);
+            }
         });
 
         pedido.setEstadoPedido("cancelado");
@@ -271,10 +297,22 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (cantidad >= detalle.getCantidad()) {
             prod.setStock(prod.getStock() + detalle.getCantidad());
             iProductoRepository.save(prod);
+            if (detalle.getVariante() != null) {
+                Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
+                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                variante.setStock(variante.getStock() + detalle.getCantidad());
+                iVarianteRepository.save(variante);
+            }
             iDetallePedidoRepository.delete(detalle);
         } else {
             prod.setStock(prod.getStock() + cantidad);
             iProductoRepository.save(prod);
+            if (detalle.getVariante() != null) {
+                Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
+                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                variante.setStock(variante.getStock() + cantidad);
+                iVarianteRepository.save(variante);
+            }
             detalle.setCantidad(detalle.getCantidad() - cantidad);
             detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
             iDetallePedidoRepository.save(detalle);

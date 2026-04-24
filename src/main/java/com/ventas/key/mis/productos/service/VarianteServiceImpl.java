@@ -99,6 +99,19 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public Variantes guardarConImagenes(VarianteDetalle detalle) throws Exception {
+        if (detalle.getId() != null) {
+            Variantes actual = iVarianteRepository.findById(detalle.getId())
+                    .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + detalle.getId()));
+            int diff = detalle.getStock() - actual.getStock();
+            if (diff != 0) {
+                com.ventas.key.mis.productos.entity.Producto producto =
+                        iProductosRepository.findById(detalle.getProductoId())
+                                .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + detalle.getProductoId()));
+                producto.setStock(producto.getStock() + diff);
+                iProductosRepository.save(producto);
+            }
+        }
+
         Variantes variante = buildVariante(detalle);
         Variantes saved = save(variante);
 

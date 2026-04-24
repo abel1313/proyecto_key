@@ -20,4 +20,5 @@ public class DetalleVentaDto {
     private Integer cantidad;
     private Double subTotal;
     private Pedido pedido;
+    private Integer varianteId;
 }

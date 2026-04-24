@@ -14,4 +14,5 @@ public class DetallePedidosDTOPedido {
     private Integer cantidad;
     private Double precioUnitario;
     private Double subTotal;
+    private Integer varianteId;
 }

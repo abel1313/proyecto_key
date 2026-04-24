@@ -21,11 +21,13 @@ import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.models.VentaDirectaRequest;
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetalleVentaRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
+import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
 
 import jakarta.persistence.EntityManager;
@@ -43,6 +45,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     private final IUsuarioRepository iUsuarioRepository;
     private final IPagosYMesesRepository iPagosYMesesRepository;
     private final IDetallePagoRepository iDetallePagoRepository;
+    private final IVarianteRepository iVarianteRepository;
     private final ErrorGenerico errorGenerico;
 
     public VentaServiceImpl(
@@ -52,6 +55,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             final IUsuarioRepository iUsuarioRepository,
             final IPagosYMesesRepository iPagosYMesesRepository,
             final IDetallePagoRepository iDetallePagoRepository,
+            final IVarianteRepository iVarianteRepository,
             final ErrorGenerico errorGenerico) {
         super(iVentaRepository, errorGenerico);
         this.iVentaRepository = iVentaRepository;
@@ -60,6 +64,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         this.iUsuarioRepository = iUsuarioRepository;
         this.iPagosYMesesRepository = iPagosYMesesRepository;
         this.iDetallePagoRepository = iDetallePagoRepository;
+        this.iVarianteRepository = iVarianteRepository;
         this.errorGenerico = errorGenerico;
     }
 
@@ -107,6 +112,17 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             }
             prod.setStock(prod.getStock() - item.getCantidad());
             iRepository.save(prod);
+
+            if (item.getVarianteId() != null) {
+                Variantes variante = iVarianteRepository.findById(item.getVarianteId())
+                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + item.getVarianteId()));
+                if (variante.getStock() < item.getCantidad()) {
+                    throw new RuntimeException("Stock insuficiente en variante id " + item.getVarianteId()
+                            + ". Disponible: " + variante.getStock() + ", solicitado: " + item.getCantidad());
+                }
+                variante.setStock(variante.getStock() - item.getCantidad());
+                iVarianteRepository.save(variante);
+            }
 
             double precioCosto = prod.getPrecioCosto();
             double subTotal    = item.getSubTotal();
