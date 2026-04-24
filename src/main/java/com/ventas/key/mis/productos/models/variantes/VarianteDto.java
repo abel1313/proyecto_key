@@ -1,4 +1,4 @@
-package com.ventas.key.mis.productos.models;
+package com.ventas.key.mis.productos.models.variantes;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -7,7 +7,8 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class VarianteResumenDto {
+public class VarianteDto {
+
     private Integer id;
     private String talla;
     private String descripcion;
@@ -16,7 +17,6 @@ public class VarianteResumenDto {
     private int stock;
     private String marca;
     private String contenidoNeto;
-    private String imagenBase64;
     private double precio;
     private String codigoBarras;
 }

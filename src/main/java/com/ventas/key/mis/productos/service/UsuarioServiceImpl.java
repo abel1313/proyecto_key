@@ -96,7 +96,7 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     }
 
     @Override
-    public boolean existeClientePorIdUsuario(int idUsuario) {
+    public int existeClientePorIdUsuario(int idUsuario) {
         return usuarioRepository.existsUsuarioByClienteId(idUsuario);
     }
 }

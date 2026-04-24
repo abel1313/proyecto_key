@@ -2,14 +2,23 @@ package com.ventas.key.mis.productos.repository;
 
 
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IVarianteRepository extends BaseRepository<Variantes, Integer> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM Variantes v WHERE v.id = :id")
+    Optional<Variantes> findByIdWithLock(@Param("id") Integer id);
 
     List<Variantes> findByProductoId(Integer productoId);
 

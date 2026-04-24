@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
+import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,8 +38,8 @@ public class VarianteController extends AbstractController<
     }
 
     @GetMapping("/porProducto/{productoId}")
-    public ResponseEntity<ResponseGeneric<List<Variantes>>> getPorProducto(@PathVariable Integer productoId) {
-        return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.buscarPorProducto(productoId)));
+    public ResponseEntity<ResponseGeneric<List<VarianteDto>>> getPorProducto(@PathVariable Integer productoId) {
+        return ResponseEntity.ok(new ResponseGeneric<List<VarianteDto>>(sGenerico.buscarPorProducto(productoId)));
     }
 
     @GetMapping("/porProducto/{productoId}/paginado")
@@ -78,6 +79,14 @@ public class VarianteController extends AbstractController<
     @GetMapping("/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenes(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVariante(varianteId)));
+    }
+
+    @GetMapping("/imagenes/{varianteId}/paginado")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<ImagenUpdateDto>>>> getImagenesPaginado(
+            @PathVariable Integer varianteId,
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getImagenesPorVariantePaginado(varianteId, pagina, size)));
     }
 
     @GetMapping("/porProducto/{productoId}/paginado/resumen")

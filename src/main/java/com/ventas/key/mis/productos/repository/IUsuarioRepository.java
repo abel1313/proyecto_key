@@ -36,8 +36,8 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     Page<Usuario> findAllPage(@Param("buscar") String buscar, Pageable pageable);
 
 
-    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM Usuario u WHERE u.cliente.id = :id")
-    boolean existsUsuarioByClienteId(@Param("id") int id);
+    @Query("SELECT u.cliente.id FROM Usuario u WHERE u.id = :id")
+    int existsUsuarioByClienteId(@Param("id") int id);
 
 
 

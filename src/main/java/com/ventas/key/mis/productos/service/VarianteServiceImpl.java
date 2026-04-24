@@ -1,6 +1,8 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Imagen;
+import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
@@ -12,6 +14,8 @@ import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
+import com.ventas.key.mis.productos.models.variantes.VarianteDto;
+import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
@@ -29,6 +33,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -39,21 +44,38 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductosRepository iProductosRepository;
     private final ImageneClienteAWS imageneClienteAWS;
+    private final IImagenRepository iImagenRepository;
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
                                IProductosRepository iProductosRepository,
                                ImageneClienteAWS imageneClienteAWS,
+                               IImagenRepository iImagenRepository,
                                ErrorGenerico error) {
         super(iVarianteRepository, error);
         this.iVarianteRepository = iVarianteRepository;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.iProductosRepository = iProductosRepository;
         this.imageneClienteAWS = imageneClienteAWS;
+        this.iImagenRepository = iImagenRepository;
     }
 
-    public List<Variantes> buscarPorProducto(Integer productoId) {
-        return iVarianteRepository.findByProductoId(productoId);
+    public List<VarianteDto> buscarPorProducto(Integer productoId) {
+        return iVarianteRepository.findByProductoId(productoId).stream().map(v -> {
+            VarianteDto dto = new VarianteDto();
+            dto.setId(v.getId());
+            dto.setTalla(v.getTalla());
+            dto.setDescripcion(v.getDescripcion());
+            dto.setColor(v.getColor());
+            dto.setPresentacion(v.getPresentacion());
+            dto.setStock(v.getStock());
+            dto.setMarca(v.getMarca());
+            dto.setContenidoNeto(v.getContenidoNeto());
+            dto.setPrecio(v.getProducto().getPrecioVenta() != null ? v.getProducto().getPrecioVenta() : 0.0);
+            CodigoBarra cb = v.getProducto().getCodigoBarras();
+            dto.setCodigoBarras(cb != null ? cb.getCodigoBarras() : null);
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     public PginaDto<List<Variantes>> buscarPorProductoPaginado(Integer productoId, int pagina, int size) {
@@ -95,7 +117,40 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
-        return iVarianteImagenRepository.getImagenByVarianteId(varianteId);
+        List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
+        return buildImagenUpdateDtos(relaciones);
+    }
+
+    public PginaDto<List<ImagenUpdateDto>> getImagenesPorVariantePaginado(Integer varianteId, int pagina, int size) {
+        Page<VarianteImagen> page = iVarianteImagenRepository.findByVarianteId(varianteId, PageRequest.of(pagina - 1, size));
+        PginaDto<List<ImagenUpdateDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(buildImagenUpdateDtos(page.getContent()));
+        return resultado;
+    }
+
+    private List<ImagenUpdateDto> buildImagenUpdateDtos(List<VarianteImagen> relaciones) {
+        if (relaciones.isEmpty()) return List.of();
+        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
+        List<com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto> imagenes;
+        try {
+            imagenes = imageneClienteAWS.getAll(ids);
+        } catch (Exception e) {
+            log.warn("No se pudieron obtener imágenes del microservicio: {}", e.getMessage());
+            imagenes = List.of();
+        }
+        var mapaBytes = imagenes.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto::getId,
+                        com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto::getImagen,
+                        (a, b) -> a));
+        return relaciones.stream().map(vi -> {
+            var img = vi.getImagen();
+            byte[] bytes = mapaBytes.get(img.getId());
+            return new ImagenUpdateDto(img.getId(), bytes, img.getExtension(), img.getNombreImagen());
+        }).toList();
     }
 
     @Transactional
@@ -132,11 +187,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             List<ImagenDto> savedImagenes = imageneClienteAWS.save(formData);
 
             List<VarianteImagen> relaciones = savedImagenes.stream().map(dto -> {
+                log.info("info {}",dto.getId());
                 VarianteImagen vi = new VarianteImagen();
                 vi.setVariante(saved);
-                Imagen img = new Imagen();
-                img.setId(dto.getId());
-                vi.setImagen(img);
+                vi.setImagen(iImagenRepository.getReferenceById(dto.getId()));
                 return vi;
             }).toList();
             iVarianteImagenRepository.saveAll(relaciones);
@@ -212,7 +266,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setStock(v.getStock());
         dto.setMarca(v.getMarca());
         dto.setContenidoNeto(v.getContenidoNeto());
-
+        dto.setPrecio(v.getProducto().getPrecioVenta());
+        String codBarras = Optional.ofNullable(v.getProducto()).map(Producto::getCodigoBarras).map(CodigoBarra::getCodigoBarras).orElse("");
+        dto.setCodigoBarras(codBarras);
         List<VarianteImagen> imagenes = iVarianteImagenRepository.findByVarianteId(v.getId());
         if (!imagenes.isEmpty()) {
             Long imagenId = imagenes.get(0).getImagen().getId();

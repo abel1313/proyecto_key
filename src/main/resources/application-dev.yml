@@ -18,15 +18,15 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: jdbc:mysql://localhost:3306/inventario_key
+    url: jdbc:mysql://51.178.29.99:3306/inventario_key
 #    url: jdbc:mysql://db-bolsas-key.cuf6ai4u4jfs.us-east-1.rds.amazonaws.com:3306/inventario_key
 #    url: ${SPRING_DATASOURCE_URL}
 #    username: ${SPRING_DATASOURCE_USERNAME}
 #    username: admin
-    username: root
+    username: user_ventas
 #    password: ${SPRING_DATASOURCE_PASSWORD}
 #    password: tpM9EBgFzQ![<NTfvJu2g$6S9Ele
-    password: 130594
+    password: Luvianos#130594
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 5
@@ -52,8 +52,8 @@ cookie:
 
 api:
 #  imagenes: http://k8s-default-imagenes-65ff6abba3-120698284f8297cf.elb.us-east-1.amazonaws.com/mis-productos
-#  imagenes: http://localhost:9096/mis-productos
-  imagenes: https://backend-imagenes.novedades-jade.com.mx/mis-productos
+  imagenes: http://localhost:9096/mis-productos
+  #imagenes: https://backend-imagenes.novedades-jade.com.mx/mis-productos
   cors_angular: http://localhost:4200
 #logging:
 #  level:
@@ -73,6 +73,9 @@ management:
 
 guardar-imagenes:
   ruta_imagenes: D:\\Imagenes
+
+pedidos:
+  dias-limite-recogida: 2
 
 
 redis:

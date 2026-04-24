@@ -96,8 +96,26 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         List<DetallePedido> detallePedido = new ArrayList<>();
         for (var mpa : requestG.getDetalles()) {
-            Producto prod = this.iProductoRepository.findByIdWithLock(mpa.getProducto().getId())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId()));
+            Variantes variante = null;
+            Producto prod;
+
+            if (mpa.getVarianteId() != null) {
+                variante = iVarianteRepository.findByIdWithLock(mpa.getVarianteId())
+                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + mpa.getVarianteId()));
+
+                if (variante.getStock() < mpa.getCantidad()) {
+                    throw new RuntimeException("Stock insuficiente en variante id " + mpa.getVarianteId()
+                            + ". Disponible: " + variante.getStock() + ", solicitado: " + mpa.getCantidad());
+                }
+                variante.setStock(variante.getStock() - mpa.getCantidad());
+                iVarianteRepository.save(variante);
+
+                prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado para variante: " + mpa.getVarianteId()));
+            } else {
+                prod = this.iProductoRepository.findByIdWithLock(mpa.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId()));
+            }
 
             if (prod.getStock() < mpa.getCantidad()) {
                 throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
@@ -105,18 +123,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             }
             prod.setStock(prod.getStock() - mpa.getCantidad());
             this.iProductoRepository.save(prod);
-
-            Variantes variante = null;
-            if (mpa.getVarianteId() != null) {
-                variante = iVarianteRepository.findById(mpa.getVarianteId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + mpa.getVarianteId()));
-                if (variante.getStock() < mpa.getCantidad()) {
-                    throw new RuntimeException("Stock insuficiente en variante id " + mpa.getVarianteId()
-                            + ". Disponible: " + variante.getStock() + ", solicitado: " + mpa.getCantidad());
-                }
-                variante.setStock(variante.getStock() - mpa.getCantidad());
-                iVarianteRepository.save(variante);
-            }
 
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());

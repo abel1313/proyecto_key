@@ -10,10 +10,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ImagenUpdateDto extends ImagenDTO{
-    private int id;
+    private Long id;
 
-    public ImagenUpdateDto(int id,
-                           byte base64[],
+    // usado por JPQL (Imagen.base64 es String en DB)
+    public ImagenUpdateDto(Long id,
+                           String base64Str,
+                           String extension,
+                           String nombre) {
+        super(base64Str != null ? base64Str.getBytes() : null, extension, nombre);
+        this.id = id;
+    }
+
+    public ImagenUpdateDto(Long id,
+                           byte[] base64,
                            String extension,
                            String nombre) {
         super(base64, extension, nombre);
