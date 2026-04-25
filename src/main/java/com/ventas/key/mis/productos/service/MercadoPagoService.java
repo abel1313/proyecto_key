@@ -144,6 +144,18 @@ public class MercadoPagoService {
         }
     }
 
+    public void simularPagoCompletado(String intentId) throws Exception {
+        MpPaymentIntent registro = intentRepository.findByIntentId(intentId)
+                .orElseThrow(() -> new RuntimeException("Intent no encontrado: " + intentId));
+        actualizarEstado(registro, "FINISHED");
+        PagoMPRequest request = new PagoMPRequest(
+                registro.getPedidoId(), registro.getClienteId(),
+                null, registro.getCuotas(), registro.getMonto(), null);
+        PedidoGenerico pg = buildPedidoGenerico(request);
+        pedidoService.updatePedido(registro.getPedidoId(), pg);
+        log.info("[TEST] Pago simulado como FINISHED para intent: {}", intentId);
+    }
+
     public void cancelar(String intentId) throws MPException, MPApiException {
         new PointClient().cancelPaymentIntent(deviceId, intentId, requestOptions());
         intentRepository.findByIntentId(intentId).ifPresent(r -> actualizarEstado(r, "CANCELED"));

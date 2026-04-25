@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.models.PagoMPRequest;
 import com.ventas.key.mis.productos.service.MercadoPagoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -109,6 +110,22 @@ public class MercadoPagoController {
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(mercadoPagoService.listarIntentsPorEstado(estado, pagina, size));
+    }
+
+    @Profile("dev")
+    @PostMapping("/test/simular-pago/{intentId}")
+    public ResponseEntity<Map<String, String>> simularPago(@PathVariable String intentId) {
+        try {
+            mercadoPagoService.simularPagoCompletado(intentId);
+            return ResponseEntity.ok(Map.of(
+                    "intentId", intentId,
+                    "estado", "FINISHED",
+                    "mensaje", "Pago simulado correctamente"
+            ));
+        } catch (Exception e) {
+            log.error("Error simulando pago: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("mensaje", e.getMessage()));
+        }
     }
 
     @GetMapping("/historial/mp")
