@@ -1,6 +1,5 @@
 package com.ventas.key.mis.productos.entity;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
@@ -13,7 +12,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "usuario_modificacion")
@@ -22,7 +22,6 @@ import java.util.Collections;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Usuario implements UserDetails {
-
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,19 +36,17 @@ public class Usuario implements UserDetails {
 
     private String email;
 
-
-
-//    @ManyToMany(fetch = FetchType.EAGER)
-//    @JoinTable(
-//            name = "usuarios_roles", // tabla intermedia
-//            joinColumns = @JoinColumn(name = "usuario_id"), // FK hacia usuarios
-//            inverseJoinColumns = @JoinColumn(name = "rol_id") // FK hacia roles
-//    )
-//    private Set<Roles> roles = new HashSet<>();
-
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "rol_usuario")
     private Roles roles;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "usuario_permiso",
+            joinColumns = @JoinColumn(name = "usuario_id"),
+            inverseJoinColumns = @JoinColumn(name = "permiso_id")
+    )
+    private Set<Permiso> permisosExtra = new HashSet<>();
 
     @Column(nullable = false)
     private Boolean enabled = true;
@@ -58,25 +55,24 @@ public class Usuario implements UserDetails {
     @JsonManagedReference
     private Cliente cliente;
 
-    // Métodos requeridos por UserDetails
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singleton(new SimpleGrantedAuthority(roles.getNombreRol()));
+        Set<GrantedAuthority> authorities = new HashSet<>();
+        authorities.add(new SimpleGrantedAuthority(roles.getNombreRol()));
+        roles.getPermisos().forEach(p ->
+                authorities.add(new SimpleGrantedAuthority(p.getNombrePermiso())));
+        permisosExtra.forEach(p ->
+                authorities.add(new SimpleGrantedAuthority(p.getNombrePermiso())));
+        return authorities;
     }
-
 
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
     @Override public boolean isEnabled() { return enabled; }
 
-
     @Override
     public String toString() {
-        return "Usuario{" +
-                "username='" + username + '\'' +
-                ", password='" + password + '\'' +
-                ", email='" + email + '\'' +
-                '}';
+        return "Usuario{username='" + username + "', email='" + email + "'}";
     }
 }

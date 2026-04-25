@@ -85,14 +85,17 @@ public class ProductosServiceImpl extends
 
     @SneakyThrows
     @Override
+    @Cacheable(value = "obtenerProductosCache",
+            key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
 
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
+        boolean isAdmin = isAdminContext();
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
-                .map(this::mapperByRol)
+                .map(p -> mapperByRol(p, isAdmin))
                 .toList();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
@@ -101,10 +104,13 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
-    private ProductoDTO mapperByRol(Producto p) {
+    private boolean isAdminContext() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
         try {
             img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
@@ -112,11 +118,11 @@ public class ProductosServiceImpl extends
             throw new RuntimeException(e);
         }
 
-        if(isAdmin){
+        if (isAdmin) {
             ProductoAdmin productoAdmin = getProductoAdmin(p);
             productoAdmin.setImagen(img);
             return new ProductoDTO(productoAdmin);
-        }else{
+        } else {
             ProductoUser productoUser = new ProductoUser();
             productoUser.setNombre(p.getNombre());
             productoUser.setColor(p.getColor());
@@ -150,6 +156,8 @@ public class ProductosServiceImpl extends
 
 
     @Override
+    @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
+            key = "#nombre + ':' + #page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados;

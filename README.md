@@ -188,3 +188,168 @@ docker-compose down
 
 
 
+---
+
+# Sistema de Roles y Permisos
+
+## Por qué se cambió
+
+El sistema anterior solo tenía dos roles (`ROLE_ADMIN` y `ROLE_USUARIO`) y no permitía dar permisos específicos a usuarios sin cambiarles el rol completo.
+
+El nuevo sistema separa dos conceptos:
+- **Rol**: paquete base de permisos según el puesto (empleado, cajero, etc.)
+- **Permisos extra**: permisos individuales que se le agregan a un usuario puntual sin cambiarle el rol
+
+Ejemplo: Juan es cajero pero necesita ver clientes → en vez de subirlo a empleado (y darle todo lo de empleado), le agregás solo el permiso `CLIENTES_LEER`.
+
+---
+
+## Tablas involucradas en la base de datos
+
+### `roles` (ya existía)
+Guarda los roles disponibles en el sistema.
+
+| columna | tipo | descripción |
+|---|---|---|
+| id | INT PK | identificador |
+| nombre_rol | VARCHAR | nombre del rol (ej. ROLE_ADMIN) |
+
+Roles actuales: `ROLE_ADMIN`, `ROLE_USUARIO`, `ROLE_EMPLEADO`, `ROLE_CAJERO`
+
+---
+
+### `permisos` (nueva)
+Guarda cada permiso granular del sistema. Un permiso representa exactamente una acción sobre un recurso.
+
+| columna | tipo | descripción |
+|---|---|---|
+| id | INT PK | identificador |
+| nombre_permiso | VARCHAR | nombre del permiso (ej. PRODUCTOS_LEER) |
+
+---
+
+### `rol_permiso` (nueva)
+Relaciona qué permisos tiene cada rol. Si mañana querés que el cajero también pueda ver clientes, agregás una fila aquí.
+
+| columna | tipo | descripción |
+|---|---|---|
+| rol_id | INT FK → roles | el rol |
+| permiso_id | INT FK → permisos | el permiso que tiene ese rol |
+
+---
+
+### `usuario_permiso` (nueva)
+Permisos individuales asignados a un usuario específico, por encima de lo que ya le da su rol.
+
+| columna | tipo | descripción |
+|---|---|---|
+| usuario_id | INT FK → usuario_modificacion | el usuario |
+| permiso_id | INT FK → permisos | el permiso extra |
+
+---
+
+### `usuario_modificacion` (ya existía, actualizada)
+Se le agregó la relación con `usuario_permiso`. Antes solo tenía un rol, ahora también tiene permisos extra opcionales.
+
+---
+
+## Roles y sus permisos
+
+### ROLE_ADMIN
+Tiene todos los permisos sin excepción. Dueño del negocio.
+
+### ROLE_EMPLEADO (vendedor)
+`PRODUCTOS_LEER` `PRODUCTOS_CREAR` `PRODUCTOS_EDITAR`
+`VARIANTES_LEER` `VARIANTES_CREAR` `VARIANTES_EDITAR`
+`PEDIDOS_LEER` `PEDIDOS_CREAR` `PEDIDOS_EDITAR` `PEDIDOS_ELIMINAR`
+`VENTAS_LEER` `VENTAS_CREAR`
+`CLIENTES_LEER` `CLIENTES_CREAR` `CLIENTES_EDITAR`
+`MP_COBRAR` `IMAGENES_GESTIONAR` `PAGOS_LEER`
+
+### ROLE_CAJERO
+`PRODUCTOS_LEER` `PEDIDOS_LEER` `MP_COBRAR` `PAGOS_LEER`
+
+### ROLE_USUARIO (cliente de la tienda)
+`PRODUCTOS_LEER` `PEDIDOS_LEER` `PEDIDOS_CREAR`
+
+---
+
+## Lista completa de permisos
+
+| Permiso | Qué protege |
+|---|---|
+| `PRODUCTOS_LEER` | GET /productos/** |
+| `PRODUCTOS_CREAR` | POST /productos/** |
+| `PRODUCTOS_EDITAR` | PUT /productos/** |
+| `PRODUCTOS_ELIMINAR` | DELETE /productos/** |
+| `VARIANTES_LEER` | GET /variantes/** |
+| `VARIANTES_CREAR` | POST /variantes/** |
+| `VARIANTES_EDITAR` | PUT /variantes/** |
+| `PEDIDOS_LEER` | GET /pedidos/** |
+| `PEDIDOS_CREAR` | POST /pedidos/** |
+| `PEDIDOS_EDITAR` | PUT /pedidos/** |
+| `PEDIDOS_ELIMINAR` | DELETE /pedidos/** |
+| `VENTAS_LEER` | GET /ventas/** |
+| `VENTAS_CREAR` | POST /ventas/** |
+| `CLIENTES_LEER` | GET /clientes/** |
+| `CLIENTES_CREAR` | POST /clientes/** |
+| `CLIENTES_EDITAR` | PUT /clientes/** |
+| `CLIENTES_ELIMINAR` | DELETE /clientes/** |
+| `MP_COBRAR` | /mp/** |
+| `GASTOS_GESTIONAR` | /gastos/** |
+| `RIFAS_GESTIONAR` | /rifa/** /ganadorRifa/** /configurarRifa/** /concursante/** |
+| `USUARIOS_GESTIONAR` | /usuarios/** |
+| `IMAGENES_GESTIONAR` | POST/PUT/DELETE /imagen/** |
+| `PAGOS_LEER` | GET /pagos/** |
+
+---
+
+## Endpoints para gestionar roles y permisos (solo ROLE_ADMIN)
+
+```
+GET  /usuarios/roles                          → ver todos los roles con sus IDs
+GET  /usuarios/permisos                       → ver todos los permisos con sus IDs
+GET  /usuarios/getAllPage?buscar=&page=1&size=10  → ver usuarios con su rol y permisos extra
+
+PUT  /usuarios/{usuarioId}/rol/{rolId}        → cambiar el rol de un usuario
+POST /usuarios/{usuarioId}/permisos/{permisoId}  → agregar permiso extra a un usuario
+DEL  /usuarios/{usuarioId}/permisos/{permisoId}  → quitar permiso extra de un usuario
+```
+
+### Flujo para dar de alta un empleado nuevo
+
+1. El empleado se registra en `/auth/registrar` → recibe `ROLE_USUARIO` automáticamente
+2. El admin consulta `GET /usuarios/roles` para ver el ID de `ROLE_EMPLEADO`
+3. El admin cambia el rol: `PUT /usuarios/{id}/rol/{idRolEmpleado}`
+4. Si ese empleado necesita un permiso puntual extra: `POST /usuarios/{id}/permisos/{idPermiso}`
+
+---
+
+## Clases Java modificadas o creadas
+
+| Clase | Archivo | Cambio |
+|---|---|---|
+| `Permiso` | entity/Permiso.java | **Nueva** — entidad que mapea la tabla `permisos` |
+| `Roles` | entity/Roles.java | Agregada relación ManyToMany con `Permiso` (tabla `rol_permiso`) |
+| `Usuario` | entity/Usuario.java | Agregado `permisosExtra` (tabla `usuario_permiso`). `getAuthorities()` ahora devuelve el rol + permisos del rol + permisos extra |
+| `IPermisoRepository` | repository/IPermisoRepository.java | **Nuevo** — acceso a la tabla `permisos` |
+| `UsuarioServiceImpl` | service/UsuarioServiceImpl.java | Métodos nuevos: `cambiarRol`, `agregarPermisoExtra`, `quitarPermisoExtra`, `listarRoles`, `listarPermisos` |
+| `UsuarioController` | controller/UsuarioController.java | Endpoints nuevos para gestionar roles y permisos |
+| `SecurityConfig` | security/SecurityConfig.java | Reemplazado `hasRole("ADMIN")` por `hasAuthority("PERMISO_X")` en todas las reglas |
+| `RegistroService` | service/RegistroService.java | Simplificado — siempre asigna `ROLE_USUARIO` por defecto al registrarse |
+| `UserDto` | mapper/UserDto.java | Ahora expone `rol` (String) y `permisosExtra` (Set&lt;String&gt;) |
+
+---
+
+## Script SQL de migración
+
+Ubicación: `src/main/resources/static/querys.sql`
+
+Contiene:
+1. Creación de tablas `permisos`, `rol_permiso`, `usuario_permiso`
+2. Inserción de todos los permisos
+3. Inserción de roles `ROLE_EMPLEADO` y `ROLE_CAJERO`
+4. Asignación de permisos a cada rol
+
+Se ejecuta **una sola vez** sobre la base de datos existente. No toca datos de usuarios ni el resto de tablas.
+

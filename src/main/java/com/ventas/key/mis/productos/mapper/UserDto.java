@@ -16,7 +16,7 @@ public class UserDto {
     private long id;
     private String username;
     private String email;
-    private Set<String> rol;
+    private String rol;
+    private Set<String> permisosExtra;
     private boolean enabled;
-
 }

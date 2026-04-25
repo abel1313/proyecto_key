@@ -72,8 +72,31 @@ public class MercadoPagoService {
         return MPRequestOptions.createDefault();
     }
 
+    private static final int MAX_INTENTOS_FALLIDOS = 3;
+    private static final int VENTANA_HORAS = 2;
+
     public String iniciarPago(PagoMPRequest request) throws MPException, MPApiException {
         log.info("Iniciando pago - pedidoId: {} monto: {} cuotas: {}", request.getPedidoId(), request.getTotalMonto(), request.getCuotas());
+
+        LocalDateTime desde = LocalDateTime.now().minusHours(VENTANA_HORAS);
+        long intentosFallidos = intentRepository.countIntentosFallidosRecientes(
+                request.getPedidoId(), List.of("CANCELED", "ERROR"), desde);
+
+        if (intentosFallidos >= MAX_INTENTOS_FALLIDOS) {
+            throw new RuntimeException("Se alcanzó el límite de " + MAX_INTENTOS_FALLIDOS +
+                    " intentos fallidos. Reintentá en " + VENTANA_HORAS + " horas.");
+        }
+
+        intentRepository.findFirstByPedidoIdAndEstadoOrderByFechaCreacionDesc(request.getPedidoId(), "OPEN")
+                .ifPresent(anterior -> {
+                    try {
+                        new PointClient().cancelPaymentIntent(deviceId, anterior.getIntentId(), requestOptions());
+                    } catch (Exception e) {
+                        log.warn("No se pudo cancelar intent anterior {} en MP: {}", anterior.getIntentId(), e.getMessage());
+                    }
+                    actualizarEstado(anterior, "CANCELED");
+                    log.info("Intent anterior {} cancelado antes de crear nuevo", anterior.getIntentId());
+                });
 
         BigDecimal montoCentavos = BigDecimal.valueOf(request.getTotalMonto())
                 .multiply(BigDecimal.valueOf(100))
@@ -83,23 +106,48 @@ public class MercadoPagoService {
                 .amount(montoCentavos)
                 .build();
 
-        PointPaymentIntent intent = new PointClient()
-                .createPaymentIntent(deviceId, mpRequest, requestOptions());
+        try {
+            PointPaymentIntent intent = new PointClient()
+                    .createPaymentIntent(deviceId, mpRequest, requestOptions());
 
-        String intentId = intent.getId();
+            String intentId = intent.getId();
 
-        MpPaymentIntent registro = new MpPaymentIntent();
-        registro.setIntentId(intentId);
-        registro.setPedidoId(request.getPedidoId());
-        registro.setClienteId(request.getClienteId());
-        registro.setMonto(request.getTotalMonto());
-        registro.setCuotas(request.getCuotas());
-        registro.setEstado("OPEN");
-        registro.setFechaCreacion(LocalDateTime.now());
-        intentRepository.save(registro);
+            MpPaymentIntent registro = new MpPaymentIntent();
+            registro.setIntentId(intentId);
+            registro.setPedidoId(request.getPedidoId());
+            registro.setClienteId(request.getClienteId());
+            registro.setMonto(request.getTotalMonto());
+            registro.setCuotas(request.getCuotas());
+            registro.setEstado("OPEN");
+            registro.setFechaCreacion(LocalDateTime.now());
+            intentRepository.save(registro);
 
-        log.info("Payment intent creado: {} pedido: {} monto: {}", intentId, request.getPedidoId(), request.getTotalMonto());
-        return intentId;
+            log.info("Payment intent creado: {} pedido: {} monto: {}", intentId, request.getPedidoId(), request.getTotalMonto());
+            return intentId;
+
+        } catch (MPApiException e) {
+            String mensaje = mapearErrorMP(e);
+            log.error("Error MP al crear intent - pedido: {} código: {} mensaje: {}", request.getPedidoId(), e.getStatusCode(), mensaje);
+            throw new MPApiException(mensaje, e.getApiResponse());
+        }
+    }
+
+    private String mapearErrorMP(MPApiException e) {
+        int status = e.getStatusCode();
+        String body = e.getApiResponse() != null ? e.getApiResponse().getContent() : "";
+        if (status == 409 || (body != null && body.contains("2205"))) {
+            return "Ya hay un cobro en proceso en la terminal. Esperá que termine o cancélalo.";
+        }
+        if (status == 404 || (body != null && body.contains("2201"))) {
+            return "Terminal no encontrada. Verificá que el dispositivo esté encendido y conectado.";
+        }
+        if (status == 422) {
+            return "Monto inválido. El monto debe ser mayor a cero.";
+        }
+        if (status == 401 || status == 403) {
+            return "Error de autenticación con MercadoPago. Verificá el access token.";
+        }
+        return "Error en MercadoPago (código " + status + "). Intentá nuevamente.";
     }
 
     public String consultarEstado(String intentId) throws MPException, MPApiException {
