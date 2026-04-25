@@ -517,3 +517,671 @@ GET    /gastos/porViaje/{viajeId}  → nuevo: listar gastos de un viaje específ
 3. Verificar con las queries DML de ejemplo
 4. Implementar las clases Java
 
+---
+
+# Guía de Producción — Kubernetes en VPS
+
+## Arquitectura del sistema
+
+```
+Internet
+    │
+    ▼
+Hosting Mexico (DNS)
+    │  (A record → IP del VPS)
+    ▼
+VPS (IP pública)
+    │
+    ▼
+nginx Ingress Controller (80/443)
+    │   TLS terminado aquí (Let's Encrypt)
+    ├── shop.novedades-jade.com.mx        → Angular (frontend)
+    ├── backend.novedades-jade.com.mx     → productos-key (este proyecto)
+    └── backend-imagenes.novedades-jade.com.mx → imagenes (microservicio)
+    │
+    ▼
+Kubernetes (k3s)
+    ├── Namespace: produccion
+    │   ├── Deployment: productos-key
+    │   ├── Deployment: imagenes
+    │   ├── Deployment: frontend-angular
+    │   ├── Service: productos-key-svc
+    │   ├── Service: imagenes-svc
+    │   ├── Service: frontend-svc
+    │   ├── Secret: app-secrets (todas las credenciales)
+    │   └── Ingress: nginx (subdominios + TLS)
+    │
+    ├── Namespace: qa       (misma estructura, BD distinta)
+    └── Namespace: uat      (misma estructura, BD distinta)
+
+Redis (instalado en el VPS, fuera de K8s)
+    └── accesible desde pods via IP interna del VPS
+```
+
+---
+
+## Gestión de ambientes — Perfiles Spring Boot
+
+Este proyecto usa **tres perfiles de Spring Boot**:
+
+| Perfil | Archivo | Cuándo se usa |
+|--------|---------|---------------|
+| `dev` | `application-dev.yml` | Desarrollo local en tu máquina |
+| `docker` | `application-docker.yml` | Cualquier despliegue en K8s (QA, UAT, producción) |
+
+> El perfil `docker` no tiene credenciales hardcodeadas. Todo llega vía variables de entorno que Kubernetes inyecta desde los Secrets.
+
+### Perfil `dev` — local
+
+Actívalo en tu IDE (IntelliJ → Run Configuration → Environment Variables):
+
+```
+SPRING_PROFILES_ACTIVE=dev
+```
+
+O desde terminal:
+
+```bash
+export SPRING_PROFILES_ACTIVE=dev
+mvn spring-boot:run
+```
+
+El archivo `application-dev.yml` apunta a la BD de desarrollo y usa Redis local.
+
+### Perfil `docker` — K8s (QA, UAT, Producción)
+
+Todos los ambientes de Kubernetes usan el mismo perfil `docker`. La diferencia entre QA, UAT y producción está en:
+- el **namespace** de K8s donde se despliega
+- los **Secrets** de ese namespace (que apuntan a una BD diferente)
+- las **variables de entorno** inyectadas al pod
+
+Kubernetes inyecta el perfil así en el Deployment:
+
+```yaml
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "docker"
+```
+
+---
+
+## Estrategia de ambientes: QA → UAT → Producción
+
+El flujo correcto para no tocar producción directamente:
+
+```
+Código nuevo
+    │
+    ▼
+feature branch
+    │
+    ▼  merge + deploy manual
+Namespace: qa          ← pruebas funcionales del desarrollador
+    │
+    ▼  validación ok
+Namespace: uat         ← pruebas de aceptación (usuario o equipo)
+    │
+    ▼  aprobado
+Namespace: produccion  ← deploy a producción
+```
+
+### Cómo crear el namespace QA con sus propios Secrets
+
+```bash
+# Crear namespace
+kubectl create namespace qa
+
+# Crear el secret de QA (apunta a la BD de QA)
+kubectl create secret generic app-secrets \
+  --namespace=qa \
+  --from-literal=DB_HOST=<ip-bd-qa> \
+  --from-literal=SPRING_DB_NAME=inventario_key_qa \
+  --from-literal=SPRING_DATASOURCE_USERNAME=<usuario-qa> \
+  --from-literal=SPRING_DATASOURCE_PASSWORD=<password-qa> \
+  --from-literal=TOKEN_JWT=<clave-jwt-qa> \
+  --from-literal=MP_ACCESS_TOKEN=<token-mp-sandbox> \
+  --from-literal=ENDPOINT_IMAGENES=https://backend-imagenes-qa.novedades-jade.com.mx/mis-productos
+```
+
+Para UAT igual, cambiando `--namespace=uat` y usando la BD de UAT.
+
+### Hacer deploy a QA sin tocar producción
+
+En tu archivo de deployment (`deployment-productos.yml`) cambias solo el namespace:
+
+```yaml
+metadata:
+  name: productos-key
+  namespace: qa   # ← aquí está el control
+```
+
+```bash
+kubectl apply -f deployment-productos.yml -n qa
+```
+
+Producción sigue intacta en su namespace.
+
+---
+
+## Credenciales en Kubernetes Secrets
+
+### Por qué K8s Secrets y no variables del sistema
+
+Las variables del sistema del VPS están disponibles para **todos los procesos** de la máquina. Los K8s Secrets están **aislados por namespace** y solo los pods que los referencian explícitamente los reciben. Además se pueden rotar sin tocar el VPS.
+
+**Regla:** todo lo sensible va en K8s Secret — incluyendo el token de MercadoPago.
+
+### Crear el Secret de producción (ejemplo completo)
+
+```bash
+kubectl create secret generic app-secrets \
+  --namespace=produccion \
+  --from-literal=DB_HOST=51.178.29.99 \
+  --from-literal=SPRING_DB_NAME=inventario_key \
+  --from-literal=SPRING_DATASOURCE_USERNAME=user_ventas \
+  --from-literal=SPRING_DATASOURCE_PASSWORD=<tu-password> \
+  --from-literal=TOKEN_JWT=<clave-32-caracteres> \
+  --from-literal=MP_ACCESS_TOKEN=APP_USR-xxxx \
+  --from-literal=ENDPOINT_IMAGENES=https://backend-imagenes.novedades-jade.com.mx/mis-productos
+```
+
+> K8s guarda los valores en base64 internamente. Tú los pasas en texto plano con `--from-literal` y K8s hace la codificación.
+
+### Cómo referencia el Deployment cada secret
+
+```yaml
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "docker"
+  - name: DB_HOST
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: DB_HOST
+  - name: SPRING_DB_NAME
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: SPRING_DB_NAME
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: SPRING_DATASOURCE_USERNAME
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: SPRING_DATASOURCE_PASSWORD
+  - name: TOKEN_JWT
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: TOKEN_JWT
+  - name: MP_ACCESS_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: MP_ACCESS_TOKEN
+  - name: ENDPOINT_IMAGENES
+    valueFrom:
+      secretKeyRef:
+        name: app-secrets
+        key: ENDPOINT_IMAGENES
+```
+
+---
+
+## Instalación desde cero en el VPS
+
+### Prerequisitos
+
+- VPS con Ubuntu 22.04 LTS (mínimo 2 vCPU, 4 GB RAM recomendado)
+- Acceso SSH como root o usuario con sudo
+- Dominio configurado en Hosting Mexico apuntando al IP del VPS
+
+---
+
+### 1. Actualizar el sistema
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+---
+
+### 2. Instalar Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+docker --version
+```
+
+---
+
+### 3. Instalar Kubernetes (k3s — ligero para VPS)
+
+k3s es una distribución oficial de Kubernetes optimizada para servidores con recursos limitados.
+
+```bash
+curl -sfL https://get.k3s.io | sh -
+
+# Verificar que el nodo está listo
+sudo kubectl get nodes
+```
+
+Copiar el kubeconfig para usarlo sin sudo:
+
+```bash
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config
+export KUBECONFIG=~/.kube/config
+
+# Verificar
+kubectl get nodes
+```
+
+---
+
+### 4. Instalar nginx Ingress Controller
+
+k3s incluye Traefik por defecto, pero si prefieres nginx:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
+
+# Esperar a que el controller esté listo
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s
+```
+
+---
+
+### 5. Instalar cert-manager (SSL automático con Let's Encrypt)
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+
+# Esperar que los pods estén listos
+kubectl get pods --namespace cert-manager
+```
+
+Crear el ClusterIssuer para Let's Encrypt:
+
+```yaml
+# cluster-issuer.yml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: tu-email@dominio.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+```
+
+```bash
+kubectl apply -f cluster-issuer.yml
+```
+
+---
+
+### 6. Instalar Redis en el VPS (fuera de K8s)
+
+Redis corre directamente en el VPS y los pods de K8s se conectan a él via la IP interna.
+
+```bash
+sudo apt install redis-server -y
+
+# Habilitar para que inicie con el sistema
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+
+# Verificar
+redis-cli ping
+# Respuesta: PONG
+```
+
+Obtener la IP interna del VPS para que los pods puedan conectarse:
+
+```bash
+hostname -I | awk '{print $1}'
+# Ej: 10.0.0.1  ← esta IP va en application-docker.yml como redis.host
+```
+
+En `application-docker.yml` el host de Redis ya está como variable de entorno `redis` (nombre del servicio K8s si Redis estuviera en K8s). Si Redis está fuera de K8s, crea un K8s Service de tipo ExternalName o usa directamente la IP del VPS en el Secret:
+
+```bash
+kubectl create secret generic app-secrets \
+  --namespace=produccion \
+  ...
+  --from-literal=REDIS_HOST=<ip-interna-vps>
+```
+
+---
+
+### 7. Configurar el dominio en Hosting Mexico
+
+En el panel de Hosting Mexico, ir a la zona DNS del dominio `novedades-jade.com.mx` y crear:
+
+| Tipo | Nombre | Valor | TTL |
+|------|--------|-------|-----|
+| A | `@` | `<IP del VPS>` | 300 |
+| A | `shop` | `<IP del VPS>` | 300 |
+| A | `backend` | `<IP del VPS>` | 300 |
+| A | `backend-imagenes` | `<IP del VPS>` | 300 |
+
+Esperar propagación (5-30 minutos). Verificar con:
+
+```bash
+nslookup shop.novedades-jade.com.mx
+```
+
+---
+
+### 8. Crear los namespaces
+
+```bash
+kubectl create namespace produccion
+kubectl create namespace qa
+kubectl create namespace uat
+```
+
+---
+
+### 9. Crear los Secrets por ambiente
+
+**Producción:**
+
+```bash
+kubectl create secret generic app-secrets \
+  --namespace=produccion \
+  --from-literal=DB_HOST=51.178.29.99 \
+  --from-literal=SPRING_DB_NAME=inventario_key \
+  --from-literal=SPRING_DATASOURCE_USERNAME=user_ventas \
+  --from-literal=SPRING_DATASOURCE_PASSWORD=<password> \
+  --from-literal=TOKEN_JWT=<clave-jwt-32-chars> \
+  --from-literal=MP_ACCESS_TOKEN=<token-mercadopago-produccion> \
+  --from-literal=ENDPOINT_IMAGENES=https://backend-imagenes.novedades-jade.com.mx/mis-productos \
+  --from-literal=REDIS_HOST=<ip-interna-vps>
+```
+
+**QA** (sandbox de MercadoPago, BD separada):
+
+```bash
+kubectl create secret generic app-secrets \
+  --namespace=qa \
+  --from-literal=DB_HOST=<ip-bd> \
+  --from-literal=SPRING_DB_NAME=inventario_key_qa \
+  --from-literal=SPRING_DATASOURCE_USERNAME=<usuario-qa> \
+  --from-literal=SPRING_DATASOURCE_PASSWORD=<password-qa> \
+  --from-literal=TOKEN_JWT=<clave-jwt-qa> \
+  --from-literal=MP_ACCESS_TOKEN=<token-sandbox-mercadopago> \
+  --from-literal=ENDPOINT_IMAGENES=https://backend-imagenes-qa.novedades-jade.com.mx/mis-productos \
+  --from-literal=REDIS_HOST=<ip-interna-vps>
+```
+
+Verificar que el secret se creó:
+
+```bash
+kubectl get secrets -n produccion
+kubectl describe secret app-secrets -n produccion
+```
+
+---
+
+### 10. Build y push de la imagen Docker
+
+```bash
+# Compilar imagen
+docker build -t productos-key:v1.0 .
+
+# (Si usas Docker Hub o registro propio)
+docker tag productos-key:v1.0 tu-usuario/productos-key:v1.0
+docker push tu-usuario/productos-key:v1.0
+```
+
+Si el VPS tiene acceso directo al registro, también puedes hacer el build directo en el VPS via SSH.
+
+---
+
+### 11. Archivos de Deployment para K8s
+
+**deployment-productos.yml**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: productos-key
+  namespace: produccion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: productos-key
+  template:
+    metadata:
+      labels:
+        app: productos-key
+    spec:
+      containers:
+        - name: productos-key
+          image: tu-usuario/productos-key:v1.0
+          ports:
+            - containerPort: 9091
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DB_HOST
+            - name: SPRING_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SPRING_DB_NAME
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SPRING_DATASOURCE_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SPRING_DATASOURCE_PASSWORD
+            - name: TOKEN_JWT
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: TOKEN_JWT
+            - name: MP_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MP_ACCESS_TOKEN
+            - name: ENDPOINT_IMAGENES
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ENDPOINT_IMAGENES
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: productos-key-svc
+  namespace: produccion
+spec:
+  selector:
+    app: productos-key
+  ports:
+    - port: 9091
+      targetPort: 9091
+```
+
+```bash
+kubectl apply -f deployment-productos.yml
+kubectl get pods -n produccion
+kubectl logs -f deployment/productos-key -n produccion
+```
+
+---
+
+### 12. Configurar el Ingress (subdominios + TLS)
+
+**ingress-produccion.yml**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-produccion
+  namespace: produccion
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  tls:
+    - hosts:
+        - backend.novedades-jade.com.mx
+        - backend-imagenes.novedades-jade.com.mx
+        - shop.novedades-jade.com.mx
+      secretName: tls-produccion
+  rules:
+    - host: backend.novedades-jade.com.mx
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: productos-key-svc
+                port:
+                  number: 9091
+    - host: backend-imagenes.novedades-jade.com.mx
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: imagenes-svc
+                port:
+                  number: 9096
+    - host: shop.novedades-jade.com.mx
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80
+```
+
+```bash
+kubectl apply -f ingress-produccion.yml
+
+# Verificar que el certificado TLS se emitió
+kubectl get certificate -n produccion
+```
+
+---
+
+## Flujo completo de un nuevo deploy
+
+```
+1. Hacer cambios en el código (feature branch)
+2. Compilar y probar local con perfil dev
+3. Build de imagen Docker con nueva versión (ej: v1.1)
+4. Push de imagen al registro
+5. Actualizar el tag en deployment-productos.yml
+6. Apply al namespace QA:
+     kubectl apply -f deployment-productos.yml -n qa
+7. Probar en QA
+8. Apply al namespace UAT:
+     kubectl set image deployment/productos-key \
+       productos-key=tu-usuario/productos-key:v1.1 -n uat
+9. Aprobación UAT
+10. Apply a producción:
+     kubectl set image deployment/productos-key \
+       productos-key=tu-usuario/productos-key:v1.1 -n produccion
+```
+
+---
+
+## Comandos útiles de Kubernetes
+
+```bash
+# Ver todos los pods de un namespace
+kubectl get pods -n produccion
+kubectl get pods -n qa
+
+# Ver logs en tiempo real
+kubectl logs -f deployment/productos-key -n produccion
+
+# Ver eventos del pod (útil cuando no arranca)
+kubectl describe pod <nombre-pod> -n produccion
+
+# Reiniciar un deployment (fuerza pull de imagen y nuevo pod)
+kubectl rollout restart deployment/productos-key -n produccion
+
+# Ver estado de un rollout
+kubectl rollout status deployment/productos-key -n produccion
+
+# Revertir al deploy anterior si algo falla
+kubectl rollout undo deployment/productos-key -n produccion
+
+# Ver todos los secrets
+kubectl get secrets -n produccion
+
+# Actualizar un valor en el secret (requiere recrear o patch)
+kubectl create secret generic app-secrets \
+  --namespace=produccion \
+  --from-literal=MP_ACCESS_TOKEN=<nuevo-token> \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Ver el estado de los certificados TLS
+kubectl get certificate -n produccion
+kubectl describe certificate tls-produccion -n produccion
+
+# Ver el Ingress y sus hosts
+kubectl get ingress -n produccion
+
+# Entrar al pod para inspeccionar
+kubectl exec -it <nombre-pod> -n produccion -- sh
+```
+
+---
+
+## Checklist de primer despliegue
+
+- [ ] VPS actualizado y Docker instalado
+- [ ] k3s instalado y nodo en estado `Ready`
+- [ ] nginx Ingress Controller funcionando
+- [ ] cert-manager instalado y ClusterIssuer creado
+- [ ] Redis instalado y corriendo en el VPS
+- [ ] Registros DNS en Hosting Mexico apuntando al IP del VPS
+- [ ] Namespaces `produccion`, `qa`, `uat` creados
+- [ ] Secrets creados en cada namespace
+- [ ] Imagen Docker del microservicio subida al registro
+- [ ] Deployments y Services aplicados
+- [ ] Ingress aplicado y certificado TLS emitido
+- [ ] Prueba de acceso a `https://backend.novedades-jade.com.mx/mis-productos`
+- [ ] Prueba de acceso a `https://shop.novedades-jade.com.mx`
