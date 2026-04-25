@@ -32,7 +32,8 @@ public class CacheTtlConfig {
         // Configuración por defecto (ejemplo: 10 minutos)
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .serializeValuesWith(jsonSerializer)
-                .entryTtl(Duration.ofMinutes(10));
+                .entryTtl(Duration.ofMinutes(10))
+                .disableCachingNullValues();
 
         // Configuración específica por cache
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
