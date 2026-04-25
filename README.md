@@ -353,3 +353,167 @@ Contiene:
 
 Se ejecuta **una sola vez** sobre la base de datos existente. No toca datos de usuarios ni el resto de tablas.
 
+---
+
+# Módulo de Gastos de Viaje (compras)
+
+## Por qué se creó
+
+Antes, la tabla `gastos_surtir` solo guardaba un texto y un precio suelto, sin ninguna relación entre los gastos. No había forma de saber cuánto costó **en total** una salida a comprar mercancía, ni separar por tipo de gasto (transporte, comida, flete, etc.).
+
+Este módulo agrega el concepto de **viaje de compra**: un viaje agrupa todos los gastos que se hicieron en esa salida (taxi, comida, flete, hospedaje) y permite ver el costo total de ese viaje.
+
+---
+
+## Qué hace cada parte
+
+### Tabla `viaje_compra` (nueva)
+Representa una salida a comprar mercancía. Es el "encabezado" del viaje.
+Ejemplo: "Compras CDMX enero 2026 — Tepito".
+
+Cada viaje puede tener muchos gastos asociados.
+
+### Tabla `gastos_surtir` (modificada)
+Ya existía pero solo tenía descripción y precio, sin agrupación.
+Se le agregan tres columnas:
+- `tipo` → clasifica el gasto (TRANSPORTE, COMIDA, FLETE, HOSPEDAJE, OTRO)
+- `fecha` → cuándo ocurrió ese gasto puntual
+- `viaje_id` → a qué viaje pertenece (FK a `viaje_compra`)
+
+De esta forma cada gasto queda "pegado" a su viaje y se puede sumar el total.
+
+---
+
+## Scripts SQL
+
+### DDL — Crear tabla `viaje_compra`
+
+```sql
+CREATE TABLE viaje_compra (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    descripcion  VARCHAR(150) NOT NULL,
+    destino      VARCHAR(100),
+    fecha_inicio DATE         NOT NULL,
+    fecha_fin    DATE,
+    notas        TEXT
+);
+```
+
+**Explicación columna por columna:**
+- `descripcion` → nombre del viaje, ej: "Compras Tepito enero"
+- `destino` → lugar a donde se fue, ej: "CDMX / Tepito"
+- `fecha_inicio` → día que saliste
+- `fecha_fin` → día que regresaste (puede quedar null si es viaje de un día)
+- `notas` → cualquier observación libre del viaje
+
+---
+
+### DDL — Modificar tabla `gastos_surtir`
+
+```sql
+-- Agregar tipo de gasto
+ALTER TABLE gastos_surtir
+    ADD COLUMN tipo  VARCHAR(20) NOT NULL DEFAULT 'OTRO'
+                     COMMENT 'TRANSPORTE | COMIDA | FLETE | HOSPEDAJE | OTRO';
+
+-- Agregar fecha del gasto
+ALTER TABLE gastos_surtir
+    ADD COLUMN fecha DATE;
+
+-- Agregar relación al viaje (permite NULL para gastos que no son de viaje)
+ALTER TABLE gastos_surtir
+    ADD COLUMN viaje_id INT,
+    ADD CONSTRAINT fk_gasto_viaje
+        FOREIGN KEY (viaje_id) REFERENCES viaje_compra(id)
+        ON DELETE SET NULL;
+```
+
+**Por qué `viaje_id` permite NULL:**
+Los gastos que ya existían en la tabla no pertenecen a ningún viaje. Permitir NULL evita que los datos actuales rompan y deja la posibilidad de guardar gastos generales que no sean de un viaje específico.
+
+**Por qué `ON DELETE SET NULL`:**
+Si algún día se elimina un viaje, los gastos no se borran — quedan con `viaje_id = NULL`. Así no perdés el historial de gastos.
+
+---
+
+### DML — Datos de ejemplo para probar
+
+```sql
+-- Crear un viaje de prueba
+INSERT INTO viaje_compra (descripcion, destino, fecha_inicio, fecha_fin, notas)
+VALUES ('Compras Tepito enero', 'CDMX - Tepito', '2026-01-15', '2026-01-16',
+        'Primera compra del año');
+
+-- Agregar gastos a ese viaje (id=1)
+INSERT INTO gastos_surtir (descripcion_gasto, precio_gasto, tipo, fecha, viaje_id)
+VALUES
+    ('Taxi al aeropuerto',  180.00, 'TRANSPORTE', '2026-01-15', 1),
+    ('Vuelo CDMX ida',     1200.00, 'TRANSPORTE', '2026-01-15', 1),
+    ('Comida día 1',        250.00, 'COMIDA',      '2026-01-15', 1),
+    ('Hospedaje 1 noche',   600.00, 'HOSPEDAJE',   '2026-01-15', 1),
+    ('Comida día 2',        180.00, 'COMIDA',      '2026-01-16', 1),
+    ('Flete mercancía',    1500.00, 'FLETE',        '2026-01-16', 1),
+    ('Vuelo regreso',      1100.00, 'TRANSPORTE', '2026-01-16', 1);
+
+-- Ver el total del viaje
+SELECT
+    v.descripcion,
+    v.destino,
+    v.fecha_inicio,
+    v.fecha_fin,
+    COUNT(g.id)        AS num_gastos,
+    SUM(g.precio_gasto) AS total_gastado
+FROM viaje_compra v
+LEFT JOIN gastos_surtir g ON g.viaje_id = v.id
+GROUP BY v.id;
+
+-- Ver el desglose por tipo de gasto de un viaje
+SELECT
+    g.tipo,
+    COUNT(*)            AS cantidad,
+    SUM(g.precio_gasto) AS subtotal
+FROM gastos_surtir g
+WHERE g.viaje_id = 1
+GROUP BY g.tipo
+ORDER BY subtotal DESC;
+```
+
+---
+
+## Clases Java a crear/modificar
+
+| Clase | Archivo | Cambio |
+|---|---|---|
+| `Viaje` | entity/Viaje.java | **Nueva** — mapea `viaje_compra`, tiene lista de gastos |
+| `Gastos` | entity/Gastos.java | Agregar campos `tipo`, `fecha`, relación ManyToOne a `Viaje` |
+| `TipoGasto` | entity/TipoGasto.java | **Nuevo** — enum con valores: TRANSPORTE, COMIDA, FLETE, HOSPEDAJE, OTRO |
+| `IViajeRepository` | repository/IViajeRepository.java | **Nuevo** — queries para buscar viajes con total |
+| `ViajeService` | service/ViajeService.java | **Nuevo** — crear viaje, agregar gasto, obtener resumen |
+| `ViajeController` | controller/ViajeController.java | **Nuevo** — endpoints REST |
+| `GastosRequest` | dto/GastosRequest.java | Agregar campos `tipo`, `fecha`, `viajeId` |
+
+---
+
+## Endpoints que tendrá el módulo
+
+```
+POST   /viajes                     → crear un nuevo viaje
+GET    /viajes                     → listar viajes con su total (paginado)
+GET    /viajes/{id}                → ver un viaje con todos sus gastos y total
+PUT    /viajes/{id}                → editar datos del viaje
+DELETE /viajes/{id}                → eliminar viaje (los gastos quedan con viaje_id=null)
+
+POST   /gastos/save                → ya existe, se actualizará para aceptar viajeId y tipo
+GET    /gastos/getGastos           → ya existe
+GET    /gastos/porViaje/{viajeId}  → nuevo: listar gastos de un viaje específico
+```
+
+---
+
+## Orden de ejecución
+
+1. Ejecutar el DDL de `viaje_compra` (crear tabla nueva)
+2. Ejecutar el DDL de `ALTER TABLE gastos_surtir` (agregar columnas)
+3. Verificar con las queries DML de ejemplo
+4. Implementar las clases Java
+
