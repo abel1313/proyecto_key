@@ -23,6 +23,8 @@ import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -60,6 +62,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iImagenRepository = iImagenRepository;
     }
 
+    @Cacheable(value = "variantesProductoCache", key = "#productoId")
     public List<VarianteDto> buscarPorProducto(Integer productoId) {
         return iVarianteRepository.findByProductoId(productoId).stream().map(v -> {
             VarianteDto dto = new VarianteDto();
@@ -78,6 +81,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }).collect(Collectors.toList());
     }
 
+    @Cacheable(value = "variantesProductoCache", key = "#productoId + ':' + #pagina + ':' + #size")
     public PginaDto<List<Variantes>> buscarPorProductoPaginado(Integer productoId, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoId(productoId, PageRequest.of(pagina - 1, size));
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
@@ -88,10 +92,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    @Cacheable(value = "variantesNombreCache", key = "#nombre")
     public List<Variantes> buscarPorNombre(String nombre) {
         return iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre);
     }
 
+    @Cacheable(value = "variantesNombreCache", key = "#nombre + ':' + #pagina + ':' + #size")
     public PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre, PageRequest.of(pagina - 1, size));
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
@@ -102,10 +108,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    @Cacheable(value = "variantesCodigoBarrasCache", key = "#codigoBarras")
     public List<Variantes> buscarPorCodigoBarras(String codigoBarras) {
         return iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras);
     }
 
+    @Cacheable(value = "variantesCodigoBarrasCache", key = "#codigoBarras + ':' + #pagina + ':' + #size")
     public PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras, PageRequest.of(pagina - 1, size));
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
@@ -116,11 +124,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    @Cacheable(value = "variantesImagenesCache", key = "#varianteId")
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
         List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
         return buildImagenUpdateDtos(relaciones);
     }
 
+    @Cacheable(value = "variantesImagenesCache", key = "#varianteId + ':' + #pagina + ':' + #size")
     public PginaDto<List<ImagenUpdateDto>> getImagenesPorVariantePaginado(Integer varianteId, int pagina, int size) {
         Page<VarianteImagen> page = iVarianteImagenRepository.findByVarianteId(varianteId, PageRequest.of(pagina - 1, size));
         PginaDto<List<ImagenUpdateDto>> resultado = new PginaDto<>();
@@ -153,6 +163,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }).toList();
     }
 
+    @CacheEvict(value = {"variantesProductoCache", "variantesNombreCache", "variantesCodigoBarrasCache", "variantesImagenesCache"}, allEntries = true)
     @Transactional
     public Variantes guardarConImagenes(VarianteDetalle detalle) throws ExceptionDataNotFound {
         if (detalle.getId() != null) {
@@ -212,14 +223,17 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return v;
     }
 
+    @Cacheable(value = "variantesNombreCache", key = "'resumen:' + #nombre + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> buscarPorNombrePaginadoResumen(String nombre, int pagina, int size) {
         return toResumenPagina(buscarPorNombrePaginado(nombre, pagina, size));
     }
 
+    @Cacheable(value = "variantesCodigoBarrasCache", key = "'resumen:' + #codigoBarras + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> buscarPorCodigoBarrasPaginadoResumen(String codigoBarras, int pagina, int size) {
         return toResumenPagina(buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size));
     }
 
+    @Cacheable(value = "variantesProductoCache", key = "'resumen:all:' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> findAllResumen(int pagina, int size) {
         return toResumenPagina(findAllNew(pagina, size));
     }
@@ -246,6 +260,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return dto;
     }
 
+    @Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> buscarPorProductoPaginadoResumen(Integer productoId, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoId(productoId, PageRequest.of(pagina - 1, size));
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();

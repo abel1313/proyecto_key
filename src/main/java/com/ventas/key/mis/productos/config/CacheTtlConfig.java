@@ -36,12 +36,26 @@ public class CacheTtlConfig {
 
         // Configuración específica por cache
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
+        // Productos
         cacheConfigs.put("detalleImagen", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("detalle", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("buscarImagenIdCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("obtenerProductosCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put("buscarNombreOrCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofMinutes(15)));
         cacheConfigs.put("findByIdCache", defaultConfig.entryTtl(Duration.ofHours(1)));
+        // Variantes
+        cacheConfigs.put("variantesProductoCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("variantesNombreCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("variantesCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put("variantesImagenesCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        // Clientes
+        cacheConfigs.put("clienteCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
+        // Catálogo de pagos (datos estáticos, TTL más largo)
+        cacheConfigs.put("tiposPagoCache", defaultConfig.entryTtl(Duration.ofHours(6)));
+        cacheConfigs.put("tarifasTerminalCache", defaultConfig.entryTtl(Duration.ofHours(6)));
+        cacheConfigs.put("ivaCache", defaultConfig.entryTtl(Duration.ofHours(6)));
+        cacheConfigs.put("opcionesPagoCache", defaultConfig.entryTtl(Duration.ofHours(6)));
+        cacheConfigs.put("opcionesPorTipoCache", defaultConfig.entryTtl(Duration.ofHours(6)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

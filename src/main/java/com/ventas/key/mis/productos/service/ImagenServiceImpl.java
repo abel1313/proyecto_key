@@ -55,7 +55,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-//    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
+    @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
     public PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
 
 

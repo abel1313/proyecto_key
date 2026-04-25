@@ -85,7 +85,6 @@ public class ProductosServiceImpl extends
 
     @SneakyThrows
     @Override
-    //@Cacheable(value = "obtenerProductosCache", key = "#size + '-' + #page")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
 
         Pageable pageable = PageRequest.of(page - 1, size);
@@ -151,7 +150,6 @@ public class ProductosServiceImpl extends
 
 
     @Override
-    //@Cacheable(value = "buscarNombreOrCodigoBarrasCache", key = "#size + '-' + #page + '-' + #nombre")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados;

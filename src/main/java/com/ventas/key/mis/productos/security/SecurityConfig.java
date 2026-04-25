@@ -40,7 +40,8 @@ public class SecurityConfig {
         return http        .cors(cors -> cors.configurationSource(corsConfigurationSource())) // habilita CORS con tu bean
         .csrf(AbstractHttpConfigurer::disable) // desactiva CSRF
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/auth/registrar", "/auth/refresh", "/auth/logout", "/auth/validar", "/productos/getProductos2/**", "/imagen/**", "/swagger-ui/**","/dipomex/**").permitAll()
+                        .requestMatchers("/auth/login", "/auth/registrar", "/auth/refresh", "/auth/logout", "/auth/validar", "/productos/getProductos2/**", "/imagen/**", "/swagger-ui/**","/dipomex/**", "/mp/webhook").permitAll()
+                        .requestMatchers("/mp/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/productos/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/productos/**").permitAll()

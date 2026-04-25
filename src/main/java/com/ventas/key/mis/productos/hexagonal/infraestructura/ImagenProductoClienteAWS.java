@@ -100,6 +100,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
     @Override
+    @Cacheable(value = "buscarImagenIdCache", key = "#id")
     public Imagen buscarImagenProducto(Integer id) {
         log.info("micro imagenes, buscar imagen por ID {}",id);
         return webClient.get()
@@ -107,6 +108,6 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Imagen>() {})
-                .block(); // aquí obtienes el resultado sincrónicamente
+                .block();
     }
 }

@@ -7,6 +7,7 @@ import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.api.IClienteService;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -33,11 +34,13 @@ implements IClienteService {
     }
 
     @Override
+    @Cacheable(value = "clienteCache", key = "#id")
     public ResponseGeneric<Optional<Cliente>> findClienteById(int id) {
         return new ResponseGeneric<>(this.iClienteRepository.findClienteById(id));
     }
 
     @Override
+    @Cacheable(value = "clienteCache", key = "#nombre + ':' + #page + ':' + #size")
     public PageableDto<List<ClienteBusquedaDto>> buscarClientes(String nombre, int page, int size) {
         Page<ClienteBusquedaDto> resultado = iClienteRepository.buscarPorNombre(nombre, PageRequest.of(page, size));
         PageableDto<List<ClienteBusquedaDto>> dto = new PageableDto<>();
