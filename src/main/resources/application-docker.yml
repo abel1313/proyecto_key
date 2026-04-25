@@ -37,6 +37,7 @@ spring:
   redis:
     host: redis
     port: 6379
+
 clave-seguridad:
   clave: ${TOKEN_JWT}
 
@@ -67,6 +68,11 @@ guardar-imagenes:
 
 redis:
   dns: redis
+
+mercadopago:
+  access-token: ${ACCESS_TOKE_MERCADO_PAGO}
+  device-id: ${DEVICE_ID}
+  sandbox: false
 
 
 

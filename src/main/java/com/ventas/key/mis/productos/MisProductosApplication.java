@@ -15,12 +15,6 @@ import java.util.Base64;
 public class MisProductosApplication {
 
 	public static void main(String[] args) {
-
-        String user = Base64.getEncoder().encodeToString("user_ventas".getBytes());
-        String password = Base64.getEncoder().encodeToString("Luvianos#130594".getBytes());
-        String urlCOnetct = Base64.getEncoder().encodeToString("51.178.29.99".getBytes());
-
-        log.info("info user {} pass {}",user, password);
 		SpringApplication.run(MisProductosApplication.class, args);
 	}
 
