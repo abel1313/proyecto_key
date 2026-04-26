@@ -4,8 +4,6 @@ import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteAWS;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
@@ -13,7 +11,6 @@ import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
-import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +52,6 @@ public class ProductosServiceImpl extends
     private final ErrorGenerico error;
     private final IImagenService iImagenService;
 
-    private final ImageneClienteAWS imageneClienteAWS;
     private final ImagenProductoClienteAWS imagenProductoClienteAWS;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
@@ -63,16 +59,13 @@ public class ProductosServiceImpl extends
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
             final IImagenService iImagenService,
-            final IProductoImagenService iProductoImagenService,
-                                final ImageneClienteAWS imageneClienteAWS,
-                                final ImagenProductoClienteAWS imagenProductoClienteAWS) {
+            final ImagenProductoClienteAWS imagenProductoClienteAWS) {
         super(iProductosRepository, error);
         this.iProductosRepository = iProductosRepository;
         this.error = error;
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
-        this.imageneClienteAWS = imageneClienteAWS;
         this.imagenProductoClienteAWS = imagenProductoClienteAWS;
         // TODO Auto-generated constructor stub
     }
@@ -156,6 +149,7 @@ public class ProductosServiceImpl extends
 
 
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
             key = "#nombre + ':' + #page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
@@ -217,14 +211,9 @@ public class ProductosServiceImpl extends
 
     @Override
     @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
-    public Producto saveProductoLote(ProductoDetalle productoDetalle) throws IOException {
+    public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
-        Producto prod = guardarProducto(productoDetalle);
-//        List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(mappImagenes(productoDetalle.getListImagenes()), prod);
-//        if(!mapperRelacionProductoImagen.isEmpty()){
-//            relacionProductoImagen(mapperRelacionProductoImagen);
-//        }
-        return prod;
+        return guardarProducto(productoDetalle);
     }
     @Transactional
     private Producto guardarProducto(ProductoDetalle productoDetalle) {
@@ -253,14 +242,12 @@ public class ProductosServiceImpl extends
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
             if(prodExistenteNoOpt == null) {
-                List<Imagen> lstImg;
                 if (!productoDetalle.getListImagenes().isEmpty()){
                     CodigoBarra codigoBarra = new CodigoBarra();
                     codigoBarra.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
                     CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
                     log.info("se guardo el codigo de barras {}", codBarr);
                     producto.setCodigoBarras(codBarr);
-                    //lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     log.info("Se guardo el producto y se regreso la respuesta {}", producto);
                     return this.iProductosRepository.save(producto);
                 }else{
@@ -276,7 +263,7 @@ public class ProductosServiceImpl extends
                 if (!productoDetalle.getListImagenes().isEmpty()){
                     lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
-                    relacionProductoImagen(mapperRelacionProductoImagen, productoDetalle.getListImagenes());
+                    relacionProductoImagen(mapperRelacionProductoImagen);
                 }
 
                 // Actualizar los campos del producto existente con los nuevos valores
@@ -350,7 +337,7 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    private void relacionProductoImagen(List<ProductoImagen>  productoImagens, List<ImagenDTO> list) throws IOException {
+    private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
 
@@ -407,13 +394,7 @@ public class ProductosServiceImpl extends
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-
             Long idImagen = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
-//            try {
-//                buscarArchivo(mpa.getNombreImagen());
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
             imagen.setId(idImagen);
             imagen.setBase64(urlImagen);
             imagen.setNombreImagen(mpa.getNombreImagen());
@@ -448,10 +429,5 @@ public class ProductosServiceImpl extends
         producto.setMarca(productoDetalle.getMarca());
         producto.setContenido(productoDetalle.getContenido());
         return producto;
-    }
-
-    private byte[] buscarArchivo(String nombreImagen) throws IOException {
-        Path path = Paths.get(rutaImagenes, nombreImagen);
-        return Files.readAllBytes(path);
     }
 }

@@ -1,7 +1,6 @@
 package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -36,7 +35,6 @@ public class Producto  extends BaseId{
 
     @OneToOne(optional = true, cascade = CascadeType.MERGE)
     @JoinColumn(name = "codigo_barras_id", unique = true)
-    @JsonManagedReference
     private CodigoBarra codigoBarras;
 //
 //    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL)

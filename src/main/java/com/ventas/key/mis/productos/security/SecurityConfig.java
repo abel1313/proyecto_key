@@ -53,14 +53,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // ── Productos ─────────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.GET,    "/productos/**").permitAll()
-                        .requestMatchers(HttpMethod.POST,   "/productos/**").hasAuthority("PRODUCTOS_CREAR")
-                        .requestMatchers(HttpMethod.PUT,    "/productos/**").hasAuthority("PRODUCTOS_EDITAR")
-                        .requestMatchers(HttpMethod.DELETE, "/productos/**").hasAuthority("PRODUCTOS_ELIMINAR")
+                        .requestMatchers("/productos/**").hasRole("ADMIN")
 
                         // ── Variantes ─────────────────────────────────────────────────────
                         .requestMatchers("/variantes/buscar").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/variantes/**").hasAuthority("VARIANTES_LEER")
+                        .requestMatchers(HttpMethod.GET,    "/variantes/buscar/**").permitAll()
                         .requestMatchers(HttpMethod.POST,   "/variantes/**").hasAuthority("VARIANTES_CREAR")
                         .requestMatchers(HttpMethod.PUT,    "/variantes/**").hasAuthority("VARIANTES_EDITAR")
 
