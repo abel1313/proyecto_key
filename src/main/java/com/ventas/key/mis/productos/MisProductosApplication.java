@@ -13,14 +13,14 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class MisProductosApplication {
 
 	public static void main(String[] args) {
-		log.info("=== VARIABLES DE ENTORNO ===");
-		log.info("PERFIL: {}", System.getenv("SPRING_PROFILES_ACTIVE"));
-		log.info("DB_HOST: {}", System.getenv("DB_HOST"));
-		log.info("SPRING_DB_NAME: {}", System.getenv("SPRING_DB_NAME"));
-		log.info("SPRING_DATASOURCE_USERNAME: {}", System.getenv("SPRING_DATASOURCE_USERNAME"));
-		log.info("SPRING_DB_NAME_QA: {}", System.getenv("SPRING_DB_NAME_QA"));
-		log.info("SPRING_DATASOURCE_USERNAME_QA: {}", System.getenv("SPRING_DATASOURCE_USERNAME_QA"));
-		log.info("============================");
+		System.out.println("=== VARIABLES DE ENTORNO ===");
+		System.out.println("PERFIL: " + System.getenv("SPRING_PROFILES_ACTIVE"));
+		System.out.println("DB_HOST: " + System.getenv("DB_HOST"));
+		System.out.println("SPRING_DB_NAME: " + System.getenv("SPRING_DB_NAME"));
+		System.out.println("SPRING_DATASOURCE_USERNAME: " + System.getenv("SPRING_DATASOURCE_USERNAME"));
+		System.out.println("SPRING_DB_NAME_QA: " + System.getenv("SPRING_DB_NAME_QA"));
+		System.out.println("SPRING_DATASOURCE_USERNAME_QA: " + System.getenv("SPRING_DATASOURCE_USERNAME_QA"));
+		System.out.println("============================");
 		SpringApplication.run(MisProductosApplication.class, args);
 	}
 }
