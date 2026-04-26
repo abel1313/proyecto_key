@@ -46,7 +46,7 @@ cookie:
 
 api:
   imagenes: ${ENDPOINT_IMAGENES}
-  cors_angular: ${CORS_ANGULAR}
+  cors_angular: https://qa.shop.novedades-jade.com.mx
 
 management:
   endpoints:

@@ -1185,3 +1185,107 @@ kubectl exec -it <nombre-pod> -n produccion -- sh
 - [ ] Ingress aplicado y certificado TLS emitido
 - [ ] Prueba de acceso a `https://backend.novedades-jade.com.mx/mis-productos`
 - [ ] Prueba de acceso a `https://shop.novedades-jade.com.mx`
+
+---
+
+## Gestión de contextos kubectl — Producción vs QA
+
+### Por qué usar contextos
+
+Sin contextos, es fácil ejecutar un comando en el namespace equivocado. Los contextos permiten saber siempre en qué ambiente estás operando antes de ejecutar cualquier cosa.
+
+### Ver contextos disponibles
+
+```bash
+# Ver todos los contextos configurados
+kubectl config get-contexts
+
+# Ver en qué contexto estás actualmente
+kubectl config current-context
+```
+
+Ejemplo de salida:
+```
+CURRENT   NAME   CLUSTER   AUTHINFO   NAMESPACE
+*         prod   default   default    default
+          qa     default   default    qa
+```
+El `*` indica el contexto activo.
+
+### Crear contextos por ambiente
+
+```bash
+# Contexto para producción (namespace default)
+kubectl config set-context prod --cluster=default --user=default --namespace=default
+
+# Contexto para QA
+kubectl config set-context qa --cluster=default --user=default --namespace=qa
+```
+
+### Cambiar entre ambientes
+
+```bash
+# Cambiar a producción
+kubectl config use-context prod
+
+# Cambiar a QA
+kubectl config use-context qa
+```
+
+### Buenas prácticas
+
+Antes de ejecutar cualquier comando destructivo, verifica siempre en qué contexto estás:
+
+```bash
+kubectl config current-context
+```
+
+También puedes usar `-n` para forzar el namespace sin cambiar el contexto activo:
+
+```bash
+# Ejecutar en QA sin cambiar el contexto activo
+kubectl get pods -n qa
+kubectl logs -f deployment/proyecto-key-deployment -n qa
+kubectl rollout restart deployment/proyecto-key-deployment -n qa
+
+# Ejecutar en producción explícitamente
+kubectl get pods -n default
+kubectl logs -f deployment/proyecto-key-deployment -n default
+kubectl rollout restart deployment/proyecto-key-deployment -n default
+```
+
+### Comandos rápidos de referencia por ambiente
+
+```bash
+# Ver pods
+kubectl get pods -n default      # producción
+kubectl get pods -n qa           # QA
+
+# Ver logs
+kubectl logs -f deployment/proyecto-key-deployment -n default
+kubectl logs -f deployment/proyecto-key-deployment -n qa
+
+# Reiniciar deployment (después de nuevo push de imagen)
+kubectl rollout restart deployment/proyecto-key-deployment -n default
+kubectl rollout restart deployment/proyecto-key-deployment -n qa
+
+# Ver secrets
+kubectl get secrets -n default
+kubectl get secrets -n qa
+
+# Describir pod (para ver errores de inicio)
+kubectl describe pod <nombre-pod> -n default
+kubectl describe pod <nombre-pod> -n qa
+
+# Entrar al pod
+kubectl exec -it <nombre-pod> -n default -- /bin/sh
+kubectl exec -it <nombre-pod> -n qa -- /bin/sh
+
+# Ver todos los recursos de un namespace
+kubectl get all -n default
+kubectl get all -n qa
+```
+
+### Nota sobre GitHub Actions
+
+Los workflows de CI/CD usan `-n default` y `-n qa` explícitamente en el script de deploy, por lo que el contexto activo en la VPS **no afecta** los deploys automáticos. Siempre van al namespace correcto independientemente del contexto configurado en la VPS.
