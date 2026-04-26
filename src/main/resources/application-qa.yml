@@ -1,0 +1,66 @@
+
+server:
+  port: 9011
+  servlet:
+    context-path: /mis-productos
+
+---
+
+spring:
+  codec:
+    max-in-memory-size: 10MB
+  config:
+    activate:
+      on-profile: qa
+  datasource:
+    url: jdbc:mysql://${DB_HOST_QA}:3306/${SPRING_DB_NAME_QA}
+    username: ${SPRING_DATASOURCE_USERNAME_QA}
+    password: ${SPRING_DATASOURCE_PASSWORD_QA}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 60000
+      max-lifetime: 300000
+      connection-timeout: 20000
+      keepalive-time: 30000
+      connection-test-query: SELECT 1
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  cache:
+    type: redis
+  redis:
+    host: redis
+    port: 6379
+
+clave-seguridad:
+  clave: ${TOKEN_JWT}
+
+cookie:
+  secure: true
+
+api:
+  imagenes: ${ENDPOINT_IMAGENES}
+  cors_angular: ${CORS_ANGULAR}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: caches,health
+
+guardar-imagenes:
+  ruta_imagenes: /app/imagenes
+
+mercadopago:
+  access-token: ${ACCESS_TOKE_MERCADO_PAGO_QA}
+  device-id: ${DEVICE_ID}
+  sandbox: true
+
+redis:
+  dns: redis
