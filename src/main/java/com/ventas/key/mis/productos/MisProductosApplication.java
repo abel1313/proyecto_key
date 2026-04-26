@@ -18,8 +18,8 @@ public class MisProductosApplication {
 		System.out.println("DB_HOST: " + System.getenv("DB_HOST"));
 		System.out.println("SPRING_DB_NAME: " + System.getenv("SPRING_DB_NAME"));
 		System.out.println("SPRING_DATASOURCE_USERNAME: " + System.getenv("SPRING_DATASOURCE_USERNAME"));
-		System.out.println("SPRING_DB_NAME_QA: " + System.getenv("SPRING_DB_NAME_QA"));
-		System.out.println("SPRING_DATASOURCE_USERNAME_QA: " + System.getenv("SPRING_DATASOURCE_USERNAME_QA"));
+		System.out.println("SPRING_DB_NAME: " + System.getenv("SPRING_DB_NAME"));
+		System.out.println("SPRING_DATASOURCE_USERNAME: " + System.getenv("SPRING_DATASOURCE_USERNAME"));
 		System.out.println("============================");
 		SpringApplication.run(MisProductosApplication.class, args);
 	}
