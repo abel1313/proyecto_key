@@ -124,6 +124,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
+                "https://qa.shop.novedades-jade.com.mx",
                 "https://shop.novedades-jade.com.mx",
                 "https://front.novedades-jade.com.mx",
                 "http://localhost:4200",
