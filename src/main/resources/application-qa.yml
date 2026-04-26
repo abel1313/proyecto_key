@@ -13,9 +13,9 @@ spring:
     activate:
       on-profile: qa
   datasource:
-    url: jdbc:mysql://${DB_HOST_QA}:3306/${SPRING_DB_NAME_QA}
-    username: ${SPRING_DATASOURCE_USERNAME_QA}
-    password: ${SPRING_DATASOURCE_PASSWORD_QA}
+    url: jdbc:mysql://${DB_HOST}:3306/${SPRING_DB_NAME}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 5
@@ -58,7 +58,7 @@ guardar-imagenes:
   ruta_imagenes: /app/imagenes
 
 mercadopago:
-  access-token: ${ACCESS_TOKE_MERCADO_PAGO_QA}
+  access-token: ${ACCESS_TOKE_MERCADO_PAGO}
   device-id: ${DEVICE_ID}
   sandbox: true
 
