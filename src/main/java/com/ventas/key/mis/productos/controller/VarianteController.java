@@ -56,13 +56,7 @@ public class VarianteController extends AbstractController<
             @RequestParam(required = false) String codigoBarras,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        if (codigoBarras != null && !codigoBarras.isBlank()) {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorCodigoBarrasPaginadoResumen(codigoBarras, pagina, size)));
-        }
-        if (nombre != null && !nombre.isBlank()) {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorNombrePaginadoResumen(nombre, pagina, size)));
-        }
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.findAllResumen(pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(nombre, pagina, size)));
     }
 
     @PostMapping("/guardarConImagenes")

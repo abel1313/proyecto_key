@@ -62,6 +62,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iImagenRepository = iImagenRepository;
     }
 
+    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombreOrCodigBarras, int page, int size){
+
+        PginaDto<List<VarianteResumenDto>> buscarCodigoBarras = buscarPorCodigoBarrasPaginadoResumen(nombreOrCodigBarras, page, size);
+        if (!buscarCodigoBarras.getT().isEmpty()){
+            return buscarCodigoBarras;
+        }
+        PginaDto<List<VarianteResumenDto>> buscarPorNombre = buscarPorNombrePaginadoResumen(nombreOrCodigBarras, page, size);
+        if(!buscarPorNombre.getT().isEmpty()){
+            return buscarPorNombre;
+        }
+        return findAllResumen(page, size);
+    }
     @Cacheable(value = "variantesProductoCache", key = "#productoId")
     public List<VarianteDto> buscarPorProducto(Integer productoId) {
         return iVarianteRepository.findByProductoId(productoId).stream().map(v -> {
