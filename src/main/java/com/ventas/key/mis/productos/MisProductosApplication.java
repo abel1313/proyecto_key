@@ -13,14 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class MisProductosApplication {
 
 	public static void main(String[] args) {
-		System.out.println("=== VARIABLES DE ENTORNO ===");
-		System.out.println("PERFIL: " + System.getenv("SPRING_PROFILES_ACTIVE"));
-		System.out.println("DB_HOST: " + System.getenv("DB_HOST"));
-		System.out.println("SPRING_DB_NAME: " + System.getenv("SPRING_DB_NAME"));
-		System.out.println("SPRING_DATASOURCE_USERNAME: " + System.getenv("SPRING_DATASOURCE_USERNAME"));
-		System.out.println("SPRING_DB_NAME: " + System.getenv("SPRING_DB_NAME"));
-		System.out.println("SPRING_DATASOURCE_USERNAME: " + System.getenv("SPRING_DATASOURCE_USERNAME"));
-		System.out.println("============================");
+		System.out.println("============================ se eliminaro los logs de variables de entono");
 		SpringApplication.run(MisProductosApplication.class, args);
 	}
 }
