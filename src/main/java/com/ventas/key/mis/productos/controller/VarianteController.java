@@ -11,6 +11,7 @@ import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -89,5 +90,19 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, size)));
+    }
+
+    @DeleteMapping("/imagenes")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantes(@RequestBody List<Integer> varianteIds) {
+        sGenerico.eliminarImagenesDeVariantes(varianteIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
+    }
+
+    @DeleteMapping("/{varianteId}/imagenes")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificas(
+            @PathVariable Integer varianteId,
+            @RequestBody List<Long> imagenIds) {
+        sGenerico.eliminarImagenesEspecificas(varianteId, imagenIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 }

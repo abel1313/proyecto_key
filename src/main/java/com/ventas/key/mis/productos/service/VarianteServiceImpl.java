@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteAWS;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.*;
@@ -38,12 +39,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final IProductosRepository iProductosRepository;
     private final ImageneClienteAWS imageneClienteAWS;
     private final IImagenRepository iImagenRepository;
+    private final ImagenPort imagenPort;
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
                                IProductosRepository iProductosRepository,
                                ImageneClienteAWS imageneClienteAWS,
                                IImagenRepository iImagenRepository,
+                               ImagenPort imagenPort,
                                ErrorGenerico error) {
         super(iVarianteRepository, error);
         this.iVarianteRepository = iVarianteRepository;
@@ -51,6 +54,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iProductosRepository = iProductosRepository;
         this.imageneClienteAWS = imageneClienteAWS;
         this.iImagenRepository = iImagenRepository;
+        this.imagenPort = imagenPort;
     }
 
     public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombreOrCodigBarras, int page, int size){
@@ -149,7 +153,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
         List<com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto> imagenes;
         try {
-            imagenes = ids.stream().map(imageneClienteAWS::getOne).toList();
+            imagenes = imageneClienteAWS.getAll(ids);
         } catch (Exception e) {
             log.warn("No se pudieron obtener imágenes del microservicio: {}", e.getMessage());
             imagenes = List.of();
@@ -334,6 +338,41 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElse("");
         dto.setCodigoBarras(codBarras);
         return dto;
+    }
+
+    @CacheEvict(value = {"variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
+    @Transactional
+    public void eliminarImagenesEspecificas(Integer varianteId, List<Long> imagenIds) {
+        iVarianteImagenRepository.deleteByVarianteIdAndImagenIdIn(varianteId, imagenIds);
+
+        List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
+        if (huerfanas.isEmpty()) return;
+
+        iImagenRepository.deleteByIdIn(huerfanas);
+        try {
+            imagenPort.delete(huerfanas);
+        } catch (Exception e) {
+            log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+        }
+    }
+
+    @CacheEvict(value = {"variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
+    @Transactional
+    public void eliminarImagenesDeVariantes(List<Integer> varianteIds) {
+        List<Long> imagenIds = iVarianteImagenRepository.findImagenIdsByVarianteIdIn(varianteIds);
+        iVarianteImagenRepository.deleteByVarianteIdIn(varianteIds);
+
+        if (imagenIds.isEmpty()) return;
+
+        List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
+        if (huerfanas.isEmpty()) return;
+
+        iImagenRepository.deleteByIdIn(huerfanas);
+        try {
+            imagenPort.delete(huerfanas);
+        } catch (Exception e) {
+            log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+        }
     }
 
 }

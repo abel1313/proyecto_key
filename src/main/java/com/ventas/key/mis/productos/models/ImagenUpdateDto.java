@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.models;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -10,6 +12,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ImagenUpdateDto extends ImagenDTO{
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     // usado por JPQL (Imagen.base64 es String en DB)

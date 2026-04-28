@@ -88,6 +88,20 @@ public class ImageneClienteAWS implements ImagenPort {
     }
 
     @Override
+    public void delete(List<Long> ids) {
+        webClient.delete()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/imagenes")
+                        .queryParam("ids", ids.toArray())
+                        .build())
+                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
+                .retrieve()
+                .toBodilessEntity()
+                .doOnError(e -> log.warn("Error eliminando imágenes del microservicio ids=[{}]: {}", ids, e.getMessage()))
+                .block();
+    }
+
+    @Override
     public ImagenDto getOne(Long id) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -96,7 +110,10 @@ public class ImageneClienteAWS implements ImagenPort {
                         .build())
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
-                .bodyToMono(Imagen.class).flatMap(mpa -> {
+                .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {})
+                .flatMap(list -> {
+                    if (list == null || list.isEmpty()) return Mono.empty();
+                    Imagen mpa = list.get(0);
                     ImagenDto imagenDto = new ImagenDto();
                     imagenDto.setId(mpa.getId());
                     imagenDto.setImagen(mpa.getImagen());

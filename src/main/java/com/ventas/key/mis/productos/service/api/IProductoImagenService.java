@@ -20,4 +20,6 @@ public interface IProductoImagenService extends ICrud<
 
     List<ProductoImagen> findByProductoId(Integer productoId);
     ProductoImagenDto findByImagenesPorIdProducto(Integer productoId);
+    void eliminarImagenesDeProductos(List<Integer> productoIds);
+    void eliminarImagenesEspecificas(Integer productoId, List<Long> imagenIds);
 }

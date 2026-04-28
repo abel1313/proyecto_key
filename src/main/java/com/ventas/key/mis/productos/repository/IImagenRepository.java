@@ -2,10 +2,12 @@ package com.ventas.key.mis.productos.repository;
 
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
+import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.models.ImagenProductoDto;
 import com.ventas.key.mis.productos.models.ImagenProductoResult;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -82,7 +84,15 @@ public interface IImagenRepository extends BaseRepository<Imagen,Long>{
 //""")
 //    List<ProductoImagen> findImagenPrincipalPorProductoIds1(@Param("id") Integer id, Pageable pageable);
 
+    @Query("""
+    SELECT i.id FROM Imagen i
+    WHERE i.id IN :ids
+      AND NOT EXISTS (SELECT pi FROM ProductoImagen pi WHERE pi.imagen.id = i.id)
+      AND NOT EXISTS (SELECT vi FROM VarianteImagen vi WHERE vi.imagen.id = i.id)
+    """)
+    List<Long> findOrphanIds(@Param("ids") List<Long> ids);
 
-
-
+    @Modifying
+    @Query("DELETE FROM Imagen i WHERE i.id IN :ids")
+    void deleteByIdIn(@Param("ids") List<Long> ids);
 }

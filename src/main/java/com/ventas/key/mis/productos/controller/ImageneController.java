@@ -62,6 +62,20 @@ public class ImageneController {
         this.iImagenService.deleteById(idImagen);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
+
+    @DeleteMapping("/{productoId}/imagenes")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificas(
+            @PathVariable Integer productoId,
+            @RequestBody List<Long> imagenIds) {
+        this.iProductoImagenService.eliminarImagenesEspecificas(productoId, imagenIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
+    }
+
+    @DeleteMapping("/producto")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeProductos(@RequestBody List<Integer> productoIds) {
+        this.iProductoImagenService.eliminarImagenesDeProductos(productoIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes de producto eliminadas correctamente"));
+    }
     private MediaType getMediaType(String extension) {
         return switch (extension.toLowerCase()) {
             case "jpg", "jpeg" -> MediaType.IMAGE_JPEG;
