@@ -271,35 +271,60 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         resultado.setPagina(origen.getPagina());
         resultado.setTotalPaginas(origen.getTotalPaginas());
         resultado.setTotalRegistros(origen.getTotalRegistros());
-        resultado.setT(origen.getT().stream().map(this::toResumenDto).toList());
+        resultado.setT(buildResumenDtosBatch(origen.getT()));
         return resultado;
     }
 
-    private VarianteResumenDto toResumenSinImagen(Variantes v) {
-        VarianteResumenDto dto = new VarianteResumenDto();
-        dto.setId(v.getId());
-        dto.setTalla(v.getTalla());
-        dto.setDescripcion(v.getDescripcion());
-        dto.setColor(v.getColor());
-        dto.setPresentacion(v.getPresentacion());
-        dto.setStock(v.getStock());
-        dto.setMarca(v.getMarca());
-        dto.setContenidoNeto(v.getContenidoNeto());
-        return dto;
-    }
-
-    @Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size")
+@Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> buscarPorProductoPaginadoResumen(Integer productoId, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoId(productoId, PageRequest.of(pagina - 1, size));
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
         resultado.setTotalRegistros((int) page.getTotalElements());
-        resultado.setT(page.getContent().stream().map(this::toResumenDto).toList());
+        resultado.setT(buildResumenDtosBatch(page.getContent()));
         return resultado;
     }
 
-    private VarianteResumenDto toResumenDto(Variantes v) {
+    private List<VarianteResumenDto> buildResumenDtosBatch(List<Variantes> variantes) {
+        if (variantes.isEmpty()) return List.of();
+
+        // 1. Una sola query DB para todas las imágenes de todas las variantes
+        List<Integer> varianteIds = variantes.stream().map(Variantes::getId).toList();
+        List<VarianteImagen> todasImagenes = iVarianteImagenRepository.findByVarianteIdIn(varianteIds);
+
+        // primera imagen por variante
+        Map<Integer, Long> varianteToImagenId = new HashMap<>();
+        for (VarianteImagen vi : todasImagenes) {
+            varianteToImagenId.putIfAbsent(vi.getVariante().getId(), vi.getImagen().getId());
+        }
+
+        // 2. Una sola llamada HTTP al microservicio con todos los IDs
+        Map<Long, byte[]> imagenBytes = new HashMap<>();
+        if (!varianteToImagenId.isEmpty()) {
+            try {
+                List<ImagenDto> imagenes = imageneClienteAWS.getAll(new ArrayList<>(varianteToImagenId.values()));
+                imagenes.forEach(img -> {
+                    if (img.getImagen() != null) imagenBytes.put(img.getId(), img.getImagen());
+                });
+            } catch (Exception e) {
+                log.warn("No se pudieron obtener imágenes en batch: {}", e.getMessage());
+            }
+        }
+
+        // 3. Construir DTOs con las imágenes ya cargadas
+        return variantes.stream().map(v -> {
+            VarianteResumenDto dto = buildBaseResumenDto(v);
+            Long imagenId = varianteToImagenId.get(v.getId());
+            if (imagenId != null) {
+                byte[] bytes = imagenBytes.get(imagenId);
+                if (bytes != null) dto.setImagenBase64(Base64.getEncoder().encodeToString(bytes));
+            }
+            return dto;
+        }).toList();
+    }
+
+    private VarianteResumenDto buildBaseResumenDto(Variantes v) {
         VarianteResumenDto dto = new VarianteResumenDto();
         dto.setId(v.getId());
         dto.setTalla(v.getTalla());
@@ -310,20 +335,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setMarca(v.getMarca());
         dto.setContenidoNeto(v.getContenidoNeto());
         dto.setPrecio(v.getProducto().getPrecioVenta());
-        String codBarras = Optional.ofNullable(v.getProducto()).map(Producto::getCodigoBarras).map(CodigoBarra::getCodigoBarras).orElse("");
+        String codBarras = Optional.ofNullable(v.getProducto())
+                .map(Producto::getCodigoBarras)
+                .map(CodigoBarra::getCodigoBarras)
+                .orElse("");
         dto.setCodigoBarras(codBarras);
-        List<VarianteImagen> imagenes = iVarianteImagenRepository.findByVarianteId(v.getId());
-        if (!imagenes.isEmpty()) {
-            Long imagenId = imagenes.get(0).getImagen().getId();
-            try {
-                List<ImagenDto> bytesList = imageneClienteAWS.getAll(List.of(imagenId));
-                if (bytesList != null && !bytesList.isEmpty() && bytesList.get(0).getImagen() != null) {
-                    dto.setImagenBase64(Base64.getEncoder().encodeToString(bytesList.get(0).getImagen()));
-                }
-            } catch (Exception e) {
-                log.warn("No se pudo obtener imagen para variante {}: {}", v.getId(), e.getMessage(), e);
-            }
-        }
         return dto;
     }
 

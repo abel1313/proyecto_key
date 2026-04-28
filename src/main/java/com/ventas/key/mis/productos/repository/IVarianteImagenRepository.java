@@ -39,4 +39,7 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
             @Param("productoId") Integer productoId,
             @Param("color") String color,
             @Param("excluirId") Integer excluirId);
+
+    @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds ORDER BY vi.id ASC")
+    List<VarianteImagen> findByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);
 }
