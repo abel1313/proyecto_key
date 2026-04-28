@@ -10,4 +10,5 @@ public interface ImagenPort {
 
     List<ImagenDto> save(MultiValueMap<String, ?> multipartData);
     List<ImagenDto> getAll(List<Long> ids);
+    ImagenDto getOne(Long id);
 }

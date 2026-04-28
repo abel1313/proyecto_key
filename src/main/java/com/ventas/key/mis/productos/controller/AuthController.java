@@ -115,7 +115,14 @@ public class AuthController {
     }
 
     @PostMapping("/registrar")
-    public ResponseEntity<?> registrar(@Valid @RequestBody AuthRequest request) throws Exception {
+    public ResponseEntity<?> registrar(@Valid @RequestBody AuthRequest request,
+                                       HttpServletRequest httpRequest) throws Exception {
+        String clientIp = resolverIp(httpRequest);
+        if (!rateLimiterService.tryConsume(clientIp)) {
+            log.warn("Rate limit de registro excedido para IP: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos de registro. Intente de nuevo en 15 minutos.");
+        }
         return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail()));
     }
 

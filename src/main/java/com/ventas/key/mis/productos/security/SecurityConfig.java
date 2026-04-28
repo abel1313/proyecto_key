@@ -43,62 +43,67 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
 
-                        // ── Públicos ─────────────────────────────────────────────────────
-                        .requestMatchers(
-                                "/auth/login", "/auth/registrar", "/auth/refresh",
-                                "/auth/logout", "/auth/validar",
-                                "/swagger-ui/**", "/dipomex/**",
-                                "/mp/webhook"
-                        ).permitAll()
+                        // ── Preflight CORS ────────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ── Productos ─────────────────────────────────────────────────────
+                        // ── Documentación / herramientas externas ─────────────────────────
+                        .requestMatchers("/swagger-ui/**", "/dipomex/**").permitAll()
+
+                        // ── Auth ──────────────────────────────────────────────────────────
+                        .requestMatchers("/auth/login", "/auth/registrar", "/auth/refresh", "/auth/validar").permitAll()
+                        .requestMatchers("/auth/logout").authenticated()
+
+                        // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
+                        .requestMatchers("/mp/webhook").permitAll()
+
+                        // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
+                        .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
                         .requestMatchers("/productos/**").hasRole("ADMIN")
 
-                        // ── Variantes ─────────────────────────────────────────────────────
-                        .requestMatchers("/variantes/buscar").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/variantes/buscar/**").permitAll()
-                        .requestMatchers(HttpMethod.POST,   "/variantes/**").hasAuthority("VARIANTES_CREAR")
-                        .requestMatchers(HttpMethod.PUT,    "/variantes/**").hasAuthority("VARIANTES_EDITAR")
+                        // ── Variantes (GETs públicos; escritura solo ADMIN) ────────────────
+                        .requestMatchers(HttpMethod.GET, "/variantes/**").permitAll()
+                        .requestMatchers("/variantes/**").hasRole("ADMIN")
 
-                        // ── Pedidos ───────────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.GET,    "/pedidos/**").hasAuthority("PEDIDOS_LEER")
-                        .requestMatchers(HttpMethod.POST,   "/pedidos/**").hasAuthority("PEDIDOS_CREAR")
-                        .requestMatchers(HttpMethod.PUT,    "/pedidos/**").hasAuthority("PEDIDOS_EDITAR")
-                        .requestMatchers(HttpMethod.DELETE, "/pedidos/**").hasAuthority("PEDIDOS_ELIMINAR")
+                        // ── Imágenes (GETs públicos excepto caché; escritura solo ADMIN) ────
+                        .requestMatchers(HttpMethod.GET, "/imagen/cache/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/imagen/**").permitAll()
+                        .requestMatchers("/imagen/**").hasRole("ADMIN")
+
+                        // ── Usuarios ──────────────────────────────────────────────────────
+                        .requestMatchers("/usuarios/buscarClientePorIdUsuario/**").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers("/usuarios/**").authenticated()
+
+                        // ── Clientes (alta y edición para autenticado; baja solo ADMIN) ────
+                        .requestMatchers(HttpMethod.DELETE, "/clientes/**").hasRole("ADMIN")
+                        .requestMatchers("/clientes/**").authenticated()
+
+                        // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
+                        .requestMatchers(HttpMethod.GET,    "/pedidos/**").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/pedidos/savePedido").authenticated()
+                        .requestMatchers(HttpMethod.PUT,    "/pedidos/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/pedidos/**").hasRole("ADMIN")
 
                         // ── Ventas ────────────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.GET,    "/ventas/**").hasAuthority("VENTAS_LEER")
-                        .requestMatchers(HttpMethod.POST,   "/ventas/**").hasAuthority("VENTAS_CREAR")
+                        .requestMatchers("/ventas/**").hasRole("ADMIN")
 
-                        // ── Clientes ──────────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.POST,   "/clientes/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/clientes/**").hasAuthority("CLIENTES_LEER")
-                        .requestMatchers(HttpMethod.PUT,    "/clientes/**").hasAuthority("CLIENTES_EDITAR")
-                        .requestMatchers(HttpMethod.DELETE, "/clientes/**").hasAuthority("CLIENTES_ELIMINAR")
-
-                        // ── MercadoPago ───────────────────────────────────────────────────
-                        .requestMatchers("/mp/**").hasAuthority("MP_COBRAR")
-
-                        // ── Imágenes ──────────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/imagen/**").permitAll()
-                        .requestMatchers("/imagen/**").hasAuthority("IMAGENES_GESTIONAR")
+                        // ── MercadoPago (resto) ────────────────────────────────────────────
+                        .requestMatchers("/mp/**").hasRole("ADMIN")
 
                         // ── Pagos catálogo ────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/pagos/**").hasAuthority("PAGOS_LEER")
+                        .requestMatchers("/pagos/**").hasRole("ADMIN")
 
                         // ── Gastos ────────────────────────────────────────────────────────
-                        .requestMatchers("/gastos/**").hasAuthority("GASTOS_GESTIONAR")
+                        .requestMatchers("/gastos/**").hasRole("ADMIN")
 
-                        // ── Rifas ─────────────────────────────────────────────────────────
+                        // ── Rifas y concursantes ──────────────────────────────────────────
                         .requestMatchers(
                                 "/rifa/**", "/ganadorRifa/**",
                                 "/configurarRifa/**", "/concursante/**"
-                        ).hasAuthority("RIFAS_GESTIONAR")
+                        ).hasRole("ADMIN")
 
-                        // ── Usuarios (solo admin) ─────────────────────────────────────────
-                        .requestMatchers("/usuarios/buscarClientePorIdUsuario/**").permitAll()
-                        .requestMatchers("/usuarios/**").hasAuthority("USUARIOS_GESTIONAR")
+                        // ── Admin (gestión interna del servidor) ──────────────────────────
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )

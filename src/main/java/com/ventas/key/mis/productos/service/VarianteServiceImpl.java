@@ -32,9 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -158,7 +156,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
         List<com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto> imagenes;
         try {
-            imagenes = imageneClienteAWS.getAll(ids);
+            imagenes = ids.stream().map(imageneClienteAWS::getOne).toList();
         } catch (Exception e) {
             log.warn("No se pudieron obtener imágenes del microservicio: {}", e.getMessage());
             imagenes = List.of();
@@ -177,48 +175,66 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @CacheEvict(value = {"variantesProductoCache", "variantesNombreCache", "variantesCodigoBarrasCache", "variantesImagenesCache"}, allEntries = true)
     @Transactional
-    public Variantes guardarConImagenes(VarianteDetalle detalle) throws ExceptionDataNotFound {
-        if (detalle.getId() != null) {
-            Variantes actual = iVarianteRepository.findById(detalle.getId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
-            int diff = detalle.getStock() - actual.getStock();
-            if (diff != 0) {
-                com.ventas.key.mis.productos.entity.Producto producto =
-                        iProductosRepository.findById(detalle.getProductoId())
-                                .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + detalle.getProductoId()));
-                producto.setStock(producto.getStock() + diff);
-                iProductosRepository.save(producto);
+    public List<Variantes> guardarConImagenes(List<VarianteDetalle> detalles) throws ExceptionDataNotFound {
+        // 1. Recolectar imágenes de todos los detalles y subir una sola vez
+        List<Long> imageIds = subirImagenes(detalles);
+
+        // 2. Guardar cada variante y vincular las mismas imágenes a todas
+        List<Variantes> resultado = new ArrayList<>();
+        for (VarianteDetalle detalle : detalles) {
+            if (detalle.getId() != null) {
+                ajustarStock(detalle);
+            }
+            Variantes saved = save(buildVariante(detalle));
+            resultado.add(saved);
+
+            if (!imageIds.isEmpty()) {
+                vincularImagenes(saved, imageIds);
             }
         }
+        return resultado;
+    }
 
-        Variantes variante = buildVariante(detalle);
-        Variantes saved = save(variante);
+    private List<Long> subirImagenes(List<VarianteDetalle> detalles) {
+        List<ImagenDTO> todas = detalles.stream()
+                .filter(d -> d.getListImagenes() != null && !d.getListImagenes().isEmpty())
+                .flatMap(d -> d.getListImagenes().stream())
+                .toList();
+        if (todas.isEmpty()) return List.of();
 
-        if (detalle.getListImagenes() != null && !detalle.getListImagenes().isEmpty()) {
-            LinkedMultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
-            for (ImagenDTO dto : detalle.getListImagenes()) {
-                byte[] bytes = dto.getBase64();
-                String nombre = dto.getNombreImagen();
-                ByteArrayResource recurso = new ByteArrayResource(bytes) {
-                    @Override
-                    public String getFilename() { return nombre; }
-                };
-                formData.add("files", recurso);
-            }
-
-            // micro_imagenes escribe en disco Y guarda en imagenes_copy, devuelve los IDs
-            List<ImagenDto> savedImagenes = imageneClienteAWS.save(formData);
-
-            List<VarianteImagen> relaciones = savedImagenes.stream().map(dto -> {
-                log.info("info {}",dto.getId());
-                VarianteImagen vi = new VarianteImagen();
-                vi.setVariante(saved);
-                vi.setImagen(iImagenRepository.getReferenceById(dto.getId()));
-                return vi;
-            }).toList();
-            iVarianteImagenRepository.saveAll(relaciones);
+        LinkedMultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+        for (ImagenDTO dto : todas) {
+            byte[] bytes = dto.getBase64();
+            String nombre = dto.getNombreImagen();
+            ByteArrayResource recurso = new ByteArrayResource(bytes) {
+                @Override
+                public String getFilename() { return nombre; }
+            };
+            formData.add("files", recurso);
         }
-        return saved;
+        return imageneClienteAWS.save(formData).stream().map(ImagenDto::getId).toList();
+    }
+
+    private void vincularImagenes(Variantes variante, List<Long> imageIds) {
+        List<VarianteImagen> relaciones = imageIds.stream().map(imgId -> {
+            VarianteImagen vi = new VarianteImagen();
+            vi.setVariante(variante);
+            vi.setImagen(iImagenRepository.getReferenceById(imgId));
+            return vi;
+        }).toList();
+        iVarianteImagenRepository.saveAll(relaciones);
+    }
+
+    private void ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
+        Variantes actual = iVarianteRepository.findById(detalle.getId())
+                .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
+        int diff = detalle.getStock() - actual.getStock();
+        if (diff != 0) {
+            Producto producto = iProductosRepository.findById(detalle.getProductoId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + detalle.getProductoId()));
+            producto.setStock(producto.getStock() + diff);
+            iProductosRepository.save(producto);
+        }
     }
 
     private Variantes buildVariante(VarianteDetalle detalle) {
@@ -305,7 +321,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                     dto.setImagenBase64(Base64.getEncoder().encodeToString(bytesList.get(0).getImagen()));
                 }
             } catch (Exception e) {
-                log.warn("No se pudo obtener imagen para variante {}: {}", v.getId(), e.getMessage());
+                log.warn("No se pudo obtener imagen para variante {}: {}", v.getId(), e.getMessage(), e);
             }
         }
         return dto;

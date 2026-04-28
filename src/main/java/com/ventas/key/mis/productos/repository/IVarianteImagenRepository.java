@@ -28,4 +28,15 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
     List<ImagenUpdateDto> getImagenByVarianteId(@Param("varianteId") Integer varianteId);
 
     Page<VarianteImagen> findByVarianteId(Integer varianteId, Pageable pageable);
+
+    @Query("""
+            SELECT vi FROM VarianteImagen vi
+            WHERE vi.variante.producto.id = :productoId
+              AND LOWER(vi.variante.color) = LOWER(:color)
+              AND vi.variante.id <> :excluirId
+            """)
+    List<VarianteImagen> findImagenesPorProductoIdYColor(
+            @Param("productoId") Integer productoId,
+            @Param("color") String color,
+            @Param("excluirId") Integer excluirId);
 }

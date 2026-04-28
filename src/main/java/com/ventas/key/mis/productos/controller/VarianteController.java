@@ -60,11 +60,11 @@ public class VarianteController extends AbstractController<
     }
 
     @PostMapping("/guardarConImagenes")
-    public ResponseEntity<ResponseGeneric<Variantes>> guardarConImagenes(@RequestBody VarianteDetalle detalle) {
+    public ResponseEntity<ResponseGeneric<List<Variantes>>> guardarConImagenes(@RequestBody List<VarianteDetalle> detalles) {
         try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.guardarConImagenes(detalle)));
+            return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
         } catch (Exception e) {
-            log.error("Error al guardar variante con imágenes: {}", e.getMessage());
+            log.error("Error al guardar variantes con imágenes: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }

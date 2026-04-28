@@ -8,6 +8,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -75,11 +76,31 @@ public class ImageneClienteAWS implements ImagenPort {
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {
-                }).flatMap(flat-> Mono.just(flat.stream().map(mpa->{
+                }).flatMap(flat -> Mono.just(flat.stream().map(mpa -> {
                     ImagenDto imagenDto = new ImagenDto();
                     imagenDto.setId(mpa.getId());
                     imagenDto.setImagen(mpa.getImagen());
                     return imagenDto;
-                }).toList())).block();
+                }).toList()))
+                .doOnError(e -> log.warn("Error obteniendo imágenes del microservicio para ids=[{}]: {}", ids.toArray(), e.getMessage(), e))
+                .onErrorReturn(List.of())
+                .block();
+    }
+
+    @Override
+    public ImagenDto getOne(Long id) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/imagenes")
+                        .queryParam("ids", id)
+                        .build())
+                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
+                .retrieve()
+                .bodyToMono(Imagen.class).flatMap(mpa -> {
+                    ImagenDto imagenDto = new ImagenDto();
+                    imagenDto.setId(mpa.getId());
+                    imagenDto.setImagen(mpa.getImagen());
+                    return Mono.just(imagenDto);
+                }).block();
     }
 }
