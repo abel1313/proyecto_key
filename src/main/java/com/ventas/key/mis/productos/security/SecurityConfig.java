@@ -49,6 +49,9 @@ public class SecurityConfig {
                         // ── Documentación / herramientas externas ─────────────────────────
                         .requestMatchers("/swagger-ui/**", "/dipomex/**").permitAll()
 
+                        // ── Chatbot (público para todos los visitantes) ───────────────────
+                        .requestMatchers("/chatbot/**").permitAll()
+
                         // ── Auth ──────────────────────────────────────────────────────────
                         .requestMatchers("/auth/login", "/auth/registrar", "/auth/refresh", "/auth/validar").permitAll()
                         .requestMatchers("/auth/logout").authenticated()
