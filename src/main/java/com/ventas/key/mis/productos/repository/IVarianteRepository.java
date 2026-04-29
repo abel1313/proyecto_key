@@ -29,4 +29,6 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     List<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras);
     Page<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras, Pageable pageable);
+
+    Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
 }

@@ -105,6 +105,9 @@ public class SecurityConfig {
                                 "/configurarRifa/**", "/concursante/**"
                         ).hasRole("ADMIN")
 
+                        // ── Carga de documentos (Excel) ───────────────────────────────────
+                        .requestMatchers("/documentos/**").hasRole("ADMIN")
+
                         // ── Admin (gestión interna del servidor) ──────────────────────────
                         .requestMatchers("/admin/**").hasRole("ADMIN")
 
