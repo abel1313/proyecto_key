@@ -74,5 +74,11 @@ mercadopago:
   device-id: ${DEVICE_ID}
   sandbox: false
 
+openai:
+  api-key: ${OPENAI_API_KEY}
+  model: gpt-4o-mini
+  sistema: "Eres un asistente de la tienda Novedades Jade. Responde de manera amable y concisa sobre nuestros productos, precios y pedidos. Si no sabes algo, dilo honestamente."
+
+
 
 

@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -76,14 +77,42 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                         continue;
                     }
 
-                    if (codigoBarrasRepository.findByCodigoBarras(codigoBarras).isPresent()) {
-                        log.info("Fila {}: código de barras '{}' ya existe, se omite.", i + 1, codigoBarras);
-                        omitidos++;
+                    Double stockDouble = leerNumerico(fila, IDX_STOCK);
+                    int stockNuevo = (stockDouble != null && stockDouble > 0) ? stockDouble.intValue() : 1;
+
+                    Optional<CodigoBarra> cbExistente = codigoBarrasRepository.findByCodigoBarras(codigoBarras);
+
+                    if (cbExistente.isPresent()) {
+                        Optional<Producto> productoExistente = productosRepository.findByCodigoBarras_CodigoBarras(codigoBarras);
+                        if (productoExistente.isEmpty()) {
+                            errores.add("Fila " + (i + 1) + ": código '" + codigoBarras + "' existe pero sin producto asociado, se omite.");
+                            omitidos++;
+                            continue;
+                        }
+
+                        Producto producto = productoExistente.get();
+                        int stockAnterior = producto.getStock() != null ? producto.getStock() : 0;
+                        producto.setStock(stockAnterior + stockNuevo);
+                        producto = productosRepository.save(producto);
+
+                        for (int j = 0; j < stockNuevo; j++) {
+                            Variantes variante = new Variantes();
+                            variante.setProducto(producto);
+                            variante.setColor(producto.getColor());
+                            variante.setMarca(producto.getMarca());
+                            variante.setContenidoNeto(producto.getContenido());
+                            variante.setDescripcion(producto.getDescripcion());
+                            variante.setStock(1);
+                            variante.setTalla(null);
+                            variante.setPresentacion(null);
+                            varianteRepository.save(variante);
+                        }
+
+                        log.info("Fila {}: producto '{}' actualizado, stock {} → {}, {} variante(s) nueva(s).",
+                                i + 1, producto.getNombre(), stockAnterior, producto.getStock(), stockNuevo);
+                        insertados++;
                         continue;
                     }
-
-                    Double stockDouble = leerNumerico(fila, IDX_STOCK);
-                    int stock = (stockDouble != null && stockDouble > 0) ? stockDouble.intValue() : 1;
 
                     CodigoBarra cb = new CodigoBarra();
                     cb.setCodigoBarras(codigoBarras);
@@ -97,14 +126,14 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                     producto.setPrecioVenta(leerNumerico(fila, IDX_PRECIO_VENTA));
                     producto.setPrecioRebaja(leerNumerico(fila, IDX_PRECIO_REBAJA));
                     producto.setDescripcion(leerTexto(fila, IDX_DESCRIPCION));
-                    producto.setStock(stock);
+                    producto.setStock(stockNuevo);
                     producto.setColor(leerTexto(fila, IDX_COLOR));
                     producto.setMarca(leerTexto(fila, IDX_MARCA));
                     producto.setContenido(leerTexto(fila, IDX_CONTENIDO));
                     producto.setHabilitado('1');
                     producto = productosRepository.save(producto);
 
-                    for (int j = 0; j < stock; j++) {
+                    for (int j = 0; j < stockNuevo; j++) {
                         Variantes variante = new Variantes();
                         variante.setProducto(producto);
                         variante.setColor(producto.getColor());
@@ -117,7 +146,7 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                         varianteRepository.save(variante);
                     }
 
-                    log.info("Fila {}: producto '{}' insertado con {} variante(s).", i + 1, producto.getNombre(), stock);
+                    log.info("Fila {}: producto '{}' insertado con {} variante(s).", i + 1, producto.getNombre(), stockNuevo);
                     insertados++;
 
                 } catch (Exception e) {
