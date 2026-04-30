@@ -81,7 +81,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iVarianteRepository = iVarianteRepository;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache",
+                        "buscarNombreOrCodigoBarrasCache",
+                        "findByIdCache",
+                        "variantesCodigoBarrasCache",
+                        "variantesNombreCache",
+                        "variantesProductoCache",
+                        "variantesImagenesCache",
+                        "variantesCodigoBarrasCache"}, allEntries = true)
     @Transactional
     public Pedido savePedido(@RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
 
@@ -139,6 +146,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Transactional
     @Override
+    @CacheEvict(value = {"obtenerProductosCache",
+            "buscarNombreOrCodigoBarrasCache",
+            "findByIdCache",
+            "variantesCodigoBarrasCache",
+            "variantesNombreCache",
+            "variantesProductoCache",
+            "variantesImagenesCache",
+            "variantesCodigoBarrasCache"}, allEntries = true)
     public PedidoGenerico updatePedido(int id, PedidoGenerico requestG) throws Exception {
         Pedido pedido = this.iPedidoRepository.findById(id)
                 .orElseThrow(() -> new GenericException(500, "El pedido no existe"));

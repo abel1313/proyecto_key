@@ -52,9 +52,16 @@ public class SecurityConfig {
                         // ── Chatbot (público para todos los visitantes) ───────────────────
                         .requestMatchers("/chatbot/**").permitAll()
 
+                        // ── Estado del negocio e imágenes de presentación (GET público) ──
+                        .requestMatchers(HttpMethod.GET, "/negocio/estado").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/presentacion/imagenes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
+                        .requestMatchers("/negocio/**").hasRole("ADMIN")
+                        .requestMatchers("/presentacion/**").hasRole("ADMIN")
+
                         // ── Auth ──────────────────────────────────────────────────────────
                         .requestMatchers("/auth/login", "/auth/registrar", "/auth/refresh", "/auth/validar").permitAll()
-                        .requestMatchers("/auth/logout").authenticated()
+                        .requestMatchers("/auth/logout").permitAll()
 
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/mp/webhook").permitAll()

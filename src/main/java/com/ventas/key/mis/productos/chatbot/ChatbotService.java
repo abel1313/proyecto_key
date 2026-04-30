@@ -42,10 +42,20 @@ public class ChatbotService {
                 No inventes precios ni productos que no estén en la lista.
 
                 POLÍTICAS DE LA TIENDA:
-                - Envíos a toda la república en 3-5 días hábiles
-                - Devoluciones hasta 7 días después de recibir el pedido
-                - Pagos: tarjeta, transferencia y MercadoPago
-                - Envío gratis en compras mayores a $600 MXN
+                - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
+                - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
+
+                MANEJO DE MENSAJES NO COMPRENSIBLES O FUERA DE CONTEXTO:
+                - Si el mensaje NO tiene relación con productos, compras, precios, envíos o la tienda,
+                  o si simplemente no entiendes lo que el cliente quiere decir, haz exactamente esto:
+                  1. Indica en una línea breve que no pudiste entender su mensaje.
+                  2. Menciona que puede contactarnos por Facebook o WhatsApp para recibir ayuda.
+                  3. Da una despedida corta y amable (máximo 2 líneas en total).
+                  4. Menciona que si se registra en la plataforma podrá ver más opciones de contacto
+                     y hacer seguimiento de sus pedidos.
+                  5. Escribe exactamente al final de tu respuesta, sin espacios extra: ##FAREWELL##
+                  6. NO sigas preguntando ni intentando ayudar con ese mensaje.
+                     Una sola respuesta de despedida, sin vueltas.
 
                 CATÁLOGO ACTUAL (variantes disponibles con stock):
                 """ + contexto;
@@ -117,10 +127,12 @@ public class ChatbotService {
 
                 Double precioRebaja = v.getProducto().getPrecioRebaja();
                 Double precioVenta = v.getProducto().getPrecioVenta();
-                if (precioRebaja != null && precioRebaja > 0) {
-                    sb.append(", precio: $").append(String.format("%.0f", precioRebaja))
-                      .append(" MXN (en oferta, antes $").append(String.format("%.0f", precioVenta)).append(")");
-                } else if (precioVenta != null) {
+//                if (precioRebaja != null && precioRebaja > 0) {
+//                    sb.append(", precio: $").append(String.format("%.0f", precioRebaja))
+//                      .append(" MXN (en oferta, antes $").append(String.format("%.0f", precioVenta)).append(")");
+//                } else
+//
+                if (precioVenta != null) {
                     sb.append(", precio: $").append(String.format("%.0f", precioVenta)).append(" MXN");
                 }
 

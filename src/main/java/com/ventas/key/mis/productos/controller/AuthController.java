@@ -64,7 +64,7 @@ public class AuthController {
             );
             Usuario usr = (Usuario) auth.getPrincipal();
             String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
-            String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId());
+            String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(), System.currentTimeMillis());
 
             agregarRefreshCookie(response, refreshToken);
 
@@ -95,8 +95,9 @@ public class AuthController {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             Usuario usr = (Usuario) userDetails;
 
+            long sessionStart = jwtUtil.extractSessionStart(refreshToken);
             String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId());
-            String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId());
+            String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart);
 
             agregarRefreshCookie(response, newRefreshToken);
 

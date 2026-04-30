@@ -46,6 +46,7 @@ public class JwtUtil {
         claims.put("idUsuario", idUsuarioRegistrado);
         return Jwts.builder()
                 .setClaims(claims)
+                .setId(java.util.UUID.randomUUID().toString())   // jti — para poder invalidarlo
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 15)) // 15 minutos
@@ -53,10 +54,15 @@ public class JwtUtil {
                 .compact();
     }
 
-    public String generateRefreshToken(UserDetails userDetails, long idUsuarioRegistrado) {
+    /**
+     * @param sessionStart epoch-millis del login original; se propaga en cada refresh
+     *                     para poder calcular la duración absoluta de la sesión.
+     */
+    public String generateRefreshToken(UserDetails userDetails, long idUsuarioRegistrado, long sessionStart) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("idUsuario", idUsuarioRegistrado);
         claims.put("type", "refresh");
+        claims.put("sessionStart", sessionStart);
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(userDetails.getUsername())
@@ -64,6 +70,14 @@ public class JwtUtil {
                 .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 días
                 .signWith(getSecretKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public long extractSessionStart(String token) {
+        Object val = Jwts.parserBuilder()
+                .setSigningKey(getSecretKey()).build()
+                .parseClaimsJws(token).getBody().get("sessionStart");
+        if (val instanceof Number) return ((Number) val).longValue();
+        return System.currentTimeMillis();
     }
 
     public boolean isRefreshToken(String token) {

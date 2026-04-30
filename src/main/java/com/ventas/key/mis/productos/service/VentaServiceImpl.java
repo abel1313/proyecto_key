@@ -44,7 +44,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
     private final IVentaRepository iVentaRepository;
     private final IProductosRepository iRepository;
-    private final IDetalleVentaRepository iDetalleVentaRepository;
     private final IUsuarioRepository iUsuarioRepository;
     private final IPagosYMesesRepository iPagosYMesesRepository;
     private final IDetallePagoRepository iDetallePagoRepository;
@@ -63,7 +62,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         super(iVentaRepository, errorGenerico);
         this.iVentaRepository = iVentaRepository;
         this.iRepository = iRepository;
-        this.iDetalleVentaRepository = iDetalleVentaRepository;
         this.iUsuarioRepository = iUsuarioRepository;
         this.iPagosYMesesRepository = iPagosYMesesRepository;
         this.iDetallePagoRepository = iDetallePagoRepository;
