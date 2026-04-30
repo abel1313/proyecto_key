@@ -13,6 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 public class VentaDirectaRequest {
     private int usuarioId;
+    private int clienteId;
     private int pagosYMesesId;
     private List<DetalleVentaDto> detalles;
 }

@@ -6,8 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
+import com.ventas.key.mis.productos.models.VentaDirectaResponse;
+import com.ventas.key.mis.productos.repository.IClienteRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +48,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     private final IVentaRepository iVentaRepository;
     private final IProductosRepository iRepository;
     private final IUsuarioRepository iUsuarioRepository;
+    private final IClienteRepository iClienteRepository;
     private final IPagosYMesesRepository iPagosYMesesRepository;
     private final IDetallePagoRepository iDetallePagoRepository;
     private final IVarianteRepository iVarianteRepository;
@@ -55,6 +59,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             final IProductosRepository iRepository,
             final IDetalleVentaRepository iDetalleVentaRepository,
             final IUsuarioRepository iUsuarioRepository,
+            final IClienteRepository iClienteRepository,
             final IPagosYMesesRepository iPagosYMesesRepository,
             final IDetallePagoRepository iDetallePagoRepository,
             final IVarianteRepository iVarianteRepository,
@@ -63,6 +68,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         this.iVentaRepository = iVentaRepository;
         this.iRepository = iRepository;
         this.iUsuarioRepository = iUsuarioRepository;
+        this.iClienteRepository = iClienteRepository;
         this.iPagosYMesesRepository = iPagosYMesesRepository;
         this.iDetallePagoRepository = iDetallePagoRepository;
         this.iVarianteRepository = iVarianteRepository;
@@ -71,10 +77,13 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
     @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache", "variantesProductoCache", "variantesCodigoBarrasCache"}, allEntries = true)
     @Transactional
-    public Venta saveVentaDetalle(VentaDirectaRequest request) throws ExceptionErrorInesperado, ExceptionDataNotFound {
+    public VentaDirectaResponse saveVentaDetalle(VentaDirectaRequest request) throws ExceptionErrorInesperado, ExceptionDataNotFound {
 
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+
+        Cliente cliente = iClienteRepository.findById(request.getClienteId())
+                .orElseThrow(() -> new ExceptionDataNotFound("Cliente no encontrado"));
 
         PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(request.getPagosYMesesId())
                 .orElseThrow(() -> new ExceptionErrorInesperado("Opción de pago no válida"));
@@ -100,13 +109,23 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         venta.setEstadoVenta("Entregado");
         venta.setFechaVenta(LocalDateTime.now());
         venta.setUsuario(usuario);
+        venta.setCliente(cliente);
         venta.setPagosYMeses(pagosYMeses);
         venta.setDetallePago(detallePago);
 
         List<DetalleVenta> detalles = new ArrayList<>();
         for (var item : request.getDetalles()) {
-            Producto prod = iRepository.findByCodigoBarras_CodigoBarrasAndNombre(item.getCodigoBarras(), item.getNombre())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + item.getNombre()));
+            Variantes variante = iVarianteRepository.findByIdWithLock(item.getVarianteId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
+
+            Producto prod = variante.getProducto();
+
+            if (variante.getStock() < item.getCantidad()) {
+                throw new RuntimeException("Stock insuficiente en variante id " + item.getVarianteId()
+                        + ". Disponible: " + variante.getStock() + ", solicitado: " + item.getCantidad());
+            }
+            variante.setStock(variante.getStock() - item.getCantidad());
+            iVarianteRepository.save(variante);
 
             if (prod.getStock() < item.getCantidad()) {
                 throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
@@ -114,17 +133,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             }
             prod.setStock(prod.getStock() - item.getCantidad());
             iRepository.save(prod);
-
-            if (item.getVarianteId() != null) {
-                Variantes variante = iVarianteRepository.findById(item.getVarianteId())
-                        .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
-                if (variante.getStock() < item.getCantidad()) {
-                    throw new RuntimeException("Stock insuficiente en variante id " + item.getVarianteId()
-                            + ". Disponible: " + variante.getStock() + ", solicitado: " + item.getCantidad());
-                }
-                variante.setStock(variante.getStock() - item.getCantidad());
-                iVarianteRepository.save(variante);
-            }
 
             double precioCosto = prod.getPrecioCosto();
             double subTotal    = item.getSubTotal();
@@ -151,7 +159,17 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         venta.setGananciaTotal(gananciaTotal);
         venta.setDetalles(detalles);
 
-        return iVentaRepository.save(venta);
+        Venta saved = iVentaRepository.save(venta);
+
+        boolean requiereTerminal = mesesIntereses.getTarifaTerminal() != null;
+        return new VentaDirectaResponse(
+                saved.getId(),
+                pagosYMeses.getTipoPago().getFormaPago(),
+                requiereTerminal,
+                totalVenta,
+                requiereTerminal ? mesesIntereses.getMeses() : null,
+                mesesIntereses.getDescripcion()
+        );
     }
 
     @Transactional

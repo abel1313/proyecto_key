@@ -197,6 +197,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         venta.setFechaVenta(LocalDateTime.now());
         venta.setPedido(pedido);
         venta.setUsuario(u);
+        venta.setCliente(pedido.getCliente());
         venta.setDetallePago(detallePago);
         venta.setPagosYMeses(pagosYMeses);
 

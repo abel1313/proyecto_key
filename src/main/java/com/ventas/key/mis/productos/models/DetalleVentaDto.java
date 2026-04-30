@@ -1,6 +1,5 @@
 package com.ventas.key.mis.productos.models;
 
-import com.ventas.key.mis.productos.entity.Pedido;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -11,14 +10,8 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DetalleVentaDto {
-
-    private String nombre;
-    private String descripcion;
-    private Integer stock;
-    private Double precioVenta;
-    private String codigoBarras;
-    private Integer cantidad;
-    private Double subTotal;
-    private Pedido pedido;
     private Integer varianteId;
+    private Integer cantidad;
+    private Double precioVenta;
+    private Double subTotal;
 }
