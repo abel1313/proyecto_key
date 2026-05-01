@@ -168,7 +168,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 requiereTerminal,
                 totalVenta,
                 requiereTerminal ? mesesIntereses.getMeses() : null,
-                mesesIntereses.getDescripcion()
+                mesesIntereses.getDescripcion(),
+                null
         );
     }
 
