@@ -181,7 +181,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         for (VarianteDetalle detalle : detalles) {
             if (detalle.getId() != null) {
                 ajustarStock(detalle);
+                if (detalle.getStock() <= 0) {
+                    List<Long> listaVarianteImagenes = iVarianteImagenRepository.findByVarianteId(detalle.getId())
+                            .stream().map(VarianteImagen::getImagen).toList();
+                    log.info("info {}",listaVarianteImagenes);
+                }
             }
+
             Variantes saved = save(buildVariante(detalle));
             resultado.add(saved);
 
