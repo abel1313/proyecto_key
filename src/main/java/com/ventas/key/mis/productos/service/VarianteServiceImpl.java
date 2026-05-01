@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.CodigoBarra;
+import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -182,8 +183,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             if (detalle.getId() != null) {
                 ajustarStock(detalle);
                 if (detalle.getStock() <= 0) {
-                    List<Long> listaVarianteImagenes = iVarianteImagenRepository.findByVarianteId(detalle.getId())
+                    List<Imagen> listaVarianteImagenes = iVarianteImagenRepository.findByVarianteId(detalle.getId())
                             .stream().map(VarianteImagen::getImagen).toList();
+                    List<Long> listiDimagenes = listaVarianteImagenes.stream().map(Imagen::getId).toList();
                     log.info("info {}",listaVarianteImagenes);
                 }
             }
