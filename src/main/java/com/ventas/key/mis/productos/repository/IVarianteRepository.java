@@ -26,9 +26,12 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     List<Variantes> findByProductoNombreContainingIgnoreCase(String nombre);
     Page<Variantes> findByProductoNombreContainingIgnoreCase(String nombre, Pageable pageable);
+    Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndProducto_NombreContainingIgnoreCase(int stock, char habilitado, String nombre, Pageable pageable);
 
     List<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras);
     Page<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras, Pageable pageable);
+    Page<Variantes> findByStockGreaterThanAndProducto_Habilitado(int stock, char habilitado, Pageable pageable);
+    Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(int stock, char habilitado, String codigoBarras, Pageable pageable);
 
     Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
 }

@@ -22,6 +22,7 @@ public interface IImagenService extends ICrud<
 
     PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
     void deleteById(Long id);
+    void deleteByIds(List<Long> ids);
 
     com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByIdImg(Integer id) throws IOException;
 

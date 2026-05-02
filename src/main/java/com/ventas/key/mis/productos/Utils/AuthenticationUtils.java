@@ -16,4 +16,10 @@ public class AuthenticationUtils {
     public static String jwtBearerToken() {
         return "Bearer ".concat(jwtToken());
     }
+
+    public static boolean isAdminContext() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
 }

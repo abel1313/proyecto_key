@@ -97,6 +97,12 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
         this.iImagenRepository.deleteById(id);
     }
 
+
+    @Override
+    public void deleteByIds(List<Long> ids) {
+        this.iImagenRepository.deleteByIdIn(ids);
+    }
+
     @Override
     public com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByIdImg(Integer id) throws IOException {
         Optional<ImagenProductoResult> imfRes = this.iImagenRepository.findImagenByImg(id);

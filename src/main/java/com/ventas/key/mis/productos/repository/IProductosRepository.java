@@ -15,9 +15,13 @@ import java.util.Optional;
 @Repository
 public interface IProductosRepository extends BaseRepository<Producto,Integer>{
     Page<Producto> findByNombreContainingAndHabilitado(String nombre, char habilitadot, Pageable pageable); // 🔍 Busca por nombre
-    Page<Producto> findByCodigoBarras_CodigoBarrasContainingAndHabilitado(String codigoBarras, char habilitadot, Pageable pageable); // 🔍 Busca por código de barras
+    Page<Producto> findByNombreContaining(String nombre, Pageable pageable); // 🔍 Busca por nombre
+    //Page<Producto> findByCodigoBarras_CodigoBarrasContainingAndHabilitado(String codigoBarras, char habilitadot, Pageable pageable); // 🔍 Busca por código de barras
+    Page<Producto> findByCodigoBarras_CodigoBarrasContaining(String codigoBarras, Pageable pageable); // 🔍 Busca por código de barras
     Optional<Producto> findByCodigoBarras_CodigoBarrasAndNombre(String codigoBarras, String nombre); // 🔍 Busca por código de barras
     Optional<Producto> findByCodigoBarras_CodigoBarras(String codigoBarras); // 🔍 Busca por código de barras
+    Optional<Producto> findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarras(int stock, char habilitado, @Param("codigoBarras")String nombre); // 🔍 Busca por código de barras
+    Page<Producto> findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasContaining(int stock, char habilitado, @Param("codigoBarras")String nombre, Pageable pageable); // 🔍 Busca por código de barras
     Page<Producto> findDistinctByStockGreaterThanAndHabilitado(int stock, char habilitadot, Pageable pageable);
 
 

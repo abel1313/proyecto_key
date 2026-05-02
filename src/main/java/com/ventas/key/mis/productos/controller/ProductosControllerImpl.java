@@ -9,7 +9,6 @@ import com.ventas.key.mis.productos.service.ProductosServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -57,6 +56,14 @@ public class ProductosControllerImpl {
     public ResponseEntity<Optional<ProductoResumen>> update(@PathVariable int id){
         log.info("Se busca producto por ID {}",id);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getResumen(id) );
+    }
+
+    @DeleteMapping("deleteBy/{id}")
+    public ResponseEntity<Optional<ProductoResumen>> eliminarProductoById(@PathVariable int id){
+        log.info("Eliminar producto por ID {}",id);
+        this.pServiceImpl.deleteByIdProducto(id);
+        log.info("Se elimino el producto con el ID {}",id);
+        return ResponseEntity.noContent().build();
     }
 
 }

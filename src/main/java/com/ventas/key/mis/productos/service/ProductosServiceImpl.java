@@ -1,14 +1,21 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.*;
+import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
+import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
+import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
+import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
@@ -33,6 +40,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,15 +59,23 @@ public class ProductosServiceImpl extends
     private final ICodigoBarrasService iBarrasService;
     private final ErrorGenerico error;
     private final IImagenService iImagenService;
+    private final IVarianteRepository varianteRepository;
+    private final IVarianteImagenRepository iVarianteImagenRepository;
+
 
     private final ImagenProductoClienteAWS imagenProductoClienteAWS;
+    private final ImagenPort imagenPort;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
             final IImagenService iImagenService,
-            final ImagenProductoClienteAWS imagenProductoClienteAWS) {
+            final ImagenProductoClienteAWS imagenProductoClienteAWS,
+            final IVarianteRepository iVarianteRepository,
+            final IVarianteImagenRepository iVarianteImagenRepository,
+                                final ImagenPort imagenPort
+    ) {
         super(iProductosRepository, error);
         this.iProductosRepository = iProductosRepository;
         this.error = error;
@@ -67,6 +83,9 @@ public class ProductosServiceImpl extends
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
         this.imagenProductoClienteAWS = imagenProductoClienteAWS;
+        this.iVarianteImagenRepository = iVarianteImagenRepository;
+        this.varianteRepository = iVarianteRepository;
+        this.imagenPort = imagenPort;
         // TODO Auto-generated constructor stub
     }
 
@@ -81,10 +100,13 @@ public class ProductosServiceImpl extends
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
-
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
+        Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
+        if (!isAdmin) {
+            productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
+        }
+
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
@@ -156,17 +178,28 @@ public class ProductosServiceImpl extends
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados;
 
-        // 1. Buscar por código de barras exacto primero (más preciso)
+        // 1. Buscar por código de barras exacto primero
+        boolean isAdmin = isAdminContext();
         Optional<Producto> productoExacto = iProductosRepository.findByCodigoBarras_CodigoBarras(nombre);
+        if (!isAdmin) {
+            productoExacto = iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarras(0, '1', nombre);
+        }
         if (productoExacto.isPresent()) {
             productosPaginados = new org.springframework.data.domain.PageImpl<>(
                     List.of(productoExacto.get()), pageable, 1);
         } else {
             // 2. Buscar por nombre
-            productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
+            productosPaginados = iProductosRepository.findByNombreContaining(nombre, pageable);
+            if(!isAdmin){
+                productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
+            }
+
             // 3. Si nombre no encontró nada, buscar por código de barras parcial
             if (productosPaginados.isEmpty()) {
-                productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContainingAndHabilitado(nombre, '1', pageable);
+                productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContaining(nombre, pageable);
+                if(!isAdmin) {
+                    productosPaginados = iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasContaining( 0, '1', nombre, pageable);
+                }
             }
         }
 
@@ -176,6 +209,45 @@ public class ProductosServiceImpl extends
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
         pginaDto.setT(listaProductos(productosPaginados.getContent()));
         return pginaDto;
+    }
+
+    @Transactional
+    @Override
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache", "buscarImagenIdCache"}, allEntries = true)
+    public void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado {
+        log.info("Buscar producto con el ID {}",id);
+        Optional<Producto> existeProducto = iProductosRepository.findById(id);
+
+        if (existeProducto.isEmpty()) {
+            throw new ExceptionDataNotFound("No existe el producto con el id: " + id);
+        }
+        existeProducto.ifPresent(producto -> {
+            log.info("Existe el producto {}", producto);
+            log.info("Buscar Variante con el ID de producto  {}", producto.getId());
+            List<Variantes> existenVariantes = varianteRepository.findByProductoId(producto.getId());
+            log.info("Lista de variantes existentes {}", existenVariantes);
+            List<Integer> variablesIds = existenVariantes.stream().map(Variantes::getId).toList();
+            log.info("Ids de las variables {}",variablesIds);
+            List<VarianteImagen> existenVariblesConImagenes = iVarianteImagenRepository.findByVarianteIdIn(variablesIds);
+            log.info("Lista de variables con imagen {}", existenVariblesConImagenes);
+            List<Imagen> listImagenes = existenVariblesConImagenes.stream().map(VarianteImagen::getImagen).toList();
+            log.info("Lista de imagenes {}",listImagenes);
+            List<String> listNombreImageneEliminarDisco = new ArrayList<>();
+            List<Long> listaIdsImagenesEliminarBase = new ArrayList<>();
+
+            listImagenes.forEach(imagen -> {
+                listNombreImageneEliminarDisco.add(imagen.getBase64());
+                listaIdsImagenesEliminarBase.add(imagen.getId());
+            });
+            log.info("Lista de nombres para eliminar en el disco {} Lista de imagenes a eliminar en la base {}", listNombreImageneEliminarDisco ,  listaIdsImagenesEliminarBase);
+            imagenPort.deleteInagenesDisco(listNombreImageneEliminarDisco);
+            iVarianteImagenRepository.deleteByVarianteIdIn(variablesIds);
+            iImagenService.deleteByIds(listaIdsImagenesEliminarBase);
+            producto.setHabilitado((char) 0);
+            iProductosRepository.save(producto);
+            log.info("Se elimino el producto con las variantes y relaciones con imagenes");
+
+        });
     }
 
     private List<ProductoDTO> listaProductos(List<Producto> lista) {
@@ -210,7 +282,6 @@ public class ProductosServiceImpl extends
 
 
     @Override
-    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         return guardarProducto(productoDetalle);

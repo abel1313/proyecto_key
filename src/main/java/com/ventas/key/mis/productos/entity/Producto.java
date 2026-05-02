@@ -2,10 +2,7 @@ package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "producto")
@@ -13,6 +10,7 @@ import lombok.Setter;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
+@ToString
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Producto  extends BaseId{
 

@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.Producto;
@@ -12,6 +13,7 @@ import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisc
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
+import com.ventas.key.mis.productos.paginacion.PaginacionGenerica;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -22,7 +24,9 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
@@ -107,12 +111,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Cacheable(value = "variantesNombreCache", key = "#nombre + ':' + #pagina + ':' + #size")
     public PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size) {
-        Page<Variantes> page = iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre, PageRequest.of(pagina - 1, size));
+        Page<Variantes> page;
+        if(AuthenticationUtils.isAdminContext()){
+            page = iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre, PageRequest.of(pagina - 1, size));
+        }else{
+            page = iVarianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndProducto_NombreContainingIgnoreCase(0, '1',nombre, PageRequest.of(pagina - 1, size));
+
+        }
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
         resultado.setTotalRegistros((int) page.getTotalElements());
         resultado.setT(page.getContent());
+        PaginacionGenerica<Variantes> res = new PaginacionGenerica<>();
+        PginaDto<List<Variantes>> sera = res.setPagina(page, pagina);
         return resultado;
     }
 
@@ -123,7 +135,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Cacheable(value = "variantesCodigoBarrasCache", key = "#codigoBarras + ':' + #pagina + ':' + #size")
     public PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size) {
-        Page<Variantes> page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras, PageRequest.of(pagina - 1, size));
+        boolean isAdmin = AuthenticationUtils.isAdminContext();
+        Page<Variantes> page = null;
+        if(isAdmin){
+            page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras, PageRequest.of(pagina - 1, size));
+        }else{
+            page = iVarianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(0, '1',codigoBarras, PageRequest.of(pagina - 1, size));
+        }
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
@@ -272,6 +290,23 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Cacheable(value = "variantesProductoCache", key = "'resumen:all:' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> findAllResumen(int pagina, int size) {
         return toResumenPagina(findAllNew(pagina, size));
+    }
+
+    @Override
+    public PginaDto<List<Variantes>> findAllNew(int pagina, int size){
+        PginaDto<List<Variantes>> pginaDto = new PginaDto<>();
+        Pageable pageable = PageRequest.of(pagina - 1, size);
+        Page<Variantes> dataPaginacion;
+        if(AuthenticationUtils.isAdminContext()){
+            dataPaginacion = this.repoGenerico.findAll(pageable);
+        }else{
+            dataPaginacion = this.iVarianteRepository.findByStockGreaterThanAndProducto_Habilitado(0, '1', pageable);
+        }
+        pginaDto.setPagina(pagina);
+        pginaDto.setTotalPaginas(dataPaginacion.getTotalPages());
+        pginaDto.setTotalRegistros((int) dataPaginacion.getTotalElements());
+        pginaDto.setT(dataPaginacion.getContent() );
+        return pginaDto;
     }
 
     private PginaDto<List<VarianteResumenDto>> toResumenPagina(PginaDto<List<Variantes>> origen) {
