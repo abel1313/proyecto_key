@@ -8,7 +8,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
@@ -38,14 +38,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductosRepository iProductosRepository;
-    private final ImageneClienteAWS imageneClienteAWS;
+    private final ImageneClienteDisco imageneClienteDisco;
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
                                IProductosRepository iProductosRepository,
-                               ImageneClienteAWS imageneClienteAWS,
+                               ImageneClienteDisco imageneClienteDisco,
                                IImagenRepository iImagenRepository,
                                ImagenPort imagenPort,
                                ErrorGenerico error) {
@@ -53,7 +53,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iVarianteRepository = iVarianteRepository;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.iProductosRepository = iProductosRepository;
-        this.imageneClienteAWS = imageneClienteAWS;
+        this.imageneClienteDisco = imageneClienteDisco;
         this.iImagenRepository = iImagenRepository;
         this.imagenPort = imagenPort;
     }
@@ -154,7 +154,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
         List<com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto> imagenes;
         try {
-            imagenes = imageneClienteAWS.getAll(ids);
+            imagenes = imageneClienteDisco.getAll(ids);
         } catch (Exception e) {
             log.warn("No se pudieron obtener imágenes del microservicio: {}", e.getMessage());
             imagenes = List.of();
@@ -185,7 +185,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 if (detalle.getStock() <= 0) {
                     List<Imagen> listaVarianteImagenes = iVarianteImagenRepository.findByVarianteId(detalle.getId())
                             .stream().map(VarianteImagen::getImagen).toList();
-                    List<Long> listiDimagenes = listaVarianteImagenes.stream().map(Imagen::getId).toList();
+                    List<String> listiDimagenes = listaVarianteImagenes.stream().map(Imagen::getBase64).toList();
+                    imageneClienteDisco.deleteInagenesDisco(listiDimagenes);
+                    iVarianteImagenRepository.deleteByVarianteIdIn(List.of(detalle.getId()));
+                    iImagenRepository.deleteByIdIn(listaVarianteImagenes.stream().map(Imagen::getId).collect(Collectors.toList()));
                     log.info("info {}",listaVarianteImagenes);
                 }
             }
@@ -217,7 +220,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             };
             formData.add("files", recurso);
         }
-        return imageneClienteAWS.save(formData).stream().map(ImagenDto::getId).toList();
+        return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
     }
 
     private void vincularImagenes(Variantes variante, List<Long> imageIds) {
@@ -308,7 +311,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Map<Long, byte[]> imagenBytes = new HashMap<>();
         if (!varianteToImagenId.isEmpty()) {
             try {
-                List<ImagenDto> imagenes = imageneClienteAWS.getAll(new ArrayList<>(varianteToImagenId.values()));
+                List<ImagenDto> imagenes = imageneClienteDisco.getAll(new ArrayList<>(varianteToImagenId.values()));
                 imagenes.forEach(img -> {
                     if (img.getImagen() != null) imagenBytes.put(img.getId(), img.getImagen());
                 });

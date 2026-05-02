@@ -8,7 +8,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,7 +23,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 @Service
 @Slf4j
-public class ImageneClienteAWS implements ImagenPort {
+public class ImageneClienteDisco implements ImagenPort {
 
     @Value("${api.imagenes}")
     private @NotNull String endpointImg;
@@ -32,7 +31,7 @@ public class ImageneClienteAWS implements ImagenPort {
     private WebClient webClient;
     private final WebClient.Builder builder;
 
-    public ImageneClienteAWS(WebClient.Builder builder) {
+    public ImageneClienteDisco(WebClient.Builder builder) {
         this.builder = builder;
     }
     @PostConstruct
@@ -41,7 +40,7 @@ public class ImageneClienteAWS implements ImagenPort {
                 .codecs(config -> config.defaultCodecs().maxInMemorySize(40 * 1024 * 1024))
                 .build();
         this.webClient = builder.baseUrl(endpointImg).exchangeStrategies(strategies).build();
-        log.info(" endpoint imagenes ImageneClienteAWS {}", endpointImg);
+        log.info(" endpoint imagenes ImageneClienteDisco {}", endpointImg);
     }
 
 
@@ -98,6 +97,20 @@ public class ImageneClienteAWS implements ImagenPort {
                 .retrieve()
                 .toBodilessEntity()
                 .doOnError(e -> log.warn("Error eliminando imágenes del microservicio ids=[{}]: {}", ids, e.getMessage()))
+                .block();
+    }
+
+    @Override
+    public void deleteInagenesDisco(List<String> ids) {
+        webClient.delete()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/imagenes/disco")
+                        .queryParam("ids", ids.toArray())
+                        .build())
+                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
+                .retrieve()
+                .toBodilessEntity()
+                .doOnError(e -> log.warn("Error eliminando imágenes del disco en el microservicio ids=[{}]: {}", ids, e.getMessage()))
                 .block();
     }
 

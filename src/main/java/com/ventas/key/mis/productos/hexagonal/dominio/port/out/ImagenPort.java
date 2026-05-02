@@ -12,4 +12,5 @@ public interface ImagenPort {
     List<ImagenDto> getAll(List<Long> ids);
     ImagenDto getOne(Long id);
     void delete(List<Long> ids);
+    void deleteInagenesDisco(List<String> ids);
 }
