@@ -62,13 +62,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.imagenPort = imagenPort;
     }
 
-    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombreOrCodigBarras, int page, int size){
+    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombre, String codigoBarras,int page, int size){
 
-        PginaDto<List<VarianteResumenDto>> buscarCodigoBarras = buscarPorCodigoBarrasPaginadoResumen(nombreOrCodigBarras, page, size);
+        PginaDto<List<VarianteResumenDto>> buscarCodigoBarras = buscarPorCodigoBarrasPaginadoResumen(codigoBarras, page, size);
         if (!buscarCodigoBarras.getT().isEmpty()){
             return buscarCodigoBarras;
         }
-        PginaDto<List<VarianteResumenDto>> buscarPorNombre = buscarPorNombrePaginadoResumen(nombreOrCodigBarras, page, size);
+        PginaDto<List<VarianteResumenDto>> buscarPorNombre = buscarPorNombrePaginadoResumen(nombre, page, size);
         if(!buscarPorNombre.getT().isEmpty()){
             return buscarPorNombre;
         }
