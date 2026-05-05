@@ -1289,3 +1289,13 @@ kubectl get all -n qa
 ### Nota sobre GitHub Actions
 
 Los workflows de CI/CD usan `-n default` y `-n qa` explícitamente en el script de deploy, por lo que el contexto activo en la VPS **no afecta** los deploys automáticos. Siempre van al namespace correcto independientemente del contexto configurado en la VPS.
+ 
+
+
+
+
+
+
+
+
+

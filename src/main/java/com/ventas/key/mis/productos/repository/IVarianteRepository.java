@@ -34,4 +34,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(int stock, char habilitado, String codigoBarras, Pageable pageable);
 
     Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
+
+    @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")
+    Page<Variantes> findVariantesSinStockDeshabilitadas(Pageable pageable);
 }
