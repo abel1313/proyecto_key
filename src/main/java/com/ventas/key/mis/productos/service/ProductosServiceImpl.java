@@ -34,6 +34,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -203,11 +209,19 @@ public class ProductosServiceImpl extends
             }
         }
 
+        List<ProductoDTO> resultados = productosPaginados.getContent().stream()
+                .map(p -> mapperByRol(p, isAdmin))
+                .toList();
+
+        if (resultados.isEmpty()) {
+            throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
+        }
+
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
-        pginaDto.setT(listaProductos(productosPaginados.getContent()));
+        pginaDto.setT(resultados);
         return pginaDto;
     }
 
@@ -500,5 +514,67 @@ public class ProductosServiceImpl extends
         producto.setMarca(productoDetalle.getMarca());
         producto.setContenido(productoDetalle.getContenido());
         return producto;
+    }
+
+    @Cacheable(value = "obtenerProductosCache", key = "'no-habilitados:' + #page + ':' + #size")
+    public PginaDto<List<ProductoDTO>> getProductosNoHabilitados(int size, int page) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Producto> productosPaginados = iProductosRepository.findProductosNoHabilitados(pageable);
+        PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
+        pginaDto.setPagina(page);
+        pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
+        pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
+        pginaDto.setT(productosPaginados.getContent().stream()
+                .map(p -> mapperByRol(p, true)).toList());
+        return pginaDto;
+    }
+
+    @Cacheable(value = "obtenerProductosCache", key = "'sin-stock:' + #page + ':' + #size")
+    public PginaDto<List<ProductoDTO>> getProductosSinStock(int size, int page) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Producto> productosPaginados = iProductosRepository.findByStock(0, pageable);
+        PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
+        pginaDto.setPagina(page);
+        pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
+        pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
+        pginaDto.setT(productosPaginados.getContent().stream()
+                .map(p -> mapperByRol(p, true)).toList());
+        return pginaDto;
+    }
+
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
+    @Transactional
+    public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
+        Producto producto = iProductosRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado con id: " + id));
+        producto.setHabilitado(habilitar ? '1' : (char) 0);
+        return iProductosRepository.save(producto);
+    }
+
+    public byte[] generarReporteProductosSinVariantes() throws IOException {
+        List<Producto> productos = iProductosRepository.findProductosSinVariantes();
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Productos Sin Variantes");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("ID");
+            header.createCell(1).setCellValue("Nombre");
+            header.createCell(2).setCellValue("Código de Barras");
+            header.createCell(3).setCellValue("Stock");
+            header.createCell(4).setCellValue("Precio Venta");
+            header.createCell(5).setCellValue("Habilitado");
+            for (int i = 0; i < productos.size(); i++) {
+                Producto p = productos.get(i);
+                Row row = sheet.createRow(i + 1);
+                row.createCell(0).setCellValue(p.getId());
+                row.createCell(1).setCellValue(p.getNombre() != null ? p.getNombre() : "");
+                row.createCell(2).setCellValue(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras() : "");
+                row.createCell(3).setCellValue(p.getStock() != null ? p.getStock() : 0);
+                row.createCell(4).setCellValue(p.getPrecioVenta() != null ? p.getPrecioVenta() : 0.0);
+                row.createCell(5).setCellValue(p.getHabilitado() == '1' ? "Sí" : "No");
+            }
+            workbook.write(baos);
+            return baos.toByteArray();
+        }
     }
 }

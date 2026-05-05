@@ -9,13 +9,16 @@ import com.ventas.key.mis.productos.service.ProductosServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 @RestController
 @RequestMapping("productos")
@@ -64,6 +67,43 @@ public class ProductosControllerImpl {
         this.pServiceImpl.deleteByIdProducto(id);
         log.info("Se elimino el producto con el ID {}",id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("admin/no-habilitados")
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> getProductosNoHabilitados(
+            @RequestParam int size, @RequestParam int page) {
+        log.info("Admin: obtener productos no habilitados page={} size={}", page, size);
+        return ResponseEntity.ok(this.pServiceImpl.getProductosNoHabilitados(size, page));
+    }
+
+    @GetMapping("admin/sin-stock")
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> getProductosSinStock(
+            @RequestParam int size, @RequestParam int page) {
+        log.info("Admin: obtener productos sin stock page={} size={}", page, size);
+        return ResponseEntity.ok(this.pServiceImpl.getProductosSinStock(size, page));
+    }
+
+    @PatchMapping("{id}/habilitar")
+    public ResponseEntity<Map<String, Object>> habilitarDeshabilitarProducto(
+            @PathVariable Integer id,
+            @RequestParam boolean habilitar) {
+        log.info("Cambiar estado habilitado del producto id={} habilitar={}", id, habilitar);
+        this.pServiceImpl.habilitarDeshabilitarProducto(id, habilitar);
+        return ResponseEntity.ok(Map.of(
+                "id", id,
+                "habilitado", habilitar,
+                "mensaje", habilitar ? "Producto habilitado correctamente" : "Producto deshabilitado correctamente"
+        ));
+    }
+
+    @GetMapping("admin/sin-variantes/reporte")
+    public ResponseEntity<byte[]> getReporteProductosSinVariantes() throws IOException {
+        log.info("Admin: generar reporte de productos sin variantes");
+        byte[] excel = this.pServiceImpl.generarReporteProductosSinVariantes();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", "productos_sin_variantes.xlsx");
+        return ResponseEntity.ok().headers(headers).body(excel);
     }
 
 }

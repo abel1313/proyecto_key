@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -39,7 +40,12 @@ public interface IProductosRepository extends BaseRepository<Producto,Integer>{
 """)
     ProductoResumen findProductoConImagenes(@Param("id") int id);
 
-    
+    @Query("SELECT p FROM Producto p WHERE p.habilitado <> '1'")
+    Page<Producto> findProductosNoHabilitados(Pageable pageable);
 
+    Page<Producto> findByStock(int stock, Pageable pageable);
+
+    @Query("SELECT p FROM Producto p WHERE NOT EXISTS (SELECT v FROM Variantes v WHERE v.producto.id = p.id)")
+    List<Producto> findProductosSinVariantes();
 
 }

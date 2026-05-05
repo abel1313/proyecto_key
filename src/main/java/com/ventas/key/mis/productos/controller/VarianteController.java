@@ -106,4 +106,11 @@ public class VarianteController extends AbstractController<
         sGenerico.eliminarImagenesEspecificas(varianteId, imagenIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
+
+    @GetMapping("/admin/sin-stock")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> getVariantesSinStockDeshabilitadas(
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getVariantesSinStockDeshabilitadas(pagina, size)));
+    }
 }

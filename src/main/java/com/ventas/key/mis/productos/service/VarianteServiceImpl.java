@@ -13,7 +13,6 @@ import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisc
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
-import com.ventas.key.mis.productos.paginacion.PaginacionGenerica;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -62,16 +61,25 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.imagenPort = imagenPort;
     }
 
-    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombre, String codigoBarras,int page, int size){
+    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombre, String codigoBarras, int page, int size) {
+        boolean hayTermino = (codigoBarras != null && !codigoBarras.isBlank())
+                || (nombre != null && !nombre.isBlank());
 
-        PginaDto<List<VarianteResumenDto>> buscarCodigoBarras = buscarPorCodigoBarrasPaginadoResumen(codigoBarras, page, size);
-        if (!buscarCodigoBarras.getT().isEmpty()){
-            return buscarCodigoBarras;
+        if (codigoBarras != null && !codigoBarras.isBlank()) {
+            PginaDto<List<VarianteResumenDto>> porCodigo = buscarPorCodigoBarrasPaginadoResumen(codigoBarras, page, size);
+            if (!porCodigo.getT().isEmpty()) return porCodigo;
         }
-        PginaDto<List<VarianteResumenDto>> buscarPorNombre = buscarPorNombrePaginadoResumen(nombre, page, size);
-        if(!buscarPorNombre.getT().isEmpty()){
-            return buscarPorNombre;
+
+        if (nombre != null && !nombre.isBlank()) {
+            PginaDto<List<VarianteResumenDto>> porNombre = buscarPorNombrePaginadoResumen(nombre, page, size);
+            if (!porNombre.getT().isEmpty()) return porNombre;
         }
+
+        if (hayTermino) {
+            String termino = codigoBarras != null && !codigoBarras.isBlank() ? codigoBarras : nombre;
+            throw new ExceptionDataNotFound("No se encontraron variantes con la búsqueda: \"" + termino + "\"");
+        }
+
         return findAllResumen(page, size);
     }
     @Cacheable(value = "variantesProductoCache", key = "#productoId")
@@ -123,8 +131,6 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         resultado.setTotalPaginas(page.getTotalPages());
         resultado.setTotalRegistros((int) page.getTotalElements());
         resultado.setT(page.getContent());
-        PaginacionGenerica<Variantes> res = new PaginacionGenerica<>();
-        PginaDto<List<Variantes>> sera = res.setPagina(page, pagina);
         return resultado;
     }
 
@@ -400,6 +406,17 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         } catch (Exception e) {
             log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
         }
+    }
+
+    @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size")
+    public PginaDto<List<VarianteResumenDto>> getVariantesSinStockDeshabilitadas(int pagina, int size) {
+        Page<Variantes> page = iVarianteRepository.findVariantesSinStockDeshabilitadas(PageRequest.of(pagina - 1, size));
+        PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(buildResumenDtosBatch(page.getContent()));
+        return resultado;
     }
 
     @CacheEvict(value = {"variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
