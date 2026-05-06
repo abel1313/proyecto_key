@@ -547,7 +547,7 @@ public class ProductosServiceImpl extends
     public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
         Producto producto = iProductosRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado con id: " + id));
-        producto.setHabilitado(habilitar ? '1' : (char) 0);
+        producto.setHabilitado(habilitar ? '1' : '0');
         return iProductosRepository.save(producto);
     }
 

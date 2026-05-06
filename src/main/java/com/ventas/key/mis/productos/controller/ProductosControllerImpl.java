@@ -83,7 +83,7 @@ public class ProductosControllerImpl {
         return ResponseEntity.ok(this.pServiceImpl.getProductosSinStock(size, page));
     }
 
-    @PatchMapping("{id}/habilitar")
+    @PutMapping("{id}/habilitar")
     public ResponseEntity<Map<String, Object>> habilitarDeshabilitarProducto(
             @PathVariable Integer id,
             @RequestParam boolean habilitar) {
