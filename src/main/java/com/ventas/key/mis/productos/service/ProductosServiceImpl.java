@@ -101,11 +101,17 @@ public class ProductosServiceImpl extends
         return null;
     }
 
+
     @SneakyThrows
     @Override
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
+
+
+
+
+
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();

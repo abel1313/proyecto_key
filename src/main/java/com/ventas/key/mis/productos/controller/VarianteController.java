@@ -110,7 +110,6 @@ public class VarianteController extends AbstractController<
 
     @PostMapping("/inicializarDesdeProducto")
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
-
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
         return ResponseEntity.noContent().build();

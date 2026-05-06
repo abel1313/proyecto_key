@@ -35,7 +35,8 @@ public class Imagen{
         this.base64 = base64;
         this.extension = extension;
         this.nombreImagen = nombreImagen;
-
     }
 
 }
+
+
