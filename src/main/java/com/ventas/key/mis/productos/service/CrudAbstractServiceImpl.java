@@ -8,6 +8,9 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +35,17 @@ public abstract class CrudAbstractServiceImpl<
     private static final int CODIGO_UNICO_SQL = 1062;
     protected final BaseRepository<Response,TiopoDato> repoGenerico;
     protected final ErrorGenerico error;
+
+    @Autowired
+    private CacheManager cacheManager;
+
+    protected void evictAllCaches() {
+        cacheManager.getCacheNames().forEach(name -> {
+            Cache cache = cacheManager.getCache(name);
+            if (cache != null) cache.clear();
+        });
+    }
+
     public CrudAbstractServiceImpl(
         final BaseRepository<Response,TiopoDato> repoGenerico,
         final ErrorGenerico error

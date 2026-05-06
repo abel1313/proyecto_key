@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.Producto;
@@ -13,22 +14,23 @@ import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisc
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
+import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
+import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -41,6 +43,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductosRepository iProductosRepository;
+    private final IProductoImagenRepository iProductoImagenRepository;
     private final ImageneClienteDisco imageneClienteDisco;
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
@@ -48,6 +51,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
                                IProductosRepository iProductosRepository,
+                               IProductoImagenRepository iProductoImagenRepository,
                                ImageneClienteDisco imageneClienteDisco,
                                IImagenRepository iImagenRepository,
                                ImagenPort imagenPort,
@@ -56,31 +60,24 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iVarianteRepository = iVarianteRepository;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.iProductosRepository = iProductosRepository;
+        this.iProductoImagenRepository = iProductoImagenRepository;
         this.imageneClienteDisco = imageneClienteDisco;
         this.iImagenRepository = iImagenRepository;
         this.imagenPort = imagenPort;
     }
 
-    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String nombre, String codigoBarras, int page, int size) {
-        boolean hayTermino = (codigoBarras != null && !codigoBarras.isBlank())
-                || (nombre != null && !nombre.isBlank());
-
-        if (codigoBarras != null && !codigoBarras.isBlank()) {
-            PginaDto<List<VarianteResumenDto>> porCodigo = buscarPorCodigoBarrasPaginadoResumen(codigoBarras, page, size);
-            if (!porCodigo.getT().isEmpty()) return porCodigo;
+    public PginaDto<List<VarianteResumenDto>> buscarVariantes(String termino, int page, int size) {
+        if (termino == null || termino.isBlank()) {
+            return findAllResumen(page, size);
         }
 
-        if (nombre != null && !nombre.isBlank()) {
-            PginaDto<List<VarianteResumenDto>> porNombre = buscarPorNombrePaginadoResumen(nombre, page, size);
-            if (!porNombre.getT().isEmpty()) return porNombre;
-        }
+        PginaDto<List<VarianteResumenDto>> porCodigo = buscarPorCodigoBarrasPaginadoResumen(termino, page, size);
+        if (!porCodigo.getT().isEmpty()) return porCodigo;
 
-        if (hayTermino) {
-            String termino = codigoBarras != null && !codigoBarras.isBlank() ? codigoBarras : nombre;
-            throw new ExceptionDataNotFound("No se encontraron variantes con la búsqueda: \"" + termino + "\"");
-        }
+        PginaDto<List<VarianteResumenDto>> porNombre = buscarPorNombrePaginadoResumen(termino, page, size);
+        if (!porNombre.getT().isEmpty()) return porNombre;
 
-        return findAllResumen(page, size);
+        throw new ExceptionDataNotFound("No se encontraron variantes con la búsqueda: \"" + termino + "\"");
     }
     @Cacheable(value = "variantesProductoCache", key = "#productoId")
     public List<VarianteDto> buscarPorProducto(Integer productoId) {
@@ -156,6 +153,75 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    @Transactional
+    @Override
+    public Boolean guardarVariantesPorProductoConImagenes(RequestVarianteDto requestVarianteDto, MultipartFile[] imagenes) {
+        Producto producto = iProductosRepository.findById(requestVarianteDto.getProductoId())
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));
+
+        int stockEnVariantes = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
+                .stream().mapToInt(Variantes::getStock).sum();
+
+        int stockDisponible = producto.getStock() - stockEnVariantes;
+        if (stockDisponible < requestVarianteDto.getCantidadVariantes()) {
+            throw new ExceptionDataNotFound(
+                    String.format("Stock insuficiente para crear %d variantes del producto %d. Stock disponible: %d",
+                            requestVarianteDto.getCantidadVariantes(), producto.getId(), stockDisponible));
+        }
+
+        List<Long> imageIds = List.of();
+        if (requestVarianteDto.isImagenParaTodas() && imagenes != null && imagenes.length > 0) {
+            imageIds = subirImagenesMultipart(imagenes);
+
+            if (iProductoImagenRepository.findByProductoId(requestVarianteDto.getProductoId()).isEmpty()) {
+                List<ProductoImagen> pis = new ArrayList<>();
+                for (Long imgId : imageIds) {
+                    ProductoImagen pi = new ProductoImagen();
+                    pi.setProducto(producto);
+                    pi.setImagen(iImagenRepository.getReferenceById(imgId));
+                    pis.add(pi);
+                }
+                iProductoImagenRepository.saveAll(pis);
+            }
+        }
+
+        final List<Long> finalImageIds = imageIds;
+        for (int i = 0; i < requestVarianteDto.getCantidadVariantes(); i++) {
+            Variantes variante = new Variantes();
+            variante.setProducto(producto);
+            variante.setStock(1);
+            Variantes savedVariante = save(variante);
+            if (!finalImageIds.isEmpty()) {
+                vincularImagenes(savedVariante, finalImageIds);
+            }
+        }
+
+        evictAllCaches();
+        return true;
+    }
+
+    private List<Long> subirImagenesMultipart(MultipartFile[] imagenes) {
+        LinkedMultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+        for (MultipartFile file : imagenes) {
+            try {
+                byte[] bytes = file.getBytes();
+                String nombre = file.getOriginalFilename() != null ? file.getOriginalFilename() : "imagen";
+                ByteArrayResource recurso = new ByteArrayResource(bytes) {
+                    @Override
+                    public String getFilename() { return nombre; }
+                };
+                formData.add("files", recurso);
+            } catch (Exception e) {
+                throw new ExceptionDataNotFound("Error al procesar imagen: " + e.getMessage());
+            }
+        }
+        return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
+    }
+
+    private List<Variantes> obtenerVariantesPorProducto(int idProducto){
+        return iVarianteRepository.findByProductoId(idProducto);
+    }
+
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId")
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
         List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
@@ -195,13 +261,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }).toList();
     }
 
-    @CacheEvict(value = {"variantesProductoCache", "variantesNombreCache", "variantesCodigoBarrasCache", "variantesImagenesCache"}, allEntries = true)
     @Transactional
     public List<Variantes> guardarConImagenes(List<VarianteDetalle> detalles) throws ExceptionDataNotFound {
-        // 1. Recolectar imágenes de todos los detalles y subir una sola vez
         List<Long> imageIds = subirImagenes(detalles);
 
-        // 2. Guardar cada variante y vincular las mismas imágenes a todas
         List<Variantes> resultado = new ArrayList<>();
         for (VarianteDetalle detalle : detalles) {
             if (detalle.getId() != null) {
@@ -224,6 +287,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 vincularImagenes(saved, imageIds);
             }
         }
+        evictAllCaches();
         return resultado;
     }
 
@@ -392,20 +456,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return dto;
     }
 
-    @CacheEvict(value = {"variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
     @Transactional
     public void eliminarImagenesEspecificas(Integer varianteId, List<Long> imagenIds) {
         iVarianteImagenRepository.deleteByVarianteIdAndImagenIdIn(varianteId, imagenIds);
 
         List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
-        if (huerfanas.isEmpty()) return;
-
-        iImagenRepository.deleteByIdIn(huerfanas);
-        try {
-            imagenPort.delete(huerfanas);
-        } catch (Exception e) {
-            log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+        if (!huerfanas.isEmpty()) {
+            iImagenRepository.deleteByIdIn(huerfanas);
+            try {
+                imagenPort.delete(huerfanas);
+            } catch (Exception e) {
+                log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+            }
         }
+        evictAllCaches();
     }
 
     @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size")
@@ -419,23 +483,23 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
-    @CacheEvict(value = {"variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
     @Transactional
     public void eliminarImagenesDeVariantes(List<Integer> varianteIds) {
         List<Long> imagenIds = iVarianteImagenRepository.findImagenIdsByVarianteIdIn(varianteIds);
         iVarianteImagenRepository.deleteByVarianteIdIn(varianteIds);
 
-        if (imagenIds.isEmpty()) return;
-
-        List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
-        if (huerfanas.isEmpty()) return;
-
-        iImagenRepository.deleteByIdIn(huerfanas);
-        try {
-            imagenPort.delete(huerfanas);
-        } catch (Exception e) {
-            log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+        if (!imagenIds.isEmpty()) {
+            List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
+            if (!huerfanas.isEmpty()) {
+                iImagenRepository.deleteByIdIn(huerfanas);
+                try {
+                    imagenPort.delete(huerfanas);
+                } catch (Exception e) {
+                    log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+                }
+            }
         }
+        evictAllCaches();
     }
 
 }
