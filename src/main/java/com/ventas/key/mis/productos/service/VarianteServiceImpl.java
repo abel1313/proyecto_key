@@ -483,6 +483,49 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {
+        DiagnosticoImagenVarianteDto dto = new DiagnosticoImagenVarianteDto();
+        dto.setVarianteId(varianteId);
+
+        List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
+        List<ImagenDiagnosticoItem> itemsLocalDB = relaciones.stream()
+                .map(vi -> new ImagenDiagnosticoItem(
+                        vi.getImagen().getId(),
+                        vi.getImagen().getNombreImagen(),
+                        vi.getImagen().getExtension(),
+                        vi.getImagen().getBase64()))
+                .toList();
+        dto.setImagenesLocalDB(itemsLocalDB);
+        dto.setTotalImagenesLocalDB(itemsLocalDB.size());
+
+        if (relaciones.isEmpty()) {
+            dto.setIdsConDatosEnMicroservicio(List.of());
+            dto.setIdsSinDatosEnMicroservicio(List.of());
+            dto.setConsistente(true);
+            return dto;
+        }
+
+        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
+        List<ImagenDto> imagenesExternas;
+        try {
+            imagenesExternas = imageneClienteDisco.getAll(ids);
+        } catch (Exception e) {
+            log.warn("Error al consultar microservicio para diagnóstico de variante {}: {}", varianteId, e.getMessage());
+            imagenesExternas = List.of();
+        }
+
+        Set<Long> idsConDatos = imagenesExternas.stream()
+                .filter(img -> img.getImagen() != null)
+                .map(ImagenDto::getId)
+                .collect(Collectors.toSet());
+
+        dto.setIdsConDatosEnMicroservicio(new ArrayList<>(idsConDatos));
+        dto.setIdsSinDatosEnMicroservicio(ids.stream().filter(id -> !idsConDatos.contains(id)).toList());
+        dto.setConsistente(dto.getIdsSinDatosEnMicroservicio().isEmpty());
+
+        return dto;
+    }
+
     @Transactional
     public void eliminarImagenesDeVariantes(List<Integer> varianteIds) {
         List<Long> imagenIds = iVarianteImagenRepository.findImagenIdsByVarianteIdIn(varianteIds);
