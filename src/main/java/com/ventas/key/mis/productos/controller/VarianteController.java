@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -11,14 +12,8 @@ import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -53,12 +48,11 @@ public class VarianteController extends AbstractController<
 
     @GetMapping("/buscar")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscar(
-            @RequestParam(required = false) String nombre,
-            @RequestParam(required = false) String codigoBarras,
+            @RequestParam(required = false) String termino,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
 
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(nombre, codigoBarras, pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, size)));
     }
 
     @PostMapping("/guardarConImagenes")
@@ -112,5 +106,13 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getVariantesSinStockDeshabilitadas(pagina, size)));
+    }
+
+    @PostMapping("/inicializarDesdeProducto")
+    public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
+
+                                                                                              @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
+        sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
+        return ResponseEntity.noContent().build();
     }
 }
