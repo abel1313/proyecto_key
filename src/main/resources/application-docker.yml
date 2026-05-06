@@ -56,6 +56,10 @@ management:
 
 guardar-imagenes:
   ruta_imagenes: /app/imagenes
+
+reconciliacion:
+  admin-username: ${RECONCILIACION_ADMIN_USERNAME:}
+  admin-password: ${RECONCILIACION_ADMIN_PASSWORD:}
 #logging:
 #  level:
 #    org.hibernate.SQL: DEBUG

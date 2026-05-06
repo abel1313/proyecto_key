@@ -57,6 +57,10 @@ management:
 guardar-imagenes:
   ruta_imagenes: /app/imagenes
 
+reconciliacion:
+  admin-username: ${RECONCILIACION_ADMIN_USERNAME:}
+  admin-password: ${RECONCILIACION_ADMIN_PASSWORD:}
+
 mercadopago:
   access-token: ${ACCESS_TOKE_MERCADO_PAGO}
   device-id: ${DEVICE_ID}
