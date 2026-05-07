@@ -67,10 +67,12 @@ public class SecurityConfig {
                         .requestMatchers("/mp/webhook").permitAll()
 
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
+                        .requestMatchers(HttpMethod.GET, "/productos/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
                         .requestMatchers("/productos/**").hasRole("ADMIN")
 
                         // ── Variantes (GETs públicos; escritura solo ADMIN) ────────────────
+                        .requestMatchers(HttpMethod.GET, "/variantes/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/variantes/**").permitAll()
                         .requestMatchers("/variantes/**").hasRole("ADMIN")
 

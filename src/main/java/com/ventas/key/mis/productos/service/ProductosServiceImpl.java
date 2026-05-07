@@ -13,6 +13,7 @@ import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
+import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
@@ -67,7 +68,7 @@ public class ProductosServiceImpl extends
     private final IImagenService iImagenService;
     private final IVarianteRepository varianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
-
+    private final IProductoImagenRepository iProductoImagenRepository;
 
     private final ImagenProductoClienteAWS imagenProductoClienteAWS;
     private final ImagenPort imagenPort;
@@ -80,6 +81,7 @@ public class ProductosServiceImpl extends
             final ImagenProductoClienteAWS imagenProductoClienteAWS,
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
+            final IProductoImagenRepository iProductoImagenRepository,
                                 final ImagenPort imagenPort
     ) {
         super(iProductosRepository, error);
@@ -91,8 +93,8 @@ public class ProductosServiceImpl extends
         this.imagenProductoClienteAWS = imagenProductoClienteAWS;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.varianteRepository = iVarianteRepository;
+        this.iProductoImagenRepository = iProductoImagenRepository;
         this.imagenPort = imagenPort;
-        // TODO Auto-generated constructor stub
     }
 
     @Override
@@ -101,11 +103,17 @@ public class ProductosServiceImpl extends
         return null;
     }
 
+
     @SneakyThrows
     @Override
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
+
+
+
+
+
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
@@ -303,10 +311,10 @@ public class ProductosServiceImpl extends
     @Transactional
     private Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {
-            throw new RuntimeException("El stock no debe de ser 0");
+            throw new ExceptionErrorInesperado("El stock no debe de ser 0");
         }
         if (productoDetalle.getCodigoBarras() == null) {
-            throw new RuntimeException("El codigo de barras es requerido");
+            throw new ExceptionDataNotFound("El codigo de barras es requerido");
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
@@ -327,28 +335,43 @@ public class ProductosServiceImpl extends
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
             if(prodExistenteNoOpt == null) {
-                if (!productoDetalle.getListImagenes().isEmpty()){
-                    CodigoBarra codigoBarra = new CodigoBarra();
-                    codigoBarra.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras());
-                    CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
-                    log.info("se guardo el codigo de barras {}", codBarr);
-                    producto.setCodigoBarras(codBarr);
-                    log.info("Se guardo el producto y se regreso la respuesta {}", producto);
-                    return this.iProductosRepository.save(producto);
-                }else{
-                    CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
-                    producto.setCodigoBarras(codBarr);
+                CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
+                log.info("se guardo el codigo de barras {}", codBarr);
+                producto.setCodigoBarras(codBarr);
+                Producto savedProducto = this.iProductosRepository.save(producto);
+                log.info("Se guardo el producto nuevo {}", savedProducto);
+
+                if (!productoDetalle.getListImagenes().isEmpty()) {
+                    List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                    List<ProductoImagen> relaciones = mapperRelacionProductoImagen(lstImg, savedProducto);
+                    relacionProductoImagen(relaciones);
+                    log.info("Se guardaron {} imagenes para el producto nuevo {}", lstImg.size(), savedProducto.getId());
                 }
-                return this.iProductosRepository.save(producto);
+
+                return savedProducto;
             }
 
 
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
-                List<Imagen> lstImg;
                 if (!productoDetalle.getListImagenes().isEmpty()){
-                    lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                    List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
                     relacionProductoImagen(mapperRelacionProductoImagen);
+
+                    List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
+                    if (!variantes.isEmpty()) {
+                        List<VarianteImagen> varianteImagenes = new ArrayList<>();
+                        for (Variantes variante : variantes) {
+                            for (Imagen imagen : lstImg) {
+                                VarianteImagen vi = new VarianteImagen();
+                                vi.setVariante(variante);
+                                vi.setImagen(imagen);
+                                varianteImagenes.add(vi);
+                            }
+                        }
+                        iVarianteImagenRepository.saveAll(varianteImagenes);
+                        log.info("Se asignaron {} imágenes a {} variantes del producto {}", lstImg.size(), variantes.size(), prodExistenteNoOpt.getId());
+                    }
                 }
 
                 // Actualizar los campos del producto existente con los nuevos valores
@@ -549,6 +572,43 @@ public class ProductosServiceImpl extends
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado con id: " + id));
         producto.setHabilitado(habilitar ? '1' : '0');
         return iProductosRepository.save(producto);
+    }
+
+    public DiagnosticoImagenProductoDto diagnosticarImagenesProducto(Integer productoId) {
+        Producto producto = iProductosRepository.findById(productoId)
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + productoId));
+
+        DiagnosticoImagenProductoDto dto = new DiagnosticoImagenProductoDto();
+        dto.setProductoId(productoId);
+        dto.setNombreProducto(producto.getNombre());
+
+        List<ProductoImagen> relaciones = iProductoImagenRepository.findByProductoId(productoId);
+        List<ImagenDiagnosticoItem> itemsLocalDB = relaciones.stream()
+                .map(pi -> new ImagenDiagnosticoItem(
+                        pi.getImagen().getId(),
+                        pi.getImagen().getNombreImagen(),
+                        pi.getImagen().getExtension(),
+                        pi.getImagen().getBase64()))
+                .toList();
+        dto.setImagenesLocalDB(itemsLocalDB);
+        dto.setTotalImagenesLocalDB(itemsLocalDB.size());
+
+        try {
+            com.ventas.key.mis.productos.hexagonal.dominio.Imagen imgExterna =
+                    imagenProductoClienteAWS.buscarImagenProducto(productoId);
+            boolean tieneBytes = imgExterna != null && imgExterna.getImagen() != null;
+            dto.setImagenPresenteEnMicroservicio(tieneBytes);
+            dto.setDetalleExternoLista(imgExterna == null
+                    ? "null — el microservicio no devolvió respuesta"
+                    : !tieneBytes
+                    ? "respuesta sin bytes de imagen"
+                    : "imagen presente con datos");
+        } catch (Exception e) {
+            dto.setImagenPresenteEnMicroservicio(false);
+            dto.setDetalleExternoLista("error al consultar microservicio: " + e.getMessage());
+        }
+
+        return dto;
     }
 
     public byte[] generarReporteProductosSinVariantes() throws IOException {

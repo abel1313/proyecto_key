@@ -95,4 +95,7 @@ public interface IImagenRepository extends BaseRepository<Imagen,Long>{
     @Modifying
     @Query("DELETE FROM Imagen i WHERE i.id IN :ids")
     void deleteByIdIn(@Param("ids") List<Long> ids);
+
+    @Query("SELECT i.base64 FROM Imagen i")
+    List<String> findAllBase64();
 }

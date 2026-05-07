@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import com.ventas.key.mis.productos.models.DiagnosticoImagenVarianteDto;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -108,9 +109,15 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getVariantesSinStockDeshabilitadas(pagina, size)));
     }
 
+    @GetMapping("/admin/diagnostico-imagenes/{varianteId}")
+    public ResponseEntity<ResponseGeneric<DiagnosticoImagenVarianteDto>> diagnosticarImagenesVariante(
+            @PathVariable Integer varianteId) {
+        log.info("Diagnóstico de imágenes para variante id={}", varianteId);
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.diagnosticarImagenesVariante(varianteId)));
+    }
+
     @PostMapping("/inicializarDesdeProducto")
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
-
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
         return ResponseEntity.noContent().build();

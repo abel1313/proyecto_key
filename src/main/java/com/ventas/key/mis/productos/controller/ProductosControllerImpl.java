@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Producto;
+import com.ventas.key.mis.productos.models.DiagnosticoImagenProductoDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ProductoDTO;
 import com.ventas.key.mis.productos.models.ProductoDetalle;
@@ -94,6 +95,12 @@ public class ProductosControllerImpl {
                 "habilitado", habilitar,
                 "mensaje", habilitar ? "Producto habilitado correctamente" : "Producto deshabilitado correctamente"
         ));
+    }
+
+    @GetMapping("admin/diagnostico-imagenes/{productoId}")
+    public ResponseEntity<DiagnosticoImagenProductoDto> diagnosticarImagenesProducto(@PathVariable Integer productoId) {
+        log.info("Diagnóstico de imágenes para producto id={}", productoId);
+        return ResponseEntity.ok(this.pServiceImpl.diagnosticarImagenesProducto(productoId));
     }
 
     @GetMapping("admin/sin-variantes/reporte")
