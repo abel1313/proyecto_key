@@ -12,5 +12,8 @@ public interface IConcursanteRepository extends BaseRepository<Concursante, Inte
 
     List<Concursante> findByConfigurarRifaIdAndDescartadoFalse(Integer configurarRifaId);
 
+    List<Concursante> findByConfigurarRifaIdAndDescartadoFalseAndOrdenDesdeLessThanEqual(
+            Integer configurarRifaId, int ordenDesde);
+
     void deleteByConfigurarRifaId(Integer configurarRifaId);
 }

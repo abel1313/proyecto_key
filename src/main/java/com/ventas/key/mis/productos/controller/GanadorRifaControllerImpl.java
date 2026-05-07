@@ -36,12 +36,9 @@ public class GanadorRifaControllerImpl extends AbstractController<
     }
 
     @PostMapping("/sortear/{configurarRifaId}")
-    public ResponseEntity<ResponseGeneric<GanadorRifa>> sortear(
-            @PathVariable int configurarRifaId,
-            @RequestParam int vueltaActual,
-            @RequestParam int totalVueltas) {
+    public ResponseEntity<ResponseGeneric<GanadorRifa>> sortear(@PathVariable int configurarRifaId) {
         try {
-            GanadorRifa resultado = ganadorRifaService.sortear(configurarRifaId, vueltaActual, totalVueltas);
+            GanadorRifa resultado = ganadorRifaService.sortear(configurarRifaId);
             return ResponseEntity.ok(new ResponseGeneric<>(resultado));
         } catch (Exception e) {
             ResponseGeneric<GanadorRifa> error = new ResponseGeneric<>((GanadorRifa) null);

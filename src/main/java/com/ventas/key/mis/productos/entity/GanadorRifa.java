@@ -19,8 +19,8 @@ public class GanadorRifa extends BaseId {
     private Concursante concursante;
 
     @ManyToOne
-    @JoinColumn(name = "producto_id", nullable = false)
-    private Producto producto;
+    @JoinColumn(name = "configurar_rifa_producto_id", nullable = false)
+    private ConfigurarRifaProducto configurarRifaProducto;
 
     @Column(name = "descartado", nullable = false)
     private boolean descartado = false;
