@@ -104,3 +104,9 @@ CREATE TABLE historial_rifa_variante (
     FOREIGN KEY (configurar_rifa_variante_id) REFERENCES configurar_rifa_variante(id),
     FOREIGN KEY (concursante_ganador_id)      REFERENCES concursantes(id)
 );
+
+
+
+ me ayudas con un script con datos dumis para algunos productos con varios stock sin imagenes y de esos productos varias variantes de cada uno igual sin imagenes, el objetivo es que igual me hagas un script para insertar rifas
+   ya con participantes aleatorios pero varias rifas para retomar script con personas aleatorias unas 10 participantes con 2 o 3 variantes para rifar con palabras con fecha de hoy o mana solo para retomar la rifa el objetivo es
+   siemrpe retomar, alguna duda?
