@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -62,4 +63,9 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
     @Modifying
     @Query("DELETE FROM VarianteImagen vi WHERE vi.variante.producto.id IN :productoIds")
     void deleteByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM VarianteImagen vi WHERE vi.imagen.id IN :imagenIds")
+    void deleteByImagenIdIn(@Param("imagenIds") List<Long> imagenIds);
 }

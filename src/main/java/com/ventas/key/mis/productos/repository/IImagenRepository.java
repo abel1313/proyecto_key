@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -93,6 +94,7 @@ public interface IImagenRepository extends BaseRepository<Imagen,Long>{
     List<Long> findOrphanIds(@Param("ids") List<Long> ids);
 
     @Modifying
+    @Transactional
     @Query("DELETE FROM Imagen i WHERE i.id IN :ids")
     void deleteByIdIn(@Param("ids") List<Long> ids);
 

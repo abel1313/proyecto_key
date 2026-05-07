@@ -18,4 +18,7 @@ public class ReconciliacionResultadoDto {
     private List<String> faltantesEnDisco = new ArrayList<>();
     private int archivosEliminadosDisco;
     private long bytesLiberados;
+    private int relacionesProductoEliminadas;
+    private int relacionesVarianteEliminadas;
+    private int imagenesEliminadas;
 }

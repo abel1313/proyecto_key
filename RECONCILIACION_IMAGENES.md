@@ -88,7 +88,60 @@ Body: (vacío)
 
 ---
 
-### 3. Ver resultado del último run
+### 3. Limpiar BD — eliminar registros sin archivo en disco
+
+```
+POST /admin/reconciliacion/imagenes/limpiar-bd
+Headers: Authorization: Bearer {jwt}
+Body: vacío
+```
+
+Recorre toda la tabla `imagenes_copy`. Por cada registro cuyo archivo **no exista en disco**, elimina:
+- La relación en `producto_imagen_copy`
+- La relación en `variante_imagen`
+- El registro en `imagenes_copy`
+
+Corre en segundo plano — responde inmediato y se consulta el resultado con `GET /resultado`.
+
+**Response 200:**
+```json
+{
+  "code": 200,
+  "data": "Limpieza de BD iniciada. Consulta GET /resultado para ver cuando termina."
+}
+```
+
+**Response cuando ya hay un proceso corriendo:**
+```json
+{
+  "code": 200,
+  "data": "Ya hay un proceso en curso. Consulta GET /resultado."
+}
+```
+
+**Resultado final (GET /resultado tras terminar):**
+```json
+{
+  "code": 200,
+  "data": {
+    "enProceso": false,
+    "ejecutadoEn": "2026-05-07T12:24:14",
+    "productosRevisados": 0,
+    "variantesRevisadas": 0,
+    "reparados": [],
+    "faltantesEnDisco": [],
+    "archivosEliminadosDisco": 0,
+    "bytesLiberados": 0,
+    "imagenesEliminadas": 86
+  }
+}
+```
+
+El campo clave es `imagenesEliminadas` — cuántos registros de `imagenes_copy` (y sus relaciones) se borraron.
+
+---
+
+### 4. Ver resultado del último run
 
 ```
 GET /admin/reconciliacion/imagenes/resultado
@@ -117,8 +170,9 @@ Headers:
 | `variantesRevisadas` | `int` | Cuántas imágenes de variantes se procesaron |
 | `reparados` | `List<String>` | Imágenes que existían en disco y se re-enviaron al microservicio |
 | `faltantesEnDisco` | `List<String>` | Imágenes que están en BD pero el archivo no existe en disco |
-| `archivosEliminadosDisco` | `int` | Archivos huérfanos eliminados del disco (solo en la limpieza de 4 AM) |
+| `archivosEliminadosDisco` | `int` | Archivos huérfanos eliminados del disco (limpieza 4 AM) |
 | `bytesLiberados` | `long` | Bytes totales liberados del disco |
+| `imagenesEliminadas` | `int` | Registros eliminados de BD sin archivo en disco (limpieza BD) |
 
 ---
 

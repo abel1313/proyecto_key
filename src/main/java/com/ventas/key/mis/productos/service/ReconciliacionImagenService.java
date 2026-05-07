@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
@@ -197,6 +198,38 @@ public class ReconciliacionImagenService {
         resultado.setEnProceso(false);
         log.info("Limpieza disco completada: {} archivos eliminados, {} bytes liberados", eliminados, bytes);
         ultimoResultado = resultado;
+    }
+
+    @Async
+    public void limpiarBdHuerfanos() {
+        enProceso = true;
+        ReconciliacionResultadoDto resultado = new ReconciliacionResultadoDto();
+
+        List<Long> sinArchivo = new ArrayList<>();
+        int page = 0;
+        Page<Imagen> pagina;
+        do {
+            pagina = iImagenRepository.findAll(PageRequest.of(page++, 100));
+            for (Imagen img : pagina.getContent()) {
+                if (img.getBase64() == null) continue;
+                Path ruta = Paths.get(rutaImagenes, img.getBase64());
+                if (!Files.exists(ruta)) {
+                    sinArchivo.add(img.getId());
+                }
+            }
+        } while (!pagina.isLast());
+
+        if (!sinArchivo.isEmpty()) {
+            iProductoImagenRepository.deleteByImagenIdIn(sinArchivo);
+            iVarianteImagenRepository.deleteByImagenIdIn(sinArchivo);
+            iImagenRepository.deleteByIdIn(sinArchivo);
+            resultado.setImagenesEliminadas(sinArchivo.size());
+            log.info("Limpieza BD completada: {} registros eliminados sin archivo en disco", sinArchivo.size());
+        }
+
+        resultado.setEnProceso(false);
+        ultimoResultado = resultado;
+        enProceso = false;
     }
 
     public ReconciliacionResultadoDto getUltimoResultado() {
