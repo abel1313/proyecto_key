@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -38,4 +39,9 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
             """
     )
     List<ImagenUpdateDto>getImagenByProductoId(Integer productoId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ProductoImagen pi WHERE pi.imagen.id IN :imagenIds")
+    void deleteByImagenIdIn(@Param("imagenIds") List<Long> imagenIds);
 }

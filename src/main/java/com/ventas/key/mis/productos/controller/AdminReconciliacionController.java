@@ -43,6 +43,21 @@ public class AdminReconciliacionController {
     }
 
     /**
+     * Elimina de BD (producto_imagen_copy, variante_imagen, imagenes_copy) todos los registros
+     * cuyo archivo fisico no exista en disco. Corre en segundo plano.
+     * Usa GET /resultado para ver cuando termino.
+     */
+    @PostMapping("/limpiar-bd")
+    public ResponseEntity<ResponseGeneric<String>> limpiarBd() {
+        if (reconciliacionImagenService.isEnProceso()) {
+            return ResponseEntity.ok(new ResponseGeneric<>("Ya hay un proceso en curso. Consulta GET /resultado."));
+        }
+        log.info("Limpieza de BD iniciada por admin");
+        reconciliacionImagenService.limpiarBdHuerfanos();
+        return ResponseEntity.ok(new ResponseGeneric<>("Limpieza de BD iniciada. Consulta GET /resultado para ver cuando termina."));
+    }
+
+    /**
      * Devuelve el resultado de la ultima ejecucion.
      * enProceso=true significa que aun esta corriendo.
      * enProceso=false significa que ya termino.
