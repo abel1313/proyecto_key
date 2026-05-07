@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "configurar_rifa")
@@ -16,13 +18,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class ConfigurarRifa extends BaseId {
 
-    @OneToOne
-    @JoinColumn(name = "producto_id", nullable = false)
-    private Producto producto;
-
     @Column(name = "fecha_hora_limite", nullable = false)
     private LocalDateTime fechaHoraLimite;
 
     @Column(name = "activa")
     private Boolean activa = true;
+
+    @OneToMany(mappedBy = "configurarRifa", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC")
+    private List<ConfigurarRifaProducto> productos = new ArrayList<>();
 }

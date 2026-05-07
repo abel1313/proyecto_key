@@ -31,4 +31,9 @@ public class ConfigurarRifaControllerImpl extends AbstractController<
     public ResponseEntity<ResponseGeneric<List<ConfigurarRifa>>> getActivas() {
         return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifa>>(sGenerico.buscarActivas()));
     }
+
+    @GetMapping("/activas/hoy")
+    public ResponseEntity<ResponseGeneric<List<ConfigurarRifa>>> getActivasHoy() {
+        return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifa>>(sGenerico.buscarActivasHoy()));
+    }
 }

@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // ── Documentación / herramientas externas ─────────────────────────
-                        .requestMatchers("/swagger-ui/**", "/dipomex/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/dipomex/**").permitAll()
 
                         // ── Chatbot (público para todos los visitantes) ───────────────────
                         .requestMatchers("/chatbot/**").permitAll()

@@ -29,8 +29,11 @@ public class Concursante extends BaseId {
     @Column(name = "descartado", nullable = false)
     private boolean descartado = false;
 
+    @Column(name = "orden_desde", nullable = false)
+    private int ordenDesde = 1;
+
     @ManyToOne
     @JoinColumn(name = "configurar_rifa_id", nullable = false)
-    @JsonIgnoreProperties("producto")
+    @JsonIgnoreProperties("productos")
     private ConfigurarRifa configurarRifa;
 }
