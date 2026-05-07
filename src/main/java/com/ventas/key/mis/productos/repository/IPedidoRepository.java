@@ -161,6 +161,18 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
 
 
     @Query(value = """
+        SELECT DISTINCT c.id            AS clientePedidoId,
+                        c.nombre_persona AS nombre,
+                        c.numero_telefonico AS telefono
+        FROM pedidos p
+        INNER JOIN clientes c ON c.id = p.cliente_id
+        WHERE DATE_FORMAT(p.fecha_pedido, '%Y-%m') = :mes
+        ORDER BY c.nombre_persona
+    """, nativeQuery = true)
+    List<Object[]> findClientesUnicosPorMes(@Param("mes") String mes);
+
+
+    @Query(value = """
 
             SELECT\s
       JSON_OBJECT(

@@ -20,9 +20,6 @@ public class Concursante extends BaseId {
     @Column(name = "apellido_paterno")
     private String apellidoPaterno;
 
-    @Column(name = "palabra_rifa")
-    private String palabraRifa;
-
     @Column(name = "telefono")
     private String telefono;
 
@@ -32,8 +29,14 @@ public class Concursante extends BaseId {
     @Column(name = "orden_desde", nullable = false)
     private int ordenDesde = 1;
 
+    @Column(name = "palabra_clave", length = 50)
+    private String palabraClave;
+
+    @Column(name = "cliente_pedido_id")
+    private Integer clientePedidoId;
+
     @ManyToOne
     @JoinColumn(name = "configurar_rifa_id", nullable = false)
-    @JsonIgnoreProperties("productos")
+    @JsonIgnoreProperties("variantes")
     private ConfigurarRifa configurarRifa;
 }

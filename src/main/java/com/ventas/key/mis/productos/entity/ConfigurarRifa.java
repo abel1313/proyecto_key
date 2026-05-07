@@ -9,6 +9,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "configurar_rifa")
@@ -26,5 +27,5 @@ public class ConfigurarRifa extends BaseId {
 
     @OneToMany(mappedBy = "configurarRifa", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
-    private List<ConfigurarRifaProducto> productos = new ArrayList<>();
+    private List<ConfigurarRifaVariante> variantes = new ArrayList<>();
 }

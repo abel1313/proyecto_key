@@ -1,6 +1,8 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Concursante;
+import com.ventas.key.mis.productos.models.ClientePedidoDto;
+import com.ventas.key.mis.productos.models.ImportarDePedidosRequest;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.ConcursanteServiceImpl;
@@ -63,5 +65,23 @@ public class ConcursanteControllerImpl extends AbstractController<
     @GetMapping("/elegibles/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<List<Concursante>>> getElegibles(@PathVariable Integer configurarRifaId) {
         return ResponseEntity.ok(new ResponseGeneric<List<Concursante>>(iConcursanteService.buscarElegibles(configurarRifaId)));
+    }
+
+    @GetMapping("/clientesPorMes")
+    public ResponseEntity<ResponseGeneric<List<ClientePedidoDto>>> clientesPorMes(
+            @RequestParam String mes) {
+        return ResponseEntity.ok(new ResponseGeneric<List<ClientePedidoDto>>(sGenerico.clientesPorMes(mes)));
+    }
+
+    @PostMapping("/importarDePedidos")
+    public ResponseEntity<ResponseGeneric<List<Concursante>>> importarDePedidos(
+            @RequestBody ImportarDePedidosRequest req) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<List<Concursante>>(sGenerico.importarDePedidos(req)));
+        } catch (Exception e) {
+            log.error("Error al importar participantes de pedidos: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
     }
 }

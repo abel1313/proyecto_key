@@ -19,4 +19,5 @@ public class VarianteResumenDto {
     private String imagenBase64;
     private double precio;
     private String codigoBarras;
+    private String nombreProducto;
 }

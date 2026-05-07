@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
+import com.ventas.key.mis.productos.models.ConfigurarRifaResumenDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.ConfiguracionRifaServiceImpl;
@@ -28,12 +29,12 @@ public class ConfigurarRifaControllerImpl extends AbstractController<
     }
 
     @GetMapping("/activas")
-    public ResponseEntity<ResponseGeneric<List<ConfigurarRifa>>> getActivas() {
-        return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifa>>(sGenerico.buscarActivas()));
+    public ResponseEntity<ResponseGeneric<List<ConfigurarRifaResumenDto>>> getActivas() {
+        return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifaResumenDto>>(sGenerico.buscarActivasResumen()));
     }
 
     @GetMapping("/activas/hoy")
-    public ResponseEntity<ResponseGeneric<List<ConfigurarRifa>>> getActivasHoy() {
-        return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifa>>(sGenerico.buscarActivasHoy()));
+    public ResponseEntity<ResponseGeneric<List<ConfigurarRifaResumenDto>>> getActivasHoy() {
+        return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifaResumenDto>>(sGenerico.buscarActivasHoyResumen()));
     }
 }

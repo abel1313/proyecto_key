@@ -486,6 +486,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .map(CodigoBarra::getCodigoBarras)
                 .orElse("");
         dto.setCodigoBarras(codBarras);
+        dto.setNombreProducto(Optional.ofNullable(v.getProducto()).map(Producto::getNombre).orElse(""));
         return dto;
     }
 
