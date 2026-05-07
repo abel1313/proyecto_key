@@ -57,6 +57,14 @@ management:
 guardar-imagenes:
   ruta_imagenes: /app/imagenes
 
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
 reconciliacion:
   admin-username: ${RECONCILIACION_ADMIN_USERNAME:}
   admin-password: ${RECONCILIACION_ADMIN_PASSWORD:}
