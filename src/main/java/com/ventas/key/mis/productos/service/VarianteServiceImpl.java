@@ -263,6 +263,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public List<Variantes> guardarConImagenes(List<VarianteDetalle> detalles) throws ExceptionDataNotFound {
+        validarStockContraProducto(detalles);
         List<Long> imageIds = subirImagenes(detalles);
 
         List<Variantes> resultado = new ArrayList<>();
@@ -319,6 +320,38 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             return vi;
         }).toList();
         iVarianteImagenRepository.saveAll(relaciones);
+    }
+
+    private void validarStockContraProducto(List<VarianteDetalle> detalles) {
+        Map<Integer, List<VarianteDetalle>> porProducto = detalles.stream()
+                .collect(Collectors.groupingBy(VarianteDetalle::getProductoId));
+
+        for (Map.Entry<Integer, List<VarianteDetalle>> entry : porProducto.entrySet()) {
+            Integer productoId = entry.getKey();
+            List<VarianteDetalle> variantesRequest = entry.getValue();
+
+            Producto producto = iProductosRepository.findById(productoId)
+                    .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + productoId));
+
+            Set<Integer> idsActualizando = variantesRequest.stream()
+                    .filter(v -> v.getId() != null)
+                    .map(VarianteDetalle::getId)
+                    .collect(Collectors.toSet());
+
+            int stockYaAsignado = iVarianteRepository.findByProductoId(productoId).stream()
+                    .filter(v -> !idsActualizando.contains(v.getId()))
+                    .mapToInt(Variantes::getStock)
+                    .sum();
+
+            int stockSolicitado = variantesRequest.stream().mapToInt(VarianteDetalle::getStock).sum();
+            int stockDisponible = producto.getStock() - stockYaAsignado;
+
+            if (stockSolicitado > stockDisponible) {
+                throw new ExceptionDataNotFound(
+                        String.format("Stock insuficiente para el producto '%s' (id=%d). Disponible: %d, Solicitado: %d",
+                                producto.getNombre(), productoId, stockDisponible, stockSolicitado));
+            }
+        }
     }
 
     private void ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
