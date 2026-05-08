@@ -58,7 +58,7 @@ public class ImageneController {
 
     @DeleteMapping("/{idImagen}")
     public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Long idImagen) throws Exception {
-        ResponseGeneric<String> response = new ResponseGeneric<>("Se eleimino correctamente");
+        ResponseGeneric<String> response = new ResponseGeneric<>("Se elimino correctamente");
         this.iImagenService.deleteById(idImagen);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }

@@ -92,7 +92,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    @CacheEvict(value = "detalleImagen", allEntries = true)
+    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void deleteById(Long id) {
         this.iImagenRepository.deleteById(id);
     }

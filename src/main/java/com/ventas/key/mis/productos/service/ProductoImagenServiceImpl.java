@@ -68,7 +68,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     @Transactional
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
+    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void eliminarImagenesEspecificas(Integer productoId, List<Long> imagenIds) {
         log.info("eliminarImagenesEspecificas productoId: {} ids imagenes {} ", productoId, imagenIds);
         log.info("**********************************************************************************************");
@@ -97,7 +97,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     @Transactional
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
+    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void eliminarImagenesDeProductos(List<Integer> productoIds) {
         // recolectar IDs de imágenes vinculadas (producto + variantes del producto)
         List<Long> idsProducto = iProductoImagenRepository.findImagenIdsByProductoIdIn(productoIds);
