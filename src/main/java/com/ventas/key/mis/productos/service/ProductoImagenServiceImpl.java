@@ -70,16 +70,28 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache"}, allEntries = true)
     public void eliminarImagenesEspecificas(Integer productoId, List<Long> imagenIds) {
+        log.info("eliminarImagenesEspecificas productoId: {} ids imagenes {} ", productoId, imagenIds);
+        log.info("**********************************************************************************************");
         iProductoImagenRepository.deleteByProductoIdAndImagenIdIn(productoId, imagenIds);
+        log.info("**********************************************************************************************");
+        log.info("Se eliminaron las imagenes del producto imagen ");
 
         List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
-        if (huerfanas.isEmpty()) return;
 
+        log.info("Se eliminaron estos ids huefanos  {} size {} ", huerfanas, imagenIds.size());
+        if (huerfanas.isEmpty()) return;
+        log.info("Ir a eliminar las imagenes de la tabla imagenes copy  {}", imagenIds);
+        log.info("**********************************************************************************************");
         iImagenRepository.deleteByIdIn(huerfanas);
+        log.info("**********************************************************************************************");
         try {
+            log.info("Se eliminaro imagenes huefanas  {}", huerfanas);
+            log.info("**********************************************************************************************");
             imagenPort.delete(huerfanas);
+            log.info("**********************************************************************************************");
+            log.info("Se eliminaron las imagenes en imagen copy");
         } catch (Exception e) {
-            log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+            log.warn("No se pudieron eliminar imágenes del microservicio ids ={}: {}", huerfanas, e.getMessage());
         }
     }
 
