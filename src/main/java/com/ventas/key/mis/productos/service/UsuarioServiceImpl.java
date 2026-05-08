@@ -99,7 +99,7 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     }
 
     @Override
-    public int existeClientePorIdUsuario(int idUsuario) {
+    public Integer existeClientePorIdUsuario(Integer idUsuario) {
         return usuarioRepository.existsUsuarioByClienteId(idUsuario);
     }
 

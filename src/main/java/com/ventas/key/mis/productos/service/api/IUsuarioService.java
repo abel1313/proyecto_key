@@ -23,5 +23,5 @@ public interface IUsuarioService extends ICrud<
     UserUpdate updateUserDto(UserUpdate usuarioDto, int tipoDato);
     void eliminarUsuario(int tipoDato);
 
-    int existeClientePorIdUsuario(int idUsuario);
+    Integer existeClientePorIdUsuario(Integer idUsuario);
 }

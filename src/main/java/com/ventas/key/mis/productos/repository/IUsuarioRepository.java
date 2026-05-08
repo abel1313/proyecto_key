@@ -37,7 +37,7 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
 
 
     @Query("SELECT u.cliente.id FROM Usuario u WHERE u.id = :id")
-    int existsUsuarioByClienteId(@Param("id") int id);
+    Integer existsUsuarioByClienteId(@Param("id") Integer id);
 
 
 
