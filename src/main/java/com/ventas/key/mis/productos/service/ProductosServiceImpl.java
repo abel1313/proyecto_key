@@ -109,11 +109,6 @@ public class ProductosServiceImpl extends
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
-
-
-
-
-
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
@@ -308,6 +303,25 @@ public class ProductosServiceImpl extends
         log.info("Estamos en el inicio del guardado del producto {}",1);
         return guardarProducto(productoDetalle);
     }
+
+    @Override
+    public CompartirImagenesVarianteDto compartirImagenesVarianteDto(CompartirImagenesVarianteDto compartirImagenesVarianteDto) {
+        Producto producto = iProductosRepository.findById(compartirImagenesVarianteDto.getIdProducto()).orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con el id"));
+        List<ProductoImagen> existeImagenes = iProductoImagenRepository.findByProductoId(producto.getId());
+        if(existeImagenes.isEmpty()){
+            throw new ExceptionDataNotFound("No existen imagenes para este producto ");
+        }
+        varianteRepository.findByProductoId(producto.getId()).stream().parallel().forEach(guardarVairantes->{
+            existeImagenes.stream().parallel().forEach(imagen->{
+                VarianteImagen varianteImagen = new VarianteImagen();
+                varianteImagen.setVariante(guardarVairantes);
+                varianteImagen.setImagen(imagen.getImagen());
+                iVarianteImagenRepository.save(varianteImagen);
+            });
+        });
+        return compartirImagenesVarianteDto;
+    }
+
     @Transactional
     private Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {

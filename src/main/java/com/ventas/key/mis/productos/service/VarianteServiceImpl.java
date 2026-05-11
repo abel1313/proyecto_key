@@ -270,15 +270,6 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         for (VarianteDetalle detalle : detalles) {
             if (detalle.getId() != null) {
                 ajustarStock(detalle);
-                if (detalle.getStock() <= 0) {
-                    List<Imagen> listaVarianteImagenes = iVarianteImagenRepository.findByVarianteId(detalle.getId())
-                            .stream().map(VarianteImagen::getImagen).toList();
-                    List<String> listiDimagenes = listaVarianteImagenes.stream().map(Imagen::getBase64).toList();
-                    imageneClienteDisco.deleteInagenesDisco(listiDimagenes);
-                    iVarianteImagenRepository.deleteByVarianteIdIn(List.of(detalle.getId()));
-                    iImagenRepository.deleteByIdIn(listaVarianteImagenes.stream().map(Imagen::getId).collect(Collectors.toList()));
-                    log.info("info {}",listaVarianteImagenes);
-                }
             }
 
             Variantes saved = save(buildVariante(detalle));
