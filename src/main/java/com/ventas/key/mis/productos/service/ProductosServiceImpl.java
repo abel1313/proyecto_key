@@ -64,6 +64,7 @@ public class ProductosServiceImpl extends
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
+
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
@@ -112,6 +113,10 @@ public class ProductosServiceImpl extends
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
+        log.info("**********************************************************************");
+        log.info("endpointImagenes {}", this.endpointImagenes);
+        log.info("**********************************************************************");
+
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
@@ -141,6 +146,7 @@ public class ProductosServiceImpl extends
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
         img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
+
 
         if (isAdmin) {
             ProductoAdmin productoAdmin = getProductoAdmin(p);
