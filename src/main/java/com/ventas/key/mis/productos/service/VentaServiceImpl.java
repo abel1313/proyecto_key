@@ -6,35 +6,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import com.ventas.key.mis.productos.entity.Cliente;
+import com.ventas.key.mis.productos.dto.ClienteSinRegistroDto;
+import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.models.VentaDirectaResponse;
-import com.ventas.key.mis.productos.repository.IClienteRepository;
+import com.ventas.key.mis.productos.repository.*;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ventas.key.mis.productos.entity.DetalleVenta;
-import com.ventas.key.mis.productos.entity.DetallePago;
-import com.ventas.key.mis.productos.entity.DetallePagoId;
-import com.ventas.key.mis.productos.entity.MesesIntereses;
-import com.ventas.key.mis.productos.entity.PagosYMeses;
-import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.entity.Usuario;
-import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.TotalDetalle;
 import com.ventas.key.mis.productos.models.VentaDirectaRequest;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
-import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
-import com.ventas.key.mis.productos.repository.IDetalleVentaRepository;
-import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
-import com.ventas.key.mis.productos.repository.IProductosRepository;
-import com.ventas.key.mis.productos.repository.IUsuarioRepository;
-import com.ventas.key.mis.productos.repository.IVarianteRepository;
-import com.ventas.key.mis.productos.repository.IVentaRepository;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -52,17 +38,20 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     private final IPagosYMesesRepository iPagosYMesesRepository;
     private final IDetallePagoRepository iDetallePagoRepository;
     private final IVarianteRepository iVarianteRepository;
+    private final IClienteSinRegistroRepository iClienteSinRegistroRepository;
+    private final IPedidoRepository iPedidoRepository;
     private final ErrorGenerico errorGenerico;
 
     public VentaServiceImpl(
             final IVentaRepository iVentaRepository,
             final IProductosRepository iRepository,
-            final IDetalleVentaRepository iDetalleVentaRepository,
             final IUsuarioRepository iUsuarioRepository,
             final IClienteRepository iClienteRepository,
             final IPagosYMesesRepository iPagosYMesesRepository,
             final IDetallePagoRepository iDetallePagoRepository,
             final IVarianteRepository iVarianteRepository,
+            final IClienteSinRegistroRepository iClienteSinRegistroRepository,
+            final IPedidoRepository iPedidoRepository,
             final ErrorGenerico errorGenerico) {
         super(iVentaRepository, errorGenerico);
         this.iVentaRepository = iVentaRepository;
@@ -73,6 +62,23 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         this.iDetallePagoRepository = iDetallePagoRepository;
         this.iVarianteRepository = iVarianteRepository;
         this.errorGenerico = errorGenerico;
+        this.iClienteSinRegistroRepository = iClienteSinRegistroRepository;
+        this.iPedidoRepository = iPedidoRepository;
+    }
+
+    private ClienteSinRegistro mapperClienteSinRegistroDto(VentaDirectaRequest request) {
+        ClienteSinRegistro clienteSinRegistro = new ClienteSinRegistro();
+        ClienteSinRegistroDto dto = request.getClienteSinRegistroDto();
+        clienteSinRegistro.setNombrePersona(dto.getNombre_persona());
+        clienteSinRegistro.setSegundoNombre(dto.getSegundo_nombre());
+        clienteSinRegistro.setApeidoMaterno(dto.getApeido_Materno());
+        clienteSinRegistro.setApeidoPaterno(dto.getApeido_Paterno());
+        clienteSinRegistro.setSexo(dto.getSexo());
+        clienteSinRegistro.setCorreoElectronico(dto.getCorreo_Electronico());
+        LocalDate fechaValida = dto.getFecha_Nacimiento().isBlank() ? null : LocalDate.parse(dto.getFecha_Nacimiento());
+        clienteSinRegistro.setFechaNacimiento(fechaValida);
+        clienteSinRegistro.setNumeroTelefonico(dto.getNumero_Telefonico());
+        return clienteSinRegistro;
     }
 
     @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache", "variantesProductoCache", "variantesCodigoBarrasCache"}, allEntries = true)
@@ -81,9 +87,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
-
-        Cliente cliente = iClienteRepository.findById(request.getClienteId())
-                .orElseThrow(() -> new ExceptionDataNotFound("Cliente no encontrado"));
 
         PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(request.getPagosYMesesId())
                 .orElseThrow(() -> new ExceptionErrorInesperado("Opción de pago no válida"));
@@ -105,15 +108,24 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             detallePago = iDetallePagoRepository.findById(detallePagoId).orElse(null);
         }
 
-        Venta venta = new Venta();
-        venta.setEstadoVenta("Entregado");
-        venta.setFechaVenta(LocalDateTime.now());
-        venta.setUsuario(usuario);
-        venta.setCliente(cliente);
-        venta.setPagosYMeses(pagosYMeses);
-        venta.setDetallePago(detallePago);
+        // Determinar si es cliente registrado o sin registro
+        Cliente cliente = null;
+        ClienteSinRegistro clienteSinRegistro = null;
 
-        List<DetalleVenta> detalles = new ArrayList<>();
+        boolean esSinRegistro = request.getClienteSinRegistroDto() != null
+                && !request.getClienteSinRegistroDto().getNombre_persona().isBlank();
+
+        if (esSinRegistro) {
+            clienteSinRegistro = iClienteSinRegistroRepository.save(mapperClienteSinRegistroDto(request));
+        } else {
+            cliente = iClienteRepository.findById(request.getClienteId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Cliente no encontrado"));
+        }
+
+        // Procesar items y construir las dos listas de detalle
+        List<DetallePedido> detallesPedido = new ArrayList<>();
+        List<DetalleVentaVariante> detallesVenta = new ArrayList<>();
+
         for (var item : request.getDetalles()) {
             Variantes variante = iVarianteRepository.findByIdWithLock(item.getVarianteId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
@@ -140,28 +152,58 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             double comision    = subTotal * (tasaTarifa + tasaIva);
             double ganancia    = subTotal - costoTotal - comision;
 
-            DetalleVenta det = new DetalleVenta();
-            det.setCantidad(item.getCantidad());
-            det.setPrecioUnitario(item.getPrecioVenta());
-            det.setSubTotal(subTotal);
-            det.setPrecioCosto(precioCosto);
-            det.setGanancia(ganancia);
-            det.setFechaVenta(LocalDate.now());
-            det.setProducto(prod);
-            det.setVenta(venta);
-            detalles.add(det);
+            DetallePedido dp = new DetallePedido();
+            dp.setProducto(prod);
+            dp.setVariante(variante);
+            dp.setCantidad(item.getCantidad());
+            dp.setPrecioUnitario(item.getPrecioVenta());
+            dp.setSubTotal(subTotal);
+            detallesPedido.add(dp);
+
+            DetalleVentaVariante dvv = new DetalleVentaVariante();
+            dvv.setVariante(variante);
+            dvv.setCantidad(item.getCantidad());
+            dvv.setPrecioUnitario(item.getPrecioVenta());
+            dvv.setSubTotal(subTotal);
+            dvv.setPrecioCosto(precioCosto);
+            dvv.setGanancia(ganancia);
+            dvv.setFechaVenta(LocalDate.now());
+            detallesVenta.add(dvv);
         }
 
-        double totalVenta    = detalles.stream().mapToDouble(DetalleVenta::getSubTotal).sum();
-        double gananciaTotal = detalles.stream().mapToDouble(DetalleVenta::getGanancia).sum();
+        double totalVenta    = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
+        double gananciaTotal = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getGanancia).sum();
 
+        // Crear y guardar Pedido (siempre, para todos los escenarios)
+        Pedido pedido = new Pedido();
+        pedido.setEstadoPedido("Entregado");
+        pedido.setCliente(cliente);
+        pedido.setClienteSinRegistro(clienteSinRegistro);
+        pedido.setObservaciones("");
+        pedido.setFechaPedido(LocalDate.now());
+        pedido.setFechaRecogida(LocalDate.now());
+        detallesPedido.forEach(dp -> dp.setPedido(pedido));
+        pedido.setDetalles(detallesPedido);
+        iPedidoRepository.save(pedido);
+
+        // Crear Venta vinculada al Pedido
+        Venta venta = new Venta();
+        venta.setEstadoVenta("Entregado");
+        venta.setFechaVenta(LocalDateTime.now());
+        venta.setUsuario(usuario);
+        venta.setCliente(cliente);
+        venta.setClienteSinRegistro(clienteSinRegistro);
+        venta.setPagosYMeses(pagosYMeses);
+        venta.setDetallePago(detallePago);
+        venta.setPedido(pedido);
         venta.setTotalVenta(totalVenta);
         venta.setGananciaTotal(gananciaTotal);
-        venta.setDetalles(detalles);
+        detallesVenta.forEach(dvv -> dvv.setVenta(venta));
+        venta.setDetalles(detallesVenta);
 
+        boolean requiereTerminal = mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
         Venta saved = iVentaRepository.save(venta);
 
-        boolean requiereTerminal = mesesIntereses.getTarifaTerminal() != null;
         return new VentaDirectaResponse(
                 saved.getId(),
                 pagosYMeses.getTipoPago().getFormaPago(),

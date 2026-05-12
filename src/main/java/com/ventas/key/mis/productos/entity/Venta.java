@@ -51,7 +51,12 @@ public class Venta  extends BaseId{
     @JoinColumn(name = "cliente_id")
     private Cliente cliente;
 
+    @ManyToOne
+    @JoinColumn(name = "cliente_sin_registro_id")
+    private ClienteSinRegistro clienteSinRegistro;
+
+
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<DetalleVenta> detalles;
+    private List<DetalleVentaVariante> detalles;
 
 }

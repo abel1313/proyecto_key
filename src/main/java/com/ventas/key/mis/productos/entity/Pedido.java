@@ -22,8 +22,12 @@ public class Pedido extends BaseId{
 
 
     @ManyToOne
-    @JoinColumn(name = "cliente_id", nullable = false)
+    @JoinColumn(name = "cliente_id")
     private Cliente cliente;
+
+    @ManyToOne
+    @JoinColumn(name = "cliente_sin_registro_id")
+    private ClienteSinRegistro clienteSinRegistro;
 
     @Column(name = "fecha_pedido")
     @JsonFormat(pattern = "yyyy-MM-dd")

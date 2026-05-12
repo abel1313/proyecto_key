@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.entity.*;
+import com.ventas.key.mis.productos.entity.DetalleVentaVariante;
 import com.ventas.key.mis.productos.entity.MesesIntereses;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.entity.PagosYMeses;
@@ -201,31 +202,28 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         venta.setDetallePago(detallePago);
         venta.setPagosYMeses(pagosYMeses);
 
-        List<DetalleVenta> det = new ArrayList<>();
-        for (var sa : requestG.getPedido().getDetalles()) {
-            Producto prod = this.iProductoRepository.findById(sa.getProducto().intValue())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + sa.getProducto()));
-
-            double precioCosto  = prod.getPrecioCosto();
-            double subTotal     = sa.getSub_total();
-            double costoTotal   = precioCosto * sa.getCantidad();
+        List<DetalleVentaVariante> det = new ArrayList<>();
+        for (DetallePedido dp : pedido.getDetalles()) {
+            double precioCosto  = dp.getVariante().getProducto().getPrecioCosto();
+            double subTotal     = dp.getSubTotal();
+            double costoTotal   = precioCosto * dp.getCantidad();
             double comision     = subTotal * (tasaTarifa + tasaIva);
             double ganancia     = subTotal - costoTotal - comision;
 
-            DetalleVenta deta = new DetalleVenta();
-            deta.setCantidad(sa.getCantidad());
-            deta.setPrecioUnitario(sa.getPrecio_unitario());
-            deta.setSubTotal(subTotal);
-            deta.setPrecioCosto(precioCosto);
-            deta.setGanancia(ganancia);
-            deta.setFechaVenta(LocalDate.now());
-            deta.setProducto(prod);
-            deta.setVenta(venta);
-            det.add(deta);
+            DetalleVentaVariante dvv = new DetalleVentaVariante();
+            dvv.setCantidad(dp.getCantidad());
+            dvv.setPrecioUnitario(dp.getPrecioUnitario());
+            dvv.setSubTotal(subTotal);
+            dvv.setPrecioCosto(precioCosto);
+            dvv.setGanancia(ganancia);
+            dvv.setFechaVenta(LocalDate.now());
+            dvv.setVariante(dp.getVariante());
+            dvv.setVenta(venta);
+            det.add(dvv);
         }
 
-        double totalVenta    = det.stream().mapToDouble(DetalleVenta::getSubTotal).sum();
-        double gananciaTotal = det.stream().mapToDouble(DetalleVenta::getGanancia).sum();
+        double totalVenta    = det.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
+        double gananciaTotal = det.stream().mapToDouble(DetalleVentaVariante::getGanancia).sum();
 
         venta.setTotalVenta(totalVenta);
         venta.setGananciaTotal(gananciaTotal);
