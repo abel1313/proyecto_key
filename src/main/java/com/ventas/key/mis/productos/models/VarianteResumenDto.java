@@ -17,6 +17,7 @@ public class VarianteResumenDto {
     private String marca;
     private String contenidoNeto;
     private String imagenBase64;
+    private String imagenUrl;
     private double precio;
     private String codigoBarras;
     private String nombreProducto;

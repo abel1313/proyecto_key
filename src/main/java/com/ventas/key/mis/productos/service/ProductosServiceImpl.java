@@ -61,6 +61,9 @@ public class ProductosServiceImpl extends
 
     @Value("${guardar-imagenes.ruta_imagenes}")
     private String rutaImagenes;
+
+    @Value("${api.imagenes}")
+    private String endpointImagenes;
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
@@ -135,12 +138,9 @@ public class ProductosServiceImpl extends
     }
 
     private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
-        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
-        try {
-            img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
+                new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
+        img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
 
         if (isAdmin) {
             ProductoAdmin productoAdmin = getProductoAdmin(p);
@@ -285,12 +285,9 @@ public class ProductosServiceImpl extends
                     dto.setContenido(p.getContenido());
                     dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras(): null);
                     dto.setIdProducto(p.getId());
-                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
-                    try {
-                        img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
+                            new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
+                    img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
                     dto.setImagen(img);
                     return dto;
                 })
