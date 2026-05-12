@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -42,6 +44,23 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
         this.iPedidoRepository = iPedidoRepository;
     }
 
+    private int[] calcularBoletos(Integer clientePedidoId, boolean sinRegistro, String mes) {
+        List<Object[]> resultado = iPedidoRepository.calcularScore(clientePedidoId, sinRegistro, mes);
+        if (resultado == null || resultado.isEmpty()) return new int[]{1, 1};
+
+        Object[] row = resultado.get(0);
+        long cumplimientos   = row[0] != null ? ((Number) row[0]).longValue() : 0;
+        long incumplimientos = row[1] != null ? ((Number) row[1]).longValue() : 0;
+        long comprasMes      = row[2] != null ? ((Number) row[2]).longValue() : 0;
+
+        double scoreValor = (cumplimientos + incumplimientos == 0) ? 1.0
+                : (double) cumplimientos / (cumplimientos + incumplimientos);
+
+        int base     = (int) Math.max(1, comprasMes);
+        int efectivo = Math.max(1, (int) Math.round(comprasMes * scoreValor));
+        return new int[]{base, efectivo};
+    }
+
     @Override
     public Concursante registrar(Concursante concursante, boolean forzar) throws Exception {
         if (concursante.getConfigurarRifa() == null || concursante.getConfigurarRifa().getId() == null) {
@@ -56,6 +75,14 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
         if (!forzar && LocalDateTime.now().isAfter(config.getFechaHoraLimite())) {
             throw new Exception("El plazo de registro cerró el " + config.getFechaHoraLimite());
         }
+
+        if (concursante.getClientePedidoId() != null) {
+            String mesActual = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            int[] boletos = calcularBoletos(concursante.getClientePedidoId(), false, mesActual);
+            concursante.setBoletosBase(boletos[0]);
+            concursante.setBoletos(boletos[1]);
+        }
+
         concursante.setConfigurarRifa(config);
         return save(concursante);
     }
@@ -86,6 +113,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             dto.setClientePedidoId(row[0] != null ? ((Number) row[0]).intValue() : null);
             dto.setNombre(row[1] != null ? row[1].toString() : "");
             dto.setTelefono(row[2] != null ? row[2].toString() : "");
+            dto.setSinRegistro(row[3] != null && ((Number) row[3]).intValue() == 1);
             resultado.add(dto);
         }
         return resultado;
@@ -100,8 +128,19 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             throw new Exception("Esta rifa no está activa");
         }
 
+        String mes = req.getMes();
         List<Concursante> importados = new ArrayList<>();
+
         for (ImportarDePedidosRequest.ClientePedidoDto cliente : req.getClientes()) {
+            int boletosBase = 1;
+            int boletos     = 1;
+
+            if (mes != null && !mes.isBlank() && cliente.getClientePedidoId() != null) {
+                int[] calculado = calcularBoletos(cliente.getClientePedidoId(), cliente.isSinRegistro(), mes);
+                boletosBase = calculado[0];
+                boletos     = calculado[1];
+            }
+
             Concursante c = new Concursante();
             c.setNombre(cliente.getNombre());
             c.setApellidoPaterno(cliente.getApellidoPaterno());
@@ -110,6 +149,8 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             c.setOrdenDesde(req.getOrdenDesde());
             c.setClientePedidoId(cliente.getClientePedidoId());
             c.setConfigurarRifa(config);
+            c.setBoletosBase(boletosBase);
+            c.setBoletos(boletos);
             importados.add(iConcursanteRepository.save(c));
         }
         return importados;

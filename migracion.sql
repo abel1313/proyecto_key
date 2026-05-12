@@ -35,3 +35,29 @@ ALTER TABLE detalle_pedidos
 -- ------------------------------------------------------------
 ALTER TABLE detalle_pedidos
     MODIFY COLUMN cantidad INT NOT NULL DEFAULT 0;
+
+-- ============================================================
+-- MIGRACION: Sistema de motivo de cancelacion y boletos de rifa
+-- Fecha: 2026-05-11
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 5. pedidos: motivo y fecha de cancelacion
+-- ------------------------------------------------------------
+ALTER TABLE pedidos
+    ADD COLUMN motivo_cancelacion VARCHAR(30) NULL,
+    ADD COLUMN fecha_cancelacion  DATE        NULL;
+
+-- Valores validos para motivo_cancelacion:
+--   TIMEOUT        → cancelado automaticamente por el schedule (no vino a recoger)
+--   NO_SE_PRESENTO → cancelado por el cajero porque el cliente no vino
+--   CLIENTE_AVISO  → el cliente aviso con tiempo y cancelo el
+
+-- ------------------------------------------------------------
+-- 6. concursantes: boletos para ponderacion en rifa
+--    boletos_base = compras del mes (lo que el cliente VE)
+--    boletos      = boletos_base x score (peso interno del sorteo)
+-- ------------------------------------------------------------
+ALTER TABLE concursantes
+    ADD COLUMN boletos_base INT NOT NULL DEFAULT 1,
+    ADD COLUMN boletos      INT NOT NULL DEFAULT 1;

@@ -35,6 +35,12 @@ public class Concursante extends BaseId {
     @Column(name = "cliente_pedido_id")
     private Integer clientePedidoId;
 
+    @Column(name = "boletos_base", nullable = false)
+    private int boletosBase = 1;
+
+    @Column(name = "boletos", nullable = false)
+    private int boletos = 1;
+
     @ManyToOne
     @JoinColumn(name = "configurar_rifa_id", nullable = false)
     @JsonIgnoreProperties("variantes")

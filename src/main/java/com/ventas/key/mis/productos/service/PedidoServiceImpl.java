@@ -266,7 +266,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
     @Transactional
     @Override
-    public void deletePedidoById(int id) {
+    public void deletePedidoById(int id, String motivo) {
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
@@ -289,6 +289,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         });
 
         pedido.setEstadoPedido("cancelado");
+        pedido.setMotivoCancelacion(motivo);
+        pedido.setFechaCancelacion(LocalDate.now());
         iPedidoRepository.save(pedido);
     }
 

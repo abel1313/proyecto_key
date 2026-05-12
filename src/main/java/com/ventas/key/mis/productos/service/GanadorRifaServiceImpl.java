@@ -83,7 +83,17 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
                     + varianteActual.getPalabraClave() + "'");
         }
 
-        Concursante seleccionado = elegibles.get(new Random().nextInt(elegibles.size()));
+        int totalBoletos = elegibles.stream().mapToInt(Concursante::getBoletos).sum();
+        int pick = new Random().nextInt(Math.max(totalBoletos, 1));
+        int acumulado = 0;
+        Concursante seleccionado = elegibles.get(elegibles.size() - 1);
+        for (Concursante candidato : elegibles) {
+            acumulado += candidato.getBoletos();
+            if (pick < acumulado) {
+                seleccionado = candidato;
+                break;
+            }
+        }
         boolean esGanador = giroActual >= varianteActual.getGiroGanador();
 
         seleccionado.setDescartado(true);

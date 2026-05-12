@@ -100,9 +100,11 @@ public class PedidoController extends AbstractController<
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> deleteById(@PathVariable int id) {
+    public ResponseEntity<Void> deleteById(
+            @PathVariable int id,
+            @RequestParam(defaultValue = "NO_SE_PRESENTO") String motivo) {
         try {
-            this.iPedidoService.deletePedidoById(id);
+            this.iPedidoService.deletePedidoById(id, motivo);
             return ResponseEntity.status(HttpStatus.OK).build();
         } catch (Exception e) {
             return null;
