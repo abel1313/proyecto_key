@@ -22,6 +22,7 @@ import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -47,6 +48,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final ImageneClienteDisco imageneClienteDisco;
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
+
+    @Value("${api.imagenes}")
+    private String endpointImagenes;
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
@@ -270,15 +274,6 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         for (VarianteDetalle detalle : detalles) {
             if (detalle.getId() != null) {
                 ajustarStock(detalle);
-                if (detalle.getStock() <= 0) {
-                    List<Imagen> listaVarianteImagenes = iVarianteImagenRepository.findByVarianteId(detalle.getId())
-                            .stream().map(VarianteImagen::getImagen).toList();
-                    List<String> listiDimagenes = listaVarianteImagenes.stream().map(Imagen::getBase64).toList();
-                    imageneClienteDisco.deleteInagenesDisco(listiDimagenes);
-                    iVarianteImagenRepository.deleteByVarianteIdIn(List.of(detalle.getId()));
-                    iImagenRepository.deleteByIdIn(listaVarianteImagenes.stream().map(Imagen::getId).collect(Collectors.toList()));
-                    log.info("info {}",listaVarianteImagenes);
-                }
             }
 
             Variantes saved = save(buildVariante(detalle));
@@ -445,26 +440,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             varianteToImagenId.putIfAbsent(vi.getVariante().getId(), vi.getImagen().getId());
         }
 
-        // 2. Una sola llamada HTTP al microservicio con todos los IDs
-        Map<Long, byte[]> imagenBytes = new HashMap<>();
-        if (!varianteToImagenId.isEmpty()) {
-            try {
-                List<ImagenDto> imagenes = imageneClienteDisco.getAll(new ArrayList<>(varianteToImagenId.values()));
-                imagenes.forEach(img -> {
-                    if (img.getImagen() != null) imagenBytes.put(img.getId(), img.getImagen());
-                });
-            } catch (Exception e) {
-                log.warn("No se pudieron obtener imágenes en batch: {}", e.getMessage());
-            }
-        }
-
-        // 3. Construir DTOs con las imágenes ya cargadas
+        // 2. Construir DTOs con solo la URL — el frontend carga la imagen directamente
         return variantes.stream().map(v -> {
             VarianteResumenDto dto = buildBaseResumenDto(v);
             Long imagenId = varianteToImagenId.get(v.getId());
             if (imagenId != null) {
-                byte[] bytes = imagenBytes.get(imagenId);
-                if (bytes != null) dto.setImagenBase64(Base64.getEncoder().encodeToString(bytes));
+                dto.setImagenUrl(endpointImagenes + "/imagenes?ids=" + imagenId);
             }
             return dto;
         }).toList();

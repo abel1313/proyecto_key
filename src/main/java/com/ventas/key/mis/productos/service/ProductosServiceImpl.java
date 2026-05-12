@@ -61,6 +61,9 @@ public class ProductosServiceImpl extends
 
     @Value("${guardar-imagenes.ruta_imagenes}")
     private String rutaImagenes;
+
+    @Value("${api.imagenes}")
+    private String endpointImagenes;
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
@@ -109,11 +112,6 @@ public class ProductosServiceImpl extends
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
-
-
-
-
-
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
@@ -140,12 +138,9 @@ public class ProductosServiceImpl extends
     }
 
     private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
-        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
-        try {
-            img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
+                new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
+        img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
 
         if (isAdmin) {
             ProductoAdmin productoAdmin = getProductoAdmin(p);
@@ -290,12 +285,9 @@ public class ProductosServiceImpl extends
                     dto.setContenido(p.getContenido());
                     dto.setCodigoBarras(p.getCodigoBarras() != null ? p.getCodigoBarras().getCodigoBarras(): null);
                     dto.setIdProducto(p.getId());
-                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img;
-                    try {
-                        img = imagenProductoClienteAWS.buscarImagenProducto(p.getId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+                    com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
+                            new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
+                    img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
                     dto.setImagen(img);
                     return dto;
                 })
@@ -308,6 +300,25 @@ public class ProductosServiceImpl extends
         log.info("Estamos en el inicio del guardado del producto {}",1);
         return guardarProducto(productoDetalle);
     }
+
+    @Override
+    public CompartirImagenesVarianteDto compartirImagenesVarianteDto(CompartirImagenesVarianteDto compartirImagenesVarianteDto) {
+        Producto producto = iProductosRepository.findById(compartirImagenesVarianteDto.getIdProducto()).orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con el id"));
+        List<ProductoImagen> existeImagenes = iProductoImagenRepository.findByProductoId(producto.getId());
+        if(existeImagenes.isEmpty()){
+            throw new ExceptionDataNotFound("No existen imagenes para este producto ");
+        }
+        varianteRepository.findByProductoId(producto.getId()).stream().parallel().forEach(guardarVairantes->{
+            existeImagenes.stream().parallel().forEach(imagen->{
+                VarianteImagen varianteImagen = new VarianteImagen();
+                varianteImagen.setVariante(guardarVairantes);
+                varianteImagen.setImagen(imagen.getImagen());
+                iVarianteImagenRepository.save(varianteImagen);
+            });
+        });
+        return compartirImagenesVarianteDto;
+    }
+
     @Transactional
     private Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {

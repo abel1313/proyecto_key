@@ -16,6 +16,20 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     List<Pedido> findByEstadoPedidoAndFechaRecogidaIsNotNullAndFechaRecogidaLessThanEqual(
             String estadoPedido, LocalDate fecha);
 
+    @Query(value = """
+        SELECT
+            COALESCE(SUM(CASE WHEN p.estado_pedido = 'Entregado' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN p.motivo_cancelacion IN ('TIMEOUT', 'NO_SE_PRESENTO') THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN p.estado_pedido = 'Entregado'
+                              AND DATE_FORMAT(p.fecha_pedido, '%Y-%m') = :mes THEN 1 ELSE 0 END), 0)
+        FROM pedidos p
+        WHERE (:sinRegistro = FALSE AND p.cliente_id = :clienteId)
+           OR (:sinRegistro = TRUE  AND p.cliente_sin_registro_id = :clienteId)
+    """, nativeQuery = true)
+    List<Object[]> calcularScore(@Param("clienteId") Integer clienteId,
+                                @Param("sinRegistro") boolean sinRegistro,
+                                @Param("mes") String mes);
+
 
 
     @Query(value = """
@@ -124,14 +138,14 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     Page<String> pediodPorId(@Param("idPedido") int idPedido,@Param("idCliente") int idCliente, Pageable pegable);
 
     @Query(value = """
-
-            SELECT
+    SELECT
       JSON_OBJECT(
         'cliente', JSON_OBJECT(
-       	'id', c.id,
-       	'nombreCliente', c.nombre_persona,
-       	'correoElectronico', c.correo_electronico,
-       	'numeroTelefonico', c.numero_telefonico\s
+          'id',                COALESCE(c.id, csr.id),
+          'nombreCliente',     COALESCE(c.nombre_persona, csr.nombre_persona),
+          'correoElectronico', COALESCE(c.correo_electronico, csr.correo_electronico),
+          'numeroTelefonico',  COALESCE(c.numero_telefonico, csr.numero_telefonico),
+          'sinRegistro',       c.id IS NULL
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
@@ -150,37 +164,44 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
       ) AS pedido_json
     FROM pedidos p
     INNER JOIN detalle_pedidos dp ON p.id = dp.pedido_id
-    INNER JOIN clientes c ON c.id = p.cliente_id
-        INNER JOIN producto pro
-        on pro.id = dp.producto_id\s
-    WHERE c.nombre_persona LIKE '%"+:buscar+"%' OR c.correo_electronico LIKE '%"+:buscar+"%' or c.numero_telefonico LIKE '%"+:buscar+"%'
-    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id
+    LEFT  JOIN clientes c              ON c.id   = p.cliente_id
+    LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+    INNER JOIN producto pro ON pro.id = dp.producto_id
+    WHERE c.nombre_persona     LIKE CONCAT('%', :buscar, '%')
+       OR c.correo_electronico LIKE CONCAT('%', :buscar, '%')
+       OR c.numero_telefonico  LIKE CONCAT('%', :buscar, '%')
+       OR csr.nombre_persona   LIKE CONCAT('%', :buscar, '%')
+       OR csr.numero_telefonico LIKE CONCAT('%', :buscar, '%')
+    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
     Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar, Pageable pegable);
 
 
     @Query(value = """
-        SELECT DISTINCT c.id            AS clientePedidoId,
-                        c.nombre_persona AS nombre,
-                        c.numero_telefonico AS telefono
+        SELECT DISTINCT
+            COALESCE(c.id, csr.id)                                           AS clientePedidoId,
+            COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
+            COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
+            c.id IS NULL                                                     AS sinRegistro
         FROM pedidos p
-        INNER JOIN clientes c ON c.id = p.cliente_id
+        LEFT  JOIN clientes c              ON c.id   = p.cliente_id
+        LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
         WHERE DATE_FORMAT(p.fecha_pedido, '%Y-%m') = :mes
-        ORDER BY c.nombre_persona
+        ORDER BY nombre
     """, nativeQuery = true)
     List<Object[]> findClientesUnicosPorMes(@Param("mes") String mes);
 
 
     @Query(value = """
-
-            SELECT\s
+    SELECT
       JSON_OBJECT(
         'cliente', JSON_OBJECT(
-       	'id', c.id,
-       	'nombreCliente', c.nombre_persona,
-       	'correoElectronico', c.correo_electronico,
-       	'numeroTelefonico', c.numero_telefonico\s
+          'id',                COALESCE(c.id, csr.id),
+          'nombreCliente',     COALESCE(c.nombre_persona, csr.nombre_persona),
+          'correoElectronico', COALESCE(c.correo_electronico, csr.correo_electronico),
+          'numeroTelefonico',  COALESCE(c.numero_telefonico, csr.numero_telefonico),
+          'sinRegistro',       c.id IS NULL
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
@@ -199,10 +220,10 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
       ) AS pedido_json
     FROM pedidos p
     INNER JOIN detalle_pedidos dp ON p.id = dp.pedido_id
-    INNER JOIN clientes c ON c.id = p.cliente_id
-        INNER JOIN producto pro
-        on pro.id = dp.producto_id\s
-    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id
+    LEFT  JOIN clientes c              ON c.id   = p.cliente_id
+    LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+    INNER JOIN producto pro ON pro.id = dp.producto_id
+    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
     Page<String> buscarTodosLosPedidos(Pageable pegable);

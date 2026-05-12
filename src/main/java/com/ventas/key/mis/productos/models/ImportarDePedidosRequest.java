@@ -11,6 +11,7 @@ public class ImportarDePedidosRequest {
     private Integer configurarRifaId;
     private String palabraClave;
     private int ordenDesde = 1;
+    private String mes;
     private List<ClientePedidoDto> clientes;
 
     @Getter
@@ -20,5 +21,6 @@ public class ImportarDePedidosRequest {
         private String nombre;
         private String apellidoPaterno;
         private String telefono;
+        private boolean sinRegistro;
     }
 }

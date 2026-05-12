@@ -120,6 +120,6 @@ public class VarianteController extends AbstractController<
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
     }
 }

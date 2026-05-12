@@ -2,10 +2,7 @@ package com.ventas.key.mis.productos.service.api;
 
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
-import com.ventas.key.mis.productos.models.ICrud;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.models.ProductoDTO;
-import com.ventas.key.mis.productos.models.ProductoDetalle;
+import com.ventas.key.mis.productos.models.*;
 import org.springframework.cache.annotation.CacheEvict;
 
 import java.util.List;
@@ -31,4 +28,7 @@ public interface IProductoService extends ICrud<
 
     @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
     Producto saveProductoLote(ProductoDetalle productoDetalle);
+
+    CompartirImagenesVarianteDto compartirImagenesVarianteDto(CompartirImagenesVarianteDto compartirImagenesVarianteDto);
+
 }

@@ -14,4 +14,5 @@ public class ClientePedidoDto {
     private String nombre;
     private String apellidoPaterno;
     private String telefono;
+    private boolean sinRegistro;
 }

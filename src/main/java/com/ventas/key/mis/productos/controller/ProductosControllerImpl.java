@@ -1,11 +1,7 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.models.DiagnosticoImagenProductoDto;
-import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.models.ProductoDTO;
-import com.ventas.key.mis.productos.models.ProductoDetalle;
-import com.ventas.key.mis.productos.models.ProductoResumen;
+import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.service.ProductosServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -111,6 +107,12 @@ public class ProductosControllerImpl {
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "productos_sin_variantes.xlsx");
         return ResponseEntity.ok().headers(headers).body(excel);
+    }
+
+    @PostMapping("/compartir-imagenes-variantes")
+    public ResponseEntity<CompartirImagenesVarianteDto> diagnosticarImagenesProducto(@RequestBody CompartirImagenesVarianteDto compartirImagenesVarianteDto) {
+        log.info("Compartir imagenes a variantes {}", compartirImagenesVarianteDto);
+        return ResponseEntity.ok(this.pServiceImpl.compartirImagenesVarianteDto(compartirImagenesVarianteDto));
     }
 
 }
