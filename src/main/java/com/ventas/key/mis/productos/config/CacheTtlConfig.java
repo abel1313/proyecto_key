@@ -38,17 +38,17 @@ public class CacheTtlConfig {
         // Configuración específica por cache
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
         // Productos
-        cacheConfigs.put("detalleImagen", defaultConfig.entryTtl(Duration.ofMinutes(5)));
-        cacheConfigs.put("detalle", defaultConfig.entryTtl(Duration.ofMinutes(5)));
-        cacheConfigs.put("buscarImagenIdCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
-        cacheConfigs.put("obtenerProductosCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
-        cacheConfigs.put("buscarNombreOrCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofMinutes(15)));
-        cacheConfigs.put("findByIdCache", defaultConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("detalleImagen", defaultConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("detalle", defaultConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("buscarImagenIdCache", defaultConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("obtenerProductosCache", defaultConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("buscarNombreOrCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofHours(2)));
+        cacheConfigs.put("findByIdCache", defaultConfig.entryTtl(Duration.ofHours(6)));
         // Variantes
-        cacheConfigs.put("variantesProductoCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("variantesNombreCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("variantesCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigs.put("variantesImagenesCache", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigs.put("variantesProductoCache", defaultConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("variantesNombreCache", defaultConfig.entryTtl(Duration.ofHours(2)));
+        cacheConfigs.put("variantesCodigoBarrasCache", defaultConfig.entryTtl(Duration.ofHours(2)));
+        cacheConfigs.put("variantesImagenesCache", defaultConfig.entryTtl(Duration.ofHours(1)));
         // Clientes
         cacheConfigs.put("clienteCache", defaultConfig.entryTtl(Duration.ofMinutes(10)));
         // Catálogo de pagos (datos estáticos, TTL más largo)
