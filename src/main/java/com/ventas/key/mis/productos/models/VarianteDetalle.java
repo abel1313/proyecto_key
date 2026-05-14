@@ -16,6 +16,7 @@ public class VarianteDetalle {
 
     private Integer id;
     private Integer productoId;
+    private Integer palabraClaveId;
     private String talla;
     private String descripcion;
     private String color;

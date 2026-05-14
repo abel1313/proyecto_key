@@ -12,7 +12,9 @@ import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClie
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
+import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
+import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -73,6 +75,7 @@ public class ProductosServiceImpl extends
     private final IVarianteRepository varianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductoImagenRepository iProductoImagenRepository;
+    private final IPalabraClaveRepository iPalabraClaveRepository;
 
     private final ImagenProductoClienteAWS imagenProductoClienteAWS;
     private final ImagenPort imagenPort;
@@ -86,7 +89,8 @@ public class ProductosServiceImpl extends
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
             final IProductoImagenRepository iProductoImagenRepository,
-                                final ImagenPort imagenPort
+            final ImagenPort imagenPort,
+            final IPalabraClaveRepository iPalabraClaveRepository
     ) {
         super(iProductosRepository, error);
         this.iProductosRepository = iProductosRepository;
@@ -99,6 +103,7 @@ public class ProductosServiceImpl extends
         this.varianteRepository = iVarianteRepository;
         this.iProductoImagenRepository = iProductoImagenRepository;
         this.imagenPort = imagenPort;
+        this.iPalabraClaveRepository = iPalabraClaveRepository;
     }
 
     @Override
@@ -191,52 +196,51 @@ public class ProductosServiceImpl extends
             key = "#nombre + ':' + #page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados;
-
-        // 1. Buscar por código de barras exacto primero
         boolean isAdmin = isAdminContext();
-        Optional<Producto> productoExacto = iProductosRepository.findByCodigoBarras_CodigoBarras(nombre);
-        if (!isAdmin) {
-            productoExacto = iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarras(0, '1', nombre);
-        }
-        if (productoExacto.isPresent()) {
-            productosPaginados = new org.springframework.data.domain.PageImpl<>(
-                    List.of(productoExacto.get()), pageable, 1);
-        } else {
-            // 2. Buscar por nombre
-            productosPaginados = iProductosRepository.findByNombreContaining(nombre, pageable);
-            if(!isAdmin){
-                productosPaginados = iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
-            }
 
-            // 3. Si nombre no encontró nada, buscar por código de barras parcial
-            if (productosPaginados.isEmpty()) {
-                productosPaginados = iProductosRepository.findByCodigoBarras_CodigoBarrasContaining(nombre, pageable);
-                if(!isAdmin) {
-                    productosPaginados = iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasContaining( 0, '1', nombre, pageable);
-                }
-            }
+        // Paso 1: código de barras exacto
+        Optional<Producto> porCodigo = isAdmin
+                ? iProductosRepository.findByCodigoBarras_CodigoBarras(nombre)
+                : iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarras(0, '1', nombre);
+        if (porCodigo.isPresent()) {
+            PginaDto<List<ProductoDTO>> resultado = new PginaDto<>();
+            resultado.setPagina(1);
+            resultado.setTotalPaginas(1);
+            resultado.setTotalRegistros(1);
+            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin)));
+            return resultado;
         }
 
-        List<ProductoDTO> resultados = productosPaginados.getContent().stream()
-                .map(p -> mapperByRol(p, isAdmin))
-                .toList();
+        // Paso 2: palabra clave exacta
+        Page<Producto> porPalabraClave = isAdmin
+                ? iProductosRepository.findByPalabraClave_NombreIgnoreCase(nombre, pageable)
+                : iProductosRepository.findByPalabraClave_NombreIgnoreCaseAndStockGreaterThanAndHabilitado(nombre, 0, '1', pageable);
+        if (!porPalabraClave.isEmpty()) {
+            return buildPagina(porPalabraClave, page, isAdmin);
+        }
 
-        if (resultados.isEmpty()) {
+        // Paso 3: nombre contiene
+        Page<Producto> porNombre = isAdmin
+                ? iProductosRepository.findByNombreContaining(nombre, pageable)
+                : iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
+        if (porNombre.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
         }
+        return buildPagina(porNombre, page, isAdmin);
+    }
 
+    private PginaDto<List<ProductoDTO>> buildPagina(Page<Producto> pagina, int page, boolean isAdmin) {
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
-        pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
-        pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
-        pginaDto.setT(resultados);
+        pginaDto.setTotalPaginas(pagina.getTotalPages());
+        pginaDto.setTotalRegistros((int) pagina.getTotalElements());
+        pginaDto.setT(pagina.getContent().stream().map(p -> mapperByRol(p, isAdmin)).toList());
         return pginaDto;
     }
 
     @Transactional
     @Override
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache", "buscarImagenIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache"}, allEntries = true)
     public void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado {
         log.info("Buscar producto con el ID {}",id);
         Optional<Producto> existeProducto = iProductosRepository.findById(id);
@@ -401,6 +405,9 @@ public class ProductosServiceImpl extends
                 prodExistenteNoOpt.setDescripcion(productoDetalle.getDescripcion());
                 prodExistenteNoOpt.setMarca(productoDetalle.getMarca());
                 prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
+                if (productoDetalle.getPalabraClaveId() != null) {
+                    prodExistenteNoOpt.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
+                }
 
                 // Ajuste de stock contra el stock real de la BD
                 if (productoDetalle.getActualizarStock() > 0) {
@@ -553,6 +560,9 @@ public class ProductosServiceImpl extends
         producto.setStock(productoDetalle.getStock());
         producto.setMarca(productoDetalle.getMarca());
         producto.setContenido(productoDetalle.getContenido());
+        if (productoDetalle.getPalabraClaveId() != null) {
+            producto.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
+        }
         return producto;
     }
 
@@ -582,7 +592,7 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache"}, allEntries = true)
     @Transactional
     public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
         Producto producto = iProductosRepository.findById(id)

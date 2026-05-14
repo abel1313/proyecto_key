@@ -34,10 +34,8 @@ public class Producto  extends BaseId{
     @OneToOne(optional = true, cascade = CascadeType.MERGE)
     @JoinColumn(name = "codigo_barras_id", unique = true)
     private CodigoBarra codigoBarras;
-//
-//    @OneToMany(mappedBy = "producto", cascade = CascadeType.ALL)
-//    private List<ProductoImagen> productosRelacionados;
 
-
-    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "palabra_clave_id")
+    private PalabraClave palabraClave;
 }
