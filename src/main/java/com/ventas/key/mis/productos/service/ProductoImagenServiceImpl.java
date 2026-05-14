@@ -57,7 +57,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    @Cacheable(value = "detalleImagen", key = "#idProducto")
+    @Cacheable(value = "detalleImagen", key = "#productoId")
     public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
         ProductoImagenDto productoImagenDto = new ProductoImagenDto();
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
