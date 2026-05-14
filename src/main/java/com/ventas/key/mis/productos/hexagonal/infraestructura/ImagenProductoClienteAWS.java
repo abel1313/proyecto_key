@@ -61,7 +61,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return webClient.post()
-                .uri("/producto-imagen/saveAll") // ajusta la ruta de tu endpoint
+                .uri("producto-imagen/saveAll")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
@@ -104,7 +104,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     public Imagen buscarImagenProducto(Integer id) {
         log.info("micro imagenes, buscar imagen por ID {}",id);
         return webClient.get()
-                .uri("/producto-imagen/buscarImagenProducto/{id}", id)
+                .uri("producto-imagen/buscarImagenProducto/{id}", id)
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Imagen>() {})
