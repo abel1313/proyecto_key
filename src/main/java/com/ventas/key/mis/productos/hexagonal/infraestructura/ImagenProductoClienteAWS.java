@@ -14,8 +14,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -41,7 +39,8 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
         ExchangeStrategies strategies = ExchangeStrategies.builder()
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
                 .build();
-        this.webClient = builder.baseUrl(endpointImg).exchangeStrategies(strategies).build();
+        String baseUrl = endpointImg.endsWith("/") ? endpointImg : endpointImg + "/";
+        this.webClient = builder.baseUrl(baseUrl).exchangeStrategies(strategies).build();
         log.info(" endpoint imagenes ImagenProductoClienteAWS {}", endpointImg);
     }
 
@@ -59,7 +58,6 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
 
     @Override
     public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return webClient.post()
                 .uri("producto-imagen/saveAll")
                 .contentType(MediaType.APPLICATION_JSON)
