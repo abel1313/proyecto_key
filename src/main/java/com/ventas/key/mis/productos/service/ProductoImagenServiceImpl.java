@@ -12,6 +12,7 @@ import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,9 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
                                                 Optional<ProductoImagen>,
                                                 Integer,
                                                 PginaDto<List<ProductoImagen>>> implements IProductoImagenService {
+
+    @Value("${server.servlet.context-path:/mis-productos}")
+    private String contextPath;
 
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
@@ -59,8 +63,12 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     @Override
     @Cacheable(value = "detalleImagen", key = "#productoId")
     public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
-        ProductoImagenDto productoImagenDto = new ProductoImagenDto();
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
+        imagenDtoList.forEach(dto -> {
+            dto.setUrlImagen(contextPath + "/imagen/file/" + dto.getId());
+            dto.setBase64(null);
+        });
+        ProductoImagenDto productoImagenDto = new ProductoImagenDto();
         productoImagenDto.setProductoId(productoId);
         productoImagenDto.setListaImagenes(imagenDtoList);
         return productoImagenDto;

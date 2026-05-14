@@ -51,6 +51,13 @@ public class ImageneController {
         return ResponseEntity.ok()
                 .body(imagen);
     }
+    @GetMapping("/file/{imagenId}")
+    public ResponseEntity<byte[]> getImagenByImagenId(@PathVariable Long imagenId) throws Exception {
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen imagen = iImagenService.findByImagenId(imagenId);
+        MediaType mediaType = getMediaType(imagen.getContentType());
+        return ResponseEntity.ok().contentType(mediaType).body(imagen.getImagen());
+    }
+
     @GetMapping("/{idProducto}/imagenes")
     public ResponseEntity<ProductoImagenDto> getImagenesPorProductoId(@PathVariable Integer idProducto){
         return ResponseEntity.ok(this.iProductoImagenService.findByImagenesPorIdProducto(idProducto));

@@ -117,4 +117,17 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
         }
         throw new IOException("No se encontro el imagen");
     }
+
+    @Override
+    public com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByImagenId(Long imagenId) throws IOException {
+        Optional<Imagen> img = this.iImagenRepository.findById(imagenId);
+        if (img.isPresent()) {
+            Path path = Paths.get(rutaImagenes, img.get().getBase64());
+            com.ventas.key.mis.productos.hexagonal.dominio.Imagen devolverImagen = new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
+            devolverImagen.setImagen(Files.readAllBytes(path));
+            devolverImagen.setContentType(img.get().getExtension());
+            return devolverImagen;
+        }
+        throw new IOException("No se encontro la imagen con id: " + imagenId);
+    }
 }
