@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Imagen;
+import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -16,6 +17,7 @@ import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
+import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -48,6 +50,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final ImageneClienteDisco imageneClienteDisco;
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
+    private final IPalabraClaveRepository iPalabraClaveRepository;
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
@@ -59,6 +62,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                                ImageneClienteDisco imageneClienteDisco,
                                IImagenRepository iImagenRepository,
                                ImagenPort imagenPort,
+                               IPalabraClaveRepository iPalabraClaveRepository,
                                ErrorGenerico error) {
         super(iVarianteRepository, error);
         this.iVarianteRepository = iVarianteRepository;
@@ -68,6 +72,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.imageneClienteDisco = imageneClienteDisco;
         this.iImagenRepository = iImagenRepository;
         this.imagenPort = imagenPort;
+        this.iPalabraClaveRepository = iPalabraClaveRepository;
     }
 
     public PginaDto<List<VarianteResumenDto>> buscarVariantes(String termino, int page, int size) {
@@ -77,6 +82,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         PginaDto<List<VarianteResumenDto>> porCodigo = buscarPorCodigoBarrasPaginadoResumen(termino, page, size);
         if (!porCodigo.getT().isEmpty()) return porCodigo;
+
+        PginaDto<List<VarianteResumenDto>> porPalabraClave = buscarPorPalabraClavePaginadoResumen(termino, page, size);
+        if (!porPalabraClave.getT().isEmpty()) return porPalabraClave;
 
         PginaDto<List<VarianteResumenDto>> porNombre = buscarPorNombrePaginadoResumen(termino, page, size);
         if (!porNombre.getT().isEmpty()) return porNombre;
@@ -372,6 +380,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         v.setDescripcion(detalle.getDescripcion());
         v.setPresentacion(detalle.getPresentacion());
         v.setContenidoNeto(detalle.getContenidoNeto());
+        if (detalle.getPalabraClaveId() != null) {
+            v.setPalabraClave(iPalabraClaveRepository.getReferenceById(detalle.getPalabraClaveId()));
+        }
         return v;
     }
 
@@ -383,6 +394,21 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Cacheable(value = "variantesCodigoBarrasCache", key = "'resumen:' + #codigoBarras + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> buscarPorCodigoBarrasPaginadoResumen(String codigoBarras, int pagina, int size) {
         return toResumenPagina(buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size));
+    }
+
+    @Cacheable(value = "variantesPalabraClaveCache",
+            key = "'resumen:' + #nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+    public PginaDto<List<VarianteResumenDto>> buscarPorPalabraClavePaginadoResumen(String nombre, int pagina, int size) {
+        boolean isAdmin = AuthenticationUtils.isAdminContext();
+        Page<Variantes> page = isAdmin
+                ? iVarianteRepository.findByPalabraClave_NombreIgnoreCase(nombre, PageRequest.of(pagina - 1, size))
+                : iVarianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(0, '1', nombre, PageRequest.of(pagina - 1, size));
+        PginaDto<List<Variantes>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(page.getContent());
+        return toResumenPagina(resultado);
     }
 
     @Cacheable(value = "variantesProductoCache", key = "'resumen:all:' + #pagina + ':' + #size")

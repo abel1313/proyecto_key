@@ -32,7 +32,7 @@ public class ProductosControllerImpl {
     }
 
     @GetMapping("buscarNombreOrCodigoBarra")
-    public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(@RequestParam int size, 
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(@RequestParam int size,
                                                                                 @RequestParam int page,
                                                                                 @RequestParam String nombre) {
         log.info("buscarNombreOrCodigoBarras {} page {} nombre {}", size, page, nombre);
@@ -40,7 +40,7 @@ public class ProductosControllerImpl {
     }
 
     @PostMapping("save")
-    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","buscarPorPalabraClaveCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
     public ResponseEntity<Producto> save(@RequestBody ProductoDetalle producto) throws Exception{
         log.info("Inicia el guardado del producto {}", producto);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );
@@ -114,5 +114,6 @@ public class ProductosControllerImpl {
         log.info("Compartir imagenes a variantes {}", compartirImagenesVarianteDto);
         return ResponseEntity.ok(this.pServiceImpl.compartirImagenesVarianteDto(compartirImagenesVarianteDto));
     }
+
 
 }

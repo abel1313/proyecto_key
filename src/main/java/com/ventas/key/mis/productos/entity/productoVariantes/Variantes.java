@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity.productoVariantes;
 
 import com.ventas.key.mis.productos.entity.BaseId;
+import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.entity.Producto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -34,5 +35,9 @@ public class Variantes  extends BaseId {
 
     @Column(name = "contenido_neto")
     private String contenidoNeto;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "palabra_clave_id")
+    private PalabraClave palabraClave;
 
 }

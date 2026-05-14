@@ -66,6 +66,10 @@ public class SecurityConfig {
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/mp/webhook").permitAll()
 
+                        // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
+                        .requestMatchers(HttpMethod.GET, "/palabras-clave/**").permitAll()
+                        .requestMatchers("/palabras-clave/**").hasRole("ADMIN")
+
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
                         .requestMatchers(HttpMethod.GET, "/productos/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()

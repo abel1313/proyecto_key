@@ -27,6 +27,7 @@ public class ProductoDetalle {
     private int actualizarStock;
     private int eliminarStock;
 
+    private Integer palabraClaveId;
     private CodigoBarraDetalle codigoBarras;
     private List<ImagenDTO> listImagenes;
 }

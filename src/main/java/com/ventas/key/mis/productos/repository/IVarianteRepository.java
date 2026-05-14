@@ -37,4 +37,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")
     Page<Variantes> findVariantesSinStockDeshabilitadas(Pageable pageable);
+
+    // --- búsqueda por palabra clave ---
+    Page<Variantes> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
+    Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(int stock, char habilitado, String nombre, Pageable pageable);
 }
