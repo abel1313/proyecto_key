@@ -37,6 +37,11 @@ spring:
   redis:
     host: redis
     port: 6379
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
 
 clave-seguridad:
   clave: ${TOKEN_JWT}

@@ -122,6 +122,7 @@ public class SecurityConfig {
                         .requestMatchers("/documentos/**").hasRole("ADMIN")
 
                         // ── Admin (gestión interna del servidor) ──────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/admin/test-rabbit").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
