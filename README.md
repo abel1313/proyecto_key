@@ -11,7 +11,7 @@ spring.jpa.show-sql=true
 logging.level.org.hibernate.SQL=DEBUG
 logging.level.org.hibernate.orm.jdbc.bind=TRACE
 
-humo 12
+humo 1
 
 
 
