@@ -253,23 +253,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     private List<ImagenUpdateDto> buildImagenUpdateDtos(List<VarianteImagen> relaciones) {
         if (relaciones.isEmpty()) return List.of();
-        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
-        List<com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto> imagenes;
-        try {
-            imagenes = imageneClienteDisco.getAll(ids);
-        } catch (Exception e) {
-            log.warn("No se pudieron obtener imágenes del microservicio: {}", e.getMessage());
-            imagenes = List.of();
-        }
-        var mapaBytes = imagenes.stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto::getId,
-                        com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto::getImagen,
-                        (a, b) -> a));
         return relaciones.stream().map(vi -> {
             var img = vi.getImagen();
-            byte[] bytes = mapaBytes.get(img.getId());
-            return new ImagenUpdateDto(img.getId(), bytes, img.getExtension(), img.getNombreImagen());
+            ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
+            dto.setUrlImagen(endpointImagenes + "/imagenes/" + img.getId());
+            return dto;
         }).toList();
     }
 

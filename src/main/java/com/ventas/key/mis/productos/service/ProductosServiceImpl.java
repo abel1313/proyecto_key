@@ -150,7 +150,7 @@ public class ProductosServiceImpl extends
     private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-        img.setUrlImagen(endpointImagenes + "/mis-productos/producto-imagen/buscarImagenProducto/" + p.getId());
+        img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
 
 
         if (isAdmin) {
@@ -240,7 +240,7 @@ public class ProductosServiceImpl extends
 
     @Transactional
     @Override
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache", "detalleImagen"}, allEntries = true)
     public void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado {
         log.info("Buscar producto con el ID {}",id);
         Optional<Producto> existeProducto = iProductosRepository.findById(id);
@@ -306,6 +306,7 @@ public class ProductosServiceImpl extends
 
 
     @Override
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache", "detalleImagen", "detalle"}, allEntries = true)
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         return guardarProducto(productoDetalle);
@@ -592,7 +593,7 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "detalleImagen", "detalle"}, allEntries = true)
     @Transactional
     public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
         Producto producto = iProductosRepository.findById(id)
