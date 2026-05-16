@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen, Integer> {
@@ -22,7 +23,8 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
                         VI.imagen.id,
                         VI.imagen.base64,
                         VI.imagen.extension,
-                        VI.imagen.nombreImagen
+                        VI.imagen.nombreImagen,
+                        VI.principal
                         )
             FROM VarianteImagen VI
                 WHERE VI.variante.id = :varianteId
@@ -42,8 +44,14 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
             @Param("color") String color,
             @Param("excluirId") Integer excluirId);
 
-    @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds ORDER BY vi.id ASC")
+    @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds ORDER BY CASE WHEN vi.principal = true THEN 0 ELSE 1 END ASC, vi.id ASC")
     List<VarianteImagen> findByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);
+
+    @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id = :varianteId")
+    List<VarianteImagen> findAllByVarianteId(@Param("varianteId") Integer varianteId);
+
+    @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id = :varianteId AND vi.imagen.id = :imagenId")
+    Optional<VarianteImagen> findByVarianteIdAndImagenId(@Param("varianteId") Integer varianteId, @Param("imagenId") Long imagenId);
 
     @Query("SELECT vi.imagen.id FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds")
     List<Long> findImagenIdsByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);

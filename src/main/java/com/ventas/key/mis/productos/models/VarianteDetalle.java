@@ -25,4 +25,5 @@ public class VarianteDetalle {
     private String marca;
     private String contenidoNeto;
     private List<ImagenDTO> listImagenes = new ArrayList<>();
+    private Long imagenPrincipalId;
 }

@@ -257,8 +257,24 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             var img = vi.getImagen();
             ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
             dto.setUrlImagen(endpointImagenes + "imagenes/" + img.getId());
+            dto.setPrincipal(vi.getPrincipal());
             return dto;
         }).toList();
+    }
+
+    @Transactional
+    public void marcarImagenPrincipalVariante(Integer varianteImagenId) {
+        VarianteImagen target = iVarianteImagenRepository.findById(varianteImagenId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Relación variante-imagen no encontrada: " + varianteImagenId));
+        aplicarPrincipalVariante(target.getVariante().getId(), target.getImagen().getId());
+        evictAllCaches();
+    }
+
+    private void aplicarPrincipalVariante(Integer varianteId, Long imagenId) {
+        iVarianteImagenRepository.findAllByVarianteId(varianteId).forEach(vi -> {
+            vi.setPrincipal(vi.getImagen().getId().equals(imagenId));
+            iVarianteImagenRepository.save(vi);
+        });
     }
 
     @Transactional
@@ -277,6 +293,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
             if (!imageIds.isEmpty()) {
                 vincularImagenes(saved, imageIds);
+            }
+
+            if (detalle.getImagenPrincipalId() != null) {
+                aplicarPrincipalVariante(saved.getId(), detalle.getImagenPrincipalId());
             }
         }
         evictAllCaches();

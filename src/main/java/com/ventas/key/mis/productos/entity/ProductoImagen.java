@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -26,4 +27,7 @@ public class ProductoImagen extends BaseId{
     @ManyToOne
     @JoinColumn(name = "imagen_id")
     private Imagen imagen;
+
+    @Column(name = "principal")
+    private Boolean principal;
 }
