@@ -444,22 +444,35 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private List<VarianteResumenDto> buildResumenDtosBatch(List<Variantes> variantes) {
         if (variantes.isEmpty()) return List.of();
 
-        // 1. Una sola query DB para todas las imágenes de todas las variantes
         List<Integer> varianteIds = variantes.stream().map(Variantes::getId).toList();
         List<VarianteImagen> todasImagenes = iVarianteImagenRepository.findByVarianteIdIn(varianteIds);
 
-        // primera imagen por variante
-        Map<Integer, Long> varianteToImagenId = new HashMap<>();
+        // Agrupar todos los IDs de imagen por variante (orden ASC ya viene de la query)
+        Map<Integer, List<Long>> varianteToImagenIds = new LinkedHashMap<>();
         for (VarianteImagen vi : todasImagenes) {
-            varianteToImagenId.putIfAbsent(vi.getVariante().getId(), vi.getImagen().getId());
+            varianteToImagenIds.computeIfAbsent(vi.getVariante().getId(), k -> new ArrayList<>())
+                               .add(vi.getImagen().getId());
         }
 
-        // 2. Construir DTOs con solo la URL — el frontend carga la imagen directamente
+        // Una sola llamada a micro_imagenes para saber cuáles IDs existen en disco
+        List<Long> todosIds = varianteToImagenIds.values().stream().flatMap(List::stream).toList();
+        Set<Long> idsValidos = new HashSet<>();
+        if (!todosIds.isEmpty()) {
+            try {
+                idsValidos.addAll(imageneClienteDisco.verificarExistentes(todosIds));
+            } catch (Exception e) {
+                log.warn("[buildResumenDtosBatch] Error verificando imágenes: {}", e.getMessage());
+            }
+        }
+
+        final Set<Long> finalIdsValidos = idsValidos;
         return variantes.stream().map(v -> {
             VarianteResumenDto dto = buildBaseResumenDto(v);
-            Long imagenId = varianteToImagenId.get(v.getId());
-            if (imagenId != null) {
-                dto.setImagenUrl(endpointImagenes + "/imagenes?ids=" + imagenId);
+            List<Long> ids = varianteToImagenIds.get(v.getId());
+            if (ids != null) {
+                ids.stream().filter(finalIdsValidos::contains).findFirst().ifPresent(imagenId ->
+                    dto.setImagenUrl(endpointImagenes + "/imagenes/" + imagenId)
+                );
             }
             return dto;
         }).toList();
