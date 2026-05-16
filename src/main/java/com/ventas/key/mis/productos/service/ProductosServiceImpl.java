@@ -370,6 +370,10 @@ public class ProductosServiceImpl extends
                     log.info("Se guardaron {} imagenes para el producto nuevo {}", lstImg.size(), savedProducto.getId());
                 }
 
+                if (productoDetalle.getImagenPrincipalId() != null) {
+                    aplicarPrincipalProducto(savedProducto.getId(), productoDetalle.getImagenPrincipalId());
+                }
+
                 return savedProducto;
             }
 
@@ -421,6 +425,11 @@ public class ProductosServiceImpl extends
 
                 Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
                 log.info("Producto actualizado: {}", prd);
+
+                if (productoDetalle.getImagenPrincipalId() != null) {
+                    aplicarPrincipalProducto(prd.getId(), productoDetalle.getImagenPrincipalId());
+                }
+
                 return prd;
             } else {
                 Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
@@ -546,6 +555,13 @@ public class ProductosServiceImpl extends
             newCodigoBarra = this.iBarrasService.save(codigoBarra);
         }
         return newCodigoBarra;
+    }
+
+    private void aplicarPrincipalProducto(Integer productoId, Long imagenId) {
+        iProductoImagenRepository.findAllByProductoId(productoId).forEach(pi -> {
+            pi.setPrincipal(pi.getImagen().getId().equals(imagenId));
+            iProductoImagenRepository.save(pi);
+        });
     }
 
     private Producto llenarProductoDTO(ProductoDetalle productoDetalle) {

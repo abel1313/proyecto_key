@@ -116,6 +116,13 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.diagnosticarImagenesVariante(varianteId)));
     }
 
+    @PutMapping("/imagenes/{varianteImagenId}/principal")
+    public ResponseEntity<ResponseGeneric<String>> marcarImagenPrincipal(@PathVariable Integer varianteImagenId) {
+        log.info("Marcar imagen principal varianteImagenId={}", varianteImagenId);
+        sGenerico.marcarImagenPrincipalVariante(varianteImagenId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imagen marcada como principal correctamente"));
+    }
+
     @PostMapping("/inicializarDesdeProducto")
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {

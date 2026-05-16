@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface IProductoImagenRepository extends BaseRepository<ProductoImagen,Integer>{
 
@@ -32,13 +33,19 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
                         PI.imagen.id,
                         PI.imagen.base64,
                         PI.imagen.extension,
-                        PI.imagen.nombreImagen
+                        PI.imagen.nombreImagen,
+                        PI.principal
                         )
             FROM ProductoImagen PI
                 WHERE PI.producto.id = :productoId
             """
     )
     List<ImagenUpdateDto>getImagenByProductoId(Integer productoId);
+
+    List<ProductoImagen> findAllByProductoId(Integer productoId);
+
+    @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id = :productoId AND pi.imagen.id = :imagenId")
+    Optional<ProductoImagen> findByProductoIdAndImagenId(@Param("productoId") Integer productoId, @Param("imagenId") Long imagenId);
 
     @Modifying
     @Transactional
