@@ -19,7 +19,7 @@ public class MisProductosApplication {
 	public static void main(String[] args) {
 		System.out.println("============================ se eliminaro los logs de variables de entono");
 
-        String encri = Base64.getEncoder().encodeToString(("").getBytes());
+        String encri = Base64.getEncoder().encodeToString(("https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/").getBytes());
 		SpringApplication.run(MisProductosApplication.class, args);
 	}
 }

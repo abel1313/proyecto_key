@@ -13,4 +13,5 @@ public interface ImagenPort {
     ImagenDto getOne(Long id);
     void delete(List<Long> ids);
     void deleteInagenesDisco(List<String> ids);
+    List<Long> verificarExistentes(List<Long> ids);
 }
