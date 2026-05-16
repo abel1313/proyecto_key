@@ -256,7 +256,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return relaciones.stream().map(vi -> {
             var img = vi.getImagen();
             ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
-            dto.setUrlImagen(endpointImagenes + "/imagenes/" + img.getId());
+            dto.setUrlImagen(endpointImagenes + "imagenes/" + img.getId());
             return dto;
         }).toList();
     }
