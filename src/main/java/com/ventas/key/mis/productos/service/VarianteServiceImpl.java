@@ -471,7 +471,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             List<Long> ids = varianteToImagenIds.get(v.getId());
             if (ids != null) {
                 ids.stream().filter(finalIdsValidos::contains).findFirst().ifPresent(imagenId ->
-                    dto.setImagenUrl(endpointImagenes + "/imagenes/" + imagenId)
+                    dto.setImagenUrl(endpointImagenes + "imagenes/" + imagenId)
                 );
             }
             return dto;
