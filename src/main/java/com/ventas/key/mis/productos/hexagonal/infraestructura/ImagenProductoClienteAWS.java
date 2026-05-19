@@ -61,16 +61,16 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
 
+    // [FLUJO 5] Recibe la lista de relaciones imagen-producto y las publica a RabbitMQ
+    // exchange.imagenes → routing key guardar.imagen → queue.guardar.imagenes
+    // Si el micro de imagenes esta caido, el mensaje queda en la cola y se procesa cuando levante
     @Override
     public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
-        // Publica el mensaje a RabbitMQ en vez de llamar HTTP directamente.
-        // Si el micro de imágenes está caído, el mensaje queda en la cola y
-        // se procesa cuando levante. No se pierde la referencia.
         log.info("Publicando {} imagenes a Rabbit cola={}", requestProductoImagen.size(), RabbitMQConfig.QUEUE_GUARDAR);
         rabbitTemplate.convertAndSend(
-                RabbitMQConfig.EXCHANGE_IMAGENES,    // a qué exchange
-                RabbitMQConfig.ROUTING_KEY_GUARDAR,  // con qué routing key
-                requestProductoImagen                // el objeto (se serializa a JSON)
+                RabbitMQConfig.EXCHANGE_IMAGENES,    // exchange que enruta el mensaje
+                RabbitMQConfig.ROUTING_KEY_GUARDAR,  // routing key que lo dirige a queue.guardar.imagenes
+                requestProductoImagen                // serializado a JSON por Jackson2JsonMessageConverter
         );
         return null;
     }

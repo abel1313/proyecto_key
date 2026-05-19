@@ -329,6 +329,7 @@ public class ProductosServiceImpl extends
         return compartirImagenesVarianteDto;
     }
 
+    // [FLUJO 1] INICIO: el controlador llama saveProductoLote() → llega aqui
     @Transactional
     private Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {
@@ -355,6 +356,7 @@ public class ProductosServiceImpl extends
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
+            // [FLUJO 2] PRODUCTO NUEVO: no existe en BD → se crea
             if(prodExistenteNoOpt == null) {
                 CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
                 log.info("se guardo el codigo de barras {}", codBarr);
@@ -363,8 +365,10 @@ public class ProductosServiceImpl extends
                 log.info("Se guardo el producto nuevo {}", savedProducto);
 
                 if (!productoDetalle.getListImagenes().isEmpty()) {
+                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
                     List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> relaciones = mapperRelacionProductoImagen(lstImg, savedProducto);
+                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
                     relacionProductoImagen(relaciones);
                     log.info("Se guardaron {} imagenes para el producto nuevo {}", lstImg.size(), savedProducto.getId());
                 }
@@ -372,11 +376,13 @@ public class ProductosServiceImpl extends
                 return savedProducto;
             }
 
-
+            // [FLUJO 2B] PRODUCTO EXISTENTE: ya existe en BD → se actualiza
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
                 if (!productoDetalle.getListImagenes().isEmpty()){
+                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
                     List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
+                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
                     relacionProductoImagen(mapperRelacionProductoImagen);
 
                     List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
@@ -469,6 +475,9 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
+    // [FLUJO 4] Construye el mensaje con imagenId + productoId y lo publica a RabbitMQ
+    // RIESGO: si Rabbit falla aqui, la imagen queda en imagenes_copy pero sin relacion en producto_imagen_copy
+    // → usar ReconciliacionImagenService para detectar y reparar esos casos
     private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
@@ -505,6 +514,8 @@ public class ProductosServiceImpl extends
             return prdoImg;
         }).toList();
         log.info("Se guardara la relacion de las imagenes con el producto {}",productoImagen);
+        // [FLUJO 5] → va a ImagenProductoClienteAWS.saveAll() → publica a exchange.imagenes con routing key guardar.imagen
+        // RABBIT PUBLICA AQUI → el microservicio de imagenes recibe el mensaje en ImagenRabbitConsumer
         imagenProductoClienteAWS.saveAll(productoImagen);
         log.info("termino de guardar la relacion de los productos {}", 6);
 

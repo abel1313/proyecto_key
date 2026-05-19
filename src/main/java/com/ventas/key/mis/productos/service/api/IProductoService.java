@@ -26,7 +26,7 @@ public interface IProductoService extends ICrud<
     void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado;
 
 
-    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
+    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache","detalleImagen","detalle"}, allEntries = true)
     Producto saveProductoLote(ProductoDetalle productoDetalle);
 
     CompartirImagenesVarianteDto compartirImagenesVarianteDto(CompartirImagenesVarianteDto compartirImagenesVarianteDto);
