@@ -1,4 +1,5 @@
 # Cambios — Rediseño de Ventas, Pedidos y Detalles
+for /f "tokens=5" %a in ('netstat -ano ^| findstr :9091') do taskkill /PID %a /F
 
 ## Archivos modificados
 

@@ -44,7 +44,22 @@ kubectl get secret rabbitmq-secret -n default
 
 Guarda este contenido en el VPS como `rabbitmq-k8s.yml`:
 
+> Los datos de RabbitMQ se guardan en disco en `/var/lib/rabbitmq` dentro del VPS
+> vía un PersistentVolumeClaim de 2Gi. Si el pod se reinicia, las colas y mensajes
+> sobreviven. Cuando migres a Helm, borra el PVC y el Service manualmente antes.
+
 ```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -83,6 +98,13 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: rabbitmq-data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data
 ---
 apiVersion: v1
 kind: Service
@@ -104,6 +126,13 @@ Aplicar en ambos namespaces:
 ```bash
 kubectl apply -f rabbitmq-k8s.yml -n qa
 kubectl apply -f rabbitmq-k8s.yml -n default
+```
+
+Verificar que el PVC quedó en estado `Bound` (disco asignado):
+```bash
+kubectl get pvc rabbitmq-data -n qa
+kubectl get pvc rabbitmq-data -n default
+# Debe mostrar STATUS: Bound
 ```
 
 Verificar que levantó:
