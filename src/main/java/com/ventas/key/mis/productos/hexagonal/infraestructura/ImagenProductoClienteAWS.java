@@ -45,7 +45,8 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
         ExchangeStrategies strategies = ExchangeStrategies.builder()
                 .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
                 .build();
-        this.webClient = builder.baseUrl(endpointImg).exchangeStrategies(strategies).build();
+        String baseUrl = endpointImg.endsWith("/") ? endpointImg : endpointImg + "/";
+        this.webClient = builder.baseUrl(baseUrl).exchangeStrategies(strategies).build();
         log.info(" endpoint imagenes ImagenProductoClienteAWS {}", endpointImg);
     }
 

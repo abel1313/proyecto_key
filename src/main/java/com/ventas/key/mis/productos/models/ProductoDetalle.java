@@ -30,4 +30,5 @@ public class ProductoDetalle {
     private Integer palabraClaveId;
     private CodigoBarraDetalle codigoBarras;
     private List<ImagenDTO> listImagenes;
+    private Long imagenPrincipalId;
 }

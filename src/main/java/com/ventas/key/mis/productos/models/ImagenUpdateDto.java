@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
 public class ImagenUpdateDto extends ImagenDTO{
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
+    private String urlImagen;
+    private Boolean principal;
 
     // usado por JPQL (Imagen.base64 es String en DB)
     public ImagenUpdateDto(Long id,
@@ -22,6 +24,16 @@ public class ImagenUpdateDto extends ImagenDTO{
                            String nombre) {
         super(base64Str != null ? base64Str.getBytes() : null, extension, nombre);
         this.id = id;
+    }
+
+    public ImagenUpdateDto(Long id,
+                           String base64Str,
+                           String extension,
+                           String nombre,
+                           Boolean principal) {
+        super(base64Str != null ? base64Str.getBytes() : null, extension, nombre);
+        this.id = id;
+        this.principal = principal;
     }
 
     public ImagenUpdateDto(Long id,

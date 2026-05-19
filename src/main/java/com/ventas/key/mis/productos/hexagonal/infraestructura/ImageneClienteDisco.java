@@ -101,6 +101,21 @@ public class ImageneClienteDisco implements ImagenPort {
     }
 
     @Override
+    public List<Long> verificarExistentes(List<Long> ids) {
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/imagenes/verificar")
+                        .queryParam("ids", ids.toArray())
+                        .build())
+                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<Long>>() {})
+                .doOnError(e -> log.warn("Error verificando imágenes ids=[{}]: {}", ids, e.getMessage()))
+                .onErrorReturn(List.of())
+                .block();
+    }
+
+    @Override
     public void deleteInagenesDisco(List<String> ids) {
         webClient.delete()
                 .uri(uriBuilder -> uriBuilder

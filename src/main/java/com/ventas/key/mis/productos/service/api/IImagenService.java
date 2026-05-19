@@ -25,6 +25,7 @@ public interface IImagenService extends ICrud<
     void deleteByIds(List<Long> ids);
 
     com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByIdImg(Integer id) throws IOException;
+    com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByImagenId(Long imagenId) throws IOException;
 
 
 

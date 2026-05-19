@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.entity.productoVariantes;
 
 import com.ventas.key.mis.productos.entity.BaseId;
 import com.ventas.key.mis.productos.entity.Imagen;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -24,4 +25,7 @@ public class VarianteImagen extends BaseId {
     @ManyToOne
     @JoinColumn(name = "imagen_id")
     private Imagen imagen;
+
+    @Column(name = "principal")
+    private Boolean principal;
 }

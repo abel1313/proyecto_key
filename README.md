@@ -11,7 +11,7 @@ spring.jpa.show-sql=true
 logging.level.org.hibernate.SQL=DEBUG
 logging.level.org.hibernate.orm.jdbc.bind=TRACE
 
-humo 1
+humo 12
 
 
 
@@ -1291,7 +1291,7 @@ kubectl get all -n qa
 Los workflows de CI/CD usan `-n default` y `-n qa` explícitamente en el script de deploy, por lo que el contexto activo en la VPS **no afecta** los deploys automáticos. Siempre van al namespace correcto independientemente del contexto configurado en la VPS.
  
 
-humo
+humo 1
 
 
 
