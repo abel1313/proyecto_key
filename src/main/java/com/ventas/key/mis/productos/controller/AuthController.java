@@ -6,6 +6,11 @@ import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.RegistroService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 
+@Tag(name = "Autenticacion", description = "Login, logout, registro y renovacion de tokens JWT. El refresh token se guarda en cookie HttpOnly.")
 @RestController
 @RequestMapping("/auth")
 @Slf4j
@@ -46,6 +52,13 @@ public class AuthController {
     private static final String REFRESH_COOKIE = "refreshToken";
     private static final int REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 días en segundos
 
+    @Operation(summary = "Iniciar sesion", description = "Autentica con usuario y contrasena. Devuelve access token JWT en el body y guarda refresh token en cookie HttpOnly. Protegido contra fuerza bruta (5 intentos por IP cada 15 minutos).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Login exitoso; devuelve access token"),
+        @ApiResponse(responseCode = "401", description = "Credenciales invalidas"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos fallidos; esperar 15 minutos"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request,
                                    HttpServletRequest httpRequest,
@@ -78,6 +91,11 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "Renovar access token", description = "Lee el refresh token de la cookie HttpOnly, valida que no este expirado y devuelve nuevo access token.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token renovado correctamente"),
+        @ApiResponse(responseCode = "401", description = "Refresh token ausente, invalido o expirado")
+    })
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) {
         String refreshToken = leerRefreshCookie(request);
@@ -109,12 +127,20 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "Cerrar sesion", description = "Limpia la cookie del refresh token cerrando la sesion del usuario.")
+    @ApiResponse(responseCode = "200", description = "Sesion cerrada correctamente")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletResponse response) {
         limpiarRefreshCookie(response);
         return ResponseEntity.ok("Sesión cerrada");
     }
 
+    @Operation(summary = "Registrar usuario", description = "Crea un nuevo usuario en el sistema. Protegido contra registro masivo por IP (mismo rate limit que login).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Usuario registrado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Datos de registro invalidos"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
+    })
     @PostMapping("/registrar")
     public ResponseEntity<?> registrar(@Valid @RequestBody AuthRequest request,
                                        HttpServletRequest httpRequest) throws Exception {
@@ -127,8 +153,14 @@ public class AuthController {
         return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail()));
     }
 
+    @Operation(summary = "Validar token JWT", description = "Verifica si el access token enviado en el header Authorization es valido y no esta expirado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token valido"),
+        @ApiResponse(responseCode = "401", description = "Token invalido o expirado")
+    })
     @GetMapping("/validar")
-    public ResponseEntity<?> validarToken(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> validarToken(
+            @Parameter(description = "Bearer token JWT", required = true) @RequestHeader("Authorization") String authHeader) {
         try {
             String token = authHeader.replace("Bearer ", "");
             if (jwtUtil.validateToken(token)) {

@@ -3,6 +3,10 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
 import com.ventas.key.mis.productos.chatbot.ChatbotRequest;
 import com.ventas.key.mis.productos.chatbot.ChatbotService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
+@Tag(name = "Chatbot", description = "Asistente virtual de la tienda Novedades Jade con control de abuso por IP")
 @RestController
 @RequestMapping("/chatbot")
 @RequiredArgsConstructor
@@ -22,19 +27,25 @@ public class ChatbotController {
     private final ChatbotService chatbotService;
     private final ChatbotBlockService blockService;
 
-    /**
-     * Respuesta:
-     *   respuesta     (String)  - texto a mostrar al usuario
-     *   bloqueado     (boolean) - true si la IP está bloqueada 6 h
-     *   segundosEspera (long)   - segundos que el frontend debe deshabilitar el input
-     */
+    @Operation(
+        summary = "Enviar mensaje al chatbot",
+        description = "Procesa un mensaje del usuario y devuelve respuesta del asistente. " +
+            "Control de abuso: si la IP esta bloqueada (tras despedidas repetidas) devuelve bloqueado=true y segundosEspera>0. " +
+            "Si la IP esta en cooldown entre mensajes devuelve bloqueado=false y segundosEspera>0. " +
+            "Respuesta incluye: respuesta (String), bloqueado (boolean), segundosEspera (long)."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Respuesta del chatbot; puede incluir indicador de bloqueo"),
+        @ApiResponse(responseCode = "400", description = "Mensaje vacio o invalido"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @PostMapping("/mensaje")
     public ResponseEntity<Map<String, Object>> enviarMensaje(
             @Valid @RequestBody ChatbotRequest request,
             HttpServletRequest httpRequest) {
 
         String ip = obtenerIp(httpRequest);
-        log.info("Chatbot - IP: {}, mensaje: {}", ip, request.getMensaje());
+        log.info("Chatbot - IP: {}, longitud mensaje: {}", ip, request.getMensaje().length());
 
         Map<String, Object> result = new HashMap<>();
 

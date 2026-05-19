@@ -1,5 +1,8 @@
 package com.ventas.key.mis.productos.handleExeption;
 
+import lombok.Getter;
+
+@Getter
 public class ErrorResponse {
 
     private String error;
