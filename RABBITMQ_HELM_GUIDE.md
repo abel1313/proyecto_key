@@ -1,4 +1,4 @@
-# RabbitMQ con Helm en VPS — Guía Completa
+﻿# RabbitMQ con Helm en VPS — Guía Completa
 
 > **¿Para qué sirve este archivo?**
 > Este es el manual maestro para instalar y gestionar RabbitMQ en el VPS usando Helm.
@@ -11,7 +11,7 @@
 
 ```
 VPS con Kubernetes (K8s ya instalado)
-├── Namespace: wa        → entorno QA
+├── Namespace: qa        → entorno QA
 │   ├── frontend         (deployment del front Angular)
 │   ├── micro-imagenes   (microservicio de imágenes)
 │   └── proyecto-key     (este microservicio - mis-productos)
@@ -48,7 +48,7 @@ rabbitmq-rbac.yaml            → roles de seguridad
 Con Helm, todo eso viene empaquetado en lo que se llama un **Chart**, y lo instalas así:
 
 ```bash
-helm install rabbitmq bitnami/rabbitmq --values rabbitmq-values-wa.yaml -n wa
+helm install rabbitmq bitnami/rabbitmq --values rabbitmq-values-qa.yaml -n qa
 ```
 
 **Un solo comando reemplaza todos esos archivos.**
@@ -90,7 +90,7 @@ pero Helm tiene ventajas importantes:
 ```
 VPS
 └── K8s Cluster
-    ├── Namespace: wa (QA)
+    ├── Namespace: qa (QA)
     │   └── Helm Release: rabbitmq
     │       ├── StatefulSet  → Pod con RabbitMQ corriendo
     │       ├── Service      → puerto 5672 (AMQP) accesible dentro del namespace
@@ -121,8 +121,8 @@ Conéctate al VPS por SSH y ejecuta estos comandos para ver qué hay ahora:
 # Ver todos los namespaces que tienes
 kubectl get namespaces
 
-# Ver qué hay corriendo en wa (QA)
-kubectl get all -n wa
+# Ver qué hay corriendo en qa (QA)
+kubectl get all -n qa
 
 # Ver qué hay en default (PROD)
 kubectl get all -n default
@@ -139,11 +139,11 @@ kubectl get pvc -A | grep rabbit
 > Si NO ejecutaste ese manual todavía, salta directamente al PASO 1.
 
 ```bash
-# Borrar en QA (wa)
-kubectl delete deployment rabbitmq -n wa
-kubectl delete service rabbitmq -n wa
-kubectl delete pvc rabbitmq-data -n wa
-kubectl delete secret rabbitmq-secret -n wa
+# Borrar en QA (qa)
+kubectl delete deployment rabbitmq -n qa
+kubectl delete service rabbitmq -n qa
+kubectl delete pvc rabbitmq-data -n qa
+kubectl delete secret rabbitmq-secret -n qa
 
 # Borrar en PROD (default)
 kubectl delete deployment rabbitmq -n default
@@ -154,7 +154,7 @@ kubectl delete secret rabbitmq-secret -n default
 
 Verificar que ya no hay nada de rabbit:
 ```bash
-kubectl get all -n wa | grep rabbit      # debe estar vacío
+kubectl get all -n qa | grep rabbit      # debe estar vacío
 kubectl get all -n default | grep rabbit # debe estar vacío
 ```
 
@@ -206,19 +206,56 @@ helm search repo bitnami/rabbitmq
 ## PASO 3 — Los archivos values.yaml
 
 Aquí es donde configuras exactamente cómo quieres que se instale RabbitMQ.
-Estos archivos son los que Helm usará al momento de instalar.
+Son archivos de texto que le dicen a Helm: cuánta memoria usar, qué contraseña
+poner, cuánto disco reservar, etc. Piénsalos como el `application.yml` de Spring
+pero para Kubernetes.
 
-Crea estos archivos en el VPS (por ejemplo en `/root/helm/` o donde prefieras):
+Vas a crear **dos archivos**: uno para QA y otro para PROD.
 
-### values para QA (namespace: wa)
+---
 
-Guarda este contenido como `rabbitmq-values-wa.yaml`:
+### ⚠️ Importante — dónde crear los archivos en el VPS
+
+Estás conectado como el usuario `ubuntu`, **no como root**. Por eso:
+
+- `/root/helm/` → **NO funciona** (es la carpeta de root, no tienes permiso)
+- `sudo cd /root` → **NO funciona** (`cd` es un comando del shell, `sudo` no puede usarlo)
+
+Usa tu carpeta de usuario, que sí tienes permiso:
+
+```bash
+# Crear la carpeta en tu home (ubuntu)
+mkdir -p ~/helm
+
+# Entrar a esa carpeta
+cd ~/helm
+
+# Verificar que estás en el lugar correcto
+pwd
+# Debe mostrar: /home/ubuntu/helm
+```
+
+> **¿Qué significa `~/helm`?**
+> El símbolo `~` es un atajo que significa "mi carpeta de usuario".
+> Para el usuario `ubuntu` equivale a `/home/ubuntu/helm`.
+> Siempre tienes permiso de escritura ahí sin necesitar `sudo`.
+
+---
+
+### Crear el archivo para QA
+
+**1.** Abre el editor:
+```bash
+nano ~/helm/rabbitmq-values-qa.yaml
+```
+
+**2.** Se abre una pantalla en blanco. Copia y pega exactamente este contenido:
 
 ```yaml
 # ============================================================
-# RabbitMQ — valores para QA (namespace: wa)
+# RabbitMQ — valores para QA (namespace: qa)
 # Usados con: helm install rabbitmq bitnami/rabbitmq \
-#               --values rabbitmq-values-wa.yaml -n wa
+#               --values rabbitmq-values-qa.yaml -n qa
 # ============================================================
 
 # --- CREDENCIALES ---
@@ -271,9 +308,26 @@ metrics:
 extraPlugins: "rabbitmq_management"
 ```
 
-### values para PROD (namespace: default)
+Guarda con `Ctrl+O` → `Enter` → `Ctrl+X`.
 
-Guarda este contenido como `rabbitmq-values-prod.yaml`:
+Verifica que el archivo quedó creado:
+```bash
+cat ~/helm/rabbitmq-values-qa.yaml
+# Debe mostrarte el contenido que pegaste
+```
+
+---
+
+### Crear el archivo para PROD
+
+**1.** Abre el editor:
+```bash
+nano ~/helm/rabbitmq-values-prod.yaml
+```
+
+**2.** Se abre una pantalla en blanco. Copia y pega exactamente este contenido:
+
+### values para PROD (namespace: default)
 
 ```yaml
 # ============================================================
@@ -317,30 +371,58 @@ metrics:
 extraPlugins: "rabbitmq_management"
 ```
 
+Guarda con `Ctrl+O` → `Enter` → `Ctrl+X`.
+
 ---
 
-## PASO 4 — Instalar RabbitMQ en QA (namespace: wa)
-
-Primero sube o crea los archivos values en el VPS, luego ejecuta:
+### Verificar que el PASO 3 quedó completo
 
 ```bash
-# Instalar RabbitMQ en el namespace wa (QA)
+ls -la ~/helm/
+# Debes ver exactamente estos dos archivos:
+# rabbitmq-values-qa.yaml
+# rabbitmq-values-prod.yaml
+```
+
+Si los ves, el PASO 3 está terminado. Continúa al PASO 4.
+
+> **Nota sobre las contraseñas:** la contraseña que pusiste aquí
+> (`RabbitQA#2026` y `RabbitPROD#2026`) deberá ser exactamente la misma
+> que configures en el PASO 6 como variable de entorno `RABBITMQ_PASSWORD`
+> en tus deployments. Si no coinciden, Spring Boot no podrá conectarse a RabbitMQ.
+
+---
+
+## PASO 4 — Instalar RabbitMQ en QA (namespace: qa)
+
+Asegúrate de estar en la carpeta donde creaste los archivos en el PASO 3:
+
+```bash
+cd ~/helm
+ls
+# Debes ver: rabbitmq-values-qa.yaml  rabbitmq-values-prod.yaml
+```
+
+Luego ejecuta:
+
+```bash
+# Instalar RabbitMQ en el namespace qa (QA)
 helm install rabbitmq bitnami/rabbitmq \
-  --values rabbitmq-values-wa.yaml \
-  --namespace wa
+  --values ~/helm/rabbitmq-values-qa.yaml \
+  --namespace qa
 
 # El comando desglosado:
 # helm install         → acción: instalar por primera vez
 # rabbitmq             → nombre que le damos a esta release (cómo la identificamos)
 # bitnami/rabbitmq     → el Chart a usar (repo/nombre-del-chart)
 # --values ...         → el archivo con nuestra configuración
-# --namespace wa       → en qué namespace de K8s instalarlo
+# --namespace qa       → en qué namespace de K8s instalarlo
 ```
 
 Esperar a que levante (tarda entre 30 y 90 segundos):
 ```bash
 # Ver el estado del pod en tiempo real
-kubectl get pods -n wa -w
+kubectl get pods -n qa -w
 # Esperar hasta que aparezca: rabbitmq-0   1/1   Running   0   ...
 
 # Cuando esté Running, presiona Ctrl+C para salir del modo watch
@@ -349,17 +431,17 @@ kubectl get pods -n wa -w
 Verificar que todo está correcto:
 ```bash
 # Ver el pod
-kubectl get pods -n wa | grep rabbitmq
+kubectl get pods -n qa | grep rabbitmq
 
 # Ver el servicio (los puertos disponibles)
-kubectl get services -n wa | grep rabbitmq
+kubectl get services -n qa | grep rabbitmq
 
 # Ver el disco asignado
-kubectl get pvc -n wa | grep rabbitmq
+kubectl get pvc -n qa | grep rabbitmq
 # Debe mostrar STATUS: Bound
 
 # Ver un resumen del estado de la release
-helm status rabbitmq -n wa
+helm status rabbitmq -n qa
 ```
 
 ---
@@ -402,11 +484,11 @@ spring:
 
 Ahora hay que inyectarlas en los deployments de K8s:
 
-### En QA (namespace: wa)
+### En QA (namespace: qa)
 
 Primero, verifica el nombre exacto de tus deployments:
 ```bash
-kubectl get deployments -n wa
+kubectl get deployments -n qa
 # Esto te muestra todos los deployments. Busca el de mis-productos y el de imagenes.
 ```
 
@@ -417,14 +499,14 @@ kubectl set env deployment/proyecto-key-deployment \
   RABBITMQ_HOST=rabbitmq \
   RABBITMQ_USERNAME=admin \
   RABBITMQ_PASSWORD=RabbitQA#2026 \
-  -n wa
+  -n qa
 
 # En micro_imagenes (ajusta el nombre del deployment según lo que viste arriba)
 kubectl set env deployment/<nombre-deployment-imagenes> \
   RABBITMQ_HOST=rabbitmq \
   RABBITMQ_USERNAME=admin \
   RABBITMQ_PASSWORD=RabbitQA#2026 \
-  -n wa
+  -n qa
 ```
 
 ### En PROD (namespace: default)
@@ -454,8 +536,8 @@ Si no lo hacen, fuérzalo:
 
 ```bash
 # QA
-kubectl rollout restart deployment/proyecto-key-deployment -n wa
-kubectl rollout restart deployment/<nombre-deployment-imagenes> -n wa
+kubectl rollout restart deployment/proyecto-key-deployment -n qa
+kubectl rollout restart deployment/<nombre-deployment-imagenes> -n qa
 
 # PROD
 kubectl rollout restart deployment/proyecto-key-deployment -n default
@@ -468,14 +550,14 @@ kubectl rollout restart deployment/<nombre-deployment-imagenes> -n default
 
 ```bash
 # Ver logs de mis-productos buscando la conexión a Rabbit (QA)
-kubectl logs -f deployment/proyecto-key-deployment -n wa | grep -i rabbit
+kubectl logs -f deployment/proyecto-key-deployment -n qa | grep -i rabbit
 
 # Debes ver algo como:
 # Created new connection: rabbitConnectionFactory
 # Rabbit connected to: rabbitmq:5672
 
 # Ver logs de micro_imagenes para confirmar que consume mensajes (QA)
-kubectl logs -f deployment/<nombre-deployment-imagenes> -n wa | grep -i rabbit
+kubectl logs -f deployment/<nombre-deployment-imagenes> -n qa | grep -i rabbit
 ```
 
 Si ves errores de conexión rechazada, verifica que las contraseñas en el values.yaml
@@ -490,7 +572,7 @@ usas `port-forward` que crea un túnel SSH temporal:
 
 ```bash
 # Para QA — ejecuta esto en tu máquina local (no en el VPS)
-kubectl port-forward svc/rabbitmq 15672:15672 -n wa
+kubectl port-forward svc/rabbitmq 15672:15672 -n qa
 
 # Para PROD — ejecuta esto en tu máquina local
 kubectl port-forward svc/rabbitmq 15673:15672 -n default
@@ -514,8 +596,8 @@ K8s resuelve estos nombres automáticamente dentro del mismo namespace.
 | Servicio   | Host en Spring (`application.yml`) | Namespace     |
 |------------|-------------------------------------|---------------|
 | MySQL      | `${DB_HOST}`                        | externo (VPS) |
-| Redis      | `redis`                             | wa / default  |
-| RabbitMQ   | `rabbitmq`                          | wa / default  |
+| Redis      | `redis`                             | qa / default  |
+| RabbitMQ   | `rabbitmq`                          | qa / default  |
 
 ---
 
@@ -528,7 +610,7 @@ K8s resuelve estos nombres automáticamente dentro del mismo namespace.
 helm list -A
 
 # Ver solo en QA
-helm list -n wa
+helm list -n qa
 
 # Ver solo en PROD
 helm list -n default
@@ -537,14 +619,14 @@ helm list -n default
 ### Ver el estado de una release
 
 ```bash
-helm status rabbitmq -n wa
+helm status rabbitmq -n qa
 helm status rabbitmq -n default
 ```
 
 ### Ver historial de cambios de una release
 
 ```bash
-helm history rabbitmq -n wa
+helm history rabbitmq -n qa
 # Muestra cada upgrade, qué valores cambió, si fue exitoso o falló
 ```
 
@@ -554,8 +636,8 @@ Si cambias algo en el `values.yaml` (por ejemplo la contraseña o el tamaño del
 
 ```bash
 helm upgrade rabbitmq bitnami/rabbitmq \
-  --values rabbitmq-values-wa.yaml \
-  --namespace wa
+  --values rabbitmq-values-qa.yaml \
+  --namespace qa
 ```
 
 Helm aplica solo los cambios, no reinstala todo desde cero.
@@ -569,31 +651,31 @@ helm search repo bitnami/rabbitmq --versions | head -5
 # Actualizar a la última versión del Chart
 helm repo update
 helm upgrade rabbitmq bitnami/rabbitmq \
-  --values rabbitmq-values-wa.yaml \
-  --namespace wa
+  --values rabbitmq-values-qa.yaml \
+  --namespace qa
 ```
 
 ### Volver atrás si algo falla (rollback)
 
 ```bash
 # Ver el historial para saber a qué revisión volver
-helm history rabbitmq -n wa
+helm history rabbitmq -n qa
 
 # Volver a la revisión anterior
-helm rollback rabbitmq -n wa
+helm rollback rabbitmq -n qa
 
 # Volver a una revisión específica (por ejemplo la 2)
-helm rollback rabbitmq 2 -n wa
+helm rollback rabbitmq 2 -n qa
 ```
 
 ### Desinstalar RabbitMQ completamente
 
 ```bash
 # Esto borra el pod, el service, el secret, pero NO borra el PVC (el disco con datos)
-helm uninstall rabbitmq -n wa
+helm uninstall rabbitmq -n qa
 
 # Si también quieres borrar el disco con todos los mensajes:
-kubectl delete pvc data-rabbitmq-0 -n wa
+kubectl delete pvc data-rabbitmq-0 -n qa
 ```
 
 ---
@@ -604,7 +686,7 @@ Una vez que domines el flujo de Helm, puedes hacer lo mismo con cualquier otra a
 
 ```bash
 # Redis (si lo mueves de kubectl a Helm)
-helm install redis bitnami/redis --values redis-values.yaml -n wa
+helm install redis bitnami/redis --values redis-values.yaml -n qa
 
 # Nginx Ingress (para exponer tus servicios con dominio y HTTPS)
 helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
@@ -626,7 +708,7 @@ helm create proyecto-key-chart
 ### El pod de RabbitMQ queda en estado Pending
 
 ```bash
-kubectl describe pod rabbitmq-0 -n wa
+kubectl describe pod rabbitmq-0 -n qa
 # Busca en la sección "Events" al final. Causas comunes:
 # - No hay suficiente disco disponible en el VPS (el PVC no puede crearse)
 # - No hay suficiente memoria disponible (baja los limits en values.yaml)
@@ -636,7 +718,7 @@ kubectl describe pod rabbitmq-0 -n wa
 
 ```bash
 # Ver las variables de entorno que tiene el pod de mis-productos
-kubectl exec deployment/proyecto-key-deployment -n wa -- env | grep RABBIT
+kubectl exec deployment/proyecto-key-deployment -n qa -- env | grep RABBIT
 # Verifica que RABBITMQ_USERNAME y RABBITMQ_PASSWORD coincidan con los values.yaml
 ```
 
@@ -646,13 +728,13 @@ Las colas se crean cuando la primera app se conecta a RabbitMQ.
 Si el panel muestra `Connections: 0`, tus apps no se han conectado todavía.
 Revisa los logs:
 ```bash
-kubectl logs deployment/proyecto-key-deployment -n wa | tail -50
+kubectl logs deployment/proyecto-key-deployment -n qa | tail -50
 ```
 
 ### Ver todos los secretos que Helm creó
 
 ```bash
-kubectl get secrets -n wa | grep rabbit
+kubectl get secrets -n qa | grep rabbit
 # bitnami/rabbitmq crea automáticamente un Secret con las credenciales
 # No necesitas crear el Secret manualmente como en el setup anterior con kubectl
 ```
