@@ -5,7 +5,9 @@ import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioConfigDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioEstadoDto;
 import com.ventas.key.mis.productos.entity.ConfiguracionNegocio;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.repository.IConfiguracionNegocioRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -111,7 +114,20 @@ public class NegocioService {
     }
 
     private ConfiguracionNegocio obtenerConfig() {
-        return repo.findById(CONFIG_ID)
-                .orElseThrow(() -> new RuntimeException("Configuración del negocio no encontrada. Ejecuta el DML inicial."));
+        List<ConfiguracionNegocio> configs = repo.findAll();
+        if (configs.isEmpty()) {
+            return repo.save(new ConfiguracionNegocio());
+        }
+        ConfiguracionNegocio horaNegocio =  configs.stream().findFirst().get();
+        List<Integer> ids = configs.stream()
+                .map(ConfiguracionNegocio::getId)
+                .filter(id -> !id.equals(horaNegocio.getId()))
+                .toList();
+        if (!ids.isEmpty()) {
+            repo.deleteAllById(ids);
+        }
+        return repo.findById(horaNegocio.getId())
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontro el configuracio"));
+
     }
 }
