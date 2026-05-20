@@ -260,10 +260,15 @@ nano ~/helm/rabbitmq-values-qa.yaml
 
 # --- CREDENCIALES ---
 # Son los datos para entrar al panel web y para que tus apps se conecten.
-# RABBITMQ_USERNAME y RABBITMQ_PASSWORD en K8s deben coincidir con estos valores.
+# SPRING_RABBITMQ_USERNAME y SPRING_RABBITMQ_PASSWORD en K8s deben coincidir con estos valores.
+# --- IMAGEN ---
+# Fija la versión de la imagen para evitar que Helm use un tag que no existe en Docker Hub.
+image:
+  tag: 3.13.7-debian-12-r4
+
 auth:
   username: admin
-  password: "RabbitQA#2026"      # Cambia esto por una contraseña segura
+  password: "RabbitQALuvianos#2026"      # Cambia esto por una contraseña segura
   erlangCookie: "erlang-cookie-qa-secreto-2026"
   # erlangCookie: necesario si en el futuro escalaras a múltiples nodos de Rabbit.
   # Debe ser una cadena aleatoria y mantenerse igual entre upgrades.
@@ -336,6 +341,11 @@ nano ~/helm/rabbitmq-values-prod.yaml
 #               --values rabbitmq-values-prod.yaml -n default
 # ============================================================
 
+# --- IMAGEN ---
+# Fija la versión de la imagen para evitar que Helm use un tag que no existe en Docker Hub.
+image:
+  tag: 3.13.7-debian-12-r4
+
 # --- CREDENCIALES ---
 auth:
   username: admin
@@ -388,82 +398,196 @@ Si los ves, el PASO 3 está terminado. Continúa al PASO 4.
 
 > **Nota sobre las contraseñas:** la contraseña que pusiste aquí
 > (`RabbitQA#2026` y `RabbitPROD#2026`) deberá ser exactamente la misma
-> que configures en el PASO 6 como variable de entorno `RABBITMQ_PASSWORD`
+> que configures en el PASO 6 como variable de entorno `SPRING_RABBITMQ_PASSWORD`
 > en tus deployments. Si no coinciden, Spring Boot no podrá conectarse a RabbitMQ.
 
 ---
 
 ## PASO 4 — Instalar RabbitMQ en QA (namespace: qa)
 
-Asegúrate de estar en la carpeta donde creaste los archivos en el PASO 3:
+> **Nota:** Bitnami dejó de ofrecer sus imágenes Docker de forma gratuita desde agosto 2025.
+> Por eso usamos la imagen oficial de RabbitMQ (`rabbitmq:3.13-management`) directamente con kubectl.
+
+**1.** Crea el archivo en el VPS copiando y pegando este bloque completo en la terminal:
 
 ```bash
-cd ~/helm
-ls
-# Debes ver: rabbitmq-values-qa.yaml  rabbitmq-values-prod.yaml
+cat > ~/helm/rabbitmq-manifest-qa.yaml << 'EOF'
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: qa
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.13-management
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "admin"
+        - name: RABBITMQ_DEFAULT_PASS
+          value: "RabbitQALuvianos#2026"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: qa
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+  - name: amqp
+    port: 5672
+    targetPort: 5672
+  - name: management
+    port: 15672
+    targetPort: 15672
+EOF
 ```
 
-Luego ejecuta:
+**2.** Aplica el manifest:
 
 ```bash
-# Instalar RabbitMQ en el namespace qa (QA)
-helm install rabbitmq bitnami/rabbitmq \
-  --values ~/helm/rabbitmq-values-qa.yaml \
-  --namespace qa
-
-# El comando desglosado:
-# helm install         → acción: instalar por primera vez
-# rabbitmq             → nombre que le damos a esta release (cómo la identificamos)
-# bitnami/rabbitmq     → el Chart a usar (repo/nombre-del-chart)
-# --values ...         → el archivo con nuestra configuración
-# --namespace qa       → en qué namespace de K8s instalarlo
+kubectl apply -f ~/helm/rabbitmq-manifest-qa.yaml
 ```
 
-Esperar a que levante (tarda entre 30 y 90 segundos):
+**3.** Espera a que levante:
+
 ```bash
-# Ver el estado del pod en tiempo real
 kubectl get pods -n qa -w
-# Esperar hasta que aparezca: rabbitmq-0   1/1   Running   0   ...
-
-# Cuando esté Running, presiona Ctrl+C para salir del modo watch
+# Esperar hasta: rabbitmq-0   1/1   Running   0   ...
+# Ctrl+C para salir
 ```
 
-Verificar que todo está correcto:
+**4.** Verifica:
+
 ```bash
-# Ver el pod
 kubectl get pods -n qa | grep rabbitmq
-
-# Ver el servicio (los puertos disponibles)
 kubectl get services -n qa | grep rabbitmq
-
-# Ver el disco asignado
 kubectl get pvc -n qa | grep rabbitmq
-# Debe mostrar STATUS: Bound
-
-# Ver un resumen del estado de la release
-helm status rabbitmq -n qa
+# STATUS debe ser: Bound
 ```
 
 ---
 
 ## PASO 5 — Instalar RabbitMQ en PROD (namespace: default)
 
-```bash
-# Instalar en PROD
-helm install rabbitmq bitnami/rabbitmq \
-  --values rabbitmq-values-prod.yaml \
-  --namespace default
+**1.** Crea el archivo en el VPS:
 
-# Verificar
-kubectl get pods -n default -w
-# Esperar hasta: rabbitmq-0   1/1   Running
+```bash
+cat > ~/helm/rabbitmq-manifest-prod.yaml << 'EOF'
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: default
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.13-management
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "admin"
+        - name: RABBITMQ_DEFAULT_PASS
+          value: "RabbitPROD#2026"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+  - name: amqp
+    port: 5672
+    targetPort: 5672
+  - name: management
+    port: 15672
+    targetPort: 15672
+EOF
 ```
 
+**2.** Aplica y verifica:
+
 ```bash
+kubectl apply -f ~/helm/rabbitmq-manifest-prod.yaml
+
+kubectl get pods -n default -w
+# Esperar hasta: rabbitmq-0   1/1   Running
+
 kubectl get pods -n default | grep rabbitmq
 kubectl get services -n default | grep rabbitmq
 kubectl get pvc -n default | grep rabbitmq
-helm status rabbitmq -n default
 ```
 
 ---
@@ -476,11 +600,15 @@ El `application.yml` del perfil prod ya las tiene configuradas así:
 ```yaml
 spring:
   rabbitmq:
-    host: ${RABBITMQ_HOST:rabbitmq}    # si no hay variable de entorno, usa "rabbitmq" por defecto
+    host: rabbitmq     # sobreescrito por SPRING_RABBITMQ_HOST en K8s
     port: 5672
-    username: ${RABBITMQ_USERNAME}
-    password: ${RABBITMQ_PASSWORD}
+    username: admin    # sobreescrito por SPRING_RABBITMQ_USERNAME en K8s
+    password: changeme # sobreescrito por SPRING_RABBITMQ_PASSWORD en K8s
 ```
+
+> Spring Boot mapea automáticamente las variables de entorno `SPRING_RABBITMQ_*`
+> a `spring.rabbitmq.*`. No hace falta usar `${RABBITMQ_HOST}` en el yml;
+> basta con setear las variables con el prefijo `SPRING_`.
 
 Ahora hay que inyectarlas en los deployments de K8s:
 
@@ -495,18 +623,20 @@ kubectl get deployments -n qa
 Inyectar las variables:
 ```bash
 # En el microservicio mis-productos (proyecto-key)
-kubectl set env deployment/proyecto-key-deployment \
-  RABBITMQ_HOST=rabbitmq \
-  RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitQA#2026 \
-  -n qa
+kubectl set env deployment/proyecto-key-deployment -n qa \
+  SPRING_RABBITMQ_HOST=rabbitmq \
+  SPRING_RABBITMQ_PORT=5672 \
+  SPRING_RABBITMQ_USERNAME=admin \
+  SPRING_RABBITMQ_PASSWORD=RabbitQALuvianos#2026 \
+  SPRING_RABBITMQ_VIRTUAL_HOST=/
 
 # En micro_imagenes (ajusta el nombre del deployment según lo que viste arriba)
-kubectl set env deployment/<nombre-deployment-imagenes> \
-  RABBITMQ_HOST=rabbitmq \
-  RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitQA#2026 \
-  -n qa
+kubectl set env deployment/imagenes-deployment -n qa \
+  SPRING_RABBITMQ_HOST=rabbitmq \
+  SPRING_RABBITMQ_PORT=5672 \
+  SPRING_RABBITMQ_USERNAME=admin \
+  SPRING_RABBITMQ_PASSWORD=RabbitQALuvianos#2026 \
+  SPRING_RABBITMQ_VIRTUAL_HOST=/
 ```
 
 ### En PROD (namespace: default)
@@ -514,17 +644,19 @@ kubectl set env deployment/<nombre-deployment-imagenes> \
 ```bash
 kubectl get deployments -n default
 
-kubectl set env deployment/proyecto-key-deployment \
-  RABBITMQ_HOST=rabbitmq \
-  RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPROD#2026 \
-  -n default
+kubectl set env deployment/proyecto-key-deployment -n default \
+  SPRING_RABBITMQ_HOST=rabbitmq \
+  SPRING_RABBITMQ_PORT=5672 \
+  SPRING_RABBITMQ_USERNAME=admin \
+  SPRING_RABBITMQ_PASSWORD=RabbitPROD#2026 \
+  SPRING_RABBITMQ_VIRTUAL_HOST=/
 
-kubectl set env deployment/<nombre-deployment-imagenes> \
-  RABBITMQ_HOST=rabbitmq \
-  RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPROD#2026 \
-  -n default
+kubectl set env deployment/<nombre-deployment-imagenes> -n default \
+  SPRING_RABBITMQ_HOST=rabbitmq \
+  SPRING_RABBITMQ_PORT=5672 \
+  SPRING_RABBITMQ_USERNAME=admin \
+  SPRING_RABBITMQ_PASSWORD=RabbitPROD#2026 \
+  SPRING_RABBITMQ_VIRTUAL_HOST=/
 ```
 
 ---
@@ -537,7 +669,7 @@ Si no lo hacen, fuérzalo:
 ```bash
 # QA
 kubectl rollout restart deployment/proyecto-key-deployment -n qa
-kubectl rollout restart deployment/<nombre-deployment-imagenes> -n qa
+kubectl rollout restart deployment/imagenes-deployment -n qa
 
 # PROD
 kubectl rollout restart deployment/proyecto-key-deployment -n default
@@ -548,20 +680,60 @@ kubectl rollout restart deployment/<nombre-deployment-imagenes> -n default
 
 ## PASO 8 — Verificar que la conexión funciona
 
+### Si RabbitMQ arrancó después que los microservicios
+
+Spring Boot intenta conectarse a Rabbit al iniciar. Si Rabbit no estaba listo en ese momento,
+el microservicio queda sin conexión aunque Rabbit levante después. Solución: reiniciar los pods:
+
 ```bash
-# Ver logs de mis-productos buscando la conexión a Rabbit (QA)
-kubectl logs -f deployment/proyecto-key-deployment -n qa | grep -i rabbit
+kubectl rollout restart deployment/proyecto-key-deployment -n qa
+kubectl rollout restart deployment/imagenes-deployment -n qa
 
-# Debes ver algo como:
-# Created new connection: rabbitConnectionFactory
-# Rabbit connected to: rabbitmq:5672
-
-# Ver logs de micro_imagenes para confirmar que consume mensajes (QA)
-kubectl logs -f deployment/<nombre-deployment-imagenes> -n qa | grep -i rabbit
+# Espera a que estén Running de nuevo
+kubectl get pods -n qa -w
 ```
 
-Si ves errores de conexión rechazada, verifica que las contraseñas en el values.yaml
-y en el `kubectl set env` sean exactamente iguales.
+### Revisar si la conexión se estableció
+
+Busca en el historial de logs (sin `-f`, termina solo):
+
+```bash
+kubectl logs deployment/proyecto-key-deployment -n qa | grep -i rabbit
+```
+
+Debes ver algo como:
+```
+Created new connection: rabbitConnectionFactory
+```
+
+Si no aparece nada, amplía la búsqueda:
+```bash
+kubectl logs deployment/proyecto-key-deployment -n qa | grep -i "amqp\|rabbit\|5672"
+```
+
+> **Nota sobre el `-f`:** `kubectl logs -f ... | grep` se queda "congelado" si no hay actividad
+> nueva relacionada con rabbit. Es normal. Usa los comandos de arriba (sin `-f`) para
+> buscar en el historial.
+
+### Verificar las variables de entorno del pod
+
+Si no hay conexión y no hay errores, confirma que las variables llegaron al pod:
+
+```bash
+kubectl exec deployment/proyecto-key-deployment -n qa -- env | grep -i rabbit
+# Deben aparecer SPRING_RABBITMQ_HOST, SPRING_RABBITMQ_USERNAME, etc.
+```
+
+Si no aparecen las variables con el prefijo `SPRING_`, ejecuta de nuevo el PASO 6.
+
+### Ver logs de micro_imagenes
+
+```bash
+kubectl logs deployment/imagenes-deployment -n qa | grep -i rabbit
+```
+
+Si ves errores de autenticación, verifica que la contraseña en `SPRING_RABBITMQ_PASSWORD`
+sea exactamente igual a la que configuraste en el manifest de RabbitMQ.
 
 ---
 
@@ -719,7 +891,7 @@ kubectl describe pod rabbitmq-0 -n qa
 ```bash
 # Ver las variables de entorno que tiene el pod de mis-productos
 kubectl exec deployment/proyecto-key-deployment -n qa -- env | grep RABBIT
-# Verifica que RABBITMQ_USERNAME y RABBITMQ_PASSWORD coincidan con los values.yaml
+# Verifica que SPRING_RABBITMQ_USERNAME y SPRING_RABBITMQ_PASSWORD coincidan con los values.yaml
 ```
 
 ### La cola no aparece en el panel web
@@ -748,4 +920,4 @@ kubectl get secrets -n qa | grep rabbit
 | `RABBIT_LOCAL_MANUAL.md` | Cómo usar RabbitMQ en desarrollo local con Docker |
 | `RABBIT_VPS_SETUP.md` | Setup anterior con kubectl + YAML (sin Helm, referencia histórica) |
 | `RABBITMQ_HELM_GUIDE.md` | **Este archivo** — guía definitiva con Helm |
-| `src/main/resources/application.yml` | Config de Spring Boot (perfil prod usa `${RABBITMQ_HOST}`, etc.) |
+| `src/main/resources/application.yml` | Config de Spring Boot (las vars `SPRING_RABBITMQ_*` la sobreescriben automáticamente) |

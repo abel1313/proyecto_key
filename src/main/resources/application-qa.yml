@@ -40,8 +40,8 @@ spring:
   rabbitmq:
     host: rabbitmq
     port: 5672
-    username: ${RABBITMQ_USERNAME}
-    password: ${RABBITMQ_PASSWORD}
+    username: ${SPRING_RABBITMQ_USERNAME}
+    password: ${SPRING_RABBITMQ_PASSWORD}
 
 clave-seguridad:
   clave: ${TOKEN_JWT}
