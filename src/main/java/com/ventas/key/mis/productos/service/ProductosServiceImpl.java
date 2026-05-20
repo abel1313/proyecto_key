@@ -200,8 +200,8 @@ public class ProductosServiceImpl extends
 
         // Paso 1: código de barras exacto
         Optional<Producto> porCodigo = isAdmin
-                ? iProductosRepository.findByCodigoBarras_CodigoBarras(nombre)
-                : iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarras(0, '1', nombre);
+                ? iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(nombre)
+                : iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasIgnoreCase(0, '1', nombre);
         if (porCodigo.isPresent()) {
             PginaDto<List<ProductoDTO>> resultado = new PginaDto<>();
             resultado.setPagina(1);
@@ -352,7 +352,7 @@ public class ProductosServiceImpl extends
             if( producto.getCodigoBarras().getCodigoBarras() != null ){
                 log.info("El codigo de barras no es nul {}",producto.getCodigoBarras().getCodigoBarras());
                 prodExistenteNoOpt = this.iProductosRepository
-                        .findByCodigoBarras_CodigoBarras(producto.getCodigoBarras().getCodigoBarras())
+                        .findByCodigoBarras_CodigoBarrasIgnoreCase(producto.getCodigoBarras().getCodigoBarras())
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
