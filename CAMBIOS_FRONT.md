@@ -710,6 +710,57 @@ Content-Type: application/json
 
 ---
 
+## CAMBIOS ADICIONALES EN MICRO_IMAGENES
+
+---
+
+### 16. Listar imágenes de un producto — ahora paginado
+
+**Endpoint:** `GET /producto-imagen/listar/{productoId}` — **micro_imagenes (9096)**
+
+> Este endpoint ya se documentó en el punto 4. Ahora se le agregó paginación.
+
+**Request:**
+```
+GET http://localhost:9096/mis-productos/producto-imagen/listar/265?pagina=1&size=8
+Authorization: Bearer <token>
+```
+
+| Param | Tipo | Obligatorio | Default | Descripción |
+|---|---|---|---|---|
+| `pagina` | Integer | No | `1` | Número de página (empieza en 1) |
+| `size` | Integer | No | `8` | Imágenes por página |
+
+**Response 200:**
+```json
+{
+  "productoId": 265,
+  "listaImagenes": [
+    {
+      "id": 123,
+      "extension": "image/jpeg",
+      "nombreImagen": "foto.jpg",
+      "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/123",
+      "principal": true
+    }
+  ],
+  "pagina": 1,
+  "totalPaginas": 3,
+  "totalImagenes": 20
+}
+```
+
+**Cómo navegar páginas desde el front:**
+```
+Primera página:   GET .../listar/265?pagina=1&size=8
+Segunda página:   GET .../listar/265?pagina=2&size=8
+Última página:    GET .../listar/265?pagina={totalPaginas}&size=8
+```
+
+**Diferencia clave:** antes devolvía todas las imágenes sin límite. Ahora devuelve 8 por página. Usar `totalPaginas` para renderizar los botones de paginación. Si no se mandan params, devuelve la primera página con 8 imágenes.
+
+---
+
 ## GLOSARIO
 
 - **@Deprecated**: el endpoint original, sin tocar, sigue funcionando
