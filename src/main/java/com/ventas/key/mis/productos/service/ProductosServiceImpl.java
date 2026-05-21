@@ -513,12 +513,16 @@ public class ProductosServiceImpl extends
             log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
 
             Integer productoId = productoImagens.get(0).getProducto().getId();
-            List<RequestProductoImagen> relaciones = microImagenes.stream().map(dto -> {
-                RequestProductoImagen r = new RequestProductoImagen();
-                r.setProductoId(productoId);
-                r.setImagenId(dto.getId());
-                return r;
-            }).toList();
+            List<ImagenDto> microList = microImagenes;
+            List<RequestProductoImagen> relaciones = java.util.stream.IntStream
+                    .range(0, microList.size())
+                    .mapToObj(i -> {
+                        RequestProductoImagen r = new RequestProductoImagen();
+                        r.setProductoId(productoId);
+                        r.setImagenId(microList.get(i).getId());
+                        r.setPrincipal(i == 0);
+                        return r;
+                    }).toList();
 
             imagenProductoClienteAWS.saveAll(relaciones);
             log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
