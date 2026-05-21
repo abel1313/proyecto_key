@@ -151,7 +151,7 @@ public class ProductosServiceImpl extends
     private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-        img.setUrlImagen(endpointImagenes + "producto-imagen/buscarImagenProducto/" + p.getId());
+        img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
 
 
         if (isAdmin) {
@@ -298,7 +298,7 @@ public class ProductosServiceImpl extends
                     dto.setIdProducto(p.getId());
                     com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                             new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-                    img.setUrlImagen(endpointImagenes + "producto-imagen/buscarImagenProducto/" + p.getId());
+                    img.setUrlImagen(endpointImagenes + "/producto-imagen/buscarImagenProducto/" + p.getId());
                     dto.setImagen(img);
                     return dto;
                 })
