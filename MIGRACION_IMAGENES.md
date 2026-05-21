@@ -7,9 +7,10 @@
 
 ## ESTADO GENERAL
 
-- [ ] Controllers/Endpoints (14)
+- [ ] Controllers/Endpoints (14) — 2/14 ✓ (ImagenPresentacion: 1/4)
 - [ ] Servicios (5)
-- [ ] Entidades y Repositorios (4 cada uno)
+- [x] Repositorios deprecated en proyecto-key (4/4) ✓
+- [ ] Entidades (4)
 - [ ] DTOs y Modelos (13)
 - [ ] Scheduler (1)
 - [ ] Configuración
@@ -22,19 +23,28 @@
 ### ImageneController.java
 `src/main/java/com/ventas/key/mis/productos/controller/ImageneController.java`
 
-- [ ] `GET /imagen/{id}` — obtiene bytes de imagen en caché
-- [ ] `GET /imagen/{id}/detalle` — obtiene detalle paginado de imagen
-- [ ] `GET /imagen/file/{imagenId}` — obtiene imagen por ID
-- [ ] `GET /imagen/{idProducto}/imagenes` — obtiene imágenes de un producto
-- [ ] `DELETE /imagen/{idImagen}` — elimina imagen por ID
-- [ ] `DELETE /imagen/{productoId}/imagenes` — elimina imágenes específicas de un producto
-- [ ] `DELETE /imagen/producto` — elimina todas las imágenes de varios productos
-- [ ] `GET /imagen/cache/imagen/limpiar` — limpia cache de imágenes
+- [x] `GET /imagen/{id}` — marcado `@Deprecated`, se mantiene funcional
+- [x] `GET /imagen/v2/{productoId}` — NUEVO, delega a `ImagenProductoPort.buscarImagenProducto` en micro_imagenes
+- [x] `GET /imagen/{id}/detalle` — marcado `@Deprecated`, se mantiene funcional
+- [x] `GET /imagen/v2/{productoId}/detalle` — NUEVO, bytes vienen del micro de imágenes
+- [x] `GET /imagen/file/{imagenId}` — marcado `@Deprecated`, se mantiene funcional
+- [x] `GET /imagen/v2/file/{imagenId}` — NUEVO, bytes del micro de imágenes
+- [x] `GET /imagen/{idProducto}/imagenes` — marcado `@Deprecated`, se mantiene funcional
+- [x] `GET /imagen/v2/{idProducto}/imagenes` — NUEVO, URLs apuntan a /imagen/v2/file/
+- [x] `DELETE /imagen/{idImagen}` — marcado `@Deprecated`
+- [x] `DELETE /imagen/v2/{idImagen}` — NUEVO, elimina de BD local + micro de imágenes
+- [x] `DELETE /imagen/{productoId}/imagenes` — marcado `@Deprecated`
+- [x] `DELETE /imagen/v2/{productoId}/imagenes` — NUEVO (misma lógica, ya llamaba al micro)
+- [x] `DELETE /imagen/producto` — marcado `@Deprecated`
+- [x] `DELETE /imagen/v2/producto` — NUEVO (misma lógica, ya llamaba al micro)
+- [x] `GET /imagen/cache/imagen/limpiar` — marcado `@Deprecated`
+- [x] `GET /imagen/v2/cache/limpiar` — NUEVO, evicta también detalle-v2 y buscarImagenIdCache
 
 ### ImagenPresentacionController.java
 `src/main/java/com/ventas/key/mis/productos/controller/ImagenPresentacionController.java`
 
-- [ ] `GET /presentacion/imagenes` — imágenes activas por tipo (LOGIN/REGISTRO)
+- [x] `GET /presentacion/imagenes` — marcado `@Deprecated`, se mantiene funcional
+- [x] `GET /presentacion/v2/imagenes` — NUEVO, retorna `ImagenPresentacionDto` con `urlImagen` calculada + `@Cacheable("presentacion-imagenes")`
 - [ ] `GET /presentacion/imagenes/{id}/imagen` — bytes de imagen de presentación desde disco
 - [ ] `GET /presentacion/imagenes/todas` — todas las imágenes de presentación
 - [ ] `PUT /presentacion/imagenes/{id}` — actualiza imagen y metadatos de presentación
@@ -160,10 +170,10 @@
 
 ## 4. REPOSITORIOS
 
-- [ ] `IImagenRepository.java` — MOVER COMPLETO
-- [ ] `IProductoImagenRepository.java` — MOVER COMPLETO
-- [ ] `IVarianteImagenRepository.java` — MOVER COMPLETO
-- [ ] `IImagenPresentacionRepository.java` — MOVER COMPLETO
+- [x] `IImagenRepository.java` — `@Deprecated` en proyecto-key ✓
+- [x] `IProductoImagenRepository.java` — `@Deprecated` en proyecto-key ✓
+- [x] `IVarianteImagenRepository.java` — `@Deprecated` en proyecto-key ✓
+- [x] `IImagenPresentacionRepository.java` — `@Deprecated` en proyecto-key ✓
 
 ---
 

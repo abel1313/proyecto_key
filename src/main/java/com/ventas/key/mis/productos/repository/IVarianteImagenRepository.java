@@ -13,6 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * @deprecated Migrar a micro_imagenes. Gestiona la relación variante-imagen que debe
+ * vivir en el microservicio de imágenes. No agregar nueva lógica aquí.
+ */
+@Deprecated
 @Repository
 public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen, Integer> {
 

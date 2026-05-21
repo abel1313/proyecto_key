@@ -1,23 +1,21 @@
 package com.ventas.key.mis.productos.controller;
 
-import com.ventas.key.mis.productos.entity.Imagen;
-import com.ventas.key.mis.productos.models.ImagenProductoDto;
+import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
+import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenProductoPort;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.ProductoImagenDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
-import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -30,8 +28,14 @@ public class ImageneController {
 
     private final IImagenService iImagenService;
     private final IProductoImagenService iProductoImagenService;
+    private final ImagenProductoPort imagenProductoPort;
+    private final ImagenPort imagenPort;
 
 
+    /**
+     * @deprecated Migrar a GET /imagen/v2/{productoId} que delega al microservicio de imágenes.
+     */
+    @Deprecated
     @GetMapping("/{id}")
     @Cacheable(value = "imagenes", key = "#id")
     public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) throws Exception {
@@ -41,6 +45,26 @@ public class ImageneController {
                 .contentType(mediaType)
                 .body(imagen.getImagen());
     }
+
+    // TODO: RabbitMQ — la evicción de caché al actualizar/eliminar imagen podría publicarse
+    //   como evento a exchange.imagenes para que todos los nodos invaliden su caché local.
+    @GetMapping("/v2/{productoId}")
+    @Cacheable(value = "imagenes", key = "#productoId")
+    public ResponseEntity<byte[]> getImagenV2(@PathVariable Integer productoId) throws Exception {
+        com.ventas.key.mis.productos.hexagonal.dominio.Imagen imagen = imagenProductoPort.buscarImagenProducto(productoId);
+        if (imagen == null || imagen.getImagen() == null) {
+            log.warn("No se encontró imagen en disco para productoId={}", productoId);
+            return ResponseEntity.noContent().build();
+        }
+        MediaType mediaType = getMediaType(imagen.getContentType());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .body(imagen.getImagen());
+    }
+    /**
+     * @deprecated Migrar a GET /imagen/v2/{productoId}/detalle que obtiene bytes del micro de imágenes.
+     */
+    @Deprecated
     @GetMapping("/{id}/detalle")
     public ResponseEntity<PageableDto> getDetalle(@PathVariable Integer id,
                                                   @RequestParam int size,
@@ -51,6 +75,19 @@ public class ImageneController {
         return ResponseEntity.ok()
                 .body(imagen);
     }
+
+    // RabbitMQ: NO aplica — lectura síncrona paginada. Los bytes se obtienen del micro de imágenes vía HTTP.
+    @GetMapping("/v2/{productoId}/detalle")
+    public ResponseEntity<PageableDto> getDetalleV2(@PathVariable Integer productoId,
+                                                    @RequestParam int size,
+                                                    @RequestParam int page) {
+        PageableDto resultado = iImagenService.findImagenPrincipalPorProductoIdsV2(productoId, page, size);
+        return ResponseEntity.ok(resultado);
+    }
+    /**
+     * @deprecated Migrar a GET /imagen/v2/file/{imagenId} que obtiene bytes del micro de imágenes.
+     */
+    @Deprecated
     @GetMapping("/file/{imagenId}")
     public ResponseEntity<byte[]> getImagenByImagenId(@PathVariable Long imagenId) throws Exception {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen imagen = iImagenService.findByImagenId(imagenId);
@@ -58,18 +95,52 @@ public class ImageneController {
         return ResponseEntity.ok().contentType(mediaType).body(imagen.getImagen());
     }
 
+    // RabbitMQ: NO aplica — lectura síncrona por ID de imagen.
+    @GetMapping("/v2/file/{imagenId}")
+    public ResponseEntity<byte[]> getImagenByImagenIdV2(@PathVariable Long imagenId) {
+        ImagenDto imagenDto = imagenPort.getOne(imagenId);
+        if (imagenDto == null || imagenDto.getImagen() == null) {
+            log.warn("No se encontró imagen en micro para imagenId={}", imagenId);
+            return ResponseEntity.noContent().build();
+        }
+        MediaType mediaType = imagenDto.getContentType() != null
+                ? getMediaType(imagenDto.getContentType())
+                : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok().contentType(mediaType).body(imagenDto.getImagen());
+    }
+
+    /**
+     * @deprecated Migrar a GET /imagen/v2/{idProducto}/imagenes — URLs apuntan a /imagen/v2/file/
+     */
+    @Deprecated
     @GetMapping("/{idProducto}/imagenes")
     public ResponseEntity<ProductoImagenDto> getImagenesPorProductoId(@PathVariable Integer idProducto){
         return ResponseEntity.ok(this.iProductoImagenService.findByImagenesPorIdProducto(idProducto));
     }
 
-    @DeleteMapping("/{idImagen}")
-    public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Long idImagen) throws Exception {
-        ResponseGeneric<String> response = new ResponseGeneric<>("Se elimino correctamente");
-        this.iImagenService.deleteById(idImagen);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    // RabbitMQ: NO aplica — lectura síncrona.
+    @GetMapping("/v2/{idProducto}/imagenes")
+    public ResponseEntity<ProductoImagenDto> getImagenesPorProductoIdV2(@PathVariable Integer idProducto){
+        return ResponseEntity.ok(this.iProductoImagenService.findByImagenesPorIdProductoV2(idProducto));
     }
 
+    /** @deprecated Migrar a DELETE /imagen/v2/{idImagen} que también elimina del micro */
+    @Deprecated
+    @DeleteMapping("/{idImagen}")
+    public ResponseEntity<ResponseGeneric<String>> deleteById(@PathVariable Long idImagen) throws Exception {
+        this.iImagenService.deleteById(idImagen);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ResponseGeneric<>("Se elimino correctamente"));
+    }
+
+    // TODO: RabbitMQ — candidato para publicar evento "imagen.eliminada" en vez de HTTP síncrono al micro
+    @DeleteMapping("/v2/{idImagen}")
+    public ResponseEntity<ResponseGeneric<String>> deleteByIdV2(@PathVariable Long idImagen) {
+        this.iImagenService.deleteByIdV2(idImagen);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ResponseGeneric<>("Se elimino correctamente"));
+    }
+
+    /** @deprecated Migrar a DELETE /imagen/v2/{productoId}/imagenes */
+    @Deprecated
     @DeleteMapping("/{productoId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificas(
             @PathVariable Integer productoId,
@@ -78,8 +149,26 @@ public class ImageneController {
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
+    // RabbitMQ: NO aplica — misma lógica que v1, ya llama al micro internamente
+    @DeleteMapping("/v2/{productoId}/imagenes")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificasV2(
+            @PathVariable Integer productoId,
+            @RequestBody List<Long> imagenIds) {
+        this.iProductoImagenService.eliminarImagenesEspecificas(productoId, imagenIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
+    }
+
+    /** @deprecated Migrar a DELETE /imagen/v2/producto */
+    @Deprecated
     @DeleteMapping("/producto")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeProductos(@RequestBody List<Integer> productoIds) {
+        this.iProductoImagenService.eliminarImagenesDeProductos(productoIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes de producto eliminadas correctamente"));
+    }
+
+    // RabbitMQ: NO aplica — misma lógica que v1, ya llama al micro internamente
+    @DeleteMapping("/v2/producto")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeProductosV2(@RequestBody List<Integer> productoIds) {
         this.iProductoImagenService.eliminarImagenesDeProductos(productoIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes de producto eliminadas correctamente"));
     }
@@ -91,10 +180,18 @@ public class ImageneController {
             default -> MediaType.APPLICATION_OCTET_STREAM;
         };
     }
+    /** @deprecated Migrar a GET /imagen/v2/cache/limpiar */
+    @Deprecated
     @GetMapping("/cache/imagen/limpiar")
     @CacheEvict(value = "imagenes", allEntries = true)
     public void limpiarTodaLaCacheDeImagenes() {
+    }
 
+    // TODO: RabbitMQ — publicar evento a exchange.imagenes para que todos los nodos invaliden su caché local
+    @GetMapping("/v2/cache/limpiar")
+    @CacheEvict(value = {"imagenes", "detalleImagen", "detalle", "detalle-v2", "buscarImagenIdCache"}, allEntries = true)
+    public ResponseEntity<Void> limpiarCacheImagenesV2() {
+        return ResponseEntity.noContent().build();
     }
 
     @CacheEvict(value = "detalleImagen", allEntries = true)

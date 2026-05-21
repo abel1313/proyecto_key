@@ -62,22 +62,18 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
 
-    // [FLUJO 5] Recibe la lista de relaciones imagen-producto y las publica a RabbitMQ
-    // exchange.imagenes → routing key guardar.imagen → queue.guardar.imagenes
-    // Si el broker RabbitMQ está caído lanza AmqpException — se captura para no bloquear el guardado del producto
+    // TODO: RabbitMQ — candidato para migrar a Rabbit cuando el micro tenga @RabbitListener en queue.guardar.imagenes
+    // Por ahora usa HTTP directo porque ambos comparten la misma BD (inventario_key_qa) y el micro escribe en producto_imagen_copy
     @Override
     public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
-        log.info("Publicando {} imagenes a Rabbit cola={}", requestProductoImagen.size(), RabbitMQConfig.QUEUE_GUARDAR);
-        try {
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.EXCHANGE_IMAGENES,    // exchange que enruta el mensaje
-                    RabbitMQConfig.ROUTING_KEY_GUARDAR,  // routing key que lo dirige a queue.guardar.imagenes
-                    requestProductoImagen                // serializado a JSON por Jackson2JsonMessageConverter
-            );
-        } catch (Exception e) {
-            log.error("Error al publicar imagenes en RabbitMQ — el producto se guardo pero las imagenes se procesaran cuando Rabbit este disponible", e);
-        }
-        return null;
+        return webClient.post()
+                .uri("producto-imagen/saveAll")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
+                .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
+                .block();
     }
 
     @Override

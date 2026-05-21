@@ -1,5 +1,30 @@
 
+# Instrucciones de comportamiento
 
+- No pidas confirmación antes de hacer cambios
+- No preguntes si puedes proceder
+- Ejecuta directamente y muestra el resultado
+- Solo pregunta si hay ambigüedad real en el requerimiento
+
+## Regla — documentar migración de endpoints en CAMBIOS_FRONT.md
+
+Cada vez que se migre un endpoint (se cree una versión v2), documentar en `CAMBIOS_FRONT.md`:
+- **Request:** método HTTP + URL completa con contexto (`/mis-productos/...`) + params si aplica
+- **Response:** solo los campos que el front necesita consumir; si el response es grande, recortar al mínimo útil (omitir campos internos, IDs de disco, rutas de servidor). Si es binario (bytes), indicar el Content-Type y que el body son bytes, no JSON.
+- Indicar claramente qué cambia respecto a la versión anterior (diferencia clave)
+- Si hay 204/404/500 posibles, documentarlos con una línea cada uno
+
+## JWT — Configuración y problema conocido resuelto
+
+**Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**
+- Access token: 15 minutos
+- Refresh token: 7 días
+
+**Bug resuelto (frontend):** Al expirar el access token, el interceptor del front hacía el refresh correctamente pero parseaba mal el response. El back devuelve `{ response: { accessToken: '...' } }` (ResponseGeneric) y el interceptor leía `response.accessToken` → guardaba `undefined` → el retry fallaba con "no se puede sacar el nombre del JWT". Fix: leer `response.response.accessToken`.
+
+**Backend no requería cambios.** QA y Docker están correctos: env var `${TOKEN_JWT}` para el secret, `cookie.secure: true`, Redis y Rabbit configurados.
+
+---
 
 Micro servicio que permite compras de bolsas, pantalones faldas de mujer
 1.- controlador AbstractController permite generar un CRUD generico

@@ -20,8 +20,18 @@ public interface IImagenService extends ICrud<
     List<Imagen> saveAll(List<Imagen> list);
     List<ImagenProductoResult> findIdsImagenesProducto(List<Integer> list);
 
+    /** @deprecated usar findImagenPrincipalPorProductoIdsV2 que obtiene bytes del micro de imágenes */
+    @Deprecated
     PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(@Param("productoIds") Integer productoIds, int page, int size);
+
+    PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIdsV2(Integer productoId, int page, int size);
+
+    /** @deprecated usar deleteByIdV2 que también elimina del micro de imágenes */
+    @Deprecated
     void deleteById(Long id);
+
+    void deleteByIdV2(Long id);
+
     void deleteByIds(List<Long> ids);
 
     com.ventas.key.mis.productos.hexagonal.dominio.Imagen findByIdImg(Integer id) throws IOException;

@@ -234,20 +234,71 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoId(idProducto);
     }
 
+    /**
+     * @deprecated Usar getImagenesPorVarianteV2 — no verifica existencia en micro, puede devolver URLs rotas
+     */
+    @Deprecated
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId")
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
         List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
         return buildImagenUpdateDtos(relaciones);
     }
 
+    @Cacheable(value = "variantesImagenesCache", key = "'v2:' + #varianteId")
+    public List<ImagenUpdateDto> getImagenesPorVarianteV2(Integer varianteId) {
+        List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
+        if (relaciones.isEmpty()) return List.of();
+        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
+        Set<Long> existentes;
+        try {
+            existentes = new HashSet<>(imageneClienteDisco.verificarExistentes(ids));
+        } catch (Exception e) {
+            log.warn("Error verificando existencia en micro para varianteId={}: {}", varianteId, e.getMessage());
+            existentes = Set.of();
+        }
+        Set<Long> existentesFinal = existentes;
+        return buildImagenUpdateDtos(relaciones.stream()
+                .filter(vi -> existentesFinal.contains(vi.getImagen().getId()))
+                .toList());
+    }
+
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId + ':' + #pagina + ':' + #size")
     public PginaDto<List<ImagenUpdateDto>> getImagenesPorVariantePaginado(Integer varianteId, int pagina, int size) {
-        Page<VarianteImagen> page = iVarianteImagenRepository.findByVarianteId(varianteId, PageRequest.of(pagina - 1, size));
+        List<VarianteImagen> todas = iVarianteImagenRepository.findByVarianteId(varianteId);
+        if (todas.isEmpty()) {
+            PginaDto<List<ImagenUpdateDto>> vacio = new PginaDto<>();
+            vacio.setPagina(pagina);
+            vacio.setTotalPaginas(0);
+            vacio.setTotalRegistros(0);
+            vacio.setT(List.of());
+            return vacio;
+        }
+
+        List<Long> imagenIds = todas.stream().map(vi -> vi.getImagen().getId()).toList();
+        Set<Long> existentes;
+        try {
+            existentes = new HashSet<>(imageneClienteDisco.verificarExistentes(imagenIds));
+        } catch (Exception e) {
+            log.warn("Error verificando imágenes en micro para varianteId={}: {}", varianteId, e.getMessage());
+            existentes = Set.of();
+        }
+
+        Set<Long> existentesFinal = existentes;
+        List<VarianteImagen> conImagen = todas.stream()
+                .filter(vi -> existentesFinal.contains(vi.getImagen().getId()))
+                .toList();
+
+        List<ImagenUpdateDto> dtos = buildImagenUpdateDtos(conImagen);
+        int fromIndex = (pagina - 1) * size;
+        int toIndex = Math.min(fromIndex + size, dtos.size());
+        List<ImagenUpdateDto> paginado = fromIndex >= dtos.size() ? List.of() : dtos.subList(fromIndex, toIndex);
+        int totalPaginas = size == 0 ? 0 : (int) Math.ceil((double) dtos.size() / size);
+
         PginaDto<List<ImagenUpdateDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
-        resultado.setTotalPaginas(page.getTotalPages());
-        resultado.setTotalRegistros((int) page.getTotalElements());
-        resultado.setT(buildImagenUpdateDtos(page.getContent()));
+        resultado.setTotalPaginas(totalPaginas);
+        resultado.setTotalRegistros(dtos.size());
+        resultado.setT(paginado);
         return resultado;
     }
 
