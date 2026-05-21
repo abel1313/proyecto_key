@@ -486,11 +486,11 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    // [FLUJO 4] Sube archivos al micro de imágenes y guarda la relación producto-imagen en su BD
+    // [FLUJO 4] Sube archivos al micro de imágenes y guarda la relación producto-imagen en su BD.
+    // Si el micro no está disponible se loguea el error pero el producto se guarda igual.
     private void relacionProductoImagen(List<ProductoImagen> productoImagens) throws IOException {
         if (productoImagens.isEmpty()) return;
 
-        // Construye multipart con los bytes de cada imagen (leídos del disco local)
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         for (ProductoImagen p : productoImagens) {
             Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
@@ -504,22 +504,27 @@ public class ProductosServiceImpl extends
                     .header("Content-Disposition", "form-data; name=files; filename=" + nombre);
         }
 
-        // Sube los archivos al micro → el micro los guarda en su disco y en imagenes_copy de su BD
-        // Los IDs que devuelve el micro son los que deben usarse en las relaciones
-        List<ImagenDto> microImagenes = imagenPort.save(builder.build());
-        log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
+        try {
+            List<ImagenDto> microImagenes = imagenPort.save(builder.build());
+            if (microImagenes == null || microImagenes.isEmpty()) {
+                log.warn("El micro de imágenes devolvió lista vacía — imágenes no sincronizadas");
+                return;
+            }
+            log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
 
-        // Guarda las relaciones producto-imagen en el micro usando los IDs del micro (no los UUIDs locales)
-        Integer productoId = productoImagens.get(0).getProducto().getId();
-        List<RequestProductoImagen> relaciones = microImagenes.stream().map(dto -> {
-            RequestProductoImagen r = new RequestProductoImagen();
-            r.setProductoId(productoId);
-            r.setImagenId(dto.getId());
-            return r;
-        }).toList();
+            Integer productoId = productoImagens.get(0).getProducto().getId();
+            List<RequestProductoImagen> relaciones = microImagenes.stream().map(dto -> {
+                RequestProductoImagen r = new RequestProductoImagen();
+                r.setProductoId(productoId);
+                r.setImagenId(dto.getId());
+                return r;
+            }).toList();
 
-        imagenProductoClienteAWS.saveAll(relaciones);
-        log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
+            imagenProductoClienteAWS.saveAll(relaciones);
+            log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
+        } catch (Exception e) {
+            log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
+        }
     }
 
 
