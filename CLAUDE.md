@@ -1,10 +1,11 @@
 
 # Instrucciones de comportamiento
 
-- No pidas confirmación antes de hacer cambios
-- No preguntes si puedes proceder
+- No pidas confirmación antes de hacer cambios en el código
+- No preguntes si puedes proceder con cambios en el código
 - Ejecuta directamente y muestra el resultado
 - Solo pregunta si hay ambigüedad real en el requerimiento
+- **NO hacer git commit ni git push automáticamente** — hacer los cambios en los archivos localmente y esperar a que el usuario diga explícitamente "sube" o "haz commit" para ejecutar git commit y/o push.
 
 ## Flujo Git — cómo hacer los merges
 

@@ -49,6 +49,9 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
 
     List<ProductoImagen> findAllByProductoId(Integer productoId);
 
+    @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id IN :productoIds ORDER BY CASE WHEN pi.principal = true THEN 0 ELSE 1 END ASC, pi.imagen.id ASC")
+    List<ProductoImagen> findPrimeraImagenByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
+
     @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id = :productoId AND pi.imagen.id = :imagenId")
     Optional<ProductoImagen> findByProductoIdAndImagenId(@Param("productoId") Integer productoId, @Param("imagenId") Long imagenId);
 

@@ -1,8 +1,12 @@
 # Cambios de API para Frontend — Migración a micro_imagenes
 
-Cada endpoint que se migra genera una versión `@Deprecated` (la original, sin tocar) y una versión
-`/v2/` nueva que delega al microservicio de imágenes. El front puede seguir usando la versión vieja
-mientras valida la nueva.
+## Regla general
+- **proyecto-key (9091):** solo maneja lógica de negocio (productos, variantes, pedidos, etc.)
+- **micro_imagenes (9096):** todo lo relacionado con archivos de imagen
+
+Los endpoints deprecados en proyecto-key siguen funcionando pero el front debe apuntar a los nuevos.
+Los endpoints que dicen `✅ micro_imagenes (9096)` el front los llama **directamente al micro**.
+Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (mezclan datos de negocio).
 
 ---
 
@@ -10,50 +14,24 @@ mientras valida la nueva.
 
 ---
 
-### 1. Obtener bytes de imagen de un producto
+### 1. Imagen principal de un producto en el listado
 
-#### Version anterior — `GET /imagen/{productoId}` ❌ Deprecated
+> El front **no necesita llamar a ningún endpoint adicional**. El response de `GET /productos/obtenerProductos` ya incluye el campo `urlImagen` que apunta directo a los bytes. El front solo hace `<img [src]="producto.imagen.urlImagen">`.
 
-| | |
-|---|---|
-| **Controlador** | `ImageneController` — `proyecto-key` — método `getImagen()` |
-| **Path param** | `productoId` (Integer) |
-| **Response 200** | `byte[]` con header `Content-Type: image/jpeg \| image/png \| image/gif` |
-| **Response error** | HTTP 500 si la imagen no existe en disco |
-| **RabbitMQ** | No aplica |
-| **Acción front** | Sin cambio — sigue funcionando igual |
-
-**Flujo interno:**
+**`urlImagen` que viene en el listado de productos (a partir de ahora):**
 ```
-Front → proyecto-key ImageneController.getImagen()
-            └─► IImagenService.findByIdImg()
-                      └─► consulta BD local → lee bytes del DISCO LOCAL de proyecto-key
+http://localhost:9096/mis-productos/imagenes/file/{imagenId}
 ```
 
----
-
-#### Version nueva — `GET /imagen/v2/{productoId}` ✅ Usar esta
-
-| | |
-|---|---|
-| **Controlador** | `ImageneController` — `proyecto-key` — método `getImagenV2()` |
-| **Path param** | `productoId` (Integer) — mismo que antes |
-| **Response 200** | `byte[]` con header `Content-Type: image/jpeg \| image/png \| image/gif` |
-| **Response sin imagen** | HTTP 204 No Content (antes daba 500) |
-| **RabbitMQ** | TODO: evicción de caché podría publicarse a `exchange.imagenes` para invalidar caché en todos los nodos |
-| **Acción front** | Cambiar URL de `/imagen/{id}` a `/imagen/v2/{id}` |
-
-**Diferencia clave con la versión anterior:**
-- Los bytes se obtienen del **microservicio de imágenes**, no del disco local de proyecto-key
-- Si no hay imagen: devuelve **204** en vez de explotar con 500
-
-**Flujo interno:**
+**Response al llamar esa URL (micro_imagenes 9096):**
 ```
-Front → proyecto-key ImageneController.getImagenV2()
-            └─► ImagenProductoPort.buscarImagenProducto()
-                      └─► HTTP → microservicio de imágenes
-                                    └─► consulta BD del micro → lee bytes del DISCO DEL MICRO
+Content-Type: image/jpeg   (o image/png, image/gif)
+Body: <bytes binarios>
 ```
+
+**Response 204:** sin body — imagen no encontrada en disco (no explota con 500).
+
+**Cambio respecto a la versión anterior:** antes la `urlImagen` apuntaba a `buscarImagenProducto/{productoId}` que devolvía JSON (no bytes). Ahora apunta directamente a `/imagenes/file/{imagenId}` — se puede usar directo como `src` del `<img>` sin ningún procesamiento.
 
 ---
 
@@ -80,7 +58,9 @@ Front → proyecto-key ImageneController.getDetalle()
 
 ---
 
-#### Version nueva — `GET /imagen/v2/{productoId}/detalle` ✅ Usar esta
+#### Version nueva — `GET /imagen/v2/{productoId}/detalle` ✅ Usar esta — **proyecto-key (9091)** — se queda aquí
+
+> Este endpoint **no puede moverse al micro** porque mezcla datos del producto (nombre, precio, stock) con bytes de imagen.
 
 | | |
 |---|---|
@@ -253,30 +233,27 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 ---
 
-### 6. Eliminar imágenes específicas de un producto
+### 6. Eliminar imágenes específicas de un producto — **proyecto-key (9091)** — se queda aquí
+
+> No puede moverse al micro porque necesita verificar `variante_imagen` que es tabla de proyecto-key.
 
 | | `DELETE /imagen/{productoId}/imagenes` ❌ Deprecated | `DELETE /imagen/v2/{productoId}/imagenes` ✅ Usar esta |
 |---|---|---|
-| **Controlador** | `ImageneController` — `eliminarImagenesEspecificas()` | `ImageneController` — `eliminarImagenesEspecificasV2()` |
-| **Path param** | `productoId` (Integer) | `productoId` (Integer) — mismo |
+| **URL completa** | `http://localhost:9091/mis-productos/imagen/{id}/imagenes` | `http://localhost:9091/mis-productos/imagen/v2/{id}/imagenes` |
 | **Body** | `[imagenId1, imagenId2, ...]` (Long[]) | mismo |
 | **Response** | HTTP 200 `{ message }` | HTTP 200 `{ message }` — mismo |
-| **Diferencia** | Lógica idéntica — ya llamaba al micro internamente | igual |
-| **RabbitMQ** | No aplica | No aplica |
-| **Acción front** | Sin cambio | Cambiar URL a `/imagen/v2/{id}/imagenes` |
 
 ---
 
-### 7. Eliminar todas las imágenes de varios productos
+### 7. Eliminar todas las imágenes de varios productos — **proyecto-key (9091)** — se queda aquí
+
+> Misma razón que el punto 6.
 
 | | `DELETE /imagen/producto` ❌ Deprecated | `DELETE /imagen/v2/producto` ✅ Usar esta |
 |---|---|---|
-| **Controlador** | `ImageneController` — `eliminarImagenesDeProductos()` | `ImageneController` — `eliminarImagenesDeProductosV2()` |
+| **URL completa** | `http://localhost:9091/mis-productos/imagen/producto` | `http://localhost:9091/mis-productos/imagen/v2/producto` |
 | **Body** | `[productoId1, productoId2, ...]` (Integer[]) | mismo |
 | **Response** | HTTP 200 `{ message }` | HTTP 200 `{ message }` — mismo |
-| **Diferencia** | Lógica idéntica — ya llamaba al micro internamente | igual |
-| **RabbitMQ** | No aplica | No aplica |
-| **Acción front** | Sin cambio | Cambiar URL a `/imagen/v2/producto` |
 
 ---
 
@@ -761,6 +738,235 @@ Segunda página:   GET .../listar/265?pagina=2&size=8
 
 ---
 
+### 17. DetalleProductoComponent — imágenes del producto con URL en lugar de bytes
+
+#### Versión anterior — `GET /imagen/{productoId}/detalle` ❌ Deprecated (proyecto-key 9091)
+
+Devolvía bytes embebidos en el response (pesado, lento).
+
+**Request:**
+```
+GET http://localhost:9091/mis-productos/imagen/265/detalle?size=4&page=0
+Authorization: Bearer <token>
+```
+
+**Response 200:**
+```json
+{
+  "list": [
+    {
+      "idProducto": 265,
+      "idImagen": 123,
+      "name": "prod",
+      "price": 1.0,
+      "inventoryStatus": "INSTOCK",
+      "extencion": "jpg",
+      "image": "/9j/4AAQSkZJRgAB..."
+    }
+  ],
+  "totalPaginas": 3
+}
+```
+
+---
+
+#### Versión nueva — `GET /producto-imagen/listar/{productoId}` ✅ Usar esta — **micro_imagenes (9096)**
+
+Devuelve URLs — el front carga cada imagen con `<img [src]="imagen.urlImagen">`.
+
+**Request:**
+```
+GET http://localhost:9096/mis-productos/producto-imagen/listar/265?pagina=1&size=8
+Authorization: Bearer <token>
+```
+
+**Response 200:**
+```json
+{
+  "productoId": 265,
+  "listaImagenes": [
+    {
+      "id": "3855830153700593542",
+      "extension": "image/jpeg",
+      "nombreImagen": "foto.jpg",
+      "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/3855830153700593542",
+      "principal": true
+    },
+    {
+      "id": "7565125362907238017",
+      "extension": "image/jpeg",
+      "nombreImagen": "foto2.jpg",
+      "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/7565125362907238017",
+      "principal": false
+    }
+  ],
+  "pagina": 1,
+  "totalPaginas": 2,
+  "totalImagenes": 10
+}
+```
+
+**Cómo mostrar cada imagen en el front:**
+```html
+<img [src]="imagen.urlImagen" />
+```
+
+**Cómo navegar páginas:**
+```
+GET .../listar/265?pagina=1&size=8   ← primera página
+GET .../listar/265?pagina=2&size=8   ← siguiente página
+```
+
+**Diferencia clave:**
+- Ya no vienen bytes embebidos (`image: "base64..."`) — el front usa `urlImagen` directamente
+- El campo `id` es **string** (no number) — JS no puede representar estos IDs como Number sin perder precisión
+- `principal: true` indica cuál es la imagen principal del producto
+
+---
+
+### 18. DetalleProductoComponent — eliminar imágenes
+
+#### Versión anterior — `DELETE /imagen/{productoId}/imagenes` ❌ Deprecated (proyecto-key 9091)
+
+**Request:**
+```
+DELETE http://localhost:9091/mis-productos/imagen/265/imagenes
+Authorization: Bearer <token>
+Content-Type: application/json
+
+["3855830153700593542", "7565125362907238017"]
+```
+
+**Response 200:**
+```json
+{ "data": "Imágenes eliminadas correctamente" }
+```
+
+---
+
+#### Versión nueva — `DELETE /imagen/v2/{productoId}/imagenes` ✅ Usar esta (proyecto-key 9091)
+
+**Request:**
+```
+DELETE http://localhost:9091/mis-productos/imagen/v2/265/imagenes
+Authorization: Bearer <token>
+Content-Type: application/json
+
+["3855830153700593542", "7565125362907238017"]
+```
+
+**Response 200:**
+```json
+{ "data": "Imágenes eliminadas correctamente" }
+```
+
+**Diferencia clave:** verifica si la imagen es compartida con otras variantes antes de borrarla del disco — si la comparte, solo borra la relación del producto sin borrar el archivo.
+
+> **Nota:** los IDs se mandan como strings (igual que vienen del `listar`).
+
+---
+
+---
+
+## LISTADO DE VARIANTES — `/variantes/buscar`
+
+**Endpoint:** `GET http://localhost:9091/mis-productos/variantes/buscar?termino=&pagina=1&size=10`
+
+**Response 200:**
+```json
+{
+  "data": {
+    "pagina": 1,
+    "totalPaginas": 3,
+    "totalRegistros": 25,
+    "t": [
+      {
+        "id": 5,
+        "talla": "M",
+        "descripcion": "Pantalón slim",
+        "color": "Azul",
+        "presentacion": null,
+        "stock": 10,
+        "marca": "...",
+        "contenidoNeto": null,
+        "imagenBase64": null,
+        "imagenUrl": "http://localhost:9096/mis-productos/imagenes/file/7305237692097776164",
+        "precio": 99.99,
+        "codigoBarras": "...",
+        "nombreProducto": "Jeans Slim"
+      }
+    ]
+  }
+}
+```
+
+**Claves para el front:**
+- La imagen viene en `data.t[i].imagenUrl` — no en `imagenBase64` (siempre `null`)
+- `imagenUrl` es una URL completa a bytes directos: usar `<img [src]="variante.imagenUrl">`
+- Si `imagenUrl` es `null` → la variante no tiene imagen asignada
+- La lista de variantes está en `data.t` (no `data.content`, no `data.items`)
+- Paginación: `data.pagina`, `data.totalPaginas`, `data.totalRegistros`
+- El back selecciona la imagen marcada como principal; si ninguna lo es, usa la primera disponible
+
+---
+
+## RESUMEN POR COMPONENTE
+
+> Referencia rápida para el equipo de front — qué endpoint usa cada componente.
+
+---
+
+### UpdateComponent (editar producto)
+
+| Acción | Método | URL | Body / Params |
+|---|---|---|---|
+| Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
+| Ver bytes de una imagen | GET | `http://localhost:9096/mis-productos/imagenes/file/{imagenId}` | — |
+| Eliminar una imagen | DELETE | `http://localhost:9096/mis-productos/producto-imagen/{imagenId}` | — |
+| Marcar imagen como principal | PUT | `http://localhost:9096/mis-productos/producto-imagen/{id}/principal` | — |
+
+> `imagenId` viene del campo `id` (string) del response de `listar`.
+
+---
+
+### DetalleProductoComponent (detalle y carrusel del producto)
+
+| Acción | Método | URL | Body / Params |
+|---|---|---|---|
+| Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
+| Ver bytes de una imagen | GET | usar `urlImagen` del response de `listar` directamente en `<img [src]>` | — |
+| Eliminar imágenes seleccionadas (batch) | DELETE | `http://localhost:9091/mis-productos/imagen/v2/{productoId}/imagenes` | `["imagenId1", "imagenId2"]` |
+
+---
+
+### LoginFormComponent / AddUsuariosComponent (imágenes de login/registro)
+
+| Acción | Método | URL | Body / Params |
+|---|---|---|---|
+| Listar imágenes por tipo | GET | `http://localhost:9091/mis-productos/presentacion/v2/imagenes?tipo=LOGIN` | — |
+| Ver bytes de una imagen | GET | usar `urlImagen` del response directamente en `<img [src]>` | — |
+
+---
+
+### PresentacionImagenesComponent (admin — imágenes de presentación)
+
+| Acción | Método | URL | Body / Params |
+|---|---|---|---|
+| Listar todas (activas e inactivas) | GET | `http://localhost:9091/mis-productos/presentacion/v2/imagenes/todas` | Bearer token ADMIN |
+| Actualizar imagen/descripción | PUT | `http://localhost:9091/mis-productos/presentacion/v2/imagenes/{id}` | `{ base64, extension, nombreImagen, descripcion, activo }` |
+
+---
+
+### DetalleVarianteComponent / UpdateVarianteComponent (imágenes de variante)
+
+| Acción | Método | URL | Body / Params |
+|---|---|---|---|
+| Listar imágenes de variante | GET | `http://localhost:9091/mis-productos/variantes/v2/imagenes/{varianteId}` | — |
+| Eliminar imágenes específicas | DELETE | `http://localhost:9091/mis-productos/variantes/v2/{varianteId}/imagenes` | `[imagenId1, imagenId2]` |
+| Marcar imagen como principal | PUT | `http://localhost:9091/mis-productos/variantes/imagenes/{imagenId}/principal` | — |
+
+---
+
 ## GLOSARIO
 
 - **@Deprecated**: el endpoint original, sin tocar, sigue funcionando
@@ -768,3 +974,151 @@ Segunda página:   GET .../listar/265?pagina=2&size=8
 - **204 No Content**: no hay imagen disponible, no es un error
 - **RabbitMQ — No aplica**: lectura síncrona, no hay eventos
 - **RabbitMQ — TODO**: hay una oportunidad de usar Rabbit aquí pero aún no está implementado
+
+---
+
+---
+
+## CAMBIOS DE BACKEND — 2026-05-22 — Acciones requeridas en el front
+
+> Estos cambios ya están aplicados en el backend (rama `dev`). El front debe actualizar los componentes indicados.
+
+---
+
+### CAMBIO A — Listado de variantes: `imagenUrl` ahora siempre viene poblada
+
+**Endpoint afectado:** `GET /mis-productos/variantes/buscar?termino=&pagina=1&size=10`
+
+**Qué cambió en el back:**
+Antes el back verificaba contra el microservicio de imágenes si el archivo existía en disco antes de incluir la URL. Si esa verificación fallaba (error de red, micro lento) la `imagenUrl` llegaba `null` aunque la variante tuviera imagen. Ahora el back asigna la URL directamente desde la base de datos, sin verificación extra.
+
+**Comportamiento nuevo:**
+- Si la variante tiene imágenes → `imagenUrl` siempre viene con valor
+- Si la variante NO tiene ninguna imagen asignada → `imagenUrl` es `null`
+- Si el archivo ya no existe en disco → el micro devuelve `204 No Content` al hacer `GET imagenes/file/{id}` (el `<img>` no muestra nada, no explota)
+- La imagen seleccionada es la marcada como **principal**; si ninguna lo es, la de **id más bajo**
+
+**Response (no cambia la estructura, cambia el valor):**
+```json
+{
+  "data": {
+    "pagina": 1,
+    "totalPaginas": 3,
+    "totalRegistros": 25,
+    "t": [
+      {
+        "id": 5,
+        "talla": "M",
+        "descripcion": "Pantalón slim",
+        "color": "Azul",
+        "stock": 10,
+        "marca": "Marca X",
+        "imagenBase64": null,
+        "imagenUrl": "http://localhost:9096/mis-productos/imagenes/file/7305237692097776164",
+        "precio": 99.99,
+        "codigoBarras": "1234567890",
+        "nombreProducto": "Jeans Slim"
+      }
+    ]
+  }
+}
+```
+
+**Acción requerida en el front:**
+```html
+<!-- Antes: el front no mostraba nada porque imagenUrl llegaba null -->
+<!-- Ahora: usar directo como src -->
+<img [src]="variante.imagenUrl" *ngIf="variante.imagenUrl" />
+```
+
+- **No usar** `imagenBase64` — siempre es `null`
+- **No filtrar** por `principal` — el back ya eligió la imagen correcta
+- La lista de variantes está en `response.data.t` (no `data.content` ni `data.items`)
+
+**Componentes que deben actualizarse:**
+- Cualquier componente que liste variantes con imagen (catálogo, búsqueda, etc.)
+
+---
+
+### CAMBIO B — Listado de productos: `urlImagen` ahora apunta directo a los bytes
+
+**Endpoints afectados:**
+- `GET /mis-productos/productos/obtenerProductos?page=1&size=10`
+- `GET /mis-productos/productos/buscarNombreOrCodigoBarra?nombre=...&page=1&size=10`
+
+**Qué cambió en el back:**
+Antes `producto.imagen.urlImagen` apuntaba a `buscarImagenProducto/{productoId}` que devuelve un **JSON** (no bytes). El front tenía que llamar ese endpoint, extraer el `id` del JSON y luego llamar `/imagenes/file/{id}` para obtener los bytes.
+
+Ahora `producto.imagen.urlImagen` apunta directamente a `/imagenes/file/{imagenId}` — **devuelve bytes**, se puede usar directo como `src` del `<img>`.
+
+**Valor anterior de `urlImagen`:**
+```
+http://localhost:9096/mis-productos/producto-imagen/buscarImagenProducto/265
+→ devolvía JSON: { id, imagen (base64), urlImagen (filename), contentType }
+```
+
+**Valor nuevo de `urlImagen`:**
+```
+http://localhost:9096/mis-productos/imagenes/file/7305237692097776164
+→ devuelve bytes directos (Content-Type: image/jpeg)
+```
+
+**Response de `obtenerProductos` (estructura no cambia, cambia el valor de `urlImagen`):**
+```json
+{
+  "data": {
+    "pagina": 1,
+    "totalPaginas": 5,
+    "totalRegistros": 48,
+    "t": [
+      {
+        "idProducto": 265,
+        "nombre": "Great Jeans",
+        "color": "Azul",
+        "precioVenta": 150.0,
+        "descripcion": "...",
+        "codigoBarras": "...",
+        "stock": 10,
+        "imagen": {
+          "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/7305237692097776164"
+        }
+      }
+    ]
+  }
+}
+```
+
+**Acción requerida en el front:**
+```html
+<!-- Antes: llamar buscarImagenProducto, extraer id, luego llamar /imagenes/file/{id} -->
+<!-- Ahora: usar directo -->
+<img [src]="producto.imagen?.urlImagen" *ngIf="producto.imagen?.urlImagen" />
+```
+
+- Si el producto **no tiene imagen asignada** → `imagen.urlImagen` es `null` (o `imagen` puede ser un objeto con `urlImagen: null`)
+- Si el archivo no existe en disco → micro devuelve `204`, el `<img>` no muestra nada
+- **Eliminar** toda lógica que llame `buscarImagenProducto` para obtener la imagen del listado
+
+**Componentes que deben actualizarse:**
+- Componente de listado/catálogo de productos
+- Componente de búsqueda de productos
+- Cualquier componente que use `obtenerProductos` o `buscarNombreOrCodigoBarra` y muestre imagen
+
+---
+
+### Resumen de acciones — tabla rápida
+
+| Componente | Qué cambiar |
+|---|---|
+| Listado/catálogo de variantes | Usar `variante.imagenUrl` directo en `<img [src]>`. No filtrar por principal. |
+| Listado/catálogo de productos | Usar `producto.imagen.urlImagen` directo en `<img [src]>`. Eliminar la llamada intermedia a `buscarImagenProducto`. |
+| Búsqueda de productos (`buscarNombreOrCodigoBarra`) | Igual que listado de productos — misma estructura de response. |
+
+---
+
+### Lo que NO cambia
+
+- Endpoints de detalle de imágenes de variante: `GET /variantes/v2/imagenes/{varianteId}` — sin cambios
+- Endpoints de imágenes de producto en detalle: `GET /producto-imagen/listar/{productoId}` — sin cambios
+- Endpoints de eliminación y marcado de principal — sin cambios
+- Estructura general del response (`data.t`, `data.pagina`, etc.) — sin cambios

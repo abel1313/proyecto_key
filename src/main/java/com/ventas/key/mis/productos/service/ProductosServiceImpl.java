@@ -51,7 +51,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -135,10 +137,12 @@ public class ProductosServiceImpl extends
             productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
         }
 
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
-                .map(p -> mapperByRol(p, isAdmin))
+                .map(p -> mapperByRol(p, isAdmin, imagenes.get(p.getId())))
                 .toList();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
@@ -153,11 +157,12 @@ public class ProductosServiceImpl extends
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
-    private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
+    private ProductoDTO mapperByRol(Producto p, boolean isAdmin, Long imagenId) {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-        img.setUrlImagen(endpointImagenes + "producto-imagen/buscarImagenProducto/" + p.getId());
-
+        if (imagenId != null) {
+            img.setUrlImagen(endpointImagenes + "imagenes/file/" + imagenId);
+        }
 
         if (isAdmin) {
             ProductoAdmin productoAdmin = getProductoAdmin(p);
@@ -175,6 +180,13 @@ public class ProductosServiceImpl extends
             productoUser.setStock(p.getStock());
             return new ProductoDTO(productoUser);
         }
+    }
+
+    private Map<Integer, Long> getPrimerasImagenes(List<Integer> productoIds) {
+        Map<Integer, Long> result = new LinkedHashMap<>();
+        iProductoImagenRepository.findPrimeraImagenByProductoIdIn(productoIds)
+            .forEach(pi -> result.putIfAbsent(pi.getProducto().getId(), pi.getImagen().getId()));
+        return result;
     }
     private ProductoAdmin getProductoAdmin(Producto p) {
         ProductoAdmin productoAdmin = new ProductoAdmin();
@@ -213,7 +225,8 @@ public class ProductosServiceImpl extends
             resultado.setPagina(1);
             resultado.setTotalPaginas(1);
             resultado.setTotalRegistros(1);
-            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin)));
+            Map<Integer, Long> img1 = getPrimerasImagenes(List.of(porCodigo.get().getId()));
+            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin, img1.get(porCodigo.get().getId()))));
             return resultado;
         }
 
@@ -236,11 +249,14 @@ public class ProductosServiceImpl extends
     }
 
     private PginaDto<List<ProductoDTO>> buildPagina(Page<Producto> pagina, int page, boolean isAdmin) {
+        List<Integer> productoIds = pagina.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(pagina.getTotalPages());
         pginaDto.setTotalRegistros((int) pagina.getTotalElements());
-        pginaDto.setT(pagina.getContent().stream().map(p -> mapperByRol(p, isAdmin)).toList());
+        pginaDto.setT(pagina.getContent().stream()
+            .map(p -> mapperByRol(p, isAdmin, imagenes.get(p.getId()))).toList());
         return pginaDto;
     }
 
@@ -603,12 +619,14 @@ public class ProductosServiceImpl extends
     public PginaDto<List<ProductoDTO>> getProductosNoHabilitados(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findProductosNoHabilitados(pageable);
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
         pginaDto.setT(productosPaginados.getContent().stream()
-                .map(p -> mapperByRol(p, true)).toList());
+                .map(p -> mapperByRol(p, true, imagenes.get(p.getId()))).toList());
         return pginaDto;
     }
 
@@ -616,12 +634,14 @@ public class ProductosServiceImpl extends
     public PginaDto<List<ProductoDTO>> getProductosSinStock(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findByStock(0, pageable);
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
         pginaDto.setT(productosPaginados.getContent().stream()
-                .map(p -> mapperByRol(p, true)).toList());
+                .map(p -> mapperByRol(p, true, imagenes.get(p.getId()))).toList());
         return pginaDto;
     }
 
