@@ -6,6 +6,50 @@
 - Ejecuta directamente y muestra el resultado
 - Solo pregunta si hay ambigüedad real en el requerimiento
 
+## Flujo Git — cómo hacer los merges
+
+### Orden de ramas
+```
+dev → qa → main/master
+```
+El código siempre sube de izquierda a derecha. Nunca al revés en el flujo normal.
+
+### Flujo del día a día
+```
+1. Desarrollas en dev
+2. Pruebas OK  →  merge dev → qa
+3. QA aprueba  →  merge qa → main
+```
+
+### Comandos
+```bash
+# dev → qa
+git checkout qa && git pull origin qa
+git merge dev --no-ff -m "Merge dev → qa: descripción"
+git push origin qa
+
+# qa → main
+git checkout main && git pull origin main
+git merge qa --no-ff -m "Merge qa → main: descripción"
+git push origin main
+```
+
+### Excepción — hotfix directo en main
+Si se arregla algo en main que dev y qa necesitan:
+```bash
+# Bajar a dev
+git checkout dev && git merge main --no-ff && git push origin dev
+
+# Bajar a qa
+git checkout qa && git merge main --no-ff && git push origin qa
+```
+
+### Regla importante
+`main` no tiene RabbitMQ configurado — los YMLs de cada rama son independientes.
+El merge solo mueve código Java, nunca sobreescribe los YMLs del ambiente destino.
+
+---
+
 ## Regla — documentar migración de endpoints en CAMBIOS_FRONT.md
 
 Cada vez que se migre un endpoint (se cree una versión v2), documentar en `CAMBIOS_FRONT.md`:
