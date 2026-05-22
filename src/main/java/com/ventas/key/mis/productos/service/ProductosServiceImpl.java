@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
@@ -66,6 +67,11 @@ public class ProductosServiceImpl extends
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
+
+    @jakarta.annotation.PostConstruct
+    public void normalizarEndpoints() {
+        if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
+    }
 
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
@@ -485,50 +491,49 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    // [FLUJO 4] Construye el mensaje con imagenId + productoId y lo publica a RabbitMQ
-    // RIESGO: si Rabbit falla aqui, la imagen queda en imagenes_copy pero sin relacion en producto_imagen_copy
-    // → usar ReconciliacionImagenService para detectar y reparar esos casos
-    private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
+    // [FLUJO 4] Sube archivos al micro de imágenes y guarda la relación producto-imagen en su BD.
+    // Si el micro no está disponible se loguea el error pero el producto se guarda igual.
+    private void relacionProductoImagen(List<ProductoImagen> productoImagens) throws IOException {
+        if (productoImagens.isEmpty()) return;
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
-
-        log.info("Se prepara las imagenes para subirse al servidor {}", 3);
         for (ProductoImagen p : productoImagens) {
-
-                Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
-                byte[] imagenBytes = Files.readAllBytes(path);
-
+            Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
+            byte[] imagenBytes = Files.readAllBytes(path);
+            final String nombre = p.getImagen().getNombreImagen();
             ByteArrayResource recurso = new ByteArrayResource(imagenBytes) {
                 @Override
-                public String getFilename() {
-                    return p.getImagen().getNombreImagen();
-                }
+                public String getFilename() { return nombre; }
             };
-
             builder.part("files", recurso)
-                    .header("Content-Disposition",
-                            "form-data; name=files; filename=" + p.getImagen().getNombreImagen());
+                    .header("Content-Disposition", "form-data; name=files; filename=" + nombre);
         }
-        log.info("Se envia la peticion al servicio de iamges {}",4);
-        //List<ImagenDto> listImg = imageneClienteAWS.save(builder.build());
-        log.info("Se guardaron las imagenes en el servidor imageneClienteAWS {}",productoImagens);
-        List<RequestProductoImagen> productoImagen = productoImagens.stream().map(datos->{
-            RequestProductoImagen prdoImg = new RequestProductoImagen();
-            try {
-                Optional<ProductoImagen> primer  = Optional.of(productoImagens.stream().findFirst()).orElseThrow();
-                primer.ifPresent(imagen -> prdoImg.setProductoId(imagen.getProducto().getId()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            prdoImg.setImagenId(datos.getImagen().getId());
-            return prdoImg;
-        }).toList();
-        log.info("Se guardara la relacion de las imagenes con el producto {}",productoImagen);
-        // [FLUJO 5] → va a ImagenProductoClienteAWS.saveAll() → publica a exchange.imagenes con routing key guardar.imagen
-        // RABBIT PUBLICA AQUI → el microservicio de imagenes recibe el mensaje en ImagenRabbitConsumer
-        imagenProductoClienteAWS.saveAll(productoImagen);
-        log.info("termino de guardar la relacion de los productos {}", 6);
 
+        try {
+            List<ImagenDto> microImagenes = imagenPort.save(builder.build());
+            if (microImagenes == null || microImagenes.isEmpty()) {
+                log.warn("El micro de imágenes devolvió lista vacía — imágenes no sincronizadas");
+                return;
+            }
+            log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
+
+            Integer productoId = productoImagens.get(0).getProducto().getId();
+            List<ImagenDto> microList = microImagenes;
+            List<RequestProductoImagen> relaciones = java.util.stream.IntStream
+                    .range(0, microList.size())
+                    .mapToObj(i -> {
+                        RequestProductoImagen r = new RequestProductoImagen();
+                        r.setProductoId(productoId);
+                        r.setImagenId(microList.get(i).getId());
+                        r.setPrincipal(i == 0);
+                        return r;
+                    }).toList();
+
+            imagenProductoClienteAWS.saveAll(relaciones);
+            log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
+        } catch (Exception e) {
+            log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
+        }
     }
 
 
