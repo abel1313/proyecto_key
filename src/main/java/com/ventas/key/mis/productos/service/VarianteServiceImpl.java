@@ -23,6 +23,7 @@ import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -54,6 +55,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
+
+    @PostConstruct
+    public void normalizarEndpoints() {
+        if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
+    }
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
@@ -307,7 +313,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return relaciones.stream().map(vi -> {
             var img = vi.getImagen();
             ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
-            dto.setUrlImagen(endpointImagenes + "imagenes/" + img.getId());
+            dto.setUrlImagen(endpointImagenes + "imagenes/file/" + img.getId());
             dto.setPrincipal(vi.getPrincipal());
             return dto;
         }).toList();
@@ -542,7 +548,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             List<Long> ids = varianteToImagenIds.get(v.getId());
             if (ids != null) {
                 ids.stream().filter(finalIdsValidos::contains).findFirst().ifPresent(imagenId ->
-                    dto.setImagenUrl(endpointImagenes + "imagenes/" + imagenId)
+                    dto.setImagenUrl(endpointImagenes + "imagenes/file/" + imagenId)
                 );
             }
             return dto;
