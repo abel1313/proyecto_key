@@ -83,7 +83,7 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                     Optional<CodigoBarra> cbExistente = codigoBarrasRepository.findByCodigoBarras(codigoBarras);
 
                     if (cbExistente.isPresent()) {
-                        Optional<Producto> productoExistente = productosRepository.findByCodigoBarras_CodigoBarras(codigoBarras);
+                        Optional<Producto> productoExistente = productosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(codigoBarras);
                         if (productoExistente.isEmpty()) {
                             errores.add("Fila " + (i + 1) + ": código '" + codigoBarras + "' existe pero sin producto asociado, se omite.");
                             omitidos++;

@@ -20,8 +20,8 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     Page<Producto> findDistinctByStockGreaterThanAndHabilitado(int stock, char habilitado, Pageable pageable);
 
     // --- búsqueda paso 1: código de barras exacto ---
-    Optional<Producto> findByCodigoBarras_CodigoBarras(String codigoBarras);
-    Optional<Producto> findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarras(int stock, char habilitado, String codigoBarras);
+    Optional<Producto> findByCodigoBarras_CodigoBarrasIgnoreCase(String codigoBarras);
+    Optional<Producto> findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasIgnoreCase(int stock, char habilitado, String codigoBarras);
 
     // --- búsqueda paso 2: palabra clave exacta ---
     Page<Producto> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
