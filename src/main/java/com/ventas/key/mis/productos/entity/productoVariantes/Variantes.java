@@ -36,7 +36,7 @@ public class Variantes  extends BaseId {
     @Column(name = "contenido_neto")
     private String contenidoNeto;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "palabra_clave_id")
     private PalabraClave palabraClave;
 

@@ -112,6 +112,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             dto.setPrecio(v.getProducto().getPrecioVenta() != null ? v.getProducto().getPrecioVenta() : 0.0);
             CodigoBarra cb = v.getProducto().getCodigoBarras();
             dto.setCodigoBarras(cb != null ? cb.getCodigoBarras() : null);
+            dto.setPalabraClave(v.getPalabraClave() != null
+                    ? new com.ventas.key.mis.productos.models.PalabraClaveResumenDto(v.getPalabraClave().getId(), v.getPalabraClave().getNombre())
+                    : null);
             return dto;
         }).collect(Collectors.toList());
     }
