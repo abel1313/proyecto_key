@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ChatbotBlockService {
 
     private static final int MAX_NO_COMPRENSIONES = 3;
-    private static final Duration BLOQUEO_DURACION = Duration.ofHours(6);
+    private static final Duration BLOQUEO_DURACION = Duration.ofHours(30);
     private static final Duration COOLDOWN_FAREWELL = Duration.ofSeconds(45);
 
     private final Map<String, IpInfo> ipInfoMap = new ConcurrentHashMap<>();

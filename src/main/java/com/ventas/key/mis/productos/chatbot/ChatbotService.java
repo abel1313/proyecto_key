@@ -10,7 +10,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,7 @@ public class ChatbotService {
             .baseUrl("https://api.openai.com/v1")
             .build();
 
-    public String chat(ChatbotRequest request) {
+    public Mono<String> chat(ChatbotRequest request) {
         String contexto = obtenerContextoVariantes();
 
         String sistemPrompt = """
@@ -80,22 +82,20 @@ public class ChatbotService {
                 "temperature", 0.7
         );
 
-        Map response = webClient.post()
+        return webClient.post()
                 .uri("/chat/completions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + openaiApiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(Map.class)
-                .block();
-
-        if (response == null) {
-            throw new RuntimeException("Sin respuesta de OpenAI");
-        }
-
-        List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
-        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-        return (String) message.get("content");
+                .timeout(Duration.ofSeconds(20))
+                .map(response -> {
+                    if (response == null) throw new RuntimeException("Sin respuesta de OpenAI");
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                    return (String) message.get("content");
+                });
     }
 
     private String obtenerContextoVariantes() {
