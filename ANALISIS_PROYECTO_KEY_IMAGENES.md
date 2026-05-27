@@ -165,7 +165,7 @@ No en su estado actual. Los motivos son:
 ### 3.4 ProductosControllerImpl (endpoints de imágenes)
 
 **Qué hace:**
-Al guardar/actualizar un producto: escribe los bytes en disco local (`rutaImagenes`), registra en `imagenes_copy` y `producto_imagen`, luego sube al micro_imagenes via `ImagenPort.save()` y registra la relación en el micro via `ImagenProductoClienteAWS.saveAll()`.
+Al guardar/actualizar un producto: escribe los bytes en disco local (`rutaImagenes`), registra en `imagenes_copy` y `producto_imagen`, luego sube al micro_imagenes via `ImagenPort.save()` y registra la relación en el micro via `ImagenProductoClienteMicro.saveAll()`.
 Al eliminar un producto: borra variantes con sus imágenes, llama a `ImagenPort.deleteInagenesDisco()` para borrar archivos en el micro.
 El endpoint de diagnóstico cruza `producto_imagen` (BD local) con la respuesta del micro.
 El endpoint `compartir-imagenes-variantes` solo opera en `producto_imagen` y `variante_imagen` local, sin tocar el micro.

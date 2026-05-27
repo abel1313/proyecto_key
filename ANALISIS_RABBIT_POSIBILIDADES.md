@@ -46,8 +46,8 @@ El perfil `dev` (application.yml) **no tiene RabbitMQ configurado** — solo tie
 
 ### Quién publica (producer)
 
-**mis-productos** — clase `ImagenProductoClienteAWS` (infraestructura hexagonal), inyectada como bean `RabbitTemplate`.  
-Archivo: `src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteAWS.java`
+**mis-productos** — clase `ImagenProductoClienteMicro` (infraestructura hexagonal), inyectada como bean `RabbitTemplate`.  
+Archivo: `src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteMicro.java`
 
 También existe un endpoint de prueba en `AdminController`:
 - `GET /mis-productos/admin/test-rabbit` — publica un mensaje dummy `[{productoId:999, imagenId:1}]` al exchange.
@@ -77,14 +77,9 @@ Si el listener lanza excepción → NACK → el mensaje va a `dlq.guardar.imagen
 | Routing key | `guardar.imagen` |
 | Cola destino | `queue.guardar.imagenes` (en micro_imagenes) |
 
-**Nota importante:** en la implementación actual, este flujo **NO usa Rabbit directamente para la publicación de relaciones**. El método `relacionProductoImagen()` en `ProductosServiceImpl`:
-1. Sube los archivos binarios al micro vía HTTP multipart: `imagenPort.save(builder.build())`  → `POST /mis-productos/imagenes` en micro_imagenes
-2. Luego llama vía HTTP: `imagenProductoClienteAWS.saveAll(relaciones)` → `POST /mis-productos/producto-imagen/saveAll` en micro_imagenes
-
-El `RabbitTemplate` inyectado en `ImagenProductoClienteAWS` **está disponible pero no se invoca** en el flujo de guardado de producción. Existe un TODO comentado en el código señalando esto:
-```
-// TODO: RabbitMQ — candidato para migrar a Rabbit cuando el micro tenga @RabbitListener en queue.guardar.imagenes
-```
+**Estado actual (MIGRADO ✅):** el paso de relaciones ya usa Rabbit. El método `relacionProductoImagen()` en `ProductosServiceImpl`:
+1. Sube los archivos binarios al micro vía HTTP multipart: `imagenPort.save(builder.build())` → `POST /mis-productos/imagenes` en micro_imagenes
+2. ~~Llama vía HTTP a `POST /mis-productos/producto-imagen/saveAll`~~ → **publica a Rabbit** via `imagenProductoClienteMicro.saveAll(relaciones)` → `exchange.imagenes` routing key `guardar.imagen` → `queue.guardar.imagenes`
 
 #### Endpoint de prueba admin
 
@@ -115,7 +110,7 @@ Este endpoint sí usa `rabbitTemplate.convertAndSend()` directamente. Está docu
 
 ## 3. Flujo actual — de extremo a extremo
 
-### Flujo de guardado de producto con imágenes (flujo actual — HTTP, no Rabbit)
+### Flujo de guardado de producto con imágenes (flujo actual — MIGRADO ✅)
 
 ```
 [FRONT/ADMIN]
@@ -133,7 +128,7 @@ Este endpoint sí usa `rabbitTemplate.convertAndSend()` directamente. Está docu
     ├─ 3. Escribe los bytes de imagen en disco local (/app/imagenes)
     ├─ 4. Guarda registros Imagen en BD local (tabla imagen_copy)
     │
-    │ PASO HTTP-1: sube archivos al micro de imágenes
+    │ PASO HTTP-1: sube archivos al micro de imágenes (se mantiene HTTP — binarios)
     │ imagenPort.save(multipart) → POST /mis-productos/imagenes (micro_imagenes)
     ▼
 [micro_imagenes — ImagenController.save()]
@@ -142,49 +137,34 @@ Este endpoint sí usa `rabbitTemplate.convertAndSend()` directamente. Está docu
     ▼
 [mis-productos — ProductosServiceImpl (continúa)]
     │
-    │ PASO HTTP-2: guarda relaciones producto-imagen
-    │ imagenProductoClienteAWS.saveAll(relaciones)
-    │ → POST /mis-productos/producto-imagen/saveAll (micro_imagenes)
-    ▼
-[micro_imagenes — ProductoImagenController.saveAll()]
-    │ Guarda relaciones en tabla producto_imagen_copy
-    │ Devuelve ResponseGeneric<ProductoImagen>
-    ▼
-[mis-productos — fin del flujo]
-    │ Responde con el Producto guardado
-    ▼
-[FRONT]
-```
-
-### Flujo del listener Rabbit (activo pero solo invocado por el endpoint de prueba)
-
-```
-[mis-productos — AdminController.testRabbit() o futuro publisher]
-    │
-    │ rabbitTemplate.convertAndSend("exchange.imagenes", "guardar.imagen", List<RequestProductoImagen>)
+    │ PASO RABBIT: publica relaciones producto-imagen (fire-and-forget)
+    │ imagenProductoClienteMicro.saveAll(relaciones)
+    │ → rabbitTemplate.convertAndSend("exchange.imagenes", "guardar.imagen", relaciones)
     ▼
 [RabbitMQ broker — exchange.imagenes]
     │ routing key "guardar.imagen" → queue.guardar.imagenes
     ▼
 [micro_imagenes — ImagenRabbitConsumer.procesarGuardarImagenes()]
-    │
     │ Deserializa JSON → List<RequestProductoImagen>
-    │ Mapea a List<ProductoImagen> (solo productoId + imagenId)
-    │
+    │ Guarda relaciones en tabla producto_imagen_copy
+    │ Si falla → NACK → dlq.guardar.imagenes
     ▼
-[micro_imagenes — ProductoImagenCasoUso.createAll()]
-    │ Guarda relaciones en BD
+[mis-productos — responde con el Producto guardado sin esperar al consumer]
     ▼
-[FIN — sin respuesta al publisher (fire-and-forget)]
-
-Si falla → RuntimeException → NACK → dlq.guardar.imagenes
+[FRONT]
 ```
 
 ---
 
 ## 4. Análisis de posibilidades — dónde más usar RabbitMQ
 
-### POSIBILIDAD A — Migrar el paso HTTP-2 a Rabbit (relaciones producto-imagen)
+### POSIBILIDAD A — Migrar el paso HTTP-2 a Rabbit (relaciones producto-imagen) ✅ IMPLEMENTADO
+
+| Rol | Micro | Clase / Método |
+|-----|-------|----------------|
+| **Producer (publica)** | `mis-productos` (proyecto_key_new) | `ImagenProductoClienteMicro.saveAll()` |
+| **Consumer (consume)** | `micro_imagenes` | `ImagenRabbitConsumer.procesarGuardarImagenes()` — ya existe |
+| **Código a modificar** | `mis-productos` | Reemplazar llamada HTTP por `rabbitTemplate.convertAndSend(...)` |
 
 **Operación actual:** tras subir archivos al micro vía HTTP, mis-productos llama síncronamente a `POST /mis-productos/producto-imagen/saveAll` para guardar las relaciones. Si el micro está caído en ese momento, la relación se pierde.
 
@@ -195,13 +175,20 @@ Si falla → RuntimeException → NACK → dlq.guardar.imagenes
 - El producto se guarda aunque la relación en micro_imagenes falle temporalmente.
 - El DLQ ya está configurado para capturar fallos permanentes sin bucle infinito.
 
-**Cambio requerido:** en `ImagenProductoClienteAWS.saveAll()`, reemplazar la llamada HTTP por `rabbitTemplate.convertAndSend(EXCHANGE_IMAGENES, ROUTING_KEY_GUARDAR, relaciones)`. El `RabbitTemplate` ya está inyectado en esa clase.
+**Cambio requerido:** en `ImagenProductoClienteMicro.saveAll()`, reemplazar la llamada HTTP por `rabbitTemplate.convertAndSend(EXCHANGE_IMAGENES, ROUTING_KEY_GUARDAR, relaciones)`. El `RabbitTemplate` ya está inyectado en esa clase.
 
 **Riesgo:** los archivos binarios aún se suben vía HTTP (paso HTTP-1), porque Rabbit no es apropiado para transferir binarios grandes. Solo las relaciones (IDs enteros) se mueven a Rabbit.
 
 ---
 
 ### POSIBILIDAD B — Evento "imagen.eliminada" para eliminación asíncrona
+
+| Rol | Micro | Clase / Método |
+|-----|-------|----------------|
+| **Producer (publica)** | `mis-productos` (proyecto_key_new) | Clase que implementa `DELETE /imagen/v2/{idImagen}` — TODO ya anotado en el código |
+| **Consumer (consume)** | `micro_imagenes` | Nuevo listener a crear (`ImagenRabbitConsumer` ampliar o nueva clase) |
+| **Código a modificar** | `mis-productos` | Reemplazar llamada HTTP DELETE por publish a Rabbit |
+| **Código a crear** | `micro_imagenes` | Nueva cola `queue.eliminar.imagenes` + nuevo `@RabbitListener` |
 
 **Operación actual:** `DELETE /mis-productos/imagen/v2/{idImagen}` y `DELETE /mis-productos/imagen/v2/{productoId}/imagenes` llaman síncronamente al micro para eliminar archivos en disco. Si el micro está caído, los archivos quedan huérfanos en el disco del micro.
 
@@ -223,6 +210,13 @@ El código ya tiene el TODO anotado:
 ---
 
 ### POSIBILIDAD C — Cache evict distribuida para multi-nodo
+
+| Rol | Micro | Clase / Método |
+|-----|-------|----------------|
+| **Producer (publica)** | `mis-productos` (proyecto_key_new) | El mismo nodo que recibe la petición de evict/update |
+| **Consumer (consume)** | `mis-productos` (proyecto_key_new) | Cada instancia del mismo micro escucha su propia cola anónima |
+| **Código a modificar** | `mis-productos` solamente | Agregar FanoutExchange + colas anónimas + `@RabbitListener` en el propio micro |
+| **micro_imagenes** | No participa | Este evento no involucra al micro de imágenes |
 
 **Operación actual:** los endpoints de evicción de caché (`GET /imagen/v2/cache/limpiar`, `PUT /presentacion/v2/imagenes/{id}`) usan `@CacheEvict` local. En un despliegue con múltiples instancias de mis-productos, solo invalida el nodo que recibió la petición.
 
@@ -246,6 +240,13 @@ El código ya tiene el TODO anotado en dos lugares:
 
 ### POSIBILIDAD D — Evento de stock bajo o agotado para notificaciones
 
+| Rol | Micro | Clase / Método |
+|-----|-------|----------------|
+| **Producer (publica)** | `mis-productos` (proyecto_key_new) | `ProductosServiceImpl.guardarProducto()` o endpoint dedicado de stock |
+| **Consumer (consume)** | Por definir | El propio `mis-productos` o un futuro micro de notificaciones/alertas |
+| **Código a modificar** | `mis-productos` | Agregar lógica de publicación al actualizar stock |
+| **micro_imagenes** | No participa | No tiene relación con este evento |
+
 **Operación actual:** no existe ningún mecanismo de notificación cuando un producto se queda sin stock. El campo `stock` se actualiza síncronamente pero no se notifica a nadie.
 
 **Con Rabbit:** al actualizar el stock (en `ProductosServiceImpl.guardarProducto()` o en un endpoint dedicado), publicar un evento `stock.agotado` o `stock.bajo` si el stock cae a 0 o por debajo de un umbral. Un futuro micro de notificaciones o el propio mis-productos podría consumirlo para enviar alertas.
@@ -259,6 +260,13 @@ El código ya tiene el TODO anotado en dos lugares:
 
 ### POSIBILIDAD E — Evento de venta completada (integración con MercadoPago)
 
+| Rol | Micro | Clase / Método |
+|-----|-------|----------------|
+| **Producer (publica)** | `mis-productos` (proyecto_key_new) | Controlador o servicio de pagos/checkout (lógica con `mercadopago.access-token`) |
+| **Consumer (consume)** | Por definir | El propio `mis-productos` o un futuro micro de ventas/auditoría |
+| **Código a modificar** | `mis-productos` | Agregar publish de evento `venta.completada` al confirmar pago |
+| **micro_imagenes** | No participa | No tiene relación con este evento |
+
 **Operación actual:** mis-productos tiene configurado `mercadopago.access-token` en los YMLs, lo que indica que hay lógica de pagos. Tras una venta exitosa, la actualización de stock se hace síncronamente.
 
 **Con Rabbit:** publicar evento `venta.completada` con `{productoId, cantidad, precioFinal}` al confirmarse un pago. Esto desacopla: reducción de stock, registro de venta, notificación al admin.
@@ -271,11 +279,9 @@ El código ya tiene el TODO anotado en dos lugares:
 
 ## 5. Conclusión — qué implementar y en qué orden
 
-### Prioridad 1 — POSIBILIDAD A: migrar relaciones producto-imagen a Rabbit
+### ~~Prioridad 1 — POSIBILIDAD A: migrar relaciones producto-imagen a Rabbit~~ ✅ COMPLETADO
 
-**Por qué primero:** la infraestructura ya está 90% lista. El `RabbitTemplate` está inyectado en `ImagenProductoClienteAWS`, el consumer `ImagenRabbitConsumer` ya existe y acepta exactamente el payload necesario, el exchange y la cola ya están declarados, el DLQ ya está configurado. El cambio es de ~5 líneas: reemplazar la llamada HTTP `saveAll()` por `rabbitTemplate.convertAndSend(...)`.
-
-**Esfuerzo:** bajo. **Impacto:** alto (resiliencia ante caída del micro al guardar).
+`ImagenProductoClienteMicro.saveAll()` ya usa `rabbitTemplate.convertAndSend(...)`. La interfaz `ImagenProductoPort.saveAll()` fue cambiada a `void` (fire-and-forget, sin respuesta HTTP). Callers en `ProductosServiceImpl` y `ReconciliacionImagenService` no requirieron cambios.
 
 ### Prioridad 2 — POSIBILIDAD B: evento "imagen.eliminada"
 

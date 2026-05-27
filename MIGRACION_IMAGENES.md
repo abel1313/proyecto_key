@@ -203,7 +203,7 @@
 - [ ] `hexagonal/dominio/port/out/ImagenPort.java` — MOVER COMPLETO
 - [ ] `hexagonal/dominio/port/out/ImagenProductoPort.java` — MOVER COMPLETO
 - [ ] `hexagonal/infraestructura/ImageneClienteDisco.java` — MOVER COMPLETO
-- [ ] `hexagonal/infraestructura/ImagenProductoClienteAWS.java` — MOVER COMPLETO
+- [ ] `hexagonal/infraestructura/ImagenProductoClienteMicro.java` — MOVER COMPLETO
 - [ ] `hexagonal/dominio/Imagen.java` — MOVER COMPLETO
 - [ ] `hexagonal/dominio/ImagenProducto.java` — MOVER COMPLETO
 - [ ] `hexagonal/dominio/ProductoImagen.java` — MOVER COMPLETO
