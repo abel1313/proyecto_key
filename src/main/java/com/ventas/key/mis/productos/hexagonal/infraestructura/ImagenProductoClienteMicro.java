@@ -27,7 +27,7 @@ import java.util.List;
 
 @Service
 @Slf4j
-public class ImagenProductoClienteAWS implements ImagenProductoPort {
+public class ImagenProductoClienteMicro implements ImagenProductoPort {
 
     @Value("${api.imagenes}")
     private @NotNull String endpointImg;
@@ -36,7 +36,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     private final WebClient.Builder builder;
     private final RabbitTemplate rabbitTemplate;
 
-    public ImagenProductoClienteAWS(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
+    public ImagenProductoClienteMicro(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
         this.builder = builder;
         this.rabbitTemplate = rabbitTemplate;
     }
@@ -47,7 +47,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
                 .build();
         String baseUrl = endpointImg.endsWith("/") ? endpointImg : endpointImg + "/";
         this.webClient = builder.baseUrl(baseUrl).exchangeStrategies(strategies).build();
-        log.info(" endpoint imagenes ImagenProductoClienteAWS {}", endpointImg);
+        log.info(" endpoint imagenes ImagenProductoClienteMicro {}", endpointImg);
     }
 
     @Override
@@ -62,18 +62,13 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
 
-    // TODO: RabbitMQ — candidato para migrar a Rabbit cuando el micro tenga @RabbitListener en queue.guardar.imagenes
-    // Por ahora usa HTTP directo porque ambos comparten la misma BD (inventario_key_qa) y el micro escribe en producto_imagen_copy
     @Override
-    public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
-        return webClient.post()
-                .uri("producto-imagen/saveAll")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
-                .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
-                .block();
+    public void saveAll(List<RequestProductoImagen> requestProductoImagen) {
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_GUARDAR,
+                requestProductoImagen);
+        log.info("Relaciones producto-imagen publicadas a Rabbit — {} relaciones", requestProductoImagen.size());
     }
 
     @Override
@@ -87,13 +82,16 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
                 .block(); // aquí obtienes el resultado sincrónicamente
     }
 
+    // BUG CONOCIDO: .uri("/imagenes/", id) no interpola el parámetro — el DELETE iría a /imagenes/ sin ID.
+    // Debe corregirse a .uri("/imagenes/{id}", id) antes de activar este método.
+    // Sin callers activos al 2026-05-23 — no ejecutar hasta corregir.
     @Override
     public ResponseGeneric<ProductoImagen> update(Integer id) throws Exception {
         return webClient.delete()
                 .uri("/imagenes/", id)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
-                .block(); // aquí obtienes el resultado sincrónicamente
+                .block();
     }
 
     @Override

@@ -9,7 +9,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteMicro;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
@@ -85,7 +85,7 @@ public class ProductosServiceImpl extends
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IPalabraClaveRepository iPalabraClaveRepository;
 
-    private final ImagenProductoClienteAWS imagenProductoClienteAWS;
+    private final ImagenProductoClienteMicro imagenProductoClienteMicro;
     private final ImagenPort imagenPort;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
@@ -93,7 +93,7 @@ public class ProductosServiceImpl extends
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
             final IImagenService iImagenService,
-            final ImagenProductoClienteAWS imagenProductoClienteAWS,
+            final ImagenProductoClienteMicro imagenProductoClienteMicro,
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
             final IProductoImagenRepository iProductoImagenRepository,
@@ -106,7 +106,7 @@ public class ProductosServiceImpl extends
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
-        this.imagenProductoClienteAWS = imagenProductoClienteAWS;
+        this.imagenProductoClienteMicro = imagenProductoClienteMicro;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.varianteRepository = iVarianteRepository;
         this.iProductoImagenRepository = iProductoImagenRepository;
@@ -545,7 +545,7 @@ public class ProductosServiceImpl extends
                         return r;
                     }).toList();
 
-            imagenProductoClienteAWS.saveAll(relaciones);
+            imagenProductoClienteMicro.saveAll(relaciones);
             log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
         } catch (Exception e) {
             log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
@@ -675,7 +675,7 @@ public class ProductosServiceImpl extends
 
         try {
             com.ventas.key.mis.productos.hexagonal.dominio.Imagen imgExterna =
-                    imagenProductoClienteAWS.buscarImagenProducto(productoId);
+                    imagenProductoClienteMicro.buscarImagenProducto(productoId);
             boolean tieneBytes = imgExterna != null && imgExterna.getImagen() != null;
             dto.setImagenPresenteEnMicroservicio(tieneBytes);
             dto.setDetalleExternoLista(imgExterna == null

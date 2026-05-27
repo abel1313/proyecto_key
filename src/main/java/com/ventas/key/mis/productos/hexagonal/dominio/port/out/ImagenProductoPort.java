@@ -13,7 +13,7 @@ public interface ImagenProductoPort {
     ResponseGeneric<ProductoImagen> save(RequestProductoImagen requestProductoImagen);
 
 
-    ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen);
+    void saveAll(List<RequestProductoImagen> requestProductoImagen);
 
 
     ResponseGeneric<ProductoImagen> update(RequestProductoImagen requestProductoImagen) throws Exception;
