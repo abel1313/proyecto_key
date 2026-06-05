@@ -102,6 +102,7 @@ public class ImagenPresentacionService {
         if (dto.getDescripcion() != null) imagen.setDescripcion(dto.getDescripcion());
         if (dto.getActivo() != null)      imagen.setActivo(dto.getActivo());
         imagen.setActualizadoEn(LocalDateTime.now());
+        cacheService.evictAll();
         return repo.save(imagen);
     }
 

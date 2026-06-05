@@ -21,6 +21,7 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 
 @Service
@@ -56,19 +57,19 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
                 .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
+                .timeout(Duration.ofSeconds(5))
                 .block(); // aquí obtienes el resultado sincrónicamente
     }
 
 
     @Override
-    public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
+    public void saveAll(List<RequestProductoImagen> requestProductoImagen) {
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.EXCHANGE_IMAGENES,
                 RabbitMQConfig.ROUTING_KEY_GUARDAR,
                 requestProductoImagen
         );
         log.info("Publicadas {} relaciones producto-imagen a Rabbit (queue.guardar.imagenes)", requestProductoImagen.size());
-        return null;
     }
 
     @Override
@@ -79,16 +80,13 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
                 .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
+                .timeout(Duration.ofSeconds(5))
                 .block(); // aquí obtienes el resultado sincrónicamente
     }
 
     @Override
     public ResponseGeneric<ProductoImagen> update(Integer id) throws Exception {
-        return webClient.delete()
-                .uri("/imagenes/", id)
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
-                .block(); // aquí obtienes el resultado sincrónicamente
+        throw new UnsupportedOperationException("update por HTTP no implementado — usar Rabbit");
     }
 
     @Override
@@ -97,6 +95,7 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
                 .uri("/imagenes/", id)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
+                .timeout(Duration.ofSeconds(5))
                 .block(); // aquí obtienes el resultado sincrónicamente
     }
 
@@ -109,6 +108,7 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
                 .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Imagen>() {})
+                .timeout(Duration.ofSeconds(5))
                 .block();
     }
 }

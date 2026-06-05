@@ -10,6 +10,257 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
+## BUGS CORREGIDOS — Cambios de comportamiento que el front debe conocer
+
+---
+
+### [BUG-KEY-02] ✅ Fix: búsqueda de pedidos por cliente ahora funciona correctamente
+**Fecha:** 2026-06-04  
+**Archivo corregido:** `PedidoServiceImpl.java:250`
+
+**Endpoint:**
+```
+GET /pedidos/buscarClientePedido/{buscar}?size=10&page=0
+```
+
+**Dónde verlo en el panel:**
+> Menú lateral → **Pedidos** → campo de búsqueda por nombre de cliente → escribir un nombre y dar Enter (o limpiar el campo para ver todos).
+
+**Comportamiento ANTES del fix (incorrecto):**
+- Campo de búsqueda **vacío** → el backend buscaba por texto vacío (resultados inconsistentes)
+- Campo con **texto escrito** → el backend ignoraba el texto y devolvía **todos los pedidos**
+- Resultado: el filtro del panel funcionaba al revés
+
+**Comportamiento DESPUÉS del fix (correcto):**
+- Campo **vacío** → devuelve todos los pedidos paginados
+- Campo con **texto** → filtra y devuelve solo los pedidos del cliente cuyo nombre contiene ese texto
+
+**El front no necesita cambiar nada** — mismo endpoint, mismo contrato. Solo cambia el comportamiento del backend.
+
+---
+
+### [BUG-KEY-01] ✅ Fix: guardar/actualizar producto ahora tiene rollback real si algo falla
+**Fecha:** 2026-06-04  
+**Archivo corregido:** `ProductosServiceImpl.java:365` — `private` → `protected` en `guardarProducto()`
+
+**Endpoints afectados:**
+```
+POST /productos/save
+PUT  /productos/update
+```
+
+**Dónde verlo en el panel:**
+> Menú lateral → **Productos** → botón **Agregar producto** o **Editar producto** → llenar el formulario y guardar.
+
+**Comportamiento ANTES del fix (incorrecto):**
+- Si fallaba cualquier paso después de guardar el producto en BD (por ejemplo el guardado de imágenes), el producto quedaba guardado pero sin imágenes — estado inconsistente, datos a medias sin rollback
+
+**Comportamiento DESPUÉS del fix (correcto):**
+- Si algo falla durante el guardado completo (producto + imágenes + relaciones), Spring hace rollback de todo
+- O se guarda todo completo, o no se guarda nada
+
+**El front no necesita cambiar nada** — mismo endpoint, mismo request, mismo response. El cambio es interno de integridad de datos.
+
+---
+
+### [BUG-KEY-03] ✅ Fix: compartir imágenes a variantes ya no genera duplicados ni errores aleatorios
+**Fecha:** 2026-06-05  
+**Archivo corregido:** `ProductosServiceImpl.java:352` — eliminado `parallelStream`, reemplazado por `saveAll()` en un solo batch
+
+**Endpoint afectado:**
+```
+POST /productos/compartir-imagenes-variantes
+```
+
+**Dónde verlo en el panel:**
+> Menú lateral → **Productos** → abrir un producto → sección de variantes → botón **Compartir imágenes a variantes** (asigna las imágenes del producto a todas sus variantes de una vez).
+
+**Comportamiento ANTES del fix (incorrecto):**
+- Se usaban dos `parallelStream` anidados para guardar cada relación variante-imagen en paralelo
+- JPA no soporta múltiples hilos simultáneos sobre el mismo contexto de BD
+- Podía resultar en: duplicados silenciosos, errores aleatorios tipo `ConcurrentModificationException`, o imágenes asignadas incorrectamente a variantes equivocadas
+
+**Comportamiento DESPUÉS del fix (correcto):**
+- Se arma toda la lista de relaciones variante-imagen en memoria y se persiste en **una sola llamada** `saveAll()`
+- Sin hilos paralelos, sin riesgo de corrupción, más rápido porque es un solo INSERT en lote
+
+**El front no necesita cambiar nada** — mismo endpoint, mismo request, mismo response.
+
+---
+
+### [BUG-KEY-04] ✅ Fix: reconciliación de imágenes ya no se bloquea permanentemente si hay un error
+**Fecha:** 2026-06-05  
+**Archivo corregido:** `ReconciliacionImagenService.java:68` — envuelto en `try/catch/finally`
+
+**Endpoints afectados:**
+```
+POST /admin/reconciliacion/imagenes
+POST /admin/reconciliacion/imagenes/limpiar-bd
+GET  /admin/reconciliacion/imagenes/resultado
+```
+
+**Dónde verlo en el panel:**
+> Menú lateral → **Administración** → sección **Reconciliación de imágenes** → botón **Iniciar reconciliación**.
+
+**Comportamiento ANTES del fix (incorrecto):**
+- Si durante la reconciliación ocurría cualquier error (BD caída, NPE, timeout), la bandera interna `enProceso` quedaba en `true` para siempre
+- Desde ese momento todos los intentos de volver a reconciliar eran rechazados con "ya hay un proceso en curso"
+- La única solución era reiniciar el servidor
+
+**Comportamiento DESPUÉS del fix (correcto):**
+- Si ocurre un error, se loguea, se guarda el resultado parcial que se alcanzó a procesar, y `enProceso` se libera en el bloque `finally` — siempre, pase lo que pase
+- Se puede volver a lanzar la reconciliación inmediatamente sin reiniciar
+
+**El front no necesita cambiar nada** — mismos endpoints, mismo response.
+
+---
+
+### [BUG-KEY-06] ✅ Fix: errores en endpoints de pedidos ya no devuelven pantalla en blanco
+**Fecha:** 2026-06-05 | **Archivo:** `PedidoController.java`
+
+**Endpoints afectados:**
+```
+GET    /pedidos/findPedido/{id}
+GET    /pedidos/findPedido/{idPedido}/{idCliente}
+GET    /pedidos/buscarClientePedido/{buscar}
+DELETE /pedidos/delete/{id}
+```
+**Dónde verlo:** Menú → **Pedidos** → cualquier acción de consulta o eliminación.
+
+**Antes:** si el backend tenía un error interno, retornaba `null` → el front recibía un 500 genérico sin body, causando pantalla en blanco o comportamiento indefinido.
+
+**Después:** retorna `500 Internal Server Error` con body de error controlado que el front puede leer y mostrar mensaje al usuario.
+
+**El front puede mejorar:** si el front ya maneja el caso de `response == null`, ahora puede leer `response.mensaje` para mostrar el error específico.
+
+---
+
+### [BUG-KEY-07] ✅ Fix: subida de imágenes ya no falla silenciosamente por JWT
+**Fecha:** 2026-06-05 | **Archivo:** `ImageneClienteDisco.java:54`
+
+**Endpoints afectados (indirectamente — flujo interno):**
+```
+POST /variantes/guardarConImagenes
+POST /productos/save
+PUT  /productos/update
+```
+**Dónde verlo:** Menú → **Productos** o **Variantes** → subir imágenes al guardar/actualizar.
+
+**Antes:** si el contexto de seguridad no tenía credenciales JWT (ej. token expirado en ciertos flujos), lanzaba `NullPointerException` → 500 genérico sin mensaje claro.
+
+**Después:** lanza `IllegalStateException` con mensaje descriptivo "No hay credenciales JWT en el contexto de seguridad" → más fácil de diagnosticar en logs.
+
+**El front no necesita cambiar nada** — si ocurre, el error ahora llega con mensaje legible.
+
+---
+
+### [BUG-KEY-08] ✅ Fix: actualizar imagen de presentación ahora refresca la caché
+**Fecha:** 2026-06-05 | **Archivo:** `ImagenPresentacionService.java`
+
+**Endpoints afectados:**
+```
+PUT /presentacion/imagenes/{id}
+PUT /presentacion/v2/imagenes/{id}
+```
+**Dónde verlo:** Menú → **Presentación** o **Inicio/Banner** → editar una imagen → guardar.
+
+**Antes:** después de actualizar una imagen de presentación, la caché seguía sirviendo la imagen anterior hasta que expirara sola (podía tardar minutos).
+
+**Después:** al actualizar, la caché se invalida automáticamente y todos los usuarios ven la imagen nueva de inmediato.
+
+**El front no necesita cambiar nada.**
+
+---
+
+### [BUG-KEY-09] ✅ Fix: IDs de imagen ahora usan 128 bits — sin riesgo de colisión
+**Fecha:** 2026-06-05 | **Archivo:** `ProductosServiceImpl.java`
+
+**Endpoints afectados:**
+```
+POST /productos/save
+PUT  /productos/update
+```
+**Dónde verlo:** Menú → **Productos** → agregar o editar producto con imágenes.
+
+**Antes:** el ID de cada imagen se generaba con solo 63 bits de un UUID → con muchas imágenes acumuladas había riesgo de duplicados silenciosos o error de BD.
+
+**Después:** usa XOR de las dos mitades del UUID (128 bits efectivos) → probabilidad de colisión prácticamente cero.
+
+**El front no necesita cambiar nada.**
+
+---
+
+### [BUG-KEY-10] ✅ Fix: contrato de saveAll() ahora es correcto (void)
+**Fecha:** 2026-06-05 | **Archivo:** `ImagenProductoClienteVPS.java` + `ImagenProductoPort.java`
+
+**Flujo afectado (interno — no es endpoint público):**
+Cuando se guarda un producto con imágenes, internamente se publica a RabbitMQ la relación producto-imagen.
+
+**Antes:** el método declaraba retorno `ResponseGeneric<ProductoImagen>` pero siempre devolvía `null`. Engañoso y potencial NPE si algún caller usaba el retorno.
+
+**Después:** retorno cambiado a `void` — el contrato refleja la realidad (fire-and-forget por Rabbit).
+
+**El front no necesita cambiar nada.**
+
+---
+
+### [PERF-KEY-01] ✅ Fix: timeouts en llamadas HTTP al micro de imágenes
+**Fecha:** 2026-06-05 | **Archivos:** `ImageneClienteDisco.java`, `ImagenProductoClienteVPS.java`
+
+**Endpoints que mejoran (los que consultan imágenes al micro):**
+```
+GET /imagen/{id}
+GET /imagen/v2/{productoId}
+GET /variantes/buscar
+GET /variantes/imagenes/{varianteId}
+GET /productos/findById/{id}
+```
+**Dónde verlo:** cualquier pantalla que muestre imágenes de productos o variantes.
+
+**Antes:** si el micro de imágenes tardaba o no respondía, el hilo de Tomcat quedaba bloqueado indefinidamente → con varios usuarios concurrentes el servidor dejaba de responder.
+
+**Después:** timeout de 5 segundos en todas las llamadas HTTP. Si el micro no responde en 5s, libera el hilo y devuelve error controlado.
+
+**El front puede notar:** en casos donde el micro de imágenes esté lento, ahora recibirá un error a los 5s en vez de esperar indefinidamente. Recomendable mostrar imagen placeholder si el response de imagen viene vacío.
+
+---
+
+### [PERF-KEY-02] ✅ Fix: listado de imágenes por producto ya pagina en SQL
+**Fecha:** 2026-06-05 | **Archivo:** `ImagenServiceImpl.java`
+
+**Endpoints afectados:**
+```
+GET /imagen/{id}/detalle?page=1&size=10
+GET /imagen/v2/{productoId}/detalle?page=1&size=10
+```
+**Dónde verlo:** Menú → **Productos** → detalle de producto → galería de imágenes paginada.
+
+**Antes:** cargaba TODAS las imágenes del producto en memoria (incluyendo leer los archivos del disco), luego recortaba por página en Java. Con muchas imágenes: memoria alta, respuesta lenta.
+
+**Después:** la paginación ocurre en SQL — solo carga del disco las imágenes de la página actual. Respuesta significativamente más rápida y sin presión de memoria.
+
+**El front no necesita cambiar nada** — mismo endpoint, mismo response, mismos parámetros `page` y `size`.
+
+---
+
+### [PERF-KEY-03] ✅ Fix: marcar imagen principal ya no hace N queries individuales
+**Fecha:** 2026-06-05 | **Archivos:** `ProductosServiceImpl.java`, `IProductoImagenRepository.java`
+
+**Endpoints afectados:**
+```
+POST /productos/save      (cuando se envía imagenPrincipalId)
+PUT  /productos/update    (cuando se envía imagenPrincipalId)
+```
+**Dónde verlo:** Menú → **Productos** → guardar producto → el campo "imagen principal" del formulario.
+
+**Antes:** por cada imagen del producto hacía 1 SELECT + N UPDATEs individuales (un UPDATE por imagen). Producto con 10 imágenes = 11 queries.
+
+**Después:** 2 queries fijas sin importar cuántas imágenes tenga el producto: 1 UPDATE que desmarca todas + 1 UPDATE que marca la principal.
+
+**El front no necesita cambiar nada.**
+
+---
+
 ## ENDPOINTS MIGRADOS
 
 ---

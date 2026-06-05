@@ -68,32 +68,37 @@ public class ReconciliacionImagenService {
     private void reconciliar(Integer soloProductoId) {
         enProceso = true;
         ReconciliacionResultadoDto resultado = new ReconciliacionResultadoDto();
-
-        if (soloProductoId != null) {
-            procesarProducto(soloProductoId, resultado);
-            resultado.setProductosRevisados(1);
-            iVarianteRepository.findByProductoId(soloProductoId)
-                    .forEach(v -> procesarVariante(v, resultado));
-        } else {
-            int page = 0;
-            Page<Producto> pagina;
-            do {
-                pagina = iProductosRepository.findAll(PageRequest.of(page++, 50, Sort.by("id").ascending()));
-                for (Producto p : pagina.getContent()) {
-                    procesarProducto(p.getId(), resultado);
-                    resultado.setProductosRevisados(resultado.getProductosRevisados() + 1);
-                    iVarianteRepository.findByProductoId(p.getId())
-                            .forEach(v -> procesarVariante(v, resultado));
-                }
-            } while (!pagina.isLast());
+        try {
+            if (soloProductoId != null) {
+                procesarProducto(soloProductoId, resultado);
+                resultado.setProductosRevisados(1);
+                iVarianteRepository.findByProductoId(soloProductoId)
+                        .forEach(v -> procesarVariante(v, resultado));
+            } else {
+                int page = 0;
+                Page<Producto> pagina;
+                do {
+                    pagina = iProductosRepository.findAll(PageRequest.of(page++, 50, Sort.by("id").ascending()));
+                    for (Producto p : pagina.getContent()) {
+                        procesarProducto(p.getId(), resultado);
+                        resultado.setProductosRevisados(resultado.getProductosRevisados() + 1);
+                        iVarianteRepository.findByProductoId(p.getId())
+                                .forEach(v -> procesarVariante(v, resultado));
+                    }
+                } while (!pagina.isLast());
+            }
+            resultado.setEnProceso(false);
+            ultimoResultado = resultado;
+            log.info("Reconciliacion completada: {} productos, {} variantes, {} reparados, {} faltantes en disco",
+                    resultado.getProductosRevisados(), resultado.getVariantesRevisadas(),
+                    resultado.getReparados().size(), resultado.getFaltantesEnDisco().size());
+        } catch (Exception e) {
+            log.error("Error durante la reconciliacion: {}", e.getMessage(), e);
+            resultado.setEnProceso(false);
+            ultimoResultado = resultado;
+        } finally {
+            enProceso = false;
         }
-
-        resultado.setEnProceso(false);
-        ultimoResultado = resultado;
-        enProceso = false;
-        log.info("Reconciliacion completada: {} productos, {} variantes, {} reparados, {} faltantes en disco",
-                resultado.getProductosRevisados(), resultado.getVariantesRevisadas(),
-                resultado.getReparados().size(), resultado.getFaltantesEnDisco().size());
     }
 
     private void procesarProducto(Integer productoId, ReconciliacionResultadoDto resultado) {

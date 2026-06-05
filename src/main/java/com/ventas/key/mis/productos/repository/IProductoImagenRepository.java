@@ -59,4 +59,12 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
     @Transactional
     @Query("DELETE FROM ProductoImagen pi WHERE pi.imagen.id IN :imagenIds")
     void deleteByImagenIdIn(@Param("imagenIds") List<Long> imagenIds);
+
+    @Modifying
+    @Query("UPDATE ProductoImagen pi SET pi.principal = false WHERE pi.producto.id = :productoId")
+    void desmarcarTodosPrincipal(@Param("productoId") Integer productoId);
+
+    @Modifying
+    @Query("UPDATE ProductoImagen pi SET pi.principal = true WHERE pi.imagen.id = :imagenId AND pi.producto.id = :productoId")
+    void marcarComoPrincipal(@Param("imagenId") Long imagenId, @Param("productoId") Integer productoId);
 }
