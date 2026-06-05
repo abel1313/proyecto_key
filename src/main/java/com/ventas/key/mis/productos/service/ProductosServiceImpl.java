@@ -349,20 +349,22 @@ public class ProductosServiceImpl extends
         if(existeImagenes.isEmpty()){
             throw new ExceptionDataNotFound("No existen imagenes para este producto ");
         }
-        varianteRepository.findByProductoId(producto.getId()).stream().parallel().forEach(guardarVairantes->{
-            existeImagenes.stream().parallel().forEach(imagen->{
+        List<VarianteImagen> relaciones = new ArrayList<>();
+        varianteRepository.findByProductoId(producto.getId()).forEach(variante ->
+            existeImagenes.forEach(imagen -> {
                 VarianteImagen varianteImagen = new VarianteImagen();
-                varianteImagen.setVariante(guardarVairantes);
+                varianteImagen.setVariante(variante);
                 varianteImagen.setImagen(imagen.getImagen());
-                iVarianteImagenRepository.save(varianteImagen);
-            });
-        });
+                relaciones.add(varianteImagen);
+            })
+        );
+        iVarianteImagenRepository.saveAll(relaciones);
         return compartirImagenesVarianteDto;
     }
 
     // [FLUJO 1] INICIO: el controlador llama saveProductoLote() → llega aqui
     @Transactional
-    private Producto guardarProducto(ProductoDetalle productoDetalle) {
+    protected Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {
             throw new ExceptionErrorInesperado("El stock no debe de ser 0");
         }
@@ -576,7 +578,8 @@ public class ProductosServiceImpl extends
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            Long idImagen = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+            UUID _uuid = UUID.randomUUID();
+            Long idImagen = Math.abs(_uuid.getMostSignificantBits() ^ _uuid.getLeastSignificantBits());
             imagen.setId(idImagen);
             imagen.setBase64(urlImagen);
             imagen.setNombreImagen(mpa.getNombreImagen());
@@ -598,10 +601,8 @@ public class ProductosServiceImpl extends
     }
 
     private void aplicarPrincipalProducto(Integer productoId, Long imagenId) {
-        iProductoImagenRepository.findAllByProductoId(productoId).forEach(pi -> {
-            pi.setPrincipal(pi.getImagen().getId().equals(imagenId));
-            iProductoImagenRepository.save(pi);
-        });
+        iProductoImagenRepository.desmarcarTodosPrincipal(productoId);
+        iProductoImagenRepository.marcarComoPrincipal(imagenId, productoId);
     }
 
     private Producto llenarProductoDTO(ProductoDetalle productoDetalle) {

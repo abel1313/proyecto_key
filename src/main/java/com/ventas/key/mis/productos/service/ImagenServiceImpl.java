@@ -70,9 +70,10 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
     @Override
     @Cacheable(value = "detalle", key = "'id:' + #id + ':page:' + #page + ':size:' + #size")
     public PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIds(Integer id, int page, int size) {
-        List<ImagenProductoDto> todas = iImagenRepository.findImagenPrincipalPorProductoIds55(id);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ImagenProductoDto> paginaDB = iImagenRepository.findImagenPrincipalPorProductoIds(id, pageable);
 
-        List<ImagenProductoBase64> conImagen = todas.stream()
+        List<ImagenProductoBase64> conImagen = paginaDB.getContent().stream()
                 .filter(mpa -> mpa.getImage() != null)
                 .map(mpa -> {
                     Path path = Paths.get(rutaImagenes, mpa.getImage());
@@ -97,20 +98,29 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
                 .filter(Objects::nonNull)
                 .toList();
 
-        return paginarEnMemoria(conImagen, page, size);
+        PageableDto<List<ImagenProductoBase64>> resultado = new PageableDto<>();
+        resultado.setList(conImagen);
+        resultado.setTotalPaginas((int) paginaDB.getTotalPages());
+        return resultado;
     }
 
     // RabbitMQ: NO aplica — lectura síncrona. Bytes del micro vía HTTP batch.
     @Override
     @Cacheable(value = "detalle-v2", key = "'id:' + #productoId + ':page:' + #page + ':size:' + #size")
     public PageableDto<List<ImagenProductoBase64>> findImagenPrincipalPorProductoIdsV2(Integer productoId, int page, int size) {
-        List<ImagenProductoDto> todas = iImagenRepository.findImagenPrincipalPorProductoIds55(productoId);
-        if (todas.isEmpty()) return paginarEnMemoria(List.of(), page, size);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ImagenProductoDto> paginaDB = iImagenRepository.findImagenPrincipalPorProductoIds(productoId, pageable);
+        if (paginaDB.isEmpty()) {
+            PageableDto<List<ImagenProductoBase64>> vacio = new PageableDto<>();
+            vacio.setList(List.of());
+            vacio.setTotalPaginas(0);
+            return vacio;
+        }
 
-        List<Long> todosIds = todas.stream().map(ImagenProductoDto::getIdImagen).toList();
+        List<Long> idsEnPagina = paginaDB.getContent().stream().map(ImagenProductoDto::getIdImagen).toList();
         Map<Long, byte[]> bytesById;
         try {
-            bytesById = imagenPort.getAll(todosIds).stream()
+            bytesById = imagenPort.getAll(idsEnPagina).stream()
                     .filter(dto -> dto.getImagen() != null)
                     .collect(Collectors.toMap(ImagenDto::getId, ImagenDto::getImagen));
         } catch (Exception e) {
@@ -119,7 +129,7 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
         }
 
         Map<Long, byte[]> bytesFinal = bytesById;
-        List<ImagenProductoBase64> conImagen = todas.stream()
+        List<ImagenProductoBase64> conImagen = paginaDB.getContent().stream()
                 .filter(mpa -> bytesFinal.containsKey(mpa.getIdImagen()))
                 .map(mpa -> {
                     ImagenProductoBase64 dto = new ImagenProductoBase64();
@@ -133,7 +143,10 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
                 })
                 .toList();
 
-        return paginarEnMemoria(conImagen, page, size);
+        PageableDto<List<ImagenProductoBase64>> resultado = new PageableDto<>();
+        resultado.setList(conImagen);
+        resultado.setTotalPaginas((int) paginaDB.getTotalPages());
+        return resultado;
     }
 
     @Deprecated
@@ -174,17 +187,6 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
             return devolverImagen;
         }
         throw new IOException("No se encontro el imagen");
-    }
-
-    private PageableDto<List<ImagenProductoBase64>> paginarEnMemoria(List<ImagenProductoBase64> lista, int page, int size) {
-        int fromIndex = page * size;
-        int toIndex = Math.min(fromIndex + size, lista.size());
-        List<ImagenProductoBase64> paginado = fromIndex >= lista.size() ? List.of() : lista.subList(fromIndex, toIndex);
-        int totalPaginas = size == 0 ? 0 : (int) Math.ceil((double) lista.size() / size);
-        PageableDto<List<ImagenProductoBase64>> resultado = new PageableDto<>();
-        resultado.setList(paginado);
-        resultado.setTotalPaginas(totalPaginas);
-        return resultado;
     }
 
     @Override

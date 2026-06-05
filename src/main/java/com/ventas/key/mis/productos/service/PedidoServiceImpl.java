@@ -248,9 +248,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pageable pageable = PageRequest.of(pageSize, size);
         Page<String> jsonList;
         if(buscar.isEmpty()){
-            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, pageable);
-        }else{
             jsonList = iPedidoRepository.buscarTodosLosPedidos(pageable);
+        }else{
+            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, pageable);
         }
         return getListPageableDto(jsonList);
     }

@@ -22,6 +22,7 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 @Service
 @Slf4j
@@ -51,7 +52,9 @@ public class ImageneClienteDisco implements ImagenPort {
     @Override
     public List<ImagenDto> save(MultiValueMap<String, ?> multipartData) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String jwtToken = authentication.getCredentials().toString();
+        Object credentials = authentication.getCredentials();
+        if (credentials == null) throw new IllegalStateException("No hay credenciales JWT en el contexto de seguridad");
+        String jwtToken = credentials.toString();
         return webClient.post()
                 .uri("/imagenes")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer ".concat(jwtToken))
@@ -66,7 +69,7 @@ public class ImageneClienteDisco implements ImagenPort {
                     imagenDto.setContentType(mpa.getContentType());
                     imagenDto.setImagen(mpa.getImagen());
                     return imagenDto;
-                }).toList())).block();
+                }).toList())).timeout(Duration.ofSeconds(5)).block();
     }
 
     @Override
@@ -87,6 +90,7 @@ public class ImageneClienteDisco implements ImagenPort {
                 }).toList()))
                 .doOnError(e -> log.warn("Error obteniendo imágenes del microservicio para ids=[{}]: {}", ids.toArray(), e.getMessage(), e))
                 .onErrorReturn(List.of())
+                .timeout(Duration.ofSeconds(5))
                 .block();
     }
 
@@ -112,6 +116,7 @@ public class ImageneClienteDisco implements ImagenPort {
                 .bodyToMono(new ParameterizedTypeReference<List<Long>>() {})
                 .doOnError(e -> log.warn("Error verificando imágenes ids=[{}]: {}", ids, e.getMessage()))
                 .onErrorReturn(List.of())
+                .timeout(Duration.ofSeconds(5))
                 .block();
     }
 
@@ -142,6 +147,6 @@ public class ImageneClienteDisco implements ImagenPort {
                     imagenDto.setId(mpa.getId());
                     imagenDto.setImagen(mpa.getImagen());
                     return Mono.just(imagenDto);
-                }).block();
+                }).timeout(Duration.ofSeconds(5)).block();
     }
 }
