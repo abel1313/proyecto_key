@@ -1,12 +1,14 @@
 package com.ventas.key.mis.productos.hexagonal.infraestructura;
 
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
@@ -30,9 +32,11 @@ public class ImageneClienteDisco implements ImagenPort {
 
     private WebClient webClient;
     private final WebClient.Builder builder;
+    private final RabbitTemplate rabbitTemplate;
 
-    public ImageneClienteDisco(WebClient.Builder builder) {
+    public ImageneClienteDisco(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
         this.builder = builder;
+        this.rabbitTemplate = rabbitTemplate;
     }
     @PostConstruct
     public void init() {
@@ -88,16 +92,12 @@ public class ImageneClienteDisco implements ImagenPort {
 
     @Override
     public void delete(List<Long> ids) {
-        webClient.delete()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes")
-                        .queryParam("ids", ids.toArray())
-                        .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
-                .retrieve()
-                .toBodilessEntity()
-                .doOnError(e -> log.warn("Error eliminando imágenes del microservicio ids=[{}]: {}", ids, e.getMessage()))
-                .block();
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_ELIMINAR,
+                ids
+        );
+        log.info("Publicados {} IDs a eliminar a Rabbit (queue.eliminar.imagenes)", ids.size());
     }
 
     @Override
@@ -117,16 +117,12 @@ public class ImageneClienteDisco implements ImagenPort {
 
     @Override
     public void deleteInagenesDisco(List<String> ids) {
-        webClient.delete()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes/disco")
-                        .queryParam("ids", ids.toArray())
-                        .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
-                .retrieve()
-                .toBodilessEntity()
-                .doOnError(e -> log.warn("Error eliminando imágenes del disco en el microservicio ids=[{}]: {}", ids, e.getMessage()))
-                .block();
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_ELIMINAR_DISCO,
+                ids
+        );
+        log.info("Publicados {} nombres a eliminar del disco a Rabbit (queue.eliminar.imagenes.disco)", ids.size());
     }
 
     @Override

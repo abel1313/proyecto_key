@@ -16,8 +16,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -27,7 +25,7 @@ import java.util.List;
 
 @Service
 @Slf4j
-public class ImagenProductoClienteAWS implements ImagenProductoPort {
+public class ImagenProductoClienteVPS implements ImagenProductoPort {
 
     @Value("${api.imagenes}")
     private @NotNull String endpointImg;
@@ -36,7 +34,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     private final WebClient.Builder builder;
     private final RabbitTemplate rabbitTemplate;
 
-    public ImagenProductoClienteAWS(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
+    public ImagenProductoClienteVPS(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
         this.builder = builder;
         this.rabbitTemplate = rabbitTemplate;
     }
@@ -47,7 +45,7 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
                 .build();
         String baseUrl = endpointImg.endsWith("/") ? endpointImg : endpointImg + "/";
         this.webClient = builder.baseUrl(baseUrl).exchangeStrategies(strategies).build();
-        log.info(" endpoint imagenes ImagenProductoClienteAWS {}", endpointImg);
+        log.info(" endpoint imagenes ImagenProductoClienteVPS {}", endpointImg);
     }
 
     @Override
@@ -62,18 +60,15 @@ public class ImagenProductoClienteAWS implements ImagenProductoPort {
     }
 
 
-    // TODO: RabbitMQ — candidato para migrar a Rabbit cuando el micro tenga @RabbitListener en queue.guardar.imagenes
-    // Por ahora usa HTTP directo porque ambos comparten la misma BD (inventario_key_qa) y el micro escribe en producto_imagen_copy
     @Override
     public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
-        return webClient.post()
-                .uri("producto-imagen/saveAll")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
-                .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
-                .block();
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_GUARDAR,
+                requestProductoImagen
+        );
+        log.info("Publicadas {} relaciones producto-imagen a Rabbit (queue.guardar.imagenes)", requestProductoImagen.size());
+        return null;
     }
 
     @Override

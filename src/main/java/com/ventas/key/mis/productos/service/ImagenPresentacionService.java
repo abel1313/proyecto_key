@@ -1,13 +1,14 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.dto.negocio.ImagenPresentacionUpdateDto;
 import com.ventas.key.mis.productos.entity.ImagenPresentacion;
 import com.ventas.key.mis.productos.models.ImagenPresentacionDto;
 import com.ventas.key.mis.productos.repository.IImagenPresentacionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,8 @@ import java.util.UUID;
 public class ImagenPresentacionService {
 
     private final IImagenPresentacionRepository repo;
+    private final RabbitTemplate rabbitTemplate;
+    private final CacheService cacheService;
 
     @Value("${guardar-imagenes.ruta_imagenes}")
     private String rutaImagenes;
@@ -38,9 +41,6 @@ public class ImagenPresentacionService {
         return repo.findByTipoAndActivoOrderByOrden(tipo.toUpperCase(), true);
     }
 
-    // TODO: RabbitMQ — cuando se implemente PUT /presentacion/v2/imagenes/{id},
-    //   publicar evento a exchange.imagenes routing key "cache.evict.presentacion"
-    //   para que todos los nodos invaliden "presentacion-imagenes".
     @Cacheable(value = "presentacion-imagenes", key = "#tipo.toUpperCase()")
     public List<ImagenPresentacionDto> getImagenesPorTipoV2(String tipo) {
         return repo.findByTipoAndActivoOrderByOrden(tipo.toUpperCase(), true)
@@ -105,10 +105,7 @@ public class ImagenPresentacionService {
         return repo.save(imagen);
     }
 
-    // TODO: RabbitMQ — publicar evento "cache.evict.presentacion" a exchange.imagenes para invalidar
-    //   caché en todos los nodos cuando haya despliegue multi-nodo. Por ahora @CacheEvict cubre nodo único.
     @Transactional
-    @CacheEvict(value = "presentacion-imagenes", allEntries = true)
     public ImagenPresentacionDto actualizarV2(Integer id, ImagenPresentacionUpdateDto dto) {
         ImagenPresentacion imagen = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Imagen no encontrada: " + id));
@@ -132,7 +129,10 @@ public class ImagenPresentacionService {
         if (dto.getDescripcion() != null) imagen.setDescripcion(dto.getDescripcion());
         if (dto.getActivo() != null)      imagen.setActivo(dto.getActivo());
         imagen.setActualizadoEn(LocalDateTime.now());
-        return toDto(repo.save(imagen));
+        ImagenPresentacionDto resultado = toDto(repo.save(imagen));
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return resultado;
     }
 
     public byte[] getImagenBytes(Integer id) throws IOException {

@@ -22,12 +22,14 @@ import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.BindingResult;
@@ -59,6 +61,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IPagosYMesesRepository iPagosYMesesRepository;
     private final IVarianteRepository iVarianteRepository;
 
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
+
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
                              final IClienteRepository iClienteRepository,
                              final IProductosRepository iProductoRepository,
@@ -82,14 +87,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iVarianteRepository = iVarianteRepository;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache",
-                        "buscarNombreOrCodigoBarrasCache",
-                        "findByIdCache",
-                        "variantesCodigoBarrasCache",
-                        "variantesNombreCache",
-                        "variantesProductoCache",
-                        "variantesImagenesCache",
-                        "variantesCodigoBarrasCache"}, allEntries = true)
     @Transactional
     public Pedido savePedido(@RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
 
@@ -142,19 +139,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detallePedido.add(dta);
         }
         pedido.setDetalles(detallePedido);
-        return this.iPedidoRepository.save(pedido);
+        Pedido saved = this.iPedidoRepository.save(pedido);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return saved;
     }
 
     @Transactional
     @Override
-    @CacheEvict(value = {"obtenerProductosCache",
-            "buscarNombreOrCodigoBarrasCache",
-            "findByIdCache",
-            "variantesCodigoBarrasCache",
-            "variantesNombreCache",
-            "variantesProductoCache",
-            "variantesImagenesCache",
-            "variantesCodigoBarrasCache"}, allEntries = true)
     public PedidoGenerico updatePedido(int id, PedidoGenerico requestG) throws Exception {
         Pedido pedido = this.iPedidoRepository.findById(id)
                 .orElseThrow(() -> new GenericException(500, "El pedido no existe"));
@@ -232,7 +224,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setEstadoPedido("Entregado");
         this.iPedidoRepository.save(pedido);
         this.vImpl.save(venta);
-
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
         return new PedidoGenerico();
     }
 
@@ -263,7 +256,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
     @Transactional
     @Override
     public void deletePedidoById(int id, String motivo) {
@@ -292,9 +284,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setMotivoCancelacion(motivo);
         pedido.setFechaCancelacion(LocalDate.now());
         iPedidoRepository.save(pedido);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache"}, allEntries = true)
     @Transactional
     @Override
     public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad) {
@@ -339,6 +332,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
             iDetallePedidoRepository.save(detalle);
         }
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {

@@ -9,7 +9,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteVPS;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
@@ -23,10 +23,12 @@ import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -85,15 +87,18 @@ public class ProductosServiceImpl extends
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IPalabraClaveRepository iPalabraClaveRepository;
 
-    private final ImagenProductoClienteAWS imagenProductoClienteAWS;
+    private final ImagenProductoClienteVPS imagenProductoClienteVPS;
     private final ImagenPort imagenPort;
+
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
             final IImagenService iImagenService,
-            final ImagenProductoClienteAWS imagenProductoClienteAWS,
+            final ImagenProductoClienteVPS imagenProductoClienteVPS,
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
             final IProductoImagenRepository iProductoImagenRepository,
@@ -106,7 +111,7 @@ public class ProductosServiceImpl extends
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
-        this.imagenProductoClienteAWS = imagenProductoClienteAWS;
+        this.imagenProductoClienteVPS = imagenProductoClienteVPS;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.varianteRepository = iVarianteRepository;
         this.iProductoImagenRepository = iProductoImagenRepository;
@@ -262,7 +267,6 @@ public class ProductosServiceImpl extends
 
     @Transactional
     @Override
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache", "detalleImagen"}, allEntries = true)
     public void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado {
         log.info("Buscar producto con el ID {}",id);
         Optional<Producto> existeProducto = iProductosRepository.findById(id);
@@ -297,6 +301,8 @@ public class ProductosServiceImpl extends
             log.info("Se elimino el producto con las variantes y relaciones con imagenes");
 
         });
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
     private List<ProductoDTO> listaProductos(List<Producto> lista) {
@@ -328,10 +334,12 @@ public class ProductosServiceImpl extends
 
 
     @Override
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache", "detalleImagen", "detalle"}, allEntries = true)
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
-        return guardarProducto(productoDetalle);
+        Producto resultado = guardarProducto(productoDetalle);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return resultado;
     }
 
     @Override
@@ -545,7 +553,7 @@ public class ProductosServiceImpl extends
                         return r;
                     }).toList();
 
-            imagenProductoClienteAWS.saveAll(relaciones);
+            imagenProductoClienteVPS.saveAll(relaciones);
             log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
         } catch (Exception e) {
             log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
@@ -645,13 +653,15 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "detalleImagen", "detalle"}, allEntries = true)
     @Transactional
     public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
         Producto producto = iProductosRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado con id: " + id));
         producto.setHabilitado(habilitar ? '1' : '0');
-        return iProductosRepository.save(producto);
+        Producto resultado = iProductosRepository.save(producto);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return resultado;
     }
 
     public DiagnosticoImagenProductoDto diagnosticarImagenesProducto(Integer productoId) {
@@ -675,7 +685,7 @@ public class ProductosServiceImpl extends
 
         try {
             com.ventas.key.mis.productos.hexagonal.dominio.Imagen imgExterna =
-                    imagenProductoClienteAWS.buscarImagenProducto(productoId);
+                    imagenProductoClienteVPS.buscarImagenProducto(productoId);
             boolean tieneBytes = imgExterna != null && imgExterna.getImagen() != null;
             dto.setImagenPresenteEnMicroservicio(tieneBytes);
             dto.setDetalleExternoLista(imgExterna == null
