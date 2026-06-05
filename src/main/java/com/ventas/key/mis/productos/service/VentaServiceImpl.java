@@ -12,7 +12,9 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.models.VentaDirectaResponse;
 import com.ventas.key.mis.productos.repository.*;
-import org.springframework.cache.annotation.CacheEvict;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     private final IClienteSinRegistroRepository iClienteSinRegistroRepository;
     private final IPedidoRepository iPedidoRepository;
     private final ErrorGenerico errorGenerico;
+
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
 
     public VentaServiceImpl(
             final IVentaRepository iVentaRepository,
@@ -81,7 +86,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         return clienteSinRegistro;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "findByIdCache", "variantesProductoCache", "variantesCodigoBarrasCache"}, allEntries = true)
     @Transactional
     public VentaDirectaResponse saveVentaDetalle(VentaDirectaRequest request) throws ExceptionErrorInesperado, ExceptionDataNotFound {
 
@@ -203,7 +207,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         boolean requiereTerminal = mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
         Venta saved = iVentaRepository.save(venta);
-
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
         return new VentaDirectaResponse(
                 saved.getId(),
                 pagosYMeses.getTipoPago().getFormaPago(),

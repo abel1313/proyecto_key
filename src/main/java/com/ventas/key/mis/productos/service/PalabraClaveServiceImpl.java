@@ -1,10 +1,12 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,6 +24,9 @@ public class PalabraClaveServiceImpl extends CrudAbstractServiceImpl<
         PginaDto<List<PalabraClave>>> {
 
     private final IPalabraClaveRepository iPalabraClaveRepository;
+
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
 
     public PalabraClaveServiceImpl(IPalabraClaveRepository repository, ErrorGenerico error) {
         super(repository, error);
@@ -41,8 +46,10 @@ public class PalabraClaveServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    @CacheEvict(value = "palabrasClaveCache", allEntries = true)
     public PalabraClave save(PalabraClave req) {
-        return super.save(req);
+        PalabraClave resultado = super.save(req);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return resultado;
     }
 }

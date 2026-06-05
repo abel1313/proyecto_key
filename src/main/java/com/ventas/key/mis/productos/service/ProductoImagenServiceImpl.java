@@ -11,9 +11,11 @@ import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,9 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
+
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
 
     public ProductoImagenServiceImpl(BaseRepository<ProductoImagen, Integer> repoGenerico, ErrorGenerico error,
                                      final IProductoImagenRepository iProductoImagenRepository,
@@ -92,7 +97,6 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     @Transactional
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void eliminarImagenesEspecificas(Integer productoId, List<Long> imagenIds) {
         log.info("eliminarImagenesEspecificas productoId: {} ids imagenes {} ", productoId, imagenIds);
         log.info("**********************************************************************************************");
@@ -117,11 +121,12 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         } catch (Exception e) {
             log.warn("No se pudieron eliminar imágenes del microservicio ids ={}: {}", huerfanas, e.getMessage());
         }
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void eliminarImagenesDeProductos(List<Integer> productoIds) {
         // recolectar IDs de imágenes vinculadas (producto + variantes del producto)
         List<Long> idsProducto = iProductoImagenRepository.findImagenIdsByProductoIdIn(productoIds);
@@ -146,5 +151,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         } catch (Exception e) {
             log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
         }
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 }

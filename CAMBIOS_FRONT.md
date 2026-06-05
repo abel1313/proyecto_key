@@ -1122,3 +1122,208 @@ http://localhost:9096/mis-productos/imagenes/file/7305237692097776164
 - Endpoints de imágenes de producto en detalle: `GET /producto-imagen/listar/{productoId}` — sin cambios
 - Endpoints de eliminación y marcado de principal — sin cambios
 - Estructura general del response (`data.t`, `data.pagina`, etc.) — sin cambios
+
+---
+
+## CAMBIOS INTERNOS — RabbitMQ + Caché (sin impacto en el contrato de API)
+
+> **El front NO necesita cambiar nada.** Request, response y URLs son exactamente los mismos.
+> Estos cambios son internos: ahora cualquier escritura invalida la caché en **todos los nodos** del back
+> vía RabbitMQ, en lugar de solo en el nodo que procesó el request.
+
+### Qué cambió internamente
+
+Antes: cada método de escritura usaba `@CacheEvict` con una lista de caches específicas. Si el back corría en varios nodos, solo el nodo que recibía el request limpiaba su caché — los otros seguían sirviendo datos viejos.
+
+Ahora: cualquier escritura hace dos cosas:
+1. Llama a `CacheService.evictAll()` → limpia **todas** las caches del nodo actual
+2. Publica un evento `cache.evict.all` a RabbitMQ → todos los demás nodos reciben el evento y también limpian sus caches
+
+---
+
+### Endpoints afectados (mismo contrato, nuevo comportamiento de caché)
+
+#### Imágenes de producto
+
+| Método | URL | Comportamiento visible para el front |
+|--------|-----|--------------------------------------|
+| `DELETE` | `/imagen/v2/{imagenId}` | Sin cambio — sigue eliminando la imagen y respondiendo 200 |
+| `PUT` | `/presentacion/v2/imagenes/{id}` | Sin cambio — sigue actualizando y devolviendo `ImagenPresentacionDto` |
+| `GET` | `/imagen/v2/cache/limpiar` | Sin cambio en response — ahora también notifica a los demás nodos vía Rabbit |
+
+#### Productos
+
+| Método | URL | Comportamiento visible para el front |
+|--------|-----|--------------------------------------|
+| `POST` | `/productos/save` | Sin cambio en request/response |
+| `PUT` | `/productos/update` | Sin cambio en request/response |
+| `DELETE` | `/productos/deleteBy/{id}` | Sin cambio en request/response |
+| `PUT` | `/productos/{id}/habilitar?habilitar=` | Sin cambio en request/response |
+
+#### Pedidos
+
+| Método | URL | Comportamiento visible para el front |
+|--------|-----|--------------------------------------|
+| `POST` | `/pedidos/savePedido` | Sin cambio en request/response |
+| `PUT` | `/pedidos/confirmar/{id}` | Sin cambio en request/response |
+| `DELETE` | `/pedidos/delete/{id}?motivo=` | Sin cambio en request/response |
+| `DELETE` | `/pedidos/{pedidoId}/detalle/{productoId}?cantidad=` | Sin cambio en request/response |
+
+#### Ventas
+
+| Método | URL | Comportamiento visible para el front |
+|--------|-----|--------------------------------------|
+| `POST` | `/ventas/save` | Sin cambio en request/response |
+
+#### Palabras clave
+
+| Método | URL | Comportamiento visible para el front |
+|--------|-----|--------------------------------------|
+| `POST` | `/palabras-clave/save` | Sin cambio en request/response |
+| `PUT` | `/palabras-clave/update/{id}` | Sin cambio — el `save` del servicio base ahora evicta caché + Rabbit |
+| `DELETE` | `/palabras-clave/delete` | Sin cambio — igual |
+
+#### Admin — limpieza de caché
+
+| Método | URL | Qué hace | Cambio |
+|--------|-----|----------|--------|
+| `DELETE` | `/admin/cache` | Limpia todas las caches de Spring | Ahora también notifica vía Rabbit a los demás nodos. Response sin cambio: devuelve lista de caches limpiadas. |
+
+---
+
+### Acción requerida por el front
+
+**Ninguna.** Todos los endpoints mantienen el mismo método HTTP, URL, request body y response.
+
+El único beneficio observable es que después de cualquier escritura, **todos los nodos** del back sirven datos actualizados — elimina el caso donde el front veía datos viejos al refrescar si era atendido por un nodo diferente.
+
+---
+
+## CAMBIOS INTERNOS — micro_imagenes ahora también evicta caché vía Rabbit
+
+> **El front NO necesita cambiar nada.** Este cambio es interno a micro_imagenes (puerto 9096).
+
+### Qué cambió
+
+`micro_imagenes` ahora escucha el evento `cache.evict.all` de RabbitMQ.
+
+Antes: cuando `proyecto-key` publicaba `cache.evict.all`, solo los nodos de `proyecto-key` limpiaban su caché. `micro_imagenes` no se enteraba y podía seguir sirviendo datos cacheados viejos (imágenes de productos que ya no existen, listas de imágenes desactualizadas).
+
+Ahora: cuando se publica `cache.evict.all`:
+1. Los nodos de `proyecto-key` limpian su caché (como antes)
+2. Los nodos de `micro_imagenes` también limpian su caché (nuevo)
+
+### Implementación
+
+- **Cola nueva en micro_imagenes:** `queue.cache.evict.all.imagenes` — cola propia, separada de la de proyecto-key, vinculada al mismo `exchange.imagenes` con la misma routing key `cache.evict.all`. Esto garantiza que ambos servicios reciban el mismo mensaje (no compiten por él).
+- **Listener:** `ImagenRabbitConsumer.evictAllCache()` — limpia todas las caches de Redis en el nodo de micro_imagenes que recibe el mensaje.
+
+### Cuándo se dispara
+
+Los mismos eventos que ya existían en proyecto-key (POST producto, PUT producto, DELETE producto, POST pedido, etc.) ahora también limpian la caché de micro_imagenes automáticamente.
+
+---
+
+## CAMBIOS INTERNOS — Guardar relaciones producto-imagen ahora es asíncrono vía Rabbit
+
+> **El front NO necesita cambiar nada.** Request, response y URLs son exactamente los mismos.
+
+### Qué cambió
+
+Cuando se guarda o actualiza un producto con imágenes, el paso de registrar la relación `productoId → imagenId` en micro_imagenes ahora es **asíncrono vía RabbitMQ** en vez de una llamada HTTP síncrona.
+
+**Flujo anterior:**
+```
+Front → POST /productos/save
+    └─► sube bytes al micro (HTTP multipart) → obtiene imagenIds
+    └─► POST producto-imagen/saveAll (HTTP síncrono) → micro_imagenes registra la relación
+    ← 200 OK  (todo en la misma llamada)
+```
+
+**Flujo nuevo:**
+```
+Front → POST /productos/save
+    └─► sube bytes al micro (HTTP multipart) → obtiene imagenIds
+    └─► publica a queue.guardar.imagenes (Rabbit, fire-and-forget)
+    ← 200 OK  (respuesta inmediata, sin esperar al micro)
+              ...micro_imagenes recibe el mensaje y registra la relación en segundo plano
+```
+
+### Garantías
+- Si micro_imagenes está caído cuando se guarda el producto, el mensaje **queda encolado** en Rabbit y se procesa cuando el micro levanta — no se pierde
+- Si el procesamiento falla → NACK → va a `dlq.guardar.imagenes` (Dead Letter Queue) para inspección manual
+
+### Dónde se ve el cambio en el front (cómo probarlo)
+
+1. Ve al panel admin → crear nuevo producto → sube una imagen → guarda
+2. El 200 OK llega **más rápido** que antes (ya no espera la confirmación del micro)
+3. Espera 1-2 segundos → ve al listado de productos → la imagen ya aparece
+4. **Caso de falla simulada:** si micro_imagenes está abajo al guardar, el producto se crea igual y la imagen aparece en cuanto micro_imagenes vuelve a estar activo
+
+---
+
+## CAMBIOS INTERNOS — Eliminar imágenes ahora es asíncrono vía Rabbit
+
+> **El front NO necesita cambiar nada.** Mismos endpoints, mismo request, mismo response.
+
+### Qué cambió
+
+Las dos operaciones de eliminación de imágenes que antes hacían HTTP síncrono a micro_imagenes ahora publican a RabbitMQ:
+
+| Operación | Queue | Qué hace micro_imagenes al recibirlo |
+|---|---|---|
+| Eliminar imágenes por ID | `queue.eliminar.imagenes` | Borra el archivo del disco + el registro de BD por cada ID |
+| Eliminar archivos del disco | `queue.eliminar.imagenes.disco` | Borra solo los archivos del disco (sin tocar BD) |
+
+Ambas colas tienen Dead Letter Queue (`dlq.eliminar.imagenes`, `dlq.eliminar.imagenes.disco`) — si el procesamiento falla, el mensaje va al DLQ en vez de perderse o reintentar infinitamente.
+
+**Flujo anterior:**
+```
+Front → DELETE producto/variante
+    └─► DELETE /imagenes?ids=... (HTTP síncrono a micro_imagenes)
+    ← 200 OK  (espera a que el micro confirme la eliminación)
+```
+
+**Flujo nuevo:**
+```
+Front → DELETE producto/variante
+    └─► publica ids a queue.eliminar.imagenes (Rabbit, fire-and-forget)
+    ← 200 OK  (respuesta inmediata)
+              ...micro_imagenes recibe el mensaje y elimina archivos + BD en segundo plano
+```
+
+### Dónde se ve el cambio en el front (cómo probarlo)
+
+**Caso 1 — Eliminar imagen de un producto:**
+1. Ve al panel admin → editar producto → elimina una imagen → guarda
+2. El 200 OK llega más rápido que antes
+3. Recarga el detalle del producto → la imagen ya no aparece
+
+**Caso 2 — Eliminar un producto completo:**
+1. Ve al panel admin → listado de productos → elimina un producto
+2. El producto desaparece del listado inmediatamente
+3. Las imágenes asociadas se eliminan del disco del micro en segundo plano — si entras al diagnóstico de imágenes del producto antes de que procese, puede que aún aparezcan brevemente
+
+**Caso 3 — Eliminar imagen de una variante:**
+1. Ve al panel admin → variantes → selecciona una variante → elimina imágenes → guarda
+2. Las imágenes desaparecen del listado de esa variante en el siguiente request
+
+### Dónde se ve el cambio en el front (cómo probarlo)
+
+**Caso 1 — Imagen de producto:**
+1. Ve al panel admin → editar producto → cambia o elimina la imagen principal → guarda
+2. Ve al catálogo/listado de productos (sin recargar manualmente el front)
+3. **Antes:** la imagen vieja seguía apareciendo hasta que expiraba el TTL de 30 min
+4. **Ahora:** la imagen actualizada aparece de inmediato en el siguiente request al listado
+
+**Caso 2 — Banner de login/registro:**
+1. Ve al panel admin → Imágenes de presentación → selecciona el banner de LOGIN → cambia la imagen → guarda
+2. Abre otra pestaña y ve a la pantalla de login
+3. **Antes:** el banner viejo seguía apareciendo (caché de micro_imagenes no se limpiaba)
+4. **Ahora:** el banner nuevo aparece de inmediato
+
+**Caso 3 — Eliminar imagen de variante:**
+1. Ve al panel admin → variantes → selecciona una variante → elimina una imagen → guarda
+2. Ve al listado de variantes o al detalle de esa variante
+3. **Antes:** la imagen eliminada podía seguir apareciendo en caché
+4. **Ahora:** el listado ya no incluye esa imagen en el siguiente request

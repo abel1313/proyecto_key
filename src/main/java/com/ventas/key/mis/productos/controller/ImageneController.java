@@ -1,14 +1,17 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenProductoPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.ProductoImagenDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.service.CacheService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -30,6 +33,8 @@ public class ImageneController {
     private final IProductoImagenService iProductoImagenService;
     private final ImagenProductoPort imagenProductoPort;
     private final ImagenPort imagenPort;
+    private final CacheService cacheService;
+    private final RabbitTemplate rabbitTemplate;
 
 
     /**
@@ -46,8 +51,6 @@ public class ImageneController {
                 .body(imagen.getImagen());
     }
 
-    // TODO: RabbitMQ — la evicción de caché al actualizar/eliminar imagen podría publicarse
-    //   como evento a exchange.imagenes para que todos los nodos invaliden su caché local.
     @GetMapping("/v2/{productoId}")
     @Cacheable(value = "imagenes", key = "#productoId")
     public ResponseEntity<byte[]> getImagenV2(@PathVariable Integer productoId) throws Exception {
@@ -187,10 +190,10 @@ public class ImageneController {
     public void limpiarTodaLaCacheDeImagenes() {
     }
 
-    // TODO: RabbitMQ — publicar evento a exchange.imagenes para que todos los nodos invaliden su caché local
     @GetMapping("/v2/cache/limpiar")
-    @CacheEvict(value = {"imagenes", "detalleImagen", "detalle", "detalle-v2", "buscarImagenIdCache"}, allEntries = true)
     public ResponseEntity<Void> limpiarCacheImagenesV2() {
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
         return ResponseEntity.noContent().build();
     }
 

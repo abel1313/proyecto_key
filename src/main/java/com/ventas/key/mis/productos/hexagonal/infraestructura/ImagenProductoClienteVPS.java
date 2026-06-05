@@ -16,8 +16,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -27,7 +25,11 @@ import java.util.List;
 
 @Service
 @Slf4j
+<<<<<<<< HEAD:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteMicro.java
 public class ImagenProductoClienteMicro implements ImagenProductoPort {
+========
+public class ImagenProductoClienteVPS implements ImagenProductoPort {
+>>>>>>>> dev:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteVPS.java
 
     @Value("${api.imagenes}")
     private @NotNull String endpointImg;
@@ -36,7 +38,11 @@ public class ImagenProductoClienteMicro implements ImagenProductoPort {
     private final WebClient.Builder builder;
     private final RabbitTemplate rabbitTemplate;
 
+<<<<<<<< HEAD:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteMicro.java
     public ImagenProductoClienteMicro(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
+========
+    public ImagenProductoClienteVPS(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
+>>>>>>>> dev:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteVPS.java
         this.builder = builder;
         this.rabbitTemplate = rabbitTemplate;
     }
@@ -47,7 +53,11 @@ public class ImagenProductoClienteMicro implements ImagenProductoPort {
                 .build();
         String baseUrl = endpointImg.endsWith("/") ? endpointImg : endpointImg + "/";
         this.webClient = builder.baseUrl(baseUrl).exchangeStrategies(strategies).build();
+<<<<<<<< HEAD:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteMicro.java
         log.info(" endpoint imagenes ImagenProductoClienteMicro {}", endpointImg);
+========
+        log.info(" endpoint imagenes ImagenProductoClienteVPS {}", endpointImg);
+>>>>>>>> dev:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteVPS.java
     }
 
     @Override
@@ -63,12 +73,23 @@ public class ImagenProductoClienteMicro implements ImagenProductoPort {
 
 
     @Override
+<<<<<<<< HEAD:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteMicro.java
     public void saveAll(List<RequestProductoImagen> requestProductoImagen) {
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.EXCHANGE_IMAGENES,
                 RabbitMQConfig.ROUTING_KEY_GUARDAR,
                 requestProductoImagen);
         log.info("Relaciones producto-imagen publicadas a Rabbit — {} relaciones", requestProductoImagen.size());
+========
+    public ResponseGeneric<ProductoImagen> saveAll(List<RequestProductoImagen> requestProductoImagen) {
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_GUARDAR,
+                requestProductoImagen
+        );
+        log.info("Publicadas {} relaciones producto-imagen a Rabbit (queue.guardar.imagenes)", requestProductoImagen.size());
+        return null;
+>>>>>>>> dev:src/main/java/com/ventas/key/mis/productos/hexagonal/infraestructura/ImagenProductoClienteVPS.java
     }
 
     @Override

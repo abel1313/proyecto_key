@@ -8,7 +8,10 @@ import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.service.api.IImagenService;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -41,6 +44,9 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
 
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
+
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
 
     public ImagenServiceImpl(BaseRepository<Imagen, Long> repoGenerico, ErrorGenerico error,
                              final IImagenRepository iImagenRepository,
@@ -137,19 +143,16 @@ public class ImagenServiceImpl extends CrudAbstractServiceImpl<
         this.iImagenRepository.deleteById(id);
     }
 
-    // TODO: RabbitMQ — candidato para publicar evento "imagen.eliminada" a exchange.imagenes
-    //   para que el micro procese la eliminación del archivo de forma asíncrona.
     @Override
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void deleteByIdV2(Long id) {
-        // el micro necesita el registro en BD para encontrar el path del archivo en disco
-        // por eso se borra primero el archivo y después el registro
         try {
             imagenPort.delete(List.of(id));
         } catch (Exception e) {
             log.warn("No se pudo eliminar imagen del micro imagenId={}: {}", id, e.getMessage());
         }
         iImagenRepository.deleteById(id);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
 

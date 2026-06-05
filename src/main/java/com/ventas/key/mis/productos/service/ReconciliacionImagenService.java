@@ -6,7 +6,7 @@ import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteMicro;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteVPS;
 import com.ventas.key.mis.productos.models.ReconciliacionResultadoDto;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
@@ -46,7 +46,7 @@ public class ReconciliacionImagenService {
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IImagenRepository iImagenRepository;
-    private final ImagenProductoClienteMicro imagenProductoClienteMicro;
+    private final ImagenProductoClienteVPS imagenProductoClienteVPS;
 
     private volatile ReconciliacionResultadoDto ultimoResultado;
     private volatile boolean enProceso = false;
@@ -117,7 +117,7 @@ public class ReconciliacionImagenService {
 
         if (!aReenviar.isEmpty()) {
             try {
-                imagenProductoClienteMicro.saveAll(aReenviar);
+                imagenProductoClienteVPS.saveAll(aReenviar);
                 aReenviar.forEach(r -> resultado.getReparados().add(
                         "PRODUCTO id=" + productoId + " imagenId=" + r.getImagenId()));
                 log.info("Re-enviadas {} imagenes del producto {}", aReenviar.size(), productoId);
@@ -148,7 +148,7 @@ public class ReconciliacionImagenService {
 
         if (!aReenviar.isEmpty()) {
             try {
-                imagenProductoClienteMicro.saveAll(aReenviar);
+                imagenProductoClienteVPS.saveAll(aReenviar);
                 aReenviar.forEach(r -> resultado.getReparados().add(
                         "VARIANTE id=" + variante.getId() + " imagenId=" + r.getImagenId()));
                 resultado.setVariantesRevisadas(resultado.getVariantesRevisadas() + aReenviar.size());
