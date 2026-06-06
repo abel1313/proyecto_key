@@ -89,8 +89,8 @@ public class PedidoController extends AbstractController<
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null));
         }
     }
-    @GetMapping("/buscarClientePedido/{buscar}")
-    public ResponseEntity<ResponseGeneric<PageableDto<List<PedidoGenerico>>>> buscarClienteNombre(@PathVariable String buscar, @RequestParam int size, @RequestParam int page) {
+    @GetMapping("/buscarClientePedido")
+    public ResponseEntity<ResponseGeneric<PageableDto<List<PedidoGenerico>>>> buscarClienteNombre(@RequestParam(required = false, defaultValue = "") String buscar, @RequestParam int size, @RequestParam int page) {
         try {
             PageableDto<List<PedidoGenerico>> response = iPedidoService.buscarClientePorPedido(buscar, size,  page);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
