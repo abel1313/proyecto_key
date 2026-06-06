@@ -107,6 +107,11 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
 
         log.info("Se eliminaron estos ids huefanos  {} size {} ", huerfanas, imagenIds.size());
+
+        // Evict siempre: la relación producto_imagen ya se borró aunque las imágenes sean compartidas
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+
         if (huerfanas.isEmpty()) return;
         log.info("Ir a eliminar las imagenes de la tabla imagenes copy  {}", imagenIds);
         log.info("**********************************************************************************************");
@@ -121,8 +126,6 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         } catch (Exception e) {
             log.warn("No se pudieron eliminar imágenes del microservicio ids ={}: {}", huerfanas, e.getMessage());
         }
-        cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
     @Override
