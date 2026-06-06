@@ -258,16 +258,22 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
         if (relaciones.isEmpty()) return List.of();
         List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
-        Set<Long> existentes;
+        List<Long> existentesList;
         try {
-            existentes = new HashSet<>(imageneClienteDisco.verificarExistentes(ids));
+            existentesList = imageneClienteDisco.verificarExistentes(ids);
         } catch (Exception e) {
             log.warn("Error verificando existencia en micro para varianteId={}: {}", varianteId, e.getMessage());
-            existentes = Set.of();
+            existentesList = List.of();
         }
-        Set<Long> existentesFinal = existentes;
+        // Si la verificación devuelve vacío (micro no disponible o archivo perdido),
+        // usar BD local como fallback para que el detalle sea consistente con el listado.
+        if (existentesList.isEmpty()) {
+            log.warn("verificarExistentes vacío para varianteId={}, usando BD local como fallback", varianteId);
+            return buildImagenUpdateDtos(relaciones);
+        }
+        Set<Long> existentes = new HashSet<>(existentesList);
         return buildImagenUpdateDtos(relaciones.stream()
-                .filter(vi -> existentesFinal.contains(vi.getImagen().getId()))
+                .filter(vi -> existentes.contains(vi.getImagen().getId()))
                 .toList());
     }
 
@@ -284,18 +290,25 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
 
         List<Long> imagenIds = todas.stream().map(vi -> vi.getImagen().getId()).toList();
-        Set<Long> existentes;
+        List<Long> existentesList;
         try {
-            existentes = new HashSet<>(imageneClienteDisco.verificarExistentes(imagenIds));
+            existentesList = imageneClienteDisco.verificarExistentes(imagenIds);
         } catch (Exception e) {
             log.warn("Error verificando imágenes en micro para varianteId={}: {}", varianteId, e.getMessage());
-            existentes = Set.of();
+            existentesList = List.of();
         }
 
-        Set<Long> existentesFinal = existentes;
-        List<VarianteImagen> conImagen = todas.stream()
-                .filter(vi -> existentesFinal.contains(vi.getImagen().getId()))
-                .toList();
+        // Si la verificación devuelve vacío, usar BD local como fallback (consistente con el listado).
+        List<VarianteImagen> conImagen;
+        if (existentesList.isEmpty()) {
+            log.warn("verificarExistentes vacío para varianteId={} (paginado), usando BD local como fallback", varianteId);
+            conImagen = todas;
+        } else {
+            Set<Long> existentes = new HashSet<>(existentesList);
+            conImagen = todas.stream()
+                    .filter(vi -> existentes.contains(vi.getImagen().getId()))
+                    .toList();
+        }
 
         List<ImagenUpdateDto> dtos = buildImagenUpdateDtos(conImagen);
         int fromIndex = (pagina - 1) * size;
