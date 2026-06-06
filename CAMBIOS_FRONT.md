@@ -14,28 +14,33 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
-### [BUG-KEY-02] ✅ Fix: búsqueda de pedidos por cliente ahora funciona correctamente
-**Fecha:** 2026-06-04  
-**Archivo corregido:** `PedidoServiceImpl.java:250`
+### [BUG-KEY-02] ✅ Fix: búsqueda de pedidos — endpoint migrado a query param
+**Fecha:** 2026-06-05  
+**Archivos corregidos:** `PedidoController.java:92`, `PedidoServiceImpl.java:250`
 
-**Endpoint:**
+**Endpoint ANTERIOR (deprecado):**
 ```
 GET /pedidos/buscarClientePedido/{buscar}?size=10&page=0
 ```
 
-**Dónde verlo en el panel:**
-> Menú lateral → **Pedidos** → campo de búsqueda por nombre de cliente → escribir un nombre y dar Enter (o limpiar el campo para ver todos).
+**Endpoint NUEVO:**
+```
+GET /pedidos/buscarClientePedido?buscar=juan&size=10&page=0
+GET /pedidos/buscarClientePedido?size=10&page=0            ← sin buscar = todos los pedidos
+```
 
-**Comportamiento ANTES del fix (incorrecto):**
-- Campo de búsqueda **vacío** → el backend buscaba por texto vacío (resultados inconsistentes)
-- Campo con **texto escrito** → el backend ignoraba el texto y devolvía **todos los pedidos**
-- Resultado: el filtro del panel funcionaba al revés
+**El front DEBE cambiar la llamada:**
+- Quitar el segmento `/{buscar}` de la URL
+- Pasar `buscar` como query param (opcional)
+- Cuando el campo está vacío → omitir el param o mandarlo vacío `buscar=`; ambos devuelven todos los pedidos
 
-**Comportamiento DESPUÉS del fix (correcto):**
-- Campo **vacío** → devuelve todos los pedidos paginados
-- Campo con **texto** → filtra y devuelve solo los pedidos del cliente cuyo nombre contiene ese texto
+**Por qué cambia:** un path variable nunca puede ser vacío en HTTP — el router de Spring no matchea la ruta si el segmento falta. El front usaba `"vacio"` como centinela, lo que provocaba que la búsqueda buscara un cliente llamado "vacio" y no devolviera nada. Con query param opcional el problema desaparece.
 
-**El front no necesita cambiar nada** — mismo endpoint, mismo contrato. Solo cambia el comportamiento del backend.
+**Comportamiento:**
+- `buscar` ausente o vacío → devuelve **todos** los pedidos paginados
+- `buscar=juan` → filtra pedidos cuyo cliente contiene "juan"
+
+**Códigos de respuesta:** 200 con `PageableDto`, 500 si hay error interno.
 
 ---
 
