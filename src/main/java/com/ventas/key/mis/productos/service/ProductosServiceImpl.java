@@ -39,6 +39,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -558,7 +559,12 @@ public class ProductosServiceImpl extends
             imagenProductoClienteVPS.saveAll(relaciones);
             log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
         } catch (Exception e) {
-            log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
+            if (e instanceof WebClientResponseException wcre) {
+                log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {} — body respuesta: {}",
+                        e.getMessage(), wcre.getResponseBodyAsString(), e);
+            } else {
+                log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
+            }
         }
     }
 
