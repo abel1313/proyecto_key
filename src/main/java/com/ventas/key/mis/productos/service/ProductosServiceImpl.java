@@ -335,6 +335,7 @@ public class ProductosServiceImpl extends
 
 
     @Override
+    @Transactional
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto resultado = guardarProducto(productoDetalle);
