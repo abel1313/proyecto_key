@@ -17,6 +17,8 @@
 | PERF-KEY-01 | .block() sin timeout en WebClient | ✅ Corregido | 2026-06-05 |
 | PERF-KEY-02 | Paginación en memoria con lectura de disco | ✅ Corregido | 2026-06-05 |
 | PERF-KEY-03 | N+1 queries en aplicarPrincipalProducto | ✅ Corregido | 2026-06-05 |
+| BUG-KEY-11 | Header Authorization duplicado → 400 de nginx en subida de imágenes | ✅ Corregido | 2026-06-08 |
+| BUG-KEY-12 | TransactionRequiredException al marcar imagen principal (recurrencia BUG-KEY-01) | ✅ Corregido | 2026-06-08 |
 
 ---
 
@@ -106,6 +108,7 @@ No. El tiempo lo domina la BD, no el CPU. Hacer 12 `save()` en paralelo sigue si
   - `PUT /productos/update`
 - **Qué pasa:** Spring AOP no puede interceptar métodos privados, así que la anotación `@Transactional` es ignorada. Si falla cualquier operación después de que `iProductosRepository.save()` ya persistió (por ejemplo, el guardado de imágenes), **no hay rollback** y el producto queda en estado inconsistente con imágenes huérfanas en disco.
 - **Fix:** cambiar visibilidad de `private` a `protected` en `guardarProducto()`.
+- **⚠️ Nota 2026-06-08 — el fix quedó incompleto, ver [[BUG-KEY-12]]:** cambiar de `private` a `protected` no resuelve el problema de fondo. `guardarProducto()` se sigue llamando vía **self-invocation** (`this.guardarProducto(...)` desde `saveProductoLote`), lo que evita el proxy de Spring AOP sin importar la visibilidad del método. El `@Transactional` de `guardarProducto` nunca se activa. La causa real volvió a manifestarse como `TransactionRequiredException` (ver BUG-KEY-12) y el fix definitivo fue mover `@Transactional` al método público `saveProductoLote`, que es el punto de entrada real desde el controlador.
 
 ---
 
@@ -240,3 +243,35 @@ No. El tiempo lo domina la BD, no el CPU. Hacer 12 `save()` en paralelo sigue si
 - **Endpoints afectados:** `POST /productos/save`, `PUT /productos/update` (cuando se envía `imagenPrincipalId` en el body)
 - **Qué pasa:** hace 1 SELECT para obtener todas las imágenes y luego N UPDATEs individuales (uno por imagen). Para un producto con 10 imágenes: 11 queries.
 - **Fix:** reemplazar con 2 queries: `UPDATE SET principal=false WHERE productoId=?` + `UPDATE SET principal=true WHERE imagenId=?`.
+
+---
+
+## SESIÓN 2026-06-08 — diagnóstico en vivo (logs VPS) durante prueba de subida y "marcar imagen como principal"
+
+### BUG-KEY-11 ✅ CORREGIDO 2026-06-08 — Header `Authorization` duplicado → nginx responde 400 antes de llegar al backend
+- **Archivos:** `WebClientConfig.java` (filtro global) + `ImageneClienteDisco.java` y `ImagenProductoClienteVPS.java` (llamadas manuales)
+- **Síntoma:** el front mandaba `400 Bad Request` al subir imágenes (`POST /mis-productos/imagenes`), con un body que en realidad era la página HTML estática de error de **nginx** (166 bytes), no un JSON del microservicio. El timeout del WebClient (subido de 5s a 30s en una sesión previa) **no solucionaba nada** porque el request ni siquiera llegaba al backend — nginx lo rechazaba primero.
+- **Cómo se encontró:** se subió temporalmente el nivel de `error_log` de nginx a `info` (`error_log /var/log/nginx/error.log info;`) y apareció: `client sent duplicate header line: "Authorization: Bearer eyJ...", previous value: "Authorization: Bearer eyJ..."`. Se correlacionó por IP y por segundo exacto con el `400`/166 bytes en `access.log`. **Se revirtió el nivel del log a su valor original** después de confirmar, para no llenar el disco.
+- **Causa raíz:** `WebClientConfig.jwtHeaderFilter()` es un filtro global (`ExchangeFilterFunction`) que agrega `Authorization: Bearer <token>` a **todas** las llamadas salientes del `WebClient.Builder` compartido. Pero además, 5 métodos en `ImageneClienteDisco` (`save`, `getAll`, `verificarExistentes`, `getOne`) y `ImagenProductoClienteVPS` (`buscarImagenProducto`) volvían a agregar el mismo header manualmente vía `AuthenticationUtils.jwtBearerToken()`. Resultado: dos líneas `Authorization` idénticas en el request → nginx las rechaza con `400` por protocolo HTTP (no permite headers duplicados).
+- **Por qué nadie lo notaba antes:** las lecturas (`GET`) seguían funcionando porque no todas pasaban por rutas con doble seteo, pero **toda subida nueva de imágenes** (`POST`) quedaba bloqueada en el borde de nginx — esto explica el patrón recurrente de "las imágenes no se suben / no aparecen".
+- **Fix:** se eliminaron los 5 `.header(HttpHeaders.AUTHORIZATION, ...)` manuales, dejando que el filtro global de `WebClientConfig` sea la única fuente del header. Limpieza de imports no usados (`AuthenticationUtils`, `Authentication`, `SecurityContextHolder`, `HttpHeaders`).
+- **Confirmado por el usuario:** "ya las esta mostrando al actualizarla" — la subida de imágenes funciona de nuevo.
+- **Commits:** `0b5e078` (dev) → merge `cdd5f7a` (qa)
+
+---
+
+### BUG-KEY-12 ✅ CORREGIDO 2026-06-08 — `TransactionRequiredException` al marcar imagen como principal → 500 enmascarado (recurrencia de [[BUG-KEY-01]])
+- **Archivo:** `ProductosServiceImpl.java`
+- **Métodos:** `saveProductoLote` (línea 338, público — punto de entrada real desde el controlador) → `guardarProducto` (línea 367, `protected @Transactional`, llamado por **self-invocation** `this.guardarProducto(...)`) → `aplicarPrincipalProducto` → `IProductoImagenRepository.desmarcarTodosPrincipal` / `marcarComoPrincipal` (queries `@Modifying`)
+- **Endpoints afectados:** `POST /productos/save`, `PUT /productos/update` (cuando el body trae `imagenPrincipalId`)
+- **Síntoma para el cliente:** `500 Error interno del servidor` genérico al guardar el producto después de marcar una imagen como principal.
+- **Causa raíz real (oculta detrás del 500 genérico):**
+  1. El controlador llama a `saveProductoLote` (el método público, proxied por Spring) — **no tenía `@Transactional`**.
+  2. `saveProductoLote` llama internamente a `this.guardarProducto(...)` — **self-invocation**: esta llamada NO pasa por el proxy de Spring AOP, así que el `@Transactional` que sí tiene `guardarProducto` (desde el fix de BUG-KEY-01) **nunca se activa**, sin importar que el método sea `protected` o `public`.
+  3. Sin transacción activa, las queries `@Modifying` (`desmarcarTodosPrincipal`/`marcarComoPrincipal`) lanzan `jakarta.persistence.TransactionRequiredException: Executing an update/delete query`.
+  4. Esa excepción es capturada por el `catch (Exception e) { this.error.error(e); }` genérico de `guardarProducto`, que la registra como "Error no controlado" y relanza `new RuntimeException("No se guardo el producto")`, perdiendo toda la información útil para el cliente y para el diagnóstico.
+- **Por qué el fix anterior (BUG-KEY-01: `private` → `protected`) no era suficiente:** la visibilidad del método no importa cuando la llamada es interna (`this.metodo()`); el proxy de Spring solo intercepta llamadas que entran **desde fuera** de la clase. Ver nota agregada en [[BUG-KEY-01]].
+- **Fix:** agregar `@Transactional` al método público `saveProductoLote` (el verdadero punto de entrada vía proxy). Así Spring abre la transacción **antes** de entrar al método, y esa transacción ya está activa cuando ocurre la llamada interna a `guardarProducto` → `aplicarPrincipalProducto` → queries `@Modifying`, evitando el `TransactionRequiredException`.
+- **Cómo se diagnosticó:** logs de `kubectl` mostraron primero el `RuntimeException: No se guardo el producto` en `ProductosServiceImpl.guardarProducto:504`; una segunda búsqueda más amplia reveló el `Caused by: jakarta.persistence.TransactionRequiredException` real, escondido por el `catch` genérico.
+- **Lección para futuros bugs similares:** el patrón `catch (Exception e) { this.error.error(e); } throw new RuntimeException("mensaje genérico")` (presente también en `relacionProductoImagen`) **enmascara la causa real** — conviene revisarlo y, si se repite el patrón "500 genérico sin pista", buscar directamente `Caused by:` en los logs en vez de confiar en el mensaje de la excepción externa.
+- **Commits:** `7e3afb8` (dev) → merge `7fa654b` (qa)

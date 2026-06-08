@@ -20,7 +20,7 @@ public interface IProductoImagenService extends ICrud<
 
     List<ProductoImagen> findByProductoId(Integer productoId);
 
-    /** @deprecated usar findByImagenesPorIdProductoV2 que apunta a /imagen/v2/file/ */
+    /** @deprecated usar findByImagenesPorIdProductoV2 que apunta a /imagen/v1/file/ */
     @Deprecated
     ProductoImagenDto findByImagenesPorIdProducto(Integer productoId);
 

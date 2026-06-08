@@ -329,7 +329,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return relaciones.stream().map(vi -> {
             var img = vi.getImagen();
             ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
-            dto.setUrlImagen(endpointImagenes + "imagenes/file/" + img.getId());
+            dto.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + img.getId());
             dto.setPrincipal(vi.getPrincipal());
             return dto;
         }).toList();
@@ -551,7 +551,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             VarianteResumenDto dto = buildBaseResumenDto(v);
             Long imagenId = variantePrimeraImagen.get(v.getId());
             if (imagenId != null) {
-                dto.setImagenUrl(endpointImagenes + "imagenes/file/" + imagenId);
+                dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + imagenId);
             }
             return dto;
         }).toList();

@@ -50,7 +50,7 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
     @Override
     public ResponseGeneric<ProductoImagen> save(RequestProductoImagen requestProductoImagen) {
         return webClient.post()
-                .uri("/imagenes") // ajusta la ruta de tu endpoint
+                .uri("/v1/imagenes") // ajusta la ruta de tu endpoint
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
                 .retrieve()
@@ -73,7 +73,7 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
     @Override
     public ResponseGeneric<ProductoImagen> update(RequestProductoImagen requestProductoImagen) throws Exception {
         return webClient.put()
-                .uri("/imagenes") // ajusta la ruta de tu endpoint
+                .uri("/v1/imagenes") // ajusta la ruta de tu endpoint
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just(requestProductoImagen), RequestProductoImagen.class)
                 .retrieve()
@@ -90,7 +90,7 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
     @Override
     public ResponseGeneric<ProductoImagen> findById(Integer id) throws Exception {
         return webClient.get()
-                .uri("/imagenes/", id)
+                .uri("/v1/imagenes/", id)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<ResponseGeneric<ProductoImagen>>() {})
                 .timeout(Duration.ofSeconds(5))
@@ -102,7 +102,7 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
     public Imagen buscarImagenProducto(Integer id) {
         log.info("micro imagenes, buscar imagen por ID {}",id);
         return webClient.get()
-                .uri("/producto-imagen/buscarImagenProducto/{id}", id)
+                .uri("/v1/producto-imagen/buscarImagenProducto/{id}", id)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Imagen>() {})
                 .timeout(Duration.ofSeconds(5))
