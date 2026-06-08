@@ -167,7 +167,7 @@ public class ProductosServiceImpl extends
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
         if (imagenId != null) {
-            img.setUrlImagen(endpointImagenes + "imagenes/file/" + imagenId);
+            img.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + imagenId);
         }
 
         if (isAdmin) {
@@ -326,7 +326,7 @@ public class ProductosServiceImpl extends
                     dto.setIdProducto(p.getId());
                     com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                             new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-                    img.setUrlImagen(endpointImagenes + "producto-imagen/buscarImagenProducto/" + p.getId());
+                    img.setUrlImagen(endpointImagenes + "v1/producto-imagen/buscarImagenProducto/" + p.getId());
                     dto.setImagen(img);
                     return dto;
                 })

@@ -16,6 +16,6 @@ public class ImagenPresentacionDto {
     private String descripcion;
     private boolean activo;
     private LocalDateTime actualizadoEn;
-    /** URL apunta a GET /presentacion/v2/imagenes/{id}/imagen — bytes vienen del micro de imágenes */
+    /** URL apunta a GET /presentacion/v1/imagenes/{id}/imagen — bytes vienen del micro de imágenes */
     private String urlImagen;
 }

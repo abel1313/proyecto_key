@@ -68,15 +68,15 @@ public class VarianteController extends AbstractController<
     }
 
     /**
-     * @deprecated Usar GET /variantes/v2/imagenes/{varianteId} — no verifica existencia en micro
+     * @deprecated Usar GET /variantes/v1/imagenes/{varianteId} — no verifica existencia en micro
      */
     @Deprecated
-    @GetMapping("/imagenes/{varianteId}")
+    @GetMapping("/v3/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenes(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVariante(varianteId)));
     }
 
-    @GetMapping("/v2/imagenes/{varianteId}")
+    @GetMapping("/v1/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenesV2(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
     }
@@ -97,23 +97,23 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, size)));
     }
 
-    /** @deprecated Usar DELETE /variantes/v2/imagenes */
+    /** @deprecated Usar DELETE /variantes/v1/imagenes */
     @Deprecated
-    @DeleteMapping("/imagenes")
+    @DeleteMapping("/v3/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantes(@RequestBody List<Integer> varianteIds) {
         sGenerico.eliminarImagenesDeVariantes(varianteIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @DeleteMapping("/v2/imagenes")
+    @DeleteMapping("/v1/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantesV2(@RequestBody List<Integer> varianteIds) {
         sGenerico.eliminarImagenesDeVariantes(varianteIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    /** @deprecated Usar DELETE /variantes/v2/{varianteId}/imagenes */
+    /** @deprecated Usar DELETE /variantes/v1/{varianteId}/imagenes */
     @Deprecated
-    @DeleteMapping("/{varianteId}/imagenes")
+    @DeleteMapping("/v3/{varianteId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificas(
             @PathVariable Integer varianteId,
             @RequestBody List<Long> imagenIds) {
@@ -121,7 +121,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @DeleteMapping("/v2/{varianteId}/imagenes")
+    @DeleteMapping("/v1/{varianteId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificasV2(
             @PathVariable Integer varianteId,
             @RequestBody List<Long> imagenIds) {

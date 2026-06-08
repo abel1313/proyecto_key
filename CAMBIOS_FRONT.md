@@ -10,6 +10,58 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
+## ⚠️ MIGRACIÓN DE VERSIONES DE URL — 2026-06-07 (acción requerida en el front)
+
+Se normalizó el versionado de URLs en **ambos** backends (proyecto-key 9091 y micro_imagenes 9096) para que todo use `/v1/` como versión estable. Resumen para el front:
+
+- **Lo que el front ya está usando como "v2"** → se renombró a **`/v1/`**. Es la versión activa/estable. **El front solo necesita agregar `/v1/`** donde antes no había versión, o cambiar `/v2/` por `/v1/` donde ya tenía `/v2/`.
+- **Lo que el front YA NO usa** (la versión vieja, marcada `@Deprecated`) → se renombró a **`/v3/`**. Sigue funcionando por compatibilidad pero no se debe usar para nada nuevo.
+- **micro_imagenes (9096)** no tenía versión en sus URLs — ahora **todas** sus rutas llevan el prefijo `/v1/`.
+
+### Tabla de cambios — proyecto-key (9091)
+
+| Antes (front lo usa) | Ahora |
+|---|---|
+| `imagen/v2/{productoId}` | `imagen/v1/{productoId}` |
+| `imagen/v2/{productoId}/detalle` | `imagen/v1/{productoId}/detalle` |
+| `imagen/v2/file/{imagenId}` | `imagen/v1/file/{imagenId}` |
+| `imagen/v2/{idProducto}/imagenes` | `imagen/v1/{idProducto}/imagenes` |
+| `imagen/v2/{idImagen}` (DELETE) | `imagen/v1/{idImagen}` (DELETE) |
+| `imagen/v2/{productoId}/imagenes` (DELETE) | `imagen/v1/{productoId}/imagenes` (DELETE) |
+| `imagen/v2/producto` (DELETE) | `imagen/v1/producto` (DELETE) |
+| `imagen/v2/cache/limpiar` | `imagen/v1/cache/limpiar` |
+| `presentacion/v2/imagenes` | `presentacion/v1/imagenes` |
+| `presentacion/v2/imagenes/{id}/imagen` | `presentacion/v1/imagenes/{id}/imagen` |
+| `presentacion/v2/imagenes/todas` | `presentacion/v1/imagenes/todas` |
+| `presentacion/v2/imagenes/{id}` (PUT) | `presentacion/v1/imagenes/{id}` (PUT) |
+| `variantes/v2/imagenes/{varianteId}` | `variantes/v1/imagenes/{varianteId}` |
+| `variantes/v2/imagenes` (DELETE) | `variantes/v1/imagenes` (DELETE) |
+| `variantes/v2/{varianteId}/imagenes` (DELETE) | `variantes/v1/{varianteId}/imagenes` (DELETE) |
+
+> Las rutas viejas sin versión (`imagen/{id}`, `presentacion/imagenes`, `variantes/imagenes/{varianteId}`, etc.) ahora viven bajo `/v3/` y están `@Deprecated` — el front **no** debe usarlas.
+
+### Tabla de cambios — micro_imagenes (9096) — antes no tenía versión, ahora todo lleva `/v1/`
+
+| Antes | Ahora |
+|---|---|
+| `imagenes/file/{imagenId}` | `v1/imagenes/file/{imagenId}` |
+| `imagenes/{id}` | `v1/imagenes/{id}` |
+| `imagenes` (POST/GET/DELETE) | `v1/imagenes` |
+| `imagenes/verificar` | `v1/imagenes/verificar` |
+| `imagenes/disco` (DELETE) | `v1/imagenes/disco` |
+| `producto-imagen/...` (todas las rutas) | `v1/producto-imagen/...` |
+| `cache/limpiar` (DELETE) | `v1/cache/limpiar` |
+
+**Ejemplo concreto que dio el equipo:**
+```
+Antes: http://localhost:9096/mis-productos/imagenes/file/7305237692097776164
+Ahora: http://localhost:9096/mis-productos/v1/imagenes/file/7305237692097776164
+```
+
+Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, presentación) **ya vienen actualizados con `/v1/` desde el backend** — el front no tiene que construir esas URLs manualmente, solo usarlas tal cual llegan en el response.
+
+---
+
 ## BUGS CORREGIDOS — Cambios de comportamiento que el front debe conocer
 
 ---
@@ -165,7 +217,7 @@ PUT  /productos/update
 **Endpoints afectados:**
 ```
 PUT /presentacion/imagenes/{id}
-PUT /presentacion/v2/imagenes/{id}
+PUT /presentacion/v1/imagenes/{id}
 ```
 **Dónde verlo:** Menú → **Presentación** o **Inicio/Banner** → editar una imagen → guardar.
 
@@ -215,7 +267,7 @@ Cuando se guarda un producto con imágenes, internamente se publica a RabbitMQ l
 **Endpoints que mejoran (los que consultan imágenes al micro):**
 ```
 GET /imagen/{id}
-GET /imagen/v2/{productoId}
+GET /imagen/v1/{productoId}
 GET /variantes/buscar
 GET /variantes/imagenes/{varianteId}
 GET /productos/findById/{id}
@@ -236,7 +288,7 @@ GET /productos/findById/{id}
 **Endpoints afectados:**
 ```
 GET /imagen/{id}/detalle?page=1&size=10
-GET /imagen/v2/{productoId}/detalle?page=1&size=10
+GET /imagen/v1/{productoId}/detalle?page=1&size=10
 ```
 **Dónde verlo:** Menú → **Productos** → detalle de producto → galería de imágenes paginada.
 
@@ -276,7 +328,7 @@ PUT  /productos/update    (cuando se envía imagenPrincipalId)
 
 **`urlImagen` que viene en el listado de productos (a partir de ahora):**
 ```
-http://localhost:9096/mis-productos/imagenes/file/{imagenId}
+http://localhost:9096/mis-productos/v1/imagenes/file/{imagenId}
 ```
 
 **Response al llamar esa URL (micro_imagenes 9096):**
@@ -293,7 +345,7 @@ Body: <bytes binarios>
 
 ### 2. Detalle paginado de imágenes de un producto
 
-#### Version anterior — `GET /imagen/{productoId}/detalle` ❌ Deprecated
+#### Version anterior — `GET /imagen/v3/{productoId}/detalle` ❌ Deprecated
 
 | | |
 |---|---|
@@ -314,7 +366,7 @@ Front → proyecto-key ImageneController.getDetalle()
 
 ---
 
-#### Version nueva — `GET /imagen/v2/{productoId}/detalle` ✅ Usar esta — **proyecto-key (9091)** — se queda aquí
+#### Version nueva — `GET /imagen/v1/{productoId}/detalle` ✅ Usar esta — **proyecto-key (9091)** — se queda aquí
 
 > Este endpoint **no puede moverse al micro** porque mezcla datos del producto (nombre, precio, stock) con bytes de imagen.
 
@@ -325,7 +377,7 @@ Front → proyecto-key ImageneController.getDetalle()
 | **Query params** | `page` (int), `size` (int) — mismos que antes |
 | **Response 200** | Misma estructura: `PageableDto` → lista de `{ idProducto, idImagen, name, price, inventoryStatus, extencion, image (bytes) }` |
 | **RabbitMQ** | No aplica — lectura síncrona |
-| **Acción front** | Cambiar URL de `/imagen/{id}/detalle` a `/imagen/v2/{id}/detalle` |
+| **Acción front** | Cambiar URL de `/imagen/{id}/detalle` a `/imagen/v1/{id}/detalle` |
 
 **Diferencia clave con la versión anterior:**
 - `name`, `price`, `inventoryStatus`, `extencion` → siguen saliendo de la **BD local de proyecto-key** (el micro no tiene datos del producto)
@@ -345,7 +397,7 @@ Front → proyecto-key ImageneController.getDetalleV2()
 
 ### 3. Obtener bytes de imagen por ID de imagen
 
-#### Version anterior — `GET /imagen/file/{imagenId}` ❌ Deprecated
+#### Version anterior — `GET /imagen/v3/file/{imagenId}` ❌ Deprecated
 
 | | |
 |---|---|
@@ -373,11 +425,11 @@ Front → proyecto-key ImageneController.getImagenByImagenId()
 | **Path param** | `imagenId` (Long) — mismo que antes |
 | **Response 200** | `byte[]` con header `Content-Type` |
 | **Response sin imagen** | HTTP 204 No Content (antes daba 500) |
-| **Acción front** | Cambiar URL a `GET http://localhost:9096/mis-productos/imagenes/file/{imagenId}` |
+| **Acción front** | Cambiar URL a `GET http://localhost:9096/mis-productos/v1/imagenes/file/{imagenId}` |
 
 **Request:**
 ```
-GET http://localhost:9096/mis-productos/imagenes/file/123
+GET http://localhost:9096/mis-productos/v1/imagenes/file/123
 ```
 
 **Response 200:**
@@ -402,14 +454,14 @@ Front → GET /mis-productos/imagenes/file/{imagenId}   ← micro_imagenes direc
 
 ### 4. Listado de imágenes de un producto (metadata + URLs)
 
-#### Version anterior — `GET /imagen/{idProducto}/imagenes` ❌ Deprecated
+#### Version anterior — `GET /imagen/v3/{idProducto}/imagenes` ❌ Deprecated
 
 | | |
 |---|---|
 | **Controlador** | `ImageneController` — `proyecto-key` — método `getImagenesPorProductoId()` |
 | **Path param** | `idProducto` (Integer) |
 | **Response 200** | `ProductoImagenDto` → `{ productoId, listaImagenes: [{ id, extension, nombreImagen, urlImagen, principal }] }` |
-| **urlImagen apunta a** | `GET /imagen/file/{imagenId}` — disco local |
+| **urlImagen apunta a** | `GET /imagen/v3/file/{imagenId}` — disco local |
 | **RabbitMQ** | No aplica |
 | **Acción front** | Sin cambio — sigue funcionando |
 
@@ -456,7 +508,7 @@ Front → GET /mis-productos/producto-imagen/listar/{productoId}   ← micro_ima
 
 ### 5. Eliminar imagen por ID
 
-#### Versión anterior — `DELETE /imagen/{idImagen}` ❌ Deprecated (proyecto-key)
+#### Versión anterior — `DELETE /imagen/v3/{idImagen}` ❌ Deprecated (proyecto-key)
 
 Solo borraba de la BD local — el archivo quedaba en disco del micro.
 
@@ -493,9 +545,9 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 > No puede moverse al micro porque necesita verificar `variante_imagen` que es tabla de proyecto-key.
 
-| | `DELETE /imagen/{productoId}/imagenes` ❌ Deprecated | `DELETE /imagen/v2/{productoId}/imagenes` ✅ Usar esta |
+| | `DELETE /imagen/v3/{productoId}/imagenes` ❌ Deprecated | `DELETE /imagen/v1/{productoId}/imagenes` ✅ Usar esta |
 |---|---|---|
-| **URL completa** | `http://localhost:9091/mis-productos/imagen/{id}/imagenes` | `http://localhost:9091/mis-productos/imagen/v2/{id}/imagenes` |
+| **URL completa** | `http://localhost:9091/mis-productos/imagen/v3/{id}/imagenes` | `http://localhost:9091/mis-productos/imagen/v1/{id}/imagenes` |
 | **Body** | `[imagenId1, imagenId2, ...]` (Long[]) | mismo |
 | **Response** | HTTP 200 `{ message }` | HTTP 200 `{ message }` — mismo |
 
@@ -505,9 +557,9 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 > Misma razón que el punto 6.
 
-| | `DELETE /imagen/producto` ❌ Deprecated | `DELETE /imagen/v2/producto` ✅ Usar esta |
+| | `DELETE /imagen/v3/producto` ❌ Deprecated | `DELETE /imagen/v1/producto` ✅ Usar esta |
 |---|---|---|
-| **URL completa** | `http://localhost:9091/mis-productos/imagen/producto` | `http://localhost:9091/mis-productos/imagen/v2/producto` |
+| **URL completa** | `http://localhost:9091/mis-productos/imagen/v3/producto` | `http://localhost:9091/mis-productos/imagen/v1/producto` |
 | **Body** | `[productoId1, productoId2, ...]` (Integer[]) | mismo |
 | **Response** | HTTP 200 `{ message }` | HTTP 200 `{ message }` — mismo |
 
@@ -515,13 +567,13 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 ### 8. Limpiar caché de imágenes
 
-| | `GET /imagen/cache/imagen/limpiar` ❌ Deprecated | `GET /imagen/v2/cache/limpiar` ✅ Usar esta |
+| | `GET /imagen/v3/cache/imagen/limpiar` ❌ Deprecated | `GET /imagen/v1/cache/limpiar` ✅ Usar esta |
 |---|---|---|
 | **Controlador** | `ImageneController` — `limpiarTodaLaCacheDeImagenes()` | `ImageneController` — `limpiarCacheImagenesV2()` |
 | **Response** | void | HTTP 204 No Content |
 | **Diferencia** | Solo evicta caché `imagenes` | Evicta `imagenes`, `detalleImagen`, `detalle`, `detalle-v2`, `buscarImagenIdCache` |
 | **RabbitMQ** | No aplica | TODO: publicar evento para invalidar caché en todos los nodos |
-| **Acción front** | Sin cambio | Cambiar URL a `/imagen/v2/cache/limpiar` |
+| **Acción front** | Sin cambio | Cambiar URL a `/imagen/v1/cache/limpiar` |
 
 ---
 
@@ -531,7 +583,7 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 ### 9. Imágenes activas de presentación por tipo (LOGIN / REGISTRO)
 
-#### Versión anterior — `GET /presentacion/imagenes?tipo=LOGIN` ❌ Deprecated
+#### Versión anterior — `GET /presentacion/v3/imagenes?tipo=LOGIN` ❌ Deprecated
 
 | | |
 |---|---|
@@ -543,7 +595,7 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 **Request:**
 ```
-GET /mis-productos/presentacion/imagenes?tipo=LOGIN
+GET /mis-productos/presentacion/v3/imagenes?tipo=LOGIN
 ```
 
 **Response 200:**
@@ -578,7 +630,7 @@ Front → getImagenes()
 
 ---
 
-#### Versión nueva — `GET /presentacion/v2/imagenes?tipo=LOGIN` ✅ Usar esta
+#### Versión nueva — `GET /presentacion/v1/imagenes?tipo=LOGIN` ✅ Usar esta
 
 | | |
 |---|---|
@@ -587,12 +639,12 @@ Front → getImagenes()
 | **Response 200** | `ResponseGeneric<List<ImagenPresentacionDto>>` — DTO con `urlImagen` calculada |
 | **Response sin datos** | HTTP 200 con `data: []` (lista vacía) |
 | **Cache** | `@Cacheable("presentacion-imagenes")` por `tipo` |
-| **RabbitMQ** | **NO aplica** — lectura síncrona. TODO: cuando se implemente `PUT /presentacion/v2/imagenes/{id}`, publicar evento `cache.evict.presentacion` en `exchange.imagenes` para invalidar caché en todos los nodos |
-| **Acción front** | Cambiar URL a `/presentacion/v2/imagenes?tipo=...` y usar `urlImagen` del DTO para cargar la imagen |
+| **RabbitMQ** | **NO aplica** — lectura síncrona. TODO: cuando se implemente `PUT /presentacion/v1/imagenes/{id}`, publicar evento `cache.evict.presentacion` en `exchange.imagenes` para invalidar caché en todos los nodos |
+| **Acción front** | Cambiar URL a `/presentacion/v1/imagenes?tipo=...` y usar `urlImagen` del DTO para cargar la imagen |
 
 **Request:**
 ```
-GET /mis-productos/presentacion/v2/imagenes?tipo=LOGIN
+GET /mis-productos/presentacion/v1/imagenes?tipo=LOGIN
 ```
 
 **Response 200:**
@@ -610,7 +662,7 @@ GET /mis-productos/presentacion/v2/imagenes?tipo=LOGIN
       "descripcion": "Banner principal de login",
       "activo": true,
       "actualizadoEn": "2026-05-21T10:00:00",
-      "urlImagen": "/presentacion/v2/imagenes/1/imagen"
+      "urlImagen": "/presentacion/v1/imagenes/1/imagen"
     }
   ],
   "lista": null
@@ -619,7 +671,7 @@ GET /mis-productos/presentacion/v2/imagenes?tipo=LOGIN
 
 **Diferencia clave con la versión anterior:**
 - Ya **no expone** `nombreArchivo` (ruta de disco interno)
-- Agrega `urlImagen` → apunta a `GET /presentacion/v2/imagenes/{id}/imagen` (bytes desde el micro)
+- Agrega `urlImagen` → apunta a `GET /presentacion/v1/imagenes/{id}/imagen` (bytes desde el micro)
 - La respuesta se cachea — menor carga en BD en producción
 
 **Flujo interno:**
@@ -636,7 +688,7 @@ Front → getImagenesV2()
 
 ### 10. Bytes de imagen de presentación por ID
 
-#### Versión anterior — `GET /presentacion/imagenes/{id}/imagen` ❌ Deprecated
+#### Versión anterior — `GET /presentacion/v3/imagenes/{id}/imagen` ❌ Deprecated
 
 | | |
 |---|---|
@@ -662,16 +714,16 @@ Body: <bytes binarios — usar directamente como src de <img> o blob>
 
 ---
 
-#### Versión nueva — `GET /presentacion/v2/imagenes/{id}/imagen` ✅ Usar esta
+#### Versión nueva — `GET /presentacion/v1/imagenes/{id}/imagen` ✅ Usar esta
 
 | | |
 |---|---|
 | **Path param** | `id` (Integer) — mismo que antes |
-| **Acción front** | Si ya usas `GET /presentacion/v2/imagenes?tipo=...`, el campo `urlImagen` de cada item ya apunta a esta URL — sin cambio adicional. Solo actualizar si tenías la URL hardcodeada. |
+| **Acción front** | Si ya usas `GET /presentacion/v1/imagenes?tipo=...`, el campo `urlImagen` de cada item ya apunta a esta URL — sin cambio adicional. Solo actualizar si tenías la URL hardcodeada. |
 
 **Request:**
 ```
-GET /mis-productos/presentacion/v2/imagenes/1/imagen
+GET /mis-productos/presentacion/v1/imagenes/1/imagen
 ```
 
 **Response 200:**
@@ -690,11 +742,11 @@ Body: <bytes binarios — usar directamente como src de <img> o blob>
 
 ### 11. Listar todas las imágenes de presentación (ADMIN)
 
-#### Versión anterior — `GET /presentacion/imagenes/todas` ❌ Deprecated
+#### Versión anterior — `GET /presentacion/v3/imagenes/todas` ❌ Deprecated
 
 **Request:**
 ```
-GET /mis-productos/presentacion/imagenes/todas
+GET /mis-productos/presentacion/v3/imagenes/todas
 Authorization: Bearer <token>
 ```
 
@@ -719,11 +771,11 @@ Authorization: Bearer <token>
 
 ---
 
-#### Versión nueva — `GET /presentacion/v2/imagenes/todas` ✅ Usar esta
+#### Versión nueva — `GET /presentacion/v1/imagenes/todas` ✅ Usar esta
 
 **Request:**
 ```
-GET /mis-productos/presentacion/v2/imagenes/todas
+GET /mis-productos/presentacion/v1/imagenes/todas
 Authorization: Bearer <token>
 ```
 
@@ -740,7 +792,7 @@ Authorization: Bearer <token>
       "descripcion": "Banner principal",
       "activo": true,
       "actualizadoEn": "2026-05-21T10:00:00",
-      "urlImagen": "/presentacion/v2/imagenes/1/imagen"
+      "urlImagen": "/presentacion/v1/imagenes/1/imagen"
     }
   ]
 }
@@ -752,7 +804,7 @@ Authorization: Bearer <token>
 
 ### 12. Actualizar imagen de presentación (ADMIN)
 
-#### Versión anterior — `PUT /presentacion/imagenes/{id}` ❌ Deprecated
+#### Versión anterior — `PUT /presentacion/v3/imagenes/{id}` ❌ Deprecated
 
 **Request:**
 ```
@@ -790,12 +842,12 @@ Content-Type: application/json
 
 ---
 
-#### Versión nueva — `PUT /presentacion/v2/imagenes/{id}` ✅ Usar esta
+#### Versión nueva — `PUT /presentacion/v1/imagenes/{id}` ✅ Usar esta
 
 **Request:** igual que v1 — mismo body, mismo token ADMIN.
 
 ```
-PUT /mis-productos/presentacion/v2/imagenes/1
+PUT /mis-productos/presentacion/v1/imagenes/1
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -820,25 +872,25 @@ Content-Type: application/json
     "descripcion": "Banner principal",
     "activo": true,
     "actualizadoEn": "2026-05-21T10:00:00",
-    "urlImagen": "/presentacion/v2/imagenes/1/imagen"
+    "urlImagen": "/presentacion/v1/imagenes/1/imagen"
   }
 }
 ```
 
 **Diferencia clave:**
 - Ya no devuelve `nombreArchivo` (ruta interna del servidor)
-- **Invalida automáticamente el caché** `presentacion-imagenes` — el próximo `GET /presentacion/v2/imagenes?tipo=...` devuelve datos frescos
+- **Invalida automáticamente el caché** `presentacion-imagenes` — el próximo `GET /presentacion/v1/imagenes?tipo=...` devuelve datos frescos
 - RabbitMQ: TODO para invalidar caché en multi-nodo (por ahora se invalida solo el nodo que recibe el PUT)
 
 ---
 
 ### 13. Imágenes de una variante por ID
 
-#### Versión anterior — `GET /variantes/imagenes/{varianteId}` ❌ Deprecated
+#### Versión anterior — `GET /variantes/v3/imagenes/{varianteId}` ❌ Deprecated
 
 **Request:**
 ```
-GET /mis-productos/variantes/imagenes/5
+GET /mis-productos/variantes/v3/imagenes/5
 ```
 
 **Response 200:**
@@ -860,11 +912,11 @@ GET /mis-productos/variantes/imagenes/5
 
 ---
 
-#### Versión nueva — `GET /variantes/v2/imagenes/{varianteId}` ✅ Usar esta
+#### Versión nueva — `GET /variantes/v1/imagenes/{varianteId}` ✅ Usar esta
 
 **Request:**
 ```
-GET /mis-productos/variantes/v2/imagenes/5
+GET /mis-productos/variantes/v1/imagenes/5
 ```
 
 **Response 200:**
@@ -890,7 +942,7 @@ GET /mis-productos/variantes/v2/imagenes/5
 
 ### 14. Eliminar todas las imágenes de varias variantes (ADMIN)
 
-| | `DELETE /variantes/imagenes` ❌ Deprecated | `DELETE /variantes/v2/imagenes` ✅ Usar esta |
+| | `DELETE /variantes/v3/imagenes` ❌ Deprecated | `DELETE /variantes/v1/imagenes` ✅ Usar esta |
 |---|---|---|
 | **Auth** | Bearer token ADMIN | igual |
 | **Body** | `[varianteId1, varianteId2, ...]` (Integer[]) | igual |
@@ -899,7 +951,7 @@ GET /mis-productos/variantes/v2/imagenes/5
 
 **Request:**
 ```
-DELETE /mis-productos/variantes/v2/imagenes
+DELETE /mis-productos/variantes/v1/imagenes
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -915,7 +967,7 @@ Content-Type: application/json
 
 ### 15. Eliminar imágenes específicas de una variante (ADMIN)
 
-| | `DELETE /variantes/{varianteId}/imagenes` ❌ Deprecated | `DELETE /variantes/v2/{varianteId}/imagenes` ✅ Usar esta |
+| | `DELETE /variantes/v3/{varianteId}/imagenes` ❌ Deprecated | `DELETE /variantes/v1/{varianteId}/imagenes` ✅ Usar esta |
 |---|---|---|
 | **Auth** | Bearer token ADMIN | igual |
 | **Path param** | `varianteId` (Integer) | igual |
@@ -925,7 +977,7 @@ Content-Type: application/json
 
 **Request:**
 ```
-DELETE /mis-productos/variantes/v2/5/imagenes
+DELETE /mis-productos/variantes/v1/5/imagenes
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -973,7 +1025,7 @@ Authorization: Bearer <token>
       "id": 123,
       "extension": "image/jpeg",
       "nombreImagen": "foto.jpg",
-      "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/123",
+      "urlImagen": "http://localhost:9096/mis-productos/v1/imagenes/file/123",
       "principal": true
     }
   ],
@@ -996,7 +1048,7 @@ Segunda página:   GET .../listar/265?pagina=2&size=8
 
 ### 17. DetalleProductoComponent — imágenes del producto con URL en lugar de bytes
 
-#### Versión anterior — `GET /imagen/{productoId}/detalle` ❌ Deprecated (proyecto-key 9091)
+#### Versión anterior — `GET /imagen/v3/{productoId}/detalle` ❌ Deprecated (proyecto-key 9091)
 
 Devolvía bytes embebidos en el response (pesado, lento).
 
@@ -1045,14 +1097,14 @@ Authorization: Bearer <token>
       "id": "3855830153700593542",
       "extension": "image/jpeg",
       "nombreImagen": "foto.jpg",
-      "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/3855830153700593542",
+      "urlImagen": "http://localhost:9096/mis-productos/v1/imagenes/file/3855830153700593542",
       "principal": true
     },
     {
       "id": "7565125362907238017",
       "extension": "image/jpeg",
       "nombreImagen": "foto2.jpg",
-      "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/7565125362907238017",
+      "urlImagen": "http://localhost:9096/mis-productos/v1/imagenes/file/7565125362907238017",
       "principal": false
     }
   ],
@@ -1082,7 +1134,7 @@ GET .../listar/265?pagina=2&size=8   ← siguiente página
 
 ### 18. DetalleProductoComponent — eliminar imágenes
 
-#### Versión anterior — `DELETE /imagen/{productoId}/imagenes` ❌ Deprecated (proyecto-key 9091)
+#### Versión anterior — `DELETE /imagen/v3/{productoId}/imagenes` ❌ Deprecated (proyecto-key 9091)
 
 **Request:**
 ```
@@ -1100,11 +1152,11 @@ Content-Type: application/json
 
 ---
 
-#### Versión nueva — `DELETE /imagen/v2/{productoId}/imagenes` ✅ Usar esta (proyecto-key 9091)
+#### Versión nueva — `DELETE /imagen/v1/{productoId}/imagenes` ✅ Usar esta (proyecto-key 9091)
 
 **Request:**
 ```
-DELETE http://localhost:9091/mis-productos/imagen/v2/265/imagenes
+DELETE http://localhost:9091/mis-productos/imagen/v1/265/imagenes
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1146,7 +1198,7 @@ Content-Type: application/json
         "marca": "...",
         "contenidoNeto": null,
         "imagenBase64": null,
-        "imagenUrl": "http://localhost:9096/mis-productos/imagenes/file/7305237692097776164",
+        "imagenUrl": "http://localhost:9096/mis-productos/v1/imagenes/file/7305237692097776164",
         "precio": 99.99,
         "codigoBarras": "...",
         "nombreProducto": "Jeans Slim"
@@ -1176,10 +1228,10 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
-| Ver bytes de una imagen | GET | `http://localhost:9096/mis-productos/imagenes/file/{imagenId}` | — |
-| Eliminar una imagen | DELETE | `http://localhost:9096/mis-productos/producto-imagen/{imagenId}` | — |
-| Marcar imagen como principal | PUT | `http://localhost:9096/mis-productos/producto-imagen/{id}/principal` | — |
+| Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/v1/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
+| Ver bytes de una imagen | GET | `http://localhost:9096/mis-productos/v1/imagenes/file/{imagenId}` | — |
+| Eliminar una imagen | DELETE | `http://localhost:9096/mis-productos/v1/producto-imagen/{imagenId}` | — |
+| Marcar imagen como principal | PUT | `http://localhost:9096/mis-productos/v1/producto-imagen/{id}/principal` | — |
 
 > `imagenId` viene del campo `id` (string) del response de `listar`.
 
@@ -1189,9 +1241,9 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
+| Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/v1/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
 | Ver bytes de una imagen | GET | usar `urlImagen` del response de `listar` directamente en `<img [src]>` | — |
-| Eliminar imágenes seleccionadas (batch) | DELETE | `http://localhost:9091/mis-productos/imagen/v2/{productoId}/imagenes` | `["imagenId1", "imagenId2"]` |
+| Eliminar imágenes seleccionadas (batch) | DELETE | `http://localhost:9091/mis-productos/imagen/v1/{productoId}/imagenes` | `["imagenId1", "imagenId2"]` |
 
 ---
 
@@ -1199,7 +1251,7 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar imágenes por tipo | GET | `http://localhost:9091/mis-productos/presentacion/v2/imagenes?tipo=LOGIN` | — |
+| Listar imágenes por tipo | GET | `http://localhost:9091/mis-productos/presentacion/v1/imagenes?tipo=LOGIN` | — |
 | Ver bytes de una imagen | GET | usar `urlImagen` del response directamente en `<img [src]>` | — |
 
 ---
@@ -1208,8 +1260,8 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar todas (activas e inactivas) | GET | `http://localhost:9091/mis-productos/presentacion/v2/imagenes/todas` | Bearer token ADMIN |
-| Actualizar imagen/descripción | PUT | `http://localhost:9091/mis-productos/presentacion/v2/imagenes/{id}` | `{ base64, extension, nombreImagen, descripcion, activo }` |
+| Listar todas (activas e inactivas) | GET | `http://localhost:9091/mis-productos/presentacion/v1/imagenes/todas` | Bearer token ADMIN |
+| Actualizar imagen/descripción | PUT | `http://localhost:9091/mis-productos/presentacion/v1/imagenes/{id}` | `{ base64, extension, nombreImagen, descripcion, activo }` |
 
 ---
 
@@ -1217,8 +1269,8 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar imágenes de variante | GET | `http://localhost:9091/mis-productos/variantes/v2/imagenes/{varianteId}` | — |
-| Eliminar imágenes específicas | DELETE | `http://localhost:9091/mis-productos/variantes/v2/{varianteId}/imagenes` | `[imagenId1, imagenId2]` |
+| Listar imágenes de variante | GET | `http://localhost:9091/mis-productos/variantes/v1/imagenes/{varianteId}` | — |
+| Eliminar imágenes específicas | DELETE | `http://localhost:9091/mis-productos/variantes/v1/{varianteId}/imagenes` | `[imagenId1, imagenId2]` |
 | Marcar imagen como principal | PUT | `http://localhost:9091/mis-productos/variantes/imagenes/{imagenId}/principal` | — |
 
 ---
@@ -1226,7 +1278,8 @@ Content-Type: application/json
 ## GLOSARIO
 
 - **@Deprecated**: el endpoint original, sin tocar, sigue funcionando
-- **v2**: el endpoint nuevo que delega al microservicio de imágenes
+- **v1**: el endpoint activo/estable que delega al microservicio de imágenes (antes llamado "v2"; se renombró a `v1` el 2026-06-07 — ver sección "MIGRACIÓN DE VERSIONES DE URL")
+- **v3**: el endpoint antiguo/deprecado (antes era la ruta sin versión, ahora vive bajo `/v3/` para no chocar con `/v1/`)
 - **204 No Content**: no hay imagen disponible, no es un error
 - **RabbitMQ — No aplica**: lectura síncrona, no hay eventos
 - **RabbitMQ — TODO**: hay una oportunidad de usar Rabbit aquí pero aún no está implementado
@@ -1270,7 +1323,7 @@ Antes el back verificaba contra el microservicio de imágenes si el archivo exis
         "stock": 10,
         "marca": "Marca X",
         "imagenBase64": null,
-        "imagenUrl": "http://localhost:9096/mis-productos/imagenes/file/7305237692097776164",
+        "imagenUrl": "http://localhost:9096/mis-productos/v1/imagenes/file/7305237692097776164",
         "precio": 99.99,
         "codigoBarras": "1234567890",
         "nombreProducto": "Jeans Slim"
@@ -1315,7 +1368,7 @@ http://localhost:9096/mis-productos/producto-imagen/buscarImagenProducto/265
 
 **Valor nuevo de `urlImagen`:**
 ```
-http://localhost:9096/mis-productos/imagenes/file/7305237692097776164
+http://localhost:9096/mis-productos/v1/imagenes/file/7305237692097776164
 → devuelve bytes directos (Content-Type: image/jpeg)
 ```
 
@@ -1336,7 +1389,7 @@ http://localhost:9096/mis-productos/imagenes/file/7305237692097776164
         "codigoBarras": "...",
         "stock": 10,
         "imagen": {
-          "urlImagen": "http://localhost:9096/mis-productos/imagenes/file/7305237692097776164"
+          "urlImagen": "http://localhost:9096/mis-productos/v1/imagenes/file/7305237692097776164"
         }
       }
     ]
@@ -1374,7 +1427,7 @@ http://localhost:9096/mis-productos/imagenes/file/7305237692097776164
 
 ### Lo que NO cambia
 
-- Endpoints de detalle de imágenes de variante: `GET /variantes/v2/imagenes/{varianteId}` — sin cambios
+- Endpoints de detalle de imágenes de variante: `GET /variantes/v1/imagenes/{varianteId}` — sin cambios (renombrado de `v2` a `v1`, ver sección "MIGRACIÓN DE VERSIONES DE URL")
 - Endpoints de imágenes de producto en detalle: `GET /producto-imagen/listar/{productoId}` — sin cambios
 - Endpoints de eliminación y marcado de principal — sin cambios
 - Estructura general del response (`data.t`, `data.pagina`, etc.) — sin cambios
@@ -1403,9 +1456,9 @@ Ahora: cualquier escritura hace dos cosas:
 
 | Método | URL | Comportamiento visible para el front |
 |--------|-----|--------------------------------------|
-| `DELETE` | `/imagen/v2/{imagenId}` | Sin cambio — sigue eliminando la imagen y respondiendo 200 |
-| `PUT` | `/presentacion/v2/imagenes/{id}` | Sin cambio — sigue actualizando y devolviendo `ImagenPresentacionDto` |
-| `GET` | `/imagen/v2/cache/limpiar` | Sin cambio en response — ahora también notifica a los demás nodos vía Rabbit |
+| `DELETE` | `/imagen/v1/{imagenId}` | Sin cambio — sigue eliminando la imagen y respondiendo 200 |
+| `PUT` | `/presentacion/v1/imagenes/{id}` | Sin cambio — sigue actualizando y devolviendo `ImagenPresentacionDto` |
+| `GET` | `/imagen/v1/cache/limpiar` | Sin cambio en response — ahora también notifica a los demás nodos vía Rabbit |
 
 #### Productos
 

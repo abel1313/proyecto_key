@@ -55,9 +55,9 @@ public class SecurityConfig {
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
                         .requestMatchers(HttpMethod.GET, "/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/presentacion/v2/imagenes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/presentacion/v2/imagenes/*/imagen").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes/*/imagen").permitAll()
                         .requestMatchers("/negocio/**").hasRole("ADMIN")
                         .requestMatchers("/presentacion/**").hasRole("ADMIN")
 

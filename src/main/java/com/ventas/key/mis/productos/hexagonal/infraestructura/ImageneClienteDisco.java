@@ -48,7 +48,7 @@ public class ImageneClienteDisco implements ImagenPort {
     @Override
     public List<ImagenDto> save(MultiValueMap<String, ?> multipartData) {
         return webClient.post()
-                .uri("/imagenes")
+                .uri("/v1/imagenes")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipartData))
                 .retrieve()
@@ -67,7 +67,7 @@ public class ImageneClienteDisco implements ImagenPort {
     public List<ImagenDto> getAll(List<Long> ids) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes")
+                        .path("/v1/imagenes")
                         .queryParam("ids", ids.toArray())
                         .build())
                 .retrieve()
@@ -98,7 +98,7 @@ public class ImageneClienteDisco implements ImagenPort {
     public List<Long> verificarExistentes(List<Long> ids) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes/verificar")
+                        .path("/v1/imagenes/verificar")
                         .queryParam("ids", ids.toArray())
                         .build())
                 .retrieve()
@@ -123,7 +123,7 @@ public class ImageneClienteDisco implements ImagenPort {
     public ImagenDto getOne(Long id) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes")
+                        .path("/v1/imagenes")
                         .queryParam("ids", id)
                         .build())
                 .retrieve()

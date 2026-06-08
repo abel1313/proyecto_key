@@ -59,7 +59,7 @@ public class ImagenPresentacionService {
         dto.setDescripcion(img.getDescripcion());
         dto.setActivo(img.isActivo());
         dto.setActualizadoEn(img.getActualizadoEn());
-        dto.setUrlImagen("/presentacion/v2/imagenes/" + img.getId() + "/imagen");
+        dto.setUrlImagen("/presentacion/v1/imagenes/" + img.getId() + "/imagen");
         return dto;
     }
 
