@@ -69,7 +69,7 @@ public class ImageneClienteDisco implements ImagenPort {
                     imagenDto.setContentType(mpa.getContentType());
                     imagenDto.setImagen(mpa.getImagen());
                     return imagenDto;
-                }).toList())).timeout(Duration.ofSeconds(5)).block();
+                }).toList())).timeout(Duration.ofSeconds(30)).block();
     }
 
     @Override
