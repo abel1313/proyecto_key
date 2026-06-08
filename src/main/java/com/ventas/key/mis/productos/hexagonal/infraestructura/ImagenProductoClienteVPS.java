@@ -1,6 +1,5 @@
 package com.ventas.key.mis.productos.hexagonal.infraestructura;
 
-import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.ProductoImagen;
@@ -14,7 +13,6 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
@@ -105,7 +103,6 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
         log.info("micro imagenes, buscar imagen por ID {}",id);
         return webClient.get()
                 .uri("/producto-imagen/buscarImagenProducto/{id}", id)
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Imagen>() {})
                 .timeout(Duration.ofSeconds(5))

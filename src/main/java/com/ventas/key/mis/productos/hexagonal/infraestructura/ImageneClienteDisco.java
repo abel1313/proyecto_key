@@ -1,6 +1,5 @@
 package com.ventas.key.mis.productos.hexagonal.infraestructura;
 
-import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
@@ -11,10 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -51,13 +47,8 @@ public class ImageneClienteDisco implements ImagenPort {
 
     @Override
     public List<ImagenDto> save(MultiValueMap<String, ?> multipartData) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        Object credentials = authentication.getCredentials();
-        if (credentials == null) throw new IllegalStateException("No hay credenciales JWT en el contexto de seguridad");
-        String jwtToken = credentials.toString();
         return webClient.post()
                 .uri("/imagenes")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer ".concat(jwtToken))
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipartData))
                 .retrieve()
@@ -79,7 +70,6 @@ public class ImageneClienteDisco implements ImagenPort {
                         .path("/imagenes")
                         .queryParam("ids", ids.toArray())
                         .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {
                 }).flatMap(flat -> Mono.just(flat.stream().map(mpa -> {
@@ -111,7 +101,6 @@ public class ImageneClienteDisco implements ImagenPort {
                         .path("/imagenes/verificar")
                         .queryParam("ids", ids.toArray())
                         .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Long>>() {})
                 .doOnError(e -> log.warn("Error verificando imágenes ids=[{}]: {}", ids, e.getMessage()))
@@ -137,7 +126,6 @@ public class ImageneClienteDisco implements ImagenPort {
                         .path("/imagenes")
                         .queryParam("ids", id)
                         .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {})
                 .flatMap(list -> {
