@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/admin/reconciliacion/imagenes")
+@RequestMapping("/v1/admin/reconciliacion/imagenes")
 @RequiredArgsConstructor
 @Slf4j
 public class AdminReconciliacionController {

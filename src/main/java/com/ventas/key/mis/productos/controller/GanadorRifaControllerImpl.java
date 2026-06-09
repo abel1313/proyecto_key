@@ -16,7 +16,7 @@ import java.util.Optional;
 
 @Slf4j
 @RestController
-@RequestMapping("ganadorRifa")
+@RequestMapping("/v1/ganadorRifa")
 public class GanadorRifaControllerImpl extends AbstractController<
         GanadorRifa,
         Optional<GanadorRifa>,
