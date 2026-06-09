@@ -5,7 +5,6 @@ import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.service.ProductosServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,7 +17,7 @@ import java.util.Optional;
 import java.util.Map;
 
 @RestController
-@RequestMapping("productos")
+@RequestMapping("/v1/productos")
 @RequiredArgsConstructor
 @Slf4j
 public class ProductosControllerImpl {
@@ -40,7 +39,6 @@ public class ProductosControllerImpl {
     }
 
     @PostMapping("save")
-    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","buscarPorPalabraClaveCache","findByIdCache","buscarImagenIdCache"}, allEntries = true)
     public ResponseEntity<Producto> save(@RequestBody ProductoDetalle producto) throws Exception{
         log.info("Inicia el guardado del producto {}", producto);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.saveProductoLote(producto) );

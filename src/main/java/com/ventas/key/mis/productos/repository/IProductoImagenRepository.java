@@ -11,9 +11,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * @deprecated Migrar a micro_imagenes. Gestiona la relación producto-imagen que debe
+ * vivir en el microservicio de imágenes. No agregar nueva lógica aquí.
+ */
+@Deprecated
 public interface IProductoImagenRepository extends BaseRepository<ProductoImagen,Integer>{
 
-    List<ProductoImagen> findByProductoId(Integer productoId);
+    @Query("SELECT pi FROM ProductoImagen pi JOIN FETCH pi.imagen WHERE pi.producto.id = :productoId")
+    List<ProductoImagen> findByProductoId(@Param("productoId") Integer productoId);
 
     @Query("SELECT pi.imagen.id FROM ProductoImagen pi WHERE pi.producto.id IN :productoIds")
     List<Long> findImagenIdsByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
@@ -44,6 +50,9 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
 
     List<ProductoImagen> findAllByProductoId(Integer productoId);
 
+    @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id IN :productoIds ORDER BY CASE WHEN pi.principal = true THEN 0 ELSE 1 END ASC, pi.imagen.id ASC")
+    List<ProductoImagen> findPrimeraImagenByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
+
     @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id = :productoId AND pi.imagen.id = :imagenId")
     Optional<ProductoImagen> findByProductoIdAndImagenId(@Param("productoId") Integer productoId, @Param("imagenId") Long imagenId);
 
@@ -51,4 +60,12 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
     @Transactional
     @Query("DELETE FROM ProductoImagen pi WHERE pi.imagen.id IN :imagenIds")
     void deleteByImagenIdIn(@Param("imagenIds") List<Long> imagenIds);
+
+    @Modifying
+    @Query("UPDATE ProductoImagen pi SET pi.principal = false WHERE pi.producto.id = :productoId")
+    void desmarcarTodosPrincipal(@Param("productoId") Integer productoId);
+
+    @Modifying
+    @Query("UPDATE ProductoImagen pi SET pi.principal = true WHERE pi.imagen.id = :imagenId AND pi.producto.id = :productoId")
+    void marcarComoPrincipal(@Param("imagenId") Long imagenId, @Param("productoId") Integer productoId);
 }

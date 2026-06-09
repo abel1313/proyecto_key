@@ -10,7 +10,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,31 +34,45 @@ public class ChatbotService {
             .baseUrl("https://api.openai.com/v1")
             .build();
 
-    public String chat(ChatbotRequest request) {
+    public Mono<String> chat(ChatbotRequest request) {
         String contexto = obtenerContextoVariantes();
 
         String sistemPrompt = """
                 Eres el asistente virtual de Novedades Jade, una tienda en línea mexicana.
-                Responde siempre en español, de manera amable y breve.
+                Responde siempre en español, de manera amable, breve y clara.
                 Si el cliente pregunta por un producto que no está en el catálogo, díselo con amabilidad.
                 No inventes precios ni productos que no estén en la lista.
-
+                
                 POLÍTICAS DE LA TIENDA:
                 - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
                 - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
-
+                
+                REGLAS AL MOSTRAR PRODUCTOS:
+                - Cuando menciones un producto, SIEMPRE incluye:
+                1. El nombre exacto del producto tal como aparece en el catálogo.
+                2. El precio.
+                3. Las variantes disponibles (color, talla, modelo) si las hay.
+                - Si hay varios productos similares, lista cada uno por separado con su nombre y precio.
+                - Nunca digas "tenemos mochilas desde $X" sin especificar cuál es cuál.
+                - Ejemplo correcto: "Tenemos la Mochila Escolar Rosa Mod. A por $250 y la Mochila Negra Grande por $320 🎒"
+                - Ejemplo incorrecto: "Sí, tenemos mochilas que cuestan $250"
+                
+                TONO:
+                - Amable, cercano y sencillo. Como si fuera una vecina del pueblo atendiendo.
+                - Respuestas cortas y directas, sin rodeos.
+                - Puedes usar 1 o 2 emojis por mensaje para ser más expresivo, sin exagerar.
+                
                 MANEJO DE MENSAJES NO COMPRENSIBLES O FUERA DE CONTEXTO:
                 - Si el mensaje NO tiene relación con productos, compras, precios, envíos o la tienda,
-                  o si simplemente no entiendes lo que el cliente quiere decir, haz exactamente esto:
-                  1. Indica en una línea breve que no pudiste entender su mensaje.
-                  2. Menciona que puede contactarnos por Facebook o WhatsApp para recibir ayuda.
-                  3. Da una despedida corta y amable (máximo 2 líneas en total).
-                  4. Menciona que si se registra en la plataforma podrá ver más opciones de contacto
-                     y hacer seguimiento de sus pedidos.
-                  5. Escribe exactamente al final de tu respuesta, sin espacios extra: ##FAREWELL##
-                  6. NO sigas preguntando ni intentando ayudar con ese mensaje.
-                     Una sola respuesta de despedida, sin vueltas.
-
+                o si simplemente no entiendes lo que el cliente quiere decir, haz exactamente esto:
+                1. Indica en una línea breve que no pudiste entender su mensaje.
+                2. Menciona que puede contactarnos por Facebook o WhatsApp para recibir ayuda.
+                3. Da una despedida corta y amable (máximo 2 líneas en total).
+                4. Menciona que si se registra en la plataforma podrá ver más opciones de contacto
+                y hacer seguimiento de sus pedidos.
+                5. Escribe exactamente al final de tu respuesta, sin espacios extra: ##FAREWELL##
+                6. NO sigas preguntando ni intentando ayudar con ese mensaje.
+                
                 CATÁLOGO ACTUAL (variantes disponibles con stock):
                 """ + contexto;
 
@@ -80,22 +96,20 @@ public class ChatbotService {
                 "temperature", 0.7
         );
 
-        Map response = webClient.post()
+        return webClient.post()
                 .uri("/chat/completions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + openaiApiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(Map.class)
-                .block();
-
-        if (response == null) {
-            throw new RuntimeException("Sin respuesta de OpenAI");
-        }
-
-        List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
-        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-        return (String) message.get("content");
+                .timeout(Duration.ofSeconds(20))
+                .map(response -> {
+                    if (response == null) throw new RuntimeException("Sin respuesta de OpenAI");
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                    return (String) message.get("content");
+                });
     }
 
     private String obtenerContextoVariantes() {

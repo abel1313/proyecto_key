@@ -21,7 +21,7 @@ import com.ventas.key.mis.productos.service.VentaServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("ventas")
+@RequestMapping("/v1/ventas")
 @Slf4j
 public class VentaControllerImpl {
 

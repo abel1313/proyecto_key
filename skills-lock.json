@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "angular-architect": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/angular-architect/SKILL.md",
+      "computedHash": "bb4df7ee3ad3cc43838f417f2fc3e735470f82d78bbe0e5874bb12735d9ac302"
+    },
+    "angular-developer": {
+      "source": "angular/skills",
+      "sourceType": "github",
+      "skillPath": "angular-developer/SKILL.md",
+      "computedHash": "c5958947eaf0e79954dcb7690eb09ed3dec546b009fe730681b937ad072d0b58"
+    },
+    "code-quality": {
+      "source": "piomin/claude-ai-spring-boot",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/code-quality/SKILL.md",
+      "computedHash": "4345a465dbbb22d77ac93bff7e8294e7110cd033d4258b2b9111b05eb965521a"
+    },
+    "design-patterns": {
+      "source": "piomin/claude-ai-spring-boot",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/design-patterns/SKILL.md",
+      "computedHash": "d3e73dc794459cc5c52f1447f19632960b12521534ad8204bf1d14c3c9e8a04c"
+    },
+    "jpa-patterns": {
+      "source": "piomin/claude-ai-spring-boot",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/jpa-patterns/SKILL.md",
+      "computedHash": "c4d651bc10adf4357634a55cfbb05ae768417fe83ccc5a35a6f04f9697336e1f"
+    },
+    "logging-patterns": {
+      "source": "piomin/claude-ai-spring-boot",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/logging-patterns/SKILL.md",
+      "computedHash": "2af8b1e0dff33f234152795e9f0a5b287980a94bb15782fdb0414c1a39fe5c86"
+    },
+    "spring-boot": {
+      "source": "piomin/claude-ai-spring-boot",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/spring-boot/SKILL.md",
+      "computedHash": "7d299b0402d57bff041717d8217dca4fb3dfe55403b00d2eaf7bea3791b12f1b"
+    }
+  }
+}

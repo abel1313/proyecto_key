@@ -23,6 +23,7 @@ import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -54,6 +55,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
+
+    @PostConstruct
+    public void normalizarEndpoints() {
+        if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
+    }
 
     public VarianteServiceImpl(IVarianteRepository iVarianteRepository,
                                IVarianteImagenRepository iVarianteImagenRepository,
@@ -106,6 +112,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             dto.setPrecio(v.getProducto().getPrecioVenta() != null ? v.getProducto().getPrecioVenta() : 0.0);
             CodigoBarra cb = v.getProducto().getCodigoBarras();
             dto.setCodigoBarras(cb != null ? cb.getCodigoBarras() : null);
+            dto.setPalabraClave(v.getPalabraClave() != null
+                    ? new com.ventas.key.mis.productos.models.PalabraClaveResumenDto(v.getPalabraClave().getId(), v.getPalabraClave().getNombre())
+                    : null);
             return dto;
         }).collect(Collectors.toList());
     }
@@ -246,20 +255,84 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoId(idProducto);
     }
 
+    /**
+     * @deprecated Usar getImagenesPorVarianteV2 — no verifica existencia en micro, puede devolver URLs rotas
+     */
+    @Deprecated
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId")
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
         List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
         return buildImagenUpdateDtos(relaciones);
     }
 
+    @Cacheable(value = "variantesImagenesCache", key = "'v2:' + #varianteId")
+    public List<ImagenUpdateDto> getImagenesPorVarianteV2(Integer varianteId) {
+        List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
+        if (relaciones.isEmpty()) return List.of();
+        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
+        List<Long> existentesList;
+        try {
+            existentesList = imageneClienteDisco.verificarExistentes(ids);
+        } catch (Exception e) {
+            log.warn("Error verificando existencia en micro para varianteId={}: {}", varianteId, e.getMessage());
+            existentesList = List.of();
+        }
+        // Si la verificación devuelve vacío (micro no disponible o archivo perdido),
+        // usar BD local como fallback para que el detalle sea consistente con el listado.
+        if (existentesList.isEmpty()) {
+            log.warn("verificarExistentes vacío para varianteId={}, usando BD local como fallback", varianteId);
+            return buildImagenUpdateDtos(relaciones);
+        }
+        Set<Long> existentes = new HashSet<>(existentesList);
+        return buildImagenUpdateDtos(relaciones.stream()
+                .filter(vi -> existentes.contains(vi.getImagen().getId()))
+                .toList());
+    }
+
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId + ':' + #pagina + ':' + #size")
     public PginaDto<List<ImagenUpdateDto>> getImagenesPorVariantePaginado(Integer varianteId, int pagina, int size) {
-        Page<VarianteImagen> page = iVarianteImagenRepository.findByVarianteId(varianteId, PageRequest.of(pagina - 1, size));
+        List<VarianteImagen> todas = iVarianteImagenRepository.findByVarianteId(varianteId);
+        if (todas.isEmpty()) {
+            PginaDto<List<ImagenUpdateDto>> vacio = new PginaDto<>();
+            vacio.setPagina(pagina);
+            vacio.setTotalPaginas(0);
+            vacio.setTotalRegistros(0);
+            vacio.setT(List.of());
+            return vacio;
+        }
+
+        List<Long> imagenIds = todas.stream().map(vi -> vi.getImagen().getId()).toList();
+        List<Long> existentesList;
+        try {
+            existentesList = imageneClienteDisco.verificarExistentes(imagenIds);
+        } catch (Exception e) {
+            log.warn("Error verificando imágenes en micro para varianteId={}: {}", varianteId, e.getMessage());
+            existentesList = List.of();
+        }
+
+        // Si la verificación devuelve vacío, usar BD local como fallback (consistente con el listado).
+        List<VarianteImagen> conImagen;
+        if (existentesList.isEmpty()) {
+            log.warn("verificarExistentes vacío para varianteId={} (paginado), usando BD local como fallback", varianteId);
+            conImagen = todas;
+        } else {
+            Set<Long> existentes = new HashSet<>(existentesList);
+            conImagen = todas.stream()
+                    .filter(vi -> existentes.contains(vi.getImagen().getId()))
+                    .toList();
+        }
+
+        List<ImagenUpdateDto> dtos = buildImagenUpdateDtos(conImagen);
+        int fromIndex = (pagina - 1) * size;
+        int toIndex = Math.min(fromIndex + size, dtos.size());
+        List<ImagenUpdateDto> paginado = fromIndex >= dtos.size() ? List.of() : dtos.subList(fromIndex, toIndex);
+        int totalPaginas = size == 0 ? 0 : (int) Math.ceil((double) dtos.size() / size);
+
         PginaDto<List<ImagenUpdateDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
-        resultado.setTotalPaginas(page.getTotalPages());
-        resultado.setTotalRegistros((int) page.getTotalElements());
-        resultado.setT(buildImagenUpdateDtos(page.getContent()));
+        resultado.setTotalPaginas(totalPaginas);
+        resultado.setTotalRegistros(dtos.size());
+        resultado.setT(paginado);
         return resultado;
     }
 
@@ -268,7 +341,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return relaciones.stream().map(vi -> {
             var img = vi.getImagen();
             ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
-            dto.setUrlImagen(endpointImagenes + "imagenes/" + img.getId());
+            dto.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + img.getId());
             dto.setPrincipal(vi.getPrincipal());
             return dto;
         }).toList();
@@ -479,32 +552,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Integer> varianteIds = variantes.stream().map(Variantes::getId).toList();
         List<VarianteImagen> todasImagenes = iVarianteImagenRepository.findByVarianteIdIn(varianteIds);
 
-        // Agrupar todos los IDs de imagen por variante (orden ASC ya viene de la query)
-        Map<Integer, List<Long>> varianteToImagenIds = new LinkedHashMap<>();
+        // La query ordena: principal=true primero, luego por id ASC.
+        // putIfAbsent conserva solo el primero (el preferido) por variante.
+        Map<Integer, Long> variantePrimeraImagen = new LinkedHashMap<>();
         for (VarianteImagen vi : todasImagenes) {
-            varianteToImagenIds.computeIfAbsent(vi.getVariante().getId(), k -> new ArrayList<>())
-                               .add(vi.getImagen().getId());
+            variantePrimeraImagen.putIfAbsent(vi.getVariante().getId(), vi.getImagen().getId());
         }
 
-        // Una sola llamada a micro_imagenes para saber cuáles IDs existen en disco
-        List<Long> todosIds = varianteToImagenIds.values().stream().flatMap(List::stream).toList();
-        Set<Long> idsValidos = new HashSet<>();
-        if (!todosIds.isEmpty()) {
-            try {
-                idsValidos.addAll(imageneClienteDisco.verificarExistentes(todosIds));
-            } catch (Exception e) {
-                log.warn("[buildResumenDtosBatch] Error verificando imágenes: {}", e.getMessage());
-            }
-        }
-
-        final Set<Long> finalIdsValidos = idsValidos;
         return variantes.stream().map(v -> {
             VarianteResumenDto dto = buildBaseResumenDto(v);
-            List<Long> ids = varianteToImagenIds.get(v.getId());
-            if (ids != null) {
-                ids.stream().filter(finalIdsValidos::contains).findFirst().ifPresent(imagenId ->
-                    dto.setImagenUrl(endpointImagenes + "imagenes/" + imagenId)
-                );
+            Long imagenId = variantePrimeraImagen.get(v.getId());
+            if (imagenId != null) {
+                dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + imagenId);
             }
             return dto;
         }).toList();

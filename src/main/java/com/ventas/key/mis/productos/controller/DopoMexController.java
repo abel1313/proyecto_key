@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("dipomex")
+@RequestMapping("/v1/dipomex")
 public class DopoMexController {
 
     private final IDopoMexService service;

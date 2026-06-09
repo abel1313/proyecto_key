@@ -29,15 +29,12 @@ import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 @Slf4j
 public class SecurityConfig {
 
-    @Value("${api.cors_angular}")
-    private String corsAngular;
-
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        log.info("SecurityConfig cargado, cors: {}", corsAngular);
+        log.info("SecurityConfig cargado");
         return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -47,36 +44,38 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // ── Documentación / herramientas externas ─────────────────────────
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/dipomex/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/v1/dipomex/**").permitAll()
 
                         // ── Chatbot (público para todos los visitantes) ───────────────────
-                        .requestMatchers("/chatbot/**").permitAll()
+                        .requestMatchers("/v1/chatbot/**").permitAll()
 
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
-                        .requestMatchers(HttpMethod.GET, "/negocio/estado").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
-                        .requestMatchers("/negocio/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes/*/imagen").permitAll()
+                        .requestMatchers("/v1/negocio/**").hasRole("ADMIN")
                         .requestMatchers("/presentacion/**").hasRole("ADMIN")
 
                         // ── Auth ──────────────────────────────────────────────────────────
-                        .requestMatchers("/auth/login", "/auth/registrar", "/auth/refresh", "/auth/validar").permitAll()
-                        .requestMatchers("/auth/logout").permitAll()
+                        .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar").permitAll()
+                        .requestMatchers("/v1/auth/logout").permitAll()
 
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
-                        .requestMatchers("/mp/webhook").permitAll()
+                        .requestMatchers("/v1/mp/webhook").permitAll()
 
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
-                        .requestMatchers(HttpMethod.GET, "/palabras-clave/**").permitAll()
-                        .requestMatchers("/palabras-clave/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
+                        .requestMatchers("/v1/palabras-clave/**").hasRole("ADMIN")
 
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
-                        .requestMatchers(HttpMethod.GET, "/productos/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/productos/**").permitAll()
-                        .requestMatchers("/productos/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/productos/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/productos/**").permitAll()
+                        .requestMatchers("/v1/productos/**").hasRole("ADMIN")
 
                         // ── Variantes (GETs públicos; escritura solo ADMIN) ────────────────
-                        .requestMatchers(HttpMethod.GET, "/variantes/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/variantes/admin/**", "/variantes/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/variantes/**").permitAll()
                         .requestMatchers("/variantes/**").hasRole("ADMIN")
 
@@ -86,43 +85,44 @@ public class SecurityConfig {
                         .requestMatchers("/imagen/**").hasRole("ADMIN")
 
                         // ── Usuarios ──────────────────────────────────────────────────────
-                        .requestMatchers("/usuarios/buscarClientePorIdUsuario/**").permitAll()
-                        .requestMatchers(HttpMethod.DELETE, "/usuarios/**").hasRole("ADMIN")
-                        .requestMatchers("/usuarios/**").authenticated()
+                        .requestMatchers("/v1/usuarios/buscarClientePorIdUsuario/**").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/v1/usuarios/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/usuarios/**").authenticated()
 
                         // ── Clientes (alta y edición para autenticado; baja solo ADMIN) ────
-                        .requestMatchers(HttpMethod.DELETE, "/clientes/**").hasRole("ADMIN")
-                        .requestMatchers("/clientes/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/clientes/**").authenticated()
 
                         // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
-                        .requestMatchers(HttpMethod.GET,    "/pedidos/**").authenticated()
-                        .requestMatchers(HttpMethod.POST,   "/pedidos/savePedido").authenticated()
-                        .requestMatchers(HttpMethod.PUT,    "/pedidos/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/pedidos/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
                         // ── Ventas ────────────────────────────────────────────────────────
-                        .requestMatchers("/ventas/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/ventas/**").hasRole("ADMIN")
 
                         // ── MercadoPago (resto) ────────────────────────────────────────────
-                        .requestMatchers("/mp/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/mp/**").hasRole("ADMIN")
 
                         // ── Pagos catálogo ────────────────────────────────────────────────
-                        .requestMatchers("/pagos/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/pagos/**").hasRole("ADMIN")
 
                         // ── Gastos ────────────────────────────────────────────────────────
-                        .requestMatchers("/gastos/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/gastos/**").hasRole("ADMIN")
 
                         // ── Rifas y concursantes ──────────────────────────────────────────
                         .requestMatchers(
-                                "/rifa/**", "/ganadorRifa/**",
-                                "/configurarRifa/**", "/concursante/**"
+                                "/v1/rifa/**", "/v1/ganadorRifa/**",
+                                "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
                         ).hasRole("ADMIN")
 
                         // ── Carga de documentos (Excel) ───────────────────────────────────
-                        .requestMatchers("/documentos/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/documentos/**").hasRole("ADMIN")
 
                         // ── Admin (gestión interna del servidor) ──────────────────────────
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
+                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )

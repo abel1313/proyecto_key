@@ -14,5 +14,6 @@ public class RequestProductoImagen {
     private Integer id;
     private Long imagenId;
     private Integer productoId;
+    private Boolean principal;
 
 }

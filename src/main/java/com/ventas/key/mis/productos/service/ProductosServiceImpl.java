@@ -8,7 +8,8 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteVPS;
 import com.ventas.key.mis.productos.mapper.ProductoAdmin;
 import com.ventas.key.mis.productos.mapper.ProductoUser;
 import com.ventas.key.mis.productos.models.*;
@@ -22,10 +23,12 @@ import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
 import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -36,6 +39,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -50,7 +54,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -67,6 +73,11 @@ public class ProductosServiceImpl extends
     @Value("${api.imagenes}")
     private String endpointImagenes;
 
+    @jakarta.annotation.PostConstruct
+    public void normalizarEndpoints() {
+        if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
+    }
+
     private final IProductosRepository iProductosRepository;
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
@@ -77,15 +88,18 @@ public class ProductosServiceImpl extends
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IPalabraClaveRepository iPalabraClaveRepository;
 
-    private final ImagenProductoClienteAWS imagenProductoClienteAWS;
+    private final ImagenProductoClienteVPS imagenProductoClienteVPS;
     private final ImagenPort imagenPort;
+
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
 
     public ProductosServiceImpl(final IProductosRepository iProductosRepository,
             final ErrorGenerico error,
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
             final IImagenService iImagenService,
-            final ImagenProductoClienteAWS imagenProductoClienteAWS,
+            final ImagenProductoClienteVPS imagenProductoClienteVPS,
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
             final IProductoImagenRepository iProductoImagenRepository,
@@ -98,7 +112,7 @@ public class ProductosServiceImpl extends
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
         this.iImagenService = iImagenService;
-        this.imagenProductoClienteAWS = imagenProductoClienteAWS;
+        this.imagenProductoClienteVPS = imagenProductoClienteVPS;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.varianteRepository = iVarianteRepository;
         this.iProductoImagenRepository = iProductoImagenRepository;
@@ -129,10 +143,12 @@ public class ProductosServiceImpl extends
             productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
         }
 
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         List<ProductoDTO> listPtroductos = productosPaginados.getContent()
                 .stream()
-                .map(p -> mapperByRol(p, isAdmin))
+                .map(p -> mapperByRol(p, isAdmin, imagenes.get(p.getId())))
                 .toList();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
@@ -147,11 +163,12 @@ public class ProductosServiceImpl extends
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
-    private ProductoDTO mapperByRol(Producto p, boolean isAdmin) {
+    private ProductoDTO mapperByRol(Producto p, boolean isAdmin, Long imagenId) {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-        img.setUrlImagen(endpointImagenes + "producto-imagen/buscarImagenProducto/" + p.getId());
-
+        if (imagenId != null) {
+            img.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + imagenId);
+        }
 
         if (isAdmin) {
             ProductoAdmin productoAdmin = getProductoAdmin(p);
@@ -169,6 +186,13 @@ public class ProductosServiceImpl extends
             productoUser.setStock(p.getStock());
             return new ProductoDTO(productoUser);
         }
+    }
+
+    private Map<Integer, Long> getPrimerasImagenes(List<Integer> productoIds) {
+        Map<Integer, Long> result = new LinkedHashMap<>();
+        iProductoImagenRepository.findPrimeraImagenByProductoIdIn(productoIds)
+            .forEach(pi -> result.putIfAbsent(pi.getProducto().getId(), pi.getImagen().getId()));
+        return result;
     }
     private ProductoAdmin getProductoAdmin(Producto p) {
         ProductoAdmin productoAdmin = new ProductoAdmin();
@@ -207,7 +231,8 @@ public class ProductosServiceImpl extends
             resultado.setPagina(1);
             resultado.setTotalPaginas(1);
             resultado.setTotalRegistros(1);
-            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin)));
+            Map<Integer, Long> img1 = getPrimerasImagenes(List.of(porCodigo.get().getId()));
+            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin, img1.get(porCodigo.get().getId()))));
             return resultado;
         }
 
@@ -230,17 +255,19 @@ public class ProductosServiceImpl extends
     }
 
     private PginaDto<List<ProductoDTO>> buildPagina(Page<Producto> pagina, int page, boolean isAdmin) {
+        List<Integer> productoIds = pagina.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(pagina.getTotalPages());
         pginaDto.setTotalRegistros((int) pagina.getTotalElements());
-        pginaDto.setT(pagina.getContent().stream().map(p -> mapperByRol(p, isAdmin)).toList());
+        pginaDto.setT(pagina.getContent().stream()
+            .map(p -> mapperByRol(p, isAdmin, imagenes.get(p.getId()))).toList());
         return pginaDto;
     }
 
     @Transactional
     @Override
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache", "detalleImagen"}, allEntries = true)
     public void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado {
         log.info("Buscar producto con el ID {}",id);
         Optional<Producto> existeProducto = iProductosRepository.findById(id);
@@ -275,6 +302,8 @@ public class ProductosServiceImpl extends
             log.info("Se elimino el producto con las variantes y relaciones con imagenes");
 
         });
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 
     private List<ProductoDTO> listaProductos(List<Producto> lista) {
@@ -297,7 +326,7 @@ public class ProductosServiceImpl extends
                     dto.setIdProducto(p.getId());
                     com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                             new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
-                    img.setUrlImagen(endpointImagenes + "producto-imagen/buscarImagenProducto/" + p.getId());
+                    img.setUrlImagen(endpointImagenes + "v1/producto-imagen/buscarImagenProducto/" + p.getId());
                     dto.setImagen(img);
                     return dto;
                 })
@@ -306,10 +335,13 @@ public class ProductosServiceImpl extends
 
 
     @Override
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "buscarImagenIdCache", "detalleImagen", "detalle"}, allEntries = true)
+    @Transactional
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
-        return guardarProducto(productoDetalle);
+        Producto resultado = guardarProducto(productoDetalle);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return resultado;
     }
 
     @Override
@@ -319,19 +351,22 @@ public class ProductosServiceImpl extends
         if(existeImagenes.isEmpty()){
             throw new ExceptionDataNotFound("No existen imagenes para este producto ");
         }
-        varianteRepository.findByProductoId(producto.getId()).stream().parallel().forEach(guardarVairantes->{
-            existeImagenes.stream().parallel().forEach(imagen->{
+        List<VarianteImagen> relaciones = new ArrayList<>();
+        varianteRepository.findByProductoId(producto.getId()).forEach(variante ->
+            existeImagenes.forEach(imagen -> {
                 VarianteImagen varianteImagen = new VarianteImagen();
-                varianteImagen.setVariante(guardarVairantes);
+                varianteImagen.setVariante(variante);
                 varianteImagen.setImagen(imagen.getImagen());
-                iVarianteImagenRepository.save(varianteImagen);
-            });
-        });
+                relaciones.add(varianteImagen);
+            })
+        );
+        iVarianteImagenRepository.saveAll(relaciones);
         return compartirImagenesVarianteDto;
     }
 
+    // [FLUJO 1] INICIO: el controlador llama saveProductoLote() → llega aqui
     @Transactional
-    private Producto guardarProducto(ProductoDetalle productoDetalle) {
+    protected Producto guardarProducto(ProductoDetalle productoDetalle) {
         if (productoDetalle.getStock() == 0) {
             throw new ExceptionErrorInesperado("El stock no debe de ser 0");
         }
@@ -356,6 +391,7 @@ public class ProductosServiceImpl extends
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
+            // [FLUJO 2] PRODUCTO NUEVO: no existe en BD → se crea
             if(prodExistenteNoOpt == null) {
                 CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
                 log.info("se guardo el codigo de barras {}", codBarr);
@@ -364,8 +400,10 @@ public class ProductosServiceImpl extends
                 log.info("Se guardo el producto nuevo {}", savedProducto);
 
                 if (!productoDetalle.getListImagenes().isEmpty()) {
+                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
                     List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> relaciones = mapperRelacionProductoImagen(lstImg, savedProducto);
+                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
                     relacionProductoImagen(relaciones);
                     log.info("Se guardaron {} imagenes para el producto nuevo {}", lstImg.size(), savedProducto.getId());
                 }
@@ -377,11 +415,13 @@ public class ProductosServiceImpl extends
                 return savedProducto;
             }
 
-
+            // [FLUJO 2B] PRODUCTO EXISTENTE: ya existe en BD → se actualiza
             if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
                 if (!productoDetalle.getListImagenes().isEmpty()){
+                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
                     List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
+                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
                     relacionProductoImagen(mapperRelacionProductoImagen);
 
                     List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
@@ -483,45 +523,54 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    private void relacionProductoImagen(List<ProductoImagen>  productoImagens) throws IOException {
+    // [FLUJO 4] Sube archivos al micro de imágenes y guarda la relación producto-imagen en su BD.
+    // Si el micro no está disponible se loguea el error pero el producto se guarda igual.
+    private void relacionProductoImagen(List<ProductoImagen> productoImagens) throws IOException {
+        if (productoImagens.isEmpty()) return;
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
-
-        log.info("Se prepara las imagenes para subirse al servidor {}", 3);
         for (ProductoImagen p : productoImagens) {
-
-                Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
-                byte[] imagenBytes = Files.readAllBytes(path);
-
+            Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
+            byte[] imagenBytes = Files.readAllBytes(path);
+            final String nombre = p.getImagen().getNombreImagen();
             ByteArrayResource recurso = new ByteArrayResource(imagenBytes) {
                 @Override
-                public String getFilename() {
-                    return p.getImagen().getNombreImagen();
-                }
+                public String getFilename() { return nombre; }
             };
-
             builder.part("files", recurso)
-                    .header("Content-Disposition",
-                            "form-data; name=files; filename=" + p.getImagen().getNombreImagen());
+                    .header("Content-Disposition", "form-data; name=files; filename=" + nombre);
         }
-        log.info("Se envia la peticion al servicio de iamges {}",4);
-        //List<ImagenDto> listImg = imageneClienteAWS.save(builder.build());
-        log.info("Se guardaron las imagenes en el servidor imageneClienteAWS {}",productoImagens);
-        List<RequestProductoImagen> productoImagen = productoImagens.stream().map(datos->{
-            RequestProductoImagen prdoImg = new RequestProductoImagen();
-            try {
-                Optional<ProductoImagen> primer  = Optional.of(productoImagens.stream().findFirst()).orElseThrow();
-                primer.ifPresent(imagen -> prdoImg.setProductoId(imagen.getProducto().getId()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            prdoImg.setImagenId(datos.getImagen().getId());
-            return prdoImg;
-        }).toList();
-        log.info("Se guardara la relacion de las imagenes con el producto {}",productoImagen);
-        imagenProductoClienteAWS.saveAll(productoImagen);
-        log.info("termino de guardar la relacion de los productos {}", 6);
 
+        try {
+            List<ImagenDto> microImagenes = imagenPort.save(builder.build());
+            if (microImagenes == null || microImagenes.isEmpty()) {
+                log.warn("El micro de imágenes devolvió lista vacía — imágenes no sincronizadas");
+                return;
+            }
+            log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
+
+            Integer productoId = productoImagens.get(0).getProducto().getId();
+            List<ImagenDto> microList = microImagenes;
+            List<RequestProductoImagen> relaciones = java.util.stream.IntStream
+                    .range(0, microList.size())
+                    .mapToObj(i -> {
+                        RequestProductoImagen r = new RequestProductoImagen();
+                        r.setProductoId(productoId);
+                        r.setImagenId(microList.get(i).getId());
+                        r.setPrincipal(i == 0);
+                        return r;
+                    }).toList();
+
+            imagenProductoClienteVPS.saveAll(relaciones);
+            log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
+        } catch (Exception e) {
+            if (e instanceof WebClientResponseException wcre) {
+                log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {} — body respuesta: {}",
+                        e.getMessage(), wcre.getResponseBodyAsString(), e);
+            } else {
+                log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
+            }
+        }
     }
 
 
@@ -540,7 +589,8 @@ public class ProductosServiceImpl extends
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            Long idImagen = UUID.randomUUID().getMostSignificantBits() & Long.MAX_VALUE;
+            UUID _uuid = UUID.randomUUID();
+            Long idImagen = Math.abs(_uuid.getMostSignificantBits() ^ _uuid.getLeastSignificantBits());
             imagen.setId(idImagen);
             imagen.setBase64(urlImagen);
             imagen.setNombreImagen(mpa.getNombreImagen());
@@ -562,10 +612,8 @@ public class ProductosServiceImpl extends
     }
 
     private void aplicarPrincipalProducto(Integer productoId, Long imagenId) {
-        iProductoImagenRepository.findAllByProductoId(productoId).forEach(pi -> {
-            pi.setPrincipal(pi.getImagen().getId().equals(imagenId));
-            iProductoImagenRepository.save(pi);
-        });
+        iProductoImagenRepository.desmarcarTodosPrincipal(productoId);
+        iProductoImagenRepository.marcarComoPrincipal(imagenId, productoId);
     }
 
     private Producto llenarProductoDTO(ProductoDetalle productoDetalle) {
@@ -591,12 +639,14 @@ public class ProductosServiceImpl extends
     public PginaDto<List<ProductoDTO>> getProductosNoHabilitados(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findProductosNoHabilitados(pageable);
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
         pginaDto.setT(productosPaginados.getContent().stream()
-                .map(p -> mapperByRol(p, true)).toList());
+                .map(p -> mapperByRol(p, true, imagenes.get(p.getId()))).toList());
         return pginaDto;
     }
 
@@ -604,22 +654,26 @@ public class ProductosServiceImpl extends
     public PginaDto<List<ProductoDTO>> getProductosSinStock(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findByStock(0, pageable);
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
         pginaDto.setPagina(page);
         pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
         pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
         pginaDto.setT(productosPaginados.getContent().stream()
-                .map(p -> mapperByRol(p, true)).toList());
+                .map(p -> mapperByRol(p, true, imagenes.get(p.getId()))).toList());
         return pginaDto;
     }
 
-    @CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache", "buscarPorPalabraClaveCache", "findByIdCache", "detalleImagen", "detalle"}, allEntries = true)
     @Transactional
     public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
         Producto producto = iProductosRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado con id: " + id));
         producto.setHabilitado(habilitar ? '1' : '0');
-        return iProductosRepository.save(producto);
+        Producto resultado = iProductosRepository.save(producto);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return resultado;
     }
 
     public DiagnosticoImagenProductoDto diagnosticarImagenesProducto(Integer productoId) {
@@ -643,7 +697,7 @@ public class ProductosServiceImpl extends
 
         try {
             com.ventas.key.mis.productos.hexagonal.dominio.Imagen imgExterna =
-                    imagenProductoClienteAWS.buscarImagenProducto(productoId);
+                    imagenProductoClienteVPS.buscarImagenProducto(productoId);
             boolean tieneBytes = imgExterna != null && imgExterna.getImagen() != null;
             dto.setImagenPresenteEnMicroservicio(tieneBytes);
             dto.setDetalleExternoLista(imgExterna == null

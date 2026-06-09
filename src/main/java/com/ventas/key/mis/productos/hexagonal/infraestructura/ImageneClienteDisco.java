@@ -1,18 +1,16 @@
 package com.ventas.key.mis.productos.hexagonal.infraestructura;
 
-import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -20,6 +18,7 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 @Service
 @Slf4j
@@ -30,9 +29,11 @@ public class ImageneClienteDisco implements ImagenPort {
 
     private WebClient webClient;
     private final WebClient.Builder builder;
+    private final RabbitTemplate rabbitTemplate;
 
-    public ImageneClienteDisco(WebClient.Builder builder) {
+    public ImageneClienteDisco(WebClient.Builder builder, RabbitTemplate rabbitTemplate) {
         this.builder = builder;
+        this.rabbitTemplate = rabbitTemplate;
     }
     @PostConstruct
     public void init() {
@@ -46,11 +47,8 @@ public class ImageneClienteDisco implements ImagenPort {
 
     @Override
     public List<ImagenDto> save(MultiValueMap<String, ?> multipartData) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String jwtToken = authentication.getCredentials().toString();
         return webClient.post()
-                .uri("/imagenes")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer ".concat(jwtToken))
+                .uri("/v1/imagenes")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipartData))
                 .retrieve()
@@ -62,17 +60,16 @@ public class ImageneClienteDisco implements ImagenPort {
                     imagenDto.setContentType(mpa.getContentType());
                     imagenDto.setImagen(mpa.getImagen());
                     return imagenDto;
-                }).toList())).block();
+                }).toList())).timeout(Duration.ofSeconds(30)).block();
     }
 
     @Override
     public List<ImagenDto> getAll(List<Long> ids) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes")
+                        .path("/v1/imagenes")
                         .queryParam("ids", ids.toArray())
                         .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {
                 }).flatMap(flat -> Mono.just(flat.stream().map(mpa -> {
@@ -83,60 +80,52 @@ public class ImageneClienteDisco implements ImagenPort {
                 }).toList()))
                 .doOnError(e -> log.warn("Error obteniendo imágenes del microservicio para ids=[{}]: {}", ids.toArray(), e.getMessage(), e))
                 .onErrorReturn(List.of())
+                .timeout(Duration.ofSeconds(5))
                 .block();
     }
 
     @Override
     public void delete(List<Long> ids) {
-        webClient.delete()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes")
-                        .queryParam("ids", ids.toArray())
-                        .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
-                .retrieve()
-                .toBodilessEntity()
-                .doOnError(e -> log.warn("Error eliminando imágenes del microservicio ids=[{}]: {}", ids, e.getMessage()))
-                .block();
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_ELIMINAR,
+                ids
+        );
+        log.info("Publicados {} IDs a eliminar a Rabbit (queue.eliminar.imagenes)", ids.size());
     }
 
     @Override
     public List<Long> verificarExistentes(List<Long> ids) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes/verificar")
+                        .path("/v1/imagenes/verificar")
                         .queryParam("ids", ids.toArray())
                         .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Long>>() {})
                 .doOnError(e -> log.warn("Error verificando imágenes ids=[{}]: {}", ids, e.getMessage()))
                 .onErrorReturn(List.of())
+                .timeout(Duration.ofSeconds(5))
                 .block();
     }
 
     @Override
     public void deleteInagenesDisco(List<String> ids) {
-        webClient.delete()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes/disco")
-                        .queryParam("ids", ids.toArray())
-                        .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
-                .retrieve()
-                .toBodilessEntity()
-                .doOnError(e -> log.warn("Error eliminando imágenes del disco en el microservicio ids=[{}]: {}", ids, e.getMessage()))
-                .block();
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_IMAGENES,
+                RabbitMQConfig.ROUTING_KEY_ELIMINAR_DISCO,
+                ids
+        );
+        log.info("Publicados {} nombres a eliminar del disco a Rabbit (queue.eliminar.imagenes.disco)", ids.size());
     }
 
     @Override
     public ImagenDto getOne(Long id) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/imagenes")
+                        .path("/v1/imagenes")
                         .queryParam("ids", id)
                         .build())
-                .header(HttpHeaders.AUTHORIZATION, AuthenticationUtils.jwtBearerToken())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {})
                 .flatMap(list -> {
@@ -146,6 +135,6 @@ public class ImageneClienteDisco implements ImagenPort {
                     imagenDto.setId(mpa.getId());
                     imagenDto.setImagen(mpa.getImagen());
                     return Mono.just(imagenDto);
-                }).block();
+                }).timeout(Duration.ofSeconds(5)).block();
     }
 }

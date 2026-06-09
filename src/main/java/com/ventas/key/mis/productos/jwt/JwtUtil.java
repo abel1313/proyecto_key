@@ -38,10 +38,7 @@ public class JwtUtil {
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
-                .map(mpa-> {
-                    log.info("info {}",mpa);
-                    return mpa.getAuthority();
-                })
+                .map(mpa -> mpa.getAuthority())
                 .collect(Collectors.toList()));
         claims.put("idUsuario", idUsuarioRegistrado);
         return Jwts.builder()
@@ -96,8 +93,12 @@ public class JwtUtil {
     }
 
     public boolean validateToken(String token, UserDetails userDetails) {
-        String username = extractUsername(token);
-        return username.equals(userDetails.getUsername());
+        try {
+            String username = extractUsername(token);
+            return username.equals(userDetails.getUsername()) && !isRefreshToken(token);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public boolean validateToken(String token) {

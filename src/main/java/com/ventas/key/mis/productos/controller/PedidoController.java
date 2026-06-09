@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("pedidos")
+@RequestMapping("/v1/pedidos")
 @Slf4j
 public class PedidoController extends AbstractController<
                                         Pedido,
@@ -77,7 +77,7 @@ public class PedidoController extends AbstractController<
             PageableDto<List<PedidoGenerico>> response = iPedidoService.obtenerPedido(id, size,  page);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
-            return null;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null));
         }
     }
     @GetMapping("/findPedido/{idPedido}/{idCliente}")
@@ -86,16 +86,16 @@ public class PedidoController extends AbstractController<
             PageableDto<List<PedidoGenerico>> response = iPedidoService.obtenerPedidoPorId(idPedido, idCliente, size,  page);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
-            return null;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null));
         }
     }
-    @GetMapping("/buscarClientePedido/{buscar}")
-    public ResponseEntity<ResponseGeneric<PageableDto<List<PedidoGenerico>>>> buscarClienteNombre(@PathVariable String buscar, @RequestParam int size, @RequestParam int page) {
+    @GetMapping("/buscarClientePedido")
+    public ResponseEntity<ResponseGeneric<PageableDto<List<PedidoGenerico>>>> buscarClienteNombre(@RequestParam(required = false, defaultValue = "") String buscar, @RequestParam int size, @RequestParam int page) {
         try {
             PageableDto<List<PedidoGenerico>> response = iPedidoService.buscarClientePorPedido(buscar, size,  page);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
-            return null;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null));
         }
     }
 
@@ -107,7 +107,7 @@ public class PedidoController extends AbstractController<
             this.iPedidoService.deletePedidoById(id, motivo);
             return ResponseEntity.status(HttpStatus.OK).build();
         } catch (Exception e) {
-            return null;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("palabras-clave")
+@RequestMapping("/v1/palabras-clave")
 public class PalabraClaveController extends AbstractController<
         PalabraClave,
         Optional<PalabraClave>,

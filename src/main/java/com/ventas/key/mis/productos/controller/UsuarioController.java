@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("usuarios")
+@RequestMapping("/v1/usuarios")
 public class UsuarioController extends AbstractController<
         Usuario,
         Optional<Usuario>,

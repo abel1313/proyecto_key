@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
-@RequestMapping("rifa")
+@RequestMapping("/v1/rifa")
 public class RifaControllerImpl extends AbstractController<
         Rifa,
         Optional<Rifa>,

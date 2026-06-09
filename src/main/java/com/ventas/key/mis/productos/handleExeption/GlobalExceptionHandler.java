@@ -9,11 +9,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(GenericException.class)
-    public ResponseEntity<String> handleGeneralException(GenericException ex) {
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error interno: " + ex.getMessage());
+    public ResponseEntity<ErrorResponse> handleGeneralException(GenericException ex) {
+        HttpStatus status = switch (ex.getCodigo()) {
+            case 1062 -> HttpStatus.CONFLICT;
+            case 500  -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default   -> HttpStatus.BAD_REQUEST;
+        };
+        return ResponseEntity.status(status)
+                .body(new ErrorResponse("Error " + ex.getCodigo(), ex.getMessage()));
     }
-
 
 }

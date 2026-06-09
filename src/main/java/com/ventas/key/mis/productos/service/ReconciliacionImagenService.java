@@ -6,7 +6,7 @@ import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteAWS;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteVPS;
 import com.ventas.key.mis.productos.models.ReconciliacionResultadoDto;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
@@ -46,7 +46,7 @@ public class ReconciliacionImagenService {
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IImagenRepository iImagenRepository;
-    private final ImagenProductoClienteAWS imagenProductoClienteAWS;
+    private final ImagenProductoClienteVPS imagenProductoClienteVPS;
 
     private volatile ReconciliacionResultadoDto ultimoResultado;
     private volatile boolean enProceso = false;
@@ -68,32 +68,37 @@ public class ReconciliacionImagenService {
     private void reconciliar(Integer soloProductoId) {
         enProceso = true;
         ReconciliacionResultadoDto resultado = new ReconciliacionResultadoDto();
-
-        if (soloProductoId != null) {
-            procesarProducto(soloProductoId, resultado);
-            resultado.setProductosRevisados(1);
-            iVarianteRepository.findByProductoId(soloProductoId)
-                    .forEach(v -> procesarVariante(v, resultado));
-        } else {
-            int page = 0;
-            Page<Producto> pagina;
-            do {
-                pagina = iProductosRepository.findAll(PageRequest.of(page++, 50, Sort.by("id").ascending()));
-                for (Producto p : pagina.getContent()) {
-                    procesarProducto(p.getId(), resultado);
-                    resultado.setProductosRevisados(resultado.getProductosRevisados() + 1);
-                    iVarianteRepository.findByProductoId(p.getId())
-                            .forEach(v -> procesarVariante(v, resultado));
-                }
-            } while (!pagina.isLast());
+        try {
+            if (soloProductoId != null) {
+                procesarProducto(soloProductoId, resultado);
+                resultado.setProductosRevisados(1);
+                iVarianteRepository.findByProductoId(soloProductoId)
+                        .forEach(v -> procesarVariante(v, resultado));
+            } else {
+                int page = 0;
+                Page<Producto> pagina;
+                do {
+                    pagina = iProductosRepository.findAll(PageRequest.of(page++, 50, Sort.by("id").ascending()));
+                    for (Producto p : pagina.getContent()) {
+                        procesarProducto(p.getId(), resultado);
+                        resultado.setProductosRevisados(resultado.getProductosRevisados() + 1);
+                        iVarianteRepository.findByProductoId(p.getId())
+                                .forEach(v -> procesarVariante(v, resultado));
+                    }
+                } while (!pagina.isLast());
+            }
+            resultado.setEnProceso(false);
+            ultimoResultado = resultado;
+            log.info("Reconciliacion completada: {} productos, {} variantes, {} reparados, {} faltantes en disco",
+                    resultado.getProductosRevisados(), resultado.getVariantesRevisadas(),
+                    resultado.getReparados().size(), resultado.getFaltantesEnDisco().size());
+        } catch (Exception e) {
+            log.error("Error durante la reconciliacion: {}", e.getMessage(), e);
+            resultado.setEnProceso(false);
+            ultimoResultado = resultado;
+        } finally {
+            enProceso = false;
         }
-
-        resultado.setEnProceso(false);
-        ultimoResultado = resultado;
-        enProceso = false;
-        log.info("Reconciliacion completada: {} productos, {} variantes, {} reparados, {} faltantes en disco",
-                resultado.getProductosRevisados(), resultado.getVariantesRevisadas(),
-                resultado.getReparados().size(), resultado.getFaltantesEnDisco().size());
     }
 
     private void procesarProducto(Integer productoId, ReconciliacionResultadoDto resultado) {
@@ -117,7 +122,7 @@ public class ReconciliacionImagenService {
 
         if (!aReenviar.isEmpty()) {
             try {
-                imagenProductoClienteAWS.saveAll(aReenviar);
+                imagenProductoClienteVPS.saveAll(aReenviar);
                 aReenviar.forEach(r -> resultado.getReparados().add(
                         "PRODUCTO id=" + productoId + " imagenId=" + r.getImagenId()));
                 log.info("Re-enviadas {} imagenes del producto {}", aReenviar.size(), productoId);
@@ -148,7 +153,7 @@ public class ReconciliacionImagenService {
 
         if (!aReenviar.isEmpty()) {
             try {
-                imagenProductoClienteAWS.saveAll(aReenviar);
+                imagenProductoClienteVPS.saveAll(aReenviar);
                 aReenviar.forEach(r -> resultado.getReparados().add(
                         "VARIANTE id=" + variante.getId() + " imagenId=" + r.getImagenId()));
                 resultado.setVariantesRevisadas(resultado.getVariantesRevisadas() + aReenviar.size());

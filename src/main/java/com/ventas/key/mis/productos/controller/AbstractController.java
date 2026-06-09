@@ -4,6 +4,10 @@ import com.ventas.key.mis.productos.controller.api.IControllerGenerico;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.CrudAbstractServiceImpl;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
@@ -41,6 +45,12 @@ public abstract class AbstractController<
         this.sGenerico = sGenerico;
     }
 
+    @Operation(summary = "Eliminar registro", description = "Elimina el registro identificado por el cuerpo de la solicitud.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Registro eliminado correctamente"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @DeleteMapping("/delete")
     @Override
     public ResponseEntity<ResponseGeneric<Response>> delete(@RequestBody TipoDato requestG) {
@@ -53,9 +63,17 @@ public abstract class AbstractController<
         }
     }
 
+    @Operation(summary = "Listar registros paginados", description = "Retorna una pagina de registros. El parametro page es base-0.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Listado obtenido correctamente"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @GetMapping("/getAll")
     @Override
-    public ResponseEntity<ResponseGeneric<ListResponse>> findAll(@RequestParam int page, @RequestParam int size) {
+    public ResponseEntity<ResponseGeneric<ListResponse>> findAll(
+            @Parameter(description = "Numero de pagina (base 0)") @RequestParam int page,
+            @Parameter(description = "Registros por pagina") @RequestParam int size) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<ListResponse>(this.sGenerico.findAll(page, size)));
         } catch (Exception e) {
@@ -65,9 +83,16 @@ public abstract class AbstractController<
         }
     }
 
+    @Operation(summary = "Buscar registro por identificador", description = "Retorna el registro cuyo identificador coincide con tipoDato.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Registro encontrado"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @GetMapping("/getOne/{tipoDato}")
     @Override
-    public ResponseEntity<ResponseGeneric<OptionalResponse>> findBy(@PathVariable TipoDato tipoDato) {
+    public ResponseEntity<ResponseGeneric<OptionalResponse>> findBy(
+            @Parameter(description = "Identificador del registro") @PathVariable TipoDato tipoDato) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(this.sGenerico.findById(tipoDato)));   // [6] eliminadas variables intermedias innecesarias
         } catch (Exception e) {
@@ -77,6 +102,13 @@ public abstract class AbstractController<
         }
     }
 
+    @Operation(summary = "Crear nuevo registro", description = "Guarda un nuevo registro tras validar los campos anotados con @Validated.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Registro creado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Datos de entrada invalidos"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @PostMapping("/save")
     @Override
     public ResponseEntity<ResponseGeneric<Response>> save(
@@ -90,11 +122,18 @@ public abstract class AbstractController<
         }
     }
 
+    @Operation(summary = "Actualizar registro existente", description = "Actualiza el registro identificado por tipoDato con los nuevos datos.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Registro actualizado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Datos de entrada invalidos"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+    })
     @Override
     @PutMapping("/update/{tipoDato}")
     public ResponseEntity<ResponseGeneric<Response>> update(
-            @PathVariable TipoDato tipoDato,
-            @Validated @RequestBody Response requestG,                                            // [3] agregado @Validated @RequestBody
+            @Parameter(description = "Identificador del registro a actualizar") @PathVariable TipoDato tipoDato,
+            @Validated @RequestBody Response requestG,
             BindingResult result) throws Exception {
         try {
             return ejecutarGuardado(requestG, result);                                            // [4] delegado al método privado, eliminada la duplicación

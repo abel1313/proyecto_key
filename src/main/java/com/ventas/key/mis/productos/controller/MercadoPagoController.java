@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/mp")
+@RequestMapping("/v1/mp")
 @RequiredArgsConstructor
 @Slf4j
 public class MercadoPagoController {

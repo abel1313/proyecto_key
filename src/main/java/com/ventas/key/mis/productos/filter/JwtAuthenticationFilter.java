@@ -41,6 +41,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String username = null;
 
         try {
+            // Rechazar refresh tokens — no son válidos como access tokens
+            if (jwtUtil.isRefreshToken(jwt)) {
+                log.warn("Se intentó usar un refresh token como access token");
+                filterChain.doFilter(request, response);
+                return;
+            }
             username = jwtUtil.extractUsername(jwt);
         } catch (Exception e) {
             log.warn("No se pudo extraer el username del token: {}", e.getMessage());

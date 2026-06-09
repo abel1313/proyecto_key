@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
-@RequestMapping("concursante")
+@RequestMapping("/v1/concursante")
 public class ConcursanteControllerImpl extends AbstractController<
         Concursante,
         Optional<Concursante>,

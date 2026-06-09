@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/configurarRifaVariante")
+@RequestMapping("/v1/configurarRifaVariante")
 @RequiredArgsConstructor
 @Slf4j
 public class ConfigurarRifaVarianteController {

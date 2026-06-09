@@ -13,7 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/negocio")
+@RequestMapping("/v1/negocio")
 @RequiredArgsConstructor
 @Slf4j
 public class NegocioController {

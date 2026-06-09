@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.models.variantes;
 
+import com.ventas.key.mis.productos.models.PalabraClaveResumenDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,4 +20,5 @@ public class VarianteDto {
     private String contenidoNeto;
     private double precio;
     private String codigoBarras;
+    private PalabraClaveResumenDto palabraClave;
 }

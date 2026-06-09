@@ -126,7 +126,7 @@ public abstract class CrudAbstractServiceImpl<
             }
         }catch(Exception e){
             error.error(e);
-            throw new Exception(e.getMessage());
+            throw new Exception(e.getMessage(), e);
         }
         return response;
     }

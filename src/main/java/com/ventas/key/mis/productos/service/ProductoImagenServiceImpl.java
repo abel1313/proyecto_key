@@ -11,9 +11,11 @@ import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.service.api.IProductoImagenService;
+import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,9 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
 
+    @Autowired private CacheService cacheService;
+    @Autowired private RabbitTemplate rabbitTemplate;
+
     public ProductoImagenServiceImpl(BaseRepository<ProductoImagen, Integer> repoGenerico, ErrorGenerico error,
                                      final IProductoImagenRepository iProductoImagenRepository,
                                      final IVarianteImagenRepository iVarianteImagenRepository,
@@ -60,6 +65,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         return this.iProductoImagenRepository.findByProductoId(productoId);
     }
 
+    @Deprecated
     @Override
     @Cacheable(value = "detalleImagen", key = "#productoId")
     public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
@@ -74,9 +80,23 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         return productoImagenDto;
     }
 
+    // RabbitMQ: NO aplica — lectura síncrona. URLs apuntan al micro vía /imagen/v1/file/
+    @Override
+    @Cacheable(value = "detalleImagen-v2", key = "#productoId")
+    public ProductoImagenDto findByImagenesPorIdProductoV2(Integer productoId) {
+        List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
+        imagenDtoList.forEach(dto -> {
+            dto.setUrlImagen(contextPath + "/imagen/v1/file/" + dto.getId());
+            dto.setBase64(null);
+        });
+        ProductoImagenDto productoImagenDto = new ProductoImagenDto();
+        productoImagenDto.setProductoId(productoId);
+        productoImagenDto.setListaImagenes(imagenDtoList);
+        return productoImagenDto;
+    }
+
     @Override
     @Transactional
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void eliminarImagenesEspecificas(Integer productoId, List<Long> imagenIds) {
         log.info("eliminarImagenesEspecificas productoId: {} ids imagenes {} ", productoId, imagenIds);
         log.info("**********************************************************************************************");
@@ -87,6 +107,11 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
 
         log.info("Se eliminaron estos ids huefanos  {} size {} ", huerfanas, imagenIds.size());
+
+        // Evict siempre: la relación producto_imagen ya se borró aunque las imágenes sean compartidas
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+
         if (huerfanas.isEmpty()) return;
         log.info("Ir a eliminar las imagenes de la tabla imagenes copy  {}", imagenIds);
         log.info("**********************************************************************************************");
@@ -105,7 +130,6 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     @Transactional
-    @CacheEvict(value = {"detalleImagen", "variantesImagenesCache", "variantesProductoCache", "detalle"}, allEntries = true)
     public void eliminarImagenesDeProductos(List<Integer> productoIds) {
         // recolectar IDs de imágenes vinculadas (producto + variantes del producto)
         List<Long> idsProducto = iProductoImagenRepository.findImagenIdsByProductoIdIn(productoIds);
@@ -130,5 +154,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         } catch (Exception e) {
             log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
         }
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
 }

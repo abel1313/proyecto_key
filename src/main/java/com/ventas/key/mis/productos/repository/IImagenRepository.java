@@ -15,6 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * @deprecated Migrar a micro_imagenes. Este repositorio pertenece al dominio de imágenes
+ * y debe moverse al microservicio de imágenes. No agregar nueva lógica aquí.
+ */
+@Deprecated
 public interface IImagenRepository extends BaseRepository<Imagen,Long>{
 
     @Query("""

@@ -34,12 +34,12 @@ public class VarianteController extends AbstractController<
         super(sGenerico);
     }
 
-    @GetMapping("/porProducto/{productoId}")
+    @GetMapping("/v1/porProducto/{productoId}")
     public ResponseEntity<ResponseGeneric<List<VarianteDto>>> getPorProducto(@PathVariable Integer productoId) {
         return ResponseEntity.ok(new ResponseGeneric<List<VarianteDto>>(sGenerico.buscarPorProducto(productoId)));
     }
 
-    @GetMapping("/porProducto/{productoId}/paginado")
+    @GetMapping("/v1/porProducto/{productoId}/paginado")
     public ResponseEntity<ResponseGeneric<PginaDto<List<Variantes>>>> getPorProductoPaginado(
             @PathVariable Integer productoId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -47,7 +47,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginado(productoId, pagina, size)));
     }
 
-    @GetMapping("/buscar")
+    @GetMapping("/v1/buscar")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscar(
             @RequestParam(required = false) String termino,
             @RequestParam(defaultValue = "1") int pagina,
@@ -56,7 +56,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, size)));
     }
 
-    @PostMapping("/guardarConImagenes")
+    @PostMapping("/v1/guardarConImagenes")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> guardarConImagenes(@RequestBody List<VarianteDetalle> detalles) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
@@ -67,12 +67,21 @@ public class VarianteController extends AbstractController<
         }
     }
 
-    @GetMapping("/imagenes/{varianteId}")
+    /**
+     * @deprecated Usar GET /variantes/v1/imagenes/{varianteId} — no verifica existencia en micro
+     */
+    @Deprecated
+    @GetMapping("/v3/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenes(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVariante(varianteId)));
     }
 
-    @GetMapping("/imagenes/{varianteId}/paginado")
+    @GetMapping("/v1/imagenes/{varianteId}")
+    public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenesV2(@PathVariable Integer varianteId) {
+        return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
+    }
+
+    @GetMapping("/v1/imagenes/{varianteId}/paginado")
     public ResponseEntity<ResponseGeneric<PginaDto<List<ImagenUpdateDto>>>> getImagenesPaginado(
             @PathVariable Integer varianteId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -80,7 +89,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getImagenesPorVariantePaginado(varianteId, pagina, size)));
     }
 
-    @GetMapping("/porProducto/{productoId}/paginado/resumen")
+    @GetMapping("/v1/porProducto/{productoId}/paginado/resumen")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> getPorProductoPaginadoResumen(
             @PathVariable Integer productoId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -88,13 +97,23 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, size)));
     }
 
-    @DeleteMapping("/imagenes")
+    /** @deprecated Usar DELETE /variantes/v1/imagenes */
+    @Deprecated
+    @DeleteMapping("/v3/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantes(@RequestBody List<Integer> varianteIds) {
         sGenerico.eliminarImagenesDeVariantes(varianteIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @DeleteMapping("/{varianteId}/imagenes")
+    @DeleteMapping("/v1/imagenes")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantesV2(@RequestBody List<Integer> varianteIds) {
+        sGenerico.eliminarImagenesDeVariantes(varianteIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
+    }
+
+    /** @deprecated Usar DELETE /variantes/v1/{varianteId}/imagenes */
+    @Deprecated
+    @DeleteMapping("/v3/{varianteId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificas(
             @PathVariable Integer varianteId,
             @RequestBody List<Long> imagenIds) {
@@ -102,28 +121,36 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @GetMapping("/admin/sin-stock")
+    @DeleteMapping("/v1/{varianteId}/imagenes")
+    public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificasV2(
+            @PathVariable Integer varianteId,
+            @RequestBody List<Long> imagenIds) {
+        sGenerico.eliminarImagenesEspecificas(varianteId, imagenIds);
+        return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
+    }
+
+    @GetMapping("/v1/admin/sin-stock")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> getVariantesSinStockDeshabilitadas(
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getVariantesSinStockDeshabilitadas(pagina, size)));
     }
 
-    @GetMapping("/admin/diagnostico-imagenes/{varianteId}")
+    @GetMapping("/v1/admin/diagnostico-imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<DiagnosticoImagenVarianteDto>> diagnosticarImagenesVariante(
             @PathVariable Integer varianteId) {
         log.info("Diagnóstico de imágenes para variante id={}", varianteId);
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.diagnosticarImagenesVariante(varianteId)));
     }
 
-    @PutMapping("/imagenes/{varianteImagenId}/principal")
+    @PutMapping("/v1/imagenes/{varianteImagenId}/principal")
     public ResponseEntity<ResponseGeneric<String>> marcarImagenPrincipal(@PathVariable Integer varianteImagenId) {
         log.info("Marcar imagen principal varianteImagenId={}", varianteImagenId);
         sGenerico.marcarImagenPrincipalVariante(varianteImagenId);
         return ResponseEntity.ok(new ResponseGeneric<>("Imagen marcada como principal correctamente"));
     }
 
-    @PostMapping("/inicializarDesdeProducto")
+    @PostMapping("/v1/inicializarDesdeProducto")
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
