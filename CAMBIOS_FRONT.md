@@ -1636,3 +1636,53 @@ Front → DELETE producto/variante
 2. Ve al listado de variantes o al detalle de esa variante
 3. **Antes:** la imagen eliminada podía seguir apareciendo en caché
 4. **Ahora:** el listado ya no incluye esa imagen en el siguiente request
+
+---
+
+## Optimizaciones internas N+1 — 2026-06-09
+
+### Qué se hizo
+Se corrigieron problemas de N+1 en JPA/Hibernate en `proyecto_key_new`. Los contratos de API **no cambian** — mismo request, mismo response. Solo mejora el rendimiento y la estabilidad interna.
+
+### Endpoints a probar (pruebas de regresión)
+
+#### 1. Módulo Rifa — GanadorRifaController (`/v1/ganadorRifa`)
+
+| Endpoint | Método | Qué probar |
+|----------|--------|-----------|
+| `/v1/ganadorRifa/sortear/{configurarRifaId}` | POST | Ejecutar un sorteo completo, verificar que devuelve ganador y variante |
+| `/v1/ganadorRifa/continuarVariante/{configurarRifaId}?modo=RESTANTES` | POST | Continuar variante con modo RESTANTES/CERO/NUEVOS, verificar que el historial queda bien |
+| `/v1/ganadorRifa/estado/{configurarRifaId}` | GET | Obtener estado de la rifa activa, verificar que trae variante actual, elegibles y descartados |
+| `/v1/ganadorRifa/reiniciar/{configurarRifaId}` | POST | Reiniciar rifa con `completo=false` y `completo=true`, verificar que limpia ganadores e historial |
+
+**Qué cambió internamente:**
+- `sortear()` y `continuarVariante()`: las variantes de rifa ahora se cargan con sus variantes de producto y producto en una sola query (antes era 1+N+N)
+- `continuarVariante()`: los ganadores anteriores se cargan con `concursante` y `configurarRifaVariante` en una sola query (antes era 1+N+N)
+- `reiniciar()`: usa DELETE directo en BD en vez de cargar todos los registros y borrarlos uno a uno (antes era 1+N queries de SELECT + N de DELETE)
+
+---
+
+#### 2. Módulo Variantes de Rifa — ConfigurarRifaVarianteController (`/v1/configurarRifaVariante`)
+
+| Endpoint | Método | Qué probar |
+|----------|--------|-----------|
+| `GET /v1/configurarRifaVariante/porRifa/{rifaId}` | GET | Listar variantes de una rifa, verificar que devuelve variante con nombre de producto incluido |
+
+**Qué cambió internamente:**
+- `listarPorRifa()`: carga variantes con su `Variante` y el `Producto` asociado en una sola query (antes era 1+N+N)
+
+---
+
+#### 3. Módulo Productos — ProductosController (`/v1/productos`)
+
+| Endpoint | Método | Qué probar |
+|----------|--------|-----------|
+| `POST /v1/productos/compartir-imagenes-variantes` | POST | Compartir imágenes de un producto a todas sus variantes, verificar que todas las variantes reciben las imágenes |
+
+**Qué cambió internamente:**
+- `compartirImagenesVarianteDto()`: las imágenes del producto se cargan con JOIN FETCH incluyendo el objeto `Imagen` completo (antes era N queries extras en el loop doble)
+
+---
+
+### micro_imagenes — sin cambios
+No se modificó ningún archivo de `micro_imagenes`. No requiere pruebas adicionales.

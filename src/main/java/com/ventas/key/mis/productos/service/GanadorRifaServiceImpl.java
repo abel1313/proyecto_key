@@ -249,9 +249,8 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         ConfigurarRifa config = iConfigurarRifaRepository.findById(configurarRifaId)
                 .orElseThrow(() -> new RuntimeException("Rifa no encontrada"));
 
-        iGanadorRifaRepository.deleteAll(iGanadorRifaRepository.findByConfigurarRifaId(configurarRifaId));
-        iHistorialRifaVarianteRepository.deleteAll(
-                iHistorialRifaVarianteRepository.findByConfigurarRifaIdOrderByOrdenAsc(configurarRifaId));
+        iGanadorRifaRepository.deleteByRifaId(configurarRifaId);
+        iHistorialRifaVarianteRepository.deleteByRifaId(configurarRifaId);
 
         if (completo) {
             iConcursanteRepository.deleteByConfigurarRifaId(configurarRifaId);

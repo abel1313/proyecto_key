@@ -18,7 +18,8 @@ import java.util.Optional;
 @Deprecated
 public interface IProductoImagenRepository extends BaseRepository<ProductoImagen,Integer>{
 
-    List<ProductoImagen> findByProductoId(Integer productoId);
+    @Query("SELECT pi FROM ProductoImagen pi JOIN FETCH pi.imagen WHERE pi.producto.id = :productoId")
+    List<ProductoImagen> findByProductoId(@Param("productoId") Integer productoId);
 
     @Query("SELECT pi.imagen.id FROM ProductoImagen pi WHERE pi.producto.id IN :productoIds")
     List<Long> findImagenIdsByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
