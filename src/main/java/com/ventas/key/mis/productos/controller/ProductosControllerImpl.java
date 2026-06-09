@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.Map;
 
 @RestController
-@RequestMapping("productos")
+@RequestMapping("/v1/productos")
 @RequiredArgsConstructor
 @Slf4j
 public class ProductosControllerImpl {

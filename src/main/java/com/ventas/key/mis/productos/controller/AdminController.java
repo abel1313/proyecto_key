@@ -17,7 +17,7 @@ import java.util.List;
 
 @Tag(name = "Administracion", description = "Operaciones administrativas: gestion de cache Redis y pruebas internas")
 @RestController
-@RequestMapping("/admin")
+@RequestMapping("/v1/admin")
 @RequiredArgsConstructor
 @Slf4j
 public class AdminController {

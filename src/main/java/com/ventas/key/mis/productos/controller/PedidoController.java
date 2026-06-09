@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("pedidos")
+@RequestMapping("/v1/pedidos")
 @Slf4j
 public class PedidoController extends AbstractController<
                                         Pedido,

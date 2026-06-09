@@ -14,7 +14,7 @@ import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.ConfiguracionRifaServiceImpl;
 
 @RestController
-@RequestMapping("configurarRifa")
+@RequestMapping("/v1/configurarRifa")
 public class ConfigurarRifaControllerImpl extends AbstractController<
                                                             ConfigurarRifa,
                                                             Optional<ConfigurarRifa>,

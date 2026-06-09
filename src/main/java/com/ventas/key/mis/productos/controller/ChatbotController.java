@@ -19,7 +19,7 @@ import java.util.Map;
 
 @Tag(name = "Chatbot", description = "Asistente virtual de la tienda Novedades Jade con control de abuso por IP")
 @RestController
-@RequestMapping("/chatbot")
+@RequestMapping("/v1/chatbot")
 @RequiredArgsConstructor
 @Slf4j
 public class ChatbotController {

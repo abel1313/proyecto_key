@@ -32,7 +32,7 @@ import java.util.Arrays;
 
 @Tag(name = "Autenticacion", description = "Login, logout, registro y renovacion de tokens JWT. El refresh token se guarda en cookie HttpOnly.")
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/v1/auth")
 @Slf4j
 @RequiredArgsConstructor
 public class AuthController {
@@ -174,7 +174,7 @@ public class AuthController {
 
     private void agregarRefreshCookie(HttpServletResponse response, String refreshToken) {
         String secureFlag = cookieSecure ? "; Secure; SameSite=None" : "; SameSite=Lax";
-        String cookiePath = contextPath + "/auth";
+        String cookiePath = contextPath + "/v1/auth";
         response.addHeader("Set-Cookie",
                 String.format("%s=%s; Max-Age=%d; Path=%s; HttpOnly%s",
                         REFRESH_COOKIE, refreshToken, REFRESH_MAX_AGE, cookiePath, secureFlag));
@@ -182,7 +182,7 @@ public class AuthController {
 
     private void limpiarRefreshCookie(HttpServletResponse response) {
         String secureFlag = cookieSecure ? "; Secure; SameSite=None" : "; SameSite=Lax";
-        String cookiePath = contextPath + "/auth";
+        String cookiePath = contextPath + "/v1/auth";
         response.addHeader("Set-Cookie",
                 String.format("%s=; Max-Age=0; Path=%s; HttpOnly%s",
                         REFRESH_COOKIE, cookiePath, secureFlag));

@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("productos-eje/")
+@RequestMapping("/v1/productos-eje/")
 public class PruebaControllerImpl {
 
 

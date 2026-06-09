@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 
 @Tag(name = "Clientes", description = "CRUD de clientes con busqueda paginada por nombre")
 @RestController
-@RequestMapping("clientes")
+@RequestMapping("/v1/clientes")
 @Slf4j
 public class ClienteControllerImpl extends AbstractController<
         Cliente,
