@@ -1686,3 +1686,224 @@ Se corrigieron problemas de N+1 en JPA/Hibernate en `proyecto_key_new`. Los cont
 
 ### micro_imagenes — sin cambios
 No se modificó ningún archivo de `micro_imagenes`. No requiere pruebas adicionales.
+
+---
+
+## Rifa Mensual — nuevos campos y endpoints (2026-06-11)
+
+Diseño completo en `RIFA_MENSUAL_PROPUESTA.md`. Todos los endpoints son **ADMIN** (`/v1/configurarRifa/**`, `/v1/concursante/**`).
+
+### 1. `ConfigurarRifa` — 3 campos nuevos (opcionales, no rompen lo existente)
+
+Afecta a: `POST /v1/configurarRifa/save`, `PUT /v1/configurarRifa/update/{id}`, `GET /v1/configurarRifa/activas`, `GET /v1/configurarRifa/activas/hoy`, `GET /v1/configurarRifa/buscar`, `GET /v1/ganadorRifa/estado/{id}` (dentro de `configurarRifa`).
+
+**Campos nuevos:**
+- `tipo`: `"MENSUAL"` | `"DIARIA"` | `null` (rifas viejas quedan `null`)
+- `mesReferencia`: `"YYYY-MM"` | `null` — solo informativo, de qué mes son los participantes
+- `esPrueba`: `boolean`, default `false`
+
+**Request** (`save`/`update`, campos nuevos opcionales):
+```json
+{
+  "fechaHoraLimite": "2026-07-01T20:00:00",
+  "activa": true,
+  "tipo": "MENSUAL",
+  "mesReferencia": "2026-06",
+  "esPrueba": false
+}
+```
+
+**Response** (`/activas`, `/activas/hoy`, `/buscar`) — 3 campos nuevos al final:
+```json
+{
+  "id": 9,
+  "fechaHoraLimite": "2026-07-01T20:00:00",
+  "activa": true,
+  "totalVariantes": 2,
+  "variantesSorteadas": 0,
+  "tipo": "MENSUAL",
+  "mesReferencia": "2026-06",
+  "esPrueba": false
+}
+```
+
+Si `esPrueba: true`, el front debe mostrar un aviso tipo **"⚠️ Esta rifa es de prueba"**.
+
+---
+
+### 2. `PUT /v1/configurarRifa/{id}/esPrueba` — 🆕 toggle modo prueba
+
+**Request:**
+```json
+{ "esPrueba": false }
+```
+
+**Response:** entidad `ConfigurarRifa` completa (incluye `id`, `esPrueba`, `activa`, `variantes`, etc.)
+
+**⚠️ Efecto al pasar de `true` → `false`** (botón "Pasar a sorteo real"):
+- Borra los giros de la demo (`ganador_rifa` + `historial_rifa_variante` de esa rifa)
+- Todos los concursantes vuelven a estar elegibles (`descartado=false`), incluidos los agregados durante la prueba
+- Reactiva la rifa (`activa=true`)
+
+Al pasar de `false` → `true` (botón "Modo demo") solo cambia el flag, no borra nada.
+
+**Error 400** si el `id` no existe: `{ "mensaje": "Configuración de rifa no encontrada" }`
+
+---
+
+### 3. `GET /v1/configurarRifa/buscar` — 🆕 nuevo endpoint
+
+**Request:** `GET /v1/configurarRifa/buscar?desde=2026-06-25&hasta=2026-06-30` (rango de días por `fechaHoraLimite`)
+o `GET /v1/configurarRifa/buscar?tipo=MENSUAL&mesReferencia=2026-06` (rifas mensuales de ese mes)
+o combinaciones de `desde`, `hasta`, `tipo`, `mesReferencia`.
+
+**Sin parámetros**: devuelve lo mismo que `/activas/hoy` (rifas activas con `fechaHoraLimite` de hoy).
+
+**Response:** `List<ConfigurarRifaResumenDto>`, mismo formato que `/activas` (ver sección 1).
+
+---
+
+### 4. `Concursante` — campo nuevo `agregadoEnPrueba`
+
+Afecta a: `GET /v1/concursante/porRifa/{id}`, `GET /v1/concursante/elegibles/{id}`, `GET /v1/ganadorRifa/estado/{id}` (dentro de `elegibles`/`descartados`).
+
+**Campo nuevo:** `agregadoEnPrueba: boolean` — `true` si el concursante se registró mientras la rifa estaba en `esPrueba=true`.
+
+Con esto el front puede mostrar **2 listas**:
+- Participantes normales (`agregadoEnPrueba=false`)
+- Agregados durante la prueba (`agregadoEnPrueba=true`)
+
+Al pasar a sorteo real (toggle `esPrueba→false`, sección 2) estos concursantes **siguen participando** — el flag es solo informativo para el admin.
+
+---
+
+### 5. `POST /v1/concursante/importarDePedidos` — ⚠️ cambia el `response`
+
+**Request:** sin cambios —
+```json
+{
+  "configurarRifaId": 9,
+  "palabraClave": "BOLSA",
+  "ordenDesde": 1,
+  "mes": "2026-06",
+  "clientes": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ]
+}
+```
+
+**Response — ANTES** era `List<Concursante>` directo. **AHORA:**
+```json
+{
+  "importados": [
+    { "id": 201, "nombre": "María López", "palabraClave": "BOLSA", "agregadoEnPrueba": false }
+  ],
+  "omitidosYaRegistrados": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ]
+}
+```
+
+**Diferencia clave:** si un `clientePedidoId` ya estaba registrado como concursante en esa misma rifa
+(ej. el admin dio clic 2 veces en "importar"), ya **no se duplica** — se omite y aparece en
+`omitidosYaRegistrados` para que el front avise "estos N ya estaban registrados".
+
+---
+
+### 6. `DELETE /v1/concursante/{id}` — 🆕 nuevo endpoint
+
+Reemplaza usar `DELETE /v1/concursante/delete` (genérico, requiere el id en el body) para este caso.
+
+**Response OK (200):**
+```json
+{ "data": "Concursante eliminado" }
+```
+
+**Response error (400)** — si el concursante ya participó en algún giro (`ganador_rifa`):
+```json
+{ "mensaje": "No se puede eliminar: el concursante ya participó en un sorteo" }
+```
+
+---
+
+### 7. `PUT /v1/concursante/{id}` — 🆕 nuevo endpoint (body parcial)
+
+Reemplaza usar `PUT /v1/concursante/update/{id}` (genérico, exige el objeto `Concursante` completo) para este caso.
+
+**Request** (todos los campos opcionales, solo se actualizan los que vengan):
+```json
+{
+  "nombre": "Juan",
+  "apellidoPaterno": "García",
+  "telefono": "5551234567",
+  "palabraClave": "BOLSA",
+  "ordenDesde": 1
+}
+```
+
+**Response (200):** entidad `Concursante` actualizada completa.
+
+`boletos`, `boletosBase`, `descartado`, `agregadoEnPrueba`, `clientePedidoId` y `configurarRifa`
+**no se pueden modificar** desde este endpoint.
+
+---
+
+### 8. Cambio interno — fórmula de "boletos" (sin cambio de contrato)
+
+`boletosBase`/`boletos` (campos ya existentes en `Concursante`, visibles en `/porRifa`, `/elegibles`,
+`/estado`) ahora se calculan por **cantidad de productos comprados** en el mes
+(`SUM(detalle_pedidos.cantidad)` de pedidos `Entregado`), antes era por **número de pedidos**. No
+cambia ningún endpoint ni nombre de campo — solo el valor numérico que puede llegar a tener un
+concursante. No mostrar estos campos en pantallas proyectadas al público.
+
+---
+
+## Rifa por Día (`tipo="DIARIA"`) — reutiliza todo lo de arriba (2026-06-11)
+
+Diseño en `RIFA_DIARIA_PROPUESTA.md`. **No hay endpoints nuevos.** La diaria usa el mismo backend que
+la rifa mensual (sección anterior) — solo cambia el `tipo` y cómo se agregan los participantes.
+
+### 1. Crear la sesión del día
+
+`POST /v1/configurarRifa/save`
+```json
+{ "fechaHoraLimite": "2026-06-11T20:00:00", "activa": true, "tipo": "DIARIA", "esPrueba": false }
+```
+`mesReferencia` se deja `null` (no aplica para diaria).
+
+---
+
+### 2. Agregar participantes — uno por uno (no hay importación en bloque)
+
+**Caso A — cliente ya registrado en la app:**
+`GET /v1/clientes/buscar?nombre=Maria` (🟢 endpoint ya existente, no es de rifas) →
+`ClienteBusquedaDto` con `nombrePersona`, `apeidoPaterno`, `numeroTelefonico`. El front toma esos
+datos y los manda al paso siguiente.
+
+**Caso B — persona sin registro:** el front captura los datos a mano.
+
+En ambos casos:
+`POST /v1/concursante/registrar`
+```json
+{ "nombre": "Maria", "apellidoPaterno": "Lopez", "telefono": "555...",
+  "palabraClave": "BOLSA", "configurarRifa": { "id": 12 } }
+```
+
+**⚠️ Importante:** NO enviar `clientePedidoId` en la diaria → `boletos` queda en `1` para todos
+(misma probabilidad para cada participante). Si se envía `clientePedidoId`, el back calculará
+`boletos` por compras del mes (igual que en mensual) — no usar ese campo aquí salvo que se pida lo
+contrario.
+
+---
+
+### 3. Resto del flujo — igual que mensual
+
+- Editar / eliminar: `PUT` / `DELETE /v1/concursante/{id}` (sección 6 y 7 de arriba)
+- Modo prueba: `PUT /v1/configurarRifa/{id}/esPrueba` (sección 2 de arriba) — mismo banner
+  "⚠️ Esta rifa es de prueba"
+- Ver participantes / separar en 2 listas: `GET /v1/concursante/porRifa/{id}` → `agregadoEnPrueba`
+  (sección 4 de arriba)
+- Traer la rifa de hoy: `GET /v1/configurarRifa/activas/hoy` — ya devuelve **cualquier** `tipo`
+  activo hoy, incluida la diaria, sin que el front tenga que filtrar
+- Buscar una rifa diaria de otro día: `GET /v1/configurarRifa/buscar?tipo=DIARIA&desde=&hasta=`
+- Sorteo: `sortear` / `continuarVariante` / `estado` — mismo motor que mensual

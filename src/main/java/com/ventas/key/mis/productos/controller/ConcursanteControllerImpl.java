@@ -2,7 +2,9 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Concursante;
 import com.ventas.key.mis.productos.models.ClientePedidoDto;
+import com.ventas.key.mis.productos.models.ConcursanteEditarRequest;
 import com.ventas.key.mis.productos.models.ImportarDePedidosRequest;
+import com.ventas.key.mis.productos.models.ImportarDePedidosResponseDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.ConcursanteServiceImpl;
@@ -74,12 +76,37 @@ public class ConcursanteControllerImpl extends AbstractController<
     }
 
     @PostMapping("/importarDePedidos")
-    public ResponseEntity<ResponseGeneric<List<Concursante>>> importarDePedidos(
+    public ResponseEntity<ResponseGeneric<ImportarDePedidosResponseDto>> importarDePedidos(
             @RequestBody ImportarDePedidosRequest req) {
         try {
-            return ResponseEntity.ok(new ResponseGeneric<List<Concursante>>(sGenerico.importarDePedidos(req)));
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.importarDePedidos(req)));
         } catch (Exception e) {
             log.error("Error al importar participantes de pedidos: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
+        try {
+            sGenerico.eliminar(id);
+            return ResponseEntity.ok(new ResponseGeneric<>("Concursante eliminado"));
+        } catch (Exception e) {
+            log.error("Error al eliminar concursante {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ResponseGeneric<Concursante>> editar(
+            @PathVariable Integer id,
+            @RequestBody ConcursanteEditarRequest req) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.editar(id, req)));
+        } catch (Exception e) {
+            log.error("Error al editar concursante {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }

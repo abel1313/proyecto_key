@@ -28,4 +28,6 @@ public interface IGanadorRifaRepository extends BaseRepository<GanadorRifa, Inte
     @Transactional
     @Query("DELETE FROM GanadorRifa g WHERE g.configurarRifaVariante.configurarRifa.id = :rifaId")
     void deleteByRifaId(@Param("rifaId") Integer rifaId);
+
+    boolean existsByConcursanteId(Integer concursanteId);
 }
