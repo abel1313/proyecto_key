@@ -1686,3 +1686,422 @@ Se corrigieron problemas de N+1 en JPA/Hibernate en `proyecto_key_new`. Los cont
 
 ### micro_imagenes — sin cambios
 No se modificó ningún archivo de `micro_imagenes`. No requiere pruebas adicionales.
+
+---
+
+## Rifa Mensual — nuevos campos y endpoints (2026-06-11)
+
+Diseño completo en `RIFA_MENSUAL_PROPUESTA.md`. Todos los endpoints son **ADMIN** (`/v1/configurarRifa/**`, `/v1/concursante/**`).
+
+### 1. `ConfigurarRifa` — 3 campos nuevos (opcionales, no rompen lo existente)
+
+Afecta a: `POST /v1/configurarRifa/save`, `PUT /v1/configurarRifa/update/{id}`, `GET /v1/configurarRifa/activas`, `GET /v1/configurarRifa/activas/hoy`, `GET /v1/configurarRifa/buscar`, `GET /v1/ganadorRifa/estado/{id}` (dentro de `configurarRifa`).
+
+**Campos nuevos:**
+- `tipo`: `"MENSUAL"` | `"DIARIA"` | `null` (rifas viejas quedan `null`)
+- `mesReferencia`: `"YYYY-MM"` | `null` — solo informativo, de qué mes son los participantes
+- `esPrueba`: `boolean`, default `false`
+
+**Request** (`save`/`update`, campos nuevos opcionales):
+```json
+{
+  "fechaHoraLimite": "2026-07-01T20:00:00",
+  "activa": true,
+  "tipo": "MENSUAL",
+  "mesReferencia": "2026-06",
+  "esPrueba": false
+}
+```
+
+**Response** (`/activas`, `/activas/hoy`, `/buscar`) — 3 campos nuevos al final:
+```json
+{
+  "id": 9,
+  "fechaHoraLimite": "2026-07-01T20:00:00",
+  "activa": true,
+  "totalVariantes": 2,
+  "variantesSorteadas": 0,
+  "tipo": "MENSUAL",
+  "mesReferencia": "2026-06",
+  "esPrueba": false
+}
+```
+
+Si `esPrueba: true`, el front debe mostrar un aviso tipo **"⚠️ Esta rifa es de prueba"**.
+
+---
+
+### 2. `PUT /v1/configurarRifa/{id}/esPrueba` — 🆕 toggle modo prueba
+
+**Request:**
+```json
+{ "esPrueba": false }
+```
+
+**Response:** entidad `ConfigurarRifa` completa (incluye `id`, `esPrueba`, `activa`, `variantes`, etc.)
+
+**⚠️ Efecto al pasar de `true` → `false`** (botón "Pasar a sorteo real"):
+- Borra los giros de la demo (`ganador_rifa` + `historial_rifa_variante` de esa rifa)
+- Todos los concursantes vuelven a estar elegibles (`descartado=false`), incluidos los agregados durante la prueba
+- Reactiva la rifa (`activa=true`)
+
+Al pasar de `false` → `true` (botón "Modo demo") solo cambia el flag, no borra nada.
+
+**Error 400** si el `id` no existe: `{ "mensaje": "Configuración de rifa no encontrada" }`
+
+---
+
+### 3. `GET /v1/configurarRifa/buscar` — 🆕 nuevo endpoint
+
+**Request:** `GET /v1/configurarRifa/buscar?desde=2026-06-25&hasta=2026-06-30` (rango de días por `fechaHoraLimite`)
+o `GET /v1/configurarRifa/buscar?tipo=MENSUAL&mesReferencia=2026-06` (rifas mensuales de ese mes)
+o combinaciones de `desde`, `hasta`, `tipo`, `mesReferencia`.
+
+**Sin parámetros**: devuelve lo mismo que `/activas/hoy` (rifas activas con `fechaHoraLimite` de hoy).
+
+**Response:** `List<ConfigurarRifaResumenDto>`, mismo formato que `/activas` (ver sección 1).
+
+---
+
+### 4. `Concursante` — campo nuevo `agregadoEnPrueba`
+
+Afecta a: `GET /v1/concursante/porRifa/{id}`, `GET /v1/concursante/elegibles/{id}`, `GET /v1/ganadorRifa/estado/{id}` (dentro de `elegibles`/`descartados`).
+
+**Campo nuevo:** `agregadoEnPrueba: boolean` — `true` si el concursante se registró mientras la rifa estaba en `esPrueba=true`.
+
+Con esto el front puede mostrar **2 listas**:
+- Participantes normales (`agregadoEnPrueba=false`)
+- Agregados durante la prueba (`agregadoEnPrueba=true`)
+
+Al pasar a sorteo real (toggle `esPrueba→false`, sección 2) estos concursantes **siguen participando** — el flag es solo informativo para el admin.
+
+---
+
+### 5. `POST /v1/concursante/importarDePedidos` — ⚠️ cambia el `response`
+
+**Request:** sin cambios —
+```json
+{
+  "configurarRifaId": 9,
+  "palabraClave": "BOLSA",
+  "ordenDesde": 1,
+  "mes": "2026-06",
+  "clientes": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ]
+}
+```
+
+**Response — ANTES** era `List<Concursante>` directo. **AHORA:**
+```json
+{
+  "importados": [
+    { "id": 201, "nombre": "María López", "palabraClave": "BOLSA", "agregadoEnPrueba": false }
+  ],
+  "omitidosYaRegistrados": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ]
+}
+```
+
+**Diferencia clave:** si un `clientePedidoId` ya estaba registrado como concursante en esa misma rifa
+(ej. el admin dio clic 2 veces en "importar"), ya **no se duplica** — se omite y aparece en
+`omitidosYaRegistrados` para que el front avise "estos N ya estaban registrados".
+
+---
+
+### 6. `DELETE /v1/concursante/{id}` — 🆕 nuevo endpoint
+
+Reemplaza usar `DELETE /v1/concursante/delete` (genérico, requiere el id en el body) para este caso.
+
+**Response OK (200):**
+```json
+{ "data": "Concursante eliminado" }
+```
+
+**Response error (400)** — si el concursante ya participó en algún giro (`ganador_rifa`):
+```json
+{ "mensaje": "No se puede eliminar: el concursante ya participó en un sorteo" }
+```
+
+---
+
+### 7. `PUT /v1/concursante/{id}` — 🆕 nuevo endpoint (body parcial)
+
+Reemplaza usar `PUT /v1/concursante/update/{id}` (genérico, exige el objeto `Concursante` completo) para este caso.
+
+**Request** (todos los campos opcionales, solo se actualizan los que vengan):
+```json
+{
+  "nombre": "Juan",
+  "apellidoPaterno": "García",
+  "telefono": "5551234567",
+  "palabraClave": "BOLSA",
+  "ordenDesde": 1
+}
+```
+
+**Response (200):** entidad `Concursante` actualizada completa.
+
+`boletos`, `boletosBase`, `descartado`, `agregadoEnPrueba`, `clientePedidoId` y `configurarRifa`
+**no se pueden modificar** desde este endpoint.
+
+---
+
+### 8. Cambio interno — fórmula de "boletos" (sin cambio de contrato)
+
+`boletosBase`/`boletos` (campos ya existentes en `Concursante`, visibles en `/porRifa`, `/elegibles`,
+`/estado`) ahora se calculan por **cantidad de productos comprados** en el mes
+(`SUM(detalle_pedidos.cantidad)` de pedidos `Entregado`), antes era por **número de pedidos**. No
+cambia ningún endpoint ni nombre de campo — solo el valor numérico que puede llegar a tener un
+concursante. No mostrar estos campos en pantallas proyectadas al público.
+
+---
+
+## Rifa por Día (`tipo="DIARIA"`) — reutiliza todo lo de arriba (2026-06-11)
+
+Diseño en `RIFA_DIARIA_PROPUESTA.md`. **No hay endpoints nuevos.** La diaria usa el mismo backend que
+la rifa mensual (sección anterior) — solo cambia el `tipo` y cómo se agregan los participantes.
+
+### 1. Crear la sesión del día
+
+`POST /v1/configurarRifa/save`
+```json
+{ "fechaHoraLimite": "2026-06-11T20:00:00", "activa": true, "tipo": "DIARIA", "esPrueba": false }
+```
+`mesReferencia` se deja `null` (no aplica para diaria).
+
+---
+
+### 2. Agregar participantes — uno por uno (no hay importación en bloque)
+
+**Caso A — cliente ya registrado en la app:**
+`GET /v1/clientes/buscar?nombre=Maria` (🟢 endpoint ya existente, no es de rifas) →
+`ClienteBusquedaDto` con `nombrePersona`, `apeidoPaterno`, `numeroTelefonico`. El front toma esos
+datos y los manda al paso siguiente.
+
+**Caso B — persona sin registro:** el front captura los datos a mano.
+
+En ambos casos:
+`POST /v1/concursante/registrar`
+```json
+{ "nombre": "Maria", "apellidoPaterno": "Lopez", "telefono": "555...",
+  "palabraClave": "BOLSA", "configurarRifa": { "id": 12 } }
+```
+
+**⚠️ Importante:** NO enviar `clientePedidoId` en la diaria → `boletos` queda en `1` para todos
+(misma probabilidad para cada participante). Si se envía `clientePedidoId`, el back calculará
+`boletos` por compras del mes (igual que en mensual) — no usar ese campo aquí salvo que se pida lo
+contrario.
+
+---
+
+### 3. Resto del flujo — igual que mensual
+
+- Editar / eliminar: `PUT` / `DELETE /v1/concursante/{id}` (sección 6 y 7 de arriba)
+- Modo prueba: `PUT /v1/configurarRifa/{id}/esPrueba` (sección 2 de arriba) — mismo banner
+  "⚠️ Esta rifa es de prueba"
+- Ver participantes / separar en 2 listas: `GET /v1/concursante/porRifa/{id}` → `agregadoEnPrueba`
+  (sección 4 de arriba)
+- Traer la rifa de hoy: `GET /v1/configurarRifa/activas/hoy` — ya devuelve **cualquier** `tipo`
+  activo hoy, incluida la diaria, sin que el front tenga que filtrar
+- Buscar una rifa diaria de otro día: `GET /v1/configurarRifa/buscar?tipo=DIARIA&desde=&hasta=`
+- Sorteo: `sortear` / `continuarVariante` / `estado` — mismo motor que mensual
+
+---
+
+## Rifa — modo prueba ya no se "cierra" tras el sorteo (2026-06-13)
+
+### Qué cambió
+- **Antes:** al sortear el ganador de la última variante, el backend ponía `activa=false` en la rifa
+  **sin importar `esPrueba`**. Eso rompía el flujo de pruebas: para repetir la prueba había que
+  `reiniciar` y, además, si se volvía a mandar `POST /configurarRifaVariante/save` con la misma
+  `palabraClave`, daba error `"La palabraClave 'X' ya existe en esta rifa"`.
+- **Ahora:**
+  - Si `esPrueba: true`, la rifa **se mantiene `activa: true`** aunque ya se haya sorteado el
+    ganador de la última variante. `rifaTerminada` (en `/sortear` y `/estado`) sigue marcando
+    correctamente cuándo terminó el ciclo — no depende de `activa`.
+  - `POST /v1/configurarRifaVariante/save`: si `esPrueba: true` y la `palabraClave` ya existe en
+    esa rifa, **ya no rechaza** — actualiza la configuración existente (`giroGanador`, `orden`,
+    `permitirNuevos`, y la variante/stock si se cambió de variante). Mismo `request`/`response`
+    de siempre.
+  - Si `esPrueba: false` (rifa real), el comportamiento **no cambia**: al terminar se pone
+    `activa: false`, y reusar una `palabraClave` ya configurada en esa rifa sigue dando
+    `"ya existe en esta rifa"`.
+
+### Qué debe hacer el front
+- **Nada obligatorio, es retrocompatible.** Mientras `esPrueba: true`, el admin puede:
+  - Repetir `sortear` tras `POST /v1/ganadorRifa/reiniciar/{id}?completo=true|false` cuantas veces
+    quiera, sin que la rifa se "cierre" (`activas`/`activas/hoy` la sigue listando).
+  - Re-mandar `POST /configurarRifaVariante/save` con la misma `palabraClave` para "recargar" la
+    config de la variante de prueba — ya no da error.
+- Cuando el admin haga `PUT /v1/configurarRifa/{id}/esPrueba` con `{ "esPrueba": false }`
+  ("Pasar a sorteo real"), la `ConfigurarRifaVariante` y su `palabraClave` configuradas durante las
+  pruebas **se conservan** y se usan tal cual para el sorteo real (no hay que volver a crearlas).
+  A partir de ahí aplica el comportamiento de rifa real descrito arriba.
+
+---
+
+## Catálogo de errores — endpoints de Rifas (2026-06-13)
+
+### Formato de error
+Todos los endpoints de Rifas que validan reglas de negocio (todos excepto los `GET` simples)
+responden, cuando algo falla:
+
+```
+HTTP 400 Bad Request
+{
+  "mensaje": "<texto del error, mostrar tal cual al usuario>",
+  "code": 404,
+  "data": null,
+  "lista": null
+}
+```
+
+⚠️ **`code: 404` es un valor fijo** del helper `ResponseGeneric` (no significa "no encontrado" en
+sentido HTTP). Para detectar error el front debe usar el **status HTTP 400** y/o `data === null`,
+y mostrar el texto de `mensaje`.
+
+### `POST /v1/configurarRifaVariante/save`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+| `La rifa no está activa` | `activa=false` (rifa real ya cerrada) |
+| `La palabraClave 'X' ya existe en esta rifa` | solo si `esPrueba=false` y otra variante de la rifa ya usa esa `palabraClave` |
+| `Variante no encontrada` | `varianteId` no existe |
+| `La variante no tiene stock disponible` | `stock < 1` en la variante |
+
+### `DELETE /v1/configurarRifaVariante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de variante no encontrada` | `id` no existe |
+
+### `PUT /v1/configurarRifaVariante/{id}/palabraClave`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de variante no encontrada` | `id` no existe |
+| `La palabraClave ya existe en esta rifa` | otra variante de la misma rifa ya usa esa `palabraClave` |
+
+### `PUT /v1/configurarRifa/{id}/esPrueba`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `id` no existe |
+
+### `POST /v1/concursante/registrar?forzar=`
+| `mensaje` | Causa |
+|---|---|
+| `El nombre es requerido` | falta `nombre` (validación de campo) |
+| `Debe indicar la configuración de rifa` | falta `configurarRifa.id` en el body |
+| `Configuración de rifa no encontrada` | `configurarRifa.id` no existe |
+| `Esta rifa ya fue sorteada o está inactiva` | `activa=false` |
+| `El plazo de registro cerró el {fechaHoraLimite}` | ya pasó `fechaHoraLimite` y `forzar=false` (default) — reintentar con `?forzar=true` si el admin quiere forzar el registro |
+
+### `POST /v1/concursante/importarDePedidos`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `configurarRifaId` no existe |
+| `Esta rifa no está activa` | `activa=false` |
+
+### `DELETE /v1/concursante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Concursante no encontrado` | `id` no existe |
+| `No se puede eliminar: el concursante ya participó en un sorteo` | tiene un registro en `ganador_rifa` |
+
+### `PUT /v1/concursante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Concursante no encontrado` | `id` no existe |
+
+### `POST /v1/ganadorRifa/sortear/{configurarRifaId}`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `configurarRifaId` no existe |
+| `Esta rifa ya fue completada o está inactiva` | `activa=false` |
+| `La rifa no tiene variantes configuradas` | la rifa no tiene ninguna `configurarRifaVariante` |
+| `Todas las variantes ya fueron sorteadas` | ya hay un ganador declarado por cada variante |
+| `No hay concursantes elegibles para la variante con palabraClave='X'` | nadie con esa `palabraClave` y `descartado=false` |
+
+### `POST /v1/ganadorRifa/continuarVariante/{configurarRifaId}?modo=`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+| `No hay siguiente variante` | ya se sortearon todas las variantes |
+| `Modo inválido: X. Usar RESTANTES, CERO o NUEVOS` | `modo` no es uno de los 3 valores válidos |
+
+### `GET /v1/ganadorRifa/estado/{configurarRifaId}`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+
+### `POST /v1/ganadorRifa/reiniciar/{configurarRifaId}?completo=`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+
+**Response OK (200)** de `reiniciar`:
+```json
+{ "data": "Rifa reiniciada completamente (concursantes eliminados)" }
+```
+o, con `completo=false`:
+```json
+{ "data": "Rifa reiniciada (concursantes conservados)" }
+```
+
+---
+
+## Autenticación — token expirado/ausente ahora responde 401 (antes 403) (2026-06-13)
+
+**Causa del bug:** `SecurityConfig` no tenía configurado un `AuthenticationEntryPoint`, así que
+Spring Security usaba el fallback por defecto (`Http403ForbiddenEntryPoint`). Esto hacía que
+**cualquier request sin autenticación válida** (token ausente, corrupto o **expirado**) devolviera
+**403 Forbidden** en vez de **401 Unauthorized**. Si el interceptor del front solo dispara el
+refresh ante un **401**, nunca se enteraba de que el access token expiró — el request fallaba con
+un 403 "seco" y ahí quedaba.
+
+**Cambio:**
+- **401 Unauthorized** → no autenticado: token ausente, inválido o **expirado**.
+  Body: `{ "mensaje": "Token inválido o expirado", "code": 404, "data": null, "lista": null }`
+  → el front debe intentar `/v1/auth/refresh` y reintentar el request original.
+- **403 Forbidden** → autenticado correctamente pero sin el rol requerido (ej. usuario sin
+  `ROLE_ADMIN` llamando a un endpoint de admin).
+  Body: `{ "mensaje": "No tiene permisos para acceder a este recurso", "code": 404, "data": null, "lista": null }`
+  → el front **no** debe reintentar con refresh aquí (el token es válido, solo falta permiso).
+
+**Acción para el front:** revisar el interceptor — el flujo de `/v1/auth/refresh` debe dispararse
+ante **401**, no ante 403. Si antes "funcionaba" reintentando en 403, eso era un parche al bug
+descrito arriba; ahora la expiración de token llega correctamente como 401.
+
+---
+
+## `POST /v1/concursante/importarDePedidos` — nuevo campo `omitidosSinNombre` (2026-06-13)
+
+**Causa del bug:** si `clientes[]` traía una entrada `sinRegistro: true` con `nombre: ""`
+(vacío), el backend intentaba guardar el `Concursante` y la validación `@NotBlank` de Hibernate
+lanzaba un `ConstraintViolationException` cuyo mensaje crudo (técnico) se devolvía tal cual en
+`mensaje`, y **abortaba todo el batch** — ningún concursante se importaba, ni siquiera los
+válidos.
+
+**Cambio:** las entradas sin `nombre` (vacío o solo espacios) ya **no rompen el batch**: se omiten
+y se devuelven en un nuevo arreglo `omitidosSinNombre`, igual que ya pasaba con
+`omitidosYaRegistrados`.
+
+**Response — ahora:**
+```json
+{
+  "importados": [
+    { "id": 201, "nombre": "María López", "palabraClave": "BOLSA", "agregadoEnPrueba": false }
+  ],
+  "omitidosYaRegistrados": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ],
+  "omitidosSinNombre": [
+    { "clientePedidoId": null, "nombre": "", "telefono": "", "sinRegistro": true }
+  ]
+}
+```
+
+**Acción para el front:** si `omitidosSinNombre` no viene vacío, avisar al admin algo como
+"N participante(s) sin registro no se importaron porque no tienen nombre". Si la UI permite
+agregar filas de "cliente sin registro" a mano, idealmente exigir `nombre` antes de enviar para
+que no terminen en este arreglo.

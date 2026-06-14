@@ -25,7 +25,21 @@ public class ConfigurarRifa extends BaseId {
     @Column(name = "activa")
     private Boolean activa = true;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo", length = 20)
+    private TipoRifa tipo;
+
+    @Column(name = "mes_referencia", length = 7)
+    private String mesReferencia;
+
+    @Column(name = "es_prueba", nullable = false)
+    private Boolean esPrueba = false;
+
     @OneToMany(mappedBy = "configurarRifa", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
     private List<ConfigurarRifaVariante> variantes = new ArrayList<>();
+
+    public enum TipoRifa {
+        MENSUAL, DIARIA
+    }
 }

@@ -20,8 +20,15 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         SELECT
             COALESCE(SUM(CASE WHEN p.estado_pedido = 'Entregado' THEN 1 ELSE 0 END), 0),
             COALESCE(SUM(CASE WHEN p.motivo_cancelacion IN ('TIMEOUT', 'NO_SE_PRESENTO') THEN 1 ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN p.estado_pedido = 'Entregado'
-                              AND DATE_FORMAT(p.fecha_pedido, '%Y-%m') = :mes THEN 1 ELSE 0 END), 0)
+            COALESCE((
+                SELECT SUM(dp.cantidad)
+                FROM detalle_pedidos dp
+                INNER JOIN pedidos p2 ON p2.id = dp.pedido_id
+                WHERE p2.estado_pedido = 'Entregado'
+                  AND DATE_FORMAT(p2.fecha_pedido, '%Y-%m') = :mes
+                  AND ((:sinRegistro = FALSE AND p2.cliente_id = :clienteId)
+                   OR  (:sinRegistro = TRUE  AND p2.cliente_sin_registro_id = :clienteId))
+            ), 0)
         FROM pedidos p
         WHERE (:sinRegistro = FALSE AND p.cliente_id = :clienteId)
            OR (:sinRegistro = TRUE  AND p.cliente_sin_registro_id = :clienteId)
