@@ -46,9 +46,17 @@ public class ConfigurarRifaVarianteService {
         if (!Boolean.TRUE.equals(rifa.getActiva())) {
             throw new ExceptionErrorInesperado("La rifa no está activa");
         }
-        if (iConfigurarRifaVarianteRepository.existsByConfigurarRifaIdAndPalabraClave(
-                req.getConfigurarRifaId(), req.getPalabraClave().toUpperCase().trim())) {
-            throw new ExceptionErrorInesperado("La palabraClave '" + req.getPalabraClave() + "' ya existe en esta rifa");
+
+        String palabraClave = req.getPalabraClave().toUpperCase().trim();
+        Optional<ConfigurarRifaVariante> existente = iConfigurarRifaVarianteRepository
+                .findByConfigurarRifaIdAndPalabraClave(req.getConfigurarRifaId(), palabraClave);
+
+        if (existente.isPresent()) {
+            if (!Boolean.TRUE.equals(rifa.getEsPrueba())) {
+                throw new ExceptionErrorInesperado("La palabraClave '" + req.getPalabraClave() + "' ya existe en esta rifa");
+            }
+            // Rifa de prueba: re-test con la misma palabraClave, se actualiza la configuración existente
+            return actualizarExistente(existente.get(), req);
         }
 
         Variantes variante = iVarianteRepository.findById(req.getVarianteId())
@@ -64,7 +72,7 @@ public class ConfigurarRifaVarianteService {
         ConfigurarRifaVariante crv = new ConfigurarRifaVariante();
         crv.setConfigurarRifa(rifa);
         crv.setVariante(variante);
-        crv.setPalabraClave(req.getPalabraClave().toUpperCase().trim());
+        crv.setPalabraClave(palabraClave);
         crv.setGiroGanador(req.getGiroGanador());
         crv.setOrden(req.getOrden());
         crv.setPermitirNuevos(req.isPermitirNuevos());
@@ -72,6 +80,34 @@ public class ConfigurarRifaVarianteService {
 
         ConfigurarRifaVariante guardada = iConfigurarRifaVarianteRepository.save(crv);
         log.info("Variante {} agregada a rifa {} con palabraClave={}", variante.getId(), rifa.getId(), crv.getPalabraClave());
+        return toDto(guardada);
+    }
+
+    private ConfigurarRifaVarianteDto actualizarExistente(ConfigurarRifaVariante crv, ConfigurarRifaVarianteRequest req) {
+        if (!crv.getVariante().getId().equals(req.getVarianteId())) {
+            Variantes anterior = crv.getVariante();
+            anterior.setStock(anterior.getStock() + crv.getStockReservado());
+            iVarianteRepository.save(anterior);
+
+            Variantes nueva = iVarianteRepository.findById(req.getVarianteId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada"));
+            if (nueva.getStock() < 1) {
+                throw new ExceptionErrorInesperado("La variante no tiene stock disponible");
+            }
+            nueva.setStock(nueva.getStock() - 1);
+            iVarianteRepository.save(nueva);
+
+            crv.setVariante(nueva);
+            crv.setStockReservado(1);
+        }
+
+        crv.setGiroGanador(req.getGiroGanador());
+        crv.setOrden(req.getOrden());
+        crv.setPermitirNuevos(req.isPermitirNuevos());
+
+        ConfigurarRifaVariante guardada = iConfigurarRifaVarianteRepository.save(crv);
+        log.info("Variante {} actualizada (re-test, rifa de prueba {}) con palabraClave={}",
+                guardada.getVariante().getId(), guardada.getConfigurarRifa().getId(), guardada.getPalabraClave());
         return toDto(guardada);
     }
 

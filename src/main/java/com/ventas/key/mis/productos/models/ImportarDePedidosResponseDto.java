@@ -15,4 +15,5 @@ import java.util.List;
 public class ImportarDePedidosResponseDto {
     private List<Concursante> importados;
     private List<ImportarDePedidosRequest.ClientePedidoDto> omitidosYaRegistrados;
+    private List<ImportarDePedidosRequest.ClientePedidoDto> omitidosSinNombre;
 }

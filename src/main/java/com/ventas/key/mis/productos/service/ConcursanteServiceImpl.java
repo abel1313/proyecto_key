@@ -148,11 +148,17 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
         String mes = req.getMes();
         boolean esPrueba = Boolean.TRUE.equals(config.getEsPrueba());
         List<Concursante> importados = new ArrayList<>();
-        List<ImportarDePedidosRequest.ClientePedidoDto> omitidos = new ArrayList<>();
+        List<ImportarDePedidosRequest.ClientePedidoDto> omitidosYaRegistrados = new ArrayList<>();
+        List<ImportarDePedidosRequest.ClientePedidoDto> omitidosSinNombre = new ArrayList<>();
 
         for (ImportarDePedidosRequest.ClientePedidoDto cliente : req.getClientes()) {
             if (cliente.getClientePedidoId() != null && yaRegistrados.contains(cliente.getClientePedidoId())) {
-                omitidos.add(cliente);
+                omitidosYaRegistrados.add(cliente);
+                continue;
+            }
+
+            if (cliente.getNombre() == null || cliente.getNombre().isBlank()) {
+                omitidosSinNombre.add(cliente);
                 continue;
             }
 
@@ -182,7 +188,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
                 yaRegistrados.add(cliente.getClientePedidoId());
             }
         }
-        return new ImportarDePedidosResponseDto(importados, omitidos);
+        return new ImportarDePedidosResponseDto(importados, omitidosYaRegistrados, omitidosSinNombre);
     }
 
     public void eliminar(Integer concursanteId) throws Exception {

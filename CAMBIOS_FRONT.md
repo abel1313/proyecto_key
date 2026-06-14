@@ -1907,3 +1907,201 @@ contrario.
   activo hoy, incluida la diaria, sin que el front tenga que filtrar
 - Buscar una rifa diaria de otro día: `GET /v1/configurarRifa/buscar?tipo=DIARIA&desde=&hasta=`
 - Sorteo: `sortear` / `continuarVariante` / `estado` — mismo motor que mensual
+
+---
+
+## Rifa — modo prueba ya no se "cierra" tras el sorteo (2026-06-13)
+
+### Qué cambió
+- **Antes:** al sortear el ganador de la última variante, el backend ponía `activa=false` en la rifa
+  **sin importar `esPrueba`**. Eso rompía el flujo de pruebas: para repetir la prueba había que
+  `reiniciar` y, además, si se volvía a mandar `POST /configurarRifaVariante/save` con la misma
+  `palabraClave`, daba error `"La palabraClave 'X' ya existe en esta rifa"`.
+- **Ahora:**
+  - Si `esPrueba: true`, la rifa **se mantiene `activa: true`** aunque ya se haya sorteado el
+    ganador de la última variante. `rifaTerminada` (en `/sortear` y `/estado`) sigue marcando
+    correctamente cuándo terminó el ciclo — no depende de `activa`.
+  - `POST /v1/configurarRifaVariante/save`: si `esPrueba: true` y la `palabraClave` ya existe en
+    esa rifa, **ya no rechaza** — actualiza la configuración existente (`giroGanador`, `orden`,
+    `permitirNuevos`, y la variante/stock si se cambió de variante). Mismo `request`/`response`
+    de siempre.
+  - Si `esPrueba: false` (rifa real), el comportamiento **no cambia**: al terminar se pone
+    `activa: false`, y reusar una `palabraClave` ya configurada en esa rifa sigue dando
+    `"ya existe en esta rifa"`.
+
+### Qué debe hacer el front
+- **Nada obligatorio, es retrocompatible.** Mientras `esPrueba: true`, el admin puede:
+  - Repetir `sortear` tras `POST /v1/ganadorRifa/reiniciar/{id}?completo=true|false` cuantas veces
+    quiera, sin que la rifa se "cierre" (`activas`/`activas/hoy` la sigue listando).
+  - Re-mandar `POST /configurarRifaVariante/save` con la misma `palabraClave` para "recargar" la
+    config de la variante de prueba — ya no da error.
+- Cuando el admin haga `PUT /v1/configurarRifa/{id}/esPrueba` con `{ "esPrueba": false }`
+  ("Pasar a sorteo real"), la `ConfigurarRifaVariante` y su `palabraClave` configuradas durante las
+  pruebas **se conservan** y se usan tal cual para el sorteo real (no hay que volver a crearlas).
+  A partir de ahí aplica el comportamiento de rifa real descrito arriba.
+
+---
+
+## Catálogo de errores — endpoints de Rifas (2026-06-13)
+
+### Formato de error
+Todos los endpoints de Rifas que validan reglas de negocio (todos excepto los `GET` simples)
+responden, cuando algo falla:
+
+```
+HTTP 400 Bad Request
+{
+  "mensaje": "<texto del error, mostrar tal cual al usuario>",
+  "code": 404,
+  "data": null,
+  "lista": null
+}
+```
+
+⚠️ **`code: 404` es un valor fijo** del helper `ResponseGeneric` (no significa "no encontrado" en
+sentido HTTP). Para detectar error el front debe usar el **status HTTP 400** y/o `data === null`,
+y mostrar el texto de `mensaje`.
+
+### `POST /v1/configurarRifaVariante/save`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+| `La rifa no está activa` | `activa=false` (rifa real ya cerrada) |
+| `La palabraClave 'X' ya existe en esta rifa` | solo si `esPrueba=false` y otra variante de la rifa ya usa esa `palabraClave` |
+| `Variante no encontrada` | `varianteId` no existe |
+| `La variante no tiene stock disponible` | `stock < 1` en la variante |
+
+### `DELETE /v1/configurarRifaVariante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de variante no encontrada` | `id` no existe |
+
+### `PUT /v1/configurarRifaVariante/{id}/palabraClave`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de variante no encontrada` | `id` no existe |
+| `La palabraClave ya existe en esta rifa` | otra variante de la misma rifa ya usa esa `palabraClave` |
+
+### `PUT /v1/configurarRifa/{id}/esPrueba`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `id` no existe |
+
+### `POST /v1/concursante/registrar?forzar=`
+| `mensaje` | Causa |
+|---|---|
+| `El nombre es requerido` | falta `nombre` (validación de campo) |
+| `Debe indicar la configuración de rifa` | falta `configurarRifa.id` en el body |
+| `Configuración de rifa no encontrada` | `configurarRifa.id` no existe |
+| `Esta rifa ya fue sorteada o está inactiva` | `activa=false` |
+| `El plazo de registro cerró el {fechaHoraLimite}` | ya pasó `fechaHoraLimite` y `forzar=false` (default) — reintentar con `?forzar=true` si el admin quiere forzar el registro |
+
+### `POST /v1/concursante/importarDePedidos`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `configurarRifaId` no existe |
+| `Esta rifa no está activa` | `activa=false` |
+
+### `DELETE /v1/concursante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Concursante no encontrado` | `id` no existe |
+| `No se puede eliminar: el concursante ya participó en un sorteo` | tiene un registro en `ganador_rifa` |
+
+### `PUT /v1/concursante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Concursante no encontrado` | `id` no existe |
+
+### `POST /v1/ganadorRifa/sortear/{configurarRifaId}`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `configurarRifaId` no existe |
+| `Esta rifa ya fue completada o está inactiva` | `activa=false` |
+| `La rifa no tiene variantes configuradas` | la rifa no tiene ninguna `configurarRifaVariante` |
+| `Todas las variantes ya fueron sorteadas` | ya hay un ganador declarado por cada variante |
+| `No hay concursantes elegibles para la variante con palabraClave='X'` | nadie con esa `palabraClave` y `descartado=false` |
+
+### `POST /v1/ganadorRifa/continuarVariante/{configurarRifaId}?modo=`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+| `No hay siguiente variante` | ya se sortearon todas las variantes |
+| `Modo inválido: X. Usar RESTANTES, CERO o NUEVOS` | `modo` no es uno de los 3 valores válidos |
+
+### `GET /v1/ganadorRifa/estado/{configurarRifaId}`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+
+### `POST /v1/ganadorRifa/reiniciar/{configurarRifaId}?completo=`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+
+**Response OK (200)** de `reiniciar`:
+```json
+{ "data": "Rifa reiniciada completamente (concursantes eliminados)" }
+```
+o, con `completo=false`:
+```json
+{ "data": "Rifa reiniciada (concursantes conservados)" }
+```
+
+---
+
+## Autenticación — token expirado/ausente ahora responde 401 (antes 403) (2026-06-13)
+
+**Causa del bug:** `SecurityConfig` no tenía configurado un `AuthenticationEntryPoint`, así que
+Spring Security usaba el fallback por defecto (`Http403ForbiddenEntryPoint`). Esto hacía que
+**cualquier request sin autenticación válida** (token ausente, corrupto o **expirado**) devolviera
+**403 Forbidden** en vez de **401 Unauthorized**. Si el interceptor del front solo dispara el
+refresh ante un **401**, nunca se enteraba de que el access token expiró — el request fallaba con
+un 403 "seco" y ahí quedaba.
+
+**Cambio:**
+- **401 Unauthorized** → no autenticado: token ausente, inválido o **expirado**.
+  Body: `{ "mensaje": "Token inválido o expirado", "code": 404, "data": null, "lista": null }`
+  → el front debe intentar `/v1/auth/refresh` y reintentar el request original.
+- **403 Forbidden** → autenticado correctamente pero sin el rol requerido (ej. usuario sin
+  `ROLE_ADMIN` llamando a un endpoint de admin).
+  Body: `{ "mensaje": "No tiene permisos para acceder a este recurso", "code": 404, "data": null, "lista": null }`
+  → el front **no** debe reintentar con refresh aquí (el token es válido, solo falta permiso).
+
+**Acción para el front:** revisar el interceptor — el flujo de `/v1/auth/refresh` debe dispararse
+ante **401**, no ante 403. Si antes "funcionaba" reintentando en 403, eso era un parche al bug
+descrito arriba; ahora la expiración de token llega correctamente como 401.
+
+---
+
+## `POST /v1/concursante/importarDePedidos` — nuevo campo `omitidosSinNombre` (2026-06-13)
+
+**Causa del bug:** si `clientes[]` traía una entrada `sinRegistro: true` con `nombre: ""`
+(vacío), el backend intentaba guardar el `Concursante` y la validación `@NotBlank` de Hibernate
+lanzaba un `ConstraintViolationException` cuyo mensaje crudo (técnico) se devolvía tal cual en
+`mensaje`, y **abortaba todo el batch** — ningún concursante se importaba, ni siquiera los
+válidos.
+
+**Cambio:** las entradas sin `nombre` (vacío o solo espacios) ya **no rompen el batch**: se omiten
+y se devuelven en un nuevo arreglo `omitidosSinNombre`, igual que ya pasaba con
+`omitidosYaRegistrados`.
+
+**Response — ahora:**
+```json
+{
+  "importados": [
+    { "id": 201, "nombre": "María López", "palabraClave": "BOLSA", "agregadoEnPrueba": false }
+  ],
+  "omitidosYaRegistrados": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ],
+  "omitidosSinNombre": [
+    { "clientePedidoId": null, "nombre": "", "telefono": "", "sinRegistro": true }
+  ]
+}
+```
+
+**Acción para el front:** si `omitidosSinNombre` no viene vacío, avisar al admin algo como
+"N participante(s) sin registro no se importaron porque no tienen nombre". Si la UI permite
+agregar filas de "cliente sin registro" a mano, idealmente exigir `nombre` antes de enviar para
+que no terminen en este arreglo.
