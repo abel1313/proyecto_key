@@ -2105,3 +2105,123 @@ y se devuelven en un nuevo arreglo `omitidosSinNombre`, igual que ya pasaba con
 "N participante(s) sin registro no se importaron porque no tienen nombre". Si la UI permite
 agregar filas de "cliente sin registro" a mano, idealmente exigir `nombre` antes de enviar para
 que no terminen en este arreglo.
+
+---
+
+## CHAT EN VIVO — Panel Admin (acción requerida en el front) — 2026-06-17
+
+### Problema actual
+Cuando el admin selecciona una sesión en el panel, **solo ve los mensajes nuevos** que llegan en tiempo real (WebSocket). Los mensajes anteriores de esa sesión no aparecen porque el front no los está cargando.
+
+### Endpoint de historial (ya existe en el backend)
+
+**Request:**
+```
+GET /mis-productos/v1/chat/admin/historial/{sesionId}
+Authorization: Bearer <token admin>
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
+    "remitente": "USUARIO",
+    "contenido": "Hola, tengo una pregunta",
+    "timestamp": "2026-06-17T10:00:00"
+  },
+  {
+    "id": 2,
+    "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
+    "remitente": "ADMIN",
+    "contenido": "Claro, ¿en qué te ayudo?",
+    "timestamp": "2026-06-17T10:00:05"
+  }
+]
+```
+
+- `remitente` es `"USUARIO"` o `"ADMIN"`
+- Los mensajes vienen ordenados por timestamp ascendente
+- 204 si la sesión no tiene mensajes aún
+
+**Acción para el front:** Cuando el admin hace clic en una sesión del listado, llamar este endpoint y renderizar los mensajes antes de empezar a recibir los nuevos por WebSocket. Así el admin ve la conversación completa.
+
+---
+
+### Endpoint de sesiones activas (para el listado del panel)
+
+**Request:**
+```
+GET /mis-productos/v1/chat/admin/sesiones
+Authorization: Bearer <token admin>
+```
+
+**Response:**
+```json
+[
+  {
+    "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
+    "nombreUsuario": "chat",
+    "fechaInicio": "2026-06-17T10:00:00",
+    "ultimaActividad": "2026-06-17T10:02:00",
+    "ultimoMensaje": "Hola, tengo una pregunta"
+  }
+]
+```
+
+---
+
+### Endpoint para cerrar sesión manualmente
+
+**Request:**
+```
+POST /mis-productos/v1/chat/admin/cerrar/{sesionId}
+Authorization: Bearer <token admin>
+```
+
+**Response:** 204 No Content
+
+---
+
+### Comportamiento del email de notificación
+
+El backend manda email al admin en el **primer mensaje de cada sesión**, sin importar si el admin está en el panel o no.
+
+- Visitante se conecta → sin email
+- Visitante manda primer mensaje → email con el contenido del mensaje
+- Visitante manda más mensajes en la misma sesión → sin email (ya fue notificado)
+- Sesión expira por inactividad (5 min) → visitante manda nuevo mensaje → nueva sesión → nuevo email
+
+El front **no necesita hacer nada especial** para controlar los emails. Solo asegurarse de que el visitante llame `/chat.conectar` para crear sesión antes de mandar mensajes.
+
+---
+
+### Notificación en el panel cuando el admin ESTÁ en la app (acción requerida en el front)
+
+Cuando el admin está en el panel y llega un mensaje de un visitante, el backend ya publica el evento por WebSocket en `/topic/chat.admin`. **El front debe notificar al admin visualmente**, por ejemplo:
+
+- Sonido de notificación
+- Badge/contador en el ícono del chat
+- Highlight en la sesión del listado que recibió el mensaje
+
+El evento que llega es tipo `MENSAJE`:
+```json
+{
+  "tipo": "MENSAJE",
+  "sesionId": "f1d0db6f-...",
+  "nombreUsuario": "Juan",
+  "contenido": "Hola, tengo una pregunta",
+  "timestamp": "2026-06-17T10:00:05"
+}
+```
+
+**Sin este cambio en el front**, el admin puede perderse mensajes aunque esté en el panel.
+
+---
+
+### Protección anti-bot
+
+El backend limita los emails a uno por sesión. Si un bot manda mensajes continuamente dentro de la misma sesión, solo llega 1 email. Si crea sesiones nuevas continuamente, puede generar emails repetidos — se puede agregar rate limiting por IP en una iteración futura si se detecta el problema.
+
+**Timeout de sesión:** 5 minutos de inactividad → la sesión se cierra y el cliente recibe `{ "tipo": "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`.

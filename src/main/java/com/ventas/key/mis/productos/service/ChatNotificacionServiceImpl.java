@@ -8,6 +8,8 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
@@ -29,26 +31,24 @@ public class ChatNotificacionServiceImpl implements IChatNotificacionService {
     private final AtomicBoolean adminConectado = new AtomicBoolean(false);
     private volatile String adminWsSessionId = null;
 
+    // Sesiones que ya recibieron notificación — evita emails duplicados en la misma sesión
+    private final Set<String> sesionesNotificadas = ConcurrentHashMap.newKeySet();
+
     @Override
     public void notificarNuevaSesion(String sesionId, String nombreUsuario) {
-        if (!forzarNotificacion && adminConectado.get()) return;
-        String prefijo = forzarNotificacion ? "[DEV] " : "";
-        enviarEmail(
-            prefijo + "Chat: nuevo visitante — " + nombreUsuario,
-            "Un visitante ha iniciado un chat en la tienda.\n\nNombre: " + nombreUsuario
-                + "\nSesión ID: " + sesionId
-                + "\n\nEntra al panel admin para responder."
-        );
+        // Notificación va en el primer mensaje, no en la conexión
     }
 
     @Override
     public void notificarMensaje(String sesionId, String nombreUsuario, String contenido) {
-        if (!forzarNotificacion) return;
+        // En dev: siempre envía (para pruebas). En QA/prod: solo primer mensaje por sesión
+        if (!forzarNotificacion && !sesionesNotificadas.add(sesionId)) return;
+        String prefijo = forzarNotificacion ? "[DEV] " : "";
         enviarEmail(
-            "[DEV] Chat: mensaje de " + nombreUsuario,
-            "Mensaje recibido en sesión de prueba.\n\nNombre: " + nombreUsuario
+            prefijo + "Chat: mensaje de " + nombreUsuario,
+            "Tienes un nuevo mensaje en el chat.\n\nNombre: " + nombreUsuario
                 + "\nMensaje: " + contenido
-                + "\nSesión ID: " + sesionId
+                + "\n\nEntra al panel admin para responder."
         );
     }
 
