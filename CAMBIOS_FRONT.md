@@ -2219,21 +2219,36 @@ Authorization: Bearer <token admin>
     {
       "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
       "nombreUsuario": "chat",
+      "estado": "ACTIVA",
       "fechaInicio": "2026-06-17T10:00:00",
       "ultimaActividad": "2026-06-17T10:02:00",
       "ultimoMensaje": "Hola, tengo una pregunta"
+    },
+    {
+      "sesionId": "37cb781e-f39f-4fa4-b825-52a7f0b9ab0c",
+      "nombreUsuario": "Visitante",
+      "estado": "CERRADA",
+      "fechaInicio": "2026-06-17T09:00:00",
+      "ultimaActividad": "2026-06-17T09:05:00",
+      "ultimoMensaje": "Buen dia"
     }
   ],
   "lista": null
 }
 ```
 
-- `ultimoMensaje` puede ser `null` si la sesión aún no tiene mensajes
-- Todos los campos de fecha son strings con formato `"yyyy-MM-dd'T'HH:mm:ss"`
+- Devuelve **todas las sesiones de las últimas 24 horas** (ACTIVA y CERRADA), ordenadas por `ultimaActividad` descendente
+- Campo nuevo `estado`: `"ACTIVA"` o `"CERRADA"` — mostrar indicador visual (ej. punto verde / gris)
+- `ultimoMensaje` puede ser `null` si el usuario conectó pero no envió ningún mensaje
+- El admin puede hacer clic en cualquier sesión para ver el historial — incluso las cerradas
+- `estado === 'CERRADA'` → solo lectura (no tiene sentido responder, la sesión ya expiró)
 
 ```typescript
 // ✅ Correcto
 this.sesiones = (response as any).data ?? [];
+// Indicador visual sugerido:
+// sesion.estado === 'ACTIVA'  → punto verde, puede responder
+// sesion.estado === 'CERRADA' → punto gris, solo ver historial
 ```
 
 ---

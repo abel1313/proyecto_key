@@ -29,7 +29,7 @@ public class ChatAdminController {
     @GetMapping("/admin/sesiones")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseGeneric<List<SesionActivaDto>>> sesionesActivas() {
-        List<SesionActivaDto> sesiones = sesionService.obtenerSesionesActivas().stream()
+        List<SesionActivaDto> sesiones = sesionService.obtenerSesionesRecientes().stream()
                 .map(s -> {
                     String ultimo = mensajeService.ultimoMensaje(s.getSesionId())
                             .map(ChatMensaje::getContenido)
@@ -37,6 +37,7 @@ public class ChatAdminController {
                     return SesionActivaDto.builder()
                             .sesionId(s.getSesionId())
                             .nombreUsuario(s.getNombreUsuario())
+                            .estado(s.getEstado())
                             .fechaInicio(s.getFechaInicio().format(FMT))
                             .ultimaActividad(s.getUltimaActividad().format(FMT))
                             .ultimoMensaje(ultimo)

@@ -73,6 +73,13 @@ public class ChatSesionServiceImpl implements IChatSesionService {
     }
 
     @Override
+    public List<ChatSesion> obtenerSesionesRecientes() {
+        return repository.findByUltimaActividadAfterOrderByUltimaActividadDesc(
+            LocalDateTime.now().minusHours(24)
+        );
+    }
+
+    @Override
     public Optional<ChatSesion> buscarSesionActiva(String sesionId) {
         return repository.findBySesionIdAndEstado(sesionId, "ACTIVA");
     }
