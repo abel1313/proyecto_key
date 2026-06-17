@@ -52,6 +52,14 @@ public class ChatAdminController {
         return ResponseEntity.ok(new ResponseGeneric<List<ChatMensaje>>(mensajeService.obtenerHistorial(sesionId)));
     }
 
+    @GetMapping("/historial/{sesionId}")
+    public ResponseEntity<ResponseGeneric<List<ChatMensaje>>> historialUsuario(@PathVariable String sesionId) {
+        if (!sesionService.existeSesion(sesionId)) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(new ResponseGeneric<List<ChatMensaje>>(mensajeService.obtenerHistorial(sesionId)));
+    }
+
     @PostMapping("/admin/cerrar/{sesionId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> cerrarSesion(@PathVariable String sesionId) {

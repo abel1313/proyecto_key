@@ -78,9 +78,14 @@ public class ChatSesionServiceImpl implements IChatSesionService {
     }
 
     @Override
+    public boolean existeSesion(String sesionId) {
+        return repository.findBySesionId(sesionId).isPresent();
+    }
+
+    @Override
     @Transactional
     public void cerrarSesionesInactivas() {
-        LocalDateTime limite = LocalDateTime.now().minusMinutes(30);
+        LocalDateTime limite = LocalDateTime.now().minusMinutes(5);
         List<ChatSesion> inactivas = repository.findByEstadoAndUltimaActividadBefore("ACTIVA", limite);
         for (ChatSesion sesion : inactivas) {
             sesion.setEstado("CERRADA");
