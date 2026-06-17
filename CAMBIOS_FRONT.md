@@ -2147,7 +2147,7 @@ Authorization: Bearer <token admin>
 - Los mensajes vienen ordenados por timestamp ascendente
 - 204 si la sesión no tiene mensajes aún
 
-**Acción para el front:** Cuando el admin hace clic en una sesión del listado, llamar este endpoint y renderizar los mensajes antes de empezar a recibir los nuevos por WebSocket. Así el admin ve la conversación completa.
+**Acción para el front — PENDIENTE:** Cuando el admin hace clic en una sesión del listado, llamar este endpoint y renderizar los mensajes antes de empezar a recibir los nuevos por WebSocket. Así el admin ve la conversación completa.
 
 ---
 
@@ -2228,3 +2228,17 @@ El campo del mensaje en el evento es `contenido` (no `mensaje`):
 El backend limita los emails a uno por sesión. Si un bot manda mensajes continuamente dentro de la misma sesión, solo llega 1 email. Si crea sesiones nuevas continuamente, puede generar emails repetidos — se puede agregar rate limiting por IP en una iteración futura si se detecta el problema.
 
 **Timeout de sesión:** 5 minutos de inactividad → la sesión se cierra y el cliente recibe `{ "tipo": "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`.
+
+---
+
+### Confirmado correcto por el front — sin cambios requeridos (2026-06-17)
+
+Lo siguiente ya estaba bien implementado y no requiere ninguna acción:
+
+| Ítem | Estado |
+|---|---|
+| `buscarClientePedido` con query params | ✅ correcto |
+| micro_imagenes con prefijo `/v1/` | ✅ correcto |
+| Imágenes de productos y variantes usando `urlImagen` directa del response | ✅ correcto |
+| Interceptor maneja 401 (token expirado) y 403 (sin permiso) correctamente | ✅ correcto |
+| `omitidosSinNombre?.` con optional chaining | ✅ correcto |
