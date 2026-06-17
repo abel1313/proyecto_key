@@ -147,6 +147,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
                         .requestMatchers("/v1/admin/**").hasRole("ADMIN")
 
+                        // ── WebSocket (handshake HTTP público) ────────────────────────────
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // ── Chat en vivo (panel admin requiere ADMIN; conexión pública) ───
+                        .requestMatchers("/v1/chat/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/chat/**").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
