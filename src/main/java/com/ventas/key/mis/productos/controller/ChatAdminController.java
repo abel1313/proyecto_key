@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.ChatMensaje;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.chat.ChatHistorialPaginadoDto;
 import com.ventas.key.mis.productos.models.chat.SesionActivaDto;
 import com.ventas.key.mis.productos.service.api.IChatMensajeService;
 import com.ventas.key.mis.productos.service.api.IChatSesionService;
@@ -49,16 +50,22 @@ public class ChatAdminController {
 
     @GetMapping("/admin/historial/{sesionId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ResponseGeneric<List<ChatMensaje>>> historial(@PathVariable String sesionId) {
-        return ResponseEntity.ok(new ResponseGeneric<List<ChatMensaje>>(mensajeService.obtenerHistorial(sesionId)));
+    public ResponseEntity<ResponseGeneric<ChatHistorialPaginadoDto>> historial(
+            @PathVariable String sesionId,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(mensajeService.obtenerHistorialPaginado(sesionId, pagina, size)));
     }
 
     @GetMapping("/historial/{sesionId}")
-    public ResponseEntity<ResponseGeneric<List<ChatMensaje>>> historialUsuario(@PathVariable String sesionId) {
+    public ResponseEntity<ResponseGeneric<ChatHistorialPaginadoDto>> historialUsuario(
+            @PathVariable String sesionId,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int size) {
         if (!sesionService.existeSesion(sesionId)) {
             return ResponseEntity.status(403).build();
         }
-        return ResponseEntity.ok(new ResponseGeneric<List<ChatMensaje>>(mensajeService.obtenerHistorial(sesionId)));
+        return ResponseEntity.ok(new ResponseGeneric<>(mensajeService.obtenerHistorialPaginado(sesionId, pagina, size)));
     }
 
     @PostMapping("/admin/cerrar/{sesionId}")
