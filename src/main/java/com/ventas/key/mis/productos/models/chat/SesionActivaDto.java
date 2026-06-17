@@ -8,6 +8,7 @@ import lombok.Data;
 public class SesionActivaDto {
     private String sesionId;
     private String nombreUsuario;
+    private String estado;
     private String fechaInicio;
     private String ultimaActividad;
     private String ultimoMensaje;

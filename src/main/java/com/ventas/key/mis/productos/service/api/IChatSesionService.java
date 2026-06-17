@@ -15,6 +15,8 @@ public interface IChatSesionService {
 
     List<ChatSesion> obtenerSesionesActivas();
 
+    List<ChatSesion> obtenerSesionesRecientes();
+
     Optional<ChatSesion> buscarSesionActiva(String sesionId);
 
     boolean existeSesion(String sesionId);
