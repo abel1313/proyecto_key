@@ -45,16 +45,19 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.conectar")
     public void conectar(@Payload ChatConectarRequest request, SimpMessageHeaderAccessor accessor) {
+        log.info("[WS] /chat.conectar recibido — tempId={}, nombreUsuario={}", request.getTempId(), request.getNombreUsuario());
         String ip = extraerIp(accessor);
         String sesionId = sesionService.conectar(ip, request.getNombreUsuario());
 
         String nombre = sesionId != null ? resolverNombre(request.getNombreUsuario()) : "Visitante";
 
+        log.info("[WS] Publicando sesionId={} en /topic/chat.inicio.{}", sesionId, request.getTempId());
         messagingTemplate.convertAndSend(
             "/topic/chat.inicio." + request.getTempId(),
             new ChatConexionResponse(sesionId)
         );
 
+        log.info("[WS] Publicando NUEVA_SESION en /topic/chat.admin — sesionId={}, nombre={}", sesionId, nombre);
         messagingTemplate.convertAndSend("/topic/chat.admin",
             ChatEventoAdmin.builder()
                 .tipo("NUEVA_SESION")
@@ -64,7 +67,7 @@ public class ChatWebSocketController {
         );
 
         notificacionService.notificarNuevaSesion(sesionId, nombre);
-        log.info("Cliente conectado al chat. Sesión: {}, IP: {}", sesionId, ip);
+        log.info("[WS] Conexión completada — sesionId={}, ip={}", sesionId, ip);
     }
 
     /**
@@ -74,14 +77,16 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.mensaje")
     public void mensaje(@Payload ChatMensajeRequest request) {
+        log.info("[WS] /chat.mensaje recibido — sesionId={}, contenido={}", request.getSesionId(), request.getContenido());
         Optional<ChatSesion> sesionOpt = sesionService.buscarSesionActiva(request.getSesionId());
         if (sesionOpt.isEmpty()) {
-            log.warn("Mensaje en sesión inactiva o inexistente: {}", request.getSesionId());
+            log.warn("[WS] Sesión inactiva o inexistente: {} — mensaje descartado", request.getSesionId());
             return;
         }
         sesionService.actualizarActividad(request.getSesionId());
         ChatMensaje saved = mensajeService.guardar(request.getSesionId(), "USUARIO", request.getContenido());
 
+        log.info("[WS] Publicando MENSAJE en /topic/chat.admin — sesionId={}", request.getSesionId());
         messagingTemplate.convertAndSend("/topic/chat.admin",
             ChatEventoAdmin.builder()
                 .tipo("MENSAJE")
@@ -92,7 +97,6 @@ public class ChatWebSocketController {
                 .build()
         );
         notificacionService.notificarMensaje(request.getSesionId(), sesionOpt.get().getNombreUsuario(), request.getContenido());
-        log.debug("Mensaje recibido en sesión {}", request.getSesionId());
     }
 
     /**
@@ -102,10 +106,13 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.admin.responder")
     public void adminResponder(@Payload ChatAdminResponderRequest request) {
+        log.info("[WS] /chat.admin.responder recibido — sesionId={}, contenido={}", request.getSesionId(), request.getContenido());
         sesionService.actualizarActividad(request.getSesionId());
         ChatMensaje saved = mensajeService.guardar(request.getSesionId(), "ADMIN", request.getContenido());
 
-        messagingTemplate.convertAndSend("/topic/chat.usuario." + request.getSesionId(),
+        String topicUsuario = "/topic/chat.usuario." + request.getSesionId();
+        log.info("[WS] Publicando MENSAJE en {} — contenido={}, timestamp={}", topicUsuario, request.getContenido(), saved.getTimestamp().format(FMT));
+        messagingTemplate.convertAndSend(topicUsuario,
             ChatEventoUsuario.builder()
                 .tipo("MENSAJE")
                 .remitente("ADMIN")
@@ -113,7 +120,6 @@ public class ChatWebSocketController {
                 .timestamp(saved.getTimestamp().format(FMT))
                 .build()
         );
-        log.debug("Admin respondió en sesión {}", request.getSesionId());
     }
 
     /**
@@ -121,6 +127,7 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.admin.conectado")
     public void adminConectado(SimpMessageHeaderAccessor accessor) {
+        log.info("[WS] /chat.admin.conectado — wsSessionId={}", accessor.getSessionId());
         notificacionService.marcarAdminConectado(accessor.getSessionId());
     }
 

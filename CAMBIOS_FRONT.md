@@ -2123,31 +2123,82 @@ GET /mis-productos/v1/chat/admin/historial/{sesionId}
 Authorization: Bearer <token admin>
 ```
 
-**Response:**
+**Response:** envuelto en `ResponseGeneric` — leer `response.data`:
 ```json
-[
-  {
-    "id": 1,
-    "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
-    "remitente": "USUARIO",
-    "contenido": "Hola, tengo una pregunta",
-    "timestamp": "2026-06-17T10:00:00"
-  },
-  {
-    "id": 2,
-    "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
-    "remitente": "ADMIN",
-    "contenido": "Claro, ¿en qué te ayudo?",
-    "timestamp": "2026-06-17T10:00:05"
-  }
-]
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": [
+    {
+      "remitente": "USUARIO",
+      "contenido": "Hola, tengo una pregunta",
+      "timestamp": "2026-06-17T10:00:00"
+    },
+    {
+      "remitente": "ADMIN",
+      "contenido": "Claro, ¿en qué te ayudo?",
+      "timestamp": "2026-06-17T10:00:05"
+    }
+  ],
+  "lista": null
+}
 ```
 
-- `remitente` es `"USUARIO"` o `"ADMIN"`
+- `id` y `sesionId` **no aparecen** en el JSON (`@JsonIgnore` en la entidad)
+- `remitente` es `"USUARIO"` o `"ADMIN"` — exactamente esos valores
+- `contenido` y `timestamp` son exactamente esos nombres de campo
 - Los mensajes vienen ordenados por timestamp ascendente
 - 204 si la sesión no tiene mensajes aún
 
-**Acción para el front — PENDIENTE:** Cuando el admin hace clic en una sesión del listado, llamar este endpoint y renderizar los mensajes antes de empezar a recibir los nuevos por WebSocket. Así el admin ve la conversación completa.
+**⚠️ Error frecuente:** el response **no es un array plano** — es un objeto con `data`. Si el front lee `response` directamente como array, el `filter(h => !!h.contenido)` descarta todo silenciosamente.
+
+```typescript
+// ❌ Incorrecto
+this.historial = response as any[];
+
+// ✅ Correcto
+this.historial = (response as any).data ?? [];
+```
+
+**Acción para el front — PENDIENTE:** Llamar este endpoint en DOS lugares:
+1. **Panel admin:** cuando el admin hace clic en una sesión del listado, cargar el historial antes de recibir mensajes nuevos por WebSocket.
+2. **Chat del cliente/visitante:** cuando el usuario abre o recarga el chat y tiene un `sesionId` guardado en `sessionStorage`, cargar el historial para mostrar la conversación previa.
+
+Para el admin usar el endpoint con token (`/admin/historial/{sesionId}`). Para el cliente usar el endpoint público (ver sección siguiente).
+
+---
+
+### Endpoint de historial para el cliente/visitante (🆕 nuevo endpoint)
+
+**Request:** público, no requiere token — el `sesionId` actúa como token implícito:
+```
+GET /mis-productos/v1/chat/historial/{sesionId}
+```
+
+**Response:** misma estructura que el historial de admin:
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": [
+    { "remitente": "USUARIO", "contenido": "Hola", "timestamp": "2026-06-17T10:00:00" },
+    { "remitente": "ADMIN",   "contenido": "¿En qué te ayudo?", "timestamp": "2026-06-17T10:00:05" }
+  ],
+  "lista": null
+}
+```
+
+**Seguridad:** el endpoint valida que el `sesionId` exista en BD. Si no existe devuelve **403** — así un UUID inventado o ya expirado no devuelve datos. Solo funciona con un `sesionId` real generado por el backend en `/chat.conectar`.
+
+**Cuándo llamarlo desde el cliente:** al inicializar el componente de chat, si el front tiene un `sesionId` guardado en `sessionStorage`, llamar este endpoint y renderizar los mensajes antes de suscribirse al WebSocket. Así el visitante ve su conversación completa aunque haya navegado a otra página y vuelto dentro de la misma pestaña.
+
+> **⚠️ Usar `sessionStorage`, no `localStorage`:** el sesionId expira en 5 minutos de inactividad — guardarlo en `localStorage` (que persiste aunque se cierre el navegador) no tiene utilidad y amplía la superficie de ataque. `sessionStorage` se borra al cerrar la pestaña, que es el comportamiento correcto para una sesión de chat.
+
+```typescript
+// ✅ Correcto
+this.historial = (response as any).data ?? [];
+// Si llega 403 → sesionId inválido → iniciar nueva sesión
+```
 
 ---
 
@@ -2159,17 +2210,30 @@ GET /mis-productos/v1/chat/admin/sesiones
 Authorization: Bearer <token admin>
 ```
 
-**Response:**
+**Response:** envuelto en `ResponseGeneric` — leer `response.data`:
 ```json
-[
-  {
-    "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
-    "nombreUsuario": "chat",
-    "fechaInicio": "2026-06-17T10:00:00",
-    "ultimaActividad": "2026-06-17T10:02:00",
-    "ultimoMensaje": "Hola, tengo una pregunta"
-  }
-]
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": [
+    {
+      "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
+      "nombreUsuario": "chat",
+      "fechaInicio": "2026-06-17T10:00:00",
+      "ultimaActividad": "2026-06-17T10:02:00",
+      "ultimoMensaje": "Hola, tengo una pregunta"
+    }
+  ],
+  "lista": null
+}
+```
+
+- `ultimoMensaje` puede ser `null` si la sesión aún no tiene mensajes
+- Todos los campos de fecha son strings con formato `"yyyy-MM-dd'T'HH:mm:ss"`
+
+```typescript
+// ✅ Correcto
+this.sesiones = (response as any).data ?? [];
 ```
 
 ---
@@ -2227,7 +2291,7 @@ El campo del mensaje en el evento es `contenido` (no `mensaje`):
 
 El backend limita los emails a uno por sesión. Si un bot manda mensajes continuamente dentro de la misma sesión, solo llega 1 email. Si crea sesiones nuevas continuamente, puede generar emails repetidos — se puede agregar rate limiting por IP en una iteración futura si se detecta el problema.
 
-**Timeout de sesión:** 5 minutos de inactividad → la sesión se cierra y el cliente recibe `{ "tipo": "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`.
+**Timeout de sesión:** 5 minutos sin actividad de ninguno de los dos lados (ni usuario ni admin) → la sesión se cierra y el cliente recibe `{ "tipo": "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`. Cualquier mensaje de cualquiera de los dos reinicia el contador.
 
 ---
 

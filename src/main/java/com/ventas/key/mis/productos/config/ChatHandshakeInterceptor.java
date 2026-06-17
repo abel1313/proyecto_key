@@ -10,6 +10,8 @@ import java.util.Map;
 
 public class ChatHandshakeInterceptor implements HandshakeInterceptor {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatHandshakeInterceptor.class);
+
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
@@ -19,6 +21,8 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
                     ? forwarded.split(",")[0].trim()
                     : servletRequest.getServletRequest().getRemoteAddr();
             attributes.put("clientIp", ip);
+            log.info("[WS] Handshake aceptado — ip={}, origin={}", ip,
+                    servletRequest.getServletRequest().getHeader("Origin"));
         }
         return true;
     }

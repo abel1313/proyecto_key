@@ -17,5 +17,7 @@ public interface IChatSesionService {
 
     Optional<ChatSesion> buscarSesionActiva(String sesionId);
 
+    boolean existeSesion(String sesionId);
+
     void cerrarSesionesInactivas();
 }
