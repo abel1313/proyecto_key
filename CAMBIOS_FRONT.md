@@ -20,10 +20,12 @@ Se normalizó el versionado de URLs en **ambos** backends (proyecto-key 9091 y m
 
 ### Tabla de cambios — proyecto-key (9091)
 
-| Antes (front lo usa) | Ahora |
-|---|---|
-| `imagen/v2/{productoId}` | `imagen/v1/{productoId}` |
-| `imagen/v2/{productoId}/detalle` | `imagen/v1/{productoId}/detalle` |
+> ✅ `imagenes.service.ts` y `producto.service.ts` ya actualizados (2026-06-17)
+
+| Antes (front lo usa) | Ahora | Estado |
+|---|---|---|
+| `imagen/v2/{productoId}` | `imagen/v1/{productoId}` | ✅ `imagenes.service.ts` |
+| `imagen/v2/{productoId}/detalle` | `imagen/v1/{productoId}/detalle` | ✅ `producto.service.ts` |
 | `imagen/v2/file/{imagenId}` | `imagen/v1/file/{imagenId}` |
 | `imagen/v2/{idProducto}/imagenes` | `imagen/v1/{idProducto}/imagenes` |
 | `imagen/v2/{idImagen}` (DELETE) | `imagen/v1/{idImagen}` (DELETE) |
@@ -2197,15 +2199,16 @@ El front **no necesita hacer nada especial** para controlar los emails. Solo ase
 
 ---
 
-### Notificación en el panel cuando el admin ESTÁ en la app (acción requerida en el front)
+### Notificación en el panel cuando el admin ESTÁ en la app — ✅ IMPLEMENTADO (2026-06-17)
 
-Cuando el admin está en el panel y llega un mensaje de un visitante, el backend ya publica el evento por WebSocket en `/topic/chat.admin`. **El front debe notificar al admin visualmente**, por ejemplo:
+Cuando el admin está en el panel y llega un mensaje de un visitante, el backend publica el evento por WebSocket en `/topic/chat.admin`.
 
-- Sonido de notificación
-- Badge/contador en el ícono del chat
-- Highlight en la sesión del listado que recibió el mensaje
+**Lo que se implementó:**
+- Sonido beep via Web Audio API al llegar mensaje en sesión no activa (sin archivo externo)
+- Highlight rojo en la sesión del listado con clase `ca-session-item--unread`, se quita al hacer clic
+- Eliminada propiedad `env.buscarImagenProducto` (URL deprecada, no se usaba en templates)
 
-El evento que llega es tipo `MENSAJE`:
+El campo del mensaje en el evento es `contenido` (no `mensaje`):
 ```json
 {
   "tipo": "MENSAJE",
@@ -2216,7 +2219,7 @@ El evento que llega es tipo `MENSAJE`:
 }
 ```
 
-**Sin este cambio en el front**, el admin puede perderse mensajes aunque esté en el panel.
+**Para eventos `NUEVA_SESION`**, `contenido` viene `null` — es correcto, no hay mensaje aún.
 
 ---
 
