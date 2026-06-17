@@ -21,7 +21,8 @@ public class ConfigSocket implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         log.info("Se ejecutan los cors desde cofig socket {}",corsAngular);
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(corsAngular) // 🔥 Usa la URL específica de Angular
+                .setAllowedOriginPatterns(corsAngular)
+                .addInterceptors(new ChatHandshakeInterceptor())
                 .withSockJS();
     }
 

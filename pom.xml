@@ -153,6 +153,12 @@
             <version>5.2.5</version>
         </dependency>
 
+        <!-- Chat en vivo — notificaciones por email -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
 	</dependencies>
 
 	<build>
