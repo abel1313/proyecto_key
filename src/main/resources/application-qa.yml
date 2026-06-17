@@ -43,7 +43,7 @@ spring:
     username: ${SPRING_RABBITMQ_USERNAME}
     password: ${SPRING_RABBITMQ_PASSWORD}
   mail:
-    host: mail.novedades-jade.com.mx
+    host: smtp.gmail.com
     port: 587
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
@@ -51,6 +51,9 @@ spring:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
       mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 clave-seguridad:
   clave: ${TOKEN_JWT}
