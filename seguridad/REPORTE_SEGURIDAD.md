@@ -78,6 +78,8 @@ clave-seguridad:
 - **Impacto:** Cualquier visitante puede inundar la cola RabbitMQ y descubrir la arquitectura interna del sistema.
 - **Estado:** PENDIENTE
 - **Solución:** Eliminar la línea del `permitAll()`. El endpoint ya queda cubierto por la regla general `"/admin/**"` que requiere `ROLE_ADMIN`. Idealmente, eliminar el endpoint completo de `AdminController` ya que es solo de prueba.
+- **Nota:** hay que eliminarlo, solo era para pruebas
+  > **Respuesta:** Correcto. Se elimina el método completo de `AdminController` y la línea del `permitAll()` en SecurityConfig.
 
 > **🔧 CAMBIO PENDIENTE:** Eliminar método `testRabbit()` de `AdminController.java` y eliminar su línea `permitAll()` de `SecurityConfig.java`. Solo era de prueba, ya no se usará.
 
@@ -89,21 +91,7 @@ clave-seguridad:
 - **Archivo:** `security/SecurityConfig.java`
 - **Detalle:** `/auth/registrar` es público. Cualquier bot puede crear miles de cuentas con acceso a endpoints `authenticated()`.
 - **Estado:** PENDIENTE
-- **Opción elegida: (B) Verificación de email**
-
-> **📌 Nota — ¿Cómo funciona la verificación de email?**
->
-> Es independiente de OAuth2 (Google/Facebook). Son dos cosas distintas:
-> - **OAuth2 (Google/Facebook):** el usuario se registra con su cuenta de Google o Facebook. En ese caso Google/Facebook ya garantiza que el email es real, por eso no necesita verificación adicional.
-> - **Verificación de email propia:** aplica cuando el usuario se registra con usuario y contraseña propios. El flujo es:
->   1. Usuario llena el formulario de registro → se crea la cuenta con `activo = false`.
->   2. El backend genera un token único (UUID) y lo guarda en BD con expiración de 24 hs.
->   3. Se envía un email al usuario con un link: `https://tudominio.com/auth/verificar-email?token=UUID`.
->   4. El usuario hace clic → el backend valida el token, marca `activo = true` y borra el token.
->   5. Hasta que haga clic, si intenta hacer login recibe "Cuenta no verificada".
->
-> **¿Qué es el CAPTCHA?**
-> Es un widget que se pone en el formulario de registro del frontend para distinguir humanos de bots. El más común es Google reCAPTCHA v3: el usuario ni lo ve (es invisible), Google analiza el comportamiento del navegador y da un puntaje de 0 a 1. El frontend envía ese puntaje al backend junto con el registro, y el backend lo verifica contra la API de Google. Si el puntaje es menor a 0.5, se rechaza el registro como posible bot. La opción B (verificación de email) y el CAPTCHA se pueden combinar — el CAPTCHA evita el spam masivo y la verificación de email garantiza que el correo es válido.
+- **DECISIÓN FINAL: (B) Verificación de email** — el cliente se registra solo, el backend manda un email con un código/link, la cuenta queda inactiva hasta confirmar. Se implementa con Spring Mail.
 
 > **🔧 CAMBIO PENDIENTE:** Implementar opción B:
 > - Agregar campo `emailVerificado boolean` a la entidad `Usuario` (default `false`).
@@ -135,6 +123,8 @@ public boolean validateToken(String token, UserDetails userDetails) {
     }
 }
 ```
+- **Nota:** hay que agregar la validacion para que ya no pase o que no sea el mismo token y sean diferentes como dices no?
+  > **Respuesta:** Sí. Con esa validación el access token y el refresh token quedan funcionalmente separados — si alguien intenta usar el refresh token como si fuera un access token, el filtro lo rechaza.
 
 > **🔧 CAMBIO PENDIENTE:** Agregar la validación `if ("refresh".equals(claims.get("type"))) return false;` en `JwtUtil.validateToken()`.
 
@@ -159,6 +149,8 @@ private void validarImagen(MultipartFile file) {
         throw new IllegalArgumentException("Tipo no permitido: " + tipo + ". Solo JPG, PNG, GIF, WebP");
 }
 ```
+- **Nota:** hay que agregar la validacion para que como maximo sean 10 mb como dices
+  > **Respuesta:** Correcto, se agrega el método `validarImagen()` en los dos servicios mencionados. Limita a 10 MB y verifica el tipo MIME real del archivo, no solo la extensión del nombre.
 
 > **📌 Nota — ¿Se puede usar guardado asíncrono para imágenes?**
 >
@@ -183,12 +175,26 @@ private void validarImagen(MultipartFile file) {
 ```
 - **Impacto:** Una sola petición anónima con `size=999999` puede agotar la memoria del JVM.
 - **Estado:** PENDIENTE
+<<<<<<< HEAD
+- **Solución:** En cada endpoint con paginación aplicar:
+```java
+int safeSize = Math.min(Math.max(size, 1), 100); // mín 1, máx 100
+int safePage = Math.max(page, 1);
+```
+- **Nota:** hay que limitar a que sean de 10 en 10 ya que así es como estoy paginando como máximo
+  > **Respuesta:** Entonces el límite queda en 10, no 100. El código sería:
+  > ```java
+  > int safeSize = Math.min(Math.max(size, 1), 10); // mín 1, máx 10
+  > int safePage = Math.max(page, 1);
+  > ```
+=======
 
 > **🔧 CAMBIO PENDIENTE:** La paginación del proyecto es de 10 en 10 como máximo. Aplicar en cada endpoint con paginación:
 > ```java
 > int safeSize = Math.min(Math.max(size, 1), 10); // mín 1, máx 10
 > int safePage = Math.max(page, 0);
 > ```
+>>>>>>> dev
 
 ---
 
@@ -202,12 +208,23 @@ private void validarImagen(MultipartFile file) {
 ```
 - **Impacto:** Cualquier visitante anónimo puede enumerar qué IDs de usuario tienen cliente asociado iterando IDs del 1 al 9999.
 - **Estado:** PENDIENTE
+<<<<<<< HEAD
+- **Solución:** Cambiar de `permitAll()` a `authenticated()`.
+- **Nota:** Entonces aquí solo para los que estén autenticados, ya que el cliente puede buscar su ID, ¿o eso también es peligroso ya que si está autenticado podría buscar cualquier ID no?
+  > **Respuesta:** Exacto, tienes razón. Poner `authenticated()` es el primer paso pero no es suficiente — cualquier usuario autenticado podría buscar los datos de otro cliente cambiando el ID en la URL (eso se llama **IDOR**). La solución correcta es que el endpoint no reciba el ID como parámetro, sino que lo lea directamente del JWT:
+  > ```java
+  > String username = SecurityContextHolder.getContext().getAuthentication().getName();
+  > ```
+  > Así cada usuario solo puede ver sus propios datos, sin importar qué ID escriba.
+> -seguimos con duas si, lo que quiero es que no porque este autenticado pueda ver los datos de los demas usuario ese cambio hay que hacerlo asi para que no pueda ver los datos de otros
+=======
 
 > **📌 Nota:** Sí, exactamente. Con `authenticated()`, el endpoint solo es accesible si el usuario ya inició sesión y tiene un JWT válido. Un usuario registrado y logueado sí puede buscar su propio ID de cliente. El cambio inmediato es pasar de `permitAll()` a `authenticated()`.
 >
 > Hay un segundo problema a futuro: un usuario logueado podría buscar el ID de **otro** usuario (IDOR). Para corregirlo completamente habría que verificar en el controlador que el `idUsuario` del request coincide con el del JWT, o que tiene `ROLE_ADMIN`. Pero como primer paso, el `authenticated()` ya elimina el acceso anónimo.
 
 > **🔧 CAMBIO PENDIENTE:** Cambiar en `SecurityConfig.java` de `.permitAll()` a `.authenticated()` para `/usuarios/buscarClientePorIdUsuario/**`. Después evaluar agregar validación de que el usuario solo puede buscar su propio ID.
+>>>>>>> dev
 
 ---
 
@@ -223,9 +240,14 @@ log.info("Chatbot - IP: {}, mensaje: {}", ip, request.getMensaje());
 ```java
 log.info("Chatbot - IP: {}, longitud mensaje: {}", ip, request.getMensaje().length());
 ```
+<<<<<<< HEAD
+- **Nota:** hay que corregirlos
+  > **Respuesta:** Sí. Se cambia esa línea en `ChatbotController.java` — queda registrada solo la longitud del mensaje, no el contenido privado del usuario.
+=======
 - **Estado:** PENDIENTE
 
 > **🔧 CAMBIO PENDIENTE:** Cambiar el `log.info` en `ChatbotController.java` para que solo registre la longitud del mensaje, no el contenido.
+>>>>>>> dev
 
 ---
 
@@ -233,6 +255,25 @@ log.info("Chatbot - IP: {}, longitud mensaje: {}", ip, request.getMensaje().leng
 
 - **Categoría:** Configuración de seguridad incompleta
 - **Archivo:** `security/SecurityConfig.java`
+<<<<<<< HEAD
+- **Detalle:** No se configura CSP (Content-Security-Policy) ni HSTS (Strict-Transport-Security).
+- **Solución:** En `filterChain()`, agregar:
+```java
+.headers(headers -> headers
+    .frameOptions(opt -> opt.deny())
+    .contentTypeOptions(Customizer.withDefaults())
+    .httpStrictTransportSecurity(hsts -> hsts
+        .includeSubDomains(true)
+        .maxAgeInSeconds(31536000))
+)
+```
+- **Nota:** esto no lo entiendo, ¿a qué se refiere?
+  > **Respuesta:** Son instrucciones que el servidor envía al navegador para que se proteja:
+  > - **HSTS:** Le dice al navegador "nunca uses HTTP para este dominio, siempre HTTPS". Evita que alguien intercepte la conexión bajando de HTTPS a HTTP.
+  > - **frameOptions(deny):** Evita que tu app se muestre dentro de un `<iframe>` en otro sitio. Se usa en ataques de *clickjacking* donde hacen que el usuario haga clic en botones invisibles.
+  > - **contentTypeOptions:** Evita que el navegador ejecute un archivo malicioso que fue subido disfrazado de imagen.
+    -Hay que implementar ese cambio
+=======
 - **Estado:** PENDIENTE
 
 > **📌 Nota — ¿Qué son estos headers HTTP de seguridad?**
@@ -256,12 +297,18 @@ log.info("Chatbot - IP: {}, longitud mensaje: {}", ip, request.getMensaje().leng
 
 > **🔧 CAMBIO PENDIENTE:** Agregar la configuración de headers en `SecurityConfig.java`.
 
+>>>>>>> dev
 ---
 
 ### [SEG-011] MEDIA — AuthRequest sin límite de longitud en campos
 
 - **Categoría:** Validación de entrada insuficiente
 - **Archivo:** `src/main/java/com/ventas/key/mis/productos/models/AuthRequest.java`
+<<<<<<< HEAD
+- **Solución aplicada:** Agregados `@Size` en `userName` (3-100 chars), `password` (6-200 chars) y `@Email` + `@Size` en `email`.
+- **Nota:** hay que agregar la validacion
+  > **Respuesta:** Ya está aplicada en el código — se verificó que `@Size` y `@Email` están correctamente en `AuthRequest.java`. Este punto ya está resuelto.
+=======
 - **Estado:** PENDIENTE (documentado como corregido pero falta verificar la implementación y los mensajes)
 
 > **🔧 CAMBIO PENDIENTE:** Verificar que las anotaciones `@Size` y `@Email` estén implementadas en `AuthRequest.java`. Agregar mensajes en español a todas las validaciones:
@@ -276,6 +323,7 @@ log.info("Chatbot - IP: {}, longitud mensaje: {}", ip, request.getMensaje().leng
 > @Size(max = 150, message = "El correo no puede superar 150 caracteres")
 > private String email;
 > ```
+>>>>>>> dev
 
 ---
 
@@ -294,6 +342,8 @@ private List<@Valid MensajeHistorial> historial;
 @Size(max = 2000, message = "El mensaje no puede superar 2000 caracteres")
 private String contenido;
 ```
+- **Nota:** hay que agregar la validacion
+  > **Respuesta:** Sí. Se agregan las anotaciones `@Size` en `ChatbotRequest` y en `MensajeHistorial`. Esto evita que alguien mande un historial enorme que genere una llamada costosa a OpenAI.
 
 > **📌 Nota — ¿Cómo se probarían estos cambios?**
 >
@@ -311,6 +361,19 @@ private String contenido;
 
 - **Categoría:** Exposición de información
 - **Archivo:** `src/main/resources/application-docker.yml`
+<<<<<<< HEAD
+- **Solución:** Agregar al perfil docker:
+```yaml
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+```
+- **Nota:** no sé a qué se refiere, ¿me explicas?
+  > **Respuesta:** Swagger es una interfaz web que se genera automáticamente y documenta toda tu API. Si alguien entra a `http://tu-servidor/swagger-ui.html` en producción, ve la lista completa de todos tus endpoints, parámetros y respuestas — básicamente un mapa del sistema para un atacante. Es útil en desarrollo pero hay que apagarlo en producción con esas dos líneas en el yml de docker.
+    -hay que corregirlo
+=======
 - **Estado:** PENDIENTE
 
 > **📌 Nota:** Sí, esa es la solución completa. Agregar esas dos propiedades al perfil `application-docker.yml` deshabilita tanto la interfaz visual de Swagger (`/swagger-ui.html`) como el JSON con la definición de la API (`/v3/api-docs`). Así nadie desde internet puede ver la documentación de los endpoints en producción. También se debería revisar si el perfil QA (`application-qa.yml`) tiene Swagger habilitado y decidir si se quiere deshabilitar también allí.
@@ -325,6 +388,7 @@ private String contenido;
 > ```
 > Evaluar si también se desactiva en `application-qa.yml`.
 
+>>>>>>> dev
 ---
 
 ### [SEG-014] MEDIA — ExceptionGlobal catch-all exponía mensaje interno ✅ CORREGIDO
@@ -340,12 +404,23 @@ private String contenido;
 - **Archivo:** `service/LoginRateLimiterService.java`
 - **Detalle:** `ConcurrentHashMap` en memoria. Los contadores se resetean al reiniciar el pod. En multi-instancia cada pod tiene su propio contador.
 - **Solución futura:** Migrar a Bucket4j con Redis como backend.
-
+- **Nota:** no entiendo a qué se refiere, ¿me explicas?
+  > **Respuesta:** El sistema que bloquea IPs cuando fallan el login varias veces guarda los contadores en la RAM del servidor. Tiene dos problemas:
+  > 1. **Reinicio:** Si el servidor se reinicia, los contadores se borran y una IP bloqueada puede intentar de nuevo inmediatamente.
+  > 2. **Múltiples instancias:** Si hay 2 pods en Kubernetes, un atacante puede hacer 4 intentos en el pod A y 4 en el pod B sin que ninguno lo bloquee, porque cada pod tiene su propio contador.
+  > La solución es guardar los contadores en Redis, que es compartido entre todos los pods y persiste aunque el servidor se reinicie.
+    - hay que agregar esa mejora
 ---
 
 ### [SEG-016] BAJA — Bloqueo de IPs del chatbot tampoco persiste
 
 - **Categoría:** Riesgo arquitectural
+<<<<<<< HEAD
+- **Misma solución que SEG-015:** Migrar `ipInfoMap` a Redis.
+- **Nota:** no sé a qué se refiere
+  > **Respuesta:** Mismo problema que SEG-015 pero para el chatbot. El mapa que recuerda qué IPs están bloqueadas por enviar mensajes incomprensibles está en RAM. Al reiniciar el servidor, todas las IPs bloqueadas quedan libres automáticamente. La solución es moverlo a Redis igual que el rate limiter.
+> Hay que corregirlo tambien
+=======
 
 > **📌 Nota — Explicación detallada:**
 >
@@ -356,12 +431,22 @@ private String contenido;
 > La solución es guardar esa información en **Redis** con un TTL (tiempo de expiración). Redis es compartido por todos los pods y persiste entre reinicios. Así el bloqueo de 6 horas funciona correctamente sin importar cuántas instancias corran.
 
 - **Solución futura:** Migrar `ipInfoMap` a Redis con TTL de 6 horas.
+>>>>>>> dev
 
 ---
 
 ### [SEG-017] BAJA — Endpoint de simulación de pago sin doble capa de seguridad
 
 - **Categoría:** Defensa en profundidad insuficiente
+<<<<<<< HEAD
+- **Solución:** Agregar `@PreAuthorize("hasRole('ADMIN')")` al método de simulación en `MercadoPagoController`.
+- **Nota:** ¿cómo sería 2 capas de seguridad?
+  > **Respuesta:**
+  > - **Capa 1 (SecurityConfig):** La regla general en la configuración HTTP que dice que `/admin/**` requiere `ROLE_ADMIN`.
+  > - **Capa 2 (@PreAuthorize en el método):** La anotación directamente en el método del controlador que también verifica el rol.
+  > Si por error de un refactor el endpoint se mueve fuera de `/admin/`, la capa 2 sigue protegiendo. Son dos barreras independientes — si una falla, la otra cubre.
+-hayq ue agregar esa capa de seguridad
+=======
 
 > **📌 Nota — ¿Qué es la doble capa de seguridad?**
 >
@@ -371,11 +456,18 @@ private String contenido;
 
 > **🔧 CAMBIO PENDIENTE:** Agregar `@PreAuthorize("hasRole('ADMIN')")` al método de simulación de pago en `MercadoPagoController`.
 
+>>>>>>> dev
 ---
 
 ### [SEG-018] BAJA — JJWT versión 0.11.5 con API deprecated
 
 - **Categoría:** Dependencia desactualizada
+<<<<<<< HEAD
+- **Solución:** Actualizar a JJWT 0.12.x en `pom.xml`.
+- **Nota:** Hay que actualizar la dependencia que sea compatible
+  > **Respuesta:** Sí. Se actualiza en `pom.xml` de `0.11.5` a `0.12.x`. La API cambió entre versiones, así que también hay que ajustar el código en `JwtUtil.java` (algunos métodos de 0.11 fueron eliminados en 0.12).
+    -hay que hacer los cambios
+=======
 - **Estado:** PENDIENTE
 
 > **🔧 CAMBIO PENDIENTE:** Actualizar JJWT a 0.12.x en `pom.xml`. La API cambió entre versiones — los cambios necesarios en el código serían:
@@ -393,6 +485,7 @@ private String contenido;
 > ```
 > Todos los archivos que usen JJWT (`JwtUtil.java`, `JwtAuthenticationFilter.java`) necesitan actualizarse con la nueva API.
 
+>>>>>>> dev
 ---
 
 ## Buenas Prácticas Detectadas ✅
@@ -411,6 +504,9 @@ El proyecto ya implementa correctamente:
 10. **SessionManagement STATELESS** — Sin HttpSession
 11. **`@EnableMethodSecurity`** — Activa `@PreAuthorize` como segunda capa de seguridad
 
+- **Nota:** ¿a qué se refiere con el número 5?
+  > **Respuesta:** La entidad `Usuario` en Java tiene un campo `password` que guarda el hash BCrypt (algo como `$2a$10$...`). Sin `@JsonIgnore`, si algún endpoint devuelve un objeto `Usuario` como respuesta JSON, ese hash iría incluido en la respuesta. Con `@JsonIgnore` encima del campo, Spring lo excluye automáticamente de toda serialización — ningún endpoint puede filtrarlo accidentalmente.
+    -hay que corregirlo
 ---
 
 ## Recomendaciones Adicionales
@@ -468,6 +564,15 @@ El proyecto ya implementa correctamente:
 
 5. **Rotar API key de OpenAI** ✅ Validado — verificar que nunca se commiteó en Git.
 
+- **Nota:** ¿a qué se refieren las recomendaciones o cómo se hacen o por qué las mencionaste?
+  > **Respuesta:**
+  > 1. **JWT Blacklist:** Al hacer logout hoy el access token sigue siendo válido 15 min aunque el usuario cerró sesión. Si alguien lo robó puede usarlo esos 15 min. Guardar el token en Redis al hacer logout lo invalida inmediatamente.
+  > 2. **X-Forwarded-For:** Si tu app está detrás de nginx, la IP que llega al rate limiter es la de nginx, no la del cliente real. Podría terminar bloqueando a todos los usuarios en vez del atacante. Esa configuración en el yml hace que Spring lea la IP real.
+  > 3. **Refresh token indefinido:** El refresh de 7 días se puede renovar para siempre. Si alguien roba el token y lo sigue renovando, tiene acceso de por vida. Un límite de 30 días cierra esa ventana.
+  > 4. **PruebaControllerImpl:** Similar al endpoint de RabbitMQ — verificar que no esté accesible en producción.
+  > 5. **API key OpenAI:** Si alguna vez se guardó la clave real en un commit, sigue en el historial de Git aunque se haya borrado del archivo. Hay que verificarlo y rotar la clave en OpenAI.
+    - hay que realizar estos cambios para mejorarlo
+
 ---
 
 ## Archivos a Revisar y Modificar
@@ -487,6 +592,8 @@ El proyecto ya implementa correctamente:
 | `chatbot/ChatbotController.java` | SEG-009 | 🟡 MEDIA |
 | `src/main/resources/application-docker.yml` | SEG-013 | 🟡 MEDIA |
 | `controller/MercadoPagoController.java` | SEG-017 | 🟢 BAJA |
+<<<<<<< HEAD
+=======
 | `pom.xml` | SEG-018 | 🟢 BAJA |
 
 ---
@@ -569,3 +676,4 @@ Un atacante envía peticiones `GET /mis-productos/admin/test-rabbit` repetidas s
 > // Eliminar:
 > .requestMatchers(HttpMethod.GET, "/admin/test-rabbit").permitAll()
 > ```
+>>>>>>> dev

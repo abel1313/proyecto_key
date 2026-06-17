@@ -41,10 +41,11 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
 
     @Query("""
         SELECT new com.ventas.key.mis.productos.models.ProductoResumen(
-            p.id, p.nombre, p.descripcion, p.stock, p.precioVenta, cb.codigoBarras
+            p.id, p.nombre, p.descripcion, p.stock, p.precioVenta, cb.codigoBarras, pk.id, pk.nombre
         )
         FROM Producto p
         JOIN p.codigoBarras cb
+        LEFT JOIN p.palabraClave pk
         WHERE p.id = :id
     """)
     ProductoResumen findProductoConImagenes(@Param("id") int id);

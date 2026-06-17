@@ -33,9 +33,6 @@ import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 @Slf4j
 public class SecurityConfig {
 
-    @Value("${api.cors_angular}")
-    private String corsAngular;
-
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
 
@@ -43,7 +40,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        log.info("SecurityConfig cargado, cors: {}", corsAngular);
+        log.info("SecurityConfig cargado");
         return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)

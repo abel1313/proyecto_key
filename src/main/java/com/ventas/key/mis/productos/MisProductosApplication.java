@@ -17,8 +17,10 @@ import java.util.Base64;
 public class MisProductosApplication {
 
 	public static void main(String[] args) {
-		System.out.println("============================ se eliminaro los logs de variables de entono");
-
+        System.out.println("===========================================================");
+        System.out.println("  proyecto_key — QA estable al 2026-05-23");
+        System.out.println("  manifests K8s RabbitMQ, analisis migracion imagenes");
+        System.out.println("===========================================================");
         String encri = Base64.getEncoder().encodeToString(("").getBytes());
 		SpringApplication.run(MisProductosApplication.class, args);
 	}

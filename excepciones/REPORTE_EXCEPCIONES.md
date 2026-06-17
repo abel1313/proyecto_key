@@ -47,7 +47,7 @@ El proyecto tenía los siguientes problemas en el manejo de excepciones:
 #### `handleExeption/ErrorResponse.java`
 - Agregado `@Getter` de Lombok — Jackson ahora puede serializar la clase correctamente.
 
-#### `hexagonal/infraestructura/ImagenProductoClienteAWS.java`
+#### `hexagonal/infraestructura/ImagenProductoClienteMicro.java`
 - Método `saveAll()`: envuelto `rabbitTemplate.convertAndSend()` en try-catch para `Exception`.
 - Si RabbitMQ está caído, el error se loguea pero **el guardado del producto no falla**.
 - El mensaje en cola se recuperará cuando RabbitMQ vuelva a estar disponible.
