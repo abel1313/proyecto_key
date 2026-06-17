@@ -2184,22 +2184,6 @@ cargarMasAntiguos() {
 
 ---
 
-### Endpoint de historial para el cliente/visitante
-
-Mismo endpoint descrito arriba (`GET /v1/chat/historial/{sesionId}`), sin token, con validación de `sesionId` en BD.
-
-**Seguridad:** devuelve **403** si el `sesionId` no existe — un UUID inventado no devuelve datos.
-
-**Cuándo llamarlo desde el cliente:** al inicializar el componente de chat, si el front tiene un `sesionId` guardado en `sessionStorage`, llamar este endpoint y renderizar los mensajes antes de suscribirse al WebSocket. Así el visitante ve su conversación completa aunque haya navegado a otra página y vuelto dentro de la misma pestaña.
-
-> **⚠️ Usar `sessionStorage`, no `localStorage`:** el sesionId expira en 5 minutos de inactividad — guardarlo en `localStorage` (que persiste aunque se cierre el navegador) no tiene utilidad y amplía la superficie de ataque. `sessionStorage` se borra al cerrar la pestaña, que es el comportamiento correcto para una sesión de chat.
-
-```typescript
-// ✅ Correcto
-this.historial = (response as any).data ?? [];
-// Si llega 403 → sesionId inválido → iniciar nueva sesión
-```
-
 ---
 
 ### Endpoint de sesiones activas (para el listado del panel)
