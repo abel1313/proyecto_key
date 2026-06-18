@@ -57,6 +57,22 @@ public class ChatMensajeServiceImpl implements IChatMensajeService {
     }
 
     @Override
+    public ChatHistorialPaginadoDto obtenerHistorialPorClienteId(String clienteId, int pagina, int size) {
+        Page<ChatMensaje> page = repository.findByClienteIdOrderByTimestampDesc(
+            clienteId, PageRequest.of(pagina, size)
+        );
+        List<ChatMensaje> mensajes = new ArrayList<>(page.getContent());
+        java.util.Collections.reverse(mensajes);
+        return ChatHistorialPaginadoDto.builder()
+                .mensajes(mensajes)
+                .pagina(pagina)
+                .totalPaginas(page.getTotalPages())
+                .totalMensajes(page.getTotalElements())
+                .hayMasAntiguos(page.hasNext())
+                .build();
+    }
+
+    @Override
     public Optional<ChatMensaje> ultimoMensaje(String sesionId) {
         return repository.findTop1BySesionIdOrderByTimestampDesc(sesionId);
     }

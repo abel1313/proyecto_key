@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface IChatSesionService {
 
-    String conectar(String ip, String nombreUsuario);
+    String conectar(String ip, String nombreUsuario, String clienteId);
 
     void cerrarSesion(String sesionId);
 

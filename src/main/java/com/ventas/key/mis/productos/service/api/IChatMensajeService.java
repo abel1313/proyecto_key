@@ -14,5 +14,7 @@ public interface IChatMensajeService {
 
     ChatHistorialPaginadoDto obtenerHistorialPaginado(String sesionId, int pagina, int size);
 
+    ChatHistorialPaginadoDto obtenerHistorialPorClienteId(String clienteId, int pagina, int size);
+
     Optional<ChatMensaje> ultimoMensaje(String sesionId);
 }

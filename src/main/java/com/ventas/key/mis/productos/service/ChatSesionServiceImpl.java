@@ -28,11 +28,12 @@ public class ChatSesionServiceImpl implements IChatSesionService {
 
     @Override
     @Transactional
-    public String conectar(String ip, String nombreUsuario) {
+    public String conectar(String ip, String nombreUsuario, String clienteId) {
         String sesionId = UUID.randomUUID().toString();
         LocalDateTime ahora = LocalDateTime.now();
         ChatSesion sesion = ChatSesion.builder()
                 .sesionId(sesionId)
+                .clienteId(clienteId != null && !clienteId.isBlank() ? clienteId : null)
                 .identificador(ip != null ? ip : "desconocido")
                 .nombreUsuario(nombreUsuario != null && !nombreUsuario.isBlank() ? nombreUsuario : "Visitante")
                 .estado("ACTIVA")
@@ -40,7 +41,7 @@ public class ChatSesionServiceImpl implements IChatSesionService {
                 .ultimaActividad(ahora)
                 .build();
         repository.save(sesion);
-        log.info("Nueva sesión de chat: {} - {}", sesionId, sesion.getNombreUsuario());
+        log.info("Nueva sesión de chat: {} - clienteId={}", sesionId, clienteId);
         return sesionId;
     }
 

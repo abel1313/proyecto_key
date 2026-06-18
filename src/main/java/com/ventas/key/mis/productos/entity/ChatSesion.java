@@ -18,6 +18,9 @@ public class ChatSesion {
     @Column(name = "sesion_id", nullable = false, unique = true, length = 36)
     private String sesionId;
 
+    @Column(name = "cliente_id", length = 36)
+    private String clienteId;
+
     @Column(name = "identificador", nullable = false, length = 100)
     private String identificador;
 
