@@ -20,10 +20,12 @@ Se normalizó el versionado de URLs en **ambos** backends (proyecto-key 9091 y m
 
 ### Tabla de cambios — proyecto-key (9091)
 
-| Antes (front lo usa) | Ahora |
-|---|---|
-| `imagen/v2/{productoId}` | `imagen/v1/{productoId}` |
-| `imagen/v2/{productoId}/detalle` | `imagen/v1/{productoId}/detalle` |
+> ✅ `imagenes.service.ts` y `producto.service.ts` ya actualizados (2026-06-17)
+
+| Antes (front lo usa) | Ahora | Estado |
+|---|---|---|
+| `imagen/v2/{productoId}` | `imagen/v1/{productoId}` | ✅ `imagenes.service.ts` |
+| `imagen/v2/{productoId}/detalle` | `imagen/v1/{productoId}/detalle` | ✅ `producto.service.ts` |
 | `imagen/v2/file/{imagenId}` | `imagen/v1/file/{imagenId}` |
 | `imagen/v2/{idProducto}/imagenes` | `imagen/v1/{idProducto}/imagenes` |
 | `imagen/v2/{idImagen}` (DELETE) | `imagen/v1/{idImagen}` (DELETE) |
@@ -1686,3 +1688,1079 @@ Se corrigieron problemas de N+1 en JPA/Hibernate en `proyecto_key_new`. Los cont
 
 ### micro_imagenes — sin cambios
 No se modificó ningún archivo de `micro_imagenes`. No requiere pruebas adicionales.
+
+---
+
+## Rifa Mensual — nuevos campos y endpoints (2026-06-11)
+
+Diseño completo en `RIFA_MENSUAL_PROPUESTA.md`. Todos los endpoints son **ADMIN** (`/v1/configurarRifa/**`, `/v1/concursante/**`).
+
+### 1. `ConfigurarRifa` — 3 campos nuevos (opcionales, no rompen lo existente)
+
+Afecta a: `POST /v1/configurarRifa/save`, `PUT /v1/configurarRifa/update/{id}`, `GET /v1/configurarRifa/activas`, `GET /v1/configurarRifa/activas/hoy`, `GET /v1/configurarRifa/buscar`, `GET /v1/ganadorRifa/estado/{id}` (dentro de `configurarRifa`).
+
+**Campos nuevos:**
+- `tipo`: `"MENSUAL"` | `"DIARIA"` | `null` (rifas viejas quedan `null`)
+- `mesReferencia`: `"YYYY-MM"` | `null` — solo informativo, de qué mes son los participantes
+- `esPrueba`: `boolean`, default `false`
+
+**Request** (`save`/`update`, campos nuevos opcionales):
+```json
+{
+  "fechaHoraLimite": "2026-07-01T20:00:00",
+  "activa": true,
+  "tipo": "MENSUAL",
+  "mesReferencia": "2026-06",
+  "esPrueba": false
+}
+```
+
+**Response** (`/activas`, `/activas/hoy`, `/buscar`) — 3 campos nuevos al final:
+```json
+{
+  "id": 9,
+  "fechaHoraLimite": "2026-07-01T20:00:00",
+  "activa": true,
+  "totalVariantes": 2,
+  "variantesSorteadas": 0,
+  "tipo": "MENSUAL",
+  "mesReferencia": "2026-06",
+  "esPrueba": false
+}
+```
+
+Si `esPrueba: true`, el front debe mostrar un aviso tipo **"⚠️ Esta rifa es de prueba"**.
+
+---
+
+### 2. `PUT /v1/configurarRifa/{id}/esPrueba` — 🆕 toggle modo prueba
+
+**Request:**
+```json
+{ "esPrueba": false }
+```
+
+**Response:** entidad `ConfigurarRifa` completa (incluye `id`, `esPrueba`, `activa`, `variantes`, etc.)
+
+**⚠️ Efecto al pasar de `true` → `false`** (botón "Pasar a sorteo real"):
+- Borra los giros de la demo (`ganador_rifa` + `historial_rifa_variante` de esa rifa)
+- Todos los concursantes vuelven a estar elegibles (`descartado=false`), incluidos los agregados durante la prueba
+- Reactiva la rifa (`activa=true`)
+
+Al pasar de `false` → `true` (botón "Modo demo") solo cambia el flag, no borra nada.
+
+**Error 400** si el `id` no existe: `{ "mensaje": "Configuración de rifa no encontrada" }`
+
+---
+
+### 3. `GET /v1/configurarRifa/buscar` — 🆕 nuevo endpoint
+
+**Request:** `GET /v1/configurarRifa/buscar?desde=2026-06-25&hasta=2026-06-30` (rango de días por `fechaHoraLimite`)
+o `GET /v1/configurarRifa/buscar?tipo=MENSUAL&mesReferencia=2026-06` (rifas mensuales de ese mes)
+o combinaciones de `desde`, `hasta`, `tipo`, `mesReferencia`.
+
+**Sin parámetros**: devuelve lo mismo que `/activas/hoy` (rifas activas con `fechaHoraLimite` de hoy).
+
+**Response:** `List<ConfigurarRifaResumenDto>`, mismo formato que `/activas` (ver sección 1).
+
+---
+
+### 4. `Concursante` — campo nuevo `agregadoEnPrueba`
+
+Afecta a: `GET /v1/concursante/porRifa/{id}`, `GET /v1/concursante/elegibles/{id}`, `GET /v1/ganadorRifa/estado/{id}` (dentro de `elegibles`/`descartados`).
+
+**Campo nuevo:** `agregadoEnPrueba: boolean` — `true` si el concursante se registró mientras la rifa estaba en `esPrueba=true`.
+
+Con esto el front puede mostrar **2 listas**:
+- Participantes normales (`agregadoEnPrueba=false`)
+- Agregados durante la prueba (`agregadoEnPrueba=true`)
+
+Al pasar a sorteo real (toggle `esPrueba→false`, sección 2) estos concursantes **siguen participando** — el flag es solo informativo para el admin.
+
+---
+
+### 5. `POST /v1/concursante/importarDePedidos` — ⚠️ cambia el `response`
+
+**Request:** sin cambios —
+```json
+{
+  "configurarRifaId": 9,
+  "palabraClave": "BOLSA",
+  "ordenDesde": 1,
+  "mes": "2026-06",
+  "clientes": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ]
+}
+```
+
+**Response — ANTES** era `List<Concursante>` directo. **AHORA:**
+```json
+{
+  "importados": [
+    { "id": 201, "nombre": "María López", "palabraClave": "BOLSA", "agregadoEnPrueba": false }
+  ],
+  "omitidosYaRegistrados": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ]
+}
+```
+
+**Diferencia clave:** si un `clientePedidoId` ya estaba registrado como concursante en esa misma rifa
+(ej. el admin dio clic 2 veces en "importar"), ya **no se duplica** — se omite y aparece en
+`omitidosYaRegistrados` para que el front avise "estos N ya estaban registrados".
+
+---
+
+### 6. `DELETE /v1/concursante/{id}` — 🆕 nuevo endpoint
+
+Reemplaza usar `DELETE /v1/concursante/delete` (genérico, requiere el id en el body) para este caso.
+
+**Response OK (200):**
+```json
+{ "data": "Concursante eliminado" }
+```
+
+**Response error (400)** — si el concursante ya participó en algún giro (`ganador_rifa`):
+```json
+{ "mensaje": "No se puede eliminar: el concursante ya participó en un sorteo" }
+```
+
+---
+
+### 7. `PUT /v1/concursante/{id}` — 🆕 nuevo endpoint (body parcial)
+
+Reemplaza usar `PUT /v1/concursante/update/{id}` (genérico, exige el objeto `Concursante` completo) para este caso.
+
+**Request** (todos los campos opcionales, solo se actualizan los que vengan):
+```json
+{
+  "nombre": "Juan",
+  "apellidoPaterno": "García",
+  "telefono": "5551234567",
+  "palabraClave": "BOLSA",
+  "ordenDesde": 1
+}
+```
+
+**Response (200):** entidad `Concursante` actualizada completa.
+
+`boletos`, `boletosBase`, `descartado`, `agregadoEnPrueba`, `clientePedidoId` y `configurarRifa`
+**no se pueden modificar** desde este endpoint.
+
+---
+
+### 8. Cambio interno — fórmula de "boletos" (sin cambio de contrato)
+
+`boletosBase`/`boletos` (campos ya existentes en `Concursante`, visibles en `/porRifa`, `/elegibles`,
+`/estado`) ahora se calculan por **cantidad de productos comprados** en el mes
+(`SUM(detalle_pedidos.cantidad)` de pedidos `Entregado`), antes era por **número de pedidos**. No
+cambia ningún endpoint ni nombre de campo — solo el valor numérico que puede llegar a tener un
+concursante. No mostrar estos campos en pantallas proyectadas al público.
+
+---
+
+## Rifa por Día (`tipo="DIARIA"`) — reutiliza todo lo de arriba (2026-06-11)
+
+Diseño en `RIFA_DIARIA_PROPUESTA.md`. **No hay endpoints nuevos.** La diaria usa el mismo backend que
+la rifa mensual (sección anterior) — solo cambia el `tipo` y cómo se agregan los participantes.
+
+### 1. Crear la sesión del día
+
+`POST /v1/configurarRifa/save`
+```json
+{ "fechaHoraLimite": "2026-06-11T20:00:00", "activa": true, "tipo": "DIARIA", "esPrueba": false }
+```
+`mesReferencia` se deja `null` (no aplica para diaria).
+
+---
+
+### 2. Agregar participantes — uno por uno (no hay importación en bloque)
+
+**Caso A — cliente ya registrado en la app:**
+`GET /v1/clientes/buscar?nombre=Maria` (🟢 endpoint ya existente, no es de rifas) →
+`ClienteBusquedaDto` con `nombrePersona`, `apeidoPaterno`, `numeroTelefonico`. El front toma esos
+datos y los manda al paso siguiente.
+
+**Caso B — persona sin registro:** el front captura los datos a mano.
+
+En ambos casos:
+`POST /v1/concursante/registrar`
+```json
+{ "nombre": "Maria", "apellidoPaterno": "Lopez", "telefono": "555...",
+  "palabraClave": "BOLSA", "configurarRifa": { "id": 12 } }
+```
+
+**⚠️ Importante:** NO enviar `clientePedidoId` en la diaria → `boletos` queda en `1` para todos
+(misma probabilidad para cada participante). Si se envía `clientePedidoId`, el back calculará
+`boletos` por compras del mes (igual que en mensual) — no usar ese campo aquí salvo que se pida lo
+contrario.
+
+---
+
+### 3. Resto del flujo — igual que mensual
+
+- Editar / eliminar: `PUT` / `DELETE /v1/concursante/{id}` (sección 6 y 7 de arriba)
+- Modo prueba: `PUT /v1/configurarRifa/{id}/esPrueba` (sección 2 de arriba) — mismo banner
+  "⚠️ Esta rifa es de prueba"
+- Ver participantes / separar en 2 listas: `GET /v1/concursante/porRifa/{id}` → `agregadoEnPrueba`
+  (sección 4 de arriba)
+- Traer la rifa de hoy: `GET /v1/configurarRifa/activas/hoy` — ya devuelve **cualquier** `tipo`
+  activo hoy, incluida la diaria, sin que el front tenga que filtrar
+- Buscar una rifa diaria de otro día: `GET /v1/configurarRifa/buscar?tipo=DIARIA&desde=&hasta=`
+- Sorteo: `sortear` / `continuarVariante` / `estado` — mismo motor que mensual
+
+---
+
+## Rifa — modo prueba ya no se "cierra" tras el sorteo (2026-06-13)
+
+### Qué cambió
+- **Antes:** al sortear el ganador de la última variante, el backend ponía `activa=false` en la rifa
+  **sin importar `esPrueba`**. Eso rompía el flujo de pruebas: para repetir la prueba había que
+  `reiniciar` y, además, si se volvía a mandar `POST /configurarRifaVariante/save` con la misma
+  `palabraClave`, daba error `"La palabraClave 'X' ya existe en esta rifa"`.
+- **Ahora:**
+  - Si `esPrueba: true`, la rifa **se mantiene `activa: true`** aunque ya se haya sorteado el
+    ganador de la última variante. `rifaTerminada` (en `/sortear` y `/estado`) sigue marcando
+    correctamente cuándo terminó el ciclo — no depende de `activa`.
+  - `POST /v1/configurarRifaVariante/save`: si `esPrueba: true` y la `palabraClave` ya existe en
+    esa rifa, **ya no rechaza** — actualiza la configuración existente (`giroGanador`, `orden`,
+    `permitirNuevos`, y la variante/stock si se cambió de variante). Mismo `request`/`response`
+    de siempre.
+  - Si `esPrueba: false` (rifa real), el comportamiento **no cambia**: al terminar se pone
+    `activa: false`, y reusar una `palabraClave` ya configurada en esa rifa sigue dando
+    `"ya existe en esta rifa"`.
+
+### Qué debe hacer el front
+- **Nada obligatorio, es retrocompatible.** Mientras `esPrueba: true`, el admin puede:
+  - Repetir `sortear` tras `POST /v1/ganadorRifa/reiniciar/{id}?completo=true|false` cuantas veces
+    quiera, sin que la rifa se "cierre" (`activas`/`activas/hoy` la sigue listando).
+  - Re-mandar `POST /configurarRifaVariante/save` con la misma `palabraClave` para "recargar" la
+    config de la variante de prueba — ya no da error.
+- Cuando el admin haga `PUT /v1/configurarRifa/{id}/esPrueba` con `{ "esPrueba": false }`
+  ("Pasar a sorteo real"), la `ConfigurarRifaVariante` y su `palabraClave` configuradas durante las
+  pruebas **se conservan** y se usan tal cual para el sorteo real (no hay que volver a crearlas).
+  A partir de ahí aplica el comportamiento de rifa real descrito arriba.
+
+---
+
+## Catálogo de errores — endpoints de Rifas (2026-06-13)
+
+### Formato de error
+Todos los endpoints de Rifas que validan reglas de negocio (todos excepto los `GET` simples)
+responden, cuando algo falla:
+
+```
+HTTP 400 Bad Request
+{
+  "mensaje": "<texto del error, mostrar tal cual al usuario>",
+  "code": 404,
+  "data": null,
+  "lista": null
+}
+```
+
+⚠️ **`code: 404` es un valor fijo** del helper `ResponseGeneric` (no significa "no encontrado" en
+sentido HTTP). Para detectar error el front debe usar el **status HTTP 400** y/o `data === null`,
+y mostrar el texto de `mensaje`.
+
+### `POST /v1/configurarRifaVariante/save`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+| `La rifa no está activa` | `activa=false` (rifa real ya cerrada) |
+| `La palabraClave 'X' ya existe en esta rifa` | solo si `esPrueba=false` y otra variante de la rifa ya usa esa `palabraClave` |
+| `Variante no encontrada` | `varianteId` no existe |
+| `La variante no tiene stock disponible` | `stock < 1` en la variante |
+
+### `DELETE /v1/configurarRifaVariante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de variante no encontrada` | `id` no existe |
+
+### `PUT /v1/configurarRifaVariante/{id}/palabraClave`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de variante no encontrada` | `id` no existe |
+| `La palabraClave ya existe en esta rifa` | otra variante de la misma rifa ya usa esa `palabraClave` |
+
+### `PUT /v1/configurarRifa/{id}/esPrueba`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `id` no existe |
+
+### `POST /v1/concursante/registrar?forzar=`
+| `mensaje` | Causa |
+|---|---|
+| `El nombre es requerido` | falta `nombre` (validación de campo) |
+| `Debe indicar la configuración de rifa` | falta `configurarRifa.id` en el body |
+| `Configuración de rifa no encontrada` | `configurarRifa.id` no existe |
+| `Esta rifa ya fue sorteada o está inactiva` | `activa=false` |
+| `El plazo de registro cerró el {fechaHoraLimite}` | ya pasó `fechaHoraLimite` y `forzar=false` (default) — reintentar con `?forzar=true` si el admin quiere forzar el registro |
+
+### `POST /v1/concursante/importarDePedidos`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `configurarRifaId` no existe |
+| `Esta rifa no está activa` | `activa=false` |
+
+### `DELETE /v1/concursante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Concursante no encontrado` | `id` no existe |
+| `No se puede eliminar: el concursante ya participó en un sorteo` | tiene un registro en `ganador_rifa` |
+
+### `PUT /v1/concursante/{id}`
+| `mensaje` | Causa |
+|---|---|
+| `Concursante no encontrado` | `id` no existe |
+
+### `POST /v1/ganadorRifa/sortear/{configurarRifaId}`
+| `mensaje` | Causa |
+|---|---|
+| `Configuración de rifa no encontrada` | `configurarRifaId` no existe |
+| `Esta rifa ya fue completada o está inactiva` | `activa=false` |
+| `La rifa no tiene variantes configuradas` | la rifa no tiene ninguna `configurarRifaVariante` |
+| `Todas las variantes ya fueron sorteadas` | ya hay un ganador declarado por cada variante |
+| `No hay concursantes elegibles para la variante con palabraClave='X'` | nadie con esa `palabraClave` y `descartado=false` |
+
+### `POST /v1/ganadorRifa/continuarVariante/{configurarRifaId}?modo=`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+| `No hay siguiente variante` | ya se sortearon todas las variantes |
+| `Modo inválido: X. Usar RESTANTES, CERO o NUEVOS` | `modo` no es uno de los 3 valores válidos |
+
+### `GET /v1/ganadorRifa/estado/{configurarRifaId}`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+
+### `POST /v1/ganadorRifa/reiniciar/{configurarRifaId}?completo=`
+| `mensaje` | Causa |
+|---|---|
+| `Rifa no encontrada` | `configurarRifaId` no existe |
+
+**Response OK (200)** de `reiniciar`:
+```json
+{ "data": "Rifa reiniciada completamente (concursantes eliminados)" }
+```
+o, con `completo=false`:
+```json
+{ "data": "Rifa reiniciada (concursantes conservados)" }
+```
+
+---
+
+## Autenticación — token expirado/ausente ahora responde 401 (antes 403) (2026-06-13)
+
+**Causa del bug:** `SecurityConfig` no tenía configurado un `AuthenticationEntryPoint`, así que
+Spring Security usaba el fallback por defecto (`Http403ForbiddenEntryPoint`). Esto hacía que
+**cualquier request sin autenticación válida** (token ausente, corrupto o **expirado**) devolviera
+**403 Forbidden** en vez de **401 Unauthorized**. Si el interceptor del front solo dispara el
+refresh ante un **401**, nunca se enteraba de que el access token expiró — el request fallaba con
+un 403 "seco" y ahí quedaba.
+
+**Cambio:**
+- **401 Unauthorized** → no autenticado: token ausente, inválido o **expirado**.
+  Body: `{ "mensaje": "Token inválido o expirado", "code": 404, "data": null, "lista": null }`
+  → el front debe intentar `/v1/auth/refresh` y reintentar el request original.
+- **403 Forbidden** → autenticado correctamente pero sin el rol requerido (ej. usuario sin
+  `ROLE_ADMIN` llamando a un endpoint de admin).
+  Body: `{ "mensaje": "No tiene permisos para acceder a este recurso", "code": 404, "data": null, "lista": null }`
+  → el front **no** debe reintentar con refresh aquí (el token es válido, solo falta permiso).
+
+**Acción para el front:** revisar el interceptor — el flujo de `/v1/auth/refresh` debe dispararse
+ante **401**, no ante 403. Si antes "funcionaba" reintentando en 403, eso era un parche al bug
+descrito arriba; ahora la expiración de token llega correctamente como 401.
+
+---
+
+## `POST /v1/concursante/importarDePedidos` — nuevo campo `omitidosSinNombre` (2026-06-13)
+
+**Causa del bug:** si `clientes[]` traía una entrada `sinRegistro: true` con `nombre: ""`
+(vacío), el backend intentaba guardar el `Concursante` y la validación `@NotBlank` de Hibernate
+lanzaba un `ConstraintViolationException` cuyo mensaje crudo (técnico) se devolvía tal cual en
+`mensaje`, y **abortaba todo el batch** — ningún concursante se importaba, ni siquiera los
+válidos.
+
+**Cambio:** las entradas sin `nombre` (vacío o solo espacios) ya **no rompen el batch**: se omiten
+y se devuelven en un nuevo arreglo `omitidosSinNombre`, igual que ya pasaba con
+`omitidosYaRegistrados`.
+
+**Response — ahora:**
+```json
+{
+  "importados": [
+    { "id": 201, "nombre": "María López", "palabraClave": "BOLSA", "agregadoEnPrueba": false }
+  ],
+  "omitidosYaRegistrados": [
+    { "clientePedidoId": 102, "nombre": "Carlos Ruiz", "telefono": "555...", "sinRegistro": false }
+  ],
+  "omitidosSinNombre": [
+    { "clientePedidoId": null, "nombre": "", "telefono": "", "sinRegistro": true }
+  ]
+}
+```
+
+**Acción para el front:** si `omitidosSinNombre` no viene vacío, avisar al admin algo como
+"N participante(s) sin registro no se importaron porque no tienen nombre". Si la UI permite
+agregar filas de "cliente sin registro" a mano, idealmente exigir `nombre` antes de enviar para
+que no terminen en este arreglo.
+
+---
+
+## Pitfall técnico resuelto — @Query + Page<> con subquery JPQL (2026-06-18)
+
+**Síntoma:** endpoint de historial devuelve `{ mensajes: [], totalMensajes: 0 }` aunque en BD hay filas con datos correctos.
+
+**Causa:** cuando `@Query` usa una subconsulta JPQL (`IN (SELECT ...)`) y el tipo de retorno es `Page<T>`, Spring Data JPA no puede derivar el COUNT automáticamente. Sin `countQuery` explícito asume `totalElements = 0` y nunca ejecuta la query real.
+
+**Regla:** siempre que haya un `@Query` que devuelva `Page<T>` y contenga subqueries, agregar `countQuery` sin el `ORDER BY`:
+```java
+@Query(
+    value = "SELECT m FROM ... WHERE m.sesionId IN (SELECT s.sesionId FROM ...) ORDER BY m.timestamp DESC",
+    countQuery = "SELECT COUNT(m) FROM ... WHERE m.sesionId IN (SELECT s.sesionId FROM ...)"
+)
+Page<ChatMensaje> findBy...(Pageable pageable);
+```
+
+---
+
+## CHAT EN VIVO — Panel Admin (acción requerida en el front) — 2026-06-17
+
+### Problema actual
+Cuando el admin selecciona una sesión en el panel, **solo ve los mensajes nuevos** que llegan en tiempo real (WebSocket). Los mensajes anteriores de esa sesión no aparecen porque el front no los está cargando.
+
+### Endpoints de historial — paginado tipo Messenger (scroll hacia arriba carga más)
+
+Ambos endpoints (admin y cliente) aceptan `pagina` y `size`. La carga inicial trae los últimos 20 mensajes. Cuando el usuario hace scroll arriba se pide la siguiente página.
+
+#### Admin
+```
+GET /mis-productos/v1/chat/admin/historial/{sesionId}?pagina=0&size=20
+Authorization: Bearer <token admin>
+```
+
+#### Cliente (público)
+```
+GET /mis-productos/v1/chat/historial/{sesionId}?pagina=0&size=20
+```
+
+| Param | Default | Descripción |
+|---|---|---|
+| `pagina` | `0` | Página a cargar. `0` = mensajes más recientes |
+| `size` | `20` | Mensajes por página |
+
+**Response** — leer `response.data`:
+```json
+{
+  "code": 200,
+  "data": {
+    "mensajes": [
+      { "remitente": "USUARIO", "contenido": "Hola, tengo una pregunta", "timestamp": "2026-06-17T10:00:00" },
+      { "remitente": "ADMIN",   "contenido": "Claro, ¿en qué te ayudo?", "timestamp": "2026-06-17T10:00:05" }
+    ],
+    "pagina": 0,
+    "totalPaginas": 3,
+    "totalMensajes": 45,
+    "hayMasAntiguos": true
+  }
+}
+```
+
+- `mensajes` viene ordenado **cronológico ascendente** (el más antiguo primero) — listo para renderizar de arriba a abajo
+- `hayMasAntiguos: true` → mostrar botón/spinner de "cargar más" al inicio del scroll
+- `id` y `sesionId` no aparecen en cada mensaje (`@JsonIgnore`)
+- `remitente` es exactamente `"USUARIO"` o `"ADMIN"`
+- El endpoint de cliente devuelve **403** si el `sesionId` no existe en BD
+
+**Flujo scroll tipo Messenger:**
+```typescript
+// Carga inicial (mensajes más recientes)
+cargarHistorial(sesionId, pagina = 0) {
+  GET .../historial/{sesionId}?pagina=0&size=20
+  this.mensajes = res.data.mensajes;        // renderizar
+  this.hayMasAntiguos = res.data.hayMasAntiguos;
+}
+
+// Usuario hace scroll arriba → cargar página siguiente
+cargarMasAntiguos() {
+  if (!this.hayMasAntiguos) return;
+  GET .../historial/{sesionId}?pagina={paginaActual + 1}&size=20
+  this.mensajes = [...res.data.mensajes, ...this.mensajes]; // prepend
+  this.hayMasAntiguos = res.data.hayMasAntiguos;
+}
+```
+
+**Acción para el front — PENDIENTE:** Llamar este endpoint en DOS lugares:
+1. **Panel admin:** cuando el admin hace clic en una sesión, cargar `pagina=0` y renderizar antes de recibir eventos WebSocket.
+2. **Chat del cliente:** al inicializar, usar el endpoint por `clienteId` (ver sección siguiente) para ver TODA la historia entre sesiones.
+
+---
+
+### Historial completo del cliente a través de sesiones — `clienteId` persistente
+
+El `sesionId` cambia cada vez que la sesión expira (5 min de inactividad). Para que el cliente vea mensajes de sesiones anteriores, el front genera un `clienteId` fijo guardado en `localStorage`.
+
+**Generar y guardar el `clienteId` una sola vez:**
+```typescript
+if (!localStorage.getItem('chat_cliente_id')) {
+  localStorage.setItem('chat_cliente_id', crypto.randomUUID());
+}
+const clienteId = localStorage.getItem('chat_cliente_id');
+```
+
+**Enviarlo al conectar** — payload de `/app/chat.conectar`:
+```json
+{ "tempId": "uuid-temporal", "nombreUsuario": "Juan", "clienteId": "uuid-persistente" }
+```
+
+**Endpoint de historial completo** — todas las sesiones del cliente:
+```
+GET /mis-productos/v1/chat/historial/cliente/{clienteId}?pagina=0&size=20
+```
+Público, sin token. Devuelve mensajes de **todas las sesiones** vinculadas a ese `clienteId` ordenados cronológicamente. Mismo formato de response que el historial por `sesionId` (`{ mensajes, pagina, totalPaginas, totalMensajes, hayMasAntiguos }`).
+
+**Flujo correcto al inicializar el chat del cliente:**
+```typescript
+ngOnInit() {
+  // 1. clienteId persiste en localStorage entre sesiones y recargas
+  if (!localStorage.getItem('chat_cliente_id'))
+    localStorage.setItem('chat_cliente_id', crypto.randomUUID());
+  this.clienteId = localStorage.getItem('chat_cliente_id');
+
+  // 2. Cargar toda la historia del cliente (todas las sesiones pasadas)
+  this.http.get(`/v1/chat/historial/cliente/${this.clienteId}?pagina=0&size=20`)
+    .subscribe(res => {
+      this.mensajes = res.data.mensajes ?? [];
+      this.hayMasAntiguos = res.data.hayMasAntiguos;
+    });
+
+  // 3. Conectar WebSocket mandando clienteId para vincular la nueva sesión
+  this.conectarWebSocket();
+}
+```
+
+> **Resumen de storage:**
+> - `clienteId` → **`localStorage`** — persiste aunque se cierre el navegador, une todas las sesiones (usuarios anónimos)
+> - `sesionId` → **`sessionStorage`** — solo dura la pestaña, identifica la sesión WebSocket activa
+
+---
+
+### Historial por usuario registrado — `usuarioId` (vinculado a la cuenta)
+
+Para usuarios que tienen cuenta en el sistema, se puede vincular la sesión de chat a su `usuarioId` real (Integer) en lugar de un UUID anónimo. Esto permite recuperar todos sus mensajes históricos de forma confiable.
+
+**Enviar `usuarioId` al conectar** — payload de `\app\chat.conectar`:
+```json
+{
+  "tempId": "uuid-temporal",
+  "nombreUsuario": "Juan",
+  "clienteId": "uuid-persistente-localStorage",
+  "usuarioId": 42
+}
+```
+- `usuarioId` es opcional (null si el usuario no está autenticado → solo se usa `clienteId`)
+- `usuarioId` es el `id` (Integer) del usuario en `usuario_modificacion`
+
+**Endpoint de historial por usuarioId** — todas las sesiones del usuario registrado:
+```
+GET /mis-productos/v1/chat/historial/usuario/{usuarioId}?pagina=0&size=20
+```
+Público, sin token. Devuelve mensajes de **todas las sesiones** vinculadas a ese `usuarioId`, mismo formato que historial por sesión.
+
+**Response:** igual al historial paginado:
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "mensajes": [ { "remitente": "USUARIO", "contenido": "Hola", "timestamp": "2026-06-17T10:00:00" } ],
+    "pagina": 0,
+    "totalPaginas": 3,
+    "totalMensajes": 45,
+    "hayMasAntiguos": true
+  }
+}
+```
+
+**Flujo recomendado para usuario autenticado:**
+```typescript
+ngOnInit() {
+  // usuarioId viene del token decodificado o del perfil del usuario autenticado
+  this.usuarioId = this.authService.getCurrentUser()?.id ?? null;
+
+  // Cargar historial del usuario (todas sus sesiones pasadas)
+  if (this.usuarioId) {
+    this.http.get(`/v1/chat/historial/usuario/${this.usuarioId}?pagina=0&size=20`)
+      .subscribe(res => {
+        this.mensajes = (res as any).data?.mensajes ?? [];
+        this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+      });
+  } else {
+    // usuario anónimo: usar clienteId de localStorage
+    const clienteId = localStorage.getItem('chat_cliente_id');
+    if (clienteId) {
+      this.http.get(`/v1/chat/historial/cliente/${clienteId}?pagina=0&size=20`)
+        .subscribe(res => {
+          this.mensajes = (res as any).data?.mensajes ?? [];
+          this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+        });
+    }
+  }
+
+  // Conectar WebSocket
+  this.conectarWebSocket();
+}
+```
+
+**UX de expiración de sesión (SESION_CERRADA):**
+1. Recibir `{ tipo: "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`
+2. Limpiar `mensajes` del componente (y `sesionId` de sessionStorage)
+3. Cuando el usuario envía el siguiente mensaje:
+   - Llamar de nuevo a `\app\chat.conectar` con el `usuarioId` (o `clienteId`) → recibir nuevo `sesionId`
+   - Llamar al endpoint de historial (`pagina=0, size=20`) para cargar los últimos mensajes
+   - Renderizar esos mensajes — el scroll hacia arriba carga páginas anteriores (`pagina=1`, `pagina=2`...)
+
+---
+
+---
+
+### Endpoint de sesiones activas (para el listado del panel)
+
+**Request:**
+```
+GET /mis-productos/v1/chat/admin/sesiones
+Authorization: Bearer <token admin>
+```
+
+**Response:** envuelto en `ResponseGeneric` — leer `response.data`:
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": [
+    {
+      "sesionId": "f1d0db6f-496f-4000-9dd1-234efdc51f06",
+      "nombreUsuario": "chat",
+      "estado": "ACTIVA",
+      "fechaInicio": "2026-06-17T10:00:00",
+      "ultimaActividad": "2026-06-17T10:02:00",
+      "ultimoMensaje": "Hola, tengo una pregunta"
+    },
+    {
+      "sesionId": "37cb781e-f39f-4fa4-b825-52a7f0b9ab0c",
+      "nombreUsuario": "Visitante",
+      "estado": "CERRADA",
+      "fechaInicio": "2026-06-17T09:00:00",
+      "ultimaActividad": "2026-06-17T09:05:00",
+      "ultimoMensaje": "Buen dia"
+    }
+  ],
+  "lista": null
+}
+```
+
+- Devuelve **todas las sesiones de las últimas 24 horas** (ACTIVA y CERRADA), ordenadas por `ultimaActividad` descendente
+- Campo nuevo `estado`: `"ACTIVA"` o `"CERRADA"` — mostrar indicador visual (ej. punto verde / gris)
+- `ultimoMensaje` puede ser `null` si el usuario conectó pero no envió ningún mensaje
+- El admin puede hacer clic en cualquier sesión para ver el historial — incluso las cerradas
+- `estado === 'CERRADA'` → solo lectura (no tiene sentido responder, la sesión ya expiró)
+
+```typescript
+// ✅ Correcto
+this.sesiones = (response as any).data ?? [];
+// Indicador visual sugerido:
+// sesion.estado === 'ACTIVA'  → punto verde, puede responder
+// sesion.estado === 'CERRADA' → punto gris, solo ver historial
+```
+
+---
+
+### Endpoint para cerrar sesión manualmente
+
+**Request:**
+```
+POST /mis-productos/v1/chat/admin/cerrar/{sesionId}
+Authorization: Bearer <token admin>
+```
+
+**Response:** 204 No Content
+
+---
+
+### Comportamiento del email de notificación
+
+El backend manda email al admin en el **primer mensaje de cada sesión**, sin importar si el admin está en el panel o no.
+
+- Visitante se conecta → sin email
+- Visitante manda primer mensaje → email con el contenido del mensaje
+- Visitante manda más mensajes en la misma sesión → sin email (ya fue notificado)
+- Sesión expira por inactividad (5 min) → visitante manda nuevo mensaje → nueva sesión → nuevo email
+
+El front **no necesita hacer nada especial** para controlar los emails. Solo asegurarse de que el visitante llame `/chat.conectar` para crear sesión antes de mandar mensajes.
+
+---
+
+### Notificación en el panel cuando el admin ESTÁ en la app — ✅ IMPLEMENTADO (2026-06-17)
+
+Cuando el admin está en el panel y llega un mensaje de un visitante, el backend publica el evento por WebSocket en `/topic/chat.admin`.
+
+**Lo que se implementó:**
+- Sonido beep via Web Audio API al llegar mensaje en sesión no activa (sin archivo externo)
+- Highlight rojo en la sesión del listado con clase `ca-session-item--unread`, se quita al hacer clic
+- Eliminada propiedad `env.buscarImagenProducto` (URL deprecada, no se usaba en templates)
+
+El campo del mensaje en el evento es `contenido` (no `mensaje`):
+```json
+{
+  "tipo": "MENSAJE",
+  "sesionId": "f1d0db6f-...",
+  "nombreUsuario": "Juan",
+  "contenido": "Hola, tengo una pregunta",
+  "timestamp": "2026-06-17T10:00:05"
+}
+```
+
+**Para eventos `NUEVA_SESION`**, `contenido` viene `null` — es correcto, no hay mensaje aún.
+
+---
+
+### Protección anti-bot
+
+El backend limita los emails a uno por sesión. Si un bot manda mensajes continuamente dentro de la misma sesión, solo llega 1 email. Si crea sesiones nuevas continuamente, puede generar emails repetidos — se puede agregar rate limiting por IP en una iteración futura si se detecta el problema.
+
+**Timeout de sesión:** 5 minutos sin actividad de ninguno de los dos lados (ni usuario ni admin) → la sesión se cierra y el cliente recibe `{ "tipo": "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`. Cualquier mensaje de cualquiera de los dos reinicia el contador.
+
+---
+
+### Confirmado correcto por el front — sin cambios requeridos (2026-06-17)
+
+Lo siguiente ya estaba bien implementado y no requiere ninguna acción:
+
+| Ítem | Estado |
+|---|---|
+| `buscarClientePedido` con query params | ✅ correcto |
+| micro_imagenes con prefijo `/v1/` | ✅ correcto |
+| Imágenes de productos y variantes usando `urlImagen` directa del response | ✅ correcto |
+| Interceptor maneja 401 (token expirado) y 403 (sin permiso) correctamente | ✅ correcto |
+| `omitidosSinNombre?.` con optional chaining | ✅ correcto |
+
+---
+
+## CHAT EN VIVO — Referencia completa para el front (2026-06-18)
+
+> **Por qué no aparecen los mensajes al recargar la página**
+>
+> Se confirmó en BD que los mensajes SÍ se guardan correctamente. El problema es que el componente del chat **no está llamando al endpoint de historial al inicializar (`ngOnInit`)**.
+> Al recargar la página la conexión WebSocket se reinicia (nueva sesión) y si el front no consulta el historial antes de conectar, la pantalla arranca vacía aunque existan mensajes previos en la BD.
+> La sesión más reciente en BD tiene `cliente_id = e8ea8611-ca0a-48e1-8619-d754923e2885` con mensajes de USUARIO y ADMIN guardados — el backend funciona. Solo falta que el front haga el `GET /historial/cliente/{clienteId}` al iniciar.
+
+---
+
+### Mapa completo de endpoints de chat
+
+#### 1. WebSocket — conectar nueva sesión
+
+**Cuándo usarlo:** al montar el componente de chat (ngOnInit), antes de enviar mensajes. Genera el `sesionId` que identifica esta sesión.
+
+**Suscribirse primero en:**
+```
+/topic/chat.inicio.{tempId}
+```
+
+**Publicar en:**
+```
+/app/chat.conectar
+```
+
+**Payload:**
+```json
+{
+  "tempId": "uuid-generado-en-el-front",
+  "nombreUsuario": "Juan",
+  "clienteId": "uuid-de-localStorage",
+  "usuarioId": 42
+}
+```
+- `tempId`: UUID que el front genera en el momento para recibir la respuesta (no se guarda)
+- `clienteId`: UUID guardado en `localStorage` — se crea la primera vez y persiste siempre (usuarios anónimos o como fallback)
+- `usuarioId`: el `id` del usuario autenticado (Integer) — enviar `null` si no está logueado
+
+**Response que llega en `/topic/chat.inicio.{tempId}`:**
+```json
+{ "sesionId": "94bb63c0-a3fe-4d7c-b4a9-ecd2a72c871c" }
+```
+→ Guardar `sesionId` en `sessionStorage`. Se usa para enviar mensajes y recibir respuestas del admin.
+
+---
+
+#### 2. WebSocket — enviar mensaje del cliente
+
+**Cuándo usarlo:** cuando el usuario escribe y presiona enviar.
+
+**Publicar en:**
+```
+/app/chat.mensaje
+```
+
+**Payload:**
+```json
+{ "sesionId": "uuid-de-sessionStorage", "contenido": "Hola, tengo una pregunta" }
+```
+
+**No hay response directo.** El admin recibe el mensaje en `/topic/chat.admin`. Si la sesión está expirada el mensaje se descarta — el front debe reconectar primero.
+
+---
+
+#### 3. WebSocket — recibir eventos del backend (canal del cliente)
+
+**Suscribirse en:**
+```
+/topic/chat.usuario.{sesionId}
+```
+
+**Evento: mensaje del admin**
+```json
+{ "tipo": "MENSAJE", "remitente": "ADMIN", "contenido": "Hola, ¿en qué te ayudo?", "timestamp": "2026-06-18T02:35:47" }
+```
+
+**Evento: sesión expirada** (5 min sin actividad)
+```json
+{ "tipo": "SESION_CERRADA" }
+```
+→ Al recibir `SESION_CERRADA`: limpiar `sesionId` de sessionStorage y limpiar la lista de mensajes del componente. La próxima vez que el usuario envíe un mensaje, reconectar (`/app/chat.conectar`) y luego cargar historial.
+
+---
+
+#### 4. REST — historial del cliente por `clienteId` (usuarios anónimos o fallback)
+
+**Cuándo usarlo:** en `ngOnInit`, ANTES de conectar el WebSocket. Carga todos los mensajes de todas las sesiones anteriores.
+
+**Request:**
+```
+GET /mis-productos/v1/chat/historial/cliente/{clienteId}?pagina=0&size=20
+```
+Sin token. `clienteId` viene de `localStorage.getItem('chat_cliente_id')`.
+
+**Response:** `ResponseGeneric` — leer `response.data`:
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "mensajes": [
+      { "remitente": "USUARIO", "contenido": "Hola", "timestamp": "2026-06-18T02:35:16" },
+      { "remitente": "ADMIN",   "contenido": "Como estas", "timestamp": "2026-06-18T02:35:47" }
+    ],
+    "pagina": 0,
+    "totalPaginas": 1,
+    "totalMensajes": 2,
+    "hayMasAntiguos": false
+  }
+}
+```
+→ Leer: `(response as any).data.mensajes` — **NO** `response as any[]`.
+
+**Scroll hacia arriba — cargar más antiguos:**
+```
+GET /mis-productos/v1/chat/historial/cliente/{clienteId}?pagina=1&size=20
+```
+Cuando `hayMasAntiguos === true`, al hacer scroll al tope cargar `pagina + 1` y **prepend** al array actual:
+```typescript
+this.mensajes = [...nuevosMensajes, ...this.mensajes];
+```
+
+---
+
+#### 5. REST — historial del cliente por `usuarioId` (usuarios registrados)
+
+**Cuándo usarlo:** igual que el anterior, pero cuando el usuario está autenticado. Tiene la ventaja de ser robusto aunque el `localStorage` se borre.
+
+**Request:**
+```
+GET /mis-productos/v1/chat/historial/usuario/{usuarioId}?pagina=0&size=20
+```
+Sin token. `usuarioId` es el `id` Integer del usuario autenticado.
+
+**Response:** mismo formato que el endpoint por `clienteId` (ver arriba).
+
+---
+
+#### 6. REST — historial de una sesión específica (para el panel admin)
+
+**Cuándo usarlo:** en el panel admin, cuando el admin hace clic en una sesión del listado para ver su historial.
+
+**Request:**
+```
+GET /mis-productos/v1/chat/admin/historial/{sesionId}?pagina=0&size=20
+Authorization: Bearer <token admin>
+```
+
+**Response:** mismo formato paginado que los anteriores.
+
+---
+
+#### 7. REST — listado de sesiones para el panel admin
+
+**Cuándo usarlo:** al cargar el panel de admin, para ver todas las sesiones de las últimas 24 h (activas y cerradas).
+
+**Request:**
+```
+GET /mis-productos/v1/chat/admin/sesiones
+Authorization: Bearer <token admin>
+```
+
+**Response:** `ResponseGeneric` — leer `response.data`:
+```json
+{
+  "data": [
+    {
+      "sesionId": "94bb63c0-...",
+      "nombreUsuario": "chat",
+      "estado": "ACTIVA",
+      "fechaInicio": "2026-06-18T02:35:07",
+      "ultimaActividad": "2026-06-18T02:35:47",
+      "ultimoMensaje": "Como estas"
+    }
+  ]
+}
+```
+→ Leer: `(response as any).data` — **NO** `response as any[]`.
+- `estado` puede ser `"ACTIVA"` o `"CERRADA"`
+
+---
+
+#### 8. REST — cerrar sesión manualmente (panel admin)
+
+**Cuándo usarlo:** botón "Cerrar sesión" en el panel admin.
+
+**Request:**
+```
+POST /mis-productos/v1/chat/admin/cerrar/{sesionId}
+Authorization: Bearer <token admin>
+```
+**Response:** 204 No Content.
+
+---
+
+#### 9. WebSocket — panel admin (recibir eventos y responder)
+
+**Suscribirse en** (para recibir mensajes de todos los clientes):
+```
+/topic/chat.admin
+```
+
+**Eventos posibles:**
+
+Nueva sesión conectada:
+```json
+{ "tipo": "NUEVA_SESION", "sesionId": "...", "nombreUsuario": "Juan", "contenido": null, "timestamp": null }
+```
+
+Mensaje del cliente:
+```json
+{ "tipo": "MENSAJE", "sesionId": "...", "nombreUsuario": "Juan", "contenido": "Hola", "timestamp": "2026-06-18T02:35:16" }
+```
+
+**Publicar para responder al cliente:**
+```
+/app/chat.admin.responder
+```
+```json
+{ "sesionId": "uuid-del-cliente", "contenido": "Hola, ¿en qué te ayudo?" }
+```
+
+**Publicar para marcar que el admin está en el panel** (suspende emails):
+```
+/app/chat.admin.conectado
+```
+Sin payload.
+
+---
+
+### Flujo completo del componente de chat del cliente — código de referencia
+
+> **Decisión 2026-06-18:** el chat es solo para usuarios logueados. Se eliminó el `clienteId` (localStorage UUID). El único identificador es `usuarioId` (Integer del usuario autenticado).
+
+```typescript
+// usuarioId viene del usuario autenticado (Integer)
+// Solo mostrar el chat si el usuario está logueado
+const usuarioId = this.authService.getCurrentUser()?.id;
+
+ngOnInit() {
+  if (!usuarioId) return; // no mostrar chat a usuarios no autenticados
+
+  // PASO 1: cargar historial ANTES de conectar el WebSocket
+  this.http.get(`/v1/chat/historial/usuario/${usuarioId}?pagina=0&size=20`)
+    .subscribe(res => {
+      this.mensajes       = (res as any).data?.mensajes      ?? [];
+      this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+      this.paginaActual   = 0;
+    });
+
+  // PASO 2: conectar WebSocket
+  this.conectarWebSocket();
+}
+
+conectarWebSocket() {
+  const tempId = crypto.randomUUID();
+
+  // suscribirse ANTES de publicar
+  this.stompClient.subscribe(`/topic/chat.inicio.${tempId}`, frame => {
+    const data = JSON.parse(frame.body);
+    this.sesionId = data.sesionId;
+    sessionStorage.setItem('chat_sesion_id', this.sesionId);
+
+    // suscribirse al canal de respuestas del admin
+    this.stompClient.subscribe(`/topic/chat.usuario.${this.sesionId}`, frame2 => {
+      const evento = JSON.parse(frame2.body);
+      if (evento.tipo === 'MENSAJE') {
+        this.mensajes = [...this.mensajes, evento];
+      } else if (evento.tipo === 'SESION_CERRADA') {
+        sessionStorage.removeItem('chat_sesion_id');
+        this.sesionId = null;
+        // NO limpiar mensajes — dejarlos visibles
+        // Al siguiente envío reconectar y recargar historial
+      }
+    });
+  });
+
+  this.stompClient.publish({
+    destination: '/app/chat.conectar',
+    body: JSON.stringify({ tempId, nombreUsuario: this.nombre, usuarioId })
+  });
+}
+
+cargarMasAntiguos() {
+  if (!this.hayMasAntiguos) return;
+  this.paginaActual++;
+  this.http.get(`/v1/chat/historial/usuario/${usuarioId}?pagina=${this.paginaActual}&size=20`)
+    .subscribe(res => {
+      const antiguos = (res as any).data?.mensajes ?? [];
+      this.mensajes       = [...antiguos, ...this.mensajes]; // prepend al inicio
+      this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+    });
+}
+
+enviarMensaje(contenido: string) {
+  if (!this.sesionId) {
+    // sesión expirada → reconectar y recargar historial
+    this.conectarWebSocket();
+    this.http.get(`/v1/chat/historial/usuario/${usuarioId}?pagina=0&size=20`)
+      .subscribe(res => {
+        this.mensajes       = (res as any).data?.mensajes      ?? [];
+        this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+        this.paginaActual   = 0;
+      });
+    return;
+  }
+  this.stompClient.publish({
+    destination: '/app/chat.mensaje',
+    body: JSON.stringify({ sesionId: this.sesionId, contenido })
+  });
+  // agregar optimistamente al array local
+  this.mensajes = [...this.mensajes, { remitente: 'USUARIO', contenido, timestamp: new Date().toISOString() }];
+}
+```

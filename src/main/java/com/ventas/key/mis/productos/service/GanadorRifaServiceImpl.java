@@ -104,18 +104,18 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         gr.setConfigurarRifaVariante(varianteActual);
         gr.setDescartado(!esGanador);
 
-        if (esGanador) {
-            // Si era la última variante, cerrar la rifa
-            if (ganadoresDeclarados + 1 >= variantes.size()) {
-                config.setActiva(false);
-                iConfigurarRifaRepository.save(config);
-                log.info("Rifa {} completada", configurarRifaId);
-            }
+        boolean esUltimaVariante = ganadoresDeclarados + 1 >= variantes.size();
+        boolean rifaTerminada = esGanador && esUltimaVariante;
+
+        if (rifaTerminada && !Boolean.TRUE.equals(config.getEsPrueba())) {
+            // Si era la última variante y no es de prueba, cerrar la rifa
+            config.setActiva(false);
+            iConfigurarRifaRepository.save(config);
+            log.info("Rifa {} completada", configurarRifaId);
         }
 
         GanadorRifa guardado = iGanadorRifaRepository.save(gr);
 
-        boolean rifaTerminada = !config.getActiva();
         ConfigurarRifaVarianteDto varianteDto = configurarRifaVarianteService.toDto(varianteActual);
 
         SorteoResultadoDto resultado = new SorteoResultadoDto();

@@ -4,10 +4,13 @@ import com.ventas.key.mis.productos.entity.Concursante;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ClientePedidoDto;
+import com.ventas.key.mis.productos.models.ConcursanteEditarRequest;
 import com.ventas.key.mis.productos.models.ImportarDePedidosRequest;
+import com.ventas.key.mis.productos.models.ImportarDePedidosResponseDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.IConcursanteRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
+import com.ventas.key.mis.productos.repository.IGanadorRifaRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.service.api.IConcursanteService;
 import org.springframework.stereotype.Service;
@@ -17,8 +20,12 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
@@ -32,16 +39,19 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     private final IConcursanteRepository iConcursanteRepository;
     private final IConfigurarRifaRepository iConfigurarRifaRepository;
     private final IPedidoRepository iPedidoRepository;
+    private final IGanadorRifaRepository iGanadorRifaRepository;
 
     public ConcursanteServiceImpl(
             final IConcursanteRepository iConcursanteRepository,
             final IConfigurarRifaRepository iConfigurarRifaRepository,
             final IPedidoRepository iPedidoRepository,
+            final IGanadorRifaRepository iGanadorRifaRepository,
             final ErrorGenerico eGenerico) {
         super(iConcursanteRepository, eGenerico);
         this.iConcursanteRepository = iConcursanteRepository;
         this.iConfigurarRifaRepository = iConfigurarRifaRepository;
         this.iPedidoRepository = iPedidoRepository;
+        this.iGanadorRifaRepository = iGanadorRifaRepository;
     }
 
     private int[] calcularBoletos(Integer clientePedidoId, boolean sinRegistro, String mes) {
@@ -83,6 +93,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             concursante.setBoletos(boletos[1]);
         }
 
+        concursante.setAgregadoEnPrueba(Boolean.TRUE.equals(config.getEsPrueba()));
         concursante.setConfigurarRifa(config);
         return save(concursante);
     }
@@ -120,7 +131,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Transactional
-    public List<Concursante> importarDePedidos(ImportarDePedidosRequest req) throws Exception {
+    public ImportarDePedidosResponseDto importarDePedidos(ImportarDePedidosRequest req) throws Exception {
         ConfigurarRifa config = iConfigurarRifaRepository.findById(req.getConfigurarRifaId())
                 .orElseThrow(() -> new Exception("Configuración de rifa no encontrada"));
 
@@ -128,10 +139,29 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             throw new Exception("Esta rifa no está activa");
         }
 
+        Set<Integer> yaRegistrados = iConcursanteRepository.findByConfigurarRifaId(req.getConfigurarRifaId())
+                .stream()
+                .map(Concursante::getClientePedidoId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+
         String mes = req.getMes();
+        boolean esPrueba = Boolean.TRUE.equals(config.getEsPrueba());
         List<Concursante> importados = new ArrayList<>();
+        List<ImportarDePedidosRequest.ClientePedidoDto> omitidosYaRegistrados = new ArrayList<>();
+        List<ImportarDePedidosRequest.ClientePedidoDto> omitidosSinNombre = new ArrayList<>();
 
         for (ImportarDePedidosRequest.ClientePedidoDto cliente : req.getClientes()) {
+            if (cliente.getClientePedidoId() != null && yaRegistrados.contains(cliente.getClientePedidoId())) {
+                omitidosYaRegistrados.add(cliente);
+                continue;
+            }
+
+            if (cliente.getNombre() == null || cliente.getNombre().isBlank()) {
+                omitidosSinNombre.add(cliente);
+                continue;
+            }
+
             int boletosBase = 1;
             int boletos     = 1;
 
@@ -151,8 +181,37 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             c.setConfigurarRifa(config);
             c.setBoletosBase(boletosBase);
             c.setBoletos(boletos);
+            c.setAgregadoEnPrueba(esPrueba);
             importados.add(iConcursanteRepository.save(c));
+
+            if (cliente.getClientePedidoId() != null) {
+                yaRegistrados.add(cliente.getClientePedidoId());
+            }
         }
-        return importados;
+        return new ImportarDePedidosResponseDto(importados, omitidosYaRegistrados, omitidosSinNombre);
+    }
+
+    public void eliminar(Integer concursanteId) throws Exception {
+        Concursante concursante = iConcursanteRepository.findById(concursanteId)
+                .orElseThrow(() -> new Exception("Concursante no encontrado"));
+
+        if (iGanadorRifaRepository.existsByConcursanteId(concursanteId)) {
+            throw new Exception("No se puede eliminar: el concursante ya participó en un sorteo");
+        }
+
+        iConcursanteRepository.delete(concursante);
+    }
+
+    public Concursante editar(Integer concursanteId, ConcursanteEditarRequest req) throws Exception {
+        Concursante concursante = iConcursanteRepository.findById(concursanteId)
+                .orElseThrow(() -> new Exception("Concursante no encontrado"));
+
+        if (req.getNombre() != null) concursante.setNombre(req.getNombre());
+        if (req.getApellidoPaterno() != null) concursante.setApellidoPaterno(req.getApellidoPaterno());
+        if (req.getTelefono() != null) concursante.setTelefono(req.getTelefono());
+        if (req.getPalabraClave() != null) concursante.setPalabraClave(req.getPalabraClave());
+        if (req.getOrdenDesde() != null) concursante.setOrdenDesde(req.getOrdenDesde());
+
+        return iConcursanteRepository.save(concursante);
     }
 }

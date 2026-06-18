@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface IConfigurarRifaVarianteRepository extends BaseRepository<ConfigurarRifaVariante, Integer> {
@@ -17,4 +18,6 @@ public interface IConfigurarRifaVarianteRepository extends BaseRepository<Config
     List<String> findPalabrasClave(@Param("rifaId") Integer rifaId);
 
     boolean existsByConfigurarRifaIdAndPalabraClave(Integer configurarRifaId, String palabraClave);
+
+    Optional<ConfigurarRifaVariante> findByConfigurarRifaIdAndPalabraClave(Integer configurarRifaId, String palabraClave);
 }

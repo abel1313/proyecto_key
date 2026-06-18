@@ -36,6 +36,11 @@ spring:
       connection-timeout: 20000   # 20 seg: tiempo máximo esperando una conexión del pool
       keepalive-time: 30000       # 30 seg: ping para mantener la conexión viva
       connection-test-query: SELECT 1
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
   jpa:
     show-sql: false
     hibernate:
@@ -43,6 +48,15 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+  mail:
+    host: mail.novedades-jade.com.mx
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
 
 clave-seguridad:
   clave: miClaveSuperSeguraDe32Caracteres
@@ -80,5 +94,18 @@ pedidos:
 
 redis:
   dns: 127.0.0.1
+
+openai:
+  api-key: asdasdsa
+  model: gpt-4o-mini
+
+mercadopago:
+  access-token: asdasd
+  device-id: aaaa
+  sandbox: false
+
+chat:
+  admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
+  forzar-notificacion: true
 
 

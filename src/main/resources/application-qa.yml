@@ -42,6 +42,18 @@ spring:
     port: 5672
     username: ${SPRING_RABBITMQ_USERNAME}
     password: ${SPRING_RABBITMQ_PASSWORD}
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 clave-seguridad:
   clave: ${TOKEN_JWT}
@@ -86,4 +98,7 @@ openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-4o-mini
   sistema: "Eres un asistente de la tienda Novedades Jade. Responde de manera amable y concisa sobre nuestros productos, precios y pedidos. Si no sabes algo, dilo honestamente."
+
+chat:
+  admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
 

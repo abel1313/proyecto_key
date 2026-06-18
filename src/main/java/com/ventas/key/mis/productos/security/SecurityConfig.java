@@ -2,12 +2,16 @@ package com.ventas.key.mis.productos.security;
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -32,12 +36,31 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         log.info("SecurityConfig cargado");
         return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+                .exceptionHandling(ex -> ex
+                        // No autenticado (token ausente, inválido o expirado) -> 401
+                        // para que el interceptor del front dispare el refresh
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.getWriter().write(objectMapper.writeValueAsString(
+                                    new ResponseGeneric<>(null, "Token inválido o expirado")));
+                        })
+                        // Autenticado pero sin el rol/permiso requerido -> 403
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.getWriter().write(objectMapper.writeValueAsString(
+                                    new ResponseGeneric<>(null, "No tiene permisos para acceder a este recurso")));
+                        })
+                )
                 .authorizeHttpRequests(auth -> auth
 
                         // ── Preflight CORS ────────────────────────────────────────────────
@@ -123,6 +146,13 @@ public class SecurityConfig {
                         // ── Admin (gestión interna del servidor) ──────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
                         .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+
+                        // ── WebSocket (handshake HTTP público) ────────────────────────────
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // ── Chat en vivo (panel admin requiere ADMIN; conexión pública) ───
+                        .requestMatchers("/v1/chat/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/chat/**").permitAll()
 
                         .anyRequest().authenticated()
                 )
