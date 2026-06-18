@@ -1,242 +1,352 @@
-# Chat en Vivo — Plan Completo Back + Front
+# Chat en Vivo — Referencia técnica para el front
+
+Estado actual: **2026-06-18**. Este documento tiene el estado real del backend — reemplaza el contenido anterior de planificación.
 
 ---
 
-## ¿Cómo funciona la comunicación independiente por cliente?
+## Decisiones de diseño
 
-**Sí, cada cliente es completamente independiente.**
-
-Cada visitante recibe un `sesionId` único (UUID) al conectarse. Ese ID es la llave de toda su conversación:
-- El cliente escucha solo su canal: `/topic/chat.usuario.{sesionId}`
-- El admin escucha un canal general: `/topic/chat.admin` (le llegan mensajes de TODOS los clientes)
-- Cuando el admin responde, especifica el `sesionId` → el mensaje llega solo a ese cliente
-
-Pueden estar 10 personas chateando al mismo tiempo y cada una solo ve su conversación.
+- El chat es **exclusivo para usuarios autenticados**. No mostrar el widget si el usuario no está logueado.
+- El identificador de historial es `usuarioId` (Integer del usuario en BD). No se usa `clienteId` ni localStorage.
+- Las sesiones expiran por **5 minutos de inactividad** de cualquiera de los dos lados.
+- Cada sesión tiene su propio `sesionId` (UUID). Al expirar se crea uno nuevo automáticamente, pero el historial se recupera siempre por `usuarioId`.
 
 ---
 
-## ¿Cómo es el flujo para el admin?
+## Variables que el front necesita
 
-**No es una pantalla nueva por cada cliente.** Es UN panel estilo "bandeja de soporte" (como WhatsApp Web o Intercom):
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Chat en Vivo — Panel Admin                                 │
-├──────────────────┬──────────────────────────────────────────┤
-│  Sesiones activas│  [María González]  ACTIVA                │
-│  ─────────────── │  ──────────────────────────────────────  │
-│  🟢 María  (2)   │  María:  Hola, quiero saber el precio   │
-│  🟢 Juan   (1)   │  Admin:  Buenos días, con gusto         │
-│  🔴 Pedro        │  María:  el de la bolsa negra grande    │
-│                  │                                          │
-│                  │  [ Escribir respuesta...    ] [Enviar]   │
-└──────────────────┴──────────────────────────────────────────┘
-```
-
-- Panel izquierdo: lista de sesiones activas con badge de mensajes no leídos
-- Panel derecho: conversación seleccionada
-- El admin cambia de conversación haciendo clic en el panel izquierdo
-
----
-
-## Flujo completo paso a paso
-
-```
-[1] Usuario entra al sitio
-    → ve botón flotante de chat (abajo a la derecha)
-    → hace clic → el widget se abre
-
-[2] Se establece la conexión
-    → Angular conecta WebSocket a /ws (SockJS + STOMP)
-    → envía a /app/chat.conectar con { nombre: "anónimo" o nombre del cliente }
-    → Back crea ChatSesion en BD → genera sesionId único (UUID)
-    → Back responde en /topic/chat.inicio.{uuid-temporal} con { sesionId }
-    → Angular guarda ese sesionId en memoria (no en localStorage para no persistir entre pestañas)
-    → Angular se suscribe a /topic/chat.usuario.{sesionId} para recibir respuestas del admin
-    → Si admin está conectado al panel → le llega notificación en /topic/chat.admin
-    → Si admin NO está conectado → se envía email al admin
-
-[3] Usuario escribe un mensaje
-    → Angular envía a /app/chat.mensaje con { sesionId, contenido }
-    → Back guarda ChatMensaje en BD (remitente = USUARIO)
-    → Back publica en /topic/chat.admin el mensaje con { sesionId, contenido, timestamp, nombreUsuario }
-    → Admin lo ve en tiempo real en su panel (aparece en la sesión correspondiente)
-    → Si admin no está conectado → se manda email con el texto del mensaje
-
-[4] Admin responde
-    → Admin escribe en su panel y presiona Enviar
-    → Angular del admin envía a /app/chat.admin.responder con { sesionId, contenido }
-    → Back guarda ChatMensaje en BD (remitente = ADMIN)
-    → Back publica en /topic/chat.usuario.{sesionId} con { contenido, timestamp }
-    → Solo ese cliente recibe el mensaje en su widget
-
-[5] Inactividad — cierre automático
-    → Scheduler cada 5 minutos busca sesiones con ultimaActividad > 30 min
-    → Las marca como CERRADA
-    → Publica en /topic/chat.usuario.{sesionId} el evento { tipo: "SESION_CERRADA" }
-    → El widget muestra "La sesión fue cerrada por inactividad"
-    → Si el usuario vuelve a escribir → el back detecta sesión CERRADA → crea una nueva sesión
-    → Todo vuelve al paso [2]
-
-[6] Usuario cierra el widget / pestaña
-    → El WebSocket se desconecta automáticamente
-    → La sesión queda en BD como ACTIVA hasta que el scheduler la cierre
-    → Si el usuario regresa antes de 30 min y tiene el sesionId → puede retomar
+```typescript
+usuarioId: number;      // id Integer del usuario autenticado — viene del token/perfil
+sesionId: string|null;  // UUID de sesión activa — viene del backend al conectar, guardar en sessionStorage
 ```
 
 ---
 
-## Lo que ya tenemos ✓
+## WebSocket — conexión
 
-| Componente | Estado | Archivo |
-|---|---|---|
-| WebSocket + STOMP + SockJS | ✓ Funcionando | `ConfigSocket.java` |
-| `SimpMessagingTemplate` (servidor → cliente) | ✓ En uso | `GanadorRifaServiceImpl.java:127` |
-| `@MessageMapping` (cliente → servidor) | ✓ En uso | `RifaControllerImpl.java:75` |
-| Scheduler (`@EnableScheduling`) | ✓ Activo | `MisProductosApplication.java` |
-| Redis | ✓ QA/Docker | Para caché de sesiones activas (opcional) |
-| SecurityConfig | ✓ Existe | Solo agregar matchers para `/ws` y `/v1/chat/**` |
+**URL:**
+```
+wss://[host]/mis-productos/ws
+```
+Con SockJS: `new SockJS('/mis-productos/ws')`
 
-**Problema a resolver:** Hay dos configs WebSocket activas al mismo tiempo (`WebSocketConfig.java` y `ConfigSocket.java`). Hay que eliminar `WebSocketConfig.java` — es la que tiene CORS hardcodeado a `localhost:4200`.
+Broker prefix: `/topic` | App prefix: `/app`
 
 ---
 
-## Lo que falta construir (backend)
+## Endpoints WebSocket
 
-### 1. Base de datos — 2 tablas
+### Conectar sesión
 
-```sql
-CREATE TABLE chat_sesion (
-    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
-    sesion_id        VARCHAR(36) NOT NULL UNIQUE,  -- UUID
-    identificador    VARCHAR(100) NOT NULL,          -- IP del visitante
-    nombre_usuario   VARCHAR(100),                   -- opcional
-    estado           VARCHAR(10) NOT NULL DEFAULT 'ACTIVA',  -- ACTIVA | CERRADA
-    fecha_inicio     DATETIME NOT NULL,
-    ultima_actividad DATETIME NOT NULL
-);
-
-CREATE TABLE chat_mensaje (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    sesion_id   VARCHAR(36) NOT NULL,
-    remitente   VARCHAR(10) NOT NULL,  -- USUARIO | ADMIN
-    contenido   TEXT NOT NULL,
-    timestamp   DATETIME NOT NULL,
-    FOREIGN KEY (sesion_id) REFERENCES chat_sesion(sesion_id)
-);
+**Suscribirse primero en:**
+```
+/topic/chat.inicio.{tempId}
 ```
 
-### 2. Entidades JPA
-- `ChatSesion.java`
-- `ChatMensaje.java`
-
-### 3. Repositorios
-- `IChatSesionRepository`
-  - `findBySesionIdAndEstado(String sesionId, String estado)`
-  - `findByEstadoAndUltimaActividadBefore(String estado, LocalDateTime fecha)`
-- `IChatMensajeRepository`
-  - `findBySesionIdOrderByTimestampAsc(String sesionId)`
-
-### 4. Servicios
-- `ChatSesionService`
-  - `conectar(String ip, String nombreUsuario)` → crea ChatSesion, devuelve sesionId
-  - `cerrarSesion(String sesionId)`
-  - `actualizarActividad(String sesionId)`
-  - `cerrarSesionesInactivas()` → llamado por el scheduler
-- `ChatMensajeService`
-  - `guardar(String sesionId, String remitente, String contenido)` → devuelve ChatMensaje
-  - `obtenerHistorial(String sesionId)` → lista de mensajes
-- `ChatNotificacionService`
-  - `notificarAdmin(ChatMensaje mensaje)` → email si admin no conectado
-
-### 5. Controlador WebSocket — `ChatWebSocketController.java`
-
-```java
-@MessageMapping("/chat.conectar")
-// Recibe: { nombreUsuario? }
-// Crea sesión → publica en /topic/chat.admin evento NUEVA_SESION
-// Responde en /topic/chat.inicio.{tempId} con { sesionId }
-
-@MessageMapping("/chat.mensaje")
-// Recibe: { sesionId, contenido }
-// Guarda mensaje → publica en /topic/chat.admin
-// Si admin offline → manda email
-
-@MessageMapping("/chat.admin.responder")
-// Recibe: { sesionId, contenido }  [solo ADMIN]
-// Guarda mensaje → publica en /topic/chat.usuario.{sesionId}
-
-@MessageMapping("/chat.admin.conectado")
-// El admin notifica que está en el panel → se registra como conectado
-// Para saber si mandar email o no
+**Publicar en:**
+```
+/app/chat.conectar
 ```
 
-### 6. Endpoint REST (opcional pero útil)
-
-```
-GET  /v1/chat/admin/sesiones        → lista sesiones ACTIVAS con último mensaje
-GET  /v1/chat/admin/historial/{sesionId} → historial completo de una sesión
-POST /v1/chat/admin/cerrar/{sesionId}   → cerrar sesión manualmente
-```
-
-### 7. Scheduler
-
-```java
-@Scheduled(fixedDelay = 300000)  // cada 5 minutos
-public void cerrarSesionesInactivas() {
-    // busca sesiones ACTIVA con ultimaActividad < ahora - 30min
-    // las cierra y publica SESION_CERRADA en /topic/chat.usuario.{sesionId}
+**Payload:**
+```json
+{
+  "tempId": "uuid-temporal-generado-en-el-front",
+  "nombreUsuario": "Juan",
+  "usuarioId": 42
 }
 ```
 
-### 8. SecurityConfig — matchers a agregar
+**Response en `/topic/chat.inicio.{tempId}`:**
+```json
+{ "sesionId": "94bb63c0-a3fe-4d7c-b4a9-ecd2a72c871c" }
+```
+→ Guardar `sesionId` en `sessionStorage`.
 
-```java
-.requestMatchers("/ws/**").permitAll()
-.requestMatchers("/v1/chat/admin/**").hasRole("ADMIN")
+---
+
+### Enviar mensaje (cliente → admin)
+
+**Publicar en:**
+```
+/app/chat.mensaje
+```
+```json
+{ "sesionId": "uuid-de-sessionStorage", "contenido": "Hola, tengo una pregunta" }
+```
+Si la sesión está expirada el mensaje se descarta — verificar `sesionId` antes de enviar.
+
+---
+
+### Recibir eventos del backend (canal del cliente)
+
+**Suscribirse en:**
+```
+/topic/chat.usuario.{sesionId}
 ```
 
-### 9. Email — configurar desde cero
-
-Dependencia Maven:
-```xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-mail</artifactId>
-</dependency>
+**Mensaje del admin:**
+```json
+{ "tipo": "MENSAJE", "remitente": "ADMIN", "contenido": "Hola", "timestamp": "2026-06-18T02:35:47" }
 ```
 
-```yaml
-spring:
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
+**Sesión expirada (5 min sin actividad):**
+```json
+{ "tipo": "SESION_CERRADA" }
+```
+→ Borrar `sesionId` de sessionStorage. Dejar mensajes visibles en pantalla. Al siguiente envío reconectar.
+
+---
+
+### Panel admin — recibir eventos de todos los clientes
+
+**Suscribirse en:**
+```
+/topic/chat.admin
+```
+
+**Nueva sesión:**
+```json
+{ "tipo": "NUEVA_SESION", "sesionId": "...", "nombreUsuario": "Juan", "contenido": null, "timestamp": null }
+```
+
+**Mensaje de un cliente:**
+```json
+{ "tipo": "MENSAJE", "sesionId": "...", "nombreUsuario": "Juan", "contenido": "Hola", "timestamp": "2026-06-18T10:00:00" }
 ```
 
 ---
 
-## Plan de implementación — orden
+### Panel admin — responder a un cliente
 
-| Fase | Tarea | Entregable |
+**Publicar en:**
+```
+/app/chat.admin.responder
+```
+```json
+{ "sesionId": "uuid-del-cliente", "contenido": "Hola, ¿en qué te ayudo?" }
+```
+
+---
+
+### Panel admin — marcar presencia en el panel
+
+Suspende emails de notificación mientras el admin está activo.
+
+**Publicar en:**
+```
+/app/chat.admin.conectado
+```
+Sin payload.
+
+---
+
+## Endpoints REST
+
+### Historial por usuario — cargar al iniciar el chat
+
+```
+GET /mis-productos/v1/chat/historial/usuario/{usuarioId}?pagina=0&size=20
+```
+Sin token. Público.
+
+**Response** — leer `response.data`, **NO** `response` directamente:
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "mensajes": [
+      { "remitente": "USUARIO", "contenido": "Hola",       "timestamp": "2026-06-18T02:35:16" },
+      { "remitente": "ADMIN",   "contenido": "Como estas", "timestamp": "2026-06-18T02:35:47" }
+    ],
+    "pagina": 0,
+    "totalPaginas": 3,
+    "totalMensajes": 45,
+    "hayMasAntiguos": true
+  },
+  "lista": null
+}
+```
+
+Campos del mensaje: `remitente` (`"USUARIO"` o `"ADMIN"`), `contenido`, `timestamp`. Los campos `id` y `sesionId` no aparecen (`@JsonIgnore`).
+
+**Scroll hacia arriba — cargar más antiguos:**
+```
+GET /mis-productos/v1/chat/historial/usuario/{usuarioId}?pagina=1&size=20
+```
+Cuando `hayMasAntiguos === true` → pedir `pagina + 1` y hacer **prepend**:
+```typescript
+this.mensajes = [...mensajesAntiguos, ...this.mensajes];
+```
+
+---
+
+### Historial por sesión — panel admin
+
+```
+GET /mis-productos/v1/chat/admin/historial/{sesionId}?pagina=0&size=20
+Authorization: Bearer <token admin>
+```
+Mismo formato de response que el anterior.
+
+---
+
+### Listado de sesiones — panel admin
+
+Devuelve todas las sesiones de las últimas 24 h (activas y cerradas).
+
+```
+GET /mis-productos/v1/chat/admin/sesiones
+Authorization: Bearer <token admin>
+```
+
+**Response** — leer `response.data`, **NO** como array:
+```json
+{
+  "data": [
+    {
+      "sesionId": "94bb63c0-...",
+      "nombreUsuario": "Juan",
+      "estado": "ACTIVA",
+      "fechaInicio": "2026-06-18T02:35:07",
+      "ultimaActividad": "2026-06-18T02:35:47",
+      "ultimoMensaje": "Como estas"
+    },
+    {
+      "sesionId": "2e46efe3-...",
+      "nombreUsuario": "María",
+      "estado": "CERRADA",
+      "fechaInicio": "2026-06-18T01:38:16",
+      "ultimaActividad": "2026-06-18T01:42:00",
+      "ultimoMensaje": "Gracias"
+    }
+  ]
+}
+```
+`estado`: `"ACTIVA"` o `"CERRADA"`.
+
+---
+
+### Cerrar sesión — panel admin
+
+```
+POST /mis-productos/v1/chat/admin/cerrar/{sesionId}
+Authorization: Bearer <token admin>
+```
+Response: 204 No Content.
+
+---
+
+## Código de referencia — componente Angular del cliente
+
+```typescript
+export class ChatComponent implements OnInit {
+
+  usuarioId: number;
+  sesionId: string | null = null;
+  mensajes: any[] = [];
+  hayMasAntiguos = false;
+  paginaActual = 0;
+  private stompClient: Client;
+
+  constructor(private http: HttpClient, private authService: AuthService) {
+    this.usuarioId = this.authService.getCurrentUser()?.id;
+  }
+
+  ngOnInit() {
+    if (!this.usuarioId) return; // solo usuarios logueados
+
+    // PASO 1: cargar historial ANTES de conectar WebSocket
+    this.cargarHistorial();
+
+    // PASO 2: conectar WebSocket
+    this.conectarWebSocket();
+  }
+
+  cargarHistorial() {
+    this.http.get(`/v1/chat/historial/usuario/${this.usuarioId}?pagina=0&size=20`)
+      .subscribe(res => {
+        this.mensajes       = (res as any).data?.mensajes      ?? [];
+        this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+        this.paginaActual   = 0;
+      });
+  }
+
+  conectarWebSocket() {
+    const tempId = crypto.randomUUID();
+
+    this.stompClient.subscribe(`/topic/chat.inicio.${tempId}`, frame => {
+      const data = JSON.parse(frame.body);
+      this.sesionId = data.sesionId;
+      sessionStorage.setItem('chat_sesion_id', this.sesionId);
+
+      this.stompClient.subscribe(`/topic/chat.usuario.${this.sesionId}`, frame2 => {
+        const evento = JSON.parse(frame2.body);
+        if (evento.tipo === 'MENSAJE') {
+          this.mensajes = [...this.mensajes, evento];
+        } else if (evento.tipo === 'SESION_CERRADA') {
+          sessionStorage.removeItem('chat_sesion_id');
+          this.sesionId = null;
+          // mensajes se mantienen visibles
+        }
+      });
+    });
+
+    this.stompClient.publish({
+      destination: '/app/chat.conectar',
+      body: JSON.stringify({
+        tempId,
+        nombreUsuario: this.authService.getCurrentUser()?.username,
+        usuarioId: this.usuarioId
+      })
+    });
+  }
+
+  cargarMasAntiguos() {
+    if (!this.hayMasAntiguos) return;
+    this.paginaActual++;
+    this.http.get(`/v1/chat/historial/usuario/${this.usuarioId}?pagina=${this.paginaActual}&size=20`)
+      .subscribe(res => {
+        const antiguos      = (res as any).data?.mensajes      ?? [];
+        this.mensajes       = [...antiguos, ...this.mensajes]; // prepend
+        this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+      });
+  }
+
+  enviarMensaje(contenido: string) {
+    if (!contenido?.trim()) return;
+
+    if (!this.sesionId) {
+      // sesión expirada → reconectar y recargar historial
+      this.conectarWebSocket();
+      this.cargarHistorial();
+      return;
+    }
+
+    this.stompClient.publish({
+      destination: '/app/chat.mensaje',
+      body: JSON.stringify({ sesionId: this.sesionId, contenido })
+    });
+
+    // agregar optimistamente
+    this.mensajes = [...this.mensajes, {
+      remitente: 'USUARIO',
+      contenido,
+      timestamp: new Date().toISOString().slice(0, 19)
+    }];
+  }
+}
+```
+
+---
+
+## Errores comunes
+
+| Error | Síntoma | Corrección |
 |---|---|---|
-| 1 | Eliminar `WebSocketConfig.java` (duplicado) | Conflicto resuelto |
-| 2 | Tablas SQL + entidades JPA + repositorios | BD lista |
-| 3 | `ChatSesionService` + `ChatMensajeService` | Lógica de negocio |
-| 4 | `ChatWebSocketController` + matchers en SecurityConfig | WebSocket del chat funcional |
-| 5 | Scheduler de timeout | Cierre automático |
-| 6 | Configuración email + `ChatNotificacionService` | Notificación al admin |
-| 7 | Endpoints REST auxiliares para el panel del admin | Panel puede cargar historial |
-
----
-
-## Preguntas pendientes
-
-1. **¿El visitante es siempre anónimo** o puede ser un cliente registrado (con JWT)?
-2. **¿30 minutos de inactividad** está bien para cerrar la sesión?
-3. **¿Qué cuenta de correo** usa para recibir la notificación? (Gmail recomendado con contraseña de app)
-4. **¿El panel admin** va en el Angular existente como una ruta nueva (`/admin/chat`) o es otra app?
+| Leer `response` como array | `mensajes` undefined o vacío | Leer `(res as any).data.mensajes` |
+| No llamar historial en `ngOnInit` | Pantalla vacía al recargar aunque haya datos | Llamar `cargarHistorial()` antes de conectar WS |
+| Enviar mensaje con sesión expirada | Mensaje se descarta silenciosamente | Verificar `sesionId !== null` y reconectar si hace falta |
+| Prepend incorrecto al cargar más | Mensajes antiguos aparecen al final | `[...antiguos, ...this.mensajes]` — antiguos primero |
+| `@Query` JPA con subquery sin `countQuery` | Paginación retorna siempre vacío (`totalMensajes: 0`) | Agregar `countQuery` explícito — ver pitfall en CAMBIOS_FRONT.md |
