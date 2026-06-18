@@ -15,16 +15,20 @@ public interface IChatMensajeRepository extends JpaRepository<ChatMensaje, Long>
     Page<ChatMensaje> findBySesionIdOrderByTimestampDesc(String sesionId, Pageable pageable);
 
     @org.springframework.data.jpa.repository.Query(
-        "SELECT m FROM ChatMensaje m WHERE m.sesionId IN " +
-        "(SELECT s.sesionId FROM ChatSesion s WHERE s.clienteId = :clienteId) " +
-        "ORDER BY m.timestamp DESC"
+        value = "SELECT m FROM ChatMensaje m WHERE m.sesionId IN " +
+                "(SELECT s.sesionId FROM ChatSesion s WHERE s.clienteId = :clienteId) " +
+                "ORDER BY m.timestamp DESC",
+        countQuery = "SELECT COUNT(m) FROM ChatMensaje m WHERE m.sesionId IN " +
+                     "(SELECT s.sesionId FROM ChatSesion s WHERE s.clienteId = :clienteId)"
     )
     Page<ChatMensaje> findByClienteIdOrderByTimestampDesc(@org.springframework.data.repository.query.Param("clienteId") String clienteId, Pageable pageable);
 
     @org.springframework.data.jpa.repository.Query(
-        "SELECT m FROM ChatMensaje m WHERE m.sesionId IN " +
-        "(SELECT s.sesionId FROM ChatSesion s WHERE s.usuarioId = :usuarioId) " +
-        "ORDER BY m.timestamp DESC"
+        value = "SELECT m FROM ChatMensaje m WHERE m.sesionId IN " +
+                "(SELECT s.sesionId FROM ChatSesion s WHERE s.usuarioId = :usuarioId) " +
+                "ORDER BY m.timestamp DESC",
+        countQuery = "SELECT COUNT(m) FROM ChatMensaje m WHERE m.sesionId IN " +
+                     "(SELECT s.sesionId FROM ChatSesion s WHERE s.usuarioId = :usuarioId)"
     )
     Page<ChatMensaje> findByUsuarioIdOrderByTimestampDesc(@org.springframework.data.repository.query.Param("usuarioId") Integer usuarioId, Pageable pageable);
 
