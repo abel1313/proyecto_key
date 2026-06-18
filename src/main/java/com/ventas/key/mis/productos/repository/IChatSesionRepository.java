@@ -18,4 +18,6 @@ public interface IChatSesionRepository extends JpaRepository<ChatSesion, Long> {
     List<ChatSesion> findByEstadoAndUltimaActividadBefore(String estado, LocalDateTime fecha);
 
     List<ChatSesion> findByUltimaActividadAfterOrderByUltimaActividadDesc(LocalDateTime desde);
+
+    List<ChatSesion> findByUsuarioIdOrderByUltimaActividadDesc(Integer usuarioId);
 }

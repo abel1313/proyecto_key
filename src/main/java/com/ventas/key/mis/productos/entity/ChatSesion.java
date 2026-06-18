@@ -21,6 +21,9 @@ public class ChatSesion {
     @Column(name = "cliente_id", length = 36)
     private String clienteId;
 
+    @Column(name = "usuario_id")
+    private Integer usuarioId;
+
     @Column(name = "identificador", nullable = false, length = 100)
     private String identificador;
 

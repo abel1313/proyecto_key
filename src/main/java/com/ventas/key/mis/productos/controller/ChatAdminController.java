@@ -57,6 +57,14 @@ public class ChatAdminController {
         return ResponseEntity.ok(new ResponseGeneric<>(mensajeService.obtenerHistorialPaginado(sesionId, pagina, size)));
     }
 
+    @GetMapping("/historial/usuario/{usuarioId}")
+    public ResponseEntity<ResponseGeneric<ChatHistorialPaginadoDto>> historialPorUsuarioId(
+            @PathVariable Integer usuarioId,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(mensajeService.obtenerHistorialPorUsuarioId(usuarioId, pagina, size)));
+    }
+
     @GetMapping("/historial/cliente/{clienteId}")
     public ResponseEntity<ResponseGeneric<ChatHistorialPaginadoDto>> historialPorClienteId(
             @PathVariable String clienteId,
