@@ -350,3 +350,40 @@ export class ChatComponent implements OnInit {
 | Enviar mensaje con sesión expirada | Mensaje se descarta silenciosamente | Verificar `sesionId !== null` y reconectar si hace falta |
 | Prepend incorrecto al cargar más | Mensajes antiguos aparecen al final | `[...antiguos, ...this.mensajes]` — antiguos primero |
 | `@Query` JPA con subquery sin `countQuery` | Paginación retorna siempre vacío (`totalMensajes: 0`) | Agregar `countQuery` explícito — ver pitfall en CAMBIOS_FRONT.md |
+| `sesionId` persistido en sessionStorage | Front reutiliza sesión muerta, mensajes descartados silenciosamente | **NO guardar `sesionId` en sessionStorage entre recargas** — siempre llamar `chat.conectar` al montar el componente |
+| `usuario_id` siempre NULL en BD | Historial por usuarioId siempre vacío | El front debe incluir `usuarioId` en el payload de `chat.conectar` con el nombre exacto `usuarioId` (camelCase) |
+| Front no redesplgado | Cambios de código no tienen efecto, pod sigue corriendo JAR viejo | Verificar con `GET /v1/chat/version` — si no responde `chat-v3-usuarioId-2026-06-18` hay que redesplegar |
+
+---
+
+## Diagnóstico en producción/QA
+
+### Verificar versión desplegada
+```
+GET /mis-productos/v1/chat/version
+```
+Respuesta esperada: `chat-v3-usuarioId-2026-06-18`
+
+### Ver logs del pod en tiempo real
+```bash
+kubectl logs -f <pod-name> -n qa | grep "\[WS\]"
+```
+Líneas clave a buscar:
+- `[WS] /chat.conectar recibido — ... usuarioId=66` → el front conecta correctamente
+- `[WS] Sesión inactiva o inexistente` → front usa sesionId muerto, no llamó `chat.conectar`
+- `Handshake failed due to invalid Upgrade header: null` → nginx no reenvía headers WS (cosmético, SockJS fallback funciona)
+
+### Confirmar que sesiones se guardan con usuarioId
+```sql
+SELECT sesion_id, usuario_id, nombre_usuario, fecha_inicio
+FROM chat_sesion
+ORDER BY fecha_inicio DESC
+LIMIT 5;
+```
+`usuario_id` debe tener el id del usuario, no NULL.
+
+### Redesplegar pod del front en k8s
+```bash
+kubectl rollout restart deployment/proyecto-key-front-deployment -n qa
+```
+Después limpiar `sessionStorage` en el navegador (DevTools → Application → Session Storage → borrar `chat_sesion_id`) antes de probar.
