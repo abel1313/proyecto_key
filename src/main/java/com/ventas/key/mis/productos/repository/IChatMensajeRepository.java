@@ -14,5 +14,12 @@ public interface IChatMensajeRepository extends JpaRepository<ChatMensaje, Long>
 
     Page<ChatMensaje> findBySesionIdOrderByTimestampDesc(String sesionId, Pageable pageable);
 
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT m FROM ChatMensaje m WHERE m.sesionId IN " +
+        "(SELECT s.sesionId FROM ChatSesion s WHERE s.clienteId = :clienteId) " +
+        "ORDER BY m.timestamp DESC"
+    )
+    Page<ChatMensaje> findByClienteIdOrderByTimestampDesc(@org.springframework.data.repository.query.Param("clienteId") String clienteId, Pageable pageable);
+
     Optional<ChatMensaje> findTop1BySesionIdOrderByTimestampDesc(String sesionId);
 }

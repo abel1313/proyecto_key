@@ -45,9 +45,9 @@ public class ChatWebSocketController {
      */
     @MessageMapping("/chat.conectar")
     public void conectar(@Payload ChatConectarRequest request, SimpMessageHeaderAccessor accessor) {
-        log.info("[WS] /chat.conectar recibido — tempId={}, nombreUsuario={}", request.getTempId(), request.getNombreUsuario());
+        log.info("[WS] /chat.conectar recibido — tempId={}, nombreUsuario={}, clienteId={}", request.getTempId(), request.getNombreUsuario(), request.getClienteId());
         String ip = extraerIp(accessor);
-        String sesionId = sesionService.conectar(ip, request.getNombreUsuario());
+        String sesionId = sesionService.conectar(ip, request.getNombreUsuario(), request.getClienteId());
 
         String nombre = sesionId != null ? resolverNombre(request.getNombreUsuario()) : "Visitante";
 

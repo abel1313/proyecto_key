@@ -6,4 +6,5 @@ import lombok.Data;
 public class ChatConectarRequest {
     private String tempId;
     private String nombreUsuario;
+    private String clienteId;
 }

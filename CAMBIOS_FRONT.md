@@ -2178,9 +2178,56 @@ cargarMasAntiguos() {
 
 **Acción para el front — PENDIENTE:** Llamar este endpoint en DOS lugares:
 1. **Panel admin:** cuando el admin hace clic en una sesión, cargar `pagina=0` y renderizar antes de recibir eventos WebSocket.
-2. **Chat del cliente:** al inicializar, si hay `sesionId` en `sessionStorage`, cargar `pagina=0` para mostrar la conversación previa.
+2. **Chat del cliente:** al inicializar, usar el endpoint por `clienteId` (ver sección siguiente) para ver TODA la historia entre sesiones.
 
-> **⚠️ Usar `sessionStorage`, no `localStorage`:** el sesionId expira en 5 min de inactividad.
+---
+
+### Historial completo del cliente a través de sesiones — `clienteId` persistente
+
+El `sesionId` cambia cada vez que la sesión expira (5 min de inactividad). Para que el cliente vea mensajes de sesiones anteriores, el front genera un `clienteId` fijo guardado en `localStorage`.
+
+**Generar y guardar el `clienteId` una sola vez:**
+```typescript
+if (!localStorage.getItem('chat_cliente_id')) {
+  localStorage.setItem('chat_cliente_id', crypto.randomUUID());
+}
+const clienteId = localStorage.getItem('chat_cliente_id');
+```
+
+**Enviarlo al conectar** — payload de `/app/chat.conectar`:
+```json
+{ "tempId": "uuid-temporal", "nombreUsuario": "Juan", "clienteId": "uuid-persistente" }
+```
+
+**Endpoint de historial completo** — todas las sesiones del cliente:
+```
+GET /mis-productos/v1/chat/historial/cliente/{clienteId}?pagina=0&size=20
+```
+Público, sin token. Devuelve mensajes de **todas las sesiones** vinculadas a ese `clienteId` ordenados cronológicamente. Mismo formato de response que el historial por `sesionId` (`{ mensajes, pagina, totalPaginas, totalMensajes, hayMasAntiguos }`).
+
+**Flujo correcto al inicializar el chat del cliente:**
+```typescript
+ngOnInit() {
+  // 1. clienteId persiste en localStorage entre sesiones y recargas
+  if (!localStorage.getItem('chat_cliente_id'))
+    localStorage.setItem('chat_cliente_id', crypto.randomUUID());
+  this.clienteId = localStorage.getItem('chat_cliente_id');
+
+  // 2. Cargar toda la historia del cliente (todas las sesiones pasadas)
+  this.http.get(`/v1/chat/historial/cliente/${this.clienteId}?pagina=0&size=20`)
+    .subscribe(res => {
+      this.mensajes = res.data.mensajes ?? [];
+      this.hayMasAntiguos = res.data.hayMasAntiguos;
+    });
+
+  // 3. Conectar WebSocket mandando clienteId para vincular la nueva sesión
+  this.conectarWebSocket();
+}
+```
+
+> **Resumen de storage:**
+> - `clienteId` → **`localStorage`** — persiste aunque se cierre el navegador, une todas las sesiones
+> - `sesionId` → **`sessionStorage`** — solo dura la pestaña, identifica la sesión WebSocket activa
 
 ---
 
