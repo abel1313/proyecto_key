@@ -2226,8 +2226,85 @@ ngOnInit() {
 ```
 
 > **Resumen de storage:**
-> - `clienteId` → **`localStorage`** — persiste aunque se cierre el navegador, une todas las sesiones
+> - `clienteId` → **`localStorage`** — persiste aunque se cierre el navegador, une todas las sesiones (usuarios anónimos)
 > - `sesionId` → **`sessionStorage`** — solo dura la pestaña, identifica la sesión WebSocket activa
+
+---
+
+### Historial por usuario registrado — `usuarioId` (vinculado a la cuenta)
+
+Para usuarios que tienen cuenta en el sistema, se puede vincular la sesión de chat a su `usuarioId` real (Integer) en lugar de un UUID anónimo. Esto permite recuperar todos sus mensajes históricos de forma confiable.
+
+**Enviar `usuarioId` al conectar** — payload de `\app\chat.conectar`:
+```json
+{
+  "tempId": "uuid-temporal",
+  "nombreUsuario": "Juan",
+  "clienteId": "uuid-persistente-localStorage",
+  "usuarioId": 42
+}
+```
+- `usuarioId` es opcional (null si el usuario no está autenticado → solo se usa `clienteId`)
+- `usuarioId` es el `id` (Integer) del usuario en `usuario_modificacion`
+
+**Endpoint de historial por usuarioId** — todas las sesiones del usuario registrado:
+```
+GET /mis-productos/v1/chat/historial/usuario/{usuarioId}?pagina=0&size=20
+```
+Público, sin token. Devuelve mensajes de **todas las sesiones** vinculadas a ese `usuarioId`, mismo formato que historial por sesión.
+
+**Response:** igual al historial paginado:
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "mensajes": [ { "remitente": "USUARIO", "contenido": "Hola", "timestamp": "2026-06-17T10:00:00" } ],
+    "pagina": 0,
+    "totalPaginas": 3,
+    "totalMensajes": 45,
+    "hayMasAntiguos": true
+  }
+}
+```
+
+**Flujo recomendado para usuario autenticado:**
+```typescript
+ngOnInit() {
+  // usuarioId viene del token decodificado o del perfil del usuario autenticado
+  this.usuarioId = this.authService.getCurrentUser()?.id ?? null;
+
+  // Cargar historial del usuario (todas sus sesiones pasadas)
+  if (this.usuarioId) {
+    this.http.get(`/v1/chat/historial/usuario/${this.usuarioId}?pagina=0&size=20`)
+      .subscribe(res => {
+        this.mensajes = (res as any).data?.mensajes ?? [];
+        this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+      });
+  } else {
+    // usuario anónimo: usar clienteId de localStorage
+    const clienteId = localStorage.getItem('chat_cliente_id');
+    if (clienteId) {
+      this.http.get(`/v1/chat/historial/cliente/${clienteId}?pagina=0&size=20`)
+        .subscribe(res => {
+          this.mensajes = (res as any).data?.mensajes ?? [];
+          this.hayMasAntiguos = (res as any).data?.hayMasAntiguos ?? false;
+        });
+    }
+  }
+
+  // Conectar WebSocket
+  this.conectarWebSocket();
+}
+```
+
+**UX de expiración de sesión (SESION_CERRADA):**
+1. Recibir `{ tipo: "SESION_CERRADA" }` en `/topic/chat.usuario.{sesionId}`
+2. Limpiar `mensajes` del componente (y `sesionId` de sessionStorage)
+3. Cuando el usuario envía el siguiente mensaje:
+   - Llamar de nuevo a `\app\chat.conectar` con el `usuarioId` (o `clienteId`) → recibir nuevo `sesionId`
+   - Llamar al endpoint de historial (`pagina=0, size=20`) para cargar los últimos mensajes
+   - Renderizar esos mensajes — el scroll hacia arriba carga páginas anteriores (`pagina=1`, `pagina=2`...)
 
 ---
 
