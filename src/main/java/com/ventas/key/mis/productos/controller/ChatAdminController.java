@@ -90,4 +90,9 @@ public class ChatAdminController {
         sesionService.cerrarSesion(sesionId);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/version")
+    public ResponseEntity<String> version() {
+        return ResponseEntity.ok("chat-v3-usuarioId-2026-06-18");
+    }
 }
