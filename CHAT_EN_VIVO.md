@@ -356,6 +356,14 @@ export class ChatComponent implements OnInit {
 
 ---
 
+## Pendientes
+
+| # | Pendiente | Detalle |
+|---|---|---|
+| 1 | **Timezone incorrecto en timestamps** | El pod corre en UTC. Los mensajes muestran 05:29 AM cuando la hora local (México) es 11:29 PM. Diferencia de 6 h (UTC-6, CST). Fix: agregar variable de entorno `TZ=America/Mexico_City` en el deployment de k8s del backend, o `spring.jackson.time-zone=America/Mexico_City` en `application.yml`. También afecta las fechas guardadas en BD (`fecha_inicio`, `ultima_actividad`, `timestamp` de mensajes). |
+
+---
+
 ## Diagnóstico en producción/QA
 
 ### Verificar versión desplegada
