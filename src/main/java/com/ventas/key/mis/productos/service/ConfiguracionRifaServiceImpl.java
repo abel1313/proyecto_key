@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.models.ConfigurarRifaPatchDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaResumenDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
@@ -89,6 +90,36 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         }
 
         config.setEsPrueba(esPrueba);
+        return iRifaRepository.save(config);
+    }
+
+    @Transactional
+    public ConfigurarRifa actualizarConfiguracion(int id, ConfigurarRifaPatchDto patch) {
+        ConfigurarRifa config = iRifaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
+
+        if (patch.getTipo() != null && patch.getTipo() != config.getTipo()) {
+            boolean tieneVariantes = !iConfigurarRifaVarianteRepository
+                    .findByConfigurarRifaIdOrderByOrdenAsc(id).isEmpty();
+            if (tieneVariantes) {
+                throw new RuntimeException(
+                        "No se puede cambiar el tipo de rifa porque ya tiene variantes configuradas. Elimina las variantes primero.");
+            }
+        }
+
+        if (patch.getFechaHoraLimite() != null) {
+            config.setFechaHoraLimite(patch.getFechaHoraLimite());
+        }
+        if (patch.getTipo() != null) {
+            config.setTipo(patch.getTipo());
+            if (patch.getTipo() != ConfigurarRifa.TipoRifa.MENSUAL) {
+                config.setMesReferencia(null);
+            }
+        }
+        if (patch.getMesReferencia() != null) {
+            config.setMesReferencia(patch.getMesReferencia().isBlank() ? null : patch.getMesReferencia());
+        }
+
         return iRifaRepository.save(config);
     }
 
