@@ -249,6 +249,10 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         ConfigurarRifa config = iConfigurarRifaRepository.findById(configurarRifaId)
                 .orElseThrow(() -> new RuntimeException("Rifa no encontrada"));
 
+        if (ConfigurarRifa.TipoRifa.DIARIA.equals(config.getTipo()) && !Boolean.TRUE.equals(config.getActiva())) {
+            throw new RuntimeException("Las rifas diarias vencidas no se pueden reiniciar");
+        }
+
         iGanadorRifaRepository.deleteByRifaId(configurarRifaId);
         iHistorialRifaVarianteRepository.deleteByRifaId(configurarRifaId);
 
