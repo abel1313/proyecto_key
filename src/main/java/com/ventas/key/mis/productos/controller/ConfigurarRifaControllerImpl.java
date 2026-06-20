@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
+import com.ventas.key.mis.productos.models.ConfigurarRifaPatchDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaResumenDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -54,6 +55,19 @@ public class ConfigurarRifaControllerImpl extends AbstractController<
             @RequestParam(required = false) ConfigurarRifa.TipoRifa tipo,
             @RequestParam(required = false) String mesReferencia) {
         return ResponseEntity.ok(new ResponseGeneric<List<ConfigurarRifaResumenDto>>(sGenerico.buscar(desde, hasta, tipo, mesReferencia)));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ResponseGeneric<ConfigurarRifa>> actualizarConfiguracion(
+            @PathVariable Integer id,
+            @RequestBody ConfigurarRifaPatchDto body) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.actualizarConfiguracion(id, body)));
+        } catch (Exception e) {
+            log.error("Error al actualizar configuración de rifa {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}/esPrueba")
