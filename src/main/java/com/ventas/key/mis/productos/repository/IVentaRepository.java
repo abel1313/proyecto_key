@@ -1,11 +1,24 @@
 package com.ventas.key.mis.productos.repository;
 
+import com.ventas.key.mis.productos.entity.Venta;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.ventas.key.mis.productos.entity.Venta;
+import java.time.LocalDateTime;
 
 @Repository
-public interface IVentaRepository extends BaseRepository<Venta, Integer>{
+public interface IVentaRepository extends BaseRepository<Venta, Integer> {
 
+    @Query("SELECT v FROM Venta v WHERE v.fechaVenta BETWEEN :desde AND :hasta ORDER BY v.fechaVenta DESC")
+    Page<Venta> buscarPorFecha(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta,
+            Pageable pageable);
 
+    @Query("SELECT SUM(v.totalVenta), SUM(v.gananciaTotal), COUNT(v) FROM Venta v " +
+           "WHERE v.fechaVenta BETWEEN :desde AND :hasta")
+    Object[] sumVentas(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
 }

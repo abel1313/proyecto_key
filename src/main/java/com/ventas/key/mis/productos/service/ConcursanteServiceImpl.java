@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ClientePedidoDto;
 import com.ventas.key.mis.productos.models.ConcursanteEditarRequest;
+import com.ventas.key.mis.productos.models.CopiarConcursantesRequest;
 import com.ventas.key.mis.productos.models.ImportarDePedidosRequest;
 import com.ventas.key.mis.productos.models.ImportarDePedidosResponseDto;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -86,7 +87,8 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             throw new Exception("El plazo de registro cerró el " + config.getFechaHoraLimite());
         }
 
-        if (concursante.getClientePedidoId() != null) {
+        if (concursante.getClientePedidoId() != null
+                && !ConfigurarRifa.TipoRifa.DIARIA.equals(config.getTipo())) {
             String mesActual = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
             int[] boletos = calcularBoletos(concursante.getClientePedidoId(), false, mesActual);
             concursante.setBoletosBase(boletos[0]);
@@ -165,7 +167,8 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             int boletosBase = 1;
             int boletos     = 1;
 
-            if (mes != null && !mes.isBlank() && cliente.getClientePedidoId() != null) {
+            boolean esRifaDiaria = ConfigurarRifa.TipoRifa.DIARIA.equals(config.getTipo());
+            if (!esRifaDiaria && mes != null && !mes.isBlank() && cliente.getClientePedidoId() != null) {
                 int[] calculado = calcularBoletos(cliente.getClientePedidoId(), cliente.isSinRegistro(), mes);
                 boletosBase = calculado[0];
                 boletos     = calculado[1];
@@ -213,5 +216,67 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
         if (req.getOrdenDesde() != null) concursante.setOrdenDesde(req.getOrdenDesde());
 
         return iConcursanteRepository.save(concursante);
+    }
+
+    @Transactional
+    public List<Concursante> copiarDeRifa(CopiarConcursantesRequest req) throws Exception {
+        ConfigurarRifa destino = iConfigurarRifaRepository.findById(req.getRifaDestinoId())
+                .orElseThrow(() -> new Exception("Rifa destino no encontrada"));
+
+        if (!Boolean.TRUE.equals(destino.getActiva())) {
+            throw new Exception("La rifa destino no está activa");
+        }
+
+        List<Concursante> origen = iConcursanteRepository.findByConfigurarRifaId(req.getRifaOrigenId());
+        if (origen.isEmpty()) {
+            throw new Exception("La rifa origen no tiene concursantes");
+        }
+
+        // IDs ya registrados en destino para evitar duplicados
+        List<Concursante> yaEnDestino = iConcursanteRepository.findByConfigurarRifaId(req.getRifaDestinoId());
+        Set<Integer> idsClienteDestino = yaEnDestino.stream()
+                .map(Concursante::getClientePedidoId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        Set<String> nombresDestino = yaEnDestino.stream()
+                .filter(c -> c.getClientePedidoId() == null)
+                .map(c -> (c.getNombre() + "|" + (c.getApellidoPaterno() != null ? c.getApellidoPaterno() : "")).toLowerCase())
+                .collect(Collectors.toCollection(HashSet::new));
+
+        String palabraClave = req.getPalabraClave().toUpperCase().trim();
+        boolean esRifaDiaria = ConfigurarRifa.TipoRifa.DIARIA.equals(destino.getTipo());
+        boolean esPrueba = Boolean.TRUE.equals(destino.getEsPrueba());
+
+        List<Concursante> copiados = new ArrayList<>();
+        for (Concursante c : origen) {
+            // Verificar duplicado
+            if (c.getClientePedidoId() != null) {
+                if (idsClienteDestino.contains(c.getClientePedidoId())) continue;
+            } else {
+                String clave = (c.getNombre() + "|" + (c.getApellidoPaterno() != null ? c.getApellidoPaterno() : "")).toLowerCase();
+                if (nombresDestino.contains(clave)) continue;
+            }
+
+            Concursante nuevo = new Concursante();
+            nuevo.setNombre(c.getNombre());
+            nuevo.setApellidoPaterno(c.getApellidoPaterno());
+            nuevo.setTelefono(c.getTelefono());
+            nuevo.setPalabraClave(palabraClave);
+            nuevo.setOrdenDesde(c.getOrdenDesde());
+            nuevo.setClientePedidoId(c.getClientePedidoId());
+            nuevo.setConfigurarRifa(destino);
+            nuevo.setAgregadoEnPrueba(esPrueba);
+            // Rifa DIARIA: siempre 1 boleto
+            nuevo.setBoletosBase(esRifaDiaria ? 1 : c.getBoletosBase());
+            nuevo.setBoletos(esRifaDiaria ? 1 : c.getBoletos());
+
+            copiados.add(iConcursanteRepository.save(nuevo));
+
+            if (c.getClientePedidoId() != null) {
+                idsClienteDestino.add(c.getClientePedidoId());
+            }
+        }
+
+        return copiados;
     }
 }

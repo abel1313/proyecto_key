@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.entity.Concursante;
 import com.ventas.key.mis.productos.models.ClientePedidoDto;
 import com.ventas.key.mis.productos.models.ConcursanteEditarRequest;
+import com.ventas.key.mis.productos.models.CopiarConcursantesRequest;
 import com.ventas.key.mis.productos.models.ImportarDePedidosRequest;
 import com.ventas.key.mis.productos.models.ImportarDePedidosResponseDto;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -94,6 +95,18 @@ public class ConcursanteControllerImpl extends AbstractController<
             return ResponseEntity.ok(new ResponseGeneric<>("Concursante eliminado"));
         } catch (Exception e) {
             log.error("Error al eliminar concursante {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @PostMapping("/copiarDeRifa")
+    public ResponseEntity<ResponseGeneric<List<Concursante>>> copiarDeRifa(
+            @RequestBody CopiarConcursantesRequest req) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<List<Concursante>>(sGenerico.copiarDeRifa(req)));
+        } catch (Exception e) {
+            log.error("Error al copiar concursantes entre rifas: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }
