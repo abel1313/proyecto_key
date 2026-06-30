@@ -46,8 +46,9 @@ public class GastosServiceImpl extends CrudAbstractServiceImpl<
         LocalDate desdeFecha = desde != null ? desde : LocalDate.now();
         LocalDate hastaFecha = hasta != null ? hasta : desdeFecha;
 
-        Page<Gastos> resultado = iRepository.buscar(desdeFecha, hastaFecha, categoria,
-                PageRequest.of(page, size));
+        Page<Gastos> resultado = (categoria != null)
+                ? iRepository.buscarConCategoria(desdeFecha, hastaFecha, categoria, PageRequest.of(page, size))
+                : iRepository.buscarSinCategoria(desdeFecha, hastaFecha, PageRequest.of(page, size));
 
         PginaDto<List<Gastos>> dto = new PginaDto<>();
         dto.setT(resultado.getContent());

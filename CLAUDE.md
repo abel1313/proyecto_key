@@ -49,6 +49,16 @@ git checkout qa && git merge main --no-ff && git push origin qa
 `main` no tiene RabbitMQ configurado — los YMLs de cada rama son independientes.
 El merge solo mueve código Java, nunca sobreescribe los YMLs del ambiente destino.
 
+### Mapeo rama → base de datos
+
+| Rama | Base de datos |
+|---|---|
+| `dev` | `inventario_key_qa` |
+| `qa` | `inventario_key_qa` |
+| `main` / `master` | `inventario_key` (sin sufijo) |
+
+`dev` y `qa` apuntan a la misma BD (`inventario_key_qa`). `main` apunta a la BD de producción (`inventario_key`).
+
 ---
 
 ## Regla — documentar migración de endpoints en CAMBIOS_FRONT.md

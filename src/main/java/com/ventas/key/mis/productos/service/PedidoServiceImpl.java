@@ -98,6 +98,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setFechaPedido(requestG.getFechaPedido());
         pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
+        String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
+        pedido.setTipoPedido(tipoPedido);
+        pedido.setTotalPagado(0.0);
 
         List<DetallePedido> detallePedido = new ArrayList<>();
         for (var mpa : requestG.getDetalles()) {
@@ -139,6 +142,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detallePedido.add(dta);
         }
         pedido.setDetalles(detallePedido);
+        double totalPedido = detallePedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
+        pedido.setTotalPedido(totalPedido);
         Pedido saved = this.iPedidoRepository.save(pedido);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -156,6 +161,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("El pedido está cancelado y no se puede confirmar");
+        }
+        if ("APARTADO".equals(pedido.getTipoPedido()) || "FIADO".equals(pedido.getTipoPedido())) {
+            throw new RuntimeException("Los pedidos de tipo " + pedido.getTipoPedido() + " se liquidan mediante abonos, no por esta vía");
         }
 
         PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(requestG.getPagosYMesesId())
@@ -262,7 +270,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())) {
+        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())
+                || "PAGADO".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("No se puede cancelar un pedido en estado: " + pedido.getEstadoPedido());
         }
 

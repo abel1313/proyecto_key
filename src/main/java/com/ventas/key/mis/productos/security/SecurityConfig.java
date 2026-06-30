@@ -122,6 +122,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
+                        // ── Abonos (apartado / fiado) ────────────────────────────────────
+                        .requestMatchers("/v1/abonos/**").hasRole("ADMIN")
+
                         // ── Ventas ────────────────────────────────────────────────────────
                         .requestMatchers("/v1/ventas/**").hasRole("ADMIN")
 
