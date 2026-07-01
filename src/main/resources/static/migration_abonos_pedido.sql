@@ -9,9 +9,10 @@
 -- use inventario_key_qa;   ← qa
 --
 -- Estado por ambiente (2026-06-30):
---   dev  → YA APLICADO completo — no correr nada
---   qa   → YA APLICADO completo — no correr nada
---   prod → Correr BLOQUE 1 completo + BLOQUE 2 al subir a main
+--   dev  → BLOQUE 1 ✅ BLOQUE 2 ✅ BLOQUE 3 ✅ — no correr nada
+--   qa   → BLOQUE 1 ✅ BLOQUE 2 ✅ BLOQUE 3 ✅ — no correr nada
+--   prod → Correr solo BLOQUE 1 + BLOQUE 2 (monto_dado ya está en el CREATE TABLE)
+--          NO correr BLOQUE 3 en prod — daría error 1060 (columna ya existe)
 -- ============================================================
 
 
@@ -33,20 +34,30 @@ CREATE TABLE IF NOT EXISTS abono_pedido (
     monto        DECIMAL(10, 2) NOT NULL,
     fecha_pago   DATE           NOT NULL,
     metodo_pago  VARCHAR(15)    NOT NULL DEFAULT 'EFECTIVO'
-        COMMENT 'EFECTIVO | TRANSFERENCIA | TARJETA',
+        COMMENT 'EFECTIVO | TRANSFERENCIA (TARJETA rechazada en crédito — genera comisión)',
     nota         VARCHAR(200)   NULL,
+    monto_dado   DECIMAL(10,2)  NULL
+        COMMENT 'Monto entregado por el cliente — para calcular cambio (solo EFECTIVO)',
     PRIMARY KEY (id),
     CONSTRAINT fk_abono_pedido FOREIGN KEY (pedido_id) REFERENCES pedidos (id)
 );
 
 
 -- ============================================================
--- BLOQUE 2 — Delta 2026-06-30 (correr en QA y prod)
--- Columnas requeridas por PUT /v1/abonos/{id}/cancelar
--- En dev ya están aplicadas
+-- BLOQUE 2 — Delta 2026-06-30 (cancelar)
+-- Estado: dev ✅ ya existía | qa ✅ ya existía | prod ⏳ pendiente
 -- ============================================================
 ALTER TABLE pedidos
     ADD COLUMN motivo_cancelacion  VARCHAR(30)    NULL
         COMMENT 'Motivo de cancelación del pedido de crédito',
     ADD COLUMN fecha_cancelacion   DATE           NULL
         COMMENT 'Fecha en que se canceló el pedido de crédito';
+
+-- ============================================================
+-- BLOQUE 3 — Delta 2026-06-30: monto dado por cliente (cambio/vuelto)
+-- Solo para ambientes que ya tenían la tabla SIN monto_dado (dev/qa)
+-- Estado: dev ✅ aplicado | qa ✅ aplicado | prod NO CORRER (ya está en BLOQUE 1)
+-- ============================================================
+ALTER TABLE abono_pedido
+    ADD COLUMN monto_dado DECIMAL(10,2) NULL
+        COMMENT 'Monto entregado por el cliente — para calcular cambio (solo EFECTIVO)';

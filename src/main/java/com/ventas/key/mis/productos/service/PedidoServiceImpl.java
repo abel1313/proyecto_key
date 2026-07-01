@@ -12,6 +12,8 @@ import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
+import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
+import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
@@ -343,6 +345,57 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+    }
+
+    @Override
+    public PedidoDetalleResponse getDetallePedido(int id) {
+        Pedido pedido = iPedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + id));
+
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        double totalPedido = pedido.getTotalPedido() != null ? pedido.getTotalPedido() : 0.0;
+
+        PedidoDetalleResponse resp = new PedidoDetalleResponse();
+        resp.setPedidoId(pedido.getId());
+        resp.setTipoPedido(pedido.getTipoPedido());
+        resp.setEstadoPedido(pedido.getEstadoPedido());
+        resp.setTotalPedido(totalPedido);
+        resp.setTotalPagado(totalPagado);
+        resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
+        resp.setFechaPedido(pedido.getFechaPedido());
+        resp.setFechaRecogida(pedido.getFechaRecogida());
+        resp.setObservaciones(pedido.getObservaciones());
+        resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
+        resp.setFechaCancelacion(pedido.getFechaCancelacion());
+
+        if (pedido.getCliente() != null) {
+            resp.setClienteNombre(pedido.getCliente().getNombrePersona());
+            resp.setClienteTelefono(pedido.getCliente().getNumeroTelefonico());
+        } else if (pedido.getClienteSinRegistro() != null) {
+            resp.setClienteNombre(pedido.getClienteSinRegistro().getNombrePersona());
+            resp.setClienteTelefono(pedido.getClienteSinRegistro().getNumeroTelefonico());
+        }
+
+        List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
+            DetalleItemResponse item = new DetalleItemResponse();
+            item.setId(dp.getId());
+            item.setCantidad(dp.getCantidad());
+            item.setPrecioUnitario(dp.getPrecioUnitario());
+            item.setSubTotal(dp.getSubTotal());
+            if (dp.getProducto() != null) {
+                item.setProductoNombre(dp.getProducto().getNombre());
+            }
+            if (dp.getVariante() != null) {
+                item.setVarianteId(dp.getVariante().getId());
+                item.setTalla(dp.getVariante().getTalla());
+                item.setColor(dp.getVariante().getColor());
+                item.setDescripcion(dp.getVariante().getDescripcion());
+            }
+            return item;
+        }).toList();
+
+        resp.setDetalles(detalles);
+        return resp;
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {

@@ -17,6 +17,8 @@ public class AbonoResponse {
     private LocalDate fechaPago;
     private String metodoPago;
     private String nota;
+    private Double montoDado;
+    private Double cambio;
     // Solo presentes al registrar un abono (POST); null en GET de historial
     private String estadoPedido;
     private Double saldoRestante;

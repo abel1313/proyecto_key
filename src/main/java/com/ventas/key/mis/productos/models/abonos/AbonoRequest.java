@@ -19,11 +19,14 @@ public class AbonoRequest {
 
     private LocalDate fechaPago;
 
-    // EFECTIVO | TRANSFERENCIA | TARJETA
+    // EFECTIVO | TRANSFERENCIA  (TARJETA no aplica en crédito — tiene comisión)
     private String metodoPago = "EFECTIVO";
 
-    // Para TRANSFERENCIA usar este campo para el número de referencia
+    // Para TRANSFERENCIA: número de referencia
     private String nota;
+
+    // Solo EFECTIVO: monto entregado por el cliente para calcular cambio
+    private Double montoDado;
 
     @NotNull(message = "El usuarioId es obligatorio")
     private Integer usuarioId;

@@ -53,7 +53,30 @@ public class AbonoServiceImpl implements IAbonoService {
             throw new RuntimeException("El pedido " + pedidoId + " está cancelado");
         }
 
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        double saldoPendiente = pedido.getTotalPedido() - totalPagado;
+        if (request.getMonto() <= 0) {
+            throw new RuntimeException("El monto del abono debe ser mayor a cero");
+        }
+        if (request.getMonto() > saldoPendiente) {
+            throw new RuntimeException(
+                String.format("El monto $%.2f excede el saldo pendiente de $%.2f", request.getMonto(), saldoPendiente));
+        }
+
         String metodoPago = request.getMetodoPago() != null ? request.getMetodoPago() : "EFECTIVO";
+
+        // DN-1: crédito solo acepta EFECTIVO o TRANSFERENCIA
+        if ("TARJETA".equals(metodoPago)) {
+            throw new RuntimeException("Los pedidos de crédito (APARTADO/FIADO) solo aceptan EFECTIVO o TRANSFERENCIA");
+        }
+
+        // NF-3: validar monto_dado cuando se recibe efectivo
+        if ("EFECTIVO".equals(metodoPago) && request.getMontoDado() != null
+                && request.getMontoDado() < request.getMonto()) {
+            throw new RuntimeException(
+                String.format("El monto entregado $%.2f es menor al monto del abono $%.2f",
+                        request.getMontoDado(), request.getMonto()));
+        }
 
         AbonoPedido abono = new AbonoPedido();
         abono.setPedido(pedido);
@@ -61,9 +84,10 @@ public class AbonoServiceImpl implements IAbonoService {
         abono.setFechaPago(request.getFechaPago() != null ? request.getFechaPago() : LocalDate.now());
         abono.setMetodoPago(metodoPago);
         abono.setNota(request.getNota());
+        abono.setMontoDado("EFECTIVO".equals(metodoPago) ? request.getMontoDado() : null);
         abonoRepository.save(abono);
 
-        double nuevoTotalPagado = (pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0) + request.getMonto();
+        double nuevoTotalPagado = totalPagado + request.getMonto();
         pedido.setTotalPagado(nuevoTotalPagado);
 
         if (nuevoTotalPagado >= pedido.getTotalPedido()) {
@@ -363,7 +387,19 @@ public class AbonoServiceImpl implements IAbonoService {
     }
 
     private AbonoResponse toAbonoResponse(AbonoPedido a) {
-        return new AbonoResponse(a.getId(), a.getMonto(), a.getFechaPago(), a.getMetodoPago(), a.getNota(), null, null);
+        Double cambio = null;
+        if ("EFECTIVO".equals(a.getMetodoPago()) && a.getMontoDado() != null && a.getMontoDado() > a.getMonto()) {
+            cambio = Math.round((a.getMontoDado() - a.getMonto()) * 100.0) / 100.0;
+        }
+        AbonoResponse r = new AbonoResponse();
+        r.setId(a.getId());
+        r.setMonto(a.getMonto());
+        r.setFechaPago(a.getFechaPago());
+        r.setMetodoPago(a.getMetodoPago());
+        r.setNota(a.getNota());
+        r.setMontoDado(a.getMontoDado());
+        r.setCambio(cambio);
+        return r;
     }
 
     private String nombreCliente(Pedido p) {

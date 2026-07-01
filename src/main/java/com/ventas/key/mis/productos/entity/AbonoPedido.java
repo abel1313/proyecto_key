@@ -35,4 +35,7 @@ public class AbonoPedido extends BaseId {
 
     @Column(length = 200)
     private String nota;
+
+    @Column(name = "monto_dado")
+    private Double montoDado;
 }
