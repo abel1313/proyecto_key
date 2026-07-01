@@ -64,9 +64,16 @@ public class AuthController {
                                    HttpServletRequest httpRequest,
                                    HttpServletResponse response) {
         String clientIp = resolverIp(httpRequest);
+        // Normalizar a minúsculas para que "Admin", "ADMIN" y "admin" compartan el mismo bucket
+        String usernameKey = "usr:" + request.getUserName().toLowerCase().trim();
 
         if (!rateLimiterService.tryConsume(clientIp)) {
-            log.warn("Rate limit excedido para IP: {}", clientIp);
+            log.warn("Rate limit por IP excedido: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos fallidos. Intente de nuevo en 15 minutos.");
+        }
+        if (!rateLimiterService.tryConsume(usernameKey)) {
+            log.warn("Rate limit por usuario excedido: {}", request.getUserName());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos fallidos. Intente de nuevo en 15 minutos.");
         }
@@ -200,7 +207,10 @@ public class AuthController {
     private String resolverIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            return xForwardedFor.split(",")[0].trim();
+            // Tomar la IP más a la DERECHA (la última que agregó el proxy de confianza).
+            // La primera puede ser falsa si el cliente forjó el header.
+            String[] ips = xForwardedFor.split(",");
+            return ips[ips.length - 1].trim();
         }
         return request.getRemoteAddr();
     }
