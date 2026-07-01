@@ -10,4 +10,6 @@ public class NotificacionRequest {
     private String ticketHtml;
     /** Texto plano del ticket generado por el front — se envía por WhatsApp */
     private String ticketTexto;
+    /** Correo manual (modal post-venta) — si viene, se usa en vez del correo registrado en BD */
+    private String correo;
 }

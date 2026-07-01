@@ -56,7 +56,6 @@
 | `AbonoServiceImpl` — llama email/WhatsApp tras registrar abono o cancelar | `AbonoServiceImpl.java` |
 | `VentaServiceImpl` — llama email/WhatsApp tras venta directa o registro crédito | `VentaServiceImpl.java` |
 | `GET /v1/negocio/contactos` (público, nuevo) — siempre expone `whatsappUrl`/`facebookUrl` para el QR del ticket, a diferencia de `/estado` que los oculta con negocio abierto | `NegocioController.java`, `NegocioService.java`, `ContactosPublicosDto.java`, `SecurityConfig.java` |
-| **Fix bug recurrente:** chatbot a veces decía "no tenemos imágenes" en vez de mostrar la tarjeta, pese a que el producto sí tiene imágenes/stock (el modelo IA no siempre sigue la instrucción del prompt). Se agregó red de seguridad: si el cliente pide ver imagen y el modelo no usó `##BUSCAR##`, se reintenta una vez forzando la corrección con el mismo contexto de la conversación. También se reforzó el prompt con ejemplos explícitos de la frase que falló ("¿tienes alguna imagen?"). **No cambia el contrato del endpoint** — el front no necesita hacer nada. | `ChatbotService.java`, `ChatbotController.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -64,20 +63,31 @@
 |---|---|---|---|
 | F-1 | Generar HTML del ticket con `generarHtmlTicket()` | Todas | "Ticket / Comprobante — implementación FRONT" |
 | F-2 | Botón 🖨️ imprimir con `window.print()` | Venta directa, abonos, cancelación | Misma sección |
-| F-3 | Checkbox de correo con pre-selección (~~WhatsApp EN PAUSA~~, no implementar) | Venta directa, abonos, cancelación | Misma sección |
+| F-3 | Checkbox de correo (NO marcado por default; solo visible si cliente tiene correo. Sin correo → modal post-venta) | Venta directa, abonos, cancelación | Misma sección |
 | F-4 | Agregar `notificacion: { enviarCorreo, ticketHtml }` al request (sin `enviarWhatsapp`/`ticketTexto`) | POST venta, POST abono, PUT cancelar | Misma sección |
 | F-5 | Mostrar resultado: "Correo enviado ✅" | Toast/modal de confirmación | Misma sección |
 | F-6 | Tarjetas de producto en el chatbot (render `productos[]`) | Chatbot | "Chatbot — Tarjetas de productos" |
 | F-7 | Botón "Ver más" en chatbot (`GET /v1/chatbot/buscar?q=&offset=`) | Chatbot | Misma sección |
 | F-8 | Imagen por tarjeta (`GET /v1/variantes/imagenes/{varianteId}`, primer elemento) | Chatbot | Misma sección |
 | F-9 | QR al sitio de la tienda en el ticket (URL fija desde `environment.ts`) | Venta directa, abonos, cancelación | "QRs del ticket (2026-07-01)" |
-| F-10 | QR "Contáctanos por WhatsApp" — usar `whatsappUrl` de `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
-| F-11 | QR Facebook del negocio — usar `facebookUrl` de `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
+| F-10 | QR WhatsApp del negocio — solo si `whatsappUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
+| F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 
-> **⚠️ F-9/F-10/F-11 bloqueadas por una decisión sin confirmar:** falta decidir si el ticket
-> muestra los 3 QRs fijos siempre, o solo 1-2 por espacio (sobre todo si es impresión térmica
-> angosta 58mm/80mm). Detalle y recomendación en CAMBIOS_FRONT.md → "Cuántos QRs mostrar —
-> DECISIÓN PENDIENTE". No dar por cerrado el diseño del ticket hasta confirmar esto.
+> **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
+> SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL
+> configurada, el QR simplemente no aparece. F-9 (QR de la tienda) siempre aparece.
+> F-9/F-10/F-11 **desbloqueadas** — proceder con la implementación.
+
+> **Decisión 2026-07-01 — F-3 (correo):** checkbox NO se marca por default aunque el cliente
+> tenga correo. Flujo:
+> - Cliente **tiene correo** → aparece el checkbox desmarcado → admin lo puede marcar antes de cobrar.
+> - Cliente **no tiene correo** → NO aparece el checkbox. Después de completar la venta/abono,
+    >   se muestra un modal/Swal preguntando "¿Enviar ticket por correo?" con un input para escribir
+    >   el correo; al confirmar se envía (POST separado o campo en el Swal).
+
+> **Dudas anotadas — RESPONDIDAS 2026-07-01 (ver detalle al final del documento en
+> "Respuestas a las dudas anotadas"):** D-01 (correo/teléfono obligatorios), D-02 (campo `correo`
+> en `NotificacionRequest` — ✅ ya agregado al back), D-03 (QR F-10/F-11 — ya resuelto arriba).
 
 ### Configuración pendiente en servidor (QA y producción)
 
@@ -207,13 +217,13 @@ En TODAS las pantallas donde el cliente o admin confirma una acción que genera 
 └─────────────────────────────────────────────────┘
 ```
 
-### Reglas de los checkboxes
+### Reglas de los checkboxes (actualizado 2026-07-01)
 
-- Si el cliente tiene **correo registrado** → el campo aparece pre-llenado y el check activado por default
-- Si el cliente tiene **teléfono registrado** → igual, pre-llenado y activo por default
-- Si el cliente **no tiene correo/teléfono** → el check aparece desmarcado y con campo vacío para escribir
-- Si es `clienteSinRegistro` (nombre manual sin cuenta) → ambos campos vacíos para que el admin los llene si quiere
-- Si ambos están desmarcados → se genera el ticket de todas formas (para imprimir en pantalla / PDF), pero no se envía
+- Si el cliente tiene **correo registrado** → aparece el checkbox **desmarcado** (el admin decide si enviarlo)
+- Si el cliente **no tiene correo** → el checkbox NO aparece. Después de la venta/abono aparece un modal/Swal con input para escribir el correo manualmente
+- Si es `clienteSinRegistro` (nombre manual sin cuenta) → sin checkbox antes de la venta; modal post-venta igual
+- WhatsApp **EN PAUSA** — no hay checkbox de WhatsApp ni campo de teléfono para envío
+- Si el checkbox está desmarcado → se genera el ticket de todas formas (para imprimir en pantalla), pero no se envía
 
 ### Campos que el front manda al back
 
@@ -352,11 +362,11 @@ Saldo a favor cliente:       $100.00
 
 ### Tecnología propuesta
 - **Opción A (recomendada):** HTML optimizado para impresión → el front hace `window.print()`
-  - Sin dependencias en el back, más flexible para el front
-  - El back devuelve el HTML como string en el response
+    - Sin dependencias en el back, más flexible para el front
+    - El back devuelve el HTML como string en el response
 - **Opción B:** PDF con `iText 7` o `Apache PDFBox` → bytes en base64
-  - Más robusto para guardar/compartir
-  - Requiere dependencia en `pom.xml`
+    - Más robusto para guardar/compartir
+    - Requiere dependencia en `pom.xml`
 - **QR:** librería `ZXing` (Java) — genera el QR con la URL de la tienda
 
 ### Lo que necesita el back
@@ -620,12 +630,64 @@ CAMBIO:                 $50.00
 
 ### Lo que necesita el front
 - Botón "🧾 Imprimir ticket" en:
-  - Pantalla de confirmación de venta directa
-  - Pantalla de abonos tras registrar un pago
-  - Detalle de pedido PAGADO
+    - Pantalla de confirmación de venta directa
+    - Pantalla de abonos tras registrar un pago
+    - Detalle de pedido PAGADO
 - Al hacer click → `GET /v1/ticket/venta/{id}` → abrir PDF en nueva pestaña o `window.print()`
 
 ### Notas
 - El QR apunta a la URL pública de la tienda (no a un pedido específico por privacidad)
 - Si se prefiere impresora térmica (ticket físico), el HTML es mejor que el PDF
 - El `montoDado` y `cambio` ya están implementados en el back (NF-3) — el ticket los usa directamente
+
+---
+
+## Respuestas a las dudas anotadas (2026-07-01)
+
+### D-01 — ¿Correo/teléfono obligatorios en el alta de usuario/cliente?
+
+**Revisado el back para responder con datos reales, no opinión:**
+- `AuthRequest` (alta de usuario, `/v1/auth/registrar`): el campo `email` tiene `@Email` (valida
+  formato SI viene) pero **NO tiene `@NotBlank`** — el back no lo exige. No existe campo teléfono
+  en el registro de usuario.
+- `Cliente` (entidad): `correoElectronico` y `numeroTelefonico` son columnas simples, sin ninguna
+  anotación de validación (`@NotBlank`/`@Email`/`@NotNull`) — el back tampoco los exige ahí.
+
+**Recomendación: dejarlos como están (opcionales), no agregar `Validators.required` en el front.**
+Razón: como ya se diseñó el modal post-venta para pedir el correo cuando falta, hacerlos
+obligatorios en el alta sería redundante — obligarías a capturar un dato en un momento (alta de
+cliente) que ya tiene una red de seguridad más adelante (el modal), y frenarías altas rápidas de
+clientes sin correo/teléfono a mano (común en ventas de mostrador). Si más adelante se quiere
+teléfono también capturado, hay que agregar el campo primero a `Usuario`/`AuthRequest` — hoy no
+existe ni en el modelo de alta de usuario.
+
+### D-02 — Campo `correo` en `NotificacionRequest` para el modal post-venta
+
+**Ya implementado en el back (2026-07-01).** Se agregó el campo a
+`NotificacionRequest.java`:
+
+```json
+{
+  "notificacion": {
+    "enviarCorreo": true,
+    "ticketHtml": "<html>...</html>",
+    "correo": "escrito-en-el-modal@ejemplo.com"
+  }
+}
+```
+
+- Si `correo` viene con valor → el back lo usa como destino del email en vez del correo
+  registrado en BD (o en vez de "" si el cliente no tiene ninguno).
+- Si `correo` viene vacío/null → se usa el correo registrado en BD, como antes (sin cambios de
+  comportamiento para el flujo normal).
+- Aplica en los 3 flujos: `POST /v1/ventas/save`, `POST /v1/abonos/{pedidoId}`,
+  `PUT /v1/abonos/{pedidoId}/cancelar`.
+- **No hizo falta el endpoint alternativo** `POST /v1/ventas/{id}/notificar` — se resuelve todo
+  en el mismo request de la acción principal, más simple para el front (un solo request, no dos).
+- Archivos tocados: `NotificacionRequest.java`, `AbonoServiceImpl.java`, `VentaServiceImpl.java`.
+
+### D-03 — QR F-10/F-11, confirmación pendiente
+
+Ya resuelto en la sección "Decisión 2026-07-01 — F-10/F-11" más arriba (línea ~76): los QR de
+WhatsApp y Facebook se muestran solo si `GET /v1/negocio/contactos` trae esa URL; si no, el QR
+simplemente no aparece. F-9/F-10/F-11 quedaron desbloqueadas — no hay nada más pendiente aquí.

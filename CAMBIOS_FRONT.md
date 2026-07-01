@@ -3636,14 +3636,19 @@ Aplicar en: `POST /v1/abonos/{pedidoId}`, `POST /v1/ventas/save`,
   "notificacion": {
     "enviarCorreo":   true,
     "enviarWhatsapp": false,
-    "ticketHtml":     "<html>...ticket generado por el front...</html>"
+    "ticketHtml":     "<html>...ticket generado por el front...</html>",
+    "correo":         "escrito-en-el-modal@ejemplo.com"
   }
 }
 ```
 
-- **Por ahora el front solo maneja `enviarCorreo` y `ticketHtml`.** `enviarWhatsapp` se manda
-  siempre `false` (o se omite) y `ticketTexto` no hace falta construirlo — ver nota de
+- **Por ahora el front solo maneja `enviarCorreo`, `ticketHtml` y `correo`.** `enviarWhatsapp` se
+  manda siempre `false` (o se omite) y `ticketTexto` no hace falta construirlo — ver nota de
   "WhatsApp EN PAUSA" arriba.
+- **`correo` (nuevo, 2026-07-01) — para el modal post-venta:** si el cliente no tiene correo
+  registrado, se muestra un modal pidiéndolo manualmente; ese valor va en este campo. Si viene con
+  valor, el back lo usa como destino en vez del correo de la BD. Si se omite o va vacío, se usa el
+  correo registrado (comportamiento normal, sin cambios).
 - Si no se quiere enviar nada → no mandar el campo `notificacion` (o mandar `null`). El back solo intenta notificar si `notificacion != null`.
 - Si `enviarCorreo = false` → no hace falta mandar `ticketHtml`.
 
