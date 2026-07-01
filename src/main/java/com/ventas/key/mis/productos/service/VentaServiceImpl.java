@@ -10,6 +10,7 @@ import com.ventas.key.mis.productos.dto.ClienteSinRegistroDto;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
+import com.ventas.key.mis.productos.models.NotificacionRequest;
 import com.ventas.key.mis.productos.models.VentaDirectaResponse;
 import com.ventas.key.mis.productos.repository.*;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
@@ -46,6 +47,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
+    @Autowired private EmailService emailService;
+    @Autowired private WhatsappService whatsappService;
 
     public VentaServiceImpl(
             final IVentaRepository iVentaRepository,
@@ -199,7 +202,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             Pedido savedPedido = iPedidoRepository.save(pedido);
             cacheService.evictAll();
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
-            return new VentaDirectaResponse(null, null, false, totalPedidoCalc, null, null, null, savedPedido.getId());
+            VentaDirectaResponse respCredito = new VentaDirectaResponse(
+                    null, null, false, totalPedidoCalc, null, null, null, savedPedido.getId());
+            enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
+                    "Pedido registrado — Novedades Jade", respCredito);
+            return respCredito;
         }
 
         double totalVenta    = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
@@ -236,7 +243,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         Venta saved = iVentaRepository.save(venta);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
-        return new VentaDirectaResponse(
+        VentaDirectaResponse respVenta = new VentaDirectaResponse(
                 saved.getId(),
                 pagosYMeses.getTipoPago().getFormaPago(),
                 requiereTerminal,
@@ -246,6 +253,31 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 null,
                 null
         );
+        enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
+                "Comprobante de compra — Novedades Jade", respVenta);
+        return respVenta;
+    }
+
+    private void enviarNotificacionesVenta(NotificacionRequest notif, Cliente cliente,
+                                            ClienteSinRegistro sinRegistro,
+                                            String asunto, VentaDirectaResponse resp) {
+        if (notif == null) return;
+        List<String> errores = new ArrayList<>();
+        String correo   = cliente != null ? cliente.getCorreoElectronico()
+                        : sinRegistro != null ? sinRegistro.getCorreoElectronico() : "";
+        String telefono = cliente != null ? cliente.getNumeroTelefonico()
+                        : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : "";
+        if (notif.isEnviarCorreo()) {
+            boolean ok = emailService.enviarTicket(correo, asunto, notif.getTicketHtml());
+            resp.setCorreoEnviado(ok);
+            if (!ok) errores.add("No se pudo enviar el correo");
+        }
+        if (notif.isEnviarWhatsapp()) {
+            boolean ok = whatsappService.enviarMensaje(telefono, notif.getTicketTexto());
+            resp.setWhatsappEnviado(ok);
+            if (!ok) errores.add("No se pudo enviar el WhatsApp");
+        }
+        if (!errores.isEmpty()) resp.setErroresEnvio(errores);
     }
 
     @Transactional

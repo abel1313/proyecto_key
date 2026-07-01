@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.models.abonos;
 
+import com.ventas.key.mis.productos.models.NotificacionRequest;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -30,4 +31,6 @@ public class AbonoRequest {
 
     @NotNull(message = "El usuarioId es obligatorio")
     private Integer usuarioId;
+
+    private NotificacionRequest notificacion;
 }
