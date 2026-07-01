@@ -17,6 +17,8 @@ import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Tag(name = "Chatbot", description = "Asistente virtual de la tienda Novedades Jade con control de abuso por IP")
 @RestController
@@ -72,7 +74,18 @@ public class ChatbotController {
         return chatbotService.chat(request)
                 .map(respuesta -> {
                     boolean esFarewell = respuesta.contains("##FAREWELL##");
-                    String respuestaLimpia = respuesta.replace("##FAREWELL##", "").trim();
+                    // Extraer ##BUSCAR[query,offset]## si existe
+                    Pattern buscarPattern = Pattern.compile("##BUSCAR\\[([^,\\]]+),?(\\d*)\\]##");
+                    Matcher buscarMatcher = buscarPattern.matcher(respuesta);
+                    boolean tieneBuscar = buscarMatcher.find();
+                    String buscarQuery = tieneBuscar ? buscarMatcher.group(1).trim() : null;
+                    int buscarOffset = (tieneBuscar && !buscarMatcher.group(2).isBlank())
+                            ? Integer.parseInt(buscarMatcher.group(2)) : 0;
+
+                    String respuestaLimpia = respuesta
+                            .replace("##FAREWELL##", "")
+                            .replaceAll("##BUSCAR\\[[^\\]]*\\]##", "")
+                            .trim();
                     Map<String, Object> result = new HashMap<>();
 
                     if (esFarewell) {
@@ -91,6 +104,15 @@ public class ChatbotController {
                         result.put("bloqueado", false);
                         result.put("segundosEspera", 0);
                     }
+
+                    if (tieneBuscar && buscarQuery != null && !buscarQuery.isBlank()) {
+                        Map<String, Object> busqueda = chatbotService.buscarProductos(buscarQuery, buscarOffset);
+                        result.put("productos", busqueda.get("productos"));
+                        result.put("hayMas", busqueda.get("hayMas"));
+                        result.put("busquedaQuery", busqueda.get("busquedaQuery"));
+                        result.put("busquedaOffset", busqueda.get("busquedaOffset"));
+                    }
+
                     return ResponseEntity.<Map<String, Object>>ok(result);
                 })
                 .onErrorResume(e -> {
@@ -108,6 +130,17 @@ public class ChatbotController {
                     result.put("segundosEspera", segs);
                     return Mono.just(ResponseEntity.<Map<String, Object>>ok(result));
                 });
+    }
+
+    @Operation(
+        summary = "Ver más productos del chatbot",
+        description = "Paginación de productos sin llamar a la IA. Usar cuando el usuario hace clic en 'Ver más'."
+    )
+    @GetMapping("/buscar")
+    public ResponseEntity<Map<String, Object>> buscar(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int offset) {
+        return ResponseEntity.ok(chatbotService.buscarProductos(q, offset));
     }
 
     private String obtenerIp(HttpServletRequest request) {
