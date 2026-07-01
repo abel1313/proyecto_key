@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | 1 | Ticket (impresión HTML) | ✅ No requiere back | ⏳ Pendiente front | — |
 | 2 | Envío por correo electrónico | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
-| 3 | Envío por WhatsApp | ✅ Listo (CallMeBot) | ⏳ Pendiente front | 2026-07-01 |
+| 3 | Envío por WhatsApp | 🚫 EN PAUSA — ver decisión 2026-07-01 | 🚫 No implementar | 2026-07-01 |
 | 4 | Alertas stock bajo al admin | ⏳ Pendiente back | ⏳ Pendiente front | — |
 | 5 | Reportes de ventas (día/mes/cliente) | ⏳ Pendiente back | ⏳ Pendiente front | — |
 | 6 | Dashboard con métricas | ⏳ Pendiente back | ⏳ Pendiente front | — |
@@ -20,9 +20,17 @@
 | 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
 | 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
 
-> **Orden:** el ticket (1) va primero porque correo (2) y WhatsApp (3) lo necesitan.
-> El stock bajo (4) necesita correo (2) y WhatsApp (3) ya listos en back.
+> **Orden:** el ticket (1) va primero porque correo (2) lo necesita.
+> El stock bajo (4) necesita correo (2) ya listo en back.
 > El dashboard (6) necesita los reportes (5).
+
+> **Decisión 2026-07-01 — WhatsApp EN PAUSA:** se descartó implementar el envío del ticket por
+> WhatsApp al cliente. CallMeBot (gratis, ya programado en el back) solo le avisa al negocio, no
+> al cliente; Twilio (que sí notificaría al cliente real) implica alta de cuenta de pago,
+> verificación de número de WhatsApp Business y programar el caso `"twilio"` en
+> `WhatsappService.java` — se consideró mucho esfuerzo para el beneficio. **Solo se implementa
+> correo.** El código de WhatsApp en el back queda tal cual (no estorba, simplemente no se usa) y
+> el front NO debe agregar el checkbox ni el campo de WhatsApp.
 
 ---
 
@@ -47,6 +55,8 @@
 | `VentaDirectaResponse` — campos de resultado de notificación | `VentaDirectaResponse.java` |
 | `AbonoServiceImpl` — llama email/WhatsApp tras registrar abono o cancelar | `AbonoServiceImpl.java` |
 | `VentaServiceImpl` — llama email/WhatsApp tras venta directa o registro crédito | `VentaServiceImpl.java` |
+| `GET /v1/negocio/contactos` (público, nuevo) — siempre expone `whatsappUrl`/`facebookUrl` para el QR del ticket, a diferencia de `/estado` que los oculta con negocio abierto | `NegocioController.java`, `NegocioService.java`, `ContactosPublicosDto.java`, `SecurityConfig.java` |
+| **Fix bug recurrente:** chatbot a veces decía "no tenemos imágenes" en vez de mostrar la tarjeta, pese a que el producto sí tiene imágenes/stock (el modelo IA no siempre sigue la instrucción del prompt). Se agregó red de seguridad: si el cliente pide ver imagen y el modelo no usó `##BUSCAR##`, se reintenta una vez forzando la corrección con el mismo contexto de la conversación. También se reforzó el prompt con ejemplos explícitos de la frase que falló ("¿tienes alguna imagen?"). **No cambia el contrato del endpoint** — el front no necesita hacer nada. | `ChatbotService.java`, `ChatbotController.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -54,24 +64,110 @@
 |---|---|---|---|
 | F-1 | Generar HTML del ticket con `generarHtmlTicket()` | Todas | "Ticket / Comprobante — implementación FRONT" |
 | F-2 | Botón 🖨️ imprimir con `window.print()` | Venta directa, abonos, cancelación | Misma sección |
-| F-3 | Checkboxes correo + WhatsApp con pre-selección | Venta directa, abonos, cancelación | Misma sección |
-| F-4 | Agregar `notificacion: { enviarCorreo, enviarWhatsapp, ticketHtml, ticketTexto }` al request | POST venta, POST abono, DELETE cancelar | Misma sección |
-| F-5 | Mostrar resultado: "Correo enviado ✅" / "WhatsApp no enviado ❌" | Toast/modal de confirmación | Misma sección |
+| F-3 | Checkbox de correo con pre-selección (~~WhatsApp EN PAUSA~~, no implementar) | Venta directa, abonos, cancelación | Misma sección |
+| F-4 | Agregar `notificacion: { enviarCorreo, ticketHtml }` al request (sin `enviarWhatsapp`/`ticketTexto`) | POST venta, POST abono, PUT cancelar | Misma sección |
+| F-5 | Mostrar resultado: "Correo enviado ✅" | Toast/modal de confirmación | Misma sección |
 | F-6 | Tarjetas de producto en el chatbot (render `productos[]`) | Chatbot | "Chatbot — Tarjetas de productos" |
 | F-7 | Botón "Ver más" en chatbot (`GET /v1/chatbot/buscar?q=&offset=`) | Chatbot | Misma sección |
 | F-8 | Imagen por tarjeta (`GET /v1/variantes/imagenes/{varianteId}`, primer elemento) | Chatbot | Misma sección |
+| F-9 | QR al sitio de la tienda en el ticket (URL fija desde `environment.ts`) | Venta directa, abonos, cancelación | "QRs del ticket (2026-07-01)" |
+| F-10 | QR "Contáctanos por WhatsApp" — usar `whatsappUrl` de `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
+| F-11 | QR Facebook del negocio — usar `facebookUrl` de `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 
-### Configuración pendiente en servidor (producción)
+> **⚠️ F-9/F-10/F-11 bloqueadas por una decisión sin confirmar:** falta decidir si el ticket
+> muestra los 3 QRs fijos siempre, o solo 1-2 por espacio (sobre todo si es impresión térmica
+> angosta 58mm/80mm). Detalle y recomendación en CAMBIOS_FRONT.md → "Cuántos QRs mostrar —
+> DECISIÓN PENDIENTE". No dar por cerrado el diseño del ticket hasta confirmar esto.
 
-| Variable de entorno | Valor | Para qué |
-|---|---|---|
-| `WHATSAPP_PROVEEDOR` | `callmebot` | Activar envío WhatsApp |
-| `WHATSAPP_APIKEY` | (API key de CallMeBot) | Autenticación CallMeBot |
-| `MAIL_USERNAME` | `qa.boutique.bolsas@novedades-jade.com.mx` | Ya en dev, verificar en prod |
-| `MAIL_PASSWORD` | (contraseña OVH) | Ya en dev, verificar en prod |
+### Configuración pendiente en servidor (QA y producción)
 
-> **Nota CallMeBot:** cada cliente debe enviar un mensaje de activación al número de CallMeBot
-> una sola vez antes de recibir mensajes. Si esto es un problema, migrar a Twilio (de pago).
+| Variable de entorno | Valor | Para qué | Estado |
+|---|---|---|---|
+| `WHATSAPP_PROVEEDOR` | `callmebot` | Activar envío WhatsApp | 🚫 No aplica — WhatsApp en pausa (ver decisión arriba) |
+| `WHATSAPP_APIKEY` | (API key de CallMeBot) | Autenticación CallMeBot | 🚫 No aplica — no se va a usar |
+| `MAIL_USERNAME` | `qa.boutique.bolsas@novedades-jade.com.mx` | Ya en dev, verificar en prod | ✅ Ya activo (lo usa el chat) |
+| `MAIL_PASSWORD` | (contraseña OVH) | Ya en dev, verificar en prod | ✅ Ya activo (lo usa el chat) |
+
+> **2026-07-01:** el bloque `whatsapp:` faltaba en `application-qa.yml` y `application-docker.yml`
+> (solo estaba en dev) — ya se agregó por si algún día se retoma, pero **no hace falta setear
+> `WHATSAPP_APIKEY` en k8s** porque se decidió no implementar el envío por WhatsApp al cliente
+> (ver "Decisión 2026-07-01 — WhatsApp EN PAUSA" arriba). Con `MAIL_USERNAME`/`MAIL_PASSWORD` ya
+> activos, el envío de tickets por correo debería funcionar en QA y prod sin más configuración.
+
+#### Cómo obtener el `WHATSAPP_APIKEY` de CallMeBot (gratis, pero limitado)
+
+CallMeBot no manda mensajes "a nombre del negocio" a cualquier número. La clave se genera
+para UN número que primero se **auto-activa** para recibir mensajes de ese bot:
+
+1. Desde el WhatsApp del número que va a **recibir** los mensajes (ej. el WhatsApp del negocio),
+   agregar como contacto el número oficial de CallMeBot (verificar el número vigente en
+   callmebot.com antes de usarlo, puede cambiar).
+2. Mandarle un mensaje con el texto exacto: `I allow callmebot to send me messages`.
+3. El bot responde en segundos/minutos con un mensaje tipo:
+   `"API Activated for your phone number. Your APIKEY is 123456"`.
+4. Ese número (`123456` en el ejemplo) es el valor de `WHATSAPP_APIKEY`.
+
+> **Limitación importante:** ese apikey solo sirve para mandar mensajes A ESE número que se
+> activó — no sirve para mandarle el ticket a un cliente distinto. Cada cliente tendría que
+> activar el suyo. Por ahora esto solo es viable para que **el negocio reciba una copia** del
+> ticket en su propio WhatsApp, no para notificar a clientes reales. Si se necesita mandar a
+> clientes arbitrarios sin que se den de alta, hay que migrar a Twilio WhatsApp Business API
+> (de pago, sin esta restricción) — el switch `whatsapp.proveedor` ya está pensado para eso,
+> pero el caso `twilio` no está implementado todavía en `WhatsappService.java`.
+
+#### DECISIÓN PENDIENTE — ¿CallMeBot (solo aviso interno) o Twilio (mensaje real al cliente)?
+
+**CallMeBot (ya implementado, gratis, $0 código extra):**
+1. Una sola vez: el negocio agrega el contacto de CallMeBot y le manda
+   `I allow callmebot to send me messages` → CallMeBot devuelve un `apikey` ligado a **ese número**.
+2. Ese `apikey` se guarda como `WHATSAPP_APIKEY`.
+3. Cuando un cliente compra, el back llama a CallMeBot con `phone = número del negocio` (el que se
+   activó) y ese mismo `apikey`.
+4. El mensaje llega **al WhatsApp del negocio**, no al del cliente. El cliente nunca recibe nada
+   por WhatsApp con este método — sirve como alerta interna de venta/abono, no como notificación
+   al comprador.
+
+**Twilio WhatsApp Business API (NO implementado, de pago, requiere código nuevo):**
+1. Alta de cuenta en Twilio (con tarjeta de pago) y activar el producto WhatsApp.
+2. Sandbox gratis para pruebas; para producción real hay que registrar un número de WhatsApp
+   Business propio ante Meta (verificación que tarda días).
+3. Regla de WhatsApp (no de Twilio): solo se puede mandar texto libre si el cliente escribió
+   primero en las últimas 24h; si no, hay que usar una "plantilla" pre-aprobada por Meta
+   (ej. `"Tu ticket de compra folio {{1}} por {{2}} está listo"`), y aprobar plantillas nuevas
+   también tarda.
+4. Con la cuenta lista, el back llama a Twilio con `to = número del cliente`,
+   `from = número de WhatsApp Business del negocio` → **sí llega al cliente**, sin que el cliente
+   tenga que activar nada antes.
+5. Costo: centavos de dólar por mensaje, facturación mensual.
+6. Esfuerzo: programar el caso `"twilio"` en `WhatsappService.java` (llamada a la API/SDK de
+   Twilio) — no es complicado pero es código nuevo, hoy no existe.
+
+**En una frase:** CallMeBot = alerta para el negocio, gratis, ya funciona. Twilio = mensaje real
+al cliente, de pago, requiere alta de cuenta + verificación + código nuevo.
+
+**Pendiente de decidir:** ¿dejamos CallMeBot solo como aviso interno del negocio, implementamos
+Twilio para notificar al cliente de verdad, o quitamos WhatsApp por ahora y solo dejamos correo
+(que sí funciona para cualquier destinatario sin activación previa)?
+
+#### Comandos para setear las env vars (una vez que se tenga el apikey)
+
+```bash
+# QA
+kubectl set env deployment/proyecto-key-deployment \
+  WHATSAPP_PROVEEDOR=callmebot \
+  WHATSAPP_APIKEY=<apikey_obtenido> \
+  WHATSAPP_COUNTRY_CODE=52 \
+  -n qa
+kubectl rollout restart deployment/proyecto-key-deployment -n qa
+
+# Prod
+kubectl set env deployment/proyecto-key-deployment \
+  WHATSAPP_PROVEEDOR=callmebot \
+  WHATSAPP_APIKEY=<apikey_obtenido> \
+  WHATSAPP_COUNTRY_CODE=52 \
+  -n default
+kubectl rollout restart deployment/proyecto-key-deployment -n default
+```
 
 ---
 

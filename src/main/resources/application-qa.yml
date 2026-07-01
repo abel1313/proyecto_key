@@ -102,3 +102,8 @@ openai:
 chat:
   admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
 
+whatsapp:
+  proveedor: ${WHATSAPP_PROVEEDOR:callmebot}
+  callmebot-apikey: ${WHATSAPP_APIKEY:}
+  country-code: ${WHATSAPP_COUNTRY_CODE:52}
+

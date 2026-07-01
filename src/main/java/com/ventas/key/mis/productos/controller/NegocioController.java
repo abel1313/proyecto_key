@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioConfigDto;
@@ -24,6 +25,13 @@ public class NegocioController {
     @GetMapping("/estado")
     public ResponseEntity<ResponseGeneric<NegocioEstadoDto>> getEstado() {
         return ResponseEntity.ok(new ResponseGeneric<>(negocioService.getEstado()));
+    }
+
+    /** Público — datos de contacto para el QR del ticket (siempre disponibles, sin importar
+     *  si el negocio está abierto o cerrado; a diferencia de /estado) */
+    @GetMapping("/contactos")
+    public ResponseEntity<ResponseGeneric<ContactosPublicosDto>> getContactosPublicos() {
+        return ResponseEntity.ok(new ResponseGeneric<>(negocioService.getContactosPublicos()));
     }
 
     /** Solo ADMIN — ver configuración completa */
