@@ -133,6 +133,11 @@ public class ChatbotService {
             for (Variantes v : variantes) {
                 sb.append("- ").append(v.getProducto().getNombre());
 
+                if (v.getProducto().getCodigoBarras() != null
+                        && v.getProducto().getCodigoBarras().getCodigoBarras() != null
+                        && !v.getProducto().getCodigoBarras().getCodigoBarras().isBlank()) {
+                    sb.append(" [cód. barras: ").append(v.getProducto().getCodigoBarras().getCodigoBarras()).append("]");
+                }
                 if (v.getMarca() != null && !v.getMarca().isBlank()) {
                     sb.append(" (").append(v.getMarca()).append(")");
                 }
