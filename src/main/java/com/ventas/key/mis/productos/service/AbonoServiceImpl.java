@@ -257,7 +257,8 @@ public class AbonoServiceImpl implements IAbonoService {
 
         log.info("Pedido {} cancelado — tipo: {}, stock devuelto: {}", pedidoId, pedido.getTipoPedido(), stockDevuelto);
         CancelarAbonoResponse resp = new CancelarAbonoResponse(
-                pedidoId, pedido.getTipoPedido(), "cancelado", totalPagado, totalPendiente, stockDevuelto, msg);
+                pedidoId, pedido.getTipoPedido(), "cancelado", totalPagado, totalPendiente, stockDevuelto, msg,
+                null, null, null);
 
         if (request.getNotificacion() != null) {
             String correo   = correoCliente(pedido);
