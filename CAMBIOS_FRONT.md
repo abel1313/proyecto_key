@@ -3178,7 +3178,81 @@ usando `varianteId` para hacer el fetch de detalle.
 ## Ticket / Comprobante — implementación FRONT (2026-07-01)
 
 > El back solo manda datos. El front genera el HTML, aplica estilos de impresión y llama `window.print()`.
-> El correo y WhatsApp los implementará el back más adelante (ítems 2 y 3 del plan).
+> El correo se implementó en el back (ver sección "Correo — cómo lo hace el front" más abajo).
+> WhatsApp automático al cliente quedó descartado (ver `PLAN_MEJORAS.md`) — en su lugar el ticket
+> lleva un QR de "contáctanos por WhatsApp" (ver siguiente sección).
+
+---
+
+### QRs del ticket (2026-07-01)
+
+La generación del QR es **100% front** (librería JS, ej. `npm install qrcode` o `angularx-qrcode`).
+Los *datos* que van dentro de cada QR salen de dos fuentes distintas: la URL de la tienda es fija
+(`environment.ts`) y los links de WhatsApp/Facebook del negocio salen de un endpoint nuevo del back
+(`GET /v1/negocio/contactos`), **no se arman a mano ni se hardcodea ningún número**.
+
+#### Endpoint nuevo — `GET /v1/negocio/contactos` (público, 2026-07-01)
+
+```
+GET /mis-productos/v1/negocio/contactos
+```
+
+Response:
+```json
+{
+  "data": {
+    "whatsappUrl": "https://wa.me/52XXXXXXXXXX",
+    "facebookUrl": "https://facebook.com/novedadesjade"
+  }
+}
+```
+
+- Público, no requiere login.
+- **Diferencia con `GET /v1/negocio/estado`:** ese endpoint también trae `whatsappUrl`/`facebookUrl`,
+  pero los devuelve en `null` mientras el negocio está **abierto** (a propósito, para otro caso de
+  uso). Este endpoint nuevo (`/contactos`) siempre los devuelve, sin importar si está abierto o
+  cerrado — por eso es el que hay que usar para el ticket, que se genera justo durante la venta
+  (negocio abierto).
+- Cualquiera de los dos campos puede venir `null`/vacío si el admin no los configuró — en ese caso
+  no mostrar ese QR (ver "Cuántos QRs mostrar" abajo).
+- Los valores ya son URLs completas y listas para usar (`https://wa.me/...`, `https://facebook.com/...`)
+  — el front solo las mete en el QR, no arma nada.
+
+#### QR 1 — Link a la tienda
+
+Apunta a la URL pública de la tienda, sacada de `environment.ts` (`environment.tiendaUrl` o la que
+ya exista para CORS/base de la app), NO de este endpoint:
+- Prod: `https://shop.novedades-jade.com.mx`
+- QA: `https://qa.shop.novedades-jade.com.mx`
+
+#### QR 2 — "Contáctanos por WhatsApp" (click-to-chat)
+
+Usa directo el `whatsappUrl` que regresa `GET /v1/negocio/contactos` (ya es un link `wa.me/...`
+armado por el admin desde el panel — no hay que construirlo ni pedir el número por separado).
+
+- Al escanear/tocar, abre el WhatsApp de quien escanea con un chat ya armado **hacia el negocio**
+  (es al revés de "el negocio le manda algo al cliente" — aquí el cliente es quien envía, con un
+  solo tap en "Enviar").
+- El número no aparece como texto en el ticket, solo va codificado dentro del QR.
+- Si se quiere texto precargado (ej. `"Hola, tengo una duda sobre mi compra folio #42"`), se le
+  agrega `?text=<mensaje url-encoded>` al final del `whatsappUrl` recibido antes de generar el QR.
+
+#### QR 3 — Facebook del negocio
+
+Usa directo el `facebookUrl` que regresa el mismo endpoint. Mismo tratamiento que el de WhatsApp.
+
+#### ⚠️ Cuántos QRs mostrar — DECISIÓN PENDIENTE, aún sin confirmar por el dueño del negocio
+
+Con los 3 QRs disponibles (tienda, WhatsApp, Facebook), falta decidir si el ticket muestra
+**los 3 fijos siempre**, o solo 1-2 (por espacio, sobre todo en impresión térmica 58mm/80mm).
+**No implementar los 3 todavía** hasta que se confirme esto — si el ticket es térmico angosto,
+el diseño final puede cambiar.
+
+Recomendación sugerida (pendiente de que el usuario la confirme): mostrar los 3 fijos siempre,
+sin rotación aleatoria — un ticket se lee una sola vez y se descarta, rotar cuál QR aparece no le
+suma nada al cliente y sí le agrega complejidad de código (lógica de selección) sin beneficio
+claro. Si el espacio es el problema real (ticket térmico angosto), la solución es recortar a 1-2
+QRs fijos (ej. tienda + WhatsApp), no rotar.
 
 ---
 
@@ -3329,7 +3403,7 @@ Mismo flujo que el ticket de abono — solo cambia el encabezado y no hay saldo 
 
 #### D) Ticket de Cancelación
 
-**Cuándo mostrarlo:** después del éxito de `DELETE /mis-productos/v1/pedidos/{id}/cancelar`
+**Cuándo mostrarlo:** después del éxito de `PUT /mis-productos/v1/abonos/{pedidoId}/cancelar`
 
 Response de cancelación:
 ```json
@@ -3470,12 +3544,19 @@ function generarHtmlTicket({ tipo, numero, fecha, cliente, articulos,
 
 ---
 
-### Correo y WhatsApp — cómo lo hace el front
+### Correo (y WhatsApp EN PAUSA) — cómo lo hace el front
 
-El front genera el ticket (ya lo hace para imprimir). Si el usuario marcó los checkboxes,
+> **DECISIÓN 2026-07-01:** por ahora solo se implementa el envío por **correo**. WhatsApp queda
+> en pausa (ver "DECISIÓN PENDIENTE" en `PLAN_MEJORAS.md`) — CallMeBot (gratis) solo le avisa al
+> negocio, no al cliente, y Twilio (que sí notificaría al cliente) es de pago y requiere alta de
+> cuenta + código nuevo que no se justifica por ahora. **El front NO debe mostrar el checkbox de
+> WhatsApp.** El campo `notificacion.enviarWhatsapp` se puede omitir/mandar `false` siempre; el
+> back lo soporta pero no hay forma de que le llegue nada real al cliente todavía.
+
+El front genera el ticket (ya lo hace para imprimir). Si el usuario marcó el checkbox de correo,
 **incluye el ticket en el mismo request** que registra la acción. El back lo recibe y lo envía.
 
-#### Checkboxes en el UI
+#### Checkbox en el UI
 
 Mostrar en el form de abono, venta directa y cancelación:
 
@@ -3484,21 +3565,16 @@ Mostrar en el form de abono, venta directa y cancelación:
   <input type="checkbox" [(ngModel)]="enviarCorreo" />
   Enviar ticket al correo del cliente
 </label>
-<label>
-  <input type="checkbox" [(ngModel)]="enviarWhatsapp" />
-  Enviar ticket por WhatsApp
-</label>
 ```
 
 - Pre-marcar correo si el cliente tiene email registrado.
-- Pre-marcar WhatsApp si el cliente tiene teléfono registrado.
-- Si el cliente no tiene correo → deshabilitar checkbox de correo.
-- Si el cliente no tiene teléfono → deshabilitar checkbox de WhatsApp.
+- Si el cliente no tiene correo → deshabilitar el checkbox.
 
 ---
 
-#### Cómo armar el ticketTexto (para WhatsApp)
+#### (Referencia, no implementar por ahora) Cómo armar el ticketTexto para WhatsApp
 
+Queda documentado por si más adelante se retoma con Twilio — no construir esto en el front hoy.
 WhatsApp no soporta HTML — mandar texto plano. Generar con una función separada:
 
 ```javascript
@@ -3546,7 +3622,10 @@ function generarTextoWhatsapp({ tipo, numero, fecha, cliente, articulos,
 #### Campos que se agregan al request cuando hay correo/WhatsApp
 
 Aplicar en: `POST /v1/abonos/{pedidoId}`, `POST /v1/ventas/save`,
-`DELETE /v1/pedidos/{id}/cancelar`.
+`PUT /v1/abonos/{pedidoId}/cancelar`.
+
+**IMPORTANTE — implementación final:** los campos van anidados dentro de un objeto
+`"notificacion"`, no planos en la raíz del body (`NotificacionRequest.java`):
 
 ```json
 {
@@ -3554,22 +3633,29 @@ Aplicar en: `POST /v1/abonos/{pedidoId}`, `POST /v1/ventas/save`,
   "metodoPago": "EFECTIVO",
   "montoDado": 200.00,
 
-  "enviarCorreo":    true,
-  "enviarWhatsapp":  false,
-  "ticketHtml":      "<html>...ticket generado por el front...</html>",
-  "ticketTexto":     "🛍️ NOVEDADES JADE\nAbono #42\n..."
+  "notificacion": {
+    "enviarCorreo":   true,
+    "enviarWhatsapp": false,
+    "ticketHtml":     "<html>...ticket generado por el front...</html>"
+  }
 }
 ```
 
-- Si `enviarCorreo = false` → no mandar `ticketHtml` (o mandar `null`).
-- Si `enviarWhatsapp = false` → no mandar `ticketTexto` (o mandar `null`).
-- Si ambos son `false` → no mandar ninguno de los dos campos.
+- **Por ahora el front solo maneja `enviarCorreo` y `ticketHtml`.** `enviarWhatsapp` se manda
+  siempre `false` (o se omite) y `ticketTexto` no hace falta construirlo — ver nota de
+  "WhatsApp EN PAUSA" arriba.
+- Si no se quiere enviar nada → no mandar el campo `notificacion` (o mandar `null`). El back solo intenta notificar si `notificacion != null`.
+- Si `enviarCorreo = false` → no hace falta mandar `ticketHtml`.
 
 ---
 
 #### Qué devuelve el back (campos nuevos en el response)
 
-El back agrega al response normal dos campos extra:
+El back agrega al response normal tres campos extra: `correoEnviado`, `whatsappEnviado`, `erroresEnvio`
+(todos `null`/omitidos si no se pidió notificación — `@JsonInclude(NON_NULL)`).
+
+- **Abono** (`POST /v1/abonos/{pedidoId}`) y **cancelación** (`PUT /v1/abonos/{pedidoId}/cancelar`)
+  devuelven envuelto en `ResponseGeneric` (campo `data`):
 
 ```json
 {
@@ -3583,6 +3669,21 @@ El back agrega al response normal dos campos extra:
     "whatsappEnviado":  false,
     "erroresEnvio":     []
   }
+}
+```
+
+- **Venta directa** (`POST /v1/ventas/save`) **NO** usa `ResponseGeneric` — el back devuelve
+  `VentaDirectaResponse` directo, sin envolver en `data`:
+
+```json
+{
+  "ventaId": 10,
+  "tipoPago": "EFECTIVO",
+  "requiereTerminal": false,
+  "total": 350.00,
+  "correoEnviado":   true,
+  "whatsappEnviado": false,
+  "erroresEnvio":    []
 }
 ```
 
@@ -3609,9 +3710,9 @@ El back agrega al response normal dos campos extra:
 
 | Tipo de ticket | Endpoints necesarios |
 |---|---|
-| Venta directa | Estado local del carrito + `res.data` del POST |
-| Abono | `res.data` del POST abono + `GET /v1/pedidos/{id}/detalle` |
+| Venta directa | Estado local del carrito + `res` (sin wrapper) del `POST /v1/ventas/save` |
+| Abono | `res.data` del `POST /v1/abonos/{pedidoId}` + `GET /v1/pedidos/{id}/detalle` |
 | Liquidado | Igual que abono |
-| Cancelación | `res.data` del DELETE cancelar + `GET /v1/pedidos/{id}/detalle` |
+| Cancelación | `res.data` del `PUT /v1/abonos/{pedidoId}/cancelar` + `GET /v1/pedidos/{id}/detalle` |
 
 **El ticket HTML/texto lo genera el front. El back solo lo recibe y lo transporta por correo/WhatsApp.**

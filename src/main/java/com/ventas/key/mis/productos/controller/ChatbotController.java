@@ -71,7 +71,18 @@ public class ChatbotController {
             return Mono.just(ResponseEntity.ok(result));
         }
 
+        Pattern pidePattern = Pattern.compile("\\b(imagen|imágenes|foto|fotos)\\b", Pattern.CASE_INSENSITIVE);
+
         return chatbotService.chat(request)
+                .flatMap(respuesta -> {
+                    boolean tieneBuscarInicial = respuesta.contains("##BUSCAR[");
+                    boolean pideImagen = pidePattern.matcher(request.getMensaje()).find();
+                    if (!tieneBuscarInicial && pideImagen) {
+                        log.warn("Chatbot no uso ##BUSCAR## pese a pedido de imagen (IP {}), reintentando", ip);
+                        return chatbotService.forzarMostrarImagen(request, respuesta);
+                    }
+                    return Mono.just(respuesta);
+                })
                 .map(respuesta -> {
                     boolean esFarewell = respuesta.contains("##FAREWELL##");
                     // Extraer ##BUSCAR[query,offset]## si existe

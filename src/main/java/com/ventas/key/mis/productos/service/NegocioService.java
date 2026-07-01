@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioConfigDto;
@@ -35,6 +36,16 @@ public class NegocioService {
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.isAbierto() ? null : config.getWhatsappUrl())
                 .facebookUrl(config.isAbierto() ? null : config.getFacebookUrl())
+                .build();
+    }
+
+    /** Público — para el QR del ticket. A diferencia de getEstado(), siempre expone los links,
+     *  sin importar si el negocio está abierto o cerrado. */
+    public ContactosPublicosDto getContactosPublicos() {
+        ConfiguracionNegocio config = obtenerConfig();
+        return ContactosPublicosDto.builder()
+                .whatsappUrl(config.getWhatsappUrl())
+                .facebookUrl(config.getFacebookUrl())
                 .build();
     }
 
