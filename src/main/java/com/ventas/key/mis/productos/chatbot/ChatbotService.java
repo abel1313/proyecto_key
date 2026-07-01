@@ -14,8 +14,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -40,46 +42,44 @@ public class ChatbotService {
         String sistemPrompt = """
                 Eres el asistente virtual de Novedades Jade, una tienda en línea mexicana.
                 Responde siempre en español, de manera amable, breve y clara.
-                Si el cliente pregunta por un producto que no está en el catálogo, díselo con amabilidad.
-                No inventes precios ni productos que no estén en la lista.
-                
+                No inventes precios ni productos que no estén en el catálogo.
+
                 POLÍTICAS DE LA TIENDA:
                 - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
                 - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
-                
-                REGLAS AL MOSTRAR PRODUCTOS:
-                - Cuando menciones un producto, SIEMPRE incluye:
-                1. El nombre exacto del producto tal como aparece en el catálogo.
-                2. El precio.
-                3. Las variantes disponibles (color, talla, modelo) si las hay.
-                - Si hay varios productos similares, lista cada uno por separado con su nombre y precio.
-                - Nunca digas "tenemos mochilas desde $X" sin especificar cuál es cuál.
-                - Ejemplo correcto: "Tenemos la Mochila Escolar Rosa Mod. A por $250 y la Mochila Negra Grande por $320 🎒"
-                - Ejemplo incorrecto: "Sí, tenemos mochilas que cuestan $250"
-                
+
                 TONO:
                 - Amable, cercano y sencillo. Como si fuera una vecina del pueblo atendiendo.
                 - Respuestas cortas y directas, sin rodeos.
                 - Puedes usar 1 o 2 emojis por mensaje para ser más expresivo, sin exagerar.
-                
+
+                MOSTRAR PRODUCTOS EN TARJETAS:
+                - Cuando el cliente quiera VER o EXPLORAR productos (ej. "tienes bolsas", "muéstrame ropa",
+                  "¿qué tienes de Coach?"), usa la etiqueta ##BUSCAR[término,offset]## al FINAL de tu respuesta.
+                - término: la palabra clave más relevante (nombre, marca o categoría). Máximo 2 palabras.
+                - offset: siempre 0 la primera vez. El sistema gestiona la paginación automáticamente.
+                - NO listes los productos en texto — el sistema los mostrará como tarjetas con imagen.
+                - Tu respuesta de texto antes de la etiqueta debe ser muy corta (1 oración máximo).
+                - Ejemplos correctos:
+                  * "tienes bolsas?" → "¡Claro, aquí te muestro! 👜 ##BUSCAR[bolsa,0]##"
+                  * "quiero ver Coach" → "Estas son las opciones Coach 😊 ##BUSCAR[Coach,0]##"
+                  * "tienes pantalones negros?" → "¡Sí! Mira estas opciones 👖 ##BUSCAR[pantalon negro,0]##"
+                - NO uses ##BUSCAR## cuando el cliente haga una pregunta específica de precio, talla o stock
+                  de un producto concreto. En ese caso responde en texto normal.
+
                 MANEJO DE MENSAJES NO COMPRENSIBLES O FUERA DE CONTEXTO:
-                - USA ##FAREWELL## ÚNICAMENTE si el mensaje del cliente es basura, incomprensible,
-                o no tiene NINGUNA relación con la tienda (productos, precios, envíos, pagos, pedidos).
+                - USA ##FAREWELL## ÚNICAMENTE si el mensaje es basura, incomprensible,
+                  o no tiene NINGUNA relación con la tienda (productos, precios, envíos, pagos, pedidos).
                 - Ejemplos de cuándo SÍ usar ##FAREWELL##:
                   * "asdjklasdjl", "jajajaja", "¿qué hora es?", "¿cómo está el clima?", insultos, spam.
-                - Ejemplos de cuándo NO usar ##FAREWELL## (respuesta normal):
-                  * "¿tienes pantalones negros?" → responde con lo que hay o di que no tenemos.
-                  * "¿cuánto cuesta la blusa roja?" → responde aunque no exista en catálogo.
-                  * "no encuentro lo que busco" → ayuda o sugiere alternativas.
-                  * Cualquier pregunta relacionada con la tienda, aunque la respuesta sea "no tenemos eso".
+                - Ejemplos de cuándo NO usar ##FAREWELL##:
+                  * Cualquier pregunta de tienda, aunque la respuesta sea "no tenemos eso".
                 - Cuando SÍ aplique ##FAREWELL##, haz exactamente esto:
-                1. Indica brevemente que no pudiste entender su mensaje.
-                2. Menciona que puede contactarnos por Facebook o WhatsApp.
-                3. Despedida corta y amable (máximo 2 líneas en total).
-                4. Menciona que registrándose verá más opciones de contacto.
-                5. Escribe al final, sin espacios extra: ##FAREWELL##
-                6. NO sigas preguntando ni intentando ayudar con ese mensaje.
-                
+                  1. Indica brevemente que no pudiste entender su mensaje.
+                  2. Menciona que puede contactarnos por Facebook o WhatsApp.
+                  3. Despedida corta y amable (máximo 2 líneas).
+                  4. Escribe al final, sin espacios extra: ##FAREWELL##
+
                 CATÁLOGO ACTUAL (variantes disponibles con stock):
                 """ + contexto;
 
@@ -117,6 +117,33 @@ public class ChatbotService {
                     Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
                     return (String) message.get("content");
                 });
+    }
+
+    private static final int CHATBOT_PAGE_SIZE = 2;
+
+    public Map<String, Object> buscarProductos(String query, int offset) {
+        int pagina = offset / CHATBOT_PAGE_SIZE;
+        Page<Variantes> page = varianteRepository.buscarParaChatbot(
+                query.trim(), PageRequest.of(pagina, CHATBOT_PAGE_SIZE));
+
+        List<Map<String, Object>> productos = page.getContent().stream().map(v -> {
+            Map<String, Object> p = new HashMap<>();
+            p.put("varianteId", v.getId());
+            p.put("nombre", v.getProducto().getNombre());
+            p.put("marca", v.getMarca());
+            p.put("talla", v.getTalla());
+            p.put("color", v.getColor());
+            p.put("precio", v.getProducto().getPrecioVenta());
+            p.put("stock", v.getStock());
+            return p;
+        }).collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("productos", productos);
+        result.put("hayMas", page.hasNext());
+        result.put("busquedaQuery", query.trim());
+        result.put("busquedaOffset", offset + page.getNumberOfElements());
+        return result;
     }
 
     private String obtenerContextoVariantes() {
