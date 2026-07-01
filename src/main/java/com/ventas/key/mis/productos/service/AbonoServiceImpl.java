@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import com.ventas.key.mis.productos.models.NotificacionRequest;
 import com.ventas.key.mis.productos.models.abonos.*;
 import com.ventas.key.mis.productos.repository.*;
 import com.ventas.key.mis.productos.service.api.IAbonoService;
@@ -36,6 +37,8 @@ public class AbonoServiceImpl implements IAbonoService {
     private final IUsuarioRepository usuarioRepository;
     private final IVarianteRepository varianteRepository;
     private final IProductosRepository productosRepository;
+    private final EmailService emailService;
+    private final WhatsappService whatsappService;
 
     @Override
     @Transactional
@@ -105,6 +108,16 @@ public class AbonoServiceImpl implements IAbonoService {
         AbonoResponse resp = toAbonoResponse(abono);
         resp.setEstadoPedido(pedido.getEstadoPedido());
         resp.setSaldoRestante(saldo);
+
+        if (request.getNotificacion() != null) {
+            String correo  = correoCliente(pedido);
+            String telefono = telefonoCliente(pedido);
+            String asunto  = "PAGADO".equals(pedido.getEstadoPedido())
+                    ? "✅ Apartado liquidado — Novedades Jade"
+                    : "Comprobante de abono — Novedades Jade";
+            enviarNotificaciones(request.getNotificacion(), correo, telefono, asunto, resp);
+        }
+
         return resp;
     }
 
@@ -243,7 +256,27 @@ public class AbonoServiceImpl implements IAbonoService {
                 : String.format("APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $%.2f", totalPagado);
 
         log.info("Pedido {} cancelado — tipo: {}, stock devuelto: {}", pedidoId, pedido.getTipoPedido(), stockDevuelto);
-        return new CancelarAbonoResponse(pedidoId, pedido.getTipoPedido(), "cancelado", totalPagado, totalPendiente, stockDevuelto, msg);
+        CancelarAbonoResponse resp = new CancelarAbonoResponse(
+                pedidoId, pedido.getTipoPedido(), "cancelado", totalPagado, totalPendiente, stockDevuelto, msg);
+
+        if (request.getNotificacion() != null) {
+            String correo   = correoCliente(pedido);
+            String telefono = telefonoCliente(pedido);
+            List<String> errores = new ArrayList<>();
+            if (request.getNotificacion().isEnviarCorreo()) {
+                boolean ok = emailService.enviarTicket(correo, "Cancelación de pedido — Novedades Jade",
+                        request.getNotificacion().getTicketHtml());
+                resp.setCorreoEnviado(ok);
+                if (!ok) errores.add("No se pudo enviar el correo");
+            }
+            if (request.getNotificacion().isEnviarWhatsapp()) {
+                boolean ok = whatsappService.enviarMensaje(telefono, request.getNotificacion().getTicketTexto());
+                resp.setWhatsappEnviado(ok);
+                if (!ok) errores.add("No se pudo enviar el WhatsApp");
+            }
+            if (!errores.isEmpty()) resp.setErroresEnvio(errores);
+        }
+        return resp;
     }
 
     @Override
@@ -412,5 +445,27 @@ public class AbonoServiceImpl implements IAbonoService {
         if (p.getCliente() != null) return p.getCliente().getNumeroTelefonico();
         if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getNumeroTelefonico();
         return "";
+    }
+
+    private String correoCliente(Pedido p) {
+        if (p.getCliente() != null) return p.getCliente().getCorreoElectronico();
+        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getCorreoElectronico();
+        return "";
+    }
+
+    private void enviarNotificaciones(NotificacionRequest notif, String correo, String telefono,
+                                      String asunto, AbonoResponse resp) {
+        List<String> errores = new ArrayList<>();
+        if (notif.isEnviarCorreo()) {
+            boolean ok = emailService.enviarTicket(correo, asunto, notif.getTicketHtml());
+            resp.setCorreoEnviado(ok);
+            if (!ok) errores.add("No se pudo enviar el correo");
+        }
+        if (notif.isEnviarWhatsapp()) {
+            boolean ok = whatsappService.enviarMensaje(telefono, notif.getTicketTexto());
+            resp.setWhatsappEnviado(ok);
+            if (!ok) errores.add("No se pudo enviar el WhatsApp");
+        }
+        if (!errores.isEmpty()) resp.setErroresEnvio(errores);
     }
 }

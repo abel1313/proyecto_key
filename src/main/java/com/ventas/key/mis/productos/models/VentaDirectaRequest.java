@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.models;
 
 import com.ventas.key.mis.productos.dto.ClienteSinRegistroDto;
+import com.ventas.key.mis.productos.models.NotificacionRequest;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,4 +21,5 @@ public class VentaDirectaRequest {
     private List<DetalleVentaDto> detalles;
     private String tipoPedido; // null/"NORMAL" = venta inmediata; "APARTADO"|"FIADO" = crédito
     private String observaciones;
+    private NotificacionRequest notificacion;
 }
