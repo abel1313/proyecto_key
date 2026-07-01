@@ -264,7 +264,9 @@ public class AbonoServiceImpl implements IAbonoService {
             String telefono = telefonoCliente(pedido);
             List<String> errores = new ArrayList<>();
             if (request.getNotificacion().isEnviarCorreo()) {
-                boolean ok = emailService.enviarTicket(correo, "Cancelación de pedido — Novedades Jade",
+                String notifCorreo = request.getNotificacion().getCorreo();
+                String destinoCorreo = notifCorreo != null && !notifCorreo.isBlank() ? notifCorreo : correo;
+                boolean ok = emailService.enviarTicket(destinoCorreo, "Cancelación de pedido — Novedades Jade",
                         request.getNotificacion().getTicketHtml());
                 resp.setCorreoEnviado(ok);
                 if (!ok) errores.add("No se pudo enviar el correo");
@@ -457,7 +459,9 @@ public class AbonoServiceImpl implements IAbonoService {
                                       String asunto, AbonoResponse resp) {
         List<String> errores = new ArrayList<>();
         if (notif.isEnviarCorreo()) {
-            boolean ok = emailService.enviarTicket(correo, asunto, notif.getTicketHtml());
+            String destinoCorreo = notif.getCorreo() != null && !notif.getCorreo().isBlank()
+                    ? notif.getCorreo() : correo;
+            boolean ok = emailService.enviarTicket(destinoCorreo, asunto, notif.getTicketHtml());
             resp.setCorreoEnviado(ok);
             if (!ok) errores.add("No se pudo enviar el correo");
         }

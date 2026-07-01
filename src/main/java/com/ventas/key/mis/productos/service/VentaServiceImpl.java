@@ -268,7 +268,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         String telefono = cliente != null ? cliente.getNumeroTelefonico()
                         : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : "";
         if (notif.isEnviarCorreo()) {
-            boolean ok = emailService.enviarTicket(correo, asunto, notif.getTicketHtml());
+            String destinoCorreo = notif.getCorreo() != null && !notif.getCorreo().isBlank()
+                    ? notif.getCorreo() : correo;
+            boolean ok = emailService.enviarTicket(destinoCorreo, asunto, notif.getTicketHtml());
             resp.setCorreoEnviado(ok);
             if (!ok) errores.add("No se pudo enviar el correo");
         }
