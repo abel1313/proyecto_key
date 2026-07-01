@@ -13,6 +13,8 @@ import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,6 +34,39 @@ public class VarianteController extends AbstractController<
                                         >{
     protected VarianteController(VarianteServiceImpl sGenerico) {
         super(sGenerico);
+    }
+
+    // Antes de esto, GET /variantes/getAll (heredado de AbstractController) no llevaba /v1/
+    // porque esta clase no tiene el prefijo en su @RequestMapping. GET /variantes/getAll
+    // sigue vivo por compatibilidad, pero el front debe migrar a este.
+    @GetMapping("/v1/getAll")
+    public ResponseEntity<ResponseGeneric<List<Variantes>>> findAllV2(
+            @RequestParam int page, @RequestParam int size) {
+        return super.findAll(page, size);
+    }
+
+    @GetMapping("/v1/getOne/{tipoDato}")
+    public ResponseEntity<ResponseGeneric<Optional<Variantes>>> findByV2(@PathVariable Integer tipoDato) {
+        return super.findBy(tipoDato);
+    }
+
+    @PostMapping("/v1/save")
+    public ResponseEntity<ResponseGeneric<Variantes>> saveV2(
+            @Validated @RequestBody Variantes requestG, BindingResult result) {
+        return super.save(requestG, result);
+    }
+
+    @PutMapping("/v1/update/{tipoDato}")
+    public ResponseEntity<ResponseGeneric<Variantes>> updateV2(
+            @PathVariable Integer tipoDato,
+            @Validated @RequestBody Variantes requestG,
+            BindingResult result) throws Exception {
+        return super.update(tipoDato, requestG, result);
+    }
+
+    @DeleteMapping("/v1/delete")
+    public ResponseEntity<ResponseGeneric<Variantes>> deleteV2(@RequestBody Integer requestG) {
+        return super.delete(requestG);
     }
 
     @GetMapping("/v1/porProducto/{productoId}")
