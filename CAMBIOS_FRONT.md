@@ -3172,3 +3172,446 @@ usando `varianteId` para hacer el fetch de detalle.
 - `hayMas` es `false` cuando ya no hay más resultados — ocultar el botón.
 - El botón "Ver más" siempre usa `busquedaQuery` y `busquedaOffset` del **último response**.
 - Si el usuario hace una nueva pregunta después de ver tarjetas, el historial del chat continúa normalmente.
+
+---
+
+## Ticket / Comprobante — implementación FRONT (2026-07-01)
+
+> El back solo manda datos. El front genera el HTML, aplica estilos de impresión y llama `window.print()`.
+> El correo y WhatsApp los implementará el back más adelante (ítems 2 y 3 del plan).
+
+---
+
+### Tipos de ticket y de dónde salen los datos
+
+#### A) Ticket de Venta Directa (NORMAL)
+
+**Cuándo mostrarlo:** después del éxito de `POST /mis-productos/v1/ventas/save`
+cuando `tipoPedido = "NORMAL"` (o cuando el pedido no es crédito).
+
+**De dónde salen los datos:**
+
+| Campo del ticket | Fuente |
+|---|---|
+| Nombre cliente | Estado local del form (el front ya lo tiene seleccionado) |
+| Artículos, cantidades, precios | Estado local del carrito |
+| Total | `res.data.totalVenta` |
+| Método de pago | Estado local del form |
+| Monto entregado (dado) | Estado local del form |
+| Cambio | Calculado en el front: `montoDado - totalVenta` |
+| Fecha | `new Date()` en el momento de la venta |
+| # Venta | `res.data.ventaId` |
+
+**Ticket generado:**
+```
+╔══════════════════════════════╗
+║       NOVEDADES JADE         ║
+╠══════════════════════════════╣
+║ Venta #1042   01/07/2026     ║
+║ Cliente: María López         ║
+╠══════════════════════════════╣
+║ 1x Pantalón Negro M  $350.00 ║
+║ 1x Blusa Floral S    $180.00 ║
+╠══════════════════════════════╣
+║ TOTAL              $530.00   ║
+║ MÉTODO: EFECTIVO             ║
+║ ENTREGÓ:           $600.00   ║
+║ CAMBIO:             $70.00   ║
+╚══════════════════════════════╝
+```
+
+---
+
+#### B) Ticket de Abono
+
+**Cuándo mostrarlo:** después del éxito de `POST /mis-productos/v1/abonos/{pedidoId}`
+
+**De dónde salen los datos:**
+
+Primero el front ya tiene el pedido en pantalla. Al registrar el abono, el response trae:
+
+```json
+{
+  "data": {
+    "id": 5,
+    "monto": 150.00,
+    "fechaPago": "01/07/2026",
+    "metodoPago": "EFECTIVO",
+    "nota": "segundo abono",
+    "montoDado": 200.00,
+    "cambio": 50.00,
+    "estadoPedido": "APARTADO",
+    "saldoRestante": 100.00
+  }
+}
+```
+
+Para completar el ticket (nombre cliente, artículos, total del apartado) el front hace:
+
+```
+GET /mis-productos/v1/pedidos/{pedidoId}/detalle
+```
+
+Response que necesitas:
+```json
+{
+  "data": {
+    "pedidoId": 42,
+    "tipoPedido": "APARTADO",
+    "estadoPedido": "APARTADO",
+    "totalPedido": 350.00,
+    "totalPagado": 250.00,
+    "saldoPendiente": 100.00,
+    "fechaPedido": "2026-06-15",
+    "clienteNombre": "María López",
+    "clienteTelefono": "7221234567",
+    "detalles": [
+      {
+        "varianteId": 12,
+        "productoNombre": "Pantalón Negro",
+        "talla": "M",
+        "color": "negro",
+        "cantidad": 1,
+        "precioUnitario": 350.00,
+        "subTotal": 350.00
+      }
+    ]
+  }
+}
+```
+
+**Ticket generado:**
+```
+╔══════════════════════════════╗
+║  NOVEDADES JADE — ABONO      ║
+╠══════════════════════════════╣
+║ Apartado #42  01/07/2026     ║
+║ Cliente: María López         ║
+╠══════════════════════════════╣
+║ Pantalón Negro M     $350.00 ║
+╠══════════════════════════════╣
+║ Total apartado:      $350.00 ║
+║ Ya pagado:           $250.00 ║
+║ Abono de hoy:        $150.00 ║
+║ Saldo pendiente:     $100.00 ║
+╠══════════════════════════════╣
+║ MÉTODO: EFECTIVO             ║
+║ ENTREGÓ:             $200.00 ║
+║ CAMBIO:               $50.00 ║
+╚══════════════════════════════╝
+```
+
+> Si `metodoPago = "TRANSFERENCIA"`, no mostrar las filas ENTREGÓ y CAMBIO (serán `null`).
+
+---
+
+#### C) Ticket de Liquidación (pedido PAGADO)
+
+**Cuándo mostrarlo:** cuando el response del abono trae `estadoPedido = "PAGADO"`.
+Mismo flujo que el ticket de abono — solo cambia el encabezado y no hay saldo pendiente.
+
+**Ticket generado:**
+```
+╔══════════════════════════════╗
+║ NOVEDADES JADE — ¡LIQUIDADO! ║
+╠══════════════════════════════╣
+║ Apartado #42  01/07/2026     ║
+║ Cliente: María López         ║
+╠══════════════════════════════╣
+║ Pantalón Negro M     $350.00 ║
+╠══════════════════════════════╣
+║ Total pagado:        $350.00 ║
+║ ✅ PAGADO COMPLETAMENTE      ║
+╚══════════════════════════════╝
+```
+
+---
+
+#### D) Ticket de Cancelación
+
+**Cuándo mostrarlo:** después del éxito de `DELETE /mis-productos/v1/pedidos/{id}/cancelar`
+
+Response de cancelación:
+```json
+{
+  "data": {
+    "pedidoId": 42,
+    "tipoPedido": "APARTADO",
+    "estadoPedido": "cancelado",
+    "totalPagado": 100.00,
+    "totalPendiente": 250.00,
+    "stockDevuelto": true,
+    "mensaje": "Pedido cancelado correctamente"
+  }
+}
+```
+
+El front también necesita llamar `GET /mis-productos/v1/pedidos/{id}/detalle` para obtener
+`clienteNombre`, `motivoCancelacion` y los artículos.
+
+**Ticket generado:**
+```
+╔══════════════════════════════╗
+║  NOVEDADES JADE — CANCELADO  ║
+╠══════════════════════════════╣
+║ Apartado #42  01/07/2026     ║
+║ Cliente: María López         ║
+╠══════════════════════════════╣
+║ Pantalón Negro M     $350.00 ║
+╠══════════════════════════════╣
+║ Motivo: NO SE PRESENTÓ       ║
+║ Abonos realizados:   $100.00 ║
+║ (saldo a favor del cliente)  ║
+╚══════════════════════════════╝
+```
+
+---
+
+### Dónde aparece el botón de imprimir
+
+| Pantalla | Cuándo mostrar el botón |
+|---|---|
+| Venta directa | Al cerrar el modal/toast de "Venta exitosa" — mostrar botón **🖨️ Imprimir ticket** |
+| Registrar abono | En el toast/modal de confirmación del abono |
+| Liquidación (PAGADO) | En el toast/modal — ticket distinto al de abono normal |
+| Cancelación | En el modal de confirmación de cancelación |
+
+---
+
+### Cómo imprimir
+
+```javascript
+function imprimirTicket(htmlTicket) {
+  const ventana = window.open('', '_blank', 'width=400,height=600');
+  ventana.document.write(`
+    <html>
+      <head>
+        <title>Ticket</title>
+        <style>
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 280px;
+            margin: 0 auto;
+            padding: 8px;
+          }
+          .titulo    { text-align: center; font-weight: bold; font-size: 14px; }
+          .linea     { border-top: 1px dashed #000; margin: 4px 0; }
+          .fila      { display: flex; justify-content: space-between; }
+          .total     { font-weight: bold; }
+          .centro    { text-align: center; }
+          @media print {
+            body { width: 100%; }
+          }
+        </style>
+      </head>
+      <body>
+        ${htmlTicket}
+        <script>window.print(); window.close();<\/script>
+      </body>
+    </html>
+  `);
+  ventana.document.close();
+}
+```
+
+---
+
+### Estructura HTML sugerida del ticket
+
+```javascript
+function generarHtmlTicket({ tipo, numero, fecha, cliente, articulos,
+                              total, totalPagado, saldoPendiente, abonoHoy,
+                              metodoPago, montoDado, cambio, motivo }) {
+  const formatPeso = (n) => n != null ? `$${n.toFixed(2)}` : '';
+  const hoy = fecha || new Date().toLocaleDateString('es-MX');
+
+  let encabezado = '';
+  if (tipo === 'venta')        encabezado = 'COMPROBANTE DE VENTA';
+  if (tipo === 'abono')        encabezado = 'COMPROBANTE DE ABONO';
+  if (tipo === 'liquidado')    encabezado = '¡APARTADO LIQUIDADO!';
+  if (tipo === 'cancelacion')  encabezado = 'CANCELACIÓN DE PEDIDO';
+
+  const filasArticulos = articulos.map(a => `
+    <div class="fila">
+      <span>${a.cantidad}x ${a.productoNombre}${a.talla ? ' ' + a.talla : ''}</span>
+      <span>${formatPeso(a.subTotal)}</span>
+    </div>
+  `).join('');
+
+  const filaPago = metodoPago === 'EFECTIVO' ? `
+    <div class="fila"><span>ENTREGÓ:</span><span>${formatPeso(montoDado)}</span></div>
+    <div class="fila"><span>CAMBIO:</span><span>${formatPeso(cambio)}</span></div>
+  ` : `<div class="fila"><span>MÉTODO:</span><span>TRANSFERENCIA</span></div>`;
+
+  return `
+    <div class="titulo">NOVEDADES JADE</div>
+    <div class="titulo">${encabezado}</div>
+    <div class="linea"></div>
+    <div class="fila"><span>Folio #${numero}</span><span>${hoy}</span></div>
+    <div>Cliente: ${cliente}</div>
+    <div class="linea"></div>
+    ${filasArticulos}
+    <div class="linea"></div>
+    ${total        ? `<div class="fila total"><span>TOTAL:</span><span>${formatPeso(total)}</span></div>` : ''}
+    ${totalPagado  ? `<div class="fila"><span>Ya pagado:</span><span>${formatPeso(totalPagado)}</span></div>` : ''}
+    ${abonoHoy     ? `<div class="fila"><span>Abono de hoy:</span><span>${formatPeso(abonoHoy)}</span></div>` : ''}
+    ${saldoPendiente != null && saldoPendiente > 0
+        ? `<div class="fila"><span>Saldo pendiente:</span><span>${formatPeso(saldoPendiente)}</span></div>` : ''}
+    ${tipo === 'liquidado' ? `<div class="centro">✅ PAGADO COMPLETAMENTE</div>` : ''}
+    ${motivo ? `<div>Motivo: ${motivo}</div>` : ''}
+    <div class="linea"></div>
+    ${filaPago}
+    <div class="linea"></div>
+    <div class="centro">¡Gracias por tu compra!</div>
+  `;
+}
+```
+
+---
+
+### Correo y WhatsApp — cómo lo hace el front
+
+El front genera el ticket (ya lo hace para imprimir). Si el usuario marcó los checkboxes,
+**incluye el ticket en el mismo request** que registra la acción. El back lo recibe y lo envía.
+
+#### Checkboxes en el UI
+
+Mostrar en el form de abono, venta directa y cancelación:
+
+```html
+<label>
+  <input type="checkbox" [(ngModel)]="enviarCorreo" />
+  Enviar ticket al correo del cliente
+</label>
+<label>
+  <input type="checkbox" [(ngModel)]="enviarWhatsapp" />
+  Enviar ticket por WhatsApp
+</label>
+```
+
+- Pre-marcar correo si el cliente tiene email registrado.
+- Pre-marcar WhatsApp si el cliente tiene teléfono registrado.
+- Si el cliente no tiene correo → deshabilitar checkbox de correo.
+- Si el cliente no tiene teléfono → deshabilitar checkbox de WhatsApp.
+
+---
+
+#### Cómo armar el ticketTexto (para WhatsApp)
+
+WhatsApp no soporta HTML — mandar texto plano. Generar con una función separada:
+
+```javascript
+function generarTextoWhatsapp({ tipo, numero, fecha, cliente, articulos,
+                                 total, abonoHoy, saldoPendiente, metodoPago,
+                                 montoDado, cambio, motivo }) {
+  const fmt = (n) => n != null ? `$${n.toFixed(2)}` : '';
+  const hoy = fecha || new Date().toLocaleDateString('es-MX');
+
+  let lineas = [
+    '🛍️ NOVEDADES JADE',
+    tipo === 'venta'       ? 'Comprobante de venta' :
+    tipo === 'abono'       ? 'Comprobante de abono' :
+    tipo === 'liquidado'   ? '✅ Apartado liquidado' :
+                             '❌ Cancelación de pedido',
+    `Folio #${numero} — ${hoy}`,
+    `Cliente: ${cliente}`,
+    '─────────────────────',
+    ...articulos.map(a =>
+      `• ${a.cantidad}x ${a.productoNombre}${a.talla ? ' ' + a.talla : ''} — ${fmt(a.subTotal)}`
+    ),
+    '─────────────────────',
+  ];
+
+  if (total)          lineas.push(`Total: ${fmt(total)}`);
+  if (abonoHoy)       lineas.push(`Abono de hoy: ${fmt(abonoHoy)}`);
+  if (saldoPendiente) lineas.push(`Saldo pendiente: ${fmt(saldoPendiente)}`);
+  if (tipo === 'liquidado') lineas.push('✅ PAGADO COMPLETAMENTE');
+  if (motivo)         lineas.push(`Motivo cancelación: ${motivo}`);
+
+  lineas.push('─────────────────────');
+  lineas.push(`Método: ${metodoPago}`);
+  if (metodoPago === 'EFECTIVO' && montoDado) {
+    lineas.push(`Entregó: ${fmt(montoDado)}`);
+    lineas.push(`Cambio: ${fmt(cambio)}`);
+  }
+  lineas.push('¡Gracias por tu compra! 🙏');
+
+  return lineas.join('\n');
+}
+```
+
+---
+
+#### Campos que se agregan al request cuando hay correo/WhatsApp
+
+Aplicar en: `POST /v1/abonos/{pedidoId}`, `POST /v1/ventas/save`,
+`DELETE /v1/pedidos/{id}/cancelar`.
+
+```json
+{
+  "monto": 150.00,
+  "metodoPago": "EFECTIVO",
+  "montoDado": 200.00,
+
+  "enviarCorreo":    true,
+  "enviarWhatsapp":  false,
+  "ticketHtml":      "<html>...ticket generado por el front...</html>",
+  "ticketTexto":     "🛍️ NOVEDADES JADE\nAbono #42\n..."
+}
+```
+
+- Si `enviarCorreo = false` → no mandar `ticketHtml` (o mandar `null`).
+- Si `enviarWhatsapp = false` → no mandar `ticketTexto` (o mandar `null`).
+- Si ambos son `false` → no mandar ninguno de los dos campos.
+
+---
+
+#### Qué devuelve el back (campos nuevos en el response)
+
+El back agrega al response normal dos campos extra:
+
+```json
+{
+  "data": {
+    "id": 5,
+    "monto": 150.00,
+    "estadoPedido": "APARTADO",
+    "saldoRestante": 100.00,
+
+    "correoEnviado":    true,
+    "whatsappEnviado":  false,
+    "erroresEnvio":     []
+  }
+}
+```
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `correoEnviado` | boolean | `true` si el correo se envió con éxito |
+| `whatsappEnviado` | boolean | `true` si el WhatsApp se envió con éxito |
+| `erroresEnvio` | string[] | Lista de errores si algún envío falló (puede estar vacío) |
+
+#### Cómo mostrar el resultado en el UI
+
+```
+✅ Abono registrado correctamente
+✅ Correo enviado a maria@gmail.com
+❌ WhatsApp no se pudo enviar — intentar después
+```
+
+- Si `correoEnviado = false` y el usuario lo pidió → mostrar aviso (no es error fatal).
+- El abono/venta ya quedó guardado aunque falle el envío — no bloquear el flujo.
+
+---
+
+### Resumen de endpoints que usa el ticket (todos ya existen)
+
+| Tipo de ticket | Endpoints necesarios |
+|---|---|
+| Venta directa | Estado local del carrito + `res.data` del POST |
+| Abono | `res.data` del POST abono + `GET /v1/pedidos/{id}/detalle` |
+| Liquidado | Igual que abono |
+| Cancelación | `res.data` del DELETE cancelar + `GET /v1/pedidos/{id}/detalle` |
+
+**El ticket HTML/texto lo genera el front. El back solo lo recibe y lo transporta por correo/WhatsApp.**
