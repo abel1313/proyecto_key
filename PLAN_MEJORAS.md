@@ -7,20 +7,71 @@
 
 ## Estado general
 
-| # | Mejora | Estado | Fecha |
-|---|---|---|---|
-| 1 | Ticket de venta / abono / cancelación (PDF + impresión + QR) | ⏳ Pendiente | — |
-| 2 | Envío de ticket por correo electrónico | ⏳ Pendiente | — |
-| 3 | Envío de ticket por WhatsApp | ⏳ Pendiente | — |
-| 4 | Alertas de stock bajo (email + WhatsApp al admin) | ⏳ Pendiente | — |
-| 5 | Reportes de ventas (día / mes / cliente) | ⏳ Pendiente | — |
-| 6 | Dashboard con métricas en tiempo real | ⏳ Pendiente | — |
-| 7 | Devoluciones | ⏳ Pendiente | — |
-| 8 | Chatbot — búsqueda por código de barras | ✅ Listo | 2026-07-01 |
+| # | Mejora | Back | Front | Fecha |
+|---|---|---|---|---|
+| 1 | Ticket (impresión HTML) | ✅ No requiere back | ⏳ Pendiente front | — |
+| 2 | Envío por correo electrónico | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
+| 3 | Envío por WhatsApp | ✅ Listo (CallMeBot) | ⏳ Pendiente front | 2026-07-01 |
+| 4 | Alertas stock bajo al admin | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 5 | Reportes de ventas (día/mes/cliente) | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 6 | Dashboard con métricas | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 7 | Devoluciones | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 8 | Chatbot — tarjetas de productos | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
+| 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
+| 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
 
-> **Orden:** el ticket (1) va primero porque el correo (2) y WhatsApp (3) lo usan.
-> El stock bajo (4) necesita el correo (2) y WhatsApp (3).
+> **Orden:** el ticket (1) va primero porque correo (2) y WhatsApp (3) lo necesitan.
+> El stock bajo (4) necesita correo (2) y WhatsApp (3) ya listos en back.
 > El dashboard (6) necesita los reportes (5).
+
+---
+
+## Lo que se hizo — sesión 2026-07-01
+
+### Back ✅ completado
+
+| Qué | Archivo(s) |
+|---|---|
+| Chatbot busca por código de barras | `IVarianteRepository.java`, `ChatbotService.java` |
+| Chatbot devuelve tarjetas `productos[]` cuando el AI usa `##BUSCAR[...]##` | `ChatbotController.java`, `ChatbotService.java` |
+| Endpoint `GET /v1/chatbot/buscar?q=&offset=` para "ver más" sin IA | `ChatbotController.java` |
+| System prompt: flujo 2 pasos — bot pregunta "¿quieres ver foto?" antes de mostrar | `ChatbotService.java` |
+| `EmailService` — envía HTML por SMTP OVH (ya configurado) | `EmailService.java` |
+| `WhatsappService` — envía texto por CallMeBot (apikey en yml) | `WhatsappService.java` |
+| `NotificacionRequest` — DTO compartido con `enviarCorreo`, `enviarWhatsapp`, `ticketHtml`, `ticketTexto` | `NotificacionRequest.java` |
+| `AbonoRequest` — campo `notificacion` opcional | `AbonoRequest.java` |
+| `AbonoResponse` — campos `correoEnviado`, `whatsappEnviado`, `erroresEnvio` | `AbonoResponse.java` |
+| `CancelarAbonoRequest` — campo `notificacion` opcional | `CancelarAbonoRequest.java` |
+| `CancelarAbonoResponse` — campos de resultado de notificación | `CancelarAbonoResponse.java` |
+| `VentaDirectaRequest` — campo `notificacion` opcional | `VentaDirectaRequest.java` |
+| `VentaDirectaResponse` — campos de resultado de notificación | `VentaDirectaResponse.java` |
+| `AbonoServiceImpl` — llama email/WhatsApp tras registrar abono o cancelar | `AbonoServiceImpl.java` |
+| `VentaServiceImpl` — llama email/WhatsApp tras venta directa o registro crédito | `VentaServiceImpl.java` |
+
+### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
+
+| # | Tarea | Pantalla(s) | Sección en CAMBIOS_FRONT.md |
+|---|---|---|---|
+| F-1 | Generar HTML del ticket con `generarHtmlTicket()` | Todas | "Ticket / Comprobante — implementación FRONT" |
+| F-2 | Botón 🖨️ imprimir con `window.print()` | Venta directa, abonos, cancelación | Misma sección |
+| F-3 | Checkboxes correo + WhatsApp con pre-selección | Venta directa, abonos, cancelación | Misma sección |
+| F-4 | Agregar `notificacion: { enviarCorreo, enviarWhatsapp, ticketHtml, ticketTexto }` al request | POST venta, POST abono, DELETE cancelar | Misma sección |
+| F-5 | Mostrar resultado: "Correo enviado ✅" / "WhatsApp no enviado ❌" | Toast/modal de confirmación | Misma sección |
+| F-6 | Tarjetas de producto en el chatbot (render `productos[]`) | Chatbot | "Chatbot — Tarjetas de productos" |
+| F-7 | Botón "Ver más" en chatbot (`GET /v1/chatbot/buscar?q=&offset=`) | Chatbot | Misma sección |
+| F-8 | Imagen por tarjeta (`GET /v1/variantes/imagenes/{varianteId}`, primer elemento) | Chatbot | Misma sección |
+
+### Configuración pendiente en servidor (producción)
+
+| Variable de entorno | Valor | Para qué |
+|---|---|---|
+| `WHATSAPP_PROVEEDOR` | `callmebot` | Activar envío WhatsApp |
+| `WHATSAPP_APIKEY` | (API key de CallMeBot) | Autenticación CallMeBot |
+| `MAIL_USERNAME` | `qa.boutique.bolsas@novedades-jade.com.mx` | Ya en dev, verificar en prod |
+| `MAIL_PASSWORD` | (contraseña OVH) | Ya en dev, verificar en prod |
+
+> **Nota CallMeBot:** cada cliente debe enviar un mensaje de activación al número de CallMeBot
+> una sola vez antes de recibir mensajes. Si esto es un problema, migrar a Twilio (de pago).
 
 ---
 
