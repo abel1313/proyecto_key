@@ -203,7 +203,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             cacheService.evictAll();
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
             VentaDirectaResponse respCredito = new VentaDirectaResponse(
-                    null, null, false, totalPedidoCalc, null, null, null, savedPedido.getId());
+                    null, null, false, totalPedidoCalc, null, null, null, savedPedido.getId(),
+                    null, null, null);
             enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
                     "Pedido registrado — Novedades Jade", respCredito);
             return respCredito;
@@ -251,7 +252,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 requiereTerminal ? mesesIntereses.getMeses() : null,
                 mesesIntereses.getDescripcion(),
                 null,
-                null
+                null,
+                null, null, null
         );
         enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
                 "Comprobante de compra — Novedades Jade", respVenta);
