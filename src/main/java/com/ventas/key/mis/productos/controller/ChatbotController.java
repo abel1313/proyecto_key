@@ -113,7 +113,10 @@ public class ChatbotController {
     private String obtenerIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            return xForwardedFor.split(",")[0].trim();
+            // IP más a la derecha = la que agregó el proxy de confianza (nginx).
+            // La primera puede ser falsa si el cliente forjó el header.
+            String[] ips = xForwardedFor.split(",");
+            return ips[ips.length - 1].trim();
         }
         return request.getRemoteAddr();
     }
