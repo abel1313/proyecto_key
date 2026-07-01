@@ -48,6 +48,15 @@ public class Pedido extends BaseId{
     @Column(name = "fecha_cancelacion")
     private LocalDate fechaCancelacion;
 
+    @Column(name = "tipo_pedido", length = 10)
+    private String tipoPedido = "NORMAL";
+
+    @Column(name = "total_pedido")
+    private Double totalPedido = 0.0;
+
+    @Column(name = "total_pagado")
+    private Double totalPagado = 0.0;
+
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<DetallePedido> detalles;

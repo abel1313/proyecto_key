@@ -92,24 +92,31 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
 
-        PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(request.getPagosYMesesId())
-                .orElseThrow(() -> new ExceptionErrorInesperado("Opción de pago no válida"));
+        String tipoPedido = request.getTipoPedido();
+        boolean esCredito = "APARTADO".equals(tipoPedido) || "FIADO".equals(tipoPedido);
 
-        MesesIntereses mesesIntereses = pagosYMeses.getMesesIntereses();
-
-        double tasaTarifa = mesesIntereses.getTarifaTerminal() != null
-                ? mesesIntereses.getTarifaTerminal().getTarifa() / 100.0 : 0.0;
-        double tasaIva = mesesIntereses.getIvaTerminal() != null
-                ? mesesIntereses.getIvaTerminal().getIva() / 100.0 : 0.0;
-
+        PagosYMeses pagosYMeses = null;
+        MesesIntereses mesesIntereses = null;
+        double tasaTarifa = 0.0;
+        double tasaIva = 0.0;
         DetallePago detallePago = null;
-        if (mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getIvaTerminal() != null) {
-            DetallePagoId detallePagoId = new DetallePagoId(
-                    pagosYMeses.getTipoPago().getId(),
-                    mesesIntereses.getTarifaTerminal().getId(),
-                    mesesIntereses.getIvaTerminal().getId()
-            );
-            detallePago = iDetallePagoRepository.findById(detallePagoId).orElse(null);
+
+        if (!esCredito) {
+            pagosYMeses = iPagosYMesesRepository.findById(request.getPagosYMesesId())
+                    .orElseThrow(() -> new ExceptionErrorInesperado("Opción de pago no válida"));
+            mesesIntereses = pagosYMeses.getMesesIntereses();
+            tasaTarifa = mesesIntereses.getTarifaTerminal() != null
+                    ? mesesIntereses.getTarifaTerminal().getTarifa() / 100.0 : 0.0;
+            tasaIva = mesesIntereses.getIvaTerminal() != null
+                    ? mesesIntereses.getIvaTerminal().getIva() / 100.0 : 0.0;
+            if (mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getIvaTerminal() != null) {
+                DetallePagoId detallePagoId = new DetallePagoId(
+                        pagosYMeses.getTipoPago().getId(),
+                        mesesIntereses.getTarifaTerminal().getId(),
+                        mesesIntereses.getIvaTerminal().getId()
+                );
+                detallePago = iDetallePagoRepository.findById(detallePagoId).orElse(null);
+            }
         }
 
         // Determinar si es cliente registrado o sin registro
@@ -175,6 +182,26 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             detallesVenta.add(dvv);
         }
 
+        double totalPedidoCalc = detallesPedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
+
+        if (esCredito) {
+            Pedido pedido = new Pedido();
+            pedido.setTipoPedido(tipoPedido);
+            pedido.setEstadoPedido(tipoPedido);
+            pedido.setCliente(cliente);
+            pedido.setClienteSinRegistro(clienteSinRegistro);
+            pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
+            pedido.setFechaPedido(LocalDate.now());
+            pedido.setTotalPedido(totalPedidoCalc);
+            pedido.setTotalPagado(0.0);
+            detallesPedido.forEach(dp -> dp.setPedido(pedido));
+            pedido.setDetalles(detallesPedido);
+            Pedido savedPedido = iPedidoRepository.save(pedido);
+            cacheService.evictAll();
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+            return new VentaDirectaResponse(null, null, false, totalPedidoCalc, null, null, null, savedPedido.getId());
+        }
+
         double totalVenta    = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
         double gananciaTotal = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getGanancia).sum();
 
@@ -216,6 +243,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 totalVenta,
                 requiereTerminal ? mesesIntereses.getMeses() : null,
                 mesesIntereses.getDescripcion(),
+                null,
                 null
         );
     }

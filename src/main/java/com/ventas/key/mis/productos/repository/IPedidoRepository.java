@@ -24,10 +24,18 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
                 SELECT SUM(dp.cantidad)
                 FROM detalle_pedidos dp
                 INNER JOIN pedidos p2 ON p2.id = dp.pedido_id
-                WHERE p2.estado_pedido = 'Entregado'
-                  AND DATE_FORMAT(p2.fecha_pedido, '%Y-%m') = :mes
-                  AND ((:sinRegistro = FALSE AND p2.cliente_id = :clienteId)
-                   OR  (:sinRegistro = TRUE  AND p2.cliente_sin_registro_id = :clienteId))
+                WHERE (
+                    -- Pedido normal entregado en ese mes
+                    (p2.tipo_pedido NOT IN ('APARTADO','FIADO') AND p2.estado_pedido = 'Entregado'
+                     AND DATE_FORMAT(p2.fecha_pedido, '%Y-%m') = :mes)
+                    OR
+                    -- Crédito: contar en el mes que se liquidó
+                    (p2.tipo_pedido IN ('APARTADO','FIADO') AND p2.estado_pedido = 'PAGADO'
+                     AND :mes = (SELECT DATE_FORMAT(MAX(ap.fecha_pago), '%Y-%m')
+                                 FROM abono_pedido ap WHERE ap.pedido_id = p2.id))
+                )
+                AND ((:sinRegistro = FALSE AND p2.cliente_id = :clienteId)
+                  OR (:sinRegistro = TRUE  AND p2.cliente_sin_registro_id = :clienteId))
             ), 0)
         FROM pedidos p
         WHERE (:sinRegistro = FALSE AND p.cliente_id = :clienteId)
@@ -194,10 +202,33 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
         LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
-        WHERE DATE_FORMAT(p.fecha_pedido, '%Y-%m') = :mes
+        WHERE (
+            -- Pedido normal: usar fecha del pedido
+            (p.tipo_pedido NOT IN ('APARTADO','FIADO') AND DATE_FORMAT(p.fecha_pedido, '%Y-%m') = :mes)
+            OR
+            -- Crédito: contar en el mes en que se liquidó (último abono)
+            (p.tipo_pedido IN ('APARTADO','FIADO') AND p.estado_pedido = 'PAGADO'
+             AND :mes = (SELECT DATE_FORMAT(MAX(ap.fecha_pago), '%Y-%m')
+                         FROM abono_pedido ap WHERE ap.pedido_id = p.id))
+        )
         ORDER BY nombre
     """, nativeQuery = true)
     List<Object[]> findClientesUnicosPorMes(@Param("mes") String mes);
+
+    @Query(value = """
+        SELECT DISTINCT
+            COALESCE(c.id, csr.id)                                           AS clientePedidoId,
+            COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
+            COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
+            c.id IS NULL                                                     AS sinRegistro
+        FROM pedidos p
+        LEFT  JOIN clientes c              ON c.id   = p.cliente_id
+        LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+        WHERE (p.cliente_id IS NOT NULL OR p.cliente_sin_registro_id IS NOT NULL)
+          AND (p.tipo_pedido NOT IN ('APARTADO','FIADO') OR p.estado_pedido = 'PAGADO')
+        ORDER BY nombre
+    """, nativeQuery = true)
+    List<Object[]> findTodosClientesConCompras();
 
 
     @Query(value = """

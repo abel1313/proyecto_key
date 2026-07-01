@@ -13,10 +13,19 @@ import java.util.List;
 @Repository
 public interface IGastosRepository extends BaseRepository<Gastos, Integer> {
 
-    @Query("SELECT g FROM Gastos g WHERE g.fecha BETWEEN :desde AND :hasta " +
-           "AND (:categoria IS NULL OR g.categoria = :categoria) " +
-           "ORDER BY g.fecha DESC")
-    Page<Gastos> buscar(
+    @Query(value = "SELECT g FROM Gastos g WHERE g.fecha BETWEEN :desde AND :hasta " +
+                  "ORDER BY g.fecha DESC",
+           countQuery = "SELECT COUNT(g) FROM Gastos g WHERE g.fecha BETWEEN :desde AND :hasta")
+    Page<Gastos> buscarSinCategoria(
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta,
+            Pageable pageable);
+
+    @Query(value = "SELECT g FROM Gastos g WHERE g.fecha BETWEEN :desde AND :hasta " +
+                  "AND g.categoria = :categoria ORDER BY g.fecha DESC",
+           countQuery = "SELECT COUNT(g) FROM Gastos g WHERE g.fecha BETWEEN :desde AND :hasta " +
+                        "AND g.categoria = :categoria")
+    Page<Gastos> buscarConCategoria(
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta,
             @Param("categoria") Gastos.CategoriaGasto categoria,

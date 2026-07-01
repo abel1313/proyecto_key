@@ -72,7 +72,7 @@ public class ConcursanteControllerImpl extends AbstractController<
 
     @GetMapping("/clientesPorMes")
     public ResponseEntity<ResponseGeneric<List<ClientePedidoDto>>> clientesPorMes(
-            @RequestParam String mes) {
+            @RequestParam(required = false) String mes) {
         return ResponseEntity.ok(new ResponseGeneric<List<ClientePedidoDto>>(sGenerico.clientesPorMes(mes)));
     }
 
