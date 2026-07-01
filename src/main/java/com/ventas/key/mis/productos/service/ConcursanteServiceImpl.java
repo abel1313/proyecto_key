@@ -119,7 +119,9 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     }
 
     public List<ClientePedidoDto> clientesPorMes(String mes) {
-        List<Object[]> rows = iPedidoRepository.findClientesUnicosPorMes(mes);
+        List<Object[]> rows = (mes == null || mes.isBlank())
+                ? iPedidoRepository.findTodosClientesConCompras()
+                : iPedidoRepository.findClientesUnicosPorMes(mes);
         List<ClientePedidoDto> resultado = new ArrayList<>();
         for (Object[] row : rows) {
             ClientePedidoDto dto = new ClientePedidoDto();

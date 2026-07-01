@@ -17,4 +17,5 @@ public class VentaDirectaResponse {
     private String meses;
     private String descripcionPago;
     private String intentId;
+    private Integer pedidoId; // solo cuando tipoPedido=APARTADO|FIADO; ventaId será null
 }

@@ -2764,3 +2764,263 @@ enviarMensaje(contenido: string) {
   this.mensajes = [...this.mensajes, { remitente: 'USUARIO', contenido, timestamp: new Date().toISOString() }];
 }
 ```
+
+---
+
+## MÓDULO: Pagos parciales — Apartado y Fiado (2026-06-27)
+
+> Backend: proyecto-key (9091) — todos los endpoints requieren `ROLE_ADMIN` (token JWT en cookie)
+
+### Concepto
+
+| Tipo | Flujo |
+|---|---|
+| `APARTADO` | Cliente aparta producto → va dando abonos → al liquidar se le entrega |
+| `FIADO` | Se entrega producto de entrada → cliente va pagando → al liquidar cierra |
+
+El tipo se define al crear el pedido. Una vez creado no cambia.
+
+---
+
+### 1. Crear pedido con tipo de crédito
+
+Campo nuevo en el body de `POST /v1/pedidos/savePedido`:
+
+```
+tipoPedido: "APARTADO" | "FIADO" | "NORMAL"  (default: "NORMAL")
+```
+
+El back calcula `totalPedido` automáticamente sumando los `subTotal` del detalle.
+`totalPagado` inicia en `0`.
+
+**Request igual al existente + campo nuevo:**
+```json
+{
+  "cliente": { "id": 10 },
+  "fechaPedido": "2026-06-27",
+  "tipoPedido": "APARTADO",
+  "estadoPedido": "APARTADO",
+  "observaciones": "Pantalón azul talla M",
+  "detalles": [
+    { "productoId": 5, "varianteId": 12, "cantidad": 1, "precioUnitario": 350.00, "subTotal": 350.00 }
+  ]
+}
+```
+
+**Response:** igual al response actual de pedido (incluye los nuevos campos `tipoPedido`, `totalPedido`, `totalPagado`).
+
+---
+
+### 1b. Venta directa con crédito — `POST /v1/ventas/save` (MODIFICADO)
+
+El endpoint ya existía para venta inmediata. Ahora acepta el campo opcional `tipoPedido`.
+
+**Diferencia clave vs v1 anterior:**
+- Si `tipoPedido` es `"APARTADO"` o `"FIADO"` → **no se crea Venta**, solo se crea el Pedido con estado = `tipoPedido`. El response devuelve `pedidoId` y `ventaId` es `null`.
+- Si `tipoPedido` es `null` / `"NORMAL"` → comportamiento igual al actual (Pedido + Venta cerrados en un shot).
+
+**Request (campos relevantes, igual al existente + `tipoPedido` + `observaciones`):**
+```json
+{
+  "usuarioId": 1,
+  "clienteId": 10,
+  "pagosYMesesId": 1,
+  "tipoPedido": "APARTADO",
+  "observaciones": "Pantaloneta negra talla M",
+  "detalles": [
+    { "varianteId": 42, "cantidad": 1, "precioVenta": 350.00, "subTotal": 350.00 }
+  ]
+}
+```
+
+> `pagosYMesesId` sigue siendo requerido en el request pero **no se usa** en el flujo crédito (no hay Venta ni cargos).
+
+**Response 200 — flujo crédito (ventaId = null, pedidoId presente):**
+```json
+{
+  "response": {
+    "ventaId": null,
+    "tipoPago": null,
+    "requiereTerminal": false,
+    "totalVenta": 350.00,
+    "meses": null,
+    "descripcionPago": null,
+    "intentId": null,
+    "pedidoId": 55
+  }
+}
+```
+
+**Response 200 — flujo normal (sin cambios):**
+```json
+{
+  "response": {
+    "ventaId": 23,
+    "tipoPago": "Efectivo",
+    "requiereTerminal": false,
+    "totalVenta": 350.00,
+    "meses": null,
+    "descripcionPago": "Efectivo / Transferencia",
+    "intentId": null,
+    "pedidoId": null
+  }
+}
+```
+
+**Lógica para el front:**
+```ts
+if (response.pedidoId) {
+  // crédito → redirigir a /abonos con el pedidoId
+} else {
+  // venta inmediata → flujo normal
+}
+```
+
+---
+
+### 2. Registrar un abono
+
+```
+POST /v1/abonos/{pedidoId}
+```
+
+**Request:**
+```json
+{
+  "monto": 100.00,
+  "fechaPago": "2026-06-27",
+  "metodoPago": "EFECTIVO",
+  "nota": "primer abono"
+}
+```
+- `fechaPago`: opcional, default = hoy
+- `metodoPago`: `"EFECTIVO"` | `"TRANSFERENCIA"` | `"TARJETA"` (default `"EFECTIVO"`)
+- `nota`: opcional
+
+**Response 200:**
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "id": 1,
+    "monto": 100.00,
+    "fechaPago": "27/06/2026",
+    "metodoPago": "EFECTIVO",
+    "nota": "primer abono"
+  }
+}
+```
+
+**Response 400** si el pedido ya está `PAGADO`, `cancelado`, o es de tipo `NORMAL`.
+
+> **Auto-cierre:** cuando `totalPagado >= totalPedido` el back cambia `estadoPedido` a `"PAGADO"` automáticamente.
+> Para `APARTADO` además guarda `fechaRecogida = hoy` (fecha de entrega del producto).
+
+---
+
+### 3. Historial de abonos de un pedido
+
+```
+GET /v1/abonos/{pedidoId}
+```
+
+**Response 200:**
+```json
+{
+  "code": 200,
+  "data": [
+    { "id": 1, "monto": 100.00, "fechaPago": "27/06/2026", "metodoPago": "EFECTIVO", "nota": "primer abono" },
+    { "id": 2, "monto": 200.00, "fechaPago": "05/07/2026", "metodoPago": "TRANSFERENCIA", "nota": null }
+  ]
+}
+```
+
+---
+
+### 4. Reporte: estado de cuenta (pedidos pendientes de liquidar)
+
+```
+GET /v1/abonos/reporte/estado-cuenta
+```
+
+Devuelve todos los pedidos `APARTADO` o `FIADO` que **aún no están pagados**.
+
+**Response 200:**
+```json
+{
+  "code": 200,
+  "data": [
+    {
+      "pedidoId": 45,
+      "tipoPedido": "FIADO",
+      "estadoPedido": "FIADO",
+      "cliente": "María López",
+      "telefono": "5512345678",
+      "totalPedido": 350.00,
+      "totalPagado": 100.00,
+      "saldo": 250.00,
+      "fechaPedido": "27/06/2026",
+      "abonos": [
+        { "id": 1, "monto": 100.00, "fechaPago": "27/06/2026", "metodoPago": "EFECTIVO", "nota": null }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### 5. Reporte: pedidos liquidados
+
+```
+GET /v1/abonos/reporte/pagados
+```
+
+Devuelve todos los pedidos `APARTADO` o `FIADO` con `estadoPedido = "PAGADO"`.
+
+**Response 200:**
+```json
+{
+  "code": 200,
+  "data": [
+    {
+      "pedidoId": 40,
+      "tipoPedido": "APARTADO",
+      "cliente": "Ana García",
+      "telefono": "5598765432",
+      "totalPedido": 500.00,
+      "fechaPedido": "10/06/2026",
+      "fechaUltimoPago": "27/06/2026",
+      "abonos": [
+        { "id": 3, "monto": 200.00, "fechaPago": "15/06/2026", "metodoPago": "EFECTIVO", "nota": null },
+        { "id": 7, "monto": 300.00, "fechaPago": "27/06/2026", "metodoPago": "TRANSFERENCIA", "nota": "liquidación" }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### Resumen de endpoints nuevos
+
+| Método | URL | Descripción |
+|---|---|---|
+| `POST` | `/v1/ventas/save` | **MODIFICADO** — acepta `tipoPedido`; si es APARTADO/FIADO devuelve `pedidoId` en vez de `ventaId` |
+| `POST` | `/v1/pedidos/savePedido` | Ya existía — ahora acepta `tipoPedido` |
+| `POST` | `/v1/abonos/{pedidoId}` | Registrar abono |
+| `GET` | `/v1/abonos/{pedidoId}` | Historial de abonos |
+| `GET` | `/v1/abonos/reporte/estado-cuenta` | Pedidos con saldo pendiente |
+| `GET` | `/v1/abonos/reporte/pagados` | Pedidos liquidados |
+
+### Estados posibles de `estadoPedido`
+
+| Estado | Significado |
+|---|---|
+| `PENDIENTE` | Pedido normal sin confirmar (flujo existente) |
+| `APARTADO` | Reservado, abonando, sin entregar |
+| `FIADO` | Entregado, abonando, sin liquidar |
+| `PAGADO` | Liquidado (cierre de APARTADO o FIADO) |
+| `Entregado` | Confirmado por flujo normal de venta (ya existía) |
+| `cancelado` | Cancelado (ya existía) |

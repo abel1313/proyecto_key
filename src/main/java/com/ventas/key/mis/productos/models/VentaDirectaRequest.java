@@ -15,7 +15,9 @@ import java.util.List;
 public class VentaDirectaRequest {
     private int usuarioId;
     private int clienteId;
-    private int pagosYMesesId;
+    private Integer pagosYMesesId; // null cuando tipoPedido = APARTADO | FIADO
     private ClienteSinRegistroDto clienteSinRegistroDto;
     private List<DetalleVentaDto> detalles;
+    private String tipoPedido; // null/"NORMAL" = venta inmediata; "APARTADO"|"FIADO" = crédito
+    private String observaciones;
 }

@@ -12,6 +12,8 @@ import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
+import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
+import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
@@ -98,6 +100,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setFechaPedido(requestG.getFechaPedido());
         pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
+        String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
+        pedido.setTipoPedido(tipoPedido);
+        pedido.setTotalPagado(0.0);
 
         List<DetallePedido> detallePedido = new ArrayList<>();
         for (var mpa : requestG.getDetalles()) {
@@ -139,6 +144,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detallePedido.add(dta);
         }
         pedido.setDetalles(detallePedido);
+        double totalPedido = detallePedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
+        pedido.setTotalPedido(totalPedido);
         Pedido saved = this.iPedidoRepository.save(pedido);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -156,6 +163,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("El pedido está cancelado y no se puede confirmar");
+        }
+        if ("APARTADO".equals(pedido.getTipoPedido()) || "FIADO".equals(pedido.getTipoPedido())) {
+            throw new RuntimeException("Los pedidos de tipo " + pedido.getTipoPedido() + " se liquidan mediante abonos, no por esta vía");
         }
 
         PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(requestG.getPagosYMesesId())
@@ -262,7 +272,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())) {
+        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())
+                || "PAGADO".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("No se puede cancelar un pedido en estado: " + pedido.getEstadoPedido());
         }
 
@@ -334,6 +345,57 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+    }
+
+    @Override
+    public PedidoDetalleResponse getDetallePedido(int id) {
+        Pedido pedido = iPedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + id));
+
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        double totalPedido = pedido.getTotalPedido() != null ? pedido.getTotalPedido() : 0.0;
+
+        PedidoDetalleResponse resp = new PedidoDetalleResponse();
+        resp.setPedidoId(pedido.getId());
+        resp.setTipoPedido(pedido.getTipoPedido());
+        resp.setEstadoPedido(pedido.getEstadoPedido());
+        resp.setTotalPedido(totalPedido);
+        resp.setTotalPagado(totalPagado);
+        resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
+        resp.setFechaPedido(pedido.getFechaPedido());
+        resp.setFechaRecogida(pedido.getFechaRecogida());
+        resp.setObservaciones(pedido.getObservaciones());
+        resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
+        resp.setFechaCancelacion(pedido.getFechaCancelacion());
+
+        if (pedido.getCliente() != null) {
+            resp.setClienteNombre(pedido.getCliente().getNombrePersona());
+            resp.setClienteTelefono(pedido.getCliente().getNumeroTelefonico());
+        } else if (pedido.getClienteSinRegistro() != null) {
+            resp.setClienteNombre(pedido.getClienteSinRegistro().getNombrePersona());
+            resp.setClienteTelefono(pedido.getClienteSinRegistro().getNumeroTelefonico());
+        }
+
+        List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
+            DetalleItemResponse item = new DetalleItemResponse();
+            item.setId(dp.getId());
+            item.setCantidad(dp.getCantidad());
+            item.setPrecioUnitario(dp.getPrecioUnitario());
+            item.setSubTotal(dp.getSubTotal());
+            if (dp.getProducto() != null) {
+                item.setProductoNombre(dp.getProducto().getNombre());
+            }
+            if (dp.getVariante() != null) {
+                item.setVarianteId(dp.getVariante().getId());
+                item.setTalla(dp.getVariante().getTalla());
+                item.setColor(dp.getVariante().getColor());
+                item.setDescripcion(dp.getVariante().getDescripcion());
+            }
+            return item;
+        }).toList();
+
+        resp.setDetalles(detalles);
+        return resp;
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {

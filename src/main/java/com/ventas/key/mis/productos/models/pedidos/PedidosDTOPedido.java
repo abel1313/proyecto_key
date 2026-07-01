@@ -16,5 +16,6 @@ public class PedidosDTOPedido {
     private LocalDate fechaRecogida;
     private String estadoPedido;
     private String observaciones;
+    private String tipoPedido;
     private List<DetallePedidosDTOPedido> detalles;
 }
