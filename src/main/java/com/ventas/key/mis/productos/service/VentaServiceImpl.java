@@ -237,6 +237,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         venta.setPedido(pedido);
         venta.setTotalVenta(totalVenta);
         venta.setGananciaTotal(gananciaTotal);
+        venta.setMontoDado(request.getMontoDado());
         detallesVenta.forEach(dvv -> dvv.setVenta(venta));
         venta.setDetalles(detallesVenta);
 

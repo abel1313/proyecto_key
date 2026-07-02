@@ -8,9 +8,12 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public interface IVentaRepository extends BaseRepository<Venta, Integer> {
+
+    Optional<Venta> findByPedidoId(int pedidoId);
 
     @Query("SELECT v FROM Venta v WHERE v.fechaVenta BETWEEN :desde AND :hasta ORDER BY v.fechaVenta DESC")
     Page<Venta> buscarPorFecha(

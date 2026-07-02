@@ -22,4 +22,5 @@ public class VentaDirectaRequest {
     private String tipoPedido; // null/"NORMAL" = venta inmediata; "APARTADO"|"FIADO" = crédito
     private String observaciones;
     private NotificacionRequest notificacion;
+    private Double montoDado; // cuánto entregó el cliente (EFECTIVO) — para calcular cambio en el ticket
 }
