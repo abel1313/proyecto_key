@@ -496,3 +496,226 @@ las rutas nuevas con el mismo nivel de protección que las viejas.
    coordinación con front).
 5. **`CLAUDE.md`** describe los endpoints de `VarianteController` sin el `/v1/` — desactualizado,
    pendiente de corregir.
+
+---
+
+## SECCIÓN — ENDPOINTS PENDIENTES PARA TICKETS / COMPROBANTES
+
+> Requeridos para el módulo de tickets (imprimir y enviar por correo desde Pedidos, Ventas
+> y Abonos). El front ya tiene la generación de HTML en `src/app/shared/ticket.util.ts`.
+> Necesita 2 cambios del back.
+
+---
+
+### EP-T1 — Enriquecer `GET /v1/pedidos/{id}/detalle` (endpoint existente)
+
+**Solo agregar campos al response que ya existe. Sin cambiar path ni auth.**
+
+**Campos NUEVOS a agregar:**
+
+| Campo | Tipo Java | Descripción |
+|---|---|---|
+| `clienteCorreo` | `String` (nullable) | Correo del cliente — para auto-llenar envío de ticket |
+| `metodoPago` | `String` (nullable) | Forma de pago del pedido original (`EFECTIVO`, `TRANSFERENCIA`, `TARJETA`). Para créditos puede ser `null`. |
+| `montoDado` | `Double` (nullable) | Cuánto entregó el cliente al pagar — para calcular cambio en el ticket. `null` si no se registró. |
+| `abonos` | `List<AbonoDetalleItem>` | Historial de todos los pagos del pedido. Lista vacía `[]` para ventas normales contado. |
+
+**Shape de cada `AbonoDetalleItem`:**
+```json
+{
+  "id": 1,
+  "monto": 200.00,
+  "fechaPago": "2026-07-01T10:30:00",
+  "metodoPago": "EFECTIVO",
+  "nota": "Primer abono",
+  "montoDado": 220.00
+}
+```
+
+**Response esperado — venta NORMAL al contado:**
+```json
+{
+  "pedidoId": 123,
+  "tipoPedido": "NORMAL",
+  "estadoPedido": "Entregado",
+  "totalPedido": 300.00,
+  "totalPagado": 300.00,
+  "saldoPendiente": 0.00,
+  "fechaPedido": "2026-07-01T10:00:00",
+  "clienteNombre": "Juan Pérez",
+  "clienteTelefono": "5551234567",
+  "clienteCorreo": "juan@email.com",
+  "metodoPago": "EFECTIVO",
+  "montoDado": 350.00,
+  "detalles": [
+    { "varianteId": 1, "productoNombre": "Blusa floral", "talla": "M", "color": "Rosa", "cantidad": 2, "precioUnitario": 150.00, "subTotal": 300.00 }
+  ],
+  "abonos": []
+}
+```
+
+**Response esperado — APARTADO con 2 abonos:**
+```json
+{
+  "pedidoId": 124,
+  "tipoPedido": "APARTADO",
+  "estadoPedido": "APARTADO",
+  "totalPedido": 500.00,
+  "totalPagado": 350.00,
+  "saldoPendiente": 150.00,
+  "fechaPedido": "2026-07-01T10:00:00",
+  "clienteNombre": "Ana López",
+  "clienteTelefono": "5559876543",
+  "clienteCorreo": "ana@email.com",
+  "metodoPago": null,
+  "montoDado": null,
+  "detalles": [
+    { "varianteId": 2, "productoNombre": "Pantalón slim", "talla": "28", "color": "Negro", "cantidad": 1, "precioUnitario": 500.00, "subTotal": 500.00 }
+  ],
+  "abonos": [
+    { "id": 10, "monto": 200.00, "fechaPago": "2026-07-01T10:30:00", "metodoPago": "EFECTIVO", "nota": "Enganche", "montoDado": 220.00 },
+    { "id": 11, "monto": 150.00, "fechaPago": "2026-07-15T14:00:00", "metodoPago": "TRANSFERENCIA", "nota": null, "montoDado": null }
+  ]
+}
+```
+
+**¿Por qué el front necesita estos datos?**
+
+| Dato | Ticket de venta | Ticket de crédito/abono |
+|---|---|---|
+| `clienteCorreo` | Auto-fill al enviar por correo | Auto-fill al enviar por correo |
+| `metodoPago` | Muestra "MÉTODO: EFECTIVO" | No aplica al pedido (cada abono tiene el suyo) |
+| `montoDado` | Muestra "ENTREGÓ: $350 / CAMBIO: $50" | Por abono individual |
+| `abonos[]` | Vacío | Muestra historial de pagos con fecha, monto y método |
+
+---
+
+### EP-T2 — Nuevo endpoint: reenviar comprobante por correo
+
+**Path:** `POST /v1/pedidos/{id}/notificar`
+
+**Auth:** Bearer token (admin)
+
+**Request body:**
+```json
+{
+  "correo": "cliente@email.com",
+  "ticketHtml": "<html><body>...HTML generado por el front...</body></html>"
+}
+```
+
+**Response 200:**
+```json
+{
+  "mensaje": "Comprobante enviado correctamente a cliente@email.com"
+}
+```
+
+**Response 400 / 500:**
+```json
+{
+  "mensaje": "No se pudo enviar el correo. Verifica la dirección."
+}
+```
+
+**¿Qué hace el back?**
+- Recibe el HTML ya listo del front
+- Lo envía como correo HTML a `correo`
+- Asunto: `"Comprobante de tu pedido #${id} — Novedades Jade"`
+- **No genera nada** — solo envía el HTML recibido
+
+**Nota:** el HTML ya incluye los QR codes de WhatsApp, Facebook y tienda web.
+El front los obtiene de `GET /v1/negocio/contactos` (`whatsappUrl`, `facebookUrl`).
+
+---
+
+### Nota sobre los QR en el ticket
+
+El ticket generado por el front incluye automáticamente códigos QR al pie:
+
+| QR | URL de origen | Cómo llega al front |
+|---|---|---|
+| 🏪 Tienda | `window.location.origin` | Automático (URL del sistema) |
+| 💬 WhatsApp | `contactos.whatsappUrl` | `GET /v1/negocio/contactos` → campo `whatsappUrl` |
+| 📘 Facebook | `contactos.facebookUrl` | `GET /v1/negocio/contactos` → campo `facebookUrl` |
+
+Los QR se generan vía `https://api.qrserver.com/v1/create-qr-code/?size=70x70&data={url}`.
+Si `whatsappUrl` o `facebookUrl` son `null` o vacíos, ese QR no aparece en el ticket.
+
+**Conclusión:** el back no necesita hacer nada adicional para los QR — solo asegurarse de que
+`GET /v1/negocio/contactos` devuelva `whatsappUrl` y `facebookUrl` con valores válidos.
+
+---
+
+### Prioridad
+
+| # | Cambio | Impacto |
+|---|---|---|
+| 1 | Enriquecer `GET /v1/pedidos/{id}/detalle` con `abonos[]`, `clienteCorreo`, `metodoPago`, `montoDado` | **Alto** — tickets ricos en Pedidos, Ventas y Abonos |
+| 2 | `POST /v1/pedidos/{id}/notificar` | **Medio** — envío por correo desde cualquier pantalla |
+
+Lo que ya está listo en el front ahora mismo:
+
+Feature	Estado	Detalle
+🖨️ Imprimir ticket desde mis-pedidos	✅ Funciona ya	Artículos, totales, cliente, fecha — pregunta el método de pago con Swal porque el back aún no lo devuelve
+QR WhatsApp + Facebook + Tienda en el ticket	✅ Funciona ya	Usa GET /v1/negocio/contactos que ya existe
+Correo auto-llenado con el email del cliente	⏳ Espera EP-T1	clienteCorreo no viene aún en el detalle
+Historial de abonos en el ticket (créditos)	⏳ Espera EP-T1	abonos[] no viene aún
+Cambio al cliente (entregó $X)	⏳ Espera EP-T1	montoDado no viene aún
+
+---
+
+## 6. EP-T1 y EP-T2 — IMPLEMENTADOS 2026-07-01 (con una duda real resuelta, ver abajo)
+
+### EP-T1 — `GET /v1/pedidos/{id}/detalle` enriquecido
+
+Se agregaron los 4 campos pedidos a `PedidoDetalleResponse`: `clienteCorreo`, `metodoPago`,
+`montoDado`, `abonos[]` (nuevo DTO `AbonoDetalleItem`: `id`, `monto`, `fechaPago`, `metodoPago`,
+`nota`, `montoDado`). Sin cambiar el path ni el auth, tal como se pidió.
+
+- `clienteCorreo`: mismo patrón que `clienteNombre`/`clienteTelefono` (Cliente o
+  ClienteSinRegistro). Sin duda, directo.
+- `abonos[]`: ya existía `IAbonoRepository.findByPedidoIdOrderByFechaPagoAsc(pedidoId)` con
+  exactamente los campos que se pedían — sin duda, directo.
+- `metodoPago`: se resuelve buscando la `Venta` ligada al pedido (nuevo
+  `IVentaRepository.findByPedidoId`) y leyendo `venta.pagosYMeses.tipoPago.formaPago`. Solo
+  aplica a ventas NORMAL al contado — en créditos (APARTADO/FIADO) no hay `Venta`, queda `null`
+  (correcto, cada abono ya trae el suyo en `abonos[]`).
+
+### ⚠️ DUDA REAL ENCONTRADA Y RESUELTA — `montoDado` en ventas de contado NUNCA se guardó
+
+A diferencia de los abonos (donde `AbonoPedido.montoDado` ya existía), **una venta NORMAL al
+contado nunca capturó `montoDado` en el back** — ni `VentaDirectaRequest` lo recibía, ni `Venta`
+lo guardaba. El front lo pedía asumiendo que ya estaba disponible para leer, pero en realidad
+había que agregar el punto de captura desde cero. Se implementó:
+
+1. `Venta.montoDado` — columna nueva (`monto_dado DOUBLE NULL`), migración manual en
+   `src/main/resources/static/migration_venta_monto_dado.sql` (correr en QA/prod, no hay Flyway).
+2. `VentaDirectaRequest.montoDado` — campo nuevo opcional en el request de
+   `POST /v1/ventas/save`.
+3. `VentaServiceImpl` guarda `request.getMontoDado()` en la `Venta` al crearla.
+
+**Impacto para el front — acción requerida:** para que `montoDado` aparezca en el ticket, el
+front debe **empezar a mandar `montoDado` en el body de `POST /v1/ventas/save`** cuando el
+método de pago sea EFECTIVO (igual que ya hace hoy con el Swal, pero ahora enviándolo al back
+en vez de solo calcular el cambio localmente). **Las ventas ya guardadas antes de este cambio
+quedarán con `montoDado: null`** — no hay forma de recuperar ese dato retroactivamente, el
+ticket de pedidos viejos simplemente no mostrará "ENTREGÓ/CAMBIO".
+
+### EP-T2 — `POST /v1/pedidos/{id}/notificar`
+
+Implementado tal como se pidió: recibe `{ correo, ticketHtml }`, reenvía el HTML tal cual por
+correo (asunto `"Comprobante de tu pedido #{id} — Novedades Jade"`), no genera nada. Protegido
+con `hasRole("ADMIN")` en `SecurityConfig.java` (mismo nivel que actualizar/cancelar pedidos).
+
+Diferencia menor respecto al spec: la response va envuelta en `ResponseGeneric` (como el resto
+del proyecto), no como el `{ "mensaje": "..." }` plano del ejemplo — el campo `mensaje` está en
+el mismo lugar (`response.mensaje` / `response.data`), solo con `code`/`data`/`lista` extra que
+el front puede ignorar.
+
+**Archivos tocados:** `PedidoDetalleResponse.java`, `AbonoDetalleItem.java` (nuevo),
+`NotificarPedidoRequest.java` (nuevo), `PedidoServiceImpl.java`, `IPedidoService.java`,
+`PedidoController.java`, `IVentaRepository.java`, `Venta.java`, `VentaDirectaRequest.java`,
+`VentaServiceImpl.java`, `SecurityConfig.java`, `migration_venta_monto_dado.sql` (nuevo).
+Enviar por correo	⏳ Espera EP-T2	El botón ya está, pero el endpoint POST /v1/pedidos/{id}/notificar no existe — muestra error claro al admin
+En resumen: el botón 🖨️ ya sirve para imprimir un ticket básico. Todo lo demás (ticket rico con abonos, correo automático) está preparado en código pero bloqueado hasta que el back implemente EP-T1 y EP-T2. Cuando el back los tenga, actualizo el front en una sesión y queda completo.'

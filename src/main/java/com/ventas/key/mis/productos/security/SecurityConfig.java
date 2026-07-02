@@ -120,6 +120,7 @@ public class SecurityConfig {
                         // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/notificar").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 

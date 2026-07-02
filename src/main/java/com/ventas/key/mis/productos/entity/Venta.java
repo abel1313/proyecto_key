@@ -21,6 +21,11 @@ public class Venta  extends BaseId{
     @Column(name = "ganancia_total")
     private Double gananciaTotal;
 
+    // Cuánto entregó el cliente (para calcular cambio en el ticket) — null en ventas antiguas
+    // anteriores a este campo, y en ventas por transferencia/tarjeta donde no aplica.
+    @Column(name = "monto_dado")
+    private Double montoDado;
+
     @Column(name = "estado_venta", nullable = false)
     private String estadoVenta;
 

@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidoQuery;
@@ -30,7 +31,6 @@ public interface IPedidoService extends ICrud<
     void deletePedidoById(int id, String motivo);
     void eliminarDetallePedido(int pedidoId, int productoId, int cantidad);
     PedidoDetalleResponse getDetallePedido(int id);
-
-
+    boolean notificarPedido(int id, NotificarPedidoRequest requestG);
 
 }
