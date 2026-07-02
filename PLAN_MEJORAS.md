@@ -747,10 +747,17 @@ para la gráfica de barras del reporte mensual (ventas por día):
 1. Chart.js directo con `@ViewChild` sobre un `<canvas>` — sin instalar nada nuevo.
 2. Instalar `ng2-charts` — más declarativo en el template.
 
-**Respuesta: instalar `ng2-charts`.** Razón: el ítem 6 (Dashboard con métricas) es el siguiente
-en la fila justo después de reportes, y va a necesitar **varias** gráficas más (ventas del mes,
-créditos activos, etc.) — instalarlo ahora evita reescribir la del reporte mensual con otro
-enfoque cuando llegue el dashboard. Es un wrapper delgado y bien mantenido sobre el mismo
-`chart.js` que ya tienen, compatible con v4 (`ng2-charts` v5+). Si solo fuera esta única gráfica
-y no hubiera nada más de gráficas a la vista, Chart.js directo habría sido razonable para no
-sumar una dependencia — pero dado que viene el dashboard, conviene instalarlo de una vez.
+**Respuesta: instalar `ng2-charts`.**
+
+**⚠️ Corrección 2026-07-02:** la razón original decía que el dashboard (ítem 6) iba a necesitar
+"varias gráficas más" — eso no se cumplió. Ya se implementó el dashboard
+(`GET /v1/dashboard/resumen`) y es solo números sueltos en cards (ventas hoy, stock bajo, etc.),
+sin ninguna serie de datos que graficar. La única gráfica real que existe hoy en todo el plan es
+la del reporte mensual (`porDia[]`).
+
+**Razón real para instalar `ng2-charts`:** aunque sea una sola gráfica, es un wrapper delgado y
+bien mantenido sobre el mismo `chart.js` que ya tienen instalado (compatible con v4,
+`ng2-charts` v5+), más declarativo que manejar el `<canvas>` a mano con `@ViewChild`. Se decidió
+dejarlo así (instalar `ng2-charts`) aunque la justificación de "más gráficas después" no aplicó —
+no se rediseñó el dashboard para agregar una gráfica de tendencia solo para justificar la
+dependencia.
