@@ -4,9 +4,11 @@ import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
+import jakarta.validation.Valid;
 import com.ventas.key.mis.productos.service.PedidoServiceImpl;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.extern.slf4j.Slf4j;
@@ -107,6 +109,25 @@ public class PedidoController extends AbstractController<
             return ResponseEntity.ok(new ResponseGeneric<>(response));
         } catch (Exception e) {
             ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @PostMapping("/{id}/notificar")
+    public ResponseEntity<ResponseGeneric<String>> notificar(
+            @PathVariable int id, @Valid @RequestBody NotificarPedidoRequest requestG) {
+        try {
+            boolean ok = iPedidoService.notificarPedido(id, requestG);
+            if (!ok) {
+                ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
+                error.setMensaje("No se pudo enviar el correo. Verifica la dirección.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+            return ResponseEntity.ok(new ResponseGeneric<>(
+                    "Comprobante enviado correctamente a " + requestG.getCorreo()));
+        } catch (Exception e) {
+            ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
             error.setMensaje(e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }

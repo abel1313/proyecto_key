@@ -108,4 +108,12 @@ chat:
   admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
   forzar-notificacion: true
 
+whatsapp:
+  # Proveedor activo: callmebot | twilio | ninguno
+  proveedor: ${WHATSAPP_PROVEEDOR:callmebot}
+  # CallMeBot: API key generada al activar el bot (gratis, requiere activación por cliente)
+  callmebot-apikey: ${WHATSAPP_APIKEY:}
+  # Prefijo de país para números sin código (+52 = México)
+  country-code: ${WHATSAPP_COUNTRY_CODE:52}
+
 

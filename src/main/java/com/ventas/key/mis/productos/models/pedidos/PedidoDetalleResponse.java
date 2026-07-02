@@ -31,6 +31,12 @@ public class PedidoDetalleResponse {
 
     private String clienteNombre;
     private String clienteTelefono;
+    private String clienteCorreo;
+
+    // Solo para ventas NORMAL al contado (viene de la Venta ligada al pedido); null en créditos.
+    private String metodoPago;
+    private Double montoDado;
 
     private List<DetalleItemResponse> detalles;
+    private List<AbonoDetalleItem> abonos;
 }

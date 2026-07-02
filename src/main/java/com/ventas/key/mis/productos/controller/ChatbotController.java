@@ -17,6 +17,8 @@ import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Tag(name = "Chatbot", description = "Asistente virtual de la tienda Novedades Jade con control de abuso por IP")
 @RestController
@@ -27,6 +29,10 @@ public class ChatbotController {
 
     private final ChatbotService chatbotService;
     private final ChatbotBlockService blockService;
+
+    private static final Pattern PRECIO_PATTERN = Pattern.compile("\\$\\s?\\d");
+    private static final Pattern MENCIONA_FOTO_PATTERN =
+            Pattern.compile("\\b(foto|fotos|imagen|imágenes)\\b", Pattern.CASE_INSENSITIVE);
 
     @Operation(
         summary = "Enviar mensaje al chatbot",
@@ -70,9 +76,40 @@ public class ChatbotController {
         }
 
         return chatbotService.chat(request)
+                .flatMap(respuesta -> {
+                    boolean tieneBuscarInicial = respuesta.contains("##BUSCAR[");
+                    boolean pideImagen = MENCIONA_FOTO_PATTERN.matcher(request.getMensaje()).find();
+                    if (!tieneBuscarInicial && pideImagen) {
+                        log.warn("Chatbot no uso ##BUSCAR## pese a pedido de imagen (IP {}), reintentando", ip);
+                        return chatbotService.forzarMostrarImagen(request, respuesta);
+                    }
+                    return Mono.just(respuesta);
+                })
                 .map(respuesta -> {
                     boolean esFarewell = respuesta.contains("##FAREWELL##");
-                    String respuestaLimpia = respuesta.replace("##FAREWELL##", "").trim();
+                    // Extraer ##BUSCAR[query,offset]## si existe
+                    Pattern buscarPattern = Pattern.compile("##BUSCAR\\[([^,\\]]+),?(\\d*)\\]##");
+                    Matcher buscarMatcher = buscarPattern.matcher(respuesta);
+                    boolean tieneBuscar = buscarMatcher.find();
+                    String buscarQuery = tieneBuscar ? buscarMatcher.group(1).trim() : null;
+                    int buscarOffset = (tieneBuscar && !buscarMatcher.group(2).isBlank())
+                            ? Integer.parseInt(buscarMatcher.group(2)) : 0;
+
+                    String respuestaLimpia = respuesta
+                            .replace("##FAREWELL##", "")
+                            .replaceAll("##BUSCAR\\[[^\\]]*\\]##", "")
+                            .trim();
+
+                    // Red de seguridad: si el bot confirmó un producto (menciona precio) pero no
+                    // mostró imagen ni ofreció mostrarla, el cliente no tiene forma de saber que
+                    // puede pedir la foto. El modelo debería preguntarlo solo (CASO 1 del prompt),
+                    // pero no siempre lo hace — se fuerza aquí para no depender de eso.
+                    if (!tieneBuscar && !esFarewell
+                            && PRECIO_PATTERN.matcher(respuestaLimpia).find()
+                            && !MENCIONA_FOTO_PATTERN.matcher(respuestaLimpia).find()) {
+                        respuestaLimpia = respuestaLimpia + "\n\n¿Quieres ver una foto? 📸";
+                    }
+
                     Map<String, Object> result = new HashMap<>();
 
                     if (esFarewell) {
@@ -91,6 +128,15 @@ public class ChatbotController {
                         result.put("bloqueado", false);
                         result.put("segundosEspera", 0);
                     }
+
+                    if (tieneBuscar && buscarQuery != null && !buscarQuery.isBlank()) {
+                        Map<String, Object> busqueda = chatbotService.buscarProductos(buscarQuery, buscarOffset);
+                        result.put("productos", busqueda.get("productos"));
+                        result.put("hayMas", busqueda.get("hayMas"));
+                        result.put("busquedaQuery", busqueda.get("busquedaQuery"));
+                        result.put("busquedaOffset", busqueda.get("busquedaOffset"));
+                    }
+
                     return ResponseEntity.<Map<String, Object>>ok(result);
                 })
                 .onErrorResume(e -> {
@@ -108,6 +154,17 @@ public class ChatbotController {
                     result.put("segundosEspera", segs);
                     return Mono.just(ResponseEntity.<Map<String, Object>>ok(result));
                 });
+    }
+
+    @Operation(
+        summary = "Ver más productos del chatbot",
+        description = "Paginación de productos sin llamar a la IA. Usar cuando el usuario hace clic en 'Ver más'."
+    )
+    @GetMapping("/buscar")
+    public ResponseEntity<Map<String, Object>> buscar(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int offset) {
+        return ResponseEntity.ok(chatbotService.buscarProductos(q, offset));
     }
 
     private String obtenerIp(HttpServletRequest request) {

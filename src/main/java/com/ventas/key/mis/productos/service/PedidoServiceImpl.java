@@ -12,10 +12,13 @@ import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
+import com.ventas.key.mis.productos.models.pedidos.AbonoDetalleItem;
 import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
+import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
+import com.ventas.key.mis.productos.repository.IAbonoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
@@ -24,6 +27,7 @@ import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import com.ventas.key.mis.productos.repository.IVentaRepository;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +69,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
+    @Autowired private IVentaRepository iVentaRepository;
+    @Autowired private IAbonoRepository iAbonoRepository;
+    @Autowired private EmailService emailService;
 
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
                              final IClienteRepository iClienteRepository,
@@ -371,10 +378,26 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (pedido.getCliente() != null) {
             resp.setClienteNombre(pedido.getCliente().getNombrePersona());
             resp.setClienteTelefono(pedido.getCliente().getNumeroTelefonico());
+            resp.setClienteCorreo(pedido.getCliente().getCorreoElectronico());
         } else if (pedido.getClienteSinRegistro() != null) {
             resp.setClienteNombre(pedido.getClienteSinRegistro().getNombrePersona());
             resp.setClienteTelefono(pedido.getClienteSinRegistro().getNumeroTelefonico());
+            resp.setClienteCorreo(pedido.getClienteSinRegistro().getCorreoElectronico());
         }
+
+        // metodoPago/montoDado solo existen para ventas NORMAL al contado (vienen de la Venta
+        // ligada al pedido); en créditos (APARTADO/FIADO) cada abono tiene los suyos, ver abonos[].
+        iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
+            if (venta.getPagosYMeses() != null && venta.getPagosYMeses().getTipoPago() != null) {
+                resp.setMetodoPago(venta.getPagosYMeses().getTipoPago().getFormaPago());
+            }
+            resp.setMontoDado(venta.getMontoDado());
+        });
+
+        resp.setAbonos(iAbonoRepository.findByPedidoIdOrderByFechaPagoAsc(pedido.getId()).stream()
+                .map(a -> new AbonoDetalleItem(
+                        a.getId(), a.getMonto(), a.getFechaPago(), a.getMetodoPago(), a.getNota(), a.getMontoDado()))
+                .toList());
 
         List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
             DetalleItemResponse item = new DetalleItemResponse();
@@ -396,6 +419,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         resp.setDetalles(detalles);
         return resp;
+    }
+
+    @Override
+    public boolean notificarPedido(int id, NotificarPedidoRequest requestG) {
+        if (iPedidoRepository.findById(id).isEmpty()) {
+            throw new RuntimeException("Pedido no encontrado: " + id);
+        }
+        String asunto = "Comprobante de tu pedido #" + id + " — Novedades Jade";
+        return emailService.enviarTicket(requestG.getCorreo(), asunto, requestG.getTicketHtml());
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {

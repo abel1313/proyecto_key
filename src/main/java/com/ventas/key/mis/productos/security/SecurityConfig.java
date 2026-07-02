@@ -74,6 +74,7 @@ public class SecurityConfig {
 
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/negocio/contactos").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
@@ -119,6 +120,7 @@ public class SecurityConfig {
                         // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/notificar").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 

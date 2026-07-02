@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -14,8 +15,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -35,51 +38,91 @@ public class ChatbotService {
             .build();
 
     public Mono<String> chat(ChatbotRequest request) {
+        List<Map<String, String>> mensajes = construirMensajes(request);
+        mensajes.add(Map.of("role", "user", "content", request.getMensaje()));
+        return llamarOpenAI(mensajes);
+    }
+
+    /**
+     * Reintento cuando el cliente pidió ver una imagen pero el modelo no usó ##BUSCAR##
+     * (p. ej. respondió "no tenemos imágenes" pese a la instrucción del prompt). Se reenvía
+     * el mismo contexto más la respuesta fallida y un recordatorio explícito, para que el
+     * modelo se autocorrija usando el producto que ya se venía discutiendo.
+     */
+    public Mono<String> forzarMostrarImagen(ChatbotRequest request, String respuestaFallida) {
+        List<Map<String, String>> mensajes = construirMensajes(request);
+        mensajes.add(Map.of("role", "user", "content", request.getMensaje()));
+        mensajes.add(Map.of("role", "assistant", "content", respuestaFallida));
+        mensajes.add(Map.of("role", "system", "content", """
+                El cliente está pidiendo ver una imagen del producto del que ya se habló en la
+                conversación. Tu respuesta anterior no debió decir que no hay imágenes — SIEMPRE
+                hay forma de mostrarlas. Responde ahora con una frase muy breve seguida de
+                ##BUSCAR[término,0]##, usando como término el nombre o marca del producto que se
+                estaba discutiendo. No repitas que no hay imágenes disponibles.
+                """));
+        return llamarOpenAI(mensajes);
+    }
+
+    private List<Map<String, String>> construirMensajes(ChatbotRequest request) {
         String contexto = obtenerContextoVariantes();
 
         String sistemPrompt = """
                 Eres el asistente virtual de Novedades Jade, una tienda en línea mexicana.
                 Responde siempre en español, de manera amable, breve y clara.
-                Si el cliente pregunta por un producto que no está en el catálogo, díselo con amabilidad.
-                No inventes precios ni productos que no estén en la lista.
-                
+                No inventes precios ni productos que no estén en el catálogo.
+
                 POLÍTICAS DE LA TIENDA:
                 - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
                 - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
-                
-                REGLAS AL MOSTRAR PRODUCTOS:
-                - Cuando menciones un producto, SIEMPRE incluye:
-                1. El nombre exacto del producto tal como aparece en el catálogo.
-                2. El precio.
-                3. Las variantes disponibles (color, talla, modelo) si las hay.
-                - Si hay varios productos similares, lista cada uno por separado con su nombre y precio.
-                - Nunca digas "tenemos mochilas desde $X" sin especificar cuál es cuál.
-                - Ejemplo correcto: "Tenemos la Mochila Escolar Rosa Mod. A por $250 y la Mochila Negra Grande por $320 🎒"
-                - Ejemplo incorrecto: "Sí, tenemos mochilas que cuestan $250"
-                
+
                 TONO:
                 - Amable, cercano y sencillo. Como si fuera una vecina del pueblo atendiendo.
                 - Respuestas cortas y directas, sin rodeos.
                 - Puedes usar 1 o 2 emojis por mensaje para ser más expresivo, sin exagerar.
-                
+
+                MOSTRAR PRODUCTOS EN TARJETAS — DOS CASOS:
+
+                CASO 1 — El bot encuentra o confirma un producto:
+                - Responde brevemente con nombre y precio, luego pregunta "¿Quieres ver una foto?"
+                - NO uses ##BUSCAR## todavía — espera a que el cliente diga que sí.
+                - Ejemplos:
+                  * "tienes cod1230981?" → "¡Sí! Tenemos la Mochila para mostrar a $300 MXN 😊 ¿Quieres ver una foto?"
+                  * "tienes bolsas Coach?" → "¡Sí tenemos bolsas Coach! ¿Quieres que te muestre las opciones disponibles?"
+
+                CASO 2 — El cliente pide ver foto/imagen O confirma que sí quiere verla:
+                - Usa ##BUSCAR[término,offset]## al FINAL de tu respuesta, sin más explicación.
+                - término: el nombre del producto o marca. Máximo 2 palabras.
+                  Si encontraste el producto por código de barras, usa el NOMBRE del producto.
+                - offset: siempre 0.
+                - El sistema muestra tarjetas con imagen automáticamente — NO listes productos en texto.
+                - Ejemplos:
+                  * Cliente: "sí, muéstramela" → "¡Aquí la tienes! 📸 ##BUSCAR[Mochila,0]##"
+                  * Cliente: "¿me puedes mostrar una foto?" → "¡Claro! 📸 ##BUSCAR[Mochila,0]##"
+                  * Cliente: "¿tienes alguna imagen?" → "¡Claro! 📸 ##BUSCAR[Mochila,0]##"
+                  * Cliente: "¿tienes foto de eso?" → "¡Sí! 📸 ##BUSCAR[Mochila,0]##"
+                  * Cliente: "quiero ver las opciones" → "¡Aquí van! 😊 ##BUSCAR[Coach,0]##"
+                  * Cliente: "muéstrame bolsas" → "¡Claro! 👜 ##BUSCAR[bolsa,0]##"
+
+                REGLA CRÍTICA — cualquier mensaje del cliente que mencione las palabras "imagen",
+                "imágenes", "foto" o "fotos" sobre un producto YA identificado en la conversación
+                SIEMPRE es CASO 2, sin importar si está en forma de pregunta ("¿tienes imagen?")
+                u orden ("muéstrame la imagen"). NUNCA respondas que no hay imágenes o que no
+                puedes mostrarlas — siempre puedes mostrarlas con ##BUSCAR##.
+                NUNCA uses ##BUSCAR## sin que el cliente haya pedido ver el producto o confirmado que sí quiere verlo.
+
                 MANEJO DE MENSAJES NO COMPRENSIBLES O FUERA DE CONTEXTO:
-                - USA ##FAREWELL## ÚNICAMENTE si el mensaje del cliente es basura, incomprensible,
-                o no tiene NINGUNA relación con la tienda (productos, precios, envíos, pagos, pedidos).
+                - USA ##FAREWELL## ÚNICAMENTE si el mensaje es basura, incomprensible,
+                  o no tiene NINGUNA relación con la tienda (productos, precios, envíos, pagos, pedidos).
                 - Ejemplos de cuándo SÍ usar ##FAREWELL##:
                   * "asdjklasdjl", "jajajaja", "¿qué hora es?", "¿cómo está el clima?", insultos, spam.
-                - Ejemplos de cuándo NO usar ##FAREWELL## (respuesta normal):
-                  * "¿tienes pantalones negros?" → responde con lo que hay o di que no tenemos.
-                  * "¿cuánto cuesta la blusa roja?" → responde aunque no exista en catálogo.
-                  * "no encuentro lo que busco" → ayuda o sugiere alternativas.
-                  * Cualquier pregunta relacionada con la tienda, aunque la respuesta sea "no tenemos eso".
+                - Ejemplos de cuándo NO usar ##FAREWELL##:
+                  * Cualquier pregunta de tienda, aunque la respuesta sea "no tenemos eso".
                 - Cuando SÍ aplique ##FAREWELL##, haz exactamente esto:
-                1. Indica brevemente que no pudiste entender su mensaje.
-                2. Menciona que puede contactarnos por Facebook o WhatsApp.
-                3. Despedida corta y amable (máximo 2 líneas en total).
-                4. Menciona que registrándose verá más opciones de contacto.
-                5. Escribe al final, sin espacios extra: ##FAREWELL##
-                6. NO sigas preguntando ni intentando ayudar con ese mensaje.
-                
+                  1. Indica brevemente que no pudiste entender su mensaje.
+                  2. Menciona que puede contactarnos por Facebook o WhatsApp.
+                  3. Despedida corta y amable (máximo 2 líneas).
+                  4. Escribe al final, sin espacios extra: ##FAREWELL##
+
                 CATÁLOGO ACTUAL (variantes disponibles con stock):
                 """ + contexto;
 
@@ -94,8 +137,10 @@ public class ChatbotService {
             }
         }
 
-        mensajes.add(Map.of("role", "user", "content", request.getMensaje()));
+        return mensajes;
+    }
 
+    private Mono<String> llamarOpenAI(List<Map<String, String>> mensajes) {
         Map<String, Object> body = Map.of(
                 "model", model,
                 "messages", mensajes,
@@ -119,6 +164,33 @@ public class ChatbotService {
                 });
     }
 
+    private static final int CHATBOT_PAGE_SIZE = 2;
+
+    public Map<String, Object> buscarProductos(String query, int offset) {
+        int pagina = offset / CHATBOT_PAGE_SIZE;
+        Page<Variantes> page = varianteRepository.buscarParaChatbot(
+                query.trim(), PageRequest.of(pagina, CHATBOT_PAGE_SIZE));
+
+        List<Map<String, Object>> productos = page.getContent().stream().map(v -> {
+            Map<String, Object> p = new HashMap<>();
+            p.put("varianteId", v.getId());
+            p.put("nombre", v.getProducto().getNombre());
+            p.put("marca", v.getMarca());
+            p.put("talla", v.getTalla());
+            p.put("color", v.getColor());
+            p.put("precio", v.getProducto().getPrecioVenta());
+            p.put("stock", v.getStock());
+            return p;
+        }).collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("productos", productos);
+        result.put("hayMas", page.hasNext());
+        result.put("busquedaQuery", query.trim());
+        result.put("busquedaOffset", offset + page.getNumberOfElements());
+        return result;
+    }
+
     private String obtenerContextoVariantes() {
         try {
             List<Variantes> variantes = varianteRepository
@@ -133,6 +205,11 @@ public class ChatbotService {
             for (Variantes v : variantes) {
                 sb.append("- ").append(v.getProducto().getNombre());
 
+                if (v.getProducto().getCodigoBarras() != null
+                        && v.getProducto().getCodigoBarras().getCodigoBarras() != null
+                        && !v.getProducto().getCodigoBarras().getCodigoBarras().isBlank()) {
+                    sb.append(" [cód. barras: ").append(v.getProducto().getCodigoBarras().getCodigoBarras()).append("]");
+                }
                 if (v.getMarca() != null && !v.getMarca().isBlank()) {
                     sb.append(" (").append(v.getMarca()).append(")");
                 }

@@ -44,4 +44,19 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // --- búsqueda por palabra clave ---
     Page<Variantes> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(int stock, char habilitado, String nombre, Pageable pageable);
+
+    // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
+    @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
+                   "WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+                   "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+                   "OR (v.producto.codigoBarras IS NOT NULL AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))",
+           countQuery = "SELECT COUNT(v) FROM Variantes v LEFT JOIN v.palabraClave pc " +
+                        "WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+                        "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                        "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                        "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
+                        "OR (v.producto.codigoBarras IS NOT NULL AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))")
+    Page<Variantes> buscarParaChatbot(@Param("q") String q, Pageable pageable);
 }
