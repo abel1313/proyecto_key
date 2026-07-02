@@ -125,7 +125,9 @@ para UN número que primero se **auto-activa** para recibir mensajes de ese bot:
 > (de pago, sin esta restricción) — el switch `whatsapp.proveedor` ya está pensado para eso,
 > pero el caso `twilio` no está implementado todavía en `WhatsappService.java`.
 
-#### DECISIÓN PENDIENTE — ¿CallMeBot (solo aviso interno) o Twilio (mensaje real al cliente)?
+#### ✅ RESUELTO 2026-07-01 — Se descartó WhatsApp al cliente, solo correo (ver decisión arriba)
+
+Queda documentado abajo el análisis que se hizo para decidir, por si se retoma más adelante.
 
 **CallMeBot (ya implementado, gratis, $0 código extra):**
 1. Una sola vez: el negocio agrega el contacto de CallMeBot y le manda
@@ -155,9 +157,8 @@ para UN número que primero se **auto-activa** para recibir mensajes de ese bot:
 **En una frase:** CallMeBot = alerta para el negocio, gratis, ya funciona. Twilio = mensaje real
 al cliente, de pago, requiere alta de cuenta + verificación + código nuevo.
 
-**Pendiente de decidir:** ¿dejamos CallMeBot solo como aviso interno del negocio, implementamos
-Twilio para notificar al cliente de verdad, o quitamos WhatsApp por ahora y solo dejamos correo
-(que sí funciona para cualquier destinatario sin activación previa)?
+**Decisión final:** se quita WhatsApp por ahora, solo correo (que sí funciona para cualquier
+destinatario sin activación previa). Ver "Decisión 2026-07-01 — WhatsApp EN PAUSA" al inicio del documento.
 
 #### Comandos para setear las env vars (una vez que se tenga el apikey)
 

@@ -3241,18 +3241,10 @@ armado por el admin desde el panel — no hay que construirlo ni pedir el númer
 
 Usa directo el `facebookUrl` que regresa el mismo endpoint. Mismo tratamiento que el de WhatsApp.
 
-#### ⚠️ Cuántos QRs mostrar — DECISIÓN PENDIENTE, aún sin confirmar por el dueño del negocio
+#### ✅ Cuántos QRs mostrar — RESUELTO: los 3 fijos siempre, sin rotación
 
-Con los 3 QRs disponibles (tienda, WhatsApp, Facebook), falta decidir si el ticket muestra
-**los 3 fijos siempre**, o solo 1-2 (por espacio, sobre todo en impresión térmica 58mm/80mm).
-**No implementar los 3 todavía** hasta que se confirme esto — si el ticket es térmico angosto,
-el diseño final puede cambiar.
-
-Recomendación sugerida (pendiente de que el usuario la confirme): mostrar los 3 fijos siempre,
-sin rotación aleatoria — un ticket se lee una sola vez y se descarta, rotar cuál QR aparece no le
-suma nada al cliente y sí le agrega complejidad de código (lógica de selección) sin beneficio
-claro. Si el espacio es el problema real (ticket térmico angosto), la solución es recortar a 1-2
-QRs fijos (ej. tienda + WhatsApp), no rotar.
+Se confirmó mostrar los 3 QRs (tienda, WhatsApp, Facebook) fijos siempre — sin rotación
+aleatoria, ya implementado y funcionando del lado del front.
 
 ---
 
