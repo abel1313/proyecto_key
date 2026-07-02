@@ -3917,3 +3917,54 @@ Ordenado de mayor a menor por `cantidadVendida`. Lista vacía `[]` si no hubo ve
 `IReporteVentasService.java`, DTOs en `models/reportes/` (`ReporteDiarioDto`, `ReporteMensualDto`,
 `ReporteClienteDto`, `VentaResumenItem`, `ProductoMasVendidoDto`). Sin migración de BD — usa
 tablas y columnas que ya existían.
+
+---
+
+## ⚠️ Problema conocido — Chatbot muestra "el mismo producto" repetido (2026-07-02)
+
+### Qué está pasando
+
+Al buscar un producto en el chatbot (ej. "Mochila"), a veces varias tarjetas se ven idénticas —
+mismo nombre, mismo precio, sin talla/color que las distinga — como si fuera el mismo producto
+mostrado varias veces.
+
+### Diagnóstico — verificado en vivo contra QA, no es bug de front ni de back
+
+Se probó directo contra el servidor real:
+```
+GET /v1/chatbot/buscar?q=Mochila&offset=0
+→ varianteId 117 y 165, ambos "Mochila Prada", $400, sin talla, sin color
+GET /v1/chatbot/buscar?q=Mochila&offset=2
+→ varianteId 213 y 277, mismos datos otra vez
+```
+
+**La búsqueda y la paginación del back funcionan correctamente** — sí trae 4 registros distintos
+(`varianteId` 117, 165, 213, 277). El problema es que **esas 4 filas están duplicadas en la base
+de datos**: se cargó "Mochila Prada" 4 veces con exactamente los mismos datos, en vez de una sola
+vez con más stock, o con talla/color que las diferenciara. Por eso el chatbot no tiene manera de
+mostrar "cosas diferentes" — no hay 4 productos diferentes, hay 1 producto repetido 4 veces en la
+tabla `variantes`.
+
+**Extra:** las 4 variantes también dan error 500 al pedir su imagen
+(`GET /variantes/v1/imagenes/{varianteId}`) — probablemente ninguna tiene una imagen real cargada.
+
+### Qué lo puede solucionar
+
+No es algo que el front pueda arreglar con código — es limpieza de datos. Opciones (pendiente de
+decisión del negocio, no se tocó nada todavía):
+1. **Borrar las 3 filas sobrantes** desde el panel de admin de variantes y dejar solo 1, con el
+   stock correcto sumado (ej. si cada una tenía `stock: 1`, la que quede debería tener `stock: 4`).
+2. **Diferenciarlas** si en realidad SÍ son productos distintos (ej. colores/tallas distintos que
+   no se llenaron al crearlas) — habría que editarlas para agregar talla/color a cada una.
+3. Si se prefiere, se puede pedir un script de limpieza al back una vez que el negocio confirme
+   cuál de las dos opciones anteriores aplica — no se debe hacer sin esa confirmación porque borrar
+   filas es una acción destructiva.
+
+### Dos correcciones de documentación relacionadas (ya corregidas arriba, en la sección 3 del chatbot)
+
+Mientras se investigaba esto se encontraron 2 errores en la doc que el front ya tenía, que también
+podían afectar que la imagen mostrada fuera la incorrecta:
+- La URL tenía el `/v1/` mal puesto: era `/v1/variantes/imagenes/{varianteId}`, la correcta es
+  `/variantes/v1/imagenes/{varianteId}`.
+- Decía "tomar el primer elemento" del array de imágenes — debe ser el elemento con
+  `"principal": true` (el primero como fallback solo si ninguno viene marcado).
