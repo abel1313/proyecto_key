@@ -30,6 +30,10 @@ public class ChatbotController {
     private final ChatbotService chatbotService;
     private final ChatbotBlockService blockService;
 
+    private static final Pattern PRECIO_PATTERN = Pattern.compile("\\$\\s?\\d");
+    private static final Pattern MENCIONA_FOTO_PATTERN =
+            Pattern.compile("\\b(foto|fotos|imagen|imágenes)\\b", Pattern.CASE_INSENSITIVE);
+
     @Operation(
         summary = "Enviar mensaje al chatbot",
         description = "Procesa un mensaje del usuario y devuelve respuesta del asistente. " +
@@ -71,12 +75,10 @@ public class ChatbotController {
             return Mono.just(ResponseEntity.ok(result));
         }
 
-        Pattern pidePattern = Pattern.compile("\\b(imagen|imágenes|foto|fotos)\\b", Pattern.CASE_INSENSITIVE);
-
         return chatbotService.chat(request)
                 .flatMap(respuesta -> {
                     boolean tieneBuscarInicial = respuesta.contains("##BUSCAR[");
-                    boolean pideImagen = pidePattern.matcher(request.getMensaje()).find();
+                    boolean pideImagen = MENCIONA_FOTO_PATTERN.matcher(request.getMensaje()).find();
                     if (!tieneBuscarInicial && pideImagen) {
                         log.warn("Chatbot no uso ##BUSCAR## pese a pedido de imagen (IP {}), reintentando", ip);
                         return chatbotService.forzarMostrarImagen(request, respuesta);
@@ -97,6 +99,17 @@ public class ChatbotController {
                             .replace("##FAREWELL##", "")
                             .replaceAll("##BUSCAR\\[[^\\]]*\\]##", "")
                             .trim();
+
+                    // Red de seguridad: si el bot confirmó un producto (menciona precio) pero no
+                    // mostró imagen ni ofreció mostrarla, el cliente no tiene forma de saber que
+                    // puede pedir la foto. El modelo debería preguntarlo solo (CASO 1 del prompt),
+                    // pero no siempre lo hace — se fuerza aquí para no depender de eso.
+                    if (!tieneBuscar && !esFarewell
+                            && PRECIO_PATTERN.matcher(respuestaLimpia).find()
+                            && !MENCIONA_FOTO_PATTERN.matcher(respuestaLimpia).find()) {
+                        respuestaLimpia = respuestaLimpia + "\n\n¿Quieres ver una foto? 📸";
+                    }
+
                     Map<String, Object> result = new HashMap<>();
 
                     if (esFarewell) {
