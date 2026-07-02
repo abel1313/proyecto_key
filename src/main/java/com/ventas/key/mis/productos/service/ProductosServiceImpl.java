@@ -140,7 +140,8 @@ public class ProductosServiceImpl extends
         Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
         if (!isAdmin) {
-            productosPaginados = iProductosRepository.findDistinctByStockGreaterThanAndHabilitado(0, '1',pageable);
+            // Cliente normal: solo productos con stock, habilitados Y con al menos una imagen.
+            productosPaginados = iProductosRepository.findConStockYImagenPublico(pageable);
         }
 
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
@@ -225,7 +226,7 @@ public class ProductosServiceImpl extends
         // Paso 1: código de barras exacto
         Optional<Producto> porCodigo = isAdmin
                 ? iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(nombre)
-                : iProductosRepository.findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasIgnoreCase(0, '1', nombre);
+                : iProductosRepository.findByCodigoBarrasPublico(nombre);
         if (porCodigo.isPresent()) {
             PginaDto<List<ProductoDTO>> resultado = new PginaDto<>();
             resultado.setPagina(1);
@@ -239,7 +240,7 @@ public class ProductosServiceImpl extends
         // Paso 2: palabra clave exacta
         Page<Producto> porPalabraClave = isAdmin
                 ? iProductosRepository.findByPalabraClave_NombreIgnoreCase(nombre, pageable)
-                : iProductosRepository.findByPalabraClave_NombreIgnoreCaseAndStockGreaterThanAndHabilitado(nombre, 0, '1', pageable);
+                : iProductosRepository.findByPalabraClavePublico(nombre, pageable);
         if (!porPalabraClave.isEmpty()) {
             return buildPagina(porPalabraClave, page, isAdmin);
         }
@@ -247,7 +248,7 @@ public class ProductosServiceImpl extends
         // Paso 3: nombre contiene
         Page<Producto> porNombre = isAdmin
                 ? iProductosRepository.findByNombreContaining(nombre, pageable)
-                : iProductosRepository.findByNombreContainingAndHabilitado(nombre, '1', pageable);
+                : iProductosRepository.findByNombrePublico(nombre, pageable);
         if (porNombre.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
         }
@@ -650,6 +651,28 @@ public class ProductosServiceImpl extends
     public PginaDto<List<ProductoDTO>> getProductosSinStock(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Producto> productosPaginados = iProductosRepository.findByStock(0, pageable);
+        List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
+        Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
+        PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
+        pginaDto.setPagina(page);
+        pginaDto.setTotalPaginas(productosPaginados.getTotalPages());
+        pginaDto.setTotalRegistros((int) productosPaginados.getTotalElements());
+        pginaDto.setT(productosPaginados.getContent().stream()
+                .map(p -> mapperByRol(p, true, imagenes.get(p.getId()))).toList());
+        return pginaDto;
+    }
+
+    // Filtros de admin: ve TODO el catálogo (sin restricción de stock/habilitado salvo
+    // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
+    // clientes normales exigen stock>0 + habilitado + con imagen.
+    @Cacheable(value = "obtenerProductosCache", key = "'filtro:' + #filtro + ':' + #page + ':' + #size")
+    public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(FiltroCatalogoEnum filtro, int size, int page) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Producto> productosPaginados = switch (filtro) {
+            case SIN_STOCK -> iProductosRepository.findByStock(0, pageable);
+            case CON_STOCK -> iProductosRepository.findByStockGreaterThan(0, pageable);
+            case CON_IMAGENES -> iProductosRepository.findConImagen(pageable);
+        };
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();

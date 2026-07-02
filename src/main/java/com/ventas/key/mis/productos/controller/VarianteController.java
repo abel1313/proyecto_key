@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.DiagnosticoImagenVarianteDto;
+import com.ventas.key.mis.productos.models.FiltroCatalogoEnum;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -175,6 +176,14 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getVariantesSinStockDeshabilitadas(pagina, size)));
+    }
+
+    @GetMapping("/v1/admin/filtrar")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> filtrarVariantesAdmin(
+            @RequestParam FiltroCatalogoEnum filtro,
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(filtro, pagina, size)));
     }
 
     @GetMapping("/v1/admin/diagnostico-imagenes/{varianteId}")
