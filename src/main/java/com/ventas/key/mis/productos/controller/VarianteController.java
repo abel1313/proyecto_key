@@ -117,7 +117,8 @@ public class VarianteController extends AbstractController<
             return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
         } catch (Exception e) {
             log.error("Error obteniendo imagenes de varianteId={}: {}", varianteId, e.getMessage(), e);
-            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(List.of()));
+            List<ImagenUpdateDto> vacio = List.of();
+            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(vacio));
         }
     }
 
