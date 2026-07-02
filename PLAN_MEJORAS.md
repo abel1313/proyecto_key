@@ -711,3 +711,35 @@ existe ni en el modelo de alta de usuario.
 Ya resuelto en la sección "Decisión 2026-07-01 — F-10/F-11" más arriba (línea ~76): los QR de
 WhatsApp y Facebook se muestran solo si `GET /v1/negocio/contactos` trae esa URL; si no, el QR
 simplemente no aparece. F-9/F-10/F-11 quedaron desbloqueadas — no hay nada más pendiente aquí.
+
+
+### Análisis del front (2026-07-02) — qué es nuevo y dónde va cada cosa
+
+Lo único nuevo real es **F-12**: pantalla de reportes de ventas (el back está listo desde
+2026-07-02). Las demás cosas del plan (tickets, correo, QRs) ya estaban implementadas en
+sesiones anteriores.
+
+**Archivos que se van a crear/modificar:**
+
+| Archivo | Qué |
+|---|---|
+| `src/app/reportes/service/reportes.service.ts` | Nuevo — 4 endpoints |
+| `src/app/reportes/reportes.component.*` | Nuevo — UI con 4 pestañas (Diario / Mensual / Por cliente / Más vendidos) |
+| `src/app/reportes/reportes.module.ts` + routing | Nuevos — módulo lazy |
+| `src/app/app-routing.module.ts` | Agregar ruta `/reportes` con guard admin |
+| `src/app/navbar/navbar.component.html` | Link "📊 Reportes" solo admin |
+
+### Duda del front — Chart.js directo vs `ng2-charts` — RESPONDIDA 2026-07-02
+
+**Contexto:** `chart.js` v4 ya está instalado, `ng2-charts` (wrapper Angular) no. Dos opciones
+para la gráfica de barras del reporte mensual (ventas por día):
+1. Chart.js directo con `@ViewChild` sobre un `<canvas>` — sin instalar nada nuevo.
+2. Instalar `ng2-charts` — más declarativo en el template.
+
+**Respuesta: instalar `ng2-charts`.** Razón: el ítem 6 (Dashboard con métricas) es el siguiente
+en la fila justo después de reportes, y va a necesitar **varias** gráficas más (ventas del mes,
+créditos activos, etc.) — instalarlo ahora evita reescribir la del reporte mensual con otro
+enfoque cuando llegue el dashboard. Es un wrapper delgado y bien mantenido sobre el mismo
+`chart.js` que ya tienen, compatible con v4 (`ng2-charts` v5+). Si solo fuera esta única gráfica
+y no hubiera nada más de gráficas a la vista, Chart.js directo habría sido razonable para no
+sumar una dependencia — pero dado que viene el dashboard, conviene instalarlo de una vez.
