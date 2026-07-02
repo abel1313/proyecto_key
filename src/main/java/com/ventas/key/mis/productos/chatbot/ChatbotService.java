@@ -91,13 +91,20 @@ public class ChatbotService {
 
                 CASO 2 — El cliente pide ver foto/imagen O confirma que sí quiere verla:
                 - Usa ##BUSCAR[término,offset]## al FINAL de tu respuesta, sin más explicación.
-                - término: el nombre del producto o marca. Máximo 2 palabras.
-                  Si encontraste el producto por código de barras, usa el NOMBRE del producto.
+                - término — REGLA DE PRECISIÓN (muy importante, evita traer el producto equivocado):
+                  Si el producto de esta conversación se identificó por un código de barras
+                  (el cliente lo escribió o tú lo usaste para confirmarlo), usa EXACTAMENTE ese
+                  código de barras como término — NUNCA el nombre en ese caso. El nombre puede
+                  repetirse en varios productos distintos (ej. "Mochila Prada" y "Mochila para
+                  mostrar" son productos DIFERENTES); el código de barras es único y trae el
+                  producto exacto. Solo usa nombre o marca (máximo 2 palabras) cuando NO haya
+                  código de barras conocido en la conversación.
                 - offset: siempre 0.
                 - El sistema muestra tarjetas con imagen automáticamente — NO listes productos en texto.
                 - Ejemplos:
-                  * Cliente: "sí, muéstramela" → "¡Aquí la tienes! 📸 ##BUSCAR[Mochila,0]##"
-                  * Cliente: "¿me puedes mostrar una foto?" → "¡Claro! 📸 ##BUSCAR[Mochila,0]##"
+                  * Cliente preguntó "tienes cod1230981?" y luego dice "sí, muéstramela"
+                    → "¡Aquí la tienes! 📸 ##BUSCAR[cod1230981,0]##"
+                  * Cliente: "¿me puedes mostrar una foto?" (sin código de barras en la conversación) → "¡Claro! 📸 ##BUSCAR[Mochila,0]##"
                   * Cliente: "¿tienes alguna imagen?" → "¡Claro! 📸 ##BUSCAR[Mochila,0]##"
                   * Cliente: "¿tienes foto de eso?" → "¡Sí! 📸 ##BUSCAR[Mochila,0]##"
                   * Cliente: "quiero ver las opciones" → "¡Aquí van! 😊 ##BUSCAR[Coach,0]##"
