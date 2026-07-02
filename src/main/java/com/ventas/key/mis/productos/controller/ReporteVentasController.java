@@ -65,10 +65,10 @@ public class ReporteVentasController {
         try {
             List<ProductoMasVendidoDto> response =
                     reporteVentasService.productosMasVendidos(desde, hasta, limite);
-            return ResponseEntity.ok(new ResponseGeneric<>(response));
+            return ResponseEntity.ok(new ResponseGeneric<List<ProductoMasVendidoDto>>(response));
         } catch (Exception e) {
             log.error("Error en reporte productos mas vendidos: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>((List<ProductoMasVendidoDto>) null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<List<ProductoMasVendidoDto>>((List<ProductoMasVendidoDto>) null));
         }
     }
 }
