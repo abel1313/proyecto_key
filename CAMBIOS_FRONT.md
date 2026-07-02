@@ -4023,3 +4023,33 @@ existentes no tienen ese dato retroactivamente, mismo caso que pasó con `montoD
 
 **Archivos nuevos en el back:** `DashboardController.java`, `DashboardServiceImpl.java`,
 `IDashboardService.java`, `DashboardResumenDto.java`. Sin migración de BD.
+
+---
+
+## Guía de gráficas para reportes (2026-07-02)
+
+Son **2 cosas distintas**, para que no se mezclen:
+
+### 1. Corrección de algo que dijimos mal antes
+
+Cuando se respondió la duda de `ng2-charts` vs Chart.js directo, se dijo que el **Dashboard**
+(`GET /v1/dashboard/resumen`) iba a necesitar "varias gráficas más". **Eso estaba mal** — ya se
+implementó el dashboard y es solo números sueltos en cards (ventas hoy, stock bajo, etc.), sin
+ninguna serie de datos. **El dashboard NO lleva gráficas, solo cards de números.** La única razón
+real para tener `ng2-charts` instalado es el punto 2 de abajo.
+
+### 2. Qué gráficas SÍ se pueden armar, y con qué endpoint
+
+Esto es nuevo — una guía de qué gráficas arma cada endpoint de **reportes** (no del dashboard),
+usando datos que ya existen, sin pedir nada nuevo al back:
+
+| Gráfica | Endpoint | Campos a usar | Tipo sugerido |
+|---|---|---|---|
+| Ventas por día del mes | `GET /v1/reportes/ventas/mensual?mes=` | `porDia[].fecha` + `porDia[].totalVenta` | Barras |
+| Ventas vs Ganancia por día | Mismo endpoint | `porDia[].totalVenta` + `porDia[].totalGanancia` (ya vienen juntos) | Combinada: barras (venta) + línea (ganancia) |
+| Top productos vendidos | `GET /v1/reportes/ventas/productos-mas-vendidos?desde=&hasta=` | Ya viene ordenado desc por `cantidadVendida` | Barras horizontales, o dona con top 5 + "otros" agrupado |
+| Comparar mes actual vs mes anterior | Llamar `mensual` **dos veces** (una por cada mes) y combinar en el front — no hay endpoint que regrese los 2 meses juntos | `totalVenta` de cada llamada | Barras agrupadas (2 series) |
+| Gasto histórico de un cliente | `GET /v1/reportes/ventas/cliente/{clienteId}` | `ventas[].fechaVenta` + `ventas[].totalVenta`, agrupar por mes en el front (el back regresa venta por venta, no agrupado por mes) | Línea de tendencia |
+
+**Lo que NO tiene dato para gráfica:** `GET /v1/dashboard/resumen` (números sueltos, ver punto 1)
+y `GET /v1/reportes/ventas/diario` (es un solo número del día que se pida, no una serie).
