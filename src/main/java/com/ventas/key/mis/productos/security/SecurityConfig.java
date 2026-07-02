@@ -139,6 +139,12 @@ public class SecurityConfig {
                         // ── Gastos ────────────────────────────────────────────────────────
                         .requestMatchers("/v1/gastos/**").hasRole("ADMIN")
 
+                        // ── Reportes de ventas ───────────────────────────────────────────
+                        .requestMatchers("/v1/reportes/**").hasRole("ADMIN")
+
+                        // ── Dashboard ─────────────────────────────────────────────────────
+                        .requestMatchers("/v1/dashboard/**").hasRole("ADMIN")
+
                         // ── Rifas y concursantes ──────────────────────────────────────────
                         .requestMatchers(
                                 "/v1/rifa/**", "/v1/ganadorRifa/**",

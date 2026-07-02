@@ -261,13 +261,29 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Deprecated
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId")
     public List<ImagenUpdateDto> getImagenesPorVariante(Integer varianteId) {
-        List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
+        List<VarianteImagen> relaciones = filtrarRelacionesConImagen(
+                iVarianteImagenRepository.findByVarianteId(varianteId), varianteId);
         return buildImagenUpdateDtos(relaciones);
+    }
+
+    /**
+     * Descarta relaciones variante-imagen huérfanas (imagen_id apunta a una Imagen que ya no
+     * existe o es null) — sin esto, vi.getImagen().getId() truena con NPE y el endpoint
+     * responde 500 en vez de simplemente omitir esa imagen rota.
+     */
+    private List<VarianteImagen> filtrarRelacionesConImagen(List<VarianteImagen> relaciones, Integer varianteId) {
+        List<VarianteImagen> validas = relaciones.stream().filter(vi -> vi.getImagen() != null).toList();
+        if (validas.size() < relaciones.size()) {
+            log.warn("varianteId={} tiene {} relacion(es) variante_imagen huerfana(s) (imagen_id nulo/inexistente), se omiten",
+                    varianteId, relaciones.size() - validas.size());
+        }
+        return validas;
     }
 
     @Cacheable(value = "variantesImagenesCache", key = "'v2:' + #varianteId")
     public List<ImagenUpdateDto> getImagenesPorVarianteV2(Integer varianteId) {
-        List<VarianteImagen> relaciones = iVarianteImagenRepository.findByVarianteId(varianteId);
+        List<VarianteImagen> relaciones = filtrarRelacionesConImagen(
+                iVarianteImagenRepository.findByVarianteId(varianteId), varianteId);
         if (relaciones.isEmpty()) return List.of();
         List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
         List<Long> existentesList;
@@ -291,7 +307,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId + ':' + #pagina + ':' + #size")
     public PginaDto<List<ImagenUpdateDto>> getImagenesPorVariantePaginado(Integer varianteId, int pagina, int size) {
-        List<VarianteImagen> todas = iVarianteImagenRepository.findByVarianteId(varianteId);
+        List<VarianteImagen> todas = filtrarRelacionesConImagen(
+                iVarianteImagenRepository.findByVarianteId(varianteId), varianteId);
         if (todas.isEmpty()) {
             PginaDto<List<ImagenUpdateDto>> vacio = new PginaDto<>();
             vacio.setPagina(pagina);

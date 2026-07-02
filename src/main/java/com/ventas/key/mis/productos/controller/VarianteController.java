@@ -113,7 +113,13 @@ public class VarianteController extends AbstractController<
 
     @GetMapping("/v1/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenesV2(@PathVariable Integer varianteId) {
-        return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
+        } catch (Exception e) {
+            log.error("Error obteniendo imagenes de varianteId={}: {}", varianteId, e.getMessage(), e);
+            List<ImagenUpdateDto> vacio = List.of();
+            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(vacio));
+        }
     }
 
     @GetMapping("/v1/imagenes/{varianteId}/paginado")

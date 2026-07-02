@@ -16,6 +16,19 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     List<Pedido> findByEstadoPedidoAndFechaRecogidaIsNotNullAndFechaRecogidaLessThanEqual(
             String estadoPedido, LocalDate fecha);
 
+    // APARTADO = el producto NO se entrega hasta pagarse completo (a diferencia de FIADO,
+    // que ya se entregó y solo queda pendiente el cobro) — por eso "pendiente de entregar"
+    // solo cuenta APARTADO activos, no FIADO.
+    @Query("SELECT COUNT(p) FROM Pedido p WHERE p.tipoPedido = 'APARTADO' AND p.estadoPedido = 'APARTADO'")
+    long countPendientesEntregar();
+
+    @Query("SELECT COUNT(p) FROM Pedido p WHERE p.estadoPedido IN ('APARTADO', 'FIADO')")
+    long countCreditosActivos();
+
+    @Query("SELECT COALESCE(SUM(p.totalPedido - p.totalPagado), 0) FROM Pedido p " +
+           "WHERE p.estadoPedido IN ('APARTADO', 'FIADO')")
+    Double sumMontoPorCobrar();
+
     @Query(value = """
         SELECT
             COALESCE(SUM(CASE WHEN p.estado_pedido = 'Entregado' THEN 1 ELSE 0 END), 0),
