@@ -28,7 +28,7 @@ public class DashboardServiceImpl implements IDashboardService {
         LocalDate hoy = LocalDate.now();
 
         Object[] filaHoy = iVentaRepository.sumVentas(hoy.atStartOfDay(), hoy.atTime(23, 59, 59));
-        Double ventasHoy = filaHoy[0] != null ? (Double) filaHoy[0] : 0.0;
+        Double ventasHoy = filaHoy[0] != null ? ((Number) filaHoy[0]).doubleValue() : 0.0;
 
         LocalDate primerDiaMes = hoy.withDayOfMonth(1);
         LocalDate ultimoDiaMes = hoy.withDayOfMonth(hoy.lengthOfMonth());
@@ -36,8 +36,8 @@ public class DashboardServiceImpl implements IDashboardService {
         LocalDateTime hastaMes = ultimoDiaMes.atTime(23, 59, 59);
 
         Object[] filaMes = iVentaRepository.sumVentas(desdeMes, hastaMes);
-        Double ventasMes = filaMes[0] != null ? (Double) filaMes[0] : 0.0;
-        Double gananciaMes = filaMes[1] != null ? (Double) filaMes[1] : 0.0;
+        Double ventasMes = filaMes[0] != null ? ((Number) filaMes[0]).doubleValue() : 0.0;
+        Double gananciaMes = filaMes[1] != null ? ((Number) filaMes[1]).doubleValue() : 0.0;
 
         Double gastosMes = iGastosRepository.sumTotal(primerDiaMes, ultimoDiaMes);
         if (gastosMes == null) gastosMes = 0.0;
