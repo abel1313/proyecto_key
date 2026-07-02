@@ -14,7 +14,7 @@
 | 3 | Envío por WhatsApp | 🚫 EN PAUSA — ver decisión 2026-07-01 | 🚫 No implementar | 2026-07-01 |
 | 4 | Alertas stock bajo al admin | ⏳ Pendiente back | ⏳ Pendiente front | — |
 | 5 | Reportes de ventas (día/mes/cliente) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
-| 6 | Dashboard con métricas | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 6 | Dashboard con métricas | ✅ Listo (sin "clientes nuevos", ver nota) | ⏳ Pendiente front | 2026-07-02 |
 | 7 | Devoluciones | ⏳ Pendiente back | ⏳ Pendiente front | — |
 | 8 | Chatbot — tarjetas de productos | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
 | 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
@@ -24,12 +24,20 @@
 > El stock bajo (4) necesita correo (2) ya listo en back.
 > El dashboard (6) necesita los reportes (5).
 
-> **Checkpoint 2026-07-02:**
-> - ✅ Listos en back (falta front): 1 (ticket), 2 (correo), 5 (reportes), 8/9/10 (chatbot).
+> **Checkpoint 2026-07-02 (actualizado):**
+> - ✅ Listos en back (falta front): 1 (ticket), 2 (correo), 5 (reportes), 6 (dashboard), 8/9/10 (chatbot).
 > - 🚫 En pausa: 3 (WhatsApp al cliente).
-> - ⏳ Sin arrancar ni back ni front: 4 (stock bajo), 6 (dashboard, depende de 5 que ya está listo), 7 (devoluciones).
+> - ⏳ Sin arrancar ni back ni front: 4 (stock bajo), 7 (devoluciones).
 > - Sueltos sin cerrar: confirmar migración `monto_dado` en BD de producción; respuesta del front
->   sobre si necesitan `tiendaUrl` desde el back (`GET /v1/negocio/contactos`) o usan `window.location.origin`.
+>   sobre si necesitan `tiendaUrl` desde el back (`GET /v1/negocio/contactos`) o usan `window.location.origin`;
+>   decidir qué hacer con las 4 filas "Mochila Prada" duplicadas; BUG-CB-01 pendiente de corrección
+>   manual en admin (imagen vinculada al varianteId equivocado).
+> - **Dashboard (6) implementado 2026-07-02:** `GET /v1/dashboard/resumen` con ventas
+>   hoy/mes, ganancia, gastos, pedidos pendientes de entregar, créditos activos, monto por cobrar,
+>   productos con stock bajo. **Se excluyó "clientes nuevos este mes"** del plan original — `Cliente`
+>   no tiene columna de fecha de registro, no hay forma de calcularlo sin agregarla (y solo contaría
+>   desde que se agregue en adelante, no retroactivo). Avisar si se quiere agregar.
+>   Detalle completo en `CAMBIOS_FRONT.md` → "Dashboard con métricas (2026-07-02)".
 > - **Bug reportado 2026-07-02 — DIAGNOSTICADO, no es bug de código:** verificado en vivo contra
 >   QA (`GET /v1/chatbot/buscar?q=Mochila`) — la búsqueda y paginación del chatbot funcionan bien,
 >   devuelven `varianteId` distintos (117, 165, 213, 277 para "Mochila Prada"). El problema es que
@@ -74,6 +82,8 @@
 | `VentaServiceImpl` — llama email/WhatsApp tras venta directa o registro crédito | `VentaServiceImpl.java` |
 | `GET /v1/negocio/contactos` (público, nuevo) — siempre expone `whatsappUrl`/`facebookUrl` para el QR del ticket, a diferencia de `/estado` que los oculta con negocio abierto | `NegocioController.java`, `NegocioService.java`, `ContactosPublicosDto.java`, `SecurityConfig.java` |
 | Reportes de ventas — diario, mensual (desglosado por día), por cliente, productos más vendidos (2026-07-02) | `ReporteVentasController.java`, `ReporteVentasServiceImpl.java`, `IReporteVentasService.java`, DTOs en `models/reportes/`, `IVentaRepository.java`, `IDetalleVentaVarianteRepository.java`, `SecurityConfig.java` |
+| `GET /v1/dashboard/resumen` — ventas hoy/mes, ganancia, gastos, pendientes de entregar, créditos activos, monto por cobrar, stock bajo (2026-07-02) | `DashboardController.java`, `DashboardServiceImpl.java`, `IDashboardService.java`, `DashboardResumenDto.java`, `IPedidoRepository.java`, `IVarianteRepository.java`, `SecurityConfig.java` |
+| Fix BUG-CB-02 (500 en imágenes huérfanas) + BUG-CB-03 (campos `descripcion`/`codigoBarras` en chatbot) (2026-07-02) | `VarianteServiceImpl.java`, `VarianteController.java`, `ChatbotService.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -91,6 +101,7 @@
 | F-10 | QR WhatsApp del negocio — solo si `whatsappUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-12 | Pantalla de reportes (diario, mensual con gráfica por día, por cliente, productos más vendidos) | Nueva pantalla `/reportes`, solo ADMIN | "Reportes de ventas (2026-07-02)" |
+| F-13 | Pantalla de dashboard (`GET /v1/dashboard/resumen`, 9 cards de métricas) | Nueva pantalla `/dashboard`, solo ADMIN | "Dashboard con métricas (2026-07-02)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL
