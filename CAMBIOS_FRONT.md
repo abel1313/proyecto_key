@@ -3055,7 +3055,9 @@ La paginación ("ver más") se hace con un endpoint separado **sin pasar por la 
       "talla": "única",
       "color": "café",
       "precio": 850.0,
-      "stock": 5
+      "stock": 5,
+      "descripcion": "Bolsa de piel genuina, correa ajustable",
+      "codigoBarras": "ABC123"
     },
     {
       "varianteId": 13,
@@ -3064,7 +3066,9 @@ La paginación ("ver más") se hace con un endpoint separado **sin pasar por la 
       "talla": "única",
       "color": "negra",
       "precio": 900.0,
-      "stock": 3
+      "stock": 3,
+      "descripcion": null,
+      "codigoBarras": "DEF456"
     }
   ],
   "hayMas": true,
@@ -3083,6 +3087,12 @@ La paginación ("ver más") se hace con un endpoint separado **sin pasar por la 
 ```
 Los campos `productos`, `hayMas`, `busquedaQuery` y `busquedaOffset` **solo aparecen** cuando
 el bot quiere mostrar tarjetas. Si no están en el response, simplemente no renderizar tarjetas.
+
+**Campos nuevos 2026-07-02 — respuesta a BUG-CB-03:** `descripcion` (puede ser `null` si la
+variante no tiene una cargada) y `codigoBarras` (solo aparece en el JSON si el producto tiene
+código de barras registrado — si no, el campo no viene). Úsenlos para diferenciar visualmente
+tarjetas que comparten nombre/marca/precio idénticos (ej. mostrar el código de barras chiquito
+debajo del nombre cuando `talla`/`color` vengan ambos `null`).
 
 ---
 

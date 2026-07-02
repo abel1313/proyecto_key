@@ -180,6 +180,10 @@ public class ChatbotService {
             p.put("color", v.getColor());
             p.put("precio", v.getProducto().getPrecioVenta());
             p.put("stock", v.getStock());
+            p.put("descripcion", v.getDescripcion());
+            if (v.getProducto().getCodigoBarras() != null) {
+                p.put("codigoBarras", v.getProducto().getCodigoBarras().getCodigoBarras());
+            }
             return p;
         }).collect(Collectors.toList());
 
