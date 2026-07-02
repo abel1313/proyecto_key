@@ -3114,12 +3114,20 @@ GET /mis-productos/v1/chatbot/buscar?q=Coach&offset=2
 
 ### 3. Cómo obtener la imagen de cada tarjeta
 
-Cada producto tiene `varianteId`. Usar el endpoint ya existente:
+Cada producto tiene `varianteId`. Usar el endpoint ya existente (⚠️ corregido 2026-07-02 — la URL
+tenía el `/v1/` en la posición equivocada):
 
 ```
-GET /mis-productos/v1/variantes/imagenes/{varianteId}
+GET /mis-productos/variantes/v1/imagenes/{varianteId}
 ```
-Tomar el **primer elemento** del array que devuelve. Si el array está vacío, mostrar imagen placeholder.
+
+**⚠️ Corrección 2026-07-02:** NO tomar el primer elemento del array a secas — tomar el elemento
+con **`"principal": true`**. Si ninguno viene marcado como principal, ahí sí usar el primero como
+fallback. Si el array está vacío, mostrar imagen placeholder.
+```js
+const imagenes = await fetch(`/mis-productos/variantes/v1/imagenes/${varianteId}`).then(r => r.json());
+const imagen = imagenes.data.find(img => img.principal) || imagenes.data[0];
+```
 
 ---
 
