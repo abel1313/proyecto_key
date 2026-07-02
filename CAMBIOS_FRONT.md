@@ -3803,3 +3803,109 @@ contra el código (no supuestas):
 4. **`POST /v1/pedidos/{id}/notificar`:** éxito → `data` trae el texto de confirmación; error →
    `mensaje` trae el motivo (dos campos distintos según si fue éxito o error, revisar el `code`/HTTP
    status para saber cuál leer) — ya documentado arriba en EP-T2, confirmado sin cambios.
+
+---
+
+## Reportes de ventas (2026-07-02) — endpoints nuevos
+
+> Todos requieren rol ADMIN (Bearer token). Todos van envueltos en `ResponseGeneric`
+> (`{ "data": {...} }` o `{ "data": [...] }`), mismo patrón que el resto del proyecto.
+
+### `GET /v1/reportes/ventas/diario?fecha=YYYY-MM-DD`
+
+**Request:** `GET /mis-productos/v1/reportes/ventas/diario?fecha=2026-07-02`
+
+**Response 200:**
+```json
+{
+  "data": {
+    "fecha": "2026-07-02",
+    "totalVenta": 4350.00,
+    "totalGanancia": 1200.00,
+    "cantidadVentas": 12
+  }
+}
+```
+Si no hubo ventas ese día: `totalVenta`/`totalGanancia` vienen en `0.0`, `cantidadVentas` en `0` (no error, no null).
+
+---
+
+### `GET /v1/reportes/ventas/mensual?mes=YYYY-MM`
+
+**Request:** `GET /mis-productos/v1/reportes/ventas/mensual?mes=2026-07`
+
+**Response 200:**
+```json
+{
+  "data": {
+    "mes": "2026-07",
+    "totalVenta": 45000.00,
+    "totalGanancia": 12500.00,
+    "cantidadVentas": 130,
+    "porDia": [
+      { "fecha": "2026-07-01", "totalVenta": 4350.00, "totalGanancia": 1200.00, "cantidadVentas": 12 },
+      { "fecha": "2026-07-02", "totalVenta": 3100.00, "totalGanancia": 900.00, "cantidadVentas": 8 }
+    ]
+  }
+}
+```
+- `porDia` solo trae los días que tuvieron al menos una venta (no rellena con ceros los días sin ventas — si necesitan la gráfica con todos los días del mes, hay que completar los huecos en el front).
+
+**Response 400** (formato de `mes` inválido, ej. mandaron `2026-13` o `julio-2026`):
+```json
+{ "mensaje": "Formato de mes invalido, usar yyyy-MM" }
+```
+
+---
+
+### `GET /v1/reportes/ventas/cliente/{clienteId}`
+
+**Request:** `GET /mis-productos/v1/reportes/ventas/cliente/5`
+
+**Response 200:**
+```json
+{
+  "data": {
+    "clienteId": 5,
+    "clienteNombre": "María López",
+    "totalCompras": 7,
+    "totalGastado": 3200.00,
+    "ventas": [
+      { "ventaId": 42, "fechaVenta": "2026-07-01T14:30:00", "totalVenta": 530.00, "gananciaTotal": 150.00 }
+    ]
+  }
+}
+```
+- Si el cliente existe pero no tiene compras → `totalCompras: 0`, `ventas: []` (no error).
+- Solo cuenta ventas de contado (`Venta`), no incluye créditos/abonos — para eso usar el reporte de abonos que ya existe en `GET /v1/abonos/reporte/*`.
+
+**Response 400** (cliente no existe):
+```json
+{ "mensaje": "Cliente no encontrado: 5" }
+```
+
+---
+
+### `GET /v1/reportes/ventas/productos-mas-vendidos?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&limite=10`
+
+**Request:** `GET /mis-productos/v1/reportes/ventas/productos-mas-vendidos?desde=2026-07-01&hasta=2026-07-31&limite=10`
+
+- `limite` es opcional, default `10`.
+
+**Response 200:**
+```json
+{
+  "data": [
+    { "varianteId": 12, "productoNombre": "Pantalón clásico negro", "talla": "M", "color": "Negro", "cantidadVendida": 34, "totalVendido": 11900.00 },
+    { "varianteId": 8, "productoNombre": "Blusa floral", "talla": "S", "color": "Rosa", "cantidadVendida": 21, "totalVendido": 3780.00 }
+  ]
+}
+```
+Ordenado de mayor a menor por `cantidadVendida`. Lista vacía `[]` si no hubo ventas en el rango (no error).
+
+---
+
+**Archivos nuevos en el back:** `ReporteVentasController.java`, `ReporteVentasServiceImpl.java`,
+`IReporteVentasService.java`, DTOs en `models/reportes/` (`ReporteDiarioDto`, `ReporteMensualDto`,
+`ReporteClienteDto`, `VentaResumenItem`, `ProductoMasVendidoDto`). Sin migración de BD — usa
+tablas y columnas que ya existían.

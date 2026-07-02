@@ -13,7 +13,7 @@
 | 2 | Envío por correo electrónico | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
 | 3 | Envío por WhatsApp | 🚫 EN PAUSA — ver decisión 2026-07-01 | 🚫 No implementar | 2026-07-01 |
 | 4 | Alertas stock bajo al admin | ⏳ Pendiente back | ⏳ Pendiente front | — |
-| 5 | Reportes de ventas (día/mes/cliente) | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 5 | Reportes de ventas (día/mes/cliente) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
 | 6 | Dashboard con métricas | ⏳ Pendiente back | ⏳ Pendiente front | — |
 | 7 | Devoluciones | ⏳ Pendiente back | ⏳ Pendiente front | — |
 | 8 | Chatbot — tarjetas de productos | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
@@ -56,6 +56,7 @@
 | `AbonoServiceImpl` — llama email/WhatsApp tras registrar abono o cancelar | `AbonoServiceImpl.java` |
 | `VentaServiceImpl` — llama email/WhatsApp tras venta directa o registro crédito | `VentaServiceImpl.java` |
 | `GET /v1/negocio/contactos` (público, nuevo) — siempre expone `whatsappUrl`/`facebookUrl` para el QR del ticket, a diferencia de `/estado` que los oculta con negocio abierto | `NegocioController.java`, `NegocioService.java`, `ContactosPublicosDto.java`, `SecurityConfig.java` |
+| Reportes de ventas — diario, mensual (desglosado por día), por cliente, productos más vendidos (2026-07-02) | `ReporteVentasController.java`, `ReporteVentasServiceImpl.java`, `IReporteVentasService.java`, DTOs en `models/reportes/`, `IVentaRepository.java`, `IDetalleVentaVarianteRepository.java`, `SecurityConfig.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -72,6 +73,7 @@
 | F-9 | QR al sitio de la tienda en el ticket (URL fija desde `environment.ts`) | Venta directa, abonos, cancelación | "QRs del ticket (2026-07-01)" |
 | F-10 | QR WhatsApp del negocio — solo si `whatsappUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
+| F-12 | Pantalla de reportes (diario, mensual con gráfica por día, por cliente, productos más vendidos) | Nueva pantalla `/reportes`, solo ADMIN | "Reportes de ventas (2026-07-02)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL
