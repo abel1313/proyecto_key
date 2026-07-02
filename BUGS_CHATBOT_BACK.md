@@ -8,15 +8,37 @@ implementado. BUG-CB-01 sigue siendo un problema de datos, no de código — ver
 
 ---
 
-## BUG-CB-01 — Imagen mostrada NO corresponde a la variante (imagen equivocada)
+## BUG-CB-01 — El chatbot trae un producto/variante DISTINTO al que se venía platicando (no es solo la imagen)
 
-**Estado: NO es bug de código — confirmado que es dato incorrecto en BD.** El código lee
-correctamente `vi.getImagen()` de la fila `variante_imagen` ligada a ese `varianteId` — si esa
-fila apunta a la imagen de otro producto, es porque alguien subió/vinculó la imagen equivocada
-a esa variante al momento de cargarla, no un error de lógica. No se puede corregir con código;
-hay que revisar/corregir manualmente en el panel de admin cuál imagen está vinculada a cada
-`varianteId`. Los 4 `varianteId` de prueba (117, 165, 213, 277) son parte del mismo problema de
-datos duplicados ya reportado en `CAMBIOS_FRONT.md` ("Chatbot muestra el mismo producto repetido").
+**Estado: CORREGIDO 2026-07-02 (segunda causa raíz encontrada).** El diagnóstico anterior
+("es dato incorrecto en BD, no se puede arreglar con código") era **incompleto**. Hay un
+segundo bug, de código, que explica el caso reportado el 2026-07-02: el bot confunde
+"Mochila para mostrar" (código de barras `cod1230981`, $300) con "Mochila Prada" ($400) — son
+productos DIFERENTES, no la misma variante con imagen mal vinculada.
+
+**Causa raíz real:** en `ChatbotService.java` el prompt de sistema le decía a la IA que, para
+buscar la imagen (`##BUSCAR[término,offset]##`), **si el producto se identificó por código de
+barras usara el NOMBRE del producto** como término de búsqueda. El problema: varios productos
+comparten nombre genérico ("Mochila" aparece en "Mochila para mostrar" y en "Mochila Prada").
+Al buscar por `##BUSCAR[Mochila,0]##`, el back hace `LIKE '%Mochila%'` contra TODOS los
+productos con esa palabra en el nombre (`IVarianteRepository.buscarParaChatbot`) y devuelve
+cualquiera de los que matchean — no necesariamente el que se acababa de identificar por código
+de barras. El nombre es ambiguo; el código de barras no.
+
+**Fix aplicado:** se corrigió el prompt para que, cuando el producto de la conversación se
+identificó por código de barras, la IA use ESE código de barras como término de `##BUSCAR##`
+(la query ya soportaba buscar por código de barras, solo que el prompt le decía que no lo
+hiciera). Con eso el back trae el producto exacto, no uno con nombre parecido.
+
+**Nota para front:** no requiere cambios — el fix es 100% de prompt/backend. Si se puede,
+sería bueno volver a probar el flujo "preguntar por código de barras → pedir foto" para
+confirmar que ahora trae la tarjeta correcta.
+
+**Limitación que sigue existiendo (no es bug, es comportamiento esperado):** cuando el cliente
+pide fotos SIN haber mencionado un código de barras (ej. "muéstrame bolsas", "tienes Mochila?")
+la búsqueda sigue siendo por nombre/marca y puede traer varios productos distintos que
+comparten esa palabra — para eso existe la paginación (`hayMas`) para ver más opciones. Esto es
+esperado cuando el cliente no fue específico.
 
 **Prioridad:** Alta
 
@@ -124,10 +146,35 @@ GET /mis-productos/v1/chatbot/buscar?q=Mochila&offset=0
 
 | Bug | Endpoint | Prioridad | Estado |
 |---|---|---|---|
-| BUG-CB-01 — Imagen equivocada | `GET /variantes/v1/imagenes/{varianteId}` | Alta | ⏳ Es dato incorrecto en BD, no código — pendiente corrección manual en admin |
+| BUG-CB-01 — Trae producto/variante distinto al platicado | `POST /v1/chatbot/mensaje` | Alta | ✅ Corregido — prompt usaba nombre ambiguo en vez de código de barras para re-buscar |
 | BUG-CB-02 — Error 500 en imágenes | `GET /variantes/v1/imagenes/{varianteId}` | Media | ✅ Corregido — filtra relaciones huérfanas, ya no truena |
 | BUG-CB-03 — Tarjetas indistinguibles | `GET /v1/chatbot/buscar` | Baja | ✅ Implementado — se agregaron `descripcion` y `codigoBarras` al response |
 
 **Correcciones ya aplicadas en el front (2026-07-02):**
 - URL corregida: `/v1/variantes/imagenes/` → `/variantes/v1/imagenes/` (ya estaba corregido de sesión anterior)
 - Selección de imagen: ahora usa `principal: true` en vez de tomar siempre el primer elemento del array
+
+---
+
+## Caso reportado 2026-07-02 — resuelto, explicación para front
+
+**Reporte original:** al preguntar por la variante con código de barras `cod1230981`
+("Mochila para mostrar", $300, 5 unidades), el bot confirmaba bien el producto en texto, pero
+al pedir la foto regresaba la tarjeta de "Mochila Prada" ($400) — un producto totalmente
+distinto, no solo una imagen mal ligada.
+
+**Diagnóstico:** ver BUG-CB-01 arriba — era el prompt del chatbot usando el nombre genérico
+("Mochila") en vez del código de barras exacto para la segunda búsqueda (la de la imagen),
+y como hay más de un producto con "Mochila" en el nombre, el back regresaba el que fuera.
+
+**Fix:** solo en `ChatbotService.java` (prompt), ningún endpoint ni contrato cambió.
+
+**¿Front necesita hacer algo?** No. No cambia ningún request/response. Sí ayuda volver a
+probar en vivo el flujo "preguntar por código de barras → pedir ver foto" para confirmar que
+ahora trae la tarjeta correcta — si se puede reproducir con el mismo `cod1230981` sería la
+mejor prueba.
+
+**Si vuelve a pasar con otro producto:** lo más útil para diagnosticar es mandar, en este
+mismo archivo o por Slack: el mensaje exacto del usuario, la respuesta del bot, y el array
+`productos` que regresó `POST /v1/chatbot/mensaje` (no hace falta implementar logging nuevo en
+front — con eso alcanza para rastrear qué término de búsqueda uso la IA).
