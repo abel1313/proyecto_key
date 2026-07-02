@@ -3789,3 +3789,25 @@ El back agrega al response normal tres campos extra: `correoEnviado`, `whatsappE
 **Qué hace:** reenvía tal cual el `ticketHtml` recibido por correo (asunto `"Comprobante de tu pedido #{id} — Novedades Jade"`). No genera nada nuevo — el HTML ya lo arma el front (con sus QR de tienda/WhatsApp/Facebook incluidos, como en el resto de tickets).
 
 **Uso:** botón "reenviar por correo" en cualquier pantalla de detalle de pedido, sin depender de que sea justo al momento de la venta/abono.
+
+---
+
+### Preguntas del front — confirmadas 2026-07-02
+
+El front reportó no ver el QR de Facebook y preguntó 4 cosas puntuales. Respuestas verificadas
+contra el código (no supuestas):
+
+1. **`GET /v1/negocio/contactos` va envuelto en `ResponseGeneric`** — leer `response.data.whatsappUrl`
+   / `response.data.facebookUrl`, NO `response.whatsappUrl` directo. Esto es lo que causaba que
+   el QR de Facebook (y probablemente el de WhatsApp) no aparecieran — ya estaba documentado así
+   arriba, pero se confirma explícito por si se leyó mal.
+2. **No existe `tiendaUrl` en el back** — nunca se implementó. La intención original (ver "QR 1"
+   arriba) es que el front lo resuelva con `environment.ts` / `window.location.origin`, no del
+   back. **Pendiente de confirmar con el front:** si `window.location.origin` no sirve en su caso
+   (ej. el ticket se genera en un contexto sin ese origin correcto), avisar y se agrega como campo
+   nuevo a este mismo endpoint — no implementado todavía, a la espera de esa confirmación.
+3. **`GET /v1/pedidos/{id}/detalle` va envuelto:** `{ "data": { pedidoId, detalles[], clienteCorreo,
+   metodoPago, montoDado, abonos[] } }` — ya documentado arriba en EP-T1, confirmado sin cambios.
+4. **`POST /v1/pedidos/{id}/notificar`:** éxito → `data` trae el texto de confirmación; error →
+   `mensaje` trae el motivo (dos campos distintos según si fue éxito o error, revisar el `code`/HTTP
+   status para saber cuál leer) — ya documentado arriba en EP-T2, confirmado sin cambios.
