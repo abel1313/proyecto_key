@@ -4159,3 +4159,87 @@ sin exigir habilitado — a diferencia del listado público):
 `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`,
 `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java`. Sin
 migración de BD — usa las tablas de imágenes que ya existían.
+
+## Verificación de correo del cliente (2026-07-02) — acción requerida en el front
+
+### 1. Correo y teléfono ahora son obligatorios en `Cliente`
+
+`POST /v1/clientes/save` y `PUT /v1/clientes/update/{id}` ahora exigen `correoElectronico` y
+`numeroTelefonico` (antes eran opcionales, sin ninguna validación). Si faltan o el formato es
+inválido, responde **400** con `mensaje` describiendo el error (mismo patrón que ya usan
+`nombrePersona`/`apeidoPaterno`/`apeidoMaterno`):
+- `correoElectronico`: obligatorio, formato de email válido.
+- `numeroTelefonico`: obligatorio, exactamente 10 dígitos (sin espacios, guiones ni lada
+  internacional — ej. `"5512345678"`).
+
+**No aplica** a venta directa sin cuenta (`ClienteSinRegistroDto`) — esos campos siguen
+opcionales, es una venta de mostrador supervisada por personal.
+
+También ahora `POST /v1/auth/registrar` exige `email` (antes era opcional, solo se validaba el
+formato si venía). El endpoint pasó de usar `AuthRequest` a un DTO nuevo `RegistroRequest` con
+los mismos 3 campos (`userName`, `password`, `email`) — sin cambio de contrato para el front,
+solo ahora `email` es requerido. **`POST /v1/auth/login` no cambia** — sigue sin pedir email.
+
+### 2. Nuevo flujo: verificar el correo con un código de 6 dígitos
+
+Antes de que un cliente **con cuenta** pueda generar un pedido (`POST /pedidos/savePedido`) o
+recibir el ticket automático en su correo registrado (venta directa, abono, cancelación de
+pedido), su correo debe estar verificado.
+
+```
+POST /v1/clientes/{id}/enviar-codigo-verificacion
+POST /v1/clientes/{id}/verificar-correo
+Body: { "codigo": "123456" }
+```
+
+- `enviar-codigo-verificacion`: genera un código de 6 dígitos, lo manda por correo (vence en 15
+  minutos) y responde `200` con `{ "data": "Codigo enviado al correo registrado" }`. Si el
+  cliente no existe o no tiene correo registrado, responde `400`.
+- `verificar-correo`: valida el código contra el que se envió. Si es correcto y no venció, marca
+  el cliente como verificado y responde `200`. Si el código es incorrecto o ya venció, responde
+  `400` con el mensaje correspondiente (`"Codigo de verificacion invalido"` /
+  `"El codigo de verificacion expiro, solicita uno nuevo"`) — en ese caso hay que dejar que el
+  usuario pida un código nuevo (`enviar-codigo-verificacion` otra vez).
+- Si ya estaba verificado, `verificar-correo` no hace nada y responde `200` igual (idempotente).
+
+**Qué pasa si el cliente NO está verificado:**
+- `POST /pedidos/savePedido` responde `400` con mensaje `"Debes verificar tu correo antes de
+  generar un pedido"` — no se crea el pedido.
+- En venta directa / abono / cancelación de pedido, si se pidió `enviarCorreo: true` en la
+  notificación y el cliente no está verificado, el ticket **no se envía** — el response trae
+  `correoEnviado: false` y en `erroresEnvio` aparece `"El correo del cliente no esta verificado,
+  no se envio el ticket"`. **Excepción:** si en el modal post-venta se escribe un correo manual
+  (`notificacion.correo`) para esa notificación puntual, se envía ahí sin exigir verificación —
+  ese campo es un envío puntual, no depende de la cuenta del cliente.
+
+**Sugerencia de UX para el front:** tras crear/actualizar el `Cliente` (o al detectar
+`correoVerificado: false` en el objeto `Cliente`), mostrar un paso de "verifica tu correo" con un
+input de 6 dígitos y botón de reenviar código, antes de dejar avanzar al carrito/pedido.
+
+**Nota operativa:** los clientes que ya existían antes de este cambio quedan con
+`correoVerificado = false` por default (no hay migración retroactiva) — van a tener que
+verificar su correo la primera vez que intenten generar un pedido, aunque su cuenta sea antigua.
+
+**Archivos tocados en el back:** `Cliente.java` (3 campos nuevos + validaciones), `AuthRequest.java`
+(sin campo obligatorio, no cambia), `RegistroRequest.java` (nuevo), `VerificarCorreoRequest.java`
+(nuevo), `ClienteServiceImpl.java`, `ClienteControllerImpl.java`, `EmailService.java`,
+`PedidoServiceImpl.java`, `VentaServiceImpl.java`, `AbonoServiceImpl.java`, `AuthController.java`.
+Migración: `migration_verificacion_correo.sql` (agrega 3 columnas a `clientes`, pendiente de
+correr en dev/qa/prod).
+
+### 3. Estado de verificación visible en la búsqueda de clientes
+
+`GET /v1/clientes/buscar` ahora incluye `correoVerificado` en cada elemento de la lista
+(`ClienteBusquedaDto`) — útil para que el panel admin muestre un badge de "verificado" / "sin
+verificar" junto a cada cliente.
+
+### 4. Endpoint de soporte/pruebas — resetear verificación (solo ADMIN)
+
+```
+DELETE /v1/clientes/{id}/verificacion-correo
+```
+
+Regresa el cliente a `correoVerificado: false` y borra cualquier código pendiente. Requiere rol
+ADMIN (mismo criterio que el resto de `DELETE /v1/clientes/**`). Pensado para soporte/QA — no es
+parte del flujo normal del cliente, sirve para poder re-probar la verificación sin tener que
+crear una cuenta nueva cada vez.

@@ -101,6 +101,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         Cliente cliente = this.iClienteRepository.findById(requestG.getCliente().getId())
                 .orElseThrow(() -> new Exception("Ocurrio un erro al buscar al cliente"));
+        if (!Boolean.TRUE.equals(cliente.getCorreoVerificado())) {
+            throw new RuntimeException("Debes verificar tu correo antes de generar un pedido");
+        }
         Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
         pedido.setEstadoPedido(requestG.getEstadoPedido());

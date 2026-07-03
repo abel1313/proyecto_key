@@ -21,7 +21,7 @@ public interface IClienteRepository extends BaseRepository<Cliente,Integer> {
 
     @Query("""
     SELECT new com.ventas.key.mis.productos.models.ClienteBusquedaDto(
-        c.id, c.nombrePersona, c.apeidoPaterno, c.apeidoMaterno, c.correoElectronico, c.numeroTelefonico)
+        c.id, c.nombrePersona, c.apeidoPaterno, c.apeidoMaterno, c.correoElectronico, c.numeroTelefonico, c.correoVerificado)
     FROM Cliente c
     WHERE LOWER(c.nombrePersona) LIKE LOWER(CONCAT('%', :nombre, '%'))
        OR LOWER(c.apeidoPaterno) LIKE LOWER(CONCAT('%', :nombre, '%'))
