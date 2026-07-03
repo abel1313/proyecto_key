@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.entity;
 
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
@@ -14,8 +15,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -51,11 +55,24 @@ public class Cliente extends BaseId{
 
       private String sexo;
 
+      @NotBlank(message = "El correo electronico es requerido")
+      @Email(message = "El correo electronico debe tener un formato valido")
       @Column(name = "correo_electronico")
       private String correoElectronico;
 
+      @NotBlank(message = "El numero telefonico es requerido")
+      @Pattern(regexp = "^\\d{10}$", message = "El numero telefonico debe tener 10 digitos")
       @Column(name = "numero_telefonico")
       private String numeroTelefonico;
+
+      @Column(name = "correo_verificado")
+      private Boolean correoVerificado = Boolean.FALSE;
+
+      @Column(name = "codigo_verificacion")
+      private String codigoVerificacion;
+
+      @Column(name = "codigo_verificacion_expira")
+      private LocalDateTime codigoVerificacionExpira;
 
     @OneToOne
     @JoinColumn(name = "usuario_id")

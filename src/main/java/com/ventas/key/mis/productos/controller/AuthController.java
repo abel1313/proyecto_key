@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
+import com.ventas.key.mis.productos.models.RegistroRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.RegistroService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -149,7 +150,7 @@ public class AuthController {
         @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
     })
     @PostMapping("/registrar")
-    public ResponseEntity<?> registrar(@Valid @RequestBody AuthRequest request,
+    public ResponseEntity<?> registrar(@Valid @RequestBody RegistroRequest request,
                                        HttpServletRequest httpRequest) throws Exception {
         String clientIp = resolverIp(httpRequest);
         if (!rateLimiterService.tryConsume(clientIp)) {

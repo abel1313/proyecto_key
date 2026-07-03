@@ -38,4 +38,16 @@ public class EmailService {
             return false;
         }
     }
+
+    /**
+     * Envía el código de verificación de correo (6 dígitos, expira en 15 minutos).
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarCodigoVerificacion(String destinatario, String codigo) {
+        String asunto = "Verifica tu correo — Novedades Jade";
+        String html = "<p>Tu código de verificación es:</p>"
+                + "<h2>" + codigo + "</h2>"
+                + "<p>Este código vence en 15 minutos. Si tú no solicitaste esta verificación, ignora este correo.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
 }

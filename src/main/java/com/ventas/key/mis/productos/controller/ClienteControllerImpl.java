@@ -7,6 +7,7 @@ import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.VerificarCorreoRequest;
 import com.ventas.key.mis.productos.service.ClienteServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioDetailsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -111,6 +113,59 @@ public class ClienteControllerImpl extends AbstractController<
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(resultado));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @Operation(summary = "Enviar codigo de verificacion de correo", description = "Genera un codigo de 6 digitos (expira en 15 minutos) y lo envia al correo registrado del cliente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Codigo enviado"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado o sin correo registrado")
+    })
+    @PostMapping("/{id}/enviar-codigo-verificacion")
+    public ResponseEntity<ResponseGeneric<String>> enviarCodigoVerificacion(@PathVariable Integer id) {
+        try {
+            sGenerico.enviarCodigoVerificacionCorreo(id);
+            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo registrado"));
+        } catch (Exception e) {
+            log.error("Error al enviar codigo de verificacion a clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Verificar correo con codigo", description = "Valida el codigo de 6 digitos enviado al correo del cliente. Si es correcto y no expiro, marca el correo como verificado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Correo verificado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado")
+    })
+    @PostMapping("/{id}/verificar-correo")
+    public ResponseEntity<ResponseGeneric<String>> verificarCorreo(
+            @PathVariable Integer id, @Valid @RequestBody VerificarCorreoRequest request) {
+        try {
+            sGenerico.verificarCorreo(id, request.getCodigo());
+            return ResponseEntity.ok(new ResponseGeneric<>("Correo verificado correctamente"));
+        } catch (Exception e) {
+            log.error("Error al verificar correo de clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Resetear verificacion de correo (solo ADMIN)", description = "Regresa el correo del cliente a 'no verificado' y borra cualquier codigo pendiente. Pensado para pruebas/soporte, no para el flujo normal del cliente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Verificacion reseteada"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado"),
+        @ApiResponse(responseCode = "403", description = "Requiere rol ADMIN")
+    })
+    @DeleteMapping("/{id}/verificacion-correo")
+    public ResponseEntity<ResponseGeneric<String>> resetVerificacionCorreo(@PathVariable Integer id) {
+        try {
+            sGenerico.resetVerificacionCorreo(id);
+            return ResponseEntity.ok(new ResponseGeneric<>("Verificacion de correo reseteada"));
+        } catch (Exception e) {
+            log.error("Error al resetear verificacion de correo de clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 }

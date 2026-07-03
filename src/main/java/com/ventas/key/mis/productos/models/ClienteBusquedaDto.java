@@ -14,4 +14,5 @@ public class ClienteBusquedaDto {
     private String apeidoMaterno;
     private String correoElectronico;
     private String numeroTelefonico;
+    private Boolean correoVerificado;
 }
