@@ -78,6 +78,14 @@ public class ProductosControllerImpl {
         return ResponseEntity.ok(this.pServiceImpl.getProductosSinStock(size, page));
     }
 
+    @GetMapping("admin/filtrar")
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> filtrarProductosAdmin(
+            @RequestParam FiltroCatalogoEnum filtro,
+            @RequestParam int size, @RequestParam int page) {
+        log.info("Admin: filtrar productos filtro={} page={} size={}", filtro, page, size);
+        return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(filtro, size, page));
+    }
+
     @PutMapping("{id}/habilitar")
     public ResponseEntity<Map<String, Object>> habilitarDeshabilitarProducto(
             @PathVariable Integer id,

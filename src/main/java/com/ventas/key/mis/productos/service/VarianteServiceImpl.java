@@ -135,14 +135,15 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre);
     }
 
-    @Cacheable(value = "variantesNombreCache", key = "#nombre + ':' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesNombreCache",
+            key = "#nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size) {
         Page<Variantes> page;
         if(AuthenticationUtils.isAdminContext()){
             page = iVarianteRepository.findByProductoNombreContainingIgnoreCase(nombre, PageRequest.of(pagina - 1, size));
         }else{
-            page = iVarianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndProducto_NombreContainingIgnoreCase(0, '1',nombre, PageRequest.of(pagina - 1, size));
-
+            // Cliente normal: stock + habilitado + con imagen.
+            page = iVarianteRepository.findByNombrePublico(nombre, PageRequest.of(pagina - 1, size));
         }
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
@@ -157,14 +158,16 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras);
     }
 
-    @Cacheable(value = "variantesCodigoBarrasCache", key = "#codigoBarras + ':' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesCodigoBarrasCache",
+            key = "#codigoBarras + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size) {
         boolean isAdmin = AuthenticationUtils.isAdminContext();
         Page<Variantes> page = null;
         if(isAdmin){
             page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras, PageRequest.of(pagina - 1, size));
         }else{
-            page = iVarianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(0, '1',codigoBarras, PageRequest.of(pagina - 1, size));
+            // Cliente normal: stock + habilitado + con imagen.
+            page = iVarianteRepository.findByCodigoBarrasPublico(codigoBarras, PageRequest.of(pagina - 1, size));
         }
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
@@ -496,12 +499,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return v;
     }
 
-    @Cacheable(value = "variantesNombreCache", key = "'resumen:' + #nombre + ':' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesNombreCache",
+            key = "'resumen:' + #nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<VarianteResumenDto>> buscarPorNombrePaginadoResumen(String nombre, int pagina, int size) {
         return toResumenPagina(buscarPorNombrePaginado(nombre, pagina, size));
     }
 
-    @Cacheable(value = "variantesCodigoBarrasCache", key = "'resumen:' + #codigoBarras + ':' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesCodigoBarrasCache",
+            key = "'resumen:' + #codigoBarras + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<VarianteResumenDto>> buscarPorCodigoBarrasPaginadoResumen(String codigoBarras, int pagina, int size) {
         return toResumenPagina(buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size));
     }
@@ -512,7 +517,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         boolean isAdmin = AuthenticationUtils.isAdminContext();
         Page<Variantes> page = isAdmin
                 ? iVarianteRepository.findByPalabraClave_NombreIgnoreCase(nombre, PageRequest.of(pagina - 1, size))
-                : iVarianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(0, '1', nombre, PageRequest.of(pagina - 1, size));
+                : iVarianteRepository.findByPalabraClavePublico(nombre, PageRequest.of(pagina - 1, size));
         PginaDto<List<Variantes>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
@@ -521,7 +526,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return toResumenPagina(resultado);
     }
 
-    @Cacheable(value = "variantesProductoCache", key = "'resumen:all:' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesProductoCache",
+            key = "'resumen:all:' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<VarianteResumenDto>> findAllResumen(int pagina, int size) {
         return toResumenPagina(findAllNew(pagina, size));
     }
@@ -534,7 +540,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         if(AuthenticationUtils.isAdminContext()){
             dataPaginacion = this.repoGenerico.findAll(pageable);
         }else{
-            dataPaginacion = this.iVarianteRepository.findByStockGreaterThanAndProducto_Habilitado(0, '1', pageable);
+            // Cliente normal: stock + habilitado + con imagen.
+            dataPaginacion = this.iVarianteRepository.findConStockYImagenPublico(pageable);
         }
         pginaDto.setPagina(pagina);
         pginaDto.setTotalPaginas(dataPaginacion.getTotalPages());
@@ -625,6 +632,26 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> getVariantesSinStockDeshabilitadas(int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findVariantesSinStockDeshabilitadas(PageRequest.of(pagina - 1, size));
+        PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(buildResumenDtosBatch(page.getContent()));
+        return resultado;
+    }
+
+    // Filtros de admin: ve TODO el catálogo de variantes (sin restricción de habilitado
+    // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
+    // normales exigen stock>0 + producto habilitado + con imagen.
+    @Cacheable(value = "variantesProductoCache", key = "'filtro:' + #filtro + ':' + #pagina + ':' + #size")
+    public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(FiltroCatalogoEnum filtro, int pagina, int size) {
+        Pageable pageable = PageRequest.of(pagina - 1, size);
+        Page<Variantes> page = switch (filtro) {
+            case SIN_STOCK -> iVarianteRepository.findByStock(0, pageable);
+            case CON_STOCK -> iVarianteRepository.findByStockGreaterThan(0, pageable);
+            case CON_IMAGENES -> iVarianteRepository.findConImagen(pageable);
+            case CON_STOCK_Y_IMAGENES -> iVarianteRepository.findConStockYImagenAdmin(pageable);
+        };
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());

@@ -31,6 +31,36 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     Page<Producto> findByNombreContaining(String nombre, Pageable pageable);
     Page<Producto> findByNombreContainingAndHabilitado(String nombre, char habilitado, Pageable pageable);
 
+    // --- listado público: stock + habilitado + con imagen (cliente normal) ---
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findConStockYImagenPublico(Pageable pageable);
+
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND LOWER(p.codigoBarras.codigoBarras) = LOWER(:codigoBarras) " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Optional<Producto> findByCodigoBarrasPublico(@Param("codigoBarras") String codigoBarras);
+
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND LOWER(p.palabraClave.nombre) = LOWER(:nombre) " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findByPalabraClavePublico(@Param("nombre") String nombre, Pageable pageable);
+
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombre, '%')) " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findByNombrePublico(@Param("nombre") String nombre, Pageable pageable);
+
+    // --- filtros de admin (ve todo, sin restriccion de stock/habilitado salvo el filtro elegido) ---
+    Page<Producto> findByStockGreaterThan(int stock, Pageable pageable);
+
+    @Query("SELECT p FROM Producto p WHERE EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findConImagen(Pageable pageable);
+
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findConStockYImagenAdmin(Pageable pageable);
+
     // --- guardado ---
     Optional<Producto> findByCodigoBarras_CodigoBarrasAndNombre(String codigoBarras, String nombre);
 

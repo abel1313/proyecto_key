@@ -19,6 +19,7 @@
 | 8 | Chatbot — tarjetas de productos | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
 | 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
 | 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
+| 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: sin-stock/con-stock/con-imágenes) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
 
 > **Orden:** el ticket (1) va primero porque correo (2) lo necesita.
 > El stock bajo (4) necesita correo (2) ya listo en back.
@@ -48,6 +49,24 @@
 >   o pedir un script de limpieza) — no se tocó la BD, es una decisión del negocio, no técnica.
 >   De paso se corrigieron 2 errores de documentación en `CAMBIOS_FRONT.md` (F-8): la URL tenía el
 >   `/v1/` mal puesto, y decía "tomar el primer elemento" en vez de "el marcado como `principal`".
+> - **BUG-CB-01 corregido 2026-07-02 (causa real encontrada, no era dato de BD):** el prompt del
+>   chatbot le decía a la IA que usara el NOMBRE del producto para buscar la imagen, incluso cuando
+>   el producto ya se había identificado por código de barras — como el nombre se repite entre
+>   productos distintos ("Mochila para mostrar" vs "Mochila Prada"), la búsqueda traía cualquiera
+>   de los dos. Se corrigió el prompt para que use el código de barras (único) cuando esté
+>   disponible en la conversación. Ver `BUGS_CHATBOT_BACK.md` para el detalle completo.
+> - **Filtros producto/variante por rol (2026-07-02):** cliente normal ahora ve solo productos y
+>   variantes con stock>0 + habilitado + con al menos una imagen (antes solo se exigía stock +
+>   habilitado, sin importar si tenía imagen). Admin ve todo el catálogo y tiene un endpoint nuevo
+>   de filtro (`SIN_STOCK` / `CON_STOCK` / `CON_IMAGENES` / `CON_STOCK_Y_IMAGENES`). Ver
+>   `CAMBIOS_FRONT.md` para el contrato completo. De paso se corrigió un bug de caché en
+>   `VarianteServiceImpl` que exponía a clientes normales resultados sin filtrar cacheados
+>   previamente por un admin.
+> - **PENDIENTE (no bloquea nada, anotado para retomar):** definir fórmula de ganancia por
+>   producto — se acordó usar markup sobre costo (`precioVenta = precioCosto × (1 + %ganancia)`).
+>   Falta decidir: ¿se guarda el `%ganancia` como campo del producto (para poder mostrarlo/editarlo
+>   directo), o se calcula al vuelo en un reporte (`(precioVenta - precioCosto) / precioCosto`) sin
+>   guardar nada nuevo en BD? Ninguna de las dos está implementada todavía.
 
 > **Decisión 2026-07-01 — WhatsApp EN PAUSA:** se descartó implementar el envío del ticket por
 > WhatsApp al cliente. CallMeBot (gratis, ya programado en el back) solo le avisa al negocio, no
@@ -84,6 +103,9 @@
 | Reportes de ventas — diario, mensual (desglosado por día), por cliente, productos más vendidos (2026-07-02) | `ReporteVentasController.java`, `ReporteVentasServiceImpl.java`, `IReporteVentasService.java`, DTOs en `models/reportes/`, `IVentaRepository.java`, `IDetalleVentaVarianteRepository.java`, `SecurityConfig.java` |
 | `GET /v1/dashboard/resumen` — ventas hoy/mes, ganancia, gastos, pendientes de entregar, créditos activos, monto por cobrar, stock bajo (2026-07-02) | `DashboardController.java`, `DashboardServiceImpl.java`, `IDashboardService.java`, `DashboardResumenDto.java`, `IPedidoRepository.java`, `IVarianteRepository.java`, `SecurityConfig.java` |
 | Fix BUG-CB-02 (500 en imágenes huérfanas) + BUG-CB-03 (campos `descripcion`/`codigoBarras` en chatbot) (2026-07-02) | `VarianteServiceImpl.java`, `VarianteController.java`, `ChatbotService.java` |
+| Fix BUG-CB-01 real: prompt del chatbot usaba nombre ambiguo en vez de código de barras para re-buscar imagen (2026-07-02) | `ChatbotService.java` |
+| Fix bug de caché: varias búsquedas de variantes cacheaban sin incluir el rol, exponiendo a clientes normales resultados sin filtrar que un admin había cacheado antes (2026-07-02) | `VarianteServiceImpl.java` |
+| Filtros producto/variante por rol: cliente normal solo ve stock>0 + habilitado + con imagen; nuevo endpoint admin `.../admin/filtrar?filtro=SIN_STOCK\|CON_STOCK\|CON_IMAGENES\|CON_STOCK_Y_IMAGENES` paginado, ve todo el catálogo (2026-07-02) | `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`, `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java`, `FiltroCatalogoEnum.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -102,6 +124,7 @@
 | F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-12 | Pantalla de reportes (diario, mensual con gráfica por día, por cliente, productos más vendidos) | Nueva pantalla `/reportes`, solo ADMIN | "Reportes de ventas (2026-07-02)" |
 | F-13 | Pantalla de dashboard (`GET /v1/dashboard/resumen`, 9 cards de métricas) | Nueva pantalla `/dashboard`, solo ADMIN | "Dashboard con métricas (2026-07-02)" |
+| F-14 | Filtros de admin en catálogo de productos/variantes (dropdown: Sin stock / Con stock / Con imágenes / Con stock y con imágenes) usando `.../admin/filtrar?filtro=...`. Cliente normal NO necesita UI nueva — el listado normal ya viene filtrado por el back. | Panel admin — productos y variantes | "Filtros producto/variante por rol (2026-07-02)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL
