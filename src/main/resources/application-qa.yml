@@ -58,6 +58,11 @@ spring:
 clave-seguridad:
   clave: ${TOKEN_JWT}
 
+seguridad:
+  # Desactivado en QA para no bloquearse durante pruebas manuales repetidas de login/registro.
+  # dev y prod NO tienen esta propiedad, asi que ahi el rate-limit sigue activo por default (true).
+  rate-limit-habilitado: false
+
 cookie:
   secure: true
 
