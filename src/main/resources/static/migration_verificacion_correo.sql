@@ -8,7 +8,10 @@
 -- use inventario_key_qa;   ← dev y qa (misma BD)
 -- use inventario_key;      ← main / prod
 --
--- Estado por ambiente (2026-07-02): pendiente de correr en los 3 ambientes.
+-- Estado por ambiente:
+--   dev  → ✅ ya corrido (2026-07-02) — comparte BD inventario_key_qa con qa
+--   qa   → ✅ ya corrido (2026-07-02) — misma BD que dev
+--   prod → ⏳ pendiente — correr en inventario_key cuando se suba a main
 -- ============================================================
 
 ALTER TABLE clientes

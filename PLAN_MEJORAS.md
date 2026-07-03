@@ -20,7 +20,7 @@
 | 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
 | 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
 | 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: sin-stock/con-stock/con-imágenes) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
-| 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (falta correr migración SQL) | ⏳ Pendiente front | 2026-07-02 |
+| 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (migración corrida en dev/qa, falta en prod) | ⏳ Pendiente front | 2026-07-02 |
 
 > **Orden:** el ticket (1) va primero porque correo (2) lo necesita.
 > El stock bajo (4) necesita correo (2) ya listo en back.
