@@ -4,8 +4,12 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
+import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
+import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
 import com.ventas.key.mis.productos.models.RegistroRequest;
+import com.ventas.key.mis.productos.models.RestablecerPasswordRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
+import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -41,6 +45,7 @@ public class AuthController {
     private final AuthenticationManager authManager;
     private final JwtUtil jwtUtil;
     private final RegistroService registroService;
+    private final PasswordResetService passwordResetService;
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
 
@@ -162,6 +167,58 @@ public class AuthController {
                     .body("Demasiados intentos de registro. Intente de nuevo en 15 minutos.");
         }
         return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail()));
+    }
+
+    @Operation(summary = "Solicitar reseteo de contrasena", description = "Envia un codigo de 6 digitos al correo (vence en 15 minutos). Responde 200 exista o no la cuenta, para no revelar si un correo esta registrado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Si el correo existe, se envio el codigo"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
+    })
+    @PostMapping("/olvide-password")
+    public ResponseEntity<?> olvidePassword(@Valid @RequestBody OlvidePasswordRequest request,
+                                            HttpServletRequest httpRequest) {
+        String clientIp = resolverIp(httpRequest);
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(clientIp)) {
+            log.warn("Rate limit de reseteo de password excedido para IP: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
+        passwordResetService.solicitarReset(request.getEmail());
+        return ResponseEntity.ok("Si el correo esta registrado, se envio un codigo de verificacion");
+    }
+
+    @Operation(summary = "Restablecer contrasena con codigo", description = "Valida el codigo de 6 digitos enviado por correo y, si es correcto y no expiro, actualiza la contrasena.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Contrasena actualizada correctamente"),
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado")
+    })
+    @PostMapping("/restablecer-password")
+    public ResponseEntity<?> restablecerPassword(@Valid @RequestBody RestablecerPasswordRequest request) {
+        try {
+            passwordResetService.restablecerPassword(request.getEmail(), request.getCodigo(), request.getNuevaPassword());
+            return ResponseEntity.ok("Contrasena actualizada correctamente");
+        } catch (Exception e) {
+            log.warn("Error al restablecer password para {}: {}", request.getEmail(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "Cambiar contrasena estando logueado", description = "Requiere sesion valida (JWT). Pide la contrasena actual en vez de codigo por correo, ya re-autentica al usuario.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Contrasena actualizada correctamente"),
+        @ApiResponse(responseCode = "400", description = "Contrasena actual incorrecta"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @PutMapping("/cambiar-password")
+    public ResponseEntity<?> cambiarPassword(@Valid @RequestBody CambiarPasswordRequest request,
+                                             Authentication authentication) {
+        try {
+            passwordResetService.cambiarPassword(authentication.getName(), request.getPasswordActual(), request.getNuevaPassword());
+            return ResponseEntity.ok("Contrasena actualizada correctamente");
+        } catch (Exception e) {
+            log.warn("Error al cambiar password para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
     @Operation(summary = "Validar token JWT", description = "Verifica si el access token enviado en el header Authorization es valido y no esta expirado.")

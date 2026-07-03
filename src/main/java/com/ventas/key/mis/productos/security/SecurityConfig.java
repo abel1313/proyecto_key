@@ -83,7 +83,8 @@ public class SecurityConfig {
                         .requestMatchers("/presentacion/**").hasRole("ADMIN")
 
                         // ── Auth ──────────────────────────────────────────────────────────
-                        .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar").permitAll()
+                        .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar",
+                                "/v1/auth/olvide-password", "/v1/auth/restablecer-password").permitAll()
                         .requestMatchers("/v1/auth/logout").permitAll()
 
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
