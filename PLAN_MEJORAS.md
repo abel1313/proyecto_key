@@ -27,7 +27,8 @@
 > El dashboard (6) necesita los reportes (5).
 
 > **Checkpoint 2026-07-02 (actualizado):**
-> - ✅ Listos en back (falta front): 1 (ticket), 2 (correo), 5 (reportes), 6 (dashboard), 8/9/10 (chatbot).
+> - ✅ Listos en back (falta front): 1 (ticket), 2 (correo), 5 (reportes), 6 (dashboard), 8/9/10 (chatbot),
+>   11 (filtros por rol), 12 (correo/teléfono obligatorios + verificación).
 > - 🚫 En pausa: 3 (WhatsApp al cliente).
 > - ⏳ Sin arrancar ni back ni front: 4 (stock bajo), 7 (devoluciones).
 > - Sueltos sin cerrar: confirmar migración `monto_dado` en BD de producción; respuesta del front
@@ -68,6 +69,31 @@
 >   Falta decidir: ¿se guarda el `%ganancia` como campo del producto (para poder mostrarlo/editarlo
 >   directo), o se calcula al vuelo en un reporte (`(precioVenta - precioCosto) / precioCosto`) sin
 >   guardar nada nuevo en BD? Ninguna de las dos está implementada todavía.
+> - **Mejora 12 — Correo/teléfono obligatorios + verificación de correo (2026-07-02):**
+>   `Cliente.correoElectronico`/`numeroTelefonico` ahora obligatorios; nuevo flujo de código de 6
+>   dígitos por correo (`POST /v1/clientes/{id}/enviar-codigo-verificacion` y `verificar-correo`)
+>   que bloquea generar pedido (`savePedido`) y el envío automático de ticket por correo si el
+>   cliente no está verificado (no aplica al correo manual del modal post-venta ni a venta directa
+>   sin cuenta). `POST /v1/auth/registrar` ahora exige `email` (DTO nuevo `RegistroRequest`, separado
+>   de `AuthRequest` para no romper `/auth/login`). Se decidió **no** usar Twilio/WhatsApp para
+>   verificar el teléfono — sale muy caro (~$1.13 MXN por verificación vs ~$0.35 MXN por ticket
+>   suelto) y el correo (gratis, ya con SMTP) cubre la necesidad real. Migración
+>   `migration_verificacion_correo.sql` **ya corrida en dev y qa** (2026-07-02), **pendiente en
+>   prod** para cuando se suba esa rama. Detalle completo para el front en `CAMBIOS_FRONT.md` →
+>   "Verificación de correo del cliente (2026-07-02)" (4 subsecciones: obligatoriedad, flujo de
+>   verificación, estado visible en búsqueda de clientes, endpoint de reset para pruebas).
+> - **Rate-limit configurable, desactivado en QA (2026-07-02):** nueva propiedad
+>   `seguridad.rate-limit-habilitado` (default `true`) controla los 3 bloqueos por IP/usuario de
+>   `/auth/login` y `/auth/registrar`. Se puso en `false` solo en `application-qa.yml` para no
+>   trabarse en pruebas manuales repetidas — dev y prod siguen protegidos (no tienen la propiedad,
+>   toman el default `true`). No aplica al bloqueo de IP del chatbot, que es un mecanismo aparte
+>   (`ChatbotController`/`blockService`) y sigue activo en todos los ambientes.
+> - **Bug reportado 2026-07-02 — carrito con datos de otra cuenta tras logout/login — ES DEL
+>   FRONT, ya corregido por el front:** se confirmó que el back no tiene ningún concepto de
+>   "carrito" (no hay entidad/tabla/controlador — el pedido se arma completo en un solo request a
+>   `savePedido`). El carrito vivía en `localStorage`/`sessionStorage` del navegador sin limpiarse
+>   al cerrar sesión (mismo patrón que el bug ya resuelto de `sesionId` del chat). El front ya lo
+>   solucionó, no requirió cambios en este repo.
 
 > **Decisión 2026-07-01 — WhatsApp EN PAUSA:** se descartó implementar el envío del ticket por
 > WhatsApp al cliente. CallMeBot (gratis, ya programado en el back) solo le avisa al negocio, no
