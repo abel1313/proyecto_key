@@ -672,6 +672,7 @@ public class ProductosServiceImpl extends
             case SIN_STOCK -> iProductosRepository.findByStock(0, pageable);
             case CON_STOCK -> iProductosRepository.findByStockGreaterThan(0, pageable);
             case CON_IMAGENES -> iProductosRepository.findConImagen(pageable);
+            case CON_STOCK_Y_IMAGENES -> iProductosRepository.findConStockYImagenAdmin(pageable);
         };
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);

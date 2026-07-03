@@ -74,6 +74,10 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     @Query("SELECT v FROM Variantes v WHERE EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findConImagen(Pageable pageable);
 
+    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 " +
+           "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
+    Page<Variantes> findConStockYImagenAdmin(Pageable pageable);
+
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
                    "WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
