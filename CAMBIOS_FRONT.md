@@ -4243,3 +4243,41 @@ Regresa el cliente a `correoVerificado: false` y borra cualquier código pendien
 ADMIN (mismo criterio que el resto de `DELETE /v1/clientes/**`). Pensado para soporte/QA — no es
 parte del flujo normal del cliente, sirve para poder re-probar la verificación sin tener que
 crear una cuenta nueva cada vez.
+
+## Deshabilitar productos/variantes en lote (2026-07-02) — acción requerida en el front
+
+Pensado para ocultar productos o variantes de prueba sin borrarlos: el admin busca (paginado,
+usando `admin/filtrar` o la búsqueda normal), selecciona varios de la lista con checkboxes, y
+manda un solo request con todos los IDs.
+
+```
+PUT /v1/productos/admin/habilitar-lote
+PUT /variantes/v1/admin/habilitar-lote
+Body: { "ids": [12, 15, 20], "habilitar": false }
+```
+
+- `ids`: lista de IDs de producto o de variante (según el endpoint) — no puede venir vacía.
+- `habilitar`: `false` para ocultar, `true` para volver a mostrar (mismo endpoint sirve para
+  ambas direcciones).
+- Requiere rol ADMIN. Responde `200` con `{ "data": "Productos deshabilitados correctamente" }`
+  (o el mensaje equivalente para variantes/habilitar). Los IDs que no existan simplemente se
+  ignoran (no truena, solo actualiza los que sí encuentra).
+- Después de deshabilitar, esos productos/variantes **dejan de aparecer de inmediato** en los
+  listados públicos (cliente normal) — la caché se limpia automáticamente. El admin los sigue
+  viendo igual en sus búsquedas/filtros (para poder rehabilitarlos después).
+
+### Novedad importante: la variante ahora tiene SU PROPIO campo `habilitado`
+
+Antes una variante solo era visible/oculta según el `habilitado` del producto padre — no había
+forma de ocultar una variante suelta (ej. una talla de prueba) dejando visibles las demás del
+mismo producto. Ahora `Variantes` tiene su propio campo `habilitado`, independiente del producto:
+para que una variante sea visible al cliente normal se necesitan **ambos** en `'1'` (producto
+habilitado Y variante habilitada). El campo `habilitado` de la variante ya viene incluido en las
+respuestas donde antes venían el resto de sus campos (mismo objeto `Variantes`).
+
+**Archivos tocados en el back:** `Variantes.java` (campo nuevo), `HabilitarLoteRequest.java`
+(nuevo, reutilizado en ambos endpoints), `IVarianteRepository.java` (las 5 queries públicas ahora
+también exigen `v.habilitado = '1'`), `VarianteServiceImpl.java`, `VarianteController.java`,
+`ProductosServiceImpl.java`, `ProductosControllerImpl.java`. Migración:
+`migration_habilitado_variantes.sql` (agrega columna a `variantes`, default `'1'` para no afectar
+datos existentes — pendiente de correr en dev/qa/prod).
