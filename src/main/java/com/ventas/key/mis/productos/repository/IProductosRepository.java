@@ -57,6 +57,10 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     @Query("SELECT p FROM Producto p WHERE EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
     Page<Producto> findConImagen(Pageable pageable);
 
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findConStockYImagenAdmin(Pageable pageable);
+
     // --- guardado ---
     Optional<Producto> findByCodigoBarras_CodigoBarrasAndNombre(String codigoBarras, String nombre);
 

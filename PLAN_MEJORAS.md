@@ -58,9 +58,10 @@
 > - **Filtros producto/variante por rol (2026-07-02):** cliente normal ahora ve solo productos y
 >   variantes con stock>0 + habilitado + con al menos una imagen (antes solo se exigía stock +
 >   habilitado, sin importar si tenía imagen). Admin ve todo el catálogo y tiene un endpoint nuevo
->   de filtro (`SIN_STOCK` / `CON_STOCK` / `CON_IMAGENES`). Ver `CAMBIOS_FRONT.md` para el contrato
->   completo. De paso se corrigió un bug de caché en `VarianteServiceImpl` que exponía a clientes
->   normales resultados sin filtrar cacheados previamente por un admin.
+>   de filtro (`SIN_STOCK` / `CON_STOCK` / `CON_IMAGENES` / `CON_STOCK_Y_IMAGENES`). Ver
+>   `CAMBIOS_FRONT.md` para el contrato completo. De paso se corrigió un bug de caché en
+>   `VarianteServiceImpl` que exponía a clientes normales resultados sin filtrar cacheados
+>   previamente por un admin.
 > - **PENDIENTE (no bloquea nada, anotado para retomar):** definir fórmula de ganancia por
 >   producto — se acordó usar markup sobre costo (`precioVenta = precioCosto × (1 + %ganancia)`).
 >   Falta decidir: ¿se guarda el `%ganancia` como campo del producto (para poder mostrarlo/editarlo
@@ -104,7 +105,7 @@
 | Fix BUG-CB-02 (500 en imágenes huérfanas) + BUG-CB-03 (campos `descripcion`/`codigoBarras` en chatbot) (2026-07-02) | `VarianteServiceImpl.java`, `VarianteController.java`, `ChatbotService.java` |
 | Fix BUG-CB-01 real: prompt del chatbot usaba nombre ambiguo en vez de código de barras para re-buscar imagen (2026-07-02) | `ChatbotService.java` |
 | Fix bug de caché: varias búsquedas de variantes cacheaban sin incluir el rol, exponiendo a clientes normales resultados sin filtrar que un admin había cacheado antes (2026-07-02) | `VarianteServiceImpl.java` |
-| Filtros producto/variante por rol: cliente normal solo ve stock>0 + habilitado + con imagen; nuevo endpoint admin `.../admin/filtrar?filtro=SIN_STOCK\|CON_STOCK\|CON_IMAGENES` paginado, ve todo el catálogo (2026-07-02) | `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`, `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java`, `FiltroCatalogoEnum.java` |
+| Filtros producto/variante por rol: cliente normal solo ve stock>0 + habilitado + con imagen; nuevo endpoint admin `.../admin/filtrar?filtro=SIN_STOCK\|CON_STOCK\|CON_IMAGENES\|CON_STOCK_Y_IMAGENES` paginado, ve todo el catálogo (2026-07-02) | `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`, `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java`, `FiltroCatalogoEnum.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -123,7 +124,7 @@
 | F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-12 | Pantalla de reportes (diario, mensual con gráfica por día, por cliente, productos más vendidos) | Nueva pantalla `/reportes`, solo ADMIN | "Reportes de ventas (2026-07-02)" |
 | F-13 | Pantalla de dashboard (`GET /v1/dashboard/resumen`, 9 cards de métricas) | Nueva pantalla `/dashboard`, solo ADMIN | "Dashboard con métricas (2026-07-02)" |
-| F-14 | Filtros de admin en catálogo de productos/variantes (dropdown: Sin stock / Con stock / Con imágenes) usando `.../admin/filtrar?filtro=...`. Cliente normal NO necesita UI nueva — el listado normal ya viene filtrado por el back. | Panel admin — productos y variantes | "Filtros producto/variante por rol (2026-07-02)" |
+| F-14 | Filtros de admin en catálogo de productos/variantes (dropdown: Sin stock / Con stock / Con imágenes / Con stock y con imágenes) usando `.../admin/filtrar?filtro=...`. Cliente normal NO necesita UI nueva — el listado normal ya viene filtrado por el back. | Panel admin — productos y variantes | "Filtros producto/variante por rol (2026-07-02)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL

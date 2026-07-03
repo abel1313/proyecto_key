@@ -4076,21 +4076,24 @@ Afecta a: `GET /v1/productos/obtenerProductos`, `GET /v1/productos/buscarNombreO
 
 Antes había endpoints sueltos por cada filtro (`admin/sin-stock`, `admin/no-habilitados`, que
 siguen existiendo y funcionando igual). Ahora hay un endpoint único con parámetro `filtro` para
-elegir entre 3 vistas, pensado para un dropdown/select en el panel de admin:
+elegir entre 4 vistas, pensado para un dropdown/select en el panel de admin:
 
 ```
 GET /mis-productos/v1/productos/admin/filtrar?filtro=SIN_STOCK&size=10&page=1
 GET /mis-productos/v1/productos/admin/filtrar?filtro=CON_STOCK&size=10&page=1
 GET /mis-productos/v1/productos/admin/filtrar?filtro=CON_IMAGENES&size=10&page=1
+GET /mis-productos/v1/productos/admin/filtrar?filtro=CON_STOCK_Y_IMAGENES&size=10&page=1
 
 GET /mis-productos/variantes/v1/admin/filtrar?filtro=SIN_STOCK&pagina=1&size=10
 GET /mis-productos/variantes/v1/admin/filtrar?filtro=CON_STOCK&pagina=1&size=10
 GET /mis-productos/variantes/v1/admin/filtrar?filtro=CON_IMAGENES&pagina=1&size=10
+GET /mis-productos/variantes/v1/admin/filtrar?filtro=CON_STOCK_Y_IMAGENES&pagina=1&size=10
 ```
 
-`filtro` es un enum de texto — valores válidos: `SIN_STOCK`, `CON_STOCK`, `CON_IMAGENES`. Ambos
-requieren rol ADMIN (Bearer token). Ojo: productos usa `page`, variantes usa `pagina` (ya era así
-en el resto de los endpoints de cada uno, se mantiene la misma convención).
+`filtro` es un enum de texto — valores válidos: `SIN_STOCK`, `CON_STOCK`, `CON_IMAGENES`,
+`CON_STOCK_Y_IMAGENES`. Ambos requieren rol ADMIN (Bearer token). Ojo: productos usa `page`,
+variantes usa `pagina` (ya era así en el resto de los endpoints de cada uno, se mantiene la misma
+convención).
 
 **Response productos — mismo formato que `admin/sin-stock`:**
 ```json
@@ -4148,6 +4151,9 @@ sin exigir habilitado — a diferencia del listado público):
 - `SIN_STOCK` → `stock = 0`
 - `CON_STOCK` → `stock > 0`
 - `CON_IMAGENES` → tiene al menos una imagen cargada (sin importar stock)
+- `CON_STOCK_Y_IMAGENES` → `stock > 0` **y** tiene al menos una imagen cargada (combina los dos
+  anteriores — es la misma condición que ya se exige al cliente normal, pero aquí sin exigir
+  `habilitado`, para que el admin pueda ver también los que están deshabilitados)
 
 **Archivos nuevos/tocados en el back:** `FiltroCatalogoEnum.java` (nuevo),
 `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`,

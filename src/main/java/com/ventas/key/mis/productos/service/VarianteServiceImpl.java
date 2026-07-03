@@ -638,6 +638,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             case SIN_STOCK -> iVarianteRepository.findByStock(0, pageable);
             case CON_STOCK -> iVarianteRepository.findByStockGreaterThan(0, pageable);
             case CON_IMAGENES -> iVarianteRepository.findConImagen(pageable);
+            case CON_STOCK_Y_IMAGENES -> iVarianteRepository.findConStockYImagenAdmin(pageable);
         };
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
