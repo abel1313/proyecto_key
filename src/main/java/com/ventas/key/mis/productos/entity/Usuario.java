@@ -11,6 +11,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -54,6 +55,14 @@ public class Usuario implements UserDetails {
     @OneToOne(mappedBy = "usuario")
     @JsonManagedReference
     private Cliente cliente;
+
+    @JsonIgnore
+    @Column(name = "codigo_reset_password")
+    private String codigoResetPassword;
+
+    @JsonIgnore
+    @Column(name = "codigo_reset_password_expira")
+    private LocalDateTime codigoResetPasswordExpira;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

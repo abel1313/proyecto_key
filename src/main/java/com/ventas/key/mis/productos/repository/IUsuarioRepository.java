@@ -14,6 +14,7 @@ import java.util.Optional;
 public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     Optional<Usuario> findByUsername(String username);
     boolean existsByUsername(String username);
+    Optional<Usuario> findFirstByEmailIgnoreCase(String email);
 
 
     @Query("""

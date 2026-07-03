@@ -22,16 +22,24 @@
 | 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: sin-stock/con-stock/con-imágenes) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
 | 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (migración corrida en dev/qa, falta en prod) | ⏳ Pendiente front | 2026-07-02 |
 | 13 | Deshabilitar producto/variante en lote (para ocultar datos de prueba) + habilitado propio por variante | ✅ Listo (columna ya existía en dev/qa, falta confirmar en prod) | ⏳ Pendiente front | 2026-07-02 |
+| 14 | Restablecer contraseña olvidada (código de 6 dígitos por correo) + cambiar contraseña logueado (con contraseña actual, sin código) | ✅ Listo (falta correr migración SQL) | ⏳ Pendiente front | 2026-07-03 |
 
 > **Orden:** el ticket (1) va primero porque correo (2) lo necesita.
 > El stock bajo (4) necesita correo (2) ya listo en back.
 > El dashboard (6) necesita los reportes (5).
 
-> **Checkpoint 2026-07-02 (actualizado):**
+> **Checkpoint 2026-07-03 (actualizado):**
 > - ✅ Listos en back (falta front): 1 (ticket), 2 (correo), 5 (reportes), 6 (dashboard), 8/9/10 (chatbot),
->   11 (filtros por rol), 12 (correo/teléfono obligatorios + verificación).
+>   11 (filtros por rol), 12 (correo/teléfono obligatorios + verificación), 13 (deshabilitar en
+>   lote + habilitado por variante), 14 (reset de contraseña + cambiar contraseña logueado).
 > - 🚫 En pausa: 3 (WhatsApp al cliente).
 > - ⏳ Sin arrancar ni back ni front: 4 (stock bajo), 7 (devoluciones).
+> - 📄 Documentado, sin implementar: uso de hilos/async para envío de correos — ver
+>   `HILOS_Y_CONCURRENCIA.md` (guía completa + qué endpoints conviene tocar y cuáles no).
+> - **Migraciones SQL pendientes de correr en prod** (dev/qa ya están al día): 
+>   `migration_verificacion_correo.sql`, `migration_habilitado_variantes.sql` (columna ya existía
+>   en dev/qa, confirmar en prod primero con `DESCRIBE variantes` — puede que tampoco haga falta),
+>   `migration_reset_password.sql`.
 > - Sueltos sin cerrar: confirmar migración `monto_dado` en BD de producción; respuesta del front
 >   sobre si necesitan `tiendaUrl` desde el back (`GET /v1/negocio/contactos`) o usan `window.location.origin`;
 >   decidir qué hacer con las 4 filas "Mochila Prada" duplicadas; BUG-CB-01 pendiente de corrección
@@ -95,6 +103,12 @@
 >   `savePedido`). El carrito vivía en `localStorage`/`sessionStorage` del navegador sin limpiarse
 >   al cerrar sesión (mismo patrón que el bug ya resuelto de `sesionId` del chat). El front ya lo
 >   solucionó, no requirió cambios en este repo.
+> - **PENDIENTE (2026-07-03, sin arrancar) — usar hilos para envíos de correo/notificaciones:**
+>   se detectó que `EmailService` (tickets, códigos de verificación, reset de contraseña) corre
+>   síncrono en el hilo del request — si el SMTP tarda, el usuario espera hasta el timeout (5s en
+>   QA). Guía completa de cómo implementarlo (conceptos de hilos, `@Async`, `CompletableFuture`,
+>   virtual threads) y auditoría de qué endpoints conviene tocar (y cuáles NO) en
+>   `HILOS_Y_CONCURRENCIA.md`. Nada implementado todavía, solo documentado para retomar.
 
 > **Decisión 2026-07-01 — WhatsApp EN PAUSA:** se descartó implementar el envío del ticket por
 > WhatsApp al cliente. CallMeBot (gratis, ya programado en el back) solo le avisa al negocio, no
@@ -155,6 +169,8 @@
 | F-14 | Filtros de admin en catálogo de productos/variantes (dropdown: Sin stock / Con stock / Con imágenes / Con stock y con imágenes) usando `.../admin/filtrar?filtro=...`. Cliente normal NO necesita UI nueva — el listado normal ya viene filtrado por el back. | Panel admin — productos y variantes | "Filtros producto/variante por rol (2026-07-02)" |
 | F-15 | Correo/teléfono obligatorios al crear/editar cliente + pantalla de verificación de correo (input de 6 dígitos, botón reenviar) antes de dejar generar un pedido | Alta de cliente / cuenta online, previo a carrito-pedido | "Verificación de correo del cliente (2026-07-02)" |
 | F-16 | Selección múltiple (checkboxes) en la lista paginada de productos/variantes del panel admin + botón "deshabilitar seleccionados" que llame `admin/habilitar-lote` con los IDs marcados | Panel admin — productos y variantes | "Deshabilitar productos/variantes en lote (2026-07-02)" |
+| F-17 | Pantalla "olvidé mi contraseña": input de correo → input de código de 6 dígitos + nueva contraseña (mismo formulario, se revela el segundo campo cuando terminan de escribir el código) | Login, link "olvidé mi contraseña" | "Restablecer contraseña olvidada (2026-07-03)" |
+| F-18 | Formulario "cambiar contraseña" (contraseña actual + nueva) usando `PUT /v1/auth/cambiar-password` — requiere sesión, no pide código | Pantalla de perfil/mi cuenta | "Cambiar contraseña estando logueado (2026-07-03)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL

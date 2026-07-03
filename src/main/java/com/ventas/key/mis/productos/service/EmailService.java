@@ -50,4 +50,17 @@ public class EmailService {
                 + "<p>Este código vence en 15 minutos. Si tú no solicitaste esta verificación, ignora este correo.</p>";
         return enviarTicket(destinatario, asunto, html);
     }
+
+    /**
+     * Envía el código para restablecer contraseña (6 dígitos, expira en 15 minutos).
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarCodigoResetPassword(String destinatario, String codigo) {
+        String asunto = "Restablecer tu contraseña — Novedades Jade";
+        String html = "<p>Tu código para restablecer la contraseña es:</p>"
+                + "<h2>" + codigo + "</h2>"
+                + "<p>Este código vence en 15 minutos. Si tú no solicitaste este cambio, ignora este correo — "
+                + "tu contraseña actual sigue siendo válida.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
 }

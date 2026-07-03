@@ -4281,3 +4281,69 @@ también exigen `v.habilitado = '1'`), `VarianteServiceImpl.java`, `VarianteCont
 `ProductosServiceImpl.java`, `ProductosControllerImpl.java`. Migración:
 `migration_habilitado_variantes.sql` (agrega columna a `variantes`, default `'1'` para no afectar
 datos existentes — pendiente de correr en dev/qa/prod).
+
+## Restablecer contraseña olvidada (2026-07-03) — acción requerida en el front
+
+Mismo patrón que la verificación de correo: código de 6 dígitos por correo, vence en 15 minutos.
+Dos pasos, dos endpoints:
+
+```
+POST /v1/auth/olvide-password
+Body: { "email": "cliente@correo.com" }
+
+POST /v1/auth/restablecer-password
+Body: { "email": "cliente@correo.com", "codigo": "123456", "nuevaPassword": "miNuevaClave" }
+```
+
+**Paso 1 — `olvide-password`:** manda el código al correo. **Siempre responde `200`**, exista o
+no una cuenta con ese correo — es intencional, para no revelar si un correo está registrado en el
+sistema (protección contra enumeración de cuentas). El front debe mostrar el mismo mensaje
+("revisa tu correo") sin importar el resultado, no puede usar la respuesta para saber si el
+correo existe.
+
+**Paso 2 — `restablecer-password`:** valida el código y, si es correcto y no venció, actualiza la
+contraseña. Responde `200` en éxito, `400` con mensaje `"Codigo invalido o expirado"` si el
+código está mal, venció, o no hay cuenta con ese correo (mismo mensaje genérico en los 3 casos,
+misma razón de seguridad que el paso 1).
+
+**Sobre el flujo de UX que describiste (código primero, campo de nueva contraseña después):** no
+hay un endpoint separado para "solo validar el código" — el back valida y cambia la contraseña en
+el mismo request. El front puede armar la pantalla en dos pasos visuales (mostrar el campo de
+"nueva contraseña" recién cuando el usuario terminó de escribir los 6 dígitos) sin necesidad de
+otra llamada al back; si el código resulta incorrecto, el error sale hasta que se manda el
+formulario completo (mismo comportamiento que cualquier validación de formulario).
+
+**Nota de seguridad:** esto NO cierra las sesiones activas del usuario — si tenía un access/refresh
+token válido en otro dispositivo, sigue funcionando hasta que expire naturalmente (15 min / 7
+días). No hay revocación de tokens implementada todavía; avisar si esto es un problema para
+retomarlo.
+
+**Archivos tocados en el back:** `Usuario.java` (2 campos nuevos), `IUsuarioRepository.java`,
+`OlvidePasswordRequest.java` (nuevo), `RestablecerPasswordRequest.java` (nuevo),
+`PasswordResetService.java` (nuevo), `EmailService.java`, `AuthController.java`,
+`SecurityConfig.java` (los 2 endpoints nuevos son públicos, como `/login`). Migración:
+`migration_reset_password.sql` (agrega 2 columnas a `usuario_modificacion` — pendiente de correr
+en dev/qa/prod).
+
+### Cambiar contraseña estando logueado — endpoint distinto, sin código por correo
+
+```
+PUT /v1/auth/cambiar-password
+Header: Authorization: Bearer {accessToken}
+Body: { "passwordActual": "claveVieja", "nuevaPassword": "claveNueva" }
+```
+
+Requiere sesión válida (JWT) — no manda `username` ni `email` en el body, el back identifica al
+usuario por el token. Pide la contraseña actual en vez de código por correo porque el usuario ya
+está autenticado (re-autenticar con la contraseña actual es la protección estándar para que una
+sesión abierta/robada no pueda cambiar la contraseña sin más).
+
+- `200` con `"Contrasena actualizada correctamente"`.
+- `400` con `"La contrasena actual es incorrecta"` si `passwordActual` no coincide.
+- `401` si el token no es válido/expiró (igual que cualquier endpoint protegido).
+
+Va en la pantalla de "mi cuenta"/perfil, no en el login — ese caso sigue siendo
+`olvide-password` + `restablecer-password` de la sección anterior.
+
+**Archivos:** `CambiarPasswordRequest.java` (nuevo), `PasswordResetService.java`,
+`AuthController.java`. No requiere migración (usa las columnas de `password` que ya existían).
