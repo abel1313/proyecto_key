@@ -50,6 +50,9 @@ public class AuthController {
     @Value("${server.servlet.context-path:}")
     private String contextPath;
 
+    @Value("${seguridad.rate-limit-habilitado:true}")
+    private boolean rateLimitHabilitado;
+
     private static final String REFRESH_COOKIE = "refreshToken";
     private static final int REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 días en segundos
 
@@ -68,12 +71,12 @@ public class AuthController {
         // Normalizar a minúsculas para que "Admin", "ADMIN" y "admin" compartan el mismo bucket
         String usernameKey = "usr:" + request.getUserName().toLowerCase().trim();
 
-        if (!rateLimiterService.tryConsume(clientIp)) {
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(clientIp)) {
             log.warn("Rate limit por IP excedido: {}", clientIp);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos fallidos. Intente de nuevo en 15 minutos.");
         }
-        if (!rateLimiterService.tryConsume(usernameKey)) {
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(usernameKey)) {
             log.warn("Rate limit por usuario excedido: {}", request.getUserName());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos fallidos. Intente de nuevo en 15 minutos.");
@@ -153,7 +156,7 @@ public class AuthController {
     public ResponseEntity<?> registrar(@Valid @RequestBody RegistroRequest request,
                                        HttpServletRequest httpRequest) throws Exception {
         String clientIp = resolverIp(httpRequest);
-        if (!rateLimiterService.tryConsume(clientIp)) {
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(clientIp)) {
             log.warn("Rate limit de registro excedido para IP: {}", clientIp);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos de registro. Intente de nuevo en 15 minutos.");
