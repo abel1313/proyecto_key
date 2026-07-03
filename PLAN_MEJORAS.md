@@ -21,6 +21,7 @@
 | 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
 | 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: sin-stock/con-stock/con-imágenes) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
 | 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (migración corrida en dev/qa, falta en prod) | ⏳ Pendiente front | 2026-07-02 |
+| 13 | Deshabilitar producto/variante en lote (para ocultar datos de prueba) + habilitado propio por variante | ✅ Listo (columna ya existía en dev/qa, falta confirmar en prod) | ⏳ Pendiente front | 2026-07-02 |
 
 > **Orden:** el ticket (1) va primero porque correo (2) lo necesita.
 > El stock bajo (4) necesita correo (2) ya listo en back.
@@ -153,6 +154,7 @@
 | F-13 | Pantalla de dashboard (`GET /v1/dashboard/resumen`, 9 cards de métricas) | Nueva pantalla `/dashboard`, solo ADMIN | "Dashboard con métricas (2026-07-02)" |
 | F-14 | Filtros de admin en catálogo de productos/variantes (dropdown: Sin stock / Con stock / Con imágenes / Con stock y con imágenes) usando `.../admin/filtrar?filtro=...`. Cliente normal NO necesita UI nueva — el listado normal ya viene filtrado por el back. | Panel admin — productos y variantes | "Filtros producto/variante por rol (2026-07-02)" |
 | F-15 | Correo/teléfono obligatorios al crear/editar cliente + pantalla de verificación de correo (input de 6 dígitos, botón reenviar) antes de dejar generar un pedido | Alta de cliente / cuenta online, previo a carrito-pedido | "Verificación de correo del cliente (2026-07-02)" |
+| F-16 | Selección múltiple (checkboxes) en la lista paginada de productos/variantes del panel admin + botón "deshabilitar seleccionados" que llame `admin/habilitar-lote` con los IDs marcados | Panel admin — productos y variantes | "Deshabilitar productos/variantes en lote (2026-07-02)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL

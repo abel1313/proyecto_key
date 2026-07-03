@@ -648,6 +648,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    @Transactional
+    public void habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
+        List<Variantes> variantes = iVarianteRepository.findAllById(ids);
+        variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
+        iVarianteRepository.saveAll(variantes);
+        evictAllCaches();
+    }
+
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {
         DiagnosticoImagenVarianteDto dto = new DiagnosticoImagenVarianteDto();
         dto.setVarianteId(varianteId);

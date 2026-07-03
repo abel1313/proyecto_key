@@ -47,22 +47,22 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     Page<Variantes> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(int stock, char habilitado, String nombre, Pageable pageable);
 
-    // --- listado público: stock + habilitado + con imagen (cliente normal) ---
-    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+    // --- listado público: stock + habilitado (producto Y variante) + con imagen (cliente normal) ---
+    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findConStockYImagenPublico(Pageable pageable);
 
-    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
            "AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :codigoBarras, '%') " +
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findByCodigoBarrasPublico(@Param("codigoBarras") String codigoBarras, Pageable pageable);
 
-    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
            "AND LOWER(v.palabraClave.nombre) = LOWER(:nombre) " +
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findByPalabraClavePublico(@Param("nombre") String nombre, Pageable pageable);
 
-    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+    @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
            "AND LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :nombre, '%')) " +
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findByNombrePublico(@Param("nombre") String nombre, Pageable pageable);
@@ -80,13 +80,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
-                   "WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+                   "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
                    "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
                    "OR (v.producto.codigoBarras IS NOT NULL AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))",
            countQuery = "SELECT COUNT(v) FROM Variantes v LEFT JOIN v.palabraClave pc " +
-                        "WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+                        "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
                         "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
