@@ -14,6 +14,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -46,8 +48,7 @@ public class Cliente extends BaseId{
       @Column(name = "apeido_paterno")
       private String apeidoPaterno;
 
-      @NotEmpty(message = "El apeido materno no deberia ir vacio")
-      @NotNull( message = "El apeido materno es requerido")
+      // Opcional desde mejora 15 (PLAN_MEJORAS.md) — antes era obligatorio (@NotEmpty/@NotNull).
       @Column(name = "apeido_materno")
       private String apeidoMaterno;
       @Column(name = "fecha_nacimiento")
@@ -74,6 +75,16 @@ public class Cliente extends BaseId{
       @Column(name = "codigo_verificacion_expira")
       private LocalDateTime codigoVerificacionExpira;
 
+      // Correo nuevo escrito por el cliente, esperando verificacion (mejora 15). correoElectronico
+      // NO cambia hasta que se verifique este valor con el codigo enviado aqui.
+      @Column(name = "correo_pendiente")
+      private String correoPendiente;
+
+      // true = nombre/apeidoPaterno/numeroTelefonico/correoElectronico ya estan llenos (mejora 15).
+      // Se recalcula solo en cada guardado, ver recalcularDatosCompletos().
+      @Column(name = "datos_completos")
+      private Boolean datosCompletos = Boolean.FALSE;
+
     @OneToOne
     @JoinColumn(name = "usuario_id")
     @JsonBackReference
@@ -82,6 +93,15 @@ public class Cliente extends BaseId{
       @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, orphanRemoval = true)
       @JsonManagedReference
       private Set<Direccion> listDirecciones;
+
+      @PrePersist
+      @PreUpdate
+      private void recalcularDatosCompletos() {
+            this.datosCompletos = nombrePersona != null && !nombrePersona.isBlank()
+                  && apeidoPaterno != null && !apeidoPaterno.isBlank()
+                  && numeroTelefonico != null && !numeroTelefonico.isBlank()
+                  && correoElectronico != null && !correoElectronico.isBlank();
+      }
 
       public Cliente(
             String nombrePersona,

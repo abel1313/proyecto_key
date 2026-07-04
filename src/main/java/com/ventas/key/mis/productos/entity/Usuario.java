@@ -64,6 +64,17 @@ public class Usuario implements UserDetails {
     @Column(name = "codigo_reset_password_expira")
     private LocalDateTime codigoResetPasswordExpira;
 
+    @Column(name = "correo_verificado")
+    private Boolean correoVerificado = Boolean.FALSE;
+
+    @JsonIgnore
+    @Column(name = "codigo_verificacion")
+    private String codigoVerificacion;
+
+    @JsonIgnore
+    @Column(name = "codigo_verificacion_expira")
+    private LocalDateTime codigoVerificacionExpira;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();
@@ -78,7 +89,9 @@ public class Usuario implements UserDetails {
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled() { return enabled; }
+
+    /** Sin correo verificado no se puede loguear (mejora 15) — Spring Security rechaza con DisabledException. */
+    @Override public boolean isEnabled() { return Boolean.TRUE.equals(enabled) && Boolean.TRUE.equals(correoVerificado); }
 
     @Override
     public String toString() {

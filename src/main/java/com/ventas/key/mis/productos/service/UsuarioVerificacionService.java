@@ -1,0 +1,75 @@
+package com.ventas.key.mis.productos.service;
+
+import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.repository.IUsuarioRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+
+/**
+ * Verificacion de correo del Usuario (login) al registrarse — mejora 15, PLAN_MEJORAS.md.
+ * Mismo patron de codigo de 6 digitos que ya usa ClienteServiceImpl para el correo del Cliente,
+ * pero aqui ademas se auto-crea el Cliente vinculado la primera vez que se verifica.
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class UsuarioVerificacionService {
+
+    private static final int CODIGO_EXPIRA_MINUTOS = 15;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private final IUsuarioRepository usuarioRepository;
+    private final EmailService emailService;
+    private final ClienteServiceImpl clienteService;
+
+    @Transactional
+    public void enviarCodigoVerificacion(String usernameOEmail) {
+        Usuario usuario = buscarPorUsernameOEmail(usernameOEmail);
+        if (usuario.getEmail() == null || usuario.getEmail().isBlank()) {
+            throw new RuntimeException("El usuario no tiene correo registrado");
+        }
+        if (Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
+            throw new RuntimeException("El correo ya esta verificado");
+        }
+        String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
+        usuario.setCodigoVerificacion(codigo);
+        usuario.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
+        usuarioRepository.save(usuario);
+        emailService.enviarCodigoVerificacion(usuario.getEmail(), codigo);
+    }
+
+    @Transactional
+    public void verificarCorreo(String usernameOEmail, String codigo) {
+        Usuario usuario = buscarPorUsernameOEmail(usernameOEmail);
+        if (Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
+            return;
+        }
+        if (usuario.getCodigoVerificacion() == null || !usuario.getCodigoVerificacion().equals(codigo)) {
+            throw new RuntimeException("Codigo de verificacion invalido");
+        }
+        if (usuario.getCodigoVerificacionExpira() == null
+                || LocalDateTime.now().isAfter(usuario.getCodigoVerificacionExpira())) {
+            throw new RuntimeException("El codigo de verificacion expiro, solicita uno nuevo");
+        }
+        usuario.setCorreoVerificado(true);
+        usuario.setCodigoVerificacion(null);
+        usuario.setCodigoVerificacionExpira(null);
+        usuarioRepository.save(usuario);
+
+        // Auto-alta del Cliente vinculado — solo la primera vez (si ya tiene uno, no se toca).
+        if (usuario.getCliente() == null) {
+            clienteService.crearClienteDesdeRegistro(usuario, usuario.getEmail());
+        }
+    }
+
+    private Usuario buscarPorUsernameOEmail(String usernameOEmail) {
+        return usuarioRepository.findByUsername(usernameOEmail)
+                .or(() -> usuarioRepository.findFirstByEmailIgnoreCase(usernameOEmail))
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    }
+}

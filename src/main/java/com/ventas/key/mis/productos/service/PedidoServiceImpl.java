@@ -104,6 +104,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (!Boolean.TRUE.equals(cliente.getCorreoVerificado())) {
             throw new RuntimeException("Debes verificar tu correo antes de generar un pedido");
         }
+        if (!Boolean.TRUE.equals(cliente.getDatosCompletos())) {
+            throw new RuntimeException("Debes completar tus datos (nombre, apellido paterno, telefono) antes de generar un pedido");
+        }
         Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
         pedido.setEstadoPedido(requestG.getEstadoPedido());
