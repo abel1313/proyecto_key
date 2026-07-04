@@ -90,8 +90,14 @@ public class Usuario implements UserDetails {
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
 
-    /** Sin correo verificado no se puede loguear (mejora 15) — Spring Security rechaza con DisabledException. */
-    @Override public boolean isEnabled() { return Boolean.TRUE.equals(enabled) && Boolean.TRUE.equals(correoVerificado); }
+    /**
+     * Sin correo verificado no se puede loguear (mejora 15) — Spring Security rechaza con
+     * DisabledException. El rol ADMIN queda exento: no se le exige verificar correo para entrar.
+     */
+    @Override public boolean isEnabled() {
+        boolean esAdmin = roles != null && "ROLE_ADMIN".equals(roles.getNombreRol());
+        return Boolean.TRUE.equals(enabled) && (esAdmin || Boolean.TRUE.equals(correoVerificado));
+    }
 
     @Override
     public String toString() {
