@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
@@ -58,10 +59,43 @@ public class ClienteControllerImpl extends AbstractController<
     @Override
     public ResponseEntity<ResponseGeneric<Cliente>> save(Cliente requestG, BindingResult result) {
         Optional<Usuario> usr = this.usuarioDetailsService.findById(requestG.getUsuario().getId().intValue());
+        Cliente existente = null;
         if (usr.isPresent()) {
             requestG.setUsuario(usr.get());
             if (usr.get().getCliente() != null && usr.get().getCliente().getId() != null) {
                 requestG.setId(usr.get().getCliente().getId());
+                existente = usr.get().getCliente();
+            }
+        }
+
+        // El guardado generico hace merge() del objeto completo (repository.save) — cualquier
+        // campo administrado por el back que el front no mande en el JSON se pisaria con el
+        // default de la clase (false/null). Hay que preservarlos explicitamente (mejora 12/15).
+        boolean disparaVerificacionCorreoNuevo = false;
+        if (existente != null) {
+            requestG.setCodigoVerificacion(existente.getCodigoVerificacion());
+            requestG.setCodigoVerificacionExpira(existente.getCodigoVerificacionExpira());
+
+            String correoNuevo = requestG.getCorreoElectronico();
+            String correoActual = existente.getCorreoElectronico();
+            boolean cambioDeCorreo = correoNuevo != null && !correoNuevo.equalsIgnoreCase(correoActual);
+            if (cambioDeCorreo && !AuthenticationUtils.isAdminContext()) {
+                // Mejora 15: el correo nuevo NO se aplica de inmediato — queda pendiente de
+                // verificar. El correo actual (ya verificado) sigue siendo el vigente.
+                // Un ADMIN editando al cliente queda fuera de esta regla (aplica directo, sin
+                // pedir verificacion) — decisión explícita del diseño, mejora 15 punto 12.
+                requestG.setCorreoElectronico(correoActual);
+                requestG.setCorreoPendiente(correoNuevo);
+                requestG.setCorreoVerificado(existente.getCorreoVerificado());
+                disparaVerificacionCorreoNuevo = true;
+            } else if (cambioDeCorreo) {
+                // Admin cambiando el correo: se aplica directo y queda verificado (confía en el
+                // admin), sin dejar nada pendiente.
+                requestG.setCorreoVerificado(true);
+                requestG.setCorreoPendiente(null);
+            } else {
+                requestG.setCorreoPendiente(existente.getCorreoPendiente());
+                requestG.setCorreoVerificado(existente.getCorreoVerificado());
             }
         }
 
@@ -82,7 +116,17 @@ public class ClienteControllerImpl extends AbstractController<
                 .collect(Collectors.toSet());
 
         requestG.setListDirecciones(direcciones);
-        return super.save(requestG, result);
+        ResponseEntity<ResponseGeneric<Cliente>> response = super.save(requestG, result);
+
+        if (disparaVerificacionCorreoNuevo && requestG.getId() != null) {
+            try {
+                sGenerico.enviarCodigoVerificacionCorreo(requestG.getId());
+            } catch (Exception e) {
+                log.warn("No se pudo enviar el codigo de verificacion tras cambio de correo de clienteId={}: {}",
+                        requestG.getId(), e.getMessage());
+            }
+        }
+        return response;
     }
 
     @Operation(summary = "Buscar cliente por ID de cliente", description = "Retorna el cliente cuyo ID coincide con el parametro idCliente.")

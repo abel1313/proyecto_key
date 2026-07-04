@@ -5,12 +5,15 @@ import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
+import com.ventas.key.mis.productos.models.EnviarCodigoVerificacionUsuarioRequest;
 import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
 import com.ventas.key.mis.productos.models.RegistroRequest;
 import com.ventas.key.mis.productos.models.RestablecerPasswordRequest;
+import com.ventas.key.mis.productos.models.VerificarCorreoUsuarioRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
+import com.ventas.key.mis.productos.service.UsuarioVerificacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,6 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -48,6 +52,7 @@ public class AuthController {
     private final PasswordResetService passwordResetService;
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
+    private final UsuarioVerificacionService usuarioVerificacionService;
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
@@ -101,6 +106,10 @@ public class AuthController {
         } catch (BadCredentialsException e) {
             log.warn("Intento de login fallido para usuario: {} desde IP: {}", request.getUserName(), clientIp);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
+        } catch (DisabledException e) {
+            log.warn("Login rechazado por correo sin verificar: {}", request.getUserName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Debes verificar tu correo antes de iniciar sesión");
         } catch (Exception e) {
             log.error("Error inesperado en login: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la solicitud");
@@ -167,6 +176,45 @@ public class AuthController {
                     .body("Demasiados intentos de registro. Intente de nuevo en 15 minutos.");
         }
         return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail()));
+    }
+
+    @Operation(summary = "Enviar codigo de verificacion de correo (registro)", description = "Genera un codigo de 6 digitos (expira en 15 minutos) y lo envia al correo del usuario recien registrado. El usuario no puede iniciar sesion hasta verificarlo. Rate-limit independiente del de login/registro.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Codigo enviado"),
+        @ApiResponse(responseCode = "400", description = "Usuario no encontrado, sin correo, o ya verificado"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
+    })
+    @PostMapping("/enviar-codigo-verificacion")
+    public ResponseEntity<?> enviarCodigoVerificacionUsuario(@Valid @RequestBody EnviarCodigoVerificacionUsuarioRequest request) {
+        String rateLimitKey = "verif-usr:" + request.getUserName().toLowerCase().trim();
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(rateLimitKey)) {
+            log.warn("Rate limit de verificacion de correo excedido para: {}", request.getUserName());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
+        try {
+            usuarioVerificacionService.enviarCodigoVerificacion(request.getUserName());
+            return ResponseEntity.ok("Codigo enviado al correo registrado");
+        } catch (Exception e) {
+            log.warn("Error al enviar codigo de verificacion para {}: {}", request.getUserName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "Verificar correo con codigo (registro)", description = "Valida el codigo de 6 digitos enviado al correo del usuario. Si es correcto y no expiro, marca el correo como verificado, habilita el login, y auto-crea el Cliente vinculado la primera vez.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Correo verificado correctamente, ya puede iniciar sesion"),
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado")
+    })
+    @PostMapping("/verificar-correo")
+    public ResponseEntity<?> verificarCorreoUsuario(@Valid @RequestBody VerificarCorreoUsuarioRequest request) {
+        try {
+            usuarioVerificacionService.verificarCorreo(request.getUserName(), request.getCodigo());
+            return ResponseEntity.ok("Correo verificado correctamente");
+        } catch (Exception e) {
+            log.warn("Error al verificar correo para {}: {}", request.getUserName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
     @Operation(summary = "Solicitar reseteo de contrasena", description = "Envia un codigo de 6 digitos al correo (vence en 15 minutos). Responde 200 exista o no la cuenta, para no revelar si un correo esta registrado.")
