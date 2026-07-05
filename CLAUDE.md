@@ -63,11 +63,31 @@ El merge solo mueve código Java, nunca sobreescribe los YMLs del ambiente desti
 
 ## Regla — documentar migración de endpoints en CAMBIOS_FRONT.md
 
+`CAMBIOS_FRONT.md` es la **única fuente de verdad** para endpoints y cambios de contrato de cara
+al front. Otros archivos `.md` de endpoints en la raíz del proyecto (`API_CONTRATOS.md`,
+`ENDPOINTS_FRONT.md`, `ENDPOINT_FRONT.md`, `cambios_y_endpoints.md`, `endpoints_palabras_clave.md`,
+`ENDPOINTS_MIGRACION_V1.md`) están marcados como desactualizados — no se mantienen, no confiar en
+ellos, y no crear documentos nuevos de este tipo: todo va en `CAMBIOS_FRONT.md`.
+
 Cada vez que se migre un endpoint (se cree una versión v2), documentar en `CAMBIOS_FRONT.md`:
 - **Request:** método HTTP + URL completa con contexto (`/mis-productos/...`) + params si aplica
 - **Response:** solo los campos que el front necesita consumir; si el response es grande, recortar al mínimo útil (omitir campos internos, IDs de disco, rutas de servidor). Si es binario (bytes), indicar el Content-Type y que el body son bytes, no JSON.
 - Indicar claramente qué cambia respecto a la versión anterior (diferencia clave)
 - Si hay 204/404/500 posibles, documentarlos con una línea cada uno
+
+### Checklist obligatorio antes de decir "ya quedó documentado"
+
+No basta con documentar lo último que se dijo. Antes de dar por cerrada la documentación de una
+sesión de cambios de backend:
+1. Releer **toda** la conversación de la sesión (no solo el último mensaje) y listar mentalmente
+   cada endpoint, campo, flujo o comportamiento que se haya mencionado como necesario para el front.
+2. Verificar, uno por uno, que cada punto de esa lista tenga su párrafo correspondiente en
+   `CAMBIOS_FRONT.md` — no asumir que "ya quedó" sin releer el archivo.
+3. Si algo del código ya se comportaba de cierta forma antes de la sesión (no fue un cambio nuevo)
+   pero el usuario preguntó por eso explícitamente, documentarlo igual — evita que se vuelva a
+   preguntar después.
+4. Si se corrige un bug de autorización/seguridad, documentar también el "antes" (qué fallaba) y
+   el "después", no solo el endpoint nuevo — el front necesita saber qué comportamiento cambia.
 
 ## JWT — Configuración y problema conocido resuelto
 

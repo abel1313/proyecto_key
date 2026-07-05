@@ -1,5 +1,8 @@
 # ENDPOINTS DEL PROYECTO
 
+> ⚠️ **DOCUMENTO DESACTUALIZADO (detectado 2026-07-04).** La fuente de verdad actual es
+> **`CAMBIOS_FRONT.md`**. No usar este archivo para trabajo nuevo.
+
 > **URLs base**
 > - **Proyecto-Key (9091):** `http://localhost:9091/mis-productos`
 > - **Micro Imágenes (9096):** `http://localhost:9096/mis-productos`
