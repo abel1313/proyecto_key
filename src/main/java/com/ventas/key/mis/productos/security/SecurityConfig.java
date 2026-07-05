@@ -130,6 +130,11 @@ public class SecurityConfig {
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers("/v1/abonos/**").hasRole("ADMIN")
 
+                        // ── Promociones (catalogo para cualquier autenticado; gestion ADMIN) ─
+                        .requestMatchers(HttpMethod.GET, "/v1/promociones/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()
+                        .requestMatchers("/v1/promociones/**").hasRole("ADMIN")
+
                         // ── Ventas ────────────────────────────────────────────────────────
                         .requestMatchers("/v1/ventas/**").hasRole("ADMIN")
 

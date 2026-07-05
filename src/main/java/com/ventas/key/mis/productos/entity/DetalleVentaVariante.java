@@ -41,4 +41,8 @@ public class DetalleVentaVariante extends BaseId {
 
     @Column(name = "fecha_venta", nullable = false)
     private LocalDate fechaVenta;
+
+    @ManyToOne
+    @JoinColumn(name = "promocion_id")
+    private Promocion promocion;
 }

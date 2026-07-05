@@ -15,4 +15,6 @@ public class DetalleItemResponse {
     private Integer cantidad;
     private Double precioUnitario;
     private Double subTotal;
+    private Integer promocionId;
+    private String promocionDescripcion;
 }
