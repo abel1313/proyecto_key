@@ -31,28 +31,26 @@ public class ResponseGeneric<T> {
     }
 
         public ResponseGeneric(T data, String mensaje){
-        if( data == null){
-            this.data = null;
-            this.code = 404;
-            this.mensaje = mensaje;
-        }
+        this.data = data;
+        this.mensaje = mensaje;
+        this.code = (data == null) ? 404 : 200;
     }
 
         public ResponseGeneric(List<T> lista){
+        this.lista = lista;
         if( lista == null || lista.isEmpty() ){
-            this.lista = lista;
             this.code = 404;
             this.mensaje = "Ocurrio un error en la peticion";
+        }else{
+            this.code = 200;
+            this.mensaje = "La peticion fue exitosa";
         }
-        this.lista = lista;
     }
 
         public ResponseGeneric(List<T> lista, String mensaje){
-        if( lista == null || lista.isEmpty() ){
-            this.lista = lista;
-            this.code = 404;
-            this.mensaje = mensaje;
-        }
+        this.lista = lista;
+        this.mensaje = mensaje;
+        this.code = (lista == null || lista.isEmpty()) ? 404 : 200;
     }
 
 }

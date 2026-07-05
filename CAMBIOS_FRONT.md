@@ -4579,6 +4579,15 @@ PUT /v1/usuarios/{id}/resetear-password
 - Genera una contraseña aleatoria de 8 caracteres (letras mayúsculas/minúsculas + dígitos, sin
   `0/O/1/l/I` para no confundir al dictarla), se la asigna al usuario y marca internamente
   `passwordTemporal = true`.
+
+> **[BUG-KEY-12] ✅ Fix (2026-07-04):** al probar este endpoint, el response llegaba vacío
+> `{ "mensaje": null, "code": 0, "data": null, "lista": null }` a pesar de responder `200`. Causa:
+> el constructor de 2 argumentos de `ResponseGeneric` (`ResponseGeneric.java`) solo llenaba los
+> campos cuando `data` era `null` — el caso de éxito (con datos reales) nunca los asignaba. Era un
+> bug preexistente en una clase muy usada en todo el back; nadie lo había notado porque hasta hoy
+> todos los demás usos de ese constructor pasaban `null` a propósito (casos de error). Ya
+> corregido — el `data`/`mensaje`/`code` ahora sí llegan bien en la respuesta de este endpoint (y
+> de cualquier otro que use ese mismo constructor con datos reales en el futuro).
 - Responde `200` con `{ "data": "aB3dEfG9", "mensaje": "Contrasena reseteada. Comparte esta
   contrasena con el usuario; debera cambiarla en su siguiente login." }` — **el front debe
   mostrarle esa contraseña (`data`) al admin en pantalla** para que se la pueda dar al usuario;
