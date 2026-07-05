@@ -35,10 +35,19 @@ loguearse). Esto pasa cuando un admin le reseteó la contraseña (ver punto 3).
 ```
 PUT /v1/usuarios/{id}/resetear-password
 ```
-- Solo ADMIN. Sin body.
+- Solo ADMIN. **`{id}` va en la URL (path variable), no en el body — no se manda body en esta
+  petición**, tal cual ya lo estabas probando (`/v1/usuarios/46/resetear-password`).
 - Responde `200` con `{ "data": "aB3dEfG9", "mensaje": "..." }` — `data` es la contraseña nueva
   generada al azar. **Hay que mostrarla en pantalla al admin** (no se puede volver a consultar
   después) para que se la dé al usuario.
+
+> **[BUG-KEY-12] ✅ Fix (2026-07-04):** al probar este endpoint el response llegaba vacío
+> (`{ mensaje: null, code: 0, data: null, lista: null }`) pese a responder `200`. Era un bug
+> preexistente en `ResponseGeneric` (clase usada en todo el back): su constructor de 2 argumentos
+> solo llenaba los campos en el caso de error, nunca en el de éxito con datos reales — nadie lo
+> había notado porque hasta ahora todos los demás usos pasaban `null` a propósito. Ya corregido y
+> subido a `dev`/`qa`. Cuando se redespliegue QA, este endpoint ya debe traer la contraseña en
+> `data` correctamente.
 
 ## 4. Panel de Usuarios (admin) — verificar correo de un usuario
 
