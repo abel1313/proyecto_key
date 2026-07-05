@@ -1,5 +1,10 @@
 # API Contratos — Micro Imágenes + Proyecto Key
 
+> ⚠️ **DOCUMENTO DESACTUALIZADO (detectado 2026-07-04).** La fuente de verdad actual para
+> endpoints y cambios de contrato es **`CAMBIOS_FRONT.md`**. Este archivo puede tener
+> información obsoleta (ejemplo confirmado: la sección de `/v1/auth/login` ya no coincide con el
+> código real) — no usarlo para trabajo nuevo sin verificar contra el código o `CAMBIOS_FRONT.md`.
+
 > Documento de referencia backend: request exacto, response shape, excepciones y llamadas entre micros.
 >
 > **URLs base**

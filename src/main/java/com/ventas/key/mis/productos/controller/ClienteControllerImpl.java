@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
@@ -7,6 +8,7 @@ import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.VerificarCorreoRequest;
 import com.ventas.key.mis.productos.service.ClienteServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioDetailsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,11 +58,52 @@ public class ClienteControllerImpl extends AbstractController<
     })
     @Override
     public ResponseEntity<ResponseGeneric<Cliente>> save(Cliente requestG, BindingResult result) {
+        Integer usuarioIdSolicitado = requestG.getUsuario() != null ? requestG.getUsuario().getId() : null;
+        if (!AuthenticationUtils.isAdminContext()
+                && (usuarioIdSolicitado == null
+                    || !usuarioIdSolicitado.equals(AuthenticationUtils.currentUsuario().getId()))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ResponseGeneric<>(null, "No puedes modificar datos de otro usuario"));
+        }
+
         Optional<Usuario> usr = this.usuarioDetailsService.findById(requestG.getUsuario().getId().intValue());
+        Cliente existente = null;
         if (usr.isPresent()) {
             requestG.setUsuario(usr.get());
             if (usr.get().getCliente() != null && usr.get().getCliente().getId() != null) {
                 requestG.setId(usr.get().getCliente().getId());
+                existente = usr.get().getCliente();
+            }
+        }
+
+        // El guardado generico hace merge() del objeto completo (repository.save) — cualquier
+        // campo administrado por el back que el front no mande en el JSON se pisaria con el
+        // default de la clase (false/null). Hay que preservarlos explicitamente (mejora 12/15).
+        boolean disparaVerificacionCorreoNuevo = false;
+        if (existente != null) {
+            requestG.setCodigoVerificacion(existente.getCodigoVerificacion());
+            requestG.setCodigoVerificacionExpira(existente.getCodigoVerificacionExpira());
+
+            String correoNuevo = requestG.getCorreoElectronico();
+            String correoActual = existente.getCorreoElectronico();
+            boolean cambioDeCorreo = correoNuevo != null && !correoNuevo.equalsIgnoreCase(correoActual);
+            if (cambioDeCorreo && !AuthenticationUtils.isAdminContext()) {
+                // Mejora 15: el correo nuevo NO se aplica de inmediato — queda pendiente de
+                // verificar. El correo actual (ya verificado) sigue siendo el vigente.
+                // Un ADMIN editando al cliente queda fuera de esta regla (aplica directo, sin
+                // pedir verificacion) — decisión explícita del diseño, mejora 15 punto 12.
+                requestG.setCorreoElectronico(correoActual);
+                requestG.setCorreoPendiente(correoNuevo);
+                requestG.setCorreoVerificado(existente.getCorreoVerificado());
+                disparaVerificacionCorreoNuevo = true;
+            } else if (cambioDeCorreo) {
+                // Admin cambiando el correo: se aplica directo y queda verificado (confía en el
+                // admin), sin dejar nada pendiente.
+                requestG.setCorreoVerificado(true);
+                requestG.setCorreoPendiente(null);
+            } else {
+                requestG.setCorreoPendiente(existente.getCorreoPendiente());
+                requestG.setCorreoVerificado(existente.getCorreoVerificado());
             }
         }
 
@@ -80,18 +124,41 @@ public class ClienteControllerImpl extends AbstractController<
                 .collect(Collectors.toSet());
 
         requestG.setListDirecciones(direcciones);
-        return super.save(requestG, result);
+        ResponseEntity<ResponseGeneric<Cliente>> response = super.save(requestG, result);
+
+        if (disparaVerificacionCorreoNuevo && requestG.getId() != null) {
+            try {
+                sGenerico.enviarCodigoVerificacionCorreo(requestG.getId());
+            } catch (Exception e) {
+                log.warn("No se pudo enviar el codigo de verificacion tras cambio de correo de clienteId={}: {}",
+                        requestG.getId(), e.getMessage());
+            }
+        }
+        return response;
     }
 
-    @Operation(summary = "Buscar cliente por ID de cliente", description = "Retorna el cliente cuyo ID coincide con el parametro idCliente.")
+    @Operation(summary = "Actualizar cliente", description = "Alias de guardar: aplica la misma logica de save() (verificacion de correo, direcciones, control de propiedad) en vez del guardado generico crudo.")
+    @Override
+    public ResponseEntity<ResponseGeneric<Cliente>> update(Integer tipoDato, Cliente requestG, BindingResult result) throws Exception {
+        return save(requestG, result);
+    }
+
+    @Operation(summary = "Buscar cliente por ID de cliente", description = "Retorna el cliente cuyo ID coincide con el parametro idCliente. Solo el dueno del registro o un ADMIN pueden consultarlo.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN"),
         @ApiResponse(responseCode = "404", description = "Cliente no encontrado"),
         @ApiResponse(responseCode = "401", description = "No autenticado")
     })
     @GetMapping("buscarPorIdCliente/{idCliente}")
     public ResponseEntity<ResponseGeneric<Optional<Cliente>>> findByIdCliente(
             @Parameter(description = "ID del cliente") @PathVariable int idCliente) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId() == idCliente;
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
         return ResponseEntity.status(HttpStatus.OK).body(sGenerico.findClienteById(idCliente));
     }
 
@@ -111,6 +178,59 @@ public class ClienteControllerImpl extends AbstractController<
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(resultado));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @Operation(summary = "Enviar codigo de verificacion de correo", description = "Genera un codigo de 6 digitos (expira en 15 minutos) y lo envia al correo registrado del cliente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Codigo enviado"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado o sin correo registrado")
+    })
+    @PostMapping("/{id}/enviar-codigo-verificacion")
+    public ResponseEntity<ResponseGeneric<String>> enviarCodigoVerificacion(@PathVariable Integer id) {
+        try {
+            sGenerico.enviarCodigoVerificacionCorreo(id);
+            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo registrado"));
+        } catch (Exception e) {
+            log.error("Error al enviar codigo de verificacion a clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Verificar correo con codigo", description = "Valida el codigo de 6 digitos enviado al correo del cliente. Si es correcto y no expiro, marca el correo como verificado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Correo verificado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado")
+    })
+    @PostMapping("/{id}/verificar-correo")
+    public ResponseEntity<ResponseGeneric<String>> verificarCorreo(
+            @PathVariable Integer id, @Valid @RequestBody VerificarCorreoRequest request) {
+        try {
+            sGenerico.verificarCorreo(id, request.getCodigo());
+            return ResponseEntity.ok(new ResponseGeneric<>("Correo verificado correctamente"));
+        } catch (Exception e) {
+            log.error("Error al verificar correo de clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Resetear verificacion de correo (solo ADMIN)", description = "Regresa el correo del cliente a 'no verificado' y borra cualquier codigo pendiente. Pensado para pruebas/soporte, no para el flujo normal del cliente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Verificacion reseteada"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado"),
+        @ApiResponse(responseCode = "403", description = "Requiere rol ADMIN")
+    })
+    @DeleteMapping("/{id}/verificacion-correo")
+    public ResponseEntity<ResponseGeneric<String>> resetVerificacionCorreo(@PathVariable Integer id) {
+        try {
+            sGenerico.resetVerificacionCorreo(id);
+            return ResponseEntity.ok(new ResponseGeneric<>("Verificacion de correo reseteada"));
+        } catch (Exception e) {
+            log.error("Error al resetear verificacion de correo de clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 }

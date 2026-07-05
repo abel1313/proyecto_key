@@ -115,7 +115,7 @@ public class AbonoServiceImpl implements IAbonoService {
             String asunto  = "PAGADO".equals(pedido.getEstadoPedido())
                     ? "✅ Apartado liquidado — Novedades Jade"
                     : "Comprobante de abono — Novedades Jade";
-            enviarNotificaciones(request.getNotificacion(), correo, telefono, asunto, resp);
+            enviarNotificaciones(request.getNotificacion(), pedido.getCliente(), correo, telefono, asunto, resp);
         }
 
         return resp;
@@ -266,11 +266,18 @@ public class AbonoServiceImpl implements IAbonoService {
             List<String> errores = new ArrayList<>();
             if (request.getNotificacion().isEnviarCorreo()) {
                 String notifCorreo = request.getNotificacion().getCorreo();
-                String destinoCorreo = notifCorreo != null && !notifCorreo.isBlank() ? notifCorreo : correo;
-                boolean ok = emailService.enviarTicket(destinoCorreo, "Cancelación de pedido — Novedades Jade",
-                        request.getNotificacion().getTicketHtml());
-                resp.setCorreoEnviado(ok);
-                if (!ok) errores.add("No se pudo enviar el correo");
+                boolean usaCorreoManual = notifCorreo != null && !notifCorreo.isBlank();
+                String destinoCorreo = usaCorreoManual ? notifCorreo : correo;
+                if (!usaCorreoManual && pedido.getCliente() != null
+                        && !Boolean.TRUE.equals(pedido.getCliente().getCorreoVerificado())) {
+                    resp.setCorreoEnviado(false);
+                    errores.add("El correo del cliente no esta verificado, no se envio el ticket");
+                } else {
+                    boolean ok = emailService.enviarTicket(destinoCorreo, "Cancelación de pedido — Novedades Jade",
+                            request.getNotificacion().getTicketHtml());
+                    resp.setCorreoEnviado(ok);
+                    if (!ok) errores.add("No se pudo enviar el correo");
+                }
             }
             if (request.getNotificacion().isEnviarWhatsapp()) {
                 boolean ok = whatsappService.enviarMensaje(telefono, request.getNotificacion().getTicketTexto());
@@ -456,15 +463,20 @@ public class AbonoServiceImpl implements IAbonoService {
         return "";
     }
 
-    private void enviarNotificaciones(NotificacionRequest notif, String correo, String telefono,
+    private void enviarNotificaciones(NotificacionRequest notif, Cliente cliente, String correo, String telefono,
                                       String asunto, AbonoResponse resp) {
         List<String> errores = new ArrayList<>();
         if (notif.isEnviarCorreo()) {
-            String destinoCorreo = notif.getCorreo() != null && !notif.getCorreo().isBlank()
-                    ? notif.getCorreo() : correo;
-            boolean ok = emailService.enviarTicket(destinoCorreo, asunto, notif.getTicketHtml());
-            resp.setCorreoEnviado(ok);
-            if (!ok) errores.add("No se pudo enviar el correo");
+            boolean usaCorreoManual = notif.getCorreo() != null && !notif.getCorreo().isBlank();
+            String destinoCorreo = usaCorreoManual ? notif.getCorreo() : correo;
+            if (!usaCorreoManual && cliente != null && !Boolean.TRUE.equals(cliente.getCorreoVerificado())) {
+                resp.setCorreoEnviado(false);
+                errores.add("El correo del cliente no esta verificado, no se envio el ticket");
+            } else {
+                boolean ok = emailService.enviarTicket(destinoCorreo, asunto, notif.getTicketHtml());
+                resp.setCorreoEnviado(ok);
+                if (!ok) errores.add("No se pudo enviar el correo");
+            }
         }
         if (notif.isEnviarWhatsapp()) {
             boolean ok = whatsappService.enviarMensaje(telefono, notif.getTicketTexto());

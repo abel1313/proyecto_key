@@ -11,6 +11,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -55,6 +56,29 @@ public class Usuario implements UserDetails {
     @JsonManagedReference
     private Cliente cliente;
 
+    @JsonIgnore
+    @Column(name = "codigo_reset_password")
+    private String codigoResetPassword;
+
+    @JsonIgnore
+    @Column(name = "codigo_reset_password_expira")
+    private LocalDateTime codigoResetPasswordExpira;
+
+    @Column(name = "correo_verificado")
+    private Boolean correoVerificado = Boolean.FALSE;
+
+    @JsonIgnore
+    @Column(name = "codigo_verificacion")
+    private String codigoVerificacion;
+
+    @JsonIgnore
+    @Column(name = "codigo_verificacion_expira")
+    private LocalDateTime codigoVerificacionExpira;
+
+    /** true cuando la contrasena fue puesta por un ADMIN (reseteo) — obliga a cambiarla en el siguiente login. */
+    @Column(name = "password_temporal")
+    private Boolean passwordTemporal = Boolean.FALSE;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();
@@ -69,7 +93,20 @@ public class Usuario implements UserDetails {
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled() { return enabled; }
+
+    /**
+     * NO depende de correoVerificado a propósito: Spring Security evalua isEnabled() antes de
+     * comparar la contrasena (DaoAuthenticationProvider.preAuthenticationChecks), asi que si
+     * este metodo devolviera false por correo sin verificar, una contrasena incorrecta nunca
+     * llegaria a validarse y siempre respondería "verifica tu correo" en vez de "credenciales
+     * invalidas". El chequeo de correoVerificado (mejora 15) se hace aparte, en
+     * AuthController.login(), despues de que la autenticacion ya paso.
+     */
+    @Override public boolean isEnabled() { return Boolean.TRUE.equals(enabled); }
+
+    public boolean esAdmin() {
+        return roles != null && "ROLE_ADMIN".equals(roles.getNombreRol());
+    }
 
     @Override
     public String toString() {

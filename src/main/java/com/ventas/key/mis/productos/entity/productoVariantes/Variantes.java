@@ -40,6 +40,7 @@ public class Variantes  extends BaseId {
     @JoinColumn(name = "palabra_clave_id")
     private PalabraClave palabraClave;
 
+    @Column(name = "habilitado")
     private char habilitado = '1';
 
 }

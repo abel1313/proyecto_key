@@ -271,11 +271,16 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         String telefono = cliente != null ? cliente.getNumeroTelefonico()
                         : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : "";
         if (notif.isEnviarCorreo()) {
-            String destinoCorreo = notif.getCorreo() != null && !notif.getCorreo().isBlank()
-                    ? notif.getCorreo() : correo;
-            boolean ok = emailService.enviarTicket(destinoCorreo, asunto, notif.getTicketHtml());
-            resp.setCorreoEnviado(ok);
-            if (!ok) errores.add("No se pudo enviar el correo");
+            boolean usaCorreoManual = notif.getCorreo() != null && !notif.getCorreo().isBlank();
+            String destinoCorreo = usaCorreoManual ? notif.getCorreo() : correo;
+            if (!usaCorreoManual && cliente != null && !Boolean.TRUE.equals(cliente.getCorreoVerificado())) {
+                resp.setCorreoEnviado(false);
+                errores.add("El correo del cliente no esta verificado, no se envio el ticket");
+            } else {
+                boolean ok = emailService.enviarTicket(destinoCorreo, asunto, notif.getTicketHtml());
+                resp.setCorreoEnviado(ok);
+                if (!ok) errores.add("No se pudo enviar el correo");
+            }
         }
         if (notif.isEnviarWhatsapp()) {
             boolean ok = whatsappService.enviarMensaje(telefono, notif.getTicketTexto());

@@ -700,6 +700,15 @@ public class ProductosServiceImpl extends
         return resultado;
     }
 
+    @Transactional
+    public void habilitarDeshabilitarProductosLote(List<Integer> ids, boolean habilitar) {
+        List<Producto> productos = iProductosRepository.findAllById(ids);
+        productos.forEach(p -> p.setHabilitado(habilitar ? '1' : '0'));
+        iProductosRepository.saveAll(productos);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+    }
+
     public DiagnosticoImagenProductoDto diagnosticarImagenesProducto(Integer productoId) {
         Producto producto = iProductosRepository.findById(productoId)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + productoId));

@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.DiagnosticoImagenVarianteDto;
 import com.ventas.key.mis.productos.models.FiltroCatalogoEnum;
+import com.ventas.key.mis.productos.models.HabilitarLoteRequest;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -184,6 +185,22 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(filtro, pagina, size)));
+    }
+
+    @PutMapping("/v1/admin/habilitar-lote")
+    public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarVariantesLote(
+            @Validated @RequestBody HabilitarLoteRequest request) {
+        try {
+            sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
+            String mensaje = request.isHabilitar()
+                    ? "Variantes habilitadas correctamente"
+                    : "Variantes deshabilitadas correctamente";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
+        } catch (Exception e) {
+            log.error("Error al habilitar/deshabilitar variantes en lote: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
     }
 
     @GetMapping("/v1/admin/diagnostico-imagenes/{varianteId}")

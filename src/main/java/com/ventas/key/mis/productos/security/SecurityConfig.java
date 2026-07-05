@@ -83,7 +83,9 @@ public class SecurityConfig {
                         .requestMatchers("/presentacion/**").hasRole("ADMIN")
 
                         // ── Auth ──────────────────────────────────────────────────────────
-                        .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar").permitAll()
+                        .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar",
+                                "/v1/auth/olvide-password", "/v1/auth/restablecer-password",
+                                "/v1/auth/enviar-codigo-verificacion", "/v1/auth/verificar-correo").permitAll()
                         .requestMatchers("/v1/auth/logout").permitAll()
 
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
@@ -108,12 +110,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/imagen/**").permitAll()
                         .requestMatchers("/imagen/**").hasRole("ADMIN")
 
-                        // ── Usuarios ──────────────────────────────────────────────────────
+                        // ── Usuarios (gestion de cuentas/roles/permisos: solo ADMIN) ──────
                         .requestMatchers("/v1/usuarios/buscarClientePorIdUsuario/**").permitAll()
-                        .requestMatchers(HttpMethod.DELETE, "/v1/usuarios/**").hasRole("ADMIN")
-                        .requestMatchers("/v1/usuarios/**").authenticated()
+                        .requestMatchers("/v1/usuarios/**").hasRole("ADMIN")
 
-                        // ── Clientes (alta y edición para autenticado; baja solo ADMIN) ────
+                        // ── Clientes (alta/edicion propia para autenticado — control de
+                        //    propiedad en ClienteControllerImpl; busqueda y baja solo ADMIN) ──
+                        .requestMatchers(HttpMethod.GET, "/v1/clientes/buscar").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasRole("ADMIN")
                         .requestMatchers("/v1/clientes/**").authenticated()
 

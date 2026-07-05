@@ -9,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -97,6 +98,23 @@ public class ProductosControllerImpl {
                 "habilitado", habilitar,
                 "mensaje", habilitar ? "Producto habilitado correctamente" : "Producto deshabilitado correctamente"
         ));
+    }
+
+    @PutMapping("admin/habilitar-lote")
+    public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarProductosLote(
+            @Validated @RequestBody HabilitarLoteRequest request) {
+        log.info("Admin: habilitar/deshabilitar productos en lote ids={} habilitar={}", request.getIds(), request.isHabilitar());
+        try {
+            this.pServiceImpl.habilitarDeshabilitarProductosLote(request.getIds(), request.isHabilitar());
+            String mensaje = request.isHabilitar()
+                    ? "Productos habilitados correctamente"
+                    : "Productos deshabilitados correctamente";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
+        } catch (Exception e) {
+            log.error("Error al habilitar/deshabilitar productos en lote: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
     }
 
     @GetMapping("admin/diagnostico-imagenes/{productoId}")

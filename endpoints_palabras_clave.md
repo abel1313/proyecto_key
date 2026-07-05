@@ -1,5 +1,8 @@
 # Endpoints — Palabras clave, Productos y Variantes
 
+> ⚠️ **DOCUMENTO DESACTUALIZADO (detectado 2026-07-04).** La fuente de verdad actual es
+> **`CAMBIOS_FRONT.md`**. No usar este archivo para trabajo nuevo.
+
 ---
 
 ## 1. Catálogo de palabras clave `/palabras-clave`
