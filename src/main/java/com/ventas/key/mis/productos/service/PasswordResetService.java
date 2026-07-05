@@ -54,6 +54,7 @@ public class PasswordResetService {
         usuario.setPassword(passwordEncoder.encode(nuevaPassword));
         usuario.setCodigoResetPassword(null);
         usuario.setCodigoResetPasswordExpira(null);
+        usuario.setPasswordTemporal(false);
         usuarioRepository.save(usuario);
     }
 
@@ -71,6 +72,7 @@ public class PasswordResetService {
         }
 
         usuario.setPassword(passwordEncoder.encode(nuevaPassword));
+        usuario.setPasswordTemporal(false);
         usuarioRepository.save(usuario);
     }
 }
