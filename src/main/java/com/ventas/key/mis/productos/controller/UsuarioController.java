@@ -56,6 +56,13 @@ public class UsuarioController extends AbstractController<
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/resetear-password")
+    public ResponseEntity<ResponseGeneric<String>> resetearPassword(@PathVariable Integer id) {
+        String nuevaPassword = usu.resetearPasswordAleatoria(id);
+        return ResponseEntity.ok(new ResponseGeneric<>(nuevaPassword,
+                "Contrasena reseteada. Comparte esta contrasena con el usuario; debera cambiarla en su siguiente login."));
+    }
+
     @GetMapping("/buscarClientePorIdUsuario/{idUsuario}")
     public ResponseEntity<Integer> existeClientePorIdUsuario(@PathVariable int idUsuario) {
         return ResponseEntity.ok(usu.existeClientePorIdUsuario(idUsuario));

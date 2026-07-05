@@ -75,6 +75,10 @@ public class Usuario implements UserDetails {
     @Column(name = "codigo_verificacion_expira")
     private LocalDateTime codigoVerificacionExpira;
 
+    /** true cuando la contrasena fue puesta por un ADMIN (reseteo) — obliga a cambiarla en el siguiente login. */
+    @Column(name = "password_temporal")
+    private Boolean passwordTemporal = Boolean.FALSE;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();
@@ -91,12 +95,17 @@ public class Usuario implements UserDetails {
     @Override public boolean isCredentialsNonExpired() { return true; }
 
     /**
-     * Sin correo verificado no se puede loguear (mejora 15) — Spring Security rechaza con
-     * DisabledException. El rol ADMIN queda exento: no se le exige verificar correo para entrar.
+     * NO depende de correoVerificado a propósito: Spring Security evalua isEnabled() antes de
+     * comparar la contrasena (DaoAuthenticationProvider.preAuthenticationChecks), asi que si
+     * este metodo devolviera false por correo sin verificar, una contrasena incorrecta nunca
+     * llegaria a validarse y siempre respondería "verifica tu correo" en vez de "credenciales
+     * invalidas". El chequeo de correoVerificado (mejora 15) se hace aparte, en
+     * AuthController.login(), despues de que la autenticacion ya paso.
      */
-    @Override public boolean isEnabled() {
-        boolean esAdmin = roles != null && "ROLE_ADMIN".equals(roles.getNombreRol());
-        return Boolean.TRUE.equals(enabled) && (esAdmin || Boolean.TRUE.equals(correoVerificado));
+    @Override public boolean isEnabled() { return Boolean.TRUE.equals(enabled); }
+
+    public boolean esAdmin() {
+        return roles != null && "ROLE_ADMIN".equals(roles.getNombreRol());
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -88,6 +89,31 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         existe.setEnabled(usuarioDto.isEnabled());
         usuarioRepository.save(existe);
         return new UserUpdate();
+    }
+
+    // Sin 0/O/1/l/I para que sea mas facil de dictar por telefono sin confundir caracteres.
+    private static final String CHARSET_PASSWORD_ALEATORIA = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    private static final int LONGITUD_PASSWORD_ALEATORIA = 8;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    /** Genera una contrasena aleatoria nueva, la asigna al usuario y la devuelve (el admin se la pasa al usuario). */
+    @Transactional
+    public String resetearPasswordAleatoria(Integer id) {
+        Usuario existe = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        String nuevaPassword = generarPasswordAleatoria();
+        existe.setPassword(passwordEncoder.encode(nuevaPassword));
+        existe.setPasswordTemporal(true);
+        usuarioRepository.save(existe);
+        return nuevaPassword;
+    }
+
+    private String generarPasswordAleatoria() {
+        StringBuilder sb = new StringBuilder(LONGITUD_PASSWORD_ALEATORIA);
+        for (int i = 0; i < LONGITUD_PASSWORD_ALEATORIA; i++) {
+            sb.append(CHARSET_PASSWORD_ALEATORIA.charAt(RANDOM.nextInt(CHARSET_PASSWORD_ALEATORIA.length())));
+        }
+        return sb.toString();
     }
 
     @Override

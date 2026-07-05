@@ -97,19 +97,28 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(request.getUserName(), request.getPassword())
             );
             Usuario usr = (Usuario) auth.getPrincipal();
+
+            // Contrasena ya validada por authManager.authenticate() en este punto.
+            // El chequeo de correo verificado va aparte (no en isEnabled()) para que una
+            // contrasena incorrecta siempre responda 401, nunca el 403 de verificacion.
+            if (!usr.esAdmin() && !Boolean.TRUE.equals(usr.getCorreoVerificado())) {
+                log.warn("Login rechazado por correo sin verificar: {}", request.getUserName());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Debes verificar tu correo antes de iniciar sesión");
+            }
+
             String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
             String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(), System.currentTimeMillis());
 
             agregarRefreshCookie(response, refreshToken);
 
-            return ResponseEntity.ok(new AuthResponse(accessToken));
+            return ResponseEntity.ok(new AuthResponse(accessToken, Boolean.TRUE.equals(usr.getPasswordTemporal())));
         } catch (BadCredentialsException e) {
             log.warn("Intento de login fallido para usuario: {} desde IP: {}", request.getUserName(), clientIp);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
         } catch (DisabledException e) {
-            log.warn("Login rechazado por correo sin verificar: {}", request.getUserName());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Debes verificar tu correo antes de iniciar sesión");
+            log.warn("Login rechazado, cuenta deshabilitada: {}", request.getUserName());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cuenta deshabilitada");
         } catch (Exception e) {
             log.error("Error inesperado en login: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la solicitud");

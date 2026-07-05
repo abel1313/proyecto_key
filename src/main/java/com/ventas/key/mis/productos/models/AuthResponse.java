@@ -1,10 +1,20 @@
 package com.ventas.key.mis.productos.models;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
+@NoArgsConstructor
 public class AuthResponse {
     private String accessToken;
+    private boolean debeCambiarPassword;
+
+    public AuthResponse(String accessToken) {
+        this.accessToken = accessToken;
+    }
+
+    public AuthResponse(String accessToken, boolean debeCambiarPassword) {
+        this.accessToken = accessToken;
+        this.debeCambiarPassword = debeCambiarPassword;
+    }
 }

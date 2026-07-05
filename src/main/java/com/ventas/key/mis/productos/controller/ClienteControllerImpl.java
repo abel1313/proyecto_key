@@ -58,6 +58,14 @@ public class ClienteControllerImpl extends AbstractController<
     })
     @Override
     public ResponseEntity<ResponseGeneric<Cliente>> save(Cliente requestG, BindingResult result) {
+        Integer usuarioIdSolicitado = requestG.getUsuario() != null ? requestG.getUsuario().getId() : null;
+        if (!AuthenticationUtils.isAdminContext()
+                && (usuarioIdSolicitado == null
+                    || !usuarioIdSolicitado.equals(AuthenticationUtils.currentUsuario().getId()))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ResponseGeneric<>(null, "No puedes modificar datos de otro usuario"));
+        }
+
         Optional<Usuario> usr = this.usuarioDetailsService.findById(requestG.getUsuario().getId().intValue());
         Cliente existente = null;
         if (usr.isPresent()) {
@@ -129,15 +137,28 @@ public class ClienteControllerImpl extends AbstractController<
         return response;
     }
 
-    @Operation(summary = "Buscar cliente por ID de cliente", description = "Retorna el cliente cuyo ID coincide con el parametro idCliente.")
+    @Operation(summary = "Actualizar cliente", description = "Alias de guardar: aplica la misma logica de save() (verificacion de correo, direcciones, control de propiedad) en vez del guardado generico crudo.")
+    @Override
+    public ResponseEntity<ResponseGeneric<Cliente>> update(Integer tipoDato, Cliente requestG, BindingResult result) throws Exception {
+        return save(requestG, result);
+    }
+
+    @Operation(summary = "Buscar cliente por ID de cliente", description = "Retorna el cliente cuyo ID coincide con el parametro idCliente. Solo el dueno del registro o un ADMIN pueden consultarlo.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN"),
         @ApiResponse(responseCode = "404", description = "Cliente no encontrado"),
         @ApiResponse(responseCode = "401", description = "No autenticado")
     })
     @GetMapping("buscarPorIdCliente/{idCliente}")
     public ResponseEntity<ResponseGeneric<Optional<Cliente>>> findByIdCliente(
             @Parameter(description = "ID del cliente") @PathVariable int idCliente) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId() == idCliente;
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
         return ResponseEntity.status(HttpStatus.OK).body(sGenerico.findClienteById(idCliente));
     }
 

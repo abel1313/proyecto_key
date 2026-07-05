@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.Utils;
 
+import com.ventas.key.mis.productos.entity.Usuario;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -21,5 +22,11 @@ public class AuthenticationUtils {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    /** Usuario autenticado segun el JWT de la peticion actual (no lo que mande el body). */
+    public static Usuario currentUsuario() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return (Usuario) auth.getPrincipal();
     }
 }
