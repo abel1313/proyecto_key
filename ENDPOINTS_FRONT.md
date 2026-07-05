@@ -1,5 +1,9 @@
 # Endpoints para el Frontend — Imágenes
 
+> ⚠️ **DOCUMENTO DESACTUALIZADO (detectado 2026-07-04).** La fuente de verdad actual es
+> **`CAMBIOS_FRONT.md`** — ahí está la migración completa de imágenes a `/v1/` y al microservicio
+> `micro_imagenes`. No usar este archivo para trabajo nuevo.
+
 > **Base URL dev:**
 > - proyecto_key: `http://localhost:9091/mis-productos`
 > - micro_imagenes: `http://localhost:9096/mis-productos`

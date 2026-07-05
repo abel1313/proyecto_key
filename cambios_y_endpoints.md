@@ -1,5 +1,8 @@
 # Cambios y endpoints — Palabras clave
 
+> ⚠️ **DOCUMENTO DESACTUALIZADO (detectado 2026-07-04).** La fuente de verdad actual es
+> **`CAMBIOS_FRONT.md`**. No usar este archivo para trabajo nuevo.
+
 Referencia para el frontend. Incluye todos los endpoints afectados con su request y response exactos.
 
 ---

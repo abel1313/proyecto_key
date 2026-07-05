@@ -1,5 +1,8 @@
 # Migración de versionado de URLs a /v1/ — 2026-06-07
 
+> ⚠️ **DOCUMENTO HISTÓRICO/DESACTUALIZADO (detectado 2026-07-04).** Refleja el estado de esa
+> migración puntual del 2026-06-07. La fuente de verdad actual y en curso es **`CAMBIOS_FRONT.md`**.
+
 > Documento único con TODOS los endpoints (URL LOCAL COMPLETA, lista para que el front la use) donde se agregó/renombró a `/v1/`, tanto en **proyecto-key (puerto 9091)** como en **micro_imagenes (puerto 9096)**.
 
 ⚠️ **Importante:** estos cambios ya están en el código (commits en `dev` y `qa` de ambos repos, ya pusheados, ambos compilan sin errores). Si al probar todavía ves URLs con `/v2/` o sin versión, es porque el **servidor que estás consultando (Docker/QA en ejecución) todavía no se reinició/redesplegó** con el código nuevo — el cambio es de código fuente, no de configuración en caliente. Hay que reconstruir y reiniciar ambos microservicios para verlo reflejado.
