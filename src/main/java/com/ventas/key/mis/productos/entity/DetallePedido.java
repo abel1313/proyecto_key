@@ -36,4 +36,8 @@ public class DetallePedido extends  BaseId{
     @Column(name = "sub_total", nullable = false)
     private Double subTotal;
 
+    @ManyToOne
+    @JoinColumn(name = "promocion_id")
+    private Promocion promocion;
+
 }

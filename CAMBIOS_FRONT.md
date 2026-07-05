@@ -4639,3 +4639,70 @@ capture el código que el usuario le dicte por teléfono → `verificar-correo`.
 aplicando — el correo nuevo de inmediato, sin pedir verificación ni dejar nada pendiente. Mismo
 criterio que ya existe para `Cliente` cuando lo edita un ADMIN (mejora 15, punto 4): se confía en
 el admin, no hay paso intermedio. No fue necesario cambiar código para esto, ya funcionaba así.
+
+---
+
+## ⏳ Promociones por variante / combos (2026-07-05) — código en dev, migración y pruebas pendientes
+
+> **Implementado en el código de `dev`, pero todavía no funciona en ningún ambiente.** Falta
+> correr `migration_promociones.sql` (crea las tablas nuevas) y hacer pruebas end-to-end antes de
+> que el front pueda integrar de verdad. Este aviso se quita de aquí en cuanto esté probado.
+> Diseño completo en `PROMOCIONES.md` en la raíz del repo.
+
+**Qué es:** un combo de 1 o más variantes ya existentes (pueden ser productos distintos entre sí)
+que se venden juntas con precio rebajado por pieza. Cada pieza conserva su propio precio de oferta
+(no hay precio único de paquete) — así que en pedidos/ventas cada pieza viaja como una línea normal,
+solo con un campo nuevo `promocionId` para agruparlas.
+
+**Endpoints planeados:**
+- `POST /v1/promociones` (ADMIN) — crear
+- `PUT /v1/promociones/{id}` (ADMIN) — editar (reemplaza detalles completos)
+- `PUT /v1/promociones/{id}/activo` (ADMIN) — activar/desactivar
+- `GET /v1/promociones/admin?pagina=&size=` (ADMIN) — listado completo, incluye vencidas/inactivas
+- `GET /v1/promociones/activas?pagina=&size=` (cualquier usuario logueado) — catálogo, trae
+  `instanciasDisponibles` ya calculado y el desglose de piezas (variante, talla, color, precio
+  normal vs promo, imagen)
+
+**Cambios que vendrán en endpoints existentes:**
+- `POST /pedidos/savePedido` y venta directa: cada detalle gana campo opcional `promocionId`.
+- `GET /pedidos/findPedido/{id}`: cada línea del detalle gana `promocionId` +
+  `promocionDescripcion` (null en líneas normales) para que el front agrupe el combo visualmente.
+- Ticket/comprobante: se agrupa por `promocionId` igual que el detalle de pedido.
+
+**Regla de negocio clave para el checkout:** si el carrito trae al menos una promoción, **todo el
+pedido se fuerza a pago de contado** — el front debe ocultar/deshabilitar "Apartar" y "Fiado" para
+el pedido completo (no solo la promo) y mostrar aviso. El back rechazará con `400` si de todos
+modos llega un pedido con promoción y `tipoPedido` distinto de `NORMAL`.
+
+Ver `PROMOCIONES.md` para los JSON de request/response completos de cada endpoint y el flujo UX
+sugerido (catálogo, detalle de la promo, carrito, countdown de vencimiento calculado en el front).
+
+---
+
+## [SEC-KEY-02] ✅ Fix: precio de línea ahora se valida contra catálogo (2026-07-05)
+
+**Antes:** `POST /pedidos/savePedido` y la venta directa (`VentaDirectaRequest`) aceptaban el
+`precioUnitario`/`precioVenta` y `subTotal` de cada línea tal cual los mandara el request, sin
+comparar contra nada — solo se validaba stock. Cualquier usuario autenticado (no solo ADMIN, ya
+que `savePedido` está abierto a `authenticated()`) podía editar el request antes de enviarlo
+(DevTools, Postman, etc.) y pagar el precio que quisiera por un producto normal.
+
+**Después:** en una línea **sin** `promocionId`, el back ahora exige que `precioUnitario`
+(`precioVenta` en venta directa) coincida con el precio de catálogo actual del producto
+(`Producto.precioVenta`), y que `subTotal` sea `precioUnitario * cantidad` (tolerancia de 1
+centavo por redondeo). Si no coincide, responde `400` con `"El precio de {nombre} no es valido"` o
+`"El subtotal de {nombre} no es valido"` y no crea el pedido/venta.
+
+**Qué debe hacer el front:** nada nuevo si ya arma el carrito con el precio que el back le dio en
+el listado del producto/variante (`GET /variantes/buscar`, etc.) — ese sigue siendo el precio
+válido. El único caso que ahora falla es si el carrito quedó con un precio **desactualizado**
+(ej. el admin cambió el precio del producto mientras el cliente tenía el carrito abierto desde
+hace rato) — en ese caso el front debe mostrar el error del `400` y sugerir refrescar el carrito
+antes de reintentar, en vez de reintentar con el mismo precio viejo.
+
+**Las líneas con `promocionId` no cambian:** su precio rebajado sigue siendo válido — se valida
+aparte contra `promocion_detalle` (ver sección de Promociones arriba), no contra el precio de
+catálogo.
+
+**Archivos:** `PedidoServiceImpl.java` (`validarPrecioCatalogo`), `VentaServiceImpl.java`
+(`validarPrecioCatalogo`).
