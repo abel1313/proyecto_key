@@ -19,7 +19,7 @@
 | 8 | Chatbot — tarjetas de productos | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
 | 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
 | 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
-| 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: sin-stock/con-stock/con-imágenes) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
+| 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: filtro combinado nombre/código + stock + imágenes + habilitado, todos opcionales y combinables) | ✅ Listo — rediseñado 2026-07-06, ver nota abajo | ⏳ Pendiente front (contrato cambió, ver `CAMBIOS_FRONT.md`) | 2026-07-02, actualizado 2026-07-06 |
 | 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (migración corrida en dev/qa, falta en prod) | ⏳ Pendiente front | 2026-07-02 |
 | 13 | Deshabilitar producto/variante en lote (para ocultar datos de prueba) + habilitado propio por variante | ✅ Listo (columna ya existía en dev/qa, falta confirmar en prod) | ⏳ Pendiente front | 2026-07-02 |
 | 14 | Restablecer contraseña olvidada (código de 6 dígitos por correo) + cambiar contraseña logueado (con contraseña actual, sin código) | ✅ Listo (falta correr migración SQL) | ⏳ Pendiente front | 2026-07-03 |
@@ -67,13 +67,15 @@
 >   productos distintos ("Mochila para mostrar" vs "Mochila Prada"), la búsqueda traía cualquiera
 >   de los dos. Se corrigió el prompt para que use el código de barras (único) cuando esté
 >   disponible en la conversación. Ver `BUGS_CHATBOT_BACK.md` para el detalle completo.
-> - **Filtros producto/variante por rol (2026-07-02):** cliente normal ahora ve solo productos y
->   variantes con stock>0 + habilitado + con al menos una imagen (antes solo se exigía stock +
->   habilitado, sin importar si tenía imagen). Admin ve todo el catálogo y tiene un endpoint nuevo
->   de filtro (`SIN_STOCK` / `CON_STOCK` / `CON_IMAGENES` / `CON_STOCK_Y_IMAGENES`). Ver
->   `CAMBIOS_FRONT.md` para el contrato completo. De paso se corrigió un bug de caché en
->   `VarianteServiceImpl` que exponía a clientes normales resultados sin filtrar cacheados
->   previamente por un admin.
+> - **Filtros producto/variante por rol (2026-07-02, rediseñado 2026-07-06):** cliente normal ve
+>   solo productos y variantes con stock>0 + habilitado + con al menos una imagen (sin UI de
+>   filtros, es automático). Admin ve todo el catálogo con un filtro combinado en
+>   `.../admin/filtrar`: `nombreOCodigo` (texto) + `conStock` + `conImagenes` + `habilitado`, los 4
+>   opcionales e independientes, combinables con AND (antes era un solo enum de valor único que no
+>   se podía combinar con nombre y no tenía opción de habilitado/deshabilitado). Ver
+>   `CAMBIOS_FRONT.md` → "Cambio de contrato (2026-07-06): filtro admin combinado..." para el
+>   contrato completo con ejemplos. De paso se corrigió un bug de caché en `VarianteServiceImpl`
+>   que exponía a clientes normales resultados sin filtrar cacheados previamente por un admin.
 > - **PENDIENTE (no bloquea nada, anotado para retomar):** definir fórmula de ganancia por
 >   producto — se acordó usar markup sobre costo (`precioVenta = precioCosto × (1 + %ganancia)`).
 >   Falta decidir: ¿se guarda el `%ganancia` como campo del producto (para poder mostrarlo/editarlo
@@ -110,6 +112,32 @@
 >   QA). Guía completa de cómo implementarlo (conceptos de hilos, `@Async`, `CompletableFuture`,
 >   virtual threads) y auditoría de qué endpoints conviene tocar (y cuáles NO) en
 >   `HILOS_Y_CONCURRENCIA.md`. Nada implementado todavía, solo documentado para retomar.
+> - **Checkpoint 2026-07-06 — sesión de bugs reportados en QA (todo en `dev`/`qa`, falta `main`):**
+>   - **Bug real de `habilitar-lote` de variantes (mejora 13) encontrado:** la BD sí se actualizaba
+>     bien (confirmado con diagnóstico de `flush()`+`clear()`+relectura); el problema real era que
+>     `VarianteResumenDto`/`VarianteDto` (usados por las búsquedas/listados de variantes) nunca
+>     traían el campo `habilitado` — a diferencia de `ProductoDTO`, que sí lo trae. El front no
+>     tenía forma de reflejar el estado real aunque la BD estuviera correcta. Ya se agregó el
+>     campo a ambos DTOs. Ver `CAMBIOS_FRONT.md`.
+>   - **Búsqueda de cliente por nombre completo no encontraba resultados:** la query buscaba
+>     `nombrePersona`/`apeidoPaterno`/`apeidoMaterno` por separado (OR); buscar "Abel" funcionaba
+>     pero "Abel Tiburcio" (nombre y apellido juntos) no. Se corrigió concatenando los 3 campos
+>     antes de buscar.
+>   - **Hallazgo importante — errores de validación de negocio devolvían siempre `500`:** el
+>     manejador global de excepciones no tenía caso para `RuntimeException` simple (así están
+>     escritas casi todas las validaciones de negocio: stock insuficiente, precio inválido,
+>     promoción vencida, etc.), así que cualquiera de esas validaciones cae en el catch-all de
+>     `Exception.class` y siempre devolvía `"Error interno del servidor"` con `500`, ocultando el
+>     mensaje real. Ahora esas validaciones devuelven `400` con el mensaje específico. Se detectó
+>     al investigar un 500 real en `POST /v1/ventas/save` con una línea de promoción con
+>     `cantidad: null` — también se agregó validación explícita de `cantidad` (obligatoria, > 0)
+>     en venta directa y `savePedido`.
+>   - **Filtro admin de productos/variantes rediseñado** — ver nota de mejora 11 arriba y
+>     `CAMBIOS_FRONT.md` para el contrato nuevo (`nombreOCodigo`+`conStock`+`conImagenes`+
+>     `habilitado`, todos opcionales y combinables). Reemplaza `FiltroCatalogoEnum`.
+>   - **Fix de paginación:** `ProductosControllerImpl` no tenía `page`/`size` con default (a
+>     diferencia de `VarianteController`) — el front tenía que mandarlos siempre o el endpoint
+>     rechazaba la petición. Ya tiene default `1`/`10` igual que variantes.
 
 > **Decisión 2026-07-01 — WhatsApp EN PAUSA:** se descartó implementar el envío del ticket por
 > WhatsApp al cliente. CallMeBot (gratis, ya programado en el back) solo le avisa al negocio, no
@@ -148,7 +176,8 @@
 | Fix BUG-CB-02 (500 en imágenes huérfanas) + BUG-CB-03 (campos `descripcion`/`codigoBarras` en chatbot) (2026-07-02) | `VarianteServiceImpl.java`, `VarianteController.java`, `ChatbotService.java` |
 | Fix BUG-CB-01 real: prompt del chatbot usaba nombre ambiguo en vez de código de barras para re-buscar imagen (2026-07-02) | `ChatbotService.java` |
 | Fix bug de caché: varias búsquedas de variantes cacheaban sin incluir el rol, exponiendo a clientes normales resultados sin filtrar que un admin había cacheado antes (2026-07-02) | `VarianteServiceImpl.java` |
-| Filtros producto/variante por rol: cliente normal solo ve stock>0 + habilitado + con imagen; nuevo endpoint admin `.../admin/filtrar?filtro=SIN_STOCK\|CON_STOCK\|CON_IMAGENES\|CON_STOCK_Y_IMAGENES` paginado, ve todo el catálogo (2026-07-02) | `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`, `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java`, `FiltroCatalogoEnum.java` |
+| Filtros producto/variante por rol: cliente normal solo ve stock>0 + habilitado + con imagen; endpoint admin `.../admin/filtrar` paginado, ve todo el catálogo (2026-07-02) | `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`, `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java` |
+| Filtro admin rediseñado: reemplaza `FiltroCatalogoEnum` (un solo valor) por 4 parámetros opcionales combinables (`nombreOCodigo`, `conStock`, `conImagenes`, `habilitado` — este último nuevo); `ProductosControllerImpl` ganó default `page=1/size=10` que le faltaba (2026-07-06) | `IProductosRepository.java`, `IVarianteRepository.java`, `ProductosServiceImpl.java`, `VarianteServiceImpl.java`, `ProductosControllerImpl.java`, `VarianteController.java` |
 
 ### Front ⏳ pendiente (ver `CAMBIOS_FRONT.md` para detalle completo)
 
@@ -167,7 +196,7 @@
 | F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-12 | Pantalla de reportes (diario, mensual con gráfica por día, por cliente, productos más vendidos) | Nueva pantalla `/reportes`, solo ADMIN | "Reportes de ventas (2026-07-02)" |
 | F-13 | Pantalla de dashboard (`GET /v1/dashboard/resumen`, 9 cards de métricas) | Nueva pantalla `/dashboard`, solo ADMIN | "Dashboard con métricas (2026-07-02)" |
-| F-14 | Filtros de admin en catálogo de productos/variantes (dropdown: Sin stock / Con stock / Con imágenes / Con stock y con imágenes) usando `.../admin/filtrar?filtro=...`. Cliente normal NO necesita UI nueva — el listado normal ya viene filtrado por el back. | Panel admin — productos y variantes | "Filtros producto/variante por rol (2026-07-02)" |
+| F-14 | ⚠️ CONTRATO CAMBIÓ 2026-07-06 — Filtros de admin en catálogo de productos/variantes: ya no es un dropdown de un solo valor, ahora son controles independientes y combinables: campo de texto `nombreOCodigo` + 3 toggles de 3 estados (cualquiera/sí/no) para `conStock`, `conImagenes` y `habilitado` (NUEVO). Se combinan todos con AND. Cliente normal NO necesita UI nueva. | Panel admin — productos y variantes | "Cambio de contrato (2026-07-06): filtro admin combinado..." en `CAMBIOS_FRONT.md` |
 | F-15 | Correo/teléfono obligatorios al crear/editar cliente + pantalla de verificación de correo (input de 6 dígitos, botón reenviar) antes de dejar generar un pedido | Alta de cliente / cuenta online, previo a carrito-pedido | "Verificación de correo del cliente (2026-07-02)" |
 | F-16 | Selección múltiple (checkboxes) en la lista paginada de productos/variantes del panel admin + botón "deshabilitar seleccionados" que llame `admin/habilitar-lote` con los IDs marcados | Panel admin — productos y variantes | "Deshabilitar productos/variantes en lote (2026-07-02)" |
 | F-17 | Pantalla "olvidé mi contraseña": input de correo → input de código de 6 dígitos + nueva contraseña (mismo formulario, se revela el segundo campo cuando terminan de escribir el código) | Login, link "olvidé mi contraseña" | "Restablecer contraseña olvidada (2026-07-03)" |

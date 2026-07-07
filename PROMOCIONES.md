@@ -422,3 +422,24 @@ promo, o por varios clientes comprando la misma promo en paralelo), la venta se 
 momento de confirmar — el sistema no vende de más. `instanciasDisponibles` que ve el front es solo
 una estimación para deshabilitar el botón preventivamente (UX); la fuente de verdad y el bloqueo
 real están en el guardado del pedido/venta.
+
+### 5. Bug real encontrado en QA (2026-07-06): `POST /v1/ventas/save` con línea de promoción daba 500
+
+**No era un bug de promociones en sí** — el request de prueba mandaba `"cantidad": null` en las
+líneas con `promocionId`, y ni `VentaServiceImpl` ni `PedidoServiceImpl` validaban que `cantidad`
+no fuera nula antes de usarla en comparaciones numéricas (`variante.getStock() < cantidad`), lo
+que tronaba con `NullPointerException` sin control.
+
+**El front debe mandar `cantidad` con el número real de piezas en cada línea, incluidas las de
+promoción** — no puede ir `null` (aunque la "cantidad" de una promo esté implícita en el combo, el
+backend valida `cantidad % detalle.getCantidad() == 0` para permitir múltiplos, ej. llevar 2
+combos, así que necesita el número real, no nulo).
+
+**De paso se encontró y arregló algo más importante:** el manejador global de excepciones no tenía
+caso para `RuntimeException` simple — así están escritas casi todas las validaciones de negocio de
+promociones (`"La promocion ya no esta disponible"`, `"Las promociones solo se pueden comprar de
+contado..."`, etc.), así que **todas esas validaciones devolvían siempre `500` con el mensaje
+genérico**, ocultando el motivo real. Ya se corrigió — ahora esas validaciones devuelven `400` con
+el mensaje específico. Detalle completo en `CAMBIOS_FRONT.md` → "Cambio de comportamiento
+(2026-07-06): errores de validación ya NO regresan 500".
+
