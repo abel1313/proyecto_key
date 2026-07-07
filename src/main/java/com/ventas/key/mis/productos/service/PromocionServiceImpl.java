@@ -213,6 +213,7 @@ public class PromocionServiceImpl {
         dto.setNombreProducto(variante.getProducto().getNombre());
         dto.setTalla(variante.getTalla());
         dto.setColor(variante.getColor());
+        dto.setCantidad(detalle.getCantidad());
         dto.setPrecioNormal(variante.getProducto().getPrecioVenta());
         dto.setPrecioEnPromocion(detalle.getPrecioEnPromocion());
         dto.setImagenUrl(obtenerImagenUrl(variante.getId()));
@@ -242,7 +243,8 @@ public class PromocionServiceImpl {
                 variante.getColor(),
                 detalle.getCantidad(),
                 detalle.getPrecioEnPromocion(),
-                obtenerImagenUrl(variante.getId()));
+                obtenerImagenUrl(variante.getId()),
+                variante.getStock());
     }
 
     private void evictarCache() {

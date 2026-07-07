@@ -665,7 +665,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public String habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
-        List<Variantes> variantes = iVarianteRepository.findAllById(ids);
+        List<Variantes> variantes = iVarianteRepository.findAhay que llById(ids);
         Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
 
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
