@@ -679,18 +679,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Map<Integer, Character> valoresTrasGuardar = iVarianteRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(Variantes::getId, Variantes::getHabilitado));
 
-        String diagnostico = ids.stream()
-                .map(id -> String.format(
-                        "{\"id\":%d,\"encontradoEnBD\":%b,\"habilitadoTrasGuardar\":\"%s\"}",
-                        id,
-                        idsEncontrados.contains(id),
-                        valoresTrasGuardar.getOrDefault(id, '?')))
-                .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
+        if (log.isDebugEnabled()) {
+            String diagnostico = ids.stream()
+                    .map(id -> String.format(
+                            "{\"id\":%d,\"encontradoEnBD\":%b,\"habilitadoTrasGuardar\":\"%s\"}",
+                            id,
+                            idsEncontrados.contains(id),
+                            valoresTrasGuardar.getOrDefault(id, '?')))
+                    .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
+            log.debug("Diagnostico habilitar-lote variantes: {}", diagnostico);
+        }
 
         evictAllCaches();
 
-        log.info("Diagnostico habilitar-lote variantes: {}", diagnostico);
-        return diagnostico;
+        return habilitar ? "Variantes habilitadas correctamente." : "Variantes deshabilitadas correctamente.";
     }
 
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {

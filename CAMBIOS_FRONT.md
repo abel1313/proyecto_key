@@ -4815,6 +4815,23 @@ se arma mal el arreglo de ids antes de llamar al endpoint).
 
 ---
 
+## ✅ RESUELTO (2026-07-07): diagnóstico temporal quitado de `habilitar-lote`
+
+Como ya se confirmó (sección de arriba, "Causa real encontrada") que el `UPDATE` en BD siempre
+funcionó bien, se quitó el JSON de diagnóstico del campo `data`. El endpoint vuelve al mensaje
+limpio de siempre:
+
+```json
+{ "mensaje": "La peticion fue exitosa", "code": 200, "data": "Variantes deshabilitadas correctamente.", "lista": null }
+```
+
+Mismo para `"Variantes habilitadas correctamente."`. El diagnóstico (ids/resultado) sigue
+generándose pero solo va al log del servidor (`log.debug`), ya no viaja en la respuesta HTTP. Si el
+front había agregado algún manejo temporal para el texto largo con JSON embebido, ya se puede
+quitar — el `data` vuelve a ser el string corto de antes.
+
+---
+
 ## ✅ Causa real encontrada y arreglada (2026-07-06): variantes SÍ se deshabilitaban, pero nunca se veía
 
 Con el diagnóstico de arriba se confirmó en QA que `habilitar-lote` **sí actualiza la BD**
@@ -4939,6 +4956,33 @@ GET /variantes/v1/admin/filtrar?habilitado=false&pagina=1&size=10
 - El front necesita actualizar la pantalla de filtros de admin (productos y variantes) para mandar
   estos 4 parámetros en vez del enum `filtro` — el enum `FiltroCatalogoEnum` ya no existe en el
   backend, cualquier request con `filtro=...` va a fallar (`400`, parámetro no reconocido).
+
+---
+
+## ✅ Fix (2026-07-07): mensajes de error de promociones ahora son específicos
+
+**Reportado:** al agregar una promoción al carrito y confirmar la venta/pedido, el back rechazaba
+la operación con `400` y el mismo mensaje genérico `"La promocion '...' ya no esta disponible"` sin
+importar cuál era el problema real (línea faltante, precio distinto, cantidad inválida, etc.) — esto
+hacía imposible saber, desde el front, qué corregir.
+
+**Causa:** `PromocionServiceImpl.validarLineasPromocion()` usaba el mismo mensaje para 4
+validaciones distintas. Ya se separaron — el mensaje ahora dice exactamente cuál fue el problema:
+
+| Situación | Mensaje nuevo |
+|---|---|
+| Faltan o sobran líneas del combo (el front debe mandar **una línea por cada variante** de la promoción, ver `PROMOCIONES.md` punto 7) | `"La promocion '{descripcion}' requiere N linea(s) (una por cada variante del combo), se recibieron M"` |
+| Una `varianteId` mandada no pertenece a esa promoción | `"La variante {id} no pertenece a la promocion '{descripcion}'"` |
+| El `precioUnitario` mandado no coincide con `precioEnPromocion` de esa variante en BD | `"El precio de la variante {id} en la promocion '{descripcion}' no coincide. Esperado: X, recibido: Y"` |
+| La `cantidad` mandada no es múltiplo de la cantidad del detalle (ej. detalle pide de 1 en 1 y llegó 3 en una promo que solo permite llevar combos completos) | `"La cantidad de la variante {id} en la promocion '{descripcion}' debe ser multiplo de N, se recibio M"` |
+| Promoción vencida o desactivada | `"La promocion '{descripcion}' ya no esta disponible"` (sin cambios) |
+| Se intenta apartar/dar a crédito una promoción | `"Las promociones solo se pueden comprar de contado, no se pueden apartar ni dar a credito"` (sin cambios) |
+
+**No cambia el contrato** (mismo `400`, mismo formato de response) — solo el texto del mensaje es
+más específico. Si el front tenía un caso de prueba fallando "por promociones" sin saber por qué,
+usar este mensaje nuevo para identificar cuál de las 4 validaciones está chocando (lo más común:
+el front manda la promoción como **una sola línea** en vez de una línea por cada variante que la
+compone — ver contrato en `PROMOCIONES.md`, sección 7).
 
 **Aún pendiente de correr en producción** — igual que los cambios anteriores, esto solo está en
 `dev`/`qa` por ahora.

@@ -136,16 +136,26 @@ public class PromocionServiceImpl {
                 .collect(Collectors.toMap(d -> d.getVariante().getId(), d -> d));
 
         if (porVariante.size() != lineas.size()) {
-            throw new RuntimeException("La promocion '" + promo.getDescripcion() + "' ya no esta disponible");
+            throw new RuntimeException("La promocion '" + promo.getDescripcion() + "' requiere "
+                    + porVariante.size() + " linea(s) (una por cada variante del combo), se recibieron "
+                    + lineas.size());
         }
 
         for (LineaPromocionCheck linea : lineas) {
             PromocionDetalle detalle = porVariante.get(linea.varianteId());
-            boolean coincide = detalle != null
-                    && detalle.getPrecioEnPromocion().equals(linea.precioUnitario())
-                    && linea.cantidad() % detalle.getCantidad() == 0;
-            if (!coincide) {
-                throw new RuntimeException("La promocion '" + promo.getDescripcion() + "' ya no esta disponible");
+            if (detalle == null) {
+                throw new RuntimeException("La variante " + linea.varianteId()
+                        + " no pertenece a la promocion '" + promo.getDescripcion() + "'");
+            }
+            if (!detalle.getPrecioEnPromocion().equals(linea.precioUnitario())) {
+                throw new RuntimeException("El precio de la variante " + linea.varianteId()
+                        + " en la promocion '" + promo.getDescripcion() + "' no coincide. Esperado: "
+                        + detalle.getPrecioEnPromocion() + ", recibido: " + linea.precioUnitario());
+            }
+            if (linea.cantidad() % detalle.getCantidad() != 0) {
+                throw new RuntimeException("La cantidad de la variante " + linea.varianteId()
+                        + " en la promocion '" + promo.getDescripcion() + "' debe ser multiplo de "
+                        + detalle.getCantidad() + ", se recibio " + linea.cantidad());
             }
         }
     }
