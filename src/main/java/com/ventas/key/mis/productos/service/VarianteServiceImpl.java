@@ -179,6 +179,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     @Override
+    public Variantes delete(Integer id) throws Exception {
+        Variantes variante = iVarianteRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + id));
+        variante.setHabilitado('0');
+        variante.setStock(0);
+        Variantes saved = iVarianteRepository.save(variante);
+        evictAllCaches();
+        return saved;
+    }
+
+    @Transactional
+    @Override
     public Boolean guardarVariantesPorProductoConImagenes(RequestVarianteDto requestVarianteDto, MultipartFile[] imagenes) {
         Producto producto = iProductosRepository.findById(requestVarianteDto.getProductoId())
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));

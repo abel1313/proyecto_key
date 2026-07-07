@@ -38,6 +38,9 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")
     Page<Variantes> findVariantesSinStockDeshabilitadas(Pageable pageable);
 
+    List<Variantes> findByProductoIdAndHabilitado(Integer productoId, char habilitado);
+    List<Variantes> findByProductoIdAndHabilitadoOrderByIdDesc(Integer productoId, char habilitado);
+
     // Stock bajo = todavía se puede vender (stock > 0) pero se está agotando.
     // No incluye stock = 0 — eso ya se cubre en findVariantesSinStockDeshabilitadas.
     @Query("SELECT COUNT(v) FROM Variantes v WHERE v.stock > 0 AND v.stock < :umbral AND v.producto.habilitado = '1'")
