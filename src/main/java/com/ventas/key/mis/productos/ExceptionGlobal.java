@@ -70,6 +70,16 @@ public class ExceptionGlobal {
         return build(HttpStatus.BAD_REQUEST, "El archivo excede el tamaño maximo permitido");
     }
 
+    // Gran parte de las validaciones de negocio (stock insuficiente, precio invalido, promocion
+    // vencida, etc.) se lanzan como RuntimeException simple en vez de un tipo propio. Sin este
+    // handler caian en el catch-all de Exception.class de abajo y el mensaje real se perdia,
+    // mostrando siempre "Error interno del servidor" aunque fuera un error de validacion normal.
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ResponseGeneric<Void>> runtimeException(RuntimeException ex) {
+        log.warn("Error de negocio: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ResponseGeneric<Void>> noControlada(Exception ex) {
         log.error("Error no controlado en el servidor", ex);
