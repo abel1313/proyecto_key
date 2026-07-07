@@ -4837,3 +4837,55 @@ ya lo hace con productos.
 
 **Aún pendiente de correr en producción** — este fix (junto con el diagnóstico de arriba) solo
 está en `dev`/`qa` por ahora; falta subir a `main` cuando se confirme que todo funciona bien en QA.
+
+---
+
+## ✅ Fix (2026-07-06): búsqueda de cliente por nombre completo no encontraba resultados
+
+**Bug:** `GET /clientes/buscar?nombre=...` buscaba el texto contra `nombrePersona`,
+`apeidoPaterno` y `apeidoMaterno` **por separado** (OR). Si buscabas solo "Abel" sí encontraba al
+cliente (matchea `nombrePersona`), pero si buscabas "Abel Tiburcio" (nombre + apellido juntos) no
+encontraba nada, porque ningún campo individual contiene esa cadena completa.
+
+**Fix:** la query ahora concatena `nombrePersona + apeidoPaterno + apeidoMaterno` y busca el texto
+contra el nombre completo. Sigue funcionando buscar por una sola palabra (nombre solo, o apellido
+solo) y ahora también funciona buscar "nombre apellido" junto, en ese orden. **No cambia el
+contrato** (mismo endpoint, mismo request/response) — solo corrige los resultados.
+
+---
+
+## ⚠️ Cambio de comportamiento (2026-07-06): errores de validación ya NO regresan 500
+
+**Contexto:** al guardar una venta directa con una promoción
+(`POST /v1/ventas/save`, líneas con `promocionId`), el front reportó `{"code":500,"data":null,
+"mensaje":"Error interno del servidor"}` — sin ninguna pista de qué estaba mal. La causa inmediata
+era que el request mandaba `"cantidad": null` en las líneas de la promo (el backend no validaba
+eso y tronaba con un error interno al hacer una comparación numérica). **El front debe mandar
+`cantidad` con el número real de piezas en cada línea de detalle**, incluidas las de promoción
+(no puede ir `null`).
+
+**Pero el hallazgo más importante fue de fondo:** el backend tiene decenas de validaciones de
+negocio (stock insuficiente, precio inválido, promoción vencida o no disponible, "las promociones
+solo se pueden comprar de contado", etc.) que se lanzan internamente como una excepción genérica.
+El manejador global de errores no tenía un caso para ese tipo de excepción, así que **todas esas
+validaciones terminaban devolviendo `code: 500` con el mensaje genérico `"Error interno del
+servidor"`**, ocultando el mensaje real (p. ej. "Stock insuficiente en variante id 5. Disponible:
+2, solicitado: 10").
+
+**Fix:** ahora esas validaciones de negocio devuelven `code: 400` con el mensaje real y específico
+en `mensaje`/`data`, igual que ya pasaba con otras validaciones (`404`, `409`, `422`, etc.).
+
+**Lo que el front necesita revisar:**
+- Si en algún lado el front distingue `500` vs `400` para decidir qué mostrarle al usuario (p. ej.
+  "algo salió mal, intenta de nuevo" para 500 vs. mostrar el mensaje tal cual para 400), muchos
+  errores que antes caían en la rama de "500 genérico" ahora van a caer en la rama de "400 con
+  mensaje específico" — en general esto es una mejora (mensajes más útiles), pero si hay lógica
+  específica atada al código 500 en particular, revisarla.
+- Ya se puede mostrar directamente el mensaje de `data`/`mensaje` en la mayoría de los errores de
+  venta/pedido/promoción — antes esa información no llegaba nunca.
+- Además se agregó validación explícita de `cantidad` (obligatoria y mayor a 0) en
+  `POST /v1/ventas/save` y `POST /pedidos/savePedido` — si falta o es 0/negativa, ahora regresa
+  400 con `"La cantidad es obligatoria y debe ser mayor a 0..."` en vez de tronar.
+
+**Aún pendiente de correr en producción** — igual que los cambios anteriores, esto solo está en
+`dev`/`qa` por ahora.

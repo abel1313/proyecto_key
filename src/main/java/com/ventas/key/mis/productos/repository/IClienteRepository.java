@@ -23,9 +23,11 @@ public interface IClienteRepository extends BaseRepository<Cliente,Integer> {
     SELECT new com.ventas.key.mis.productos.models.ClienteBusquedaDto(
         c.id, c.nombrePersona, c.apeidoPaterno, c.apeidoMaterno, c.correoElectronico, c.numeroTelefonico, c.correoVerificado)
     FROM Cliente c
-    WHERE LOWER(c.nombrePersona) LIKE LOWER(CONCAT('%', :nombre, '%'))
-       OR LOWER(c.apeidoPaterno) LIKE LOWER(CONCAT('%', :nombre, '%'))
-       OR LOWER(c.apeidoMaterno) LIKE LOWER(CONCAT('%', :nombre, '%'))
+    WHERE LOWER(CONCAT(
+            COALESCE(c.nombrePersona, ''), ' ',
+            COALESCE(c.apeidoPaterno, ''), ' ',
+            COALESCE(c.apeidoMaterno, '')
+          )) LIKE LOWER(CONCAT('%', :nombre, '%'))
     """)
     Page<ClienteBusquedaDto> buscarPorNombre(@Param("nombre") String nombre, Pageable pageable);
 

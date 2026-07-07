@@ -128,6 +128,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         List<DetallePedido> detallePedido = new ArrayList<>();
         for (var mpa : requestG.getDetalles()) {
+            if (mpa.getCantidad() == null || mpa.getCantidad() <= 0) {
+                throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0");
+            }
+
             Variantes variante = null;
             Producto prod;
 
