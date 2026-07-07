@@ -21,4 +21,5 @@ public class VarianteDto {
     private double precio;
     private String codigoBarras;
     private PalabraClaveResumenDto palabraClave;
+    private char habilitado;
 }

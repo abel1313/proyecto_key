@@ -118,6 +118,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             dto.setPalabraClave(v.getPalabraClave() != null
                     ? new com.ventas.key.mis.productos.models.PalabraClaveResumenDto(v.getPalabraClave().getId(), v.getPalabraClave().getNombre())
                     : null);
+            dto.setHabilitado(v.getHabilitado());
             return dto;
         }).collect(Collectors.toList());
     }
@@ -613,6 +614,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElse("");
         dto.setCodigoBarras(codBarras);
         dto.setNombreProducto(Optional.ofNullable(v.getProducto()).map(Producto::getNombre).orElse(""));
+        dto.setHabilitado(v.getHabilitado());
         return dto;
     }
 

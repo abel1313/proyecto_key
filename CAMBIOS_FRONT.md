@@ -4812,3 +4812,28 @@ esta pantalla (`variantes/v1/admin/habilitar-lote`) realmente corresponden a `va
 error de la pantalla se están mandando otros ids (ej. `producto.id`). Una vez confirmada la causa,
 se quita este diagnóstico y se aplica el fix definitivo (que puede ser en front, si el bug es que
 se arma mal el arreglo de ids antes de llamar al endpoint).
+
+---
+
+## ✅ Causa real encontrada y arreglada (2026-07-06): variantes SÍ se deshabilitaban, pero nunca se veía
+
+Con el diagnóstico de arriba se confirmó en QA que `habilitar-lote` **sí actualiza la BD**
+correctamente (`habilitadoTrasGuardar` salía con el valor correcto). El problema real era otro: los
+endpoints de búsqueda/listado de variantes para admin (`GET /variantes/v1/buscar`,
+`GET /variantes/v1/porProducto/{productoId}`, el filtro admin, "sin stock deshabilitadas", etc.)
+**nunca incluían el campo `habilitado` en su respuesta** — a diferencia de productos, donde ese
+campo sí viaja. Por eso, aunque la variante ya estaba deshabilitada en la BD, cualquier pantalla
+que la buscara/listara no tenía forma de saberlo y seguía mostrándola como habilitada.
+
+**Cambio de contrato — nuevo campo `habilitado` (char, `'1'`/`'0'`) agregado a:**
+- El objeto de cada variante en `GET /variantes/v1/buscar` (búsqueda por nombre/código/palabra
+  clave, resumen paginado) — clase `VarianteResumenDto`.
+- El objeto de cada variante en `GET /variantes/v1/porProducto/{productoId}` (listado simple, no
+  paginado) — clase `VarianteDto`.
+
+Mismo formato que ya usa `Producto.habilitado`: `'1'` = habilitada, `'0'` = deshabilitada. El front
+debe empezar a leer este campo en esas pantallas para reflejar correctamente el estado, igual que
+ya lo hace con productos.
+
+**Aún pendiente de correr en producción** — este fix (junto con el diagnóstico de arriba) solo
+está en `dev`/`qa` por ahora; falta subir a `main` cuando se confirme que todo funciona bien en QA.
