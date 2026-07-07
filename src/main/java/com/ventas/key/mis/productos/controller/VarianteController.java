@@ -3,7 +3,6 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.DiagnosticoImagenVarianteDto;
-import com.ventas.key.mis.productos.models.FiltroCatalogoEnum;
 import com.ventas.key.mis.productos.models.HabilitarLoteRequest;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -179,12 +178,20 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getVariantesSinStockDeshabilitadas(pagina, size)));
     }
 
+    // Filtro combinado de admin: nombreOCodigo + conStock + conImagenes + habilitado son todos
+    // opcionales e independientes entre si (AND). Cada uno es tri-estado via Boolean nullable:
+    // null = cualquiera, true/false = con/sin (o habilitado/deshabilitado). Reemplaza el filtro
+    // de un solo valor (FiltroCatalogoEnum) que no se podia combinar con busqueda por nombre.
     @GetMapping("/v1/admin/filtrar")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> filtrarVariantesAdmin(
-            @RequestParam FiltroCatalogoEnum filtro,
+            @RequestParam(required = false) String nombreOCodigo,
+            @RequestParam(required = false) Boolean conStock,
+            @RequestParam(required = false) Boolean conImagenes,
+            @RequestParam(required = false) Boolean habilitado,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(filtro, pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(
+                nombreOCodigo, conStock, conImagenes, habilitado, pagina, size)));
     }
 
     @PutMapping("/v1/admin/habilitar-lote")

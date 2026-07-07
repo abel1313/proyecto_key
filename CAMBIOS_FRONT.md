@@ -4889,3 +4889,56 @@ en `mensaje`/`data`, igual que ya pasaba con otras validaciones (`404`, `409`, `
 
 **Aún pendiente de correr en producción** — igual que los cambios anteriores, esto solo está en
 `dev`/`qa` por ahora.
+
+---
+
+## ⚠️ Cambio de contrato (2026-07-06): filtro admin combinado de productos/variantes + fix paginación por defecto
+
+**1. `GET /productos/*` sin página/tamaño por defecto (bug, ya corregido).** Varios endpoints de
+`ProductosControllerImpl` (`obtenerProductos`, `buscarNombreOrCodigoBarra`, `admin/no-habilitados`,
+`admin/sin-stock`, `admin/filtrar`) exigían `size`/`page` como obligatorios — si el front entraba a
+un componente sin mandarlos, el backend rechazaba la petición en vez de asumir página 1 / 10
+registros (a diferencia de `VarianteController`, que sí tenía default). Ahora todos tienen
+`page` por defecto `1` y `size` por defecto `10`, igual que variantes. **No rompe nada** — si ya
+mandabas esos params, sigue funcionando igual.
+
+**2. `GET /productos/admin/filtrar` y `GET /variantes/v1/admin/filtrar` — filtro combinado
+(rompe contrato, hay que actualizar el front).**
+
+Antes: un solo parámetro `filtro` (enum `SIN_STOCK` / `CON_STOCK` / `CON_IMAGENES` /
+`CON_STOCK_Y_IMAGENES`), sin poder combinarlo con búsqueda por nombre/código.
+
+Ahora, **se quitó el parámetro `filtro`** y se reemplazó por 4 parámetros independientes, todos
+opcionales, que se combinan entre sí con AND:
+
+| Parámetro | Tipo | Significado |
+|---|---|---|
+| `nombreOCodigo` | string, opcional | Busca en nombre del producto/variante y en código de barras a la vez (como ya funciona en las búsquedas públicas) |
+| `conStock` | boolean, opcional | `true` = con stock, `false` = sin stock, **omitido** = cualquiera |
+| `conImagenes` | boolean, opcional | `true` = con imágenes, `false` = sin imágenes, **omitido** = cualquiera |
+| `habilitado` | boolean, opcional | `true` = habilitado, `false` = deshabilitado, **omitido** = cualquiera |
+| `page`/`pagina`, `size` | int | Igual que antes (default 1 y 10 si no se mandan) |
+
+Ejemplo: buscar "pantalon" con stock, sin importar si tiene imágenes o no, solo habilitados:
+```
+GET /productos/admin/filtrar?nombreOCodigo=pantalon&conStock=true&habilitado=true&page=1&size=10
+```
+
+Ejemplo: solo deshabilitados, sin ningún otro filtro:
+```
+GET /variantes/v1/admin/filtrar?habilitado=false&pagina=1&size=10
+```
+
+**Reglas de uso:**
+- Cada uno de los 3 filtros (`conStock`, `conImagenes`, `habilitado`) es de un solo estado a la
+  vez — no tiene sentido pedir "con imágenes" y "sin imágenes" al mismo tiempo, por eso cada uno
+  es un solo booleano (no un arreglo). Si no se manda el parámetro, no se filtra por esa dimensión.
+  `nombreOCodigo` sí se puede combinar libremente con cualquier combinación de los otros 3.
+- En variantes, `habilitado` filtra por el estado de la **variante** (`v.habilitado`), no del
+  producto padre — coincide con el fix documentado arriba de `habilitar-lote`.
+- El front necesita actualizar la pantalla de filtros de admin (productos y variantes) para mandar
+  estos 4 parámetros en vez del enum `filtro` — el enum `FiltroCatalogoEnum` ya no existe en el
+  backend, cualquier request con `filtro=...` va a fallar (`400`, parámetro no reconocido).
+
+**Aún pendiente de correr en producción** — igual que los cambios anteriores, esto solo está en
+`dev`/`qa` por ahora.

@@ -81,6 +81,41 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findConStockYImagenAdmin(Pageable pageable);
 
+    // Filtro combinado de admin: nombreOCodigo/conStock/conImagenes/habilitado son todos
+    // opcionales (Boolean nullable = tri-estado: null = cualquiera). Se combinan con AND.
+    // habilitado usa v.habilitado (de la variante), no v.producto.habilitado.
+    // countQuery explicito obligatorio: con EXISTS + Page, sin countQuery propio Spring genera
+    // uno automatico que puede devolver vacio aunque si haya datos.
+    @Query(value = """
+        SELECT v FROM Variantes v
+        WHERE (:nombreOCodigo IS NULL
+               OR LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
+               OR (v.producto.codigoBarras IS NOT NULL
+                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+          AND (:conStock IS NULL OR (:conStock = TRUE AND v.stock > 0) OR (:conStock = FALSE AND v.stock = 0))
+          AND (:conImagenes IS NULL
+               OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v))
+               OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)))
+          AND (:habilitado IS NULL OR (:habilitado = TRUE AND v.habilitado = '1') OR (:habilitado = FALSE AND v.habilitado <> '1'))
+        """,
+        countQuery = """
+        SELECT COUNT(v) FROM Variantes v
+        WHERE (:nombreOCodigo IS NULL
+               OR LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
+               OR (v.producto.codigoBarras IS NOT NULL
+                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+          AND (:conStock IS NULL OR (:conStock = TRUE AND v.stock > 0) OR (:conStock = FALSE AND v.stock = 0))
+          AND (:conImagenes IS NULL
+               OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v))
+               OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)))
+          AND (:habilitado IS NULL OR (:habilitado = TRUE AND v.habilitado = '1') OR (:habilitado = FALSE AND v.habilitado <> '1'))
+        """)
+    Page<Variantes> buscarVariantesAdmin(@Param("nombreOCodigo") String nombreOCodigo,
+                                          @Param("conStock") Boolean conStock,
+                                          @Param("conImagenes") Boolean conImagenes,
+                                          @Param("habilitado") Boolean habilitado,
+                                          Pageable pageable);
+
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
                    "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +

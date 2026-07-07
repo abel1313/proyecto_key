@@ -648,15 +648,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // Filtros de admin: ve TODO el catálogo de variantes (sin restricción de habilitado
     // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
     // normales exigen stock>0 + producto habilitado + con imagen.
-    @Cacheable(value = "variantesProductoCache", key = "'filtro:' + #filtro + ':' + #pagina + ':' + #size")
-    public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(FiltroCatalogoEnum filtro, int pagina, int size) {
+    @Cacheable(value = "variantesProductoCache",
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #pagina + ':' + #size")
+    public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
+            Boolean conImagenes, Boolean habilitado, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
-        Page<Variantes> page = switch (filtro) {
-            case SIN_STOCK -> iVarianteRepository.findByStock(0, pageable);
-            case CON_STOCK -> iVarianteRepository.findByStockGreaterThan(0, pageable);
-            case CON_IMAGENES -> iVarianteRepository.findConImagen(pageable);
-            case CON_STOCK_Y_IMAGENES -> iVarianteRepository.findConStockYImagenAdmin(pageable);
-        };
+        String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
+        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());

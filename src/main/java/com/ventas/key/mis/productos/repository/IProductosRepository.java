@@ -61,6 +61,40 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
            "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
     Page<Producto> findConStockYImagenAdmin(Pageable pageable);
 
+    // Filtro combinado de admin: nombreOCodigo/conStock/conImagenes/habilitado son todos
+    // opcionales (Boolean nullable = tri-estado: null = cualquiera). Se combinan con AND.
+    // countQuery explicito obligatorio: con EXISTS + Page, sin countQuery propio Spring genera
+    // uno automatico que puede devolver vacio aunque si haya datos.
+    @Query(value = """
+        SELECT p FROM Producto p
+        LEFT JOIN p.codigoBarras cb
+        WHERE (:nombreOCodigo IS NULL
+               OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+          AND (:conStock IS NULL OR (:conStock = TRUE AND p.stock > 0) OR (:conStock = FALSE AND p.stock = 0))
+          AND (:conImagenes IS NULL
+               OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
+               OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)))
+          AND (:habilitado IS NULL OR (:habilitado = TRUE AND p.habilitado = '1') OR (:habilitado = FALSE AND p.habilitado <> '1'))
+        """,
+        countQuery = """
+        SELECT COUNT(p) FROM Producto p
+        LEFT JOIN p.codigoBarras cb
+        WHERE (:nombreOCodigo IS NULL
+               OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+          AND (:conStock IS NULL OR (:conStock = TRUE AND p.stock > 0) OR (:conStock = FALSE AND p.stock = 0))
+          AND (:conImagenes IS NULL
+               OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
+               OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)))
+          AND (:habilitado IS NULL OR (:habilitado = TRUE AND p.habilitado = '1') OR (:habilitado = FALSE AND p.habilitado <> '1'))
+        """)
+    Page<Producto> buscarProductosAdmin(@Param("nombreOCodigo") String nombreOCodigo,
+                                         @Param("conStock") Boolean conStock,
+                                         @Param("conImagenes") Boolean conImagenes,
+                                         @Param("habilitado") Boolean habilitado,
+                                         Pageable pageable);
+
     // --- guardado ---
     Optional<Producto> findByCodigoBarras_CodigoBarrasAndNombre(String codigoBarras, String nombre);
 
