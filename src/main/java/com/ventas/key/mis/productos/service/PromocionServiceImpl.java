@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionActivaDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionDetalleActivaDto;
+import com.ventas.key.mis.productos.models.promociones.PromocionDetalleResponseDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionDetalleRequestDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionRequestDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionResponseDto;
@@ -216,7 +217,22 @@ public class PromocionServiceImpl {
     }
 
     private PromocionResponseDto toResponseDto(Promocion promo) {
-        return new PromocionResponseDto(promo.getId(), promo.getDescripcion(), promo.getFechaVencimiento(), promo.getActivo());
+        List<PromocionDetalleResponseDto> detalles = promo.getDetalles().stream()
+                .map(this::toDetalleResponseDto)
+                .toList();
+        return new PromocionResponseDto(promo.getId(), promo.getDescripcion(), promo.getFechaVencimiento(), promo.getActivo(), detalles);
+    }
+
+    private PromocionDetalleResponseDto toDetalleResponseDto(PromocionDetalle detalle) {
+        Variantes variante = detalle.getVariante();
+        return new PromocionDetalleResponseDto(
+                variante.getId(),
+                variante.getProducto().getNombre(),
+                variante.getTalla(),
+                variante.getColor(),
+                detalle.getCantidad(),
+                detalle.getPrecioEnPromocion(),
+                obtenerImagenUrl(variante.getId()));
     }
 
     private void evictarCache() {

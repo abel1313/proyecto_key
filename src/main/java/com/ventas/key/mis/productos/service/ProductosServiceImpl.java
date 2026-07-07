@@ -456,13 +456,17 @@ public class ProductosServiceImpl extends
                 }
 
                 // Ajuste de stock contra el stock real de la BD
+                int nuevoStock;
                 if (productoDetalle.getActualizarStock() > 0) {
-                    prodExistenteNoOpt.setStock(prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock());
+                    nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
                 } else if (productoDetalle.getEliminarStock() > 0) {
-                    prodExistenteNoOpt.setStock(prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock());
+                    nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
                 } else {
-                    prodExistenteNoOpt.setStock(productoDetalle.getStock());
+                    nuevoStock = productoDetalle.getStock();
                 }
+
+                ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
+                prodExistenteNoOpt.setStock(nuevoStock);
 
                 Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
                 log.info("Producto actualizado: {}", prd);
@@ -740,6 +744,22 @@ public class ProductosServiceImpl extends
         }
 
         return dto;
+    }
+
+    private void ajustarVariantesSiExceden(Integer productoId, int nuevoStock) {
+        List<Variantes> variantes = varianteRepository.findByProductoIdAndHabilitadoOrderByIdDesc(productoId, '1');
+        int sumVariantes = variantes.stream().mapToInt(Variantes::getStock).sum();
+        if (nuevoStock >= sumVariantes) return;
+
+        int exceso = sumVariantes - nuevoStock;
+        for (Variantes v : variantes) {
+            if (exceso <= 0) break;
+            int quitar = Math.min(v.getStock(), exceso);
+            v.setStock(v.getStock() - quitar);
+            varianteRepository.save(v);
+            exceso -= quitar;
+        }
+        log.info("ajustarVariantesSiExceden: productoId={} nuevoStock={} sumAntes={}", productoId, nuevoStock, sumVariantes);
     }
 
     public byte[] generarReporteProductosSinVariantes() throws IOException {

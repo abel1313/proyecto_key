@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -14,4 +15,9 @@ public class PromocionResponseDto {
     private String descripcion;
     private LocalDateTime fechaVencimiento;
     private Boolean activo;
+    private List<PromocionDetalleResponseDto> detalles;
+
+    public PromocionResponseDto(Integer id, String descripcion, LocalDateTime fechaVencimiento, Boolean activo) {
+        this(id, descripcion, fechaVencimiento, activo, null);
+    }
 }

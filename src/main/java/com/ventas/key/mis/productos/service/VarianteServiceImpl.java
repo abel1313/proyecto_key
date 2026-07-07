@@ -179,6 +179,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     @Override
+    public Variantes delete(Integer id) throws Exception {
+        Variantes variante = iVarianteRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + id));
+        variante.setHabilitado('0');
+        variante.setStock(0);
+        Variantes saved = iVarianteRepository.save(variante);
+        evictAllCaches();
+        return saved;
+    }
+
+    @Transactional
+    @Override
     public Boolean guardarVariantesPorProductoConImagenes(RequestVarianteDto requestVarianteDto, MultipartFile[] imagenes) {
         Producto producto = iProductosRepository.findById(requestVarianteDto.getProductoId())
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));
@@ -649,11 +661,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Transactional
-    public void habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
+    public String habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
         List<Variantes> variantes = iVarianteRepository.findAllById(ids);
+        Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
+
+        String diagnostico = ids.stream()
+                .map(id -> String.format("{\"id\":%d,\"encontradoEnBD\":%b}", id, idsEncontrados.contains(id)))
+                .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
+
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
         evictAllCaches();
+
+        log.info("Diagnostico habilitar-lote variantes: {}", diagnostico);
+        return diagnostico;
     }
 
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {

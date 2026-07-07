@@ -1,9 +1,10 @@
 # Promociones por variante (combos) — diseño
 
-> ⚠️ **Documento de planeación — diseño cerrado el 2026-07-05, nada implementado todavía.**
-> Retomado después de cerrar mejora 15. Idea original pausada en `PLAN_MEJORAS.md` / memoria
-> `project_promociones_por_variante_idea`. Siguiente paso: implementar entidades, migración,
-> endpoints y documentar el contrato final en `CAMBIOS_FRONT.md`.
+> ✅ **Implementado en `dev` el 2026-07-05** (commit `fda094b`): entidades `Promocion`/
+> `PromocionDetalle`, repositorio, service, controller y migración SQL. Diseño original pausado en
+> `PLAN_MEJORAS.md` / memoria `project_promociones_por_variante_idea`. Pendiente: probar en QA y
+> documentar el contrato final en `CAMBIOS_FRONT.md`. Ver también la sección "Preguntas frecuentes"
+> al final de este documento.
 
 ## Qué es una promoción aquí
 
@@ -61,6 +62,33 @@ vista visual, aunque internamente cada pieza mantiene su propio precio (ver deci
    cambian.
 5. **Venta directa (mostrador):** mismo criterio — si el vendedor agrega una promoción al ticket,
    la UI del POS debe bloquear las opciones de apartado/fiado para ese ticket completo.
+
+### Navegación / rutas (definido con el front, 2026-07-05)
+
+- **Admin (crear/gestionar promos):** sidebar → accordion "Admin" → "🎁 Gestión Promociones" →
+  `/admin/promociones` → botón "+ Nueva promoción" abre el formulario (buscar variantes, definir
+  precio y fecha de vencimiento) → guardar. Guard de ruta: **ADMIN** (coincide con
+  `hasRole("ADMIN")` en `POST/PUT /v1/promociones/**`).
+- **Catálogo (ver y agregar al carrito):** sidebar → "🎁 Promociones" (visible para cualquier
+  logueado) → `/promociones` → cards con los combos → botón "🛒 Agregar". Guard de ruta:
+  **autenticado**, no público, no exclusivo de ADMIN (coincide con `authenticated()` en
+  `GET /v1/promociones/activas`).
+- **Checkout:** el carrito unificado muestra promociones junto a variantes normales; el cliente
+  genera pedido o el admin cobra en venta directa, con la restricción de solo-contado ya descrita.
+- **Descubribilidad:** se agrega un banner fijo arriba del buscador en `/variantes/buscar` que
+  invite a `/promociones` — sin esto, un usuario que no revisa el sidebar nunca se entera de que
+  existen promociones activas.
+
+### Pendiente de definir con el front (no bloquea el backend, sí el armado de las pantallas)
+
+1. **¿El botón "🛒 Agregar" en `/promociones` agrega 1 combo directo, o abre primero el detalle
+   con el selector de cantidad (punto 2 arriba)?** Si es directo, "llevar 2 combos" sería repetir
+   el clic (el carrito ya acumula cantidad) — funcionalmente equivalente, solo hay que decidir cuál.
+2. **Estado agotado:** cuando `instanciasDisponibles = 0`, ¿la card se sigue mostrando con el
+   botón deshabilitado, o se oculta del listado? (La recomendación es mostrarla deshabilitada —
+   así el cliente ve que existió/existirá la promo en vez de que desaparezca sin explicación.)
+3. **Estado vacío:** si no hay ninguna promoción activa, ¿`/promociones` muestra un mensaje tipo
+   "no hay promociones por ahora" o queda en blanco?
 
 ## Modelo de datos — 2 tablas nuevas
 
@@ -352,3 +380,45 @@ la lógica de ventas** — solo "etiquetar" las líneas que pertenecen a una pro
   para las columnas `promocion_id` nullable.
 - Documentar el contrato final (una vez probado) en `CAMBIOS_FRONT.md`, siguiendo el checklist de
   `CLAUDE.md`.
+
+---
+
+## Preguntas frecuentes (resueltas, 2026-07-05)
+
+### 1. ¿`GET /v1/promociones/admin` devuelve las variantes de la promoción?
+
+Sí, pero solo desde el fix de hoy. `PromocionResponseDto` (usado por `crear`, `editar` y
+`listarAdmin`) no traía el campo `detalles` — el panel admin nunca recibía las variantes de
+ninguna promoción (vencida o no) y por eso al editar tocaba volver a agregarlas manualmente. Se
+agregó `PromocionDetalleResponseDto` (varianteId, nombreProducto, talla, color, cantidad,
+precioEnPromocion, imagenUrl) como campo `detalles` en `PromocionResponseDto`. Ya viene poblado en
+`POST /v1/promociones`, `PUT /v1/promociones/{id}` y `GET /v1/promociones/admin`.
+
+### 2. ¿Una promoción vencida se puede seguir editando (por ejemplo, para extenderle la fecha)?
+
+Sí, sin restricción. `PromocionServiceImpl.editar()` no valida vigencia antes de permitir el
+update — solo reemplaza `descripcion`/`fechaVencimiento`/`detalles` y guarda. Extender la
+`fechaVencimiento` a futuro la vuelve a hacer aparecer en `GET /v1/promociones/activas`
+inmediatamente (ese endpoint filtra `activo=1 AND fechaVencimiento > NOW()` en cada consulta).
+
+### 3. ¿Al vencer una promoción se regresa el stock a las variantes? ¿Al reactivarla se vuelve a apartar?
+
+Ninguna de las dos cosas ocurre, porque nunca hay nada reservado. `instanciasDisponibles` es un
+cálculo al vuelo (`stock de la variante / cantidad`, ver `calcularInstanciasDisponibles()`), no un
+contador guardado en BD. El stock de las variantes solo se mueve cuando hay una venta/pedido real
+confirmado — vencer, apagar o reactivar una promoción no toca el stock para nada.
+
+### 4. Si 2 promociones comparten variantes con poco stock, y se venden por separado (sueltas o cada promo a distintos clientes), ¿el sistema bloquea la venta cuando ya no alcanza el stock?
+
+Sí. No hay validación "al agregar al carrito" porque el carrito es 100% del front (no existe
+endpoint de agregar al carrito) — la única validación real ocurre al confirmar
+`POST /pedidos/savePedido` o la venta directa. Ahí, **cada línea del pedido (sea de una promoción o
+suelta) pasa por el mismo chequeo de stock en tiempo real**
+(`PedidoServiceImpl.savePedido()`, `variante.getStock() < cantidad` → `RuntimeException "Stock
+insuficiente..."`), usando `findByIdWithLock` (lock pesimista) para serializar transacciones
+concurrentes sobre la misma variante. Es decir: aunque las 2 promociones sigan apareciendo como
+`activo=true` y sin vencer, si su stock compartido ya se agotó (por ventas sueltas, por la otra
+promo, o por varios clientes comprando la misma promo en paralelo), la venta se rechaza en el
+momento de confirmar — el sistema no vende de más. `instanciasDisponibles` que ve el front es solo
+una estimación para deshabilitar el botón preventivamente (UX); la fuente de verdad y el bloqueo
+real están en el guardado del pedido/venta.

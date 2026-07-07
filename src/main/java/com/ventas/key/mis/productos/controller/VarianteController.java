@@ -191,10 +191,10 @@ public class VarianteController extends AbstractController<
     public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarVariantesLote(
             @Validated @RequestBody HabilitarLoteRequest request) {
         try {
-            sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
-            String mensaje = request.isHabilitar()
-                    ? "Variantes habilitadas correctamente"
-                    : "Variantes deshabilitadas correctamente";
+            String diagnostico = sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
+            String mensaje = (request.isHabilitar()
+                    ? "Variantes habilitadas correctamente. "
+                    : "Variantes deshabilitadas correctamente. ") + diagnostico;
             return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
         } catch (Exception e) {
             log.error("Error al habilitar/deshabilitar variantes en lote: {}", e.getMessage());
