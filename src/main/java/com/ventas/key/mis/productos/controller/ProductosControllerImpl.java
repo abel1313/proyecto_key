@@ -26,15 +26,17 @@ public class ProductosControllerImpl {
     private final ProductosServiceImpl pServiceImpl;
 
     @GetMapping("obtenerProductos")
-    public ResponseEntity<PginaDto<List<ProductoDTO>>> obtenerProductos(@RequestParam int size, @RequestParam int page) {
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> obtenerProductos(
+            @RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "1") int page) {
         log.info("obtener productos cahce size {} page {}", size, page);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getAll(size,page) );
     }
 
     @GetMapping("buscarNombreOrCodigoBarra")
-    public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(@RequestParam int size,
-                                                                                @RequestParam int page,
-                                                                                @RequestParam String nombre) {
+    public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam String nombre) {
         log.info("buscarNombreOrCodigoBarras {} page {} nombre {}", size, page, nombre);
         return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre) );
     }
@@ -67,24 +69,34 @@ public class ProductosControllerImpl {
 
     @GetMapping("admin/no-habilitados")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> getProductosNoHabilitados(
-            @RequestParam int size, @RequestParam int page) {
+            @RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "1") int page) {
         log.info("Admin: obtener productos no habilitados page={} size={}", page, size);
         return ResponseEntity.ok(this.pServiceImpl.getProductosNoHabilitados(size, page));
     }
 
     @GetMapping("admin/sin-stock")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> getProductosSinStock(
-            @RequestParam int size, @RequestParam int page) {
+            @RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "1") int page) {
         log.info("Admin: obtener productos sin stock page={} size={}", page, size);
         return ResponseEntity.ok(this.pServiceImpl.getProductosSinStock(size, page));
     }
 
+    // Filtro combinado de admin: nombreOCodigo + conStock + conImagenes + habilitado son todos
+    // opcionales e independientes entre si (AND). Cada uno es tri-estado via Boolean nullable:
+    // null = cualquiera, true/false = con/sin (o habilitado/deshabilitado). Reemplaza el filtro
+    // de un solo valor (FiltroCatalogoEnum) que no se podia combinar con busqueda por nombre.
     @GetMapping("admin/filtrar")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> filtrarProductosAdmin(
-            @RequestParam FiltroCatalogoEnum filtro,
-            @RequestParam int size, @RequestParam int page) {
-        log.info("Admin: filtrar productos filtro={} page={} size={}", filtro, page, size);
-        return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(filtro, size, page));
+            @RequestParam(required = false) String nombreOCodigo,
+            @RequestParam(required = false) Boolean conStock,
+            @RequestParam(required = false) Boolean conImagenes,
+            @RequestParam(required = false) Boolean habilitado,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "1") int page) {
+        log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} page={} size={}",
+                nombreOCodigo, conStock, conImagenes, habilitado, page, size);
+        return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(
+                nombreOCodigo, conStock, conImagenes, habilitado, size, page));
     }
 
     @PutMapping("{id}/habilitar")

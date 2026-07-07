@@ -669,15 +669,14 @@ public class ProductosServiceImpl extends
     // Filtros de admin: ve TODO el catálogo (sin restricción de stock/habilitado salvo
     // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
     // clientes normales exigen stock>0 + habilitado + con imagen.
-    @Cacheable(value = "obtenerProductosCache", key = "'filtro:' + #filtro + ':' + #page + ':' + #size")
-    public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(FiltroCatalogoEnum filtro, int size, int page) {
+    @Cacheable(value = "obtenerProductosCache",
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #page + ':' + #size")
+    public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(String nombreOCodigo, Boolean conStock,
+            Boolean conImagenes, Boolean habilitado, int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados = switch (filtro) {
-            case SIN_STOCK -> iProductosRepository.findByStock(0, pageable);
-            case CON_STOCK -> iProductosRepository.findByStockGreaterThan(0, pageable);
-            case CON_IMAGENES -> iProductosRepository.findConImagen(pageable);
-            case CON_STOCK_Y_IMAGENES -> iProductosRepository.findConStockYImagenAdmin(pageable);
-        };
+        String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
+        Page<Producto> productosPaginados = iProductosRepository.buscarProductosAdmin(
+                texto, conStock, conImagenes, habilitado, pageable);
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
