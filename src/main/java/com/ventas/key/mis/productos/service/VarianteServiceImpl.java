@@ -665,7 +665,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public String habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
-        List<Variantes> variantes = iVarianteRepository.findAhay que llById(ids);
+        List<Variantes> variantes = iVarianteRepository.findAllById(ids);
         Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
 
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
@@ -723,6 +723,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             imagenesExternas = imageneClienteDisco.getAll(ids);
         } catch (Exception e) {
             log.warn("Error al consultar microservicio para diagnóstico de variante {}: {}", varianteId, e.getMessage());
+
             imagenesExternas = List.of();
         }
 
