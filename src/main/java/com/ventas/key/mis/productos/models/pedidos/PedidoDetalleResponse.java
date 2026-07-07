@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -19,6 +20,10 @@ public class PedidoDetalleResponse {
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaPedido;
+
+    // Fecha+hora completa de la compra (para mostrar hora en ticket/detalle). En pedidos
+    // anteriores a esta migración se rellena con fechaPedido a medianoche (no hay hora real).
+    private LocalDateTime fechaHoraRegistro;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaRecogida;

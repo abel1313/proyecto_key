@@ -5051,5 +5051,45 @@ vender: `Math.floor(existencias / cantidad)` por cada detalle → tomar el míni
 - `promocion.model.ts` — `IPromocionDetalle` tiene campo opcional `existencias?: number`.
 - Panel admin `gestion-promociones.component.html` — cada detalle muestra `(N en stock)` y el
   encabezado de la tarjeta calcula `N combos disponibles` (mínimo entre las piezas).
+
+---
+
+## ✅ Nuevo (2026-07-07): fecha+hora completa y `productoId` en endpoints de pedidos
+
+**Motivo:** en `mis-pedidos` no se podía mostrar la hora de la compra porque el back nunca la
+guardaba (`pedidos.fecha_pedido` es columna `DATE`, sin hora). Se agregó una columna nueva
+`fecha_hora_registro` (`DATETIME`, aditiva, no reemplaza `fecha_pedido`) que se llena en cada
+pedido nuevo. **Pedidos creados antes de este cambio no tienen hora real** — el back rellena con
+medianoche (`00:00`) como fallback, no lo interpretes como que la compra fue a esa hora.
+
+**1. `GET /v1/pedidos/{id}/detalle` (`PedidoDetalleResponse`)** — dos campos nuevos:
+```json
+{
+  "fechaPedido": "2026-07-07",
+  "fechaHoraRegistro": "2026-07-07T14:32:10",
+  "detalles": [
+    { "id": 1, "productoId": 45, "varianteId": 12, "productoNombre": "Jean Slim", "talla": "M", "color": "Azul", "promocionId": 3, "promocionDescripcion": "Combo verano" }
+  ]
+}
+```
+- `fechaHoraRegistro`: ISO `LocalDateTime` (fecha+hora completa) — úsalo en vez de `fechaPedido`
+  para mostrar/formatear la hora de la compra en ticket y detalle.
+- `detalles[].productoId`: id real del producto (ya resuelto por el back incluso en líneas de
+  promoción/variante) — úsalo para armar la URL de imagen: `GET /imagen/v1/{productoId}`.
+  Antes este campo no existía en `detalles[]`, solo `varianteId`.
+
+**2. `GET /v1/pedidos/findPedido/{id}`, `findPedido/{idPedido}/{idCliente}`, `buscarClientePedido`**
+(la respuesta paginada que arma la lista de `mis-pedidos`, campo `pedido.detalles[].producto` /
+`pedido.fecha_pedido`): **NO cambia de forma (sigue siendo el mismo JSON con los mismos nombres de
+campo)**, solo cambia el **contenido** del string `fecha_pedido`: antes `"07/07/2026"`, ahora
+`"07/07/2026 14:32"` (agregó `HH:mm`). Si el front parsea esta fecha con un split fijo por `/`
+asumiendo solo `dd/mm/yyyy` (como el pipe `FechaEspanolPipe`), hay que actualizarlo para no rompa
+con el sufijo de hora.
+
+**Archivos cambiados:** `Pedido.java` (campo `fechaHoraRegistro`), `PedidoDetalleResponse.java`,
+`DetalleItemResponse.java` (campo `productoId`), `PedidoServiceImpl.java` (los 4 puntos donde se
+crea un pedido + `getDetallePedido()`), `VentaServiceImpl.java`, `AbonoServiceImpl.java`,
+`IPedidoRepository.java` (los 4 queries nativos), migración
+`migration_pedido_fecha_hora.sql` (**pendiente de aplicar en la BD** `inventario_key_qa`).
 - Panel admin `gestion-promociones.component.ts` — método `combosDisponibles(p)` calcula el
   mínimo de `Math.floor(existencias / cantidad)` entre todas las piezas del combo.

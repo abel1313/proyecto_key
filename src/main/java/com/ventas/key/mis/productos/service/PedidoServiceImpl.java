@@ -120,6 +120,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setCliente(cliente);
         pedido.setEstadoPedido(requestG.getEstadoPedido());
         pedido.setFechaPedido(requestG.getFechaPedido());
+        pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
@@ -435,6 +436,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setTotalPagado(totalPagado);
         resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
         resp.setFechaPedido(pedido.getFechaPedido());
+        resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
+                ? pedido.getFechaHoraRegistro()
+                : (pedido.getFechaPedido() != null ? pedido.getFechaPedido().atStartOfDay() : null));
         resp.setFechaRecogida(pedido.getFechaRecogida());
         resp.setObservaciones(pedido.getObservaciones());
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
@@ -471,6 +475,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             item.setPrecioUnitario(dp.getPrecioUnitario());
             item.setSubTotal(dp.getSubTotal());
             if (dp.getProducto() != null) {
+                item.setProductoId(dp.getProducto().getId());
                 item.setProductoNombre(dp.getProducto().getNombre());
             }
             if (dp.getVariante() != null) {

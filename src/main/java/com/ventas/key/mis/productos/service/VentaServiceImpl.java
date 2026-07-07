@@ -226,6 +226,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setClienteSinRegistro(clienteSinRegistro);
             pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
             pedido.setFechaPedido(LocalDate.now());
+            pedido.setFechaHoraRegistro(LocalDateTime.now());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
@@ -251,6 +252,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setClienteSinRegistro(clienteSinRegistro);
         pedido.setObservaciones("");
         pedido.setFechaPedido(LocalDate.now());
+        pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(LocalDate.now());
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
         pedido.setDetalles(detallesPedido);
