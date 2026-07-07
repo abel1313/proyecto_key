@@ -661,11 +661,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Transactional
-    public void habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
+    public String habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
         List<Variantes> variantes = iVarianteRepository.findAllById(ids);
+        Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
+
+        String diagnostico = ids.stream()
+                .map(id -> String.format("{\"id\":%d,\"encontradoEnBD\":%b}", id, idsEncontrados.contains(id)))
+                .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
+
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
         evictAllCaches();
+
+        log.info("Diagnostico habilitar-lote variantes: {}", diagnostico);
+        return diagnostico;
     }
 
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {

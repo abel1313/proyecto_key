@@ -4663,6 +4663,12 @@ solo con un campo nuevo `promocionId` para agruparlas.
   `instanciasDisponibles` ya calculado y el desglose de piezas (variante, talla, color, precio
   normal vs promo, imagen)
 
+> **No existe endpoint DELETE para promociones.** "Eliminar" una promo desde el panel admin es
+> llamar `PUT /v1/promociones/{id}/activo` con `{ "activo": false }` — la promoción no se borra,
+> se apaga: deja de salir en `/v1/promociones/activas` pero sigue existiendo (con su historial)
+> en `/v1/promociones/admin`. Si el front pone un botón de "eliminar" en la lista de admin, debe
+> llamar a este endpoint, no esperar un DELETE que no existe.
+
 **Cambios que vendrán en endpoints existentes:**
 - `POST /pedidos/savePedido` y venta directa: cada detalle gana campo opcional `promocionId`.
 - `GET /pedidos/findPedido/{id}`: cada línea del detalle gana `promocionId` +
@@ -4706,3 +4712,91 @@ catálogo.
 
 **Archivos:** `PedidoServiceImpl.java` (`validarPrecioCatalogo`), `VentaServiceImpl.java`
 (`validarPrecioCatalogo`).
+
+---
+
+## ⚠️ Revisar en el FRONT — segunda llamada a `/v1/promociones/admin` se queda colgada indefinidamente (2026-07-05)
+
+**Síntoma reportado:** al cargar el panel de admin de promociones, salen (casi) dos llamadas
+seguidas a `GET /v1/promociones/admin?pagina=1&size=10`. La primera termina bien (200, con los
+datos). La segunda se queda "cargando" **para siempre** (varios minutos, nunca resuelve ni falla).
+
+**Ya se descartó que sea el backend.** Se probó el endpoint directo (fuera del front) tres veces
+seguidas y respondió en menos de 1.1s cada vez, sin colgarse. Además, si fuera un bloqueo de MySQL
+(por ejemplo dejado por las `ALTER TABLE` de la migración de promociones), el pool de conexiones
+(Hikari, `connection-timeout: 20000`) habría fallado con error a los ~20-25 segundos — no se
+quedaría colgado de forma indefinida. Un hang indefinido (no un timeout) apunta a algo del lado
+del cliente/Angular, no de la base de datos ni del servidor.
+
+**Qué debe revisar el front — sospecha concreta: el interceptor de refresh de token.**
+Ya hubo un bug ahí antes (ver ticket del bug de `response.response.accessToken` documentado
+arriba, sección JWT). El patrón que explica exactamente este síntoma:
+
+1. Salen 2 requests casi al mismo tiempo hacia un endpoint protegido.
+2. Alguno de los dos (o ambos) dispara el flujo de refresh de token en el interceptor HTTP.
+3. El interceptor debe hacer que **todas** las requests que estaban esperando ese refresh se
+   reanuden cuando el token nuevo esté listo — típicamente compartiendo un
+   `BehaviorSubject<string | null>` (o similar) donde las requests en espera hacen algo como
+   `filter(token => token !== null)` sobre ese subject.
+4. **Si en cambio se usa un `Subject` (no `BehaviorSubject`), o solo se resuelve una promesa/
+   observable de un solo uso, o solo la request que "ganó la carrera" y disparó el refresh
+   recibe la notificación** — la segunda request se queda suscrita a algo que ya emitió y nunca
+   vuelve a emitir, o a algo que nunca la tiene en cuenta. Se queda esperando para siempre.
+
+**Qué pedirle al desarrollador del front que verifique puntualmente:**
+- Ubicar el interceptor HTTP que maneja 401 / refresh de token.
+- Confirmar cómo maneja **llamadas concurrentes** que necesitan el mismo refresh: ¿usa un
+  `BehaviorSubject` (o equivalente) que emite el token nuevo a **todos** los suscriptores en
+  espera, o solo resuelve para la request que originó el refresh?
+- Reproducir disparando 2 llamadas al mismo endpoint protegido casi al mismo tiempo (ej. desde la
+  consola o abriendo la pantalla de promociones admin) y confirmar si el bug ocurre solo cuando
+  hay una condición de carrera en el refresh, o también sin refresh de por medio (en ese caso la
+  causa sería otra, ej. una duplicación de la llamada en el propio componente/servicio Angular que
+  vale la pena revisar aparte — dos suscripciones al mismo observable sin compartir, un resolver +
+  un `ngOnInit` llamando dos veces, etc.).
+
+**No es un cambio de contrato de API** — no hay nada nuevo que el front tenga que mandar o
+interpretar distinto en la respuesta; es una investigación de un bug de concurrencia en el cliente.
+
+> ✅ **Resuelto en el front (2026-07-06).** Confirmado por el equipo de front — era el interceptor
+> de refresh de token, como se sospechaba arriba. Cerrado, no requiere nada más del backend.
+
+---
+
+## ⚠️ Diagnóstico temporal en `PUT /variantes/v1/admin/habilitar-lote` (2026-07-06)
+
+**Bug reportado:** al deshabilitar/habilitar variantes en lote, el endpoint responde 200 con el
+mensaje de éxito, pero en la base de datos las variantes no cambian de estado. Sospecha: el
+`findAllById(ids)` del backend ignora en silencio los ids que no existan como `Variantes.id` — si
+el front está mandando ids equivocados (por ejemplo `producto.id` en vez de `variante.id`), el
+endpoint "tiene éxito" sin actualizar nada, porque no hay ninguna variante real que coincida.
+
+**Cambio (temporal, solo para diagnosticar — no es el fix final):** el campo `data` de la
+respuesta, que antes era solo el texto `"Variantes deshabilitadas correctamente"` /
+`"Variantes habilitadas correctamente"`, ahora viene con un diagnóstico concatenado:
+
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": "Variantes deshabilitadas correctamente. {\"idsEnviados\":[1, 9, 10],\"resultado\":[{\"id\":1,\"encontradoEnBD\":false},{\"id\":9,\"encontradoEnBD\":true},{\"id\":10,\"encontradoEnBD\":true}]}",
+  "lista": null
+}
+```
+
+- `idsEnviados`: los ids tal cual los mandó el front en el `request.ids`.
+- `resultado`: por cada id, si existe (`encontradoEnBD: true`) o no (`false`) como `Variantes.id`
+  real en la base. Los que salgan `false` son los que "no se actualizan" — porque no correspondían
+  a ninguna variante.
+- También se loguea del lado del servidor (`log.info`) el mismo diagnóstico.
+
+**⚠️ Si el front hace algo con ese string además de mostrarlo tal cual** (comparación exacta contra
+`"Variantes deshabilitadas correctamente"`, parseo, etc.), va a dejar de matchear porque ahora trae
+texto extra al final. Si solo se muestra el mensaje en un toast/snackbar sin comparar el contenido,
+no requiere ningún cambio del front — solo van a ver un texto más largo temporalmente.
+
+**Pendiente:** con este diagnóstico en logs/respuesta, confirmar si los ids que manda el front para
+esta pantalla (`variantes/v1/admin/habilitar-lote`) realmente corresponden a `variante.id` o si por
+error de la pantalla se están mandando otros ids (ej. `producto.id`). Una vez confirmada la causa,
+se quita este diagnóstico y se aplica el fix definitivo (que puede ser en front, si el bug es que
+se arma mal el arreglo de ids antes de llamar al endpoint).
