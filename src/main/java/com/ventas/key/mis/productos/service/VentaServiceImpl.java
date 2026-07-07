@@ -254,6 +254,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setFechaPedido(LocalDate.now());
         pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(LocalDate.now());
+        pedido.setTotalPedido(totalVenta);
+        pedido.setTotalPagado(totalVenta);
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
         pedido.setDetalles(detallesPedido);
         iPedidoRepository.save(pedido);
