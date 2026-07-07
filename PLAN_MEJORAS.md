@@ -9,21 +9,21 @@
 
 | # | Mejora | Back | Front | Fecha |
 |---|---|---|---|---|
-| 1 | Ticket (impresión HTML) | ✅ No requiere back | ⏳ Pendiente front | — |
-| 2 | Envío por correo electrónico | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
+| 1 | Ticket (impresión HTML) | ✅ No requiere back | ✅ Implementado 2026-07-01 — `generarHtmlTicket()` + botón 🖨️ en Swal (venta directa, abonos, cancelación) | — |
+| 2 | Envío por correo electrónico | ✅ Listo | ✅ Implementado 2026-07-01 — checkbox correo + campo `notificacion.enviarCorreo/correo/ticketHtml` en todos los requests que generan comprobante | 2026-07-01 |
 | 3 | Envío por WhatsApp | 🚫 EN PAUSA — ver decisión 2026-07-01 | 🚫 No implementar | 2026-07-01 |
 | 4 | Alertas stock bajo al admin | ⏳ Pendiente back | ⏳ Pendiente front | — |
-| 5 | Reportes de ventas (día/mes/cliente) | ✅ Listo | ⏳ Pendiente front | 2026-07-02 |
-| 6 | Dashboard con métricas | ✅ Listo (sin "clientes nuevos", ver nota) | ⏳ Pendiente front | 2026-07-02 |
+| 5 | Reportes de ventas (día/mes/cliente) | ✅ Listo | ✅ Implementado 2026-07-02 — módulo lazy `/reportes` con 4 tabs (diario, mensual, por cliente, más vendidos) + gráficas Chart.js | 2026-07-02 |
+| 6 | Dashboard con métricas | ✅ Listo (sin "clientes nuevos", ver nota) | ✅ Implementado 2026-07-02 — módulo lazy `/dashboard` con 9 cards + auto-refresh cada 5 min | 2026-07-02 |
 | 7 | Devoluciones | ⏳ Pendiente back | ⏳ Pendiente front | — |
-| 8 | Chatbot — tarjetas de productos | ✅ Listo | ⏳ Pendiente front | 2026-07-01 |
+| 8 | Chatbot — tarjetas de productos | ✅ Listo | ✅ Implementado 2026-07-01 — cards en grid 2 col, imagen de variante, botón "🛒 Agregar"/"✕ Quitar", botón "Ver más" con paginación | 2026-07-01 |
 | 9 | Chatbot — código de barras | ✅ Listo | — | 2026-07-01 |
 | 10 | Chatbot — flujo 2 pasos foto | ✅ Listo | — | 2026-07-01 |
-| 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: filtro combinado nombre/código + stock + imágenes + habilitado, todos opcionales y combinables) | ✅ Listo — rediseñado 2026-07-06, ver nota abajo | ⏳ Pendiente front (contrato cambió, ver `CAMBIOS_FRONT.md`) | 2026-07-02, actualizado 2026-07-06 |
-| 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (migración corrida en dev/qa, falta en prod) | ⏳ Pendiente front | 2026-07-02 |
-| 13 | Deshabilitar producto/variante en lote (para ocultar datos de prueba) + habilitado propio por variante | ✅ Listo (columna ya existía en dev/qa, falta confirmar en prod) | ⏳ Pendiente front | 2026-07-02 |
-| 14 | Restablecer contraseña olvidada (código de 6 dígitos por correo) + cambiar contraseña logueado (con contraseña actual, sin código) | ✅ Listo (falta correr migración SQL) | ⏳ Pendiente front | 2026-07-03 |
-| 15 | Unificar verificación de correo Usuario/Cliente + auto-crear Cliente al registrar | ✅ Código listo (falta compilar/probar + correr migraciones) | ⏳ Pendiente front | 2026-07-03 |
+| 11 | Filtros producto/variante por rol (cliente: stock+imagen; admin: filtro combinado nombre/código + stock + imágenes + habilitado, todos opcionales y combinables) | ✅ Listo — rediseñado 2026-07-06, ver nota abajo | ⚠️ REIMPLEMENTAR — se hizo una primera versión con `FiltroCatalogoEnum` (ya no existe en el back). El nuevo contrato usa 4 params independientes: `nombreOCodigo` (texto) + `conStock`/`conImagenes`/`habilitado` (3-state: omitir/true/false). Ver `CAMBIOS_FRONT.md` → "Cambio de contrato (2026-07-06)". | 2026-07-02, actualizado 2026-07-06 |
+| 12 | Correo/teléfono obligatorios en cliente + verificación de correo (código de 6 dígitos) antes de pedidos/ticket por correo | ✅ Listo (migración corrida en dev/qa, falta en prod) | ⏳ Parcial — form mejorado (correo + tel obligatorios), badge verificado/no en `clientes-buscar`, acciones admin en panel usuario. Falta: interceptar `400 "Debes verificar..."` en `savePedido` y mostrar pantalla de verificación antes del carrito para clientes no verificados | 2026-07-02 |
+| 13 | Deshabilitar producto/variante en lote (para ocultar datos de prueba) + habilitado propio por variante | ✅ Listo (campo `habilitado` ya en `VarianteResumenDto`/`VarianteDto` desde 2026-07-06) | ⏳ Parcial — campo `habilitado` disponible en DTOs (el front puede leerlo). Falta: mostrar badge activo/inactivo en cards de variantes + checkboxes de selección múltiple + botón "Deshabilitar seleccionados" en panel admin | 2026-07-02 |
+| 14 | Restablecer contraseña olvidada (código de 6 dígitos por correo) + cambiar contraseña logueado (con contraseña actual, sin código) | ✅ Listo (falta correr migración SQL) | ⏳ Parcial — `debeCambiarPassword` en login (forzado tras reset de admin) implementado. Falta: pantalla "Olvidé mi contraseña" en login + formulario voluntario "Cambiar contraseña" en perfil | 2026-07-03 |
+| 15 | Unificar verificación de correo Usuario/Cliente + auto-crear Cliente al registrar | ✅ Código listo (falta compilar/probar + correr migraciones) | ⚠️ NO EMPEZAR TODAVÍA — back escrito pero sin compilar/probar/desplegar. Pendiente hasta que esté en QA confirmado | 2026-07-03 |
 
 > **Orden:** el ticket (1) va primero porque correo (2) lo necesita.
 > El stock bajo (4) necesita correo (2) ya listo en back.
@@ -31,113 +31,119 @@
 
 > **Checkpoint 2026-07-03 (actualizado):**
 > - ✅ Listos en back (falta front): 1 (ticket), 2 (correo), 5 (reportes), 6 (dashboard), 8/9/10 (chatbot),
->   11 (filtros por rol), 12 (correo/teléfono obligatorios + verificación), 13 (deshabilitar en
->   lote + habilitado por variante), 14 (reset de contraseña + cambiar contraseña logueado).
+    >   11 (filtros por rol), 12 (correo/teléfono obligatorios + verificación), 13 (deshabilitar en
+    >   lote + habilitado por variante), 14 (reset de contraseña + cambiar contraseña logueado).
 > - 🚫 En pausa: 3 (WhatsApp al cliente).
 > - ⏳ Sin arrancar ni back ni front: 4 (stock bajo), 7 (devoluciones).
 > - 📄 Documentado, sin implementar: uso de hilos/async para envío de correos — ver
->   `HILOS_Y_CONCURRENCIA.md` (guía completa + qué endpoints conviene tocar y cuáles no).
-> - **Migraciones SQL pendientes de correr en prod** (dev/qa ya están al día): 
->   `migration_verificacion_correo.sql`, `migration_habilitado_variantes.sql` (columna ya existía
->   en dev/qa, confirmar en prod primero con `DESCRIBE variantes` — puede que tampoco haga falta),
->   `migration_reset_password.sql`.
+    >   `HILOS_Y_CONCURRENCIA.md` (guía completa + qué endpoints conviene tocar y cuáles no).
+> - **Migraciones SQL pendientes de correr en prod** (dev/qa ya están al día):
+    >   `migration_verificacion_correo.sql`, `migration_habilitado_variantes.sql` (columna ya existía
+    >   en dev/qa, confirmar en prod primero con `DESCRIBE variantes` — puede que tampoco haga falta),
+    >   `migration_reset_password.sql`.
 > - Sueltos sin cerrar: confirmar migración `monto_dado` en BD de producción; respuesta del front
->   sobre si necesitan `tiendaUrl` desde el back (`GET /v1/negocio/contactos`) o usan `window.location.origin`;
->   decidir qué hacer con las 4 filas "Mochila Prada" duplicadas; BUG-CB-01 pendiente de corrección
->   manual en admin (imagen vinculada al varianteId equivocado).
+    >   sobre si necesitan `tiendaUrl` desde el back (`GET /v1/negocio/contactos`) o usan `window.location.origin`;
+    >   decidir qué hacer con las 4 filas "Mochila Prada" duplicadas; BUG-CB-01 pendiente de corrección
+    >   manual en admin (imagen vinculada al varianteId equivocado).
 > - **Dashboard (6) implementado 2026-07-02:** `GET /v1/dashboard/resumen` con ventas
->   hoy/mes, ganancia, gastos, pedidos pendientes de entregar, créditos activos, monto por cobrar,
->   productos con stock bajo. **Se excluyó "clientes nuevos este mes"** del plan original — `Cliente`
->   no tiene columna de fecha de registro, no hay forma de calcularlo sin agregarla (y solo contaría
->   desde que se agregue en adelante, no retroactivo). Avisar si se quiere agregar.
->   Detalle completo en `CAMBIOS_FRONT.md` → "Dashboard con métricas (2026-07-02)".
+    >   hoy/mes, ganancia, gastos, pedidos pendientes de entregar, créditos activos, monto por cobrar,
+    >   productos con stock bajo. **Se excluyó "clientes nuevos este mes"** del plan original — `Cliente`
+    >   no tiene columna de fecha de registro, no hay forma de calcularlo sin agregarla (y solo contaría
+    >   desde que se agregue en adelante, no retroactivo). Avisar si se quiere agregar.
+    >   Detalle completo en `CAMBIOS_FRONT.md` → "Dashboard con métricas (2026-07-02)".
 > - **Bug reportado 2026-07-02 — DIAGNOSTICADO, no es bug de código:** verificado en vivo contra
->   QA (`GET /v1/chatbot/buscar?q=Mochila`) — la búsqueda y paginación del chatbot funcionan bien,
->   devuelven `varianteId` distintos (117, 165, 213, 277 para "Mochila Prada"). El problema es que
->   esas 4 filas en la tabla `variantes` son **duplicados de datos**: mismo nombre, marca, precio,
->   sin talla/color que las distinga — por eso se ven como "el mismo producto". Además las 4 dan
->   error 500 al pedir sus imágenes (`variantes/v1/imagenes/{id}`), probablemente ninguna tiene
->   imagen real cargada. **Pendiente:** decidir qué hacer con las filas duplicadas (limpiar en admin
->   o pedir un script de limpieza) — no se tocó la BD, es una decisión del negocio, no técnica.
->   De paso se corrigieron 2 errores de documentación en `CAMBIOS_FRONT.md` (F-8): la URL tenía el
->   `/v1/` mal puesto, y decía "tomar el primer elemento" en vez de "el marcado como `principal`".
+    >   QA (`GET /v1/chatbot/buscar?q=Mochila`) — la búsqueda y paginación del chatbot funcionan bien,
+    >   devuelven `varianteId` distintos (117, 165, 213, 277 para "Mochila Prada"). El problema es que
+    >   esas 4 filas en la tabla `variantes` son **duplicados de datos**: mismo nombre, marca, precio,
+    >   sin talla/color que las distinga — por eso se ven como "el mismo producto". Además las 4 dan
+    >   error 500 al pedir sus imágenes (`variantes/v1/imagenes/{id}`), probablemente ninguna tiene
+    >   imagen real cargada. **Pendiente:** decidir qué hacer con las filas duplicadas (limpiar en admin
+    >   o pedir un script de limpieza) — no se tocó la BD, es una decisión del negocio, no técnica.
+    >   De paso se corrigieron 2 errores de documentación en `CAMBIOS_FRONT.md` (F-8): la URL tenía el
+    >   `/v1/` mal puesto, y decía "tomar el primer elemento" en vez de "el marcado como `principal`".
 > - **BUG-CB-01 corregido 2026-07-02 (causa real encontrada, no era dato de BD):** el prompt del
->   chatbot le decía a la IA que usara el NOMBRE del producto para buscar la imagen, incluso cuando
->   el producto ya se había identificado por código de barras — como el nombre se repite entre
->   productos distintos ("Mochila para mostrar" vs "Mochila Prada"), la búsqueda traía cualquiera
->   de los dos. Se corrigió el prompt para que use el código de barras (único) cuando esté
->   disponible en la conversación. Ver `BUGS_CHATBOT_BACK.md` para el detalle completo.
+    >   chatbot le decía a la IA que usara el NOMBRE del producto para buscar la imagen, incluso cuando
+    >   el producto ya se había identificado por código de barras — como el nombre se repite entre
+    >   productos distintos ("Mochila para mostrar" vs "Mochila Prada"), la búsqueda traía cualquiera
+    >   de los dos. Se corrigió el prompt para que use el código de barras (único) cuando esté
+    >   disponible en la conversación. Ver `BUGS_CHATBOT_BACK.md` para el detalle completo.
 > - **Filtros producto/variante por rol (2026-07-02, rediseñado 2026-07-06):** cliente normal ve
->   solo productos y variantes con stock>0 + habilitado + con al menos una imagen (sin UI de
->   filtros, es automático). Admin ve todo el catálogo con un filtro combinado en
->   `.../admin/filtrar`: `nombreOCodigo` (texto) + `conStock` + `conImagenes` + `habilitado`, los 4
->   opcionales e independientes, combinables con AND (antes era un solo enum de valor único que no
->   se podía combinar con nombre y no tenía opción de habilitado/deshabilitado). Ver
->   `CAMBIOS_FRONT.md` → "Cambio de contrato (2026-07-06): filtro admin combinado..." para el
->   contrato completo con ejemplos. De paso se corrigió un bug de caché en `VarianteServiceImpl`
->   que exponía a clientes normales resultados sin filtrar cacheados previamente por un admin.
+    >   solo productos y variantes con stock>0 + habilitado + con al menos una imagen (sin UI de
+    >   filtros, es automático). Admin ve todo el catálogo con un filtro combinado en
+    >   `.../admin/filtrar`: `nombreOCodigo` (texto) + `conStock` + `conImagenes` + `habilitado`, los 4
+    >   opcionales e independientes, combinables con AND (antes era un solo enum de valor único que no
+    >   se podía combinar con nombre y no tenía opción de habilitado/deshabilitado). Ver
+    >   `CAMBIOS_FRONT.md` → "Cambio de contrato (2026-07-06): filtro admin combinado..." para el
+    >   contrato completo con ejemplos. De paso se corrigió un bug de caché en `VarianteServiceImpl`
+    >   que exponía a clientes normales resultados sin filtrar cacheados previamente por un admin.
 > - **PENDIENTE (no bloquea nada, anotado para retomar):** definir fórmula de ganancia por
->   producto — se acordó usar markup sobre costo (`precioVenta = precioCosto × (1 + %ganancia)`).
->   Falta decidir: ¿se guarda el `%ganancia` como campo del producto (para poder mostrarlo/editarlo
->   directo), o se calcula al vuelo en un reporte (`(precioVenta - precioCosto) / precioCosto`) sin
->   guardar nada nuevo en BD? Ninguna de las dos está implementada todavía.
+    >   producto — se acordó usar markup sobre costo (`precioVenta = precioCosto × (1 + %ganancia)`).
+    >   Falta decidir: ¿se guarda el `%ganancia` como campo del producto (para poder mostrarlo/editarlo
+    >   directo), o se calcula al vuelo en un reporte (`(precioVenta - precioCosto) / precioCosto`) sin
+    >   guardar nada nuevo en BD? Ninguna de las dos está implementada todavía.
 > - **Mejora 12 — Correo/teléfono obligatorios + verificación de correo (2026-07-02):**
->   `Cliente.correoElectronico`/`numeroTelefonico` ahora obligatorios; nuevo flujo de código de 6
->   dígitos por correo (`POST /v1/clientes/{id}/enviar-codigo-verificacion` y `verificar-correo`)
->   que bloquea generar pedido (`savePedido`) y el envío automático de ticket por correo si el
->   cliente no está verificado (no aplica al correo manual del modal post-venta ni a venta directa
->   sin cuenta). `POST /v1/auth/registrar` ahora exige `email` (DTO nuevo `RegistroRequest`, separado
->   de `AuthRequest` para no romper `/auth/login`). Se decidió **no** usar Twilio/WhatsApp para
->   verificar el teléfono — sale muy caro (~$1.13 MXN por verificación vs ~$0.35 MXN por ticket
->   suelto) y el correo (gratis, ya con SMTP) cubre la necesidad real. Migración
->   `migration_verificacion_correo.sql` **ya corrida en dev y qa** (2026-07-02), **pendiente en
->   prod** para cuando se suba esa rama. Detalle completo para el front en `CAMBIOS_FRONT.md` →
->   "Verificación de correo del cliente (2026-07-02)" (4 subsecciones: obligatoriedad, flujo de
->   verificación, estado visible en búsqueda de clientes, endpoint de reset para pruebas).
+    >   `Cliente.correoElectronico`/`numeroTelefonico` ahora obligatorios; nuevo flujo de código de 6
+    >   dígitos por correo (`POST /v1/clientes/{id}/enviar-codigo-verificacion` y `verificar-correo`)
+    >   que bloquea generar pedido (`savePedido`) y el envío automático de ticket por correo si el
+    >   cliente no está verificado (no aplica al correo manual del modal post-venta ni a venta directa
+    >   sin cuenta). `POST /v1/auth/registrar` ahora exige `email` (DTO nuevo `RegistroRequest`, separado
+    >   de `AuthRequest` para no romper `/auth/login`). Se decidió **no** usar Twilio/WhatsApp para
+    >   verificar el teléfono — sale muy caro (~$1.13 MXN por verificación vs ~$0.35 MXN por ticket
+    >   suelto) y el correo (gratis, ya con SMTP) cubre la necesidad real. Migración
+    >   `migration_verificacion_correo.sql` **ya corrida en dev y qa** (2026-07-02), **pendiente en
+    >   prod** para cuando se suba esa rama. Detalle completo para el front en `CAMBIOS_FRONT.md` →
+    >   "Verificación de correo del cliente (2026-07-02)" (4 subsecciones: obligatoriedad, flujo de
+    >   verificación, estado visible en búsqueda de clientes, endpoint de reset para pruebas).
 > - **Rate-limit configurable, desactivado en QA (2026-07-02):** nueva propiedad
->   `seguridad.rate-limit-habilitado` (default `true`) controla los 3 bloqueos por IP/usuario de
->   `/auth/login` y `/auth/registrar`. Se puso en `false` solo en `application-qa.yml` para no
->   trabarse en pruebas manuales repetidas — dev y prod siguen protegidos (no tienen la propiedad,
->   toman el default `true`). No aplica al bloqueo de IP del chatbot, que es un mecanismo aparte
->   (`ChatbotController`/`blockService`) y sigue activo en todos los ambientes.
+    >   `seguridad.rate-limit-habilitado` (default `true`) controla los 3 bloqueos por IP/usuario de
+    >   `/auth/login` y `/auth/registrar`. Se puso en `false` solo en `application-qa.yml` para no
+    >   trabarse en pruebas manuales repetidas — dev y prod siguen protegidos (no tienen la propiedad,
+    >   toman el default `true`). No aplica al bloqueo de IP del chatbot, que es un mecanismo aparte
+    >   (`ChatbotController`/`blockService`) y sigue activo en todos los ambientes.
 > - **Bug reportado 2026-07-02 — carrito con datos de otra cuenta tras logout/login — ES DEL
->   FRONT, ya corregido por el front:** se confirmó que el back no tiene ningún concepto de
->   "carrito" (no hay entidad/tabla/controlador — el pedido se arma completo en un solo request a
->   `savePedido`). El carrito vivía en `localStorage`/`sessionStorage` del navegador sin limpiarse
->   al cerrar sesión (mismo patrón que el bug ya resuelto de `sesionId` del chat). El front ya lo
->   solucionó, no requirió cambios en este repo.
+    >   FRONT, ya corregido por el front:** se confirmó que el back no tiene ningún concepto de
+    >   "carrito" (no hay entidad/tabla/controlador — el pedido se arma completo en un solo request a
+    >   `savePedido`). El carrito vivía en `localStorage`/`sessionStorage` del navegador sin limpiarse
+    >   al cerrar sesión (mismo patrón que el bug ya resuelto de `sesionId` del chat). El front ya lo
+    >   solucionó, no requirió cambios en este repo.
 > - **PENDIENTE (2026-07-03, sin arrancar) — usar hilos para envíos de correo/notificaciones:**
->   se detectó que `EmailService` (tickets, códigos de verificación, reset de contraseña) corre
->   síncrono en el hilo del request — si el SMTP tarda, el usuario espera hasta el timeout (5s en
->   QA). Guía completa de cómo implementarlo (conceptos de hilos, `@Async`, `CompletableFuture`,
->   virtual threads) y auditoría de qué endpoints conviene tocar (y cuáles NO) en
->   `HILOS_Y_CONCURRENCIA.md`. Nada implementado todavía, solo documentado para retomar.
+    >   se detectó que `EmailService` (tickets, códigos de verificación, reset de contraseña) corre
+    >   síncrono en el hilo del request — si el SMTP tarda, el usuario espera hasta el timeout (5s en
+    >   QA). Guía completa de cómo implementarlo (conceptos de hilos, `@Async`, `CompletableFuture`,
+    >   virtual threads) y auditoría de qué endpoints conviene tocar (y cuáles NO) en
+    >   `HILOS_Y_CONCURRENCIA.md`. Nada implementado todavía, solo documentado para retomar.
+> - **Checkpoint 2026-07-06 — estado del FRONT:**
+    >   - ✅ Implementados (front): F-1/F-2 tickets+correo, F-5 reportes, F-6 dashboard, F-8 chatbot cards, F-9/F-10/F-11 QRs.
+>   - ⚠️ Requiere reimplementación: F-14 (filtro admin — contrato cambió, `FiltroCatalogoEnum` eliminado del back).
+>   - ⏳ Parciales: F-15 (verificación cliente — form/badge listo, falta interceptar 400 en `savePedido`), F-16 (campo `habilitado` en DTOs listo, falta UI batch), F-17+F-18 (forzado en login listo, falta pantalla "olvidé" + formulario en perfil).
+>   - ⏳ No empezados: F-4 (stock bajo), F-7 (devoluciones).
+>   - ⚠️ NO EMPEZAR: F-19 (back sin compilar/probar). `clientes-buscar` carga paginada en init. Módulo Promociones implementado en el front de forma optimista — espera deploy del back en QA.
 > - **Checkpoint 2026-07-06 — sesión de bugs reportados en QA (todo en `dev`/`qa`, falta `main`):**
->   - **Bug real de `habilitar-lote` de variantes (mejora 13) encontrado:** la BD sí se actualizaba
->     bien (confirmado con diagnóstico de `flush()`+`clear()`+relectura); el problema real era que
->     `VarianteResumenDto`/`VarianteDto` (usados por las búsquedas/listados de variantes) nunca
->     traían el campo `habilitado` — a diferencia de `ProductoDTO`, que sí lo trae. El front no
->     tenía forma de reflejar el estado real aunque la BD estuviera correcta. Ya se agregó el
->     campo a ambos DTOs. Ver `CAMBIOS_FRONT.md`.
+    >   - **Bug real de `habilitar-lote` de variantes (mejora 13) encontrado:** la BD sí se actualizaba
+          >     bien (confirmado con diagnóstico de `flush()`+`clear()`+relectura); el problema real era que
+          >     `VarianteResumenDto`/`VarianteDto` (usados por las búsquedas/listados de variantes) nunca
+          >     traían el campo `habilitado` — a diferencia de `ProductoDTO`, que sí lo trae. El front no
+          >     tenía forma de reflejar el estado real aunque la BD estuviera correcta. Ya se agregó el
+          >     campo a ambos DTOs. Ver `CAMBIOS_FRONT.md`.
 >   - **Búsqueda de cliente por nombre completo no encontraba resultados:** la query buscaba
->     `nombrePersona`/`apeidoPaterno`/`apeidoMaterno` por separado (OR); buscar "Abel" funcionaba
->     pero "Abel Tiburcio" (nombre y apellido juntos) no. Se corrigió concatenando los 3 campos
->     antes de buscar.
+      >     `nombrePersona`/`apeidoPaterno`/`apeidoMaterno` por separado (OR); buscar "Abel" funcionaba
+      >     pero "Abel Tiburcio" (nombre y apellido juntos) no. Se corrigió concatenando los 3 campos
+      >     antes de buscar.
 >   - **Hallazgo importante — errores de validación de negocio devolvían siempre `500`:** el
->     manejador global de excepciones no tenía caso para `RuntimeException` simple (así están
->     escritas casi todas las validaciones de negocio: stock insuficiente, precio inválido,
->     promoción vencida, etc.), así que cualquiera de esas validaciones cae en el catch-all de
->     `Exception.class` y siempre devolvía `"Error interno del servidor"` con `500`, ocultando el
->     mensaje real. Ahora esas validaciones devuelven `400` con el mensaje específico. Se detectó
->     al investigar un 500 real en `POST /v1/ventas/save` con una línea de promoción con
->     `cantidad: null` — también se agregó validación explícita de `cantidad` (obligatoria, > 0)
->     en venta directa y `savePedido`.
+      >     manejador global de excepciones no tenía caso para `RuntimeException` simple (así están
+      >     escritas casi todas las validaciones de negocio: stock insuficiente, precio inválido,
+      >     promoción vencida, etc.), así que cualquiera de esas validaciones cae en el catch-all de
+      >     `Exception.class` y siempre devolvía `"Error interno del servidor"` con `500`, ocultando el
+      >     mensaje real. Ahora esas validaciones devuelven `400` con el mensaje específico. Se detectó
+      >     al investigar un 500 real en `POST /v1/ventas/save` con una línea de promoción con
+      >     `cantidad: null` — también se agregó validación explícita de `cantidad` (obligatoria, > 0)
+      >     en venta directa y `savePedido`.
 >   - **Filtro admin de productos/variantes rediseñado** — ver nota de mejora 11 arriba y
->     `CAMBIOS_FRONT.md` para el contrato nuevo (`nombreOCodigo`+`conStock`+`conImagenes`+
->     `habilitado`, todos opcionales y combinables). Reemplaza `FiltroCatalogoEnum`.
+      >     `CAMBIOS_FRONT.md` para el contrato nuevo (`nombreOCodigo`+`conStock`+`conImagenes`+
+      >     `habilitado`, todos opcionales y combinables). Reemplaza `FiltroCatalogoEnum`.
 >   - **Fix de paginación:** `ProductosControllerImpl` no tenía `page`/`size` con default (a
->     diferencia de `VarianteController`) — el front tenía que mandarlos siempre o el endpoint
->     rechazaba la petición. Ya tiene default `1`/`10` igual que variantes.
+      >     diferencia de `VarianteController`) — el front tenía que mandarlos siempre o el endpoint
+      >     rechazaba la petición. Ya tiene default `1`/`10` igual que variantes.
 
 > **Decisión 2026-07-01 — WhatsApp EN PAUSA:** se descartó implementar el envío del ticket por
 > WhatsApp al cliente. CallMeBot (gratis, ya programado en el back) solo le avisa al negocio, no
@@ -196,12 +202,12 @@
 | F-11 | QR Facebook del negocio — solo si `facebookUrl` existe en `GET /v1/negocio/contactos` | Venta directa, abonos, cancelación | Misma sección |
 | F-12 | Pantalla de reportes (diario, mensual con gráfica por día, por cliente, productos más vendidos) | Nueva pantalla `/reportes`, solo ADMIN | "Reportes de ventas (2026-07-02)" |
 | F-13 | Pantalla de dashboard (`GET /v1/dashboard/resumen`, 9 cards de métricas) | Nueva pantalla `/dashboard`, solo ADMIN | "Dashboard con métricas (2026-07-02)" |
-| F-14 | ⚠️ CONTRATO CAMBIÓ 2026-07-06 — Filtros de admin en catálogo de productos/variantes: ya no es un dropdown de un solo valor, ahora son controles independientes y combinables: campo de texto `nombreOCodigo` + 3 toggles de 3 estados (cualquiera/sí/no) para `conStock`, `conImagenes` y `habilitado` (NUEVO). Se combinan todos con AND. Cliente normal NO necesita UI nueva. | Panel admin — productos y variantes | "Cambio de contrato (2026-07-06): filtro admin combinado..." en `CAMBIOS_FRONT.md` |
-| F-15 | Correo/teléfono obligatorios al crear/editar cliente + pantalla de verificación de correo (input de 6 dígitos, botón reenviar) antes de dejar generar un pedido | Alta de cliente / cuenta online, previo a carrito-pedido | "Verificación de correo del cliente (2026-07-02)" |
-| F-16 | Selección múltiple (checkboxes) en la lista paginada de productos/variantes del panel admin + botón "deshabilitar seleccionados" que llame `admin/habilitar-lote` con los IDs marcados | Panel admin — productos y variantes | "Deshabilitar productos/variantes en lote (2026-07-02)" |
-| F-17 | Pantalla "olvidé mi contraseña": input de correo → input de código de 6 dígitos + nueva contraseña (mismo formulario, se revela el segundo campo cuando terminan de escribir el código) | Login, link "olvidé mi contraseña" | "Restablecer contraseña olvidada (2026-07-03)" |
-| F-18 | Formulario "cambiar contraseña" (contraseña actual + nueva) usando `PUT /v1/auth/cambiar-password` — requiere sesión, no pide código | Pantalla de perfil/mi cuenta | "Cambiar contraseña estando logueado (2026-07-03)" |
-| F-19 | ⚠️ NO EMPEZAR TODAVÍA — back escrito pero sin compilar/probar/desplegar. Cuando esté en QA: pantalla de "ingresa el código" tras registrarse (bloquea login hasta verificar), pantalla de "completa tus datos" en el primer pedido, aviso de "revisa tu correo nuevo" al editar cliente y cambiar el correo, pantalla de verificación forzada en el próximo login de usuarios ya existentes, y opcional pantalla de soporte en panel admin (reenviar código / capturar código dictado — ya funciona con los endpoints existentes de Cliente) | Registro, primer pedido, editar cliente, login, panel admin | `CAMBIOS_FRONT.md` → "Unificar verificación de correo Usuario/Cliente (2026-07-03)" |
+| F-14 | ⚠️ REIMPLEMENTAR — Filtros de admin en catálogo de productos/variantes: OLD code used `FiltroCatalogoEnum` (no longer exists in back). NEW: campo de texto `nombreOCodigo` + 3 toggles 3-state (`conStock`, `conImagenes`, `habilitado` NUEVO), todos opcionales y combinables con AND. Cliente normal NO necesita UI nueva. | Panel admin — productos y variantes | "Cambio de contrato (2026-07-06): filtro admin combinado..." en `CAMBIOS_FRONT.md` |
+| F-15 | Interceptar `400 "Debes verificar..."` en `savePedido` + pantalla de verificación antes del carrito. Form ya mejorado (correo+tel obligatorios), badge/acciones admin ya implementados. | Alta de cliente / venta-variante antes del pedido | "Verificación de correo del cliente (2026-07-02)" |
+| F-16 | Badge activo/inactivo en cards de variantes (campo `habilitado` ya en DTOs) + checkboxes de selección múltiple + botón "Deshabilitar seleccionados" (`admin/habilitar-lote`) | Panel admin — productos y variantes | "Deshabilitar productos/variantes en lote (2026-07-02)" |
+| F-17 | Pantalla "olvidé mi contraseña": input de correo → input de código de 6 dígitos + nueva contraseña. `debeCambiarPassword` (forzado) ya implementado. Falta: flujo voluntario desde link en login y formulario en perfil. | Login (link "olvidé"), perfil (cambio voluntario) | "Restablecer contraseña olvidada (2026-07-03)" |
+| F-18 | Mismo que F-17 segundo punto: formulario "cambiar contraseña" voluntario en perfil (`PUT /v1/auth/cambiar-password` con contraseña actual + nueva). No pide código. | Pantalla de perfil/mi cuenta | "Cambiar contraseña estando logueado (2026-07-03)" |
+| F-19 | ⚠️ NO EMPEZAR TODAVÍA — back escrito pero sin compilar/probar/desplegar. Cuando esté en QA: pantalla "ingresa código" tras registro, "completa tus datos" en primer pedido, aviso al cambiar correo, verificación forzada en login de usuarios ya existentes | Registro, primer pedido, editar cliente, login, panel admin | `CAMBIOS_FRONT.md` → "Unificar verificación de correo Usuario/Cliente (2026-07-03)" |
 
 > **Decisión 2026-07-01 — F-10/F-11:** los QR de WhatsApp y Facebook se muestran en el ticket
 > SOLO si el negocio tiene esos datos configurados en `GET /v1/negocio/contactos`. Si no hay URL
@@ -901,12 +907,12 @@ dependencia.
    `correoVerificado`) dejaría pasar pedidos con datos de cliente incompletos.
 4. **Solución propuesta (a validar):** agregar un campo booleano nuevo a `Cliente` (ej.
    `datosCompletos`, nombre por definir) que:
-   - Nace en `false` cuando el `Cliente` se auto-crea solo con correo (desde el registro).
-   - Pasa a `true` cuando se capturan/actualizan los campos obligatorios: nombre, apellido
-     paterno, teléfono (a definir la lista exacta y si aplica también dirección).
-   - `PedidoServiceImpl.savePedido` valida **ambas cosas**: `correoVerificado == true` Y
-     `datosCompletos == true` (mensaje de error distinto para cada caso, para que el front sepa
-     si debe pedir "verifica tu correo" o "completa tus datos").
+    - Nace en `false` cuando el `Cliente` se auto-crea solo con correo (desde el registro).
+    - Pasa a `true` cuando se capturan/actualizan los campos obligatorios: nombre, apellido
+      paterno, teléfono (a definir la lista exacta y si aplica también dirección).
+    - `PedidoServiceImpl.savePedido` valida **ambas cosas**: `correoVerificado == true` Y
+      `datosCompletos == true` (mensaje de error distinto para cada caso, para que el front sepa
+      si debe pedir "verifica tu correo" o "completa tus datos").
 
 ### Flujo detallado aclarado por el usuario (2026-07-03, segunda vuelta)
 
@@ -924,24 +930,24 @@ Esto reemplaza/precisa el punto 1-2 de la propuesta original — es el flujo exa
    lo tiene que volver a escribir ni verificar en este paso.
 4. **REVISADO 2026-07-03, cuarta vuelta (versión definitiva, reemplaza la anterior) — si el
    cliente edita sus datos y cambia el correo:**
-   - Los **demás campos del formulario** (nombre, apellido paterno, teléfono, etc.) se guardan/
-     actualizan normalmente, sin condición — eso nunca se bloquea.
-   - El **correo específicamente** no se aplica de inmediato: se dispara el flujo de verificación
-     (enviar código al correo nuevo).
-     - Si el cliente **completa la verificación** → el correo nuevo queda guardado en
-       `Cliente.correoElectronico`, sigue verificado, y (por la sincronización decidida en el
-       punto 2 de abajo) se actualiza también `Usuario.email` al mismo valor.
-     - Si el cliente **no completa la verificación** (abandona/cancela) → el correo **regresa al
-       valor anterior** (el mismo que ya tenía `Usuario`, sigue sincronizado y verificado) — el
-       intento de correo nuevo se descarta, sin dejar a el cliente con un correo sin verificar ni
-       bloquear nada más.
-   - Con esto YA NO hace falta resetear `correoVerificado = false` ni depender del bloqueo de
-     `savePedido` para este caso — el invariante "correo de Cliente = correo de Usuario, siempre
-     verificado" nunca se rompe, porque el cambio de correo solo se confirma cuando ya está
-     verificado.
-   - **Sin cerrar:** el usuario mencionó una excepción — *"a menos que haya cambios del punto
-     uno"* — no quedó claro a qué se refiere exactamente (¿el primer login forzado del punto 1?
-     ¿otra cosa?). Preguntar de nuevo antes de implementar este paso.
+    - Los **demás campos del formulario** (nombre, apellido paterno, teléfono, etc.) se guardan/
+      actualizan normalmente, sin condición — eso nunca se bloquea.
+    - El **correo específicamente** no se aplica de inmediato: se dispara el flujo de verificación
+      (enviar código al correo nuevo).
+        - Si el cliente **completa la verificación** → el correo nuevo queda guardado en
+          `Cliente.correoElectronico`, sigue verificado, y (por la sincronización decidida en el
+          punto 2 de abajo) se actualiza también `Usuario.email` al mismo valor.
+        - Si el cliente **no completa la verificación** (abandona/cancela) → el correo **regresa al
+          valor anterior** (el mismo que ya tenía `Usuario`, sigue sincronizado y verificado) — el
+          intento de correo nuevo se descarta, sin dejar a el cliente con un correo sin verificar ni
+          bloquear nada más.
+    - Con esto YA NO hace falta resetear `correoVerificado = false` ni depender del bloqueo de
+      `savePedido` para este caso — el invariante "correo de Cliente = correo de Usuario, siempre
+      verificado" nunca se rompe, porque el cambio de correo solo se confirma cuando ya está
+      verificado.
+    - **Sin cerrar:** el usuario mencionó una excepción — *"a menos que haya cambios del punto
+      uno"* — no quedó claro a qué se refiere exactamente (¿el primer login forzado del punto 1?
+      ¿otra cosa?). Preguntar de nuevo antes de implementar este paso.
 
 ### DDL ya preparado, sin correr todavía
 
@@ -1112,13 +1118,13 @@ verificado (y recién ahí se le permite el login, punto 1).
 9. Si el correo que llega es distinto al que ya tenía, el back dispara el aviso de verificación —
    el front debe mostrar un modal tipo *"Has cambiado tu correo, es necesario validarlo. ¿Quieres
    verificarlo ahora?"*.
-   - **Si acepta:** mismo flujo de código de 6 dígitos ya conocido (enviar código → escribir
-     código → verificar). Al terminar, el correo nuevo queda guardado y verificado, y se
-     sincroniza también en `Usuario.email`.
-   - **Si dice que no:** no pasa nada malo — el resto del formulario ya se guardó (paso 8), y el
-     campo correo en la respuesta del back **vuelve a traer el valor anterior** (el mismo que
-     tiene `Usuario`). El front debe refrescar el campo correo en pantalla con ese valor
-     devuelto, no dejar el que el usuario había escrito y canceló.
+    - **Si acepta:** mismo flujo de código de 6 dígitos ya conocido (enviar código → escribir
+      código → verificar). Al terminar, el correo nuevo queda guardado y verificado, y se
+      sincroniza también en `Usuario.email`.
+    - **Si dice que no:** no pasa nada malo — el resto del formulario ya se guardó (paso 8), y el
+      campo correo en la respuesta del back **vuelve a traer el valor anterior** (el mismo que
+      tiene `Usuario`). El front debe refrescar el campo correo en pantalla con ese valor
+      devuelto, no dejar el que el usuario había escrito y canceló.
 
 ### D) Usuarios que ya existían antes de esta mejora
 
@@ -1271,3 +1277,115 @@ coincida exactamente con `precioPromocion` (evita que el front mande cualquier p
 como hoy (el front es responsable del precio, sin validación de por medio)?
 
 **Estado: pausado a petición del usuario para retomar después de cerrar la mejora 15.**
+
+---
+
+---
+
+## 📋 NOTA PARA EL BACK — Pendientes que el front necesita (2026-07-07)
+
+> Esta nota resume exactamente qué necesita el back para que el front pueda avanzar.
+> Copiar y pegar al equipo de back.
+
+---
+
+### ✅ RESUELTO 2026-07-07 — Bloqueaban funcionalidad ya desplegada
+
+**1. Quitar el JSON de diagnóstico del response de `PUT variantes/v1/admin/habilitar-lote` — HECHO.**
+`data` vuelve al mensaje limpio (`"Variantes deshabilitadas correctamente."` /
+`"Variantes habilitadas correctamente."`); el diagnóstico ahora solo va a `log.debug` del servidor.
+Ver `CAMBIOS_FRONT.md` → "RESUELTO (2026-07-07): diagnóstico temporal quitado de `habilitar-lote`".
+
+---
+
+### 🟡 IMPORTANTE — Migraciones SQL pendientes en ambientes
+
+Estas migraciones ya están corridas en `dev` y `qa` pero **faltan en `prod`** (o en alguno):
+
+| Migración | Para qué | Estado |
+|---|---|---|
+| `migration_verificacion_correo.sql` | Campo `correoVerificado` en `clientes` | ✅ dev/qa — ⏳ prod |
+| `migration_habilitado_variantes.sql` | Campo `habilitado` en `variantes` (default `'1'`) | ✅ dev/qa — ⏳ prod (verificar con `DESCRIBE variantes`) |
+| `migration_reset_password.sql` | Campos `passwordTemporal` en `usuario_modificacion` | ✅ dev/qa — ⏳ prod |
+| `migration_password_temporal.sql` | Campo `debeCambiarPassword` en `usuario_modificacion` | Verificar si ya corrió |
+| `migration_promociones.sql` | Tablas `promocion` / `promocion_detalle` | ✅ **corrida en QA (2026-07-07, confirmado por el usuario)** — falta en prod |
+| `monto_dado` en `abono_pedido` | Campo para registrar billete que dio el cliente | ⏳ Pendiente — el front ya lo manda, el back no lo persiste |
+
+---
+
+### 🔴 Bug reportado 2026-07-07 — no se puede confirmar venta directa con una promoción en el carrito
+
+**Síntoma reportado por el usuario:** con una variante normal en el carrito, los pagos funcionan
+igual que siempre. En cuanto el carrito trae una promoción, **ninguna forma de pago funciona** —
+ni apartado/ir pagando (esto es esperado, ver `PROMOCIONES.md` punto 8: promociones son solo de
+contado) ni las opciones de pago directo (esto NO es esperado). Falla igual sin cliente
+seleccionado, con cliente existente, o con un cliente nuevo sin registro.
+
+**Causa encontrada:** `PromocionServiceImpl.validarLineasPromocion()` usaba el mismo mensaje
+genérico `"La promocion '...' ya no esta disponible"` para 4 validaciones distintas (línea
+faltante, variante que no pertenece al combo, precio que no coincide, cantidad no múltiplo) — por
+eso el error se veía igual sin importar qué se intentara, sin dar pista de la causa real.
+
+**Fix aplicado 2026-07-07:** cada validación ahora tiene su propio mensaje específico. Ver
+`CAMBIOS_FRONT.md` → "Fix (2026-07-07): mensajes de error de promociones ahora son específicos"
+para la tabla completa de mensajes nuevos.
+
+**Pendiente:** con el mensaje específico ya desplegado en QA, reproducir la compra con promoción de
+nuevo y usar el mensaje exacto para confirmar la causa raíz real (la sospecha más probable, según
+el contrato de `PROMOCIONES.md` punto 7, es que el front está mandando la promoción como **una
+sola línea** en vez de una línea por cada variante que compone el combo — pero falta confirmar con
+el mensaje real).
+
+---
+
+### 🟡 IMPORTANTE — F-19: confirmar cuándo estará en QA
+
+El back tiene escrito (pero sin compilar/probar/desplegar) el código de:
+- Verificación de correo al registrarse (`POST /v1/auth/registrar` bloquea login hasta verificar)
+- Auto-crear `Cliente` al verificar por primera vez
+- Campo `datosCompletos` en `Cliente`
+- `POST /pedidos/savePedido` con 2 validaciones separadas ("Debes verificar..." y "Debes completar tus datos...")
+- Cambio de correo de cliente no aplica inmediato (queda en `correoPendiente`)
+
+**El front no puede tocar nada de esto hasta que el back confirme que el código está compilando y corriendo en QA.** Avisar con "F-19 lista para integrar" cuando esté desplegado.
+
+---
+
+### 🟢 NUEVOS endpoints que el front necesita (no están en el back todavía)
+
+Estos no están implementados ni en `dev` — son los siguientes a pedir:
+
+**Para F-17 — Olvidé mi contraseña (ya documentado, back conoce el diseño):**
+```
+POST /v1/auth/olvide-password        Body: { "email": "..." }         — público
+POST /v1/auth/restablecer-password   Body: { "email", "codigo", "nuevaPassword" }  — público
+```
+Back: según `CAMBIOS_FRONT.md`, ya hay archivos `OlvidePasswordRequest.java` y `RestablecerPasswordRequest.java` creados. ¿Está compilado? Confirmar.
+
+**Para F-18 — Cambiar contraseña logueado (ya documentado, back conoce el diseño):**
+```
+PUT /v1/auth/cambiar-password   Header: Bearer token   Body: { "passwordActual", "nuevaPassword" }
+```
+Back: según `CAMBIOS_FRONT.md`, `CambiarPasswordRequest.java` ya existe. ¿Compilado y en QA?
+
+**Para F-4 — Alertas de stock bajo (no empezado):**
+Pendiente de diseñar. El campo `productosStockBajo` ya está en `GET /v1/dashboard/resumen`. Falta definir: ¿el admin recibe correo automático cuando una variante llega a stock = X?, ¿cuál es el umbral X?, ¿se configura por variante o es global?
+
+---
+
+### ℹ️ Info para el back — qué tiene listo el front
+
+El back no siempre sabe qué ya tiene el front. Resumen:
+
+| Módulo | Estado front |
+|---|---|
+| Tickets HTML + impresión + correo | ✅ Completo (venta directa, abonos, cancelación) |
+| Chatbot — tarjetas de productos | ✅ Completo (cards, ver más, imagen, carrito) |
+| Reportes `/reportes` | ✅ Completo (4 tabs + gráficas) |
+| Dashboard `/dashboard` | ✅ Completo (9 cards, auto-refresh) |
+| Módulo Promociones `/promociones` | ✅ Listo — esperando `migration_promociones.sql` en QA |
+| Filtros admin productos/variantes (F-14) | ⚠️ Necesita reimplementarse (viejo código roto) |
+| Verificación correo cliente (F-15) | ⏳ Parcial — falta interceptar 400 en savePedido |
+| Badge habilitado + batch (F-16) | ⏳ Parcial — falta UI de checkboxes |
+| Olvidé contraseña / cambiar contraseña (F-17/F-18) | ⏳ Pendiente — ¿endpoints en QA? |
+| Flujo registro unificado (F-19) | ⚠️ NO empezar hasta que back confirme QA |
