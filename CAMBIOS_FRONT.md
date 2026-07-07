@@ -4771,6 +4771,13 @@ mensaje de éxito, pero en la base de datos las variantes no cambian de estado. 
 el front está mandando ids equivocados (por ejemplo `producto.id` en vez de `variante.id`), el
 endpoint "tiene éxito" sin actualizar nada, porque no hay ninguna variante real que coincida.
 
+**Actualización 2026-07-06 (misma sesión):** con datos reales de QA (ids `2, 3, 4`) los 3 salieron
+`encontradoEnBD: true` — sí existen como `Variantes.id`, así que se descarta el mismatch de ids.
+Se agregó una segunda verificación: tras el `saveAll`, el backend hace `flush()` +
+`entityManager.clear()` y vuelve a leer esas mismas variantes directo de la BD (sin caché de
+Hibernate de por medio) para confirmar si el `UPDATE` realmente se aplicó, dentro de la misma
+transacción.
+
 **Cambio (temporal, solo para diagnosticar — no es el fix final):** el campo `data` de la
 respuesta, que antes era solo el texto `"Variantes deshabilitadas correctamente"` /
 `"Variantes habilitadas correctamente"`, ahora viene con un diagnóstico concatenado:
@@ -4779,15 +4786,20 @@ respuesta, que antes era solo el texto `"Variantes deshabilitadas correctamente"
 {
   "mensaje": "La peticion fue exitosa",
   "code": 200,
-  "data": "Variantes deshabilitadas correctamente. {\"idsEnviados\":[1, 9, 10],\"resultado\":[{\"id\":1,\"encontradoEnBD\":false},{\"id\":9,\"encontradoEnBD\":true},{\"id\":10,\"encontradoEnBD\":true}]}",
+  "data": "Variantes deshabilitadas correctamente. {\"idsEnviados\":[2, 3, 4],\"resultado\":[{\"id\":2,\"encontradoEnBD\":true,\"habilitadoTrasGuardar\":\"0\"},{\"id\":3,\"encontradoEnBD\":true,\"habilitadoTrasGuardar\":\"0\"},{\"id\":4,\"encontradoEnBD\":true,\"habilitadoTrasGuardar\":\"0\"}]}",
   "lista": null
 }
 ```
 
 - `idsEnviados`: los ids tal cual los mandó el front en el `request.ids`.
 - `resultado`: por cada id, si existe (`encontradoEnBD: true`) o no (`false`) como `Variantes.id`
-  real en la base. Los que salgan `false` son los que "no se actualizan" — porque no correspondían
-  a ninguna variante.
+  real en la base, y `habilitadoTrasGuardar`: el valor de la columna `habilitado` releído
+  directamente de la BD después de guardar (`"1"` = habilitado, `"0"` = deshabilitado).
+- Si `habilitadoTrasGuardar` ya sale correcto (`"0"` al deshabilitar) pero al consultar la tabla
+  con otra herramienta (DBeaver, consola MySQL, etc.) todavía se ve `"1"`, el problema no es del
+  backend — es una lectura obsoleta de esa herramienta (transacción/conexión abierta desde antes
+  con aislamiento `REPEATABLE READ`, o apuntando a un host/réplica distinto). Hay que cerrar y
+  reabrir la conexión de esa herramienta antes de volver a consultar.
 - También se loguea del lado del servidor (`log.info`) el mismo diagnóstico.
 
 **⚠️ Si el front hace algo con ese string además de mostrarlo tal cual** (comparación exacta contra

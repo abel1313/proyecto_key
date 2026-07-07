@@ -53,6 +53,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final ImagenPort imagenPort;
     private final IPalabraClaveRepository iPalabraClaveRepository;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     @Value("${api.imagenes}")
     private String endpointImagenes;
 
@@ -665,12 +668,25 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Variantes> variantes = iVarianteRepository.findAllById(ids);
         Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
 
-        String diagnostico = ids.stream()
-                .map(id -> String.format("{\"id\":%d,\"encontradoEnBD\":%b}", id, idsEncontrados.contains(id)))
-                .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
-
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
+        iVarianteRepository.flush();
+        entityManager.clear();
+
+        // Relectura directa (sesion de Hibernate limpiada) para confirmar que el UPDATE
+        // realmente llego a la BD dentro de esta misma transaccion, sin depender de la
+        // cache de primer nivel ni de herramientas externas para verificar.
+        Map<Integer, Character> valoresTrasGuardar = iVarianteRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Variantes::getId, Variantes::getHabilitado));
+
+        String diagnostico = ids.stream()
+                .map(id -> String.format(
+                        "{\"id\":%d,\"encontradoEnBD\":%b,\"habilitadoTrasGuardar\":\"%s\"}",
+                        id,
+                        idsEncontrados.contains(id),
+                        valoresTrasGuardar.getOrDefault(id, '?')))
+                .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
+
         evictAllCaches();
 
         log.info("Diagnostico habilitar-lote variantes: {}", diagnostico);
