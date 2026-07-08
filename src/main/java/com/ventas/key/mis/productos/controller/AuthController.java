@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
+import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
@@ -13,6 +14,7 @@ import com.ventas.key.mis.productos.models.VerificarCorreoUsuarioRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
+import com.ventas.key.mis.productos.service.api.IUsuarioService;
 import com.ventas.key.mis.productos.service.UsuarioVerificacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -53,6 +55,7 @@ public class AuthController {
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
     private final UsuarioVerificacionService usuarioVerificacionService;
+    private final IUsuarioService usuarioService;
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
@@ -274,6 +277,24 @@ public class AuthController {
             return ResponseEntity.ok("Contrasena actualizada correctamente");
         } catch (Exception e) {
             log.warn("Error al cambiar password para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "Actualizar mi perfil (usuario logueado)", description = "El propio usuario autenticado actualiza su username/email. Nunca toca la contrasena - para eso existe PUT /v1/auth/cambiar-password. Si el email cambia, resetea correoVerificado para permitir volver a llamar enviar-codigo-verificacion.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfil actualizado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Datos invalidos"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @PutMapping("/mi-perfil")
+    public ResponseEntity<?> actualizarMiPerfil(@Valid @RequestBody ActualizarMiPerfilRequestDto request,
+                                                Authentication authentication) {
+        try {
+            usuarioService.actualizarMiPerfil(authentication.getName(), request);
+            return ResponseEntity.ok("Perfil actualizado correctamente");
+        } catch (Exception e) {
+            log.warn("Error al actualizar perfil para {}: {}", authentication.getName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }

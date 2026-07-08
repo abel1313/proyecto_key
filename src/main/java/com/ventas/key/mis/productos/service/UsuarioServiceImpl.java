@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
+import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IPermisoRepository;
@@ -79,16 +80,51 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         return dto;
     }
 
+    // No toca password: el unico camino para cambiar la contrasena de un usuario es
+    // resetearPasswordAleatoria() (boton dedicado del admin). Antes este metodo re-encriptaba
+    // y sobrescribia el password con lo que trajera el request (a menudo vacio/null si el front
+    // solo editaba el correo), destruyendo la contrasena real del usuario sin que nadie lo pidiera.
     @Override
     public UserUpdate updateUserDto(UserUpdate usuarioDto, int id) {
         Usuario existe = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
-        existe.setPassword(passwordEncoder.encode(usuarioDto.getPassword()));
+        marcarCorreoSinVerificarSiCambio(existe, usuarioDto.getEmail());
         existe.setEmail(usuarioDto.getEmail());
         existe.setUsername(usuarioDto.getUsername());
         existe.setEnabled(usuarioDto.isEnabled());
         usuarioRepository.save(existe);
         return new UserUpdate();
+    }
+
+    /**
+     * El propio usuario logueado actualiza su username/email (nunca su password aqui - eso es
+     * PasswordResetService.cambiarPassword, que ya valida la contrasena actual). Identifica al
+     * usuario por el username del JWT (authentication.getName()), nunca por un id que mande el
+     * body/path - evita que un usuario edite la cuenta de otro.
+     */
+    @Override
+    @Transactional
+    public void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request) {
+        Usuario existe = usuarioRepository.findByUsername(usernameActual)
+                .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        marcarCorreoSinVerificarSiCambio(existe, request.getEmail());
+        existe.setEmail(request.getEmail());
+        existe.setUsername(request.getUsername());
+        usuarioRepository.save(existe);
+    }
+
+    /**
+     * Si el correo nuevo es distinto al que ya tenia, marca correoVerificado=false y limpia
+     * cualquier codigo pendiente - sin esto, enviar-codigo-verificacion queda bloqueado para
+     * siempre con "El correo ya esta verificado" en cuanto una cuenta se verifica una vez.
+     */
+    private void marcarCorreoSinVerificarSiCambio(Usuario existe, String emailNuevo) {
+        boolean cambioCorreo = emailNuevo != null && !emailNuevo.equalsIgnoreCase(existe.getEmail());
+        if (cambioCorreo) {
+            existe.setCorreoVerificado(false);
+            existe.setCodigoVerificacion(null);
+            existe.setCodigoVerificacionExpira(null);
+        }
     }
 
     // Sin 0/O/1/l/I para que sea mas facil de dictar por telefono sin confundir caracteres.
