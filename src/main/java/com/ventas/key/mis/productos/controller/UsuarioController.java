@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -73,8 +74,11 @@ public class UsuarioController extends AbstractController<
     public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(@PathVariable Integer id,
                                                     @Valid @RequestBody SolicitarCambioCorreoRequest request) {
         try {
-            usu.solicitarCambioCorreo(id, request.getCorreoNuevo());
-            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo nuevo"));
+            boolean enviado = usu.solicitarCambioCorreo(id, request.getCorreoNuevo());
+            String mensaje = enviado
+                    ? "Codigo enviado al correo nuevo"
+                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
@@ -89,6 +93,12 @@ public class UsuarioController extends AbstractController<
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
+    }
+
+    @GetMapping("/{id}/cambio-correo-pendiente")
+    public ResponseEntity<ResponseGeneric<CambioCorreoPendienteResponseDto>> obtenerCambioCorreoPendiente(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(new ResponseGeneric<>(usu.obtenerCambioCorreoPendiente(id)));
     }
 
     @GetMapping("/buscarClientePorIdUsuario/{idUsuario}")
