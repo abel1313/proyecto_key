@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.dto.variantes.IndependizarVarianteRequestDto;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.DiagnosticoImagenVarianteDto;
@@ -9,6 +10,7 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
+import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteResponseDto;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -229,5 +231,13 @@ public class VarianteController extends AbstractController<
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
+    }
+
+    @PostMapping("/v1/{varianteId}/independizar")
+    public ResponseEntity<ResponseGeneric<IndependizarVarianteResponseDto>> independizarVariante(
+            @PathVariable Integer varianteId,
+            @RequestBody IndependizarVarianteRequestDto request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ResponseGeneric<>(sGenerico.independizarVariante(varianteId, request)));
     }
 }

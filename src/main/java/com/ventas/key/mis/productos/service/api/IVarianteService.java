@@ -1,9 +1,11 @@
 package com.ventas.key.mis.productos.service.api;
 
+import com.ventas.key.mis.productos.dto.variantes.IndependizarVarianteRequestDto;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteResponseDto;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -19,5 +21,6 @@ public interface IVarianteService extends ICrud<
     PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size);
     PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size);
     Boolean guardarVariantesPorProductoConImagenes(RequestVarianteDto requestVarianteDto, MultipartFile imagen[]);
+    IndependizarVarianteResponseDto independizarVariante(Integer varianteId, IndependizarVarianteRequestDto request);
 
 }
