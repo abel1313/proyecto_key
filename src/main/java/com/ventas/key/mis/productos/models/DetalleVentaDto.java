@@ -14,4 +14,5 @@ public class DetalleVentaDto {
     private Integer cantidad;
     private Double precioVenta;
     private Double subTotal;
+    private Integer promocionId;
 }

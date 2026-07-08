@@ -15,4 +15,5 @@ public class DetallePedidosDTOPedido {
     private Double precioUnitario;
     private Double subTotal;
     private Integer varianteId;
+    private Integer promocionId;
 }

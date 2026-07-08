@@ -53,6 +53,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final ImagenPort imagenPort;
     private final IPalabraClaveRepository iPalabraClaveRepository;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     @Value("${api.imagenes}")
     private String endpointImagenes;
 
@@ -115,6 +118,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             dto.setPalabraClave(v.getPalabraClave() != null
                     ? new com.ventas.key.mis.productos.models.PalabraClaveResumenDto(v.getPalabraClave().getId(), v.getPalabraClave().getNombre())
                     : null);
+            dto.setHabilitado(v.getHabilitado());
             return dto;
         }).collect(Collectors.toList());
     }
@@ -206,18 +210,27 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
 
         List<Long> imageIds = List.of();
-        if (requestVarianteDto.isImagenParaTodas() && imagenes != null && imagenes.length > 0) {
-            imageIds = subirImagenesMultipart(imagenes);
+        if (requestVarianteDto.isImagenParaTodas()) {
+            if (imagenes != null && imagenes.length > 0) {
+                imageIds = subirImagenesMultipart(imagenes);
 
-            if (iProductoImagenRepository.findByProductoId(requestVarianteDto.getProductoId()).isEmpty()) {
-                List<ProductoImagen> pis = new ArrayList<>();
-                for (Long imgId : imageIds) {
-                    ProductoImagen pi = new ProductoImagen();
-                    pi.setProducto(producto);
-                    pi.setImagen(iImagenRepository.getReferenceById(imgId));
-                    pis.add(pi);
+                if (iProductoImagenRepository.findByProductoId(requestVarianteDto.getProductoId()).isEmpty()) {
+                    List<ProductoImagen> pis = new ArrayList<>();
+                    for (Long imgId : imageIds) {
+                        ProductoImagen pi = new ProductoImagen();
+                        pi.setProducto(producto);
+                        pi.setImagen(iImagenRepository.getReferenceById(imgId));
+                        pis.add(pi);
+                    }
+                    iProductoImagenRepository.saveAll(pis);
                 }
-                iProductoImagenRepository.saveAll(pis);
+            } else {
+                imageIds = obtenerImagenPrincipalProducto(requestVarianteDto.getProductoId());
+                if (imageIds.isEmpty()) {
+                    throw new ExceptionDataNotFound(
+                            "El producto " + producto.getId() + " no tiene una imagen para copiar a las variantes. "
+                                    + "Sube una imagen o desmarca la casilla de 'misma imagen para todas'.");
+                }
             }
         }
 
@@ -251,7 +264,29 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 throw new ExceptionDataNotFound("Error al procesar imagen: " + e.getMessage());
             }
         }
-        return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
+        try {
+            return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
+        } catch (Exception e) {
+            log.error("Error al subir imagenes al microservicio de imagenes", e);
+            throw new ExceptionDataNotFound("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
+        }
+    }
+
+    /**
+     * Imagen principal marcada del producto (ProductoImagen.principal = true); si no hay ninguna
+     * marcada como principal, cae a la primera imagen vinculada al producto.
+     */
+    private List<Long> obtenerImagenPrincipalProducto(Integer productoId) {
+        List<ProductoImagen> imagenesProducto = iProductoImagenRepository.findByProductoId(productoId);
+        if (imagenesProducto.isEmpty()) {
+            return List.of();
+        }
+        return imagenesProducto.stream()
+                .filter(pi -> Boolean.TRUE.equals(pi.getPrincipal()))
+                .findFirst()
+                .or(() -> imagenesProducto.stream().findFirst())
+                .map(pi -> List.of(pi.getImagen().getId()))
+                .orElse(List.of());
     }
 
     private List<Variantes> obtenerVariantesPorProducto(int idProducto){
@@ -610,6 +645,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElse("");
         dto.setCodigoBarras(codBarras);
         dto.setNombreProducto(Optional.ofNullable(v.getProducto()).map(Producto::getNombre).orElse(""));
+        dto.setHabilitado(v.getHabilitado());
         return dto;
     }
 
@@ -643,15 +679,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // Filtros de admin: ve TODO el catálogo de variantes (sin restricción de habilitado
     // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
     // normales exigen stock>0 + producto habilitado + con imagen.
-    @Cacheable(value = "variantesProductoCache", key = "'filtro:' + #filtro + ':' + #pagina + ':' + #size")
-    public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(FiltroCatalogoEnum filtro, int pagina, int size) {
+    @Cacheable(value = "variantesProductoCache",
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #pagina + ':' + #size")
+    public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
+            Boolean conImagenes, Boolean habilitado, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
-        Page<Variantes> page = switch (filtro) {
-            case SIN_STOCK -> iVarianteRepository.findByStock(0, pageable);
-            case CON_STOCK -> iVarianteRepository.findByStockGreaterThan(0, pageable);
-            case CON_IMAGENES -> iVarianteRepository.findConImagen(pageable);
-            case CON_STOCK_Y_IMAGENES -> iVarianteRepository.findConStockYImagenAdmin(pageable);
-        };
+        String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
+        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
@@ -661,11 +695,35 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Transactional
-    public void habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
+    public String habilitarDeshabilitarVariantesLote(List<Integer> ids, boolean habilitar) {
         List<Variantes> variantes = iVarianteRepository.findAllById(ids);
+        Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
+
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
+        iVarianteRepository.flush();
+        entityManager.clear();
+
+        // Relectura directa (sesion de Hibernate limpiada) para confirmar que el UPDATE
+        // realmente llego a la BD dentro de esta misma transaccion, sin depender de la
+        // cache de primer nivel ni de herramientas externas para verificar.
+        Map<Integer, Character> valoresTrasGuardar = iVarianteRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Variantes::getId, Variantes::getHabilitado));
+
+        if (log.isDebugEnabled()) {
+            String diagnostico = ids.stream()
+                    .map(id -> String.format(
+                            "{\"id\":%d,\"encontradoEnBD\":%b,\"habilitadoTrasGuardar\":\"%s\"}",
+                            id,
+                            idsEncontrados.contains(id),
+                            valoresTrasGuardar.getOrDefault(id, '?')))
+                    .collect(Collectors.joining(",", "{\"idsEnviados\":" + ids + ",\"resultado\":[", "]}"));
+            log.debug("Diagnostico habilitar-lote variantes: {}", diagnostico);
+        }
+
         evictAllCaches();
+
+        return habilitar ? "Variantes habilitadas correctamente." : "Variantes deshabilitadas correctamente.";
     }
 
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {
@@ -696,6 +754,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             imagenesExternas = imageneClienteDisco.getAll(ids);
         } catch (Exception e) {
             log.warn("Error al consultar microservicio para diagnóstico de variante {}: {}", varianteId, e.getMessage());
+
             imagenesExternas = List.of();
         }
 

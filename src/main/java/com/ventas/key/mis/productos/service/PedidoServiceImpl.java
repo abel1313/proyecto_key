@@ -25,6 +25,7 @@ import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
+import com.ventas.key.mis.productos.repository.IPromocionRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
@@ -44,7 +45,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -66,6 +69,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IDetallePedidoRepository iDetallePedidoRepository;
     private final IPagosYMesesRepository iPagosYMesesRepository;
     private final IVarianteRepository iVarianteRepository;
+    private final IPromocionRepository iPromocionRepository;
+    private final PromocionServiceImpl promocionService;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -82,7 +87,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final IDetallePagoRepository iDetallePagoRepository,
                              final IDetallePedidoRepository iDetallePedidoRepository,
                              final IPagosYMesesRepository iPagosYMesesRepository,
-                             final IVarianteRepository iVarianteRepository) {
+                             final IVarianteRepository iVarianteRepository,
+                             final IPromocionRepository iPromocionRepository,
+                             final PromocionServiceImpl promocionService) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -94,6 +101,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iDetallePedidoRepository = iDetallePedidoRepository;
         this.iPagosYMesesRepository = iPagosYMesesRepository;
         this.iVarianteRepository = iVarianteRepository;
+        this.iPromocionRepository = iPromocionRepository;
+        this.promocionService = promocionService;
     }
 
     @Transactional
@@ -111,6 +120,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setCliente(cliente);
         pedido.setEstadoPedido(requestG.getEstadoPedido());
         pedido.setFechaPedido(requestG.getFechaPedido());
+        pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
@@ -119,6 +129,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         List<DetallePedido> detallePedido = new ArrayList<>();
         for (var mpa : requestG.getDetalles()) {
+            if (mpa.getCantidad() == null || mpa.getCantidad() <= 0) {
+                throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0");
+            }
+
             Variantes variante = null;
             Producto prod;
 
@@ -144,6 +158,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
                         + ". Disponible: " + prod.getStock() + ", solicitado: " + mpa.getCantidad());
             }
+
+            // Lineas sin promocionId deben pagar el precio de catalogo — el precio con descuento
+            // solo es valido dentro de una promocion (validada aparte en validarLineasDePromocion).
+            // Sin este chequeo, el front (o cualquiera con el token) podia mandar cualquier precio.
+            if (mpa.getPromocionId() == null) {
+                validarPrecioCatalogo(prod, mpa.getPrecioUnitario(), mpa.getCantidad(), mpa.getSubTotal());
+            }
+
             prod.setStock(prod.getStock() - mpa.getCantidad());
             this.iProductoRepository.save(prod);
 
@@ -154,8 +176,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             dta.setPedido(pedido);
             dta.setProducto(prod);
             dta.setVariante(variante);
+            if (mpa.getPromocionId() != null) {
+                Promocion promocion = this.iPromocionRepository.findById(mpa.getPromocionId())
+                        .orElseThrow(() -> new RuntimeException("La promocion ya no esta disponible"));
+                dta.setPromocion(promocion);
+            }
             detallePedido.add(dta);
         }
+
+        validarLineasDePromocion(detallePedido, tipoPedido);
+
         pedido.setDetalles(detallePedido);
         double totalPedido = detallePedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
         pedido.setTotalPedido(totalPedido);
@@ -163,6 +193,36 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
         return saved;
+    }
+
+    // El precio/subtotal que manda el cliente en una linea normal (sin promocionId) debe
+    // coincidir con el precio real del producto — de lo contrario cualquiera con sesion podria
+    // editar el request y pagar lo que quiera. Tolerancia de 1 centavo por redondeo de Double.
+    private void validarPrecioCatalogo(Producto prod, Double precioUnitario, Integer cantidad, Double subTotal) {
+        double precioCatalogo = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
+        if (precioUnitario == null || Math.abs(precioUnitario - precioCatalogo) > 0.01) {
+            throw new RuntimeException("El precio de " + prod.getNombre() + " no es valido");
+        }
+        double subTotalEsperado = precioCatalogo * cantidad;
+        if (subTotal == null || Math.abs(subTotal - subTotalEsperado) > 0.01) {
+            throw new RuntimeException("El subtotal de " + prod.getNombre() + " no es valido");
+        }
+    }
+
+    // Agrupa las lineas del pedido que traen promocionId y valida cada combo contra
+    // PromocionServiceImpl (vigencia, precios, y que el pedido sea de contado).
+    private void validarLineasDePromocion(List<DetallePedido> detallePedido, String tipoPedido) {
+        Map<Integer, List<PromocionServiceImpl.LineaPromocionCheck>> lineasPorPromocion = new LinkedHashMap<>();
+        for (DetallePedido d : detallePedido) {
+            if (d.getPromocion() != null) {
+                lineasPorPromocion.computeIfAbsent(d.getPromocion().getId(), k -> new ArrayList<>())
+                        .add(new PromocionServiceImpl.LineaPromocionCheck(
+                                d.getVariante().getId(), d.getCantidad(), d.getPrecioUnitario()));
+            }
+        }
+        for (var entry : lineasPorPromocion.entrySet()) {
+            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue(), tipoPedido);
+        }
     }
 
     @Transactional
@@ -376,6 +436,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setTotalPagado(totalPagado);
         resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
         resp.setFechaPedido(pedido.getFechaPedido());
+        resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
+                ? pedido.getFechaHoraRegistro()
+                : (pedido.getFechaPedido() != null ? pedido.getFechaPedido().atStartOfDay() : null));
         resp.setFechaRecogida(pedido.getFechaRecogida());
         resp.setObservaciones(pedido.getObservaciones());
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
@@ -412,6 +475,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             item.setPrecioUnitario(dp.getPrecioUnitario());
             item.setSubTotal(dp.getSubTotal());
             if (dp.getProducto() != null) {
+                item.setProductoId(dp.getProducto().getId());
                 item.setProductoNombre(dp.getProducto().getNombre());
             }
             if (dp.getVariante() != null) {
@@ -419,6 +483,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 item.setTalla(dp.getVariante().getTalla());
                 item.setColor(dp.getVariante().getColor());
                 item.setDescripcion(dp.getVariante().getDescripcion());
+            }
+            if (dp.getPromocion() != null) {
+                item.setPromocionId(dp.getPromocion().getId());
+                item.setPromocionDescripcion(dp.getPromocion().getDescripcion());
             }
             return item;
         }).toList();

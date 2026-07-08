@@ -14,6 +14,8 @@ import com.ventas.key.mis.productos.models.NotificacionRequest;
 import com.ventas.key.mis.productos.models.VentaDirectaResponse;
 import com.ventas.key.mis.productos.repository.*;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     private final IVarianteRepository iVarianteRepository;
     private final IClienteSinRegistroRepository iClienteSinRegistroRepository;
     private final IPedidoRepository iPedidoRepository;
+    private final IPromocionRepository iPromocionRepository;
+    private final PromocionServiceImpl promocionService;
     private final ErrorGenerico errorGenerico;
 
     @Autowired private CacheService cacheService;
@@ -60,6 +64,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             final IVarianteRepository iVarianteRepository,
             final IClienteSinRegistroRepository iClienteSinRegistroRepository,
             final IPedidoRepository iPedidoRepository,
+            final IPromocionRepository iPromocionRepository,
+            final PromocionServiceImpl promocionService,
             final ErrorGenerico errorGenerico) {
         super(iVentaRepository, errorGenerico);
         this.iVentaRepository = iVentaRepository;
@@ -72,6 +78,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         this.errorGenerico = errorGenerico;
         this.iClienteSinRegistroRepository = iClienteSinRegistroRepository;
         this.iPedidoRepository = iPedidoRepository;
+        this.iPromocionRepository = iPromocionRepository;
+        this.promocionService = promocionService;
     }
 
     private ClienteSinRegistro mapperClienteSinRegistroDto(VentaDirectaRequest request) {
@@ -141,6 +149,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         List<DetalleVentaVariante> detallesVenta = new ArrayList<>();
 
         for (var item : request.getDetalles()) {
+            if (item.getCantidad() == null || item.getCantidad() <= 0) {
+                throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0 para la variante id "
+                        + item.getVarianteId());
+            }
+
             Variantes variante = iVarianteRepository.findByIdWithLock(item.getVarianteId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
 
@@ -157,6 +170,14 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
                         + ". Disponible: " + prod.getStock() + ", solicitado: " + item.getCantidad());
             }
+
+            // Lineas sin promocionId deben cobrarse al precio de catalogo — un descuento en
+            // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request
+            // podia traer cualquier precio.
+            if (item.getPromocionId() == null) {
+                validarPrecioCatalogo(prod, item.getPrecioVenta(), item.getCantidad(), item.getSubTotal());
+            }
+
             prod.setStock(prod.getStock() - item.getCantidad());
             iRepository.save(prod);
 
@@ -166,12 +187,19 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             double comision    = subTotal * (tasaTarifa + tasaIva);
             double ganancia    = subTotal - costoTotal - comision;
 
+            Promocion promocion = null;
+            if (item.getPromocionId() != null) {
+                promocion = iPromocionRepository.findById(item.getPromocionId())
+                        .orElseThrow(() -> new RuntimeException("La promocion ya no esta disponible"));
+            }
+
             DetallePedido dp = new DetallePedido();
             dp.setProducto(prod);
             dp.setVariante(variante);
             dp.setCantidad(item.getCantidad());
             dp.setPrecioUnitario(item.getPrecioVenta());
             dp.setSubTotal(subTotal);
+            dp.setPromocion(promocion);
             detallesPedido.add(dp);
 
             DetalleVentaVariante dvv = new DetalleVentaVariante();
@@ -182,8 +210,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             dvv.setPrecioCosto(precioCosto);
             dvv.setGanancia(ganancia);
             dvv.setFechaVenta(LocalDate.now());
+            dvv.setPromocion(promocion);
             detallesVenta.add(dvv);
         }
+
+        validarLineasDePromocion(detallesPedido, tipoPedido);
 
         double totalPedidoCalc = detallesPedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
 
@@ -195,6 +226,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setClienteSinRegistro(clienteSinRegistro);
             pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
             pedido.setFechaPedido(LocalDate.now());
+            pedido.setFechaHoraRegistro(LocalDateTime.now());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
@@ -220,7 +252,10 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setClienteSinRegistro(clienteSinRegistro);
         pedido.setObservaciones("");
         pedido.setFechaPedido(LocalDate.now());
+        pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(LocalDate.now());
+        pedido.setTotalPedido(totalVenta);
+        pedido.setTotalPagado(totalVenta);
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
         pedido.setDetalles(detallesPedido);
         iPedidoRepository.save(pedido);
@@ -259,6 +294,36 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
                 "Comprobante de compra — Novedades Jade", respVenta);
         return respVenta;
+    }
+
+    // El precio/subtotal que manda el request en una linea normal (sin promocionId) debe
+    // coincidir con el precio real del producto — evita que la venta directa acepte un precio
+    // arbitrario fuera de una promocion. Tolerancia de 1 centavo por redondeo de Double.
+    private void validarPrecioCatalogo(Producto prod, Double precioVenta, Integer cantidad, Double subTotal) {
+        double precioCatalogo = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
+        if (precioVenta == null || Math.abs(precioVenta - precioCatalogo) > 0.01) {
+            throw new RuntimeException("El precio de " + prod.getNombre() + " no es valido");
+        }
+        double subTotalEsperado = precioCatalogo * cantidad;
+        if (subTotal == null || Math.abs(subTotal - subTotalEsperado) > 0.01) {
+            throw new RuntimeException("El subtotal de " + prod.getNombre() + " no es valido");
+        }
+    }
+
+    // Agrupa las lineas de la venta que traen promocionId y valida cada combo contra
+    // PromocionServiceImpl (vigencia, precios, y que la venta sea de contado).
+    private void validarLineasDePromocion(List<DetallePedido> detallesPedido, String tipoPedido) {
+        Map<Integer, List<PromocionServiceImpl.LineaPromocionCheck>> lineasPorPromocion = new LinkedHashMap<>();
+        for (DetallePedido dp : detallesPedido) {
+            if (dp.getPromocion() != null) {
+                lineasPorPromocion.computeIfAbsent(dp.getPromocion().getId(), k -> new ArrayList<>())
+                        .add(new PromocionServiceImpl.LineaPromocionCheck(
+                                dp.getVariante().getId(), dp.getCantidad(), dp.getPrecioUnitario()));
+            }
+        }
+        for (var entry : lineasPorPromocion.entrySet()) {
+            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue(), tipoPedido);
+        }
     }
 
     private void enviarNotificacionesVenta(NotificacionRequest notif, Cliente cliente,
