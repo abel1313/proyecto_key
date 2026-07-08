@@ -754,6 +754,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             imagenesExternas = imageneClienteDisco.getAll(ids);
         } catch (Exception e) {
             log.warn("Error al consultar microservicio para diagnóstico de variante {}: {}", varianteId, e.getMessage());
+
             imagenesExternas = List.of();
         }
 

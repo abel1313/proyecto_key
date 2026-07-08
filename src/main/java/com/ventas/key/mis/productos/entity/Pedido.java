@@ -33,6 +33,9 @@ public class Pedido extends BaseId{
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaPedido;
 
+    @Column(name = "fecha_hora_registro")
+    private LocalDateTime fechaHoraRegistro;
+
     @Column(name = "estado_pedido")
     private String estadoPedido;
 

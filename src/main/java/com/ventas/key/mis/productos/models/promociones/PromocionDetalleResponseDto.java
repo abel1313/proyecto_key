@@ -15,4 +15,5 @@ public class PromocionDetalleResponseDto {
     private Integer cantidad;
     private Double precioEnPromocion;
     private String imagenUrl;
+    private Integer existencias;
 }

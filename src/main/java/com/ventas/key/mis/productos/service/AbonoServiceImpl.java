@@ -339,6 +339,7 @@ public class AbonoServiceImpl implements IAbonoService {
         nuevoPedido.setCliente(origen.getCliente());
         nuevoPedido.setClienteSinRegistro(origen.getClienteSinRegistro());
         nuevoPedido.setFechaPedido(LocalDate.now());
+        nuevoPedido.setFechaHoraRegistro(LocalDateTime.now());
         nuevoPedido.setObservaciones("Transferido desde pedido #" + pedidoIdOrigen);
         detalle.setPedido(nuevoPedido);
         List<DetallePedido> detalles = new ArrayList<>();

@@ -1313,28 +1313,29 @@ Estas migraciones ya están corridas en `dev` y `qa` pero **faltan en `prod`** (
 
 ---
 
-### 🔴 Bug reportado 2026-07-07 — no se puede confirmar venta directa con una promoción en el carrito
+### ✅ Bug 2026-07-07 — no se puede confirmar venta directa con una promoción en el carrito (RESUELTO)
 
 **Síntoma reportado por el usuario:** con una variante normal en el carrito, los pagos funcionan
 igual que siempre. En cuanto el carrito trae una promoción, **ninguna forma de pago funciona** —
-ni apartado/ir pagando (esto es esperado, ver `PROMOCIONES.md` punto 8: promociones son solo de
-contado) ni las opciones de pago directo (esto NO es esperado). Falla igual sin cliente
-seleccionado, con cliente existente, o con un cliente nuevo sin registro.
+ni apartado/ir pagando (esto es esperado) ni las opciones de pago directo (esto NO era esperado).
+Error mostrado: *"La cantidad es obligatoria y debe ser mayor a 0 para la variante id X"*.
 
-**Causa encontrada:** `PromocionServiceImpl.validarLineasPromocion()` usaba el mismo mensaje
-genérico `"La promocion '...' ya no esta disponible"` para 4 validaciones distintas (línea
-faltante, variante que no pertenece al combo, precio que no coincide, cantidad no múltiplo) — por
-eso el error se veía igual sin importar qué se intentara, sin dar pista de la causa real.
+**Causa raíz confirmada 2026-07-07:** `PromocionDetalleActivaDto` (respuesta de `GET
+/v1/promociones/activas`) no incluía el campo `cantidad`. El front armaba la solicitud de venta así:
+```typescript
+cantidad: d.cantidad * p.cantidadCombos  // d.cantidad era undefined
+```
+`undefined * 1 = NaN` → `JSON.stringify` lo serializa como `null` → el back recibe `cantidad: null`
+→ `VentaServiceImpl` valida `getCantidad() == null || getCantidad() <= 0` → arroja el error.
 
-**Fix aplicado 2026-07-07:** cada validación ahora tiene su propio mensaje específico. Ver
-`CAMBIOS_FRONT.md` → "Fix (2026-07-07): mensajes de error de promociones ahora son específicos"
-para la tabla completa de mensajes nuevos.
+**Fix aplicado 2026-07-07:**
+1. `PromocionDetalleActivaDto.java` — se agregó el campo `private Integer cantidad`.
+2. `PromocionServiceImpl.toDetalleActivaDto()` — se asigna `dto.setCantidad(detalle.getCantidad())`.
 
-**Pendiente:** con el mensaje específico ya desplegado en QA, reproducir la compra con promoción de
-nuevo y usar el mensaje exacto para confirmar la causa raíz real (la sospecha más probable, según
-el contrato de `PROMOCIONES.md` punto 7, es que el front está mandando la promoción como **una
-sola línea** en vez de una línea por cada variante que compone el combo — pero falta confirmar con
-el mensaje real).
+Ver `CAMBIOS_FRONT.md` → "Fix (2026-07-07): campo `cantidad` en detalles de promoción activa".
+
+**También en esta sesión:** se agregó campo `existencias` (stock) al endpoint admin.
+Ver `CAMBIOS_FRONT.md` → "Nuevo (2026-07-07): existencias por variante en `GET /admin`".
 
 ---
 

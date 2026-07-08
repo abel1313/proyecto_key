@@ -71,7 +71,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
-          'fecha_pedido', DATE_FORMAT(p.fecha_pedido, '%d/%m/%Y'),
+          'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
@@ -105,7 +105,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
-          'fecha_pedido', DATE_FORMAT(p.fecha_pedido, '%d/%m/%Y'),
+          'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
@@ -141,7 +141,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
-          'fecha_pedido', DATE_FORMAT(p.fecha_pedido, '%d/%m/%Y'),
+          'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
@@ -177,7 +177,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
-          'fecha_pedido', DATE_FORMAT(p.fecha_pedido, '%d/%m/%Y'),
+          'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
@@ -256,7 +256,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
-          'fecha_pedido', DATE_FORMAT(p.fecha_pedido, '%d/%m/%Y'),
+          'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
