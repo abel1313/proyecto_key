@@ -35,17 +35,20 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     private final IUsuarioRepository usuarioRepository;
     private final IRolRepository rolRepository;
     private final IPermisoRepository permisoRepository;
+    private final UsuarioVerificacionService usuarioVerificacionService;
 
     public UsuarioServiceImpl(BaseRepository<Usuario, Integer> repoGenerico, ErrorGenerico error,
                               IUsuarioRepository usuarioRepository,
                               PasswordEncoder passwordEncoder,
                               IRolRepository rolRepository,
-                              IPermisoRepository permisoRepository) {
+                              IPermisoRepository permisoRepository,
+                              UsuarioVerificacionService usuarioVerificacionService) {
         super(repoGenerico, error);
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.rolRepository = rolRepository;
         this.permisoRepository = permisoRepository;
+        this.usuarioVerificacionService = usuarioVerificacionService;
     }
 
     @Override
@@ -80,16 +83,14 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         return dto;
     }
 
-    // No toca password: el unico camino para cambiar la contrasena de un usuario es
-    // resetearPasswordAleatoria() (boton dedicado del admin). Antes este metodo re-encriptaba
-    // y sobrescribia el password con lo que trajera el request (a menudo vacio/null si el front
-    // solo editaba el correo), destruyendo la contrasena real del usuario sin que nadie lo pidiera.
+    // No toca password ni email: password solo se cambia via resetearPasswordAleatoria() (admin)
+    // o PasswordResetService.cambiarPassword() (self-service, valida la actual). El email solo se
+    // cambia via UsuarioVerificacionService.solicitarCambioCorreo/confirmarCambioCorreo (requiere
+    // validar un codigo antes de aplicarse) - nunca directo desde este update generico.
     @Override
     public UserUpdate updateUserDto(UserUpdate usuarioDto, int id) {
         Usuario existe = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
-        marcarCorreoSinVerificarSiCambio(existe, usuarioDto.getEmail());
-        existe.setEmail(usuarioDto.getEmail());
         existe.setUsername(usuarioDto.getUsername());
         existe.setEnabled(usuarioDto.isEnabled());
         usuarioRepository.save(existe);
@@ -97,34 +98,34 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     }
 
     /**
-     * El propio usuario logueado actualiza su username/email (nunca su password aqui - eso es
-     * PasswordResetService.cambiarPassword, que ya valida la contrasena actual). Identifica al
-     * usuario por el username del JWT (authentication.getName()), nunca por un id que mande el
-     * body/path - evita que un usuario edite la cuenta de otro.
+     * El propio usuario logueado actualiza su username (nunca su password ni su email aqui - ver
+     * comentario de updateUserDto). Identifica al usuario por el username del JWT
+     * (authentication.getName()), nunca por un id que mande el body/path - evita que un usuario
+     * edite la cuenta de otro.
      */
     @Override
     @Transactional
     public void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request) {
         Usuario existe = usuarioRepository.findByUsername(usernameActual)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
-        marcarCorreoSinVerificarSiCambio(existe, request.getEmail());
-        existe.setEmail(request.getEmail());
         existe.setUsername(request.getUsername());
         usuarioRepository.save(existe);
     }
 
-    /**
-     * Si el correo nuevo es distinto al que ya tenia, marca correoVerificado=false y limpia
-     * cualquier codigo pendiente - sin esto, enviar-codigo-verificacion queda bloqueado para
-     * siempre con "El correo ya esta verificado" en cuanto una cuenta se verifica una vez.
-     */
-    private void marcarCorreoSinVerificarSiCambio(Usuario existe, String emailNuevo) {
-        boolean cambioCorreo = emailNuevo != null && !emailNuevo.equalsIgnoreCase(existe.getEmail());
-        if (cambioCorreo) {
-            existe.setCorreoVerificado(false);
-            existe.setCodigoVerificacion(null);
-            existe.setCodigoVerificacionExpira(null);
-        }
+    /** Admin: solicita el cambio de correo de OTRO usuario (por id) - manda el codigo al correo nuevo. */
+    @Override
+    public void solicitarCambioCorreo(Integer id, String correoNuevo) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        usuarioVerificacionService.solicitarCambioCorreo(usuario, correoNuevo);
+    }
+
+    /** Admin: confirma el codigo del cambio de correo de OTRO usuario (por id). */
+    @Override
+    public void confirmarCambioCorreo(Integer id, String codigo) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        usuarioVerificacionService.confirmarCambioCorreo(usuario, codigo);
     }
 
     // Sin 0/O/1/l/I para que sea mas facil de dictar por telefono sin confundir caracteres.

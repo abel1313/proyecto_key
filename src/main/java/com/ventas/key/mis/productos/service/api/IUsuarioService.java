@@ -24,6 +24,8 @@ public interface IUsuarioService extends ICrud<
     UserUpdate updateUserDto(UserUpdate usuarioDto, int tipoDato);
     void eliminarUsuario(int tipoDato);
     void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request);
+    void solicitarCambioCorreo(Integer id, String correoNuevo);
+    void confirmarCambioCorreo(Integer id, String codigo);
 
     Integer existeClientePorIdUsuario(Integer idUsuario);
 }

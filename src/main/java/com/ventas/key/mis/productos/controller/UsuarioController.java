@@ -5,9 +5,12 @@ import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
+import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.SolicitarCambioCorreoRequest;
 import com.ventas.key.mis.productos.service.UsuarioServiceImpl;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -61,6 +64,31 @@ public class UsuarioController extends AbstractController<
         String nuevaPassword = usu.resetearPasswordAleatoria(id);
         return ResponseEntity.ok(new ResponseGeneric<>(nuevaPassword,
                 "Contrasena reseteada. Comparte esta contrasena con el usuario; debera cambiarla en su siguiente login."));
+    }
+
+    // ── Cambio de correo de OTRO usuario (admin) — verificar antes de guardar ──
+    // El email real no cambia hasta confirmar-cambio-correo con el codigo correcto.
+
+    @PostMapping("/{id}/solicitar-cambio-correo")
+    public ResponseEntity<?> solicitarCambioCorreo(@PathVariable Integer id,
+                                                    @Valid @RequestBody SolicitarCambioCorreoRequest request) {
+        try {
+            usu.solicitarCambioCorreo(id, request.getCorreoNuevo());
+            return ResponseEntity.ok("Codigo enviado al correo nuevo");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/confirmar-cambio-correo")
+    public ResponseEntity<?> confirmarCambioCorreo(@PathVariable Integer id,
+                                                    @Valid @RequestBody ConfirmarCambioCorreoRequest request) {
+        try {
+            usu.confirmarCambioCorreo(id, request.getCodigo());
+            return ResponseEntity.ok("Correo actualizado correctamente");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
     @GetMapping("/buscarClientePorIdUsuario/{idUsuario}")

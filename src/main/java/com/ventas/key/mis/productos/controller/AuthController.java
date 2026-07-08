@@ -6,10 +6,12 @@ import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
+import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.EnviarCodigoVerificacionUsuarioRequest;
 import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
 import com.ventas.key.mis.productos.models.RegistroRequest;
 import com.ventas.key.mis.productos.models.RestablecerPasswordRequest;
+import com.ventas.key.mis.productos.models.SolicitarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.VerificarCorreoUsuarioRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
@@ -281,7 +283,7 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Actualizar mi perfil (usuario logueado)", description = "El propio usuario autenticado actualiza su username/email. Nunca toca la contrasena - para eso existe PUT /v1/auth/cambiar-password. Si el email cambia, resetea correoVerificado para permitir volver a llamar enviar-codigo-verificacion.")
+    @Operation(summary = "Actualizar mi perfil (usuario logueado)", description = "El propio usuario autenticado actualiza su username. Nunca toca la contrasena (PUT /v1/auth/cambiar-password) ni el email (POST /v1/auth/solicitar-cambio-correo + confirmar-cambio-correo) - esos van por endpoints separados con su propia validacion.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Perfil actualizado correctamente"),
         @ApiResponse(responseCode = "400", description = "Datos invalidos"),
@@ -295,6 +297,35 @@ public class AuthController {
             return ResponseEntity.ok("Perfil actualizado correctamente");
         } catch (Exception e) {
             log.warn("Error al actualizar perfil para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    // ── Cambio de MI PROPIO correo (self-service) — verificar antes de guardar ──
+    // El email real no cambia hasta confirmar-cambio-correo con el codigo correcto.
+
+    @Operation(summary = "Solicitar cambio de mi correo", description = "Manda un codigo de 6 digitos al correo NUEVO (no al actual). El correo real no cambia todavia - solo se guarda como pendiente hasta confirmar el codigo.")
+    @PostMapping("/solicitar-cambio-correo")
+    public ResponseEntity<?> solicitarCambioCorreo(@Valid @RequestBody SolicitarCambioCorreoRequest request,
+                                                    Authentication authentication) {
+        try {
+            usuarioVerificacionService.solicitarCambioCorreo(authentication.getName(), request.getCorreoNuevo());
+            return ResponseEntity.ok("Codigo enviado al correo nuevo");
+        } catch (Exception e) {
+            log.warn("Error al solicitar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "Confirmar cambio de mi correo", description = "Valida el codigo de 6 digitos. Si es correcto, recien ahi se actualiza el correo real; si no, el correo real se queda como estaba.")
+    @PostMapping("/confirmar-cambio-correo")
+    public ResponseEntity<?> confirmarCambioCorreo(@Valid @RequestBody ConfirmarCambioCorreoRequest request,
+                                                    Authentication authentication) {
+        try {
+            usuarioVerificacionService.confirmarCambioCorreo(authentication.getName(), request.getCodigo());
+            return ResponseEntity.ok("Correo actualizado correctamente");
+        } catch (Exception e) {
+            log.warn("Error al confirmar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
