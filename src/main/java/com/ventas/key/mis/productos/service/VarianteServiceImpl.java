@@ -210,18 +210,27 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
 
         List<Long> imageIds = List.of();
-        if (requestVarianteDto.isImagenParaTodas() && imagenes != null && imagenes.length > 0) {
-            imageIds = subirImagenesMultipart(imagenes);
+        if (requestVarianteDto.isImagenParaTodas()) {
+            if (imagenes != null && imagenes.length > 0) {
+                imageIds = subirImagenesMultipart(imagenes);
 
-            if (iProductoImagenRepository.findByProductoId(requestVarianteDto.getProductoId()).isEmpty()) {
-                List<ProductoImagen> pis = new ArrayList<>();
-                for (Long imgId : imageIds) {
-                    ProductoImagen pi = new ProductoImagen();
-                    pi.setProducto(producto);
-                    pi.setImagen(iImagenRepository.getReferenceById(imgId));
-                    pis.add(pi);
+                if (iProductoImagenRepository.findByProductoId(requestVarianteDto.getProductoId()).isEmpty()) {
+                    List<ProductoImagen> pis = new ArrayList<>();
+                    for (Long imgId : imageIds) {
+                        ProductoImagen pi = new ProductoImagen();
+                        pi.setProducto(producto);
+                        pi.setImagen(iImagenRepository.getReferenceById(imgId));
+                        pis.add(pi);
+                    }
+                    iProductoImagenRepository.saveAll(pis);
                 }
-                iProductoImagenRepository.saveAll(pis);
+            } else {
+                imageIds = obtenerImagenPrincipalProducto(requestVarianteDto.getProductoId());
+                if (imageIds.isEmpty()) {
+                    throw new ExceptionDataNotFound(
+                            "El producto " + producto.getId() + " no tiene una imagen para copiar a las variantes. "
+                                    + "Sube una imagen o desmarca la casilla de 'misma imagen para todas'.");
+                }
             }
         }
 
@@ -255,7 +264,29 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 throw new ExceptionDataNotFound("Error al procesar imagen: " + e.getMessage());
             }
         }
-        return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
+        try {
+            return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
+        } catch (Exception e) {
+            log.error("Error al subir imagenes al microservicio de imagenes", e);
+            throw new ExceptionDataNotFound("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
+        }
+    }
+
+    /**
+     * Imagen principal marcada del producto (ProductoImagen.principal = true); si no hay ninguna
+     * marcada como principal, cae a la primera imagen vinculada al producto.
+     */
+    private List<Long> obtenerImagenPrincipalProducto(Integer productoId) {
+        List<ProductoImagen> imagenesProducto = iProductoImagenRepository.findByProductoId(productoId);
+        if (imagenesProducto.isEmpty()) {
+            return List.of();
+        }
+        return imagenesProducto.stream()
+                .filter(pi -> Boolean.TRUE.equals(pi.getPrincipal()))
+                .findFirst()
+                .or(() -> imagenesProducto.stream().findFirst())
+                .map(pi -> List.of(pi.getImagen().getId()))
+                .orElse(List.of());
     }
 
     private List<Variantes> obtenerVariantesPorProducto(int idProducto){

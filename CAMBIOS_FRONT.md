@@ -5093,3 +5093,75 @@ crea un pedido + `getDetallePedido()`), `VentaServiceImpl.java`, `AbonoServiceIm
 `migration_pedido_fecha_hora.sql` (**pendiente de aplicar en la BD** `inventario_key_qa`).
 - Panel admin `gestion-promociones.component.ts` — método `combosDisponibles(p)` calcula el
   mínimo de `Math.floor(existencias / cantidad)` entre todas las piezas del combo.
+
+---
+
+## ✅ Fix (2026-07-07): `POST /variantes/v1/inicializarDesdeProducto` — el checkbox "misma imagen para todas" no funcionaba
+
+**Endpoint:** `POST /variantes/v1/inicializarDesdeProducto` (botón "Variantes" en la card de
+`/productos/buscar` admin).
+
+**Bug reportado:** con `imagenParaTodas: true`, tanto sin subir archivos como subiendo un archivo
+nuevo, el back respondía error y no se creaban variantes con imagen. Solo funcionaba el caso sin
+checkbox y sin archivos (variantes sin imagen).
+
+**Causa:** el código solo manejaba el caso "checkbox marcado + archivo nuevo". Si el checkbox
+estaba marcado pero no se mandaba ningún archivo, el bloque de imágenes se saltaba por completo —
+nunca buscaba la imagen ya existente del producto, así que las variantes se creaban sin imagen aunque
+el checkbox estuviera marcado. Aparte, la subida al microservicio de imágenes no tenía manejo de
+error, así que si ese servicio fallaba o tardaba, el error no traía info útil.
+
+### Request (sin cambios respecto a lo que el front ya manda)
+
+`multipart/form-data` con 2 partes:
+
+```
+Part 1 → nombre: "request"
+         Content-Type: application/json
+         Body: {
+           "productoId":        <número>,
+           "cantidadVariantes": <número>,
+           "imagenParaTodas":   <boolean>   ← viene del checkbox
+         }
+
+Part 2 → nombre: "files[]"    ← solo si el usuario seleccionó archivos
+         Content-Type: image/*
+         Body: <archivo(s) seleccionados>
+```
+
+### Response — éxito (201)
+
+```json
+{ "mensaje": "La peticion fue exitosa", "code": 200, "data": "Variantes", "lista": null }
+```
+
+`data` es el string literal `"Variantes"`, **no** un arreglo de las variantes creadas (esto ya era
+así antes del fix, solo estaba mal documentado). Si el front necesita las variantes recién creadas
+(con sus imágenes) para refrescar la UI, tiene que volver a pedir
+`GET /variantes/porProducto/{productoId}` después de este POST.
+
+### Los 3 flujos — comportamiento ya corregido
+
+| Flujo | `imagenParaTodas` | `files[]` | Resultado |
+|---|---|---|---|
+| A | `false` | sin archivos | Crea variantes sin imagen. (sin cambios) |
+| B | `true` | sin archivos | Busca la imagen **principal** ya vinculada al producto (o la primera si ninguna está marcada como principal) y la vincula a **todas** las variantes creadas. |
+| C | `true` | con 1+ archivos | Sube el/los archivo(s) al microservicio de imágenes y vincula esa(s) imagen(es) nueva(s) a **todas** las variantes creadas. Si el producto no tenía imagen propia, también se la asigna a él. |
+
+### Response — error (nuevos casos)
+
+Todos llegan en el mismo campo que el front ya lee (`err.error.mensaje`), no cambia el manejo
+en el interceptor/handler genérico:
+
+| Caso | HTTP | `mensaje` |
+|---|---|---|
+| Flujo B, **producto sin ninguna imagen** para copiar | `404` | `"El producto {id} no tiene una imagen para copiar a las variantes. Sube una imagen o desmarca la casilla de 'misma imagen para todas'."` |
+| Flujo C, **falla la subida al microservicio de imágenes** | `404` | `"No se pudo subir la imagen al servicio de imagenes, intenta de nuevo"` |
+| Stock insuficiente (ya existía, sin cambios) | `404` | `"Stock insuficiente para crear N variantes del producto X. Stock disponible: Y"` |
+
+**Front:** no requiere cambios de código — la petición que ya arman coincide con este contrato y
+el error handler genérico ya muestra estos mensajes nuevos en el Swal. Es contrato de referencia
+para que sepan qué esperar al probar los 3 flujos y no se sorprendan con el `404` nuevo del caso B.
+
+**Estado:** subiendo a `dev` para pruebas de QA. Falta subir a `main` siguiendo el flujo normal
+(`dev → qa → main`).
