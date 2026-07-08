@@ -1543,12 +1543,23 @@ barras, pero el form completo queda editable por si hace falta ajustar algo más
 1. **Botón "Independizar"** en el detalle de una variante (solo visible/habilitado para admin —
    igual que el resto de acciones de escritura de variantes, ya restringidas a `ROLE_ADMIN`).
 2. **Al hacer click**, abrir el mismo formulario que se usa para "crear producto", pero
-   **prellenado**:
-   - `nombre`, `descripcion`, `marca`, `color`, `contenido` → de la **variante**.
-   - `precioCosto`, `precioVenta`, `precioRebaja`, `palabraClaveId` → del **producto origen**
-     (la variante no tiene precio propio).
-   - Todo editable — el admin puede corregir cualquier campo antes de confirmar, no solo el
-     código de barras.
+   **prellenado** con esta prioridad por campo (implementación 100% del front, el back solo
+   recibe lo que venga en el body, sin importar de dónde lo sacó el front):
+
+   | Campo | Prioridad 1 | Si viene null/vacío, cae a |
+   |---|---|---|
+   | `nombre` | — | **Producto origen** (único lugar donde existe, la variante no tiene `nombre`) |
+   | `descripcion` | Variante | Producto origen |
+   | `marca` | Variante | Producto origen |
+   | `color` | Variante | Producto origen |
+   | `contenido` | Variante (`contenidoNeto`) | Producto origen (`contenido`) |
+   | `precioCosto`/`precioVenta`/`precioRebaja` | — | Producto origen (la variante no tiene precio propio) |
+   | `palabraClaveId` | Variante | Producto origen |
+   | `codigoBarras` | — | **Siempre vacío** — es el dato nuevo que captura el admin |
+
+   En el caso típico (la variante nunca sobreescribió nada distinto al producto), el modal termina
+   mostrando todo idéntico al producto origen y solo el código de barras en blanco. Todo es
+   editable — el admin puede corregir cualquier campo antes de confirmar, no solo el código.
    - **El campo `stock` NO se muestra como editable** — no se manda en el body, el back lo calcula
      solo (ver mecanismo de stock arriba). Si el front quiere mostrarlo de forma informativa
      (no editable), usar el `stock` actual de la variante.
@@ -1567,5 +1578,3 @@ barras, pero el form completo queda editable por si hace falta ajustar algo más
    - Refrescar la lista de variantes del producto origen — la variante independizada ya no debe
      aparecer ahí.
    - Navegar o mostrar el producto nuevo creado (`data.productoNuevoId` + `data.codigoBarras`).
-
-**Pendiente de implementar en el back.**
