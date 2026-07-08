@@ -1390,3 +1390,182 @@ El back no siempre sabe qué ya tiene el front. Resumen:
 | Badge habilitado + batch (F-16) | ⏳ Parcial — falta UI de checkboxes |
 | Olvidé contraseña / cambiar contraseña (F-17/F-18) | ⏳ Pendiente — ¿endpoints en QA? |
 | Flujo registro unificado (F-19) | ⚠️ NO empezar hasta que back confirme QA |
+
+---
+
+## 16. Independizar una variante en su propio producto (BACK IMPLEMENTADO, 2026-07-07)
+
+> **Estado: back implementado en `dev` (local, sin subir todavía) siguiendo el contrato de abajo
+> tal cual. No hay Maven disponible en este entorno para compilar/correr pruebas — falta
+> verificar compilación antes de subir a `dev`/`qa`. Front puede empezar a maquetar el flujo con
+> este documento como contrato, el endpoint responde exactamente lo descrito abajo.**
+
+**Archivos nuevos/modificados:**
+- `dto/variantes/IndependizarVarianteRequestDto.java` (nuevo) — request.
+- `models/variantes/IndependizarVarianteResponseDto.java` (nuevo) — response.
+- `service/api/IVarianteService.java` — método `independizarVariante` agregado a la interfaz.
+- `service/VarianteServiceImpl.java` — implementación (`independizarVariante`), inyecta
+  `ICodigoBarrasRepository` nuevo (para crear el código de barras del producto nuevo).
+- `controller/VarianteController.java` — `POST /variantes/v1/{varianteId}/independizar`.
+
+### Contexto / problema real
+
+Hoy se puede crear 1 producto con varias variantes (ej. 3 variantes para 3 unidades de stock).
+Cada variante va acumulando su propia info con el tiempo (talla, color, imagen, stock propio),
+pero **una variante no tiene código de barras ni precio propios** — siempre heredan los del
+producto padre (`Variantes.java` no tiene esos campos; `Producto.codigoBarras` es
+`@OneToOne(unique=true)`, un único código por producto). Cuando una de esas variantes en realidad
+merece ser su propio producto (con su propio código de barras para venderse/escanearse aparte), hoy
+no hay forma de "graduarla" — solo se puede editar la variante dentro del mismo producto padre.
+
+### Decisiones confirmadas con el usuario (2026-07-07)
+
+1. **La Variante no se borra ni se recrea.** Se reasigna (`UPDATE variantes SET producto_id = ?`)
+   al producto nuevo. Conserva intactas sus imágenes (`VarianteImagen`), su talla, color, stock,
+   etc. — no hay que copiar/recrear nada de la variante en sí.
+2. **Precio del producto nuevo:** se precarga en el front con `precioCosto`/`precioVenta`/
+   `precioRebaja` del producto **origen** (de donde viene la variante), pero el admin puede
+   editarlo antes de guardar. El back simplemente recibe lo que venga en el body, igual que
+   cualquier creación de producto normal.
+3. **Si era la última variante del producto origen:** no pasa nada especial. El producto origen
+   se queda con el stock que le sobre (puede llegar a 0) y sin variantes — sigue existiendo como
+   producto normal, igual que cualquier producto sin variantes hoy.
+4. **Todo en una sola transacción (`@Transactional`)** — crear producto nuevo + copiar imagen +
+   descontar stock del producto origen + reasignar la variante deben pasar todos o ninguno.
+5. **Identificación:** la variante a independizar se identifica por su `id` propio (`varianteId`),
+   igual que cualquier otro endpoint de variantes ya existente.
+6. **Solo ADMIN** — ya cubierto por el matcher genérico existente en `SecurityConfig.java:106`
+   (`/variantes/**` → `hasRole("ADMIN")`), no requiere config nueva.
+7. **Motivo real de uso (2026-07-07, segunda vuelta):** el caso típico es que el admin se
+   equivocó al capturar el código de barras de un producto que en realidad debía ser
+   independiente — por eso la variante ya trae toda su info correcta (talla, color, imagen,
+   stock) y solo hace falta corregir el código de barras. Aun así, el modal sigue mostrando el
+   formulario completo de "crear producto" prellenado (no solo un campo de código de barras) por
+   si hace falta corregir algo más al vuelo.
+8. **CONFIRMADO — no se copia+elimina la variante, se reasigna (ver punto 1).** Se evaluó la
+   alternativa de copiar los datos de la variante a un producto nuevo y borrar la variante
+   original para "regresar" el stock al producto origen, pero **no hace falta**: reasignar el
+   `producto_id` de la variante logra el mismo resultado sin duplicar datos ni arriesgar perder
+   imágenes/talla/color en una recreación manual. Ejemplo numérico: Producto A stock=3 con 3
+   variantes stock=1 c/u (cuadra 3=1+1+1) → se independiza la variante #2 → Producto A stock=2 con
+   2 variantes restantes stock=1 c/u (cuadra 2=1+1) → Producto B nace con stock=1 y la variante #2
+   reasignada con stock=1 (cuadra 1=1). El stock nunca queda duplicado ni descuadrado.
+9. **Orden de validación dentro de la transacción:** primero se valida que el código de barras
+   nuevo no exista ya en otro producto — si existe, se corta ahí mismo (mensaje de error, sin
+   tocar stock, sin reasignar la variante, sin crear nada). Solo si el código es válido continúa
+   con crear el producto, copiar imagen, descontar stock y reasignar la variante.
+
+### Decisiones de diseño — TODAS CONFIRMADAS 2026-07-07
+
+- **El stock del producto nuevo NO es editable por el admin** — se fija automáticamente al
+  `variante.getStock()` que se está moviendo, y esa misma cantidad se resta del `stock` del
+  producto origen. El stock nunca se "borra" ni se "crea de la nada": es solo un número (columna
+  `stock`) que se resta en un lado y se asigna en el otro. **Ejemplo paso a paso confirmado:**
+    1. Producto A (origen) tiene `stock=3`, con 3 variantes de `stock=1` cada una (3 = 1+1+1).
+    2. Se independiza la variante #2 (`stock=1`).
+    3. Producto A pasa a `stock=2` (se le resta el 1 de la variante movida). Le quedan las
+       variantes #1 y #3, ambas `stock=1` → sigue cuadrando (2 = 1+1).
+    4. Producto B (nuevo) nace con `stock=1` — el mismo número que traía la variante, no uno
+       inventado.
+    5. La variante #2 (con su `stock=1` intacto) se reasigna a Producto B → también cuadra (1=1).
+  En ningún punto el stock queda duplicado ni descuadrado.
+- **Código de barras nuevo duplicado:** si el código que ingresa el admin en el modal ya
+  pertenece a otro producto existente, el back **rechaza con error** (no reactiva/reutiliza ese
+  producto como hace `guardarProducto` en el alta normal) — evita fusionar por accidente esta
+  variante con un producto no relacionado. Esta validación va **primero**, antes de tocar stock o
+  reasignar la variante — si falla, no se hace ningún cambio.
+- **Imagen de la variante → producto nuevo:** si la variante ya tiene imagen(es) propias
+  (`VarianteImagen`), se **copian** (no se mueven) como `ProductoImagen` del producto nuevo — la
+  variante conserva las suyas intactas (mismo patrón de "copiar, no mover" ya usado en
+  `compartirImagenesVarianteDto` y en el fix de hoy de `inicializarDesdeProducto`).
+
+### Contrato (ya implementado en el back, tal cual)
+
+```
+POST /variantes/v1/{varianteId}/independizar
+Authorization: Bearer <token admin>
+Content-Type: application/json
+```
+
+**Request** — mismo shape que crear un producto normal (`ProductoDetalle`), más el código de
+barras nuevo obligatorio. El front prellena `nombre`/`descripcion`/`marca`/`color`/`contenido`
+con los datos de la variante, y `precioCosto`/`precioVenta`/`precioRebaja`/`palabraClaveId` con
+los del producto origen — todo editable antes de enviar:
+
+```json
+{
+  "nombre": "string, requerido",
+  "descripcion": "string",
+  "marca": "string",
+  "color": "string",
+  "contenido": "string",
+  "precioCosto": 0.0,
+  "precioVenta": 0.0,
+  "precioRebaja": 0.0,
+  "palabraClaveId": 1,
+  "codigoBarras": "string, requerido, debe ser nuevo (no existir ya en otro producto)",
+  "imagenPrincipalId": 123
+}
+```
+- `imagenPrincipalId` es opcional — solo aplica si la variante tenía más de una imagen y el admin
+  quiere elegir cuál queda como principal del producto nuevo. Si la variante solo tenía 1 imagen,
+  el back la usa automáticamente sin necesidad de mandar este campo.
+- **No se manda `stock`** — se calcula automáticamente del `stock` de la variante (ver decisión
+  de diseño arriba).
+
+**Response (éxito, 201):**
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "productoNuevoId": 456,
+    "codigoBarras": "cod-nuevo-123",
+    "stockProductoOrigenRestante": 2
+  }
+}
+```
+
+**Errores esperados:**
+| Caso | HTTP | Mensaje |
+|---|---|---|
+| `varianteId` no existe | `404` | `"No existe la variante con id: {id}"` |
+| Código de barras vacío/no enviado | `404` | `"El codigo de barras es requerido"` |
+| Código de barras ya usado por otro producto | `409` | `"El codigo de barras {codigo} ya esta en uso por otro producto"` |
+
+### Lo que necesita el front — flujo paso a paso
+
+**Caso de uso real:** el admin se equivocó de código de barras al crear un producto con variantes,
+o simplemente decide que una variante ya merece ser su propio producto. La variante ya tiene toda
+su info correcta (talla, color, imagen, stock) — lo único que casi siempre cambia es el código de
+barras, pero el form completo queda editable por si hace falta ajustar algo más.
+
+1. **Botón "Independizar"** en el detalle de una variante (solo visible/habilitado para admin —
+   igual que el resto de acciones de escritura de variantes, ya restringidas a `ROLE_ADMIN`).
+2. **Al hacer click**, abrir el mismo formulario que se usa para "crear producto", pero
+   **prellenado**:
+   - `nombre`, `descripcion`, `marca`, `color`, `contenido` → de la **variante**.
+   - `precioCosto`, `precioVenta`, `precioRebaja`, `palabraClaveId` → del **producto origen**
+     (la variante no tiene precio propio).
+   - Todo editable — el admin puede corregir cualquier campo antes de confirmar, no solo el
+     código de barras.
+   - **El campo `stock` NO se muestra como editable** — no se manda en el body, el back lo calcula
+     solo (ver mecanismo de stock arriba). Si el front quiere mostrarlo de forma informativa
+     (no editable), usar el `stock` actual de la variante.
+3. **Campo obligatorio adicional: código de barras nuevo** — debe ser distinto al del producto
+   origen. Validar en el front que no venga vacío, pero la validación real de "no duplicado" la
+   hace el back.
+4. **Al confirmar**, llamar `POST /variantes/v1/{varianteId}/independizar` con el body descrito
+   arriba.
+5. **Si el back responde 409/400 por código duplicado**, mostrar el mensaje tal cual (ya viene
+   listo para el usuario: `"El codigo de barras {codigo} ya esta en uso por otro producto"`) y
+   dejar el formulario abierto para que el admin corrija el código — no se perdió nada porque el
+   back no tocó ni stock ni la variante en ese caso.
+6. **Tras éxito (201):**
+   - Refrescar la vista del producto origen — su `stock` bajó (`data.stockProductoOrigenRestante`
+     ya viene en la respuesta, no hace falta volver a pedir el producto completo solo para eso).
+   - Refrescar la lista de variantes del producto origen — la variante independizada ya no debe
+     aparecer ahí.
+   - Navegar o mostrar el producto nuevo creado (`data.productoNuevoId` + `data.codigoBarras`).
+
+**Pendiente de implementar en el back.**

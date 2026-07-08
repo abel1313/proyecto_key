@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.dto.variantes.IndependizarVarianteRequestDto;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Imagen;
@@ -10,12 +11,15 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.*;
+import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteResponseDto;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
+import com.ventas.key.mis.productos.repository.ICodigoBarrasRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
@@ -52,6 +56,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final IImagenRepository iImagenRepository;
     private final ImagenPort imagenPort;
     private final IPalabraClaveRepository iPalabraClaveRepository;
+    private final ICodigoBarrasRepository iCodigoBarrasRepository;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -72,6 +77,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                                IImagenRepository iImagenRepository,
                                ImagenPort imagenPort,
                                IPalabraClaveRepository iPalabraClaveRepository,
+                               ICodigoBarrasRepository iCodigoBarrasRepository,
                                ErrorGenerico error) {
         super(iVarianteRepository, error);
         this.iVarianteRepository = iVarianteRepository;
@@ -82,6 +88,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iImagenRepository = iImagenRepository;
         this.imagenPort = imagenPort;
         this.iPalabraClaveRepository = iPalabraClaveRepository;
+        this.iCodigoBarrasRepository = iCodigoBarrasRepository;
     }
 
     public PginaDto<List<VarianteResumenDto>> buscarVariantes(String termino, int page, int size) {
@@ -287,6 +294,80 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .or(() -> imagenesProducto.stream().findFirst())
                 .map(pi -> List.of(pi.getImagen().getId()))
                 .orElse(List.of());
+    }
+
+    /**
+     * Independiza una variante en su propio producto: crea un Producto nuevo con codigo de
+     * barras propio (la variante nunca tuvo uno, hereda el del producto padre), le copia las
+     * imagenes que la variante ya tenia, resta del producto origen el stock que se lleva la
+     * variante, y reasigna la variante (su producto_id) al producto nuevo. La variante en si
+     * no se borra ni se recrea, solo cambia de dueno — conserva intactas sus propias imagenes
+     * (VarianteImagen), talla, color, etc.
+     */
+    @Transactional
+    @Override
+    public IndependizarVarianteResponseDto independizarVariante(Integer varianteId, IndependizarVarianteRequestDto request) {
+        Variantes variante = iVarianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
+
+        if (request.getCodigoBarras() == null || request.getCodigoBarras().isBlank()) {
+            throw new ExceptionDataNotFound("El codigo de barras es requerido");
+        }
+        if (iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(request.getCodigoBarras()).isPresent()) {
+            throw new ExceptionDuplicado(
+                    "El codigo de barras " + request.getCodigoBarras() + " ya esta en uso por otro producto");
+        }
+
+        Producto productoOrigen = variante.getProducto();
+
+        CodigoBarra codigoBarra = new CodigoBarra();
+        codigoBarra.setCodigoBarras(request.getCodigoBarras());
+        codigoBarra = iCodigoBarrasRepository.save(codigoBarra);
+
+        Producto productoNuevo = new Producto();
+        productoNuevo.setNombre(request.getNombre());
+        productoNuevo.setDescripcion(request.getDescripcion());
+        productoNuevo.setMarca(request.getMarca());
+        productoNuevo.setColor(request.getColor());
+        productoNuevo.setContenido(request.getContenido());
+        productoNuevo.setPrecioCosto(request.getPrecioCosto());
+        productoNuevo.setPrecioVenta(request.getPrecioVenta());
+        productoNuevo.setPrecioRebaja(request.getPrecioRebaja());
+        productoNuevo.setStock(variante.getStock());
+        productoNuevo.setHabilitado('1');
+        productoNuevo.setCodigoBarras(codigoBarra);
+        if (request.getPalabraClaveId() != null) {
+            productoNuevo.setPalabraClave(iPalabraClaveRepository.getReferenceById(request.getPalabraClaveId()));
+        }
+        productoNuevo = iProductosRepository.save(productoNuevo);
+
+        List<VarianteImagen> imagenesVariante = iVarianteImagenRepository.findByVarianteId(varianteId);
+        if (!imagenesVariante.isEmpty()) {
+            Long principalId = request.getImagenPrincipalId();
+            if (principalId == null && imagenesVariante.size() == 1) {
+                principalId = imagenesVariante.get(0).getImagen().getId();
+            }
+            final Long principalIdFinal = principalId;
+            List<ProductoImagen> nuevasRelaciones = imagenesVariante.stream().map(vi -> {
+                ProductoImagen pi = new ProductoImagen();
+                pi.setProducto(productoNuevo);
+                pi.setImagen(vi.getImagen());
+                pi.setPrincipal(principalIdFinal != null && principalIdFinal.equals(vi.getImagen().getId()));
+                return pi;
+            }).toList();
+            iProductoImagenRepository.saveAll(nuevasRelaciones);
+        }
+
+        productoOrigen.setStock(productoOrigen.getStock() - variante.getStock());
+        iProductosRepository.save(productoOrigen);
+
+        variante.setProducto(productoNuevo);
+        iVarianteRepository.save(variante);
+
+        evictAllCaches();
+
+        return new IndependizarVarianteResponseDto(
+                productoNuevo.getId(), request.getCodigoBarras(), productoOrigen.getStock());
     }
 
     private List<Variantes> obtenerVariantesPorProducto(int idProducto){
