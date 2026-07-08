@@ -1499,6 +1499,7 @@ los del producto origen — todo editable antes de enviar:
   "marca": "string",
   "color": "string",
   "contenido": "string",
+  "piezas": 1.0,
   "precioCosto": 0.0,
   "precioVenta": 0.0,
   "precioRebaja": 0.0,
@@ -1510,6 +1511,8 @@ los del producto origen — todo editable antes de enviar:
 - `imagenPrincipalId` es opcional — solo aplica si la variante tenía más de una imagen y el admin
   quiere elegir cuál queda como principal del producto nuevo. Si la variante solo tenía 1 imagen,
   el back la usa automáticamente sin necesidad de mandar este campo.
+- **`piezas` es requerido** — la columna `producto.piezas` es `NOT NULL` en BD. La variante no
+  tiene este campo (ver tabla de fallback abajo), tiene que salir del producto origen.
 - **No se manda `stock`** — se calcula automáticamente del `stock` de la variante (ver decisión
   de diseño arriba).
 
@@ -1553,6 +1556,7 @@ barras, pero el form completo queda editable por si hace falta ajustar algo más
    | `marca` | Variante | Producto origen |
    | `color` | Variante | Producto origen |
    | `contenido` | Variante (`contenidoNeto`) | Producto origen (`contenido`) |
+   | `piezas` | — | **Producto origen** (único lugar donde existe, la variante no tiene `piezas`; es `NOT NULL` en BD, no se puede omitir) |
    | `precioCosto`/`precioVenta`/`precioRebaja` | — | Producto origen (la variante no tiene precio propio) |
    | `palabraClaveId` | Variante | Producto origen |
    | `codigoBarras` | — | **Siempre vacío** — es el dato nuevo que captura el admin |
