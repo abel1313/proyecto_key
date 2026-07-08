@@ -9,6 +9,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IPermisoRepository;
@@ -114,10 +115,10 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
 
     /** Admin: solicita el cambio de correo de OTRO usuario (por id) - manda el codigo al correo nuevo. */
     @Override
-    public void solicitarCambioCorreo(Integer id, String correoNuevo) {
+    public boolean solicitarCambioCorreo(Integer id, String correoNuevo) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
-        usuarioVerificacionService.solicitarCambioCorreo(usuario, correoNuevo);
+        return usuarioVerificacionService.solicitarCambioCorreo(usuario, correoNuevo);
     }
 
     /** Admin: confirma el codigo del cambio de correo de OTRO usuario (por id). */
@@ -126,6 +127,14 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
         usuarioVerificacionService.confirmarCambioCorreo(usuario, codigo);
+    }
+
+    /** Admin: estado del cambio de correo pendiente de OTRO usuario (por id). */
+    @Override
+    public CambioCorreoPendienteResponseDto obtenerCambioCorreoPendiente(Integer id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuarioVerificacionService.obtenerCambioCorreoPendiente(usuario);
     }
 
     // Sin 0/O/1/l/I para que sea mas facil de dictar por telefono sin confundir caracteres.

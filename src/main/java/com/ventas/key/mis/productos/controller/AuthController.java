@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.EnviarCodigoVerificacionUsuarioRequest;
 import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
@@ -310,12 +311,26 @@ public class AuthController {
     public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(@Valid @RequestBody SolicitarCambioCorreoRequest request,
                                                     Authentication authentication) {
         try {
-            usuarioVerificacionService.solicitarCambioCorreo(authentication.getName(), request.getCorreoNuevo());
-            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo nuevo"));
+            boolean enviado = usuarioVerificacionService.solicitarCambioCorreo(authentication.getName(), request.getCorreoNuevo());
+            String mensaje = enviado
+                    ? "Codigo enviado al correo nuevo"
+                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
         } catch (Exception e) {
             log.warn("Error al solicitar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
+    }
+
+    @Operation(summary = "Estado de mi cambio de correo pendiente", description = "Consulta si hay un cambio de correo en proceso (codigo enviado, sin confirmar) y su expiracion real. Pensado para que el front restaure el estado del modal tras un refresh de pagina sin depender de sessionStorage/localStorage - el back es la unica fuente de verdad.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "pendiente=false si no hay cambio en curso o el codigo ya expiro")
+    })
+    @GetMapping("/cambio-correo-pendiente")
+    public ResponseEntity<ResponseGeneric<CambioCorreoPendienteResponseDto>> obtenerCambioCorreoPendiente(
+            Authentication authentication) {
+        return ResponseEntity.ok(new ResponseGeneric<>(
+                usuarioVerificacionService.obtenerCambioCorreoPendiente(authentication.getName())));
     }
 
     @Operation(summary = "Confirmar cambio de mi correo", description = "Valida el codigo de 6 digitos. Si es correcto, recien ahi se actualiza el correo real; si no, el correo real se queda como estaba.")

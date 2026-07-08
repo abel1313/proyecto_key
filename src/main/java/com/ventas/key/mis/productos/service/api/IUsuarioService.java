@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PginaDto;
 import org.springframework.stereotype.Repository;
@@ -24,8 +25,9 @@ public interface IUsuarioService extends ICrud<
     UserUpdate updateUserDto(UserUpdate usuarioDto, int tipoDato);
     void eliminarUsuario(int tipoDato);
     void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request);
-    void solicitarCambioCorreo(Integer id, String correoNuevo);
+    boolean solicitarCambioCorreo(Integer id, String correoNuevo);
     void confirmarCambioCorreo(Integer id, String codigo);
+    CambioCorreoPendienteResponseDto obtenerCambioCorreoPendiente(Integer id);
 
     Integer existeClientePorIdUsuario(Integer idUsuario);
 }

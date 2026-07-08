@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,14 +79,25 @@ public class UsuarioVerificacionService {
      * verificar-antes-de-guardar: el correo real NO se toca aqui, solo se guarda como
      * correoPendiente + se manda el codigo a esa direccion nueva. Si el codigo nunca se
      * confirma, el correo real nunca cambio.
+     *
+     * Si ya hay un codigo vigente para el MISMO correo nuevo (no expiro), no se reenvia correo -
+     * se reutiliza el que ya tiene, para evitar que reintentos/doble-click manden varios correos
+     * con codigos distintos (el ultimo invalidaria a los anteriores y confundiria al usuario).
+     * Devuelve true si mando un correo nuevo, false si reutilizo uno ya vigente.
      */
     @Transactional
-    public void solicitarCambioCorreo(Usuario usuario, String correoNuevo) {
+    public boolean solicitarCambioCorreo(Usuario usuario, String correoNuevo) {
         if (correoNuevo == null || correoNuevo.isBlank()) {
             throw new RuntimeException("El correo nuevo es requerido");
         }
         if (correoNuevo.equalsIgnoreCase(usuario.getEmail())) {
             throw new RuntimeException("Ese ya es el correo actual");
+        }
+        boolean yaVigente = correoNuevo.equalsIgnoreCase(usuario.getCorreoPendiente())
+                && usuario.getCodigoVerificacionExpira() != null
+                && LocalDateTime.now().isBefore(usuario.getCodigoVerificacionExpira());
+        if (yaVigente) {
+            return false;
         }
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
         usuario.setCorreoPendiente(correoNuevo);
@@ -93,6 +105,7 @@ public class UsuarioVerificacionService {
         usuario.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
         usuarioRepository.save(usuario);
         emailService.enviarCodigoVerificacion(correoNuevo, codigo);
+        return true;
     }
 
     /**
@@ -122,13 +135,35 @@ public class UsuarioVerificacionService {
 
     /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */
     @Transactional
-    public void solicitarCambioCorreo(String usernameActual, String correoNuevo) {
-        solicitarCambioCorreo(buscarPorUsernameOEmail(usernameActual), correoNuevo);
+    public boolean solicitarCambioCorreo(String usernameActual, String correoNuevo) {
+        return solicitarCambioCorreo(buscarPorUsernameOEmail(usernameActual), correoNuevo);
     }
 
     /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */
     @Transactional
     public void confirmarCambioCorreo(String usernameActual, String codigo) {
         confirmarCambioCorreo(buscarPorUsernameOEmail(usernameActual), codigo);
+    }
+
+    /**
+     * Estado de un cambio de correo pendiente (self-service). El back es la unica fuente de
+     * verdad: no depende de que el front recuerde nada en sessionStorage/localStorage tras un
+     * refresh, y devuelve la expiracion real (no una estimacion de 15 min contada del lado
+     * cliente). Si el codigo ya expiro, se considera como "no pendiente" para el front aunque el
+     * dato siga en BD hasta el proximo solicitar-cambio-correo (que lo sobreescribe).
+     */
+    public CambioCorreoPendienteResponseDto obtenerCambioCorreoPendiente(String usernameActual) {
+        return obtenerCambioCorreoPendiente(buscarPorUsernameOEmail(usernameActual));
+    }
+
+    /** Admin: mismo estado, pero de OTRO usuario identificado por id (ver UsuarioServiceImpl). */
+    public CambioCorreoPendienteResponseDto obtenerCambioCorreoPendiente(Usuario usuario) {
+        boolean expirado = usuario.getCodigoVerificacionExpira() == null
+                || LocalDateTime.now().isAfter(usuario.getCodigoVerificacionExpira());
+        if (usuario.getCorreoPendiente() == null || expirado) {
+            return new CambioCorreoPendienteResponseDto(false, null, null);
+        }
+        return new CambioCorreoPendienteResponseDto(
+                true, usuario.getCorreoPendiente(), usuario.getCodigoVerificacionExpira());
     }
 }
