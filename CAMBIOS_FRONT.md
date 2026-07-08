@@ -5209,6 +5209,32 @@ actualiza hasta que el código sea correcto; si el código falla/expira/se cance
 > antes) — es una columna distinta en otra tabla, con otra regla: ahí el admin SÍ puede aplicar el
 > correo directo sin verificar. Aquí (cuenta de login/`Usuario`), el admin también verifica.
 
+### 🐛 BUG CONFIRMADO EN QA (2026-07-08) — el front en `usuarios/update` llama al endpoint equivocado
+
+**Síntoma:** al cambiar el correo de otro usuario desde el panel admin, no llega ningún código al
+correo nuevo.
+
+**Causa confirmada con curl real:** el front está llamando
+`POST /v1/auth/enviar-codigo-verificacion` con body `{ "userName": "pedro" }` — **ese es el
+endpoint viejo** (verificación única post-registro, ver arriba). Ese endpoint:
+- No recibe ningún correo nuevo, solo `userName`.
+- Manda el código al correo que **ya está guardado**, no a uno nuevo.
+- Si ese correo ya está verificado (el caso normal para cualquier cuenta activa), responde `400`
+  con `"El correo ya esta verificado"` y no manda nada — por eso "no llega el correo".
+
+**Corrección necesaria en el front — reemplazar esa llamada:**
+
+| ❌ Está llamando (incorrecto para cambio de correo) | ✅ Debe llamar |
+|---|---|
+| `POST /v1/auth/enviar-codigo-verificacion` `{ "userName": "..." }` | `POST /v1/usuarios/{id}/solicitar-cambio-correo` `{ "correoNuevo": "..." }` (admin, `{id}` = id del usuario que se está editando, **no** el id del admin) |
+| `POST /v1/auth/verificar-correo` `{ "userName": "...", "codigo": "..." }` | `POST /v1/usuarios/{id}/confirmar-cambio-correo` `{ "codigo": "..." }` (admin) |
+
+Los endpoints `enviar-codigo-verificacion`/`verificar-correo` **solo sirven para la verificación
+única post-registro** — nunca para cambiar un correo ya existente, ni desde el panel admin ni
+desde self-service. Para self-service (el propio usuario cambia su correo) es la misma tabla pero
+con las rutas `/v1/auth/solicitar-cambio-correo` / `confirmar-cambio-correo` (sin `{id}`, ver el
+contrato completo abajo).
+
 **4 endpoints nuevos (2 admin, 2 self-service) — reemplazan el uso de
 `enviar-codigo-verificacion`/`verificar-correo` para este caso** (esos 2 endpoints viejos siguen
 existiendo tal cual, pero solo para la verificación inicial post-registro, no para cambios de
@@ -5224,14 +5250,25 @@ POST /v1/auth/solicitar-cambio-correo            Body: { "correoNuevo": "..." }
 POST /v1/auth/confirmar-cambio-correo            Body: { "codigo": "123456" }
 ```
 
-- `solicitar-cambio-correo` → `200` con `"Codigo enviado al correo nuevo"` (el código se manda a
-  la dirección **nueva**, no a la actual). `400` si `correoNuevo` viene vacío o es igual al actual.
-- `confirmar-cambio-correo` → `200` con `"Correo actualizado correctamente"` — **solo en este
-  momento** se actualiza el `email` real. `400` con el mensaje de error si el código es
-  inválido/expiró — en ese caso el correo real sigue siendo el de antes, no hay que hacer nada
-  para "revertir" el campo en el front, solo mostrar el error y dejar el valor viejo.
+**Corrección de contrato (2026-07-08):** la primera versión de estos 4 endpoints devolvía texto
+plano (`"Codigo enviado al correo nuevo"`) en vez de JSON. Eso rompía el front porque el
+`HttpClient` esperaba JSON y tronaba al parsear un body que no lo era — el back sí mandaba el
+correo, pero el front mostraba error igual. Ya está corregido: ahora responden `ResponseGeneric<String>`,
+igual que el resto del API.
+
+- `solicitar-cambio-correo` → `200` con body `{ "mensaje": "La peticion fue exitosa", "code": 200, "data": "Codigo enviado al correo nuevo", "lista": null }`
+  (el código se manda a la dirección **nueva**, no a la actual). Leer el mensaje para mostrar desde `data` (o `mensaje` en el caso de error).
+  `400` con body `{ "mensaje": "<detalle del error>", "code": 404, "data": null, "lista": null }` si `correoNuevo` viene vacío o es igual al actual.
+- `confirmar-cambio-correo` → `200` con body `{ "mensaje": "La peticion fue exitosa", "code": 200, "data": "Correo actualizado correctamente", "lista": null }`
+  — **solo en este momento** se actualiza el `email` real. `400` con `{ "mensaje": "<detalle del error>", "code": 404, "data": null, "lista": null }`
+  si el código es inválido/expiró — en ese caso el correo real sigue siendo el de antes, no hay que
+  hacer nada para "revertir" el campo en el front, solo mostrar `mensaje` y dejar el valor viejo.
 - El código **nunca viaja en la respuesta de la API** — solo llega por correo. El modal siempre
   necesita un input para que el usuario/admin lo escriba.
+- Nota sobre el `code` del body en caso de error: viene `404` aunque el HTTP status real sea `400`
+  — es una particularidad de `ResponseGeneric` que ya existía en otros endpoints del API, no es
+  nuevo de esta corrección. Para detectar error en el front, usar el status HTTP (`400`), no el
+  campo `code` del body.
 
 **Front — flujo para las 2 pantallas (admin y self-service), idéntico salvo el endpoint:**
 1. Si el correo ingresado en el form es **igual** al actual → no pasa nada especial, se guarda

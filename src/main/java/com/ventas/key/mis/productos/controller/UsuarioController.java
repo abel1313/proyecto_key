@@ -70,24 +70,24 @@ public class UsuarioController extends AbstractController<
     // El email real no cambia hasta confirmar-cambio-correo con el codigo correcto.
 
     @PostMapping("/{id}/solicitar-cambio-correo")
-    public ResponseEntity<?> solicitarCambioCorreo(@PathVariable Integer id,
+    public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(@PathVariable Integer id,
                                                     @Valid @RequestBody SolicitarCambioCorreoRequest request) {
         try {
             usu.solicitarCambioCorreo(id, request.getCorreoNuevo());
-            return ResponseEntity.ok("Codigo enviado al correo nuevo");
+            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo nuevo"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
     @PostMapping("/{id}/confirmar-cambio-correo")
-    public ResponseEntity<?> confirmarCambioCorreo(@PathVariable Integer id,
+    public ResponseEntity<ResponseGeneric<String>> confirmarCambioCorreo(@PathVariable Integer id,
                                                     @Valid @RequestBody ConfirmarCambioCorreoRequest request) {
         try {
             usu.confirmarCambioCorreo(id, request.getCodigo());
-            return ResponseEntity.ok("Correo actualizado correctamente");
+            return ResponseEntity.ok(new ResponseGeneric<>("Correo actualizado correctamente"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 

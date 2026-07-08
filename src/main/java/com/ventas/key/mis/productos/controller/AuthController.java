@@ -10,6 +10,7 @@ import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.EnviarCodigoVerificacionUsuarioRequest;
 import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
 import com.ventas.key.mis.productos.models.RegistroRequest;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.RestablecerPasswordRequest;
 import com.ventas.key.mis.productos.models.SolicitarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.VerificarCorreoUsuarioRequest;
@@ -306,27 +307,27 @@ public class AuthController {
 
     @Operation(summary = "Solicitar cambio de mi correo", description = "Manda un codigo de 6 digitos al correo NUEVO (no al actual). El correo real no cambia todavia - solo se guarda como pendiente hasta confirmar el codigo.")
     @PostMapping("/solicitar-cambio-correo")
-    public ResponseEntity<?> solicitarCambioCorreo(@Valid @RequestBody SolicitarCambioCorreoRequest request,
+    public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(@Valid @RequestBody SolicitarCambioCorreoRequest request,
                                                     Authentication authentication) {
         try {
             usuarioVerificacionService.solicitarCambioCorreo(authentication.getName(), request.getCorreoNuevo());
-            return ResponseEntity.ok("Codigo enviado al correo nuevo");
+            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo nuevo"));
         } catch (Exception e) {
             log.warn("Error al solicitar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
     @Operation(summary = "Confirmar cambio de mi correo", description = "Valida el codigo de 6 digitos. Si es correcto, recien ahi se actualiza el correo real; si no, el correo real se queda como estaba.")
     @PostMapping("/confirmar-cambio-correo")
-    public ResponseEntity<?> confirmarCambioCorreo(@Valid @RequestBody ConfirmarCambioCorreoRequest request,
+    public ResponseEntity<ResponseGeneric<String>> confirmarCambioCorreo(@Valid @RequestBody ConfirmarCambioCorreoRequest request,
                                                     Authentication authentication) {
         try {
             usuarioVerificacionService.confirmarCambioCorreo(authentication.getName(), request.getCodigo());
-            return ResponseEntity.ok("Correo actualizado correctamente");
+            return ResponseEntity.ok(new ResponseGeneric<>("Correo actualizado correctamente"));
         } catch (Exception e) {
             log.warn("Error al confirmar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
