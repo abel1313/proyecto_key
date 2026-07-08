@@ -5165,3 +5165,85 @@ para que sepan qué esperar al probar los 3 flujos y no se sorprendan con el `40
 
 **Estado:** subiendo a `dev` para pruebas de QA. Falta subir a `main` siguiendo el flujo normal
 (`dev → qa → main`).
+
+---
+
+## 🔴 Fix crítico (2026-07-08): `PUT /v1/usuarios/updateUsuario/{id}` destruía la contraseña real del usuario
+
+**Bug reportado:** al editar el correo de un usuario desde el panel admin (`usuarios/update`) y dar
+"Actualizar", el back sobrescribía la contraseña real del usuario aunque el front no haya tocado
+ese campo — dejando la cuenta con una contraseña inservible.
+
+**Causa:** `UsuarioServiceImpl.updateUserDto()` hacía
+`existe.setPassword(passwordEncoder.encode(usuarioDto.getPassword()))` **sin validar** si
+`usuarioDto.getPassword()` venía `null`/vacío. Si el front no incluía el campo `password` en el
+body (el caso normal al editar solo correo/username/enabled), el back igual encriptaba ese valor
+vacío/null y lo guardaba como la contraseña real — efectivamente reseteándola sin que nadie lo
+pidiera.
+
+**Fix:** `updateUserDto()` **ya no toca el campo password en absoluto**, sin importar qué venga en
+el body. El único endpoint que puede cambiar la contraseña de un usuario sigue siendo
+`PUT /v1/usuarios/{id}/resetear-password` (genera una password aleatoria de 8 caracteres y la
+devuelve en la respuesta para que el admin se la comparta al usuario).
+
+**Acción requerida en el front:**
+- El campo `password` en el body de `PUT /v1/usuarios/updateUsuario/{id}` ya no tiene ningún
+  efecto — el back lo ignora. Se puede dejar de mandar.
+- **El formulario de edición de usuario (admin) no debe mostrar ningún campo de contraseña.** El
+  admin solo tiene 2 acciones válidas sobre la contraseña de otro usuario: el botón
+  "Restablecer contraseña" (`PUT /v1/usuarios/{id}/resetear-password`) y nada más — no puede
+  fijar una contraseña arbitraria directamente.
+- El campo `username` en ese mismo formulario debe mostrarse **deshabilitado** (solo lectura) para
+  el admin — el update sigue aceptándolo en el body por compatibilidad, pero la UI no debería
+  permitir editarlo desde esta pantalla.
+
+**Efecto secundario nuevo (intencional):** si el admin cambia el `email` de un usuario y el nuevo
+valor es distinto al que tenía, el back ahora resetea `correoVerificado = false` (y limpia
+cualquier código de verificación pendiente). Antes, si el usuario ya tenía el correo verificado
+(el caso normal para cualquier cuenta activa), `POST /v1/auth/enviar-codigo-verificacion` fallaba
+con `"El correo ya esta verificado"` y no había forma de re-verificar un correo nuevo. Ahora sí se
+puede volver a disparar ese flujo tras cambiar el correo.
+
+**Front — flujo esperado al cambiar el correo (admin o el propio usuario, donde aplique):**
+1. Si el correo ingresado es **igual** al que ya tenía → guardar normal, sin modal de verificación.
+2. Si el correo ingresado es **distinto** → después de guardar (`PUT
+   /v1/usuarios/updateUsuario/{id}`), mostrar el modal de verificación y llamar
+   `POST /v1/auth/enviar-codigo-verificacion` con el `username`, luego
+   `POST /v1/auth/verificar-correo` con el código de 6 dígitos que llega a ese correo.
+3. Estos 2 endpoints de verificación ya existían (flujo de registro) — lo único nuevo es que ahora
+   también funcionan después de un cambio de correo, no solo la primera vez.
+
+**Resuelto (2026-07-08, segunda vuelta) — self-service (el propio usuario edita su cuenta):**
+no existía ningún endpoint para esto (`/v1/usuarios/**` es 100% ADMIN, no accesible para un usuario
+normal). Se agregó:
+
+```
+PUT /v1/auth/mi-perfil
+Authorization: Bearer <token del propio usuario>
+Content-Type: application/json
+
+Body: { "username": "string, requerido", "email": "string, requerido, formato valido" }
+```
+Response éxito (200): `"Perfil actualizado correctamente"` (texto plano). Response error (400):
+mensaje de la excepción tal cual.
+
+- Identifica la cuenta por el JWT (`Authentication`), **no** hay que mandar ningún id — así un
+  usuario no puede editar la cuenta de otro aunque manipule el body.
+- **No incluye contraseña.** Si el usuario quiere cambiar su contraseña, usar el endpoint que
+  **ya existía antes de esta sesión** y no cambió: `PUT /v1/auth/cambiar-password`, body
+  `{ "passwordActual", "nuevaPassword" }` — valida la contraseña actual contra el hash guardado
+  antes de aplicar la nueva. El front debe pedir esa contraseña actual en el formulario de "cambiar
+  contraseña" de self-service — nunca permitir guardar una nueva sin ese campo.
+- Mismo comportamiento de correo que en el caso admin: si el email cambia, se resetea
+  `correoVerificado` y hay que mostrar el mismo modal de verificación
+  (`enviar-codigo-verificacion` + `verificar-correo`), sin mandar `username` explícito (el back ya
+  lo saca del JWT).
+
+**Resumen para el front — 2 pantallas distintas:**
+
+| Pantalla | Quién | Password | Email cambia |
+|---|---|---|---|
+| Admin edita a otro usuario (`usuarios/update`) | Solo ADMIN | Sin campo de password en el form. Solo botón "Restablecer contraseña" (`PUT /v1/usuarios/{id}/resetear-password`) | Modal de verificación tras guardar `PUT /v1/usuarios/updateUsuario/{id}` |
+| Usuario edita su propia cuenta ("Mi perfil") | Cualquier autenticado | Campo de "contraseña actual" obligatorio si quiere cambiarla, vía `PUT /v1/auth/cambiar-password` | Modal de verificación tras guardar `PUT /v1/auth/mi-perfil` |
+
+**Solo en `dev` por ahora**, pendiente de subir a `qa`/`main`.
