@@ -348,9 +348,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 principalId = imagenesVariante.get(0).getImagen().getId();
             }
             final Long principalIdFinal = principalId;
+            final Producto productoNuevoFinal = productoNuevo;
             List<ProductoImagen> nuevasRelaciones = imagenesVariante.stream().map(vi -> {
                 ProductoImagen pi = new ProductoImagen();
-                pi.setProducto(productoNuevo);
+                pi.setProducto(productoNuevoFinal);
                 pi.setImagen(vi.getImagen());
                 pi.setPrincipal(principalIdFinal != null && principalIdFinal.equals(vi.getImagen().getId()));
                 return pi;
