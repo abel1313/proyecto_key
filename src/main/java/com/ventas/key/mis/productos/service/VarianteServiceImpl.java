@@ -330,6 +330,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         productoNuevo.setMarca(request.getMarca());
         productoNuevo.setColor(request.getColor());
         productoNuevo.setContenido(request.getContenido());
+        productoNuevo.setPiezas(request.getPiezas());
         productoNuevo.setPrecioCosto(request.getPrecioCosto());
         productoNuevo.setPrecioVenta(request.getPrecioVenta());
         productoNuevo.setPrecioRebaja(request.getPrecioRebaja());

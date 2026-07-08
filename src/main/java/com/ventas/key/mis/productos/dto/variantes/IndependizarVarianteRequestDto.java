@@ -14,6 +14,7 @@ public class IndependizarVarianteRequestDto {
     private String marca;
     private String color;
     private String contenido;
+    private Double piezas;
     private Double precioCosto;
     private Double precioVenta;
     private Double precioRebaja;
