@@ -72,4 +72,63 @@ public class UsuarioVerificacionService {
                 .or(() -> usuarioRepository.findFirstByEmailIgnoreCase(usernameOEmail))
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
     }
+
+    /**
+     * Cambio de correo (admin editando a otro usuario, o el propio usuario) - patron
+     * verificar-antes-de-guardar: el correo real NO se toca aqui, solo se guarda como
+     * correoPendiente + se manda el codigo a esa direccion nueva. Si el codigo nunca se
+     * confirma, el correo real nunca cambio.
+     */
+    @Transactional
+    public void solicitarCambioCorreo(Usuario usuario, String correoNuevo) {
+        if (correoNuevo == null || correoNuevo.isBlank()) {
+            throw new RuntimeException("El correo nuevo es requerido");
+        }
+        if (correoNuevo.equalsIgnoreCase(usuario.getEmail())) {
+            throw new RuntimeException("Ese ya es el correo actual");
+        }
+        String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
+        usuario.setCorreoPendiente(correoNuevo);
+        usuario.setCodigoVerificacion(codigo);
+        usuario.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
+        usuarioRepository.save(usuario);
+        emailService.enviarCodigoVerificacion(correoNuevo, codigo);
+    }
+
+    /**
+     * Confirma el codigo del cambio de correo pendiente - solo aqui se actualiza el email real,
+     * y solo si el codigo es correcto. En cualquier otro caso (codigo invalido, expirado, o
+     * nunca se llama) el email real se queda como estaba.
+     */
+    @Transactional
+    public void confirmarCambioCorreo(Usuario usuario, String codigo) {
+        if (usuario.getCorreoPendiente() == null) {
+            throw new RuntimeException("No hay un cambio de correo pendiente");
+        }
+        if (usuario.getCodigoVerificacion() == null || !usuario.getCodigoVerificacion().equals(codigo)) {
+            throw new RuntimeException("Codigo de verificacion invalido");
+        }
+        if (usuario.getCodigoVerificacionExpira() == null
+                || LocalDateTime.now().isAfter(usuario.getCodigoVerificacionExpira())) {
+            throw new RuntimeException("El codigo de verificacion expiro, solicita uno nuevo");
+        }
+        usuario.setEmail(usuario.getCorreoPendiente());
+        usuario.setCorreoVerificado(true);
+        usuario.setCorreoPendiente(null);
+        usuario.setCodigoVerificacion(null);
+        usuario.setCodigoVerificacionExpira(null);
+        usuarioRepository.save(usuario);
+    }
+
+    /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */
+    @Transactional
+    public void solicitarCambioCorreo(String usernameActual, String correoNuevo) {
+        solicitarCambioCorreo(buscarPorUsernameOEmail(usernameActual), correoNuevo);
+    }
+
+    /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */
+    @Transactional
+    public void confirmarCambioCorreo(String usernameActual, String codigo) {
+        confirmarCambioCorreo(buscarPorUsernameOEmail(usernameActual), codigo);
+    }
 }
