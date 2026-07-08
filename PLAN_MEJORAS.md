@@ -1636,6 +1636,16 @@ inmediato y solo reseteaba `correoVerificado=false`) — ese enfoque no soportab
 campo si el código fallaba, porque el correo ya se había sobrescrito. El patrón nuevo evita el
 problema de raíz: si nunca se confirma el código, nunca se tocó el correo real.
 
+### 🐛 BUG CONFIRMADO EN QA (2026-07-08) — front sigue llamando el endpoint viejo
+
+Probado con curl real en `usuarios/update`: el front llama `POST /v1/auth/enviar-codigo-verificacion`
+(`{ "userName": "pedro" }`) para intentar mandar el código al correo nuevo — ese endpoint es el de
+verificación **única post-registro**, no acepta correo nuevo y manda al correo ya guardado, que
+normalmente ya está verificado (→ `400 "El correo ya esta verificado"`, no manda nada). El front
+necesita cambiar esa llamada a `POST /v1/usuarios/{id}/solicitar-cambio-correo` con
+`{ "correoNuevo": "..." }` (ver contrato completo en `CAMBIOS_FRONT.md`, tiene tabla ❌/✅ del
+endpoint incorrecto vs. el correcto).
+
 **4 endpoints nuevos** (2 para admin, 2 para self-service — mismo patrón que `resetear-password`
 vs. `cambiar-password`):
 
