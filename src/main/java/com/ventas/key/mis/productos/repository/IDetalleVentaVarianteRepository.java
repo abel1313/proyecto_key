@@ -19,4 +19,9 @@ public interface IDetalleVentaVarianteRepository extends BaseRepository<DetalleV
            "ORDER BY SUM(dv.cantidad) DESC")
     List<Object[]> productosMasVendidos(
             @Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta, Pageable pageable);
+
+    // Usado por ResenaServiceImpl para validar que el cliente realmente compro la variante antes
+    // de dejar una resena (venta.cliente puede ser null en venta directa sin registro -- esos
+    // nunca van a poder resenar, correcto, porque no hay cuenta con la que loguearse despues).
+    boolean existsByVariante_IdAndVenta_Cliente_Id(Integer varianteId, Integer clienteId);
 }

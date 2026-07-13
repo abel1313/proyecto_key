@@ -19,9 +19,18 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     // --- listado general ---
     Page<Producto> findDistinctByStockGreaterThanAndHabilitado(int stock, char habilitado, Pageable pageable);
 
-    // --- búsqueda paso 1: código de barras exacto ---
+    // --- búsqueda paso 1: código de barras exacto (uso interno: guardado/validaciones, no buscador) ---
     Optional<Producto> findByCodigoBarras_CodigoBarrasIgnoreCase(String codigoBarras);
     Optional<Producto> findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasIgnoreCase(int stock, char habilitado, String codigoBarras);
+
+    // --- búsqueda paso 1 del buscador (findNombreOrCodigoBarra): código de barras PARCIAL ---
+    // BUG 2026-07-13: antes se usaba el exacto de arriba, asi que buscar "glpd" nunca encontraba
+    // "GLPD-066" (solo un match caracter-por-caracter exacto habria funcionado). Con LIKE, un
+    // codigo escaneado completo sigue matcheando igual de bien (LIKE '%codigo-exacto%' tambien es
+    // true), pero ademas ahora si funciona la busqueda parcial escrita a mano.
+    @Query("SELECT p FROM Producto p LEFT JOIN p.codigoBarras cb " +
+           "WHERE cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :codigoBarras, '%'))")
+    Page<Producto> findByCodigoBarrasContainingAdmin(@Param("codigoBarras") String codigoBarras, Pageable pageable);
 
     // --- búsqueda paso 2: palabra clave exacta ---
     Page<Producto> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
@@ -40,6 +49,13 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
            "AND LOWER(p.codigoBarras.codigoBarras) = LOWER(:codigoBarras) " +
            "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
     Optional<Producto> findByCodigoBarrasPublico(@Param("codigoBarras") String codigoBarras);
+
+    // Version parcial (LIKE) del de arriba -- usada por el buscador publico, mismo bug/fix que
+    // findByCodigoBarrasContainingAdmin.
+    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND p.codigoBarras IS NOT NULL AND LOWER(p.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :codigoBarras, '%')) " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
+    Page<Producto> findByCodigoBarrasPublicoContaining(@Param("codigoBarras") String codigoBarras, Pageable pageable);
 
     @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
            "AND LOWER(p.palabraClave.nombre) = LOWER(:nombre) " +

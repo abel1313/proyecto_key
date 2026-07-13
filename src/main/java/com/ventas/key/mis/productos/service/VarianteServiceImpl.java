@@ -175,7 +175,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         boolean isAdmin = AuthenticationUtils.isAdminContext();
         Page<Variantes> page = null;
         if(isAdmin){
-            page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarras(codigoBarras, PageRequest.of(pagina - 1, size));
+            page = iVarianteRepository.findByProductoCodigoBarrasCodigoBarrasContainingIgnoreCase(codigoBarras, PageRequest.of(pagina - 1, size));
         }else{
             // Cliente normal: stock + habilitado + con imagen.
             page = iVarianteRepository.findByCodigoBarrasPublico(codigoBarras, PageRequest.of(pagina - 1, size));
@@ -775,6 +775,53 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         resultado.setTotalRegistros((int) page.getTotalElements());
         resultado.setT(buildResumenDtosBatch(page.getContent()));
         return resultado;
+    }
+
+    // Catalogo publico con filtros combinables (precio, talla, color, marca + texto libre).
+    // Blanks se tratan como "sin filtro" para que el front pueda mandar "" en vez de omitir el
+    // parametro sin que eso reduzca los resultados a cero.
+    @Cacheable(value = "variantesProductoCache",
+            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #pagina + ':' + #size")
+    public PginaDto<List<VarianteResumenDto>> buscarVariantesPublicoFiltrado(String termino, Double precioMin,
+            Double precioMax, String talla, String color, String marca, int pagina, int size) {
+        Pageable pageable = PageRequest.of(pagina - 1, size);
+        Page<Variantes> page = iVarianteRepository.buscarVariantesPublicoFiltrado(
+                blankToNull(termino), precioMin, precioMax, blankToNull(talla), blankToNull(color), blankToNull(marca), pageable);
+        PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(buildResumenDtosBatch(page.getContent()));
+        return resultado;
+    }
+
+    private String blankToNull(String texto) {
+        return (texto != null && !texto.isBlank()) ? texto : null;
+    }
+
+    // Usado por FavoritoServiceImpl para armar el resumen de las variantes marcadas como favoritas
+    // sin duplicar la logica de imagenes/precio de buildResumenDtosBatch. Conserva el orden de
+    // varianteIds (findAllById NO garantiza orden) porque el llamador ya trae ese orden con
+    // significado (mas reciente agregado primero).
+    public List<VarianteResumenDto> resumenPorIds(List<Integer> varianteIds) {
+        if (varianteIds.isEmpty()) return List.of();
+        List<Variantes> variantes = iVarianteRepository.findAllById(varianteIds);
+        Map<Integer, Variantes> porId = variantes.stream().collect(Collectors.toMap(Variantes::getId, v -> v));
+        List<Variantes> ordenadas = varianteIds.stream().map(porId::get).filter(Objects::nonNull).toList();
+        return buildResumenDtosBatch(ordenadas);
+    }
+
+    @Cacheable(value = "variantesProductoCache", key = "'filtros-disponibles'")
+    public FiltrosDisponiblesDto filtrosDisponiblesPublico() {
+        Object[] rango = iVarianteRepository.findRangoPreciosPublico();
+        Double precioMin = rango != null && rango[0] != null ? ((Number) rango[0]).doubleValue() : null;
+        Double precioMax = rango != null && rango[1] != null ? ((Number) rango[1]).doubleValue() : null;
+        return new FiltrosDisponiblesDto(
+                iVarianteRepository.findTallasDisponiblesPublico(),
+                iVarianteRepository.findColoresDisponiblesPublico(),
+                iVarianteRepository.findMarcasDisponiblesPublico(),
+                precioMin,
+                precioMax);
     }
 
     @Transactional

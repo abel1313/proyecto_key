@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.reportes.ProductoMasVendidoDto;
+import com.ventas.key.mis.productos.models.reportes.PromocionReporteDto;
 import com.ventas.key.mis.productos.models.reportes.ReporteClienteDto;
 import com.ventas.key.mis.productos.models.reportes.ReporteDiarioDto;
 import com.ventas.key.mis.productos.models.reportes.ReporteMensualDto;
@@ -69,6 +70,19 @@ public class ReporteVentasController {
         } catch (Exception e) {
             log.error("Error en reporte productos mas vendidos: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<List<ProductoMasVendidoDto>>((List<ProductoMasVendidoDto>) null));
+        }
+    }
+
+    @GetMapping("/promociones")
+    public ResponseEntity<ResponseGeneric<List<PromocionReporteDto>>> reportePromociones(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        try {
+            List<PromocionReporteDto> response = reporteVentasService.reportePromociones(desde, hasta);
+            return ResponseEntity.ok(new ResponseGeneric<List<PromocionReporteDto>>(response));
+        } catch (Exception e) {
+            log.error("Error en reporte de promociones: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<List<PromocionReporteDto>>((List<PromocionReporteDto>) null));
         }
     }
 }

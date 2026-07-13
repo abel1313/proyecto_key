@@ -30,6 +30,11 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     List<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras);
     Page<Variantes> findByProductoCodigoBarrasCodigoBarras(String codigoBarras, Pageable pageable);
+
+    // BUG 2026-07-13: el buscador admin (buscarPorCodigoBarrasPaginado) usaba el metodo exacto de
+    // arriba, asi que "glpd" nunca encontraba "GLPD-066" -- mismo bug que en IProductosRepository
+    // (findByCodigoBarrasContainingAdmin). Esta version parcial es la que ahora se usa ahi.
+    Page<Variantes> findByProductoCodigoBarrasCodigoBarrasContainingIgnoreCase(String codigoBarras, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_Habilitado(int stock, char habilitado, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(int stock, char habilitado, String codigoBarras, Pageable pageable);
 
@@ -115,6 +120,67 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                           @Param("conImagenes") Boolean conImagenes,
                                           @Param("habilitado") Boolean habilitado,
                                           Pageable pageable);
+
+    // Catalogo publico con filtros: mismas restricciones de visibilidad que findConStockYImagenPublico
+    // (stock>0, producto y variante habilitados, con imagen) + termino/precioMin/precioMax/talla/
+    // color/marca opcionales (tri-estado, se combinan con AND). talla/color/marca son match exacto
+    // (pensado para dropdowns poblados con /variantes/v1/filtros-disponibles, no texto libre).
+    @Query(value = """
+        SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc
+        WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1'
+          AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
+          AND (:termino IS NULL
+               OR LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
+               OR (v.producto.codigoBarras IS NOT NULL
+                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
+          AND (:precioMin IS NULL OR v.producto.precioVenta >= :precioMin)
+          AND (:precioMax IS NULL OR v.producto.precioVenta <= :precioMax)
+          AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
+          AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
+          AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+        """,
+        countQuery = """
+        SELECT COUNT(v) FROM Variantes v LEFT JOIN v.palabraClave pc
+        WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1'
+          AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
+          AND (:termino IS NULL
+               OR LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
+               OR (v.producto.codigoBarras IS NOT NULL
+                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
+          AND (:precioMin IS NULL OR v.producto.precioVenta >= :precioMin)
+          AND (:precioMax IS NULL OR v.producto.precioVenta <= :precioMax)
+          AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
+          AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
+          AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+        """)
+    Page<Variantes> buscarVariantesPublicoFiltrado(@Param("termino") String termino,
+                                                     @Param("precioMin") Double precioMin,
+                                                     @Param("precioMax") Double precioMax,
+                                                     @Param("talla") String talla,
+                                                     @Param("color") String color,
+                                                     @Param("marca") String marca,
+                                                     Pageable pageable);
+
+    // Valores disponibles para poblar los filtros en el front (solo del catalogo visible al publico).
+    @Query("SELECT DISTINCT v.talla FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+           "AND v.habilitado = '1' AND v.talla IS NOT NULL AND v.talla <> '' ORDER BY v.talla")
+    List<String> findTallasDisponiblesPublico();
+
+    @Query("SELECT DISTINCT v.color FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+           "AND v.habilitado = '1' AND v.color IS NOT NULL AND v.color <> '' ORDER BY v.color")
+    List<String> findColoresDisponiblesPublico();
+
+    @Query("SELECT DISTINCT v.marca FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
+           "AND v.habilitado = '1' AND v.marca IS NOT NULL AND v.marca <> '' ORDER BY v.marca")
+    List<String> findMarcasDisponiblesPublico();
+
+    @Query("SELECT MIN(v.producto.precioVenta), MAX(v.producto.precioVenta) FROM Variantes v " +
+           "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1'")
+    Object[] findRangoPreciosPublico();
 
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
