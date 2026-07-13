@@ -223,18 +223,13 @@ public class ProductosServiceImpl extends
         Pageable pageable = PageRequest.of(page - 1, size);
         boolean isAdmin = isAdminContext();
 
-        // Paso 1: código de barras exacto
-        Optional<Producto> porCodigo = isAdmin
-                ? iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(nombre)
-                : iProductosRepository.findByCodigoBarrasPublico(nombre);
-        if (porCodigo.isPresent()) {
-            PginaDto<List<ProductoDTO>> resultado = new PginaDto<>();
-            resultado.setPagina(1);
-            resultado.setTotalPaginas(1);
-            resultado.setTotalRegistros(1);
-            Map<Integer, Long> img1 = getPrimerasImagenes(List.of(porCodigo.get().getId()));
-            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin, img1.get(porCodigo.get().getId()))));
-            return resultado;
+        // Paso 1: código de barras parcial (LIKE) -- antes era exacto, ver comentario en el
+        // repositorio (findByCodigoBarrasContainingAdmin) para el detalle del bug 2026-07-13.
+        Page<Producto> porCodigo = isAdmin
+                ? iProductosRepository.findByCodigoBarrasContainingAdmin(nombre, pageable)
+                : iProductosRepository.findByCodigoBarrasPublicoContaining(nombre, pageable);
+        if (!porCodigo.isEmpty()) {
+            return buildPagina(porCodigo, page, isAdmin);
         }
 
         // Paso 2: palabra clave exacta
