@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.entity.Promocion;
 import com.ventas.key.mis.productos.entity.PromocionDetalle;
@@ -217,6 +218,9 @@ public class PromocionServiceImpl {
         dto.setPrecioNormal(variante.getProducto().getPrecioVenta());
         dto.setPrecioEnPromocion(detalle.getPrecioEnPromocion());
         dto.setImagenUrl(obtenerImagenUrl(variante.getId()));
+        if (AuthenticationUtils.isAdminContext() && variante.getProducto().getCodigoBarras() != null) {
+            dto.setCodigoBarras(variante.getProducto().getCodigoBarras().getCodigoBarras());
+        }
         return dto;
     }
 
