@@ -64,4 +64,16 @@ public class Venta  extends BaseId{
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVentaVariante> detalles;
 
+    // Código UUID enviado por correo para que el cliente reclame esta venta desde su cuenta
+    // real (caso: se vendió con ClienteSinRegistro por no capturarlo en el momento). Una vez
+    // reclamado (reclamadoEn != null) el código ya no se puede volver a usar.
+    @Column(name = "codigo_reclamo", unique = true)
+    private String codigoReclamo;
+
+    @Column(name = "correo_reclamo", length = 150)
+    private String correoReclamo;
+
+    @Column(name = "reclamado_en")
+    private LocalDateTime reclamadoEn;
+
 }

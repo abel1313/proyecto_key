@@ -63,4 +63,19 @@ public class EmailService {
                 + "tu contraseña actual sigue siendo válida.</p>";
         return enviarTicket(destinatario, asunto, html);
     }
+
+    /**
+     * Envía el código para que el cliente agregue a su cuenta una venta de mostrador hecha
+     * con ClienteSinRegistro (caso: no se identificó en el momento de la compra). El texto
+     * evita la palabra "reclamo" -- en español suena a queja, no a "esta compra es mía".
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarCodigoReclamoVenta(String destinatario, String codigo) {
+        String asunto = "Agrega tu compra a tu cuenta — Novedades Jade";
+        String html = "<p>Gracias por tu compra. Para que quede asociada a tu cuenta, entra a la app, "
+                + "inicia sesión y captura este código en la sección \"Agregar mi compra\":</p>"
+                + "<h2>" + codigo + "</h2>"
+                + "<p>Este código solo se puede usar una vez. Si tú no realizaste esta compra, ignora este correo.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
 }

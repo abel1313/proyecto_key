@@ -144,7 +144,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/resenas/**").permitAll()
                         .requestMatchers("/v1/resenas/**").authenticated()
 
-                        // ── Ventas ────────────────────────────────────────────────────────
+                        // ── Ventas (reclamo de compra es del cliente autenticado; el resto ADMIN) ──
+                        .requestMatchers(HttpMethod.POST, "/v1/ventas/reclamar").authenticated()
                         .requestMatchers("/v1/ventas/**").hasRole("ADMIN")
 
                         // ── MercadoPago (resto) ────────────────────────────────────────────
