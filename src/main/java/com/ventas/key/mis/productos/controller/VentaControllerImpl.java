@@ -11,11 +11,14 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.models.PagoMPRequest;
@@ -80,6 +83,29 @@ public class VentaControllerImpl {
         @GetMapping("/getTotalVentas")
     public ResponseEntity<List<TotalDetalle>> getTotalVentas() throws Exception{
         return ResponseEntity.status(HttpStatus.OK).body(this.vImpl.getTotalDetalle() );
+    }
+
+    @PostMapping("/reclamar")
+    public ResponseEntity<ResponseGeneric<String>> reclamar(@RequestBody Map<String, String> body) {
+        try {
+            vImpl.reclamarVenta(body.get("codigo"));
+            return ResponseEntity.ok(new ResponseGeneric<>("Compra vinculada a tu cuenta"));
+        } catch (Exception e) {
+            log.error("Error al reclamar venta: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{ventaId}/asignarCliente")
+    public ResponseEntity<ResponseGeneric<String>> asignarCliente(
+            @PathVariable Integer ventaId, @RequestBody Map<String, Integer> body) {
+        try {
+            vImpl.asignarClienteManual(ventaId, body.get("clienteId"));
+            return ResponseEntity.ok(new ResponseGeneric<>("Cliente vinculado a la venta"));
+        } catch (Exception e) {
+            log.error("Error al asignar cliente a venta {}: {}", ventaId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
     }
 
     @GetMapping("/buscar")

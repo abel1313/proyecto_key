@@ -2,10 +2,13 @@ package com.ventas.key.mis.productos.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.dto.ClienteSinRegistroDto;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
@@ -276,8 +279,22 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         detallesVenta.forEach(dvv -> dvv.setVenta(venta));
         venta.setDetalles(detallesVenta);
 
+        // Venta hecha con ClienteSinRegistro (no se capturó al cliente real en el momento):
+        // se genera un código para que el cliente la reclame después desde su cuenta y así
+        // aparezca en /concursante/clientesPorMes al armar la rifa.
+        String codigoReclamo = null;
+        if (esSinRegistro && clienteSinRegistro.getCorreoElectronico() != null
+                && !clienteSinRegistro.getCorreoElectronico().isBlank()) {
+            codigoReclamo = UUID.randomUUID().toString();
+            venta.setCodigoReclamo(codigoReclamo);
+            venta.setCorreoReclamo(clienteSinRegistro.getCorreoElectronico());
+        }
+
         boolean requiereTerminal = mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
         Venta saved = iVentaRepository.save(venta);
+        if (codigoReclamo != null) {
+            emailService.enviarCodigoReclamoVenta(clienteSinRegistro.getCorreoElectronico(), codigoReclamo);
+        }
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
         VentaDirectaResponse respVenta = new VentaDirectaResponse(
@@ -353,6 +370,70 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             if (!ok) errores.add("No se pudo enviar el WhatsApp");
         }
         if (!errores.isEmpty()) resp.setErroresEnvio(errores);
+    }
+
+    // El cliente reclama una venta hecha con ClienteSinRegistro capturando el código que se le
+    // envió por correo. Se exige que coincida con el correo de su cuenta (defensa extra por si
+    // el código se reenvía/filtra), que no se haya usado ya (reclamadoEn != null), y que no haya
+    // expirado (solo vale dentro del mes calendario de la venta, no N días desde la compra).
+    @Transactional
+    public Venta reclamarVenta(String codigo) throws Exception {
+        if (codigo == null || codigo.isBlank()) {
+            throw new Exception("Debes indicar el código");
+        }
+        Venta venta = iVentaRepository.findByCodigoReclamo(codigo.trim())
+                .orElseThrow(() -> new Exception("Código inválido"));
+        if (venta.getReclamadoEn() != null) {
+            throw new Exception("Este código ya fue utilizado");
+        }
+
+        LocalDateTime finDeMes = YearMonth.from(venta.getFechaVenta()).atEndOfMonth().atTime(23, 59, 59);
+        if (LocalDateTime.now().isAfter(finDeMes)) {
+            throw new Exception("Este código ya expiró: solo es válido durante el mes de tu compra");
+        }
+
+        Usuario usuario = AuthenticationUtils.currentUsuario();
+        Cliente cliente = usuario.getCliente();
+        if (cliente == null) {
+            throw new Exception("Tu cuenta todavía no tiene un perfil de cliente completo");
+        }
+        if (venta.getCorreoReclamo() == null
+                || !venta.getCorreoReclamo().equalsIgnoreCase(cliente.getCorreoElectronico())) {
+            throw new Exception("El correo de tu cuenta no coincide con el de esta compra");
+        }
+
+        return vincularClienteAVenta(venta, cliente);
+    }
+
+    // Fallback para el admin: si el cliente nunca reclama el UUID por correo (se fue a spam, no
+    // quiso loguearse, etc.), el admin puede vincular la venta manualmente buscando al cliente.
+    // No requiere el código porque el admin ya validó identidad al elegir al cliente.
+    @Transactional
+    public Venta asignarClienteManual(Integer ventaId, Integer clienteId) throws Exception {
+        Venta venta = iVentaRepository.findById(ventaId)
+                .orElseThrow(() -> new Exception("Venta no encontrada"));
+        if (venta.getCliente() != null) {
+            throw new Exception("Esta venta ya tiene un cliente asignado");
+        }
+        Cliente cliente = iClienteRepository.findById(clienteId)
+                .orElseThrow(() -> new Exception("Cliente no encontrado"));
+
+        return vincularClienteAVenta(venta, cliente);
+    }
+
+    // Se propaga el cliente también al Pedido que respalda la venta porque el sistema de
+    // rifas/boletos lee de pedidos, no de ventas (ver IPedidoRepository.calcularScore).
+    private Venta vincularClienteAVenta(Venta venta, Cliente cliente) {
+        venta.setCliente(cliente);
+        venta.setReclamadoEn(LocalDateTime.now());
+
+        if (venta.getPedido() != null) {
+            Pedido pedido = venta.getPedido();
+            pedido.setCliente(cliente);
+            iPedidoRepository.save(pedido);
+        }
+
+        return iVentaRepository.save(venta);
     }
 
     @Transactional

@@ -16,6 +16,8 @@ public interface IVentaRepository extends BaseRepository<Venta, Integer> {
 
     Optional<Venta> findByPedidoId(int pedidoId);
 
+    Optional<Venta> findByCodigoReclamo(String codigoReclamo);
+
     List<Venta> findByClienteIdOrderByFechaVentaDesc(int clienteId);
 
     @Query("SELECT v FROM Venta v WHERE v.fechaVenta BETWEEN :desde AND :hasta ORDER BY v.fechaVenta DESC")

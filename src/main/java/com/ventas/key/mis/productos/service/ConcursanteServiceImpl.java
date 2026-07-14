@@ -88,6 +88,12 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
         }
 
         if (concursante.getClientePedidoId() != null
+                && iConcursanteRepository.existsByConfigurarRifaIdAndClientePedidoId(
+                        config.getId(), concursante.getClientePedidoId())) {
+            throw new Exception("Este cliente ya está registrado en esta rifa");
+        }
+
+        if (concursante.getClientePedidoId() != null
                 && !ConfigurarRifa.TipoRifa.DIARIA.equals(config.getTipo())) {
             String mesActual = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
             int[] boletos = calcularBoletos(concursante.getClientePedidoId(), false, mesActual);
