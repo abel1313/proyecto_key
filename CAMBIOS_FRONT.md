@@ -4643,12 +4643,14 @@ el admin, no hay paso intermedio. No fue necesario cambiar código para esto, ya
 
 ---
 
-## ⏳ Promociones por variante / combos (2026-07-05) — código en dev, migración y pruebas pendientes
+## ✅ Promociones por variante / combos (2026-07-05+) — implementado en dev/qa/main, pruebas en curso
 
-> **Implementado en el código de `dev`, pero todavía no funciona en ningún ambiente.** Falta
-> correr `migration_promociones.sql` (crea las tablas nuevas) y hacer pruebas end-to-end antes de
-> que el front pueda integrar de verdad. Este aviso se quita de aquí en cuanto esté probado.
-> Diseño completo en `PROMOCIONES.md` en la raíz del repo.
+> **Implementado en el backend y en producción (`main`).** Migración `migration_promociones.sql` ya
+> corrida en dev/qa/main. Pruebas end-to-end en curso (filtro, listar promos, compra con combo).
+> Diseño completo en `PROMOCIONES.md` en la raíz del repo. El front consume los endpoints ya desde
+> hace varias semanas, pero puede haber campos/comportamientos nuevos que se agregaron después de
+> la primera integración — revisar esta sección completa, especialmente el punto sobre
+> `codigoBarras` (2026-07-13).
 
 **Qué es:** un combo de 1 o más variantes ya existentes (pueden ser productos distintos entre sí)
 que se venden juntas con precio rebajado por pieza. Cada pieza conserva su propio precio de oferta
@@ -4683,6 +4685,34 @@ modos llega un pedido con promoción y `tipoPedido` distinto de `NORMAL`.
 
 Ver `PROMOCIONES.md` para los JSON de request/response completos de cada endpoint y el flujo UX
 sugerido (catálogo, detalle de la promo, carrito, countdown de vencimiento calculado en el front).
+
+**Novedad (2026-07-13): campo `codigoBarras` en `GET /v1/promociones/activas` (solo ADMIN)**
+
+El endpoint `GET /v1/promociones/activas?pagina=&size=` ahora incluye en cada detalle del combo
+un campo opcional `codigoBarras` (null para clientes, poblado solo si el solicitante es ADMIN).
+Se agregó para que el admin pueda distinguir variantes "hermanas" de un mismo producto al armar
+las promociones (ej. "Jean Slim M" vs "Jean Slim L" — mismo nombre de producto, distinto código
+y talla). El cliente normal nunca ve este campo.
+
+```json
+{
+  "instanciasDisponibles": 15,
+  "variante": { ... },
+  "detalles": [
+    {
+      "varianteId": 245,
+      "productoNombre": "Jean Slim",
+      "talla": "M",
+      "color": "Azul",
+      "cantidad": 1,
+      "precioNormal": 250.00,
+      "precioEnPromocion": 220.00,
+      "imagenUrl": "...",
+      "codigoBarras": "JEAN-SLIM-M-AZUL"  // ← nuevo, solo para ADMIN
+    }
+  ]
+}
+```
 
 ---
 
@@ -4984,9 +5014,6 @@ más específico. Si el front tenía un caso de prueba fallando "por promociones
 usar este mensaje nuevo para identificar cuál de las 4 validaciones está chocando (lo más común:
 el front manda la promoción como **una sola línea** en vez de una línea por cada variante que la
 compone — ver contrato en `PROMOCIONES.md`, sección 7).
-
-**Aún pendiente de correr en producción** — igual que los cambios anteriores, esto solo está en
-`dev`/`qa` por ahora.
 
 ---
 
@@ -5525,10 +5552,9 @@ han pegado, no solo las exitosas.
 ni ningún flujo de venta/carrito ya documentado.
 
 **Falta hacer:**
-- ⏳ Subir de `dev` a `qa` (por ahora solo en `dev`).
 - ⏳ No hay pantalla en el front para esto todavía — hay que armar una vista nueva (ej. dentro de
   "🎁 Gestión Promociones" o como pestaña "Reportes"), no reemplaza ni modifica ninguna pantalla
-  existente.
+  existente. El endpoint ya está en dev/qa/main.
 - Sugerido para la vista: tabla con las columnas de arriba, filtro de rango de fechas (opcional,
   puede arrancar sin filtro mostrando todo), ordenado ya viene del back por más vendidos.
 
