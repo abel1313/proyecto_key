@@ -4714,6 +4714,22 @@ y talla). El cliente normal nunca ve este campo.
 }
 ```
 
+**Cambio en el front — Gestión de Promociones (2026-07-15): buscador de variantes**
+
+La pantalla `gestion-promociones.component.ts` cambió el endpoint para buscar variantes al armar
+un combo:
+- **Antes:** `GET /variantes/v1/buscar?termino=...` (público, con cascada en el back)
+- **Ahora:** `GET /variantes/v1/admin/filtrar?nombreOCodigo=...&conStock=true` (admin, OR en un
+  solo query)
+
+**Por qué:** el endpoint admin combina búsqueda de texto (nombre/código) con filtro de stock en
+un solo AND, en vez de la cascada vieja del buscador público que podía ocultar resultados. Además,
+para promociones **queremos solo variantes con stock** (de lo contrario una promo se quedaría
+inviable apenas se agote una de sus piezas). El filtro `conStock=true` asegura eso.
+
+**No es un cambio de contrato** — el response sigue siendo la misma lista paginada de variantes.
+Es solo dónde y cómo el front las pide.
+
 ---
 
 ## [SEC-KEY-02] ✅ Fix: precio de línea ahora se valida contra catálogo (2026-07-05)
