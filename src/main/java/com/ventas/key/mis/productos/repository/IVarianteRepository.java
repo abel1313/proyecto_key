@@ -89,14 +89,19 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // Filtro combinado de admin: nombreOCodigo/conStock/conImagenes/habilitado son todos
     // opcionales (Boolean nullable = tri-estado: null = cualquiera). Se combinan con AND.
     // habilitado usa v.habilitado (de la variante), no v.producto.habilitado.
+    // nombreOCodigo matchea nombre, codigo de barras O palabra clave (OR, una sola pasada) --
+    // tambien usado por el buscador publico/admin /v1/buscar en vez de la cascada vieja de 3
+    // queries secuenciales, ver VarianteServiceImpl.buscarVariantes.
     // countQuery explicito obligatorio: con EXISTS + Page, sin countQuery propio Spring genera
     // uno automatico que puede devolver vacio aunque si haya datos.
     @Query(value = """
         SELECT v FROM Variantes v
+        LEFT JOIN v.palabraClave pc
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
                OR (v.producto.codigoBarras IS NOT NULL
-                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%')))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
           AND (:conStock IS NULL OR (:conStock = TRUE AND v.stock > 0) OR (:conStock = FALSE AND v.stock = 0))
           AND (:conImagenes IS NULL
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v))
@@ -105,10 +110,12 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
         """,
         countQuery = """
         SELECT COUNT(v) FROM Variantes v
+        LEFT JOIN v.palabraClave pc
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
                OR (v.producto.codigoBarras IS NOT NULL
-                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+                   AND LOWER(v.producto.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%')))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
           AND (:conStock IS NULL OR (:conStock = TRUE AND v.stock > 0) OR (:conStock = FALSE AND v.stock = 0))
           AND (:conImagenes IS NULL
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v))

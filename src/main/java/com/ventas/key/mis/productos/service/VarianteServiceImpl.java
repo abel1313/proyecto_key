@@ -96,16 +96,19 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             return findAllResumen(page, size);
         }
 
-        PginaDto<List<VarianteResumenDto>> porCodigo = buscarPorCodigoBarrasPaginadoResumen(termino, page, size);
-        if (!porCodigo.getT().isEmpty()) return porCodigo;
+        // Una sola query con OR (nombre / código de barras / palabra clave, + marca en el caso
+        // público) en vez de la cascada vieja de hasta 3 llamadas secuenciales que se detenía en
+        // el primer paso con resultados -- eso ocultaba variantes que solo coincidían por nombre
+        // si otra variante ya había matcheado por código. Reusa los métodos ya probados del
+        // filtro de admin/público (mismo patrón OR).
+        PginaDto<List<VarianteResumenDto>> resultado = AuthenticationUtils.isAdminContext()
+                ? filtrarVariantesAdmin(termino, null, null, null, page, size)
+                : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, page, size);
 
-        PginaDto<List<VarianteResumenDto>> porPalabraClave = buscarPorPalabraClavePaginadoResumen(termino, page, size);
-        if (!porPalabraClave.getT().isEmpty()) return porPalabraClave;
-
-        PginaDto<List<VarianteResumenDto>> porNombre = buscarPorNombrePaginadoResumen(termino, page, size);
-        if (!porNombre.getT().isEmpty()) return porNombre;
-
-        throw new ExceptionDataNotFound("No se encontraron variantes con la búsqueda: \"" + termino + "\"");
+        if (resultado.getT().isEmpty()) {
+            throw new ExceptionDataNotFound("No se encontraron variantes con la búsqueda: \"" + termino + "\"");
+        }
+        return resultado;
     }
     @Cacheable(value = "variantesProductoCache", key = "#productoId")
     public List<VarianteDto> buscarPorProducto(Integer productoId) {
@@ -615,33 +618,6 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             v.setPalabraClave(iPalabraClaveRepository.getReferenceById(detalle.getPalabraClaveId()));
         }
         return v;
-    }
-
-    @Cacheable(value = "variantesNombreCache",
-            key = "'resumen:' + #nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
-    public PginaDto<List<VarianteResumenDto>> buscarPorNombrePaginadoResumen(String nombre, int pagina, int size) {
-        return toResumenPagina(buscarPorNombrePaginado(nombre, pagina, size));
-    }
-
-    @Cacheable(value = "variantesCodigoBarrasCache",
-            key = "'resumen:' + #codigoBarras + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
-    public PginaDto<List<VarianteResumenDto>> buscarPorCodigoBarrasPaginadoResumen(String codigoBarras, int pagina, int size) {
-        return toResumenPagina(buscarPorCodigoBarrasPaginado(codigoBarras, pagina, size));
-    }
-
-    @Cacheable(value = "variantesPalabraClaveCache",
-            key = "'resumen:' + #nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
-    public PginaDto<List<VarianteResumenDto>> buscarPorPalabraClavePaginadoResumen(String nombre, int pagina, int size) {
-        boolean isAdmin = AuthenticationUtils.isAdminContext();
-        Page<Variantes> page = isAdmin
-                ? iVarianteRepository.findByPalabraClave_NombreIgnoreCase(nombre, PageRequest.of(pagina - 1, size))
-                : iVarianteRepository.findByPalabraClavePublico(nombre, PageRequest.of(pagina - 1, size));
-        PginaDto<List<Variantes>> resultado = new PginaDto<>();
-        resultado.setPagina(pagina);
-        resultado.setTotalPaginas(page.getTotalPages());
-        resultado.setTotalRegistros((int) page.getTotalElements());
-        resultado.setT(page.getContent());
-        return toResumenPagina(resultado);
     }
 
     @Cacheable(value = "variantesProductoCache",

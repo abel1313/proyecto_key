@@ -23,21 +23,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     Optional<Producto> findByCodigoBarras_CodigoBarrasIgnoreCase(String codigoBarras);
     Optional<Producto> findByStockGreaterThanAndHabilitadoAndCodigoBarras_CodigoBarrasIgnoreCase(int stock, char habilitado, String codigoBarras);
 
-    // --- búsqueda paso 1 del buscador (findNombreOrCodigoBarra): código de barras PARCIAL ---
-    // BUG 2026-07-13: antes se usaba el exacto de arriba, asi que buscar "glpd" nunca encontraba
-    // "GLPD-066" (solo un match caracter-por-caracter exacto habria funcionado). Con LIKE, un
-    // codigo escaneado completo sigue matcheando igual de bien (LIKE '%codigo-exacto%' tambien es
-    // true), pero ademas ahora si funciona la busqueda parcial escrita a mano.
-    @Query("SELECT p FROM Producto p LEFT JOIN p.codigoBarras cb " +
-           "WHERE cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :codigoBarras, '%'))")
-    Page<Producto> findByCodigoBarrasContainingAdmin(@Param("codigoBarras") String codigoBarras, Pageable pageable);
-
-    // --- búsqueda paso 2: palabra clave exacta ---
-    Page<Producto> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
     Page<Producto> findByPalabraClave_NombreIgnoreCaseAndStockGreaterThanAndHabilitado(String nombre, int stock, char habilitado, Pageable pageable);
-
-    // --- búsqueda paso 3: nombre contiene ---
-    Page<Producto> findByNombreContaining(String nombre, Pageable pageable);
     Page<Producto> findByNombreContainingAndHabilitado(String nombre, char habilitado, Pageable pageable);
 
     // --- listado público: stock + habilitado + con imagen (cliente normal) ---
@@ -49,23 +35,6 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
            "AND LOWER(p.codigoBarras.codigoBarras) = LOWER(:codigoBarras) " +
            "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
     Optional<Producto> findByCodigoBarrasPublico(@Param("codigoBarras") String codigoBarras);
-
-    // Version parcial (LIKE) del de arriba -- usada por el buscador publico, mismo bug/fix que
-    // findByCodigoBarrasContainingAdmin.
-    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
-           "AND p.codigoBarras IS NOT NULL AND LOWER(p.codigoBarras.codigoBarras) LIKE LOWER(CONCAT('%', :codigoBarras, '%')) " +
-           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
-    Page<Producto> findByCodigoBarrasPublicoContaining(@Param("codigoBarras") String codigoBarras, Pageable pageable);
-
-    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
-           "AND LOWER(p.palabraClave.nombre) = LOWER(:nombre) " +
-           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
-    Page<Producto> findByPalabraClavePublico(@Param("nombre") String nombre, Pageable pageable);
-
-    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
-           "AND LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombre, '%')) " +
-           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
-    Page<Producto> findByNombrePublico(@Param("nombre") String nombre, Pageable pageable);
 
     // --- filtros de admin (ve todo, sin restriccion de stock/habilitado salvo el filtro elegido) ---
     Page<Producto> findByStockGreaterThan(int stock, Pageable pageable);
@@ -79,14 +48,20 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
 
     // Filtro combinado de admin: nombreOCodigo/conStock/conImagenes/habilitado son todos
     // opcionales (Boolean nullable = tri-estado: null = cualquiera). Se combinan con AND.
+    // nombreOCodigo matchea nombre, codigo de barras O palabra clave (OR, una sola pasada) --
+    // tambien usado por el buscador publico/admin findNombreOrCodigoBarra (con tri-state fijo
+    // en TRUE para el publico) en vez de la cascada vieja de 3 queries secuenciales, ver
+    // ProductosServiceImpl.findNombreOrCodigoBarra.
     // countQuery explicito obligatorio: con EXISTS + Page, sin countQuery propio Spring genera
     // uno automatico que puede devolver vacio aunque si haya datos.
     @Query(value = """
         SELECT p FROM Producto p
         LEFT JOIN p.codigoBarras cb
+        LEFT JOIN p.palabraClave pk
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
-               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%')))
+               OR (pk IS NOT NULL AND LOWER(pk.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
           AND (:conStock IS NULL OR (:conStock = TRUE AND p.stock > 0) OR (:conStock = FALSE AND p.stock = 0))
           AND (:conImagenes IS NULL
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
@@ -96,9 +71,11 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
         countQuery = """
         SELECT COUNT(p) FROM Producto p
         LEFT JOIN p.codigoBarras cb
+        LEFT JOIN p.palabraClave pk
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
-               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%')))
+               OR (pk IS NOT NULL AND LOWER(pk.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))))
           AND (:conStock IS NULL OR (:conStock = TRUE AND p.stock > 0) OR (:conStock = FALSE AND p.stock = 0))
           AND (:conImagenes IS NULL
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
