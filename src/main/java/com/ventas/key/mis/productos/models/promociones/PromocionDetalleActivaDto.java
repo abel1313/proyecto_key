@@ -16,4 +16,5 @@ public class PromocionDetalleActivaDto {
     private Double precioNormal;
     private Double precioEnPromocion;
     private String imagenUrl;
+    private String codigoBarras;
 }

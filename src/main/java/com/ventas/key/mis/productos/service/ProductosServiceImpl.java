@@ -223,36 +223,20 @@ public class ProductosServiceImpl extends
         Pageable pageable = PageRequest.of(page - 1, size);
         boolean isAdmin = isAdminContext();
 
-        // Paso 1: código de barras exacto
-        Optional<Producto> porCodigo = isAdmin
-                ? iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(nombre)
-                : iProductosRepository.findByCodigoBarrasPublico(nombre);
-        if (porCodigo.isPresent()) {
-            PginaDto<List<ProductoDTO>> resultado = new PginaDto<>();
-            resultado.setPagina(1);
-            resultado.setTotalPaginas(1);
-            resultado.setTotalRegistros(1);
-            Map<Integer, Long> img1 = getPrimerasImagenes(List.of(porCodigo.get().getId()));
-            resultado.setT(List.of(mapperByRol(porCodigo.get(), isAdmin, img1.get(porCodigo.get().getId()))));
-            return resultado;
-        }
+        // Una sola query con OR (nombre / código de barras / palabra clave) en vez de la cascada
+        // vieja de hasta 3 llamadas secuenciales que se detenía en el primer paso con resultados
+        // -- eso ocultaba productos que solo coincidían por nombre si otro producto ya había
+        // matcheado por código. Reusa buscarProductosAdmin (mismo patrón OR ya probado en el
+        // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
+        // en vez de null).
+        Page<Producto> resultado = isAdmin
+                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, pageable)
+                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, pageable);
 
-        // Paso 2: palabra clave exacta
-        Page<Producto> porPalabraClave = isAdmin
-                ? iProductosRepository.findByPalabraClave_NombreIgnoreCase(nombre, pageable)
-                : iProductosRepository.findByPalabraClavePublico(nombre, pageable);
-        if (!porPalabraClave.isEmpty()) {
-            return buildPagina(porPalabraClave, page, isAdmin);
-        }
-
-        // Paso 3: nombre contiene
-        Page<Producto> porNombre = isAdmin
-                ? iProductosRepository.findByNombreContaining(nombre, pageable)
-                : iProductosRepository.findByNombrePublico(nombre, pageable);
-        if (porNombre.isEmpty()) {
+        if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
         }
-        return buildPagina(porNombre, page, isAdmin);
+        return buildPagina(resultado, page, isAdmin);
     }
 
     private PginaDto<List<ProductoDTO>> buildPagina(Page<Producto> pagina, int page, boolean isAdmin) {

@@ -1580,3 +1580,79 @@ No existe un endpoint público para invalidar el caché de variantes. Lo que hac
 
 No necesitas `clearCache()` — eso era una sugerencia de pseudocódigo. Simplemente volver a llamar `GET /v1/variantes/buscar` con los mismos parámetros actuales es suficiente.
 
+---
+
+## 25. Requerimiento nuevo — Reclamar venta por UUID (2026-07-13) — implementado
+
+### 25.1 Motivación
+
+Una venta directa hecha con `clienteSinRegistro` (el admin no vinculó una cuenta real, por la razón que sea) **no es elegible para rifas** — el sistema de rifas arma la lista de participantes leyendo `pedidos.cliente_id`/`pedidos.cliente_sin_registro_id` por mes (`GET /v1/concursante/clientesPorMes`), y aunque una venta "sin registro" sí aparece ahí, queda ligada a un registro desechable (`ClienteSinRegistro`), no a la cuenta real del cliente en la app. La sección 21.1 (NF-1) solo resolvió capturar el **nombre** del comprador para mostrarlo — no resolvía vincularlo a una cuenta real con la que el cliente pudiera loguearse después.
+
+### 25.2 Flujo — Admin genera y envía el UUID
+
+Al completar `POST /v1/ventas/save` con `clienteSinRegistroDto.correo_Electronico` (no vacío) y sin `clienteId`, el back genera un UUID único para esa venta y se lo **envía automáticamente por correo** (asunto "Agrega tu compra a tu cuenta — Novedades Jade"). No requiere ninguna acción extra del admin ni un modal nuevo — se dispara solo si la venta trae correo. El UUID no se expone en el response de `/save`.
+
+### 25.3 Flujo — Cliente agrega su compra
+
+El cliente, ya logueado en su cuenta, entra a una opción nueva en su perfil — **"Agregar mi compra"** (ver sección de naming más abajo, evitar la palabra "reclamo" en la UI) — captura el UUID recibido por correo, y llama:
+
+```
+POST /v1/ventas/reclamar   (requiere estar autenticado, cualquier cliente — no ADMIN)
+{ "codigo": "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+```
+
+Esa venta específica (y el `Pedido` que la respalda) queda vinculada a su `clienteId` real — con eso ya es elegible para la rifa armada desde `clientesPorMes` del mes de esa compra.
+
+### 25.4 Fallback — Admin asigna manualmente
+
+Si el cliente nunca captura el UUID (se fue a spam, no quiso loguearse, etc.), el admin puede buscar la venta y asignarla a un cliente registrado manualmente desde el panel:
+
+```
+POST /v1/ventas/{ventaId}/asignarCliente   (solo ADMIN)
+{ "clienteId": 123 }
+```
+
+No requiere el UUID — el admin ya validó identidad al elegir al cliente en el buscador. A diferencia del auto-reclamo del cliente, este fallback **no tiene fecha de vencimiento** (ver 25.5) — es justo el mecanismo para cuando ya pasó el tiempo y el cliente no reclamó a tiempo.
+
+### 25.5 Decisiones tomadas por el back (ya implementado, no quedan preguntas abiertas)
+
+| Pregunta | Respuesta implementada |
+|---|---|
+| ¿El UUID expira? | Sí — vale solo dentro del **mes calendario** de la venta, no son N días desde la compra. Una venta del 1 de enero y una del 29 de enero expiran igual el 31 de enero a las 23:59:59; al llegar el 1 de febrero el código ya no sirve, aunque nunca se haya usado. Este vencimiento **no aplica** al fallback del admin (25.4). |
+| ¿Es de un solo uso? | Sí — campo `reclamadoEn`: una vez usado (por el cliente o asignado por el admin) no se puede volver a usar. |
+| ¿Qué pasa si alguien reclama un UUID que no le pertenece? | Se bloquea: el correo de la cuenta logueada debe coincidir con el correo al que se envió el código (`correoReclamo`); si no coincide, error `"El correo de tu cuenta no coincide con el de esta compra"`. |
+| ¿El correo lo envía el sistema o se genera un link para compartir manualmente? | Lo envía el sistema automáticamente al completar la venta (25.2). No hay link para compartir a mano, solo el código en el cuerpo del correo. |
+| ¿Una venta ya vinculada a un cliente puede reclamarse otra vez? | No, queda bloqueada — aplica tanto al auto-reclamo (`Este código ya fue utilizado`) como al fallback del admin (`Esta venta ya tiene un cliente asignado`). |
+
+### 25.6 Naming — no usar la palabra "reclamo" de cara al cliente
+
+El endpoint y los métodos internos se llaman `reclamar`/`reclamo` (término técnico corto), pero **en la UI del cliente no debe aparecer esa palabra** — en español se lee como queja/reclamación, no como "esta compra es mía, agrégala a mi cuenta". Textos sugeridos:
+
+| Elemento | Texto sugerido |
+|---|---|
+| Opción de menú / pantalla | "Agregar mi compra" |
+| Botón de acción | "Agregar compra" |
+| Campo de captura | "Código de tu compra" |
+| Mensaje de éxito | "Tu compra quedó agregada a tu cuenta" |
+| Error: código ya usado | "Este código ya fue usado" |
+| Error: código inválido | "No encontramos ese código, revisa que esté bien copiado" |
+| Error: código expirado | "Este código ya venció" |
+| Error: correo no coincide | "Este código pertenece a otra cuenta" |
+
+### 25.7 Endpoints — resumen
+
+| Endpoint | Quién | Qué hace |
+|---|---|---|
+| `POST /v1/ventas/save` | ADMIN | (ya existía) ahora además genera y envía el UUID si hay correo sin cliente registrado |
+| `POST /v1/ventas/reclamar` | Cliente autenticado | Vincula la venta a su cuenta usando el UUID |
+| `POST /v1/ventas/{ventaId}/asignarCliente` | ADMIN | Fallback manual, sin UUID ni vencimiento |
+
+Detalle completo de requests/responses/errores de estos 2 endpoints nuevos: ver `CAMBIOS_FRONT.md`, sección "Reclamo de venta de mostrador".
+
+### 25.8 Front — qué falta construir
+
+Este requerimiento está **implementado en el back (dev)**, pero el front todavía no tiene la pantalla "Agregar mi compra". Queda pendiente para retomar:
+- Opción de menú dentro de "Mi cuenta" del cliente
+- Pantalla con un campo de texto (código) + botón "Agregar compra"
+- Pantalla/acción en el panel de ADMIN para el fallback (buscar venta → buscar cliente → asignar)
+

@@ -75,6 +75,15 @@ public class Usuario implements UserDetails {
     @Column(name = "codigo_verificacion_expira")
     private LocalDateTime codigoVerificacionExpira;
 
+    /**
+     * Correo nuevo aun no confirmado (cambio de correo, admin o self-service). El correo real
+     * ({@link #email}) NO se toca hasta que el codigo se valide correctamente - si el codigo
+     * nunca se confirma (o falla), este campo se descarta y el email real nunca cambio.
+     */
+    @JsonIgnore
+    @Column(name = "correo_pendiente")
+    private String correoPendiente;
+
     /** true cuando la contrasena fue puesta por un ADMIN (reseteo) — obliga a cambiarla en el siguiente login. */
     @Column(name = "password_temporal")
     private Boolean passwordTemporal = Boolean.FALSE;

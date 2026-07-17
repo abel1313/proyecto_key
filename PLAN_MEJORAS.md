@@ -1390,3 +1390,335 @@ El back no siempre sabe qué ya tiene el front. Resumen:
 | Badge habilitado + batch (F-16) | ⏳ Parcial — falta UI de checkboxes |
 | Olvidé contraseña / cambiar contraseña (F-17/F-18) | ⏳ Pendiente — ¿endpoints en QA? |
 | Flujo registro unificado (F-19) | ⚠️ NO empezar hasta que back confirme QA |
+
+---
+
+## 16. Independizar una variante en su propio producto (BACK IMPLEMENTADO, 2026-07-07)
+
+> **Estado: back implementado en `dev` (local, sin subir todavía) siguiendo el contrato de abajo
+> tal cual. No hay Maven disponible en este entorno para compilar/correr pruebas — falta
+> verificar compilación antes de subir a `dev`/`qa`. Front puede empezar a maquetar el flujo con
+> este documento como contrato, el endpoint responde exactamente lo descrito abajo.**
+
+**Archivos nuevos/modificados:**
+- `dto/variantes/IndependizarVarianteRequestDto.java` (nuevo) — request.
+- `models/variantes/IndependizarVarianteResponseDto.java` (nuevo) — response.
+- `service/api/IVarianteService.java` — método `independizarVariante` agregado a la interfaz.
+- `service/VarianteServiceImpl.java` — implementación (`independizarVariante`), inyecta
+  `ICodigoBarrasRepository` nuevo (para crear el código de barras del producto nuevo).
+- `controller/VarianteController.java` — `POST /variantes/v1/{varianteId}/independizar`.
+
+### Contexto / problema real
+
+Hoy se puede crear 1 producto con varias variantes (ej. 3 variantes para 3 unidades de stock).
+Cada variante va acumulando su propia info con el tiempo (talla, color, imagen, stock propio),
+pero **una variante no tiene código de barras ni precio propios** — siempre heredan los del
+producto padre (`Variantes.java` no tiene esos campos; `Producto.codigoBarras` es
+`@OneToOne(unique=true)`, un único código por producto). Cuando una de esas variantes en realidad
+merece ser su propio producto (con su propio código de barras para venderse/escanearse aparte), hoy
+no hay forma de "graduarla" — solo se puede editar la variante dentro del mismo producto padre.
+
+### Decisiones confirmadas con el usuario (2026-07-07)
+
+1. **La Variante no se borra ni se recrea.** Se reasigna (`UPDATE variantes SET producto_id = ?`)
+   al producto nuevo. Conserva intactas sus imágenes (`VarianteImagen`), su talla, color, stock,
+   etc. — no hay que copiar/recrear nada de la variante en sí.
+2. **Precio del producto nuevo:** se precarga en el front con `precioCosto`/`precioVenta`/
+   `precioRebaja` del producto **origen** (de donde viene la variante), pero el admin puede
+   editarlo antes de guardar. El back simplemente recibe lo que venga en el body, igual que
+   cualquier creación de producto normal.
+3. **Si era la última variante del producto origen:** no pasa nada especial. El producto origen
+   se queda con el stock que le sobre (puede llegar a 0) y sin variantes — sigue existiendo como
+   producto normal, igual que cualquier producto sin variantes hoy.
+4. **Todo en una sola transacción (`@Transactional`)** — crear producto nuevo + copiar imagen +
+   descontar stock del producto origen + reasignar la variante deben pasar todos o ninguno.
+5. **Identificación:** la variante a independizar se identifica por su `id` propio (`varianteId`),
+   igual que cualquier otro endpoint de variantes ya existente.
+6. **Solo ADMIN** — ya cubierto por el matcher genérico existente en `SecurityConfig.java:106`
+   (`/variantes/**` → `hasRole("ADMIN")`), no requiere config nueva.
+7. **Motivo real de uso (2026-07-07, segunda vuelta):** el caso típico es que el admin se
+   equivocó al capturar el código de barras de un producto que en realidad debía ser
+   independiente — por eso la variante ya trae toda su info correcta (talla, color, imagen,
+   stock) y solo hace falta corregir el código de barras. Aun así, el modal sigue mostrando el
+   formulario completo de "crear producto" prellenado (no solo un campo de código de barras) por
+   si hace falta corregir algo más al vuelo.
+8. **CONFIRMADO — no se copia+elimina la variante, se reasigna (ver punto 1).** Se evaluó la
+   alternativa de copiar los datos de la variante a un producto nuevo y borrar la variante
+   original para "regresar" el stock al producto origen, pero **no hace falta**: reasignar el
+   `producto_id` de la variante logra el mismo resultado sin duplicar datos ni arriesgar perder
+   imágenes/talla/color en una recreación manual. Ejemplo numérico: Producto A stock=3 con 3
+   variantes stock=1 c/u (cuadra 3=1+1+1) → se independiza la variante #2 → Producto A stock=2 con
+   2 variantes restantes stock=1 c/u (cuadra 2=1+1) → Producto B nace con stock=1 y la variante #2
+   reasignada con stock=1 (cuadra 1=1). El stock nunca queda duplicado ni descuadrado.
+9. **Orden de validación dentro de la transacción:** primero se valida que el código de barras
+   nuevo no exista ya en otro producto — si existe, se corta ahí mismo (mensaje de error, sin
+   tocar stock, sin reasignar la variante, sin crear nada). Solo si el código es válido continúa
+   con crear el producto, copiar imagen, descontar stock y reasignar la variante.
+
+### Decisiones de diseño — TODAS CONFIRMADAS 2026-07-07
+
+- **El stock del producto nuevo NO es editable por el admin** — se fija automáticamente al
+  `variante.getStock()` que se está moviendo, y esa misma cantidad se resta del `stock` del
+  producto origen. El stock nunca se "borra" ni se "crea de la nada": es solo un número (columna
+  `stock`) que se resta en un lado y se asigna en el otro. **Ejemplo paso a paso confirmado:**
+    1. Producto A (origen) tiene `stock=3`, con 3 variantes de `stock=1` cada una (3 = 1+1+1).
+    2. Se independiza la variante #2 (`stock=1`).
+    3. Producto A pasa a `stock=2` (se le resta el 1 de la variante movida). Le quedan las
+       variantes #1 y #3, ambas `stock=1` → sigue cuadrando (2 = 1+1).
+    4. Producto B (nuevo) nace con `stock=1` — el mismo número que traía la variante, no uno
+       inventado.
+    5. La variante #2 (con su `stock=1` intacto) se reasigna a Producto B → también cuadra (1=1).
+  En ningún punto el stock queda duplicado ni descuadrado.
+- **Código de barras nuevo duplicado:** si el código que ingresa el admin en el modal ya
+  pertenece a otro producto existente, el back **rechaza con error** (no reactiva/reutiliza ese
+  producto como hace `guardarProducto` en el alta normal) — evita fusionar por accidente esta
+  variante con un producto no relacionado. Esta validación va **primero**, antes de tocar stock o
+  reasignar la variante — si falla, no se hace ningún cambio.
+- **Imagen de la variante → producto nuevo:** si la variante ya tiene imagen(es) propias
+  (`VarianteImagen`), se **copian** (no se mueven) como `ProductoImagen` del producto nuevo — la
+  variante conserva las suyas intactas (mismo patrón de "copiar, no mover" ya usado en
+  `compartirImagenesVarianteDto` y en el fix de hoy de `inicializarDesdeProducto`).
+
+### Contrato (ya implementado en el back, tal cual)
+
+```
+POST /variantes/v1/{varianteId}/independizar
+Authorization: Bearer <token admin>
+Content-Type: application/json
+```
+
+**Request** — mismo shape que crear un producto normal (`ProductoDetalle`), más el código de
+barras nuevo obligatorio. El front prellena `nombre`/`descripcion`/`marca`/`color`/`contenido`
+con los datos de la variante, y `precioCosto`/`precioVenta`/`precioRebaja`/`palabraClaveId` con
+los del producto origen — todo editable antes de enviar:
+
+```json
+{
+  "nombre": "string, requerido",
+  "descripcion": "string",
+  "marca": "string",
+  "color": "string",
+  "contenido": "string",
+  "piezas": 1.0,
+  "precioCosto": 0.0,
+  "precioVenta": 0.0,
+  "precioRebaja": 0.0,
+  "palabraClaveId": 1,
+  "codigoBarras": "string, requerido, debe ser nuevo (no existir ya en otro producto)",
+  "imagenPrincipalId": 123
+}
+```
+- `imagenPrincipalId` es opcional — solo aplica si la variante tenía más de una imagen y el admin
+  quiere elegir cuál queda como principal del producto nuevo. Si la variante solo tenía 1 imagen,
+  el back la usa automáticamente sin necesidad de mandar este campo.
+- **`piezas` es requerido** — la columna `producto.piezas` es `NOT NULL` en BD. La variante no
+  tiene este campo (ver tabla de fallback abajo), tiene que salir del producto origen.
+- **No se manda `stock`** — se calcula automáticamente del `stock` de la variante (ver decisión
+  de diseño arriba).
+
+**Response (éxito, 201):**
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "productoNuevoId": 456,
+    "codigoBarras": "cod-nuevo-123",
+    "stockProductoOrigenRestante": 2
+  }
+}
+```
+
+**Errores esperados:**
+| Caso | HTTP | Mensaje |
+|---|---|---|
+| `varianteId` no existe | `404` | `"No existe la variante con id: {id}"` |
+| Código de barras vacío/no enviado | `404` | `"El codigo de barras es requerido"` |
+| Código de barras ya usado por otro producto | `409` | `"El codigo de barras {codigo} ya esta en uso por otro producto"` |
+
+### Lo que necesita el front — flujo paso a paso
+
+**Caso de uso real:** el admin se equivocó de código de barras al crear un producto con variantes,
+o simplemente decide que una variante ya merece ser su propio producto. La variante ya tiene toda
+su info correcta (talla, color, imagen, stock) — lo único que casi siempre cambia es el código de
+barras, pero el form completo queda editable por si hace falta ajustar algo más.
+
+1. **Botón "Independizar"** en el detalle de una variante (solo visible/habilitado para admin —
+   igual que el resto de acciones de escritura de variantes, ya restringidas a `ROLE_ADMIN`).
+2. **Al hacer click**, abrir el mismo formulario que se usa para "crear producto", pero
+   **prellenado** con esta prioridad por campo (implementación 100% del front, el back solo
+   recibe lo que venga en el body, sin importar de dónde lo sacó el front):
+
+   | Campo | Prioridad 1 | Si viene null/vacío, cae a |
+   |---|---|---|
+   | `nombre` | — | **Producto origen** (único lugar donde existe, la variante no tiene `nombre`) |
+   | `descripcion` | Variante | Producto origen |
+   | `marca` | Variante | Producto origen |
+   | `color` | Variante | Producto origen |
+   | `contenido` | Variante (`contenidoNeto`) | Producto origen (`contenido`) |
+   | `piezas` | — | **Producto origen** (único lugar donde existe, la variante no tiene `piezas`; es `NOT NULL` en BD, no se puede omitir) |
+   | `precioCosto`/`precioVenta`/`precioRebaja` | — | Producto origen (la variante no tiene precio propio) |
+   | `palabraClaveId` | Variante | Producto origen |
+   | `codigoBarras` | — | **Siempre vacío** — es el dato nuevo que captura el admin |
+
+   En el caso típico (la variante nunca sobreescribió nada distinto al producto), el modal termina
+   mostrando todo idéntico al producto origen y solo el código de barras en blanco. Todo es
+   editable — el admin puede corregir cualquier campo antes de confirmar, no solo el código.
+   - **El campo `stock` NO se muestra como editable** — no se manda en el body, el back lo calcula
+     solo (ver mecanismo de stock arriba). Si el front quiere mostrarlo de forma informativa
+     (no editable), usar el `stock` actual de la variante.
+3. **Campo obligatorio adicional: código de barras nuevo** — debe ser distinto al del producto
+   origen. Validar en el front que no venga vacío, pero la validación real de "no duplicado" la
+   hace el back.
+4. **Al confirmar**, llamar `POST /variantes/v1/{varianteId}/independizar` con el body descrito
+   arriba.
+5. **Si el back responde 409/400 por código duplicado**, mostrar el mensaje tal cual (ya viene
+   listo para el usuario: `"El codigo de barras {codigo} ya esta en uso por otro producto"`) y
+   dejar el formulario abierto para que el admin corrija el código — no se perdió nada porque el
+   back no tocó ni stock ni la variante en ese caso.
+6. **Tras éxito (201):**
+   - Refrescar la vista del producto origen — su `stock` bajó (`data.stockProductoOrigenRestante`
+     ya viene en la respuesta, no hace falta volver a pedir el producto completo solo para eso).
+   - Refrescar la lista de variantes del producto origen — la variante independizada ya no debe
+     aparecer ahí.
+   - Navegar o mostrar el producto nuevo creado (`data.productoNuevoId` + `data.codigoBarras`).
+
+---
+
+## 17. Edición de usuario — admin vs. self-service (BACK IMPLEMENTADO, 2026-07-08)
+
+> **Contexto:** bug reportado en `usuarios/update` (panel admin) — al editar el correo de un
+> usuario y guardar, el back destruía la contraseña real del usuario como efecto secundario. A
+> partir de ahí se aclaró el diseño completo de quién puede tocar qué en una cuenta de `Usuario`.
+
+### Reglas confirmadas con el usuario (2026-07-08, versión final tras 2 rondas de aclaración)
+
+1. **El admin nunca puede fijar una contraseña directamente.** Solo tiene 2 acciones válidas sobre
+   la contraseña de otra cuenta: **restablecer contraseña** (genera una aleatoria y se la muestra
+   al admin para dársela al usuario) y **verificar correo**. Nada más — ni inputs de contraseña ni
+   botón de "actualizar contraseña" en el form del admin.
+2. **El propio dueño de la cuenta sí puede actualizar sus datos** (username/email) desde su propia
+   sesión. Si además quiere cambiar su contraseña, el front debe mostrar el **mismo validador de
+   fuerza de contraseña que usa el formulario de registro** (front reutiliza ese componente/reglas
+   tal cual), y el back valida la contraseña actual antes de aplicar la nueva.
+3. **Cambio de correo — patrón "verificar antes de guardar" (2ª ronda, reemplaza el diseño
+   original de esta sección):** tanto si es el admin editando a otro usuario como si es el propio
+   usuario editando su cuenta, el correo **NO se guarda de inmediato**. Al detectar que el valor
+   del campo correo es distinto al actual, se abre un modal que pide el correo nuevo, lo manda a
+   validar (se envía un código de 6 dígitos a esa dirección nueva) y pide ingresar el código. **Solo
+   si el código es correcto se actualiza el correo real** del usuario; si el código falla, expira,
+   o el admin/usuario cancela, el correo real **nunca cambió** — el campo simplemente vuelve a
+   mostrar el valor anterior porque nunca se llegó a guardar nada distinto.
+
+### Bug #1 — RESUELTO: `updateUserDto` destruía la contraseña real
+
+`UsuarioServiceImpl.updateUserDto()` hacía `existe.setPassword(passwordEncoder.encode(usuarioDto.getPassword()))`
+sin validar si venía null/vacío — el caso normal al editar solo el correo. Ya no toca el campo
+password en absoluto; ver `CAMBIOS_FRONT.md` para el detalle completo de este fix.
+
+### Diseño final — cambio de correo con verificación previa
+
+> ⚠️ **No confundir con `Cliente.correoPendiente` (mejora 15, más arriba en este documento).**
+> Son 2 columnas distintas en 2 tablas distintas para 2 flujos distintos: `Cliente.correoPendiente`
+> es del **perfil del cliente** (`mis-datos`) y ahí el admin puede aplicar el correo directo sin
+> verificar (`ClienteControllerImpl.save()`, ver arriba). `usuario_modificacion.correo_pendiente`
+> (esta sección) es de la **cuenta de login** (`Usuario`) y aquí, por decisión explícita del
+> usuario en esta sesión, **el admin también tiene que verificar el código** — no hay bypass.
+> Mismo patrón de campo, mismo nombre de concepto, pero reglas y tablas independientes.
+
+**Se agregó una columna nueva:** `usuario_modificacion.correo_pendiente` (migración
+`migration_correo_pendiente_usuario.sql`, **pendiente de correr en dev/qa/prod**). El correo real
+(`email`) no se toca hasta que el código se confirma correctamente — reutiliza las columnas ya
+existentes `codigo_verificacion`/`codigo_verificacion_expira` (no hizo falta duplicarlas).
+
+Esto **reemplaza** el diseño de la primera ronda de esta sección (que guardaba el correo de
+inmediato y solo reseteaba `correoVerificado=false`) — ese enfoque no soportaba "revertir" el
+campo si el código fallaba, porque el correo ya se había sobrescrito. El patrón nuevo evita el
+problema de raíz: si nunca se confirma el código, nunca se tocó el correo real.
+
+### 🐛 BUG CONFIRMADO EN QA (2026-07-08) — front sigue llamando el endpoint viejo
+
+Probado con curl real en `usuarios/update`: el front llama `POST /v1/auth/enviar-codigo-verificacion`
+(`{ "userName": "pedro" }`) para intentar mandar el código al correo nuevo — ese endpoint es el de
+verificación **única post-registro**, no acepta correo nuevo y manda al correo ya guardado, que
+normalmente ya está verificado (→ `400 "El correo ya esta verificado"`, no manda nada). El front
+necesita cambiar esa llamada a `POST /v1/usuarios/{id}/solicitar-cambio-correo` con
+`{ "correoNuevo": "..." }` (ver contrato completo en `CAMBIOS_FRONT.md`, tiene tabla ❌/✅ del
+endpoint incorrecto vs. el correcto).
+
+**4 endpoints nuevos** (2 para admin, 2 para self-service — mismo patrón que `resetear-password`
+vs. `cambiar-password`):
+
+```
+# Admin — cambia el correo de OTRO usuario (por id)
+POST /v1/usuarios/{id}/solicitar-cambio-correo   Body: { "correoNuevo": "..." }
+POST /v1/usuarios/{id}/confirmar-cambio-correo   Body: { "codigo": "123456" }
+
+# Self-service — el propio usuario cambia SU correo (identificado por el JWT)
+POST /v1/auth/solicitar-cambio-correo            Body: { "correoNuevo": "..." }
+POST /v1/auth/confirmar-cambio-correo            Body: { "codigo": "123456" }
+```
+
+- `solicitar-cambio-correo`: valida que `correoNuevo` no sea igual al actual, genera el código,
+  lo guarda junto con `correoNuevo` en `correoPendiente`, y **manda el código al correo nuevo**
+  (no al viejo). Responde `200` con `"Codigo enviado al correo nuevo"`, o `400` si el correo viene
+  vacío o es igual al actual.
+- `confirmar-cambio-correo`: valida el código contra lo guardado. Si es correcto y no expiró (15
+  min), **recién ahí** hace `email = correoPendiente`, marca `correoVerificado=true` y limpia los
+  campos temporales. Responde `200` con `"Correo actualizado correctamente"`. Si el código es
+  inválido/expiró, responde `400` con el mensaje correspondiente y **el correo real no cambia**.
+- El código **nunca se devuelve en la respuesta de la API** — llega solo por correo a la dirección
+  nueva. El modal del front debe pedirle al usuario/admin que lo escriba (no hay forma de
+  autocompletarlo desde el response).
+
+**Los endpoints viejos de verificación (`enviar-codigo-verificacion` / `verificar-correo`,
+`AuthController`) NO cambiaron** — siguen siendo exclusivamente para verificar el correo la
+primera vez, justo después del registro. El cambio de correo posterior usa este flujo nuevo, no
+ese.
+
+### Endpoint — self-service: `PUT /v1/auth/mi-perfil` (solo username)
+
+No existía ningún endpoint para que un usuario autenticado (no-admin) editara su propio
+username — `/v1/usuarios/**` es 100% `ROLE_ADMIN` (`SecurityConfig.java:115`). Se agregó junto a
+`cambiar-password` (mismo patrón: usa `Authentication` del JWT, nunca un id del body).
+
+```
+PUT /v1/auth/mi-perfil
+Authorization: Bearer <token de cualquier usuario autenticado>
+Content-Type: application/json
+
+Body: { "username": "string, requerido" }
+```
+**Ya no incluye `email`** (ver arriba, el correo tiene su propio flujo de 2 pasos) **ni
+`password`** (usar `cambiar-password`). Response éxito (200): `"Perfil actualizado correctamente"`.
+
+### Flujo completo para el front
+
+**Pantalla admin (`usuarios/update`, edita a OTRO usuario):**
+- Mostrar `username` **deshabilitado** (solo lectura).
+- **No mostrar ningún campo ni botón de contraseña en el form de edición.** Las únicas 2 acciones
+  sobre password/correo son botones aparte: "Restablecer contraseña"
+  (`PUT /v1/usuarios/{id}/resetear-password`, ya existía) y el modal de correo descrito abajo.
+- Campo `email`: si el admin escribe un valor distinto al actual, **no lo guarda directo** — abre
+  el modal, llama `POST /v1/usuarios/{id}/solicitar-cambio-correo` con el correo nuevo, pide el
+  código, y llama `POST /v1/usuarios/{id}/confirmar-cambio-correo`. Solo si esa segunda llamada
+  responde `200` se actualiza el campo en pantalla; si falla o se cancela, el campo vuelve a
+  mostrar el correo original (nunca cambió en el back).
+- El botón "Actualizar" normal (`PUT /v1/usuarios/updateUsuario/{id}`) sigue existiendo para
+  `enabled` (y username, aunque esté deshabilitado visualmente) — ya no manda ni toca `email` ni
+  `password`.
+
+**Pantalla self-service (el propio usuario edita SU cuenta, ej. "Mi perfil"):**
+- `username` editable → `PUT /v1/auth/mi-perfil`, body `{ "username" }`. Se puede guardar solo, sin
+  tocar correo ni contraseña.
+- `email`: mismo patrón de modal verificar-antes-de-guardar que el admin, pero con
+  `POST /v1/auth/solicitar-cambio-correo` / `confirmar-cambio-correo` (sin id, usa la sesión).
+- Contraseña: al detectar que el usuario está escribiendo en los campos de nueva contraseña, mostrar
+  el **mismo validador de reglas que el formulario de registro** (front). Si pasa esa validación,
+  pedir la contraseña actual y llamar `PUT /v1/auth/cambiar-password` (`{ "passwordActual",
+  "nuevaPassword" }`) — nunca se permite guardar una contraseña nueva sin ese campo.
+
+**Pendiente:** correr `migration_correo_pendiente_usuario.sql` en `dev`/`qa`/`prod` antes de que
+este flujo funcione (la columna `correo_pendiente` no existe todavía en ninguna BD).
+
+**Solo en `dev` por ahora**, pendiente de subir a `qa`/`main`.

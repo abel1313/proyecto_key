@@ -2,17 +2,23 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
+import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
+import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.EnviarCodigoVerificacionUsuarioRequest;
 import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
 import com.ventas.key.mis.productos.models.RegistroRequest;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.RestablecerPasswordRequest;
+import com.ventas.key.mis.productos.models.SolicitarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.VerificarCorreoUsuarioRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
+import com.ventas.key.mis.productos.service.api.IUsuarioService;
 import com.ventas.key.mis.productos.service.UsuarioVerificacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -53,6 +59,7 @@ public class AuthController {
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
     private final UsuarioVerificacionService usuarioVerificacionService;
+    private final IUsuarioService usuarioService;
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
@@ -275,6 +282,67 @@ public class AuthController {
         } catch (Exception e) {
             log.warn("Error al cambiar password para {}: {}", authentication.getName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @Operation(summary = "Actualizar mi perfil (usuario logueado)", description = "El propio usuario autenticado actualiza su username. Nunca toca la contrasena (PUT /v1/auth/cambiar-password) ni el email (POST /v1/auth/solicitar-cambio-correo + confirmar-cambio-correo) - esos van por endpoints separados con su propia validacion.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfil actualizado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Datos invalidos"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @PutMapping("/mi-perfil")
+    public ResponseEntity<?> actualizarMiPerfil(@Valid @RequestBody ActualizarMiPerfilRequestDto request,
+                                                Authentication authentication) {
+        try {
+            usuarioService.actualizarMiPerfil(authentication.getName(), request);
+            return ResponseEntity.ok("Perfil actualizado correctamente");
+        } catch (Exception e) {
+            log.warn("Error al actualizar perfil para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    // ── Cambio de MI PROPIO correo (self-service) — verificar antes de guardar ──
+    // El email real no cambia hasta confirmar-cambio-correo con el codigo correcto.
+
+    @Operation(summary = "Solicitar cambio de mi correo", description = "Manda un codigo de 6 digitos al correo NUEVO (no al actual). El correo real no cambia todavia - solo se guarda como pendiente hasta confirmar el codigo.")
+    @PostMapping("/solicitar-cambio-correo")
+    public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(@Valid @RequestBody SolicitarCambioCorreoRequest request,
+                                                    Authentication authentication) {
+        try {
+            boolean enviado = usuarioVerificacionService.solicitarCambioCorreo(authentication.getName(), request.getCorreoNuevo());
+            String mensaje = enviado
+                    ? "Codigo enviado al correo nuevo"
+                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
+        } catch (Exception e) {
+            log.warn("Error al solicitar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Estado de mi cambio de correo pendiente", description = "Consulta si hay un cambio de correo en proceso (codigo enviado, sin confirmar) y su expiracion real. Pensado para que el front restaure el estado del modal tras un refresh de pagina sin depender de sessionStorage/localStorage - el back es la unica fuente de verdad.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "pendiente=false si no hay cambio en curso o el codigo ya expiro")
+    })
+    @GetMapping("/cambio-correo-pendiente")
+    public ResponseEntity<ResponseGeneric<CambioCorreoPendienteResponseDto>> obtenerCambioCorreoPendiente(
+            Authentication authentication) {
+        return ResponseEntity.ok(new ResponseGeneric<>(
+                usuarioVerificacionService.obtenerCambioCorreoPendiente(authentication.getName())));
+    }
+
+    @Operation(summary = "Confirmar cambio de mi correo", description = "Valida el codigo de 6 digitos. Si es correcto, recien ahi se actualiza el correo real; si no, el correo real se queda como estaba.")
+    @PostMapping("/confirmar-cambio-correo")
+    public ResponseEntity<ResponseGeneric<String>> confirmarCambioCorreo(@Valid @RequestBody ConfirmarCambioCorreoRequest request,
+                                                    Authentication authentication) {
+        try {
+            usuarioVerificacionService.confirmarCambioCorreo(authentication.getName(), request.getCodigo());
+            return ResponseEntity.ok(new ResponseGeneric<>("Correo actualizado correctamente"));
+        } catch (Exception e) {
+            log.warn("Error al confirmar cambio de correo para {}: {}", authentication.getName(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 

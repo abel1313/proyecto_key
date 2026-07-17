@@ -22,6 +22,8 @@ public interface IConcursanteRepository extends BaseRepository<Concursante, Inte
     List<Concursante> findByConfigurarRifaIdAndPalabraClave(
             Integer configurarRifaId, String palabraClave);
 
+    boolean existsByConfigurarRifaIdAndClientePedidoId(Integer configurarRifaId, Integer clientePedidoId);
+
     @Modifying
     @Transactional
     void deleteByConfigurarRifaId(Integer configurarRifaId);

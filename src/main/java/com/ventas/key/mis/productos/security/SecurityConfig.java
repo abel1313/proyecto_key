@@ -135,7 +135,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()
                         .requestMatchers("/v1/promociones/**").hasRole("ADMIN")
 
-                        // ── Ventas ────────────────────────────────────────────────────────
+                        // ── Favoritos (100% del cliente autenticado, sin vista admin) ───────
+                        .requestMatchers("/v1/favoritos/**").authenticated()
+
+                        // ── Reseñas (lectura publica; crear/editar/borrar autenticado -- el
+                        //    service decide si es dueno o ADMIN el que puede borrar) ─────────
+                        .requestMatchers(HttpMethod.GET, "/v1/resenas/mis-resenas").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/v1/resenas/**").permitAll()
+                        .requestMatchers("/v1/resenas/**").authenticated()
+
+                        // ── Ventas (reclamo de compra es del cliente autenticado; el resto ADMIN) ──
+                        .requestMatchers(HttpMethod.POST, "/v1/ventas/reclamar").authenticated()
                         .requestMatchers("/v1/ventas/**").hasRole("ADMIN")
 
                         // ── MercadoPago (resto) ────────────────────────────────────────────

@@ -1,14 +1,17 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.dto.variantes.IndependizarVarianteRequestDto;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.DiagnosticoImagenVarianteDto;
+import com.ventas.key.mis.productos.models.FiltrosDisponiblesDto;
 import com.ventas.key.mis.productos.models.HabilitarLoteRequest;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
+import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteResponseDto;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +93,29 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "10") int size) {
 
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, size)));
+    }
+
+    // Catalogo publico con filtros combinables. A diferencia de /v1/buscar (que hace cascada
+    // codigo -> palabra clave -> nombre y truena si no hay resultados), este endpoint combina
+    // termino + precio/talla/color/marca con AND y simplemente devuelve lista vacia si no matchea.
+    @GetMapping("/v1/buscar-filtrado")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscarFiltrado(
+            @RequestParam(required = false) String termino,
+            @RequestParam(required = false) Double precioMin,
+            @RequestParam(required = false) Double precioMax,
+            @RequestParam(required = false) String talla,
+            @RequestParam(required = false) String color,
+            @RequestParam(required = false) String marca,
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "10") int size) {
+
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantesPublicoFiltrado(
+                termino, precioMin, precioMax, talla, color, marca, pagina, size)));
+    }
+
+    @GetMapping("/v1/filtros-disponibles")
+    public ResponseEntity<ResponseGeneric<FiltrosDisponiblesDto>> filtrosDisponibles() {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrosDisponiblesPublico()));
     }
 
     @PostMapping("/v1/guardarConImagenes")
@@ -229,5 +255,13 @@ public class VarianteController extends AbstractController<
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
+    }
+
+    @PostMapping("/v1/{varianteId}/independizar")
+    public ResponseEntity<ResponseGeneric<IndependizarVarianteResponseDto>> independizarVariante(
+            @PathVariable Integer varianteId,
+            @RequestBody IndependizarVarianteRequestDto request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ResponseGeneric<>(sGenerico.independizarVariante(varianteId, request)));
     }
 }

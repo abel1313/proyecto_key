@@ -4,18 +4,21 @@ import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.reportes.ProductoMasVendidoDto;
+import com.ventas.key.mis.productos.models.reportes.PromocionReporteDto;
 import com.ventas.key.mis.productos.models.reportes.ReporteClienteDto;
 import com.ventas.key.mis.productos.models.reportes.ReporteDiarioDto;
 import com.ventas.key.mis.productos.models.reportes.ReporteMensualDto;
 import com.ventas.key.mis.productos.models.reportes.VentaResumenItem;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IDetalleVentaVarianteRepository;
+import com.ventas.key.mis.productos.repository.IPromocionRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
 import com.ventas.key.mis.productos.service.api.IReporteVentasService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -30,6 +33,7 @@ public class ReporteVentasServiceImpl implements IReporteVentasService {
     private final IVentaRepository iVentaRepository;
     private final IDetalleVentaVarianteRepository iDetalleVentaVarianteRepository;
     private final IClienteRepository iClienteRepository;
+    private final IPromocionRepository iPromocionRepository;
 
     @Override
     public ReporteDiarioDto reporteDiario(LocalDate fecha) {
@@ -100,6 +104,22 @@ public class ReporteVentasServiceImpl implements IReporteVentasService {
                         (String) f[3],
                         (Long) f[4],
                         (Double) f[5]))
+                .toList();
+    }
+
+    @Override
+    public List<PromocionReporteDto> reportePromociones(LocalDate desde, LocalDate hasta) {
+        List<Object[]> filas = iPromocionRepository.reportePromociones(desde, hasta);
+
+        return filas.stream()
+                .map(f -> new PromocionReporteDto(
+                        (Integer) f[0],
+                        (String) f[1],
+                        ((Number) f[2]).longValue(),
+                        ((Number) f[3]).longValue(),
+                        ((Number) f[4]).doubleValue(),
+                        ((Number) f[5]).doubleValue(),
+                        f[6] != null ? ((Date) f[6]).toLocalDate() : null))
                 .toList();
     }
 }

@@ -8,6 +8,8 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
+import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
+import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IPermisoRepository;
@@ -34,17 +36,20 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     private final IUsuarioRepository usuarioRepository;
     private final IRolRepository rolRepository;
     private final IPermisoRepository permisoRepository;
+    private final UsuarioVerificacionService usuarioVerificacionService;
 
     public UsuarioServiceImpl(BaseRepository<Usuario, Integer> repoGenerico, ErrorGenerico error,
                               IUsuarioRepository usuarioRepository,
                               PasswordEncoder passwordEncoder,
                               IRolRepository rolRepository,
-                              IPermisoRepository permisoRepository) {
+                              IPermisoRepository permisoRepository,
+                              UsuarioVerificacionService usuarioVerificacionService) {
         super(repoGenerico, error);
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.rolRepository = rolRepository;
         this.permisoRepository = permisoRepository;
+        this.usuarioVerificacionService = usuarioVerificacionService;
     }
 
     @Override
@@ -79,16 +84,57 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         return dto;
     }
 
+    // No toca password ni email: password solo se cambia via resetearPasswordAleatoria() (admin)
+    // o PasswordResetService.cambiarPassword() (self-service, valida la actual). El email solo se
+    // cambia via UsuarioVerificacionService.solicitarCambioCorreo/confirmarCambioCorreo (requiere
+    // validar un codigo antes de aplicarse) - nunca directo desde este update generico.
     @Override
     public UserUpdate updateUserDto(UserUpdate usuarioDto, int id) {
         Usuario existe = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
-        existe.setPassword(passwordEncoder.encode(usuarioDto.getPassword()));
-        existe.setEmail(usuarioDto.getEmail());
         existe.setUsername(usuarioDto.getUsername());
         existe.setEnabled(usuarioDto.isEnabled());
         usuarioRepository.save(existe);
         return new UserUpdate();
+    }
+
+    /**
+     * El propio usuario logueado actualiza su username (nunca su password ni su email aqui - ver
+     * comentario de updateUserDto). Identifica al usuario por el username del JWT
+     * (authentication.getName()), nunca por un id que mande el body/path - evita que un usuario
+     * edite la cuenta de otro.
+     */
+    @Override
+    @Transactional
+    public void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request) {
+        Usuario existe = usuarioRepository.findByUsername(usernameActual)
+                .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        existe.setUsername(request.getUsername());
+        usuarioRepository.save(existe);
+    }
+
+    /** Admin: solicita el cambio de correo de OTRO usuario (por id) - manda el codigo al correo nuevo. */
+    @Override
+    public boolean solicitarCambioCorreo(Integer id, String correoNuevo) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuarioVerificacionService.solicitarCambioCorreo(usuario, correoNuevo);
+    }
+
+    /** Admin: confirma el codigo del cambio de correo de OTRO usuario (por id). */
+    @Override
+    public void confirmarCambioCorreo(Integer id, String codigo) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        usuarioVerificacionService.confirmarCambioCorreo(usuario, codigo);
+    }
+
+    /** Admin: estado del cambio de correo pendiente de OTRO usuario (por id). */
+    @Override
+    public CambioCorreoPendienteResponseDto obtenerCambioCorreoPendiente(Integer id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuarioVerificacionService.obtenerCambioCorreoPendiente(usuario);
     }
 
     // Sin 0/O/1/l/I para que sea mas facil de dictar por telefono sin confundir caracteres.
