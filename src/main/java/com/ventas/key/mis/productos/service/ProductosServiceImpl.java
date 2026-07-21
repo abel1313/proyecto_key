@@ -460,8 +460,8 @@ public class ProductosServiceImpl extends
             return prd;
         } catch (Exception e) {
             this.error.error(e);
+            throw new RuntimeException("No se guardo el producto: " + e.getMessage(), e);
         }
-        throw new RuntimeException("No se guardo el producto ");
     }
 
     @Cacheable(value = "findByIdCache", key = "#id")
