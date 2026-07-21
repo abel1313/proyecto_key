@@ -49,7 +49,6 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -401,93 +400,64 @@ public class ProductosServiceImpl extends
             }
 
             // [FLUJO 2B] PRODUCTO EXISTENTE: ya existe en BD → se actualiza
-            if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
-                if (!productoDetalle.getListImagenes().isEmpty()){
-                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
-                    List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
-                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
-                    relacionProductoImagen(mapperRelacionProductoImagen);
+            if (!productoDetalle.getListImagenes().isEmpty()){
+                // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
+                List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
+                // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
+                relacionProductoImagen(mapperRelacionProductoImagen);
 
-                    List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
-                    if (!variantes.isEmpty()) {
-                        List<VarianteImagen> varianteImagenes = new ArrayList<>();
-                        for (Variantes variante : variantes) {
-                            for (Imagen imagen : lstImg) {
-                                VarianteImagen vi = new VarianteImagen();
-                                vi.setVariante(variante);
-                                vi.setImagen(imagen);
-                                varianteImagenes.add(vi);
-                            }
+                List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
+                if (!variantes.isEmpty()) {
+                    List<VarianteImagen> varianteImagenes = new ArrayList<>();
+                    for (Variantes variante : variantes) {
+                        for (Imagen imagen : lstImg) {
+                            VarianteImagen vi = new VarianteImagen();
+                            vi.setVariante(variante);
+                            vi.setImagen(imagen);
+                            varianteImagenes.add(vi);
                         }
-                        iVarianteImagenRepository.saveAll(varianteImagenes);
-                        log.info("Se asignaron {} imágenes a {} variantes del producto {}", lstImg.size(), variantes.size(), prodExistenteNoOpt.getId());
                     }
+                    iVarianteImagenRepository.saveAll(varianteImagenes);
+                    log.info("Se asignaron {} imágenes a {} variantes del producto {}", lstImg.size(), variantes.size(), prodExistenteNoOpt.getId());
                 }
-
-                // Actualizar los campos del producto existente con los nuevos valores
-                prodExistenteNoOpt.setNombre(productoDetalle.getNombre());
-                prodExistenteNoOpt.setPrecioCosto(productoDetalle.getPrecioCosto());
-                prodExistenteNoOpt.setPiezas(productoDetalle.getPiezas());
-                prodExistenteNoOpt.setColor(productoDetalle.getColor());
-                prodExistenteNoOpt.setPrecioVenta(productoDetalle.getPrecioVenta());
-                prodExistenteNoOpt.setPrecioRebaja(productoDetalle.getPrecioRebaja());
-                prodExistenteNoOpt.setDescripcion(productoDetalle.getDescripcion());
-                prodExistenteNoOpt.setMarca(productoDetalle.getMarca());
-                prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
-                if (productoDetalle.getPalabraClaveId() != null) {
-                    prodExistenteNoOpt.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
-                }
-
-                // Ajuste de stock contra el stock real de la BD
-                int nuevoStock;
-                if (productoDetalle.getActualizarStock() > 0) {
-                    nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
-                } else if (productoDetalle.getEliminarStock() > 0) {
-                    nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
-                } else {
-                    nuevoStock = productoDetalle.getStock();
-                }
-
-                ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
-                prodExistenteNoOpt.setStock(nuevoStock);
-
-                Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
-                log.info("Producto actualizado: {}", prd);
-
-                if (productoDetalle.getImagenPrincipalId() != null) {
-                    aplicarPrincipalProducto(prd.getId(), productoDetalle.getImagenPrincipalId());
-                }
-
-                return prd;
-            } else {
-                Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
-                if (prodNoOpt.getId() != null && prodNoOpt.getId() != 0) {
-                    BigDecimal precioBase = new BigDecimal(prodNoOpt.getPrecioVenta());
-                    BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
-
-
-                    if (precioBase.compareTo(precioReq) == 0) {
-                        producto.setId(prodNoOpt.getId());
-                        producto.setCodigoBarras(prodNoOpt.getCodigoBarras());
-                        producto.setStock(productoDetalle.getStock());
-                        Producto prd = this.iProductosRepository.save(producto);
-                        System.out.println(prd + "-----------------------------------------------");
-                        return prd;
-                    } else {
-                        LotesProductos saveLote = new LotesProductos();
-                        saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-                        saveLote.setStock(productoDetalle.getStock());
-                        saveLote.setProducto(prodNoOpt);
-                        this.iLoteProducto.save(saveLote);
-                        return producto;
-                    }
-
-                }
-                CodigoBarra codBarra = saveCodigoBarra(producto.getCodigoBarras());
-                producto.setCodigoBarras(codBarra);
-                return this.iProductosRepository.save(producto);
             }
+
+            // Actualizar los campos del producto existente con los nuevos valores
+            prodExistenteNoOpt.setNombre(productoDetalle.getNombre());
+            prodExistenteNoOpt.setPrecioCosto(productoDetalle.getPrecioCosto());
+            prodExistenteNoOpt.setPiezas(productoDetalle.getPiezas());
+            prodExistenteNoOpt.setColor(productoDetalle.getColor());
+            prodExistenteNoOpt.setPrecioVenta(productoDetalle.getPrecioVenta());
+            prodExistenteNoOpt.setPrecioRebaja(productoDetalle.getPrecioRebaja());
+            prodExistenteNoOpt.setDescripcion(productoDetalle.getDescripcion());
+            prodExistenteNoOpt.setMarca(productoDetalle.getMarca());
+            prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
+            if (productoDetalle.getPalabraClaveId() != null) {
+                prodExistenteNoOpt.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
+            }
+
+            // Ajuste de stock contra el stock real de la BD
+            int nuevoStock;
+            if (productoDetalle.getActualizarStock() > 0) {
+                nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
+            } else if (productoDetalle.getEliminarStock() > 0) {
+                nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
+            } else {
+                nuevoStock = productoDetalle.getStock();
+            }
+
+            ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
+            prodExistenteNoOpt.setStock(nuevoStock);
+
+            Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
+            log.info("Producto actualizado: {}", prd);
+
+            if (productoDetalle.getImagenPrincipalId() != null) {
+                aplicarPrincipalProducto(prd.getId(), productoDetalle.getImagenPrincipalId());
+            }
+
+            return prd;
         } catch (Exception e) {
             this.error.error(e);
         }
@@ -582,18 +552,6 @@ public class ProductosServiceImpl extends
             imagen.setExtension(mpa.getExtension());
             return imagen;
         }).toList();
-    }
-
-    private CodigoBarra saveCodigoBarra(CodigoBarra codigoBarra) throws Exception {
-        Optional<CodigoBarra> findCodigoBarra = this.iBarrasService.findByCodigoBarra(codigoBarra.getCodigoBarras());
-        CodigoBarra newCodigoBarra;
-        if (findCodigoBarra.isPresent()) {
-            newCodigoBarra = findCodigoBarra.get();
-        }else{
-            codigoBarra.setId(null);
-            newCodigoBarra = this.iBarrasService.save(codigoBarra);
-        }
-        return newCodigoBarra;
     }
 
     private void aplicarPrincipalProducto(Integer productoId, Long imagenId) {
