@@ -76,6 +76,13 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         variante.setStock(1);
         variante = iVarianteRepository.save(variante);
 
+        // El listado admin/no-habilitados esta cacheado y es donde se ven los borradores;
+        // sin este evict el borrador recien creado no aparece hasta que la subida async
+        // termine con exito (que es el otro punto donde se limpia cache) — y si la subida
+        // falla, no aparece nunca hasta que expire la cache.
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+
         return new EstadoCargaProductoDto(producto.getId(), variante.getId(), EstadoCargaImagen.PENDIENTE, null, null, null);
     }
 

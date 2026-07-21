@@ -6337,4 +6337,13 @@ así la subida en segundo plano viaja con el mismo token del admin que subió la
 de contrato** — el front no hace nada distinto; las fotos que quedaron `FALLIDO` por este 403 se
 reintentan con `POST /{productoId}/reintentar-imagen` normalmente.
 
+**🐛 Bug corregido #3 (2026-07-21):** el borrador recién creado no aparecía en
+`GET /v1/productos/admin/no-habilitados` — ese listado está cacheado y crear el borrador no
+limpiaba la caché (solo se limpiaba cuando la imagen terminaba de subir con éxito; si la subida
+fallaba, el borrador no aparecía nunca hasta expirar la caché). Ahora crear el borrador también
+evicta la caché, así el listado de no-habilitados lo refleja de inmediato. Recordatorio: **los
+borradores no salen en el listado público/normal de productos** (nacen deshabilitados a
+propósito) — para verlos son `admin/no-habilitados` o `GET /v1/carga-imagenes/estado`. Si hace
+falta forzar la limpieza a mano en QA: `DELETE /v1/admin/cache` (ADMIN).
+
 **⏳ Pendiente:** probar el flujo end-to-end de nuevo en QA con el fix, y push a `qa`.
