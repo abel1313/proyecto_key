@@ -105,6 +105,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/variantes/**").permitAll()
                         .requestMatchers("/variantes/**").hasRole("ADMIN")
 
+                        // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
+                        .requestMatchers("/v1/carga-imagenes/**").hasRole("ADMIN")
+
                         // ── Imágenes (GETs públicos excepto caché; escritura solo ADMIN) ────
                         .requestMatchers(HttpMethod.GET, "/imagen/cache/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/imagen/**").permitAll()

@@ -22,6 +22,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     List<Variantes> findByProductoId(Integer productoId);
 
+    List<Variantes> findByProductoIdIn(List<Integer> productoIds);
+
     Page<Variantes> findByProductoId(Integer productoId, Pageable pageable);
 
     List<Variantes> findByProductoNombreContainingIgnoreCase(String nombre);

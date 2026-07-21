@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.repository;
 
+import com.ventas.key.mis.productos.entity.EstadoCargaImagen;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.models.ProductoResumen;
 import jakarta.persistence.LockModeType;
@@ -114,4 +115,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
 
     @Query("SELECT p FROM Producto p WHERE NOT EXISTS (SELECT v FROM Variantes v WHERE v.producto.id = p.id)")
     List<Producto> findProductosSinVariantes();
+
+    // --- carga rapida de imagenes: estado directo en producto, ver /v1/carga-imagenes/* ---
+    List<Producto> findByEstadoImagenOrderByIdDesc(EstadoCargaImagen estadoImagen);
 }
