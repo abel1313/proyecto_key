@@ -68,16 +68,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         codigoBarras.setCodigoBarras(generarCodigoBarrasTemporal());
         codigoBarras = iCodigoBarrasRepository.save(codigoBarras);
 
-        Producto producto = new Producto();
-        producto.setStock(1);
-        producto.setHabilitado('0');
-        // "nombre" es NOT NULL en la tabla producto (columna preexistente, la migracion de
-        // carga rapida no la toco). Placeholder igual que codigoBarrasGenerado: se pisa solo
-        // en cuanto el front manda el nombre real via /completar.
-        producto.setNombre("Borrador sin nombre");
-        producto.setCodigoBarras(codigoBarras);
-        producto.setCodigoBarrasGenerado(true);
-        producto.setEstadoImagen(EstadoCargaImagen.PENDIENTE);
+        Producto producto = getProducto(codigoBarras);
         producto = iProductosRepository.save(producto);
 
         Variantes variante = new Variantes();
@@ -86,6 +77,25 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         variante = iVarianteRepository.save(variante);
 
         return new EstadoCargaProductoDto(producto.getId(), variante.getId(), EstadoCargaImagen.PENDIENTE, null, null, null);
+    }
+
+    private static Producto getProducto(CodigoBarra codigoBarras) {
+        Producto producto = new Producto();
+        producto.setStock(1);
+        producto.setHabilitado('0');
+        // "nombre" es NOT NULL en la tabla producto (columna preexistente, la migracion de
+        // carga rapida no la toco). Placeholder igual que codigoBarrasGenerado: se pisa solo
+        // en cuanto el front manda el nombre real via /completar.
+        producto.setNombre("");
+        producto.setPrecioCosto(0.0);
+        producto.setPiezas(0.0);
+        producto.setColor("");
+        producto.setPrecioVenta(0.0);
+        producto.setPrecioRebaja(0.0);
+        producto.setCodigoBarras(codigoBarras);
+        producto.setCodigoBarrasGenerado(true);
+        producto.setEstadoImagen(EstadoCargaImagen.PENDIENTE);
+        return producto;
     }
 
     @Override
