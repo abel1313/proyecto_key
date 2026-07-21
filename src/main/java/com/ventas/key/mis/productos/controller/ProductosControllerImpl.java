@@ -81,22 +81,23 @@ public class ProductosControllerImpl {
         return ResponseEntity.ok(this.pServiceImpl.getProductosSinStock(size, page));
     }
 
-    // Filtro combinado de admin: nombreOCodigo + conStock + conImagenes + habilitado son todos
-    // opcionales e independientes entre si (AND). Cada uno es tri-estado via Boolean nullable:
-    // null = cualquiera, true/false = con/sin (o habilitado/deshabilitado). Reemplaza el filtro
-    // de un solo valor (FiltroCatalogoEnum) que no se podia combinar con busqueda por nombre.
+    // Filtro combinado de admin: nombreOCodigo + conStock + conImagenes + habilitado +
+    // codigoGenerado son todos opcionales e independientes entre si (AND). Cada uno es tri-estado
+    // via Boolean nullable: null = cualquiera, true/false = con/sin. codigoGenerado=true trae los
+    // productos cuyo codigo de barras sigue siendo el autogenerado de la carga rapida.
     @GetMapping("admin/filtrar")
     public ResponseEntity<PginaDto<List<ProductoDTO>>> filtrarProductosAdmin(
             @RequestParam(required = false) String nombreOCodigo,
             @RequestParam(required = false) Boolean conStock,
             @RequestParam(required = false) Boolean conImagenes,
             @RequestParam(required = false) Boolean habilitado,
+            @RequestParam(required = false) Boolean codigoGenerado,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "1") int page) {
-        log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} page={} size={}",
-                nombreOCodigo, conStock, conImagenes, habilitado, page, size);
+        log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} codigoGenerado={} page={} size={}",
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, page, size);
         return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, size, page));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, size, page));
     }
 
     @PutMapping("{id}/habilitar")

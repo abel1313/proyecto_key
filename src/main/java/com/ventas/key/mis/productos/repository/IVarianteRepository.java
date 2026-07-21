@@ -108,7 +108,12 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:conImagenes IS NULL
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v))
                OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)))
-          AND (:habilitado IS NULL OR (:habilitado = TRUE AND v.habilitado = '1') OR (:habilitado = FALSE AND v.habilitado <> '1'))
+          AND (:habilitado IS NULL
+               OR (:habilitado = TRUE AND v.habilitado = '1' AND v.producto.habilitado = '1')
+               OR (:habilitado = FALSE AND (v.habilitado <> '1' OR v.producto.habilitado <> '1')))
+          AND (:codigoGenerado IS NULL
+               OR (:codigoGenerado = TRUE AND v.producto.codigoBarrasGenerado = TRUE)
+               OR (:codigoGenerado = FALSE AND (v.producto.codigoBarrasGenerado IS NULL OR v.producto.codigoBarrasGenerado = FALSE)))
         """,
         countQuery = """
         SELECT COUNT(v) FROM Variantes v
@@ -122,12 +127,18 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:conImagenes IS NULL
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v))
                OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)))
-          AND (:habilitado IS NULL OR (:habilitado = TRUE AND v.habilitado = '1') OR (:habilitado = FALSE AND v.habilitado <> '1'))
+          AND (:habilitado IS NULL
+               OR (:habilitado = TRUE AND v.habilitado = '1' AND v.producto.habilitado = '1')
+               OR (:habilitado = FALSE AND (v.habilitado <> '1' OR v.producto.habilitado <> '1')))
+          AND (:codigoGenerado IS NULL
+               OR (:codigoGenerado = TRUE AND v.producto.codigoBarrasGenerado = TRUE)
+               OR (:codigoGenerado = FALSE AND (v.producto.codigoBarrasGenerado IS NULL OR v.producto.codigoBarrasGenerado = FALSE)))
         """)
     Page<Variantes> buscarVariantesAdmin(@Param("nombreOCodigo") String nombreOCodigo,
                                           @Param("conStock") Boolean conStock,
                                           @Param("conImagenes") Boolean conImagenes,
                                           @Param("habilitado") Boolean habilitado,
+                                          @Param("codigoGenerado") Boolean codigoGenerado,
                                           Pageable pageable);
 
     // Catalogo publico con filtros: mismas restricciones de visibilidad que findConStockYImagenPublico

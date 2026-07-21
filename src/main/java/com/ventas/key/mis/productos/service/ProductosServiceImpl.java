@@ -230,8 +230,8 @@ public class ProductosServiceImpl extends
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
         Page<Producto> resultado = isAdmin
-                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, pageable)
-                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, pageable);
+                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, pageable)
+                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
@@ -654,13 +654,13 @@ public class ProductosServiceImpl extends
     // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
     // clientes normales exigen stock>0 + habilitado + con imagen.
     @Cacheable(value = "obtenerProductosCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #page + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #page + ':' + #size")
     public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(String nombreOCodigo, Boolean conStock,
-            Boolean conImagenes, Boolean habilitado, int size, int page) {
+            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
         Page<Producto> productosPaginados = iProductosRepository.buscarProductosAdmin(
-                texto, conStock, conImagenes, habilitado, pageable);
+                texto, conStock, conImagenes, habilitado, codigoGenerado, pageable);
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
