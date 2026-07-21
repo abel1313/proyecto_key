@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecutor;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -28,6 +29,11 @@ public class AsyncConfig {
         // caso limite pero no se pierde ninguna imagen.
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
-        return executor;
+        // El SecurityContext (y con el, el JWT que WebClientConfig propaga como Authorization
+        // al microservicio de imagenes) es un ThreadLocal del hilo del request: los hilos de
+        // este pool NO lo heredan solos, y sin el la subida llega sin token al micro y este
+        // responde 403. Este wrapper captura el contexto al encolar la tarea (en el hilo del
+        // request, donde si existe) y lo instala en el hilo del pool mientras corre.
+        return new DelegatingSecurityContextAsyncTaskExecutor(executor);
     }
 }

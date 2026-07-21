@@ -6327,4 +6327,14 @@ pisan en cuanto el front manda los datos reales via `PUT /completar`. **No cambi
 el front no tiene que hacer nada distinto; solo tener en cuenta que un borrador recién creado
 trae `nombre` vacío y precios en `0` (no null) si llega a pintarlos antes de completarlo.
 
+**🐛 Bug corregido #2 (2026-07-21):** ya con los borradores creándose bien, la subida de la
+imagen quedaba en `FALLIDO` con `403 Forbidden from POST .../v1/imagenes` — el backend le pasa
+el JWT del admin al microservicio de imágenes leyéndolo del contexto de seguridad del hilo del
+request, pero la subida corre en un hilo del pool async, que no hereda ese contexto → la llamada
+salía **sin** header `Authorization` y el micro la rechazaba con 403. Fix: el pool ahora propaga
+el contexto de seguridad del request al hilo async (`DelegatingSecurityContextAsyncTaskExecutor`),
+así la subida en segundo plano viaja con el mismo token del admin que subió la foto. **Sin cambio
+de contrato** — el front no hace nada distinto; las fotos que quedaron `FALLIDO` por este 403 se
+reintentan con `POST /{productoId}/reintentar-imagen` normalmente.
+
 **⏳ Pendiente:** probar el flujo end-to-end de nuevo en QA con el fix, y push a `qa`.
