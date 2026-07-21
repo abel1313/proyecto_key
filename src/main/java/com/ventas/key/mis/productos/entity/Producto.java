@@ -35,7 +35,7 @@ public class Producto  extends BaseId{
     // (aun no es el codigo real). Se limpia a false en cuanto el front manda el codigo real
     // via /v1/carga-imagenes/{productoId}/completar, que ademas borra el codigo placeholder.
     @Column(name = "codigo_barras_generado")
-    private Boolean codigoBarrasGenerado;
+    private Boolean codigoBarrasGenerado = false;
 
     // Estado de la imagen de la carga rapida (null en productos normales, no creados por
     // ese flujo). PENDIENTE mientras la imagen se sube en background al microservicio,
