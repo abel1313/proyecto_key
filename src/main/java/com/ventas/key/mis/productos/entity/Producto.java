@@ -31,6 +31,22 @@ public class Producto  extends BaseId{
 
     private char habilitado;
 
+    // true = el codigo_barras asignado fue autogenerado por la carga rapida de imagenes
+    // (aun no es el codigo real). Se limpia a false en cuanto el front manda el codigo real
+    // via /v1/carga-imagenes/{productoId}/completar, que ademas borra el codigo placeholder.
+    @Column(name = "codigo_barras_generado")
+    private Boolean codigoBarrasGenerado;
+
+    // Estado de la imagen de la carga rapida (null en productos normales, no creados por
+    // ese flujo). PENDIENTE mientras la imagen se sube en background al microservicio,
+    // EXITOSO/FALLIDO cuando termina. Ver /v1/carga-imagenes/*.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_imagen")
+    private EstadoCargaImagen estadoImagen;
+
+    @Column(name = "mensaje_error_imagen")
+    private String mensajeErrorImagen;
+
     @OneToOne(optional = true, cascade = CascadeType.MERGE)
     @JoinColumn(name = "codigo_barras_id", unique = true)
     private CodigoBarra codigoBarras;
