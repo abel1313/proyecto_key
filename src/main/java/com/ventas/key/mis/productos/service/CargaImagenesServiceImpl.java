@@ -83,9 +83,11 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         Producto producto = new Producto();
         producto.setStock(1);
         producto.setHabilitado('0');
-        // "nombre" es NOT NULL en la tabla producto (columna preexistente, la migracion de
-        // carga rapida no la toco). Placeholder igual que codigoBarrasGenerado: se pisa solo
-        // en cuanto el front manda el nombre real via /completar.
+        // La tabla producto tiene varias columnas NOT NULL preexistentes (nombre, precio_costo,
+        // piezas, precio_venta, precio_rebaja — la migracion de carga rapida no las toco).
+        // Placeholders vacios/cero igual que codigoBarrasGenerado: se pisan en cuanto el front
+        // manda los datos reales via /completar. El borrador nace deshabilitado, asi que estos
+        // valores nunca se ven en el catalogo publico.
         producto.setNombre("");
         producto.setPrecioCosto(0.0);
         producto.setPiezas(0.0);
