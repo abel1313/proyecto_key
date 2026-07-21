@@ -6317,13 +6317,14 @@ que se usa para el alta/edición normal de productos que ya nacen con su código
 `mensajeErrorImagen`), `IProductosRepository.java` / `IVarianteRepository.java` (queries nuevas de
 soporte), `migration_carga_imagenes.sql` (nuevo, pendiente de correr en dev/qa).
 
-**🐛 Bug corregido (2026-07-21):** al probar en QA, 3 de N fotos fallaban con
-`Column 'nombre' cannot be null` — la tabla `producto` tiene `nombre` como `NOT NULL` (columna
-preexistente, la migración de este flujo no la tocó) y `crearBorrador()` no lo llenaba porque el
-borrador nace intencionalmente sin nombre. Fix: igual que con el código de barras placeholder, el
-borrador ahora nace con `nombre = "Borrador sin nombre"` y se pisa solo en cuanto el front manda
-el nombre real via `PUT /completar`. **No cambia el contrato** — el front no tiene que hacer nada
-distinto, pero si llega a mostrar el nombre de un borrador recién creado (antes de que el usuario
-lo complete), verá ese placeholder en vez de vacío/null.
+**🐛 Bug corregido (2026-07-21):** al probar en QA, las fotos fallaban con
+`Column 'nombre' cannot be null` — la tabla `producto` tiene varias columnas `NOT NULL`
+preexistentes (`nombre`, `precio_costo`, `piezas`, `precio_venta`, `precio_rebaja`; la migración
+de este flujo no las tocó) y `crearBorrador()` las dejaba en null porque el borrador nace
+intencionalmente vacío. Fix: el borrador ahora nace con placeholders — strings vacíos (`nombre`,
+`color` = `""`) y ceros (`precioCosto`, `piezas`, `precioVenta`, `precioRebaja` = `0`) — que se
+pisan en cuanto el front manda los datos reales via `PUT /completar`. **No cambia el contrato** —
+el front no tiene que hacer nada distinto; solo tener en cuenta que un borrador recién creado
+trae `nombre` vacío y precios en `0` (no null) si llega a pintarlos antes de completarlo.
 
 **⏳ Pendiente:** probar el flujo end-to-end de nuevo en QA con el fix, y push a `qa`.
