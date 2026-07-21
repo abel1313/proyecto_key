@@ -102,7 +102,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // si otra variante ya había matcheado por código. Reusa los métodos ya probados del
         // filtro de admin/público (mismo patrón OR).
         PginaDto<List<VarianteResumenDto>> resultado = AuthenticationUtils.isAdminContext()
-                ? filtrarVariantesAdmin(termino, null, null, null, page, size)
+                ? filtrarVariantesAdmin(termino, null, null, null, null, page, size)
                 : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, page, size);
 
         if (resultado.getT().isEmpty()) {
@@ -704,7 +704,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElse("");
         dto.setCodigoBarras(codBarras);
         dto.setNombreProducto(Optional.ofNullable(v.getProducto()).map(Producto::getNombre).orElse(""));
-        dto.setHabilitado(v.getHabilitado());
+        // Estado efectivo: la variante cuenta como habilitada solo si su producto tambien lo esta.
+        // Los borradores de carga rapida nacen con producto '0' y variante '1'; sin esto el filtro
+        // admin habilitado=false los lista pero el DTO los mostraria como habilitados.
+        char habilitadoProducto = Optional.ofNullable(v.getProducto()).map(Producto::getHabilitado).orElse('1');
+        dto.setHabilitado(v.getHabilitado() == '1' && habilitadoProducto == '1' ? '1' : '0');
         return dto;
     }
 
@@ -739,12 +743,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
     // normales exigen stock>0 + producto habilitado + con imagen.
     @Cacheable(value = "variantesProductoCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #pagina + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
-            Boolean conImagenes, Boolean habilitado, int pagina, int size) {
+            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
-        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, pageable);
+        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, codigoGenerado, pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
