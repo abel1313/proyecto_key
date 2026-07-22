@@ -73,6 +73,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'producto', dp.producto_id,
@@ -107,6 +109,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
                               'nombre_producto', pro.nombre,
@@ -143,6 +147,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -179,6 +185,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -206,10 +214,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar, Pageable pegable);
 
 
-    // Elegibilidad de rifa para cliente sin registro: correo verificado O telefono presente
-    // (el telefono no se puede verificar -- no hay SMS/OTP en el proyecto -- asi que ahi basta
-    // con que no venga vacio). Cliente registrado no se filtra: su correo ya se verifica al
-    // registrarse.
+    // Elegibilidad de rifa por mes: cualquiera que haya comprado ese mes entra,
+    // sin importar si tiene correo o telefono registrado.
     @Query(value = """
         SELECT DISTINCT
             COALESCE(c.id, csr.id)                                           AS clientePedidoId,
@@ -229,11 +235,6 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
              AND :mes = (SELECT DATE_FORMAT(MAX(ap.fecha_pago), '%Y-%m')
                          FROM abono_pedido ap WHERE ap.pedido_id = p.id))
         )
-        AND (
-            c.id IS NOT NULL
-            OR csr.correo_verificado = TRUE
-            OR (csr.numero_telefonico IS NOT NULL AND csr.numero_telefonico <> '')
-        )
         ORDER BY nombre
     """, nativeQuery = true)
     List<Object[]> findClientesUnicosPorMes(@Param("mes") String mes);
@@ -250,11 +251,6 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
         LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
         WHERE (p.cliente_id IS NOT NULL OR p.cliente_sin_registro_id IS NOT NULL)
           AND (p.tipo_pedido NOT IN ('APARTADO','FIADO') OR p.estado_pedido = 'PAGADO')
-          AND (
-              c.id IS NOT NULL
-              OR csr.correo_verificado = TRUE
-              OR (csr.numero_telefonico IS NOT NULL AND csr.numero_telefonico <> '')
-          )
         ORDER BY nombre
     """, nativeQuery = true)
     List<Object[]> findTodosClientesConCompras();
@@ -274,6 +270,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,

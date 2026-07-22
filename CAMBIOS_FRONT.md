@@ -7331,3 +7331,101 @@ la venta, ese `clienteSinRegistroId` ya no existirá y `POST /v1/ventas/save` re
 
 **Migración:** `migration_limpieza_cliente_sin_registro.sql` — **✅ ya corrida en dev, qa y prod**
 (2026-07-22). No queda ningún ambiente pendiente para esta migración.
+
+---
+
+## ❓ Confirmado: sí queremos `totalPagado` en la lista de pedidos — spec exacta
+
+Con esto sí adelantamos (confirmado con el usuario). Para no ir y venir con el nombre/formato,
+esto es exactamente lo que esperamos — si lo agregan tal cual, lo conectamos sin tener que
+preguntar nada más:
+
+**Dónde:** el DTO `PedidoQuery` que ya mencionaron (el que arma `GET /v1/pedidos/buscarClientePedido`
+y `GET /v1/pedidos/findPedido/{id}`) — mismo objeto que hoy trae `id`, `fecha_pedido`,
+`estado_pedido`, `tipoPedido`, `detalles`.
+
+**Campo nuevo, nombre exacto:** `totalPagado` (camelCase, igual que `tipoPedido` en ese mismo
+DTO — no `total_pagado`).
+
+**Tipo:** `number` (decimal), igual que `PedidoDetalleResponse.totalPagado` en
+`GET /v1/pedidos/{id}/detalle` — mismo significado: suma de abonos ya registrados para ese
+pedido. Para pedidos `NORMAL` puede venir `0` o `null`, no lo usamos ahí.
+
+**Shape esperado del objeto `pedido` dentro de cada item de la lista:**
+```json
+{
+  "id": 89,
+  "fecha_pedido": "22/07/2026 00:04",
+  "estado_pedido": "APARTADO",
+  "tipoPedido": "APARTADO",
+  "totalPagado": 150.00,
+  "detalles": [ ... ]
+}
+```
+
+**Cómo lo vamos a usar (ya está el código listo del lado front, solo falta el dato):**
+`mis-pedidos.component.ts` → `puedeGenerarTicket(item)` va a cambiar de "siempre `true` para
+crédito" a `item.pedido.tipoPedido no es credito || (item.pedido.totalPagado ?? 0) > 0` — el
+mismo criterio que ya usa `detalle-pedido` con el detalle completo.
+
+**No es urgente** — el comportamiento actual ya es correcto (la validación al hacer clic no deja
+generar el ticket sin pago), esto es solo para que el botón se vea deshabilitado desde que carga
+la card. Avisen cuando esté listo y lo conectamos de una vez.
+
+---
+
+## ✅ Front: unificado el motivo de cancelación en mis-pedidos y abonos (2026-07-22)
+
+Cambio 100% de front, no bloquea nada — lo anotamos igual porque puede afectar cómo llega
+el campo `motivo` a los 2 endpoints de cancelar.
+
+Antes: `mis-pedidos` (`DELETE /v1/pedidos/delete/{id}?motivo=...`) pedía el motivo con una
+lista de opciones fijas (radio), pero `/abonos` (`PUT /v1/abonos/{pedidoId}/cancelar`) pedía
+un texto libre opcional (input, máx 30 caracteres, podía ir vacío). Se unificaron las dos
+pantallas para que ambas usen la MISMA selección de 3 opciones fijas — mismos valores
+literales en ambas:
+
+- `NO_SE_PRESENTO` → "No se presentó"
+- `CLIENTE_AVISO` → "El cliente avisó"
+- `ERROR_ADMIN` → "Error al capturar (fue el admin, no el cliente)"
+
+## ❓ CONSULTA AL BACK — ¿`motivo` en `PUT /v1/abonos/{pedidoId}/cancelar` tiene el mismo
+## efecto sobre el score de rifa que en `/v1/pedidos/delete/{id}`?
+
+Ya nos confirmaron antes (para `DELETE /v1/pedidos/delete/{id}`) que `motivo` es texto libre y
+que el score de rifa solo se penaliza cuando el valor es exactamente `TIMEOUT` o
+`NO_SE_PRESENTO` — cualquier otro valor (como `CLIENTE_AVISO`/`ERROR_ADMIN`) no afecta al
+cliente.
+
+Como ahora `/abonos` también manda uno de esos 3 valores fijos (antes mandaba texto libre u
+opcional/vacío), necesitamos confirmar:
+
+1. ¿`PUT /v1/abonos/{pedidoId}/cancelar` usa `motivo` para algo más que guardarlo como texto —
+   por ejemplo el mismo scoring de rifa que `/v1/pedidos/delete/{id}`?
+2. Si sí, ¿aplica la misma regla (solo `TIMEOUT`/`NO_SE_PRESENTO` penalizan)?
+3. Antes este campo podía llegar `null`/vacío (el input era opcional) — ahora SIEMPRE va a
+   llegar uno de los 3 valores de la lista de arriba (ya no hay opción de dejarlo vacío).
+   ¿Eso rompe algo del lado del back que esperaba poder recibirlo vacío?
+
+No es urgente — el front ya está implementado y funcionando con estos 3 valores fijos
+independientemente de la respuesta; es solo para saber si hace falta ajustar algo del scoring
+de la rifa en ese endpoint específico.
+
+---
+
+## ✅ Back: elegibilidad de rifa vuelve a ser "compró este mes", sin requisito de correo/teléfono (2026-07-22)
+
+Revertido el filtro que agregó `verificación de correo para cliente sin registro + elegibilidad
+de rifa` (commit `0391fe9`). Ese cambio exigía que un cliente sin registro tuviera
+`correo_verificado = TRUE` o un teléfono no vacío para poder entrar a la rifa. Se quita esa
+condición: ahora cualquier cliente (registrado o sin registro) que haya comprado en el mes
+entra a la rifa sin importar si tiene correo o teléfono capturado — como era antes de ese
+commit.
+
+Afecta:
+- `IPedidoRepository.findClientesUnicosPorMes` (listado de clientes elegibles por mes)
+- `IPedidoRepository.findTodosClientesConCompras` (listado de clientes con compras, sin filtro de mes)
+
+No cambia el contrato de ningún endpoint (mismo shape de respuesta), solo cambia qué clientes
+aparecen en la lista de elegibles. La notificación por correo al ganador (cuando gana alguien
+sin correo capturado) sigue sin enviarse — eso no cambió, solo la elegibilidad para participar.
