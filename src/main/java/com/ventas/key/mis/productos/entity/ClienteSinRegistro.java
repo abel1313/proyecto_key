@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Set;
 
 @Entity
@@ -47,6 +48,24 @@ public class ClienteSinRegistro extends BaseId{
         @Column(name = "numero_telefonico")
         private String numeroTelefonico;
 
+        @Column(name = "correo_verificado")
+        private Boolean correoVerificado = Boolean.FALSE;
+
+        @Column(name = "codigo_verificacion")
+        private String codigoVerificacion;
+
+        @Column(name = "codigo_verificacion_expira")
+        private LocalDateTime codigoVerificacionExpira;
+
+        @Column(name = "creado_en")
+        private LocalDateTime creadoEn;
+
+        @PrePersist
+        private void marcarCreacion() {
+                if (this.creadoEn == null) {
+                        this.creadoEn = LocalDateTime.now();
+                }
+        }
 
 
 

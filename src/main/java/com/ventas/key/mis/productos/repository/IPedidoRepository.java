@@ -73,6 +73,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'producto', dp.producto_id,
@@ -107,6 +109,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
                               'nombre_producto', pro.nombre,
@@ -143,6 +147,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -179,6 +185,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -206,11 +214,14 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar, Pageable pegable);
 
 
+    // Elegibilidad de rifa por mes: cualquiera que haya comprado ese mes entra,
+    // sin importar si tiene correo o telefono registrado.
     @Query(value = """
         SELECT DISTINCT
             COALESCE(c.id, csr.id)                                           AS clientePedidoId,
             COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
             COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
+            COALESCE(c.correo_electronico, csr.correo_electronico)           AS correo,
             c.id IS NULL                                                     AS sinRegistro
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
@@ -233,6 +244,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
             COALESCE(c.id, csr.id)                                           AS clientePedidoId,
             COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
             COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
+            COALESCE(c.correo_electronico, csr.correo_electronico)           AS correo,
             c.id IS NULL                                                     AS sinRegistro
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
@@ -258,6 +270,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'id', p.id,
           'fecha_pedido', DATE_FORMAT(COALESCE(p.fecha_hora_registro, p.fecha_pedido), '%d/%m/%Y %H:%i'),
           'estado_pedido', p.estado_pedido,
+          'tipoPedido', p.tipo_pedido,
+          'totalPagado', p.total_pagado,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,

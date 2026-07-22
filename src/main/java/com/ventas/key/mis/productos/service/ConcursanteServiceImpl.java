@@ -134,7 +134,8 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             dto.setClientePedidoId(row[0] != null ? ((Number) row[0]).intValue() : null);
             dto.setNombre(row[1] != null ? row[1].toString() : "");
             dto.setTelefono(row[2] != null ? row[2].toString() : "");
-            dto.setSinRegistro(row[3] != null && ((Number) row[3]).intValue() == 1);
+            dto.setCorreo(row[3] != null ? row[3].toString() : "");
+            dto.setSinRegistro(row[4] != null && ((Number) row[4]).intValue() == 1);
             resultado.add(dto);
         }
         return resultado;
@@ -186,6 +187,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             c.setNombre(cliente.getNombre());
             c.setApellidoPaterno(cliente.getApellidoPaterno());
             c.setTelefono(cliente.getTelefono());
+            c.setCorreo(cliente.getCorreo());
             c.setPalabraClave(req.getPalabraClave());
             c.setOrdenDesde(req.getOrdenDesde());
             c.setClientePedidoId(cliente.getClientePedidoId());
@@ -269,6 +271,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
             nuevo.setNombre(c.getNombre());
             nuevo.setApellidoPaterno(c.getApellidoPaterno());
             nuevo.setTelefono(c.getTelefono());
+            nuevo.setCorreo(c.getCorreo());
             nuevo.setPalabraClave(palabraClave);
             nuevo.setOrdenDesde(c.getOrdenDesde());
             nuevo.setClientePedidoId(c.getClientePedidoId());

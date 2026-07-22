@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
@@ -49,7 +50,6 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -230,8 +230,8 @@ public class ProductosServiceImpl extends
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
         Page<Producto> resultado = isAdmin
-                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, pageable)
-                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, pageable);
+                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, pageable)
+                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
@@ -363,19 +363,54 @@ public class ProductosServiceImpl extends
             producto.setHabilitado('1');
 
             log.info("Se va a guardar el codigo de barras {}",2);
+            String nuevoCodigoBarrasStr = productoDetalle.getCodigoBarras().getCodigoBarras() == null
+                    || productoDetalle.getCodigoBarras().getCodigoBarras().isEmpty()
+                    ? null : productoDetalle.getCodigoBarras().getCodigoBarras();
             CodigoBarra codigoBarras = new CodigoBarra();
             codigoBarras.setId(productoDetalle.getCodigoBarras().getId());
-            codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras().isEmpty() ? null : productoDetalle.getCodigoBarras().getCodigoBarras());
+            codigoBarras.setCodigoBarras(nuevoCodigoBarrasStr);
             producto.setCodigoBarras(codigoBarras);
 
             Producto prodExistenteNoOpt = null;
-            if( producto.getCodigoBarras().getCodigoBarras() != null ){
-                log.info("El codigo de barras no es nul {}",producto.getCodigoBarras().getCodigoBarras());
+            // Si el front manda el id del producto (edicion real), se busca directo por id: asi
+            // si tambien cambia el codigo de barras, se actualiza el mismo producto en vez de
+            // crear uno nuevo (ver aclaracion 2026-07-21 en CAMBIOS_FRONT.md).
+            if (productoDetalle.getId() != null) {
+                prodExistenteNoOpt = this.iProductosRepository.findById(productoDetalle.getId()).orElse(null);
+                log.info("Se busco el producto por id {} -> {}", productoDetalle.getId(), prodExistenteNoOpt);
+            }
+            // Sin id (alta nueva o carga por Excel sin id): se busca por coincidencia exacta de codigo de barras
+            if (prodExistenteNoOpt == null && nuevoCodigoBarrasStr != null) {
+                log.info("El codigo de barras no es nul {}", nuevoCodigoBarrasStr);
                 prodExistenteNoOpt = this.iProductosRepository
-                        .findByCodigoBarras_CodigoBarrasIgnoreCase(producto.getCodigoBarras().getCodigoBarras())
+                        .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr)
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
+
+            // Si el producto ya existia y el codigo de barras cambio, se crea el codigo nuevo,
+            // se asigna al producto y se elimina el anterior (huerfano: la relacion es 1 a 1 unica)
+            if (prodExistenteNoOpt != null && nuevoCodigoBarrasStr != null) {
+                String codigoActual = prodExistenteNoOpt.getCodigoBarras() != null
+                        ? prodExistenteNoOpt.getCodigoBarras().getCodigoBarras() : null;
+                if (!nuevoCodigoBarrasStr.equalsIgnoreCase(codigoActual)) {
+                    Optional<Producto> enUsoPorOtro = this.iProductosRepository
+                            .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr);
+                    if (enUsoPorOtro.isPresent() && !enUsoPorOtro.get().getId().equals(prodExistenteNoOpt.getId())) {
+                        throw new ExceptionDuplicado("El codigo de barras " + nuevoCodigoBarrasStr + " ya esta en uso por otro producto");
+                    }
+                    CodigoBarra anterior = prodExistenteNoOpt.getCodigoBarras();
+                    CodigoBarra nuevo = new CodigoBarra();
+                    nuevo.setCodigoBarras(nuevoCodigoBarrasStr);
+                    nuevo = this.iBarrasService.save(nuevo);
+                    prodExistenteNoOpt.setCodigoBarras(nuevo);
+                    if (anterior != null) {
+                        this.iBarrasService.delete(anterior.getId());
+                        log.info("Se elimino el codigo de barras anterior huerfano id={} codigo={}", anterior.getId(), anterior.getCodigoBarras());
+                    }
+                }
+            }
+
             // [FLUJO 2] PRODUCTO NUEVO: no existe en BD → se crea
             if(prodExistenteNoOpt == null) {
                 CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());
@@ -401,97 +436,68 @@ public class ProductosServiceImpl extends
             }
 
             // [FLUJO 2B] PRODUCTO EXISTENTE: ya existe en BD → se actualiza
-            if (prodExistenteNoOpt.getCodigoBarras() != null && prodExistenteNoOpt.getCodigoBarras().getId() != 31) {
-                if (!productoDetalle.getListImagenes().isEmpty()){
-                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
-                    List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                    List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
-                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
-                    relacionProductoImagen(mapperRelacionProductoImagen);
+            if (!productoDetalle.getListImagenes().isEmpty()){
+                // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
+                List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
+                List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
+                // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
+                relacionProductoImagen(mapperRelacionProductoImagen);
 
-                    List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
-                    if (!variantes.isEmpty()) {
-                        List<VarianteImagen> varianteImagenes = new ArrayList<>();
-                        for (Variantes variante : variantes) {
-                            for (Imagen imagen : lstImg) {
-                                VarianteImagen vi = new VarianteImagen();
-                                vi.setVariante(variante);
-                                vi.setImagen(imagen);
-                                varianteImagenes.add(vi);
-                            }
+                List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
+                if (!variantes.isEmpty()) {
+                    List<VarianteImagen> varianteImagenes = new ArrayList<>();
+                    for (Variantes variante : variantes) {
+                        for (Imagen imagen : lstImg) {
+                            VarianteImagen vi = new VarianteImagen();
+                            vi.setVariante(variante);
+                            vi.setImagen(imagen);
+                            varianteImagenes.add(vi);
                         }
-                        iVarianteImagenRepository.saveAll(varianteImagenes);
-                        log.info("Se asignaron {} imágenes a {} variantes del producto {}", lstImg.size(), variantes.size(), prodExistenteNoOpt.getId());
                     }
+                    iVarianteImagenRepository.saveAll(varianteImagenes);
+                    log.info("Se asignaron {} imágenes a {} variantes del producto {}", lstImg.size(), variantes.size(), prodExistenteNoOpt.getId());
                 }
-
-                // Actualizar los campos del producto existente con los nuevos valores
-                prodExistenteNoOpt.setNombre(productoDetalle.getNombre());
-                prodExistenteNoOpt.setPrecioCosto(productoDetalle.getPrecioCosto());
-                prodExistenteNoOpt.setPiezas(productoDetalle.getPiezas());
-                prodExistenteNoOpt.setColor(productoDetalle.getColor());
-                prodExistenteNoOpt.setPrecioVenta(productoDetalle.getPrecioVenta());
-                prodExistenteNoOpt.setPrecioRebaja(productoDetalle.getPrecioRebaja());
-                prodExistenteNoOpt.setDescripcion(productoDetalle.getDescripcion());
-                prodExistenteNoOpt.setMarca(productoDetalle.getMarca());
-                prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
-                if (productoDetalle.getPalabraClaveId() != null) {
-                    prodExistenteNoOpt.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
-                }
-
-                // Ajuste de stock contra el stock real de la BD
-                int nuevoStock;
-                if (productoDetalle.getActualizarStock() > 0) {
-                    nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
-                } else if (productoDetalle.getEliminarStock() > 0) {
-                    nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
-                } else {
-                    nuevoStock = productoDetalle.getStock();
-                }
-
-                ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
-                prodExistenteNoOpt.setStock(nuevoStock);
-
-                Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
-                log.info("Producto actualizado: {}", prd);
-
-                if (productoDetalle.getImagenPrincipalId() != null) {
-                    aplicarPrincipalProducto(prd.getId(), productoDetalle.getImagenPrincipalId());
-                }
-
-                return prd;
-            } else {
-                Producto prodNoOpt = this.iProductosRepository.findById(producto.getId() == null ? 0 : producto.getId() ).orElse(new Producto());
-                if (prodNoOpt.getId() != null && prodNoOpt.getId() != 0) {
-                    BigDecimal precioBase = new BigDecimal(prodNoOpt.getPrecioVenta());
-                    BigDecimal precioReq = new BigDecimal(productoDetalle.getPrecioVenta());
-
-
-                    if (precioBase.compareTo(precioReq) == 0) {
-                        producto.setId(prodNoOpt.getId());
-                        producto.setCodigoBarras(prodNoOpt.getCodigoBarras());
-                        producto.setStock(productoDetalle.getStock());
-                        Producto prd = this.iProductosRepository.save(producto);
-                        System.out.println(prd + "-----------------------------------------------");
-                        return prd;
-                    } else {
-                        LotesProductos saveLote = new LotesProductos();
-                        saveLote.setPrecioUnitario(productoDetalle.getPrecioVenta());
-                        saveLote.setStock(productoDetalle.getStock());
-                        saveLote.setProducto(prodNoOpt);
-                        this.iLoteProducto.save(saveLote);
-                        return producto;
-                    }
-
-                }
-                CodigoBarra codBarra = saveCodigoBarra(producto.getCodigoBarras());
-                producto.setCodigoBarras(codBarra);
-                return this.iProductosRepository.save(producto);
             }
+
+            // Actualizar los campos del producto existente con los nuevos valores
+            prodExistenteNoOpt.setNombre(productoDetalle.getNombre());
+            prodExistenteNoOpt.setPrecioCosto(productoDetalle.getPrecioCosto());
+            prodExistenteNoOpt.setPiezas(productoDetalle.getPiezas());
+            prodExistenteNoOpt.setColor(productoDetalle.getColor());
+            prodExistenteNoOpt.setPrecioVenta(productoDetalle.getPrecioVenta());
+            prodExistenteNoOpt.setPrecioRebaja(productoDetalle.getPrecioRebaja());
+            prodExistenteNoOpt.setDescripcion(productoDetalle.getDescripcion());
+            prodExistenteNoOpt.setMarca(productoDetalle.getMarca());
+            prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
+            if (productoDetalle.getPalabraClaveId() != null) {
+                prodExistenteNoOpt.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
+            }
+
+            // Ajuste de stock contra el stock real de la BD
+            int nuevoStock;
+            if (productoDetalle.getActualizarStock() > 0) {
+                nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
+            } else if (productoDetalle.getEliminarStock() > 0) {
+                nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
+            } else {
+                nuevoStock = productoDetalle.getStock();
+            }
+
+            ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
+            prodExistenteNoOpt.setStock(nuevoStock);
+
+            Producto prd = this.iProductosRepository.save(prodExistenteNoOpt);
+            log.info("Producto actualizado: {}", prd);
+
+            if (productoDetalle.getImagenPrincipalId() != null) {
+                aplicarPrincipalProducto(prd.getId(), productoDetalle.getImagenPrincipalId());
+            }
+
+            return prd;
         } catch (Exception e) {
             this.error.error(e);
+            throw new RuntimeException("No se guardo el producto: " + e.getMessage(), e);
         }
-        throw new RuntimeException("No se guardo el producto ");
     }
 
     @Cacheable(value = "findByIdCache", key = "#id")
@@ -584,18 +590,6 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    private CodigoBarra saveCodigoBarra(CodigoBarra codigoBarra) throws Exception {
-        Optional<CodigoBarra> findCodigoBarra = this.iBarrasService.findByCodigoBarra(codigoBarra.getCodigoBarras());
-        CodigoBarra newCodigoBarra;
-        if (findCodigoBarra.isPresent()) {
-            newCodigoBarra = findCodigoBarra.get();
-        }else{
-            codigoBarra.setId(null);
-            newCodigoBarra = this.iBarrasService.save(codigoBarra);
-        }
-        return newCodigoBarra;
-    }
-
     private void aplicarPrincipalProducto(Integer productoId, Long imagenId) {
         iProductoImagenRepository.desmarcarTodosPrincipal(productoId);
         iProductoImagenRepository.marcarComoPrincipal(imagenId, productoId);
@@ -654,13 +648,13 @@ public class ProductosServiceImpl extends
     // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
     // clientes normales exigen stock>0 + habilitado + con imagen.
     @Cacheable(value = "obtenerProductosCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #page + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #page + ':' + #size")
     public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(String nombreOCodigo, Boolean conStock,
-            Boolean conImagenes, Boolean habilitado, int size, int page) {
+            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
         Page<Producto> productosPaginados = iProductosRepository.buscarProductosAdmin(
-                texto, conStock, conImagenes, habilitado, pageable);
+                texto, conStock, conImagenes, habilitado, codigoGenerado, pageable);
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();

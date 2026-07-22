@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.repository;
 
+import com.ventas.key.mis.productos.entity.EstadoCargaImagen;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.models.ProductoResumen;
 import jakarta.persistence.LockModeType;
@@ -67,6 +68,9 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
                OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)))
           AND (:habilitado IS NULL OR (:habilitado = TRUE AND p.habilitado = '1') OR (:habilitado = FALSE AND p.habilitado <> '1'))
+          AND (:codigoGenerado IS NULL
+               OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
+               OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
         """,
         countQuery = """
         SELECT COUNT(p) FROM Producto p
@@ -81,11 +85,15 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
                OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)))
           AND (:habilitado IS NULL OR (:habilitado = TRUE AND p.habilitado = '1') OR (:habilitado = FALSE AND p.habilitado <> '1'))
+          AND (:codigoGenerado IS NULL
+               OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
+               OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
         """)
     Page<Producto> buscarProductosAdmin(@Param("nombreOCodigo") String nombreOCodigo,
                                          @Param("conStock") Boolean conStock,
                                          @Param("conImagenes") Boolean conImagenes,
                                          @Param("habilitado") Boolean habilitado,
+                                         @Param("codigoGenerado") Boolean codigoGenerado,
                                          Pageable pageable);
 
     // --- guardado ---
@@ -114,4 +122,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
 
     @Query("SELECT p FROM Producto p WHERE NOT EXISTS (SELECT v FROM Variantes v WHERE v.producto.id = p.id)")
     List<Producto> findProductosSinVariantes();
+
+    // --- carga rapida de imagenes: estado directo en producto, ver /v1/carga-imagenes/* ---
+    List<Producto> findByEstadoImagenOrderByIdDesc(EstadoCargaImagen estadoImagen);
 }

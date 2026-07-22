@@ -4643,12 +4643,14 @@ el admin, no hay paso intermedio. No fue necesario cambiar código para esto, ya
 
 ---
 
-## ⏳ Promociones por variante / combos (2026-07-05) — código en dev, migración y pruebas pendientes
+## ✅ Promociones por variante / combos (2026-07-05+) — implementado en dev/qa/main, pruebas en curso
 
-> **Implementado en el código de `dev`, pero todavía no funciona en ningún ambiente.** Falta
-> correr `migration_promociones.sql` (crea las tablas nuevas) y hacer pruebas end-to-end antes de
-> que el front pueda integrar de verdad. Este aviso se quita de aquí en cuanto esté probado.
-> Diseño completo en `PROMOCIONES.md` en la raíz del repo.
+> **Implementado en el backend y en producción (`main`).** Migración `migration_promociones.sql` ya
+> corrida en dev/qa/main. Pruebas end-to-end en curso (filtro, listar promos, compra con combo).
+> Diseño completo en `PROMOCIONES.md` en la raíz del repo. El front consume los endpoints ya desde
+> hace varias semanas, pero puede haber campos/comportamientos nuevos que se agregaron después de
+> la primera integración — revisar esta sección completa, especialmente el punto sobre
+> `codigoBarras` (2026-07-13).
 
 **Qué es:** un combo de 1 o más variantes ya existentes (pueden ser productos distintos entre sí)
 que se venden juntas con precio rebajado por pieza. Cada pieza conserva su propio precio de oferta
@@ -4683,6 +4685,50 @@ modos llega un pedido con promoción y `tipoPedido` distinto de `NORMAL`.
 
 Ver `PROMOCIONES.md` para los JSON de request/response completos de cada endpoint y el flujo UX
 sugerido (catálogo, detalle de la promo, carrito, countdown de vencimiento calculado en el front).
+
+**Novedad (2026-07-13): campo `codigoBarras` en `GET /v1/promociones/activas` (solo ADMIN)**
+
+El endpoint `GET /v1/promociones/activas?pagina=&size=` ahora incluye en cada detalle del combo
+un campo opcional `codigoBarras` (null para clientes, poblado solo si el solicitante es ADMIN).
+Se agregó para que el admin pueda distinguir variantes "hermanas" de un mismo producto al armar
+las promociones (ej. "Jean Slim M" vs "Jean Slim L" — mismo nombre de producto, distinto código
+y talla). El cliente normal nunca ve este campo.
+
+```json
+{
+  "instanciasDisponibles": 15,
+  "variante": { ... },
+  "detalles": [
+    {
+      "varianteId": 245,
+      "productoNombre": "Jean Slim",
+      "talla": "M",
+      "color": "Azul",
+      "cantidad": 1,
+      "precioNormal": 250.00,
+      "precioEnPromocion": 220.00,
+      "imagenUrl": "...",
+      "codigoBarras": "JEAN-SLIM-M-AZUL"  // ← nuevo, solo para ADMIN
+    }
+  ]
+}
+```
+
+**Cambio en el front — Gestión de Promociones (2026-07-15): buscador de variantes**
+
+La pantalla `gestion-promociones.component.ts` cambió el endpoint para buscar variantes al armar
+un combo:
+- **Antes:** `GET /variantes/v1/buscar?termino=...` (público, con cascada en el back)
+- **Ahora:** `GET /variantes/v1/admin/filtrar?nombreOCodigo=...&conStock=true` (admin, OR en un
+  solo query)
+
+**Por qué:** el endpoint admin combina búsqueda de texto (nombre/código) con filtro de stock en
+un solo AND, en vez de la cascada vieja del buscador público que podía ocultar resultados. Además,
+para promociones **queremos solo variantes con stock** (de lo contrario una promo se quedaría
+inviable apenas se agote una de sus piezas). El filtro `conStock=true` asegura eso.
+
+**No es un cambio de contrato** — el response sigue siendo la misma lista paginada de variantes.
+Es solo dónde y cómo el front las pide.
 
 ---
 
@@ -4985,8 +5031,84 @@ usar este mensaje nuevo para identificar cuál de las 4 validaciones está choca
 el front manda la promoción como **una sola línea** en vez de una línea por cada variante que la
 compone — ver contrato en `PROMOCIONES.md`, sección 7).
 
-**Aún pendiente de correr en producción** — igual que los cambios anteriores, esto solo está en
-`dev`/`qa` por ahora.
+---
+
+## ✅ Fix (2026-07-21): `GET /variantes/v1/admin/filtrar?habilitado=...` ahora considera también el habilitado del producto padre
+
+**Reportado:** un producto deshabilitado (p. ej. un borrador de carga rápida, buscándolo por su
+código) no aparecía en
+`GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&habilitado=false&pagina=1&size=10`.
+
+**Antes (qué fallaba):** el filtro `habilitado` solo miraba el flag de la **variante**
+(`v.habilitado`). Los borradores de carga rápida nacen con el **producto** deshabilitado (`'0'`)
+pero su variante en `'1'`, así que:
+- con `habilitado=false` el borrador **no salía** (su variante está en `'1'`), y
+- con `habilitado=true` el borrador **sí salía** como si estuviera habilitado, aunque el producto
+  no lo está.
+
+Lo mismo aplicaba a cualquier producto deshabilitado desde el módulo de productos cuyas variantes
+siguieran en `'1'`.
+
+**Ahora:** el filtro usa el estado **efectivo** (variante Y producto):
+- `habilitado=true` → variante habilitada **y** producto habilitado.
+- `habilitado=false` → variante deshabilitada **o** producto deshabilitado (cualquiera de los dos
+  basta para considerarla "no habilitada").
+- omitido → sin filtro, igual que antes.
+
+**Además cambia el campo `habilitado` del response** (`VarianteResumenDto`, aplica a todos los
+listados de variantes que devuelven ese DTO): ahora refleja el estado efectivo — es `'1'` solo si
+la variante **y** su producto están habilitados. Antes un borrador podía llegar con
+`habilitado: '1'` aunque el producto estuviera deshabilitado; ya no.
+
+**Request y demás parámetros no cambian.** Esto reemplaza la regla documentada en la sección del
+2026-07-06 que decía "en variantes, `habilitado` filtra por el estado de la variante, no del
+producto padre" — esa regla ya no aplica.
+
+**Solo en `dev`/`qa` por ahora** — pendiente de subir a `main`.
+
+---
+
+## ✅ Nuevo (2026-07-21): parámetro `codigoGenerado` en los filtros admin de productos y variantes
+
+Se agregó un 5.º parámetro opcional a los dos filtros combinados de admin, para poder listar los
+productos que siguen con el **código de barras autogenerado** de la carga rápida (es decir, a los
+que todavía no se les asigna el código real vía `/completar`):
+
+**Request:**
+```
+GET /mis-productos/productos/admin/filtrar?codigoGenerado=true&page=1&size=10
+GET /mis-productos/variantes/v1/admin/filtrar?codigoGenerado=true&pagina=1&size=10
+```
+
+| Parámetro | Tipo | Significado |
+|---|---|---|
+| `codigoGenerado` | boolean, opcional | `true` = solo productos con código de barras autogenerado (borradores de carga rápida sin código real); `false` = solo productos con código real (incluye todos los productos normales, que nunca pasaron por carga rápida); **omitido** = cualquiera |
+
+- Se combina con AND con los otros 4 (`nombreOCodigo`, `conStock`, `conImagenes`, `habilitado`),
+  igual que hasta ahora. Ejemplo típico para la pantalla de "pendientes de completar":
+  `?codigoGenerado=true&habilitado=false`.
+- En variantes filtra por el flag del **producto padre** (el código de barras vive en el producto).
+
+**Comportamiento con el filtro omitido y los `NULL` (importante para el front):** en BD, los
+productos normales (que nunca pasaron por carga rápida) tienen `codigo_barras_generado = NULL`.
+El backend ya lo maneja — el front no tiene que tratar el `NULL` como caso aparte:
+
+```
+# solo texto, sin codigoGenerado → devuelve TODOS los que matcheen "369"
+# (autogenerados, código real y NULL — no se filtra por esa dimensión)
+GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&pagina=1&size=10
+
+# texto + solo los de código autogenerado
+GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&codigoGenerado=true&pagina=1&size=10
+
+# texto + solo los de código real — los NULL caen de este lado (cuentan como código real)
+GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&codigoGenerado=false&pagina=1&size=10
+```
+- **El response no cambia** — mismos DTOs de siempre. Los DTOs de listado no incluyen el flag
+  `codigoBarrasGenerado`; si el front lo llega a necesitar como badge en un listado mixto (sin
+  filtrar), se puede agregar después.
+
+**Solo en `dev`/`qa` por ahora** — pendiente de subir a `main`.
 
 ---
 
@@ -5525,10 +5647,9 @@ han pegado, no solo las exitosas.
 ni ningún flujo de venta/carrito ya documentado.
 
 **Falta hacer:**
-- ⏳ Subir de `dev` a `qa` (por ahora solo en `dev`).
 - ⏳ No hay pantalla en el front para esto todavía — hay que armar una vista nueva (ej. dentro de
   "🎁 Gestión Promociones" o como pestaña "Reportes"), no reemplaza ni modifica ninguna pantalla
-  existente.
+  existente. El endpoint ya está en dev/qa/main.
 - Sugerido para la vista: tabla con las columnas de arriba, filtro de rango de fechas (opcional,
   puede arrancar sin filtro mostrando todo), ordenado ya viene del back por más vendidos.
 
@@ -6021,3 +6142,1290 @@ Esto **todavía no está construido en el front**, queda anotado aquí para reto
    futuro, no bloquea el llegar a construir la versión simple del punto 2.
 4. **Después de agregar exitosamente:** no hay nada más que mostrarle al cliente en el momento
    (no ve si ganó o no rifa, eso es otro flujo, del admin) — solo el mensaje de éxito.
+
+---
+
+## 🆕 Carga rápida de imágenes — producto + variante borrador por foto (2026-07-20)
+
+**Problema que resuelve:** hoy, para dar de alta un producto hay que llenar todo el formulario
+(nombre, precio, código de barras, etc.) **y** subir la imagen en el mismo guardado. Si se
+tarda llenando el formulario y el token expira, o cualquier otra cosa falla a la mitad, se pierde
+todo — incluida la imagen que ya se tenía lista. Este flujo nuevo separa las dos cosas: **primero
+se sube la imagen y el backend crea automáticamente un producto+variante "borrador"** (solo con
+stock=1, sin nombre/precio/nada más), y **después** se va llenando ese borrador campo por campo,
+tantas veces como haga falta, sin volver a tocar la imagen ni arriesgar perderla.
+
+Pensado para una pantalla de captura en lote: el usuario va tomando/seleccionando fotos una tras
+otra, cada una dispara su propio producto borrador en el backend, y luego el usuario entra a cada
+uno (o a una lista de "borradores pendientes de llenar") para completarlo con calma.
+
+**No hay una tabla/entidad nueva de seguimiento.** El estado de la imagen vive directo en la
+fila de `producto` (columnas `estado_imagen` / `mensaje_error_imagen`) — el producto y la
+variante se crean **de inmediato**, sincrónico, apenas se llama al endpoint; lo único que corre
+en segundo plano es la subida de la imagen al microservicio de imágenes (la parte lenta de red).
+Por eso el front recibe `productoId`/`varianteId` reales desde la primera respuesta, no un id de
+seguimiento aparte.
+
+**⚠️ Requiere correr `migration_carga_imagenes.sql` (carpeta `src/main/resources/static/`) antes
+de usar estos endpoints** — agrega a `producto` las columnas `codigo_barras_generado`,
+`estado_imagen` y `mensaje_error_imagen`. No se ejecuta solo (ddl-auto: none), hay que correrlo a
+mano en cada BD.
+
+**Todos los endpoints de esta sección requieren rol ADMIN — y la pantalla también.** No es
+una pantalla de cliente: es una herramienta de captura para quien da de alta el catálogo. El
+backend ya rechaza estos endpoints con 403 si el usuario no es ADMIN, pero **eso no basta**: el
+front debe además ocultar/bloquear la ruta y el ítem de menú para usuarios no-admin, igual que ya
+hace con el resto del panel de productos/variantes (mismo guard de ruta que usan `/productos` y
+`/variantes` hoy). Que el backend rechace la llamada no debe ser la única barrera — si un cliente
+normal llega a ver el botón o la ruta, es un bug de UX aunque el request final falle igual.
+
+**Dónde verlo:** Menú (panel admin) → **Productos** → nueva opción **Carga rápida de imágenes**
+(o como se llame en el menú actual de Productos/Variantes) → pantalla de captura en lote descrita
+en la sección "Notas para la pantalla nueva" más abajo.
+
+### 1. Subir una imagen → crea el borrador YA
+
+```
+POST /v1/carga-imagenes/subir-imagen
+Content-Type: multipart/form-data
+```
+| Parte | Tipo | Notas |
+|---|---|---|
+| `imagen` | file | Una sola imagen por request. Si el usuario selecciona 10 fotos, el front hace 10 requests (uno por foto), no un solo request con 10 archivos. |
+
+**Sí soporta subir muchas imágenes seguidas** — el front puede disparar todos los
+`POST /subir-imagen` de la sesión de captura sin esperar uno a uno (cada llamada responde casi de
+inmediato porque solo crea el producto+variante; la subida real de la imagen sigue en segundo
+plano). En el backend, esas subidas en segundo plano corren en un pool acotado (máx. 6 en
+paralelo, el resto se encola) para no saturar el servidor ni bombardear al microservicio de
+imágenes si se mandan 50-100 fotos de un jalón — no hace falta que el front limite cuántas manda
+a la vez, el backend ya absorbe eso.
+
+**Response 201** — el producto y la variante YA existen en la base al recibir esta respuesta:
+```json
+{
+  "data": {
+    "productoId": 812,
+    "varianteId": 1503,
+    "estadoImagen": "PENDIENTE",
+    "imagenId": null,
+    "urlImagen": null,
+    "mensajeErrorImagen": null
+  }
+}
+```
+
+Lo único que sigue en `PENDIENTE` es la imagen (se está subiendo al microservicio de imágenes en
+segundo plano, para no dejar la pantalla congelada si el usuario sube muchas fotos seguidas).
+Guarda `productoId` — es lo que se usa para preguntar el estado, completar el producto o
+reintentar la imagen si falla.
+
+### 2. Consultar el estado de una o varias imágenes (polling)
+
+```
+GET /v1/carga-imagenes/estado?productoIds=812&productoIds=813
+```
+(o `?productoIds=812,813` — Spring acepta ambas formas)
+
+**Response 200** — un elemento por cada `productoId` consultado:
+```json
+{
+  "data": [
+    {
+      "productoId": 812,
+      "varianteId": 1503,
+      "estadoImagen": "EXITOSO",
+      "imagenId": 9041,
+      "urlImagen": "https://.../v1/imagenes/file/9041",
+      "mensajeErrorImagen": null
+    },
+    {
+      "productoId": 813,
+      "varianteId": 1504,
+      "estadoImagen": "FALLIDO",
+      "imagenId": null,
+      "urlImagen": null,
+      "mensajeErrorImagen": "No se pudo subir la imagen al servicio de imagenes, intenta de nuevo"
+    }
+  ]
+}
+```
+
+**Valores de `estadoImagen`:**
+| Estado | Qué significa | Qué hacer en el front |
+|---|---|---|
+| `PENDIENTE` | La imagen todavía se está subiendo | Seguir preguntando (ej. cada 2-3 segundos) hasta que cambie |
+| `EXITOSO` | Imagen enlazada al producto+variante | Mostrar la miniatura (`urlImagen`) y dejar que el usuario entre a completar el producto (`productoId`) |
+| `FALLIDO` | La subida de la imagen falló | Mostrar el error y dar opción de **reintentar con otra/la misma foto** (ver punto 3) |
+
+**Cómo saber que una imagen ya terminó (y dejar de preguntar por ella):** el propio
+`estadoImagen` de la respuesta es la señal — mientras es `PENDIENTE` sigue en proceso; en cuanto
+la respuesta trae `EXITOSO` o `FALLIDO` para ese `productoId`, ya terminó (bien o mal) y no hace
+falta volver a consultarlo. El front debe llevar un set/array de "`productoId` todavía
+pendientes" e ir sacando de ahí cada uno que deje de venir en `PENDIENTE`, guardando el resultado
+(`urlImagen` si fue `EXITOSO`, `mensajeErrorImagen` si fue `FALLIDO`) para pintarlo en la grilla.
+Cuando el set de pendientes queda vacío, se detiene el `setInterval`/polling por completo —no
+hay que seguir llamando a `GET /estado` de fondo indefinidamente.
+
+Pseudocódigo del loop:
+```js
+let pendientes = new Set(idsSubidos); // todos los productoId que se acaban de subir
+const resultados = new Map();
+
+const intervalo = setInterval(async () => {
+  if (pendientes.size === 0) { clearInterval(intervalo); return; }
+
+  const { data } = await getEstado([...pendientes]);
+  for (const item of data) {
+    if (item.estadoImagen !== 'PENDIENTE') {
+      resultados.set(item.productoId, item); // EXITOSO o FALLIDO: ya terminó
+      pendientes.delete(item.productoId);     // se omite en la siguiente consulta
+      actualizarTarjetaEnLaGrilla(item);
+    }
+  }
+}, 2500);
+```
+
+**Sugerencia de flujo general:** el front dispara todas las subidas de la sesión de captura,
+guarda la lista de `productoId` en memoria (el set `pendientes` de arriba), y hace polling de
+`GET /estado` solo con los IDs que sigan pendientes cada pocos segundos, hasta vaciar el set.
+
+### 3. Reintentar la imagen de un borrador que falló
+
+```
+POST /v1/carga-imagenes/{productoId}/reintentar-imagen
+Content-Type: multipart/form-data
+```
+Mismo `imagen` como parte del form. A diferencia de subir una foto nueva, esto **reutiliza el
+mismo producto y variante** que ya existían (no crea un borrador duplicado) — pone
+`estadoImagen` de vuelta en `PENDIENTE` y vuelve a intentar la subida. Responde 202 con el mismo
+shape que el punto 2.
+
+### 4. Ver borradores con imagen fallida (por si el front perdió la lista de `productoId`)
+
+```
+GET /v1/carga-imagenes/fallidas
+```
+Sin parámetros. Devuelve todos los productos con `estadoImagen = FALLIDO`, más recientes primero
+— mismo shape que el punto 2. Pensado como red de seguridad: si el usuario cierra la app/recarga
+la página antes de que terminara el polling y perdió la lista de `productoId` en memoria, esta
+pantalla le permite ver "qué se quedó pendiente" sin tener que adivinar cuáles fotos sí entraron.
+
+### 5. Completar el producto borrador (ir llenando campos de a poco)
+
+```
+PUT /v1/carga-imagenes/{productoId}/completar
+```
+**Request** — todos los campos son opcionales, manda solo lo que el usuario ya llenó en ese
+momento (cada campo no nulo pisa el valor actual; no hace falta reenviar el objeto completo cada
+vez):
+```json
+{
+  "nombre": "Pantalón de mezclilla slim",
+  "precioCosto": 250.0,
+  "piezas": 1,
+  "color": "Azul",
+  "precioVenta": 450.0,
+  "precioRebaja": null,
+  "descripcion": "...",
+  "marca": "Levi's",
+  "contenido": null,
+  "palabraClaveId": 4,
+  "codigoBarras": null,
+  "habilitar": false
+}
+```
+
+**Response 200:** el `Producto` actualizado (entidad completa, incluye `id`, `stock`, etc.).
+
+**Sobre `codigoBarras`:** el producto borrador nace con un código de barras **temporal
+autogenerado** (formato `BRD-XXXXXXXXXXXX`), invisible para el usuario — es solo para que el
+producto sea válido en la base de datos mientras no tiene el código real. **No mostrar ni dejar
+editar ese código placeholder en el front.** Cuando el usuario finalmente escanee/capture el
+código de barras real, mándalo en `codigoBarras` en esta misma llamada: el backend detecta que el
+producto todavía tenía el código autogenerado, crea el código real, lo asigna, **y borra el
+placeholder anterior** — no hay que hacer nada extra desde el front para esa limpieza. Si el
+código de barras ya pertenece a otro producto, responde 400 con `mensaje`:
+`"El codigo de barras <código> ya esta en uso por otro producto"`.
+
+**Sobre `habilitar`:** el producto borrador nace **deshabilitado** (`habilitado='0'`) para que no
+aparezca roto en el catálogo público mientras le faltan datos — un producto con imagen y stock
+pero sin nombre ni precio no debe ser visible a un cliente. Manda `"habilitar": true` en esta
+misma llamada cuando el producto ya esté completo y listo para publicarse. El backend **rechaza**
+habilitarlo en dos casos (400 con `mensaje` explicando cuál):
+- Todavía tiene el código de barras autogenerado (no mandaste `codigoBarras` real todavía, o lo
+  mandaste en esta misma llamada — en ese caso sí se puede, se procesa el código antes de validar).
+- La imagen no quedó en `estadoImagen = EXITOSO` (sigue `PENDIENTE` o quedó `FALLIDO`) — no se
+  puede publicar un producto sin imagen funcionando.
+
+Si el front prefiere separar "guardar" de "publicar", también puede usar el endpoint que ya
+existía, `PUT /v1/productos/{id}/habilitar?habilitar=true`, una vez que el código de barras ya
+sea el real y la imagen esté en `EXITOSO`.
+
+**Por qué es un endpoint nuevo y no el `PUT /v1/productos/update` de siempre:** ese endpoint
+existente funciona por "upsert vía código de barras" (busca si ya existe un producto con ese
+código para decidir si crea o actualiza) y tiene una rama vieja pensada para lotes que, si el
+producto no tiene un código de barras "normal" todavía, puede terminar ignorando nombre/color/
+descripción o creando registros de lote inesperados. Este endpoint nuevo actualiza **directo por
+`productoId`**, sin esa lógica de por medio — está pensado específicamente para ir completando un
+borrador campo por campo sin sorpresas. No reemplaza `/v1/productos/update`, que sigue siendo el
+que se usa para el alta/edición normal de productos que ya nacen con su código de barras real.
+
+### Notas para la pantalla nueva (sugerencia de flujo)
+
+1. Pantalla de captura: el usuario selecciona/toma varias fotos. Cada una dispara
+   `POST /subir-imagen` de inmediato (no espera a que el usuario termine de elegir todas).
+2. El front muestra una grilla con las fotos y su estado (spinner mientras `PENDIENTE`, miniatura
+   cuando `EXITOSO`, ícono de error + botón "reintentar" cuando `FALLIDO`, que llama a
+   `POST /{productoId}/reintentar-imagen`), haciendo polling de `GET /estado` con todos los
+   `productoId` de la sesión.
+3. Al tocar una foto ya `EXITOSO`, se abre el formulario normal de edición de producto
+   (`productoId`), pero guardando con `PUT /{productoId}/completar` en vez del guardado de
+   siempre — así cada campo que el usuario llena se persiste al momento (por ejemplo al perder el
+   foco de cada input, o con un botón "Guardar avance"), sin esperar a que el formulario esté
+   100% lleno.
+4. Cuando el usuario termina de llenar todo y ya tiene el código de barras real, el último
+   guardado manda `codigoBarras` + `"habilitar": true` para publicar el producto.
+5. Los productos borrador que se queden sin terminar quedan deshabilitados y no contaminan el
+   catálogo — se pueden encontrar más tarde vía `GET /v1/productos/admin/no-habilitados` (ya
+   existía) para retomarlos.
+
+**Archivos back:** `CargaImagenesController.java`, `CargaImagenesServiceImpl.java`,
+`ICargaImagenService.java` (reescritos), `EstadoCargaProductoDto.java` / `CompletarProductoDto.java`
+(dtos nuevos), `Producto.java` (campos `codigoBarrasGenerado`, `estadoImagen`,
+`mensajeErrorImagen`), `IProductosRepository.java` / `IVarianteRepository.java` (queries nuevas de
+soporte), `migration_carga_imagenes.sql` (nuevo, pendiente de correr en dev/qa).
+
+**🐛 Bug corregido (2026-07-21):** al probar en QA, las fotos fallaban con
+`Column 'nombre' cannot be null` — la tabla `producto` tiene varias columnas `NOT NULL`
+preexistentes (`nombre`, `precio_costo`, `piezas`, `precio_venta`, `precio_rebaja`; la migración
+de este flujo no las tocó) y `crearBorrador()` las dejaba en null porque el borrador nace
+intencionalmente vacío. Fix: el borrador ahora nace con placeholders — strings vacíos (`nombre`,
+`color` = `""`) y ceros (`precioCosto`, `piezas`, `precioVenta`, `precioRebaja` = `0`) — que se
+pisan en cuanto el front manda los datos reales via `PUT /completar`. **No cambia el contrato** —
+el front no tiene que hacer nada distinto; solo tener en cuenta que un borrador recién creado
+trae `nombre` vacío y precios en `0` (no null) si llega a pintarlos antes de completarlo.
+
+**🐛 Bug corregido #2 (2026-07-21):** ya con los borradores creándose bien, la subida de la
+imagen quedaba en `FALLIDO` con `403 Forbidden from POST .../v1/imagenes` — el backend le pasa
+el JWT del admin al microservicio de imágenes leyéndolo del contexto de seguridad del hilo del
+request, pero la subida corre en un hilo del pool async, que no hereda ese contexto → la llamada
+salía **sin** header `Authorization` y el micro la rechazaba con 403. Fix: el pool ahora propaga
+el contexto de seguridad del request al hilo async (`DelegatingSecurityContextAsyncTaskExecutor`),
+así la subida en segundo plano viaja con el mismo token del admin que subió la foto. **Sin cambio
+de contrato** — el front no hace nada distinto; las fotos que quedaron `FALLIDO` por este 403 se
+reintentan con `POST /{productoId}/reintentar-imagen` normalmente.
+
+**🐛 Bug corregido #3 (2026-07-21):** el borrador recién creado no aparecía en
+`GET /v1/productos/admin/no-habilitados` — ese listado está cacheado y crear el borrador no
+limpiaba la caché (solo se limpiaba cuando la imagen terminaba de subir con éxito; si la subida
+fallaba, el borrador no aparecía nunca hasta expirar la caché). Ahora crear el borrador también
+evicta la caché, así el listado de no-habilitados lo refleja de inmediato. Recordatorio: **los
+borradores no salen en el listado público/normal de productos** (nacen deshabilitados a
+propósito) — para verlos son `admin/no-habilitados` o `GET /v1/carga-imagenes/estado`. Si hace
+falta forzar la limpieza a mano en QA: `DELETE /v1/admin/cache` (ADMIN).
+
+**⚠️ Aclaración importante para el front (2026-07-21): no usar `POST /v1/productos/save` ni
+`PUT /v1/productos/update` para completar un borrador de carga rápida.** Se probó en QA editando
+un producto borrador (nace con 1 stock, 1 variante y código autogenerado `BRD-XXXXXXXXXXXX`) desde
+`POST /productos/save` mandando los datos reales + un código de barras nuevo. Resultado: **no
+actualizó el borrador, creó un producto duplicado nuevo** con su propio `id` y su propio
+`codigo_barras`, dejando el borrador original intacto (mismo código autogenerado, campos vacíos).
+
+Motivo: `/productos/save` y `/productos/update` (ambos llaman al mismo `saveProductoLote()`) buscan
+el producto a actualizar **por coincidencia exacta de código de barras**, nunca por `id` — es un
+upsert vía código de barras, pensado para alta/edición de productos que ya nacen con su código real
+(carga manual, Excel). Si mandas un código de barras que no existe todavía en la base (como el
+código real de un borrador, que aún no está registrado), el backend concluye que es un producto
+nuevo y lo crea, en vez de actualizar el borrador.
+
+**Regla para el front:** si el producto que se está editando todavía tiene código autogenerado
+(`codigoBarrasGenerado: true` en la respuesta de `GET /v1/carga-imagenes/estado` o del `Producto`
+devuelto), el guardado de esa pantalla **siempre** debe ir a `PUT /v1/carga-imagenes/{productoId}/completar`
+(ver punto 5 arriba) — nunca a `save`/`update`. Recién cuando el producto ya tiene su código real
+asignado (`codigoBarrasGenerado: false`) se puede volver a editar con el flujo normal de
+`save`/`update`.
+
+---
+
+**🐛 Bug corregido (2026-07-21): editar un producto normal (no borrador) cambiando su código de
+barras creaba un duplicado en vez de actualizarlo.** Es el mismo problema del punto anterior pero
+para la edición normal de catálogo (fuera del flujo de carga rápida): `POST /productos/save` y
+`PUT /productos/update` buscaban el producto a actualizar **solo por coincidencia exacta de código
+de barras**. Si el usuario editaba un producto y le cambiaba el código de barras junto con el resto
+de los datos, el backend no encontraba ningún producto con ese código nuevo, concluía que era un
+producto nuevo y lo creaba — dejando el producto original intacto, sin los cambios.
+
+**Qué cambió:** ahora `guardarProducto()` primero busca el producto **por `id`** (si el front lo
+manda en el body). Si lo encuentra y el código de barras viene distinto al que ya tenía, crea el
+código de barras nuevo, lo asigna a ese mismo producto, y **elimina el código de barras anterior**
+(la relación producto↔código de barras es 1 a 1 única, así que el anterior siempre queda huérfano,
+nunca se pierde nada real). Si el código nuevo ya está en uso por otro producto, responde 400 con
+`ExceptionDuplicado`. Si el front no manda `id`, se mantiene el comportamiento anterior (búsqueda
+por código de barras) para no romper la carga por Excel.
+
+**Importante para el front:** a partir de ahora, el body de `save`/`update` **debe incluir el
+campo `id` del producto** cuando se está editando uno existente (antes se ignoraba). Sin `id`,
+si se cambia el código de barras se sigue creando un producto duplicado como antes.
+
+**Esto NO reemplaza el punto anterior sobre borradores de carga rápida.** Aunque técnicamente ya
+no se duplicaría el producto, `save`/`update` **no** resetean `codigoBarrasGenerado` a `false` ni
+validan el estado de la imagen — un borrador guardado por esta vía quedaría con el código real ya
+asignado pero con `codigoBarrasGenerado: true` inconsistente (bloquea habilitar, ensucia el filtro
+`codigoGenerado`). Para borradores sigue aplicando la regla de arriba: usar siempre
+`PUT /v1/carga-imagenes/{productoId}/completar`.
+
+**⏳ Pendiente:** probar el flujo end-to-end de nuevo en QA con el fix, y push a `qa`.
+
+
+## ❓ CONSULTA AL BACK — falta endpoint para descartar un borrador de carga rápida (2026-07-21)
+
+### Endpoints que usa hoy `/carga-imagenes` (todos en `carga-imagenes.service.ts`)
+
+| Método | Endpoint | Para qué |
+|---|---|---|
+| `POST` | `/v1/carga-imagenes/subir-imagen` | Sube una foto → crea el producto+variante borrador |
+| `GET` | `/v1/carga-imagenes/estado?productoIds=` | Polling del estado de la imagen (PENDIENTE/EXITOSO/FALLIDO) |
+| `POST` | `/v1/carga-imagenes/{productoId}/reintentar-imagen` | Reintenta la imagen de un borrador que falló |
+| `GET` | `/v1/carga-imagenes/fallidas` | Lista los borradores con imagen FALLIDA (sin paginación, sin filtro de fecha) |
+| `PUT` | `/v1/carga-imagenes/{productoId}/completar` | Guarda los datos del producto (nombre, precio, código real, etc.) |
+
+**No existe ningún endpoint de borrado** para esta pantalla — es la raíz del problema de abajo.
+
+**Reportado por el admin:** subió varias fotos en `/carga-imagenes`; algunas quedaron listas para
+"Completar datos" (`EXITOSO`) y otras fallaron (`FALLIDO`, con botón "Reintentar"). Le dio "✕" a
+las fallidas esperando que desaparecieran para siempre. Al volver a entrar a la pantalla:
+- Las que le dio "✕" **volvieron a aparecer** con el botón "Reintentar".
+- Las que estaban listas para completar **ya no aparecen por ningún lado**.
+
+**Diagnóstico (confirmado en el código del front, no es un bug de UI aislado — es que falta una
+pieza del backend):**
+
+1. El botón "✕" (`quitarTarjeta()` en `carga-imagenes.component.ts`) **nunca llama a ningún
+   endpoint** — solo saca la tarjeta del array local en memoria. No existe ningún `DELETE` en
+   `carga-imagenes.service.ts` para eliminar un borrador de verdad. Como el producto+variante
+   sigue existiendo en BD con `estadoImagen: FALLIDO`, la próxima vez que se entra a la pantalla,
+   `GET /v1/carga-imagenes/fallidas` lo vuelve a traer — por eso "siempre aparece".
+
+2. `ngOnInit()` solo llama a `GET /v1/carga-imagenes/fallidas` como red de seguridad al recargar
+   — **no existe ningún endpoint para recuperar los borradores que ya subieron bien pero aún no
+   se completaron** (`EXITOSO`, sin `PUT /completar` todavía). Esas tarjetas solo viven en el
+   estado del componente Angular mientras la pantalla sigue abierta; al navegar a otra ruta o
+   recargar la página, se pierden de la vista — aunque el producto+variante sigue vivo en BD,
+   deshabilitado, con su imagen ya subida.
+
+**Lo que necesitamos del back — dos preguntas concretas:**
+
+1. **¿Existe (o se puede agregar) un endpoint para descartar/eliminar por completo un borrador de
+   carga rápida?** Pensado para cuando el admin decide que esa foto/producto no vale la pena
+   completar (ej. imagen borrosa, producto repetido, foto de prueba). Algo tipo
+   `DELETE /v1/carga-imagenes/{productoId}` que borre el producto, la variante y la imagen
+   asociada (si ya se subió). Sin esto, el front no tiene forma de que el "✕" sea permanente.
+
+2. **¿Cómo recupera el front, al recargar la pantalla, los borradores `EXITOSO` que aún no se
+   completaron (no solo los `FALLIDO`)?** ¿Ya existe un filtro que sirva para esto en
+   `GET /v1/productos/admin/filtrar` (ej. `codigoGenerado=true&habilitado=false`, sección de
+   arriba) que el front pueda usar para repoblar TODA la lista de pendientes al entrar a
+   `/carga-imagenes` (fallidos + exitosos-sin-completar), en vez de usar solo
+   `GET /v1/carga-imagenes/fallidas`? O si hace falta un endpoint dedicado, avisar.
+
+**Mientras no haya respuesta, el front seguirá con el gap:** los borradores fallidos "resucitan"
+cada vez que se recarga la pantalla (aunque se hayan descartado con "✕"), y los borradores listos
+para completar solo son visibles durante la misma sesión de captura en la que se subieron.
+
+### Dudas adicionales, mismo tema (no bloquean, pero conviene resolverlas antes de que crezca el uso)
+
+3. **`GET /fallidas` no tiene paginación ni filtro de fecha** — "devuelve todos los productos con
+   `estadoImagen = FALLIDO`, más recientes primero", sin límite. Si nunca se implementa el borrado
+   del punto 1, esta lista va a crecer indefinidamente con el uso real (pruebas, fotos borrosas,
+   productos que ya no interesan) y cada vez que un admin entre a `/carga-imagenes` va a cargar
+   más y más tarjetas viejas. ¿Conviene agregar paginación o un filtro `desde`/`hasta`, o el plan
+   es que el borrado del punto 1 mantenga la lista corta de forma natural?
+
+4. **¿Qué pasa con la imagen ya subida al microservicio de imágenes si el borrador se elimina?**
+   Si se implementa el `DELETE` del punto 1, ¿también borra la imagen del micro de imágenes
+   (9096), o solo el producto/variante en proyecto-key y la imagen queda huérfana allá?
+
+5. **¿Hay límite de reintentos en `POST /{productoId}/reintentar-imagen`?** Si una imagen falla
+   siempre (ej. archivo corrupto, formato no soportado), ¿el front debería dejar de ofrecer
+   "Reintentar" después de N intentos, o el backend ya limita/rechaza en algún punto? Hoy el
+   botón de reintentar no tiene tope, el admin puede darle indefinidamente.
+
+6. **¿Debería haber una limpieza automática de borradores abandonados** (nunca completados,
+   con semanas de antigüedad)? Con el tiempo estos van a acumularse en `admin/no-habilitados` y
+   en el filtro `codigoGenerado=true` sin que nadie los complete ni los borre — un TTL o un job
+   de limpieza periódico evitaría que esos listados se llenen de basura.
+
+---
+
+## ✅ RESPUESTA DEL BACK a la consulta de arriba (2026-07-21)
+
+### 1. Nuevo endpoint: `DELETE /v1/carga-imagenes/{productoId}` — descarta el borrador para siempre
+
+**Request:** `DELETE /v1/carga-imagenes/{productoId}` (sin body).
+
+**Response 200:**
+```json
+{ "response": "Borrador eliminado correctamente" }
+```
+
+**Qué hace:** borra de verdad — no es el soft-delete de `deleteBy/{id}` de productos normales.
+Elimina el producto, su(s) variante(s), las relaciones `producto_imagen`/`variante_imagen`, la
+imagen (fila local + intenta borrarla también en el microservicio de imágenes — si esa llamada
+falla, no bloquea el borrado, solo queda un log de warning) y el `codigo_barras` placeholder
+(`BRD-...`). Ahora el botón "✕" del front puede llamar a este endpoint y la tarjeta no va a
+"resucitar" nunca más.
+
+**Seguridad — solo borra borradores de verdad:** si el producto ya tiene código de barras real
+(`codigoBarrasGenerado: false`, o sea ya se le hizo `PUT /completar` con un código real), este
+endpoint responde **400** y no borra nada — es a propósito, para que un uso accidental de este
+botón no pueda borrar un producto real ya completado/habilitado. Mensaje de error en ese caso:
+`"El producto {id} ya tiene codigo de barras real asignado, no se puede descartar como borrador..."`.
+
+**404 / error:** si el `productoId` no existe, 400 con `"No existe el producto borrador con id: {id}"`.
+
+### 2. Cómo recuperar TODOS los pendientes (fallidos + exitosos sin completar) al recargar
+
+**No hace falta ningún endpoint nuevo — ya se puede armar con dos llamadas que ya existen:**
+
+1. `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=100&page=1` — trae
+   **todos** los productos que siguen siendo borrador (`codigoBarrasGenerado: true`), sin importar
+   si su imagen quedó `PENDIENTE`, `EXITOSO` o `FALLIDO`. Ya está paginado (ver pregunta 3). De ahí
+   sacas los `idProducto` de todos los borradores vivos.
+2. `GET /v1/carga-imagenes/estado?productoIds=1,2,3,...` con esos IDs — devuelve el `estadoImagen`,
+   `mensajeErrorImagen` y la URL de imagen de cada uno. Con ese campo el front arma los buckets:
+   `FALLIDO` → tarjetas con botón "Reintentar", `EXITOSO` → tarjetas con botón "Completar datos",
+   `PENDIENTE` → todavía subiendo.
+
+**Aclaración importante:** el `ProductoDTO` que devuelve `admin/filtrar` **no** trae `estadoImagen`
+ni `codigoBarrasGenerado` en el JSON (son campos internos de `Producto`, no están mapeados ahí) —
+por eso hace falta el segundo llamado a `/estado` para clasificar las tarjetas. Si en algún momento
+esto genera demasiadas llamadas o el front prefiere un único endpoint que ya traiga todo junto,
+avisen y se agrega, pero con el volumen actual las dos llamadas combinadas ya resuelven el punto 2
+sin cambios de backend.
+
+**🐛 Caso real confirmado en QA (2026-07-21):** un admin subió una imagen en `/carga-imagenes`,
+vio aparecer la tarjeta con "Completar registro" (`estadoImagen: EXITOSO`), navegó fuera de la
+pantalla y volvió a entrar — esa tarjeta **ya no aparecía en ningún lado**, mientras que otras
+tarjetas que sí habían fallado (`FALLIDO`) sí seguían visibles. Es justo el gap descrito arriba:
+`ngOnInit()` solo vuelve a pedir `GET /fallidas`, nunca las `EXITOSO` sin completar.
+
+**El producto NO se perdió** — se confirmó que sigue en la base, deshabilitado, con su imagen ya
+subida correctamente. Mientras el front no implemente la solución del punto 2 (repoblar con
+`admin/filtrar?codigoGenerado=true&habilitado=false` + `/estado` al entrar a la pantalla), la forma
+de recuperar manualmente un borrador "perdido de vista" es:
+```
+GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=50&page=1
+```
+(o `GET /v1/productos/admin/no-habilitados`) y de ahí tomar el `idProducto` para completarlo con
+`PUT /v1/carga-imagenes/{productoId}/completar` como siempre. **Este es el mismo bug para todos los
+admins, no algo puntual de una sesión** — va a repetirse cada vez que alguien recargue o navegue
+fuera de `/carga-imagenes` después de subir una imagen exitosa, hasta que se implemente el punto 2.
+
+### 3. Paginación en `/fallidas`
+
+`GET /v1/carga-imagenes/fallidas` se queda **sin paginar por ahora** (no se le tocó nada). Pero con
+la respuesta del punto 2, **recomendamos migrar el front para dejar de usarlo** y en su lugar usar
+`admin/filtrar?codigoGenerado=true&habilitado=false` (que sí pagina con `size`/`page`) + `/estado`
+para clasificar. Eso resuelve el crecimiento indefinido de la lista sin tener que tocar `/fallidas`.
+Si prefieren seguir usando `/fallidas` tal cual, avisen y se le agrega paginación aparte.
+
+### 4. Imagen en el microservicio al borrar un borrador
+
+Sí — `DELETE /v1/carga-imagenes/{productoId}` (punto 1) también intenta borrar la imagen en el
+microservicio de imágenes (puerto 9096), no solo el producto/variante local. Es un best-effort: si
+el microservicio no responde, el borrado local igual se completa (para no dejar el borrador
+atascado) y solo queda un warning en el log del back para revisar manualmente esa imagen huérfana.
+
+### 5. Límite de reintentos en `reintentar-imagen`
+
+Confirmado: **no hay límite** hoy en `POST /{productoId}/reintentar-imagen`, se puede reintentar
+indefinidamente. No se agregó tope en esta sesión — si se quiere limitar (ej. deshabilitar el botón
+en el front después de N intentos, o que el back rechace después de N), es una mejora aparte, avisen
+si la priorizan.
+
+### 6. Limpieza automática / TTL de borradores abandonados
+
+No implementado todavía — queda como pendiente de backlog, no bloquea nada de lo de arriba. Con el
+nuevo `DELETE /v1/carga-imagenes/{productoId}` (punto 1) al menos ya hay una forma manual de
+limpiarlos desde el front; un job automático (ej. borrar borradores con más de N días sin completar)
+se puede evaluar después si el volumen lo justifica.
+
+---
+
+## ✅ Confirmación del front (2026-07-22): ya implementados los 2 puntos de la respuesta de arriba
+
+Con la respuesta de los puntos 1 y 2, se implementaron los dos cambios pendientes en
+`/carga-imagenes`:
+
+1. **El botón "✕" ahora llama a `DELETE /v1/carga-imagenes/{productoId}`** (con un Swal de
+   confirmación antes, porque pasó de ser una acción cosmética a una permanente). Si el back
+   responde `400` (producto ya con código real), se muestra ese mensaje en un Swal de error y la
+   tarjeta se queda tal cual.
+2. **Al entrar/recargar la pantalla, ya no se pierde de vista lo que quedó `EXITOSO` sin
+   completar.** Se reemplazó `GET /fallidas` por el combo que confirmaron en el punto 2:
+   `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=100&page=1` para
+   traer todos los borradores vivos, y con esos `idProducto` un `GET /v1/carga-imagenes/estado`
+   para clasificarlos por `estadoImagen` (arranca el polling si alguno sigue `PENDIENTE`).
+
+Ya no se usa `GET /fallidas` en ningún lado del front — se quitó del servicio.
+
+**Pendiente de nuestro lado:** probarlo en vivo contra el ambiente donde esté desplegado este fix
+(dev/qa). Cualquier caso raro que salga en la prueba lo anotamos aquí mismo.
+
+---
+
+## ❓ CONSULTA AL BACK — mis-pedidos: cancelar sin afectar rifa, cobrar créditos, cliente sin registro duplicado (2026-07-22)
+
+> Revisado el código actual de `mis-pedidos`, `detalle-pedido`, `venta-directa` y `variantes/carrito`
+> antes de escribir esto, para no preguntar algo que ya está resuelto. Resultado: 3 puntos son
+> pregunta real para el back, 2 ya están implementados (solo se anotan para que quede registro), y
+> 2 son 100% front (se van a hacer sin esperar respuesta).
+
+### 1. ❓ Cancelar un pedido por error del ADMIN sin afectar al cliente en la rifa
+
+**Contexto:** el admin puede equivocarse al capturar un pedido (producto/cliente incorrecto). Hoy
+la cancelación usa `DELETE /v1/pedidos/delete/{id}?motivo=...` con dos motivos ya soportados en el
+front: `NO_SE_PRESENTO` y `CLIENTE_AVISO` (ambos implican que la falta fue del cliente).
+
+**Pregunta:** ¿el `motivo` de cancelación tiene HOY algún efecto sobre la elegibilidad del cliente
+en una rifa (ej. lo descarta, le resta boletos, cuenta como falta al importar participantes desde
+`clientesPorMes`/`importarDePedidos`)? Si sí — necesitamos un motivo nuevo (ej. `ERROR_ADMIN` o
+`ERROR_CAPTURA`) que el back trate como "no cuenta en contra del cliente", porque el error fue
+nuestro al capturar, no del cliente.
+
+**Endpoint usado hoy:** `DELETE /v1/pedidos/delete/{id}?motivo=...` (`PedidosService.cancelarConMotivo()`).
+
+### 2. ❓ Cliente sin registro con el mismo nombre — ¿riesgo de confusión en la rifa?
+
+**Contexto:** en `variantes/venta-directa`, "Agregar cliente sin registro" solo manda
+`nombre_persona`, `apellido_paterno`, `correo_Electronico`, `numero_Telefonico` por cada venta —
+sin ningún identificador único. Si dos personas DISTINTAS compran por separado y ambas quedan
+registradas como, por ejemplo, "Raul" (sin correo/teléfono, o con datos parecidos):
+
+**Pregunta:** ¿cómo distingue el back a estos dos "Raul" al importar participantes de una rifa
+(`clientesPorMes` / `importarDePedidos`)? ¿Hay riesgo de que:
+- se combinen los boletos de las dos personas en un solo participante, o
+- se descarte a una de las dos por "duplicado" aunque sean personas diferentes?
+
+Si el back matchea por nombre+apellido a secas, es un riesgo real con nombres comunes. Si ya usa
+algún id de venta/pedido por participante, no hay problema — solo queremos confirmarlo antes de
+que pase en una rifa real.
+
+### 3. ❓ `GET /v1/pedidos/{id}/detalle` — ¿falla o devuelve vacío cuando un producto no tiene imagen?
+
+**Reportado:** al abrir "Detalle" de un pedido, a veces se ve como si no tuviera productos ("No hay
+productos en este pedido"), y se sospecha que pasa con pedidos que tienen algún producto sin
+imagen.
+
+**Ya revisamos el front:** la imagen individual de cada producto ya tiene fallback
+(`<img (error)="onImgError($event)">` → `assets/img/no-image.png`), así que una imagen rota NO
+debería tumbar el render de la card. Pero si el problema está en la respuesta COMPLETA del
+endpoint (no en una imagen individual), el handler de error de `cargarDetalleCompleto()` en el
+front hoy es silencioso (`error: () => { this.cargandoDetalle = false; }`) — si el back respondiera
+error o un objeto vacío por esta causa, el usuario vería el estado "sin productos", que es
+engañoso.
+
+**Pregunta:** ¿hay algún caso conocido donde `GET /v1/pedidos/{id}/detalle` falle o devuelva
+`detalles: []` específicamente por falta de imagen en alguno de los productos del pedido? Si es
+así, necesitamos que no falle — el detalle (nombre, cantidad, precio) debe mostrarse igual, con o
+sin imagen.
+
+**Mientras se confirma:** el front va a mostrar el error real en pantalla en vez de la vacía
+silenciosa (no depende del back, se hace de todas formas).
+
+---
+
+### ✅ Ya implementado (solo para que quede registro, no es pregunta)
+
+- **Badge de tipo de pedido en la card de `mis-pedidos`** (📦 Apartado / 💳 Ir pagando) — ya existe
+  en `mis-pedidos.component.html` desde la sesión del 2026-07-01 (sección NF-2 del changelog
+  interno). Si el usuario no lo está viendo en QA, probablemente es tema de bundle no
+  actualizado, no de código faltante.
+- **Botón "Ver imagen" en `/variantes/carrito`** — ya está deshabilitado cuando no hay imagen
+  (`[disabled]="!item.imagenUrl"` + guard en `verImagen()`). Si en vivo se ve habilitado sin
+  imagen de todas formas, probablemente el back está mandando `imagenUrl` como string vacío no-nulo
+  o una URL rota en vez de `null` — para diagnosticarlo necesitamos el producto/variante puntual
+  donde pasó, con el valor exacto de `imagenUrl` que trae.
+
+### 🔧 100% front, no depende del back — se implementa sin esperar respuesta
+
+1. **Cobrar un pedido FIADO/APARTADO desde `mis-pedidos` da error 404.** El botón "Cobrar" de la
+   card SIEMPRE abre el diálogo de "Confirmar cobro" (`PUT /v1/pedidos/confirmar/{id}`), sin
+   importar el `tipoPedido` — ese endpoint es para ventas NORMAL y correctamente rechaza
+   FIADO/APARTADO ("se liquidan mediante abonos, no por esta vía"). Ya existe abono completo en
+   `detalle-pedido` (formulario de registrar abono, mismo endpoint `POST /v1/abonos/{pedidoId}`
+   que usa `/abonos`). Plan: si `tipoPedido` es `APARTADO`/`FIADO`, el botón "Cobrar" ya no abre
+   ese diálogo — en su lugar lleva directo al detalle (que ya tiene el formulario de abono) o
+   muestra un aviso con acceso directo a `/abonos`. Ningún endpoint nuevo.
+2. **Historial de abonos en la pantalla de Detalle del pedido.** Hoy `detalle-pedido` solo tiene
+   el formulario para registrar un abono NUEVO — no muestra los abonos ya hechos. Buena noticia:
+   **el dato ya viene en la misma respuesta que usa la pantalla** —
+   `PedidoDetalleResponse.abonos?: AbonoDetalleItem[]` (`GET /v1/pedidos/{id}/detalle`) ya incluye
+   el arreglo de abonos, el front solo no lo está pintando todavía. No hace falta ninguna llamada
+   nueva.
+
+**Ambos ya implementados (2026-07-22).**
+
+---
+
+### 💬 Nota — "campo nuevo para saber tipo de pedido" (confirmado, no es nada nuevo)
+
+El usuario mencionó de pasada que iba a haber "un campo nuevo en los pedidos para saber si ir
+pagando, apartado o de una" y preguntó si eso afectaba los 2 puntos de arriba. Confirmado en
+código: ese campo **ya existe** — `IPedidoQuery.tipoPedido?: string` (valores `NORMAL` /
+`APARTADO` / `FIADO`), ya viene en la respuesta de listado de pedidos desde la sesión del
+2026-07-01 (NF-2) y es justo lo que usamos para el fix del punto 1 de arriba (redirigir "Cobrar" a
+la pantalla de abono cuando el pedido es a crédito). No hay nada pendiente del back en esto — solo
+lo dejamos anotado por si el mensaje se refería a otra cosa que no quedó clara y hace falta
+aclarar de su lado.
+
+---
+
+## ✅ Respuestas back a la consulta de mis-pedidos / rifas (2026-07-21)
+
+Respuestas verificadas en el código actual a los 3 puntos "❓" de la consulta de arriba.
+
+### R-1 — El `motivo` de cancelación SÍ afecta la rifa, pero solo dos valores puntuales
+
+`motivo` es un `String` libre (no un enum cerrado), default `"NO_SE_PRESENTO"` en el endpoint
+`DELETE /v1/pedidos/delete/{id}?motivo=...`. Cualquiera que sea el valor, `estadoPedido` siempre
+queda en `"cancelado"` — el `motivo` no cambia el estado, solo se guarda en `motivoCancelacion`.
+
+Donde sí pesa: `calcularScore` (usado para calcular boletos de la rifa) resta boletos únicamente
+cuando `motivoCancelacion` es `'TIMEOUT'` o `'NO_SE_PRESENTO'`. **Cualquier otro texto que mande el
+front en `motivo` (ej. `ERROR_ADMIN`, `ERROR_CAPTURA`) ya NO penaliza al cliente** — no hace falta
+que el back agregue nada nuevo, el front puede usar hoy mismo cualquier motivo distinto a esos dos
+para el caso "error del admin al capturar".
+
+Aparte: el import de participantes de la rifa (`clientesPorMes`/`importarDePedidos`) no excluye
+pedidos cancelados por su `estadoPedido` — solo excluye `APARTADO`/`FIADO` que no estén `PAGADO`.
+Un pedido NORMAL cancelado sigue contando como cliente candidato, solo cambia su peso en el score.
+
+**Acción para el front:** al cancelar por error del admin, mandar `motivo=ERROR_ADMIN` (o
+cualquier texto que no sea `TIMEOUT`/`NO_SE_PRESENTO`) — ya funciona hoy, sin cambios en el back.
+
+### R-2 — Cliente sin registro con nombre repetido: NO se confunden
+
+El back arma la lista de participantes usando `COALESCE(c.id, csr.id)` como `clientePedidoId` — es
+decir, usa el **id de la fila** en `clientes_sin_registro`, no el nombre. Dos personas distintas
+que compren ambas como "Raul" sin correo/teléfono generan cada una su propio registro con su propio
+`id`, así que quedan como concursantes separados. No hay agrupación por nombre+apellido en el flujo
+de import de rifa (`clientesPorMes`/`importarDePedidos`); ese matching por nombre solo existe en un
+flujo distinto (`copiarDeRifa`, para copiar participantes entre dos rifas ya existentes) y no aplica
+aquí. **No hay riesgo de fusión ni de descarte por duplicado en este flujo.**
+
+### R-3 — El detalle de pedido NO falla por falta de imagen — porque no maneja imágenes
+
+Revisado `getDetallePedido` (el método que arma el response de `GET /v1/pedidos/{id}/detalle`):
+**no llama a ningún servicio de imágenes ni de variantes.** Solo copia campos ya cargados por JPA
+(id, cantidad, precio, talla, color, descripción, promoción, `varianteId`). El DTO de cada detalle
+no tiene ningún campo de imagen — como ya está documentado en la sección 20.3, la imagen se pide
+aparte con `GET /v1/variantes/imagenes/{varianteId}` por cada detalle.
+
+**Conclusión:** el escenario "el producto no tiene imagen y por eso el detalle sale vacío" no puede
+pasar en el back — no hay ninguna llamada a imágenes dentro de este endpoint que pueda fallar. Si en
+vivo se sigue viendo "No hay productos en este pedido", la causa es otra (error real del endpoint,
+pedido sin `DetallePedido` asociado, o un problema en el front al leer el response) — no la imagen.
+Con el cambio ya anotado arriba (mostrar el error real en vez del estado vacío silencioso) debería
+verse el motivo real la próxima vez que pase.
+
+---
+
+## 🔎 Aclaración adicional — cliente sin registro repetido + cómo se envía `motivo` hoy (2026-07-21)
+
+Dos dudas de seguimiento a R-2 y R-1, verificadas contra el código actual de ambos repos (back y
+`producto_venta_online`). **Análisis únicamente — no se implementó nada todavía**, queda para la
+siguiente sesión.
+
+### R-2 (extensión) — Cancelar un "cliente sin registro" no lo reutiliza ni lo borra
+
+Escenario planteado: se registra una venta con "Abel Tiburcio" (persona A), se cancela ese pedido,
+luego se registra otra venta con "Abel Tiburcio" (puede ser la persona A repitiendo, o una persona B
+distinta que solo coincide en nombre).
+
+- **Cancelar el pedido NO toca la tabla `clientes_sin_registro` para nada.**
+  `PedidoServiceImpl.deletePedidoById` (líneas 344-373) solo cambia el `Pedido`
+  (`estadoPedido="cancelado"`, `motivoCancelacion`, `fechaCancelacion`) y devuelve stock. No hay
+  ninguna llamada a `IClienteSinRegistroRepository` — el registro de "Abel Tiburcio" persona A queda
+  intacto, con su `id` original, sea el pedido cancelado o no.
+- **Cada venta sin registro crea SIEMPRE una fila nueva.** `VentaServiceImpl.java:143-144` hace
+  `iClienteSinRegistroRepository.save(...)` de un `ClienteSinRegistro` recién construido — no busca
+  antes por nombre. `IClienteSinRegistroRepository` no tiene ningún `findByNombre` ni lógica de
+  "encontrar o crear".
+
+**Conclusión:** volver a agregar "Abel Tiburcio" (sea la misma persona A o una persona B distinta)
+genera una fila nueva e independiente, con `id` propio, sin importar si el registro anterior fue
+cancelado o no. **No hay riesgo de mezclar a dos personas**, pero tampoco el sistema reconoce que es
+"la misma persona" recurrente — cada compra sin registro es un registro aislado. Esto es consistente
+con R-2 de arriba (el import de rifa usa el `id` de la fila, no el nombre).
+
+### R-1 (extensión) — El front YA tiene un select para `motivo`, no manda texto libre
+
+Duda: ¿cómo sabe el front qué texto exacto mandar en `motivo` para que el back lo identifique bien?
+
+Ya está resuelto en el front, no hace falta inventar nada: `mis-pedidos.component.ts` (líneas
+100-117), al cancelar, abre un modal (SweetAlert2) con **`input: 'radio'`** — dos opciones fijas:
+
+```ts
+inputOptions: {
+  NO_SE_PRESENTO: 'No se presentó',
+  CLIENTE_AVISO:  'El cliente avisó'
+}
+```
+
+y el valor elegido se manda como **parámetro de query separado**, no concatenado en observaciones:
+`pedidos.service.ts:40-42` → `DELETE /v1/pedidos/delete/{id}?motivo={valorExacto}`.
+
+- `NO_SE_PRESENTO` sí coincide con el valor que el back penaliza en el score de la rifa.
+- `CLIENTE_AVISO` ya se manda tal cual, pero el back **no lo penaliza** (solo penaliza
+  `TIMEOUT`/`NO_SE_PRESENTO` — ver R-1 arriba), así que hoy mismo "el cliente avisó" ya se comporta
+  como algo que no cuenta en contra, sin cambios pendientes.
+
+**Lo que falta para el caso "error del admin al capturar" (R-1):** agregar una tercera opción al
+mismo `inputOptions` que ya existe, por ejemplo:
+
+```ts
+inputOptions: {
+  NO_SE_PRESENTO: 'No se presentó',
+  CLIENTE_AVISO:  'El cliente avisó',
+  ERROR_ADMIN:    'Error al capturar (admin)'
+}
+```
+
+El mecanismo de envío (query param exacto, no texto libre) ya existe y no cambia — solo se agrega la
+tercera entrada al objeto de opciones del radio. El back ya no penaliza ningún valor que no sea
+`TIMEOUT`/`NO_SE_PRESENTO`, así que `ERROR_ADMIN` queda automáticamente sin penalización, sin tocar
+nada del back.
+
+### ✅ Pendiente para la siguiente sesión (front, 100% en `producto_venta_online`)
+
+- [ ] Agregar la opción `ERROR_ADMIN: 'Error al capturar (admin)'` al `inputOptions` de
+  `mis-pedidos.component.ts` (líneas ~106-109).
+- [ ] Confirmar con el usuario si el texto visible ("Error al capturar (admin)") es el que quiere
+  mostrar al admin en el modal, o prefiere otra redacción.
+
+---
+
+## 🔎 Aclaración adicional — cómo se identifica al ganador "sin registro" y si sus pedidos cuentan en la rifa (2026-07-21)
+
+Dos dudas más de seguimiento, verificadas contra el código actual. **Análisis únicamente — nada
+implementado todavía.**
+
+### ¿Los pedidos de "cliente sin registro" SÍ participan en la rifa del mes? — Confirmado que SÍ, sin excepción
+
+Recorrido el pipeline completo, sin ningún filtro oculto que los excluya:
+
+- `findClientesUnicosPorMes`/`findTodosClientesConCompras` (`IPedidoRepository.java:240`) solo
+  exigen `(cliente_id IS NOT NULL OR cliente_sin_registro_id IS NOT NULL)` — nunca exigen
+  `cliente_id IS NOT NULL` a secas.
+- `importarDePedidos` (`ConcursanteServiceImpl.java:144-203`) solo descarta por "ya registrado
+  antes" o "nombre vacío" — ningún chequeo distingue cliente real vs sin registro.
+- El cálculo de boletos (`calcularBoletos`/`calcularScore`) trata ambos casos de forma simétrica
+  vía el flag `sinRegistro`, sin restarles nada por el simple hecho de no estar registrados.
+- El sorteo final (`GanadorRifaServiceImpl`) elige entre todos los `Concursante` guardados, sin
+  filtrar por si tienen `Cliente` asociado.
+
+**Conclusión: un pedido de cliente sin registro pesa exactamente igual que uno de cliente
+registrado en toda la rifa — boletos, elegibilidad y sorteo.**
+
+### ¿Cómo se identifica al ganador si no está en el sistema? — Nombre y teléfono sí quedan, correo no
+
+Cuando se hace el import de participantes, el back **congela una copia** de los datos de contacto
+en la propia tabla `Concursante` (no queda como referencia viva a `Cliente`/`ClienteSinRegistro`):
+`nombre`, `apellidoPaterno`, `telefono` (`ConcursanteServiceImpl.java:186-188`), tomados de
+`COALESCE(cliente.nombre, clienteSinRegistro.nombre)` ya resuelto desde el listado de
+`clientesPorMes`.
+
+**Si un cliente sin registro gana:** el admin sí puede ver su **nombre y teléfono** en el
+`GanadorRifa` (vía `Concursante`) para poder localizarlo y entregarle el premio — no depende de que
+tenga cuenta en el sistema.
+
+**Lo que NO queda disponible:**
+- **Correo electrónico** — ni la query de `clientesPorMes` lo selecciona, ni `Concursante` tiene
+  columna para guardarlo. Si se necesita contactar por correo (ej. para notificar el premio), hoy
+  no hay forma de recuperarlo desde el ganador — habría que ir manualmente a la tabla
+  `clientes_sin_registro` con el `clientePedidoId` guardado, si es que se conserva.
+- **Certeza de si el ganador es cliente registrado o sin registro** — `Concursante` no guarda ese
+  flag como columna persistida (la query sí lo calcula al vuelo, pero no se guarda). Como
+  `clientes.id` y `clientes_sin_registro.id` son secuencias independientes, un mismo número de
+  `clientePedidoId` podría corresponder a cualquiera de las dos tablas sin que quede registrado cuál
+  fue — actualmente solo el nombre/teléfono congelados permiten identificar a la persona real, no
+  hace falta saber en qué tabla vive para contactarla, pero si se necesita auditar después ("¿este
+  ganador era cliente registrado?") no hay cómo saberlo con certeza desde `Concursante`.
+
+### ✅ Pendiente para decidir (no es urgente, solo queda anotado)
+
+- [ ] Definir si hace falta capturar correo del cliente sin registro para el caso de ganador (hoy no
+  se guarda en ningún punto del flujo de rifa).
+- [ ] Definir si vale la pena persistir el flag "sin registro" en `Concursante` para poder auditar
+  después qué tipo de cliente ganó cada rifa.
+
+---
+
+## 📋 PLAN — Verificación real de correo para cliente sin registro + elegibilidad de rifa (2026-07-21, actualizado)
+
+**✅ Implementado en el back (dev, sin commitear) — ver la sección "ESPECIFICACIÓN FINAL" más abajo,
+que es la referencia con los endpoints y bodies exactos, ya implementados tal cual.**
+
+### ⚠️ Confirmado en el front actual — hoy "Agregar cliente" NO llama al back
+
+El modal "Agregar cliente sin registro" en `venta-directa.component.ts` (`obtenerDatosClienteSinRegistro()`,
+líneas 163-164) hoy **solo asigna el formulario a una variable en memoria**
+(`this.clienteSinRegistroModal = this.clienteForm.value`) — no hay ningún HTTP call ahí. El
+`ClienteSinRegistro` se guarda en la BD hasta el final, en el mismo request que la venta
+(`venta-directa.component.ts:649`, `clienteSinRegistroDto: this.clienteSinRegistroModal`, que
+`VentaServiceImpl` guarda de un jalón dentro de `POST /v1/ventas/save`).
+
+**El cambio que se pide es justo introducir un HTTP call ahí:** que "Agregar cliente" sí cree el
+registro en el back (con `correoVerificado = false`), permita mandar/verificar el código en ese
+mismo modal, y solo hasta cerrar el modal (verificado o aceptando seguir sin verificar) se habilite
+"Generar venta" — la cual pasa a usar el `clienteSinRegistroId` ya creado en vez de mandar el DTO
+completo otra vez. Si el admin cierra/cancela la venta después de agregar el cliente, queda una fila
+huérfana en `clientes_sin_registro` sin pedido asociado — inofensivo (no afecta la rifa, que solo
+cuenta filas ligadas a un pedido real), solo un dato de más en la tabla.
+
+### Flujo confirmado con el usuario (venta presencial, admin captura los datos)
+
+1. Admin hace la venta y captura al cliente sin registro. Le pide correo.
+2. Si el cliente no quiere dar correo → admin pide teléfono en su lugar. Cualquiera de los dos casos
+   permite generar la venta con normalidad.
+3. **Si el cliente SÍ da un correo**, antes de terminar la venta el admin manda un código de
+   verificación a ese correo (el cliente lo revisa ahí mismo, en su teléfono, y se lo dice al admin o
+   lo captura él mismo en la pantalla) — igual que ya pasa hoy cuando alguien se registra en el
+   sistema y no puede entrar hasta verificar su correo (`Cliente`/`Usuario`, mismo patrón, ver
+   `ClienteServiceImpl.enviarCodigoVerificacionCorreo`/`verificarCorreo`,
+   `service/ClienteServiceImpl.java:72-117`). Solo después de confirmar el código se termina de
+   generar la venta.
+4. Si el cliente no quiere dar ni correo ni teléfono, el registro `ClienteSinRegistro` **se guarda
+   igual** (para reportes, como ya pasa hoy) — simplemente ese cliente no cuenta para la rifa del mes.
+5. Regla de elegibilidad para la rifa: participa si **correo verificado** (`correoVerificado = true`)
+   **O** teléfono presente (no vacío — el teléfono no se puede verificar, no existe SMS/OTP en el
+   proyecto, así que ahí sí basta con que no venga vacío).
+
+### Por qué no se puede verificar "después" de guardar la venta (detalle técnico)
+
+Hoy `VentaServiceImpl` (líneas 143-144) crea un `ClienteSinRegistro` **nuevo siempre** dentro del
+mismo `POST /v1/ventas/save` — no hay un paso intermedio con un `id` propio antes de eso. Pero el
+patrón de verificación de `Cliente` (`enviarCodigoVerificacionCorreo`/`verificarCorreo`) necesita un
+`id` ya persistido para guardarle el código y su expiración. Como el usuario quiere verificar el
+correo **antes** de terminar la venta (no después), hace falta partir el guardado en dos pasos:
+
+1. Se crea el `ClienteSinRegistro` primero (con `correoVerificado = false`), se manda el código.
+2. Se verifica el código contra ese `id` ya existente (igual que `Cliente`).
+3. `POST /v1/ventas/save` pasa a aceptar un `clienteSinRegistroId` ya existente (además de poder
+   seguir creando uno nuevo inline si no hubo correo que verificar), para enlazar la venta al
+   registro que ya se verificó.
+
+### Plan propuesto (pendiente de aprobar antes de tocar código)
+
+1. **Back — nuevos campos en `ClienteSinRegistro`** (mismo patrón que `Cliente`):
+   `correoVerificado: Boolean` (default `false`), `codigoVerificacion: String`,
+   `codigoVerificacionExpira: LocalDateTime` + migración SQL.
+2. **Back — nuevo endpoint para crear el registro temprano + enviar código:**
+   ej. `POST /v1/clientes-sin-registro` (crea la fila, sin venta todavía, devuelve el `id`) y
+   `POST /v1/clientes-sin-registro/{id}/enviar-codigo` (genera código de 6 dígitos, igual que
+   `Cliente`, reutilizando `EmailService`).
+3. **Back — nuevo endpoint para verificar:** `POST /v1/clientes-sin-registro/{id}/verificar-codigo`
+   `{ codigo }` → marca `correoVerificado = true` (mismo patrón que `ClienteServiceImpl.verificarCorreo`).
+4. **Back — `POST /v1/ventas/save`** acepta `clienteSinRegistroId` (de un registro ya creado/verificado)
+   como alternativa al DTO embebido actual (que sigue funcionando igual para el caso "no dio nada" o
+   "solo dio teléfono").
+5. **Back — ajustar la consulta de elegibilidad de la rifa** (`findClientesUnicosPorMes` /
+   `findTodosClientesConCompras`, `IPedidoRepository.java`) para exigir, en clientes sin registro:
+   `correo_verificado = true` **o** `numero_telefonico` no vacío.
+6. **Front — pantalla de venta directa:** tras capturar correo, botón "Enviar código" → campo para
+   capturarlo → botón "Verificar" → solo entonces se habilita "Generar venta". Si el cliente no dio
+   correo (solo teléfono, o nada), se salta este paso y se genera la venta normal.
+7. **Back — agregar `correo` a `Concursante`** (falta hoy) para poder notificar al ganador por correo
+   si resulta ser un cliente sin registro, y **enviar correo automático al ganador** al sortear
+   (reutilizando `EmailService`, mismo patrón que la sección 25). Este punto es independiente de la
+   verificación — es la mejora de "avisarle a quien ganó".
+
+### ❓ Preguntas — YA RESUELTAS (ver especificación final más abajo)
+
+- ~~¿El filtro aplica solo a `ClienteSinRegistro` o también a `Cliente`?~~ → **Solo a
+  `ClienteSinRegistro`.** `Cliente` registrado ya verifica su correo al registrarse (y al cambiarlo,
+  vía `correoPendiente` — mejora 15); si no lo verifica, se queda con el correo anterior ya
+  verificado. No hace falta ningún filtro nuevo para clientes registrados.
+- ~~¿Se implementa el correo al ganador ahora o después?~~ → **Ahora, en esta misma sesión**, junto
+  con todo lo demás.
+- ~~¿Si no se verifica, se guarda el correo o se descarta?~~ → **Se guarda tal cual**, con
+  `correoVerificado = false`. Sirve para reportes/contacto manual aunque no cuente para la rifa.
+
+---
+
+## ✅ ESPECIFICACIÓN FINAL — Verificar correo de cliente sin registro + elegibilidad de rifa + notificar al ganador (2026-07-21)
+
+**Esta sección es la referencia única y completa para implementar este cambio — reemplaza en
+detalle todo el análisis/plan de arriba.**
+
+**✅ Implementado en el back (dev, sin commitear/pushear todavía; compila OK — `mvn compile` verde).**
+Falta correr la migración SQL (`migration_verificacion_cliente_sin_registro.sql`) en dev/qa, y
+falta todo el lado del front. Los endpoints, requests y responses de abajo ya son exactamente
+como quedaron implementados, no un borrador.
+
+### Resumen en una frase
+
+Al agregar un cliente sin registro con correo, ese correo se verifica con un código de 6 dígitos
+**antes** de poder generar la venta (el admin puede seguir sin verificar si el cliente no puede/no
+quiere); un cliente sin registro solo participa en la rifa del mes si su correo quedó verificado **o**
+si dio teléfono (el teléfono no se puede verificar — no existe SMS/OTP en el proyecto — así que ahí
+basta con que no venga vacío); y al elegir ganador de una rifa, si tiene correo disponible se le
+manda un correo automático avisando que ganó.
+
+### 1. Cambios de datos (back)
+
+**`ClienteSinRegistro`** — 3 columnas nuevas (mismo patrón que ya existe en `Cliente`):
+| Campo | Tipo | Default |
+|---|---|---|
+| `correoVerificado` | boolean | `false` |
+| `codigoVerificacion` | string (6 dígitos) | `null` |
+| `codigoVerificacionExpira` | datetime | `null` |
+
+**`Concursante`** — 1 columna nueva:
+| Campo | Tipo | Default |
+|---|---|---|
+| `correo` | string | `null` |
+
+**Migración:** `migration_verificacion_cliente_sin_registro.sql` (raíz de `resources/static`) —
+**✅ ya corrida en dev, qa Y prod** (2026-07-21) — `inventario_key_qa` (dev/qa) e `inventario_key`
+(prod). No queda ningún ambiente pendiente para esta migración.
+
+Se llena al importar participantes de la rifa (`COALESCE(cliente.correo, clienteSinRegistro.correo)`),
+igual que ya se hace hoy con `nombre`/`telefono`.
+
+### 2. Endpoints nuevos — flujo de "Agregar cliente sin registro"
+
+Reemplaza el modal actual, que hoy solo guarda el formulario en memoria
+(`venta-directa.component.ts:163-164`) sin llamar al back.
+
+#### 2.1 Crear el registro
+
+```
+POST /mis-productos/v1/clientes-sin-registro
+```
+**Request** (mismos campos que hoy manda el formulario, sin cambios de nombre):
+```json
+{
+  "nombre_persona": "Abel Tiburcio",
+  "segundo_nombre": "",
+  "apeido_Paterno": "",
+  "apeido_Materno": "",
+  "fecha_Nacimiento": "",
+  "sexo": "",
+  "correo_Electronico": "abel@correo.com",
+  "numero_Telefonico": ""
+}
+```
+**Response (tal cual quedó implementado — regresa la entidad completa, no solo el id):**
+```json
+{
+  "data": {
+    "id": 501,
+    "nombrePersona": "Abel Tiburcio",
+    "segundoNombre": "",
+    "apeidoPaterno": "",
+    "apeidoMaterno": "",
+    "fechaNacimiento": null,
+    "sexo": "",
+    "correoElectronico": "abel@correo.com",
+    "numeroTelefonico": "",
+    "correoVerificado": false,
+    "codigoVerificacion": null,
+    "codigoVerificacionExpira": null
+  }
+}
+```
+El front solo necesita quedarse con `id` (para los pasos siguientes) y `correoVerificado` (para
+saber si mostrar el paso de verificación o ya venir en `true`/`false`). Se llama al confirmar el
+formulario del modal (botón que hoy dice "Agregar" o similar). Si `correo_Electronico` viene vacío,
+`id` igual se crea — simplemente no hay nada que verificar y el front pasa directo al paso 4.
+
+#### 2.2 Enviar código de verificación
+
+```
+POST /mis-productos/v1/clientes-sin-registro/{id}/enviar-codigo
+```
+Sin body. Genera un código de 6 dígitos, lo guarda con expiración (mismos minutos que usa `Cliente`
+hoy), y lo envía al `correo_Electronico` guardado en el paso 2.1.
+
+**Response 200:** `{ "data": "Codigo enviado" }`
+**Response 400:** si el registro no tiene correo — `"El cliente no tiene correo registrado"`.
+
+#### 2.3 Verificar código
+
+```
+POST /mis-productos/v1/clientes-sin-registro/{id}/verificar-codigo
+{ "codigo": "123456" }
+```
+**Response 200** (código correcto): `{ "data": "Correo verificado correctamente" }` — string, no
+objeto. El front debe volver a marcar su propio estado local `correoVerificado = true` al recibir
+un 200 aquí (el body no repite el objeto completo).
+**Response 400** — código incorrecto: `"Codigo de verificacion invalido"`
+**Response 400** — código vencido: `"El codigo de verificacion expiro, solicita uno nuevo"` (el front
+debe ofrecer "Reenviar código", que vuelve a llamar 2.2)
+
+El admin puede cerrar el modal en cualquier momento sin haber llamado 2.2/2.3 — el registro ya
+existe (paso 2.1) con `correoVerificado = false`, y así se queda si nunca se verifica.
+
+### 3. Cambio en `POST /v1/ventas/save`
+
+**Nuevo campo opcional en el request:** `clienteSinRegistroId` (int). Cuando viene, el back usa el
+registro ya creado en 2.1 (no crea uno nuevo). El campo `clienteSinRegistroDto` embebido (el que se
+manda hoy) queda como fallback por compatibilidad, pero el flujo nuevo del front **siempre** debe
+mandar `clienteSinRegistroId` en vez del DTO completo, una vez armado el paso 2.
+
+```json
+{
+  "clienteSinRegistroId": 501,
+  "clienteId": null,
+  "...": "resto del body de venta sin cambios"
+}
+```
+
+### 4. Flujo completo para el front (paso a paso)
+
+1. Admin abre el modal "Agregar cliente sin registro", llena nombre + correo y/o teléfono.
+2. Al confirmar el formulario → `POST /v1/clientes-sin-registro` (2.1) → guardar el `id` devuelto en
+   el estado del componente (ya no se guarda el DTO completo, se guarda el `id`).
+3. Si el registro tiene correo:
+   - Mostrar botón **"Enviar código de verificación"** → llama 2.2.
+   - Mostrar campo para capturar el código + botón **"Verificar"** → llama 2.3.
+   - Si OK → mostrar check/badge "Correo verificado ✅".
+   - Si falla → mostrar el error y permitir reintentar o reenviar código.
+   - El admin puede omitir este paso y cerrar el modal igual — no es obligatorio, solo afecta si el
+     cliente entra o no a la rifa.
+4. Cerrar el modal (verificado o no) — el chip de cliente en pantalla ya no necesita mostrar nada
+   nuevo, sigue igual que hoy.
+5. Al presionar "Generar venta" → `POST /v1/ventas/save` con `clienteSinRegistroId` (del paso 2) en
+   vez de `clienteSinRegistroDto`.
+
+### 5. Elegibilidad de rifa (100% back, informativo para el front)
+
+Un pedido de cliente sin registro participa en la rifa del mes solo si, al momento de la compra,
+ese `ClienteSinRegistro` tiene `correoVerificado = true` **o** `numeroTelefonico` no vacío. Si
+ninguno de los dos, el pedido se guarda igual (para reportes) pero no cuenta para esa rifa. Clientes
+registrados (`Cliente`) no cambian — su correo ya se verifica en el registro.
+
+### 6. Notificación automática al ganador
+
+Al elegir ganador (`GanadorRifaServiceImpl`), si el `Concursante` ganador tiene `correo` (columna
+nueva del punto 1), se le manda un correo automático avisando que ganó, reutilizando `EmailService`
+(mismo mecanismo que el correo de "agrega tu compra" de la sección 25). Si no hay correo disponible
+(el participante solo dio teléfono), no se manda nada automático — el admin contacta manualmente
+usando el nombre/teléfono ya visibles en `GanadorRifa`.
+
+### Resumen de endpoints — tabla rápida
+
+| Endpoint | Método | Cuándo se llama |
+|---|---|---|
+| `/v1/clientes-sin-registro` | POST | Al confirmar el formulario del modal "Agregar cliente" |
+| `/v1/clientes-sin-registro/{id}/enviar-codigo` | POST | Al presionar "Enviar código de verificación" |
+| `/v1/clientes-sin-registro/{id}/verificar-codigo` | POST | Al presionar "Verificar" con el código capturado |
+| `/v1/ventas/save` | POST | Al presionar "Generar venta" — ahora manda `clienteSinRegistroId` |
+
+**Nada de esto rompe el flujo actual de clientes registrados (`clienteId`)** — solo cambia cómo se
+maneja el caso de cliente sin registro.
+
+---
+
+## ✅ Confirmación del front (2026-07-22): ya implementado el flujo completo
+
+Implementado tal cual la especificación final, sin necesitar ninguna aclaración adicional:
+
+1. **Motivo `ERROR_ADMIN`** agregado al modal de cancelar en `mis-pedidos` (R-1 extensión) — sin
+   cambios de back, como ya confirmaron.
+2. **Modal "Agregar cliente sin registro" en `venta-directa`** reescrito a 2 pasos:
+   - Paso 1 (form) → `POST /v1/clientes-sin-registro`, guarda el `id` devuelto.
+   - Paso 2 (solo si dio correo sin verificar) → botón enviar código
+     (`POST /v1/clientes-sin-registro/{id}/enviar-codigo`) + campo capturar código
+     (`POST /v1/clientes-sin-registro/{id}/verificar-codigo`), con opción de omitir en cualquier
+     momento.
+3. **`POST /v1/ventas/save`** ahora manda `clienteSinRegistroId` en vez de
+   `clienteSinRegistroDto` embebido, tal como pide la especificación.
+
+**⚠️ Pendiente de nuestro lado:** no se pudo probar en vivo — no quedó claro en la especificación
+si el código del back (los 3 endpoints nuevos) ya está commiteado/pusheado/desplegado en algún
+ambiente, solo que "compila OK" en local y que la migración SQL ya corrió en dev/qa/prod. Avisen
+cuando esté desplegado para probar el flujo de punta a punta.
+
+**✅ Respuesta del back (2026-07-22):** ya está pusheado — commit en `dev` y merge `dev → qa` ya
+en `origin/qa`. Listo para probar el flujo de punta a punta contra QA.
+
+---
+
+## ✅ Ajustes tras probar en vivo (2026-07-22) + ❓ una pregunta opcional
+
+Tres cosas más, encontradas al probar el flujo de "Cobrar" en `mis-pedidos` en QA:
+
+1. **"Cobrar" en un crédito ahora manda directo a `/abonos`** (antes mandaba al detalle del
+   pedido, que también tiene abono pero no era lo esperado) — con `?pedidoId=N`, que abre
+   automáticamente la card de ese pedido en Créditos/Abonos. 100% front, sin cambios de back.
+2. **"Fiado" → "Ir pagando"** en la pantalla de Créditos/Abonos (`/abonos`) — se nos había pasado
+   en el rename de julio, solo tocamos `venta-variante` en ese momento.
+3. **Imprimir/enviar ticket ya no se puede antes de que haya algún pago** — en `mis-pedidos` y en
+   el detalle del pedido. 100% front, usando el mismo `GET /v1/pedidos/{id}/detalle` que ya se
+   pedía antes de imprimir (trae `estadoPedido`, `totalPagado`, `abonos`).
+
+### ❓ Pregunta opcional (no bloqueante) — flag de "ya tiene pagos" en la lista de pedidos
+
+En `mis-pedidos` (la lista de cards, `GET /v1/pedidos/...`) no tenemos forma de saber si un
+pedido a crédito (`APARTADO`/`FIADO`) ya tiene al menos un abono sin pedir el detalle completo de
+CADA card — así que ahí el botón de imprimir/enviar se queda visualmente habilitado y la
+validación real ocurre al hacer clic (pedimos el detalle, y si no hay pagos, avisamos y no
+generamos nada). Funciona, pero no se ve deshabilitado de entrada como si sería lo ideal.
+
+¿Sería mucho pedir que la lista de pedidos incluya algo simple tipo `totalPagado` o `tienePagos`
+por pedido? Con eso el front podría deshabilitar el botón ahí mismo, sin tener que esperar al
+clic. No es urgente — el comportamiento actual ya evita el problema real (imprimir sin pago), solo
+falta el detalle visual.
+
+**✅ Respuesta del back (2026-07-22):** confirmado en código — `PedidoQuery` (el DTO detrás de
+`GET /v1/pedidos/buscarClientePedido` y `GET /v1/pedidos/findPedido/{id}`) hoy **solo** trae `id`,
+`fecha_pedido`, `estado_pedido` y `detalles`. `totalPagado` **no** viene en la lista hoy — solo en
+`GET /v1/pedidos/{id}/detalle`. Agregarlo es sencillo (una columna más en las queries nativas +
+un campo en el DTO), pero es trabajo nuevo, no algo que ya exista. Como ustedes mismos dicen que
+no es urgente, queda anotado como pendiente — avisen cuando quieran que lo agreguemos.
+
+---
+
+## ✅ Fix (2026-07-22): badge de estado duplicaba el badge de tipo en pedidos a crédito
+
+**Encontrado en vivo** en `mis-pedidos` y `detalle-pedido`: en la cabecera de un pedido
+`APARTADO` se veía `📦 Apartado` seguido, justo abajo, de `APARTADO` en mayúsculas — parecía
+información repetida/rota.
+
+**Causa (dato para que lo tengan presente, no es que esté mal):** confirmamos que
+`estado_pedido`/`estadoPedido` para un pedido a crédito es literalmente `'APARTADO'`/`'FIADO'`
+(el mismo string que `tipoPedido`) hasta que se liquida, momento en el que cambia a `'PAGADO'`.
+El front tenía un badge de **tipo** (📦 Apartado / 💳 Ir pagando) y, aparte, un badge de
+**estado** que solo interpolaba ese campo tal cual — para un crédito sin pagar, mostraba
+literalmente el mismo texto dos veces.
+
+**Fix — 100% front, sin cambios de back:** el badge de estado ahora muestra el estado de pago
+en vez del valor crudo: **"Por cobrar"** (nada pagado todavía) o **"Pagado"**
+(`estadoPedido === 'PAGADO'`). NORMAL/Cancelado siguen mostrando `estado_pedido` tal cual, sin
+cambios ahí.
+
+---
+
+## 🧹 Nuevo (back, 2026-07-22): limpieza automática de "cliente sin registro" huérfano
+
+**Contexto:** con el flujo nuevo (`POST /v1/clientes-sin-registro` se llama ANTES de generar la
+venta), si el admin agrega un cliente en el modal y luego lo quita/reemplaza sin llegar a generar
+la venta, ese registro queda huérfano en `clientes_sin_registro` (creado, pero ningún `Pedido` lo
+referencia).
+
+**Solución — job automático a medianoche** (`ClienteSinRegistroLimpiezaScheduler`, cron
+`0 0 0 * * *`): borra los registros de `clientes_sin_registro` que:
+- No tienen ningún `Pedido` que los referencie (huérfanos), **y**
+- Fueron creados hace más de **6 horas** (margen de seguridad — nunca borra algo que se esté
+  capturando esa misma noche).
+
+**Para el front, esto es 100% transparente — no cambia ningún contrato ni requiere nada nuevo.**
+Solo un detalle a tener presente: si el admin crea un cliente sin registro (paso 1 del modal) y
+por alguna razón la pantalla queda abierta/pausada por **más de 6 horas** sin terminar de generar
+la venta, ese `clienteSinRegistroId` ya no existirá y `POST /v1/ventas/save` respondería
+`"Cliente sin registro no encontrado"` — un caso extremo, no un flujo normal de uso.
+
+**Migración:** `migration_limpieza_cliente_sin_registro.sql` — **✅ ya corrida en dev, qa y prod**
+(2026-07-22). No queda ningún ambiente pendiente para esta migración.
+
+---
+
+## ❓ Confirmado: sí queremos `totalPagado` en la lista de pedidos — spec exacta
+
+Con esto sí adelantamos (confirmado con el usuario). Para no ir y venir con el nombre/formato,
+esto es exactamente lo que esperamos — si lo agregan tal cual, lo conectamos sin tener que
+preguntar nada más:
+
+**Dónde:** el DTO `PedidoQuery` que ya mencionaron (el que arma `GET /v1/pedidos/buscarClientePedido`
+y `GET /v1/pedidos/findPedido/{id}`) — mismo objeto que hoy trae `id`, `fecha_pedido`,
+`estado_pedido`, `tipoPedido`, `detalles`.
+
+**Campo nuevo, nombre exacto:** `totalPagado` (camelCase, igual que `tipoPedido` en ese mismo
+DTO — no `total_pagado`).
+
+**Tipo:** `number` (decimal), igual que `PedidoDetalleResponse.totalPagado` en
+`GET /v1/pedidos/{id}/detalle` — mismo significado: suma de abonos ya registrados para ese
+pedido. Para pedidos `NORMAL` puede venir `0` o `null`, no lo usamos ahí.
+
+**Shape esperado del objeto `pedido` dentro de cada item de la lista:**
+```json
+{
+  "id": 89,
+  "fecha_pedido": "22/07/2026 00:04",
+  "estado_pedido": "APARTADO",
+  "tipoPedido": "APARTADO",
+  "totalPagado": 150.00,
+  "detalles": [ ... ]
+}
+```
+
+**Cómo lo vamos a usar (ya está el código listo del lado front, solo falta el dato):**
+`mis-pedidos.component.ts` → `puedeGenerarTicket(item)` va a cambiar de "siempre `true` para
+crédito" a `item.pedido.tipoPedido no es credito || (item.pedido.totalPagado ?? 0) > 0` — el
+mismo criterio que ya usa `detalle-pedido` con el detalle completo.
+
+**No es urgente** — el comportamiento actual ya es correcto (la validación al hacer clic no deja
+generar el ticket sin pago), esto es solo para que el botón se vea deshabilitado desde que carga
+la card. Avisen cuando esté listo y lo conectamos de una vez.
+
+---
+
+## ✅ Front: unificado el motivo de cancelación en mis-pedidos y abonos (2026-07-22)
+
+Cambio 100% de front, no bloquea nada — lo anotamos igual porque puede afectar cómo llega
+el campo `motivo` a los 2 endpoints de cancelar.
+
+Antes: `mis-pedidos` (`DELETE /v1/pedidos/delete/{id}?motivo=...`) pedía el motivo con una
+lista de opciones fijas (radio), pero `/abonos` (`PUT /v1/abonos/{pedidoId}/cancelar`) pedía
+un texto libre opcional (input, máx 30 caracteres, podía ir vacío). Se unificaron las dos
+pantallas para que ambas usen la MISMA selección de 3 opciones fijas — mismos valores
+literales en ambas:
+
+- `NO_SE_PRESENTO` → "No se presentó"
+- `CLIENTE_AVISO` → "El cliente avisó"
+- `ERROR_ADMIN` → "Error al capturar (fue el admin, no el cliente)"
+
+## ❓ CONSULTA AL BACK — ¿`motivo` en `PUT /v1/abonos/{pedidoId}/cancelar` tiene el mismo
+## efecto sobre el score de rifa que en `/v1/pedidos/delete/{id}`?
+
+Ya nos confirmaron antes (para `DELETE /v1/pedidos/delete/{id}`) que `motivo` es texto libre y
+que el score de rifa solo se penaliza cuando el valor es exactamente `TIMEOUT` o
+`NO_SE_PRESENTO` — cualquier otro valor (como `CLIENTE_AVISO`/`ERROR_ADMIN`) no afecta al
+cliente.
+
+Como ahora `/abonos` también manda uno de esos 3 valores fijos (antes mandaba texto libre u
+opcional/vacío), necesitamos confirmar:
+
+1. ¿`PUT /v1/abonos/{pedidoId}/cancelar` usa `motivo` para algo más que guardarlo como texto —
+   por ejemplo el mismo scoring de rifa que `/v1/pedidos/delete/{id}`?
+2. Si sí, ¿aplica la misma regla (solo `TIMEOUT`/`NO_SE_PRESENTO` penalizan)?
+3. Antes este campo podía llegar `null`/vacío (el input era opcional) — ahora SIEMPRE va a
+   llegar uno de los 3 valores de la lista de arriba (ya no hay opción de dejarlo vacío).
+   ¿Eso rompe algo del lado del back que esperaba poder recibirlo vacío?
+
+No es urgente — el front ya está implementado y funcionando con estos 3 valores fijos
+independientemente de la respuesta; es solo para saber si hace falta ajustar algo del scoring
+de la rifa en ese endpoint específico.
+
+---
+
+## ✅ Back: elegibilidad de rifa vuelve a ser "compró este mes", sin requisito de correo/teléfono (2026-07-22)
+
+Revertido el filtro que agregó `verificación de correo para cliente sin registro + elegibilidad
+de rifa` (commit `0391fe9`). Ese cambio exigía que un cliente sin registro tuviera
+`correo_verificado = TRUE` o un teléfono no vacío para poder entrar a la rifa. Se quita esa
+condición: ahora cualquier cliente (registrado o sin registro) que haya comprado en el mes
+entra a la rifa sin importar si tiene correo o teléfono capturado — como era antes de ese
+commit.
+
+Afecta:
+- `IPedidoRepository.findClientesUnicosPorMes` (listado de clientes elegibles por mes)
+- `IPedidoRepository.findTodosClientesConCompras` (listado de clientes con compras, sin filtro de mes)
+
+No cambia el contrato de ningún endpoint (mismo shape de respuesta), solo cambia qué clientes
+aparecen en la lista de elegibles. La notificación por correo al ganador (cuando gana alguien
+sin correo capturado) sigue sin enviarse — eso no cambió, solo la elegibilidad para participar.

@@ -105,6 +105,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/variantes/**").permitAll()
                         .requestMatchers("/variantes/**").hasRole("ADMIN")
 
+                        // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
+                        .requestMatchers("/v1/carga-imagenes/**").hasRole("ADMIN")
+
                         // ── Imágenes (GETs públicos excepto caché; escritura solo ADMIN) ────
                         .requestMatchers(HttpMethod.GET, "/imagen/cache/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/imagen/**").permitAll()
@@ -119,6 +122,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/clientes/buscar").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasRole("ADMIN")
                         .requestMatchers("/v1/clientes/**").authenticated()
+
+                        // ── Cliente sin registro (alta + verificacion de correo, solo ADMIN
+                        //    lo captura durante la venta directa) ──────────────────────────
+                        .requestMatchers("/v1/clientes-sin-registro/**").hasRole("ADMIN")
 
                         // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
