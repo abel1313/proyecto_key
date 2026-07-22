@@ -6476,3 +6476,199 @@ asignado pero con `codigoBarrasGenerado: true` inconsistente (bloquea habilitar,
 `PUT /v1/carga-imagenes/{productoId}/completar`.
 
 **⏳ Pendiente:** probar el flujo end-to-end de nuevo en QA con el fix, y push a `qa`.
+
+
+## ❓ CONSULTA AL BACK — falta endpoint para descartar un borrador de carga rápida (2026-07-21)
+
+### Endpoints que usa hoy `/carga-imagenes` (todos en `carga-imagenes.service.ts`)
+
+| Método | Endpoint | Para qué |
+|---|---|---|
+| `POST` | `/v1/carga-imagenes/subir-imagen` | Sube una foto → crea el producto+variante borrador |
+| `GET` | `/v1/carga-imagenes/estado?productoIds=` | Polling del estado de la imagen (PENDIENTE/EXITOSO/FALLIDO) |
+| `POST` | `/v1/carga-imagenes/{productoId}/reintentar-imagen` | Reintenta la imagen de un borrador que falló |
+| `GET` | `/v1/carga-imagenes/fallidas` | Lista los borradores con imagen FALLIDA (sin paginación, sin filtro de fecha) |
+| `PUT` | `/v1/carga-imagenes/{productoId}/completar` | Guarda los datos del producto (nombre, precio, código real, etc.) |
+
+**No existe ningún endpoint de borrado** para esta pantalla — es la raíz del problema de abajo.
+
+**Reportado por el admin:** subió varias fotos en `/carga-imagenes`; algunas quedaron listas para
+"Completar datos" (`EXITOSO`) y otras fallaron (`FALLIDO`, con botón "Reintentar"). Le dio "✕" a
+las fallidas esperando que desaparecieran para siempre. Al volver a entrar a la pantalla:
+- Las que le dio "✕" **volvieron a aparecer** con el botón "Reintentar".
+- Las que estaban listas para completar **ya no aparecen por ningún lado**.
+
+**Diagnóstico (confirmado en el código del front, no es un bug de UI aislado — es que falta una
+pieza del backend):**
+
+1. El botón "✕" (`quitarTarjeta()` en `carga-imagenes.component.ts`) **nunca llama a ningún
+   endpoint** — solo saca la tarjeta del array local en memoria. No existe ningún `DELETE` en
+   `carga-imagenes.service.ts` para eliminar un borrador de verdad. Como el producto+variante
+   sigue existiendo en BD con `estadoImagen: FALLIDO`, la próxima vez que se entra a la pantalla,
+   `GET /v1/carga-imagenes/fallidas` lo vuelve a traer — por eso "siempre aparece".
+
+2. `ngOnInit()` solo llama a `GET /v1/carga-imagenes/fallidas` como red de seguridad al recargar
+   — **no existe ningún endpoint para recuperar los borradores que ya subieron bien pero aún no
+   se completaron** (`EXITOSO`, sin `PUT /completar` todavía). Esas tarjetas solo viven en el
+   estado del componente Angular mientras la pantalla sigue abierta; al navegar a otra ruta o
+   recargar la página, se pierden de la vista — aunque el producto+variante sigue vivo en BD,
+   deshabilitado, con su imagen ya subida.
+
+**Lo que necesitamos del back — dos preguntas concretas:**
+
+1. **¿Existe (o se puede agregar) un endpoint para descartar/eliminar por completo un borrador de
+   carga rápida?** Pensado para cuando el admin decide que esa foto/producto no vale la pena
+   completar (ej. imagen borrosa, producto repetido, foto de prueba). Algo tipo
+   `DELETE /v1/carga-imagenes/{productoId}` que borre el producto, la variante y la imagen
+   asociada (si ya se subió). Sin esto, el front no tiene forma de que el "✕" sea permanente.
+
+2. **¿Cómo recupera el front, al recargar la pantalla, los borradores `EXITOSO` que aún no se
+   completaron (no solo los `FALLIDO`)?** ¿Ya existe un filtro que sirva para esto en
+   `GET /v1/productos/admin/filtrar` (ej. `codigoGenerado=true&habilitado=false`, sección de
+   arriba) que el front pueda usar para repoblar TODA la lista de pendientes al entrar a
+   `/carga-imagenes` (fallidos + exitosos-sin-completar), en vez de usar solo
+   `GET /v1/carga-imagenes/fallidas`? O si hace falta un endpoint dedicado, avisar.
+
+**Mientras no haya respuesta, el front seguirá con el gap:** los borradores fallidos "resucitan"
+cada vez que se recarga la pantalla (aunque se hayan descartado con "✕"), y los borradores listos
+para completar solo son visibles durante la misma sesión de captura en la que se subieron.
+
+### Dudas adicionales, mismo tema (no bloquean, pero conviene resolverlas antes de que crezca el uso)
+
+3. **`GET /fallidas` no tiene paginación ni filtro de fecha** — "devuelve todos los productos con
+   `estadoImagen = FALLIDO`, más recientes primero", sin límite. Si nunca se implementa el borrado
+   del punto 1, esta lista va a crecer indefinidamente con el uso real (pruebas, fotos borrosas,
+   productos que ya no interesan) y cada vez que un admin entre a `/carga-imagenes` va a cargar
+   más y más tarjetas viejas. ¿Conviene agregar paginación o un filtro `desde`/`hasta`, o el plan
+   es que el borrado del punto 1 mantenga la lista corta de forma natural?
+
+4. **¿Qué pasa con la imagen ya subida al microservicio de imágenes si el borrador se elimina?**
+   Si se implementa el `DELETE` del punto 1, ¿también borra la imagen del micro de imágenes
+   (9096), o solo el producto/variante en proyecto-key y la imagen queda huérfana allá?
+
+5. **¿Hay límite de reintentos en `POST /{productoId}/reintentar-imagen`?** Si una imagen falla
+   siempre (ej. archivo corrupto, formato no soportado), ¿el front debería dejar de ofrecer
+   "Reintentar" después de N intentos, o el backend ya limita/rechaza en algún punto? Hoy el
+   botón de reintentar no tiene tope, el admin puede darle indefinidamente.
+
+6. **¿Debería haber una limpieza automática de borradores abandonados** (nunca completados,
+   con semanas de antigüedad)? Con el tiempo estos van a acumularse en `admin/no-habilitados` y
+   en el filtro `codigoGenerado=true` sin que nadie los complete ni los borre — un TTL o un job
+   de limpieza periódico evitaría que esos listados se llenen de basura.
+
+---
+
+## ✅ RESPUESTA DEL BACK a la consulta de arriba (2026-07-21)
+
+### 1. Nuevo endpoint: `DELETE /v1/carga-imagenes/{productoId}` — descarta el borrador para siempre
+
+**Request:** `DELETE /v1/carga-imagenes/{productoId}` (sin body).
+
+**Response 200:**
+```json
+{ "response": "Borrador eliminado correctamente" }
+```
+
+**Qué hace:** borra de verdad — no es el soft-delete de `deleteBy/{id}` de productos normales.
+Elimina el producto, su(s) variante(s), las relaciones `producto_imagen`/`variante_imagen`, la
+imagen (fila local + intenta borrarla también en el microservicio de imágenes — si esa llamada
+falla, no bloquea el borrado, solo queda un log de warning) y el `codigo_barras` placeholder
+(`BRD-...`). Ahora el botón "✕" del front puede llamar a este endpoint y la tarjeta no va a
+"resucitar" nunca más.
+
+**Seguridad — solo borra borradores de verdad:** si el producto ya tiene código de barras real
+(`codigoBarrasGenerado: false`, o sea ya se le hizo `PUT /completar` con un código real), este
+endpoint responde **400** y no borra nada — es a propósito, para que un uso accidental de este
+botón no pueda borrar un producto real ya completado/habilitado. Mensaje de error en ese caso:
+`"El producto {id} ya tiene codigo de barras real asignado, no se puede descartar como borrador..."`.
+
+**404 / error:** si el `productoId` no existe, 400 con `"No existe el producto borrador con id: {id}"`.
+
+### 2. Cómo recuperar TODOS los pendientes (fallidos + exitosos sin completar) al recargar
+
+**No hace falta ningún endpoint nuevo — ya se puede armar con dos llamadas que ya existen:**
+
+1. `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=100&page=1` — trae
+   **todos** los productos que siguen siendo borrador (`codigoBarrasGenerado: true`), sin importar
+   si su imagen quedó `PENDIENTE`, `EXITOSO` o `FALLIDO`. Ya está paginado (ver pregunta 3). De ahí
+   sacas los `idProducto` de todos los borradores vivos.
+2. `GET /v1/carga-imagenes/estado?productoIds=1,2,3,...` con esos IDs — devuelve el `estadoImagen`,
+   `mensajeErrorImagen` y la URL de imagen de cada uno. Con ese campo el front arma los buckets:
+   `FALLIDO` → tarjetas con botón "Reintentar", `EXITOSO` → tarjetas con botón "Completar datos",
+   `PENDIENTE` → todavía subiendo.
+
+**Aclaración importante:** el `ProductoDTO` que devuelve `admin/filtrar` **no** trae `estadoImagen`
+ni `codigoBarrasGenerado` en el JSON (son campos internos de `Producto`, no están mapeados ahí) —
+por eso hace falta el segundo llamado a `/estado` para clasificar las tarjetas. Si en algún momento
+esto genera demasiadas llamadas o el front prefiere un único endpoint que ya traiga todo junto,
+avisen y se agrega, pero con el volumen actual las dos llamadas combinadas ya resuelven el punto 2
+sin cambios de backend.
+
+**🐛 Caso real confirmado en QA (2026-07-21):** un admin subió una imagen en `/carga-imagenes`,
+vio aparecer la tarjeta con "Completar registro" (`estadoImagen: EXITOSO`), navegó fuera de la
+pantalla y volvió a entrar — esa tarjeta **ya no aparecía en ningún lado**, mientras que otras
+tarjetas que sí habían fallado (`FALLIDO`) sí seguían visibles. Es justo el gap descrito arriba:
+`ngOnInit()` solo vuelve a pedir `GET /fallidas`, nunca las `EXITOSO` sin completar.
+
+**El producto NO se perdió** — se confirmó que sigue en la base, deshabilitado, con su imagen ya
+subida correctamente. Mientras el front no implemente la solución del punto 2 (repoblar con
+`admin/filtrar?codigoGenerado=true&habilitado=false` + `/estado` al entrar a la pantalla), la forma
+de recuperar manualmente un borrador "perdido de vista" es:
+```
+GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=50&page=1
+```
+(o `GET /v1/productos/admin/no-habilitados`) y de ahí tomar el `idProducto` para completarlo con
+`PUT /v1/carga-imagenes/{productoId}/completar` como siempre. **Este es el mismo bug para todos los
+admins, no algo puntual de una sesión** — va a repetirse cada vez que alguien recargue o navegue
+fuera de `/carga-imagenes` después de subir una imagen exitosa, hasta que se implemente el punto 2.
+
+### 3. Paginación en `/fallidas`
+
+`GET /v1/carga-imagenes/fallidas` se queda **sin paginar por ahora** (no se le tocó nada). Pero con
+la respuesta del punto 2, **recomendamos migrar el front para dejar de usarlo** y en su lugar usar
+`admin/filtrar?codigoGenerado=true&habilitado=false` (que sí pagina con `size`/`page`) + `/estado`
+para clasificar. Eso resuelve el crecimiento indefinido de la lista sin tener que tocar `/fallidas`.
+Si prefieren seguir usando `/fallidas` tal cual, avisen y se le agrega paginación aparte.
+
+### 4. Imagen en el microservicio al borrar un borrador
+
+Sí — `DELETE /v1/carga-imagenes/{productoId}` (punto 1) también intenta borrar la imagen en el
+microservicio de imágenes (puerto 9096), no solo el producto/variante local. Es un best-effort: si
+el microservicio no responde, el borrado local igual se completa (para no dejar el borrador
+atascado) y solo queda un warning en el log del back para revisar manualmente esa imagen huérfana.
+
+### 5. Límite de reintentos en `reintentar-imagen`
+
+Confirmado: **no hay límite** hoy en `POST /{productoId}/reintentar-imagen`, se puede reintentar
+indefinidamente. No se agregó tope en esta sesión — si se quiere limitar (ej. deshabilitar el botón
+en el front después de N intentos, o que el back rechace después de N), es una mejora aparte, avisen
+si la priorizan.
+
+### 6. Limpieza automática / TTL de borradores abandonados
+
+No implementado todavía — queda como pendiente de backlog, no bloquea nada de lo de arriba. Con el
+nuevo `DELETE /v1/carga-imagenes/{productoId}` (punto 1) al menos ya hay una forma manual de
+limpiarlos desde el front; un job automático (ej. borrar borradores con más de N días sin completar)
+se puede evaluar después si el volumen lo justifica.
+
+---
+
+## ✅ Confirmación del front (2026-07-22): ya implementados los 2 puntos de la respuesta de arriba
+
+Con la respuesta de los puntos 1 y 2, se implementaron los dos cambios pendientes en
+`/carga-imagenes`:
+
+1. **El botón "✕" ahora llama a `DELETE /v1/carga-imagenes/{productoId}`** (con un Swal de
+   confirmación antes, porque pasó de ser una acción cosmética a una permanente). Si el back
+   responde `400` (producto ya con código real), se muestra ese mensaje en un Swal de error y la
+   tarjeta se queda tal cual.
+2. **Al entrar/recargar la pantalla, ya no se pierde de vista lo que quedó `EXITOSO` sin
+   completar.** Se reemplazó `GET /fallidas` por el combo que confirmaron en el punto 2:
+   `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=100&page=1` para
+   traer todos los borradores vivos, y con esos `idProducto` un `GET /v1/carga-imagenes/estado`
+   para clasificarlos por `estadoImagen` (arranca el polling si alguno sigue `PENDIENTE`).
+
+Ya no se usa `GET /fallidas` en ningún lado del front — se quitó del servicio.
+
+**Pendiente de nuestro lado:** probarlo en vivo contra el ambiente donde esté desplegado este fix
+(dev/qa). Cualquier caso raro que salga en la prueba lo anotamos aquí mismo.

@@ -32,6 +32,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -263,6 +264,52 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
         return guardado;
+    }
+
+    @Override
+    @Transactional
+    public void eliminarBorrador(Integer productoId) {
+        Producto producto = iProductosRepository.findById(productoId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto borrador con id: " + productoId));
+
+        if (!Boolean.TRUE.equals(producto.getCodigoBarrasGenerado())) {
+            throw new ExceptionDataNotFound(
+                    "El producto " + productoId + " ya tiene codigo de barras real asignado, no se puede "
+                            + "descartar como borrador (usa el borrado normal de productos si es lo que buscas)");
+        }
+
+        List<Integer> varianteIds = iVarianteRepository.findByProductoId(productoId).stream().map(Variantes::getId).toList();
+
+        List<Long> imagenIds = new ArrayList<>(iProductoImagenRepository.findImagenIdsByProductoIdIn(List.of(productoId)));
+        if (!varianteIds.isEmpty()) {
+            imagenIds.addAll(iVarianteImagenRepository.findImagenIdsByVarianteIdIn(varianteIds));
+        }
+
+        iProductoImagenRepository.deleteByProductoIdIn(List.of(productoId));
+        if (!varianteIds.isEmpty()) {
+            iVarianteImagenRepository.deleteByVarianteIdIn(varianteIds);
+            iVarianteRepository.deleteAllById(varianteIds);
+        }
+
+        if (!imagenIds.isEmpty()) {
+            List<Long> idsUnicos = imagenIds.stream().distinct().toList();
+            iImagenRepository.deleteByIdIn(idsUnicos);
+            try {
+                imageneClienteDisco.delete(idsUnicos);
+            } catch (Exception e) {
+                log.warn("No se pudo eliminar la imagen del microservicio ids={}: {}", idsUnicos, e.getMessage());
+            }
+        }
+
+        CodigoBarra codigoBarrasPlaceholder = producto.getCodigoBarras();
+        iProductosRepository.delete(producto);
+        if (codigoBarrasPlaceholder != null) {
+            iCodigoBarrasRepository.delete(codigoBarrasPlaceholder);
+        }
+
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        log.info("Se descarto el borrador productoId={} (variantes={}, imagenes={})", productoId, varianteIds.size(), imagenIds.size());
     }
 
     private void reemplazarCodigoBarrasPlaceholder(Producto producto, String codigoBarrasReal) {
