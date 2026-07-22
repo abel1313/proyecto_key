@@ -7329,5 +7329,5 @@ por alguna razón la pantalla queda abierta/pausada por **más de 6 horas** sin 
 la venta, ese `clienteSinRegistroId` ya no existirá y `POST /v1/ventas/save` respondería
 `"Cliente sin registro no encontrado"` — un caso extremo, no un flujo normal de uso.
 
-**Migración:** `migration_limpieza_cliente_sin_registro.sql` — **✅ ya corrida en dev y qa**
-(2026-07-22). Pendiente en `prod` cuando se suba a main.
+**Migración:** `migration_limpieza_cliente_sin_registro.sql` — **✅ ya corrida en dev, qa y prod**
+(2026-07-22). No queda ningún ambiente pendiente para esta migración.
