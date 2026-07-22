@@ -17,7 +17,8 @@ public class VentaDirectaRequest {
     private int usuarioId;
     private int clienteId;
     private Integer pagosYMesesId; // null cuando tipoPedido = APARTADO | FIADO
-    private ClienteSinRegistroDto clienteSinRegistroDto;
+    private ClienteSinRegistroDto clienteSinRegistroDto; // fallback: crea uno nuevo si no viene clienteSinRegistroId
+    private Integer clienteSinRegistroId; // flujo nuevo: registro ya creado/verificado via /v1/clientes-sin-registro
     private List<DetalleVentaDto> detalles;
     private String tipoPedido; // null/"NORMAL" = venta inmediata; "APARTADO"|"FIADO" = crédito
     private String observaciones;

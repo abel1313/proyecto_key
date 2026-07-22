@@ -21,6 +21,7 @@ public class ImportarDePedidosRequest {
         private String nombre;
         private String apellidoPaterno;
         private String telefono;
+        private String correo;
         private boolean sinRegistro;
     }
 }

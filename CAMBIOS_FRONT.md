@@ -6672,3 +6672,558 @@ Ya no se usa `GET /fallidas` en ningún lado del front — se quitó del servici
 
 **Pendiente de nuestro lado:** probarlo en vivo contra el ambiente donde esté desplegado este fix
 (dev/qa). Cualquier caso raro que salga en la prueba lo anotamos aquí mismo.
+
+---
+
+## ❓ CONSULTA AL BACK — mis-pedidos: cancelar sin afectar rifa, cobrar créditos, cliente sin registro duplicado (2026-07-22)
+
+> Revisado el código actual de `mis-pedidos`, `detalle-pedido`, `venta-directa` y `variantes/carrito`
+> antes de escribir esto, para no preguntar algo que ya está resuelto. Resultado: 3 puntos son
+> pregunta real para el back, 2 ya están implementados (solo se anotan para que quede registro), y
+> 2 son 100% front (se van a hacer sin esperar respuesta).
+
+### 1. ❓ Cancelar un pedido por error del ADMIN sin afectar al cliente en la rifa
+
+**Contexto:** el admin puede equivocarse al capturar un pedido (producto/cliente incorrecto). Hoy
+la cancelación usa `DELETE /v1/pedidos/delete/{id}?motivo=...` con dos motivos ya soportados en el
+front: `NO_SE_PRESENTO` y `CLIENTE_AVISO` (ambos implican que la falta fue del cliente).
+
+**Pregunta:** ¿el `motivo` de cancelación tiene HOY algún efecto sobre la elegibilidad del cliente
+en una rifa (ej. lo descarta, le resta boletos, cuenta como falta al importar participantes desde
+`clientesPorMes`/`importarDePedidos`)? Si sí — necesitamos un motivo nuevo (ej. `ERROR_ADMIN` o
+`ERROR_CAPTURA`) que el back trate como "no cuenta en contra del cliente", porque el error fue
+nuestro al capturar, no del cliente.
+
+**Endpoint usado hoy:** `DELETE /v1/pedidos/delete/{id}?motivo=...` (`PedidosService.cancelarConMotivo()`).
+
+### 2. ❓ Cliente sin registro con el mismo nombre — ¿riesgo de confusión en la rifa?
+
+**Contexto:** en `variantes/venta-directa`, "Agregar cliente sin registro" solo manda
+`nombre_persona`, `apellido_paterno`, `correo_Electronico`, `numero_Telefonico` por cada venta —
+sin ningún identificador único. Si dos personas DISTINTAS compran por separado y ambas quedan
+registradas como, por ejemplo, "Raul" (sin correo/teléfono, o con datos parecidos):
+
+**Pregunta:** ¿cómo distingue el back a estos dos "Raul" al importar participantes de una rifa
+(`clientesPorMes` / `importarDePedidos`)? ¿Hay riesgo de que:
+- se combinen los boletos de las dos personas en un solo participante, o
+- se descarte a una de las dos por "duplicado" aunque sean personas diferentes?
+
+Si el back matchea por nombre+apellido a secas, es un riesgo real con nombres comunes. Si ya usa
+algún id de venta/pedido por participante, no hay problema — solo queremos confirmarlo antes de
+que pase en una rifa real.
+
+### 3. ❓ `GET /v1/pedidos/{id}/detalle` — ¿falla o devuelve vacío cuando un producto no tiene imagen?
+
+**Reportado:** al abrir "Detalle" de un pedido, a veces se ve como si no tuviera productos ("No hay
+productos en este pedido"), y se sospecha que pasa con pedidos que tienen algún producto sin
+imagen.
+
+**Ya revisamos el front:** la imagen individual de cada producto ya tiene fallback
+(`<img (error)="onImgError($event)">` → `assets/img/no-image.png`), así que una imagen rota NO
+debería tumbar el render de la card. Pero si el problema está en la respuesta COMPLETA del
+endpoint (no en una imagen individual), el handler de error de `cargarDetalleCompleto()` en el
+front hoy es silencioso (`error: () => { this.cargandoDetalle = false; }`) — si el back respondiera
+error o un objeto vacío por esta causa, el usuario vería el estado "sin productos", que es
+engañoso.
+
+**Pregunta:** ¿hay algún caso conocido donde `GET /v1/pedidos/{id}/detalle` falle o devuelva
+`detalles: []` específicamente por falta de imagen en alguno de los productos del pedido? Si es
+así, necesitamos que no falle — el detalle (nombre, cantidad, precio) debe mostrarse igual, con o
+sin imagen.
+
+**Mientras se confirma:** el front va a mostrar el error real en pantalla en vez de la vacía
+silenciosa (no depende del back, se hace de todas formas).
+
+---
+
+### ✅ Ya implementado (solo para que quede registro, no es pregunta)
+
+- **Badge de tipo de pedido en la card de `mis-pedidos`** (📦 Apartado / 💳 Ir pagando) — ya existe
+  en `mis-pedidos.component.html` desde la sesión del 2026-07-01 (sección NF-2 del changelog
+  interno). Si el usuario no lo está viendo en QA, probablemente es tema de bundle no
+  actualizado, no de código faltante.
+- **Botón "Ver imagen" en `/variantes/carrito`** — ya está deshabilitado cuando no hay imagen
+  (`[disabled]="!item.imagenUrl"` + guard en `verImagen()`). Si en vivo se ve habilitado sin
+  imagen de todas formas, probablemente el back está mandando `imagenUrl` como string vacío no-nulo
+  o una URL rota en vez de `null` — para diagnosticarlo necesitamos el producto/variante puntual
+  donde pasó, con el valor exacto de `imagenUrl` que trae.
+
+### 🔧 100% front, no depende del back — se implementa sin esperar respuesta
+
+1. **Cobrar un pedido FIADO/APARTADO desde `mis-pedidos` da error 404.** El botón "Cobrar" de la
+   card SIEMPRE abre el diálogo de "Confirmar cobro" (`PUT /v1/pedidos/confirmar/{id}`), sin
+   importar el `tipoPedido` — ese endpoint es para ventas NORMAL y correctamente rechaza
+   FIADO/APARTADO ("se liquidan mediante abonos, no por esta vía"). Ya existe abono completo en
+   `detalle-pedido` (formulario de registrar abono, mismo endpoint `POST /v1/abonos/{pedidoId}`
+   que usa `/abonos`). Plan: si `tipoPedido` es `APARTADO`/`FIADO`, el botón "Cobrar" ya no abre
+   ese diálogo — en su lugar lleva directo al detalle (que ya tiene el formulario de abono) o
+   muestra un aviso con acceso directo a `/abonos`. Ningún endpoint nuevo.
+2. **Historial de abonos en la pantalla de Detalle del pedido.** Hoy `detalle-pedido` solo tiene
+   el formulario para registrar un abono NUEVO — no muestra los abonos ya hechos. Buena noticia:
+   **el dato ya viene en la misma respuesta que usa la pantalla** —
+   `PedidoDetalleResponse.abonos?: AbonoDetalleItem[]` (`GET /v1/pedidos/{id}/detalle`) ya incluye
+   el arreglo de abonos, el front solo no lo está pintando todavía. No hace falta ninguna llamada
+   nueva.
+
+**Ambos ya implementados (2026-07-22).**
+
+---
+
+### 💬 Nota — "campo nuevo para saber tipo de pedido" (confirmado, no es nada nuevo)
+
+El usuario mencionó de pasada que iba a haber "un campo nuevo en los pedidos para saber si ir
+pagando, apartado o de una" y preguntó si eso afectaba los 2 puntos de arriba. Confirmado en
+código: ese campo **ya existe** — `IPedidoQuery.tipoPedido?: string` (valores `NORMAL` /
+`APARTADO` / `FIADO`), ya viene en la respuesta de listado de pedidos desde la sesión del
+2026-07-01 (NF-2) y es justo lo que usamos para el fix del punto 1 de arriba (redirigir "Cobrar" a
+la pantalla de abono cuando el pedido es a crédito). No hay nada pendiente del back en esto — solo
+lo dejamos anotado por si el mensaje se refería a otra cosa que no quedó clara y hace falta
+aclarar de su lado.
+
+---
+
+## ✅ Respuestas back a la consulta de mis-pedidos / rifas (2026-07-21)
+
+Respuestas verificadas en el código actual a los 3 puntos "❓" de la consulta de arriba.
+
+### R-1 — El `motivo` de cancelación SÍ afecta la rifa, pero solo dos valores puntuales
+
+`motivo` es un `String` libre (no un enum cerrado), default `"NO_SE_PRESENTO"` en el endpoint
+`DELETE /v1/pedidos/delete/{id}?motivo=...`. Cualquiera que sea el valor, `estadoPedido` siempre
+queda en `"cancelado"` — el `motivo` no cambia el estado, solo se guarda en `motivoCancelacion`.
+
+Donde sí pesa: `calcularScore` (usado para calcular boletos de la rifa) resta boletos únicamente
+cuando `motivoCancelacion` es `'TIMEOUT'` o `'NO_SE_PRESENTO'`. **Cualquier otro texto que mande el
+front en `motivo` (ej. `ERROR_ADMIN`, `ERROR_CAPTURA`) ya NO penaliza al cliente** — no hace falta
+que el back agregue nada nuevo, el front puede usar hoy mismo cualquier motivo distinto a esos dos
+para el caso "error del admin al capturar".
+
+Aparte: el import de participantes de la rifa (`clientesPorMes`/`importarDePedidos`) no excluye
+pedidos cancelados por su `estadoPedido` — solo excluye `APARTADO`/`FIADO` que no estén `PAGADO`.
+Un pedido NORMAL cancelado sigue contando como cliente candidato, solo cambia su peso en el score.
+
+**Acción para el front:** al cancelar por error del admin, mandar `motivo=ERROR_ADMIN` (o
+cualquier texto que no sea `TIMEOUT`/`NO_SE_PRESENTO`) — ya funciona hoy, sin cambios en el back.
+
+### R-2 — Cliente sin registro con nombre repetido: NO se confunden
+
+El back arma la lista de participantes usando `COALESCE(c.id, csr.id)` como `clientePedidoId` — es
+decir, usa el **id de la fila** en `clientes_sin_registro`, no el nombre. Dos personas distintas
+que compren ambas como "Raul" sin correo/teléfono generan cada una su propio registro con su propio
+`id`, así que quedan como concursantes separados. No hay agrupación por nombre+apellido en el flujo
+de import de rifa (`clientesPorMes`/`importarDePedidos`); ese matching por nombre solo existe en un
+flujo distinto (`copiarDeRifa`, para copiar participantes entre dos rifas ya existentes) y no aplica
+aquí. **No hay riesgo de fusión ni de descarte por duplicado en este flujo.**
+
+### R-3 — El detalle de pedido NO falla por falta de imagen — porque no maneja imágenes
+
+Revisado `getDetallePedido` (el método que arma el response de `GET /v1/pedidos/{id}/detalle`):
+**no llama a ningún servicio de imágenes ni de variantes.** Solo copia campos ya cargados por JPA
+(id, cantidad, precio, talla, color, descripción, promoción, `varianteId`). El DTO de cada detalle
+no tiene ningún campo de imagen — como ya está documentado en la sección 20.3, la imagen se pide
+aparte con `GET /v1/variantes/imagenes/{varianteId}` por cada detalle.
+
+**Conclusión:** el escenario "el producto no tiene imagen y por eso el detalle sale vacío" no puede
+pasar en el back — no hay ninguna llamada a imágenes dentro de este endpoint que pueda fallar. Si en
+vivo se sigue viendo "No hay productos en este pedido", la causa es otra (error real del endpoint,
+pedido sin `DetallePedido` asociado, o un problema en el front al leer el response) — no la imagen.
+Con el cambio ya anotado arriba (mostrar el error real en vez del estado vacío silencioso) debería
+verse el motivo real la próxima vez que pase.
+
+---
+
+## 🔎 Aclaración adicional — cliente sin registro repetido + cómo se envía `motivo` hoy (2026-07-21)
+
+Dos dudas de seguimiento a R-2 y R-1, verificadas contra el código actual de ambos repos (back y
+`producto_venta_online`). **Análisis únicamente — no se implementó nada todavía**, queda para la
+siguiente sesión.
+
+### R-2 (extensión) — Cancelar un "cliente sin registro" no lo reutiliza ni lo borra
+
+Escenario planteado: se registra una venta con "Abel Tiburcio" (persona A), se cancela ese pedido,
+luego se registra otra venta con "Abel Tiburcio" (puede ser la persona A repitiendo, o una persona B
+distinta que solo coincide en nombre).
+
+- **Cancelar el pedido NO toca la tabla `clientes_sin_registro` para nada.**
+  `PedidoServiceImpl.deletePedidoById` (líneas 344-373) solo cambia el `Pedido`
+  (`estadoPedido="cancelado"`, `motivoCancelacion`, `fechaCancelacion`) y devuelve stock. No hay
+  ninguna llamada a `IClienteSinRegistroRepository` — el registro de "Abel Tiburcio" persona A queda
+  intacto, con su `id` original, sea el pedido cancelado o no.
+- **Cada venta sin registro crea SIEMPRE una fila nueva.** `VentaServiceImpl.java:143-144` hace
+  `iClienteSinRegistroRepository.save(...)` de un `ClienteSinRegistro` recién construido — no busca
+  antes por nombre. `IClienteSinRegistroRepository` no tiene ningún `findByNombre` ni lógica de
+  "encontrar o crear".
+
+**Conclusión:** volver a agregar "Abel Tiburcio" (sea la misma persona A o una persona B distinta)
+genera una fila nueva e independiente, con `id` propio, sin importar si el registro anterior fue
+cancelado o no. **No hay riesgo de mezclar a dos personas**, pero tampoco el sistema reconoce que es
+"la misma persona" recurrente — cada compra sin registro es un registro aislado. Esto es consistente
+con R-2 de arriba (el import de rifa usa el `id` de la fila, no el nombre).
+
+### R-1 (extensión) — El front YA tiene un select para `motivo`, no manda texto libre
+
+Duda: ¿cómo sabe el front qué texto exacto mandar en `motivo` para que el back lo identifique bien?
+
+Ya está resuelto en el front, no hace falta inventar nada: `mis-pedidos.component.ts` (líneas
+100-117), al cancelar, abre un modal (SweetAlert2) con **`input: 'radio'`** — dos opciones fijas:
+
+```ts
+inputOptions: {
+  NO_SE_PRESENTO: 'No se presentó',
+  CLIENTE_AVISO:  'El cliente avisó'
+}
+```
+
+y el valor elegido se manda como **parámetro de query separado**, no concatenado en observaciones:
+`pedidos.service.ts:40-42` → `DELETE /v1/pedidos/delete/{id}?motivo={valorExacto}`.
+
+- `NO_SE_PRESENTO` sí coincide con el valor que el back penaliza en el score de la rifa.
+- `CLIENTE_AVISO` ya se manda tal cual, pero el back **no lo penaliza** (solo penaliza
+  `TIMEOUT`/`NO_SE_PRESENTO` — ver R-1 arriba), así que hoy mismo "el cliente avisó" ya se comporta
+  como algo que no cuenta en contra, sin cambios pendientes.
+
+**Lo que falta para el caso "error del admin al capturar" (R-1):** agregar una tercera opción al
+mismo `inputOptions` que ya existe, por ejemplo:
+
+```ts
+inputOptions: {
+  NO_SE_PRESENTO: 'No se presentó',
+  CLIENTE_AVISO:  'El cliente avisó',
+  ERROR_ADMIN:    'Error al capturar (admin)'
+}
+```
+
+El mecanismo de envío (query param exacto, no texto libre) ya existe y no cambia — solo se agrega la
+tercera entrada al objeto de opciones del radio. El back ya no penaliza ningún valor que no sea
+`TIMEOUT`/`NO_SE_PRESENTO`, así que `ERROR_ADMIN` queda automáticamente sin penalización, sin tocar
+nada del back.
+
+### ✅ Pendiente para la siguiente sesión (front, 100% en `producto_venta_online`)
+
+- [ ] Agregar la opción `ERROR_ADMIN: 'Error al capturar (admin)'` al `inputOptions` de
+  `mis-pedidos.component.ts` (líneas ~106-109).
+- [ ] Confirmar con el usuario si el texto visible ("Error al capturar (admin)") es el que quiere
+  mostrar al admin en el modal, o prefiere otra redacción.
+
+---
+
+## 🔎 Aclaración adicional — cómo se identifica al ganador "sin registro" y si sus pedidos cuentan en la rifa (2026-07-21)
+
+Dos dudas más de seguimiento, verificadas contra el código actual. **Análisis únicamente — nada
+implementado todavía.**
+
+### ¿Los pedidos de "cliente sin registro" SÍ participan en la rifa del mes? — Confirmado que SÍ, sin excepción
+
+Recorrido el pipeline completo, sin ningún filtro oculto que los excluya:
+
+- `findClientesUnicosPorMes`/`findTodosClientesConCompras` (`IPedidoRepository.java:240`) solo
+  exigen `(cliente_id IS NOT NULL OR cliente_sin_registro_id IS NOT NULL)` — nunca exigen
+  `cliente_id IS NOT NULL` a secas.
+- `importarDePedidos` (`ConcursanteServiceImpl.java:144-203`) solo descarta por "ya registrado
+  antes" o "nombre vacío" — ningún chequeo distingue cliente real vs sin registro.
+- El cálculo de boletos (`calcularBoletos`/`calcularScore`) trata ambos casos de forma simétrica
+  vía el flag `sinRegistro`, sin restarles nada por el simple hecho de no estar registrados.
+- El sorteo final (`GanadorRifaServiceImpl`) elige entre todos los `Concursante` guardados, sin
+  filtrar por si tienen `Cliente` asociado.
+
+**Conclusión: un pedido de cliente sin registro pesa exactamente igual que uno de cliente
+registrado en toda la rifa — boletos, elegibilidad y sorteo.**
+
+### ¿Cómo se identifica al ganador si no está en el sistema? — Nombre y teléfono sí quedan, correo no
+
+Cuando se hace el import de participantes, el back **congela una copia** de los datos de contacto
+en la propia tabla `Concursante` (no queda como referencia viva a `Cliente`/`ClienteSinRegistro`):
+`nombre`, `apellidoPaterno`, `telefono` (`ConcursanteServiceImpl.java:186-188`), tomados de
+`COALESCE(cliente.nombre, clienteSinRegistro.nombre)` ya resuelto desde el listado de
+`clientesPorMes`.
+
+**Si un cliente sin registro gana:** el admin sí puede ver su **nombre y teléfono** en el
+`GanadorRifa` (vía `Concursante`) para poder localizarlo y entregarle el premio — no depende de que
+tenga cuenta en el sistema.
+
+**Lo que NO queda disponible:**
+- **Correo electrónico** — ni la query de `clientesPorMes` lo selecciona, ni `Concursante` tiene
+  columna para guardarlo. Si se necesita contactar por correo (ej. para notificar el premio), hoy
+  no hay forma de recuperarlo desde el ganador — habría que ir manualmente a la tabla
+  `clientes_sin_registro` con el `clientePedidoId` guardado, si es que se conserva.
+- **Certeza de si el ganador es cliente registrado o sin registro** — `Concursante` no guarda ese
+  flag como columna persistida (la query sí lo calcula al vuelo, pero no se guarda). Como
+  `clientes.id` y `clientes_sin_registro.id` son secuencias independientes, un mismo número de
+  `clientePedidoId` podría corresponder a cualquiera de las dos tablas sin que quede registrado cuál
+  fue — actualmente solo el nombre/teléfono congelados permiten identificar a la persona real, no
+  hace falta saber en qué tabla vive para contactarla, pero si se necesita auditar después ("¿este
+  ganador era cliente registrado?") no hay cómo saberlo con certeza desde `Concursante`.
+
+### ✅ Pendiente para decidir (no es urgente, solo queda anotado)
+
+- [ ] Definir si hace falta capturar correo del cliente sin registro para el caso de ganador (hoy no
+  se guarda en ningún punto del flujo de rifa).
+- [ ] Definir si vale la pena persistir el flag "sin registro" en `Concursante` para poder auditar
+  después qué tipo de cliente ganó cada rifa.
+
+---
+
+## 📋 PLAN — Verificación real de correo para cliente sin registro + elegibilidad de rifa (2026-07-21, actualizado)
+
+**✅ Implementado en el back (dev, sin commitear) — ver la sección "ESPECIFICACIÓN FINAL" más abajo,
+que es la referencia con los endpoints y bodies exactos, ya implementados tal cual.**
+
+### ⚠️ Confirmado en el front actual — hoy "Agregar cliente" NO llama al back
+
+El modal "Agregar cliente sin registro" en `venta-directa.component.ts` (`obtenerDatosClienteSinRegistro()`,
+líneas 163-164) hoy **solo asigna el formulario a una variable en memoria**
+(`this.clienteSinRegistroModal = this.clienteForm.value`) — no hay ningún HTTP call ahí. El
+`ClienteSinRegistro` se guarda en la BD hasta el final, en el mismo request que la venta
+(`venta-directa.component.ts:649`, `clienteSinRegistroDto: this.clienteSinRegistroModal`, que
+`VentaServiceImpl` guarda de un jalón dentro de `POST /v1/ventas/save`).
+
+**El cambio que se pide es justo introducir un HTTP call ahí:** que "Agregar cliente" sí cree el
+registro en el back (con `correoVerificado = false`), permita mandar/verificar el código en ese
+mismo modal, y solo hasta cerrar el modal (verificado o aceptando seguir sin verificar) se habilite
+"Generar venta" — la cual pasa a usar el `clienteSinRegistroId` ya creado en vez de mandar el DTO
+completo otra vez. Si el admin cierra/cancela la venta después de agregar el cliente, queda una fila
+huérfana en `clientes_sin_registro` sin pedido asociado — inofensivo (no afecta la rifa, que solo
+cuenta filas ligadas a un pedido real), solo un dato de más en la tabla.
+
+### Flujo confirmado con el usuario (venta presencial, admin captura los datos)
+
+1. Admin hace la venta y captura al cliente sin registro. Le pide correo.
+2. Si el cliente no quiere dar correo → admin pide teléfono en su lugar. Cualquiera de los dos casos
+   permite generar la venta con normalidad.
+3. **Si el cliente SÍ da un correo**, antes de terminar la venta el admin manda un código de
+   verificación a ese correo (el cliente lo revisa ahí mismo, en su teléfono, y se lo dice al admin o
+   lo captura él mismo en la pantalla) — igual que ya pasa hoy cuando alguien se registra en el
+   sistema y no puede entrar hasta verificar su correo (`Cliente`/`Usuario`, mismo patrón, ver
+   `ClienteServiceImpl.enviarCodigoVerificacionCorreo`/`verificarCorreo`,
+   `service/ClienteServiceImpl.java:72-117`). Solo después de confirmar el código se termina de
+   generar la venta.
+4. Si el cliente no quiere dar ni correo ni teléfono, el registro `ClienteSinRegistro` **se guarda
+   igual** (para reportes, como ya pasa hoy) — simplemente ese cliente no cuenta para la rifa del mes.
+5. Regla de elegibilidad para la rifa: participa si **correo verificado** (`correoVerificado = true`)
+   **O** teléfono presente (no vacío — el teléfono no se puede verificar, no existe SMS/OTP en el
+   proyecto, así que ahí sí basta con que no venga vacío).
+
+### Por qué no se puede verificar "después" de guardar la venta (detalle técnico)
+
+Hoy `VentaServiceImpl` (líneas 143-144) crea un `ClienteSinRegistro` **nuevo siempre** dentro del
+mismo `POST /v1/ventas/save` — no hay un paso intermedio con un `id` propio antes de eso. Pero el
+patrón de verificación de `Cliente` (`enviarCodigoVerificacionCorreo`/`verificarCorreo`) necesita un
+`id` ya persistido para guardarle el código y su expiración. Como el usuario quiere verificar el
+correo **antes** de terminar la venta (no después), hace falta partir el guardado en dos pasos:
+
+1. Se crea el `ClienteSinRegistro` primero (con `correoVerificado = false`), se manda el código.
+2. Se verifica el código contra ese `id` ya existente (igual que `Cliente`).
+3. `POST /v1/ventas/save` pasa a aceptar un `clienteSinRegistroId` ya existente (además de poder
+   seguir creando uno nuevo inline si no hubo correo que verificar), para enlazar la venta al
+   registro que ya se verificó.
+
+### Plan propuesto (pendiente de aprobar antes de tocar código)
+
+1. **Back — nuevos campos en `ClienteSinRegistro`** (mismo patrón que `Cliente`):
+   `correoVerificado: Boolean` (default `false`), `codigoVerificacion: String`,
+   `codigoVerificacionExpira: LocalDateTime` + migración SQL.
+2. **Back — nuevo endpoint para crear el registro temprano + enviar código:**
+   ej. `POST /v1/clientes-sin-registro` (crea la fila, sin venta todavía, devuelve el `id`) y
+   `POST /v1/clientes-sin-registro/{id}/enviar-codigo` (genera código de 6 dígitos, igual que
+   `Cliente`, reutilizando `EmailService`).
+3. **Back — nuevo endpoint para verificar:** `POST /v1/clientes-sin-registro/{id}/verificar-codigo`
+   `{ codigo }` → marca `correoVerificado = true` (mismo patrón que `ClienteServiceImpl.verificarCorreo`).
+4. **Back — `POST /v1/ventas/save`** acepta `clienteSinRegistroId` (de un registro ya creado/verificado)
+   como alternativa al DTO embebido actual (que sigue funcionando igual para el caso "no dio nada" o
+   "solo dio teléfono").
+5. **Back — ajustar la consulta de elegibilidad de la rifa** (`findClientesUnicosPorMes` /
+   `findTodosClientesConCompras`, `IPedidoRepository.java`) para exigir, en clientes sin registro:
+   `correo_verificado = true` **o** `numero_telefonico` no vacío.
+6. **Front — pantalla de venta directa:** tras capturar correo, botón "Enviar código" → campo para
+   capturarlo → botón "Verificar" → solo entonces se habilita "Generar venta". Si el cliente no dio
+   correo (solo teléfono, o nada), se salta este paso y se genera la venta normal.
+7. **Back — agregar `correo` a `Concursante`** (falta hoy) para poder notificar al ganador por correo
+   si resulta ser un cliente sin registro, y **enviar correo automático al ganador** al sortear
+   (reutilizando `EmailService`, mismo patrón que la sección 25). Este punto es independiente de la
+   verificación — es la mejora de "avisarle a quien ganó".
+
+### ❓ Preguntas — YA RESUELTAS (ver especificación final más abajo)
+
+- ~~¿El filtro aplica solo a `ClienteSinRegistro` o también a `Cliente`?~~ → **Solo a
+  `ClienteSinRegistro`.** `Cliente` registrado ya verifica su correo al registrarse (y al cambiarlo,
+  vía `correoPendiente` — mejora 15); si no lo verifica, se queda con el correo anterior ya
+  verificado. No hace falta ningún filtro nuevo para clientes registrados.
+- ~~¿Se implementa el correo al ganador ahora o después?~~ → **Ahora, en esta misma sesión**, junto
+  con todo lo demás.
+- ~~¿Si no se verifica, se guarda el correo o se descarta?~~ → **Se guarda tal cual**, con
+  `correoVerificado = false`. Sirve para reportes/contacto manual aunque no cuente para la rifa.
+
+---
+
+## ✅ ESPECIFICACIÓN FINAL — Verificar correo de cliente sin registro + elegibilidad de rifa + notificar al ganador (2026-07-21)
+
+**Esta sección es la referencia única y completa para implementar este cambio — reemplaza en
+detalle todo el análisis/plan de arriba.**
+
+**✅ Implementado en el back (dev, sin commitear/pushear todavía; compila OK — `mvn compile` verde).**
+Falta correr la migración SQL (`migration_verificacion_cliente_sin_registro.sql`) en dev/qa, y
+falta todo el lado del front. Los endpoints, requests y responses de abajo ya son exactamente
+como quedaron implementados, no un borrador.
+
+### Resumen en una frase
+
+Al agregar un cliente sin registro con correo, ese correo se verifica con un código de 6 dígitos
+**antes** de poder generar la venta (el admin puede seguir sin verificar si el cliente no puede/no
+quiere); un cliente sin registro solo participa en la rifa del mes si su correo quedó verificado **o**
+si dio teléfono (el teléfono no se puede verificar — no existe SMS/OTP en el proyecto — así que ahí
+basta con que no venga vacío); y al elegir ganador de una rifa, si tiene correo disponible se le
+manda un correo automático avisando que ganó.
+
+### 1. Cambios de datos (back)
+
+**`ClienteSinRegistro`** — 3 columnas nuevas (mismo patrón que ya existe en `Cliente`):
+| Campo | Tipo | Default |
+|---|---|---|
+| `correoVerificado` | boolean | `false` |
+| `codigoVerificacion` | string (6 dígitos) | `null` |
+| `codigoVerificacionExpira` | datetime | `null` |
+
+**`Concursante`** — 1 columna nueva:
+| Campo | Tipo | Default |
+|---|---|---|
+| `correo` | string | `null` |
+
+**Migración:** `migration_verificacion_cliente_sin_registro.sql` (raíz de `resources/static`) —
+**✅ ya corrida en dev, qa Y prod** (2026-07-21) — `inventario_key_qa` (dev/qa) e `inventario_key`
+(prod). No queda ningún ambiente pendiente para esta migración.
+
+Se llena al importar participantes de la rifa (`COALESCE(cliente.correo, clienteSinRegistro.correo)`),
+igual que ya se hace hoy con `nombre`/`telefono`.
+
+### 2. Endpoints nuevos — flujo de "Agregar cliente sin registro"
+
+Reemplaza el modal actual, que hoy solo guarda el formulario en memoria
+(`venta-directa.component.ts:163-164`) sin llamar al back.
+
+#### 2.1 Crear el registro
+
+```
+POST /mis-productos/v1/clientes-sin-registro
+```
+**Request** (mismos campos que hoy manda el formulario, sin cambios de nombre):
+```json
+{
+  "nombre_persona": "Abel Tiburcio",
+  "segundo_nombre": "",
+  "apeido_Paterno": "",
+  "apeido_Materno": "",
+  "fecha_Nacimiento": "",
+  "sexo": "",
+  "correo_Electronico": "abel@correo.com",
+  "numero_Telefonico": ""
+}
+```
+**Response (tal cual quedó implementado — regresa la entidad completa, no solo el id):**
+```json
+{
+  "data": {
+    "id": 501,
+    "nombrePersona": "Abel Tiburcio",
+    "segundoNombre": "",
+    "apeidoPaterno": "",
+    "apeidoMaterno": "",
+    "fechaNacimiento": null,
+    "sexo": "",
+    "correoElectronico": "abel@correo.com",
+    "numeroTelefonico": "",
+    "correoVerificado": false,
+    "codigoVerificacion": null,
+    "codigoVerificacionExpira": null
+  }
+}
+```
+El front solo necesita quedarse con `id` (para los pasos siguientes) y `correoVerificado` (para
+saber si mostrar el paso de verificación o ya venir en `true`/`false`). Se llama al confirmar el
+formulario del modal (botón que hoy dice "Agregar" o similar). Si `correo_Electronico` viene vacío,
+`id` igual se crea — simplemente no hay nada que verificar y el front pasa directo al paso 4.
+
+#### 2.2 Enviar código de verificación
+
+```
+POST /mis-productos/v1/clientes-sin-registro/{id}/enviar-codigo
+```
+Sin body. Genera un código de 6 dígitos, lo guarda con expiración (mismos minutos que usa `Cliente`
+hoy), y lo envía al `correo_Electronico` guardado en el paso 2.1.
+
+**Response 200:** `{ "data": "Codigo enviado" }`
+**Response 400:** si el registro no tiene correo — `"El cliente no tiene correo registrado"`.
+
+#### 2.3 Verificar código
+
+```
+POST /mis-productos/v1/clientes-sin-registro/{id}/verificar-codigo
+{ "codigo": "123456" }
+```
+**Response 200** (código correcto): `{ "data": "Correo verificado correctamente" }` — string, no
+objeto. El front debe volver a marcar su propio estado local `correoVerificado = true` al recibir
+un 200 aquí (el body no repite el objeto completo).
+**Response 400** — código incorrecto: `"Codigo de verificacion invalido"`
+**Response 400** — código vencido: `"El codigo de verificacion expiro, solicita uno nuevo"` (el front
+debe ofrecer "Reenviar código", que vuelve a llamar 2.2)
+
+El admin puede cerrar el modal en cualquier momento sin haber llamado 2.2/2.3 — el registro ya
+existe (paso 2.1) con `correoVerificado = false`, y así se queda si nunca se verifica.
+
+### 3. Cambio en `POST /v1/ventas/save`
+
+**Nuevo campo opcional en el request:** `clienteSinRegistroId` (int). Cuando viene, el back usa el
+registro ya creado en 2.1 (no crea uno nuevo). El campo `clienteSinRegistroDto` embebido (el que se
+manda hoy) queda como fallback por compatibilidad, pero el flujo nuevo del front **siempre** debe
+mandar `clienteSinRegistroId` en vez del DTO completo, una vez armado el paso 2.
+
+```json
+{
+  "clienteSinRegistroId": 501,
+  "clienteId": null,
+  "...": "resto del body de venta sin cambios"
+}
+```
+
+### 4. Flujo completo para el front (paso a paso)
+
+1. Admin abre el modal "Agregar cliente sin registro", llena nombre + correo y/o teléfono.
+2. Al confirmar el formulario → `POST /v1/clientes-sin-registro` (2.1) → guardar el `id` devuelto en
+   el estado del componente (ya no se guarda el DTO completo, se guarda el `id`).
+3. Si el registro tiene correo:
+   - Mostrar botón **"Enviar código de verificación"** → llama 2.2.
+   - Mostrar campo para capturar el código + botón **"Verificar"** → llama 2.3.
+   - Si OK → mostrar check/badge "Correo verificado ✅".
+   - Si falla → mostrar el error y permitir reintentar o reenviar código.
+   - El admin puede omitir este paso y cerrar el modal igual — no es obligatorio, solo afecta si el
+     cliente entra o no a la rifa.
+4. Cerrar el modal (verificado o no) — el chip de cliente en pantalla ya no necesita mostrar nada
+   nuevo, sigue igual que hoy.
+5. Al presionar "Generar venta" → `POST /v1/ventas/save` con `clienteSinRegistroId` (del paso 2) en
+   vez de `clienteSinRegistroDto`.
+
+### 5. Elegibilidad de rifa (100% back, informativo para el front)
+
+Un pedido de cliente sin registro participa en la rifa del mes solo si, al momento de la compra,
+ese `ClienteSinRegistro` tiene `correoVerificado = true` **o** `numeroTelefonico` no vacío. Si
+ninguno de los dos, el pedido se guarda igual (para reportes) pero no cuenta para esa rifa. Clientes
+registrados (`Cliente`) no cambian — su correo ya se verifica en el registro.
+
+### 6. Notificación automática al ganador
+
+Al elegir ganador (`GanadorRifaServiceImpl`), si el `Concursante` ganador tiene `correo` (columna
+nueva del punto 1), se le manda un correo automático avisando que ganó, reutilizando `EmailService`
+(mismo mecanismo que el correo de "agrega tu compra" de la sección 25). Si no hay correo disponible
+(el participante solo dio teléfono), no se manda nada automático — el admin contacta manualmente
+usando el nombre/teléfono ya visibles en `GanadorRifa`.
+
+### Resumen de endpoints — tabla rápida
+
+| Endpoint | Método | Cuándo se llama |
+|---|---|---|
+| `/v1/clientes-sin-registro` | POST | Al confirmar el formulario del modal "Agregar cliente" |
+| `/v1/clientes-sin-registro/{id}/enviar-codigo` | POST | Al presionar "Enviar código de verificación" |
+| `/v1/clientes-sin-registro/{id}/verificar-codigo` | POST | Al presionar "Verificar" con el código capturado |
+| `/v1/ventas/save` | POST | Al presionar "Generar venta" — ahora manda `clienteSinRegistroId` |
+
+**Nada de esto rompe el flujo actual de clientes registrados (`clienteId`)** — solo cambia cómo se
+maneja el caso de cliente sin registro.

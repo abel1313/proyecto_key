@@ -28,6 +28,7 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
     private final IConcursanteRepository iConcursanteRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ConfigurarRifaVarianteService configurarRifaVarianteService;
+    private final EmailService emailService;
 
     public GanadorRifaServiceImpl(
             final IGanadorRifaRepository iGanadorRifaRepository,
@@ -37,7 +38,8 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
             final IHistorialRifaVarianteRepository iHistorialRifaVarianteRepository,
             final IConcursanteRepository iConcursanteRepository,
             final SimpMessagingTemplate messagingTemplate,
-            final ConfigurarRifaVarianteService configurarRifaVarianteService) {
+            final ConfigurarRifaVarianteService configurarRifaVarianteService,
+            final EmailService emailService) {
         super(iGanadorRifaRepository, eGenerico);
         this.iGanadorRifaRepository = iGanadorRifaRepository;
         this.iConfigurarRifaRepository = iConfigurarRifaRepository;
@@ -46,6 +48,7 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         this.iConcursanteRepository = iConcursanteRepository;
         this.messagingTemplate = messagingTemplate;
         this.configurarRifaVarianteService = configurarRifaVarianteService;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -115,6 +118,15 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         }
 
         GanadorRifa guardado = iGanadorRifaRepository.save(gr);
+
+        // Avisar al ganador por correo si hay correo disponible (cliente registrado o cliente
+        // sin registro con correo verificado -- ver Concursante.correo). No se manda en rifas
+        // de prueba, igual que el resto de efectos "reales" de este metodo.
+        if (esGanador && seleccionado.getCorreo() != null && !seleccionado.getCorreo().isBlank()
+                && !Boolean.TRUE.equals(config.getEsPrueba())) {
+            String premio = varianteActual.getVariante().getProducto().getNombre();
+            emailService.enviarNotificacionGanador(seleccionado.getCorreo(), seleccionado.getNombre(), premio);
+        }
 
         ConfigurarRifaVarianteDto varianteDto = configurarRifaVarianteService.toDto(varianteActual);
 

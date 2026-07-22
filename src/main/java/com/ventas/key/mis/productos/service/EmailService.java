@@ -78,4 +78,17 @@ public class EmailService {
                 + "<p>Este código solo se puede usar una vez. Si tú no realizaste esta compra, ignora este correo.</p>";
         return enviarTicket(destinatario, asunto, html);
     }
+
+    /**
+     * Avisa al ganador de una rifa que ganó un premio.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarNotificacionGanador(String destinatario, String nombreGanador, String premio) {
+        String asunto = "¡Ganaste! — Novedades Jade";
+        String html = "<p>Hola " + nombreGanador + ",</p>"
+                + "<p>¡Felicidades! Ganaste en nuestra rifa:</p>"
+                + "<h2>" + premio + "</h2>"
+                + "<p>Nos pondremos en contacto contigo para coordinar la entrega.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
 }

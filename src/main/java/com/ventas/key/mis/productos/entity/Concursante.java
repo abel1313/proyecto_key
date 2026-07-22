@@ -23,6 +23,9 @@ public class Concursante extends BaseId {
     @Column(name = "telefono")
     private String telefono;
 
+    @Column(name = "correo")
+    private String correo;
+
     @Column(name = "descartado", nullable = false)
     private boolean descartado = false;
 
