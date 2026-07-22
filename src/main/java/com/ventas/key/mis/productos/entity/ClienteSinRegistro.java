@@ -57,6 +57,15 @@ public class ClienteSinRegistro extends BaseId{
         @Column(name = "codigo_verificacion_expira")
         private LocalDateTime codigoVerificacionExpira;
 
+        @Column(name = "creado_en")
+        private LocalDateTime creadoEn;
+
+        @PrePersist
+        private void marcarCreacion() {
+                if (this.creadoEn == null) {
+                        this.creadoEn = LocalDateTime.now();
+                }
+        }
 
 
 

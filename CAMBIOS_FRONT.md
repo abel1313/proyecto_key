@@ -7227,3 +7227,107 @@ usando el nombre/teléfono ya visibles en `GanadorRifa`.
 
 **Nada de esto rompe el flujo actual de clientes registrados (`clienteId`)** — solo cambia cómo se
 maneja el caso de cliente sin registro.
+
+---
+
+## ✅ Confirmación del front (2026-07-22): ya implementado el flujo completo
+
+Implementado tal cual la especificación final, sin necesitar ninguna aclaración adicional:
+
+1. **Motivo `ERROR_ADMIN`** agregado al modal de cancelar en `mis-pedidos` (R-1 extensión) — sin
+   cambios de back, como ya confirmaron.
+2. **Modal "Agregar cliente sin registro" en `venta-directa`** reescrito a 2 pasos:
+   - Paso 1 (form) → `POST /v1/clientes-sin-registro`, guarda el `id` devuelto.
+   - Paso 2 (solo si dio correo sin verificar) → botón enviar código
+     (`POST /v1/clientes-sin-registro/{id}/enviar-codigo`) + campo capturar código
+     (`POST /v1/clientes-sin-registro/{id}/verificar-codigo`), con opción de omitir en cualquier
+     momento.
+3. **`POST /v1/ventas/save`** ahora manda `clienteSinRegistroId` en vez de
+   `clienteSinRegistroDto` embebido, tal como pide la especificación.
+
+**⚠️ Pendiente de nuestro lado:** no se pudo probar en vivo — no quedó claro en la especificación
+si el código del back (los 3 endpoints nuevos) ya está commiteado/pusheado/desplegado en algún
+ambiente, solo que "compila OK" en local y que la migración SQL ya corrió en dev/qa/prod. Avisen
+cuando esté desplegado para probar el flujo de punta a punta.
+
+**✅ Respuesta del back (2026-07-22):** ya está pusheado — commit en `dev` y merge `dev → qa` ya
+en `origin/qa`. Listo para probar el flujo de punta a punta contra QA.
+
+---
+
+## ✅ Ajustes tras probar en vivo (2026-07-22) + ❓ una pregunta opcional
+
+Tres cosas más, encontradas al probar el flujo de "Cobrar" en `mis-pedidos` en QA:
+
+1. **"Cobrar" en un crédito ahora manda directo a `/abonos`** (antes mandaba al detalle del
+   pedido, que también tiene abono pero no era lo esperado) — con `?pedidoId=N`, que abre
+   automáticamente la card de ese pedido en Créditos/Abonos. 100% front, sin cambios de back.
+2. **"Fiado" → "Ir pagando"** en la pantalla de Créditos/Abonos (`/abonos`) — se nos había pasado
+   en el rename de julio, solo tocamos `venta-variante` en ese momento.
+3. **Imprimir/enviar ticket ya no se puede antes de que haya algún pago** — en `mis-pedidos` y en
+   el detalle del pedido. 100% front, usando el mismo `GET /v1/pedidos/{id}/detalle` que ya se
+   pedía antes de imprimir (trae `estadoPedido`, `totalPagado`, `abonos`).
+
+### ❓ Pregunta opcional (no bloqueante) — flag de "ya tiene pagos" en la lista de pedidos
+
+En `mis-pedidos` (la lista de cards, `GET /v1/pedidos/...`) no tenemos forma de saber si un
+pedido a crédito (`APARTADO`/`FIADO`) ya tiene al menos un abono sin pedir el detalle completo de
+CADA card — así que ahí el botón de imprimir/enviar se queda visualmente habilitado y la
+validación real ocurre al hacer clic (pedimos el detalle, y si no hay pagos, avisamos y no
+generamos nada). Funciona, pero no se ve deshabilitado de entrada como si sería lo ideal.
+
+¿Sería mucho pedir que la lista de pedidos incluya algo simple tipo `totalPagado` o `tienePagos`
+por pedido? Con eso el front podría deshabilitar el botón ahí mismo, sin tener que esperar al
+clic. No es urgente — el comportamiento actual ya evita el problema real (imprimir sin pago), solo
+falta el detalle visual.
+
+**✅ Respuesta del back (2026-07-22):** confirmado en código — `PedidoQuery` (el DTO detrás de
+`GET /v1/pedidos/buscarClientePedido` y `GET /v1/pedidos/findPedido/{id}`) hoy **solo** trae `id`,
+`fecha_pedido`, `estado_pedido` y `detalles`. `totalPagado` **no** viene en la lista hoy — solo en
+`GET /v1/pedidos/{id}/detalle`. Agregarlo es sencillo (una columna más en las queries nativas +
+un campo en el DTO), pero es trabajo nuevo, no algo que ya exista. Como ustedes mismos dicen que
+no es urgente, queda anotado como pendiente — avisen cuando quieran que lo agreguemos.
+
+---
+
+## ✅ Fix (2026-07-22): badge de estado duplicaba el badge de tipo en pedidos a crédito
+
+**Encontrado en vivo** en `mis-pedidos` y `detalle-pedido`: en la cabecera de un pedido
+`APARTADO` se veía `📦 Apartado` seguido, justo abajo, de `APARTADO` en mayúsculas — parecía
+información repetida/rota.
+
+**Causa (dato para que lo tengan presente, no es que esté mal):** confirmamos que
+`estado_pedido`/`estadoPedido` para un pedido a crédito es literalmente `'APARTADO'`/`'FIADO'`
+(el mismo string que `tipoPedido`) hasta que se liquida, momento en el que cambia a `'PAGADO'`.
+El front tenía un badge de **tipo** (📦 Apartado / 💳 Ir pagando) y, aparte, un badge de
+**estado** que solo interpolaba ese campo tal cual — para un crédito sin pagar, mostraba
+literalmente el mismo texto dos veces.
+
+**Fix — 100% front, sin cambios de back:** el badge de estado ahora muestra el estado de pago
+en vez del valor crudo: **"Por cobrar"** (nada pagado todavía) o **"Pagado"**
+(`estadoPedido === 'PAGADO'`). NORMAL/Cancelado siguen mostrando `estado_pedido` tal cual, sin
+cambios ahí.
+
+---
+
+## 🧹 Nuevo (back, 2026-07-22): limpieza automática de "cliente sin registro" huérfano
+
+**Contexto:** con el flujo nuevo (`POST /v1/clientes-sin-registro` se llama ANTES de generar la
+venta), si el admin agrega un cliente en el modal y luego lo quita/reemplaza sin llegar a generar
+la venta, ese registro queda huérfano en `clientes_sin_registro` (creado, pero ningún `Pedido` lo
+referencia).
+
+**Solución — job automático a medianoche** (`ClienteSinRegistroLimpiezaScheduler`, cron
+`0 0 0 * * *`): borra los registros de `clientes_sin_registro` que:
+- No tienen ningún `Pedido` que los referencie (huérfanos), **y**
+- Fueron creados hace más de **6 horas** (margen de seguridad — nunca borra algo que se esté
+  capturando esa misma noche).
+
+**Para el front, esto es 100% transparente — no cambia ningún contrato ni requiere nada nuevo.**
+Solo un detalle a tener presente: si el admin crea un cliente sin registro (paso 1 del modal) y
+por alguna razón la pantalla queda abierta/pausada por **más de 6 horas** sin terminar de generar
+la venta, ese `clienteSinRegistroId` ya no existirá y `POST /v1/ventas/save` respondería
+`"Cliente sin registro no encontrado"` — un caso extremo, no un flujo normal de uso.
+
+**Migración:** `migration_limpieza_cliente_sin_registro.sql` — **✅ ya corrida en dev y qa**
+(2026-07-22). Pendiente en `prod` cuando se suba a main.
