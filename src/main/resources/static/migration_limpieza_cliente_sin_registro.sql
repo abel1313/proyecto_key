@@ -11,7 +11,7 @@
 -- Estado por ambiente:
 --   dev  → ✅ ya corrido (2026-07-22) — comparte BD inventario_key_qa con qa
 --   qa   → ✅ ya corrido (2026-07-22) — misma BD que dev
---   prod → ⏳ pendiente — correr en inventario_key cuando se suba a main
+--   prod → ✅ ya corrido (2026-07-22) — inventario_key
 -- ============================================================
 
 -- Fecha de creación del registro. Sirve para que el job de limpieza (medianoche) solo borre
