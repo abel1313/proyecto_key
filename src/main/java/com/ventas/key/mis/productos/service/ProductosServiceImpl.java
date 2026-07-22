@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
@@ -362,19 +363,54 @@ public class ProductosServiceImpl extends
             producto.setHabilitado('1');
 
             log.info("Se va a guardar el codigo de barras {}",2);
+            String nuevoCodigoBarrasStr = productoDetalle.getCodigoBarras().getCodigoBarras() == null
+                    || productoDetalle.getCodigoBarras().getCodigoBarras().isEmpty()
+                    ? null : productoDetalle.getCodigoBarras().getCodigoBarras();
             CodigoBarra codigoBarras = new CodigoBarra();
             codigoBarras.setId(productoDetalle.getCodigoBarras().getId());
-            codigoBarras.setCodigoBarras(productoDetalle.getCodigoBarras().getCodigoBarras().isEmpty() ? null : productoDetalle.getCodigoBarras().getCodigoBarras());
+            codigoBarras.setCodigoBarras(nuevoCodigoBarrasStr);
             producto.setCodigoBarras(codigoBarras);
 
             Producto prodExistenteNoOpt = null;
-            if( producto.getCodigoBarras().getCodigoBarras() != null ){
-                log.info("El codigo de barras no es nul {}",producto.getCodigoBarras().getCodigoBarras());
+            // Si el front manda el id del producto (edicion real), se busca directo por id: asi
+            // si tambien cambia el codigo de barras, se actualiza el mismo producto en vez de
+            // crear uno nuevo (ver aclaracion 2026-07-21 en CAMBIOS_FRONT.md).
+            if (productoDetalle.getId() != null) {
+                prodExistenteNoOpt = this.iProductosRepository.findById(productoDetalle.getId()).orElse(null);
+                log.info("Se busco el producto por id {} -> {}", productoDetalle.getId(), prodExistenteNoOpt);
+            }
+            // Sin id (alta nueva o carga por Excel sin id): se busca por coincidencia exacta de codigo de barras
+            if (prodExistenteNoOpt == null && nuevoCodigoBarrasStr != null) {
+                log.info("El codigo de barras no es nul {}", nuevoCodigoBarrasStr);
                 prodExistenteNoOpt = this.iProductosRepository
-                        .findByCodigoBarras_CodigoBarrasIgnoreCase(producto.getCodigoBarras().getCodigoBarras())
+                        .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr)
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
             }
+
+            // Si el producto ya existia y el codigo de barras cambio, se crea el codigo nuevo,
+            // se asigna al producto y se elimina el anterior (huerfano: la relacion es 1 a 1 unica)
+            if (prodExistenteNoOpt != null && nuevoCodigoBarrasStr != null) {
+                String codigoActual = prodExistenteNoOpt.getCodigoBarras() != null
+                        ? prodExistenteNoOpt.getCodigoBarras().getCodigoBarras() : null;
+                if (!nuevoCodigoBarrasStr.equalsIgnoreCase(codigoActual)) {
+                    Optional<Producto> enUsoPorOtro = this.iProductosRepository
+                            .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr);
+                    if (enUsoPorOtro.isPresent() && !enUsoPorOtro.get().getId().equals(prodExistenteNoOpt.getId())) {
+                        throw new ExceptionDuplicado("El codigo de barras " + nuevoCodigoBarrasStr + " ya esta en uso por otro producto");
+                    }
+                    CodigoBarra anterior = prodExistenteNoOpt.getCodigoBarras();
+                    CodigoBarra nuevo = new CodigoBarra();
+                    nuevo.setCodigoBarras(nuevoCodigoBarrasStr);
+                    nuevo = this.iBarrasService.save(nuevo);
+                    prodExistenteNoOpt.setCodigoBarras(nuevo);
+                    if (anterior != null) {
+                        this.iBarrasService.delete(anterior.getId());
+                        log.info("Se elimino el codigo de barras anterior huerfano id={} codigo={}", anterior.getId(), anterior.getCodigoBarras());
+                    }
+                }
+            }
+
             // [FLUJO 2] PRODUCTO NUEVO: no existe en BD → se crea
             if(prodExistenteNoOpt == null) {
                 CodigoBarra codBarr = this.iBarrasService.save(producto.getCodigoBarras());

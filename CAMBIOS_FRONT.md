@@ -6446,4 +6446,33 @@ devuelto), el guardado de esa pantalla **siempre** debe ir a `PUT /v1/carga-imag
 asignado (`codigoBarrasGenerado: false`) se puede volver a editar con el flujo normal de
 `save`/`update`.
 
+---
+
+**🐛 Bug corregido (2026-07-21): editar un producto normal (no borrador) cambiando su código de
+barras creaba un duplicado en vez de actualizarlo.** Es el mismo problema del punto anterior pero
+para la edición normal de catálogo (fuera del flujo de carga rápida): `POST /productos/save` y
+`PUT /productos/update` buscaban el producto a actualizar **solo por coincidencia exacta de código
+de barras**. Si el usuario editaba un producto y le cambiaba el código de barras junto con el resto
+de los datos, el backend no encontraba ningún producto con ese código nuevo, concluía que era un
+producto nuevo y lo creaba — dejando el producto original intacto, sin los cambios.
+
+**Qué cambió:** ahora `guardarProducto()` primero busca el producto **por `id`** (si el front lo
+manda en el body). Si lo encuentra y el código de barras viene distinto al que ya tenía, crea el
+código de barras nuevo, lo asigna a ese mismo producto, y **elimina el código de barras anterior**
+(la relación producto↔código de barras es 1 a 1 única, así que el anterior siempre queda huérfano,
+nunca se pierde nada real). Si el código nuevo ya está en uso por otro producto, responde 400 con
+`ExceptionDuplicado`. Si el front no manda `id`, se mantiene el comportamiento anterior (búsqueda
+por código de barras) para no romper la carga por Excel.
+
+**Importante para el front:** a partir de ahora, el body de `save`/`update` **debe incluir el
+campo `id` del producto** cuando se está editando uno existente (antes se ignoraba). Sin `id`,
+si se cambia el código de barras se sigue creando un producto duplicado como antes.
+
+**Esto NO reemplaza el punto anterior sobre borradores de carga rápida.** Aunque técnicamente ya
+no se duplicaría el producto, `save`/`update` **no** resetean `codigoBarrasGenerado` a `false` ni
+validan el estado de la imagen — un borrador guardado por esta vía quedaría con el código real ya
+asignado pero con `codigoBarrasGenerado: true` inconsistente (bloquea habilitar, ensucia el filtro
+`codigoGenerado`). Para borradores sigue aplicando la regla de arriba: usar siempre
+`PUT /v1/carga-imagenes/{productoId}/completar`.
+
 **⏳ Pendiente:** probar el flujo end-to-end de nuevo en QA con el fix, y push a `qa`.
