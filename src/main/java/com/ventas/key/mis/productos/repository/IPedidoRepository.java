@@ -206,11 +206,16 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar, Pageable pegable);
 
 
+    // Elegibilidad de rifa para cliente sin registro: correo verificado O telefono presente
+    // (el telefono no se puede verificar -- no hay SMS/OTP en el proyecto -- asi que ahi basta
+    // con que no venga vacio). Cliente registrado no se filtra: su correo ya se verifica al
+    // registrarse.
     @Query(value = """
         SELECT DISTINCT
             COALESCE(c.id, csr.id)                                           AS clientePedidoId,
             COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
             COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
+            COALESCE(c.correo_electronico, csr.correo_electronico)           AS correo,
             c.id IS NULL                                                     AS sinRegistro
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
@@ -224,6 +229,11 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
              AND :mes = (SELECT DATE_FORMAT(MAX(ap.fecha_pago), '%Y-%m')
                          FROM abono_pedido ap WHERE ap.pedido_id = p.id))
         )
+        AND (
+            c.id IS NOT NULL
+            OR csr.correo_verificado = TRUE
+            OR (csr.numero_telefonico IS NOT NULL AND csr.numero_telefonico <> '')
+        )
         ORDER BY nombre
     """, nativeQuery = true)
     List<Object[]> findClientesUnicosPorMes(@Param("mes") String mes);
@@ -233,12 +243,18 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
             COALESCE(c.id, csr.id)                                           AS clientePedidoId,
             COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
             COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
+            COALESCE(c.correo_electronico, csr.correo_electronico)           AS correo,
             c.id IS NULL                                                     AS sinRegistro
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
         LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
         WHERE (p.cliente_id IS NOT NULL OR p.cliente_sin_registro_id IS NOT NULL)
           AND (p.tipo_pedido NOT IN ('APARTADO','FIADO') OR p.estado_pedido = 'PAGADO')
+          AND (
+              c.id IS NOT NULL
+              OR csr.correo_verificado = TRUE
+              OR (csr.numero_telefonico IS NOT NULL AND csr.numero_telefonico <> '')
+          )
         ORDER BY nombre
     """, nativeQuery = true)
     List<Object[]> findTodosClientesConCompras();

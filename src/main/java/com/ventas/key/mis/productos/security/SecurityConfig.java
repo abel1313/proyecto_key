@@ -123,6 +123,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasRole("ADMIN")
                         .requestMatchers("/v1/clientes/**").authenticated()
 
+                        // ── Cliente sin registro (alta + verificacion de correo, solo ADMIN
+                        //    lo captura durante la venta directa) ──────────────────────────
+                        .requestMatchers("/v1/clientes-sin-registro/**").hasRole("ADMIN")
+
                         // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()

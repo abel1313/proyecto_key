@@ -137,10 +137,17 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         Cliente cliente = null;
         ClienteSinRegistro clienteSinRegistro = null;
 
-        boolean esSinRegistro = request.getClienteSinRegistroDto() != null
-                && !request.getClienteSinRegistroDto().getNombre_persona().isBlank();
+        boolean tieneClienteSinRegistroId = request.getClienteSinRegistroId() != null;
+        boolean esSinRegistro = tieneClienteSinRegistroId
+                || (request.getClienteSinRegistroDto() != null
+                    && !request.getClienteSinRegistroDto().getNombre_persona().isBlank());
 
-        if (esSinRegistro) {
+        if (tieneClienteSinRegistroId) {
+            // Flujo nuevo: el registro ya se creo (y opcionalmente se verifico) antes de esta
+            // llamada, via POST /v1/clientes-sin-registro — aqui solo se enlaza a la venta.
+            clienteSinRegistro = iClienteSinRegistroRepository.findById(request.getClienteSinRegistroId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Cliente sin registro no encontrado"));
+        } else if (esSinRegistro) {
             clienteSinRegistro = iClienteSinRegistroRepository.save(mapperClienteSinRegistroDto(request));
         } else {
             cliente = iClienteRepository.findById(request.getClienteId())
