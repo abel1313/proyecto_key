@@ -89,6 +89,33 @@ sesión de cambios de backend:
 4. Si se corrige un bug de autorización/seguridad, documentar también el "antes" (qué fallaba) y
    el "después", no solo el endpoint nuevo — el front necesita saber qué comportamiento cambia.
 
+### Regla — CAMBIOS_FRONT.md es espejo bidireccional con el repo del front (documentos_front_back_nodevedaades_jade)
+
+`CAMBIOS_FRONT.md` vive en dos lugares y **siempre deben quedar idénticos**:
+- Aquí: `D:\proyectos\proyecto_key_new\CAMBIOS_FRONT.md`
+- Repo del front: `D:\proyectos\documentos_front_back_nodevedaades_jade\CAMBIOS_FRONT.md` (rama `main`, sin dev/qa)
+
+**Antes de editar `CAMBIOS_FRONT.md` en cualquiera de los dos lados**, revisar primero cuál de los
+dos tiene el cambio más reciente (`git log -1` en ambos repos) — puede que el front haya editado
+directamente el del repo nuevo (agregando una consulta, por ejemplo) sin que el micro se haya
+enterado.
+
+- **Si el cambio se originó aquí** (edición de código + doc en la misma sesión, lo más común):
+  copiar el archivo completo a la ruta del repo del front, sobrescribiendo el destino (no fusionar
+  a mano), y hacer commit + push directo a `main` de ese repo.
+- **Si el cambio se originó en el repo del front** (alguien editó `CAMBIOS_FRONT.md` allá
+  directamente, ej. agregó una consulta o dato): copiar ese archivo de vuelta a
+  `proyecto_key_new/CAMBIOS_FRONT.md`, sobrescribiendo el de aquí.
+- Esto se hace **siempre** que se detecte una diferencia entre los dos, sin necesidad de que el
+  usuario lo pida cada vez — es una autorización permanente específica para este archivo y esta
+  sincronización en ambas direcciones, no aplica al resto de las reglas de "no hacer commit/push
+  automático" de arriba.
+- El resto de ese repo (`CLAUDE.md`, `README.md`, otros archivos que ya existan ahí) no se toca —
+  solo se sincroniza `CAMBIOS_FRONT.md`.
+- Si en algún momento **ambos lados tienen cambios distintos y no triviales a la vez** (conflicto
+  real, no solo uno más nuevo que el otro), no se sobrescribe nada solo: se le muestra el diff al
+  usuario y se pregunta cuál gana antes de pisar contenido.
+
 ## JWT — Configuración y problema conocido resuelto
 
 **Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**

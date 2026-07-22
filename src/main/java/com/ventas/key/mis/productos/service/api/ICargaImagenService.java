@@ -26,4 +26,10 @@ public interface ICargaImagenService {
     List<EstadoCargaProductoDto> listarFallidas();
 
     Producto completarProducto(Integer productoId, CompletarProductoDto request);
+
+    // Descarta por completo un borrador que nunca se va a completar (foto de prueba, borrosa,
+    // repetida, etc.): borra producto, variante, imagen (local + microservicio) y el codigo de
+    // barras placeholder. Solo permitido mientras codigoBarrasGenerado == true, para no poder
+    // borrar por accidente un producto ya completado/real.
+    void eliminarBorrador(Integer productoId);
 }

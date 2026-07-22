@@ -85,4 +85,15 @@ public class CargaImagenesController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
+
+    @DeleteMapping("{productoId}")
+    public ResponseEntity<ResponseGeneric<String>> eliminarBorrador(@PathVariable Integer productoId) {
+        try {
+            cargaImagenService.eliminarBorrador(productoId);
+            return ResponseEntity.ok(new ResponseGeneric<>("Borrador eliminado correctamente"));
+        } catch (Exception e) {
+            log.error("Error al eliminar borrador id={}: {}", productoId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
 }
