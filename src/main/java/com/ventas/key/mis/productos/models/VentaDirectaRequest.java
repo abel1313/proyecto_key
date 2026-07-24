@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Setter
@@ -24,4 +25,10 @@ public class VentaDirectaRequest {
     private String observaciones;
     private NotificacionRequest notificacion;
     private Double montoDado; // cuánto entregó el cliente (EFECTIVO) — para calcular cambio en el ticket
+
+    // Datos de entrega — todos opcionales; si se dejan vacios aqui, se pueden completar despues
+    // via PUT /v1/pedidos/{id}/entrega.
+    private String nombreReceptor;
+    private String direccionEntrega;
+    private LocalDate fechaEntrega;
 }

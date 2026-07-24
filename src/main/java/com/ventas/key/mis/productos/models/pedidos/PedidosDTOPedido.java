@@ -17,5 +17,7 @@ public class PedidosDTOPedido {
     private String estadoPedido;
     private String observaciones;
     private String tipoPedido;
+    private String nombreReceptor;
+    private String direccionEntrega;
     private List<DetallePedidosDTOPedido> detalles;
 }

@@ -34,6 +34,9 @@ public class PedidoDetalleResponse {
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaCancelacion;
 
+    private String nombreReceptor;
+    private String direccionEntrega;
+
     private String clienteNombre;
     private String clienteTelefono;
     private String clienteCorreo;
