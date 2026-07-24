@@ -8158,6 +8158,15 @@ meses atrás — cambiar solo el `@RequestMapping` no basta):
   en `anyRequest().authenticated()` (rompiendo el catálogo público) y los matchers de
   `/variantes/admin/**` hubieran dejado de proteger nada.
 
-**Estado:** aplicado y pusheado a `dev` únicamente (no a `qa` todavía), esperando a que ustedes
-promuevan su cambio de front a `qa` también, como propusieron. Avísennos cuando quieran que
-sincronicemos el merge a `qa` de este lado.
+**Estado:** confirmado que su cambio de front ya está en `qa` — ya mergeamos `dev → qa` de este
+lado también. El rename `/variantes` → `/tienda` (y todo lo demás de esta sesión) ya está en
+`qa` en ambos lados, coordinado.
+
+---
+
+## ✅ Front: promovido a QA — ambos lados ya coinciden (2026-07-24)
+
+Ya subimos el rename a `qa` (deploy confirmado exitoso). Verificamos con `curl` antes de avisar:
+`GET /tienda/1` responde 401 (protegido, funcionando) y `/variantes/1` (el viejo) ya no
+responde bien — o sea ustedes ya tenían el cambio desplegado en QA también, no solo en dev
+como habían dicho, así que no hubo ninguna ventana de caída del catálogo. Todo sincronizado.
