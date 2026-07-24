@@ -7429,3 +7429,173 @@ Afecta:
 No cambia el contrato de ningún endpoint (mismo shape de respuesta), solo cambia qué clientes
 aparecen en la lista de elegibles. La notificación por correo al ganador (cuando gana alguien
 sin correo capturado) sigue sin enviarse — eso no cambió, solo la elegibilidad para participar.
+
+---
+
+## ✅ Front: "Cobrar" en crédito seguía fallando en QA — ya está corregido (2026-07-22)
+
+100% front, sin cambios de back. Se probó en vivo (con hard-refresh, no era el bug de caché) y
+"Cobrar" en un pedido APARTADO/FIADO seguía abriendo el diálogo normal de forma de pago en vez
+de mandar al redirect a `/abonos` de la sección anterior — al confirmar, el back lo rechazaba
+(`PUT /v1/pedidos/confirmar/{id}` no acepta crédito) y el usuario veía un error genérico.
+
+**Causa:** el redirect decidía con `item.pedido.tipoPedido`, que viene de la **lista**
+(`GET /v1/pedidos/buscarClientePedido`). Ese campo llegaba `undefined` para pedidos de crédito
+en ese endpoint — ver la pregunta de abajo.
+
+**Fix:** `cobrarAdmin()` ya no confía solo en el campo de la lista. Antes de decidir, pide
+`GET /v1/pedidos/{id}/detalle` (que sí trae `tipoPedido` de forma confiable) y decide con ese
+dato. Si el detalle falla por algo (red), cae al diálogo normal como antes, para no bloquear un
+pedido NORMAL por un problema de conectividad. Además, si el back de todos modos rechaza el
+cobro con un mensaje que mencione "abono"/"apartado"/"fiado", ahora se ofrece el mismo redirect
+en vez de un error genérico — red de seguridad extra.
+
+## ❓ CONSULTA AL BACK — `tipoPedido` ¿sí viene o no en `buscarClientePedido`/`findPedido`?
+
+Encontramos algo que no cuadra entre dos respuestas suyas en este mismo documento:
+
+- Arriba, en "✅ Respuesta del back (2026-07-22)" sobre `totalPagado`, dijeron que `PedidoQuery`
+  (el DTO de `buscarClientePedido`/`findPedido`) **hoy solo trae** `id`, `fecha_pedido`,
+  `estado_pedido` y `detalles` — sin mencionar `tipoPedido`.
+- Pero en la pregunta de `totalPagado` que mandamos después, nosotros mismos escribimos que ese
+  mismo DTO "hoy trae `id`, `fecha_pedido`, `estado_pedido`, `tipoPedido`, `detalles`" — dando
+  por hecho que `tipoPedido` ya estaba, porque lo agregamos al modelo del front desde el
+  2026-07-01 (para el badge "📦 Apartado" de la card) y nunca nos habían dicho que faltara.
+
+Con el bug de arriba ("Cobrar" no redirigía) sospechamos que la versión correcta es la primera:
+`tipoPedido` **tampoco** viene en la lista, y el badge de tipo en la card probablemente lleva
+tiempo sin mostrarse (bug silencioso, nadie lo reportó porque no truena, solo no se ve el ícono).
+
+**¿Nos confirman si `tipoPedido` está o no en la respuesta de `buscarClientePedido`/
+`findPedido` hoy?** Si NO está, ¿lo pueden agregar junto con `totalPagado` (mismo DTO, mismo
+viaje) cuando lo hagan? Con eso el front deja de necesitar la llamada extra a `/detalle` para
+decidir el redirect de "Cobrar", y el badge de tipo en la lista vuelve a funcionar.
+
+No es urgente — el fix de arriba ya hace que "Cobrar" funcione correctamente sin depender de
+esto (pide el detalle si hace falta), es solo para simplificar y arreglar el badge visual.
+---
+
+## ✅ Respuesta a la consulta pendiente — `motivo` en `PUT /v1/abonos/{pedidoId}/cancelar` (2026-07-23)
+
+Confirmado: `motivo` en ese endpoint se guarda en la **misma columna** (`pedidos.motivo_cancelacion`)
+que usa `DELETE /v1/pedidos/delete/{id}`, y ambos alimentan la **misma regla** de score de rifa —
+solo `TIMEOUT` y `NO_SE_PRESENTO` penalizan, cualquier otro valor no afecta al cliente. De tus 3
+valores fijos actuales: `NO_SE_PRESENTO` sí penaliza (correcto, es la intención), `CLIENTE_AVISO`
+y `ERROR_ADMIN` no penalizan. No hace falta ajustar nada de tu lado por esto.
+
+Sobre que ahora siempre llega uno de los 3 valores (antes podía ir vacío): no rompe nada, el back
+ya tenía un fallback (`motivo == null → "CANCELADO"`) que sigue funcionando igual si algún caso
+nuevo llegara a mandar vacío.
+
+## ✅ Nuevo (2026-07-23): cancelar pedidos ya entregados/pagados (devolución), datos de entrega y fix de totales
+
+### 1. Columnas ampliadas — ya corrido en qa y prod
+
+`pedidos.observaciones` ahora es `TEXT` (antes `VARCHAR(100)`), `pedidos.motivo_cancelacion` ahora
+es `VARCHAR(150)` (antes `VARCHAR(30)`). Ya no hay riesgo de truncamiento en observaciones o
+motivos de cancelación normales.
+
+### 2. NUEVO: cancelar un pedido ya entregado o ya pagado = devolución
+
+Antes, `DELETE /v1/pedidos/delete/{id}?motivo=...` (pedidos normales) y
+`PUT /v1/abonos/{pedidoId}/cancelar` (créditos APARTADO/FIADO) bloqueaban por completo cancelar
+un pedido en estado `Entregado`/`PAGADO`. Ahora sí se permite — es una devolución real (el
+cliente ya tenía el producto y lo está regresando), con estas reglas nuevas:
+
+- Requiere que el usuario logueado sea **ADMIN** (`ROLE_ADMIN`). Si no lo es, 400 con:
+  *"Solo un administrador puede cancelar un pedido que ya fue entregado o pagado"* (créditos:
+  *"...ya pagado"*).
+- El `motivo` **no puede ser** `TIMEOUT` ni `NO_SE_PRESENTO` aquí — si se manda, 400 con:
+  *"Ese motivo es para pedidos que no se recogieron, no aplica para un pedido ya entregado"*.
+  Razón: esos 2 motivos bajan el score de rifa, y aquí el cliente sí cumplió, solo devuelve el
+  producto — no se le debe penalizar. Usa `CLIENTE_AVISO`, `ERROR_ADMIN`, o cualquier otro texto.
+- El stock se regresa igual que en una cancelación normal (producto + variante).
+- Si el pedido tenía una `Venta` asociada (la tienen todos los `Entregado`/`PAGADO`), se marca
+  internamente como `"Devuelta"` — deja de contar en los reportes de ingresos por fecha/rango.
+  No cambia el shape de esos reportes, solo el contenido (menos ventas si hay devoluciones).
+- Excepción — `FIADO` **activo** (estado `"FIADO"`, todavía no llegó a `"PAGADO"`): ahí el stock
+  NO se regresa (la mercancía ya se entregó desde el inicio y el cliente solo dejó de pagar; sigue
+  tratándose como deuda incobrable, `stockDevuelto: false`), y no requiere ser ADMIN — esto no
+  cambió respecto a antes.
+
+**No cambia la URL ni el shape del request/response de ninguno de los 2 endpoints** — mismo
+`DELETE /v1/pedidos/delete/{id}?motivo=...` y mismo `PUT /v1/abonos/{pedidoId}/cancelar` con
+`{ "motivo": "...", "notificacion": {...} }`. Solo cambió qué estados ahora aceptan y quién los
+puede llamar.
+
+**Qué necesita el front:** si `estadoPedido` es `Entregado` o `PAGADO`, mostrar la acción de
+cancelar solo si el usuario logueado es ADMIN, y no ofrecer `NO_SE_PRESENTO` como motivo ahí (usa
+`CLIENTE_AVISO`/`ERROR_ADMIN`, o agrega una opción nueva tipo "Devolución" — el back acepta
+cualquier texto que no sea `TIMEOUT`/`NO_SE_PRESENTO`).
+
+### 3. Fix: el total del pedido no se actualizaba al quitar una línea
+
+`DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=N` — antes, al quitar o reducir una
+línea, `totalPedido` se quedaba con el valor de antes del cambio (bug). Ahora se recalcula
+correctamente sumando lo que queda. Si el front guardaba `totalPedido` localmente después de esta
+llamada en vez de volver a pedir el detalle, ya no hace falta ese workaround.
+
+### 4. NUEVO: datos de entrega en el pedido (a quién, dónde, cuándo)
+
+Campos nuevos en `Pedido`: `nombreReceptor`, `direccionEntrega`. Se reutiliza el campo
+`fechaRecogida` que ya existía — ahora representa la fecha en que se va a entregar el pedido
+(antes en venta al contado se autoasignaba a "hoy" internamente, sin poder elegirla).
+
+**a) Al crear la venta — `POST /v1/ventas/save` (`VentaDirectaRequest`)** — 3 campos nuevos, todos
+opcionales:
+```json
+{
+  "usuarioId": 1,
+  "clienteId": 10,
+  "detalles": [ "..." ],
+  "observaciones": "Encargado por Facebook, buscar 'María Jade Boutique'",
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123, Zacazonapan",
+  "fechaEntrega": "2026-07-26"
+}
+```
+- Si no se mandan, quedan vacíos y se pueden completar después (ver punto b).
+- **Fix incluido:** antes, en venta de **contado**, `observaciones` se ignoraba siempre (el back
+  lo forzaba a vacío sin importar lo que mandara el front). Ya no — si se manda, se guarda.
+- `fechaEntrega`: si no se manda en venta de contado, se autoasigna a hoy (igual que antes); en
+  crédito (APARTADO/FIADO) queda vacía si no se manda.
+
+**b) Editar después — nuevo `PUT /v1/pedidos/{id}/entrega`:**
+```json
+// Request — todos los campos opcionales, solo se actualiza lo que se mande (null = no tocar)
+{
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123, Zacazonapan",
+  "fechaEntrega": "2026-07-26",
+  "observaciones": "Encargado por Facebook, buscar 'María Jade Boutique'"
+}
+```
+```json
+// Response 200 — mismo shape que GET /v1/pedidos/{id}/detalle (PedidoDetalleResponse)
+{
+  "pedidoId": 55,
+  "estadoPedido": "APARTADO",
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123, Zacazonapan",
+  "fechaRecogida": "2026-07-26",
+  "observaciones": "Encargado por Facebook, buscar 'María Jade Boutique'"
+}
+```
+- No toca líneas, precios ni stock — solo estos 4 campos de "metadata" del pedido.
+- Se puede llamar en cualquier momento después de creado el pedido, en cualquier estado excepto
+  `"cancelado"` (ahí responde 400: *"No se pueden editar los datos de entrega de un pedido
+  cancelado"*).
+- No requiere ser ADMIN.
+- `GET /v1/pedidos/{id}/detalle` (`PedidoDetalleResponse`) ya devuelve `nombreReceptor` y
+  `direccionEntrega` en la respuesta (campos nuevos, mismo endpoint de siempre).
+
+**Cuándo usar cada uno:** si el usuario captura estos datos al momento de vender, van en
+`POST /v1/ventas/save`. Si no los captura ahí (o se equivocó y quiere corregirlos), se usa
+`PUT /v1/pedidos/{id}/entrega` en cualquier momento posterior — mismos campos, mismo efecto final.
+
+**Archivos cambiados:** `Pedido.java` (columnas nuevas), `PedidoDetalleResponse.java`,
+`VentaDirectaRequest.java`, `PedidosDTOPedido.java`, `EditarEntregaPedidoRequest.java` (nuevo),
+`VentaServiceImpl.java`, `PedidoServiceImpl.java`, `AbonoServiceImpl.java`, `PedidoController.java`,
+`IPedidoService.java`, `IVentaRepository.java` (reportes excluyen `Devuelta`), migraciones
+`migration_pedido_observaciones_motivo_ampliado.sql` (**ya corrida en qa y prod**) y
+`migration_pedido_datos_entrega.sql` (**pendiente de correr en qa y prod**).
