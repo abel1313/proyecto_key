@@ -7599,3 +7599,163 @@ opcionales:
 `IPedidoService.java`, `IVentaRepository.java` (reportes excluyen `Devuelta`), migraciones
 `migration_pedido_observaciones_motivo_ampliado.sql` (**ya corrida en qa y prod**) y
 `migration_pedido_datos_entrega.sql` (**pendiente de correr en qa y prod**).
+---
+
+## ✅ Front: implementado "cancelar pedido ya entregado/pagado = devolución" (2026-07-24)
+
+Ya conectado del lado front, según su respuesta del 2026-07-23:
+
+- `mis-pedidos` (pedidos NORMAL): botón "Cancelar" ya no se deshabilita para admin cuando el
+  pedido está `Entregado` (antes se deshabilitaba siempre en ese estado, sin importar el rol).
+  Sigue deshabilitado para clientes normales. El motivo `NO_SE_PRESENTO` se excluye del selector
+  cuando el pedido ya está entregado.
+- `/abonos` → pestaña "Liquidados": no existía ningún botón de cancelar ahí, se agregó de cero.
+  Como toda la ruta ya es admin-only, no hicimos chequeo de rol extra. Mismo filtro sin
+  `NO_SE_PRESENTO`.
+- Usamos las 2 opciones de motivo que ya existían (`CLIENTE_AVISO`/`ERROR_ADMIN`) para este caso,
+  no agregamos una etiqueta nueva tipo "Devolución".
+
+Aún no lo hemos probado en vivo contra el back. Cualquier cosa que no cuadre (mensaje de error
+inesperado, 400 no documentado, etc.) lo anotamos aquí cuando lo probemos.
+
+---
+
+## ✅ Front: implementado "datos de entrega" + fix de total desactualizado (2026-07-24)
+
+Ya conectado del lado front, según su respuesta del 2026-07-23:
+
+- **Fix propio (no era del back):** `detalle-pedido` no refrescaba el total mostrado tras
+  quitar una línea, aunque ustedes ya lo recalculaban bien server-side — el front nunca volvía
+  a pedirlo. Ya corregido (se recalcula localmente sumando los subtotales que quedan).
+- **`venta-directa`:** agregamos los 3 campos opcionales (`nombreReceptor`, `direccionEntrega`,
+  `fechaEntrega`) al crear la venta, y movimos "Observaciones" para que se muestre/mande
+  **siempre** (antes solo aparecía en crédito) — para aprovechar que ya no lo ignoran en
+  contado.
+- **`mis-pedidos`:** nuevo botón "📍 Entrega" en cada card → abre un modal para capturar/editar
+  esos 4 campos en cualquier momento, llama `PUT /v1/pedidos/{id}/entrega`. Deshabilitado si el
+  pedido está cancelado.
+- **`detalle-pedido`:** muestra esos datos (solo lectura) si ya hay algo capturado.
+
+⚠️ Todavía no lo hemos podido probar en vivo — según su propio doc, la migración
+`migration_pedido_datos_entrega.sql` seguía pendiente de correr en qa/prod al momento de
+escribir esto. Avísenos cuando ya esté corrida para probarlo de nuestro lado.
+
+---
+
+## ✅ NUEVO (2026-07-24): catálogo de "lugares de entrega" + link de Facebook por pedido
+
+Dos campos nuevos, pensados para poder filtrar pedidos por zona de entrega (ej. "Zacazonapan")
+en vez de buscar en el texto libre de `direccionEntrega`, y para guardar el link al perfil de
+Facebook de quien hizo cada pedido (útil sobre todo en ventas de mostrador con
+`ClienteSinRegistro`, para poder ubicar/contactar a la persona).
+
+**Por qué van en `Pedido` y no en `Cliente`/`ClienteSinRegistro`:** igual que `nombreReceptor`/
+`direccionEntrega`, quién recibe y desde dónde compró puede variar de un pedido a otro — y con
+`ClienteSinRegistro` en particular no hay garantía de que sea la misma persona real la próxima
+vez. Guardar el link en el pedido evita que quede pegado a un registro que puede no reflejar
+correctamente quién hizo esa compra específica.
+
+### 1. Catálogo nuevo — CRUD genérico `/v1/lugares-entrega`
+
+Mismo patrón que otros catálogos simples del proyecto (`/v1/palabras-clave`, `/v1/pagos/*`).
+
+| Método | URL | Quién | Body / respuesta |
+|--------|-----|-------|-------------------|
+| `GET` | `/v1/lugares-entrega/getAll?page=0&size=50` | Cualquier autenticado | `{ "data": { "t": [ {"id":1,"nombre":"Zacazonapan"}, ... ], "pagina":..., "totalPaginas":..., "totalRegistros":... } }` |
+| `GET` | `/v1/lugares-entrega/getOne/{id}` | Cualquier autenticado | `{ "data": {"id":1,"nombre":"Zacazonapan"} }` |
+| `POST` | `/v1/lugares-entrega/save` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro creado con `id` |
+| `PUT` | `/v1/lugares-entrega/update/{id}` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro actualizado |
+| `DELETE` | `/v1/lugares-entrega/delete` | ADMIN | Body: `{ "id": 1 }` |
+
+`nombre` es único — si se repite, el back responde con el mensaje genérico de duplicado del CRUD
+base ("El codigo postal ya existe, ingrese uno diferente" — mensaje heredado del CRUD genérico,
+mejorarlo es aparte).
+
+**Front:** pantalla nueva de catálogo (alta/edición de lugares), igual que cualquier otro catálogo
+admin que ya tengan armado. El select de "lugar de entrega" en venta directa y en editar-entrega
+consume `GET /v1/lugares-entrega/getAll` para poblar las opciones.
+
+### 2. Campos nuevos en `Pedido`: `lugarEntregaId` + `urlFacebook`
+
+**a) Al crear la venta — `POST /v1/ventas/save` (`VentaDirectaRequest`)** — 2 campos nuevos,
+ambos opcionales, mismo lugar que `nombreReceptor`/`direccionEntrega`/`fechaEntrega`:
+```json
+{
+  "usuarioId": 1,
+  "clienteId": 10,
+  "detalles": [ "..." ],
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123",
+  "lugarEntregaId": 1,
+  "urlFacebook": "https://facebook.com/maria.lopez.jade",
+  "fechaEntrega": "2026-07-26"
+}
+```
+- `lugarEntregaId` debe existir en el catálogo — si no, 400 con *"Lugar de entrega no encontrado:
+  {id}"*.
+- `urlFacebook` no se valida formato en el back (cualquier string hasta 300 caracteres) — el front
+  puede validar que sea una URL antes de mandarla si quiere evitar basura.
+
+**b) Al crear pedido propio del cliente — `POST /v1/pedidos/savePedido` (`PedidosDTOPedido`)** —
+mismos 2 campos nuevos, opcionales, mismo criterio (el cliente elige su lugar de entrega en su
+propio checkout).
+
+**c) Editar después — `PUT /v1/pedidos/{id}/entrega` (`EditarEntregaPedidoRequest`)** — mismos 2
+campos agregados, opcionales (null = no tocar), junto a `nombreReceptor`/`direccionEntrega`:
+```json
+{
+  "lugarEntregaId": 1,
+  "urlFacebook": "https://facebook.com/maria.lopez.jade"
+}
+```
+
+**d) Respuesta — `GET /v1/pedidos/{id}/detalle` (`PedidoDetalleResponse`)** — 3 campos nuevos:
+```json
+{
+  "pedidoId": 55,
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123",
+  "lugarEntregaId": 1,
+  "lugarEntregaNombre": "Zacazonapan",
+  "urlFacebook": "https://facebook.com/maria.lopez.jade"
+}
+```
+`lugarEntregaId`/`lugarEntregaNombre` solo aparecen si el pedido tiene lugar asignado (response
+usa `@JsonInclude(NON_NULL)`, igual que el resto de este DTO).
+
+**e) Listado/búsqueda — `GET /v1/pedidos/buscarClientePedido`** — nuevo query param opcional
+`lugarEntregaId` para filtrar exacto por lugar (no es texto libre, es el id del catálogo):
+```
+GET /v1/pedidos/buscarClientePedido?lugarEntregaId=1&size=10&page=0
+GET /v1/pedidos/buscarClientePedido?buscar=juan&lugarEntregaId=1&size=10&page=0
+```
+Se puede combinar con `buscar` (nombre/correo/teléfono) o usar solo. Si se omite, no filtra por
+lugar (como antes). El JSON de cada pedido en la respuesta ahora también trae `lugarEntregaId`,
+`lugarEntregaNombre` y `urlFacebook` (mismo campo `pedido` del objeto que ya devuelve `id`,
+`estado_pedido`, `tipoPedido`, `totalPagado`, etc.).
+
+### 3. Qué necesita el front — resumen de pantallas
+
+- **Catálogo de lugares** (pantalla nueva, admin): alta/edición/listado simple, un campo de texto
+  (`nombre`).
+- **Venta directa** (form de creación): agregar select "Lugar de entrega" (poblado desde el
+  catálogo) y campo de texto "Link de Facebook", ambos opcionales, junto a los campos de entrega
+  que ya existen ahí.
+- **Checkout del cliente** (`savePedido`): mismo select de lugar de entrega, opcional. El link de
+  Facebook normalmente no aplica aquí (es el cliente comprando para sí mismo), se puede omitir del
+  formulario público aunque el campo exista en el request.
+- **Editar datos de entrega de un pedido**: agregar el mismo select + campo de texto al formulario
+  que ya llama a `PUT /v1/pedidos/{id}/entrega`.
+- **Detalle de pedido**: mostrar `lugarEntregaNombre` como texto y `urlFacebook` como link
+  clickeable (`target="_blank"`) si viene en la respuesta.
+- **Listado/búsqueda de pedidos**: agregar el mismo select como filtro adicional (aparte del
+  buscador de texto que ya existe), mandando `lugarEntregaId` en la query.
+
+**Archivos cambiados:** `LugarEntrega.java` (entity nueva), `ILugarEntregaRepository.java`,
+`LugarEntregaServiceImpl.java`, `LugarEntregaController.java` (CRUD genérico, todos nuevos),
+`Pedido.java` (columnas `lugar_entrega_id`, `url_facebook`), `PedidosDTOPedido.java`,
+`EditarEntregaPedidoRequest.java`, `PedidoDetalleResponse.java`, `PedidoQuery.java`,
+`VentaDirectaRequest.java`, `PedidoServiceImpl.java`, `VentaServiceImpl.java`,
+`IPedidoRepository.java` (join a `lugares_entrega` + filtro en `buscarPedidosPorCliente`/
+`buscarTodosLosPedidos`), `IPedidoService.java`, `PedidoController.java`, `SecurityConfig.java`,
+migración `migration_lugar_entrega.sql` (**pendiente de correr en dev/qa/prod**).

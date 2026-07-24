@@ -137,6 +137,12 @@ public class SecurityConfig {
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers("/v1/abonos/**").hasRole("ADMIN")
 
+                        // ── Lugares de entrega (catalogo; lectura para cualquier autenticado
+                        //    -- lo usa el select del checkout del cliente y el de venta directa;
+                        //    alta/edicion/baja solo ADMIN) ─────────────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").authenticated()
+                        .requestMatchers("/v1/lugares-entrega/**").hasRole("ADMIN")
+
                         // ── Promociones (catalogo para cualquier autenticado; gestion ADMIN) ─
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()

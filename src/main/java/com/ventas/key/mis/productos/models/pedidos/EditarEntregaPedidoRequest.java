@@ -8,6 +8,8 @@ import java.time.LocalDate;
 public class EditarEntregaPedidoRequest {
     private String nombreReceptor;
     private String direccionEntrega;
+    private Integer lugarEntregaId;
+    private String urlFacebook;
     private LocalDate fechaEntrega;
     private String observaciones;
 }
