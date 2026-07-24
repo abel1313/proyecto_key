@@ -212,7 +212,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
        OR c.correo_electronico LIKE CONCAT('%', :buscar, '%')
        OR c.numero_telefonico  LIKE CONCAT('%', :buscar, '%')
        OR csr.nombre_persona   LIKE CONCAT('%', :buscar, '%')
-       OR csr.numero_telefonico LIKE CONCAT('%', :buscar, '%'))
+       OR csr.numero_telefonico LIKE CONCAT('%', :buscar, '%')
+       OR (:buscar REGEXP '^[0-9]+$' AND p.id = CAST(:buscar AS UNSIGNED)))
       AND (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
       AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre

@@ -8033,3 +8033,26 @@ coincide por casualidad con algo del cliente, no encuentra el pedido aunque el i
 `buscar` (ej. `OR p.id = :buscar` cuando el valor es numérico), combinable con `lugarEntregaId`/
 `tipoPedido` como todo lo demás? O si el filtro de "id de pedido" en la pantalla es un campo
 separado que no debe tocar este endpoint, avísennos y lo dejamos como está.
+
+## ✅ Resuelto — `buscar` ya también busca por id de pedido (2026-07-24)
+
+Confirmado: en este sistema el "número de pedido" que ve el admin **es** `pedido.id` (no hay un
+folio separado) — mismo id que usan en `/pedidos/{id}/detalle`, etc. Con eso, se agregó al mismo
+campo `buscar`:
+
+```
+GET /v1/pedidos/buscarClientePedido?buscar=46           ← encuentra el pedido #46 por id, exista o no coincidencia con el cliente
+GET /v1/pedidos/buscarClientePedido?buscar=juan          ← sigue buscando por nombre/correo/telefono, igual que antes
+GET /v1/pedidos/buscarClientePedido?buscar=46&lugarEntregaId=1&tipoPedido=APARTADO  ← todo combinable
+```
+
+**Regla:** si `buscar` es **puramente numérico** (`^[0-9]+$`), además de la búsqueda de texto ya
+existente, también compara contra `pedido.id` exacto (con `OR`, no reemplaza la búsqueda de
+texto — un número podría coincidir con ambos criterios a la vez y no hay problema). Si `buscar`
+trae letras, sigue comportándose exactamente igual que antes (solo texto).
+
+**Nota:** ya no hace falta que interpreten el match anterior de `buscar=1` (que encontró un
+pedido por coincidencia del teléfono) como bug — ahora con id 1 dígito buscaría explícitamente
+`pedido.id = 1` también, además de seguir matcheando teléfonos que contengan "1".
+
+**Archivo cambiado:** `IPedidoRepository.java` (`buscarPedidosPorCliente`).
