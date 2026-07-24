@@ -7665,11 +7665,27 @@ Mismo patrón que otros catálogos simples del proyecto (`/v1/palabras-clave`, `
 | `GET` | `/v1/lugares-entrega/getOne/{id}` | Cualquier autenticado | `{ "data": {"id":1,"nombre":"Zacazonapan"} }` |
 | `POST` | `/v1/lugares-entrega/save` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro creado con `id` |
 | `PUT` | `/v1/lugares-entrega/update/{id}` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro actualizado |
-| `DELETE` | `/v1/lugares-entrega/delete` | ADMIN | Body: `{ "id": 1 }` |
+| `DELETE` | `/v1/lugares-entrega/delete` | ADMIN | Body: `1` (el id, como número JSON crudo — **no** `{ "id": 1 }`) |
 
 `nombre` es único — si se repite, el back responde con el mensaje genérico de duplicado del CRUD
 base ("El codigo postal ya existe, ingrese uno diferente" — mensaje heredado del CRUD genérico,
 mejorarlo es aparte).
+
+**⚠️ Corrección (2026-07-24):** el `DELETE` inicialmente se documentó con `Body: { "id": 1 }`,
+que es **incorrecto** — así truena con `JSON parse error: Cannot deserialize value of type
+'java.lang.Integer' from Object value`. El body correcto es el id **solo**, como valor JSON
+crudo (`1`), sin envolver en objeto — es el mismo patrón que usan los demás catálogos genéricos
+del proyecto (`/v1/palabras-clave/delete`, etc.). Ejemplo fetch/axios:
+```js
+fetch(`${base}/v1/lugares-entrega/delete`, {
+  method: 'DELETE',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(id) // "1", no { id }
+});
+```
+También se corrigió un bug del back: el `delete()` genérico no borraba nada de verdad (bug
+preexistente en el CRUD base, ya corregido — ver `LugarEntregaServiceImpl.delete`). Antes de este
+fix, aunque el body fuera correcto, el endpoint respondía 200 sin eliminar el registro.
 
 **Front:** pantalla nueva de catálogo (alta/edición de lugares), igual que cualquier otro catálogo
 admin que ya tengan armado. El select de "lugar de entrega" en venta directa y en editar-entrega
