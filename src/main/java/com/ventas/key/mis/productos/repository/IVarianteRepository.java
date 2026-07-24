@@ -144,7 +144,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // Catalogo publico con filtros: mismas restricciones de visibilidad que findConStockYImagenPublico
     // (stock>0, producto y variante habilitados, con imagen) + termino/precioMin/precioMax/talla/
     // color/marca opcionales (tri-estado, se combinan con AND). talla/color/marca son match exacto
-    // (pensado para dropdowns poblados con /variantes/v1/filtros-disponibles, no texto libre).
+    // (pensado para dropdowns poblados con /tienda/v1/filtros-disponibles, no texto libre).
     @Query(value = """
         SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc
         WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1'

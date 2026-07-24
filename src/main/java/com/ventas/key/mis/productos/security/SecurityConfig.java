@@ -100,10 +100,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/productos/**").permitAll()
                         .requestMatchers("/v1/productos/**").hasRole("ADMIN")
 
-                        // ── Variantes (GETs públicos; escritura solo ADMIN) ────────────────
-                        .requestMatchers(HttpMethod.GET, "/variantes/admin/**", "/variantes/v1/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/variantes/**").permitAll()
-                        .requestMatchers("/variantes/**").hasRole("ADMIN")
+                        // ── Tienda / variantes (GETs públicos; escritura solo ADMIN) ────────
+                        .requestMatchers(HttpMethod.GET, "/tienda/admin/**", "/tienda/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/tienda/**").permitAll()
+                        .requestMatchers("/tienda/**").hasRole("ADMIN")
 
                         // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
                         .requestMatchers("/v1/carga-imagenes/**").hasRole("ADMIN")
