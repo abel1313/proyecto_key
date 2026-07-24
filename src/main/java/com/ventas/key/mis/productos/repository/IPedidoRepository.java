@@ -187,6 +187,9 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+          'lugarEntregaId', le.id,
+          'lugarEntregaNombre', le.nombre,
+          'urlFacebook', p.url_facebook,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -202,16 +205,20 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     INNER JOIN detalle_pedidos dp ON p.id = dp.pedido_id
     LEFT  JOIN clientes c              ON c.id   = p.cliente_id
     LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+    LEFT  JOIN lugares_entrega le      ON le.id  = p.lugar_entrega_id
     INNER JOIN producto pro ON pro.id = dp.producto_id
-    WHERE c.nombre_persona     LIKE CONCAT('%', :buscar, '%')
+    WHERE (c.nombre_persona     LIKE CONCAT('%', :buscar, '%')
        OR c.correo_electronico LIKE CONCAT('%', :buscar, '%')
        OR c.numero_telefonico  LIKE CONCAT('%', :buscar, '%')
        OR csr.nombre_persona   LIKE CONCAT('%', :buscar, '%')
-       OR csr.numero_telefonico LIKE CONCAT('%', :buscar, '%')
-    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id
+       OR csr.numero_telefonico LIKE CONCAT('%', :buscar, '%'))
+      AND (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
+    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
-    Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar, Pageable pegable);
+    Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar,
+                                          @Param("lugarEntregaId") Integer lugarEntregaId,
+                                          Pageable pegable);
 
 
     // Elegibilidad de rifa por mes: cualquiera que haya comprado ese mes entra,
@@ -272,6 +279,9 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+          'lugarEntregaId', le.id,
+          'lugarEntregaNombre', le.nombre,
+          'urlFacebook', p.url_facebook,
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -287,11 +297,13 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     INNER JOIN detalle_pedidos dp ON p.id = dp.pedido_id
     LEFT  JOIN clientes c              ON c.id   = p.cliente_id
     LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+    LEFT  JOIN lugares_entrega le      ON le.id  = p.lugar_entrega_id
     INNER JOIN producto pro ON pro.id = dp.producto_id
-    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id
+    WHERE (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
+    GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
-    Page<String> buscarTodosLosPedidos(Pageable pegable);
+    Page<String> buscarTodosLosPedidos(@Param("lugarEntregaId") Integer lugarEntregaId, Pageable pegable);
 
 
 }

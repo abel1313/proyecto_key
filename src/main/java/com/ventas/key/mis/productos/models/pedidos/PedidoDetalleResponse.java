@@ -36,6 +36,9 @@ public class PedidoDetalleResponse {
 
     private String nombreReceptor;
     private String direccionEntrega;
+    private Integer lugarEntregaId;
+    private String lugarEntregaNombre;
+    private String urlFacebook;
 
     private String clienteNombre;
     private String clienteTelefono;

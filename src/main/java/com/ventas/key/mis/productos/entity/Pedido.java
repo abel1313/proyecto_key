@@ -55,6 +55,13 @@ public class Pedido extends BaseId{
     @Column(name = "direccion_entrega", length = 300)
     private String direccionEntrega;
 
+    @ManyToOne
+    @JoinColumn(name = "lugar_entrega_id")
+    private LugarEntrega lugarEntrega;
+
+    @Column(name = "url_facebook", length = 300)
+    private String urlFacebook;
+
     @Column(name = "fecha_cancelacion")
     private LocalDate fechaCancelacion;
 

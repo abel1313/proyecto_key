@@ -24,6 +24,7 @@ import com.ventas.key.mis.productos.repository.IAbonoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
+import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
@@ -73,6 +74,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IVarianteRepository iVarianteRepository;
     private final IPromocionRepository iPromocionRepository;
     private final PromocionServiceImpl promocionService;
+    private final ILugarEntregaRepository iLugarEntregaRepository;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -91,7 +93,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final IPagosYMesesRepository iPagosYMesesRepository,
                              final IVarianteRepository iVarianteRepository,
                              final IPromocionRepository iPromocionRepository,
-                             final PromocionServiceImpl promocionService) {
+                             final PromocionServiceImpl promocionService,
+                             final ILugarEntregaRepository iLugarEntregaRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -105,6 +108,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iVarianteRepository = iVarianteRepository;
         this.iPromocionRepository = iPromocionRepository;
         this.promocionService = promocionService;
+        this.iLugarEntregaRepository = iLugarEntregaRepository;
+    }
+
+    // lugarEntregaId es opcional (null = no se captura el lugar de entrega en ese pedido)
+    private LugarEntrega resolveLugarEntrega(Integer lugarEntregaId) {
+        if (lugarEntregaId == null) return null;
+        return iLugarEntregaRepository.findById(lugarEntregaId)
+                .orElseThrow(() -> new RuntimeException("Lugar de entrega no encontrado: " + lugarEntregaId));
     }
 
     @Transactional
@@ -127,6 +138,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setObservaciones(requestG.getObservaciones());
         pedido.setNombreReceptor(requestG.getNombreReceptor());
         pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
+        pedido.setUrlFacebook(requestG.getUrlFacebook());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
         pedido.setTipoPedido(tipoPedido);
         pedido.setTotalPagado(0.0);
@@ -331,13 +344,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, int size, int pageSize) {
+    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, int size, int pageSize) {
         Pageable pageable = PageRequest.of(pageSize, size);
         Page<String> jsonList;
         if(buscar.isEmpty()){
-            jsonList = iPedidoRepository.buscarTodosLosPedidos(pageable);
+            jsonList = iPedidoRepository.buscarTodosLosPedidos(lugarEntregaId, pageable);
         }else{
-            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, pageable);
+            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, pageable);
         }
         return getListPageableDto(jsonList);
     }
@@ -478,6 +491,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
         resp.setNombreReceptor(pedido.getNombreReceptor());
         resp.setDireccionEntrega(pedido.getDireccionEntrega());
+        resp.setUrlFacebook(pedido.getUrlFacebook());
+        if (pedido.getLugarEntrega() != null) {
+            resp.setLugarEntregaId(pedido.getLugarEntrega().getId());
+            resp.setLugarEntregaNombre(pedido.getLugarEntrega().getNombre());
+        }
 
         if (pedido.getCliente() != null) {
             resp.setClienteNombre(pedido.getCliente().getNombrePersona());
@@ -549,6 +567,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         if (requestG.getDireccionEntrega() != null) {
             pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        }
+        if (requestG.getLugarEntregaId() != null) {
+            pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
+        }
+        if (requestG.getUrlFacebook() != null) {
+            pedido.setUrlFacebook(requestG.getUrlFacebook());
         }
         if (requestG.getFechaEntrega() != null) {
             pedido.setFechaRecogida(requestG.getFechaEntrega());

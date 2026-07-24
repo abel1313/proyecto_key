@@ -30,5 +30,7 @@ public class VentaDirectaRequest {
     // via PUT /v1/pedidos/{id}/entrega.
     private String nombreReceptor;
     private String direccionEntrega;
+    private Integer lugarEntregaId;
+    private String urlFacebook;
     private LocalDate fechaEntrega;
 }
