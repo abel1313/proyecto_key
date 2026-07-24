@@ -27,7 +27,7 @@ import java.util.Optional;
 
 @Slf4j
 @RestController
-@RequestMapping("variantes")
+@RequestMapping("tienda")
 public class VarianteController extends AbstractController<
                                         Variantes,
                                         Optional<Variantes>,
@@ -40,8 +40,8 @@ public class VarianteController extends AbstractController<
         super(sGenerico);
     }
 
-    // Antes de esto, GET /variantes/getAll (heredado de AbstractController) no llevaba /v1/
-    // porque esta clase no tiene el prefijo en su @RequestMapping. GET /variantes/getAll
+    // Antes de esto, GET /tienda/getAll (heredado de AbstractController) no llevaba /v1/
+    // porque esta clase no tiene el prefijo en su @RequestMapping. GET /tienda/getAll
     // sigue vivo por compatibilidad, pero el front debe migrar a este.
     @GetMapping("/v1/getAll")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> findAllV2(
@@ -130,7 +130,7 @@ public class VarianteController extends AbstractController<
     }
 
     /**
-     * @deprecated Usar GET /variantes/v1/imagenes/{varianteId} — no verifica existencia en micro
+     * @deprecated Usar GET /tienda/v1/imagenes/{varianteId} — no verifica existencia en micro
      */
     @Deprecated
     @GetMapping("/v3/imagenes/{varianteId}")
@@ -165,7 +165,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, size)));
     }
 
-    /** @deprecated Usar DELETE /variantes/v1/imagenes */
+    /** @deprecated Usar DELETE /tienda/v1/imagenes */
     @Deprecated
     @DeleteMapping("/v3/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantes(@RequestBody List<Integer> varianteIds) {
@@ -179,7 +179,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    /** @deprecated Usar DELETE /variantes/v1/{varianteId}/imagenes */
+    /** @deprecated Usar DELETE /tienda/v1/{varianteId}/imagenes */
     @Deprecated
     @DeleteMapping("/v3/{varianteId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificas(

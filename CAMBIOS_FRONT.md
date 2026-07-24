@@ -8056,3 +8056,108 @@ pedido por coincidencia del teléfono) como bug — ahora con id 1 dígito busca
 `pedido.id = 1` también, además de seguir matcheando teléfonos que contengan "1".
 
 **Archivo cambiado:** `IPedidoRepository.java` (`buscarPedidosPorCliente`).
+
+---
+
+## ✅ Front: agregado el checkbox "Normal" faltante (2026-07-24)
+
+Ya está el 3er checkbox "🛒 Normal" junto a "Apartados"/"Ir pagando" en `mis-pedidos`. Gracias
+por confirmar que `buscar` ya encuentra por id de pedido — no hizo falta ningún cambio en el
+front para eso, ya mandábamos el texto tal cual al parámetro `buscar`.
+
+---
+
+## ✅ Front: verificado — no queda ningún "Fiado" visible en pantalla (2026-07-24)
+
+100% front, sin acción del back — es solo texto de UI, el valor interno `tipoPedido: 'FIADO'`
+sigue siendo el mismo que ya manejan.
+
+El usuario pidió revisar si quedaba algún "Fiado" visible sin renombrar a "Ir pagando" (el
+rename se hizo en una sesión anterior). Se hizo un grep exhaustivo de `Fiado`/`fiado` en todo
+`src/app` (HTML + TS) — no queda ningún texto visible al usuario, todas las pantallas
+(`mis-pedidos`, `detalle-pedido`, `/abonos`, `venta-variante`) ya dicen "Ir pagando". Lo único
+que sigue con "fiado" son cosas internas sin impacto visual: el valor del enum `'FIADO'`,
+nombres de clases CSS (`--fiado`) y variables (`esFiado`).
+
+---
+
+## ✅ Front: URL de la tienda cambió de /variantes a /tienda (2026-07-24)
+
+100% front, sin acción del back — es solo la ruta del router de Angular, **no** toca las
+llamadas al back (`/variantes/v1/...` sigue exactamente igual, ese es su path del backend, no
+del front). Lo anotamos solo para que sepan que si ven links viejos a `/variantes/buscar` en
+capturas o docs anteriores, ahora es `/tienda/buscar`.
+
+---
+
+## ❓ CONSULTA AL BACK — renombrar el endpoint `/variantes` a `/tienda` (necesita cambio de su lado)
+
+Además del cambio de URL del navegador (front-only, ya avisado arriba), el usuario pidió que el
+endpoint **real** del backend también deje de decir "variantes" — de `/variantes/...` a
+`/tienda/...`. A diferencia de lo anterior, **esto sí necesita que ustedes hagan el mismo cambio**
+— si solo lo cambiamos del lado front, todo lo relacionado a variantes (buscar, guardar,
+imágenes, independizar, etc.) empezaría a dar 404.
+
+### Ejemplo concreto (antes → después)
+
+```
+Antes:  GET  /variantes/1                          → traer la variante con id 1
+Ahora:  GET  /tienda/1                              → misma función, mismo id, prefijo nuevo
+
+Antes:  GET  /variantes/v1/buscar?termino=blusa
+Ahora:  GET  /tienda/v1/buscar?termino=blusa
+
+Antes:  POST /variantes/save
+Ahora:  POST /tienda/save
+
+Antes:  GET  /variantes/v1/imagenes/{varianteId}
+Ahora:  GET  /tienda/v1/imagenes/{varianteId}
+
+Antes:  POST /variantes/1/independizar
+Ahora:  POST /tienda/1/independizar
+```
+
+**Regla exacta:** es un cambio de **prefijo únicamente** — todo lo que hoy empieza con
+`/variantes` (sea `/variantes/1`, `/variantes/v1/buscar`, `/variantes/admin/...`, etc.) pasa a
+empezar con `/tienda`, conservando exactamente el resto de la ruta, los query params y el shape
+de request/response tal cual están hoy. No es un rename de campos ni de nada más — solo el
+primer segmento de la URL.
+
+**Ya implementado del lado front** (branch `dev`, `variante.service.ts` y los ~25 métodos que
+dependen de su URL base, más `chatbot.service.ts` y `rifa.service.ts`) — pero **todavía NO
+promovido a `qa`**, para no romper nada mientras ustedes no tengan el cambio espejo desplegado.
+Avísennos cuando ya esté listo de su lado (y en qué ambiente — dev/qa/prod) y ahí sincronizamos
+el merge a `qa` de nuestro lado para que coincidan.
+
+**Nota:** confirmamos que **no** hay que tocar `/admin/sin-variantes/reporte` ni
+`/compartir-imagenes-variantes` (del controlador de productos/Modelo) — esos "variantes" son
+parte del nombre de esa ruta específica, no el prefijo `/variantes` que se está renombrando.
+
+## ✅ Respuesta — ya aplicado en `dev`, análisis de impacto (2026-07-24)
+
+Confirmado el rename, aplicado tal cual lo pidieron: **solo el primer segmento de la URL**, resto
+de la ruta/query params/shape intactos. `VarianteController` pasó de `@RequestMapping("variantes")`
+a `@RequestMapping("tienda")` — como es el prefijo base, cubre automáticamente los ~25 endpoints
+(`/v1/buscar`, `/v1/save`, `/v1/imagenes/{id}`, `/v1/admin/**`, `/v1/{id}/independizar`, etc.),
+sin tocar ninguno individualmente. Coincide con `/admin/sin-variantes/reporte` y
+`/compartir-imagenes-variantes` — confirmado que esos NO cambian (son nombres de ruta de otro
+controlador, no el prefijo).
+
+**Análisis de impacto — no afecta nada más allá de este micro:**
+- **micro_imagenes:** no llama a `/variantes/...` desde código — solo lo menciona en su propia
+  documentación (`FLUJO_ENDPOINTS.md`), sin dependencia real. Cero cambios necesarios ahí.
+- **nginx:** el `default.conf` de este micro es un proxy catch-all sin ruteo por path — no
+  distingue `/variantes` de nada más, así que no hay nada que ajustar en infraestructura.
+- **Otros consumidores internos:** ningún otro controlador/service del micro construye URLs
+  hardcodeadas hacia `/variantes` (se revisó con grep en todo `src/`).
+
+**Lo único que sí había que tocar en conjunto** (mismo aprendizaje que la migración a `/v1/` de
+meses atrás — cambiar solo el `@RequestMapping` no basta):
+- `SecurityConfig.java`: los 3 `requestMatchers` que protegían `/variantes/**` ahora protegen
+  `/tienda/**`. Si no se actualizaban en conjunto, los GETs públicos de la tienda hubieran caído
+  en `anyRequest().authenticated()` (rompiendo el catálogo público) y los matchers de
+  `/variantes/admin/**` hubieran dejado de proteger nada.
+
+**Estado:** aplicado y pusheado a `dev` únicamente (no a `qa` todavía), esperando a que ustedes
+promuevan su cambio de front a `qa` también, como propusieron. Avísennos cuando quieran que
+sincronicemos el merge a `qa` de este lado.
