@@ -344,13 +344,19 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, int size, int pageSize) {
+    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, int size, int pageSize) {
         Pageable pageable = PageRequest.of(pageSize, size);
+        boolean sinFiltroTipo = (tipoPedido == null || tipoPedido.isEmpty());
+        // IN (:tipoPedido) necesita una lista no vacia siempre -- si no hay filtro, se manda un
+        // dummy con los 3 tipos validos, pero sinFiltroTipo=true hace que el OR ya no dependa de el.
+        List<String> tiposParaQuery = sinFiltroTipo
+                ? List.of("NORMAL", "APARTADO", "FIADO")
+                : tipoPedido;
         Page<String> jsonList;
         if(buscar.isEmpty()){
-            jsonList = iPedidoRepository.buscarTodosLosPedidos(lugarEntregaId, pageable);
+            jsonList = iPedidoRepository.buscarTodosLosPedidos(lugarEntregaId, sinFiltroTipo, tiposParaQuery, pageable);
         }else{
-            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, pageable);
+            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, sinFiltroTipo, tiposParaQuery, pageable);
         }
         return getListPageableDto(jsonList);
     }
