@@ -7775,3 +7775,56 @@ lugar (como antes). El JSON de cada pedido en la respuesta ahora también trae `
 `IPedidoRepository.java` (join a `lugares_entrega` + filtro en `buscarPedidosPorCliente`/
 `buscarTodosLosPedidos`), `IPedidoService.java`, `PedidoController.java`, `SecurityConfig.java`,
 migración `migration_lugar_entrega.sql` (**pendiente de correr en dev/qa/prod**).
+
+---
+
+## ✅ Front: implementado "lugares de entrega" + link de Facebook por pedido (2026-07-24)
+
+Ya conectado del lado front, según su respuesta del 2026-07-24:
+
+- Pantalla nueva de catálogo (alta/edición/eliminación) en `/lugares-entrega`, solo admin.
+- `venta-directa`: select de lugar + input de link de Facebook.
+- Checkout del cliente (`savePedido`): select de lugar (sin Facebook, como sugirieron).
+- `mis-pedidos`: filtro por lugar (autocomplete local sobre el catálogo cargado), card muestra
+  el nombre de quien recibe, y el modal de "Entrega" ya tiene los 2 campos nuevos.
+- `detalle-pedido`: muestra el nombre del lugar y el link de Facebook (clickeable).
+
+⚠️ Todavía no lo hemos probado en vivo — según su propio doc, `migration_lugar_entrega.sql`
+seguía pendiente de correr en dev/qa/prod al momento de escribir esto. Avísennos cuando ya esté
+corrida.
+
+**Duda aparte:** en `mis-pedidos` agregamos que la card muestre `nombreReceptor` — pero no
+tenemos confirmado si ese campo viene en `GET /v1/pedidos/buscarClientePedido` (la lista), solo
+está confirmado que viene en `GET /v1/pedidos/{id}/detalle`. Si no viene en la lista, esa fila
+simplemente no se muestra (el campo queda `undefined`), no rompe nada — pero si es fácil de
+agregar ahí también, nos ahorraríamos tener que pedir el detalle de cada pedido para mostrarlo.
+
+## ✅ Respuesta a la duda — `nombreReceptor` ya viene en la lista (2026-07-24)
+
+Confirmado que no venía y era fácil de agregar — ya se agregó. `GET /v1/pedidos/buscarClientePedido`
+(y también `buscarTodosLosPedidos`, mismo endpoint cuando `buscar` viene vacío) ahora incluye
+`nombreReceptor` en el objeto `pedido` de cada resultado, junto a `tipoPedido`, `totalPagado`,
+`lugarEntregaId`, `lugarEntregaNombre` y `urlFacebook`:
+```json
+{
+  "cliente": { "id": 10, "nombreCliente": "...", "...": "..." },
+  "pedido": {
+    "id": 55,
+    "fecha_pedido": "24/07/2026 10:30",
+    "estado_pedido": "Entregado",
+    "tipoPedido": "NORMAL",
+    "totalPagado": 450.0,
+    "nombreReceptor": "María López",
+    "lugarEntregaId": 1,
+    "lugarEntregaNombre": "Zacazonapan",
+    "urlFacebook": "https://facebook.com/maria.lopez.jade",
+    "detalles": [ "..." ]
+  }
+}
+```
+Puede venir `null` si el pedido nunca capturó ese dato (pedidos viejos, o si no se llenó al
+crear la venta/pedido) — mismo criterio que los demás campos opcionales de este objeto. Ya no
+hace falta pedir el detalle de cada pedido solo para mostrar el nombre del receptor en la lista.
+
+**Archivo cambiado:** `IPedidoRepository.java` (agregado a `buscarPedidosPorCliente` y
+`buscarTodosLosPedidos`), `PedidoQuery.java`.
