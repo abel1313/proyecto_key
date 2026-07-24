@@ -7900,3 +7900,24 @@ llamada, ej. `GET /v1/lugares-entrega/getAll?page=0&size=200` — no hace falta 
 real en la UI para esto.
 
 **Tabla corregida arriba** (sección "1. Catálogo nuevo") para reflejar el shape real.
+
+### Aclaración — 2 usos distintos del mismo `GET /getAll`, con criterio de paginación diferente
+
+`GET /v1/lugares-entrega/getAll` es un solo endpoint, pero se consume desde 2 pantallas con
+necesidades distintas — no confundir una con la otra:
+
+1. **Pantalla admin del catálogo (`/lugares-entrega`, alta/edición/borrado de lugares):** esta
+   **sí debe paginar de verdad**, con tabla + controles de página, igual que cualquier otro
+   catálogo/listado admin del proyecto (`page`/`size` normales, avanzar de página en página). Con
+   pocos lugares hoy no se nota, pero si el catálogo crece (más zonas/colonias con el tiempo) esta
+   pantalla sí necesita paginación real para no cargar cientos de registros de un tirón.
+
+2. **Select de "lugar de entrega" en venta directa / editar-entrega / filtro de búsqueda de
+   pedidos:** aquí **no hay ni debe haber paginación** — es un `<select>` que necesita **todas**
+   las opciones disponibles de una vez para que el usuario elija. Aquí es donde aplica lo de
+   pedir `size` grande en una sola llamada (`?page=0&size=200`) y usar el arreglo completo tal
+   cual, sin controles de "siguiente página".
+
+Mismo endpoint, mismo shape de respuesta (`{ "data": [...] }`) — la diferencia es solo cómo lo
+consume cada pantalla: una pagina de verdad (catálogo admin), la otra pide todo de un jalón
+(select).
