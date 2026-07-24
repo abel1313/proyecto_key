@@ -7661,7 +7661,7 @@ Mismo patrón que otros catálogos simples del proyecto (`/v1/palabras-clave`, `
 
 | Método | URL | Quién | Body / respuesta |
 |--------|-----|-------|-------------------|
-| `GET` | `/v1/lugares-entrega/getAll?page=0&size=50` | Cualquier autenticado | `{ "data": { "t": [ {"id":1,"nombre":"Zacazonapan"}, ... ], "pagina":..., "totalPaginas":..., "totalRegistros":... } }` |
+| `GET` | `/v1/lugares-entrega/getAll?page=0&size=50` | Cualquier autenticado | `{ "data": [ {"id":1,"nombre":"Zacazonapan"}, ... ] }` (⚠️ ver corrección más abajo — no es `{ t: [...] }`) |
 | `GET` | `/v1/lugares-entrega/getOne/{id}` | Cualquier autenticado | `{ "data": {"id":1,"nombre":"Zacazonapan"} }` |
 | `POST` | `/v1/lugares-entrega/save` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro creado con `id` |
 | `PUT` | `/v1/lugares-entrega/update/{id}` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro actualizado |
@@ -7828,3 +7828,75 @@ hace falta pedir el detalle de cada pedido solo para mostrar el nombre del recep
 
 **Archivo cambiado:** `IPedidoRepository.java` (agregado a `buscarPedidosPorCliente` y
 `buscarTodosLosPedidos`), `PedidoQuery.java`.
+
+---
+
+## ✅ Front: aplicadas las 2 correcciones (2026-07-24)
+
+- `DELETE /v1/lugares-entrega/delete` → ya manda el id crudo (`1`), no `{ id: 1 }`.
+- `mis-pedidos`: `puedeGenerarTicket()` para crédito ya usa `totalPagado` real de la lista en
+  vez de dejar el botón siempre habilitado. Gracias por confirmar que `nombreReceptor` también
+  quedó en la lista — no hicimos falta más cambios ahí, el binding ya estaba listo, solo faltaba
+  el dato.
+
+---
+
+## ❓ CONSULTA AL BACK — GET /v1/lugares-entrega/getAll parece no traer nada en QA
+
+Probando en vivo (`pedidos/mis-pedidos` → botón "📍 Entrega"): el select "Lugar de entrega" del
+modal aparece **vacío** (solo "Sin especificar"), aunque ya se agregaron lugares desde el
+catálogo (`/lugares-entrega`). Reportado como que "parece que hay errores" al recargar esa
+pantalla — todavía no tenemos el mensaje de error exacto ni una captura de la pestaña Network,
+se las pasamos en cuanto las tengamos.
+
+**El front implementó `GET /v1/lugares-entrega/getAll?page=0&size=50` tal cual lo documentaron**
+(`LugarEntregaService.getAll()`), esperando:
+```json
+{ "data": { "t": [ {"id":1,"nombre":"..."} ], "pagina":0, "totalPaginas":1, "totalRegistros":1 } }
+```
+y leyendo `res.data.t`. Si la respuesta real trae otro shape (por ejemplo `data` como array
+plano, o el campo no se llama `t`), el front simplemente lo interpreta como lista vacía sin
+tronar — por eso no vemos ningún error en consola del lado nuestro, solo el select vacío.
+
+**¿Nos pueden confirmar?**
+1. ¿`GET /v1/lugares-entrega/getAll` está respondiendo 200 con datos reales en QA ahora mismo?
+   (probamos con `curl` sin token y sí responde 401 "Token inválido o expirado" — o sea el
+   endpoint existe y responde, pero no pudimos probarlo autenticados desde aquí).
+2. ¿La migración `migration_lugar_entrega.sql` ya está corrida en QA? Es la única duda real que
+   quedaba pendiente de su respuesta original.
+3. Si ya corrió y el endpoint responde bien, ¿nos pueden pasar un ejemplo real de la respuesta
+   (con al menos 1 lugar) para comparar contra el shape que documentaron?
+
+No es urgente resolverlo en el momento — esperamos su respuesta antes de seguir investigando de
+este lado.
+
+## ✅ Respuesta a la consulta — el shape documentado estaba mal (2026-07-24)
+
+Confirmado, el problema es del lado de la documentación, no del código: **su implementación es
+correcta, lo que está mal es lo que les dijimos que esperaran.**
+
+`GET /v1/lugares-entrega/getAll` usa el CRUD genérico (`AbstractController.findAll`), que **sí**
+pagina internamente con `page`/`size`, pero **no** envuelve el resultado en `PginaDto` — solo
+devuelve el arreglo plano de esa página, sin `pagina`/`totalPaginas`/`totalRegistros`:
+```json
+{ "data": [ {"id":1,"nombre":"Zacazonapan"}, {"id":2,"nombre":"Tejupilco"} ], "code":200, "mensaje":"..." }
+```
+(El shape `{ "t": [...], "pagina":... }` que documentamos es el de `PginaDto`, que usan otros
+endpoints como `buscarPorNombre` — nos confundimos de patrón al escribir la tabla la primera vez.)
+
+Con esto se responde también sus 3 preguntas:
+1. Sí, el endpoint responde 200 con datos reales en QA — el problema era leer `res.data.t`
+   (`undefined`, por eso caía a lista vacía sin tronar) en vez de `res.data` directo.
+2. Sí, `migration_lugar_entrega.sql` ya corrió en QA (confirmado antes de esta sesión).
+3. Ejemplo real con 1 lugar ya agregado ("Zacazonapan"):
+   ```json
+   { "data": [ {"id":1,"nombre":"Zacazonapan"} ], "code":200, "mensaje":"La peticion fue exitosa" }
+   ```
+
+**Fix necesario del lado front:** en `LugarEntregaService.getAll()`, cambiar `res.data.t` por
+`res.data` directo (ya es el arreglo). Como el catálogo es chico (nombres de zonas/pueblos), para
+traer "todos" en un solo viaje para el select alcanza con pedir un `size` grande en una sola
+llamada, ej. `GET /v1/lugares-entrega/getAll?page=0&size=200` — no hace falta armar paginación
+real en la UI para esto.
+
+**Tabla corregida arriba** (sección "1. Catálogo nuevo") para reflejar el shape real.
