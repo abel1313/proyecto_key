@@ -14,6 +14,7 @@ public class PedidoQuery {
     private int id;
     private String fecha_pedido;
     private String estado_pedido;
+    private String nombreReceptor;
     private Integer lugarEntregaId;
     private String lugarEntregaNombre;
     private String urlFacebook;
