@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
@@ -106,6 +107,19 @@ public class PedidoController extends AbstractController<
     public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> getDetalle(@PathVariable int id) {
         try {
             PedidoDetalleResponse response = iPedidoService.getDetallePedido(id);
+            return ResponseEntity.ok(new ResponseGeneric<>(response));
+        } catch (Exception e) {
+            ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @PutMapping("/{id}/entrega")
+    public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> editarEntrega(
+            @PathVariable int id, @RequestBody EditarEntregaPedidoRequest requestG) {
+        try {
+            PedidoDetalleResponse response = iPedidoService.editarDatosEntrega(id, requestG);
             return ResponseEntity.ok(new ResponseGeneric<>(response));
         } catch (Exception e) {
             ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);

@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.DetalleVentaVariante;
 import com.ventas.key.mis.productos.entity.MesesIntereses;
@@ -14,6 +15,7 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
 import com.ventas.key.mis.productos.models.pedidos.AbonoDetalleItem;
 import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
+import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
@@ -123,6 +125,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
+        pedido.setNombreReceptor(requestG.getNombreReceptor());
+        pedido.setDireccionEntrega(requestG.getDireccionEntrega());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
         pedido.setTipoPedido(tipoPedido);
         pedido.setTotalPagado(0.0);
@@ -345,9 +349,22 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())
-                || "PAGADO".equals(pedido.getEstadoPedido())) {
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("No se puede cancelar un pedido en estado: " + pedido.getEstadoPedido());
+        }
+
+        // Entregado (venta al contado) y PAGADO (credito ya liquidado) significan que la mercancia
+        // y el dinero ya cambiaron de manos y que ya existe una Venta ligada al pedido -- cancelar
+        // aqui es en realidad una devolucion, solo la puede registrar un ADMIN, y no se puede usar
+        // un motivo de "no se presento" (eso afectaria el score de rifa de un cliente que si cumplio).
+        boolean esDevolucion = "Entregado".equals(pedido.getEstadoPedido()) || "PAGADO".equals(pedido.getEstadoPedido());
+        if (esDevolucion) {
+            if (!AuthenticationUtils.isAdminContext()) {
+                throw new RuntimeException("Solo un administrador puede cancelar un pedido que ya fue entregado o pagado");
+            }
+            if ("TIMEOUT".equals(motivo) || "NO_SE_PRESENTO".equals(motivo)) {
+                throw new RuntimeException("Ese motivo es para pedidos que no se recogieron, no aplica para un pedido ya entregado");
+            }
         }
 
         pedido.getDetalles().forEach(detalle -> {
@@ -368,6 +385,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setMotivoCancelacion(motivo);
         pedido.setFechaCancelacion(LocalDate.now());
         iPedidoRepository.save(pedido);
+
+        if (esDevolucion) {
+            iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
+                venta.setEstadoVenta("Devuelta");
+                iVentaRepository.save(venta);
+            });
+        }
+
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
@@ -403,6 +428,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 iVarianteRepository.save(variante);
             }
             iDetallePedidoRepository.delete(detalle);
+            pedido.getDetalles().remove(detalle);
         } else {
             prod.setStock(prod.getStock() + cantidad);
             iProductoRepository.save(prod);
@@ -416,6 +442,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
             iDetallePedidoRepository.save(detalle);
         }
+
+        // El detalle que se quito/redujo ya no debe seguir contando en el total del pedido --
+        // sin este recalculo, totalPedido se quedaba con el valor de antes de la edicion.
+        double nuevoTotal = pedido.getDetalles().stream().mapToDouble(DetallePedido::getSubTotal).sum();
+        pedido.setTotalPedido(nuevoTotal);
+        iPedidoRepository.save(pedido);
+
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
@@ -443,6 +476,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setObservaciones(pedido.getObservaciones());
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
+        resp.setNombreReceptor(pedido.getNombreReceptor());
+        resp.setDireccionEntrega(pedido.getDireccionEntrega());
 
         if (pedido.getCliente() != null) {
             resp.setClienteNombre(pedido.getCliente().getNombrePersona());
@@ -493,6 +528,39 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         resp.setDetalles(detalles);
         return resp;
+    }
+
+    // Edicion de solo los datos de entrega (quien recibe, direccion, fecha de entrega,
+    // observaciones) -- no toca lineas ni stock, se puede llamar en cualquier momento despues
+    // de creado el pedido (venta directa los manda opcionales; si quedan vacios, se completan
+    // aqui despues).
+    @Transactional
+    @Override
+    public PedidoDetalleResponse editarDatosEntrega(int id, EditarEntregaPedidoRequest requestG) {
+        Pedido pedido = iPedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("No se pueden editar los datos de entrega de un pedido cancelado");
+        }
+
+        if (requestG.getNombreReceptor() != null) {
+            pedido.setNombreReceptor(requestG.getNombreReceptor());
+        }
+        if (requestG.getDireccionEntrega() != null) {
+            pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        }
+        if (requestG.getFechaEntrega() != null) {
+            pedido.setFechaRecogida(requestG.getFechaEntrega());
+        }
+        if (requestG.getObservaciones() != null) {
+            pedido.setObservaciones(requestG.getObservaciones());
+        }
+
+        iPedidoRepository.save(pedido);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return getDetallePedido(pedido.getId());
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.NotificacionRequest;
@@ -219,18 +220,31 @@ public class AbonoServiceImpl implements IAbonoService {
         if (!TIPOS_CREDITO.contains(pedido.getTipoPedido())) {
             throw new RuntimeException("El pedido " + pedidoId + " no es de tipo crédito");
         }
-        if ("PAGADO".equals(pedido.getEstadoPedido())) {
-            throw new RuntimeException("El pedido ya está pagado — no se puede cancelar");
-        }
         if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("El pedido ya está cancelado");
+        }
+
+        // PAGADO significa que ya se liquido por completo y ya existe una Venta (ver
+        // registrarAbono -> crearVentaDesdePedido) -- cancelar aqui es una devolucion real,
+        // solo la puede hacer un ADMIN, y el motivo no puede ser el de "no se presento"
+        // porque el cliente si cumplio, solo esta regresando la mercancia.
+        boolean esDevolucion = "PAGADO".equals(pedido.getEstadoPedido());
+        if (esDevolucion) {
+            if (!AuthenticationUtils.isAdminContext()) {
+                throw new RuntimeException("Solo un administrador puede cancelar un pedido de crédito ya pagado");
+            }
+            if ("TIMEOUT".equals(request.getMotivo()) || "NO_SE_PRESENTO".equals(request.getMotivo())) {
+                throw new RuntimeException("Ese motivo es para pedidos que no se recogieron, no aplica para un pedido ya pagado");
+            }
         }
 
         boolean esFiado = "FIADO".equals(pedido.getTipoPedido());
         boolean stockDevuelto = false;
 
-        if (!esFiado) {
-            // APARTADO: producto no fue entregado → devolver stock
+        // FIADO activo (aun no pagado) ya entrego la mercancia -- no se le exige regresarla
+        // solo por dejar de pagar (queda como deuda incobrable). PAGADO si regresa stock
+        // porque es una devolucion real (el cliente esta regresando algo que ya tenia).
+        if (!esFiado || esDevolucion) {
             for (DetallePedido dp : pedido.getDetalles()) {
                 Variantes v = dp.getVariante();
                 v.setStock(v.getStock() + dp.getCantidad());
@@ -247,13 +261,22 @@ public class AbonoServiceImpl implements IAbonoService {
 
         pedido.setEstadoPedido("cancelado");
         String motivo = request.getMotivo() != null ? request.getMotivo() : "CANCELADO";
-        pedido.setMotivoCancelacion(motivo.length() > 30 ? motivo.substring(0, 30) : motivo);
+        pedido.setMotivoCancelacion(motivo.length() > 150 ? motivo.substring(0, 150) : motivo);
         pedido.setFechaCancelacion(LocalDate.now());
         pedidoRepository.save(pedido);
 
-        String msg = esFiado
-                ? String.format("FIADO cancelado. Stock NO devuelto (producto entregado). Deuda incobrable: $%.2f", totalPendiente)
-                : String.format("APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $%.2f", totalPagado);
+        if (esDevolucion) {
+            ventaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
+                venta.setEstadoVenta("Devuelta");
+                ventaRepository.save(venta);
+            });
+        }
+
+        String msg = esDevolucion
+                ? String.format("Pedido pagado cancelado (devolución). Stock devuelto. Monto a reembolsar: $%.2f", totalPagado)
+                : esFiado
+                    ? String.format("FIADO cancelado. Stock NO devuelto (producto entregado). Deuda incobrable: $%.2f", totalPendiente)
+                    : String.format("APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $%.2f", totalPagado);
 
         log.info("Pedido {} cancelado — tipo: {}, stock devuelto: {}", pedidoId, pedido.getTipoPedido(), stockDevuelto);
         CancelarAbonoResponse resp = new CancelarAbonoResponse(

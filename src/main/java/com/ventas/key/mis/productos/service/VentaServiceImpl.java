@@ -235,8 +235,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setCliente(cliente);
             pedido.setClienteSinRegistro(clienteSinRegistro);
             pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
+            pedido.setNombreReceptor(request.getNombreReceptor());
+            pedido.setDireccionEntrega(request.getDireccionEntrega());
             pedido.setFechaPedido(LocalDate.now());
             pedido.setFechaHoraRegistro(LocalDateTime.now());
+            pedido.setFechaRecogida(request.getFechaEntrega());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
@@ -260,10 +263,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setEstadoPedido("Entregado");
         pedido.setCliente(cliente);
         pedido.setClienteSinRegistro(clienteSinRegistro);
-        pedido.setObservaciones("");
+        pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
+        pedido.setNombreReceptor(request.getNombreReceptor());
+        pedido.setDireccionEntrega(request.getDireccionEntrega());
         pedido.setFechaPedido(LocalDate.now());
         pedido.setFechaHoraRegistro(LocalDateTime.now());
-        pedido.setFechaRecogida(LocalDate.now());
+        pedido.setFechaRecogida(request.getFechaEntrega() != null ? request.getFechaEntrega() : LocalDate.now());
         pedido.setTotalPedido(totalVenta);
         pedido.setTotalPagado(totalVenta);
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
