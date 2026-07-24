@@ -214,11 +214,14 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
        OR csr.nombre_persona   LIKE CONCAT('%', :buscar, '%')
        OR csr.numero_telefonico LIKE CONCAT('%', :buscar, '%'))
       AND (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
+      AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
     Page<String> buscarPedidosPorCliente(@Param("buscar") String buscar,
                                           @Param("lugarEntregaId") Integer lugarEntregaId,
+                                          @Param("sinFiltroTipo") boolean sinFiltroTipo,
+                                          @Param("tipoPedido") List<String> tipoPedido,
                                           Pageable pegable);
 
 
@@ -302,10 +305,14 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     LEFT  JOIN lugares_entrega le      ON le.id  = p.lugar_entrega_id
     INNER JOIN producto pro ON pro.id = dp.producto_id
     WHERE (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
+      AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
-    Page<String> buscarTodosLosPedidos(@Param("lugarEntregaId") Integer lugarEntregaId, Pageable pegable);
+    Page<String> buscarTodosLosPedidos(@Param("lugarEntregaId") Integer lugarEntregaId,
+                                        @Param("sinFiltroTipo") boolean sinFiltroTipo,
+                                        @Param("tipoPedido") List<String> tipoPedido,
+                                        Pageable pegable);
 
 
 }

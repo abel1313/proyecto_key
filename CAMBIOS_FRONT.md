@@ -7921,3 +7921,87 @@ necesidades distintas — no confundir una con la otra:
 Mismo endpoint, mismo shape de respuesta (`{ "data": [...] }`) — la diferencia es solo cómo lo
 consume cada pantalla: una pagina de verdad (catálogo admin), la otra pide todo de un jalón
 (select).
+---
+
+## ✅ Front: aplicado el fix de shape + catálogo con paginación real (2026-07-24)
+
+- `LugarEntregaService.getAll()` ya lee `res.data` directo (no `res.data.t`), `size=200` por
+  default para las pantallas que necesitan todo el catálogo de un jalón (selects).
+- Catálogo admin (`/lugares-entrega`) rediseñado con paginación real: tabla + "← Anterior" /
+  "Siguiente →", `size=10` por página. Como `getAll` no trae total de registros, "hay
+  siguiente" se infiere con `length === size`.
+
+Gracias por la respuesta rápida y por confirmar que la migración ya estaba corrida — era 100%
+lectura de shape del lado nuestro.
+
+---
+
+## ❓ CONSULTA AL BACK — filtro por tipo de pedido en `buscarClientePedido` + inventario de endpoints de `mis-pedidos`
+
+### Inventario — endpoints que usa la pantalla `pedidos/mis-pedidos` hoy
+
+| Método | URL | Para qué |
+|---|---|---|
+| `GET` | `/v1/pedidos/findPedido/{idCliente}?size=&page=` | Cliente no-admin: lista sus propios pedidos (infinite scroll) |
+| `GET` | `/v1/pedidos/findPedido/{idPedido}/{idCliente}?size=&page=` | Cliente busca un pedido propio por número |
+| `GET` | `/v1/pedidos/buscarClientePedido?size=&page=&buscar=&lugarEntregaId=` | Admin: lista/búsqueda general (texto + filtro de lugar, ya conectado) |
+| `PUT` | `/v1/pedidos/confirmar/{id}` | Cobrar pedido NORMAL |
+| `DELETE` | `/v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=` | Quitar/reducir una línea del detalle |
+| `DELETE` | `/v1/pedidos/delete/{id}?motivo=` | Cancelar pedido |
+| `GET` | `/v1/pedidos/{id}/detalle` | Detalle completo (incluye datos de entrega, lugar, Facebook, abonos) |
+| `PUT` | `/v1/pedidos/{id}/entrega` | Editar nombreReceptor/direccionEntrega/fechaEntrega/lugarEntregaId/urlFacebook/observaciones |
+| `POST` | `/v1/pedidos/{id}/notificar` | Reenviar comprobante por correo |
+| `PUT` | `/v1/abonos/{pedidoId}/cancelar` | Cancelar crédito (vía `/abonos`, pantalla hermana) |
+
+### ❓ Pregunta — filtro por tipo de pedido en `buscarClientePedido`
+
+Agregamos en el front 2 botones "📦 Apartados" / "💳 Ir pagando" en `mis-pedidos` (admin),
+independientes del filtro de lugar (se combinan con AND si ambos están activos: lugar +
+Apartados = apartados de ese lugar; solo uno de los dos = solo ese filtro).
+
+Mandamos el tipo como query param **repetido**, convención Spring `@RequestParam List<String>`:
+```
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&tipoPedido=APARTADO&tipoPedido=FIADO
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&lugarEntregaId=1&tipoPedido=APARTADO
+```
+Si ningún checkbox está marcado, no se manda el parámetro (como hoy, sin filtro de tipo).
+
+**¿`GET /v1/pedidos/buscarClientePedido` ya soporta filtrar por `tipoPedido` así, o hay que
+agregarlo?** Si el nombre/formato del parámetro que esperan es distinto, avísennos y ajustamos
+el front — mientras tanto no rompe nada, un query param que el back no reconoce simplemente se
+ignora.
+
+No es urgente — el resto de la pantalla (paginación real admin, filtro de lugar) ya funciona
+sin depender de esto.
+
+---
+
+## ✅ Front: resumen visible de filtros activos en mis-pedidos (2026-07-24)
+
+100% front, no necesita nada de su lado — lo anotamos igual por la regla de dejar registro de
+todo lo que se implementa en esta pantalla.
+
+Con 3 filtros combinables ahora en `mis-pedidos` admin (texto, lugar, tipo de pedido), se agregó
+un chip debajo de los filtros que resume qué está activo, ej. `"Buscando: texto "123" + lugar
+"Zacazonapan" + Apartados"` — solo visible si hay al menos un filtro aplicado.
+
+---
+
+## ✅ Respuesta a la consulta — filtro `tipoPedido` ya agregado (2026-07-24)
+
+No existía, ya se agregó a `GET /v1/pedidos/buscarClientePedido` tal cual lo mandan ustedes —
+mismo formato, query param repetido:
+```
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&tipoPedido=APARTADO&tipoPedido=FIADO
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&lugarEntregaId=1&tipoPedido=APARTADO
+GET /v1/pedidos/buscarClientePedido?size=10&page=0   ← sin tipoPedido = sin filtro de tipo, como hoy
+```
+- Se combina con `AND` con `buscar` y `lugarEntregaId`, exactamente como ya lo tenían asumido.
+- Valores esperados: `"NORMAL"`, `"APARTADO"`, `"FIADO"` (mismos strings que ya usan en
+  `tipoPedido` de la respuesta). Un valor que no sea ninguno de esos tres simplemente no
+  matchea nada — no truena, solo no encuentra resultados para ese valor.
+- El JSON de cada pedido en la respuesta no cambia (ya traía `tipoPedido`) — el filtro solo
+  afecta qué resultados vienen, no el shape de cada uno.
+
+**Archivos cambiados:** `IPedidoRepository.java` (`buscarPedidosPorCliente` y
+`buscarTodosLosPedidos`), `PedidoServiceImpl.java`, `IPedidoService.java`, `PedidoController.java`.
