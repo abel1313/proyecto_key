@@ -8005,3 +8005,31 @@ GET /v1/pedidos/buscarClientePedido?size=10&page=0   ← sin tipoPedido = sin fi
 
 **Archivos cambiados:** `IPedidoRepository.java` (`buscarPedidosPorCliente` y
 `buscarTodosLosPedidos`), `PedidoServiceImpl.java`, `IPedidoService.java`, `PedidoController.java`.
+
+---
+
+## ⚠️ Aviso al front — falta un 3er checkbox de tipo (`NORMAL`) en `mis-pedidos`
+
+Probando en vivo con el filtro ya conectado: hoy la pantalla solo tiene 2 checkboxes
+("📦 Apartados" / "💳 Ir pagando" → `APARTADO`/`FIADO`). El back ya soporta el tercer valor sin
+ningún cambio adicional — falta agregar el checkbox correspondiente en el front:
+
+```
+GET /v1/pedidos/buscarClientePedido?tipoPedido=NORMAL
+```
+
+Con esto los 3 checkboxes cubren los 3 valores reales de `tipoPedido` (`NORMAL`, `APARTADO`,
+`FIADO`). Ninguno marcado sigue significando "sin filtro" (todos los tipos), no hay que mandar
+los 3 explícitamente para ese caso.
+
+## ⚠️ Aclaración — `buscar` NO busca por id/número de pedido (todavía)
+
+Probando `buscar=1` contra un pedido real: encontró resultados, pero **por coincidencia** — el
+teléfono del cliente (`7223475214`) contiene un "1", y `buscar` hace `LIKE '%valor%'` contra
+nombre/correo/teléfono del cliente, nunca contra `pedidos.id`. Si el número que se busca no
+coincide por casualidad con algo del cliente, no encuentra el pedido aunque el id exista.
+
+**Pendiente de confirmar con ustedes:** ¿agregamos búsqueda por id de pedido al mismo campo
+`buscar` (ej. `OR p.id = :buscar` cuando el valor es numérico), combinable con `lugarEntregaId`/
+`tipoPedido` como todo lo demás? O si el filtro de "id de pedido" en la pantalla es un campo
+separado que no debe tocar este endpoint, avísennos y lo dejamos como está.
