@@ -8253,6 +8253,22 @@ de Abonos.
 
 ---
 
+## ✅ Front: revisado y confirmado — ya funcionaba, más una mejora chica (2026-07-27)
+
+Revisamos ambos fixes que documentaron (400+mensaje al cancelar, stock de FIADO). Sin dudas:
+
+- **El manejo de error ya estaba listo** — `cancelarPedido()` en `mis-pedidos` ya leía
+  `err?.error?.mensaje`, así que el mensaje nuevo del 400 se muestra automático, sin tocar
+  código.
+- **El fix de stock en FIADO es 100% backend** — no requirió nada de nuestro lado.
+- **Sí aplicamos la recomendación opcional**: el botón "Cancelar" ahora también se deshabilita
+  cuando el pedido ya está cancelado (antes solo consideraba "Entregado" + no-admin).
+
+Gracias por el detalle de los 3 mensajes de error exactos, ayudó a confirmar rápido que ya
+estábamos leyendo el campo correcto.
+
+---
+
 ## ✅ Perf: imágenes ahora se cachean en el navegador (2026-07-27)
 
 Contexto: las listas de productos/variantes con imagen tardaban en aparecer. El análisis mostró
