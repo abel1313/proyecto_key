@@ -681,7 +681,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             VarianteResumenDto dto = buildBaseResumenDto(v);
             Long imagenId = variantePrimeraImagen.get(v.getId());
             if (imagenId != null) {
-                dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + imagenId);
+                // Miniatura para listado/busqueda -- el detalle sigue usando la imagen completa.
+                dto.setImagenUrl(endpointImagenes + "v1/imagenes/thumbnail/" + imagenId);
             }
             return dto;
         }).toList();

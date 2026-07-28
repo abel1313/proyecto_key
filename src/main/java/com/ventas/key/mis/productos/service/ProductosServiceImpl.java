@@ -168,7 +168,8 @@ public class ProductosServiceImpl extends
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen img =
                 new com.ventas.key.mis.productos.hexagonal.dominio.Imagen();
         if (imagenId != null) {
-            img.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + imagenId);
+            // Miniatura para listado/busqueda -- el detalle (findById) sigue usando la imagen completa.
+            img.setUrlImagen(endpointImagenes + "v1/imagenes/thumbnail/" + imagenId);
         }
 
         if (isAdmin) {

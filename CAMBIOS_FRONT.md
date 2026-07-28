@@ -8293,3 +8293,39 @@ cachearla como inmutable indefinidamente.
 Quedan pendientes de análisis (no implementados aún): generar miniaturas para las listas en vez
 de servir el archivo original completo, y un endpoint por lote para pedir varias imágenes en una
 sola llamada en vez de una por producto.
+
+---
+
+## ✅ Perf: miniaturas en listado/búsqueda de productos y variantes (2026-07-28)
+
+Segundo paso para bajar el tiempo de carga de imágenes (el primero fue el caché del navegador,
+sección anterior). Ahora la lista/búsqueda de productos y de variantes ya no manda la imagen
+original completa — manda una **miniatura** más liviana (máx. 400px de ancho, mismo alto
+proporcional).
+
+**No requiere ningún cambio en el front.** El campo de imagen en la respuesta (`urlImagen` /
+`imagenUrl`) sigue siendo un string con una URL completa, igual que antes — solo que ahora esa URL
+apunta a un endpoint distinto según el contexto:
+
+- **Listado/búsqueda de productos y variantes** (`GET /productos/obtenerProductos`,
+  `GET /productos/buscarNombreOrCodigoBarra`, `GET /variantes/buscar` y equivalentes de
+  admin/filtros) → la URL ahora es:
+  ```
+  GET {endpointImagenes}/v1/imagenes/thumbnail/{imagenId}
+  ```
+  Devuelve los mismos bytes de imagen (mismo `Content-Type`, mismo `Cache-Control`/`ETag` de 1 año
+  que el original), solo que redimensionada. Si `noContent (204)`, es el mismo caso de siempre:
+  imagen no encontrada en disco.
+
+- **Detalle de producto/variante** (`GET /productos/findById/{id}`, galería de imágenes) → sigue
+  usando la imagen completa sin cambios:
+  ```
+  GET {endpointImagenes}/v1/imagenes/file/{imagenId}
+  ```
+
+El front no tiene que armar ninguna de las dos URLs manualmente — ya vienen completas en la
+respuesta, así que este cambio es transparente mientras no se haya hardcodeado en ningún lado la
+ruta `/v1/imagenes/file/` esperando que sea siempre esa.
+
+Pendiente de análisis: caché en memoria de bytes calientes y/o endpoint por lote, para bajar
+todavía más el tiempo que tarda la *primera* carga de una búsqueda nueva.
