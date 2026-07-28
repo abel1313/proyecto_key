@@ -8250,3 +8250,30 @@ sigue sin mostrar el desglose de saldo a favor / deuda pendiente que sí trae la
 `/v1/abonos/{pedidoId}/cancelar` (`saldoAFavor`, `deudaPendiente`, mensaje). Si el front quiere ese
 detalle para el usuario, sigue siendo mejor dirigir la cancelación de APARTADO/FIADO a la pantalla
 de Abonos.
+
+---
+
+## ✅ Perf: imágenes ahora se cachean en el navegador (2026-07-27)
+
+Contexto: las listas de productos/variantes con imagen tardaban en aparecer. El análisis mostró
+que proyecto-key ya arma la lista con una sola query (sin N+1) — el cuello de botella estaba en
+`micro_imagenes`, que servía cada imagen sin ningún header de caché: el navegador re-descargaba
+las mismas fotos en cada búsqueda o repaginado, aunque no hubieran cambiado.
+
+```
+Request: GET {endpointImagenes}/v1/imagenes/file/{imagenId}
+```
+
+**No cambia el contrato** (misma URL, mismo status, mismo body) — solo se agregaron headers:
+- `Cache-Control: public, max-age=31536000, immutable`
+- `ETag: "{imagenId}"`
+
+**No requiere ningún cambio en el front.** El navegador va a empezar a cachear cada imagen sola
+por hasta 1 año la primera vez que la descargue — en listas/búsquedas repetidas debería notarse
+la diferencia de inmediato porque deja de volver a pedir imágenes ya vistas. Como el id de una
+imagen nunca se reutiliza (reemplazar = subir un id nuevo, eliminar = se borra) es seguro
+cachearla como inmutable indefinidamente.
+
+Quedan pendientes de análisis (no implementados aún): generar miniaturas para las listas en vez
+de servir el archivo original completo, y un endpoint por lote para pedir varias imágenes en una
+sola llamada en vez de una por producto.
