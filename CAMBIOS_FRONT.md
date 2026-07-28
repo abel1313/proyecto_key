@@ -8329,3 +8329,7 @@ ruta `/v1/imagenes/file/` esperando que sea siempre esa.
 
 Pendiente de análisis: caché en memoria de bytes calientes y/o endpoint por lote, para bajar
 todavía más el tiempo que tarda la *primera* carga de una búsqueda nueva.
+
+**Estado de despliegue:** ya está en `dev` y `qa` de ambos repos (proyecto-key y micro_imagenes).
+**Todavía no está en producción (`main`/`master`)** — el caché de navegador de la sección anterior
+tampoco. Avisamos cuando se suba a main para que puedan validar en QA mientras tanto.
