@@ -152,14 +152,16 @@ public class PedidoController extends AbstractController<
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> deleteById(
+    public ResponseEntity<ResponseGeneric<String>> deleteById(
             @PathVariable int id,
             @RequestParam(defaultValue = "NO_SE_PRESENTO") String motivo) {
         try {
             this.iPedidoService.deletePedidoById(id, motivo);
-            return ResponseEntity.status(HttpStatus.OK).build();
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>("Pedido cancelado correctamente"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
     }
 

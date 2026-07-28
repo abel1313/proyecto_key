@@ -8170,3 +8170,83 @@ Ya subimos el rename a `qa` (deploy confirmado exitoso). Verificamos con `curl` 
 `GET /tienda/1` responde 401 (protegido, funcionando) y `/variantes/1` (el viejo) ya no
 responde bien — o sea ustedes ya tenían el cambio desplegado en QA también, no solo en dev
 como habían dicho, así que no hubo ninguna ventana de caída del catálogo. Todo sincronizado.
+---
+
+## ✅ Front: fix móvil — filtros traslapados + cards de 2 en 2 (2026-07-24)
+
+100% front, sin acción del back. Reportado con capturas: en `productos/buscar` y
+`variantes/buscar` ("Tienda"), los checkboxes de filtro se veían con texto encimado en anchos
+tipo tablet/celular grande (faltaba un breakpoint intermedio entre 576px y el punto donde ya
+caben 4 columnas cómodas), y las cards de producto se veían de 1 en 1 en móvil en vez de 2 en
+2 (pedido explícito). Ambos corregidos — detalle completo en `CLAUDE.md` de este repo, sección
+"FIX MÓVIL — FILTROS TRASLAPADOS EN TABLET/CELULAR GRANDE + CARDS DE 2 EN 2".
+
+---
+
+## ✅ Fix: cancelar pedido — el back ya validaba, ahora también informa el motivo (2026-07-27)
+
+**Pregunta del front:** al cancelar un pedido, ¿el front debe ocultar/deshabilitar el botón según
+el estado, o el back valida?
+
+**Respuesta: ambos.** El back **ya validaba** (no es un cambio de reglas, ya existía):
+- No se puede cancelar un pedido que ya está en estado `cancelado`.
+- Si el pedido ya está `Entregado` o `PAGADO` (crédito liquidado), cancelar es en realidad una
+  **devolución** — solo un usuario con rol ADMIN puede hacerlo, y no se permite mandar
+  `motivo=TIMEOUT` ni `motivo=NO_SE_PRESENTO` en ese caso (esos motivos son para pedidos que
+  nunca se recogieron, no para uno que ya se entregó).
+
+**Lo que sí estaba mal y se corrigió:** cuando el back rechazaba la cancelación, el endpoint
+devolvía **500 vacío, sin mensaje** — el front no tenía forma de saber por qué falló.
+
+```
+Request: DELETE /v1/pedidos/delete/{id}?motivo=NO_SE_PRESENTO
+```
+
+**Antes:**
+- Éxito → `200`, sin body.
+- Rechazo → `500`, sin body.
+
+**Ahora:**
+- Éxito → `200`, body `{ "response": "Pedido cancelado correctamente" }`.
+- Rechazo → `400`, body `{ "mensaje": "..." }` con el motivo exacto, por ejemplo:
+  - `"No se puede cancelar un pedido en estado: cancelado"`
+  - `"Solo un administrador puede cancelar un pedido que ya fue entregado o pagado"`
+  - `"Ese motivo es para pedidos que no se recogieron, no aplica para un pedido ya entregado"`
+
+**Recomendación de UX (no obligatoria, el back ya bloquea el caso):** usar el `estadoPedido` que
+ya viene en `GET /v1/pedidos/{id}/detalle` (`PedidoDetalleResponse.estadoPedido`) para ocultar o
+deshabilitar el botón de cancelar cuando el estado sea `cancelado`, o mostrarlo distinto (como
+"solicitar devolución") cuando sea `Entregado`/`PAGADO` y el usuario no sea admin. Esto es solo
+para mejor experiencia — el back sigue siendo la fuente de verdad y rechaza cualquier intento
+igual, ahora con mensaje claro en el 400.
+
+---
+
+## ✅ Fix: cancelar un FIADO desde la pantalla de Pedidos devolvía stock indebido (2026-07-27)
+
+Pregunta del front: si el mismo pedido de crédito se puede cancelar tanto desde **Pedidos**
+(`DELETE /v1/pedidos/delete/{id}`) como desde **Abonos** (`PUT /v1/abonos/{pedidoId}/cancelar`),
+¿queda igual de protegido en ambos lados?
+
+**Sí, es la misma fila en BD** (mismo `estadoPedido`), así que cancelar desde cualquiera de las
+dos pantallas se refleja de inmediato en la otra en cuanto se vuelva a pedir el dato — y un
+segundo intento de cancelar (desde cualquiera de las dos) ahora se rechaza con `400` y mensaje
+claro (antes, del lado de Pedidos, tiraba `500` vacío — ver sección anterior).
+
+**Pero encontramos un bug de negocio real, no solo de mensajes:** para un pedido `FIADO` **activo**
+(ya entregado al cliente, todavía pagando), la regla correcta es que **cancelar NO devuelve stock**
+(la mercancía ya salió, queda como deuda incobrable — así lo hace `/v1/abonos/{pedidoId}/cancelar`
+desde siempre). El endpoint general `/v1/pedidos/delete/{id}` no conocía esa excepción y devolvía
+stock siempre, sin importar el tipo — si un FIADO activo se cancelaba desde la pantalla de
+**Pedidos** en vez de la de **Abonos**, el stock se restauraba aunque el cliente se hubiera
+quedado con el producto. Ya corregido: `/v1/pedidos/delete/{id}` ahora replica la misma regla
+(no devuelve stock si `tipoPedido = FIADO` y todavía no es una devolución real, es decir, no está
+en `Entregado`/`PAGADO`). `APARTADO` no cambia — siempre devolvía stock y sigue siendo correcto,
+porque en `APARTADO` la mercancía nunca se entregó.
+
+**Recomendación de UX (no obligatoria):** si la pantalla de Pedidos va a seguir mostrando el botón
+de cancelar para pedidos de crédito, ya no hay riesgo de inconsistencia de stock al usarlo — pero
+sigue sin mostrar el desglose de saldo a favor / deuda pendiente que sí trae la respuesta de
+`/v1/abonos/{pedidoId}/cancelar` (`saldoAFavor`, `deudaPendiente`, mensaje). Si el front quiere ese
+detalle para el usuario, sigue siendo mejor dirigir la cancelación de APARTADO/FIADO a la pantalla
+de Abonos.

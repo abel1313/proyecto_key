@@ -386,19 +386,26 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             }
         }
 
-        pedido.getDetalles().forEach(detalle -> {
-            Producto prod = iProductoRepository.findByIdWithLock(detalle.getProducto().getId())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
-            prod.setStock(prod.getStock() + detalle.getCantidad());
-            iProductoRepository.save(prod);
+        // FIADO activo ya entrego la mercancia al cliente (igual que en AbonoServiceImpl.cancelarPedido) --
+        // no se le devuelve el stock solo por dejar de pagar, queda como deuda incobrable. Si ya es una
+        // devolucion (PAGADO/Entregado) si se devuelve, porque el cliente esta regresando algo que ya tenia.
+        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion;
 
-            if (detalle.getVariante() != null) {
-                Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
-                variante.setStock(variante.getStock() + detalle.getCantidad());
-                iVarianteRepository.save(variante);
-            }
-        });
+        if (!esFiadoActivo) {
+            pedido.getDetalles().forEach(detalle -> {
+                Producto prod = iProductoRepository.findByIdWithLock(detalle.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
+                prod.setStock(prod.getStock() + detalle.getCantidad());
+                iProductoRepository.save(prod);
+
+                if (detalle.getVariante() != null) {
+                    Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
+                            .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                    variante.setStock(variante.getStock() + detalle.getCantidad());
+                    iVarianteRepository.save(variante);
+                }
+            });
+        }
 
         pedido.setEstadoPedido("cancelado");
         pedido.setMotivoCancelacion(motivo);
