@@ -8333,3 +8333,28 @@ todavía más el tiempo que tarda la *primera* carga de una búsqueda nueva.
 **Estado de despliegue:** ya está en `dev` y `qa` de ambos repos (proyecto-key y micro_imagenes).
 **Todavía no está en producción (`main`/`master`)** — el caché de navegador de la sección anterior
 tampoco. Avisamos cuando se suba a main para que puedan validar en QA mientras tanto.
+
+### 🔍 Reporte de prueba en QA (2026-07-28): variantes se ven chicas, productos se siguen viendo grandes
+
+Al probar en `qa.shop.novedades-jade.com.mx`: en la pantalla de **variantes** las imágenes ya se
+ven chicas (esperado), pero en la pantalla de **productos → buscar** se siguen viendo grandes.
+
+**Verificado directo contra el servidor de QA (sin pasar por el navegador), backend está bien:**
+- `GET /v1/productos/obtenerProductos` y `GET /v1/productos/buscarNombreOrCodigoBarra` en QA ya
+  devuelven `urlImagen` apuntando a `/v1/imagenes/thumbnail/{id}`, no a `/file/{id}`.
+- Se probó bajar una imagen real de un producto de QA: el original pesa 232 KB (960x1280 px), la
+  miniatura pesa 56 KB (400x533 px) — el redimensionado sí funciona correctamente.
+- La caché de Redis de esa búsqueda (`buscarNombreOrCodigoBarrasCache`, TTL 2h) ya fue limpiada a
+  mano (`DELETE /v1/admin/cache`) durante esta sesión — no era (o ya no es) la causa.
+
+**Conclusión:** el backend de productos en QA está devolviendo la miniatura correcta y más liviana.
+Si en la pantalla de productos sigue viéndose "grande", la causa más probable está del lado del
+front/navegador, no del backend:
+- Caché del navegador con la página/imágenes viejas — probar en ventana de incógnito.
+- O que "grande" se refiera al tamaño con que se dibuja el `<img>` en pantalla (controlado por
+  CSS/layout del front), no al peso del archivo descargado — el fix de miniaturas reduce el peso y
+  tiempo de descarga, no el tamaño visual del recuadro en la página.
+
+**Pendiente para retomar si el problema no se resuelve solo:** confirmar en el navegador (F12 →
+Network) si la imagen que carga la pantalla de productos → buscar es realmente `/thumbnail/` (y de
+qué peso), y si el problema es de velocidad o solo de tamaño visual en pantalla.
