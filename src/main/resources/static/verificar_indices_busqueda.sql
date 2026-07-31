@@ -1,63 +1,61 @@
--- Hallazgo 7 de ANALISIS_RENDIMIENTO_BUSQUEDAS.md — indices para las busquedas.
+-- Hallazgos 4, 5 y 7 de ANALISIS_RENDIMIENTO_BUSQUEDAS.md.
 --
--- Este script NO se ejecuta solo: primero se VERIFICA y despues se decide.
--- Correr contra inventario_key_qa (dev/qa) o inventario_key (produccion).
-
--- ============================================================
--- PASO 1 — ver que indices existen hoy
--- ============================================================
-
-SHOW INDEX FROM variante_imagen;
-SHOW INDEX FROM producto_imagen_copy;
-SHOW INDEX FROM variantes;
-SHOW INDEX FROM producto;
-
--- Que buscar en la salida: una fila cuyo Column_name sea 'variante_id'
--- (o 'producto_id' en producto_imagen_copy). Si no aparece, falta el indice.
+-- SOLO CONSULTA — no modifica nada. Sirve para decidir si vale la pena seguir
+-- optimizando las busquedas o si con el volumen real ya esta bien asi.
 --
--- Nota: las llaves foraneas en InnoDB crean su indice automaticamente. Si las
--- tablas se crearon con FK declarada, es probable que el indice YA exista y no
--- haya nada que hacer. Por eso se verifica antes.
+-- IMPORTANTE: la primera linea (USE) no es opcional. Sin una base seleccionada,
+-- DATABASE() devuelve NULL y las consultas a information_schema salen vacias.
+-- Para produccion, cambiar solo esa linea por: USE inventario_key;
+
+USE inventario_key_qa;
 
 
 -- ============================================================
--- PASO 2 — cuantas filas hay (decide si vale la pena optimizar mas)
+-- 1) VOLUMEN — decide el hallazgo 4 (el LIKE '%termino%')
 -- ============================================================
+SELECT (SELECT COUNT(*) FROM producto)        AS productos,
+       (SELECT COUNT(*) FROM variantes)       AS variantes,
+       (SELECT COUNT(*) FROM variante_imagen) AS variante_imagen;
 
-SELECT
-    (SELECT COUNT(*) FROM producto)         AS total_productos,
-    (SELECT COUNT(*) FROM variantes)        AS total_variantes,
-    (SELECT COUNT(*) FROM variante_imagen)  AS total_variante_imagen;
-
--- Con unos pocos miles de filas, el LIKE '%termino%' (hallazgo 4) es
--- imperceptible y NO vale la pena tocarlo. Con cientos de miles, pasa a ser el
--- problema principal del buscador.
+-- Decenas de miles o menos -> el LIKE '%x%' es imperceptible, NO tocar nada.
+-- Cientos de miles         -> pasa a ser el problema principal del buscador.
 
 
 -- ============================================================
--- PASO 3 — collation (decide el hallazgo 5: quitar los LOWER())
+-- 2) COLLATION — decide el hallazgo 5 (quitar los LOWER())
 -- ============================================================
-
 SELECT table_name, table_collation
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
-  AND table_name IN ('producto', 'variantes');
+  AND table_name IN ('producto', 'variantes', 'variante_imagen');
 
--- Si la collation termina en _ci (case-insensitive), los LOWER() de las
--- comparaciones de igualdad son REDUNDANTES y ademas impiden usar el indice.
--- Quitarlos no cambiaria el comportamiento. Si termina en _bin o _cs, NO tocar.
+-- Termina en _ci  -> los LOWER() son redundantes y ademas anulan los indices.
+--                    Se pueden quitar sin cambiar el comportamiento.
+-- Termina en _bin
+-- o en _cs        -> NO tocar: ahi LOWER() si cambia el resultado.
 
 
 -- ============================================================
--- PASO 4 — solo si el PASO 1 mostro que faltan
+-- 3) INDICES — decide el hallazgo 7
 -- ============================================================
+SELECT table_name, index_name, column_name, seq_in_index
+FROM information_schema.statistics
+WHERE table_schema = DATABASE()
+  AND table_name IN ('variante_imagen', 'producto_imagen_copy')
+ORDER BY table_name, index_name, seq_in_index;
 
+-- Buscar una fila con column_name = 'variante_id' (en variante_imagen) y otra
+-- con 'producto_id' (en producto_imagen_copy). Si estan, no hay nada que hacer:
+-- InnoDB crea el indice solo cuando la columna es llave foranea.
+
+
+-- ============================================================
+-- SOLO SI EL PASO 3 MOSTRO QUE FALTAN — descomentar y ejecutar
+-- ============================================================
 -- CREATE INDEX idx_variante_imagen_variante ON variante_imagen (variante_id);
 -- CREATE INDEX idx_producto_imagen_producto ON producto_imagen_copy (producto_id);
-
--- Estos aceleran el EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
--- que se evalua fila por fila en las queries de catalogo publico, y el
--- findByVarianteIdIn del armado de miniaturas.
 --
--- Ejecutar en horario de poco movimiento: CREATE INDEX bloquea escrituras en la
--- tabla mientras se construye (poco tiempo si la tabla es chica).
+-- Aceleran el EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v) que
+-- se evalua fila por fila en el catalogo publico, y el findByVarianteIdIn del
+-- armado de miniaturas. CREATE INDEX bloquea escrituras mientras se construye
+-- (poco tiempo si la tabla es chica).
