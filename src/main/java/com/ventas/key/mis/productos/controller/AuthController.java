@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.AuthRequest;
@@ -18,6 +19,7 @@ import com.ventas.key.mis.productos.models.VerificarCorreoUsuarioRequest;
 import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
+import com.ventas.key.mis.productos.service.SesionRefreshService;
 import com.ventas.key.mis.productos.service.api.IUsuarioService;
 import com.ventas.key.mis.productos.service.UsuarioVerificacionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,6 +46,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.Optional;
 
 @Tag(name = "Autenticacion", description = "Login, logout, registro y renovacion de tokens JWT. El refresh token se guarda en cookie HttpOnly.")
 @RestController
@@ -60,6 +63,7 @@ public class AuthController {
     private final UserDetailsService userDetailsService;
     private final UsuarioVerificacionService usuarioVerificacionService;
     private final IUsuarioService usuarioService;
+    private final SesionRefreshService sesionRefreshService;
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
@@ -69,6 +73,21 @@ public class AuthController {
 
     @Value("${seguridad.rate-limit-habilitado:true}")
     private boolean rateLimitHabilitado;
+
+    /**
+     * Hallazgo 11 (SEGURIDAD_AUTH.md): CSRF esta deshabilitado y la cookie de refresh usa
+     * SameSite=None, asi que un sitio de terceros puede forzar /refresh y /logout desde el
+     * navegador de la victima. Con la rotacion con deteccion de reuso ya implementada (hallazgo 5)
+     * eso dejo de ser una molestia y paso a ser un vector para tumbarle la sesion a alguien.
+     *
+     * <p>Exigir un header custom lo corta, porque un formulario cross-site no puede enviarlo sin
+     * pasar por preflight CORS. <b>Viene apagado por defecto</b>: encenderlo antes de que el front
+     * mande el header romperia el refresh de todos los usuarios. Prender cuando el front confirme.
+     */
+    @Value("${seguridad.exigir-header-refresh:false}")
+    private boolean exigirHeaderRefresh;
+
+    private static final String HEADER_ANTI_CSRF = "X-Requested-With";
 
     private static final String REFRESH_COOKIE = "refreshToken";
     private static final int REFRESH_MAX_AGE = 60 * 60 * 24 * 7; // 7 días en segundos
@@ -88,12 +107,15 @@ public class AuthController {
         // Normalizar a minúsculas para que "Admin", "ADMIN" y "admin" compartan el mismo bucket
         String usernameKey = "usr:" + request.getUserName().toLowerCase().trim();
 
-        if (rateLimitHabilitado && !rateLimiterService.tryConsume(clientIp)) {
+        // Solo se CONSULTA el cupo; el intento se gasta despues, y unicamente si la autenticacion
+        // falla. Antes se consumia por adelantado, asi que cinco entradas legitimas en 15 minutos
+        // autobloqueaban al usuario y cinco POST con basura bloqueaban al admin a proposito.
+        if (rateLimitHabilitado && !rateLimiterService.hayIntentosDisponibles(clientIp)) {
             log.warn("Rate limit por IP excedido: {}", clientIp);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos fallidos. Intente de nuevo en 15 minutos.");
         }
-        if (rateLimitHabilitado && !rateLimiterService.tryConsume(usernameKey)) {
+        if (rateLimitHabilitado && !rateLimiterService.hayIntentosDisponibles(usernameKey)) {
             log.warn("Rate limit por usuario excedido: {}", request.getUserName());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos fallidos. Intente de nuevo en 15 minutos.");
@@ -105,6 +127,13 @@ public class AuthController {
             );
             Usuario usr = (Usuario) auth.getPrincipal();
 
+            // Credenciales correctas: se borra el historial de fallos del usuario. La clave por IP
+            // no se limpia a proposito — la comparten registro y olvide-password, y un login
+            // correcto no deberia borrar los fallos acumulados de esa IP.
+            if (rateLimitHabilitado) {
+                rateLimiterService.limpiarIntentos(usernameKey);
+            }
+
             // Contrasena ya validada por authManager.authenticate() en este punto.
             // El chequeo de correo verificado va aparte (no en isEnabled()) para que una
             // contrasena incorrecta siempre responda 401, nunca el 403 de verificacion.
@@ -114,20 +143,31 @@ public class AuthController {
                         .body("Debes verificar tu correo antes de iniciar sesión");
             }
 
+            // La sesion se registra en BD: es lo que permite que logout, cambio de contrasena y
+            // deteccion de reuso puedan invalidar el refresh token del lado del servidor.
+            SesionRefreshService.SesionNueva sesion = sesionRefreshService.crearSesion(usr.getId());
+
             String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
-            String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(), System.currentTimeMillis());
+            String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(),
+                    sesion.sessionStartMillis(), sesion.jti(), sesion.sessionId());
 
             agregarRefreshCookie(response, refreshToken);
 
             return ResponseEntity.ok(new AuthResponse(accessToken, Boolean.TRUE.equals(usr.getPasswordTemporal())));
         } catch (BadCredentialsException e) {
+            registrarFalloLogin(clientIp, usernameKey);
             log.warn("Intento de login fallido para usuario: {} desde IP: {}", request.getUserName(), clientIp);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
         } catch (DisabledException e) {
+            // Tambien gasta intento: el provider comprueba 'enabled' antes que la contrasena, asi
+            // que sin esto seria un oraculo ilimitado de "esta cuenta existe y esta deshabilitada".
+            registrarFalloLogin(clientIp, usernameKey);
             log.warn("Login rechazado, cuenta deshabilitada: {}", request.getUserName());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cuenta deshabilitada");
         } catch (Exception e) {
-            log.error("Error inesperado en login: {}", e.getMessage());
+            // La excepcion va como ultimo argumento para que SLF4J imprima el stack trace: con
+            // solo getMessage() no habia con que diagnosticar un fallo real en produccion.
+            log.error("Error inesperado en login para usuario: {}", request.getUserName(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al procesar la solicitud");
         }
     }
@@ -139,6 +179,9 @@ public class AuthController {
     })
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) {
+        if (faltaHeaderAntiCsrf(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Falta el header " + HEADER_ANTI_CSRF);
+        }
         String refreshToken = leerRefreshCookie(request);
 
         if (refreshToken == null) {
@@ -154,9 +197,35 @@ public class AuthController {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             Usuario usr = (Usuario) userDetails;
 
+            String sessionId = jwtUtil.extractSessionId(refreshToken);
+
+            // Mismos controles que el login: sin esto, dar de baja a un usuario no cerraba su
+            // sesion — seguia renovando su access token durante los 7 dias del refresh token.
+            if (!usr.isEnabled()) {
+                log.warn("Refresh rechazado, cuenta deshabilitada: {}", username);
+                sesionRefreshService.cerrarSesion(sessionId);
+                limpiarRefreshCookie(response);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Cuenta deshabilitada");
+            }
+            if (!usr.esAdmin() && !Boolean.TRUE.equals(usr.getCorreoVerificado())) {
+                log.warn("Refresh rechazado por correo sin verificar: {}", username);
+                sesionRefreshService.cerrarSesion(sessionId);
+                limpiarRefreshCookie(response);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Debes verificar tu correo");
+            }
+
+            // Rotacion real: el jti anterior queda invalidado en BD. Si el que llega ya habia
+            // sido rotado, rotar() cierra la sesion completa (reuso => token robado).
+            Optional<String> jtiNuevo = sesionRefreshService.rotar(sessionId, jwtUtil.extractJti(refreshToken));
+            if (jtiNuevo.isEmpty()) {
+                limpiarRefreshCookie(response);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Sesión no válida, inicia sesión de nuevo");
+            }
+
             long sessionStart = jwtUtil.extractSessionStart(refreshToken);
             String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId());
-            String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart);
+            String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart,
+                    jtiNuevo.get(), sessionId);
 
             agregarRefreshCookie(response, newRefreshToken);
 
@@ -168,10 +237,24 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Cerrar sesion", description = "Limpia la cookie del refresh token cerrando la sesion del usuario.")
+    @Operation(summary = "Cerrar sesion", description = "Invalida el refresh token en el servidor y limpia la cookie. A diferencia de antes, el token deja de servir en el acto aunque alguien tenga una copia.")
     @ApiResponse(responseCode = "200", description = "Sesion cerrada correctamente")
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        if (faltaHeaderAntiCsrf(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Falta el header " + HEADER_ANTI_CSRF);
+        }
+        // Borrar la cookie solo le pedia al navegador que la olvidara: el refresh token seguia
+        // siendo valido 7 dias. Ahora ademas se elimina la sesion del servidor.
+        String refreshToken = leerRefreshCookie(request);
+        if (refreshToken != null) {
+            try {
+                sesionRefreshService.cerrarSesion(jwtUtil.extractSessionId(refreshToken));
+            } catch (Exception e) {
+                // Token ilegible o ya expirado: no hay sesion que cerrar, el logout igual procede.
+                log.debug("No se pudo cerrar la sesion en el logout: {}", e.getMessage());
+            }
+        }
         limpiarRefreshCookie(response);
         return ResponseEntity.ok("Sesión cerrada");
     }
@@ -201,7 +284,16 @@ public class AuthController {
         @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
     })
     @PostMapping("/enviar-codigo-verificacion")
-    public ResponseEntity<?> enviarCodigoVerificacionUsuario(@Valid @RequestBody EnviarCodigoVerificacionUsuarioRequest request) {
+    public ResponseEntity<?> enviarCodigoVerificacionUsuario(@Valid @RequestBody EnviarCodigoVerificacionUsuarioRequest request,
+                                                             HttpServletRequest httpRequest) {
+        // Limite por IP ademas del de usuario: acepta username O email, asi que sin tope por
+        // origen sirve para mandarle correos a la direccion de otra persona.
+        String clientIp = resolverIp(httpRequest);
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume("verif-envio-ip:" + clientIp)) {
+            log.warn("Rate limit de envio de codigo de verificacion excedido para IP: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
         String rateLimitKey = "verif-usr:" + request.getUserName().toLowerCase().trim();
         if (rateLimitHabilitado && !rateLimiterService.tryConsume(rateLimitKey)) {
             log.warn("Rate limit de verificacion de correo excedido para: {}", request.getUserName());
@@ -217,19 +309,40 @@ public class AuthController {
         }
     }
 
-    @Operation(summary = "Verificar correo con codigo (registro)", description = "Valida el codigo de 6 digitos enviado al correo del usuario. Si es correcto y no expiro, marca el correo como verificado, habilita el login, y auto-crea el Cliente vinculado la primera vez.")
+    @Operation(summary = "Verificar correo con codigo (registro)", description = "Valida el codigo de 6 digitos enviado al correo del usuario. Si es correcto y no expiro, marca el correo como verificado, habilita el login, y auto-crea el Cliente vinculado la primera vez. Limitado a 5 intentos por IP y 5 por usuario cada 15 minutos; ademas el propio codigo se invalida tras 5 fallos.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Correo verificado correctamente, ya puede iniciar sesion"),
-        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado")
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
     })
     @PostMapping("/verificar-correo")
-    public ResponseEntity<?> verificarCorreoUsuario(@Valid @RequestBody VerificarCorreoUsuarioRequest request) {
+    public ResponseEntity<?> verificarCorreoUsuario(@Valid @RequestBody VerificarCorreoUsuarioRequest request,
+                                                    HttpServletRequest httpRequest) {
+        // Endpoint publico: sin este limite el codigo de 6 digitos se puede probar por fuerza
+        // bruta y activar una cuenta registrada con el correo de otra persona.
+        String clientIp = resolverIp(httpRequest);
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume("verif-cod-ip:" + clientIp)) {
+            log.warn("Rate limit de verificar-correo excedido para IP: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
+        String usuarioKey = "verif-cod-usr:" + request.getUserName().toLowerCase().trim();
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(usuarioKey)) {
+            log.warn("Rate limit de verificar-correo excedido para el usuario: {}", request.getUserName());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
         try {
             usuarioVerificacionService.verificarCorreo(request.getUserName(), request.getCodigo());
             return ResponseEntity.ok("Correo verificado correctamente");
-        } catch (Exception e) {
+        } catch (ExceptionCodigoInvalido e) {
             log.warn("Error al verificar correo para {}: {}", request.getUserName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            // Mensaje generico: e.getMessage() aqui puede ser "Usuario no encontrado", que en un
+            // endpoint publico permite enumerar que usernames existen.
+            log.warn("Error al verificar correo para {}: {}", request.getUserName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Codigo de verificacion invalido");
         }
     }
 
@@ -251,19 +364,40 @@ public class AuthController {
         return ResponseEntity.ok("Si el correo esta registrado, se envio un codigo de verificacion");
     }
 
-    @Operation(summary = "Restablecer contrasena con codigo", description = "Valida el codigo de 6 digitos enviado por correo y, si es correcto y no expiro, actualiza la contrasena.")
+    @Operation(summary = "Restablecer contrasena con codigo", description = "Valida el codigo de 6 digitos enviado por correo y, si es correcto y no expiro, actualiza la contrasena. Limitado a 5 intentos por IP y 5 por correo cada 15 minutos; ademas el propio codigo se invalida tras 5 fallos.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Contrasena actualizada correctamente"),
-        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado")
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
     })
     @PostMapping("/restablecer-password")
-    public ResponseEntity<?> restablecerPassword(@Valid @RequestBody RestablecerPasswordRequest request) {
+    public ResponseEntity<?> restablecerPassword(@Valid @RequestBody RestablecerPasswordRequest request,
+                                                 HttpServletRequest httpRequest) {
+        // Sin este limite el codigo de 6 digitos se puede probar por fuerza bruta durante sus
+        // 15 minutos de vida (1,000,000 de combinaciones, sin traba) => toma de cuenta.
+        String clientIp = resolverIp(httpRequest);
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume("reset-ip:" + clientIp)) {
+            log.warn("Rate limit de restablecer-password excedido para IP: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
+        String emailKey = "reset-mail:" + request.getEmail().toLowerCase().trim();
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(emailKey)) {
+            log.warn("Rate limit de restablecer-password excedido para el correo: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
+        }
         try {
             passwordResetService.restablecerPassword(request.getEmail(), request.getCodigo(), request.getNuevaPassword());
             return ResponseEntity.ok("Contrasena actualizada correctamente");
-        } catch (Exception e) {
+        } catch (ExceptionCodigoInvalido e) {
             log.warn("Error al restablecer password para {}: {}", request.getEmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            // Mensaje generico: no devolver al cliente el getMessage() de un fallo inesperado
+            // (NPE, error de BD), que puede exponer detalle interno.
+            log.error("Error inesperado al restablecer password para {}", request.getEmail(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Codigo invalido o expirado");
         }
     }
 
@@ -333,10 +467,23 @@ public class AuthController {
                 usuarioVerificacionService.obtenerCambioCorreoPendiente(authentication.getName())));
     }
 
-    @Operation(summary = "Confirmar cambio de mi correo", description = "Valida el codigo de 6 digitos. Si es correcto, recien ahi se actualiza el correo real; si no, el correo real se queda como estaba.")
+    @Operation(summary = "Confirmar cambio de mi correo", description = "Valida el codigo de 6 digitos. Si es correcto, recien ahi se actualiza el correo real; si no, el correo real se queda como estaba. Limitado a 5 intentos por usuario cada 15 minutos; ademas el propio codigo se invalida tras 5 fallos.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Correo actualizado correctamente"),
+        @ApiResponse(responseCode = "400", description = "Codigo invalido o expirado"),
+        @ApiResponse(responseCode = "429", description = "Demasiados intentos; esperar 15 minutos")
+    })
     @PostMapping("/confirmar-cambio-correo")
     public ResponseEntity<ResponseGeneric<String>> confirmarCambioCorreo(@Valid @RequestBody ConfirmarCambioCorreoRequest request,
                                                     Authentication authentication) {
+        // Requiere sesion valida, asi que solo se puede atacar la cuenta propia — impacto bajo,
+        // pero es el mismo agujero de fuerza bruta del codigo y se cierra igual.
+        String usuarioKey = "cambio-correo:" + authentication.getName().toLowerCase().trim();
+        if (rateLimitHabilitado && !rateLimiterService.tryConsume(usuarioKey)) {
+            log.warn("Rate limit de confirmar-cambio-correo excedido para: {}", authentication.getName());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new ResponseGeneric<>(null, "Demasiados intentos. Intente de nuevo en 15 minutos."));
+        }
         try {
             usuarioVerificacionService.confirmarCambioCorreo(authentication.getName(), request.getCodigo());
             return ResponseEntity.ok(new ResponseGeneric<>("Correo actualizado correctamente"));
@@ -356,13 +503,33 @@ public class AuthController {
             @Parameter(description = "Bearer token JWT", required = true) @RequestHeader("Authorization") String authHeader) {
         try {
             String token = authHeader.replace("Bearer ", "");
-            if (jwtUtil.validateToken(token)) {
+            // Un refresh token no sirve para autenticar (el filtro JWT los rechaza), asi que
+            // responder "valido" aqui era enganoso y convertia al endpoint en un oraculo.
+            if (jwtUtil.validateToken(token) && !jwtUtil.isRefreshToken(token)) {
                 return ResponseEntity.ok("Token válido");
             }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token inválido");
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token inválido");
         }
+    }
+
+    /**
+     * Los dos endpoints que se autentican con cookie (refresh y logout) son los unicos alcanzables
+     * por CSRF. Un formulario cross-site no puede mandar un header custom sin preflight, y el
+     * preflight lo bloquea CORS.
+     */
+    private boolean faltaHeaderAntiCsrf(HttpServletRequest request) {
+        return exigirHeaderRefresh && request.getHeader(HEADER_ANTI_CSRF) == null;
+    }
+
+    /** Gasta un intento en las dos claves del login (IP y usuario) — solo tras un fallo real. */
+    private void registrarFalloLogin(String clientIp, String usernameKey) {
+        if (!rateLimitHabilitado) {
+            return;
+        }
+        rateLimiterService.registrarFallo(clientIp);
+        rateLimiterService.registrarFallo(usernameKey);
     }
 
     private void agregarRefreshCookie(HttpServletResponse response, String refreshToken) {

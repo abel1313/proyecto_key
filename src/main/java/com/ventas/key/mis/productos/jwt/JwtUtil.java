@@ -54,14 +54,21 @@ public class JwtUtil {
     /**
      * @param sessionStart epoch-millis del login original; se propaga en cada refresh
      *                     para poder calcular la duración absoluta de la sesión.
+     * @param jti          identificador del token, la fila de {@code sesion_refresh} guarda el
+     *                     único vigente. Es lo que permite invalidarlo del lado del servidor.
+     * @param sessionId    familia de la sesión; no cambia entre rotaciones y sirve para localizar
+     *                     la sesión aunque el jti ya haya rotado (detección de reuso).
      */
-    public String generateRefreshToken(UserDetails userDetails, long idUsuarioRegistrado, long sessionStart) {
+    public String generateRefreshToken(UserDetails userDetails, long idUsuarioRegistrado, long sessionStart,
+                                       String jti, String sessionId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("idUsuario", idUsuarioRegistrado);
         claims.put("type", "refresh");
         claims.put("sessionStart", sessionStart);
+        claims.put("sessionId", sessionId);
         return Jwts.builder()
                 .setClaims(claims)
+                .setId(jti)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 7)) // 7 días
@@ -75,6 +82,24 @@ public class JwtUtil {
                 .parseClaimsJws(token).getBody().get("sessionStart");
         if (val instanceof Number) return ((Number) val).longValue();
         return System.currentTimeMillis();
+    }
+
+    /** jti del refresh token — se compara contra el vigente en {@code sesion_refresh}. */
+    public String extractJti(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSecretKey()).build()
+                .parseClaimsJws(token).getBody().getId();
+    }
+
+    /**
+     * Familia de la sesión. Devuelve null en los refresh tokens emitidos antes de que el refresh
+     * pasara a ser stateful — esos ya no se pueden renovar y obligan a iniciar sesión de nuevo.
+     */
+    public String extractSessionId(String token) {
+        Object val = Jwts.parserBuilder()
+                .setSigningKey(getSecretKey()).build()
+                .parseClaimsJws(token).getBody().get("sessionId");
+        return val == null ? null : val.toString();
     }
 
     public boolean isRefreshToken(String token) {

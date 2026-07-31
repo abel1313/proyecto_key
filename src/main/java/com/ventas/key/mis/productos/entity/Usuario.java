@@ -64,6 +64,15 @@ public class Usuario implements UserDetails {
     @Column(name = "codigo_reset_password_expira")
     private LocalDateTime codigoResetPasswordExpira;
 
+    /**
+     * Intentos fallidos consumidos contra el codigo de reset vigente. Al llegar a
+     * {@code MAX_INTENTOS_CODIGO} el codigo se invalida y hay que pedir uno nuevo — sin esto,
+     * el codigo de 6 digitos se puede probar por fuerza bruta durante sus 15 minutos de vida.
+     */
+    @JsonIgnore
+    @Column(name = "intentos_codigo_reset")
+    private Integer intentosCodigoReset = 0;
+
     @Column(name = "correo_verificado")
     private Boolean correoVerificado = Boolean.FALSE;
 
@@ -74,6 +83,16 @@ public class Usuario implements UserDetails {
     @JsonIgnore
     @Column(name = "codigo_verificacion_expira")
     private LocalDateTime codigoVerificacionExpira;
+
+    /**
+     * Mismo mecanismo que {@link #intentosCodigoReset}, pero para el codigo de verificacion de
+     * correo (alta y cambio de correo). Sin el, el codigo de 6 digitos de /verificar-correo —
+     * que es publico — se puede probar por fuerza bruta y activar una cuenta registrada con el
+     * correo de otra persona.
+     */
+    @JsonIgnore
+    @Column(name = "intentos_codigo_verificacion")
+    private Integer intentosCodigoVerificacion = 0;
 
     /**
      * Correo nuevo aun no confirmado (cambio de correo, admin o self-service). El correo real
