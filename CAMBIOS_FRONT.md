@@ -8358,3 +8358,186 @@ front/navegador, no del backend:
 **Pendiente para retomar si el problema no se resuelve solo:** confirmar en el navegador (F12 →
 Network) si la imagen que carga la pantalla de productos → buscar es realmente `/thumbnail/` (y de
 qué peso), y si el problema es de velocidad o solo de tamaño visual en pantalla.
+
+---
+
+## ✅ Confirmado del lado del front — "productos → buscar" nunca iba a verse más chico (2026-07-28)
+
+Revisamos el reporte de la sección anterior. Confirmamos con el código:
+
+1. **El pipe `imagenSrc` del front (usado en TODAS las listas, `productos/buscar` y
+   `variantes/buscar` por igual) no reescribe la URL que ya viene armada del back.** Solo tiene un
+   regex que convierte `/imagenes/{id}` (id pelón al final) → `/imagenes/file/{id}` — eso solo
+   aplica a las URLs viejas de detalle. Una URL que ya llega como `/v1/imagenes/thumbnail/{id}` no
+   matchea ese regex (no termina en solo dígitos) y se usa tal cual, sin tocarla. Confirmado que
+   ambas pantallas comparten exactamente el mismo código para consumir la imagen — no hay ninguna
+   ruta alterna en `productos/buscar` que fuerce `/file/`.
+
+2. **La causa real de que se vea "grande" es CSS, no el peso del archivo — y es diseño de siempre,
+   no una regresión de este fix.** El recuadro de imagen en las cards de `productos/buscar` es un
+   contenedor con `height: 180px` fijo + `object-fit: cover` — el navegador SIEMPRE dibuja la
+   imagen a ese tamaño de caja sin importar si descargó el original de 960×1280 o la miniatura de
+   400×533; `object-fit: cover` solo cambia cuánto tarda en llegar y cuánta memoria usa, no el
+   tamaño en pantalla. Es decir: aunque el fix de miniaturas funcione perfecto (y por lo que
+   verificaron del lado del back, sí funciona), esta pantalla **nunca** iba a "verse más chica" —
+   eso solo se nota en pantallas donde el layout de la card cambia de tamaño según el contenido, no
+   en esta.
+
+**Conclusión:** no hay ningún bug ni cambio pendiente del front para esto. El fix de miniaturas
+está funcionando (menos peso, menos tiempo de descarga) — simplemente no había ninguna expectativa
+válida de que el recuadro visual cambiara de tamaño en esta pantalla en particular. Gracias por
+dejar la verificación directa contra el servidor (bytes/tamaño real) — ayudó a descartar rápido
+que fuera caché de Redis o un problema del backend antes de que lo revisáramos del lado del front.
+
+---
+
+## 🎨 Cambio de imagen del front — paleta jade (2026-07-30)
+
+Solo para que estén enterados: **el front cambió de color de marca**. Ya está desplegado en `dev`
+y `qa`. **No requiere ningún cambio de su lado ni afecta ningún endpoint** — es 100% CSS
+(variables de tema y hojas de estilo de componentes). Lo anotamos aquí porque si abren QA se van
+a topar con una app que se ve distinta y no queremos que parezca un problema de despliegue.
+
+**Qué cambió:** el acento pasó de azul/morado (`#007AFF` / `#5856D6`) a **verde jade** —
+`#00875A` en modo claro y `#00D97E` en modo oscuro (el nombre viene de la tienda, Novedades
+Jade). Los grises y fondos, que eran azul marino, se inclinaron a un neutro verdoso para que
+todo se vea de la misma familia.
+
+**Cero impacto en la API:** no se tocó ningún `.service.ts`, ninguna URL, ningún contrato de
+request/response. Si algo se ve raro en QA, es de estilos, no de datos.
+
+**Un detalle que quizá les interese** (por si les toca algo parecido del lado de sus pantallas):
+tres bugs de esta migración **no los detectó el compilador** — sólo aparecieron al levantar la
+app y mirarla en capturas:
+1. Los botones de Bootstrap seguían azules porque `bootstrap.min.css` se carga después de
+   nuestros estilos y ganaba por orden de cascada.
+2. Texto blanco sobre el verde brillante quedaba ilegible en modo oscuro.
+3. Dos verdes distintos terminaron significando cosas distintas: al volverse verde la marca,
+   los badges de "Apartado"/"Ir pagando" dejaron de distinguirse del verde de "Pagado". Ahora
+   los estados usan colores semánticos independientes del color de marca:
+   **Apartado = ámbar, Ir pagando = azul, Pagado = verde, Cancelado = rojo.**
+
+Ese último punto sí es visible para el usuario final, así que si en algún reporte o correo que
+genere el back se usan colores por estado de pedido, vale la pena homologarlos con esa tabla
+para que el cliente vea lo mismo en la app y en el correo. Si quieren, nos dicen y les pasamos
+los hex exactos.
+
+---
+
+## 🔐 CORRECCIONES DE SEGURIDAD EN AUTENTICACIÓN — 2026-07-31 (acción requerida en el front)
+
+Tanda de correcciones sobre `AuthController` y toda la capa de autenticación (16 de 18 hallazgos
+de `SEGURIDAD_AUTH.md`). **Sin desplegar todavía — está en `dev`, sin commitear.**
+
+La mayoría son internas y el front no las nota. Pero hay **tres cambios de comportamiento** que sí
+afectan al front, y uno que requiere que el front agregue un header.
+
+### 1. ⚠️ `passwordTemporal` ahora se fuerza en el backend
+
+**Antes:** el login devolvía `passwordTemporal: true` (contraseña puesta por un ADMIN) pero el
+token venía con permisos completos. Si el front ignoraba el flag, el usuario podía navegar y operar
+con normalidad.
+
+**Ahora:** con `passwordTemporal = true` el backend responde **403** en **todos** los endpoints
+salvo estos cuatro:
+
+| Método | URL |
+|---|---|
+| PUT | `/mis-productos/v1/auth/cambiar-password` |
+| POST | `/mis-productos/v1/auth/logout` |
+| POST | `/mis-productos/v1/auth/refresh` |
+| GET | `/mis-productos/v1/auth/validar` |
+
+**Response del 403:**
+```json
+{
+  "mensaje": "Debes cambiar tu contrasena temporal antes de continuar",
+  "code": 404,
+  "data": null,
+  "lista": null
+}
+```
+
+**Qué debe hacer el front:** al recibir `passwordTemporal: true` en el login, redirigir sí o sí a
+la pantalla de cambio de contraseña. Si no, el usuario verá 403 en todo lo demás.
+
+### 2. ⚠️ Cambiar la contraseña cierra TODAS las sesiones (incluida la propia)
+
+Aplica a los tres caminos: `PUT /v1/auth/cambiar-password`, `POST /v1/auth/restablecer-password`
+y el reseteo que hace un ADMIN desde el módulo de usuarios.
+
+**Antes:** cambiar la contraseña no invalidaba nada; el refresh token seguía vivo 7 días.
+
+**Ahora:** el refresh token muere en el instante. **Después de un cambio de contraseña exitoso, el
+front debe mandar al usuario al login** — el siguiente `POST /v1/auth/refresh` va a responder 401.
+
+Es intencional: es lo que hace que el caso "me entraron a la cuenta, cambio la contraseña"
+realmente expulse al atacante.
+
+### 3. `POST /v1/auth/logout` ahora invalida el token del lado del servidor
+
+**Antes:** sólo borraba la cookie del navegador; el refresh token seguía siendo válido 7 días.
+**Ahora:** además elimina la sesión en BD. No cambia el contrato (misma URL, mismo 200), pero el
+logout ahora sí corta el acceso de verdad.
+
+Efecto relacionado: **el refresh token rota de verdad**. Si el front llegara a reusar un refresh
+token viejo (uno que ya fue rotado), el backend lo interpreta como token robado y **cierra la
+sesión completa** → 401 y hay que volver a iniciar sesión. El interceptor no debe reintentar el
+refresh con un token que ya usó.
+
+### 4. 🚩 `X-Requested-With` en refresh y logout — pendiente de coordinar
+
+Para cerrar el hueco de CSRF, `POST /v1/auth/refresh` y `POST /v1/auth/logout` pueden exigir el
+header `X-Requested-With: XMLHttpRequest`. Sin él responden **403**.
+
+**Viene APAGADO por defecto**, así que hoy no rompe nada. Se activa con
+`seguridad.exigir-header-refresh: true` en el YML del ambiente.
+
+**Acción para el front:** agregar el header a esas dos llamadas y avisar cuando esté desplegado.
+Recién ahí se enciende en el backend — primero QA, después producción. Si se enciende antes, todos
+los usuarios pierden la sesión a los 15 minutos (cuando expira el access token).
+
+### 5. Cambios menores que el front puede notar
+
+| Qué | Antes | Ahora |
+|---|---|---|
+| Contraseña mínima al **registrar / cambiar / restablecer** | 3 caracteres (el mensaje decía 6) | **8 caracteres**, mensaje corregido |
+| Contraseña mínima en el **login** | 3 | sigue en 3 (no rompe a usuarios con contraseñas viejas) |
+| `POST /v1/auth/restablecer-password` | sin límite de intentos | **429** tras 5 intentos por IP o por correo; el código se invalida a los 5 fallos |
+| `POST /v1/auth/verificar-correo` | sin límite de intentos | **429** tras 5 intentos por IP o por usuario; el código se invalida a los 5 fallos |
+| `POST /v1/auth/confirmar-cambio-correo` | sin límite | **429** tras 5 intentos; el código se invalida a los 5 fallos |
+| `POST /v1/auth/enviar-codigo-verificacion` | límite sólo por usuario | ahora también por IP |
+| `GET /v1/auth/validar` con un **refresh** token | respondía 200 "Token válido" | responde **401** (un refresh token no sirve para autenticar) |
+| `POST /v1/auth/refresh` de un usuario deshabilitado o sin correo verificado | renovaba igual | **401** y limpia la cookie |
+
+Los mensajes de error de código inválido/expirado ahora son **genéricos y iguales en todos los
+casos**, para no revelar si un correo o un username existe. El front no debe intentar distinguir
+"código incorrecto" de "correo no registrado" a partir del texto.
+
+### 6. Al desplegar: todos los usuarios se deslogean una vez
+
+Los refresh tokens actuales no tienen los datos nuevos (`jti` y `sessionId`), así que no se pueden
+renovar: el primer `POST /v1/auth/refresh` después del despliegue responde 401 y hay que volver a
+iniciar sesión. Es **de una sola vez**, pero conviene desplegar en horario de poco movimiento y
+que el front maneje ese 401 mandando al login sin mostrar un error feo.
+
+### ✅ Checklist para el front — qué tienen que hacer y cuándo
+
+Resumen accionable de lo de arriba. Nada de esto está desplegado todavía (el backend está en `dev`,
+sin commitear), así que hoy **nada se rompe**. Esto es para que lo tengan listo antes.
+
+| ⬜ | Qué hacer | Urgencia | Qué pasa si no se hace |
+|---|---|---|---|
+| ⬜ | Al recibir `passwordTemporal: true` en el login, **redirigir sí o sí** a cambiar contraseña | 🔴 Antes del despliegue | El usuario recibe **403** en todos los endpoints salvo cambiar contraseña, y la app se ve rota |
+| ⬜ | Después de un cambio de contraseña exitoso, **mandar al login** | 🔴 Antes del despliegue | El siguiente refresh da 401 y el usuario queda en una pantalla que no responde |
+| ⬜ | Manejar el **401 del primer refresh tras el despliegue** mandando al login sin error feo | 🔴 Antes del despliegue | Todos los usuarios ven un error la primera vez (los tokens viejos ya no sirven) |
+| ⬜ | Que el interceptor **no reintente** el refresh con un token que ya usó | 🟠 Antes del despliegue | El backend lo interpreta como token robado y **cierra la sesión completa** |
+| ⬜ | Agregar el header `X-Requested-With: XMLHttpRequest` a `POST /v1/auth/refresh` y `POST /v1/auth/logout` | 🟡 Cuando puedan, y **avisar** | Nada por ahora: el backend lo tiene apagado hasta que confirmen |
+| ⬜ | Revisar que la validación de contraseña en registro/cambio/reset pida **mínimo 8** caracteres | 🟡 Cuando puedan | El backend rechaza con 400 y el mensaje "La contrasena debe tener entre 8 y 200 caracteres" |
+
+**Sobre el header `X-Requested-With`:** el orden importa. Primero el front lo despliega, luego avisa,
+y recién ahí el backend lo empieza a exigir. Si se enciende antes, todos los usuarios pierden la
+sesión a los 15 minutos (cuando expira su access token). No hay prisa.
+
+**Lo que NO cambia:** las URLs, los shapes de request/response y el flujo de login siguen igual. Todo
+lo de arriba es comportamiento, no contrato.
