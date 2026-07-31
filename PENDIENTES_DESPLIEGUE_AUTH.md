@@ -1,6 +1,6 @@
 # Checklist de despliegue — correcciones de seguridad de autenticación
 
-**Fecha:** 2026-07-31 · **Rama:** `dev` · **Estado del código:** terminado y compilando, **sin commitear**
+**Fecha:** 2026-07-31 · **Rama:** `dev` · **Estado:** commiteado y pusheado · migraciones SQL hechas en QA y producción
 
 Este documento es el **plan de acción**. El detalle técnico de cada corrección está en
 [`SEGURIDAD_AUTH.md`](SEGURIDAD_AUTH.md); lo que el front necesita saber está en
@@ -13,21 +13,20 @@ Este documento es el **plan de acción**. El detalle técnico de cada correcció
 ## Orden recomendado
 
 ```
-1. Commit en dev
-2. Migraciones SQL en inventario_key_qa
-3. Merge dev → qa
+1. Commit en dev                        ✅ hecho
+2. Migraciones SQL en QA y producción   ✅ hechas
+3. Merge dev → qa                       ← SIGUIENTE
 4. Probar los 5 escenarios en QA
 5. Avisar al front
-6. Migraciones SQL en inventario_key (producción)
-7. Merge qa → main
-8. Post-despliegue (rotar clave, encender flags)
+6. Merge qa → main
+7. Post-despliegue (rotar clave, encender flags)
 ```
 
 ---
 
-## 1. Commit en `dev`
+## 1. ✅ Commit y push en `dev`
 
-⬜ Pendiente — requiere autorización explícita (regla de `CLAUDE.md`: no commitear automáticamente).
+✅ Hecho — 10 commits en `dev`, pusheados a `origin/dev` el 2026-07-31.
 
 **19 archivos modificados, 9 nuevos.**
 
@@ -48,10 +47,13 @@ Este documento es el **plan de acción**. El detalle técnico de cada correcció
 
 ---
 
-## 2. ⚠️ Migraciones SQL — OBLIGATORIAS antes de arrancar la app
+## 2. ✅ Migraciones SQL — HECHAS (QA y producción)
 
-`ddl-auto: none` en **todos** los perfiles → **nada se crea solo**. Si se despliega sin correr
-esto, **el login truena**.
+Ejecutadas el 2026-07-31 en **ambas** bases. `ddl-auto: none` en todos los perfiles, así que nada
+de esto se creaba solo — sin ellas el login truena al desplegar.
+
+Correrlas en producción **antes** de desplegar el código fue seguro: las columnas nuevas tienen
+`DEFAULT 0` y la tabla nueva no la usa nadie todavía, así que el `main` actual las ignora.
 
 | # | Script (`src/main/resources/static/`) | Qué hace |
 |---|---|---|
@@ -63,8 +65,8 @@ esto, **el login truena**.
 
 | Rama | Base de datos | Cuándo correr |
 |---|---|---|
-| `dev` y `qa` | `inventario_key_qa` (la misma) | ⬜ una sola vez, antes del merge a `qa` |
-| `main` | `inventario_key` | ⬜ antes del merge a `main` |
+| `dev` y `qa` | `inventario_key_qa` (la misma) | ✅ **Ejecutadas 2026-07-31** |
+| `main` | `inventario_key` | ✅ **Ejecutadas 2026-07-31** (adelantadas al despliegue) |
 
 ---
 
@@ -112,9 +114,13 @@ conviene que alguien se los mencione de viva voz. **Tres acciones les tocan:**
 
 ---
 
-## 6. Migraciones SQL en producción + 7. Merge `qa` → `main`
+## 6. Merge `qa` → `main`
 
-⬜ Pendiente — correr los 3 scripts en `inventario_key` **antes** del merge.
+Las migraciones de producción **ya están hechas** (se adelantaron el 2026-07-31). Fue seguro: las
+columnas nuevas tienen `DEFAULT 0` y la tabla nueva no la usa nadie hasta que se despliegue el
+código, así que el `main` actual las ignora sin enterarse.
+
+⬜ Pendiente el merge.
 
 ```bash
 git checkout main && git pull origin main
@@ -128,7 +134,7 @@ se quitaron de producción (`http://localhost:4200`, `http://51.178.29.99:30001`
 
 ---
 
-## 8. Post-despliegue
+## 7. Post-despliegue
 
 | ⬜ | Qué | Cuándo / por qué |
 |---|---|---|
