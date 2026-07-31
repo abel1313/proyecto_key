@@ -91,6 +91,21 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iCodigoBarrasRepository = iCodigoBarrasRepository;
     }
 
+    /**
+     * El @Cacheable va AQUI y no solo en los metodos delegados: al llamarlos directamente
+     * (this.filtrarVariantesAdmin / this.buscarVariantesPublicoFiltrado) la llamada no pasa por el
+     * proxy de Spring, asi que sus anotaciones no se aplican y este endpoint nunca cacheaba nada.
+     * Es el mismo efecto de self-invocation que con @Transactional.
+     *
+     * <p>La key incluye el rol a proposito: este metodo bifurca segun admin/publico y devuelve
+     * conjuntos distintos para el mismo termino. Sin el rol se reintroduciria el bug que corrigio
+     * 005eccd — un cliente normal recibiendo resultados sin filtrar que un admin cacheo antes.
+     *
+     * <p>Usa variantesProductoCache (el mismo de los metodos delegados) para heredar sus
+     * invalidaciones: ImagenServiceImpl lo limpia con allEntries=true al cambiar imagenes.
+     */
+    @Cacheable(value = "variantesProductoCache",
+            key = "'buscar:' + #termino + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarVariantes(String termino, int page, int size) {
         if (termino == null || termino.isBlank()) {
             return findAllResumen(page, size);
