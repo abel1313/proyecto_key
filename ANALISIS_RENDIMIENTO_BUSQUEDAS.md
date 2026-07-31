@@ -10,8 +10,12 @@
 | 2 | `/tienda/v1/buscar` no cachea | ✅ Corregido | `db6e8bf` |
 | 9 | `readOnly = true` | ✅ Corregido | `5ba0b07` |
 | 10 | Keys con `getAuthorities()` | ✅ Corregido | `8be4af8` |
-| 7 | Índice en `variante_imagen` | ⏳ Requiere BD | script: `verificar_indices_busqueda.sql` |
-| 3, 4, 5, 6, 8 | Etapas 2 y 3 | ⬜ Pendientes | — |
+| 7 | Índice en `variante_imagen` | ⏭️ **Ya existía** | — |
+| 4 | `LIKE '%termino%'` | ⏭️ **No aplica por volumen** | — |
+| 5 | `LOWER()` redundante | ⏭️ **No aplica por volumen** | — |
+| 6 | `countQuery` duplicado | ⏭️ **No aplica por volumen** | — |
+| 3 | EAGER → LAZY | ⬜ Solo si se mide un problema real | — |
+| 8 | Excepción vs lista vacía | ⬜ Requiere coordinar con el front | — |
 | **11** | **Abonos no invalidaban el caché al mover stock** | ✅ Corregido | `pendiente` |
 
 Cada corrección va en **su propio commit**, con el motivo, lo que se verificó antes de tocar, y un
@@ -396,3 +400,72 @@ de 6 horas**, el más largo de todos, y sí incluye el stock.
 global a este mismo evict acotado. Hoy funcionan correctamente —invalidan de más, no de menos—,
 así que no es un bug, sólo desperdicio de caché en cada venta.
 
+---
+
+# 📊 Medición real (2026-07-31) — por qué se detiene aquí la optimización
+
+Se corrió `verificar_indices_busqueda.sql` contra `inventario_key_qa`. Los datos cambian las
+conclusiones de las Etapas 2 y 3.
+
+## Volumen
+
+| Tabla | Filas |
+|---|---|
+| `producto` | **103** |
+| `variantes` | **573** |
+| `variante_imagen` | 12.607 |
+
+**El catálogo es diminuto.** Un `full table scan` sobre 573 filas en MySQL tarda menos de un
+milisegundo — menos que el viaje de red hasta la base.
+
+## Qué implica, hallazgo por hallazgo
+
+### Hallazgo 4 (`LIKE '%termino%'`) → ⏭️ **No aplica**
+El análisis decía: *"con 2.000 productos no se nota; con 200.000 es el problema principal"*.
+Hay **103**. Migrar a `FULLTEXT` con `MATCH ... AGAINST` sería sobre-ingeniería pura: añade una
+migración, cambia las queries a nativas y complica el mantenimiento para ahorrar un tiempo que no
+es medible. **No tocar.**
+
+### Hallazgo 5 (`LOWER()` redundante) → ⏭️ **No aplica**
+La collation resultó ser `utf8mb4_0900_ai_ci`: `ci` = case-insensitive, `ai` = accent-insensitive.
+O sea que los `LOWER()` **sí son redundantes** — la comparación ya ignora mayúsculas (y acentos:
+"café" y "cafe" ya se tratan igual).
+
+Pero el motivo para quitarlos era *"permiten usar el índice"*, y con 573 filas el índice no aporta
+nada. Sería limpieza cosmética con riesgo de tocar la lógica de búsqueda a cambio de cero ganancia
+medible. **No tocar.**
+
+### Hallazgo 6 (`countQuery` duplicado) → ⏭️ **No aplica**
+Cuesta el doble… de casi nada. Cambiar `Page` por `Slice` implicaría además coordinar con el front
+(perdería el total de resultados). No se justifica.
+
+### Hallazgo 7 (índice en `variante_imagen`) → ⏭️ **Ya existía**
+
+| Tabla | Índice | Columna |
+|---|---|---|
+| `variante_imagen` | `fk_vi_variante` | `variante_id` ✅ |
+| `producto_imagen_copy` | `producto_imagen_producto_FK` | `producto_id` ✅ |
+
+Confirmado lo que se anticipaba: InnoDB los creó solo al declarar las llaves foráneas. **Nada que
+hacer.**
+
+### Hallazgo 3 (EAGER → LAZY) → ⬜ Baja prioridad, pero no descartado
+Es el único que **no** depende del tamaño de las tablas: el costo son *queries por request*, no
+filas escaneadas. Traer 10 variantes sigue disparando decenas de selects extra por la cascada
+EAGER, con 573 filas o con 573.000.
+
+Aun así baja de prioridad: con el caché del hallazgo 2 ya funcionando, la mayoría de las búsquedas
+ni llega a la base. Y sigue siendo el cambio de mayor riesgo de toda la lista
+(`LazyInitializationException` en runtime, no en compilación).
+
+**Criterio para retomarlo:** sólo si se mide una latencia real que moleste. No antes.
+
+## Conclusión
+
+La Etapa 1 (hallazgos 1, 2, 9, 10) más el hallazgo 11 **era todo lo que había que ganar**. Eran
+bugs reales —una query desperdiciada, un caché que no funcionaba, un caché que no se invalidaba—,
+no ajustes finos. Lo que queda en las Etapas 2 y 3 son optimizaciones que este volumen no
+justifica.
+
+**Si algún día el catálogo crece a decenas de miles de productos, este documento sigue siendo la
+hoja de ruta.** Mientras tanto, seguir optimizando es gastar riesgo sin comprar velocidad.
