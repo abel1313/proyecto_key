@@ -12,6 +12,7 @@
 | 10 | Keys con `getAuthorities()` | ✅ Corregido | `8be4af8` |
 | 7 | Índice en `variante_imagen` | ⏳ Requiere BD | script: `verificar_indices_busqueda.sql` |
 | 3, 4, 5, 6, 8 | Etapas 2 y 3 | ⬜ Pendientes | — |
+| **11** | **Vender no invalida el caché del catálogo** | 🔴 **Nuevo, sin corregir** | — |
 
 Cada corrección va en **su propio commit**, con el motivo, lo que se verificó antes de tocar, y un
 bloque *"SI ALGO FALLA EN PRUEBAS"* con los síntomas a vigilar. Si una prueba falla, se revierte
@@ -313,3 +314,89 @@ No se pueden sacar del código; salen de la base o del front:
 | Tiempo real de las búsquedas hoy | Priorizar de verdad | Log de la app o `EXPLAIN` sobre la query |
 
 **Sin estos datos, la Etapa 1 se puede hacer igual** — no dependen de ninguno.
+
+---
+
+# 🔴 11. Vender no invalida el caché del catálogo (hallazgo nuevo, 2026-07-31)
+
+Detectado a partir de una pregunta muy pertinente: *¿qué pasa si un usuario tiene una variante
+cacheada con stock 1 y el admin ya la vendió?*
+
+## Qué se verificó
+
+| Acción | ¿Invalida caché? | Dónde |
+|---|---|---|
+| Admin **crea / edita / elimina** una variante | ✅ Sí | `VarianteServiceImpl` llama `evictAllCaches()` en 8 puntos |
+| Admin cambia **imágenes** | ✅ Sí | `ImagenServiceImpl:154`, `@CacheEvict(allEntries = true)` |
+| **Se vende** (pedido) → baja el stock | ❌ **NO** | `PedidoServiceImpl:164,186` — sin evict de ningún tipo |
+| **Se vende** (abono) → baja el stock | ❌ **NO** | `AbonoServiceImpl:343,346` — sin evict |
+| Se **cancela** un pedido → devuelve stock | ❌ **NO** | `PedidoServiceImpl:398-464` — sin evict |
+
+`evictAllCaches()` limpia **todos** los cachés sin distinguir rol, así que la primera pregunta
+—"¿el caché del admin y el del usuario normal se pisan?"— está cubierta: cuando el admin edita una
+variante, se limpian ambos. **El agujero es la venta.**
+
+## Qué pasa exactamente
+
+El stock baja en la base pero el catálogo cacheado sigue mostrando el valor viejo hasta que expire
+el TTL:
+
+| Caché | TTL |
+|---|---|
+| `variantesProductoCache` | **1 hora** |
+| `obtenerProductosCache` | **1 hora** |
+| `buscarNombreOrCodigoBarrasCache` | **2 horas** |
+| `variantesNombreCache` / `variantesCodigoBarrasCache` | **2 horas** |
+
+Durante esa ventana, un cliente ve como disponible algo que ya se vendió.
+
+## ✅ Lo que NO pasa: no hay sobreventa
+
+`PedidoServiceImpl:157-166` protege bien el dato real:
+
+```java
+Variantes variante = iVarianteRepository.findByIdWithLock(mpa.getVarianteId())   // bloqueo pesimista
+if (variante.getStock() < mpa.getCantidad()) {
+    throw new RuntimeException("Stock insuficiente en variante id " + ...);
+}
+```
+
+Hay **bloqueo pesimista** (`findByIdWithLock`, un `SELECT ... FOR UPDATE`) y validación de stock
+dentro de la transacción. Dos compras simultáneas se serializan; el stock **nunca queda negativo**
+y nunca se vende algo que no existe.
+
+**El impacto real es de experiencia, no de datos:** el cliente ve el producto disponible, lo agrega
+al carrito y al confirmar recibe *"Stock insuficiente"*. Frustrante y erosiona la confianza, pero
+no se pierde dinero ni se corrompe el inventario.
+
+## ⚠️ El hallazgo 2 agrava esto
+
+Antes, `/tienda/v1/buscar` **no cacheaba** (el bug de self-invocation), así que ese endpoint era el
+único que siempre mostraba stock fresco. Al arreglarlo (commit `db6e8bf`) pasó a cachear como los
+demás — y por lo tanto **heredó este problema**.
+
+No invalida la corrección: el endpoint estaba pegando a la base en cada request con la query más
+cara del sistema. Pero el hallazgo 11 pasa de "conviene arreglarlo" a "hay que arreglarlo junto".
+
+## Corrección propuesta
+
+Invalidar los cachés de catálogo donde se mueve el stock: al crear un pedido, al registrar un abono
+con salida de mercancía, y al cancelar (que devuelve stock).
+
+**No usar `evictAllCaches()`**: limpia absolutamente todo, incluidos cachés que no tienen nada que
+ver (tipos de pago, tarifas, IVA, clientes, imágenes de presentación) y que son caros de reconstruir.
+Conviene un evict acotado:
+
+```java
+@CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache",
+                     "variantesProductoCache", "variantesNombreCache",
+                     "variantesCodigoBarrasCache"}, allEntries = true)
+```
+
+⚠️ **Cuidado con el proxy:** si se anota un método privado o se llama con `this` desde la misma
+clase, `@CacheEvict` **no se aplica** — es el mismo problema de self-invocation del hallazgo 2. En
+`PedidoServiceImpl` hay que ponerlo en el método público que entra desde el controlador, o llamar
+al `CacheManager` directamente.
+
+**Alternativa complementaria:** bajar el TTL de los cachés de catálogo de 1-2 horas a unos pocos
+minutos. Acota la ventana sin tocar el flujo de ventas, pero no la elimina.
