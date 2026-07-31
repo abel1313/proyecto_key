@@ -129,6 +129,7 @@ public class ProductosServiceImpl extends
 
     @SneakyThrows
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "obtenerProductosCache",
             key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
