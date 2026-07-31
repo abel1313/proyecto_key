@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.Utils.CacheNames;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.NotificacionRequest;
@@ -9,6 +10,7 @@ import com.ventas.key.mis.productos.repository.*;
 import com.ventas.key.mis.productos.service.api.IAbonoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -211,8 +213,17 @@ public class AbonoServiceImpl implements IAbonoService {
         }).toList();
     }
 
+    /**
+     * Devuelve stock al cancelar, asi que hay que invalidar el catalogo: sin esto el cliente
+     * seguia viendo el stock viejo hasta 1-6 horas (segun el cache), que es lo que le tocaba de
+     * TTL. PedidoServiceImpl y VentaServiceImpl ya lo hacian; abonos era el unico flujo de stock
+     * que no invalidaba nada.
+     */
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public CancelarAbonoResponse cancelarPedido(int pedidoId, CancelarAbonoRequest request) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
@@ -312,8 +323,12 @@ public class AbonoServiceImpl implements IAbonoService {
         return resp;
     }
 
+    /** Descuenta stock al transferir, mismo motivo que en cancelarPedido. */
     @Override
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public TransferirAbonoResponse transferirAbono(int pedidoIdOrigen, TransferirAbonoRequest request) {
         Pedido origen = pedidoRepository.findById(pedidoIdOrigen)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoIdOrigen));

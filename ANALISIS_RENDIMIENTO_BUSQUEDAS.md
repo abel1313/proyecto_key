@@ -12,7 +12,7 @@
 | 10 | Keys con `getAuthorities()` | ✅ Corregido | `8be4af8` |
 | 7 | Índice en `variante_imagen` | ⏳ Requiere BD | script: `verificar_indices_busqueda.sql` |
 | 3, 4, 5, 6, 8 | Etapas 2 y 3 | ⬜ Pendientes | — |
-| **11** | **Vender no invalida el caché del catálogo** | 🔴 **Nuevo, sin corregir** | — |
+| **11** | **Abonos no invalidaban el caché al mover stock** | ✅ Corregido | `pendiente` |
 
 Cada corrección va en **su propio commit**, con el motivo, lo que se verificó antes de tocar, y un
 bloque *"SI ALGO FALLA EN PRUEBAS"* con los síntomas a vigilar. Si una prueba falla, se revierte
@@ -322,33 +322,32 @@ No se pueden sacar del código; salen de la base o del front:
 Detectado a partir de una pregunta muy pertinente: *¿qué pasa si un usuario tiene una variante
 cacheada con stock 1 y el admin ya la vendió?*
 
-## Qué se verificó
+## ⚠️ Corrección del análisis inicial (mismo día)
+
+La primera versión de este hallazgo decía que **ningún** flujo de venta invalidaba el caché. **Era
+incorrecto.** El grep inicial buscaba `evictAllCaches` y `@CacheEvict`, y no capturó la forma que
+usa la mayoría del proyecto: `cacheService.evictAll()`.
+
+## Qué se verificó (corregido)
 
 | Acción | ¿Invalida caché? | Dónde |
 |---|---|---|
-| Admin **crea / edita / elimina** una variante | ✅ Sí | `VarianteServiceImpl` llama `evictAllCaches()` en 8 puntos |
-| Admin cambia **imágenes** | ✅ Sí | `ImagenServiceImpl:154`, `@CacheEvict(allEntries = true)` |
-| **Se vende** (pedido) → baja el stock | ❌ **NO** | `PedidoServiceImpl:164,186` — sin evict de ningún tipo |
-| **Se vende** (abono) → baja el stock | ❌ **NO** | `AbonoServiceImpl:343,346` — sin evict |
-| Se **cancela** un pedido → devuelve stock | ❌ **NO** | `PedidoServiceImpl:398-464` — sin evict |
+| Admin **crea / edita / elimina** variante | ✅ Sí | `VarianteServiceImpl`, `evictAllCaches()` ×8 |
+| Admin cambia **imágenes** | ✅ Sí | `ImagenServiceImpl:154` |
+| **Pedido** — crear (baja stock) | ✅ Sí | `PedidoServiceImpl:210` + aviso por Rabbit |
+| **Pedido** — cancelar (devuelve stock) | ✅ Sí | `PedidoServiceImpl:422` |
+| **Pedido** — eliminar detalle (devuelve stock) | ✅ Sí | `PedidoServiceImpl:478` |
+| **Venta** | ✅ Sí | `VentaServiceImpl:258,322` |
+| **Abono** — cancelar (devuelve stock) | ❌ **NO** | `AbonoServiceImpl:250-253` |
+| **Abono** — transferir (baja stock) | ❌ **NO** | `AbonoServiceImpl:343,346` |
 
-`evictAllCaches()` limpia **todos** los cachés sin distinguir rol, así que la primera pregunta
-—"¿el caché del admin y el del usuario normal se pisan?"— está cubierta: cuando el admin edita una
-variante, se limpian ambos. **El agujero es la venta.**
+`evictAllCaches()` y `cacheService.evictAll()` limpian **todos** los cachés sin distinguir rol, así
+que la pregunta original —"¿el caché del admin y el del cliente se pisan?"— está cubierta: se
+limpian ambos a la vez.
 
-## Qué pasa exactamente
-
-El stock baja en la base pero el catálogo cacheado sigue mostrando el valor viejo hasta que expire
-el TTL:
-
-| Caché | TTL |
-|---|---|
-| `variantesProductoCache` | **1 hora** |
-| `obtenerProductosCache` | **1 hora** |
-| `buscarNombreOrCodigoBarrasCache` | **2 horas** |
-| `variantesNombreCache` / `variantesCodigoBarrasCache` | **2 horas** |
-
-Durante esa ventana, un cliente ve como disponible algo que ya se vendió.
+**El agujero real era mucho más chico de lo que decía el análisis inicial: sólo los abonos.**
+`AbonoServiceImpl` era la única clase que mueve stock sin inyectar `CacheService` ni declarar
+ningún evict.
 
 ## ✅ Lo que NO pasa: no hay sobreventa
 
@@ -378,25 +377,22 @@ demás — y por lo tanto **heredó este problema**.
 No invalida la corrección: el endpoint estaba pegando a la base en cada request con la query más
 cara del sistema. Pero el hallazgo 11 pasa de "conviene arreglarlo" a "hay que arreglarlo junto".
 
-## Corrección propuesta
+## Qué se hizo
 
-Invalidar los cachés de catálogo donde se mueve el stock: al crear un pedido, al registrar un abono
-con salida de mercancía, y al cancelar (que devuelve stock).
+`@CacheEvict` acotado en los dos métodos de `AbonoServiceImpl` que mueven stock
+(`cancelarPedido` y `transferirAbono`). Ambos son públicos y entran desde `AbonoController`, así
+que el proxy de Spring sí interviene — al contrario del hallazgo 2, aquí no hay self-invocation.
 
-**No usar `evictAllCaches()`**: limpia absolutamente todo, incluidos cachés que no tienen nada que
-ver (tipos de pago, tarifas, IVA, clientes, imágenes de presentación) y que son caros de reconstruir.
-Conviene un evict acotado:
+Los nombres de caché salieron a `Utils/CacheNames.java` como constantes, para no repetir seis
+literales en cada anotación y que se note si alguno se agrega o renombra.
 
-```java
-@CacheEvict(value = {"obtenerProductosCache", "buscarNombreOrCodigoBarrasCache",
-                     "variantesProductoCache", "variantesNombreCache",
-                     "variantesCodigoBarrasCache"}, allEntries = true)
-```
+**Por qué acotado y no `evictAll()`:** el resto del proyecto usa `cacheService.evictAll()`, que
+borra **todos** los cachés — incluidos tipos de pago, tarifas, IVA e imágenes de presentación, que
+no tienen nada que ver con el stock y son caros de reconstruir. Aquí se limpian sólo los seis que
+contienen stock. El más importante de ellos es `findByIdCache` (detalle de producto): tiene **TTL
+de 6 horas**, el más largo de todos, y sí incluye el stock.
 
-⚠️ **Cuidado con el proxy:** si se anota un método privado o se llama con `this` desde la misma
-clase, `@CacheEvict` **no se aplica** — es el mismo problema de self-invocation del hallazgo 2. En
-`PedidoServiceImpl` hay que ponerlo en el método público que entra desde el controlador, o llamar
-al `CacheManager` directamente.
+**Queda pendiente, como mejora:** migrar `PedidoServiceImpl` y `VentaServiceImpl` del `evictAll()`
+global a este mismo evict acotado. Hoy funcionan correctamente —invalidan de más, no de menos—,
+así que no es un bug, sólo desperdicio de caché en cada venta.
 
-**Alternativa complementaria:** bajar el TTL de los cachés de catálogo de 1-2 horas a unos pocos
-minutos. Acota la ventana sin tocar el flujo de ventas, pero no la elimina.
