@@ -131,7 +131,7 @@ public class ProductosServiceImpl extends
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "obtenerProductosCache",
-            key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
         log.info("**********************************************************************");
         log.info("endpointImagenes {}", this.endpointImagenes);
@@ -223,7 +223,7 @@ public class ProductosServiceImpl extends
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
-            key = "#nombre + ':' + #page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
         boolean isAdmin = isAdminContext();

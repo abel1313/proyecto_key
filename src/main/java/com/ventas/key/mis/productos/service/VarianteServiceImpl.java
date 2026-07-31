@@ -165,7 +165,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Cacheable(value = "variantesNombreCache",
-            key = "#nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#nombre + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size) {
         Page<Variantes> page;
         if(AuthenticationUtils.isAdminContext()){
@@ -188,7 +188,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Cacheable(value = "variantesCodigoBarrasCache",
-            key = "#codigoBarras + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#codigoBarras + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size) {
         boolean isAdmin = AuthenticationUtils.isAdminContext();
         Page<Variantes> page = null;
@@ -636,7 +636,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Cacheable(value = "variantesProductoCache",
-            key = "'resumen:all:' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "'resumen:all:' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> findAllResumen(int pagina, int size) {
         return toResumenPagina(findAllNew(pagina, size));
     }
