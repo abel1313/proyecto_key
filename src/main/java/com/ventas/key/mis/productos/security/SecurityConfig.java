@@ -36,6 +36,14 @@ public class SecurityConfig {
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
 
+    /**
+     * Origenes CORS permitidos, por perfil (hallazgo 10 de SEGURIDAD_AUTH.md). Antes la lista
+     * estaba hardcodeada aqui y era la misma para todos los ambientes, asi que produccion
+     * aceptaba con credenciales dos origenes HTTP planos de desarrollo.
+     */
+    @Value("${seguridad.cors.origenes-permitidos}")
+    private String[] origenesPermitidos;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Bean
@@ -216,16 +224,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
-                "https://qa.shop.novedades-jade.com.mx",
-                "https://shop.novedades-jade.com.mx",
-                "https://front.novedades-jade.com.mx",
-                "http://localhost:4200",
-                "http://51.178.29.99:30001",
-                "https://venta-bolsas-online.netlify.app",
-                "https://novedades-jade.com.mx",
-                "https://www.novedades-jade.com.mx"
-        ));
+        config.setAllowedOrigins(List.of(origenesPermitidos));
+        log.info("CORS habilitado para {} origenes", origenesPermitidos.length);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

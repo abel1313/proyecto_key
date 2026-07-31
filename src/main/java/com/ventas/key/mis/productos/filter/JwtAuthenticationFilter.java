@@ -1,12 +1,16 @@
 package com.ventas.key.mis.productos.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
+import com.ventas.key.mis.productos.models.ResponseGeneric;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,15 +20,31 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Set;
 
 @Component
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    /**
+     * Lo unico que puede hacer un usuario con la contrasena temporal que le puso un ADMIN
+     * (hallazgo 14 de SEGURIDAD_AUTH.md). Antes el flag {@code passwordTemporal} viajaba en el
+     * login pero el token traia permisos completos, asi que "estar obligado a cambiarla" era solo
+     * una convencion del front: bastaba con ignorarla.
+     */
+    private static final Set<String> RUTAS_PERMITIDAS_PASSWORD_TEMPORAL = Set.of(
+            "/v1/auth/cambiar-password",
+            "/v1/auth/logout",
+            "/v1/auth/refresh",
+            "/v1/auth/validar"
+    );
+
     @Autowired
     private JwtUtil jwtUtil;
     @Autowired
     private UserDetailsService userDetailsService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -55,7 +75,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                if (jwtUtil.validateToken(jwt, userDetails)) {
+                // Dar de baja a un usuario debe cortarle el acceso de inmediato: sin este
+                // chequeo seguia operando con el access token ya emitido hasta que expirara.
+                if (!userDetails.isEnabled()) {
+                    log.warn("Token rechazado, cuenta deshabilitada: {}", username);
+                } else if (jwtUtil.validateToken(jwt, userDetails)) {
+                    if (debeBloquearPorPasswordTemporal(userDetails, request)) {
+                        log.warn("Acceso bloqueado por contrasena temporal sin cambiar: {} -> {}",
+                                username, request.getServletPath());
+                        responderPasswordTemporal(response);
+                        return;
+                    }
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(userDetails, jwt, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -68,5 +98,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * getServletPath() y no getRequestURI(): el primero ya viene sin el context-path
+     * ({@code /mis-productos}), asi que la comparacion no depende de como este desplegado.
+     */
+    private boolean debeBloquearPorPasswordTemporal(UserDetails userDetails, HttpServletRequest request) {
+        if (!(userDetails instanceof Usuario usuario) || !Boolean.TRUE.equals(usuario.getPasswordTemporal())) {
+            return false;
+        }
+        return !RUTAS_PERMITIDAS_PASSWORD_TEMPORAL.contains(request.getServletPath());
+    }
+
+    /** Mismo envoltorio ResponseGeneric que usa SecurityConfig, para que el front lo lea igual. */
+    private void responderPasswordTemporal(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        ResponseGeneric<String> cuerpo =
+                new ResponseGeneric<>((String) null, "Debes cambiar tu contrasena temporal antes de continuar");
+        response.getWriter().write(objectMapper.writeValueAsString(cuerpo));
     }
 }

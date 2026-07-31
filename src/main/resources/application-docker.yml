@@ -58,6 +58,13 @@ spring:
 clave-seguridad:
   clave: ${TOKEN_JWT}
 
+seguridad:
+  cors:
+    # Solo dominios HTTPS de produccion. Se quitaron los dos origenes HTTP planos de desarrollo
+    # (localhost:4200 y 51.178.29.99:30001) y el de QA, que antes quedaban habilitados aqui
+    # porque la lista estaba hardcodeada en SecurityConfig y era la misma para todos los perfiles.
+    origenes-permitidos: https://shop.novedades-jade.com.mx,https://front.novedades-jade.com.mx,https://novedades-jade.com.mx,https://www.novedades-jade.com.mx,https://venta-bolsas-online.netlify.app
+
 cookie:
   secure: true
 

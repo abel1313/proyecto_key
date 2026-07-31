@@ -62,7 +62,16 @@ logging:
 
 
 clave-seguridad:
-  clave: miClaveSuperSeguraDe32Caracteres
+  # Sin valor por defecto a proposito (fail-closed): si un ambiente no define TOKEN_JWT ni
+  # sobreescribe esta propiedad en su perfil, el micro no arranca. Antes aqui habia una clave real
+  # versionada en git, con la que cualquiera con acceso al repo podia firmar tokens de ADMIN.
+  clave: ${TOKEN_JWT}
+
+seguridad:
+  cors:
+    # Cada perfil sobreescribe esta lista. El base solo deja el front local, para que un ambiente
+    # mal configurado no herede por accidente los origenes de produccion.
+    origenes-permitidos: http://localhost:4200
 
 guardar-imagenes:
   ruta_imagenes: D:\\Imagenes

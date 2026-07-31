@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,8 @@ import java.time.LocalDateTime;
 public class UsuarioVerificacionService {
 
     private static final int CODIGO_EXPIRA_MINUTOS = 15;
+    /** Intentos fallidos permitidos por codigo antes de invalidarlo — corta la fuerza bruta de los 6 digitos. */
+    private static final int MAX_INTENTOS_CODIGO = 5;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final IUsuarioRepository usuarioRepository;
@@ -40,26 +43,37 @@ public class UsuarioVerificacionService {
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
         usuario.setCodigoVerificacion(codigo);
         usuario.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
+        usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
         emailService.enviarCodigoVerificacion(usuario.getEmail(), codigo);
     }
 
-    @Transactional
+    /**
+     * noRollbackFor: igual que en PasswordResetService — el contador de intentos se persiste en
+     * esta misma transaccion antes de lanzar, y con el rollback por defecto el incremento se
+     * perderia y el limite nunca aplicaria.
+     */
+    @Transactional(noRollbackFor = ExceptionCodigoInvalido.class)
     public void verificarCorreo(String usernameOEmail, String codigo) {
         Usuario usuario = buscarPorUsernameOEmail(usernameOEmail);
         if (Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
             return;
         }
-        if (usuario.getCodigoVerificacion() == null || !usuario.getCodigoVerificacion().equals(codigo)) {
-            throw new RuntimeException("Codigo de verificacion invalido");
-        }
-        if (usuario.getCodigoVerificacionExpira() == null
+        // Expiracion antes que la comparacion del codigo: si ya expiro no se quema intento, y el
+        // usuario legitimo recibe el mensaje que le dice que pida uno nuevo.
+        if (usuario.getCodigoVerificacion() == null
+                || usuario.getCodigoVerificacionExpira() == null
                 || LocalDateTime.now().isAfter(usuario.getCodigoVerificacionExpira())) {
-            throw new RuntimeException("El codigo de verificacion expiro, solicita uno nuevo");
+            throw new ExceptionCodigoInvalido("El codigo de verificacion expiro, solicita uno nuevo");
+        }
+        if (!usuario.getCodigoVerificacion().equals(codigo)) {
+            registrarIntentoFallido(usuario);
+            throw new ExceptionCodigoInvalido("Codigo de verificacion invalido");
         }
         usuario.setCorreoVerificado(true);
         usuario.setCodigoVerificacion(null);
         usuario.setCodigoVerificacionExpira(null);
+        usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
 
         // Auto-alta del Cliente vinculado — solo la primera vez (si ya tiene uno, no se toca).
@@ -72,6 +86,27 @@ public class UsuarioVerificacionService {
         return usuarioRepository.findByUsername(usernameOEmail)
                 .or(() -> usuarioRepository.findFirstByEmailIgnoreCase(usernameOEmail))
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+    }
+
+    /**
+     * Quema un intento del codigo de verificacion vigente y, al agotarlos, lo invalida por
+     * completo — obliga a pedir uno nuevo por /enviar-codigo-verificacion o
+     * /solicitar-cambio-correo. Sirve para los dos flujos porque ambos comparten el mismo par de
+     * campos {@code codigoVerificacion} / {@code codigoVerificacionExpira}.
+     */
+    private void registrarIntentoFallido(Usuario usuario) {
+        int intentos = usuario.getIntentosCodigoVerificacion() == null ? 0 : usuario.getIntentosCodigoVerificacion();
+        intentos++;
+        usuario.setIntentosCodigoVerificacion(intentos);
+
+        if (intentos >= MAX_INTENTOS_CODIGO) {
+            usuario.setCodigoVerificacion(null);
+            usuario.setCodigoVerificacionExpira(null);
+            usuario.setIntentosCodigoVerificacion(0);
+            log.warn("Codigo de verificacion invalidado por agotar {} intentos fallidos, usuario id: {}",
+                    MAX_INTENTOS_CODIGO, usuario.getId());
+        }
+        usuarioRepository.save(usuario);
     }
 
     /**
@@ -103,6 +138,7 @@ public class UsuarioVerificacionService {
         usuario.setCorreoPendiente(correoNuevo);
         usuario.setCodigoVerificacion(codigo);
         usuario.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
+        usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
         emailService.enviarCodigoVerificacion(correoNuevo, codigo);
         return true;
@@ -113,23 +149,26 @@ public class UsuarioVerificacionService {
      * y solo si el codigo es correcto. En cualquier otro caso (codigo invalido, expirado, o
      * nunca se llama) el email real se queda como estaba.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ExceptionCodigoInvalido.class)
     public void confirmarCambioCorreo(Usuario usuario, String codigo) {
         if (usuario.getCorreoPendiente() == null) {
             throw new RuntimeException("No hay un cambio de correo pendiente");
         }
-        if (usuario.getCodigoVerificacion() == null || !usuario.getCodigoVerificacion().equals(codigo)) {
-            throw new RuntimeException("Codigo de verificacion invalido");
-        }
-        if (usuario.getCodigoVerificacionExpira() == null
+        if (usuario.getCodigoVerificacion() == null
+                || usuario.getCodigoVerificacionExpira() == null
                 || LocalDateTime.now().isAfter(usuario.getCodigoVerificacionExpira())) {
-            throw new RuntimeException("El codigo de verificacion expiro, solicita uno nuevo");
+            throw new ExceptionCodigoInvalido("El codigo de verificacion expiro, solicita uno nuevo");
+        }
+        if (!usuario.getCodigoVerificacion().equals(codigo)) {
+            registrarIntentoFallido(usuario);
+            throw new ExceptionCodigoInvalido("Codigo de verificacion invalido");
         }
         usuario.setEmail(usuario.getCorreoPendiente());
         usuario.setCorreoVerificado(true);
         usuario.setCorreoPendiente(null);
         usuario.setCodigoVerificacion(null);
         usuario.setCodigoVerificacionExpira(null);
+        usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
     }
 
@@ -139,8 +178,12 @@ public class UsuarioVerificacionService {
         return solicitarCambioCorreo(buscarPorUsernameOEmail(usernameActual), correoNuevo);
     }
 
-    /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */
-    @Transactional
+    /**
+     * Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()).
+     * Lleva el mismo noRollbackFor porque, al ser una llamada interna, la anotacion de la variante
+     * que recibe el Usuario no la aplica el proxy — la que manda es la de este punto de entrada.
+     */
+    @Transactional(noRollbackFor = ExceptionCodigoInvalido.class)
     public void confirmarCambioCorreo(String usernameActual, String codigo) {
         confirmarCambioCorreo(buscarPorUsernameOEmail(usernameActual), codigo);
     }

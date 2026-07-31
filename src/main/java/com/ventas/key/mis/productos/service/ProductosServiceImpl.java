@@ -129,20 +129,24 @@ public class ProductosServiceImpl extends
 
     @SneakyThrows
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "obtenerProductosCache",
-            key = "#page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<ProductoDTO>> getAll(int size, int page) {
         log.info("**********************************************************************");
         log.info("endpointImagenes {}", this.endpointImagenes);
         log.info("**********************************************************************");
 
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Producto> productosPaginados =  iProductosRepository.findAll(pageable);
         boolean isAdmin = isAdminContext();
-        if (!isAdmin) {
-            // Cliente normal: solo productos con stock, habilitados Y con al menos una imagen.
-            productosPaginados = iProductosRepository.findConStockYImagenPublico(pageable);
-        }
+        // Se resuelve la query ANTES de ejecutarla: antes se llamaba siempre a findAll() y para el
+        // cliente normal ese resultado se descartaba una linea despues. Como es un Page, eran dos
+        // viajes a la BD tirados (el SELECT paginado y su COUNT(*) sin filtro) en cada request del
+        // catalogo publico, que es el endpoint mas llamado del sistema.
+        Page<Producto> productosPaginados = isAdmin
+                ? iProductosRepository.findAll(pageable)
+                // Cliente normal: solo productos con stock, habilitados Y con al menos una imagen.
+                : iProductosRepository.findConStockYImagenPublico(pageable);
 
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
@@ -219,7 +223,7 @@ public class ProductosServiceImpl extends
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
-            key = "#nombre + ':' + #page + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
         Pageable pageable = PageRequest.of(page - 1, size);
         boolean isAdmin = isAdminContext();

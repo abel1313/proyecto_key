@@ -2,7 +2,30 @@
   "permissions": {
     "allow": [
       "Bash(javap *)",
-      "Bash(Get-ChildItem *)"
+      "Bash(Get-ChildItem *)",
+      "Bash(mvn *)",
+      "Bash(./mvnw *)",
+      "Bash(/Users/tiburcio/.m2/wrapper/dists/apache-maven-3.9.16/56ba1f9f/bin/mvn *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git -C /Users/tiburcio/proyecto_venta_bolsas/documentos_front_back_nodevedaades_jade *)",
+      "Bash(diff *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(cat *)",
+      "Bash(dig *)",
+      "Bash(cp *)",
+      "Bash(python3 *)"
     ]
   }
 }

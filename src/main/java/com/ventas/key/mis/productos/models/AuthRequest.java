@@ -13,7 +13,10 @@ public class AuthRequest {
     private String userName;
 
     @NotBlank(message = "La contrasena es obligatoria")
-    @Size(min = 3, max = 200, message = "La contrasena debe tener entre 6 y 200 caracteres")
+    // Se queda en 3 a proposito: subir el minimo en el LOGIN no aporta seguridad y dejaria fuera
+    // a los usuarios que ya tienen una contrasena corta de antes. El minimo de 8 aplica al crear
+    // o cambiar la contrasena (registro, cambio y reset).
+    @Size(min = 3, max = 200, message = "La contrasena debe tener entre 3 y 200 caracteres")
     private String password;
 
     @Email(message = "El email debe tener un formato valido")
