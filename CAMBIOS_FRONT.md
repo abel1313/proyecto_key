@@ -8541,3 +8541,64 @@ sesión a los 15 minutos (cuando expira su access token). No hay prisa.
 
 **Lo que NO cambia:** las URLs, los shapes de request/response y el flujo de login siguen igual. Todo
 lo de arriba es comportamiento, no contrato.
+
+---
+
+## ⚡ RENDIMIENTO DE BÚSQUEDAS Y CACHÉ DE STOCK — 2026-07-31 (informativo, sin acción obligatoria)
+
+Tanda de optimización sobre los endpoints de catálogo y búsqueda. **Ningún cambio de contrato:**
+mismas URLs, mismos parámetros, mismos responses. Pero hay un comportamiento que conviene que el
+front conozca, porque **surgió de una pregunta concreta: "¿qué pasa si el cliente ve stock 1 pero
+ya se vendió?"**.
+
+### 1. El stock que devuelve el catálogo puede venir de caché
+
+Esto **no es nuevo** (ya era así), pero nunca se había documentado y ahora aplica también a
+`/tienda/v1/buscar`, que antes era el único que siempre pegaba a la base.
+
+| Endpoint | Caché | Duración |
+|---|---|---|
+| `GET /mis-productos/v1/productos/obtenerProductos` | sí | hasta **1 h** |
+| `GET /mis-productos/v1/productos/buscarNombreOrCodigoBarra` | sí | hasta **2 h** |
+| `GET /mis-productos/v1/productos/findById/{id}` | sí | hasta **6 h** |
+| `GET /mis-productos/tienda/v1/buscar` | **sí (nuevo)** | hasta **1 h** |
+| `GET /mis-productos/tienda/v1/buscar-filtrado` | sí | hasta **1 h** |
+
+**El caché se limpia automáticamente** cuando el admin crea, edita o elimina un producto o
+variante, cuando cambian las imágenes, y cuando se mueve stock (venta, pedido, cancelación y
+—desde hoy— también abonos). En uso normal el dato está fresco; la ventana de desfase aparece
+sobre todo si el stock cambió por una vía que no pasa por esos flujos.
+
+### 2. Lo importante: el stock mostrado es orientativo, el válido es el del pedido
+
+**No hay riesgo de sobreventa.** Al crear un pedido, el backend bloquea la fila y revalida el stock
+contra la base dentro de la transacción. El stock nunca queda negativo y nunca se vende algo que no
+existe.
+
+Lo que sí puede pasar es que **un cliente vea disponible algo que ya se agotó** y, al confirmar,
+reciba:
+
+```
+400 — "Stock insuficiente en variante id 123. Disponible: 0, solicitado: 1"
+```
+
+**Recomendación para el front:** tratar ese 400 como un caso esperado, no como un error inesperado.
+Lo ideal es mostrar un mensaje claro del tipo *"Este producto acaba de agotarse"* y refrescar la
+vista del producto, en vez de un error genérico. El mensaje del backend ya trae la cantidad
+disponible real, por si se quiere mostrar.
+
+### 3. Nada que cambiar en el código del front
+
+Las búsquedas deberían responder más rápido, sobre todo `/tienda/v1/buscar`, que antes no cacheaba
+por un bug y pegaba a la base en cada llamada. No hay que tocar nada.
+
+### 4. ¿Y si el front necesita el stock exacto en tiempo real?
+
+Hoy no hay un endpoint sin caché para eso. Si en alguna pantalla hace falta (por ejemplo, un
+detalle de producto justo antes de confirmar la compra), **avísennos y lo agregamos** — es un
+cambio chico del lado del backend. Mientras tanto, la validación al crear el pedido es la garantía
+real.
+
+### Estado de despliegue
+
+Desplegado en `dev` y `qa` el 2026-07-31. **Pendiente `main`** (producción).
