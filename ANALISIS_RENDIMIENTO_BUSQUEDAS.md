@@ -1,6 +1,21 @@
 # Análisis de rendimiento — búsqueda de productos y variantes
 
-**Fecha:** 2026-07-31 · **Rama:** `dev` · **Estado:** análisis, **sin cambios de código aplicados**
+**Fecha:** 2026-07-31 · **Rama:** `dev` · **Estado:** Etapa 1 aplicada (4 de 5) — ver tabla
+
+## Estado de las correcciones
+
+| # | Hallazgo | Estado | Commit |
+|---|---|---|---|
+| 1 | `getAll` descarta una query | ✅ Corregido | `6a19559` |
+| 2 | `/tienda/v1/buscar` no cachea | ✅ Corregido | `db6e8bf` |
+| 9 | `readOnly = true` | ✅ Corregido | `5ba0b07` |
+| 10 | Keys con `getAuthorities()` | ✅ Corregido | `8be4af8` |
+| 7 | Índice en `variante_imagen` | ⏳ Requiere BD | script: `verificar_indices_busqueda.sql` |
+| 3, 4, 5, 6, 8 | Etapas 2 y 3 | ⬜ Pendientes | — |
+
+Cada corrección va en **su propio commit**, con el motivo, lo que se verificó antes de tocar, y un
+bloque *"SI ALGO FALLA EN PRUEBAS"* con los síntomas a vigilar. Si una prueba falla, se revierte
+ese commit solo — el resto sigue en pie.
 
 Recorrido completo controlador → servicio → repositorio → query de los cuatro endpoints de búsqueda:
 
