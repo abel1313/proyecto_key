@@ -216,6 +216,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
        OR (:buscar REGEXP '^[0-9]+$' AND p.id = CAST(:buscar AS UNSIGNED)))
       AND (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
       AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
+      AND (:sinFiltroEstado = TRUE OR UPPER(p.estado_pedido) IN (:estadoPedido))
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
@@ -223,6 +224,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
                                           @Param("lugarEntregaId") Integer lugarEntregaId,
                                           @Param("sinFiltroTipo") boolean sinFiltroTipo,
                                           @Param("tipoPedido") List<String> tipoPedido,
+                                          @Param("sinFiltroEstado") boolean sinFiltroEstado,
+                                          @Param("estadoPedido") List<String> estadoPedido,
                                           Pageable pegable);
 
 
@@ -307,12 +310,15 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     INNER JOIN producto pro ON pro.id = dp.producto_id
     WHERE (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
       AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
+      AND (:sinFiltroEstado = TRUE OR UPPER(p.estado_pedido) IN (:estadoPedido))
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
     Page<String> buscarTodosLosPedidos(@Param("lugarEntregaId") Integer lugarEntregaId,
                                         @Param("sinFiltroTipo") boolean sinFiltroTipo,
                                         @Param("tipoPedido") List<String> tipoPedido,
+                                        @Param("sinFiltroEstado") boolean sinFiltroEstado,
+                                        @Param("estadoPedido") List<String> estadoPedido,
                                         Pageable pegable);
 
 

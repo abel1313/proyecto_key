@@ -344,7 +344,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, int size, int pageSize) {
+    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, List<String> estadoPedido, int size, int pageSize) {
         Pageable pageable = PageRequest.of(pageSize, size);
         boolean sinFiltroTipo = (tipoPedido == null || tipoPedido.isEmpty());
         // IN (:tipoPedido) necesita una lista no vacia siempre -- si no hay filtro, se manda un
@@ -352,11 +352,19 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         List<String> tiposParaQuery = sinFiltroTipo
                 ? List.of("NORMAL", "APARTADO", "FIADO")
                 : tipoPedido;
+
+        boolean sinFiltroEstado = (estadoPedido == null || estadoPedido.isEmpty());
+        // estado_pedido esta guardado con mayusculas inconsistentes segun quien lo escribio
+        // ('PAGADO', 'cancelado', 'Entregado'), asi que se compara en mayusculas de los dos lados
+        // para que el front pueda mandar el valor como lo tenga a la mano.
+        List<String> estadosParaQuery = sinFiltroEstado
+                ? List.of("PAGADO")
+                : estadoPedido.stream().map(e -> e.toUpperCase()).toList();
         Page<String> jsonList;
         if(buscar.isEmpty()){
-            jsonList = iPedidoRepository.buscarTodosLosPedidos(lugarEntregaId, sinFiltroTipo, tiposParaQuery, pageable);
+            jsonList = iPedidoRepository.buscarTodosLosPedidos(lugarEntregaId, sinFiltroTipo, tiposParaQuery, sinFiltroEstado, estadosParaQuery, pageable);
         }else{
-            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, sinFiltroTipo, tiposParaQuery, pageable);
+            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, sinFiltroTipo, tiposParaQuery, sinFiltroEstado, estadosParaQuery, pageable);
         }
         return getListPageableDto(jsonList);
     }
