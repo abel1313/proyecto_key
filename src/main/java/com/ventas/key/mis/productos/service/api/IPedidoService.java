@@ -28,7 +28,7 @@ public interface IPedidoService extends ICrud<
     PedidoGenerico updatePedido(int id, PedidoGenerico requestG) throws Exception;
     PageableDto<List<PedidoGenerico>> obtenerPedido(int id, int size, int pageSize);
     PageableDto<List<PedidoGenerico>> obtenerPedidoPorId(int id, int idCliente, int size, int pageSize);
-    PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, int size, int pageSize);
+    PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, List<String> estadoPedido, int size, int pageSize);
     void deletePedidoById(int id, String motivo);
     void eliminarDetallePedido(int pedidoId, int productoId, int cantidad);
     PedidoDetalleResponse getDetallePedido(int id);

@@ -8602,3 +8602,274 @@ real.
 ### Estado de despliegue
 
 Desplegado en `dev` y `qa` el 2026-07-31. **Pendiente `main`** (producción).
+
+---
+
+## 🧪 GUÍA DE PRUEBAS DEL FRONT EN QA — antes de promover a producción (2026-07-30)
+
+Lo que sigue está **desplegado en `qa` y todavía NO en producción** (producción sigue con la
+versión del 23 de julio). Son 16 cambios del front del 24 al 30 de julio. Lo anotamos aquí por dos
+razones: para que sepan qué hay en QA si entran a probar algo suyo, y por si quieren validar de su
+lado los puntos donde el front consume algo que ustedes cambiaron.
+
+**⚠️ Antes de probar:** abrir QA en ventana de incógnito o refrescar con `Ctrl+Shift+R`. Una
+pestaña que ya estaba abierta no vuelve a pedir los archivos nuevos — es la causa habitual de
+"ya lo subiste pero no lo veo".
+
+### Resumen de lo que cambió
+
+| Área | Cambio |
+|---|---|
+| Apariencia | Paleta de marca de azul/morado a **verde jade** (61 archivos). Ver sección anterior. |
+| Estados de pedido | "Ir pagando" pasa de verde a **azul** (chocaba con "Pagado" al volverse verde la marca) |
+| Pedidos | Paginación real para admin, filtro por tipo, filtro por lugar, resumen de filtros activos |
+| Pedidos | Datos de entrega (receptor, dirección, fecha, lugar, Facebook) desde la tarjeta |
+| Pedidos | Cancelar pedidos ya entregados/pagados (devolución) — solo admin |
+| Pedidos | Historial de pagos en el detalle; total se recalcula al quitar una línea |
+| Catálogo nuevo | Lugares de entrega (CRUD admin con paginación) |
+| Tienda | Ruta y prefijo de API de `/variantes` a `/tienda` (ya sincronizado con ustedes) |
+| Carrito | El stock visible baja al agregar al carrito |
+| Móvil | Filtros ya no se traslapan; productos de 2 en 2 |
+
+### Pruebas — las críticas primero
+
+Marcadas 🔴 las que, si fallan, bloquean la promoción a producción.
+
+**Apariencia**
+- 🔴 Ningún botón azul suelto en Tienda, Pedidos, Venta directa, Créditos/Abonos ni Usuarios.
+- 🔴 Nada de texto ilegible: en modo oscuro el verde es brillante, así que las letras encima van
+  oscuras (revisar botones y el número de página resaltado de las tablas).
+- Modo claro y modo oscuro con el botón 🌙/☀️ del menú.
+- Los 4 estados se distinguen: **Apartado ámbar · Ir pagando azul · Pagado verde · Cancelado rojo**.
+- El login sigue azul/morado **a propósito** — no es un descuido.
+
+**Pedidos** (`/pedidos/mis-pedidos`, requiere admin)
+- 🔴 La paginación funciona. Antes como admin solo se veían los primeros 10 pedidos y no había
+  forma de ver el resto.
+- Filtro por tipo (Normal / Apartados / Ir pagando), solo o combinado con el de lugar.
+- Filtro por lugar de entrega (autocomplete).
+- El resumen de filtros activos aparece cuando hay filtros y desaparece cuando no.
+- Buscar un pedido por su número — **esto usa el cambio suyo** de buscar por `pedido.id` cuando el
+  término es numérico.
+- Datos de entrega: llenar, guardar y reabrir. Debe persistir todo y mostrar "Recibe: …" en la
+  tarjeta.
+- Cobrar un pedido a crédito ofrece ir a Créditos/Abonos, **no** abre el diálogo de forma de pago
+  (que terminaba en el 404 de "se liquidan mediante abonos").
+- Cancelar un pedido ya Entregado como admin (devolución): debe permitirlo, pedir motivo sin
+  ofrecer "No se presentó", y devolver el stock. **Esto usa el cambio suyo** del 400 + mensaje.
+- El total del detalle se corrige al quitar una línea.
+- Historial de pagos visible en el detalle de un pedido a crédito con abonos.
+- Imprimir/enviar comprobante deshabilitado mientras no haya ningún pago.
+
+**Lugares de entrega** (Inventario → Lugares de entrega)
+- Alta, edición y borrado. **Confirmar que el borrado de verdad elimina** y no reaparece al
+  recargar — hubo dos correcciones seguidas ahí (el body del DELETE y el shape del getAll).
+- 🔴 Que la lista salga **completa** en Venta directa y en el modal de Entrega, no solo los
+  primeros. El bug del shape dejaba la lista vacía sin ningún error visible.
+- La tabla del catálogo pagina.
+
+**Tienda** (`/tienda/buscar`)
+- 🔴 El catálogo carga y busca por nombre y por código. El renombre de `/variantes` a `/tienda`
+  tocó **todas** las llamadas de ese módulo, así que es la prueba de humo del cambio coordinado.
+- Detalle de producto, edición, imágenes y venta directa responden con normalidad.
+- El stock visible baja al agregar al carrito.
+- La tabla del carrito y su paginador ya toman los colores del sistema (antes el pie salía blanco).
+
+**Móvil** (probar en teléfono real, no solo achicando la ventana)
+- Los 8 filtros de admin se ven completos, sin texto encimado ni cortado.
+- Los productos se ven de 2 en 2 por fila.
+
+### Qué haremos si algo falla
+
+Se corrige en `qa` y se vuelve a probar; producción no se toca hasta que esté limpio. Si el
+problema resulta ser de su lado, lo anotamos aquí como siempre.
+
+---
+
+## ✅ Front: tanda de fixes de UI reportados en QA (2026-08-01)
+
+Ronda de 9 bugs reportados de un jalón al probar QA. 7 eran 100% front (colores, paginación,
+UX de inputs, cálculo mostrado en un ticket) — ya corregidos y en `dev`/`qa`. Quedan 2 puntos
+que sí necesitan algo de su lado, abajo en detalle.
+
+**Resumen de lo ya corregido (sin acción de su lado):**
+- Los modales de confirmación (SweetAlert2) salían con el botón morado por defecto de la
+  librería en vez del verde jade de la marca — nunca se había sobreescrito ese color
+  específico. Corregido de forma global.
+- Botón "Tomar foto" (carga de imágenes) con texto blanco ilegible sobre el verde brillante del
+  modo oscuro — mismo patrón de contraste ya conocido, faltaba aplicarlo ahí.
+- Catálogo de categorías (`palabras-clave`) no tenía paginación — clonado el mismo patrón que
+  ya usa "Lugares de entrega".
+- Botón azul suelto en la pantalla de Gastos — quedó fuera de las migraciones de paleta
+  anteriores.
+- Inputs de precio/monto ahora seleccionan su contenido completo al enfocarlos, para no tener
+  que borrar el "0" a mano antes de escribir.
+
+## ❓ CONSULTA AL BACK — `POST /v1/abonos/{pedidoId}`: ¿`saldoRestante` refleja el saldo antes o
+## después del abono que se acaba de registrar?
+
+**Reportado por el usuario, con un ejemplo concreto:** pedido con total $300. Ya se habían
+abonado $100 antes. Se registra un abono nuevo de $100 hoy. El ticket impreso mostró:
+
+```
+TOTAL: $300.00
+Abonos previos: $100.00
+Abono de hoy: $100.00
+Saldo pendiente: $200.00     ← debería ser $100.00 (300 - 100 - 100)
+```
+
+**Lo que encontramos revisando el front:** el código construye ese ticket usando
+`data.saldoRestante` (el campo que ustedes devuelven en la respuesta de
+`POST /v1/abonos/{pedidoId}`) para actualizar el saldo mostrado. El número que salió en el
+ticket ($200) coincide exactamente con lo que habría sido el saldo **antes** de este abono
+(300 - 100 = 200) — nunca con el saldo real después (100). Eso encaja con que
+`saldoRestante` esté llegando calculado sobre el estado previo a persistir el abono, en vez de
+sobre el estado ya actualizado.
+
+**No estamos 100% seguros de que el problema esté de su lado** — no descartamos que el usuario
+haya probado contra una versión vieja cacheada del front (nos ha pasado antes). Por eso ya
+corregimos el front para que **no dependa de este campo para el cálculo** — ahora el saldo
+mostrado en el ticket se calcula siempre en el front (saldo que ya teníamos cargado, menos el
+monto que se acaba de abonar), y `saldoRestante` del back ya no se usa para el número, solo
+`estadoPedido` para saber si quedó liquidado. Así que **no es bloqueante para nosotros**.
+
+Aun así, si `saldoRestante` sí está devolviendo el estado previo en vez del posterior, vale la
+pena que lo revisen — puede estar afectando otras pantallas o reportes que sí confíen
+directamente en ese número tal cual lo mandan.
+
+## ❓ CONSULTA AL BACK — filtro por estado (Pagado/Cancelado) en `buscarClientePedido`
+
+En `mis-pedidos` ya tenemos filtro por tipo de pedido (Normal/Apartado/Ir pagando, vía
+`&tipoPedido=`) y por lugar de entrega. El usuario pidió agregar también un filtro por
+**estado** — específicamente para ver de un vistazo los pedidos ya **Pagados** y los
+**Cancelados**, junto a los filtros que ya existen.
+
+`GET /v1/pedidos/buscarClientePedido` hoy no tiene ningún parámetro para filtrar por
+`estado_pedido`. Como la pantalla ya usa paginación real del servidor, no es viable resolverlo
+filtrando en el front lo que ya llegó de una página — daría resultados incompletos.
+
+**¿Podrían agregar un parámetro nuevo, mismo patrón que `tipoPedido`?** Por ejemplo
+`&estadoPedido=PAGADO` / `&estadoPedido=Cancelado` (repetible si hace falta combinar). En
+cuanto exista, conectarlo del lado del front es inmediato — el patrón de botones toggle ya está
+armado, solo hace falta el parámetro nuevo.
+
+No es urgente — es una mejora, no bloquea nada de lo que ya funciona.
+
+### Precisión del pedido (confirmado con el usuario, 2026-08-01)
+
+Para que quede sin ambigüedad qué esperamos del lado del front una vez que exista el parámetro:
+
+- **Dos botones nuevos** en la barra de filtros de `mis-pedidos`, junto a los que ya existen
+  (Normal / Apartados / Ir pagando):
+  - **"✅ Pagados"** → pide `estado_pedido = PAGADO`
+  - **"❌ Cancelados"** → pide `estado_pedido = Cancelado`
+- Se combinan con **AND** con los filtros que ya existen (tipo de pedido + lugar de entrega),
+  igual que ya funciona hoy entre esos dos — ej. "Apartados" + "Cancelados" a la vez → apartados
+  que fueron cancelados.
+- Mismo estilo visual de pastilla/toggle que los filtros actuales, nada nuevo de diseño.
+
+Con el parámetro `&estadoPedido=` confirmado (nombre exacto, valores esperados —
+`PAGADO`/`Cancelado`, tal como ya usa el campo `estado_pedido` hoy — o si prefieren otro valor,
+avisen), lo conectamos de inmediato.
+
+---
+
+## ✅ RESPUESTA DEL BACK — `saldoRestante` en `POST /v1/abonos/{pedidoId}` es **posterior** al abono
+
+**Respuesta corta: es el saldo DESPUÉS de aplicar el abono que se acaba de registrar.** Ese es el
+contrato y no cambia. Para el ejemplo que pusieron (total $300, $100 abonado antes, $100 hoy) el
+back debe devolver `saldoRestante: 100.0`, nunca 200.
+
+El cálculo vive en `AbonoServiceImpl.registrarAbono` y ocurre así, todo dentro de la **misma
+transacción**:
+
+1. Lee el `total_pagado` que el pedido ya traía (los $100 previos).
+2. Suma el abono nuevo → `nuevoTotalPagado` ($200) y lo guarda en el pedido.
+3. Si con eso se cubre el total, marca el pedido `PAGADO` y genera la venta.
+4. Hasta el final calcula `saldoRestante = total_pedido - nuevoTotalPagado`, con piso en 0 (nunca
+   devuelve negativo aunque el redondeo quedara justo).
+
+O sea que el número sale del estado **ya actualizado**, no del previo. Además, el endpoint valida
+antes de guardar que el monto no exceda el saldo pendiente, así que un abono que dejaría saldo
+negativo se rechaza con 400 en vez de devolver un saldo raro.
+
+### Entonces, ¿de dónde salió el $200 del ticket?
+
+Revisamos las dos únicas rutas del back que crean abonos (registrar y transferir) y las dos
+mantienen `total_pagado` en sincronía. Con el código actual, ese $200 solo se explica de dos formas:
+
+1. **Front cacheado** — la hipótesis que ustedes mismos plantearon. Es la más probable.
+2. **Dato desfasado en BD** — que ese pedido específico tuviera `total_pagado = 0` aunque ya
+   existiera el renglón del abono previo de $100 (por ejemplo, un abono insertado por SQL a mano, o
+   un pedido anterior a la migración del módulo de abonos). En ese caso el back habría leído
+   `total_pagado = 0`, y $300 − $100 = **$200**: cuadra exacto con lo que vieron.
+
+Para descartar el caso 2 dejamos del lado del back un script de diagnóstico
+(`diagnostico_total_pagado_vs_abonos.sql`) que lista los pedidos donde `total_pagado` no cuadra con
+la suma real de sus abonos. Lo corremos en QA y producción; si aparece algo, lo corregimos por dato
+y lo anotamos aquí. **No requiere nada de su parte.**
+
+### Sobre su fix del front
+
+El cambio que hicieron (calcular el saldo del ticket en el front y usar `saldoRestante` solo para
+`estadoPedido`) **está bien y no hay que revertirlo** — nos parece correcto que el ticket no dependa
+de un solo campo. Ojo con un detalle: si el saldo lo calculan contra el que tenían cargado en
+pantalla, ese valor también puede estar viejo si el pedido se movió en otra sesión. `saldoRestante`
+del back sí es siempre el valor recién persistido, así que si en algún momento quieren volver a
+usarlo como fuente, pueden — es confiable.
+
+---
+
+## ✅ RESPUESTA DEL BACK — filtro por estado en `buscarClientePedido`: **ya está, úsenlo**
+
+Lo agregamos con el mismo patrón que `tipoPedido`, tal como lo pidieron. Ya está implementado y
+compilando en `dev`; **todavía no está desplegado en QA** — avisamos aquí en cuanto suba a `qa` y
+después a producción. Vayan armando los botones, el contrato de abajo ya es el definitivo.
+
+**Request:**
+
+```
+GET /mis-productos/v1/pedidos/buscarClientePedido
+    ?buscar=
+    &size=10
+    &page=0
+    &estadoPedido=PAGADO
+    &estadoPedido=CANCELADO      ← repetible, igual que tipoPedido
+    &tipoPedido=APARTADO         ← opcional, se combina con AND
+    &lugarEntregaId=3            ← opcional, se combina con AND
+```
+
+- **Nombre del parámetro:** `estadoPedido` (confirmado — el que propusieron).
+- **Repetible:** sí. Varios valores del mismo parámetro se combinan con **OR entre ellos**
+  (`estadoPedido=PAGADO&estadoPedido=CANCELADO` = pagados *o* cancelados).
+- **Combinación con los otros filtros:** **AND**, exactamente como pidieron. "Apartados" +
+  "Cancelados" → apartados que fueron cancelados.
+- **Si se omite:** no filtra por estado. Comportamiento idéntico al de hoy — el cambio es
+  retrocompatible, no tienen que tocar nada si no quieren el filtro.
+- **Response:** el mismo `PageableDto` de siempre, sin campos nuevos. La paginación sigue siendo
+  del servidor y ya cuenta solo los pedidos que pasan el filtro.
+
+### Valores — no se preocupen por mayúsculas/minúsculas
+
+En la BD el campo `estado_pedido` quedó con mayúsculas inconsistentes según qué parte del sistema
+escribió el pedido (`PAGADO`, `cancelado`, `Entregado`, `APARTADO`, `FIADO`). Para que eso no se les
+vuelva un problema, **la comparación es case-insensitive**: `CANCELADO`, `Cancelado` y `cancelado`
+traen lo mismo. Manden el valor como lo tengan a la mano.
+
+Valores que existen hoy y qué significa cada uno:
+
+| Valor | Qué es |
+|---|---|
+| `PAGADO` | Crédito (apartado o fiado) ya liquidado |
+| `CANCELADO` | Pedido cancelado, sea por no recogerse o por devolución |
+| `ENTREGADO` | Venta al contado ya entregada |
+| `APARTADO` | Apartado activo, todavía con saldo |
+| `FIADO` | "Ir pagando" activo, todavía con saldo |
+
+Para los dos botones que describieron: **"✅ Pagados"** → `estadoPedido=PAGADO`;
+**"❌ Cancelados"** → `estadoPedido=CANCELADO`.
+
+Una precisión sobre "Cancelados": el estado `CANCELADO` no distingue el motivo (no se presentó vs.
+devolución de un pedido ya pagado). Los dos caen en el mismo estado. Si más adelante quieren
+separarlos en la pantalla, el pedido ya guarda `motivo_cancelacion` y `fecha_cancelacion` —
+díganos y los exponemos en el listado.

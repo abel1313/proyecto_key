@@ -98,9 +98,10 @@ public class PedidoController extends AbstractController<
             @RequestParam(required = false, defaultValue = "") String buscar,
             @RequestParam(required = false) Integer lugarEntregaId,
             @RequestParam(required = false) List<String> tipoPedido,
+            @RequestParam(required = false) List<String> estadoPedido,
             @RequestParam int size, @RequestParam int page) {
         try {
-            PageableDto<List<PedidoGenerico>> response = iPedidoService.buscarClientePorPedido(buscar, lugarEntregaId, tipoPedido, size,  page);
+            PageableDto<List<PedidoGenerico>> response = iPedidoService.buscarClientePorPedido(buscar, lugarEntregaId, tipoPedido, estadoPedido, size,  page);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null));
