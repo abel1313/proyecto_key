@@ -119,8 +119,3 @@ whatsapp:
   callmebot-apikey: ${WHATSAPP_APIKEY:}
   country-code: ${WHATSAPP_COUNTRY_CODE:52}
 
-facebook:
-  page-id: ${FACEBOOK_PAGE_ID:}
-  page-access-token: ${FACEBOOK_PAGE_ACCESS_TOKEN:}
-  api-version: v21.0
-

@@ -8922,6 +8922,24 @@ para diagnosticarlo con precisión en vez de seguir adivinando.
 
 ---
 
+## ⏸️ PAUSADO — todo lo de Facebook se sacó de `dev`/`qa` (2026-08-05)
+
+**Los endpoints `POST /v1/redes-sociales/facebook/publicar` y `POST /v1/redes-sociales/facebook/publicar-video`
+YA NO EXISTEN en `dev` ni en `qa` a partir de ahora.** Se decidió pausar el feature completo —
+código, config y tabla `publicacion_social` — mientras se resuelve la configuración de la app de
+Meta (seguía bloqueada en la Política de Privacidad, ver más abajo).
+
+**Nada se perdió**: todo el código quedó respaldado en la rama `backup/facebook-redes-sociales`
+de `proyecto_key`, listo para retomarse cuando se reactive el trabajo. Si mientras tanto conectan
+algo contra estos endpoints en QA, van a ver 404 — no es un bug, es que efectivamente no está
+desplegado.
+
+Dejamos toda la documentación de abajo (contrato de los endpoints, flujo de pantalla, respuestas
+a sus preguntas) **tal cual**, como referencia para cuando se retome — no hace falta rehacerla,
+solo va a volver a aplicar cuando el código regrese a `dev`/`qa`.
+
+---
+
 ## 📘 Endpoint nuevo — Publicar variante en Facebook (2026-08-05, actualizado 2026-08-05)
 
 Primer paso de la integración con redes sociales: publicar la foto de una variante en la página

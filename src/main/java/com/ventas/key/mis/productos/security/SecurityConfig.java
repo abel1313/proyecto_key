@@ -184,9 +184,6 @@ public class SecurityConfig {
                         // ── Dashboard ─────────────────────────────────────────────────────
                         .requestMatchers("/v1/dashboard/**").hasRole("ADMIN")
 
-                        // ── Redes sociales (publicar variantes en Facebook) ───────────────
-                        .requestMatchers("/v1/redes-sociales/**").hasRole("ADMIN")
-
                         // ── Rifas y concursantes ──────────────────────────────────────────
                         .requestMatchers(
                                 "/v1/rifa/**", "/v1/ganadorRifa/**",
