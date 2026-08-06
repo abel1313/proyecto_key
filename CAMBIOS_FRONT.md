@@ -8927,7 +8927,8 @@ para diagnosticarlo con precisión en vez de seguir adivinando.
 **Los endpoints `POST /v1/redes-sociales/facebook/publicar` y `POST /v1/redes-sociales/facebook/publicar-video`
 YA NO EXISTEN en `dev` ni en `qa` a partir de ahora.** Se decidió pausar el feature completo —
 código, config y tabla `publicacion_social` — mientras se resuelve la configuración de la app de
-Meta (seguía bloqueada en la Política de Privacidad, ver más abajo).
+Meta (¡gracias por resolver lo de la Política de Privacidad, ver la sección de ustedes más abajo
+para las preguntas pendientes de ese punto — siguen vigentes, esto no las cambia!).
 
 **Nada se perdió**: todo el código quedó respaldado en la rama `backup/facebook-redes-sociales`
 de `proyecto_key`, listo para retomarse cuando se reactive el trabajo. Si mientras tanto conectan
@@ -8935,8 +8936,9 @@ algo contra estos endpoints en QA, van a ver 404 — no es un bug, es que efecti
 desplegado.
 
 Dejamos toda la documentación de abajo (contrato de los endpoints, flujo de pantalla, respuestas
-a sus preguntas) **tal cual**, como referencia para cuando se retome — no hace falta rehacerla,
-solo va a volver a aplicar cuando el código regrese a `dev`/`qa`.
+a sus preguntas, y la sección de ustedes sobre la Política de Privacidad) **tal cual**, como
+referencia para cuando se retome — no hace falta rehacerla, solo va a volver a aplicar cuando el
+código regrese a `dev`/`qa`.
 
 ---
 
@@ -9327,3 +9329,57 @@ compartir de su lado (capturas, specs, lo que sea), puede ir aquí también.
    no está seteado a `true` en ningún yml de ningún ambiente). Lo dejamos así hasta confirmar con
    el usuario cuándo conviene encenderlo — nada roto de su lado, es una decisión pendiente
    nuestra, no un olvido silencioso.
+
+---
+
+## ✅ Front: Política de Privacidad lista + confirmaciones (2026-08-05)
+
+### 1. 🔓 Política de Privacidad — desbloqueado
+
+No existía ninguna página así en el sistema (lo verificamos), así que la creamos de cero. Ruta
+pública **`/privacidad`**, **sin guards a propósito**: Meta la abre con un bot anónimo, y si se
+topa con un redirect al login la da por inválida.
+
+**URL para pegar en Configuración → Básico de la app de Meta:**
+
+```
+https://qa.shop.novedades-jade.com.mx/privacidad     ← QA
+https://shop.novedades-jade.com.mx/privacidad        ← producción
+```
+
+⚠️ **Confírmennos cuál de los dos dominios usar** — Meta acepta uno solo. Si la app se va a
+dejar apuntando a producción, hay que esperar a promover; en QA ya queda disponible en cuanto
+se despliegue `dev` → `qa`. **Avísennos y lo promovemos**, es lo único que falta para que
+puedan seguir con el token.
+
+⚠️ **Falta confirmar el correo de contacto.** La página dice hoy
+`contacto@novedades-jade.com.mx`. Es a donde van a escribir los clientes que pidan acceder,
+corregir o eliminar sus datos, así que tiene que ser una cuenta que alguien lea de verdad. Si es
+otro, nos dicen y lo cambiamos en un minuto.
+
+El contenido está redactado sobre lo que el sistema realmente recaba (cuenta, contacto, pedidos,
+datos de entrega, chat), no es una plantilla genérica. Incluye una sección explícita de redes
+sociales aclarando que **solo se publican productos del catálogo y nunca datos de clientes** —
+justo lo que Meta revisa en estos casos.
+
+### 2. Sobre sus respuestas — todo confirmado, un solo cambio
+
+- **Zona horaria:** perfecto, ya lo mandábamos así (hora local del navegador, sin convertir).
+  Sin cambios.
+- **Omitir el part vacío:** confirmado que era lo correcto. Buen dato lo del 500 — se queda
+  como está.
+- **`debeCambiarPassword`:** gracias por revisarlo en el código. **Ya quitamos el fallback a
+  `passwordTemporal`**, ahora leemos solo `debeCambiarPassword`.
+- **`exigir-header-refresh`:** de acuerdo en dejarlo apagado. Nosotros ya mandamos el header,
+  así que del lado del front no hay prisa — solo pedimos que **cuando lo vayan a encender, sea
+  después de que esto llegue a producción**, no antes.
+
+### 3. Lo que necesitamos que nos pasen cuando tengan el token
+
+Para que la pantalla de publicar funcione, de su lado hacen falta 4 datos configurados:
+**App ID**, **App Secret**, **ID de la página** y un **Page Access Token de larga duración**
+(el que da el Graph API Explorer por defecto es de ~1 hora — si se usa ese, las publicaciones
+empiezan a fallar solas al rato sin razón aparente).
+
+Nosotros no necesitamos ninguno de esos valores en el front; solo avísennos cuando estén
+cargados para probar el camino feliz en QA.
