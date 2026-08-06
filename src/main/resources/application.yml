@@ -3,12 +3,6 @@ spring:
     active: dev
   cache:
     type: simple
-  servlet:
-    multipart:
-      # 200MB para poder subir video a Facebook a calidad completa (fotos no necesitan tanto,
-      # pero el límite es compartido por ambos endpoints del multipart).
-      max-file-size: 200MB
-      max-request-size: 200MB
 
 server:
   port: 9091
