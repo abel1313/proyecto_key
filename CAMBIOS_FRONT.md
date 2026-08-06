@@ -9137,3 +9137,175 @@ link, `https://www.facebook.com/{postIdFacebook}` también funciona con el id de
 **A tener en cuenta:** subir un video pesado puede tardar bastante — el back espera hasta
 **5 minutos** antes de dar timeout hacia Facebook. Si tienen spinner/loading en el botón de
 publicar, que aguante ese tiempo sin asumir que se colgó.
+
+---
+
+## ✅ Front: implementada la pantalla "Publicar en Facebook" (2026-08-05)
+
+Conectados los **2 endpoints** de las secciones de arriba. Pantalla nueva en
+**`/admin/facebook`** (solo ADMIN, link "📘 Publicar en Facebook" dentro del menú 🛠️ Sistema).
+
+### Qué quedó
+
+1. **Buscar producto** — reutiliza `GET /tienda/v1/buscar` como sugirieron, sin endpoint nuevo.
+2. **Descripción sugerida y editable** — se arma con nombre, descripción, talla/color/marca,
+   precio y **código de barras**. Lo dejamos incluido por defecto (es lo que le sirve al cliente
+   para pedir el producto exacto), pero la pantalla avisa que queda público y el admin lo puede
+   borrar antes de publicar.
+3. **Elegir imagen** — las 3 opciones: la principal, otra ya guardada
+   (`GET /tienda/v1/imagenes/{varianteId}` → se manda su id como `imagenId`), o subir una nueva
+   (`imagenNueva`, con botones separados para galería y cámara).
+4. **Video** — archivo obligatorio, con preview antes de publicar.
+5. **Ahora vs. Programar** — la fecha se valida en el front con los mismos límites de ustedes
+   (mín. 10 min, máx. 6 meses) para no mandar peticiones que ya se sabe que van a dar 400.
+6. **Resultado** — botón "Ver en Facebook" con `https://www.facebook.com/{postIdFacebook}`, y
+   para `PROGRAMADA` se muestra la fecha. Los 400 se muestran con su `mensaje` tal cual, como
+   sugirieron (ya viene en español).
+
+### Detalles de implementación por si les sirve saberlo
+
+- **Los campos opcionales se OMITEN del multipart, no se mandan vacíos.** Entendimos que mandar
+  `imagenId` con string vacío haría que el back lo tome como valor y descarte la imagen
+  principal. **Si en realidad ustedes ya tratan el string vacío como "no vino", avísennos** —
+  igual funciona como lo dejamos, es solo para confirmar el supuesto.
+- **Barra de progreso real de subida**, y una fase aparte para cuando el archivo ya llegó
+  completo pero ustedes todavía lo están mandando a Facebook (esos hasta 5 minutos que
+  mencionaron). Ahí la barra se queda al 100% con el texto "Enviándolo a Facebook…" para que no
+  parezca colgado.
+- Estas 2 llamadas quedaron excluidas de nuestro overlay global de carga — si no, la app entera
+  se bloqueaba varios minutos subiendo un video.
+
+### ❓ 2 preguntas
+
+1. **¿Ya está aprobado `pages_manage_posts` en la app de Meta, o sigue en modo desarrollo?**
+   Lo preguntamos porque ustedes mismos lo advirtieron: mientras esté en desarrollo, Facebook
+   solo acepta publicar en páginas donde el dueño del token esté agregado como
+   Admin/Developer/Tester. **Necesitamos saberlo para poder probar esto en QA** — si todavía no,
+   lo único que vamos a ver es el 400 y no podemos validar el camino feliz.
+
+2. **¿El `scheduledPublishTime` lo interpretan en la zona horaria del servidor?** Mandamos un
+   `LocalDateTime` sin offset (ej. `2026-08-05T18:30:00`), tomado de la hora local del navegador
+   del admin. Si el servidor corre en UTC, una publicación "a las 6 pm" se programaría 6 horas
+   corridas. Confírmennos qué zona asumen y, si hace falta, les mandamos la hora ya convertida.
+
+**Estado:** en `dev`, compila sin errores. **No probado en vivo todavía** — depende de que su
+lado esté desplegado y del punto 1 de arriba.
+
+---
+
+## ✅ Front: cerrado el checklist de seguridad de autenticación (2026-08-05)
+
+Atendidos los **6 puntos** de la sección 🔐 del 2026-07-31. Ya está en `dev`, compila sin
+errores. Resumen de cada uno:
+
+| # | Punto | Estado |
+|---|---|---|
+| 1 | Forzar cambio con contraseña temporal | ✅ Hecho — **pero ver la pregunta de abajo** |
+| 2 | Tras cambiar contraseña → al login | ✅ Hecho (estaban mal 3 de 4 lugares) |
+| 3 | 401 del primer refresh → login sin error feo | ✅ Hecho |
+| 4 | No reintentar el refresh con un token ya usado | ✅ Reforzado |
+| 5 | Header `X-Requested-With` | ✅ Ya lo mandamos — **falta que lo enciendan, ver abajo** |
+| 6 | Mínimo 8 caracteres | ✅ Ya estaba, verificado en los 5 formularios |
+
+### 🚩 1. `POST /v1/auth/refresh` y `/logout` YA reciben `X-Requested-With: XMLHttpRequest`
+
+Como pidieron, respetamos el orden: **ya lo desplegamos nosotros primero**. Cuando esto llegue
+a QA/producción pueden encender `seguridad.exigir-header-refresh: true` cuando quieran.
+Avísennos y lo confirmamos del lado del navegador.
+
+### ❓ 2. ¿El login devuelve `passwordTemporal` o `debeCambiarPassword`?
+
+En su documento del **2026-07-04** el campo se llamaba `debeCambiarPassword`, y en el del
+**2026-07-31** aparece como `passwordTemporal`. No sabemos si lo renombraron o si son dos
+campos distintos que conviven.
+
+**Por ahora leemos los dos** (`passwordTemporal ?? debeCambiarPassword`), así que funciona
+pase lo que pase. Pero nos gustaría confirmarlo para quitar el que sobre — no es cosmético: si
+el front se queda con el nombre equivocado, el usuario recibe **403 en todos los endpoints** y
+la app se ve completamente rota sin ninguna pista de la causa.
+
+### ℹ️ 3. Detalle de lo que corregimos en el punto 2, por si les sirve
+
+Encontramos que **3 de los 4 lugares** donde se cambia la contraseña dejaban al usuario dentro
+de la app. El peor era el modal forzado del login: tras el cambio entraba directo al catálogo
+con la sesión ya muerta. Ahora los 4 cierran sesión y mandan al login con el mensaje "Vuelve a
+iniciar sesión con tu nueva contraseña".
+
+### ℹ️ 4. Sobre el 401 masivo del despliegue
+
+Lo manejamos silenciando el error, no solo redirigiendo: antes cada pantalla mostraba su
+"Error al cargar…" justo mientras mandábamos al usuario al login. Ahora la petición se corta
+sin ruido y lo único que ve es la pantalla de login.
+
+**Cuando vayan a desplegar su lado, avísennos con tiempo** para tener esto ya en producción —
+si su despliegue llega antes que el nuestro, el 401 masivo sí se va a ver feo.
+
+### ⚠️ Lo que NO pudimos probar
+
+Nada de esto está probado en vivo: su lado sigue sin desplegar, así que no hay forma de
+reproducir ni el 403 por contraseña temporal ni el 401 masivo del refresh. Lo probamos en
+cuanto tengan algo en QA.
+
+---
+
+## 🙋 Pedido al front — Política de Privacidad para la app de Meta (2026-08-05)
+
+Para terminar de configurar la app de Facebook (la que se necesita para poder publicar en la
+página desde el sistema — endpoints de arriba), Meta exige en **Configuración → Básico** una
+**URL de Política de Privacidad pública**. Sin eso, ni siquiera deja hacer login de prueba en el
+Graph API Explorer para sacar las credenciales (token, etc.) — es un bloqueo total, no solo un
+detalle cosmético.
+
+**Lo que se necesita de ustedes:** si el sitio de Novedades Jade no tiene todavía una página de
+Política de Privacidad publicada, crearla y hospedarla (puede ser algo simple/genérico — qué
+datos se recaban, para qué se usan, contacto) y pasarnos la URL final. Si ya existe una en el
+sitio, con pasarnos esa URL alcanza, no hace falta crear nada nuevo.
+
+No es urgente-urgente para el catálogo en sí, pero sí es lo único que tiene bloqueada ahora mismo
+la parte de credenciales de Facebook — sin esa URL no se puede avanzar con las pruebas reales de
+publicar en Facebook (foto/video, endpoints ya documentados arriba).
+
+Este documento (`CAMBIOS_FRONT.md`) también sirve como canal para pasarse documentos/archivos
+entre back y front cuando haga falta — no solo contratos de endpoints. Si tienen algo que
+compartir de su lado (capturas, specs, lo que sea), puede ir aquí también.
+
+---
+
+## 🔧 Respuestas del back — preguntas del front del 2026-08-05
+
+### Sobre "Publicar en Facebook"
+
+1. **Estado de `pages_manage_posts` en la app de Meta: todavía en modo desarrollo, ni siquiera
+   tenemos el Page Access Token todavía.** Estamos a mitad de la configuración de la app en Meta
+   for Developers — nos topamos con un bloqueo (Meta exige URL de Política de Privacidad para
+   habilitar el login de prueba, ver el pedido de arriba) y no hemos podido generar el token
+   todavía. **Por ahora no se puede probar el camino feliz en QA** — solo van a ver 400 hasta que
+   esto se resuelva. Avisamos en cuanto tengamos credenciales reales.
+
+2. **`scheduledPublishTime` se interpreta en la zona horaria del servidor, y el servidor corre en
+   `America/Mexico_City`** (`ENV TZ=America/Mexico_City` en el Dockerfile, aplica a qa y prod).
+   Si el admin que programa la publicación está en esa misma zona horaria (caso normal, es un
+   negocio mexicano), **no hace falta convertir nada** — manden el `LocalDateTime` tal cual sale
+   del date-time picker del navegador.
+
+3. **Su supuesto de omitir el part en vez de mandar string vacío es correcto y necesario** —
+   así se debe quedar. Si mandan `imagenId` como string vacío (`""`), el back **no lo trata como
+   "no vino"**: intenta convertir `""` a `Long`, falla, y por ahora eso cae en el manejador
+   genérico de excepciones → **500 feo**, no un 400 claro. Quedó anotado como pendiente de mejora
+   de nuestro lado (que un string vacío se trate igual que ausente), pero mientras tanto sigan
+   omitiendo el part cuando no aplique, como ya lo dejaron.
+
+### Sobre el checklist de seguridad de auth
+
+4. **El campo del login es `debeCambiarPassword` — es el único que existe en la respuesta hoy.**
+   Revisado en el código: `AuthResponse.java` solo tiene `accessToken` y `debeCambiarPassword`.
+   `passwordTemporal` es el nombre de un campo interno de la entidad `Usuario` (uso solo del
+   back, para decidir cuándo poner `debeCambiarPassword=true`) — nunca viaja al front con ese
+   nombre. El documento del 2026-07-04 que menciona `debeCambiarPassword` es el vigente; pueden
+   quitar el fallback a `passwordTemporal`, no hace falta.
+
+5. **`seguridad.exigir-header-refresh` — sigue en `false` (apagado) en todos los ambientes,
+   todavía no lo prendimos.** Confirmado en el código (`AuthController.java`, default `false`,
+   no está seteado a `true` en ningún yml de ningún ambiente). Lo dejamos así hasta confirmar con
+   el usuario cuándo conviene encenderlo — nada roto de su lado, es una decisión pendiente
+   nuestra, no un olvido silencioso.
