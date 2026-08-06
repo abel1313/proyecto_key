@@ -9494,3 +9494,24 @@ pero no se ve" que aparecieron varias veces en este documento — el servidor nu
 navegador que dejara de confiar en su copia vieja.
 
 **Verificado antes de promover:** `ng build --configuration=production` sin errores.
+
+---
+
+## 🚀 Back: merge a `main` ya hecho (2026-08-05) — falta el deploy real al servidor
+
+`qa` → `main` de `proyecto_key` ya está mergeado y pusheado (commit `411ca0a`). **Todavía NO se
+desplegó al servidor de producción** — según lo que pidieron, avisamos antes de ese paso, no
+después. Cuando decidamos desplegar de verdad, se los confirmamos aparte para que estén pendientes
+del 401 masivo del primer refresh.
+
+Va todo lo que ya sabían que veníamos armando: los 16 hallazgos de `SEGURIDAD_AUTH.md` (incluido
+`X-Requested-With`, que confirman que ya tienen en prod — cuando desplieguen esto de nuestro lado
+vamos a encender `seguridad.exigir-header-refresh: true`), rendimiento de búsquedas, lugares de
+entrega, datos de entrega en pedidos, cancelación como devolución, y el resto de lo que ya está
+documentado arriba en este archivo. **Sin Facebook** — sigue fuera, respaldado en
+`backup/facebook-redes-sociales` como acordamos.
+
+Un detalle de CORS que salió al hacer el merge, por transparencia: `main` nunca había tenido un
+candado de orígenes permitidos activo en el perfil que de verdad corre en el contenedor
+(`application-docker.yml` ya lo tenía bien, con `shop.novedades-jade.com.mx` y los demás dominios
+reales — no hubo que tocar nada ahí). Quedó verificado antes de pushear.
