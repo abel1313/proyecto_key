@@ -9551,3 +9551,76 @@ De nuestro lado no hay nada pendiente. Solo dos peticiones:
 
 Gracias por el detalle del CORS, anotado. Nos deja tranquilos saber que `application-docker.yml`
 ya tenía `shop.novedades-jade.com.mx` — es justo el origen desde el que va a pegar todo esto.
+
+---
+
+## 🐛 Back: 2 endpoints públicos caían con 400 en producción — ya corregidos y desplegados (2026-08-06)
+
+Tras el deploy del 2026-08-05, dos endpoints del catálogo público quedaron rotos en `main`
+(producción) por un mismo tipo de bug de mapeo JPA. Tomamos la sesión para auditar el resto del
+código en busca del mismo patrón — encontramos y arreglamos los dos únicos casos que existían.
+Ya está en `dev`/`qa`/`main`, pusheado y compilado sin errores.
+
+### [BUG-KEY-12] ✅ Fix: `GET /tienda/v1/filtros-disponibles` respondía 400
+**Fecha:** 2026-08-06
+**Archivo corregido:** `IVarianteRepository.java` (`findRangoPreciosPublico`)
+
+**Endpoint:**
+```
+GET /mis-productos/tienda/v1/filtros-disponibles
+```
+
+**Comportamiento ANTES del fix (roto):** siempre respondía `400` con
+`"class [Ljava.lang.Object; cannot be cast to class java.lang.Number"` — el endpoint de filtros
+del catálogo (tallas, colores, marcas, rango de precio) no funcionaba en absoluto.
+
+**Comportamiento DESPUÉS del fix (correcto):** `200` con el mismo contrato de siempre —
+`{ tallas: string[], colores: string[], marcas: string[], precioMin: number, precioMax: number }`.
+
+**El front no necesita cambiar nada** — mismo endpoint, mismo request, mismo response. Era un bug
+interno de mapeo (Spring Data anidaba mal el resultado de una query de agregación con una sola
+fila), no un cambio de contrato.
+
+---
+
+### [BUG-KEY-13] ✅ Fix: `GET /v1/resenas/variante/{varianteId}/resumen` respondía 400
+**Fecha:** 2026-08-06
+**Archivo corregido:** `IResenaRepository.java` (`resumenPorVariante`)
+
+**Endpoint:**
+```
+GET /mis-productos/v1/resenas/variante/{varianteId}/resumen
+```
+
+**Comportamiento ANTES del fix (roto):** siempre respondía `400` (mismo error de casteo que
+BUG-KEY-12) — el resumen de calificaciones (promedio + conteo por estrellas) de cualquier
+variante fallaba. Probablemente pasaba desapercibido porque el detalle de producto no lo muestra
+de forma prominente, pero cualquier pantalla que lo consuma estaba rota.
+
+**Comportamiento DESPUÉS del fix (correcto):** `200` con el mismo contrato de siempre —
+`{ varianteId: number, promedio: number, totalResenas: number, conteoPorEstrella: {1: n, 2: n, 3: n, 4: n, 5: n} }`.
+
+**El front no necesita cambiar nada** — mismo bug interno que el anterior, mismo tipo de fix.
+
+---
+
+## 🚀 Back: micro_imagenes — 5 commits que estaban solo en `qa` ya llegaron a producción (2026-08-06)
+
+Al investigar un 400 en `GET /v1/imagenes/thumbnail/{imagenId}` (`"No static resource"`)
+encontramos que el código de miniaturas nunca había llegado a `master` de `micro_imagenes` — se
+quedó en `qa` desde que se implementó. Hicimos el merge `qa → master` (commit `7de7f83`), que
+dispara el deploy automático (GitHub Actions). Va todo lo que estaba pendiente, no solo el fix del
+día:
+
+- **Miniaturas para listas:** `GET /mis-productos/v1/imagenes/thumbnail/{imagenId}` — ya responde
+  en producción. Es la que usan los `imagenUrl` de listados/búsqueda (ver sección de arriba); el
+  detalle de producto sigue usando `/v1/imagenes/file/{imagenId}` (imagen completa).
+- **Cache del navegador en `/v1/imagenes/file/{imagenId}`:** ahora trae `Cache-Control` (1 año,
+  inmutable) y `ETag`. No requiere cambios en el front, solo hace que la segunda carga de la misma
+  imagen sea instantánea.
+- Un fix interno de rendimiento (N+1 al verificar existencia de imágenes) y uno de seguridad
+  (credenciales AWS hardcodeadas que ya no se usaban, quitadas del yml). Ninguno de los dos cambia
+  contrato ni comportamiento visible para el front.
+
+**El front no necesita cambiar nada** en esta sección — son fixes de disponibilidad/rendimiento de
+endpoints que ya existían en el contrato.
