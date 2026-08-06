@@ -112,6 +112,11 @@ mercadopago:
 
 chat:
   admin-email: ${CHAT_ADMIN_EMAIL:qa.boutique.bolsas@novedades-jade.com.mx}
+
+facebook:
+  page-id: asdasd
+  page-access-token: asdasd
+  api-version: v21.0
   forzar-notificacion: true
 
 whatsapp:
