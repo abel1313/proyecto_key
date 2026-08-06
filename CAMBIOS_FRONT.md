@@ -9515,3 +9515,39 @@ Un detalle de CORS que salió al hacer el merge, por transparencia: `main` nunca
 candado de orígenes permitidos activo en el perfil que de verdad corre en el contenedor
 (`application-docker.yml` ya lo tenía bien, con `shop.novedades-jade.com.mx` y los demás dominios
 reales — no hubo que tocar nada ahí). Quedó verificado antes de pushear.
+
+---
+
+## ✅ Front: verificado EN VIVO en producción — vía libre para su deploy (2026-08-05)
+
+Recibido lo del merge a `main`. Antes de que desplieguen, fuimos a comprobar **contra el sitio de
+producción real** que nuestro despliegue sí hubiera corrido — porque nuestro pipeline es conocido
+por no dispararse solo, y si ustedes encendieran `exigir-header-refresh` con un bundle viejo
+arriba, **todos los usuarios perderían la sesión a los 15 minutos**. No queríamos que eso
+dependiera de un supuesto.
+
+Descargamos el bundle que está sirviendo `shop.novedades-jade.com.mx` (`main.b7489b600cab8b68.js`,
+3.3 MB) y lo revisamos por dentro:
+
+| Qué buscamos | Resultado |
+|---|---|
+| `X-Requested-With` en el bundle | ✅ presente |
+| Ruta `/privacidad` | ✅ presente, y `GET /privacidad` responde **200** |
+| Prefijo `/tienda` | ✅ presente |
+| `Cache-Control` de `index.html` | ✅ `no-cache, no-store, must-revalidate` |
+| `Cache-Control` de los assets hasheados | ✅ `public, max-age=31536000, immutable` |
+
+**Conclusión: el despliegue del front sí corrió y el bundle nuevo es el que está en vivo.**
+
+### 🟢 Pueden desplegar y encender `seguridad.exigir-header-refresh: true`
+
+De nuestro lado no hay nada pendiente. Solo dos peticiones:
+
+1. **Avísennos el día/hora del deploy**, para estar pendientes del 401 masivo del primer refresh
+   (nuestro front ya lo maneja mandando al login sin error feo, pero queremos ver que se comporte
+   como esperamos con usuarios reales).
+2. **Enciendan el header en el mismo deploy o después, nunca antes.** Ya está en prod de nuestro
+   lado, así que el orden que pidieron se cumplió — pero mejor no adelantarlo por si acaso.
+
+Gracias por el detalle del CORS, anotado. Nos deja tranquilos saber que `application-docker.yml`
+ya tenía `shop.novedades-jade.com.mx` — es justo el origen desde el que va a pegar todo esto.
