@@ -8873,3 +8873,199 @@ Una precisión sobre "Cancelados": el estado `CANCELADO` no distingue el motivo 
 devolución de un pedido ya pagado). Los dos caen en el mismo estado. Si más adelante quieren
 separarlos en la pantalla, el pedido ya guarda `motivo_cancelacion` y `fecha_cancelacion` —
 díganos y los exponemos en el listado.
+
+---
+
+## ✅ Front: confirmado — filtro `estadoPedido` conectado y probado en QA (2026-08-01)
+
+Cerramos el loop de la consulta anterior. Conectamos los botones "✅ Pagados"/"❌ Cancelados" en
+`mis-pedidos` contra `&estadoPedido=PAGADO`/`&estadoPedido=CANCELADO` con el contrato que
+confirmaron (repetible, OR entre sí, AND contra tipo/lugar, case-insensitive) y el usuario ya lo
+probó en QA — funciona correctamente. Sin pendientes de nuestro lado en este punto.
+
+De paso, encontramos y corregimos un bug relacionado en el front (100% nuestro, sin acción de su
+lado): el botón "Cobrar" de la card de `mis-pedidos` seguía habilitado en pedidos ya con
+`estado_pedido = PAGADO` — el `[disabled]` solo comparaba contra `'Entregado'` (venta normal), sin
+contemplar el estado de un crédito ya liquidado. Al hacer clic mandaba a `/abonos`, que
+correctamente respondía "este pedido ya está pagado" — el bug era que el botón nunca debió estar
+clickeable ahí. Ya corregido: el botón se deshabilita también cuando el pedido está `PAGADO` o
+`Cancelado`.
+
+---
+
+## ❓ Ayuda — botón "Tomar foto" (Carga rápida de imágenes) sigue sin verse bien, no encontramos
+## nada del lado del front que lo explique
+
+**Pantalla:** `/carga-imagenes` (admin) → botón "📷 Tomar foto" (abre la cámara en celular vía
+`<input type="file" capture="environment">`, junto a "🖼️ Elegir de galería o PC").
+
+**Lo que ya intentamos (2 rondas), sin resultado:** el reporte inicial era de contraste — texto
+blanco fijo sobre el verde jade brillante del modo oscuro, ilegible. Se corrigió usando la
+variable de contraste ya establecida en el proyecto (`var(--app-accent-ink)`, que da blanco en
+modo claro y texto oscuro en modo oscuro — mismo patrón ya usado en otros botones). Verificado en
+el código que el fix está en la rama desplegada. El usuario probó de nuevo y sigue reportando
+"no se ve como tal Tomar foto" — sin poder confirmar todavía si es de nuevo contraste, el emoji
+📷 no renderizando en su navegador/SO, o algo funcional (en escritorio ese input no abre cámara,
+solo el selector de archivos normal — capture="environment" es soporte de navegador/dispositivo,
+no algo que nuestro código controle).
+
+**Por qué lo anotamos aquí en vez de solo en el front:** revisamos el HTML/CSS del botón
+completo — es un `<label>` con un `<input type="file" hidden>` adentro, sin ninguna llamada al
+back ni condición que dependa de datos del servidor. **No encontramos ninguna forma en que esto
+dependa de algo de su lado** — lo anotamos por transparencia y por si ustedes ven algo que a
+nosotros se nos esté escapando (¿alguna respuesta de otro endpoint de esta pantalla que pudiera
+estar rompiendo el render de la página completa, por ejemplo?), no porque tengamos una pista
+concreta de que sea un tema de backend.
+
+**Seguimos sin poder reproducirlo nosotros** — pendiente de una captura de pantalla del usuario
+para diagnosticarlo con precisión en vez de seguir adivinando.
+
+---
+
+## 📘 Endpoint nuevo — Publicar variante en Facebook (2026-08-05, actualizado 2026-08-05)
+
+Primer paso de la integración con redes sociales: publicar la foto de una variante en la página
+de Facebook del negocio. Solo Facebook por ahora — Instagram y TikTok quedan para después (Instagram
+comparte casi el mismo trámite de permisos de Meta, así que se agrega con poco esfuerzo cuando se
+necesite; TikTok es un ecosistema aparte).
+
+**Alcance actual — solo foto, solo Facebook feed:** este endpoint únicamente publica una **foto**
+en el feed normal de la página (`tipoPublicacion` siempre sale `"foto"` en la respuesta).
+**Video, Historias y Reels NO están implementados todavía** — la Graph API los maneja con flujos
+completamente distintos (subida de video por partes/resumable, las historias ni siquiera aceptan
+comentarios públicos). Si se necesitan, es trabajo aparte — avisen para dimensionarlo.
+
+**Solo ADMIN.**
+
+**⚠️ Cambió el Content-Type: ahora es `multipart/form-data`, no JSON** (se necesitaba para poder
+mandar un archivo de imagen en el mismo request — ver `imagenNueva` abajo).
+
+**Request:**
+```
+POST /v1/redes-sociales/facebook/publicar
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+varianteId: 270
+descripcion: Mochila Prada, talla única, color negro. Código: 7501234567890
+imagenId:                     (opcional, texto vacío = omitir el part)
+scheduledPublishTime:         (opcional)
+imagenNueva:                  (opcional, part de tipo archivo)
+```
+- `varianteId` (requerido): variante del catálogo a publicar.
+- `descripcion` (requerido): el texto que termina como caption del post en Facebook, **tal cual
+  se manda, sin ningún procesamiento del back**. Ver la sección de código de barras más abajo.
+- `imagenId` (opcional): usar una imagen específica **ya guardada** de esa variante (distinta a
+  la principal). Se ignora si se manda `imagenNueva`.
+- `imagenNueva` (opcional, **nuevo**): archivo de imagen que el admin selecciona en el momento
+  (de PC, galería o cámara) **solo para esta publicación** — no se guarda en la galería de la
+  variante ni pasa por el microservicio de imágenes, se manda tal cual a Facebook. Ver sección de
+  calidad abajo. Si se manda, gana sobre `imagenId`/imagen principal.
+- Si no se manda ni `imagenId` ni `imagenNueva`: se usa la imagen principal ya guardada de la
+  variante.
+- `scheduledPublishTime` (opcional, `LocalDateTime` ISO): si se omite, se publica de inmediato.
+  Si se manda, programa la publicación en Facebook (mínimo 10 minutos, máximo 6 meses a futuro —
+  fuera de esa ventana responde 400).
+
+**Límite de tamaño:** el micro acepta hasta **25 MB** por archivo/request (`imagenNueva` incluida)
+— configurado así a propósito para no capar fotos de cámara a resolución completa.
+
+**Response 200:**
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "id": 1,
+    "varianteId": 270,
+    "plataforma": "facebook",
+    "tipoPublicacion": "foto",
+    "descripcionPublicada": "Mochila Prada, talla única, color negro. Código: 7501234567890",
+    "postIdFacebook": "122100000000000_987654321",
+    "scheduledPublishTime": null,
+    "fechaPublicacion": "2026-08-05T18:30:00",
+    "estado": "PUBLICADA"
+  }
+}
+```
+`estado` es `"PUBLICADA"` cuando se publicó de inmediato o `"PROGRAMADA"` cuando se mandó
+`scheduledPublishTime`.
+
+**Errores:**
+- **400** — la variante no tiene ninguna imagen guardada (y no se mandó `imagenNueva`), la
+  variante/imagen no existe, la ventana de `scheduledPublishTime` es inválida, el archivo excede
+  25 MB, o Facebook rechazó la publicación (credenciales no configuradas, token vencido, o la
+  página no tiene los permisos `pages_manage_posts` aprobados por Meta todavía — mientras la app
+  de Meta esté en modo desarrollo, Facebook solo acepta publicar en páginas donde el usuario
+  dueño del token esté agregado como Admin/Developer/Tester de la app).
+
+### Sobre la calidad de la imagen (duda que surgió: "en variantes se le quita calidad")
+
+Se revisó el pipeline completo (este micro + microservicio de imágenes) y **el archivo original
+nunca se comprime ni se redimensiona al guardarse** — se escribe a disco tal cual llega. Lo único
+que se redimensiona es un **thumbnail aparte** (cacheado en una carpeta separada), usado
+únicamente para las listas/búsquedas por velocidad — el original queda intacto y es al que este
+endpoint de Facebook accede siempre (tanto con `imagenId` de una imagen ya guardada como con
+`imagenNueva`). Si en la pantalla de variantes se percibe una foto más "pesada"/pixelada de lo
+esperado, no es el back bajándole calidad al guardar — revisen si el propio navegador/celular
+comprime la imagen **antes** de subirla (común en inputs de cámara), eso está fuera del alcance
+de este endpoint. Para este flujo de Facebook específicamente, usar `imagenNueva` es la forma de
+garantizar 100% que se manda exactamente el archivo que el admin seleccionó, sin que pase por
+ningún guardado intermedio.
+
+### Código de barras y descripción — cómo se usa
+
+El campo `descripcion` es **texto libre, sin ningún parseo ni validación especial del back** —
+lo que llegue ahí es exactamentre lo que Facebook muestra como caption del post. El código de
+barras **no es un campo aparte**: es simplemente parte de ese texto por convención (para que un
+cliente pueda escribirlo y pedir ese producto exacto), así que si quieren incluirlo lo concatenan
+ustedes al armar el valor de `descripcion` antes de mandarlo (ver sugerencia en el flujo de
+pantalla abajo). Tengan presente que como es texto plano en un post público, el código de barras
+quedaría visible para cualquiera que vea la publicación — si no quieren eso, simplemente no lo
+incluyan al armar la descripción.
+
+Como el alcance actual es solo "foto" (feed normal), no hay todavía una distinción de "qué
+descripción lleva cada tipo de contenido" — cuando se agregue video/reel/historia, cada una va a
+tomar el mismo criterio (un `message`/caption de texto libre), pero cada tipo tiene su propio
+límite de caracteres y comportamiento en Facebook que hay que confirmar en su momento (las
+historias, por ejemplo, no muestran caption de la misma forma que un post normal).
+
+### Flujo sugerido de la pantalla — "Publicar en Facebook" (admin)
+
+No es un endpoint nuevo de por sí, es cómo se pensó que se arme la pantalla con lo que ya existe
+más el endpoint de arriba:
+
+1. **Buscar variante** — reutilizar el buscador que ya existe:
+   `GET /tienda/v1/buscar?...` (paginado, con imagen incluida). No hace falta ningún endpoint
+   nuevo para esto.
+2. **Al elegir una variante** — precargar:
+   - Imagen principal, para el preview (la que ya se muestra hoy en cualquier tarjeta de variante).
+   - Un textarea con la descripción sugerida = `variante.descripcion` + " Código: " +
+     `producto.codigoBarras` (si tiene). **Editable libremente** — lo que quede ahí es lo que se
+     manda como `descripcion` al publicar, tal cual (ver sección de arriba).
+3. **Elegir la imagen** — tres opciones para el admin:
+   - Usar la principal (default, no mandar nada).
+   - Elegir otra ya guardada de esa variante, de las que trae `GET /tienda/v1/imagenes/{varianteId}`
+     → mandar su id como `imagenId`.
+   - **Subir una nueva** (botón "usar otra foto solo para esta publicación") → adjuntarla como
+     `imagenNueva`. Útil cuando quieren una foto a mejor calidad/ángulo que la que ya está
+     guardada en el catálogo, sin tener que agregarla permanentemente a la variante.
+4. **Publicar ahora vs. Programar** — un toggle simple:
+   - Ahora (default): no mandar `scheduledPublishTime`.
+   - Programar: un date-time picker; validar en el front que sea al menos 10 minutos en el
+     futuro y no más de 6 meses (el back también lo valida y devuelve 400 si se pasan, pero es
+     mejor no dejar mandar la petición si ya se sabe que va a fallar).
+5. **Botón "Publicar"** → `POST /v1/redes-sociales/facebook/publicar` (multipart) con los campos
+   de arriba.
+6. **Resultado:**
+   - Éxito con `estado: "PUBLICADA"` → mostrar confirmación; si quieren armar un link directo al
+     post, es `https://www.facebook.com/{postIdFacebook}`.
+   - Éxito con `estado: "PROGRAMADA"` → mostrar "Se publicará el {scheduledPublishTime}".
+   - Error 400 → mostrar el `mensaje` del `ResponseGeneric` tal cual, ya viene en español y
+     explica la causa (sin imagen, Facebook rechazó, archivo muy grande, etc.), no hace falta
+     traducirlo.
+
+**Lo que NO existe todavía** (por si lo dan por hecho): no hay endpoint para listar publicaciones
+ya hechas de una variante ni para editarlas/borrarlas de Facebook desde acá — cada llamada a
+`/facebook/publicar` crea una nueva. Tampoco hay video/Historia/Reel (solo foto de feed). Si
+quieren alguna de estas, avisen y se dimensiona aparte.
