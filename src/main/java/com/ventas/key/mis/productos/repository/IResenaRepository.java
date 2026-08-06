@@ -21,8 +21,17 @@ public interface IResenaRepository extends BaseRepository<Resena, Integer> {
 
     Page<Resena> findByCliente_IdOrderByFechaCreacionDesc(Integer clienteId, Pageable pageable);
 
+    // Object[] como tipo de retorno directo hace que Spring Data trate el metodo como
+    // "collection query" y anide la fila real en result[0] en vez de venir aplanada
+    // (ver mismo patron/comentario en IVentaRepository.sumVentasRaw). Por eso se expone
+    // como List<Object[]> y se aplana en el metodo default.
     @Query("SELECT AVG(r.calificacion), COUNT(r) FROM Resena r WHERE r.variante.id = :varianteId")
-    Object[] resumenPorVariante(@Param("varianteId") Integer varianteId);
+    List<Object[]> resumenPorVarianteRaw(@Param("varianteId") Integer varianteId);
+
+    default Object[] resumenPorVariante(Integer varianteId) {
+        List<Object[]> filas = resumenPorVarianteRaw(varianteId);
+        return filas.isEmpty() ? new Object[]{null, null} : filas.get(0);
+    }
 
     @Query("SELECT r.calificacion, COUNT(r) FROM Resena r WHERE r.variante.id = :varianteId GROUP BY r.calificacion")
     List<Object[]> conteoPorEstrella(@Param("varianteId") Integer varianteId);
