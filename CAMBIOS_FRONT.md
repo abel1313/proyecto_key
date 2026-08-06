@@ -9067,5 +9067,73 @@ más el endpoint de arriba:
 
 **Lo que NO existe todavía** (por si lo dan por hecho): no hay endpoint para listar publicaciones
 ya hechas de una variante ni para editarlas/borrarlas de Facebook desde acá — cada llamada a
-`/facebook/publicar` crea una nueva. Tampoco hay video/Historia/Reel (solo foto de feed). Si
-quieren alguna de estas, avisen y se dimensiona aparte.
+`/facebook/publicar` crea una nueva. Tampoco hay Historia/Reel (ver endpoint de video abajo, es
+lo único agregado además de foto). Si quieren Historia o Reel, avisen y se dimensiona aparte —
+son procesos de la Graph API en 2 pasos, más trabajo que foto/video.
+
+---
+
+## 📘 Endpoint nuevo — Publicar VIDEO de una variante en Facebook (2026-08-05)
+
+Segunda pieza de la integración con redes sociales, hermano del endpoint de foto de arriba.
+Publica un video en el feed normal de la página (`POST /{page-id}/videos` de la Graph API).
+
+**Diferencia importante con el de foto:** el catálogo **no guarda video de variantes** — no
+existe "video principal" al que caer como con las fotos. Por eso el archivo es **obligatorio en
+cada llamada**, y nunca se guarda en el microservicio de imágenes ni en ningún lado del catálogo,
+es exclusivo de esa publicación.
+
+**Solo ADMIN.**
+
+**Request:**
+```
+POST /v1/redes-sociales/facebook/publicar-video
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+varianteId: 270
+descripcion: Mochila Prada, talla única, color negro. Código: 7501234567890
+scheduledPublishTime:         (opcional)
+video:                        (requerido, part de tipo archivo)
+```
+- `varianteId` (requerido): variante del catálogo a la que se asocia el video (para el registro
+  interno de auditoría; el video en sí no queda ligado a la variante en ningún otro lado).
+- `descripcion` (requerido): caption del video, mismo criterio que en el de foto — texto libre,
+  sin parseo del back.
+- `video` (requerido): el archivo. Se manda a Facebook tal cual, sin comprimir ni convertir.
+- `scheduledPublishTime` (opcional, igual que en foto: mínimo 10 min, máximo 6 meses a futuro).
+
+**Límite de tamaño:** el micro ahora acepta hasta **200 MB** por archivo/request (subimos el
+límite general del micro de 25 MB a 200 MB específicamente para poder soportar video a calidad
+completa; aplica también al endpoint de foto, sin problema, las fotos no se van a acercar a eso).
+
+**Response 200:** mismo shape que el de foto —
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "id": 2,
+    "varianteId": 270,
+    "plataforma": "facebook",
+    "tipoPublicacion": "video",
+    "descripcionPublicada": "Mochila Prada, talla única, color negro. Código: 7501234567890",
+    "postIdFacebook": "9876543210",
+    "scheduledPublishTime": null,
+    "fechaPublicacion": "2026-08-05T19:10:00",
+    "estado": "PUBLICADA"
+  }
+}
+```
+Ojo: para video, `postIdFacebook` es el **id del video**, no un `post_id` de post normal —
+Facebook no siempre devuelve un `post_id` separado para publicaciones de video. Para armar un
+link, `https://www.facebook.com/{postIdFacebook}` también funciona con el id del video.
+
+**Errores:**
+- **400** — falta el archivo `video`, la variante no existe, ventana de `scheduledPublishTime`
+  inválida, archivo excede 200 MB, o Facebook rechazó el video (mismas causas que en foto:
+  credenciales, permisos, formato no soportado).
+
+**A tener en cuenta:** subir un video pesado puede tardar bastante — el back espera hasta
+**5 minutos** antes de dar timeout hacia Facebook. Si tienen spinner/loading en el botón de
+publicar, que aguante ese tiempo sin asumir que se colgó.
