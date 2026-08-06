@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
@@ -93,9 +94,14 @@ public class PedidoController extends AbstractController<
         }
     }
     @GetMapping("/buscarClientePedido")
-    public ResponseEntity<ResponseGeneric<PageableDto<List<PedidoGenerico>>>> buscarClienteNombre(@RequestParam(required = false, defaultValue = "") String buscar, @RequestParam int size, @RequestParam int page) {
+    public ResponseEntity<ResponseGeneric<PageableDto<List<PedidoGenerico>>>> buscarClienteNombre(
+            @RequestParam(required = false, defaultValue = "") String buscar,
+            @RequestParam(required = false) Integer lugarEntregaId,
+            @RequestParam(required = false) List<String> tipoPedido,
+            @RequestParam(required = false) List<String> estadoPedido,
+            @RequestParam int size, @RequestParam int page) {
         try {
-            PageableDto<List<PedidoGenerico>> response = iPedidoService.buscarClientePorPedido(buscar, size,  page);
+            PageableDto<List<PedidoGenerico>> response = iPedidoService.buscarClientePorPedido(buscar, lugarEntregaId, tipoPedido, estadoPedido, size,  page);
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null));
@@ -106,6 +112,19 @@ public class PedidoController extends AbstractController<
     public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> getDetalle(@PathVariable int id) {
         try {
             PedidoDetalleResponse response = iPedidoService.getDetallePedido(id);
+            return ResponseEntity.ok(new ResponseGeneric<>(response));
+        } catch (Exception e) {
+            ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @PutMapping("/{id}/entrega")
+    public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> editarEntrega(
+            @PathVariable int id, @RequestBody EditarEntregaPedidoRequest requestG) {
+        try {
+            PedidoDetalleResponse response = iPedidoService.editarDatosEntrega(id, requestG);
             return ResponseEntity.ok(new ResponseGeneric<>(response));
         } catch (Exception e) {
             ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
@@ -134,14 +153,16 @@ public class PedidoController extends AbstractController<
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> deleteById(
+    public ResponseEntity<ResponseGeneric<String>> deleteById(
             @PathVariable int id,
             @RequestParam(defaultValue = "NO_SE_PRESENTO") String motivo) {
         try {
             this.iPedidoService.deletePedidoById(id, motivo);
-            return ResponseEntity.status(HttpStatus.OK).build();
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>("Pedido cancelado correctamente"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
     }
 

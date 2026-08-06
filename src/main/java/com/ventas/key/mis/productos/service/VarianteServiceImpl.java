@@ -91,6 +91,21 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         this.iCodigoBarrasRepository = iCodigoBarrasRepository;
     }
 
+    /**
+     * El @Cacheable va AQUI y no solo en los metodos delegados: al llamarlos directamente
+     * (this.filtrarVariantesAdmin / this.buscarVariantesPublicoFiltrado) la llamada no pasa por el
+     * proxy de Spring, asi que sus anotaciones no se aplican y este endpoint nunca cacheaba nada.
+     * Es el mismo efecto de self-invocation que con @Transactional.
+     *
+     * <p>La key incluye el rol a proposito: este metodo bifurca segun admin/publico y devuelve
+     * conjuntos distintos para el mismo termino. Sin el rol se reintroduciria el bug que corrigio
+     * 005eccd — un cliente normal recibiendo resultados sin filtrar que un admin cacheo antes.
+     *
+     * <p>Usa variantesProductoCache (el mismo de los metodos delegados) para heredar sus
+     * invalidaciones: ImagenServiceImpl lo limpia con allEntries=true al cambiar imagenes.
+     */
+    @Cacheable(value = "variantesProductoCache",
+            key = "'buscar:' + #termino + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarVariantes(String termino, int page, int size) {
         if (termino == null || termino.isBlank()) {
             return findAllResumen(page, size);
@@ -150,7 +165,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Cacheable(value = "variantesNombreCache",
-            key = "#nombre + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#nombre + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<Variantes>> buscarPorNombrePaginado(String nombre, int pagina, int size) {
         Page<Variantes> page;
         if(AuthenticationUtils.isAdminContext()){
@@ -173,7 +188,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Cacheable(value = "variantesCodigoBarrasCache",
-            key = "#codigoBarras + ':' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "#codigoBarras + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<Variantes>> buscarPorCodigoBarrasPaginado(String codigoBarras, int pagina, int size) {
         boolean isAdmin = AuthenticationUtils.isAdminContext();
         Page<Variantes> page = null;
@@ -621,7 +636,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     @Cacheable(value = "variantesProductoCache",
-            key = "'resumen:all:' + #pagina + ':' + #size + ':' + T(org.springframework.security.core.context.SecurityContextHolder).getContext().getAuthentication().getAuthorities()")
+            key = "'resumen:all:' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> findAllResumen(int pagina, int size) {
         return toResumenPagina(findAllNew(pagina, size));
     }
@@ -681,7 +696,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             VarianteResumenDto dto = buildBaseResumenDto(v);
             Long imagenId = variantePrimeraImagen.get(v.getId());
             if (imagenId != null) {
-                dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + imagenId);
+                // Miniatura para listado/busqueda -- el detalle sigue usando la imagen completa.
+                dto.setImagenUrl(endpointImagenes + "v1/imagenes/thumbnail/" + imagenId);
             }
             return dto;
         }).toList();

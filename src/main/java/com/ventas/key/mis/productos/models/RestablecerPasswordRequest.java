@@ -16,6 +16,6 @@ public class RestablecerPasswordRequest {
     private String codigo;
 
     @NotBlank(message = "La nueva contrasena es obligatoria")
-    @Size(min = 3, max = 200, message = "La contrasena debe tener entre 6 y 200 caracteres")
+    @Size(min = 8, max = 200, message = "La contrasena debe tener entre 8 y 200 caracteres")
     private String nuevaPassword;
 }

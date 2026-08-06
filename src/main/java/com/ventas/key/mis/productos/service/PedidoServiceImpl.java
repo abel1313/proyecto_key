@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.DetalleVentaVariante;
 import com.ventas.key.mis.productos.entity.MesesIntereses;
@@ -14,6 +15,7 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
 import com.ventas.key.mis.productos.models.pedidos.AbonoDetalleItem;
 import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
+import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
@@ -22,6 +24,7 @@ import com.ventas.key.mis.productos.repository.IAbonoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
+import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
@@ -71,6 +74,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IVarianteRepository iVarianteRepository;
     private final IPromocionRepository iPromocionRepository;
     private final PromocionServiceImpl promocionService;
+    private final ILugarEntregaRepository iLugarEntregaRepository;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -89,7 +93,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final IPagosYMesesRepository iPagosYMesesRepository,
                              final IVarianteRepository iVarianteRepository,
                              final IPromocionRepository iPromocionRepository,
-                             final PromocionServiceImpl promocionService) {
+                             final PromocionServiceImpl promocionService,
+                             final ILugarEntregaRepository iLugarEntregaRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -103,6 +108,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iVarianteRepository = iVarianteRepository;
         this.iPromocionRepository = iPromocionRepository;
         this.promocionService = promocionService;
+        this.iLugarEntregaRepository = iLugarEntregaRepository;
+    }
+
+    // lugarEntregaId es opcional (null = no se captura el lugar de entrega en ese pedido)
+    private LugarEntrega resolveLugarEntrega(Integer lugarEntregaId) {
+        if (lugarEntregaId == null) return null;
+        return iLugarEntregaRepository.findById(lugarEntregaId)
+                .orElseThrow(() -> new RuntimeException("Lugar de entrega no encontrado: " + lugarEntregaId));
     }
 
     @Transactional
@@ -123,6 +136,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
+        pedido.setNombreReceptor(requestG.getNombreReceptor());
+        pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
+        pedido.setUrlFacebook(requestG.getUrlFacebook());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
         pedido.setTipoPedido(tipoPedido);
         pedido.setTotalPagado(0.0);
@@ -327,13 +344,27 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
     @Override
-    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, int size, int pageSize) {
+    public PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, List<String> estadoPedido, int size, int pageSize) {
         Pageable pageable = PageRequest.of(pageSize, size);
+        boolean sinFiltroTipo = (tipoPedido == null || tipoPedido.isEmpty());
+        // IN (:tipoPedido) necesita una lista no vacia siempre -- si no hay filtro, se manda un
+        // dummy con los 3 tipos validos, pero sinFiltroTipo=true hace que el OR ya no dependa de el.
+        List<String> tiposParaQuery = sinFiltroTipo
+                ? List.of("NORMAL", "APARTADO", "FIADO")
+                : tipoPedido;
+
+        boolean sinFiltroEstado = (estadoPedido == null || estadoPedido.isEmpty());
+        // estado_pedido esta guardado con mayusculas inconsistentes segun quien lo escribio
+        // ('PAGADO', 'cancelado', 'Entregado'), asi que se compara en mayusculas de los dos lados
+        // para que el front pueda mandar el valor como lo tenga a la mano.
+        List<String> estadosParaQuery = sinFiltroEstado
+                ? List.of("PAGADO")
+                : estadoPedido.stream().map(e -> e.toUpperCase()).toList();
         Page<String> jsonList;
         if(buscar.isEmpty()){
-            jsonList = iPedidoRepository.buscarTodosLosPedidos(pageable);
+            jsonList = iPedidoRepository.buscarTodosLosPedidos(lugarEntregaId, sinFiltroTipo, tiposParaQuery, sinFiltroEstado, estadosParaQuery, pageable);
         }else{
-            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, pageable);
+            jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, sinFiltroTipo, tiposParaQuery, sinFiltroEstado, estadosParaQuery, pageable);
         }
         return getListPageableDto(jsonList);
     }
@@ -345,29 +376,57 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        if ("cancelado".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())
-                || "PAGADO".equals(pedido.getEstadoPedido())) {
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("No se puede cancelar un pedido en estado: " + pedido.getEstadoPedido());
         }
 
-        pedido.getDetalles().forEach(detalle -> {
-            Producto prod = iProductoRepository.findByIdWithLock(detalle.getProducto().getId())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
-            prod.setStock(prod.getStock() + detalle.getCantidad());
-            iProductoRepository.save(prod);
-
-            if (detalle.getVariante() != null) {
-                Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
-                variante.setStock(variante.getStock() + detalle.getCantidad());
-                iVarianteRepository.save(variante);
+        // Entregado (venta al contado) y PAGADO (credito ya liquidado) significan que la mercancia
+        // y el dinero ya cambiaron de manos y que ya existe una Venta ligada al pedido -- cancelar
+        // aqui es en realidad una devolucion, solo la puede registrar un ADMIN, y no se puede usar
+        // un motivo de "no se presento" (eso afectaria el score de rifa de un cliente que si cumplio).
+        boolean esDevolucion = "Entregado".equals(pedido.getEstadoPedido()) || "PAGADO".equals(pedido.getEstadoPedido());
+        if (esDevolucion) {
+            if (!AuthenticationUtils.isAdminContext()) {
+                throw new RuntimeException("Solo un administrador puede cancelar un pedido que ya fue entregado o pagado");
             }
-        });
+            if ("TIMEOUT".equals(motivo) || "NO_SE_PRESENTO".equals(motivo)) {
+                throw new RuntimeException("Ese motivo es para pedidos que no se recogieron, no aplica para un pedido ya entregado");
+            }
+        }
+
+        // FIADO activo ya entrego la mercancia al cliente (igual que en AbonoServiceImpl.cancelarPedido) --
+        // no se le devuelve el stock solo por dejar de pagar, queda como deuda incobrable. Si ya es una
+        // devolucion (PAGADO/Entregado) si se devuelve, porque el cliente esta regresando algo que ya tenia.
+        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion;
+
+        if (!esFiadoActivo) {
+            pedido.getDetalles().forEach(detalle -> {
+                Producto prod = iProductoRepository.findByIdWithLock(detalle.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
+                prod.setStock(prod.getStock() + detalle.getCantidad());
+                iProductoRepository.save(prod);
+
+                if (detalle.getVariante() != null) {
+                    Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
+                            .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                    variante.setStock(variante.getStock() + detalle.getCantidad());
+                    iVarianteRepository.save(variante);
+                }
+            });
+        }
 
         pedido.setEstadoPedido("cancelado");
         pedido.setMotivoCancelacion(motivo);
         pedido.setFechaCancelacion(LocalDate.now());
         iPedidoRepository.save(pedido);
+
+        if (esDevolucion) {
+            iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
+                venta.setEstadoVenta("Devuelta");
+                iVentaRepository.save(venta);
+            });
+        }
+
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
@@ -403,6 +462,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 iVarianteRepository.save(variante);
             }
             iDetallePedidoRepository.delete(detalle);
+            pedido.getDetalles().remove(detalle);
         } else {
             prod.setStock(prod.getStock() + cantidad);
             iProductoRepository.save(prod);
@@ -416,6 +476,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
             iDetallePedidoRepository.save(detalle);
         }
+
+        // El detalle que se quito/redujo ya no debe seguir contando en el total del pedido --
+        // sin este recalculo, totalPedido se quedaba con el valor de antes de la edicion.
+        double nuevoTotal = pedido.getDetalles().stream().mapToDouble(DetallePedido::getSubTotal).sum();
+        pedido.setTotalPedido(nuevoTotal);
+        iPedidoRepository.save(pedido);
+
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
     }
@@ -443,6 +510,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setObservaciones(pedido.getObservaciones());
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
+        resp.setNombreReceptor(pedido.getNombreReceptor());
+        resp.setDireccionEntrega(pedido.getDireccionEntrega());
+        resp.setUrlFacebook(pedido.getUrlFacebook());
+        if (pedido.getLugarEntrega() != null) {
+            resp.setLugarEntregaId(pedido.getLugarEntrega().getId());
+            resp.setLugarEntregaNombre(pedido.getLugarEntrega().getNombre());
+        }
 
         if (pedido.getCliente() != null) {
             resp.setClienteNombre(pedido.getCliente().getNombrePersona());
@@ -493,6 +567,45 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         resp.setDetalles(detalles);
         return resp;
+    }
+
+    // Edicion de solo los datos de entrega (quien recibe, direccion, fecha de entrega,
+    // observaciones) -- no toca lineas ni stock, se puede llamar en cualquier momento despues
+    // de creado el pedido (venta directa los manda opcionales; si quedan vacios, se completan
+    // aqui despues).
+    @Transactional
+    @Override
+    public PedidoDetalleResponse editarDatosEntrega(int id, EditarEntregaPedidoRequest requestG) {
+        Pedido pedido = iPedidoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("No se pueden editar los datos de entrega de un pedido cancelado");
+        }
+
+        if (requestG.getNombreReceptor() != null) {
+            pedido.setNombreReceptor(requestG.getNombreReceptor());
+        }
+        if (requestG.getDireccionEntrega() != null) {
+            pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        }
+        if (requestG.getLugarEntregaId() != null) {
+            pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
+        }
+        if (requestG.getUrlFacebook() != null) {
+            pedido.setUrlFacebook(requestG.getUrlFacebook());
+        }
+        if (requestG.getFechaEntrega() != null) {
+            pedido.setFechaRecogida(requestG.getFechaEntrega());
+        }
+        if (requestG.getObservaciones() != null) {
+            pedido.setObservaciones(requestG.getObservaciones());
+        }
+
+        iPedidoRepository.save(pedido);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        return getDetallePedido(pedido.getId());
     }
 
     @Override

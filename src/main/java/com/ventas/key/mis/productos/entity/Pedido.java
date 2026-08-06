@@ -43,10 +43,24 @@ public class Pedido extends BaseId{
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaRecogida;
 
+    @Column(columnDefinition = "TEXT")
     private String observaciones;
 
-    @Column(name = "motivo_cancelacion", length = 30)
+    @Column(name = "motivo_cancelacion", length = 150)
     private String motivoCancelacion;
+
+    @Column(name = "nombre_receptor", length = 150)
+    private String nombreReceptor;
+
+    @Column(name = "direccion_entrega", length = 300)
+    private String direccionEntrega;
+
+    @ManyToOne
+    @JoinColumn(name = "lugar_entrega_id")
+    private LugarEntrega lugarEntrega;
+
+    @Column(name = "url_facebook", length = 300)
+    private String urlFacebook;
 
     @Column(name = "fecha_cancelacion")
     private LocalDate fechaCancelacion;

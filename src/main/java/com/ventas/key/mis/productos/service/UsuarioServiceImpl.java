@@ -37,19 +37,22 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     private final IRolRepository rolRepository;
     private final IPermisoRepository permisoRepository;
     private final UsuarioVerificacionService usuarioVerificacionService;
+    private final SesionRefreshService sesionRefreshService;
 
     public UsuarioServiceImpl(BaseRepository<Usuario, Integer> repoGenerico, ErrorGenerico error,
                               IUsuarioRepository usuarioRepository,
                               PasswordEncoder passwordEncoder,
                               IRolRepository rolRepository,
                               IPermisoRepository permisoRepository,
-                              UsuarioVerificacionService usuarioVerificacionService) {
+                              UsuarioVerificacionService usuarioVerificacionService,
+                              SesionRefreshService sesionRefreshService) {
         super(repoGenerico, error);
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.rolRepository = rolRepository;
         this.permisoRepository = permisoRepository;
         this.usuarioVerificacionService = usuarioVerificacionService;
+        this.sesionRefreshService = sesionRefreshService;
     }
 
     @Override
@@ -151,6 +154,10 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         existe.setPassword(passwordEncoder.encode(nuevaPassword));
         existe.setPasswordTemporal(true);
         usuarioRepository.save(existe);
+
+        // El reseteo por admin suele ser la respuesta a una cuenta comprometida: si no se cierran
+        // las sesiones, quien ya estaba dentro sigue con su refresh token vigente.
+        sesionRefreshService.cerrarTodasLasSesiones(existe.getId());
         return nuevaPassword;
     }
 

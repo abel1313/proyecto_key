@@ -59,7 +59,13 @@ spring:
       mail.smtp.starttls.required: true
 
 clave-seguridad:
-  clave: miClaveSuperSeguraDe32Caracteres
+  # Valor por defecto SOLO para desarrollo local — no es un secreto real y no debe usarse en
+  # ningun ambiente publicado. qa/docker exigen TOKEN_JWT sin default (fallan al arrancar si falta).
+  clave: ${TOKEN_JWT:claveDeDesarrolloLocalNoUsarEnProd32}
+
+seguridad:
+  cors:
+    origenes-permitidos: http://localhost:4200,http://51.178.29.99:30001,https://venta-bolsas-online.netlify.app,https://shop.novedades-jade.com.mx,https://front.novedades-jade.com.mx,https://novedades-jade.com.mx,https://www.novedades-jade.com.mx
 
 cookie:
   secure: false  # true en producción (requiere HTTPS)

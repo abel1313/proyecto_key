@@ -7599,3 +7599,1787 @@ opcionales:
 `IPedidoService.java`, `IVentaRepository.java` (reportes excluyen `Devuelta`), migraciones
 `migration_pedido_observaciones_motivo_ampliado.sql` (**ya corrida en qa y prod**) y
 `migration_pedido_datos_entrega.sql` (**pendiente de correr en qa y prod**).
+---
+
+## ✅ Front: implementado "cancelar pedido ya entregado/pagado = devolución" (2026-07-24)
+
+Ya conectado del lado front, según su respuesta del 2026-07-23:
+
+- `mis-pedidos` (pedidos NORMAL): botón "Cancelar" ya no se deshabilita para admin cuando el
+  pedido está `Entregado` (antes se deshabilitaba siempre en ese estado, sin importar el rol).
+  Sigue deshabilitado para clientes normales. El motivo `NO_SE_PRESENTO` se excluye del selector
+  cuando el pedido ya está entregado.
+- `/abonos` → pestaña "Liquidados": no existía ningún botón de cancelar ahí, se agregó de cero.
+  Como toda la ruta ya es admin-only, no hicimos chequeo de rol extra. Mismo filtro sin
+  `NO_SE_PRESENTO`.
+- Usamos las 2 opciones de motivo que ya existían (`CLIENTE_AVISO`/`ERROR_ADMIN`) para este caso,
+  no agregamos una etiqueta nueva tipo "Devolución".
+
+Aún no lo hemos probado en vivo contra el back. Cualquier cosa que no cuadre (mensaje de error
+inesperado, 400 no documentado, etc.) lo anotamos aquí cuando lo probemos.
+
+---
+
+## ✅ Front: implementado "datos de entrega" + fix de total desactualizado (2026-07-24)
+
+Ya conectado del lado front, según su respuesta del 2026-07-23:
+
+- **Fix propio (no era del back):** `detalle-pedido` no refrescaba el total mostrado tras
+  quitar una línea, aunque ustedes ya lo recalculaban bien server-side — el front nunca volvía
+  a pedirlo. Ya corregido (se recalcula localmente sumando los subtotales que quedan).
+- **`venta-directa`:** agregamos los 3 campos opcionales (`nombreReceptor`, `direccionEntrega`,
+  `fechaEntrega`) al crear la venta, y movimos "Observaciones" para que se muestre/mande
+  **siempre** (antes solo aparecía en crédito) — para aprovechar que ya no lo ignoran en
+  contado.
+- **`mis-pedidos`:** nuevo botón "📍 Entrega" en cada card → abre un modal para capturar/editar
+  esos 4 campos en cualquier momento, llama `PUT /v1/pedidos/{id}/entrega`. Deshabilitado si el
+  pedido está cancelado.
+- **`detalle-pedido`:** muestra esos datos (solo lectura) si ya hay algo capturado.
+
+⚠️ Todavía no lo hemos podido probar en vivo — según su propio doc, la migración
+`migration_pedido_datos_entrega.sql` seguía pendiente de correr en qa/prod al momento de
+escribir esto. Avísenos cuando ya esté corrida para probarlo de nuestro lado.
+
+---
+
+## ✅ NUEVO (2026-07-24): catálogo de "lugares de entrega" + link de Facebook por pedido
+
+Dos campos nuevos, pensados para poder filtrar pedidos por zona de entrega (ej. "Zacazonapan")
+en vez de buscar en el texto libre de `direccionEntrega`, y para guardar el link al perfil de
+Facebook de quien hizo cada pedido (útil sobre todo en ventas de mostrador con
+`ClienteSinRegistro`, para poder ubicar/contactar a la persona).
+
+**Por qué van en `Pedido` y no en `Cliente`/`ClienteSinRegistro`:** igual que `nombreReceptor`/
+`direccionEntrega`, quién recibe y desde dónde compró puede variar de un pedido a otro — y con
+`ClienteSinRegistro` en particular no hay garantía de que sea la misma persona real la próxima
+vez. Guardar el link en el pedido evita que quede pegado a un registro que puede no reflejar
+correctamente quién hizo esa compra específica.
+
+### 1. Catálogo nuevo — CRUD genérico `/v1/lugares-entrega`
+
+Mismo patrón que otros catálogos simples del proyecto (`/v1/palabras-clave`, `/v1/pagos/*`).
+
+| Método | URL | Quién | Body / respuesta |
+|--------|-----|-------|-------------------|
+| `GET` | `/v1/lugares-entrega/getAll?page=0&size=50` | Cualquier autenticado | `{ "data": [ {"id":1,"nombre":"Zacazonapan"}, ... ] }` (⚠️ ver corrección más abajo — no es `{ t: [...] }`) |
+| `GET` | `/v1/lugares-entrega/getOne/{id}` | Cualquier autenticado | `{ "data": {"id":1,"nombre":"Zacazonapan"} }` |
+| `POST` | `/v1/lugares-entrega/save` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro creado con `id` |
+| `PUT` | `/v1/lugares-entrega/update/{id}` | ADMIN | Body: `{ "nombre": "Zacazonapan" }` → Response: el registro actualizado |
+| `DELETE` | `/v1/lugares-entrega/delete` | ADMIN | Body: `1` (el id, como número JSON crudo — **no** `{ "id": 1 }`) |
+
+`nombre` es único — si se repite, el back responde con el mensaje genérico de duplicado del CRUD
+base ("El codigo postal ya existe, ingrese uno diferente" — mensaje heredado del CRUD genérico,
+mejorarlo es aparte).
+
+**⚠️ Corrección (2026-07-24):** el `DELETE` inicialmente se documentó con `Body: { "id": 1 }`,
+que es **incorrecto** — así truena con `JSON parse error: Cannot deserialize value of type
+'java.lang.Integer' from Object value`. El body correcto es el id **solo**, como valor JSON
+crudo (`1`), sin envolver en objeto — es el mismo patrón que usan los demás catálogos genéricos
+del proyecto (`/v1/palabras-clave/delete`, etc.). Ejemplo fetch/axios:
+```js
+fetch(`${base}/v1/lugares-entrega/delete`, {
+  method: 'DELETE',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(id) // "1", no { id }
+});
+```
+También se corrigió un bug del back: el `delete()` genérico no borraba nada de verdad (bug
+preexistente en el CRUD base, ya corregido — ver `LugarEntregaServiceImpl.delete`). Antes de este
+fix, aunque el body fuera correcto, el endpoint respondía 200 sin eliminar el registro.
+
+**Front:** pantalla nueva de catálogo (alta/edición de lugares), igual que cualquier otro catálogo
+admin que ya tengan armado. El select de "lugar de entrega" en venta directa y en editar-entrega
+consume `GET /v1/lugares-entrega/getAll` para poblar las opciones.
+
+### 2. Campos nuevos en `Pedido`: `lugarEntregaId` + `urlFacebook`
+
+**a) Al crear la venta — `POST /v1/ventas/save` (`VentaDirectaRequest`)** — 2 campos nuevos,
+ambos opcionales, mismo lugar que `nombreReceptor`/`direccionEntrega`/`fechaEntrega`:
+```json
+{
+  "usuarioId": 1,
+  "clienteId": 10,
+  "detalles": [ "..." ],
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123",
+  "lugarEntregaId": 1,
+  "urlFacebook": "https://facebook.com/maria.lopez.jade",
+  "fechaEntrega": "2026-07-26"
+}
+```
+- `lugarEntregaId` debe existir en el catálogo — si no, 400 con *"Lugar de entrega no encontrado:
+  {id}"*.
+- `urlFacebook` no se valida formato en el back (cualquier string hasta 300 caracteres) — el front
+  puede validar que sea una URL antes de mandarla si quiere evitar basura.
+
+**b) Al crear pedido propio del cliente — `POST /v1/pedidos/savePedido` (`PedidosDTOPedido`)** —
+mismos 2 campos nuevos, opcionales, mismo criterio (el cliente elige su lugar de entrega en su
+propio checkout).
+
+**c) Editar después — `PUT /v1/pedidos/{id}/entrega` (`EditarEntregaPedidoRequest`)** — mismos 2
+campos agregados, opcionales (null = no tocar), junto a `nombreReceptor`/`direccionEntrega`:
+```json
+{
+  "lugarEntregaId": 1,
+  "urlFacebook": "https://facebook.com/maria.lopez.jade"
+}
+```
+
+**d) Respuesta — `GET /v1/pedidos/{id}/detalle` (`PedidoDetalleResponse`)** — 3 campos nuevos:
+```json
+{
+  "pedidoId": 55,
+  "nombreReceptor": "María López",
+  "direccionEntrega": "Calle Reforma 123",
+  "lugarEntregaId": 1,
+  "lugarEntregaNombre": "Zacazonapan",
+  "urlFacebook": "https://facebook.com/maria.lopez.jade"
+}
+```
+`lugarEntregaId`/`lugarEntregaNombre` solo aparecen si el pedido tiene lugar asignado (response
+usa `@JsonInclude(NON_NULL)`, igual que el resto de este DTO).
+
+**e) Listado/búsqueda — `GET /v1/pedidos/buscarClientePedido`** — nuevo query param opcional
+`lugarEntregaId` para filtrar exacto por lugar (no es texto libre, es el id del catálogo):
+```
+GET /v1/pedidos/buscarClientePedido?lugarEntregaId=1&size=10&page=0
+GET /v1/pedidos/buscarClientePedido?buscar=juan&lugarEntregaId=1&size=10&page=0
+```
+Se puede combinar con `buscar` (nombre/correo/teléfono) o usar solo. Si se omite, no filtra por
+lugar (como antes). El JSON de cada pedido en la respuesta ahora también trae `lugarEntregaId`,
+`lugarEntregaNombre` y `urlFacebook` (mismo campo `pedido` del objeto que ya devuelve `id`,
+`estado_pedido`, `tipoPedido`, `totalPagado`, etc.).
+
+### 3. Qué necesita el front — resumen de pantallas
+
+- **Catálogo de lugares** (pantalla nueva, admin): alta/edición/listado simple, un campo de texto
+  (`nombre`).
+- **Venta directa** (form de creación): agregar select "Lugar de entrega" (poblado desde el
+  catálogo) y campo de texto "Link de Facebook", ambos opcionales, junto a los campos de entrega
+  que ya existen ahí.
+- **Checkout del cliente** (`savePedido`): mismo select de lugar de entrega, opcional. El link de
+  Facebook normalmente no aplica aquí (es el cliente comprando para sí mismo), se puede omitir del
+  formulario público aunque el campo exista en el request.
+- **Editar datos de entrega de un pedido**: agregar el mismo select + campo de texto al formulario
+  que ya llama a `PUT /v1/pedidos/{id}/entrega`.
+- **Detalle de pedido**: mostrar `lugarEntregaNombre` como texto y `urlFacebook` como link
+  clickeable (`target="_blank"`) si viene en la respuesta.
+- **Listado/búsqueda de pedidos**: agregar el mismo select como filtro adicional (aparte del
+  buscador de texto que ya existe), mandando `lugarEntregaId` en la query.
+
+**Archivos cambiados:** `LugarEntrega.java` (entity nueva), `ILugarEntregaRepository.java`,
+`LugarEntregaServiceImpl.java`, `LugarEntregaController.java` (CRUD genérico, todos nuevos),
+`Pedido.java` (columnas `lugar_entrega_id`, `url_facebook`), `PedidosDTOPedido.java`,
+`EditarEntregaPedidoRequest.java`, `PedidoDetalleResponse.java`, `PedidoQuery.java`,
+`VentaDirectaRequest.java`, `PedidoServiceImpl.java`, `VentaServiceImpl.java`,
+`IPedidoRepository.java` (join a `lugares_entrega` + filtro en `buscarPedidosPorCliente`/
+`buscarTodosLosPedidos`), `IPedidoService.java`, `PedidoController.java`, `SecurityConfig.java`,
+migración `migration_lugar_entrega.sql` (**pendiente de correr en dev/qa/prod**).
+
+---
+
+## ✅ Front: implementado "lugares de entrega" + link de Facebook por pedido (2026-07-24)
+
+Ya conectado del lado front, según su respuesta del 2026-07-24:
+
+- Pantalla nueva de catálogo (alta/edición/eliminación) en `/lugares-entrega`, solo admin.
+- `venta-directa`: select de lugar + input de link de Facebook.
+- Checkout del cliente (`savePedido`): select de lugar (sin Facebook, como sugirieron).
+- `mis-pedidos`: filtro por lugar (autocomplete local sobre el catálogo cargado), card muestra
+  el nombre de quien recibe, y el modal de "Entrega" ya tiene los 2 campos nuevos.
+- `detalle-pedido`: muestra el nombre del lugar y el link de Facebook (clickeable).
+
+⚠️ Todavía no lo hemos probado en vivo — según su propio doc, `migration_lugar_entrega.sql`
+seguía pendiente de correr en dev/qa/prod al momento de escribir esto. Avísennos cuando ya esté
+corrida.
+
+**Duda aparte:** en `mis-pedidos` agregamos que la card muestre `nombreReceptor` — pero no
+tenemos confirmado si ese campo viene en `GET /v1/pedidos/buscarClientePedido` (la lista), solo
+está confirmado que viene en `GET /v1/pedidos/{id}/detalle`. Si no viene en la lista, esa fila
+simplemente no se muestra (el campo queda `undefined`), no rompe nada — pero si es fácil de
+agregar ahí también, nos ahorraríamos tener que pedir el detalle de cada pedido para mostrarlo.
+
+## ✅ Respuesta a la duda — `nombreReceptor` ya viene en la lista (2026-07-24)
+
+Confirmado que no venía y era fácil de agregar — ya se agregó. `GET /v1/pedidos/buscarClientePedido`
+(y también `buscarTodosLosPedidos`, mismo endpoint cuando `buscar` viene vacío) ahora incluye
+`nombreReceptor` en el objeto `pedido` de cada resultado, junto a `tipoPedido`, `totalPagado`,
+`lugarEntregaId`, `lugarEntregaNombre` y `urlFacebook`:
+```json
+{
+  "cliente": { "id": 10, "nombreCliente": "...", "...": "..." },
+  "pedido": {
+    "id": 55,
+    "fecha_pedido": "24/07/2026 10:30",
+    "estado_pedido": "Entregado",
+    "tipoPedido": "NORMAL",
+    "totalPagado": 450.0,
+    "nombreReceptor": "María López",
+    "lugarEntregaId": 1,
+    "lugarEntregaNombre": "Zacazonapan",
+    "urlFacebook": "https://facebook.com/maria.lopez.jade",
+    "detalles": [ "..." ]
+  }
+}
+```
+Puede venir `null` si el pedido nunca capturó ese dato (pedidos viejos, o si no se llenó al
+crear la venta/pedido) — mismo criterio que los demás campos opcionales de este objeto. Ya no
+hace falta pedir el detalle de cada pedido solo para mostrar el nombre del receptor en la lista.
+
+**Archivo cambiado:** `IPedidoRepository.java` (agregado a `buscarPedidosPorCliente` y
+`buscarTodosLosPedidos`), `PedidoQuery.java`.
+
+---
+
+## ✅ Front: aplicadas las 2 correcciones (2026-07-24)
+
+- `DELETE /v1/lugares-entrega/delete` → ya manda el id crudo (`1`), no `{ id: 1 }`.
+- `mis-pedidos`: `puedeGenerarTicket()` para crédito ya usa `totalPagado` real de la lista en
+  vez de dejar el botón siempre habilitado. Gracias por confirmar que `nombreReceptor` también
+  quedó en la lista — no hicimos falta más cambios ahí, el binding ya estaba listo, solo faltaba
+  el dato.
+
+---
+
+## ❓ CONSULTA AL BACK — GET /v1/lugares-entrega/getAll parece no traer nada en QA
+
+Probando en vivo (`pedidos/mis-pedidos` → botón "📍 Entrega"): el select "Lugar de entrega" del
+modal aparece **vacío** (solo "Sin especificar"), aunque ya se agregaron lugares desde el
+catálogo (`/lugares-entrega`). Reportado como que "parece que hay errores" al recargar esa
+pantalla — todavía no tenemos el mensaje de error exacto ni una captura de la pestaña Network,
+se las pasamos en cuanto las tengamos.
+
+**El front implementó `GET /v1/lugares-entrega/getAll?page=0&size=50` tal cual lo documentaron**
+(`LugarEntregaService.getAll()`), esperando:
+```json
+{ "data": { "t": [ {"id":1,"nombre":"..."} ], "pagina":0, "totalPaginas":1, "totalRegistros":1 } }
+```
+y leyendo `res.data.t`. Si la respuesta real trae otro shape (por ejemplo `data` como array
+plano, o el campo no se llama `t`), el front simplemente lo interpreta como lista vacía sin
+tronar — por eso no vemos ningún error en consola del lado nuestro, solo el select vacío.
+
+**¿Nos pueden confirmar?**
+1. ¿`GET /v1/lugares-entrega/getAll` está respondiendo 200 con datos reales en QA ahora mismo?
+   (probamos con `curl` sin token y sí responde 401 "Token inválido o expirado" — o sea el
+   endpoint existe y responde, pero no pudimos probarlo autenticados desde aquí).
+2. ¿La migración `migration_lugar_entrega.sql` ya está corrida en QA? Es la única duda real que
+   quedaba pendiente de su respuesta original.
+3. Si ya corrió y el endpoint responde bien, ¿nos pueden pasar un ejemplo real de la respuesta
+   (con al menos 1 lugar) para comparar contra el shape que documentaron?
+
+No es urgente resolverlo en el momento — esperamos su respuesta antes de seguir investigando de
+este lado.
+
+## ✅ Respuesta a la consulta — el shape documentado estaba mal (2026-07-24)
+
+Confirmado, el problema es del lado de la documentación, no del código: **su implementación es
+correcta, lo que está mal es lo que les dijimos que esperaran.**
+
+`GET /v1/lugares-entrega/getAll` usa el CRUD genérico (`AbstractController.findAll`), que **sí**
+pagina internamente con `page`/`size`, pero **no** envuelve el resultado en `PginaDto` — solo
+devuelve el arreglo plano de esa página, sin `pagina`/`totalPaginas`/`totalRegistros`:
+```json
+{ "data": [ {"id":1,"nombre":"Zacazonapan"}, {"id":2,"nombre":"Tejupilco"} ], "code":200, "mensaje":"..." }
+```
+(El shape `{ "t": [...], "pagina":... }` que documentamos es el de `PginaDto`, que usan otros
+endpoints como `buscarPorNombre` — nos confundimos de patrón al escribir la tabla la primera vez.)
+
+Con esto se responde también sus 3 preguntas:
+1. Sí, el endpoint responde 200 con datos reales en QA — el problema era leer `res.data.t`
+   (`undefined`, por eso caía a lista vacía sin tronar) en vez de `res.data` directo.
+2. Sí, `migration_lugar_entrega.sql` ya corrió en QA (confirmado antes de esta sesión).
+3. Ejemplo real con 1 lugar ya agregado ("Zacazonapan"):
+   ```json
+   { "data": [ {"id":1,"nombre":"Zacazonapan"} ], "code":200, "mensaje":"La peticion fue exitosa" }
+   ```
+
+**Fix necesario del lado front:** en `LugarEntregaService.getAll()`, cambiar `res.data.t` por
+`res.data` directo (ya es el arreglo). Como el catálogo es chico (nombres de zonas/pueblos), para
+traer "todos" en un solo viaje para el select alcanza con pedir un `size` grande en una sola
+llamada, ej. `GET /v1/lugares-entrega/getAll?page=0&size=200` — no hace falta armar paginación
+real en la UI para esto.
+
+**Tabla corregida arriba** (sección "1. Catálogo nuevo") para reflejar el shape real.
+
+### Aclaración — 2 usos distintos del mismo `GET /getAll`, con criterio de paginación diferente
+
+`GET /v1/lugares-entrega/getAll` es un solo endpoint, pero se consume desde 2 pantallas con
+necesidades distintas — no confundir una con la otra:
+
+1. **Pantalla admin del catálogo (`/lugares-entrega`, alta/edición/borrado de lugares):** esta
+   **sí debe paginar de verdad**, con tabla + controles de página, igual que cualquier otro
+   catálogo/listado admin del proyecto (`page`/`size` normales, avanzar de página en página). Con
+   pocos lugares hoy no se nota, pero si el catálogo crece (más zonas/colonias con el tiempo) esta
+   pantalla sí necesita paginación real para no cargar cientos de registros de un tirón.
+
+2. **Select de "lugar de entrega" en venta directa / editar-entrega / filtro de búsqueda de
+   pedidos:** aquí **no hay ni debe haber paginación** — es un `<select>` que necesita **todas**
+   las opciones disponibles de una vez para que el usuario elija. Aquí es donde aplica lo de
+   pedir `size` grande en una sola llamada (`?page=0&size=200`) y usar el arreglo completo tal
+   cual, sin controles de "siguiente página".
+
+Mismo endpoint, mismo shape de respuesta (`{ "data": [...] }`) — la diferencia es solo cómo lo
+consume cada pantalla: una pagina de verdad (catálogo admin), la otra pide todo de un jalón
+(select).
+---
+
+## ✅ Front: aplicado el fix de shape + catálogo con paginación real (2026-07-24)
+
+- `LugarEntregaService.getAll()` ya lee `res.data` directo (no `res.data.t`), `size=200` por
+  default para las pantallas que necesitan todo el catálogo de un jalón (selects).
+- Catálogo admin (`/lugares-entrega`) rediseñado con paginación real: tabla + "← Anterior" /
+  "Siguiente →", `size=10` por página. Como `getAll` no trae total de registros, "hay
+  siguiente" se infiere con `length === size`.
+
+Gracias por la respuesta rápida y por confirmar que la migración ya estaba corrida — era 100%
+lectura de shape del lado nuestro.
+
+---
+
+## ❓ CONSULTA AL BACK — filtro por tipo de pedido en `buscarClientePedido` + inventario de endpoints de `mis-pedidos`
+
+### Inventario — endpoints que usa la pantalla `pedidos/mis-pedidos` hoy
+
+| Método | URL | Para qué |
+|---|---|---|
+| `GET` | `/v1/pedidos/findPedido/{idCliente}?size=&page=` | Cliente no-admin: lista sus propios pedidos (infinite scroll) |
+| `GET` | `/v1/pedidos/findPedido/{idPedido}/{idCliente}?size=&page=` | Cliente busca un pedido propio por número |
+| `GET` | `/v1/pedidos/buscarClientePedido?size=&page=&buscar=&lugarEntregaId=` | Admin: lista/búsqueda general (texto + filtro de lugar, ya conectado) |
+| `PUT` | `/v1/pedidos/confirmar/{id}` | Cobrar pedido NORMAL |
+| `DELETE` | `/v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=` | Quitar/reducir una línea del detalle |
+| `DELETE` | `/v1/pedidos/delete/{id}?motivo=` | Cancelar pedido |
+| `GET` | `/v1/pedidos/{id}/detalle` | Detalle completo (incluye datos de entrega, lugar, Facebook, abonos) |
+| `PUT` | `/v1/pedidos/{id}/entrega` | Editar nombreReceptor/direccionEntrega/fechaEntrega/lugarEntregaId/urlFacebook/observaciones |
+| `POST` | `/v1/pedidos/{id}/notificar` | Reenviar comprobante por correo |
+| `PUT` | `/v1/abonos/{pedidoId}/cancelar` | Cancelar crédito (vía `/abonos`, pantalla hermana) |
+
+### ❓ Pregunta — filtro por tipo de pedido en `buscarClientePedido`
+
+Agregamos en el front 2 botones "📦 Apartados" / "💳 Ir pagando" en `mis-pedidos` (admin),
+independientes del filtro de lugar (se combinan con AND si ambos están activos: lugar +
+Apartados = apartados de ese lugar; solo uno de los dos = solo ese filtro).
+
+Mandamos el tipo como query param **repetido**, convención Spring `@RequestParam List<String>`:
+```
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&tipoPedido=APARTADO&tipoPedido=FIADO
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&lugarEntregaId=1&tipoPedido=APARTADO
+```
+Si ningún checkbox está marcado, no se manda el parámetro (como hoy, sin filtro de tipo).
+
+**¿`GET /v1/pedidos/buscarClientePedido` ya soporta filtrar por `tipoPedido` así, o hay que
+agregarlo?** Si el nombre/formato del parámetro que esperan es distinto, avísennos y ajustamos
+el front — mientras tanto no rompe nada, un query param que el back no reconoce simplemente se
+ignora.
+
+No es urgente — el resto de la pantalla (paginación real admin, filtro de lugar) ya funciona
+sin depender de esto.
+
+---
+
+## ✅ Front: resumen visible de filtros activos en mis-pedidos (2026-07-24)
+
+100% front, no necesita nada de su lado — lo anotamos igual por la regla de dejar registro de
+todo lo que se implementa en esta pantalla.
+
+Con 3 filtros combinables ahora en `mis-pedidos` admin (texto, lugar, tipo de pedido), se agregó
+un chip debajo de los filtros que resume qué está activo, ej. `"Buscando: texto "123" + lugar
+"Zacazonapan" + Apartados"` — solo visible si hay al menos un filtro aplicado.
+
+---
+
+## ✅ Respuesta a la consulta — filtro `tipoPedido` ya agregado (2026-07-24)
+
+No existía, ya se agregó a `GET /v1/pedidos/buscarClientePedido` tal cual lo mandan ustedes —
+mismo formato, query param repetido:
+```
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&tipoPedido=APARTADO&tipoPedido=FIADO
+GET /v1/pedidos/buscarClientePedido?size=10&page=0&lugarEntregaId=1&tipoPedido=APARTADO
+GET /v1/pedidos/buscarClientePedido?size=10&page=0   ← sin tipoPedido = sin filtro de tipo, como hoy
+```
+- Se combina con `AND` con `buscar` y `lugarEntregaId`, exactamente como ya lo tenían asumido.
+- Valores esperados: `"NORMAL"`, `"APARTADO"`, `"FIADO"` (mismos strings que ya usan en
+  `tipoPedido` de la respuesta). Un valor que no sea ninguno de esos tres simplemente no
+  matchea nada — no truena, solo no encuentra resultados para ese valor.
+- El JSON de cada pedido en la respuesta no cambia (ya traía `tipoPedido`) — el filtro solo
+  afecta qué resultados vienen, no el shape de cada uno.
+
+**Archivos cambiados:** `IPedidoRepository.java` (`buscarPedidosPorCliente` y
+`buscarTodosLosPedidos`), `PedidoServiceImpl.java`, `IPedidoService.java`, `PedidoController.java`.
+
+---
+
+## ⚠️ Aviso al front — falta un 3er checkbox de tipo (`NORMAL`) en `mis-pedidos`
+
+Probando en vivo con el filtro ya conectado: hoy la pantalla solo tiene 2 checkboxes
+("📦 Apartados" / "💳 Ir pagando" → `APARTADO`/`FIADO`). El back ya soporta el tercer valor sin
+ningún cambio adicional — falta agregar el checkbox correspondiente en el front:
+
+```
+GET /v1/pedidos/buscarClientePedido?tipoPedido=NORMAL
+```
+
+Con esto los 3 checkboxes cubren los 3 valores reales de `tipoPedido` (`NORMAL`, `APARTADO`,
+`FIADO`). Ninguno marcado sigue significando "sin filtro" (todos los tipos), no hay que mandar
+los 3 explícitamente para ese caso.
+
+## ⚠️ Aclaración — `buscar` NO busca por id/número de pedido (todavía)
+
+Probando `buscar=1` contra un pedido real: encontró resultados, pero **por coincidencia** — el
+teléfono del cliente (`7223475214`) contiene un "1", y `buscar` hace `LIKE '%valor%'` contra
+nombre/correo/teléfono del cliente, nunca contra `pedidos.id`. Si el número que se busca no
+coincide por casualidad con algo del cliente, no encuentra el pedido aunque el id exista.
+
+**Pendiente de confirmar con ustedes:** ¿agregamos búsqueda por id de pedido al mismo campo
+`buscar` (ej. `OR p.id = :buscar` cuando el valor es numérico), combinable con `lugarEntregaId`/
+`tipoPedido` como todo lo demás? O si el filtro de "id de pedido" en la pantalla es un campo
+separado que no debe tocar este endpoint, avísennos y lo dejamos como está.
+
+## ✅ Resuelto — `buscar` ya también busca por id de pedido (2026-07-24)
+
+Confirmado: en este sistema el "número de pedido" que ve el admin **es** `pedido.id` (no hay un
+folio separado) — mismo id que usan en `/pedidos/{id}/detalle`, etc. Con eso, se agregó al mismo
+campo `buscar`:
+
+```
+GET /v1/pedidos/buscarClientePedido?buscar=46           ← encuentra el pedido #46 por id, exista o no coincidencia con el cliente
+GET /v1/pedidos/buscarClientePedido?buscar=juan          ← sigue buscando por nombre/correo/telefono, igual que antes
+GET /v1/pedidos/buscarClientePedido?buscar=46&lugarEntregaId=1&tipoPedido=APARTADO  ← todo combinable
+```
+
+**Regla:** si `buscar` es **puramente numérico** (`^[0-9]+$`), además de la búsqueda de texto ya
+existente, también compara contra `pedido.id` exacto (con `OR`, no reemplaza la búsqueda de
+texto — un número podría coincidir con ambos criterios a la vez y no hay problema). Si `buscar`
+trae letras, sigue comportándose exactamente igual que antes (solo texto).
+
+**Nota:** ya no hace falta que interpreten el match anterior de `buscar=1` (que encontró un
+pedido por coincidencia del teléfono) como bug — ahora con id 1 dígito buscaría explícitamente
+`pedido.id = 1` también, además de seguir matcheando teléfonos que contengan "1".
+
+**Archivo cambiado:** `IPedidoRepository.java` (`buscarPedidosPorCliente`).
+
+---
+
+## ✅ Front: agregado el checkbox "Normal" faltante (2026-07-24)
+
+Ya está el 3er checkbox "🛒 Normal" junto a "Apartados"/"Ir pagando" en `mis-pedidos`. Gracias
+por confirmar que `buscar` ya encuentra por id de pedido — no hizo falta ningún cambio en el
+front para eso, ya mandábamos el texto tal cual al parámetro `buscar`.
+
+---
+
+## ✅ Front: verificado — no queda ningún "Fiado" visible en pantalla (2026-07-24)
+
+100% front, sin acción del back — es solo texto de UI, el valor interno `tipoPedido: 'FIADO'`
+sigue siendo el mismo que ya manejan.
+
+El usuario pidió revisar si quedaba algún "Fiado" visible sin renombrar a "Ir pagando" (el
+rename se hizo en una sesión anterior). Se hizo un grep exhaustivo de `Fiado`/`fiado` en todo
+`src/app` (HTML + TS) — no queda ningún texto visible al usuario, todas las pantallas
+(`mis-pedidos`, `detalle-pedido`, `/abonos`, `venta-variante`) ya dicen "Ir pagando". Lo único
+que sigue con "fiado" son cosas internas sin impacto visual: el valor del enum `'FIADO'`,
+nombres de clases CSS (`--fiado`) y variables (`esFiado`).
+
+---
+
+## ✅ Front: URL de la tienda cambió de /variantes a /tienda (2026-07-24)
+
+100% front, sin acción del back — es solo la ruta del router de Angular, **no** toca las
+llamadas al back (`/variantes/v1/...` sigue exactamente igual, ese es su path del backend, no
+del front). Lo anotamos solo para que sepan que si ven links viejos a `/variantes/buscar` en
+capturas o docs anteriores, ahora es `/tienda/buscar`.
+
+---
+
+## ❓ CONSULTA AL BACK — renombrar el endpoint `/variantes` a `/tienda` (necesita cambio de su lado)
+
+Además del cambio de URL del navegador (front-only, ya avisado arriba), el usuario pidió que el
+endpoint **real** del backend también deje de decir "variantes" — de `/variantes/...` a
+`/tienda/...`. A diferencia de lo anterior, **esto sí necesita que ustedes hagan el mismo cambio**
+— si solo lo cambiamos del lado front, todo lo relacionado a variantes (buscar, guardar,
+imágenes, independizar, etc.) empezaría a dar 404.
+
+### Ejemplo concreto (antes → después)
+
+```
+Antes:  GET  /variantes/1                          → traer la variante con id 1
+Ahora:  GET  /tienda/1                              → misma función, mismo id, prefijo nuevo
+
+Antes:  GET  /variantes/v1/buscar?termino=blusa
+Ahora:  GET  /tienda/v1/buscar?termino=blusa
+
+Antes:  POST /variantes/save
+Ahora:  POST /tienda/save
+
+Antes:  GET  /variantes/v1/imagenes/{varianteId}
+Ahora:  GET  /tienda/v1/imagenes/{varianteId}
+
+Antes:  POST /variantes/1/independizar
+Ahora:  POST /tienda/1/independizar
+```
+
+**Regla exacta:** es un cambio de **prefijo únicamente** — todo lo que hoy empieza con
+`/variantes` (sea `/variantes/1`, `/variantes/v1/buscar`, `/variantes/admin/...`, etc.) pasa a
+empezar con `/tienda`, conservando exactamente el resto de la ruta, los query params y el shape
+de request/response tal cual están hoy. No es un rename de campos ni de nada más — solo el
+primer segmento de la URL.
+
+**Ya implementado del lado front** (branch `dev`, `variante.service.ts` y los ~25 métodos que
+dependen de su URL base, más `chatbot.service.ts` y `rifa.service.ts`) — pero **todavía NO
+promovido a `qa`**, para no romper nada mientras ustedes no tengan el cambio espejo desplegado.
+Avísennos cuando ya esté listo de su lado (y en qué ambiente — dev/qa/prod) y ahí sincronizamos
+el merge a `qa` de nuestro lado para que coincidan.
+
+**Nota:** confirmamos que **no** hay que tocar `/admin/sin-variantes/reporte` ni
+`/compartir-imagenes-variantes` (del controlador de productos/Modelo) — esos "variantes" son
+parte del nombre de esa ruta específica, no el prefijo `/variantes` que se está renombrando.
+
+## ✅ Respuesta — ya aplicado en `dev`, análisis de impacto (2026-07-24)
+
+Confirmado el rename, aplicado tal cual lo pidieron: **solo el primer segmento de la URL**, resto
+de la ruta/query params/shape intactos. `VarianteController` pasó de `@RequestMapping("variantes")`
+a `@RequestMapping("tienda")` — como es el prefijo base, cubre automáticamente los ~25 endpoints
+(`/v1/buscar`, `/v1/save`, `/v1/imagenes/{id}`, `/v1/admin/**`, `/v1/{id}/independizar`, etc.),
+sin tocar ninguno individualmente. Coincide con `/admin/sin-variantes/reporte` y
+`/compartir-imagenes-variantes` — confirmado que esos NO cambian (son nombres de ruta de otro
+controlador, no el prefijo).
+
+**Análisis de impacto — no afecta nada más allá de este micro:**
+- **micro_imagenes:** no llama a `/variantes/...` desde código — solo lo menciona en su propia
+  documentación (`FLUJO_ENDPOINTS.md`), sin dependencia real. Cero cambios necesarios ahí.
+- **nginx:** el `default.conf` de este micro es un proxy catch-all sin ruteo por path — no
+  distingue `/variantes` de nada más, así que no hay nada que ajustar en infraestructura.
+- **Otros consumidores internos:** ningún otro controlador/service del micro construye URLs
+  hardcodeadas hacia `/variantes` (se revisó con grep en todo `src/`).
+
+**Lo único que sí había que tocar en conjunto** (mismo aprendizaje que la migración a `/v1/` de
+meses atrás — cambiar solo el `@RequestMapping` no basta):
+- `SecurityConfig.java`: los 3 `requestMatchers` que protegían `/variantes/**` ahora protegen
+  `/tienda/**`. Si no se actualizaban en conjunto, los GETs públicos de la tienda hubieran caído
+  en `anyRequest().authenticated()` (rompiendo el catálogo público) y los matchers de
+  `/variantes/admin/**` hubieran dejado de proteger nada.
+
+**Estado:** confirmado que su cambio de front ya está en `qa` — ya mergeamos `dev → qa` de este
+lado también. El rename `/variantes` → `/tienda` (y todo lo demás de esta sesión) ya está en
+`qa` en ambos lados, coordinado.
+
+---
+
+## ✅ Front: promovido a QA — ambos lados ya coinciden (2026-07-24)
+
+Ya subimos el rename a `qa` (deploy confirmado exitoso). Verificamos con `curl` antes de avisar:
+`GET /tienda/1` responde 401 (protegido, funcionando) y `/variantes/1` (el viejo) ya no
+responde bien — o sea ustedes ya tenían el cambio desplegado en QA también, no solo en dev
+como habían dicho, así que no hubo ninguna ventana de caída del catálogo. Todo sincronizado.
+---
+
+## ✅ Front: fix móvil — filtros traslapados + cards de 2 en 2 (2026-07-24)
+
+100% front, sin acción del back. Reportado con capturas: en `productos/buscar` y
+`variantes/buscar` ("Tienda"), los checkboxes de filtro se veían con texto encimado en anchos
+tipo tablet/celular grande (faltaba un breakpoint intermedio entre 576px y el punto donde ya
+caben 4 columnas cómodas), y las cards de producto se veían de 1 en 1 en móvil en vez de 2 en
+2 (pedido explícito). Ambos corregidos — detalle completo en `CLAUDE.md` de este repo, sección
+"FIX MÓVIL — FILTROS TRASLAPADOS EN TABLET/CELULAR GRANDE + CARDS DE 2 EN 2".
+
+---
+
+## ✅ Fix: cancelar pedido — el back ya validaba, ahora también informa el motivo (2026-07-27)
+
+**Pregunta del front:** al cancelar un pedido, ¿el front debe ocultar/deshabilitar el botón según
+el estado, o el back valida?
+
+**Respuesta: ambos.** El back **ya validaba** (no es un cambio de reglas, ya existía):
+- No se puede cancelar un pedido que ya está en estado `cancelado`.
+- Si el pedido ya está `Entregado` o `PAGADO` (crédito liquidado), cancelar es en realidad una
+  **devolución** — solo un usuario con rol ADMIN puede hacerlo, y no se permite mandar
+  `motivo=TIMEOUT` ni `motivo=NO_SE_PRESENTO` en ese caso (esos motivos son para pedidos que
+  nunca se recogieron, no para uno que ya se entregó).
+
+**Lo que sí estaba mal y se corrigió:** cuando el back rechazaba la cancelación, el endpoint
+devolvía **500 vacío, sin mensaje** — el front no tenía forma de saber por qué falló.
+
+```
+Request: DELETE /v1/pedidos/delete/{id}?motivo=NO_SE_PRESENTO
+```
+
+**Antes:**
+- Éxito → `200`, sin body.
+- Rechazo → `500`, sin body.
+
+**Ahora:**
+- Éxito → `200`, body `{ "response": "Pedido cancelado correctamente" }`.
+- Rechazo → `400`, body `{ "mensaje": "..." }` con el motivo exacto, por ejemplo:
+  - `"No se puede cancelar un pedido en estado: cancelado"`
+  - `"Solo un administrador puede cancelar un pedido que ya fue entregado o pagado"`
+  - `"Ese motivo es para pedidos que no se recogieron, no aplica para un pedido ya entregado"`
+
+**Recomendación de UX (no obligatoria, el back ya bloquea el caso):** usar el `estadoPedido` que
+ya viene en `GET /v1/pedidos/{id}/detalle` (`PedidoDetalleResponse.estadoPedido`) para ocultar o
+deshabilitar el botón de cancelar cuando el estado sea `cancelado`, o mostrarlo distinto (como
+"solicitar devolución") cuando sea `Entregado`/`PAGADO` y el usuario no sea admin. Esto es solo
+para mejor experiencia — el back sigue siendo la fuente de verdad y rechaza cualquier intento
+igual, ahora con mensaje claro en el 400.
+
+---
+
+## ✅ Fix: cancelar un FIADO desde la pantalla de Pedidos devolvía stock indebido (2026-07-27)
+
+Pregunta del front: si el mismo pedido de crédito se puede cancelar tanto desde **Pedidos**
+(`DELETE /v1/pedidos/delete/{id}`) como desde **Abonos** (`PUT /v1/abonos/{pedidoId}/cancelar`),
+¿queda igual de protegido en ambos lados?
+
+**Sí, es la misma fila en BD** (mismo `estadoPedido`), así que cancelar desde cualquiera de las
+dos pantallas se refleja de inmediato en la otra en cuanto se vuelva a pedir el dato — y un
+segundo intento de cancelar (desde cualquiera de las dos) ahora se rechaza con `400` y mensaje
+claro (antes, del lado de Pedidos, tiraba `500` vacío — ver sección anterior).
+
+**Pero encontramos un bug de negocio real, no solo de mensajes:** para un pedido `FIADO` **activo**
+(ya entregado al cliente, todavía pagando), la regla correcta es que **cancelar NO devuelve stock**
+(la mercancía ya salió, queda como deuda incobrable — así lo hace `/v1/abonos/{pedidoId}/cancelar`
+desde siempre). El endpoint general `/v1/pedidos/delete/{id}` no conocía esa excepción y devolvía
+stock siempre, sin importar el tipo — si un FIADO activo se cancelaba desde la pantalla de
+**Pedidos** en vez de la de **Abonos**, el stock se restauraba aunque el cliente se hubiera
+quedado con el producto. Ya corregido: `/v1/pedidos/delete/{id}` ahora replica la misma regla
+(no devuelve stock si `tipoPedido = FIADO` y todavía no es una devolución real, es decir, no está
+en `Entregado`/`PAGADO`). `APARTADO` no cambia — siempre devolvía stock y sigue siendo correcto,
+porque en `APARTADO` la mercancía nunca se entregó.
+
+**Recomendación de UX (no obligatoria):** si la pantalla de Pedidos va a seguir mostrando el botón
+de cancelar para pedidos de crédito, ya no hay riesgo de inconsistencia de stock al usarlo — pero
+sigue sin mostrar el desglose de saldo a favor / deuda pendiente que sí trae la respuesta de
+`/v1/abonos/{pedidoId}/cancelar` (`saldoAFavor`, `deudaPendiente`, mensaje). Si el front quiere ese
+detalle para el usuario, sigue siendo mejor dirigir la cancelación de APARTADO/FIADO a la pantalla
+de Abonos.
+
+---
+
+## ✅ Front: revisado y confirmado — ya funcionaba, más una mejora chica (2026-07-27)
+
+Revisamos ambos fixes que documentaron (400+mensaje al cancelar, stock de FIADO). Sin dudas:
+
+- **El manejo de error ya estaba listo** — `cancelarPedido()` en `mis-pedidos` ya leía
+  `err?.error?.mensaje`, así que el mensaje nuevo del 400 se muestra automático, sin tocar
+  código.
+- **El fix de stock en FIADO es 100% backend** — no requirió nada de nuestro lado.
+- **Sí aplicamos la recomendación opcional**: el botón "Cancelar" ahora también se deshabilita
+  cuando el pedido ya está cancelado (antes solo consideraba "Entregado" + no-admin).
+
+Gracias por el detalle de los 3 mensajes de error exactos, ayudó a confirmar rápido que ya
+estábamos leyendo el campo correcto.
+
+---
+
+## ✅ Perf: imágenes ahora se cachean en el navegador (2026-07-27)
+
+Contexto: las listas de productos/variantes con imagen tardaban en aparecer. El análisis mostró
+que proyecto-key ya arma la lista con una sola query (sin N+1) — el cuello de botella estaba en
+`micro_imagenes`, que servía cada imagen sin ningún header de caché: el navegador re-descargaba
+las mismas fotos en cada búsqueda o repaginado, aunque no hubieran cambiado.
+
+```
+Request: GET {endpointImagenes}/v1/imagenes/file/{imagenId}
+```
+
+**No cambia el contrato** (misma URL, mismo status, mismo body) — solo se agregaron headers:
+- `Cache-Control: public, max-age=31536000, immutable`
+- `ETag: "{imagenId}"`
+
+**No requiere ningún cambio en el front.** El navegador va a empezar a cachear cada imagen sola
+por hasta 1 año la primera vez que la descargue — en listas/búsquedas repetidas debería notarse
+la diferencia de inmediato porque deja de volver a pedir imágenes ya vistas. Como el id de una
+imagen nunca se reutiliza (reemplazar = subir un id nuevo, eliminar = se borra) es seguro
+cachearla como inmutable indefinidamente.
+
+Quedan pendientes de análisis (no implementados aún): generar miniaturas para las listas en vez
+de servir el archivo original completo, y un endpoint por lote para pedir varias imágenes en una
+sola llamada en vez de una por producto.
+
+---
+
+## ✅ Perf: miniaturas en listado/búsqueda de productos y variantes (2026-07-28)
+
+Segundo paso para bajar el tiempo de carga de imágenes (el primero fue el caché del navegador,
+sección anterior). Ahora la lista/búsqueda de productos y de variantes ya no manda la imagen
+original completa — manda una **miniatura** más liviana (máx. 400px de ancho, mismo alto
+proporcional).
+
+**No requiere ningún cambio en el front.** El campo de imagen en la respuesta (`urlImagen` /
+`imagenUrl`) sigue siendo un string con una URL completa, igual que antes — solo que ahora esa URL
+apunta a un endpoint distinto según el contexto:
+
+- **Listado/búsqueda de productos y variantes** (`GET /productos/obtenerProductos`,
+  `GET /productos/buscarNombreOrCodigoBarra`, `GET /variantes/buscar` y equivalentes de
+  admin/filtros) → la URL ahora es:
+  ```
+  GET {endpointImagenes}/v1/imagenes/thumbnail/{imagenId}
+  ```
+  Devuelve los mismos bytes de imagen (mismo `Content-Type`, mismo `Cache-Control`/`ETag` de 1 año
+  que el original), solo que redimensionada. Si `noContent (204)`, es el mismo caso de siempre:
+  imagen no encontrada en disco.
+
+- **Detalle de producto/variante** (`GET /productos/findById/{id}`, galería de imágenes) → sigue
+  usando la imagen completa sin cambios:
+  ```
+  GET {endpointImagenes}/v1/imagenes/file/{imagenId}
+  ```
+
+El front no tiene que armar ninguna de las dos URLs manualmente — ya vienen completas en la
+respuesta, así que este cambio es transparente mientras no se haya hardcodeado en ningún lado la
+ruta `/v1/imagenes/file/` esperando que sea siempre esa.
+
+Pendiente de análisis: caché en memoria de bytes calientes y/o endpoint por lote, para bajar
+todavía más el tiempo que tarda la *primera* carga de una búsqueda nueva.
+
+**Estado de despliegue:** ya está en `dev` y `qa` de ambos repos (proyecto-key y micro_imagenes).
+**Todavía no está en producción (`main`/`master`)** — el caché de navegador de la sección anterior
+tampoco. Avisamos cuando se suba a main para que puedan validar en QA mientras tanto.
+
+### 🔍 Reporte de prueba en QA (2026-07-28): variantes se ven chicas, productos se siguen viendo grandes
+
+Al probar en `qa.shop.novedades-jade.com.mx`: en la pantalla de **variantes** las imágenes ya se
+ven chicas (esperado), pero en la pantalla de **productos → buscar** se siguen viendo grandes.
+
+**Verificado directo contra el servidor de QA (sin pasar por el navegador), backend está bien:**
+- `GET /v1/productos/obtenerProductos` y `GET /v1/productos/buscarNombreOrCodigoBarra` en QA ya
+  devuelven `urlImagen` apuntando a `/v1/imagenes/thumbnail/{id}`, no a `/file/{id}`.
+- Se probó bajar una imagen real de un producto de QA: el original pesa 232 KB (960x1280 px), la
+  miniatura pesa 56 KB (400x533 px) — el redimensionado sí funciona correctamente.
+- La caché de Redis de esa búsqueda (`buscarNombreOrCodigoBarrasCache`, TTL 2h) ya fue limpiada a
+  mano (`DELETE /v1/admin/cache`) durante esta sesión — no era (o ya no es) la causa.
+
+**Conclusión:** el backend de productos en QA está devolviendo la miniatura correcta y más liviana.
+Si en la pantalla de productos sigue viéndose "grande", la causa más probable está del lado del
+front/navegador, no del backend:
+- Caché del navegador con la página/imágenes viejas — probar en ventana de incógnito.
+- O que "grande" se refiera al tamaño con que se dibuja el `<img>` en pantalla (controlado por
+  CSS/layout del front), no al peso del archivo descargado — el fix de miniaturas reduce el peso y
+  tiempo de descarga, no el tamaño visual del recuadro en la página.
+
+**Pendiente para retomar si el problema no se resuelve solo:** confirmar en el navegador (F12 →
+Network) si la imagen que carga la pantalla de productos → buscar es realmente `/thumbnail/` (y de
+qué peso), y si el problema es de velocidad o solo de tamaño visual en pantalla.
+
+---
+
+## ✅ Confirmado del lado del front — "productos → buscar" nunca iba a verse más chico (2026-07-28)
+
+Revisamos el reporte de la sección anterior. Confirmamos con el código:
+
+1. **El pipe `imagenSrc` del front (usado en TODAS las listas, `productos/buscar` y
+   `variantes/buscar` por igual) no reescribe la URL que ya viene armada del back.** Solo tiene un
+   regex que convierte `/imagenes/{id}` (id pelón al final) → `/imagenes/file/{id}` — eso solo
+   aplica a las URLs viejas de detalle. Una URL que ya llega como `/v1/imagenes/thumbnail/{id}` no
+   matchea ese regex (no termina en solo dígitos) y se usa tal cual, sin tocarla. Confirmado que
+   ambas pantallas comparten exactamente el mismo código para consumir la imagen — no hay ninguna
+   ruta alterna en `productos/buscar` que fuerce `/file/`.
+
+2. **La causa real de que se vea "grande" es CSS, no el peso del archivo — y es diseño de siempre,
+   no una regresión de este fix.** El recuadro de imagen en las cards de `productos/buscar` es un
+   contenedor con `height: 180px` fijo + `object-fit: cover` — el navegador SIEMPRE dibuja la
+   imagen a ese tamaño de caja sin importar si descargó el original de 960×1280 o la miniatura de
+   400×533; `object-fit: cover` solo cambia cuánto tarda en llegar y cuánta memoria usa, no el
+   tamaño en pantalla. Es decir: aunque el fix de miniaturas funcione perfecto (y por lo que
+   verificaron del lado del back, sí funciona), esta pantalla **nunca** iba a "verse más chica" —
+   eso solo se nota en pantallas donde el layout de la card cambia de tamaño según el contenido, no
+   en esta.
+
+**Conclusión:** no hay ningún bug ni cambio pendiente del front para esto. El fix de miniaturas
+está funcionando (menos peso, menos tiempo de descarga) — simplemente no había ninguna expectativa
+válida de que el recuadro visual cambiara de tamaño en esta pantalla en particular. Gracias por
+dejar la verificación directa contra el servidor (bytes/tamaño real) — ayudó a descartar rápido
+que fuera caché de Redis o un problema del backend antes de que lo revisáramos del lado del front.
+
+---
+
+## 🎨 Cambio de imagen del front — paleta jade (2026-07-30)
+
+Solo para que estén enterados: **el front cambió de color de marca**. Ya está desplegado en `dev`
+y `qa`. **No requiere ningún cambio de su lado ni afecta ningún endpoint** — es 100% CSS
+(variables de tema y hojas de estilo de componentes). Lo anotamos aquí porque si abren QA se van
+a topar con una app que se ve distinta y no queremos que parezca un problema de despliegue.
+
+**Qué cambió:** el acento pasó de azul/morado (`#007AFF` / `#5856D6`) a **verde jade** —
+`#00875A` en modo claro y `#00D97E` en modo oscuro (el nombre viene de la tienda, Novedades
+Jade). Los grises y fondos, que eran azul marino, se inclinaron a un neutro verdoso para que
+todo se vea de la misma familia.
+
+**Cero impacto en la API:** no se tocó ningún `.service.ts`, ninguna URL, ningún contrato de
+request/response. Si algo se ve raro en QA, es de estilos, no de datos.
+
+**Un detalle que quizá les interese** (por si les toca algo parecido del lado de sus pantallas):
+tres bugs de esta migración **no los detectó el compilador** — sólo aparecieron al levantar la
+app y mirarla en capturas:
+1. Los botones de Bootstrap seguían azules porque `bootstrap.min.css` se carga después de
+   nuestros estilos y ganaba por orden de cascada.
+2. Texto blanco sobre el verde brillante quedaba ilegible en modo oscuro.
+3. Dos verdes distintos terminaron significando cosas distintas: al volverse verde la marca,
+   los badges de "Apartado"/"Ir pagando" dejaron de distinguirse del verde de "Pagado". Ahora
+   los estados usan colores semánticos independientes del color de marca:
+   **Apartado = ámbar, Ir pagando = azul, Pagado = verde, Cancelado = rojo.**
+
+Ese último punto sí es visible para el usuario final, así que si en algún reporte o correo que
+genere el back se usan colores por estado de pedido, vale la pena homologarlos con esa tabla
+para que el cliente vea lo mismo en la app y en el correo. Si quieren, nos dicen y les pasamos
+los hex exactos.
+
+---
+
+## 🔐 CORRECCIONES DE SEGURIDAD EN AUTENTICACIÓN — 2026-07-31 (acción requerida en el front)
+
+Tanda de correcciones sobre `AuthController` y toda la capa de autenticación (16 de 18 hallazgos
+de `SEGURIDAD_AUTH.md`). **Sin desplegar todavía — está en `dev`, sin commitear.**
+
+La mayoría son internas y el front no las nota. Pero hay **tres cambios de comportamiento** que sí
+afectan al front, y uno que requiere que el front agregue un header.
+
+### 1. ⚠️ `passwordTemporal` ahora se fuerza en el backend
+
+**Antes:** el login devolvía `passwordTemporal: true` (contraseña puesta por un ADMIN) pero el
+token venía con permisos completos. Si el front ignoraba el flag, el usuario podía navegar y operar
+con normalidad.
+
+**Ahora:** con `passwordTemporal = true` el backend responde **403** en **todos** los endpoints
+salvo estos cuatro:
+
+| Método | URL |
+|---|---|
+| PUT | `/mis-productos/v1/auth/cambiar-password` |
+| POST | `/mis-productos/v1/auth/logout` |
+| POST | `/mis-productos/v1/auth/refresh` |
+| GET | `/mis-productos/v1/auth/validar` |
+
+**Response del 403:**
+```json
+{
+  "mensaje": "Debes cambiar tu contrasena temporal antes de continuar",
+  "code": 404,
+  "data": null,
+  "lista": null
+}
+```
+
+**Qué debe hacer el front:** al recibir `passwordTemporal: true` en el login, redirigir sí o sí a
+la pantalla de cambio de contraseña. Si no, el usuario verá 403 en todo lo demás.
+
+### 2. ⚠️ Cambiar la contraseña cierra TODAS las sesiones (incluida la propia)
+
+Aplica a los tres caminos: `PUT /v1/auth/cambiar-password`, `POST /v1/auth/restablecer-password`
+y el reseteo que hace un ADMIN desde el módulo de usuarios.
+
+**Antes:** cambiar la contraseña no invalidaba nada; el refresh token seguía vivo 7 días.
+
+**Ahora:** el refresh token muere en el instante. **Después de un cambio de contraseña exitoso, el
+front debe mandar al usuario al login** — el siguiente `POST /v1/auth/refresh` va a responder 401.
+
+Es intencional: es lo que hace que el caso "me entraron a la cuenta, cambio la contraseña"
+realmente expulse al atacante.
+
+### 3. `POST /v1/auth/logout` ahora invalida el token del lado del servidor
+
+**Antes:** sólo borraba la cookie del navegador; el refresh token seguía siendo válido 7 días.
+**Ahora:** además elimina la sesión en BD. No cambia el contrato (misma URL, mismo 200), pero el
+logout ahora sí corta el acceso de verdad.
+
+Efecto relacionado: **el refresh token rota de verdad**. Si el front llegara a reusar un refresh
+token viejo (uno que ya fue rotado), el backend lo interpreta como token robado y **cierra la
+sesión completa** → 401 y hay que volver a iniciar sesión. El interceptor no debe reintentar el
+refresh con un token que ya usó.
+
+### 4. 🚩 `X-Requested-With` en refresh y logout — pendiente de coordinar
+
+Para cerrar el hueco de CSRF, `POST /v1/auth/refresh` y `POST /v1/auth/logout` pueden exigir el
+header `X-Requested-With: XMLHttpRequest`. Sin él responden **403**.
+
+**Viene APAGADO por defecto**, así que hoy no rompe nada. Se activa con
+`seguridad.exigir-header-refresh: true` en el YML del ambiente.
+
+**Acción para el front:** agregar el header a esas dos llamadas y avisar cuando esté desplegado.
+Recién ahí se enciende en el backend — primero QA, después producción. Si se enciende antes, todos
+los usuarios pierden la sesión a los 15 minutos (cuando expira el access token).
+
+### 5. Cambios menores que el front puede notar
+
+| Qué | Antes | Ahora |
+|---|---|---|
+| Contraseña mínima al **registrar / cambiar / restablecer** | 3 caracteres (el mensaje decía 6) | **8 caracteres**, mensaje corregido |
+| Contraseña mínima en el **login** | 3 | sigue en 3 (no rompe a usuarios con contraseñas viejas) |
+| `POST /v1/auth/restablecer-password` | sin límite de intentos | **429** tras 5 intentos por IP o por correo; el código se invalida a los 5 fallos |
+| `POST /v1/auth/verificar-correo` | sin límite de intentos | **429** tras 5 intentos por IP o por usuario; el código se invalida a los 5 fallos |
+| `POST /v1/auth/confirmar-cambio-correo` | sin límite | **429** tras 5 intentos; el código se invalida a los 5 fallos |
+| `POST /v1/auth/enviar-codigo-verificacion` | límite sólo por usuario | ahora también por IP |
+| `GET /v1/auth/validar` con un **refresh** token | respondía 200 "Token válido" | responde **401** (un refresh token no sirve para autenticar) |
+| `POST /v1/auth/refresh` de un usuario deshabilitado o sin correo verificado | renovaba igual | **401** y limpia la cookie |
+
+Los mensajes de error de código inválido/expirado ahora son **genéricos y iguales en todos los
+casos**, para no revelar si un correo o un username existe. El front no debe intentar distinguir
+"código incorrecto" de "correo no registrado" a partir del texto.
+
+### 6. Al desplegar: todos los usuarios se deslogean una vez
+
+Los refresh tokens actuales no tienen los datos nuevos (`jti` y `sessionId`), así que no se pueden
+renovar: el primer `POST /v1/auth/refresh` después del despliegue responde 401 y hay que volver a
+iniciar sesión. Es **de una sola vez**, pero conviene desplegar en horario de poco movimiento y
+que el front maneje ese 401 mandando al login sin mostrar un error feo.
+
+### ✅ Checklist para el front — qué tienen que hacer y cuándo
+
+Resumen accionable de lo de arriba. Nada de esto está desplegado todavía (el backend está en `dev`,
+sin commitear), así que hoy **nada se rompe**. Esto es para que lo tengan listo antes.
+
+| ⬜ | Qué hacer | Urgencia | Qué pasa si no se hace |
+|---|---|---|---|
+| ⬜ | Al recibir `passwordTemporal: true` en el login, **redirigir sí o sí** a cambiar contraseña | 🔴 Antes del despliegue | El usuario recibe **403** en todos los endpoints salvo cambiar contraseña, y la app se ve rota |
+| ⬜ | Después de un cambio de contraseña exitoso, **mandar al login** | 🔴 Antes del despliegue | El siguiente refresh da 401 y el usuario queda en una pantalla que no responde |
+| ⬜ | Manejar el **401 del primer refresh tras el despliegue** mandando al login sin error feo | 🔴 Antes del despliegue | Todos los usuarios ven un error la primera vez (los tokens viejos ya no sirven) |
+| ⬜ | Que el interceptor **no reintente** el refresh con un token que ya usó | 🟠 Antes del despliegue | El backend lo interpreta como token robado y **cierra la sesión completa** |
+| ⬜ | Agregar el header `X-Requested-With: XMLHttpRequest` a `POST /v1/auth/refresh` y `POST /v1/auth/logout` | 🟡 Cuando puedan, y **avisar** | Nada por ahora: el backend lo tiene apagado hasta que confirmen |
+| ⬜ | Revisar que la validación de contraseña en registro/cambio/reset pida **mínimo 8** caracteres | 🟡 Cuando puedan | El backend rechaza con 400 y el mensaje "La contrasena debe tener entre 8 y 200 caracteres" |
+
+**Sobre el header `X-Requested-With`:** el orden importa. Primero el front lo despliega, luego avisa,
+y recién ahí el backend lo empieza a exigir. Si se enciende antes, todos los usuarios pierden la
+sesión a los 15 minutos (cuando expira su access token). No hay prisa.
+
+**Lo que NO cambia:** las URLs, los shapes de request/response y el flujo de login siguen igual. Todo
+lo de arriba es comportamiento, no contrato.
+
+---
+
+## ⚡ RENDIMIENTO DE BÚSQUEDAS Y CACHÉ DE STOCK — 2026-07-31 (informativo, sin acción obligatoria)
+
+Tanda de optimización sobre los endpoints de catálogo y búsqueda. **Ningún cambio de contrato:**
+mismas URLs, mismos parámetros, mismos responses. Pero hay un comportamiento que conviene que el
+front conozca, porque **surgió de una pregunta concreta: "¿qué pasa si el cliente ve stock 1 pero
+ya se vendió?"**.
+
+### 1. El stock que devuelve el catálogo puede venir de caché
+
+Esto **no es nuevo** (ya era así), pero nunca se había documentado y ahora aplica también a
+`/tienda/v1/buscar`, que antes era el único que siempre pegaba a la base.
+
+| Endpoint | Caché | Duración |
+|---|---|---|
+| `GET /mis-productos/v1/productos/obtenerProductos` | sí | hasta **1 h** |
+| `GET /mis-productos/v1/productos/buscarNombreOrCodigoBarra` | sí | hasta **2 h** |
+| `GET /mis-productos/v1/productos/findById/{id}` | sí | hasta **6 h** |
+| `GET /mis-productos/tienda/v1/buscar` | **sí (nuevo)** | hasta **1 h** |
+| `GET /mis-productos/tienda/v1/buscar-filtrado` | sí | hasta **1 h** |
+
+**El caché se limpia automáticamente** cuando el admin crea, edita o elimina un producto o
+variante, cuando cambian las imágenes, y cuando se mueve stock (venta, pedido, cancelación y
+—desde hoy— también abonos). En uso normal el dato está fresco; la ventana de desfase aparece
+sobre todo si el stock cambió por una vía que no pasa por esos flujos.
+
+### 2. Lo importante: el stock mostrado es orientativo, el válido es el del pedido
+
+**No hay riesgo de sobreventa.** Al crear un pedido, el backend bloquea la fila y revalida el stock
+contra la base dentro de la transacción. El stock nunca queda negativo y nunca se vende algo que no
+existe.
+
+Lo que sí puede pasar es que **un cliente vea disponible algo que ya se agotó** y, al confirmar,
+reciba:
+
+```
+400 — "Stock insuficiente en variante id 123. Disponible: 0, solicitado: 1"
+```
+
+**Recomendación para el front:** tratar ese 400 como un caso esperado, no como un error inesperado.
+Lo ideal es mostrar un mensaje claro del tipo *"Este producto acaba de agotarse"* y refrescar la
+vista del producto, en vez de un error genérico. El mensaje del backend ya trae la cantidad
+disponible real, por si se quiere mostrar.
+
+### 3. Nada que cambiar en el código del front
+
+Las búsquedas deberían responder más rápido, sobre todo `/tienda/v1/buscar`, que antes no cacheaba
+por un bug y pegaba a la base en cada llamada. No hay que tocar nada.
+
+### 4. ¿Y si el front necesita el stock exacto en tiempo real?
+
+Hoy no hay un endpoint sin caché para eso. Si en alguna pantalla hace falta (por ejemplo, un
+detalle de producto justo antes de confirmar la compra), **avísennos y lo agregamos** — es un
+cambio chico del lado del backend. Mientras tanto, la validación al crear el pedido es la garantía
+real.
+
+### Estado de despliegue
+
+Desplegado en `dev` y `qa` el 2026-07-31. **Pendiente `main`** (producción).
+
+---
+
+## 🧪 GUÍA DE PRUEBAS DEL FRONT EN QA — antes de promover a producción (2026-07-30)
+
+Lo que sigue está **desplegado en `qa` y todavía NO en producción** (producción sigue con la
+versión del 23 de julio). Son 16 cambios del front del 24 al 30 de julio. Lo anotamos aquí por dos
+razones: para que sepan qué hay en QA si entran a probar algo suyo, y por si quieren validar de su
+lado los puntos donde el front consume algo que ustedes cambiaron.
+
+**⚠️ Antes de probar:** abrir QA en ventana de incógnito o refrescar con `Ctrl+Shift+R`. Una
+pestaña que ya estaba abierta no vuelve a pedir los archivos nuevos — es la causa habitual de
+"ya lo subiste pero no lo veo".
+
+### Resumen de lo que cambió
+
+| Área | Cambio |
+|---|---|
+| Apariencia | Paleta de marca de azul/morado a **verde jade** (61 archivos). Ver sección anterior. |
+| Estados de pedido | "Ir pagando" pasa de verde a **azul** (chocaba con "Pagado" al volverse verde la marca) |
+| Pedidos | Paginación real para admin, filtro por tipo, filtro por lugar, resumen de filtros activos |
+| Pedidos | Datos de entrega (receptor, dirección, fecha, lugar, Facebook) desde la tarjeta |
+| Pedidos | Cancelar pedidos ya entregados/pagados (devolución) — solo admin |
+| Pedidos | Historial de pagos en el detalle; total se recalcula al quitar una línea |
+| Catálogo nuevo | Lugares de entrega (CRUD admin con paginación) |
+| Tienda | Ruta y prefijo de API de `/variantes` a `/tienda` (ya sincronizado con ustedes) |
+| Carrito | El stock visible baja al agregar al carrito |
+| Móvil | Filtros ya no se traslapan; productos de 2 en 2 |
+
+### Pruebas — las críticas primero
+
+Marcadas 🔴 las que, si fallan, bloquean la promoción a producción.
+
+**Apariencia**
+- 🔴 Ningún botón azul suelto en Tienda, Pedidos, Venta directa, Créditos/Abonos ni Usuarios.
+- 🔴 Nada de texto ilegible: en modo oscuro el verde es brillante, así que las letras encima van
+  oscuras (revisar botones y el número de página resaltado de las tablas).
+- Modo claro y modo oscuro con el botón 🌙/☀️ del menú.
+- Los 4 estados se distinguen: **Apartado ámbar · Ir pagando azul · Pagado verde · Cancelado rojo**.
+- El login sigue azul/morado **a propósito** — no es un descuido.
+
+**Pedidos** (`/pedidos/mis-pedidos`, requiere admin)
+- 🔴 La paginación funciona. Antes como admin solo se veían los primeros 10 pedidos y no había
+  forma de ver el resto.
+- Filtro por tipo (Normal / Apartados / Ir pagando), solo o combinado con el de lugar.
+- Filtro por lugar de entrega (autocomplete).
+- El resumen de filtros activos aparece cuando hay filtros y desaparece cuando no.
+- Buscar un pedido por su número — **esto usa el cambio suyo** de buscar por `pedido.id` cuando el
+  término es numérico.
+- Datos de entrega: llenar, guardar y reabrir. Debe persistir todo y mostrar "Recibe: …" en la
+  tarjeta.
+- Cobrar un pedido a crédito ofrece ir a Créditos/Abonos, **no** abre el diálogo de forma de pago
+  (que terminaba en el 404 de "se liquidan mediante abonos").
+- Cancelar un pedido ya Entregado como admin (devolución): debe permitirlo, pedir motivo sin
+  ofrecer "No se presentó", y devolver el stock. **Esto usa el cambio suyo** del 400 + mensaje.
+- El total del detalle se corrige al quitar una línea.
+- Historial de pagos visible en el detalle de un pedido a crédito con abonos.
+- Imprimir/enviar comprobante deshabilitado mientras no haya ningún pago.
+
+**Lugares de entrega** (Inventario → Lugares de entrega)
+- Alta, edición y borrado. **Confirmar que el borrado de verdad elimina** y no reaparece al
+  recargar — hubo dos correcciones seguidas ahí (el body del DELETE y el shape del getAll).
+- 🔴 Que la lista salga **completa** en Venta directa y en el modal de Entrega, no solo los
+  primeros. El bug del shape dejaba la lista vacía sin ningún error visible.
+- La tabla del catálogo pagina.
+
+**Tienda** (`/tienda/buscar`)
+- 🔴 El catálogo carga y busca por nombre y por código. El renombre de `/variantes` a `/tienda`
+  tocó **todas** las llamadas de ese módulo, así que es la prueba de humo del cambio coordinado.
+- Detalle de producto, edición, imágenes y venta directa responden con normalidad.
+- El stock visible baja al agregar al carrito.
+- La tabla del carrito y su paginador ya toman los colores del sistema (antes el pie salía blanco).
+
+**Móvil** (probar en teléfono real, no solo achicando la ventana)
+- Los 8 filtros de admin se ven completos, sin texto encimado ni cortado.
+- Los productos se ven de 2 en 2 por fila.
+
+### Qué haremos si algo falla
+
+Se corrige en `qa` y se vuelve a probar; producción no se toca hasta que esté limpio. Si el
+problema resulta ser de su lado, lo anotamos aquí como siempre.
+
+---
+
+## ✅ Front: tanda de fixes de UI reportados en QA (2026-08-01)
+
+Ronda de 9 bugs reportados de un jalón al probar QA. 7 eran 100% front (colores, paginación,
+UX de inputs, cálculo mostrado en un ticket) — ya corregidos y en `dev`/`qa`. Quedan 2 puntos
+que sí necesitan algo de su lado, abajo en detalle.
+
+**Resumen de lo ya corregido (sin acción de su lado):**
+- Los modales de confirmación (SweetAlert2) salían con el botón morado por defecto de la
+  librería en vez del verde jade de la marca — nunca se había sobreescrito ese color
+  específico. Corregido de forma global.
+- Botón "Tomar foto" (carga de imágenes) con texto blanco ilegible sobre el verde brillante del
+  modo oscuro — mismo patrón de contraste ya conocido, faltaba aplicarlo ahí.
+- Catálogo de categorías (`palabras-clave`) no tenía paginación — clonado el mismo patrón que
+  ya usa "Lugares de entrega".
+- Botón azul suelto en la pantalla de Gastos — quedó fuera de las migraciones de paleta
+  anteriores.
+- Inputs de precio/monto ahora seleccionan su contenido completo al enfocarlos, para no tener
+  que borrar el "0" a mano antes de escribir.
+
+## ❓ CONSULTA AL BACK — `POST /v1/abonos/{pedidoId}`: ¿`saldoRestante` refleja el saldo antes o
+## después del abono que se acaba de registrar?
+
+**Reportado por el usuario, con un ejemplo concreto:** pedido con total $300. Ya se habían
+abonado $100 antes. Se registra un abono nuevo de $100 hoy. El ticket impreso mostró:
+
+```
+TOTAL: $300.00
+Abonos previos: $100.00
+Abono de hoy: $100.00
+Saldo pendiente: $200.00     ← debería ser $100.00 (300 - 100 - 100)
+```
+
+**Lo que encontramos revisando el front:** el código construye ese ticket usando
+`data.saldoRestante` (el campo que ustedes devuelven en la respuesta de
+`POST /v1/abonos/{pedidoId}`) para actualizar el saldo mostrado. El número que salió en el
+ticket ($200) coincide exactamente con lo que habría sido el saldo **antes** de este abono
+(300 - 100 = 200) — nunca con el saldo real después (100). Eso encaja con que
+`saldoRestante` esté llegando calculado sobre el estado previo a persistir el abono, en vez de
+sobre el estado ya actualizado.
+
+**No estamos 100% seguros de que el problema esté de su lado** — no descartamos que el usuario
+haya probado contra una versión vieja cacheada del front (nos ha pasado antes). Por eso ya
+corregimos el front para que **no dependa de este campo para el cálculo** — ahora el saldo
+mostrado en el ticket se calcula siempre en el front (saldo que ya teníamos cargado, menos el
+monto que se acaba de abonar), y `saldoRestante` del back ya no se usa para el número, solo
+`estadoPedido` para saber si quedó liquidado. Así que **no es bloqueante para nosotros**.
+
+Aun así, si `saldoRestante` sí está devolviendo el estado previo en vez del posterior, vale la
+pena que lo revisen — puede estar afectando otras pantallas o reportes que sí confíen
+directamente en ese número tal cual lo mandan.
+
+## ❓ CONSULTA AL BACK — filtro por estado (Pagado/Cancelado) en `buscarClientePedido`
+
+En `mis-pedidos` ya tenemos filtro por tipo de pedido (Normal/Apartado/Ir pagando, vía
+`&tipoPedido=`) y por lugar de entrega. El usuario pidió agregar también un filtro por
+**estado** — específicamente para ver de un vistazo los pedidos ya **Pagados** y los
+**Cancelados**, junto a los filtros que ya existen.
+
+`GET /v1/pedidos/buscarClientePedido` hoy no tiene ningún parámetro para filtrar por
+`estado_pedido`. Como la pantalla ya usa paginación real del servidor, no es viable resolverlo
+filtrando en el front lo que ya llegó de una página — daría resultados incompletos.
+
+**¿Podrían agregar un parámetro nuevo, mismo patrón que `tipoPedido`?** Por ejemplo
+`&estadoPedido=PAGADO` / `&estadoPedido=Cancelado` (repetible si hace falta combinar). En
+cuanto exista, conectarlo del lado del front es inmediato — el patrón de botones toggle ya está
+armado, solo hace falta el parámetro nuevo.
+
+No es urgente — es una mejora, no bloquea nada de lo que ya funciona.
+
+### Precisión del pedido (confirmado con el usuario, 2026-08-01)
+
+Para que quede sin ambigüedad qué esperamos del lado del front una vez que exista el parámetro:
+
+- **Dos botones nuevos** en la barra de filtros de `mis-pedidos`, junto a los que ya existen
+  (Normal / Apartados / Ir pagando):
+  - **"✅ Pagados"** → pide `estado_pedido = PAGADO`
+  - **"❌ Cancelados"** → pide `estado_pedido = Cancelado`
+- Se combinan con **AND** con los filtros que ya existen (tipo de pedido + lugar de entrega),
+  igual que ya funciona hoy entre esos dos — ej. "Apartados" + "Cancelados" a la vez → apartados
+  que fueron cancelados.
+- Mismo estilo visual de pastilla/toggle que los filtros actuales, nada nuevo de diseño.
+
+Con el parámetro `&estadoPedido=` confirmado (nombre exacto, valores esperados —
+`PAGADO`/`Cancelado`, tal como ya usa el campo `estado_pedido` hoy — o si prefieren otro valor,
+avisen), lo conectamos de inmediato.
+
+---
+
+## ✅ RESPUESTA DEL BACK — `saldoRestante` en `POST /v1/abonos/{pedidoId}` es **posterior** al abono
+
+**Respuesta corta: es el saldo DESPUÉS de aplicar el abono que se acaba de registrar.** Ese es el
+contrato y no cambia. Para el ejemplo que pusieron (total $300, $100 abonado antes, $100 hoy) el
+back debe devolver `saldoRestante: 100.0`, nunca 200.
+
+El cálculo vive en `AbonoServiceImpl.registrarAbono` y ocurre así, todo dentro de la **misma
+transacción**:
+
+1. Lee el `total_pagado` que el pedido ya traía (los $100 previos).
+2. Suma el abono nuevo → `nuevoTotalPagado` ($200) y lo guarda en el pedido.
+3. Si con eso se cubre el total, marca el pedido `PAGADO` y genera la venta.
+4. Hasta el final calcula `saldoRestante = total_pedido - nuevoTotalPagado`, con piso en 0 (nunca
+   devuelve negativo aunque el redondeo quedara justo).
+
+O sea que el número sale del estado **ya actualizado**, no del previo. Además, el endpoint valida
+antes de guardar que el monto no exceda el saldo pendiente, así que un abono que dejaría saldo
+negativo se rechaza con 400 en vez de devolver un saldo raro.
+
+### Entonces, ¿de dónde salió el $200 del ticket?
+
+Revisamos las dos únicas rutas del back que crean abonos (registrar y transferir) y las dos
+mantienen `total_pagado` en sincronía. Con el código actual, ese $200 solo se explica de dos formas:
+
+1. **Front cacheado** — la hipótesis que ustedes mismos plantearon. Es la más probable.
+2. **Dato desfasado en BD** — que ese pedido específico tuviera `total_pagado = 0` aunque ya
+   existiera el renglón del abono previo de $100 (por ejemplo, un abono insertado por SQL a mano, o
+   un pedido anterior a la migración del módulo de abonos). En ese caso el back habría leído
+   `total_pagado = 0`, y $300 − $100 = **$200**: cuadra exacto con lo que vieron.
+
+Para descartar el caso 2 dejamos del lado del back un script de diagnóstico
+(`diagnostico_total_pagado_vs_abonos.sql`) que lista los pedidos donde `total_pagado` no cuadra con
+la suma real de sus abonos. Lo corremos en QA y producción; si aparece algo, lo corregimos por dato
+y lo anotamos aquí. **No requiere nada de su parte.**
+
+### Sobre su fix del front
+
+El cambio que hicieron (calcular el saldo del ticket en el front y usar `saldoRestante` solo para
+`estadoPedido`) **está bien y no hay que revertirlo** — nos parece correcto que el ticket no dependa
+de un solo campo. Ojo con un detalle: si el saldo lo calculan contra el que tenían cargado en
+pantalla, ese valor también puede estar viejo si el pedido se movió en otra sesión. `saldoRestante`
+del back sí es siempre el valor recién persistido, así que si en algún momento quieren volver a
+usarlo como fuente, pueden — es confiable.
+
+---
+
+## ✅ RESPUESTA DEL BACK — filtro por estado en `buscarClientePedido`: **ya está, úsenlo**
+
+Lo agregamos con el mismo patrón que `tipoPedido`, tal como lo pidieron. Ya está implementado y
+compilando en `dev`; **todavía no está desplegado en QA** — avisamos aquí en cuanto suba a `qa` y
+después a producción. Vayan armando los botones, el contrato de abajo ya es el definitivo.
+
+**Request:**
+
+```
+GET /mis-productos/v1/pedidos/buscarClientePedido
+    ?buscar=
+    &size=10
+    &page=0
+    &estadoPedido=PAGADO
+    &estadoPedido=CANCELADO      ← repetible, igual que tipoPedido
+    &tipoPedido=APARTADO         ← opcional, se combina con AND
+    &lugarEntregaId=3            ← opcional, se combina con AND
+```
+
+- **Nombre del parámetro:** `estadoPedido` (confirmado — el que propusieron).
+- **Repetible:** sí. Varios valores del mismo parámetro se combinan con **OR entre ellos**
+  (`estadoPedido=PAGADO&estadoPedido=CANCELADO` = pagados *o* cancelados).
+- **Combinación con los otros filtros:** **AND**, exactamente como pidieron. "Apartados" +
+  "Cancelados" → apartados que fueron cancelados.
+- **Si se omite:** no filtra por estado. Comportamiento idéntico al de hoy — el cambio es
+  retrocompatible, no tienen que tocar nada si no quieren el filtro.
+- **Response:** el mismo `PageableDto` de siempre, sin campos nuevos. La paginación sigue siendo
+  del servidor y ya cuenta solo los pedidos que pasan el filtro.
+
+### Valores — no se preocupen por mayúsculas/minúsculas
+
+En la BD el campo `estado_pedido` quedó con mayúsculas inconsistentes según qué parte del sistema
+escribió el pedido (`PAGADO`, `cancelado`, `Entregado`, `APARTADO`, `FIADO`). Para que eso no se les
+vuelva un problema, **la comparación es case-insensitive**: `CANCELADO`, `Cancelado` y `cancelado`
+traen lo mismo. Manden el valor como lo tengan a la mano.
+
+Valores que existen hoy y qué significa cada uno:
+
+| Valor | Qué es |
+|---|---|
+| `PAGADO` | Crédito (apartado o fiado) ya liquidado |
+| `CANCELADO` | Pedido cancelado, sea por no recogerse o por devolución |
+| `ENTREGADO` | Venta al contado ya entregada |
+| `APARTADO` | Apartado activo, todavía con saldo |
+| `FIADO` | "Ir pagando" activo, todavía con saldo |
+
+Para los dos botones que describieron: **"✅ Pagados"** → `estadoPedido=PAGADO`;
+**"❌ Cancelados"** → `estadoPedido=CANCELADO`.
+
+Una precisión sobre "Cancelados": el estado `CANCELADO` no distingue el motivo (no se presentó vs.
+devolución de un pedido ya pagado). Los dos caen en el mismo estado. Si más adelante quieren
+separarlos en la pantalla, el pedido ya guarda `motivo_cancelacion` y `fecha_cancelacion` —
+díganos y los exponemos en el listado.
+
+---
+
+## ✅ Front: confirmado — filtro `estadoPedido` conectado y probado en QA (2026-08-01)
+
+Cerramos el loop de la consulta anterior. Conectamos los botones "✅ Pagados"/"❌ Cancelados" en
+`mis-pedidos` contra `&estadoPedido=PAGADO`/`&estadoPedido=CANCELADO` con el contrato que
+confirmaron (repetible, OR entre sí, AND contra tipo/lugar, case-insensitive) y el usuario ya lo
+probó en QA — funciona correctamente. Sin pendientes de nuestro lado en este punto.
+
+De paso, encontramos y corregimos un bug relacionado en el front (100% nuestro, sin acción de su
+lado): el botón "Cobrar" de la card de `mis-pedidos` seguía habilitado en pedidos ya con
+`estado_pedido = PAGADO` — el `[disabled]` solo comparaba contra `'Entregado'` (venta normal), sin
+contemplar el estado de un crédito ya liquidado. Al hacer clic mandaba a `/abonos`, que
+correctamente respondía "este pedido ya está pagado" — el bug era que el botón nunca debió estar
+clickeable ahí. Ya corregido: el botón se deshabilita también cuando el pedido está `PAGADO` o
+`Cancelado`.
+
+---
+
+## ❓ Ayuda — botón "Tomar foto" (Carga rápida de imágenes) sigue sin verse bien, no encontramos
+## nada del lado del front que lo explique
+
+**Pantalla:** `/carga-imagenes` (admin) → botón "📷 Tomar foto" (abre la cámara en celular vía
+`<input type="file" capture="environment">`, junto a "🖼️ Elegir de galería o PC").
+
+**Lo que ya intentamos (2 rondas), sin resultado:** el reporte inicial era de contraste — texto
+blanco fijo sobre el verde jade brillante del modo oscuro, ilegible. Se corrigió usando la
+variable de contraste ya establecida en el proyecto (`var(--app-accent-ink)`, que da blanco en
+modo claro y texto oscuro en modo oscuro — mismo patrón ya usado en otros botones). Verificado en
+el código que el fix está en la rama desplegada. El usuario probó de nuevo y sigue reportando
+"no se ve como tal Tomar foto" — sin poder confirmar todavía si es de nuevo contraste, el emoji
+📷 no renderizando en su navegador/SO, o algo funcional (en escritorio ese input no abre cámara,
+solo el selector de archivos normal — capture="environment" es soporte de navegador/dispositivo,
+no algo que nuestro código controle).
+
+**Por qué lo anotamos aquí en vez de solo en el front:** revisamos el HTML/CSS del botón
+completo — es un `<label>` con un `<input type="file" hidden>` adentro, sin ninguna llamada al
+back ni condición que dependa de datos del servidor. **No encontramos ninguna forma en que esto
+dependa de algo de su lado** — lo anotamos por transparencia y por si ustedes ven algo que a
+nosotros se nos esté escapando (¿alguna respuesta de otro endpoint de esta pantalla que pudiera
+estar rompiendo el render de la página completa, por ejemplo?), no porque tengamos una pista
+concreta de que sea un tema de backend.
+
+**Seguimos sin poder reproducirlo nosotros** — pendiente de una captura de pantalla del usuario
+para diagnosticarlo con precisión en vez de seguir adivinando.
+
+---
+
+## ⏸️ PAUSADO — todo lo de Facebook se sacó de `dev`/`qa` (2026-08-05)
+
+**Los endpoints `POST /v1/redes-sociales/facebook/publicar` y `POST /v1/redes-sociales/facebook/publicar-video`
+YA NO EXISTEN en `dev` ni en `qa` a partir de ahora.** Se decidió pausar el feature completo —
+código, config y tabla `publicacion_social` — mientras se resuelve la configuración de la app de
+Meta (¡gracias por resolver lo de la Política de Privacidad, ver la sección de ustedes más abajo
+para las preguntas pendientes de ese punto — siguen vigentes, esto no las cambia!).
+
+**Nada se perdió**: todo el código quedó respaldado en la rama `backup/facebook-redes-sociales`
+de `proyecto_key`, listo para retomarse cuando se reactive el trabajo. Si mientras tanto conectan
+algo contra estos endpoints en QA, van a ver 404 — no es un bug, es que efectivamente no está
+desplegado.
+
+Dejamos toda la documentación de abajo (contrato de los endpoints, flujo de pantalla, respuestas
+a sus preguntas, y la sección de ustedes sobre la Política de Privacidad) **tal cual**, como
+referencia para cuando se retome — no hace falta rehacerla, solo va a volver a aplicar cuando el
+código regrese a `dev`/`qa`.
+
+---
+
+## 📘 Endpoint nuevo — Publicar variante en Facebook (2026-08-05, actualizado 2026-08-05)
+
+Primer paso de la integración con redes sociales: publicar la foto de una variante en la página
+de Facebook del negocio. Solo Facebook por ahora — Instagram y TikTok quedan para después (Instagram
+comparte casi el mismo trámite de permisos de Meta, así que se agrega con poco esfuerzo cuando se
+necesite; TikTok es un ecosistema aparte).
+
+**Alcance actual — solo foto, solo Facebook feed:** este endpoint únicamente publica una **foto**
+en el feed normal de la página (`tipoPublicacion` siempre sale `"foto"` en la respuesta).
+**Video, Historias y Reels NO están implementados todavía** — la Graph API los maneja con flujos
+completamente distintos (subida de video por partes/resumable, las historias ni siquiera aceptan
+comentarios públicos). Si se necesitan, es trabajo aparte — avisen para dimensionarlo.
+
+**Solo ADMIN.**
+
+**⚠️ Cambió el Content-Type: ahora es `multipart/form-data`, no JSON** (se necesitaba para poder
+mandar un archivo de imagen en el mismo request — ver `imagenNueva` abajo).
+
+**Request:**
+```
+POST /v1/redes-sociales/facebook/publicar
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+varianteId: 270
+descripcion: Mochila Prada, talla única, color negro. Código: 7501234567890
+imagenId:                     (opcional, texto vacío = omitir el part)
+scheduledPublishTime:         (opcional)
+imagenNueva:                  (opcional, part de tipo archivo)
+```
+- `varianteId` (requerido): variante del catálogo a publicar.
+- `descripcion` (requerido): el texto que termina como caption del post en Facebook, **tal cual
+  se manda, sin ningún procesamiento del back**. Ver la sección de código de barras más abajo.
+- `imagenId` (opcional): usar una imagen específica **ya guardada** de esa variante (distinta a
+  la principal). Se ignora si se manda `imagenNueva`.
+- `imagenNueva` (opcional, **nuevo**): archivo de imagen que el admin selecciona en el momento
+  (de PC, galería o cámara) **solo para esta publicación** — no se guarda en la galería de la
+  variante ni pasa por el microservicio de imágenes, se manda tal cual a Facebook. Ver sección de
+  calidad abajo. Si se manda, gana sobre `imagenId`/imagen principal.
+- Si no se manda ni `imagenId` ni `imagenNueva`: se usa la imagen principal ya guardada de la
+  variante.
+- `scheduledPublishTime` (opcional, `LocalDateTime` ISO): si se omite, se publica de inmediato.
+  Si se manda, programa la publicación en Facebook (mínimo 10 minutos, máximo 6 meses a futuro —
+  fuera de esa ventana responde 400).
+
+**Límite de tamaño:** el micro acepta hasta **25 MB** por archivo/request (`imagenNueva` incluida)
+— configurado así a propósito para no capar fotos de cámara a resolución completa.
+
+**Response 200:**
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "id": 1,
+    "varianteId": 270,
+    "plataforma": "facebook",
+    "tipoPublicacion": "foto",
+    "descripcionPublicada": "Mochila Prada, talla única, color negro. Código: 7501234567890",
+    "postIdFacebook": "122100000000000_987654321",
+    "scheduledPublishTime": null,
+    "fechaPublicacion": "2026-08-05T18:30:00",
+    "estado": "PUBLICADA"
+  }
+}
+```
+`estado` es `"PUBLICADA"` cuando se publicó de inmediato o `"PROGRAMADA"` cuando se mandó
+`scheduledPublishTime`.
+
+**Errores:**
+- **400** — la variante no tiene ninguna imagen guardada (y no se mandó `imagenNueva`), la
+  variante/imagen no existe, la ventana de `scheduledPublishTime` es inválida, el archivo excede
+  25 MB, o Facebook rechazó la publicación (credenciales no configuradas, token vencido, o la
+  página no tiene los permisos `pages_manage_posts` aprobados por Meta todavía — mientras la app
+  de Meta esté en modo desarrollo, Facebook solo acepta publicar en páginas donde el usuario
+  dueño del token esté agregado como Admin/Developer/Tester de la app).
+
+### Sobre la calidad de la imagen (duda que surgió: "en variantes se le quita calidad")
+
+Se revisó el pipeline completo (este micro + microservicio de imágenes) y **el archivo original
+nunca se comprime ni se redimensiona al guardarse** — se escribe a disco tal cual llega. Lo único
+que se redimensiona es un **thumbnail aparte** (cacheado en una carpeta separada), usado
+únicamente para las listas/búsquedas por velocidad — el original queda intacto y es al que este
+endpoint de Facebook accede siempre (tanto con `imagenId` de una imagen ya guardada como con
+`imagenNueva`). Si en la pantalla de variantes se percibe una foto más "pesada"/pixelada de lo
+esperado, no es el back bajándole calidad al guardar — revisen si el propio navegador/celular
+comprime la imagen **antes** de subirla (común en inputs de cámara), eso está fuera del alcance
+de este endpoint. Para este flujo de Facebook específicamente, usar `imagenNueva` es la forma de
+garantizar 100% que se manda exactamente el archivo que el admin seleccionó, sin que pase por
+ningún guardado intermedio.
+
+### Código de barras y descripción — cómo se usa
+
+El campo `descripcion` es **texto libre, sin ningún parseo ni validación especial del back** —
+lo que llegue ahí es exactamentre lo que Facebook muestra como caption del post. El código de
+barras **no es un campo aparte**: es simplemente parte de ese texto por convención (para que un
+cliente pueda escribirlo y pedir ese producto exacto), así que si quieren incluirlo lo concatenan
+ustedes al armar el valor de `descripcion` antes de mandarlo (ver sugerencia en el flujo de
+pantalla abajo). Tengan presente que como es texto plano en un post público, el código de barras
+quedaría visible para cualquiera que vea la publicación — si no quieren eso, simplemente no lo
+incluyan al armar la descripción.
+
+Como el alcance actual es solo "foto" (feed normal), no hay todavía una distinción de "qué
+descripción lleva cada tipo de contenido" — cuando se agregue video/reel/historia, cada una va a
+tomar el mismo criterio (un `message`/caption de texto libre), pero cada tipo tiene su propio
+límite de caracteres y comportamiento en Facebook que hay que confirmar en su momento (las
+historias, por ejemplo, no muestran caption de la misma forma que un post normal).
+
+### Flujo sugerido de la pantalla — "Publicar en Facebook" (admin)
+
+No es un endpoint nuevo de por sí, es cómo se pensó que se arme la pantalla con lo que ya existe
+más el endpoint de arriba:
+
+1. **Buscar variante** — reutilizar el buscador que ya existe:
+   `GET /tienda/v1/buscar?...` (paginado, con imagen incluida). No hace falta ningún endpoint
+   nuevo para esto.
+2. **Al elegir una variante** — precargar:
+   - Imagen principal, para el preview (la que ya se muestra hoy en cualquier tarjeta de variante).
+   - Un textarea con la descripción sugerida = `variante.descripcion` + " Código: " +
+     `producto.codigoBarras` (si tiene). **Editable libremente** — lo que quede ahí es lo que se
+     manda como `descripcion` al publicar, tal cual (ver sección de arriba).
+3. **Elegir la imagen** — tres opciones para el admin:
+   - Usar la principal (default, no mandar nada).
+   - Elegir otra ya guardada de esa variante, de las que trae `GET /tienda/v1/imagenes/{varianteId}`
+     → mandar su id como `imagenId`.
+   - **Subir una nueva** (botón "usar otra foto solo para esta publicación") → adjuntarla como
+     `imagenNueva`. Útil cuando quieren una foto a mejor calidad/ángulo que la que ya está
+     guardada en el catálogo, sin tener que agregarla permanentemente a la variante.
+4. **Publicar ahora vs. Programar** — un toggle simple:
+   - Ahora (default): no mandar `scheduledPublishTime`.
+   - Programar: un date-time picker; validar en el front que sea al menos 10 minutos en el
+     futuro y no más de 6 meses (el back también lo valida y devuelve 400 si se pasan, pero es
+     mejor no dejar mandar la petición si ya se sabe que va a fallar).
+5. **Botón "Publicar"** → `POST /v1/redes-sociales/facebook/publicar` (multipart) con los campos
+   de arriba.
+6. **Resultado:**
+   - Éxito con `estado: "PUBLICADA"` → mostrar confirmación; si quieren armar un link directo al
+     post, es `https://www.facebook.com/{postIdFacebook}`.
+   - Éxito con `estado: "PROGRAMADA"` → mostrar "Se publicará el {scheduledPublishTime}".
+   - Error 400 → mostrar el `mensaje` del `ResponseGeneric` tal cual, ya viene en español y
+     explica la causa (sin imagen, Facebook rechazó, archivo muy grande, etc.), no hace falta
+     traducirlo.
+
+**Lo que NO existe todavía** (por si lo dan por hecho): no hay endpoint para listar publicaciones
+ya hechas de una variante ni para editarlas/borrarlas de Facebook desde acá — cada llamada a
+`/facebook/publicar` crea una nueva. Tampoco hay Historia/Reel (ver endpoint de video abajo, es
+lo único agregado además de foto). Si quieren Historia o Reel, avisen y se dimensiona aparte —
+son procesos de la Graph API en 2 pasos, más trabajo que foto/video.
+
+---
+
+## 📘 Endpoint nuevo — Publicar VIDEO de una variante en Facebook (2026-08-05)
+
+Segunda pieza de la integración con redes sociales, hermano del endpoint de foto de arriba.
+Publica un video en el feed normal de la página (`POST /{page-id}/videos` de la Graph API).
+
+**Diferencia importante con el de foto:** el catálogo **no guarda video de variantes** — no
+existe "video principal" al que caer como con las fotos. Por eso el archivo es **obligatorio en
+cada llamada**, y nunca se guarda en el microservicio de imágenes ni en ningún lado del catálogo,
+es exclusivo de esa publicación.
+
+**Solo ADMIN.**
+
+**Request:**
+```
+POST /v1/redes-sociales/facebook/publicar-video
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+varianteId: 270
+descripcion: Mochila Prada, talla única, color negro. Código: 7501234567890
+scheduledPublishTime:         (opcional)
+video:                        (requerido, part de tipo archivo)
+```
+- `varianteId` (requerido): variante del catálogo a la que se asocia el video (para el registro
+  interno de auditoría; el video en sí no queda ligado a la variante en ningún otro lado).
+- `descripcion` (requerido): caption del video, mismo criterio que en el de foto — texto libre,
+  sin parseo del back.
+- `video` (requerido): el archivo. Se manda a Facebook tal cual, sin comprimir ni convertir.
+- `scheduledPublishTime` (opcional, igual que en foto: mínimo 10 min, máximo 6 meses a futuro).
+
+**Límite de tamaño:** el micro ahora acepta hasta **200 MB** por archivo/request (subimos el
+límite general del micro de 25 MB a 200 MB específicamente para poder soportar video a calidad
+completa; aplica también al endpoint de foto, sin problema, las fotos no se van a acercar a eso).
+
+**Response 200:** mismo shape que el de foto —
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "id": 2,
+    "varianteId": 270,
+    "plataforma": "facebook",
+    "tipoPublicacion": "video",
+    "descripcionPublicada": "Mochila Prada, talla única, color negro. Código: 7501234567890",
+    "postIdFacebook": "9876543210",
+    "scheduledPublishTime": null,
+    "fechaPublicacion": "2026-08-05T19:10:00",
+    "estado": "PUBLICADA"
+  }
+}
+```
+Ojo: para video, `postIdFacebook` es el **id del video**, no un `post_id` de post normal —
+Facebook no siempre devuelve un `post_id` separado para publicaciones de video. Para armar un
+link, `https://www.facebook.com/{postIdFacebook}` también funciona con el id del video.
+
+**Errores:**
+- **400** — falta el archivo `video`, la variante no existe, ventana de `scheduledPublishTime`
+  inválida, archivo excede 200 MB, o Facebook rechazó el video (mismas causas que en foto:
+  credenciales, permisos, formato no soportado).
+
+**A tener en cuenta:** subir un video pesado puede tardar bastante — el back espera hasta
+**5 minutos** antes de dar timeout hacia Facebook. Si tienen spinner/loading en el botón de
+publicar, que aguante ese tiempo sin asumir que se colgó.
+
+---
+
+## ✅ Front: implementada la pantalla "Publicar en Facebook" (2026-08-05)
+
+Conectados los **2 endpoints** de las secciones de arriba. Pantalla nueva en
+**`/admin/facebook`** (solo ADMIN, link "📘 Publicar en Facebook" dentro del menú 🛠️ Sistema).
+
+### Qué quedó
+
+1. **Buscar producto** — reutiliza `GET /tienda/v1/buscar` como sugirieron, sin endpoint nuevo.
+2. **Descripción sugerida y editable** — se arma con nombre, descripción, talla/color/marca,
+   precio y **código de barras**. Lo dejamos incluido por defecto (es lo que le sirve al cliente
+   para pedir el producto exacto), pero la pantalla avisa que queda público y el admin lo puede
+   borrar antes de publicar.
+3. **Elegir imagen** — las 3 opciones: la principal, otra ya guardada
+   (`GET /tienda/v1/imagenes/{varianteId}` → se manda su id como `imagenId`), o subir una nueva
+   (`imagenNueva`, con botones separados para galería y cámara).
+4. **Video** — archivo obligatorio, con preview antes de publicar.
+5. **Ahora vs. Programar** — la fecha se valida en el front con los mismos límites de ustedes
+   (mín. 10 min, máx. 6 meses) para no mandar peticiones que ya se sabe que van a dar 400.
+6. **Resultado** — botón "Ver en Facebook" con `https://www.facebook.com/{postIdFacebook}`, y
+   para `PROGRAMADA` se muestra la fecha. Los 400 se muestran con su `mensaje` tal cual, como
+   sugirieron (ya viene en español).
+
+### Detalles de implementación por si les sirve saberlo
+
+- **Los campos opcionales se OMITEN del multipart, no se mandan vacíos.** Entendimos que mandar
+  `imagenId` con string vacío haría que el back lo tome como valor y descarte la imagen
+  principal. **Si en realidad ustedes ya tratan el string vacío como "no vino", avísennos** —
+  igual funciona como lo dejamos, es solo para confirmar el supuesto.
+- **Barra de progreso real de subida**, y una fase aparte para cuando el archivo ya llegó
+  completo pero ustedes todavía lo están mandando a Facebook (esos hasta 5 minutos que
+  mencionaron). Ahí la barra se queda al 100% con el texto "Enviándolo a Facebook…" para que no
+  parezca colgado.
+- Estas 2 llamadas quedaron excluidas de nuestro overlay global de carga — si no, la app entera
+  se bloqueaba varios minutos subiendo un video.
+
+### ❓ 2 preguntas
+
+1. **¿Ya está aprobado `pages_manage_posts` en la app de Meta, o sigue en modo desarrollo?**
+   Lo preguntamos porque ustedes mismos lo advirtieron: mientras esté en desarrollo, Facebook
+   solo acepta publicar en páginas donde el dueño del token esté agregado como
+   Admin/Developer/Tester. **Necesitamos saberlo para poder probar esto en QA** — si todavía no,
+   lo único que vamos a ver es el 400 y no podemos validar el camino feliz.
+
+2. **¿El `scheduledPublishTime` lo interpretan en la zona horaria del servidor?** Mandamos un
+   `LocalDateTime` sin offset (ej. `2026-08-05T18:30:00`), tomado de la hora local del navegador
+   del admin. Si el servidor corre en UTC, una publicación "a las 6 pm" se programaría 6 horas
+   corridas. Confírmennos qué zona asumen y, si hace falta, les mandamos la hora ya convertida.
+
+**Estado:** en `dev`, compila sin errores. **No probado en vivo todavía** — depende de que su
+lado esté desplegado y del punto 1 de arriba.
+
+---
+
+## ✅ Front: cerrado el checklist de seguridad de autenticación (2026-08-05)
+
+Atendidos los **6 puntos** de la sección 🔐 del 2026-07-31. Ya está en `dev`, compila sin
+errores. Resumen de cada uno:
+
+| # | Punto | Estado |
+|---|---|---|
+| 1 | Forzar cambio con contraseña temporal | ✅ Hecho — **pero ver la pregunta de abajo** |
+| 2 | Tras cambiar contraseña → al login | ✅ Hecho (estaban mal 3 de 4 lugares) |
+| 3 | 401 del primer refresh → login sin error feo | ✅ Hecho |
+| 4 | No reintentar el refresh con un token ya usado | ✅ Reforzado |
+| 5 | Header `X-Requested-With` | ✅ Ya lo mandamos — **falta que lo enciendan, ver abajo** |
+| 6 | Mínimo 8 caracteres | ✅ Ya estaba, verificado en los 5 formularios |
+
+### 🚩 1. `POST /v1/auth/refresh` y `/logout` YA reciben `X-Requested-With: XMLHttpRequest`
+
+Como pidieron, respetamos el orden: **ya lo desplegamos nosotros primero**. Cuando esto llegue
+a QA/producción pueden encender `seguridad.exigir-header-refresh: true` cuando quieran.
+Avísennos y lo confirmamos del lado del navegador.
+
+### ❓ 2. ¿El login devuelve `passwordTemporal` o `debeCambiarPassword`?
+
+En su documento del **2026-07-04** el campo se llamaba `debeCambiarPassword`, y en el del
+**2026-07-31** aparece como `passwordTemporal`. No sabemos si lo renombraron o si son dos
+campos distintos que conviven.
+
+**Por ahora leemos los dos** (`passwordTemporal ?? debeCambiarPassword`), así que funciona
+pase lo que pase. Pero nos gustaría confirmarlo para quitar el que sobre — no es cosmético: si
+el front se queda con el nombre equivocado, el usuario recibe **403 en todos los endpoints** y
+la app se ve completamente rota sin ninguna pista de la causa.
+
+### ℹ️ 3. Detalle de lo que corregimos en el punto 2, por si les sirve
+
+Encontramos que **3 de los 4 lugares** donde se cambia la contraseña dejaban al usuario dentro
+de la app. El peor era el modal forzado del login: tras el cambio entraba directo al catálogo
+con la sesión ya muerta. Ahora los 4 cierran sesión y mandan al login con el mensaje "Vuelve a
+iniciar sesión con tu nueva contraseña".
+
+### ℹ️ 4. Sobre el 401 masivo del despliegue
+
+Lo manejamos silenciando el error, no solo redirigiendo: antes cada pantalla mostraba su
+"Error al cargar…" justo mientras mandábamos al usuario al login. Ahora la petición se corta
+sin ruido y lo único que ve es la pantalla de login.
+
+**Cuando vayan a desplegar su lado, avísennos con tiempo** para tener esto ya en producción —
+si su despliegue llega antes que el nuestro, el 401 masivo sí se va a ver feo.
+
+### ⚠️ Lo que NO pudimos probar
+
+Nada de esto está probado en vivo: su lado sigue sin desplegar, así que no hay forma de
+reproducir ni el 403 por contraseña temporal ni el 401 masivo del refresh. Lo probamos en
+cuanto tengan algo en QA.
+
+---
+
+## 🙋 Pedido al front — Política de Privacidad para la app de Meta (2026-08-05)
+
+Para terminar de configurar la app de Facebook (la que se necesita para poder publicar en la
+página desde el sistema — endpoints de arriba), Meta exige en **Configuración → Básico** una
+**URL de Política de Privacidad pública**. Sin eso, ni siquiera deja hacer login de prueba en el
+Graph API Explorer para sacar las credenciales (token, etc.) — es un bloqueo total, no solo un
+detalle cosmético.
+
+**Lo que se necesita de ustedes:** si el sitio de Novedades Jade no tiene todavía una página de
+Política de Privacidad publicada, crearla y hospedarla (puede ser algo simple/genérico — qué
+datos se recaban, para qué se usan, contacto) y pasarnos la URL final. Si ya existe una en el
+sitio, con pasarnos esa URL alcanza, no hace falta crear nada nuevo.
+
+No es urgente-urgente para el catálogo en sí, pero sí es lo único que tiene bloqueada ahora mismo
+la parte de credenciales de Facebook — sin esa URL no se puede avanzar con las pruebas reales de
+publicar en Facebook (foto/video, endpoints ya documentados arriba).
+
+Este documento (`CAMBIOS_FRONT.md`) también sirve como canal para pasarse documentos/archivos
+entre back y front cuando haga falta — no solo contratos de endpoints. Si tienen algo que
+compartir de su lado (capturas, specs, lo que sea), puede ir aquí también.
+
+---
+
+## 🔧 Respuestas del back — preguntas del front del 2026-08-05
+
+### Sobre "Publicar en Facebook"
+
+1. **Estado de `pages_manage_posts` en la app de Meta: todavía en modo desarrollo, ni siquiera
+   tenemos el Page Access Token todavía.** Estamos a mitad de la configuración de la app en Meta
+   for Developers — nos topamos con un bloqueo (Meta exige URL de Política de Privacidad para
+   habilitar el login de prueba, ver el pedido de arriba) y no hemos podido generar el token
+   todavía. **Por ahora no se puede probar el camino feliz en QA** — solo van a ver 400 hasta que
+   esto se resuelva. Avisamos en cuanto tengamos credenciales reales.
+
+2. **`scheduledPublishTime` se interpreta en la zona horaria del servidor, y el servidor corre en
+   `America/Mexico_City`** (`ENV TZ=America/Mexico_City` en el Dockerfile, aplica a qa y prod).
+   Si el admin que programa la publicación está en esa misma zona horaria (caso normal, es un
+   negocio mexicano), **no hace falta convertir nada** — manden el `LocalDateTime` tal cual sale
+   del date-time picker del navegador.
+
+3. **Su supuesto de omitir el part en vez de mandar string vacío es correcto y necesario** —
+   así se debe quedar. Si mandan `imagenId` como string vacío (`""`), el back **no lo trata como
+   "no vino"**: intenta convertir `""` a `Long`, falla, y por ahora eso cae en el manejador
+   genérico de excepciones → **500 feo**, no un 400 claro. Quedó anotado como pendiente de mejora
+   de nuestro lado (que un string vacío se trate igual que ausente), pero mientras tanto sigan
+   omitiendo el part cuando no aplique, como ya lo dejaron.
+
+### Sobre el checklist de seguridad de auth
+
+4. **El campo del login es `debeCambiarPassword` — es el único que existe en la respuesta hoy.**
+   Revisado en el código: `AuthResponse.java` solo tiene `accessToken` y `debeCambiarPassword`.
+   `passwordTemporal` es el nombre de un campo interno de la entidad `Usuario` (uso solo del
+   back, para decidir cuándo poner `debeCambiarPassword=true`) — nunca viaja al front con ese
+   nombre. El documento del 2026-07-04 que menciona `debeCambiarPassword` es el vigente; pueden
+   quitar el fallback a `passwordTemporal`, no hace falta.
+
+5. **`seguridad.exigir-header-refresh` — sigue en `false` (apagado) en todos los ambientes,
+   todavía no lo prendimos.** Confirmado en el código (`AuthController.java`, default `false`,
+   no está seteado a `true` en ningún yml de ningún ambiente). Lo dejamos así hasta confirmar con
+   el usuario cuándo conviene encenderlo — nada roto de su lado, es una decisión pendiente
+   nuestra, no un olvido silencioso.
+
+---
+
+## ✅ Front: Política de Privacidad lista + confirmaciones (2026-08-05)
+
+### 1. 🔓 Política de Privacidad — desbloqueado
+
+No existía ninguna página así en el sistema (lo verificamos), así que la creamos de cero. Ruta
+pública **`/privacidad`**, **sin guards a propósito**: Meta la abre con un bot anónimo, y si se
+topa con un redirect al login la da por inválida.
+
+**URL para pegar en Configuración → Básico de la app de Meta:**
+
+```
+https://qa.shop.novedades-jade.com.mx/privacidad     ← QA
+https://shop.novedades-jade.com.mx/privacidad        ← producción
+```
+
+⚠️ **Confírmennos cuál de los dos dominios usar** — Meta acepta uno solo. Si la app se va a
+dejar apuntando a producción, hay que esperar a promover; en QA ya queda disponible en cuanto
+se despliegue `dev` → `qa`. **Avísennos y lo promovemos**, es lo único que falta para que
+puedan seguir con el token.
+
+⚠️ **Falta confirmar el correo de contacto.** La página dice hoy
+`contacto@novedades-jade.com.mx`. Es a donde van a escribir los clientes que pidan acceder,
+corregir o eliminar sus datos, así que tiene que ser una cuenta que alguien lea de verdad. Si es
+otro, nos dicen y lo cambiamos en un minuto.
+
+El contenido está redactado sobre lo que el sistema realmente recaba (cuenta, contacto, pedidos,
+datos de entrega, chat), no es una plantilla genérica. Incluye una sección explícita de redes
+sociales aclarando que **solo se publican productos del catálogo y nunca datos de clientes** —
+justo lo que Meta revisa en estos casos.
+
+### 2. Sobre sus respuestas — todo confirmado, un solo cambio
+
+- **Zona horaria:** perfecto, ya lo mandábamos así (hora local del navegador, sin convertir).
+  Sin cambios.
+- **Omitir el part vacío:** confirmado que era lo correcto. Buen dato lo del 500 — se queda
+  como está.
+- **`debeCambiarPassword`:** gracias por revisarlo en el código. **Ya quitamos el fallback a
+  `passwordTemporal`**, ahora leemos solo `debeCambiarPassword`.
+- **`exigir-header-refresh`:** de acuerdo en dejarlo apagado. Nosotros ya mandamos el header,
+  así que del lado del front no hay prisa — solo pedimos que **cuando lo vayan a encender, sea
+  después de que esto llegue a producción**, no antes.
+
+### 3. Lo que necesitamos que nos pasen cuando tengan el token
+
+Para que la pantalla de publicar funcione, de su lado hacen falta 4 datos configurados:
+**App ID**, **App Secret**, **ID de la página** y un **Page Access Token de larga duración**
+(el que da el Graph API Explorer por defecto es de ~1 hora — si se usa ese, las publicaciones
+empiezan a fallar solas al rato sin razón aparente).
+
+Nosotros no necesitamos ninguno de esos valores en el front; solo avísennos cuando estén
+cargados para probar el camino feliz en QA.

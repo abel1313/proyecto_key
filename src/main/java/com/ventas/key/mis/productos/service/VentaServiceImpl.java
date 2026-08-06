@@ -56,6 +56,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private EmailService emailService;
     @Autowired private WhatsappService whatsappService;
+    @Autowired private ILugarEntregaRepository iLugarEntregaRepository;
 
     public VentaServiceImpl(
             final IVentaRepository iVentaRepository,
@@ -83,6 +84,13 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         this.iPedidoRepository = iPedidoRepository;
         this.iPromocionRepository = iPromocionRepository;
         this.promocionService = promocionService;
+    }
+
+    // lugarEntregaId es opcional (null = no se captura el lugar de entrega en esta venta)
+    private LugarEntrega resolveLugarEntrega(Integer lugarEntregaId) {
+        if (lugarEntregaId == null) return null;
+        return iLugarEntregaRepository.findById(lugarEntregaId)
+                .orElseThrow(() -> new RuntimeException("Lugar de entrega no encontrado: " + lugarEntregaId));
     }
 
     private ClienteSinRegistro mapperClienteSinRegistroDto(VentaDirectaRequest request) {
@@ -235,8 +243,13 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setCliente(cliente);
             pedido.setClienteSinRegistro(clienteSinRegistro);
             pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
+            pedido.setNombreReceptor(request.getNombreReceptor());
+            pedido.setDireccionEntrega(request.getDireccionEntrega());
+            pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
+            pedido.setUrlFacebook(request.getUrlFacebook());
             pedido.setFechaPedido(LocalDate.now());
             pedido.setFechaHoraRegistro(LocalDateTime.now());
+            pedido.setFechaRecogida(request.getFechaEntrega());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
@@ -260,10 +273,14 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setEstadoPedido("Entregado");
         pedido.setCliente(cliente);
         pedido.setClienteSinRegistro(clienteSinRegistro);
-        pedido.setObservaciones("");
+        pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
+        pedido.setNombreReceptor(request.getNombreReceptor());
+        pedido.setDireccionEntrega(request.getDireccionEntrega());
+        pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
+        pedido.setUrlFacebook(request.getUrlFacebook());
         pedido.setFechaPedido(LocalDate.now());
         pedido.setFechaHoraRegistro(LocalDateTime.now());
-        pedido.setFechaRecogida(LocalDate.now());
+        pedido.setFechaRecogida(request.getFechaEntrega() != null ? request.getFechaEntrega() : LocalDate.now());
         pedido.setTotalPedido(totalVenta);
         pedido.setTotalPagado(totalVenta);
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
