@@ -75,20 +75,63 @@ public class PublicacionSocialService {
         String postId = facebookGraphClient.publicarFoto(
                 bytesImagen, contentType, request.getDescripcion(), scheduledEpoch);
 
+        return guardarPublicacion(variante, "foto", request.getDescripcion(), imagenId,
+                postId, request.getScheduledPublishTime(), scheduledEpoch);
+    }
+
+    /**
+     * Publica un video en el feed de la página. A diferencia de la foto, no hay "video principal
+     * de la variante" al cual caer -- el catálogo no guarda video de variantes, así que el
+     * archivo siempre viene en el request, nunca se persiste en el microservicio de imágenes.
+     */
+    @Transactional
+    public PublicacionSocialDto publicarVideoEnFacebook(Integer varianteId, String descripcion,
+                                                          LocalDateTime scheduledPublishTime, MultipartFile video) {
+        Variantes variante = varianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+
+        if (video == null || video.isEmpty()) {
+            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        }
+
+        byte[] bytesVideo;
+        try {
+            bytesVideo = video.getBytes();
+        } catch (IOException e) {
+            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
+        }
+
+        Long scheduledEpoch = null;
+        if (scheduledPublishTime != null) {
+            validarVentanaProgramacion(scheduledPublishTime);
+            scheduledEpoch = scheduledPublishTime.atZone(ZoneId.systemDefault()).toEpochSecond();
+        }
+
+        log.info("Publicando video en Facebook, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
+        String videoId = facebookGraphClient.publicarVideo(
+                bytesVideo, video.getContentType(), descripcion, scheduledEpoch);
+
+        return guardarPublicacion(variante, "video", descripcion, null,
+                videoId, scheduledPublishTime, scheduledEpoch);
+    }
+
+    private PublicacionSocialDto guardarPublicacion(Variantes variante, String tipoPublicacion, String descripcion,
+                                                      Long imagenId, String postId,
+                                                      LocalDateTime scheduledPublishTime, Long scheduledEpoch) {
         PublicacionSocial publicacion = new PublicacionSocial();
         publicacion.setVariante(variante);
         publicacion.setPlataforma("facebook");
-        publicacion.setTipoPublicacion("foto");
-        publicacion.setDescripcionPublicada(request.getDescripcion());
+        publicacion.setTipoPublicacion(tipoPublicacion);
+        publicacion.setDescripcionPublicada(descripcion);
         publicacion.setImagenId(imagenId);
         publicacion.setPostIdFacebook(postId);
-        publicacion.setScheduledPublishTime(request.getScheduledPublishTime());
+        publicacion.setScheduledPublishTime(scheduledPublishTime);
         publicacion.setFechaPublicacion(LocalDateTime.now());
         publicacion.setEstado(scheduledEpoch != null ? "PROGRAMADA" : "PUBLICADA");
 
         publicacion = publicacionSocialRepository.save(publicacion);
-        log.info("Publicación en Facebook creada: varianteId={}, postId={}, estado={}",
-                variante.getId(), postId, publicacion.getEstado());
+        log.info("Publicación en Facebook creada: tipo={}, varianteId={}, postId={}, estado={}",
+                tipoPublicacion, variante.getId(), postId, publicacion.getEstado());
 
         return PublicacionSocialDto.from(publicacion);
     }

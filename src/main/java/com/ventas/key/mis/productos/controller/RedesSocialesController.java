@@ -57,4 +57,25 @@ public class RedesSocialesController {
         PublicacionSocialDto publicacion = publicacionSocialService.publicarEnFacebook(request, imagenNueva);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
+
+    @Operation(
+        summary = "Publicar un video de una variante en la página de Facebook",
+        description = "Sube un video junto con la descripción a POST /{page-id}/videos de la Graph API. " +
+                "A diferencia de la foto, el catálogo no guarda video de variantes -- el archivo es " +
+                "obligatorio en cada llamada, nunca se persiste en el microservicio de imágenes. " +
+                "Si scheduledPublishTime viene, programa la publicación; si no, publica de inmediato."
+    )
+    @PostMapping(value = "/facebook/publicar-video", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarVideoEnFacebook(
+            @RequestParam Integer varianteId,
+            @RequestParam String descripcion,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
+            @RequestParam MultipartFile video) {
+
+        log.info("Publicar video en Facebook - varianteId={}, bytes={}", varianteId, video.getSize());
+
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarVideoEnFacebook(
+                varianteId, descripcion, scheduledPublishTime, video);
+        return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
 }
