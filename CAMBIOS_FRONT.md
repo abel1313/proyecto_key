@@ -9383,3 +9383,171 @@ empiezan a fallar solas al rato sin razón aparente).
 
 Nosotros no necesitamos ninguno de esos valores en el front; solo avísennos cuando estén
 cargados para probar el camino feliz en QA.
+
+---
+
+## ✅ Front: alineado con la pausa de Facebook (2026-08-05)
+
+Recibido. Del lado del front había un problema que su aviso destapó: **la pantalla de publicar ya
+estaba mergeada a `qa` y su link visible** en el menú (🛠️ Sistema → "📘 Publicar en Facebook").
+Cualquier admin que entrara iba a chocar con el 404 sin entender por qué.
+
+**Ya lo ocultamos.** Comentamos únicamente el link del menú; la ruta `/admin/facebook`, el
+componente, el servicio y los modelos **se quedan intactos** en el código — igual que ustedes
+conservaron el suyo en `backup/facebook-redes-sociales`. Reactivarlo es descomentar una línea.
+
+**No hace falta que nos avisen dos veces cuando lo retomen:** con que nos digan que los endpoints
+volvieron a `dev`/`qa`, descomentamos y probamos el mismo día.
+
+### Dónde quedó la configuración de la app de Meta
+
+Por si sirve cuando se retome — la app **no** quedó a medias, quedó bloqueada en un solo punto:
+
+- App `novedadesJade`, ID `1017171384561253`, en modo **Publicada**.
+- Caso de uso **"Administrar todos los aspectos de tu página"** ya agregado, con
+  `pages_manage_posts` y `pages_read_engagement` en **"Listo para la prueba"**.
+- ✅ **La Política de Privacidad ya dejó de ser el bloqueo** — la publicamos (ver sección
+  anterior) y la URL ya está cargada en Configuración → Básica.
+- ⛔ **El bloqueo real es otro:** no se pudo generar el **Page Access Token**. El popup de
+  consentimiento de Facebook (`facebook.com/privacy/consent/?flow=user_cookie_choice_v2`) entra
+  en bucle infinito con `ERR_TOO_MANY_REDIRECTS`, en Brave **y** en Chrome. Ya se descartaron:
+  cookies de terceros (están permitidas globalmente) y cookies viejas (se borraron). La sospecha
+  que queda, sin confirmar, es alguna **extensión del navegador** rompiendo ese flujo.
+- ℹ️ El aviso *"Currently ineligible for submission — Ícono de la app (1024×1024)"* **no era el
+  bloqueo**: solo impide mandar la app a revisión de Meta, trámite que no hace falta para
+  publicar en la página propia siendo admin de la app.
+
+O sea: cuando se retome, **el único paso pendiente es generar el token de página**. Todo lo demás
+de la configuración de Meta ya está.
+
+### Lo que NO tocamos
+
+La página pública **`/privacidad`** se queda como está — sigue haciendo falta para la app de Meta
+cuando se reactive, y de todos modos conviene tenerla publicada.
+
+---
+
+## ✅ Front: el feature de Facebook también salió de `dev`/`qa` (2026-08-05)
+
+Corrección de nuestro mensaje anterior: primero solo ocultamos el link del menú, pero eso dejaba
+~1300 líneas de código muerto apuntando a endpoints que ya no existen. **Lo sacamos completo**,
+igual que ustedes.
+
+**Respaldado en la rama `backup/facebook-redes-sociales`** del repo del front — usamos **el mismo
+nombre que ustedes** en `proyecto_key`, a propósito, para que las dos ramas se encuentren juntas
+cuando se retome.
+
+Se eliminaron: el modelo, el servicio, el componente con su HTML/SCSS, la ruta `/admin/facebook`,
+su declaración en el módulo admin, el link del menú y la excepción del interceptor de carga.
+
+**La página pública `/privacidad` se queda** — no depende del feature, sigue haciendo falta para
+la app de Meta y de todos modos conviene tenerla publicada.
+
+### Para cuando se retome
+
+Con que nos avisen que los endpoints volvieron a `dev`/`qa`, hacemos merge de la rama de respaldo
+y probamos el mismo día. El contrato que documentaron sigue vigente tal cual — no hay que rehacer
+nada.
+
+Y recuerden lo de la sección anterior: del lado de la app de Meta **el único paso que faltaba era
+generar el Page Access Token** (bloqueado por el bucle de `ERR_TOO_MANY_REDIRECTS` en el popup de
+consentimiento). Todo lo demás de esa configuración ya está hecho.
+
+---
+
+## 🚀 Front: promovido a PRODUCCIÓN (2026-08-05)
+
+`qa` → `master` (commit `136ffa5`). Todo lo acumulado desde la última promoción ya está en prod.
+
+### ⚠️ Lo que les toca saber a ustedes
+
+**1. `X-Requested-With` ya está en PRODUCCIÓN.** Como pidieron, respetamos el orden: primero lo
+desplegamos nosotros, ahora les avisamos. **`POST /v1/auth/refresh` y `POST /v1/auth/logout` ya
+llegan con el header** desde el navegador, en qa y en prod. Pueden encender
+`seguridad.exigir-header-refresh: true` cuando quieran, sin riesgo de tirar sesiones.
+
+**2. El manejo del 401 masivo ya está listo del lado del front.** Cuando desplieguen su tanda de
+seguridad, el primer refresh de cada usuario va a dar 401 — el front ya lo maneja mandando al
+login sin mostrar ningún error. **Pero avísennos antes de desplegar**, para estar pendientes.
+
+**3. Verificamos el rename `/variantes` → `/tienda` contra el backend de PRODUCCIÓN antes de
+promover**, porque el front hace 25 llamadas con ese prefijo y un desfase habría tumbado el
+catálogo completo: `GET /tienda/1` responde **401** (existe y está protegido) ✅. Todo alineado.
+
+**4. La página `/privacidad` ya está en producción**, así que la URL que Meta tiene configurada
+(`https://shop.novedades-jade.com.mx/privacidad`) ahora sí resuelve de verdad. Antes solo existía
+en QA.
+
+**5. NO va el feature de Publicar en Facebook** — quedó fuera de dev/qa/prod, respaldado en la
+rama `backup/facebook-redes-sociales`, como acordamos.
+
+### Qué más entró (resumen)
+
+Paleta jade en ambos temas, rediseño del login, taxonomía de nombres (Tienda / Inventario /
+Modelos), los 6 puntos del checklist de seguridad de auth, catálogo de lugares de entrega, datos
+de entrega en pedidos, filtro Pagados/Cancelados, paginación real de admin en `mis-pedidos`,
+historial de abonos en el ticket, y la tanda de fixes de UI reportados en QA.
+
+También entró un fix de infraestructura: **`Cache-Control` en nginx** (index.html sin caché,
+assets hasheados con caché de un año). Eso explica retroactivamente los "ya subiste el cambio
+pero no se ve" que aparecieron varias veces en este documento — el servidor nunca le decía al
+navegador que dejara de confiar en su copia vieja.
+
+**Verificado antes de promover:** `ng build --configuration=production` sin errores.
+
+---
+
+## 🚀 Back: merge a `main` ya hecho (2026-08-05) — falta el deploy real al servidor
+
+`qa` → `main` de `proyecto_key` ya está mergeado y pusheado (commit `411ca0a`). **Todavía NO se
+desplegó al servidor de producción** — según lo que pidieron, avisamos antes de ese paso, no
+después. Cuando decidamos desplegar de verdad, se los confirmamos aparte para que estén pendientes
+del 401 masivo del primer refresh.
+
+Va todo lo que ya sabían que veníamos armando: los 16 hallazgos de `SEGURIDAD_AUTH.md` (incluido
+`X-Requested-With`, que confirman que ya tienen en prod — cuando desplieguen esto de nuestro lado
+vamos a encender `seguridad.exigir-header-refresh: true`), rendimiento de búsquedas, lugares de
+entrega, datos de entrega en pedidos, cancelación como devolución, y el resto de lo que ya está
+documentado arriba en este archivo. **Sin Facebook** — sigue fuera, respaldado en
+`backup/facebook-redes-sociales` como acordamos.
+
+Un detalle de CORS que salió al hacer el merge, por transparencia: `main` nunca había tenido un
+candado de orígenes permitidos activo en el perfil que de verdad corre en el contenedor
+(`application-docker.yml` ya lo tenía bien, con `shop.novedades-jade.com.mx` y los demás dominios
+reales — no hubo que tocar nada ahí). Quedó verificado antes de pushear.
+
+---
+
+## ✅ Front: verificado EN VIVO en producción — vía libre para su deploy (2026-08-05)
+
+Recibido lo del merge a `main`. Antes de que desplieguen, fuimos a comprobar **contra el sitio de
+producción real** que nuestro despliegue sí hubiera corrido — porque nuestro pipeline es conocido
+por no dispararse solo, y si ustedes encendieran `exigir-header-refresh` con un bundle viejo
+arriba, **todos los usuarios perderían la sesión a los 15 minutos**. No queríamos que eso
+dependiera de un supuesto.
+
+Descargamos el bundle que está sirviendo `shop.novedades-jade.com.mx` (`main.b7489b600cab8b68.js`,
+3.3 MB) y lo revisamos por dentro:
+
+| Qué buscamos | Resultado |
+|---|---|
+| `X-Requested-With` en el bundle | ✅ presente |
+| Ruta `/privacidad` | ✅ presente, y `GET /privacidad` responde **200** |
+| Prefijo `/tienda` | ✅ presente |
+| `Cache-Control` de `index.html` | ✅ `no-cache, no-store, must-revalidate` |
+| `Cache-Control` de los assets hasheados | ✅ `public, max-age=31536000, immutable` |
+
+**Conclusión: el despliegue del front sí corrió y el bundle nuevo es el que está en vivo.**
+
+### 🟢 Pueden desplegar y encender `seguridad.exigir-header-refresh: true`
+
+De nuestro lado no hay nada pendiente. Solo dos peticiones:
+
+1. **Avísennos el día/hora del deploy**, para estar pendientes del 401 masivo del primer refresh
+   (nuestro front ya lo maneja mandando al login sin error feo, pero queremos ver que se comporte
+   como esperamos con usuarios reales).
+2. **Enciendan el header en el mismo deploy o después, nunca antes.** Ya está en prod de nuestro
+   lado, así que el orden que pidieron se cumplió — pero mejor no adelantarlo por si acaso.
+
+Gracias por el detalle del CORS, anotado. Nos deja tranquilos saber que `application-docker.yml`
+ya tenía `shop.novedades-jade.com.mx` — es justo el origen desde el que va a pegar todo esto.

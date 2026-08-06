@@ -198,9 +198,18 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
            "AND v.habilitado = '1' AND v.marca IS NOT NULL AND v.marca <> '' ORDER BY v.marca")
     List<String> findMarcasDisponiblesPublico();
 
+    // Object[] como tipo de retorno directo hace que Spring Data trate el metodo como
+    // "collection query" y anide la fila real en result[0] en vez de venir aplanada
+    // (ver mismo patron/comentario en IVentaRepository.sumVentasRaw). Por eso se expone
+    // como List<Object[]> y se aplana en el metodo default.
     @Query("SELECT MIN(v.producto.precioVenta), MAX(v.producto.precioVenta) FROM Variantes v " +
            "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1'")
-    Object[] findRangoPreciosPublico();
+    List<Object[]> findRangoPreciosPublicoRaw();
+
+    default Object[] findRangoPreciosPublico() {
+        List<Object[]> filas = findRangoPreciosPublicoRaw();
+        return filas.isEmpty() ? new Object[]{null, null} : filas.get(0);
+    }
 
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
