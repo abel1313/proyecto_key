@@ -9383,3 +9383,114 @@ empiezan a fallar solas al rato sin razón aparente).
 
 Nosotros no necesitamos ninguno de esos valores en el front; solo avísennos cuando estén
 cargados para probar el camino feliz en QA.
+
+---
+
+## ✅ Front: alineado con la pausa de Facebook (2026-08-05)
+
+Recibido. Del lado del front había un problema que su aviso destapó: **la pantalla de publicar ya
+estaba mergeada a `qa` y su link visible** en el menú (🛠️ Sistema → "📘 Publicar en Facebook").
+Cualquier admin que entrara iba a chocar con el 404 sin entender por qué.
+
+**Ya lo ocultamos.** Comentamos únicamente el link del menú; la ruta `/admin/facebook`, el
+componente, el servicio y los modelos **se quedan intactos** en el código — igual que ustedes
+conservaron el suyo en `backup/facebook-redes-sociales`. Reactivarlo es descomentar una línea.
+
+**No hace falta que nos avisen dos veces cuando lo retomen:** con que nos digan que los endpoints
+volvieron a `dev`/`qa`, descomentamos y probamos el mismo día.
+
+### Dónde quedó la configuración de la app de Meta
+
+Por si sirve cuando se retome — la app **no** quedó a medias, quedó bloqueada en un solo punto:
+
+- App `novedadesJade`, ID `1017171384561253`, en modo **Publicada**.
+- Caso de uso **"Administrar todos los aspectos de tu página"** ya agregado, con
+  `pages_manage_posts` y `pages_read_engagement` en **"Listo para la prueba"**.
+- ✅ **La Política de Privacidad ya dejó de ser el bloqueo** — la publicamos (ver sección
+  anterior) y la URL ya está cargada en Configuración → Básica.
+- ⛔ **El bloqueo real es otro:** no se pudo generar el **Page Access Token**. El popup de
+  consentimiento de Facebook (`facebook.com/privacy/consent/?flow=user_cookie_choice_v2`) entra
+  en bucle infinito con `ERR_TOO_MANY_REDIRECTS`, en Brave **y** en Chrome. Ya se descartaron:
+  cookies de terceros (están permitidas globalmente) y cookies viejas (se borraron). La sospecha
+  que queda, sin confirmar, es alguna **extensión del navegador** rompiendo ese flujo.
+- ℹ️ El aviso *"Currently ineligible for submission — Ícono de la app (1024×1024)"* **no era el
+  bloqueo**: solo impide mandar la app a revisión de Meta, trámite que no hace falta para
+  publicar en la página propia siendo admin de la app.
+
+O sea: cuando se retome, **el único paso pendiente es generar el token de página**. Todo lo demás
+de la configuración de Meta ya está.
+
+### Lo que NO tocamos
+
+La página pública **`/privacidad`** se queda como está — sigue haciendo falta para la app de Meta
+cuando se reactive, y de todos modos conviene tenerla publicada.
+
+---
+
+## ✅ Front: el feature de Facebook también salió de `dev`/`qa` (2026-08-05)
+
+Corrección de nuestro mensaje anterior: primero solo ocultamos el link del menú, pero eso dejaba
+~1300 líneas de código muerto apuntando a endpoints que ya no existen. **Lo sacamos completo**,
+igual que ustedes.
+
+**Respaldado en la rama `backup/facebook-redes-sociales`** del repo del front — usamos **el mismo
+nombre que ustedes** en `proyecto_key`, a propósito, para que las dos ramas se encuentren juntas
+cuando se retome.
+
+Se eliminaron: el modelo, el servicio, el componente con su HTML/SCSS, la ruta `/admin/facebook`,
+su declaración en el módulo admin, el link del menú y la excepción del interceptor de carga.
+
+**La página pública `/privacidad` se queda** — no depende del feature, sigue haciendo falta para
+la app de Meta y de todos modos conviene tenerla publicada.
+
+### Para cuando se retome
+
+Con que nos avisen que los endpoints volvieron a `dev`/`qa`, hacemos merge de la rama de respaldo
+y probamos el mismo día. El contrato que documentaron sigue vigente tal cual — no hay que rehacer
+nada.
+
+Y recuerden lo de la sección anterior: del lado de la app de Meta **el único paso que faltaba era
+generar el Page Access Token** (bloqueado por el bucle de `ERR_TOO_MANY_REDIRECTS` en el popup de
+consentimiento). Todo lo demás de esa configuración ya está hecho.
+
+---
+
+## 🚀 Front: promovido a PRODUCCIÓN (2026-08-05)
+
+`qa` → `master` (commit `136ffa5`). Todo lo acumulado desde la última promoción ya está en prod.
+
+### ⚠️ Lo que les toca saber a ustedes
+
+**1. `X-Requested-With` ya está en PRODUCCIÓN.** Como pidieron, respetamos el orden: primero lo
+desplegamos nosotros, ahora les avisamos. **`POST /v1/auth/refresh` y `POST /v1/auth/logout` ya
+llegan con el header** desde el navegador, en qa y en prod. Pueden encender
+`seguridad.exigir-header-refresh: true` cuando quieran, sin riesgo de tirar sesiones.
+
+**2. El manejo del 401 masivo ya está listo del lado del front.** Cuando desplieguen su tanda de
+seguridad, el primer refresh de cada usuario va a dar 401 — el front ya lo maneja mandando al
+login sin mostrar ningún error. **Pero avísennos antes de desplegar**, para estar pendientes.
+
+**3. Verificamos el rename `/variantes` → `/tienda` contra el backend de PRODUCCIÓN antes de
+promover**, porque el front hace 25 llamadas con ese prefijo y un desfase habría tumbado el
+catálogo completo: `GET /tienda/1` responde **401** (existe y está protegido) ✅. Todo alineado.
+
+**4. La página `/privacidad` ya está en producción**, así que la URL que Meta tiene configurada
+(`https://shop.novedades-jade.com.mx/privacidad`) ahora sí resuelve de verdad. Antes solo existía
+en QA.
+
+**5. NO va el feature de Publicar en Facebook** — quedó fuera de dev/qa/prod, respaldado en la
+rama `backup/facebook-redes-sociales`, como acordamos.
+
+### Qué más entró (resumen)
+
+Paleta jade en ambos temas, rediseño del login, taxonomía de nombres (Tienda / Inventario /
+Modelos), los 6 puntos del checklist de seguridad de auth, catálogo de lugares de entrega, datos
+de entrega en pedidos, filtro Pagados/Cancelados, paginación real de admin en `mis-pedidos`,
+historial de abonos en el ticket, y la tanda de fixes de UI reportados en QA.
+
+También entró un fix de infraestructura: **`Cache-Control` en nginx** (index.html sin caché,
+assets hasheados con caché de un año). Eso explica retroactivamente los "ya subiste el cambio
+pero no se ve" que aparecieron varias veces en este documento — el servidor nunca le decía al
+navegador que dejara de confiar en su copia vieja.
+
+**Verificado antes de promover:** `ng build --configuration=production` sin errores.
