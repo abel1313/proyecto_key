@@ -74,6 +74,8 @@ public class CacheTtlConfig {
         cacheConfigs.put("opcionesPorTipoCache", defaultConfig.entryTtl(Duration.ofHours(6)));
         // Presentación (imágenes de login/registro)
         cacheConfigs.put("presentacion-imagenes", defaultConfig.entryTtl(Duration.ofHours(6)));
+        // Cinta de promociones (letrero corrido, catalogo estatico chico)
+        cacheConfigs.put("cintaActivosCache", defaultConfig.entryTtl(Duration.ofHours(1)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
