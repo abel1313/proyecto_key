@@ -156,6 +156,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()
                         .requestMatchers("/v1/promociones/**").hasRole("ADMIN")
 
+                        // ── Cinta de promociones (letrero corrido; el GET /activos lo pinta
+                        //    la tienda para CUALQUIER visitante, incluso sin login -- si exigiera
+                        //    auth el cliente anonimo la veria vacia. Alta/edicion/baja solo ADMIN) ─
+                        .requestMatchers(HttpMethod.GET, "/v1/cinta/activos").permitAll()
+                        .requestMatchers("/v1/cinta/**").hasRole("ADMIN")
+
                         // ── Favoritos (100% del cliente autenticado, sin vista admin) ───────
                         .requestMatchers("/v1/favoritos/**").authenticated()
 

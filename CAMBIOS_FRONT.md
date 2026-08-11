@@ -9624,3 +9624,165 @@ día:
 
 **El front no necesita cambiar nada** en esta sección — son fixes de disponibilidad/rendimiento de
 endpoints que ya existían en el contrato.
+
+---
+
+## ❓ CONSULTA AL BACK — endpoint para la "cinta de promociones" que corre arriba de la pantalla (2026-08-10)
+
+### Qué es
+
+Se agregó una **cinta de texto que corre de derecha a izquierda** en la parte superior de la app
+(estilo noticiero: "BOLSAS ✦ BLUSAS ✦ PERFUMES 10 ML ✦ ENVÍOS A TODO MÉXICO ✦ …"). Ya está en
+`qa`, se ve en todas las pantallas menos las de autenticación (`/login`, `/usuarios/registrar`,
+`/verificar-correo`, `/olvide-password`, `/privacidad`).
+
+Hay además una pantalla de administración (`/admin/cinta`, solo ADMIN) donde el dueño escribe,
+reordena, oculta y borra esas frases.
+
+### ⚠️ Hoy NO tiene backend — vive en `localStorage`
+
+Se hizo así a propósito para poder afinar diseño y comportamiento antes de pedirles nada. **La
+consecuencia es que lo que el admin edita se guarda solo en SU navegador**: otro usuario, otra
+computadora o modo incógnito ven las frases de fábrica. Ya no queremos dejarlo así — es una cinta
+comercial, tiene que verla igual todo el mundo.
+
+### Lo que pedimos
+
+Es un catálogo chiquito, idéntico en forma a `lugares-entrega` o `palabras-clave`. Si les sirve
+reusar el **CRUD genérico** que ya tienen, por nosotros perfecto — solo con dos matices (puntos 1
+y 4 de abajo).
+
+**Entidad sugerida** (`cinta_promocion` o como prefieran nombrarla):
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | Long | PK |
+| `texto` | String (máx. 120) | Lo que se ve corriendo. Se muestra tal cual (el front lo pone en mayúsculas por CSS, no hace falta guardarlo en mayúsculas) |
+| `activo` | boolean | `false` = se conserva en la pantalla del admin pero no sale en la cinta |
+| `orden` | int | Posición en la cinta. La pantalla de admin tiene botones subir/bajar |
+
+> 🏷️ **Un favor con el nombre: llámenle "cinta", no "ticker".** En inglés el término para este
+> letrero corredizo es *ticker*, y así lo habíamos nombrado nosotros — pero se lee casi igual que
+> **"ticket"**, que en este sistema ya significa otra cosa muy distinta (el comprobante de venta
+> que se imprime y se manda por correo, `POST /v1/pedidos/{id}/notificar`). El dueño se confundió
+> con solo verlo en el menú, así que del lado del front ya lo renombramos todo a **cinta** antes
+> de que esto llegara a producción. Les pedimos lo mismo en tabla y endpoints para que no queden
+> dos nombres para la misma cosa.
+
+**Endpoints:**
+
+1. **`GET /v1/cinta/activos`** — ⚠️ **el único que NO es admin-only.** Lo llama la cinta, que se
+   pinta para cualquier usuario logueado (cliente incluido). Debe devolver **solo** los `activo =
+   true`, **ya ordenados** por `orden` ascendente. Si pueden, con `@Cacheable` — se pide en cada
+   carga de la app y el contenido cambia muy de vez en cuando.
+   ```json
+   { "data": [ { "id": 1, "texto": "Bolsas", "activo": true, "orden": 1 } ] }
+   ```
+2. **`GET /v1/cinta/getAll`** — ADMIN. Todas, activas y no activas, ordenadas por `orden`. Sin
+   paginar, o con `size` grande por default: son pocas frases y la pantalla las muestra todas
+   juntas para poder reordenarlas.
+3. **`POST /v1/cinta/save`** — ADMIN. Body `{ texto, activo, orden }`.
+4. **`PUT /v1/cinta/update/{id}`** — ADMIN. **Acá va el otro matiz:** reordenar cambia el `orden`
+   de dos filas a la vez (la que sube y la que baja). Si su `update` genérico ya acepta que le
+   manden solo los campos a tocar, nos alcanza con dos llamadas. Si prefieren, un
+   **`PUT /v1/cinta/orden`** con `[{id, orden}, ...]` de un jalón también nos sirve y nos evita
+   dejar el orden a medias si una de las dos llamadas falla. Ustedes decidan cuál les acomoda.
+5. **`DELETE /v1/cinta/delete`** — ADMIN. Nos da igual si el id va en el path o como body crudo
+   (como `lugares-entrega`); solo díganos cuál para no equivocarnos otra vez.
+
+**Datos iniciales que traeríamos como semilla** (hoy son los defaults del front): Bolsas, Blusas,
+Pantalones, Perfumes 10 ml, Envíos a todo México, Promos de temporada.
+
+### Del lado del front ya está listo para el cambio
+
+`CintaService` expone `items$` (todas) y `activos$` (las que corren). Ni la cinta ni la pantalla
+de admin conocen `localStorage` — cuando exista el endpoint, se reemplaza el cuerpo de los 5
+métodos públicos por llamadas HTTP y **no se toca ningún componente**.
+
+### Pregunta puntual
+
+¿Les late así, o prefieren otra forma? Lo único que de verdad nos importa que salga bien es el
+punto 1: que `GET /v1/cinta/activos` **no exija rol ADMIN**, porque si no, el cliente entra a la
+tienda y la cinta le sale vacía (o con un 403 en consola en cada carga).
+
+### 🔗 A dónde lleva cada frase al hacerle clic
+
+Las frases no deberían ser solo decorativas: "Blusas" tiene que llevar al catálogo de blusas.
+**Pero les pedimos que NO guarden la URL del front** (`"/tienda/buscar?..."`). Ya nos mordió una
+vez: cuando renombramos `/variantes` → `/tienda`, cualquier ruta guardada como texto en la base
+se habría roto en silencio, sin que nadie se entere hasta que un cliente cayera en un 404.
+
+En vez de eso, guarden **qué** mostrar y nosotros sabemos **dónde** vive. Dos campos más:
+
+| `destinoTipo` | `destinoValor` | El front lo manda a |
+|---|---|---|
+| `NINGUNO` (default) | `null` | no es clickeable, solo texto |
+| `PROMOCIONES` | `null` | `/promociones` (la pantalla de combos activos) |
+| `BUSQUEDA` | `"BLUSAS"` | el catálogo con ese texto en el buscador |
+| `PRODUCTO` | `"482"` | la ficha de esa variante |
+| `EXTERNO` | url completa | se abre en pestaña nueva (Facebook, WhatsApp) |
+
+**Nota sobre `BUSQUEDA`** — no necesitamos ningún endpoint nuevo para esto. El buscador del
+catálogo ya hace cascada **código de barras → palabra clave → nombre**, y las categorías del
+sistema (`palabraClave`) son justo "BLUSAS", "BOLSAS", etc. Así que mandar `"BLUSAS"` como texto
+de búsqueda cae en el paso de palabra clave y devuelve todo lo de esa categoría. Es exactamente
+lo mismo que si el cliente lo escribiera a mano. Por eso tampoco pedimos un tipo `CATEGORIA`
+aparte: terminaría en la misma llamada.
+
+### 💡 Opcional (ustedes dicen) — que las promociones vigentes se agreguen solas
+
+Hoy, si el admin escribe "2x1 en blusas" a mano y la promo se vence, la frase se queda ahí
+mintiendo hasta que alguien se acuerde de borrarla.
+
+Si les parece bien, `GET /v1/cinta/activos` podría **anexar al final** de la lista las
+promociones vigentes que ya tienen en su tabla (las mismas de `GET /v1/promociones/activas`),
+armando la frase con su descripción y con `destinoTipo: "PROMOCIONES"`. Entran y salen solas
+según su vigencia, sin que nadie toque la pantalla de administración.
+
+No es bloqueante — si prefieren dejarlo todo manual por ahora, el front funciona igual. Solo
+díganos qué prefieren para no asumirlo mal.
+
+---
+
+## ✅ NUEVO (2026-08-10): catálogo "cinta de promociones" — `/v1/cinta`
+
+Respuesta a la consulta de arriba. **Para esta primera versión el back solo guarda y sirve las
+frases — sin destino clickeable todavía** (nada de `destinoTipo`/`destinoValor`, `BUSQUEDA`,
+`PRODUCTO`, etc.). Es puramente de muestra: alta, edición, borrado y orden. Fue decisión nuestra
+simplificar el alcance de lo que propusieron para esta primera entrega — si más adelante se
+agrega el clic, será una migración aditiva sobre esta misma tabla (columnas nuevas), no un cambio
+de contrato de lo que ya está aquí. El punto de `BUSQUEDA` reusando la cascada del buscador y el
+de las promociones vigentes anexadas quedan anotados para cuando se retome esa parte.
+
+Mismo patrón que otros catálogos simples del proyecto (`/v1/lugares-entrega`, `/v1/palabras-clave`).
+
+| Método | URL | Quién | Body / respuesta |
+|--------|-----|-------|-------------------|
+| `GET` | `/v1/cinta/activos` | **Público, sin auth** (ni siquiera login) | `{ "data": [ {"id":1,"texto":"Bolsas","activo":true,"orden":0}, ... ] }` — solo las activas, ya ordenadas por `orden` ascendente |
+| `GET` | `/v1/cinta/getAll?page=0&size=50` | ADMIN | `{ "data": [ {...}, ... ] }` — todas, activas y apagadas |
+| `GET` | `/v1/cinta/getOne/{id}` | ADMIN | `{ "data": {"id":1,"texto":"Bolsas","activo":true,"orden":0} }` |
+| `POST` | `/v1/cinta/save` | ADMIN | Body: `{ "texto": "Bolsas", "activo": true, "orden": 0 }` → Response: el registro creado con `id` |
+| `PUT` | `/v1/cinta/update/{id}` | ADMIN | Body: el objeto completo (igual que save, con `id`) → Response: el registro actualizado |
+| `DELETE` | `/v1/cinta/delete` | ADMIN | Body: `1` (el id, como número JSON crudo — **no** `{ "id": 1 }`, mismo patrón que `/v1/lugares-entrega/delete`) |
+
+**Respondiendo puntos puntuales de la consulta:**
+- **Punto 1 (que `/activos` no exija rol ADMIN):** hecho — es el único GET de este catálogo que no
+  requiere login siquiera, ni rol. El resto (`getAll`, `getOne`, `save`, `update`, `delete`) es ADMIN.
+- **Caché en `/activos`:** sí, con `@Cacheable` (TTL 1h), invalidado automáticamente en cada
+  `save`/`update`/`delete`.
+- **Paginación de `getAll`:** el CRUD genérico exige `page`/`size` en la URL, no tiene defaults —
+  no hay forma de omitirlos. Para traerlas todas de un jalón, usen un `size` grande
+  (`?page=0&size=200`), no hace falta paginar de verdad en la pantalla de admin.
+- **Reordenar (punto 4):** no armamos el `PUT /v1/cinta/orden` en lote — les toca resolverlo con
+  dos llamadas sueltas a `update`, una por cada fila que intercambia posición. Si en la práctica
+  ven que falla a medias muy seguido, avisen y lo armamos.
+- **Formato del `DELETE` (punto 5):** id crudo en el body (`1`), no `{ id: 1 }` — mismo patrón que
+  `/v1/lugares-entrega/delete`.
+- **`texto`** (string, máx. 120, requerido): si se manda vacío o de más de 120 caracteres,
+  `save`/`update` responden `400` con el mensaje de validación en `mensaje`.
+- **Datos semilla:** no los cargamos nosotros — la tabla nace vacía. Denla de alta ustedes mismos
+  desde la pantalla de admin cuando el endpoint esté arriba (son los mismos 6 textos default que
+  ya tienen del lado del front).
+
+**Pendiente de nuestro lado:** correr `migration_cinta_promocion.sql` en QA (crea la tabla
+`cinta_promocion`, vacía). Avisamos cuando ya esté corrida.
