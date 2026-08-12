@@ -178,6 +178,7 @@ public class SecurityConfig {
                         //    service decide si es dueno o ADMIN el que puede borrar) ─────────
                         .requestMatchers(HttpMethod.GET, "/v1/resenas/mis-resenas").authenticated()
                         .requestMatchers(HttpMethod.GET, "/v1/resenas/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/v1/resenas/*/responder").hasRole("ADMIN")
                         .requestMatchers("/v1/resenas/**").authenticated()
 
                         // ── Ventas (reclamo de compra es del cliente autenticado; el resto ADMIN) ──

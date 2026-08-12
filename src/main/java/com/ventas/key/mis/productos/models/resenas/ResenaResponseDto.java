@@ -17,4 +17,6 @@ public class ResenaResponseDto {
     private LocalDateTime fechaCreacion;
     private String nombreCliente;
     private Boolean esPropia;
+    private String respuestaAdmin;
+    private LocalDateTime fechaRespuesta;
 }
