@@ -53,6 +53,18 @@ public interface IProductoImagenRepository extends BaseRepository<ProductoImagen
     @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id IN :productoIds ORDER BY CASE WHEN pi.principal = true THEN 0 ELSE 1 END ASC, pi.imagen.id ASC")
     List<ProductoImagen> findPrimeraImagenByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
 
+    /**
+     * Solo los dos ids (productoId, imagenId) que necesita el listado para armar la URL de la
+     * miniatura. Mismo orden que {@link #findPrimeraImagenByProductoIdIn}.
+     *
+     * <p>Evita el N+1 de ese metodo: devolver entidades ProductoImagen hace que Hibernate
+     * materialice ademas la Imagen de cada fila (@ManyToOne EAGER) — un SELECT por imagen del
+     * listado — cuando de ella solo se usa el id, que ya viene en la columna imagen_id.
+     */
+    @Query("SELECT pi.producto.id, pi.imagen.id FROM ProductoImagen pi WHERE pi.producto.id IN :productoIds "
+            + "ORDER BY CASE WHEN pi.principal = true THEN 0 ELSE 1 END ASC, pi.imagen.id ASC")
+    List<Object[]> findIdsPrimeraImagenByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
+
     @Query("SELECT pi FROM ProductoImagen pi WHERE pi.producto.id = :productoId AND pi.imagen.id = :imagenId")
     Optional<ProductoImagen> findByProductoIdAndImagenId(@Param("productoId") Integer productoId, @Param("imagenId") Long imagenId);
 

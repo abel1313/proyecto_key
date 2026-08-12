@@ -58,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -194,10 +195,14 @@ public class ProductosServiceImpl extends
         }
     }
 
+    // Proyeccion (productoId, imagenId) en vez de entidades ProductoImagen: de la imagen solo se
+    // ocupa el id para armar la URL de la miniatura, y traer la entidad obligaba a Hibernate a
+    // cargar ademas cada Imagen (@ManyToOne EAGER) con un SELECT por fila del listado.
     private Map<Integer, Long> getPrimerasImagenes(List<Integer> productoIds) {
         Map<Integer, Long> result = new LinkedHashMap<>();
-        iProductoImagenRepository.findPrimeraImagenByProductoIdIn(productoIds)
-            .forEach(pi -> result.putIfAbsent(pi.getProducto().getId(), pi.getImagen().getId()));
+        if (productoIds.isEmpty()) return result;
+        iProductoImagenRepository.findIdsPrimeraImagenByProductoIdIn(productoIds)
+            .forEach(fila -> result.putIfAbsent((Integer) fila[0], (Long) fila[1]));
         return result;
     }
     private ProductoAdmin getProductoAdmin(Producto p) {
@@ -341,16 +346,30 @@ public class ProductosServiceImpl extends
         if(existeImagenes.isEmpty()){
             throw new ExceptionDataNotFound("No existen imagenes para este producto ");
         }
+        List<Variantes> variantes = varianteRepository.findByProductoId(producto.getId());
+        // Pares (variante, imagen) que ya existen: sin este filtro, cada llamada a este endpoint
+        // reinsertaba el catalogo completo de imagenes del producto en todas sus variantes, y de
+        // ahi salen las variantes con cientos de filas en variante_imagen para 15-16 imagenes
+        // reales. Esas filas basura son las que despues hay que leer y ordenar en cada listado.
+        Set<String> yaVinculadas = variantes.isEmpty() ? Set.of()
+                : iVarianteImagenRepository.findByVarianteIdIn(variantes.stream().map(Variantes::getId).toList())
+                    .stream()
+                    .map(vi -> vi.getVariante().getId() + ":" + vi.getImagen().getId())
+                    .collect(Collectors.toSet());
+
         List<VarianteImagen> relaciones = new ArrayList<>();
-        varianteRepository.findByProductoId(producto.getId()).forEach(variante ->
+        variantes.forEach(variante ->
             existeImagenes.forEach(imagen -> {
+                if (yaVinculadas.contains(variante.getId() + ":" + imagen.getImagen().getId())) return;
                 VarianteImagen varianteImagen = new VarianteImagen();
                 varianteImagen.setVariante(variante);
                 varianteImagen.setImagen(imagen.getImagen());
                 relaciones.add(varianteImagen);
             })
         );
-        iVarianteImagenRepository.saveAll(relaciones);
+        if (!relaciones.isEmpty()) {
+            iVarianteImagenRepository.saveAll(relaciones);
+        }
         return compartirImagenesVarianteDto;
     }
 
