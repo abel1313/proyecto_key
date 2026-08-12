@@ -22,6 +22,14 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     List<Variantes> findByProductoId(Integer productoId);
 
+    // Resolver minimo para la ficha de producto publica: cuando el cliente entra por un link
+    // directo/marcador a /tienda/detalle/{varianteId} sin haber pasado por el catalogo, el front
+    // no tiene el productoId a mano (antes lo sacaba de GET /tienda/v1/getOne/{id}, que ahora es
+    // solo ADMIN). Proyeccion directa al id en vez de la entidad completa -- no hay razon para
+    // traer el resto de la variante solo para leer un campo.
+    @Query("SELECT v.producto.id FROM Variantes v WHERE v.id = :varianteId")
+    Optional<Integer> findProductoIdByVarianteId(@Param("varianteId") Integer varianteId);
+
     List<Variantes> findByProductoIdIn(List<Integer> productoIds);
 
     Page<Variantes> findByProductoId(Integer productoId, Pageable pageable);

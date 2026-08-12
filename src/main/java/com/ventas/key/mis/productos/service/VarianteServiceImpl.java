@@ -125,6 +125,16 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
         return resultado;
     }
+    // Resolver publico varianteId -> productoId (ficha de producto por link directo, ver
+    // VarianteController). No aplica el filtro de visibilidad del catalogo publico (stock,
+    // habilitado) a proposito: /variantes/v1/porProducto/{productoId}, que es el endpoint al que
+    // el front llama despues con este id, tampoco lo aplica -- mismo criterio que ya rige ese flujo.
+    @Cacheable(value = "variantesProductoCache", key = "'productoId:' + #varianteId")
+    public Integer resolverProductoId(Integer varianteId) {
+        return iVarianteRepository.findProductoIdByVarianteId(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
+    }
+
     @Cacheable(value = "variantesProductoCache", key = "#productoId")
     public List<VarianteDto> buscarPorProducto(Integer productoId) {
         return iVarianteRepository.findByProductoId(productoId).stream().map(v -> {

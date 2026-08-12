@@ -12,6 +12,7 @@ import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteResponseDto;
+import com.ventas.key.mis.productos.models.variantes.ProductoIdDto;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +77,16 @@ public class VarianteController extends AbstractController<
     @GetMapping("/v1/porProducto/{productoId}")
     public ResponseEntity<ResponseGeneric<List<VarianteDto>>> getPorProducto(@PathVariable Integer productoId) {
         return ResponseEntity.ok(new ResponseGeneric<List<VarianteDto>>(sGenerico.buscarPorProducto(productoId)));
+    }
+
+    // Publico a proposito (cae en el permitAll de GET /tienda/** de SecurityConfig, no matchea
+    // los patrones getAll/getOne que se cerraron a ADMIN). Resuelve varianteId -> productoId para
+    // la ficha de producto cuando el cliente entra por un link directo/marcador y no trae el
+    // productoId a mano -- el resto de los datos los sigue sacando de /v1/porProducto/{productoId},
+    // que ya es publico.
+    @GetMapping("/v1/variante/{varianteId}/producto-id")
+    public ResponseEntity<ResponseGeneric<ProductoIdDto>> getProductoIdPorVariante(@PathVariable Integer varianteId) {
+        return ResponseEntity.ok(new ResponseGeneric<>(new ProductoIdDto(sGenerico.resolverProductoId(varianteId))));
     }
 
     @GetMapping("/v1/porProducto/{productoId}/paginado")
