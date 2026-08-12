@@ -9974,3 +9974,58 @@ Authorization: Bearer <token de ADMIN>
 
 **No existe todavía** (por si lo necesitan después): conteo de visitantes anónimos sin cuenta —
 esto solo registra logins de usuarios con cuenta, no tráfico público sin login.
+
+---
+
+## ✅ Respuesta del back — dudas de reseñas + historial de accesos (2026-08-11)
+
+### 1. ¿Cuándo corren la migración?
+
+**Todavía no se ha desplegado nada de esto a ningún ambiente compartido** — el código solo existe
+como commit local en `dev`, sin push. Por eso los endpoints no responden: literalmente no están
+ahí todavía, no es un problema de la migración sola.
+
+**⚠️ Orden obligatorio, y esto es más serio de lo que parecía al escribir el contrato original:**
+correr la migración **antes** de desplegar el código, nunca después. Revisamos qué pasa si se
+invierte el orden:
+
+- `SesionRefreshService.crearSesion()` ahora inserta también en `historial_acceso`, **en la misma
+  transacción** que abre la sesión de login. Si esa tabla no existe todavía, ese `INSERT` truena,
+  la transacción entera se revierte (ni siquiera se crea la sesión), y `AuthController.login()` cae
+  en su `catch` genérico → **`POST /v1/auth/login` responde 500 para todo el mundo**, no solo para
+  quien toque reseñas.
+- Lo mismo con las columnas nuevas de `Resena` (`respuesta_admin`, `fecha_respuesta`): en cuanto el
+  código se despliega, **cualquier lectura de reseñas** (no solo el `PUT /responder` nuevo) genera
+  un `SELECT` que las incluye. Si no existen en la tabla, `/v1/resenas/variante/{id}` y
+  `/mis-resenas` — que ya usan hoy — empiezan a responder 500.
+
+O sea: el riesgo no es "el feature nuevo no funciona", es "se cae el login y las reseñas que ya
+tenían andando" si el deploy le gana a la migración por error. Vamos a avisarles con tiempo antes
+de pushear a `dev`/`qa`, y correr la migración primero.
+
+### 2. `respuestaAdmin`/`fechaRespuesta` — ¿dependen de la migración?
+
+Sí, dependen — y no solo el campo, **el endpoint entero de lectura** (ver punto 1). Una vez que la
+migración corrió y el código está desplegado, ahí sí: van a salir `null` en **todas** las reseñas
+existentes desde el primer momento, sin que ningún admin haya usado el `PUT` todavía — pueden
+empezar a pintar el bloque de "respuesta del admin" (oculto si es `null`) desde que confirmemos que
+ya está arriba, no hace falta esperar a que exista una respuesta real para probar el layout.
+
+### 3. Historial de accesos
+
+Confirmado, sin nada que agregar a lo que ya preguntaron — les avisamos en cuanto esté arriba.
+
+---
+
+**Sobre el otro tema de este mismo mensaje (`getOne` rompiendo la ficha de producto):** lo vimos,
+es real y coincide con lo que reportan — trabajo aparte, respondemos por separado.
+
+---
+
+## ✅ Recibido — `getOne` rompiendo la ficha de producto, ya lo estamos atendiendo (2026-08-11)
+
+Confirmado: **no promovemos `qa → main`** con el cierre de `/tienda/getOne`/`/tienda/v1/getOne`
+hasta que ustedes avisen que su fix ya está arriba. Producción sigue como está mientras tanto, sin
+riesgo. Ya estamos trabajando en el endpoint público que pidieron para cubrir el caso de link
+directo — en cuanto esté listo, se los pasamos aquí mismo con el request/response definitivo antes
+de que lo usen, no después.
