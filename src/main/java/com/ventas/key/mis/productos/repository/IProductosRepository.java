@@ -28,7 +28,13 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     Page<Producto> findByNombreContainingAndHabilitado(String nombre, char habilitado, Pageable pageable);
 
     // --- listado público: stock + habilitado + con imagen (cliente normal) ---
-    @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+    // JOIN FETCH del codigo de barras: el mapper del listado lo lee en cada fila y la relacion es
+    // @OneToOne EAGER, asi que sin el fetch cada producto de la pagina costaba un SELECT extra.
+    // countQuery explicito obligatorio al usar fetch join con Page.
+    @Query(value = "SELECT p FROM Producto p LEFT JOIN FETCH p.codigoBarras " +
+           "WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)",
+           countQuery = "SELECT COUNT(p) FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
            "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
     Page<Producto> findConStockYImagenPublico(Pageable pageable);
 
@@ -57,7 +63,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     // uno automatico que puede devolver vacio aunque si haya datos.
     @Query(value = """
         SELECT p FROM Producto p
-        LEFT JOIN p.codigoBarras cb
+        LEFT JOIN FETCH p.codigoBarras cb
         LEFT JOIN p.palabraClave pk
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))

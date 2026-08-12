@@ -110,6 +110,15 @@ public class SecurityConfig {
 
                         // ── Tienda / variantes (GETs públicos; escritura solo ADMIN) ────────
                         .requestMatchers(HttpMethod.GET, "/tienda/admin/**", "/tienda/v1/admin/**").hasRole("ADMIN")
+                        // El CRUD generico heredado de AbstractController devuelve la entidad
+                        // Variantes cruda -> arrastra el Producto completo, con precio_costo y
+                        // precio_rebaja, y sin el filtro de catalogo publico (listaba tambien
+                        // variantes deshabilitadas y sin stock). Estaba cayendo en el permitAll de
+                        // abajo, asi que cualquiera sin token podia sacar el margen de la tienda
+                        // con /tienda/getAll?page=0&size=1000. El front no los usa (usa
+                        // /tienda/v1/buscar y /tienda/v1/buscar-filtrado), asi que pasan a ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/tienda/getAll", "/tienda/v1/getAll",
+                                "/tienda/getOne/**", "/tienda/v1/getOne/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/tienda/**").permitAll()
                         .requestMatchers("/tienda/**").hasRole("ADMIN")
 
@@ -202,6 +211,15 @@ public class SecurityConfig {
                         // ── Admin (gestión interna del servidor) ──────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
                         .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+
+                        // ── Actuator ──────────────────────────────────────────────────────
+                        // qa/docker exponen 'caches' ademas de 'health'. Sin esta regla caian en
+                        // el anyRequest().authenticated() del final, asi que CUALQUIER usuario con
+                        // sesion (un cliente de la tienda) podia listar y vaciar los caches del
+                        // micro (DELETE /actuator/caches) y degradar la tienda a voluntad.
+                        // health queda abierto porque lo consulta el probe de k8s.
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
 
                         // ── WebSocket (handshake HTTP público) ────────────────────────────
                         .requestMatchers("/ws/**").permitAll()

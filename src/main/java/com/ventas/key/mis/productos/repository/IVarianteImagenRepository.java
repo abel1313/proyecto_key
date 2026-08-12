@@ -52,6 +52,19 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
     @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds ORDER BY CASE WHEN vi.principal = true THEN 0 ELSE 1 END ASC, vi.id ASC")
     List<VarianteImagen> findByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);
 
+    /**
+     * Solo los dos ids (varianteId, imagenId) que necesita el listado para armar la URL de la
+     * miniatura. Mismo orden que {@link #findByVarianteIdIn} (principal primero, luego id ASC).
+     *
+     * <p>Existe para evitar el N+1 de ese metodo: devolver entidades VarianteImagen obliga a
+     * Hibernate a materializar tambien la Imagen y la Variante de cada fila (ambas @ManyToOne
+     * EAGER), o sea un SELECT extra por imagen del listado, cuando de la Imagen solo se usaba
+     * el id — que ya viene en la columna imagen_id de la propia fila.
+     */
+    @Query("SELECT vi.variante.id, vi.imagen.id FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds "
+            + "ORDER BY CASE WHEN vi.principal = true THEN 0 ELSE 1 END ASC, vi.id ASC")
+    List<Object[]> findIdsPrimeraImagenByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);
+
     @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id = :varianteId")
     List<VarianteImagen> findAllByVarianteId(@Param("varianteId") Integer varianteId);
 

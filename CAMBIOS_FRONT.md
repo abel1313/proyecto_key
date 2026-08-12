@@ -9786,3 +9786,109 @@ Mismo patrón que otros catálogos simples del proyecto (`/v1/lugares-entrega`, 
 
 **Pendiente de nuestro lado:** correr `migration_cinta_promocion.sql` en QA (crea la tabla
 `cinta_promocion`, vacía). Avisamos cuando ya esté corrida.
+
+---
+
+## ✅ FRONT — cinta conectada a `/v1/cinta` (2026-08-10)
+
+Recibido y conectado. Ya no queda nada en `localStorage`: tanto la cinta como la pantalla de
+administración (`/admin/cinta`) leen del backend.
+
+**Cómo quedó del lado del front:**
+
+- **Dos listas separadas, a propósito.** La cinta consume `GET /activos` (el público) y la
+  pantalla de admin consume `GET /getAll`. No las unificamos aunque hubiera "ahorrado una
+  llamada": si la cinta colgara de `getAll`, a cualquier cliente le saldría 403 en cada carga y
+  la vería vacía. Gracias por dejar `/activos` sin auth — era el punto que más nos preocupaba.
+- **`/activos` falla en silencio.** Se pide en el arranque de la app, en todas las pantallas y
+  para cualquier visitante. Si no responde, la lista queda vacía y la cinta simplemente no se
+  pinta: ni Swal, ni throw, ni ruido en la consola de un cliente por un adorno. También la
+  sacamos del overlay global de carga, para que no tape la pantalla mientras responde.
+- **Reordenar: renumeramos, no intercambiamos.** Como no hay endpoint en lote, mandamos un
+  `update` por cada fila que cambia de lugar (normalmente dos, en paralelo). Pero en vez de
+  intercambiar los dos `orden` entre sí, **renumeramos la lista completa por posición**. El
+  intercambio se rompe si dos filas comparten el mismo `orden` — que es justo lo que pasaría si
+  un reordenamiento anterior quedó a medias, el riesgo que ustedes mismos mencionaron: ahí el
+  intercambio no movería nada y el botón se vería muerto. Renumerar por índice deja la lista
+  consistente siempre.
+- **`page`/`size` siempre presentes** en `getAll` (`?page=0&size=200`) — ya sabemos que el CRUD
+  genérico no tiene defaults.
+- **`DELETE` con el id crudo** en el body, no `{ id }`. Anotado.
+- **Tabla vacía:** en vez de sembrarla por fuera, la pantalla de admin tiene un botón
+  **"✨ Cargar frases sugeridas"** con los 6 textos. **Solo aparece cuando la lista está vacía**
+  — si estuviera siempre visible, un clic de más las duplicaría, porque cada carga hace `POST` y
+  no reemplaza nada.
+
+**Sobre recortar el alcance (sin destino clickeable en v1):** de acuerdo, no bloquea nada. Hoy
+las frases se pintan como texto no clickeable, que es exactamente lo que devuelve el contrato.
+Cuando se retome, del lado nuestro faltarían dos cosas que ya tenemos identificadas: agregarle al
+catálogo el parámetro de búsqueda en la URL (hoy solo acepta `?productoId=`) y un botón "probar"
+en la pantalla de admin que corra la búsqueda y diga cuántos resultados da, para no publicar una
+frase que lleve a un catálogo vacío.
+
+### ⏳ Lo único que falta para poder probarlo
+
+Correr **`migration_cinta_promocion.sql` en QA**. Mientras no esté, los endpoints no responden y
+la cinta no se va a ver — que es justo el comportamiento esperado (falla en silencio), así que no
+se asusten si entran a QA y no aparece nada. **Avísennos cuando la corran** y lo verificamos en
+vivo del lado del front.
+
+---
+
+## 🔒 BACK — endpoints que dejan de ser públicos + mejoras de rendimiento en catálogo (2026-08-11)
+
+Revisión de seguridad y rendimiento del micro. **Ningún contrato de response cambia** — no hay que
+tocar mappings ni interfaces. Lo que sí cambia es *quién* puede llamar dos grupos de endpoints, y
+qué tan rápido responden las búsquedas.
+
+### 1. `/tienda/getAll`, `/tienda/v1/getAll`, `/tienda/getOne/{id}`, `/tienda/v1/getOne/{id}` → ahora exigen ADMIN
+
+**Antes:** cualquiera sin token podía llamarlos.
+**Ahora:** 401 sin token, 403 con token de cliente normal. Con token de ADMIN siguen igual que siempre.
+
+**Por qué:** son el CRUD genérico heredado (`AbstractController`), devuelven la entidad `Variantes`
+cruda, o sea que arrastran el `Producto` completo — **incluido `precioCosto` y `precioRebaja`** — y
+además no aplican el filtro del catálogo público (listaban también variantes deshabilitadas y sin
+stock). Con `GET /tienda/getAll?page=0&size=1000` y sin login se podía sacar el margen completo de
+la tienda.
+
+**Qué tiene que hacer el front:** en principio **nada** — la tienda usa `/tienda/v1/buscar`,
+`/tienda/v1/buscar-filtrado` y `/tienda/v1/porProducto/...`, que siguen públicos e intactos. Si en
+alguna pantalla quedó una llamada suelta a `getAll`/`getOne` sin login, ahí va a empezar a dar 401:
+avísennos y vemos si conviene exponer un equivalente sin precio de costo. Las pantallas de admin no
+se ven afectadas (ya mandan token de ADMIN).
+
+### 2. `/actuator/**` → ahora exige ADMIN (salvo `health`)
+
+**Antes:** caía en el "cualquiera autenticado", así que un cliente logueado de la tienda podía
+listar y **vaciar los cachés** del micro (`DELETE /actuator/caches`) y dejarlo lento a voluntad.
+**Ahora:** solo ADMIN. `GET /actuator/health` sigue abierto porque lo usa el probe de Kubernetes.
+El front no llama actuator, así que esto no debería notarse.
+
+### 3. Búsquedas: pueden aparecer resultados que antes se perdían
+
+En `/tienda/v1/buscar` y `/tienda/v1/buscar-filtrado`, la condición del código de barras generaba
+un `INNER JOIN` implícito: las variantes cuyo **producto no tiene código de barras** quedaban fuera
+del resultado *aunque hubieran coincidido por nombre, marca o palabra clave*. Ya se corrigió (join
+explícito `LEFT`). Efecto visible: **el mismo término puede devolver más resultados que antes**, y
+`totalRegistros` puede subir. No es un bug nuevo, es el que se corrigió.
+
+> En la BD de QA hoy no hay ningún producto público sin código de barras, así que **en QA el
+> resultado no debería cambiar**. En producción sí puede, si allá existen productos así.
+
+### 4. Rendimiento del catálogo (transparente para el front)
+
+Las listas de productos y variantes hacían una consulta por cada fila y por cada relación
+(producto, código de barras, palabra clave, imagen): una página de 20 variantes eran ~80 consultas.
+Ahora se traen agrupadas — la misma página son ~4. **La respuesta es idéntica campo por campo**, no
+hay que cambiar nada; solo debería sentirse más rápido, sobre todo en la primera carga (cuando el
+caché está frío).
+
+### ⚠️ Pendiente del lado del back, aún NO aplicado
+
+Las tablas de relación imagen↔producto/variante tienen filas repetidas en cantidad seria: en QA,
+`producto_imagen_copy` tiene **13,095 filas para 81 relaciones reales** (el producto 265 solo tiene
+11,032 filas para 25 imágenes) y `variante_imagen` **12,607 filas para 1,795 reales**. Eso es parte
+de por qué las imágenes del listado se sienten lentas. Ya está escrito el script de limpieza
+(`migracion_dedup_relaciones_imagenes.sql`) pero **no se ha corrido**. Cuando se corra, avisamos —
+no cambia ningún contrato, pero la mejora sí se debería notar del lado de ustedes.

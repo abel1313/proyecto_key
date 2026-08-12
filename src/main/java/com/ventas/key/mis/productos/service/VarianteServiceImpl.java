@@ -564,13 +564,25 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
     }
 
+    /**
+     * Vincula imagenes a la variante saltandose las que ya estaban vinculadas. Sin este filtro
+     * cada nueva llamada volvia a insertar el mismo par (variante_id, imagen_id): en QA hay
+     * variantes con 778 filas en variante_imagen para 16 imagenes reales, y esas filas basura
+     * son las que despues hay que leer y ordenar en cada listado.
+     */
     private void vincularImagenes(Variantes variante, List<Long> imageIds) {
-        List<VarianteImagen> relaciones = imageIds.stream().map(imgId -> {
-            VarianteImagen vi = new VarianteImagen();
-            vi.setVariante(variante);
-            vi.setImagen(iImagenRepository.getReferenceById(imgId));
-            return vi;
-        }).toList();
+        Set<Long> yaVinculadas = new HashSet<>(
+                iVarianteImagenRepository.findImagenIdsByVarianteIdIn(List.of(variante.getId())));
+        List<VarianteImagen> relaciones = imageIds.stream()
+                .distinct()
+                .filter(imgId -> !yaVinculadas.contains(imgId))
+                .map(imgId -> {
+                    VarianteImagen vi = new VarianteImagen();
+                    vi.setVariante(variante);
+                    vi.setImagen(iImagenRepository.getReferenceById(imgId));
+                    return vi;
+                }).toList();
+        if (relaciones.isEmpty()) return;
         iVarianteImagenRepository.saveAll(relaciones);
     }
 
@@ -683,13 +695,16 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         if (variantes.isEmpty()) return List.of();
 
         List<Integer> varianteIds = variantes.stream().map(Variantes::getId).toList();
-        List<VarianteImagen> todasImagenes = iVarianteImagenRepository.findByVarianteIdIn(varianteIds);
+        // Proyeccion (varianteId, imagenId) en vez de entidades VarianteImagen: de la imagen solo
+        // se ocupa el id para armar la URL de la miniatura, y traer la entidad obligaba a Hibernate
+        // a cargar tambien cada Imagen (@ManyToOne EAGER) con un SELECT por fila del listado.
+        List<Object[]> todasImagenes = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(varianteIds);
 
         // La query ordena: principal=true primero, luego por id ASC.
         // putIfAbsent conserva solo el primero (el preferido) por variante.
         Map<Integer, Long> variantePrimeraImagen = new LinkedHashMap<>();
-        for (VarianteImagen vi : todasImagenes) {
-            variantePrimeraImagen.putIfAbsent(vi.getVariante().getId(), vi.getImagen().getId());
+        for (Object[] fila : todasImagenes) {
+            variantePrimeraImagen.putIfAbsent((Integer) fila[0], (Long) fila[1]);
         }
 
         return variantes.stream().map(v -> {
