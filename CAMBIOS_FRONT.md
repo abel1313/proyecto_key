@@ -9892,3 +9892,85 @@ Las tablas de relación imagen↔producto/variante tienen filas repetidas en can
 de por qué las imágenes del listado se sienten lentas. Ya está escrito el script de limpieza
 (`migracion_dedup_relaciones_imagenes.sql`) pero **no se ha corrido**. Cuando se corra, avisamos —
 no cambia ningún contrato, pero la mejora sí se debería notar del lado de ustedes.
+
+---
+
+## 🆕 BACK — respuesta del ADMIN a reseñas + historial de acceso para el dashboard (2026-08-11)
+
+**Implementado en `dev`, pendiente correr migración** en dev/qa/prod:
+`src/main/resources/static/migration_respuesta_resena_historial_acceso.sql`.
+
+### 1. ADMIN responde a una reseña
+
+```
+PUT /v1/resenas/{id}/responder
+Authorization: Bearer <token de ADMIN>
+Content-Type: application/json
+
+{ "respuesta": "Gracias por tu comentario, ya revisamos el detalle del color." }
+```
+
+Solo ADMIN (401 sin token, 403 con token de cliente normal). Una sola respuesta por reseña, no un
+hilo — si se vuelve a llamar, **sobrescribe** la respuesta anterior (no hay historial de versiones).
+
+**Response 200** — mismo `ResenaResponseDto` que ya usan `/v1/resenas/variante/{id}` y
+`/v1/resenas/mis-resenas`, con 2 campos nuevos al final:
+```json
+{
+  "data": {
+    "id": 12,
+    "varianteId": 340,
+    "calificacion": 4,
+    "comentario": "Buena calidad, pero llegó un poco tarde",
+    "fechaCreacion": "2026-08-01T10:15:00",
+    "nombreCliente": "María L.",
+    "esPropia": false,
+    "respuestaAdmin": "Gracias por tu comentario, ya revisamos el detalle del color.",
+    "fechaRespuesta": "2026-08-11T18:30:00"
+  }
+}
+```
+`respuestaAdmin`/`fechaRespuesta` vienen `null` en cualquier reseña sin respuesta todavía — **ya
+salen así en todos los endpoints existentes** (`/v1/resenas/variante/{id}`, `/mis-resenas`), no
+hace falta ningún cambio en las pantallas que ya consumen esos endpoints salvo pintar la respuesta
+si no es null.
+
+**Response 400:** `"La respuesta no puede estar vacia"` o `"No existe la resena con id: {id}"`.
+
+### 2. Historial de acceso (para el dashboard del ADMIN)
+
+Registra cada login y, mientras la sesión sigue activa, se actualiza sola — sin que el front tenga
+que hacer nada nuevo. **Importante sobre la precisión:** la "última actividad" se actualiza cada
+vez que el refresh token rota (aprox. cada 15 min mientras el usuario sigue usando la app), no en
+cada clic. La duración que se ve es una aproximación en bloques de ~15 min, no un cronómetro exacto
+— una visita muy corta que nunca llega a refrescar el token se ve con duración ~0.
+
+```
+GET /v1/dashboard/accesos?desde=2026-08-01&hasta=2026-08-11&pagina=1&size=20
+Authorization: Bearer <token de ADMIN>
+```
+`desde`/`hasta` opcionales (`yyyy-MM-dd`) — sin ellos trae todo el histórico paginado. Ya está bajo
+`/v1/dashboard/**`, que ya es ADMIN-only, no requiere nada nuevo de seguridad.
+
+**Response 200:**
+```json
+{
+  "data": {
+    "pagina": 1,
+    "totalPaginas": 3,
+    "totalRegistros": 47,
+    "t": [
+      {
+        "usuarioId": 8,
+        "username": "maria.lopez",
+        "fechaLogin": "2026-08-11T09:02:11",
+        "ultimaActividad": "2026-08-11T09:41:00",
+        "duracionMinutosAprox": 39
+      }
+    ]
+  }
+}
+```
+
+**No existe todavía** (por si lo necesitan después): conteo de visitantes anónimos sin cuenta —
+esto solo registra logins de usuarios con cuenta, no tráfico público sin login.

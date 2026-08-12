@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.resenas.ResenaEditarDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaRequestDto;
+import com.ventas.key.mis.productos.models.resenas.ResenaResponderDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaResponseDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaResumenDto;
 import com.ventas.key.mis.productos.service.ResenaServiceImpl;
@@ -53,6 +54,19 @@ public class ResenaController {
             return ResponseEntity.ok(new ResponseGeneric<>("Resena eliminada"));
         } catch (Exception e) {
             log.error("Error al eliminar resena {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    // Solo ADMIN (ver regla dedicada en SecurityConfig, /v1/resenas/** general es solo
+    // "authenticated" para el resto de los verbos).
+    @PutMapping("/{id}/responder")
+    public ResponseEntity<ResponseGeneric<ResenaResponseDto>> responder(
+            @PathVariable Integer id, @RequestBody ResenaResponderDto request) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(resenaService.responder(id, request)));
+        } catch (Exception e) {
+            log.error("Error al responder resena {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
