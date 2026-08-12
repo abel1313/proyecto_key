@@ -10029,3 +10029,101 @@ hasta que ustedes avisen que su fix ya está arriba. Producción sigue como est�
 riesgo. Ya estamos trabajando en el endpoint público que pidieron para cubrir el caso de link
 directo — en cuanto esté listo, se los pasamos aquí mismo con el request/response definitivo antes
 de que lo usen, no después.
+
+---
+
+## ✅ Respuesta del back — checklist del 2026-08-12
+
+### 1. 🔴 Nuevo endpoint público — `varianteId → productoId`
+
+Va la versión mínima, tal como pidieron:
+
+```
+GET /tienda/v1/variante/{varianteId}/producto-id
+```
+
+Público (mismo `permitAll` de `GET /tienda/**`, no requiere token). **No aplica ningún filtro de
+visibilidad** (stock, habilitado) — mismo criterio que ya tiene `/variantes/v1/porProducto/{id}`,
+que es el endpoint al que llaman después con este dato.
+
+**Response 200:**
+```json
+{ "data": { "productoId": 265 } }
+```
+
+**Response 400:** `"No existe la variante con id: {id}"` si el id no existe.
+
+Está en `dev`, compiló limpio y arrancó el contexto sin errores (validado contra la BD real de
+QA — `varianteId 1 → productoId 265` es un dato real, no de prueba). **Lo único que no pude
+verificar es la llamada HTTP en sí**, por un problema aparte que ya veníamos arrastrando: el cache
+local fuerza Redis sin importar el perfil y no hay Redis corriendo en mi entorno de desarrollo —
+en cuanto lo empuje a `qa` (que sí tiene Redis) lo probamos con curl y confirmamos aquí antes de
+que ustedes lo conecten.
+
+**Con esto ya no falta nada de nuestro lado para el caso del link directo.** En cuanto lo prueben
+y confirmen, avisen y promovemos el cierre de `getOne` a producción como quedamos.
+
+### 2. 🟠 Reseñas + historial de accesos
+
+Ya está en `dev` y `qa` (push hecho), y la migración ya corrió — confirmado por nuestro lado
+revisando directo la BD de QA: las columnas `respuesta_admin`/`fecha_respuesta` existen en
+`resena`, y `historial_acceso` existe con el esquema correcto.
+
+**Ojo, esto sí lo necesito de ustedes:** no he podido confirmar el flujo completo porque nadie ha
+iniciado sesión en QA desde que se desplegó (la tabla `historial_acceso` sigue en 0 filas — no es
+error, es que falta una prueba real). ¿Alguien puede hacer un login de prueba en QA? En cuanto
+vea la fila nueva se los confirmo aquí y ya pueden conectar todo con confianza.
+
+### 3. 🟠 `migracion_dedup_relaciones_imagenes.sql`
+
+**Ya corrió y está verificada en QA**, desde antes de este checklist:
+- `producto_imagen_copy`: 13,095 filas → **81** (pares reales)
+- `variante_imagen`: 12,607 filas → **1,795** (pares reales)
+- Verificado que ningún producto/variante se quedó sin imagen por la limpieza (0 casos)
+- UNIQUE + índices agregados en ambas tablas, y el código ya evita que se vuelva a acumular
+  basura (`vincularImagenes`/`compartirImagenesVarianteDto` filtran pares ya existentes antes de
+  insertar)
+
+**Prod:** vamos a confirmar con el usuario si ya corrió ahí también y les avisamos.
+
+### 4. 🟡 Cinta — falta el clic
+
+Anotado, no urgente. Cuando se retome, coordinamos el parámetro de búsqueda en la URL del
+catálogo que van a necesitar.
+
+---
+
+## ✅ Respuesta del back — `getOne` se queda cerrado (no se revierte) + cierre de temas (2026-08-12)
+
+### `getOne` ADMIN-only se mantiene
+
+Surgió la duda de si cerrarlo rompía las vistas previas de WhatsApp/Facebook al compartir un link
+de producto (esa era la razón por la que originalmente era público). Lo investigamos contra el
+código real del front antes de decidir:
+
+- El build es 100% cliente (`@angular-devkit/build-angular:browser`, sin `@angular/ssr` ni
+  `@nguniversal`) — los bots de WhatsApp/Facebook **no ejecutan JavaScript**, así que nunca llegan
+  a disparar ninguna llamada a la API al generar la vista previa. `getOne` nunca fue el mecanismo
+  detrás de eso, público o no.
+- `index.html` tiene el `og:image` **fijo** (`/assets/og-image.jpg`) — el mismo para todos los
+  productos. Hoy, compartir el link de cualquier producto por WhatsApp muestra el logo genérico de
+  la tienda, nunca la foto del producto. Eso no cambió con este fix, porque nunca dependió de él.
+
+**Conclusión: `getOne` se queda como ADMIN-only.** No hay ninguna funcionalidad real que dependiera
+de que fuera público — la fuga de `precioCosto`/`precioRebaja` que motivó el cierre sigue siendo el
+problema real, y ya está cubierto el único caso legítimo que faltaba (el link directo, con el
+resolver `varianteId → productoId` de la sección anterior).
+
+**Dato aparte, no es un bug, es una feature que nunca existió:** si en algún momento quieren que
+compartir un producto por WhatsApp muestre *esa* foto específica (no el logo genérico), hace falta
+server-side rendering o un servicio que detecte al bot y le sirva HTML con meta tags dinámicos por
+producto — trabajo nuevo, avísennos si lo quieren y lo planeamos.
+
+**Ya pueden promover el cierre de `getOne` a producción** en cuanto confirmen que su fix de la
+ficha (el que ya está en su `dev`/`qa`) sigue funcionando con el resolver nuevo.
+
+### Migraciones — confirmado corridas en QA y producción
+
+`migration_respuesta_resena_historial_acceso.sql` y `migracion_dedup_relaciones_imagenes.sql` ya
+corrieron en ambos ambientes. El tema de imágenes duplicadas queda cerrado — sin más pendientes de
+nuestro lado ahí.
