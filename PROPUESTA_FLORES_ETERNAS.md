@@ -1,18 +1,21 @@
 # Flores eternas — ramos configurables
 
-> ✅ **Backend implementado en `dev` el 2026-08-12** (sin commitear todavía): catálogos
-> (`TipoFlor`, `CantidadFlorValida`, `AccesorioRamo`, `FraseListonPredefinida`, `RamoArmado`),
-> motor de cálculo (`POST /v1/flores/validar-cantidad`, `POST /v1/flores/calcular-precio`), CRUD
-> admin de cada catálogo, `LugarEntrega` extendido con `costoEnvio`, **e integración completa con
-> `Pedido`/`Venta`** vía variantes "sombra" (sin tocar `PedidoServiceImpl`) — ver "Diseño técnico,
-> parte 2" más abajo. `SecurityConfig` actualizado. Compila limpio (`mvn -o compile`).
+> ✅ **Backend completo, pusheado a `dev` el 2026-08-13** (commits `d12dea8`, `49df5a8`):
+> catálogos (`TipoFlor`, `CantidadFlorValida`, `AccesorioRamo`, `FraseListonPredefinida`,
+> `RamoArmado`), motor de cálculo con `varianteId` por componente, integración completa con
+> `Pedido`/`Venta` vía variantes "sombra" (sin tocar `PedidoServiceImpl`), y anticipo del 50% de
+> frase personalizada vía pedido APARTADO separado + módulo de abonos existente. `SecurityConfig`
+> actualizado. Compila limpio (`mvn -o compile`).
+>
+> ✅ Contrato completo documentado y dudas del front respondidas en `CAMBIOS_FRONT.md`
+> (2026-08-13) — incluye cómo armar `POST /v1/pedidos/savePedido` con los `varianteId` que
+> devuelve `calcular-precio`.
 >
 > ✅ `migration_flores_eternas.sql` (catálogos) ya corrió en **QA y producción**.
 >
-> ⏳ **Pendiente:** correr `migration_flores_eternas_pedido.sql` (parte 2, esta sesión) en QA,
-> pruebas end-to-end, pantallas de front, cobro manual de frase personalizada validada (sin
-> endpoint todavía), y documentar el contrato final en `CAMBIOS_FRONT.md` una vez el front lo
-> consuma.
+> ⏳ **Pendiente:** correr `migration_flores_eternas_pedido.sql` (parte 2) en QA, merge
+> `dev`→`qa` para que el front deje de ver 401 en los endpoints públicos, pruebas end-to-end, y
+> pantalla del cliente en el front (catálogos de admin ya están conectados de su lado).
 
 ## El problema
 
@@ -179,35 +182,72 @@ venta de producto normal.
 
 **La única excepción — frase de listón personalizada pendiente de validar:** no tiene precio al
 momento de crear el pedido, así que no puede ser una línea de `savePedido`. Se guarda como
-"pendiente" en `RamoPedidoDetalle` (ver abajo) y el cobro de esa parte queda **manual** por ahora
-— no hay endpoint para agregarle una línea a un pedido ya creado. Documentado como límite
-conocido, no como bug.
+"pendiente" en `RamoPedidoDetalle` (ver abajo). El cobro se resuelve con un mecanismo aparte —
+ver "Anticipo del 50% vía abonos" más abajo, ya implementado (2026-08-13).
 
 **`RamoPedidoDetalle`** (tabla nueva, chica): el "ticket de producción" — lo que no tiene lugar
 en `DetallePedido` porque no es dinero, es información: qué frase de listón exacta (predefinida o
 personalizada + su estado de validación + anticipo), zona de entrega o recoger en local,
-teléfono/correo de contacto del pedido, comentario libre de accesorio no disponible, y referencia
-al `RamoArmado` de origen si aplica (trazabilidad).
+teléfono/correo de contacto del pedido, comentario libre de accesorio no disponible, referencia
+al `RamoArmado` de origen si aplica (trazabilidad), y el `pedidoAnticipo` (ver abajo).
 
 - `POST /v1/flores/pedidos/{pedidoId}/detalle` — adjunta el ticket a un pedido **ya creado**
   (autenticado, igual que `/v1/pedidos/**`).
 - `GET /v1/flores/pedidos/{pedidoId}/detalle` — lo consulta.
 - `PUT /v1/flores/pedidos/detalle/{id}/validar-frase` — ADMIN aprueba/rechaza la frase
-  personalizada pendiente, le asigna precio, y marca si ya se pagó el anticipo.
+  personalizada pendiente, le asigna precio, y dispara la creación del pedido de anticipo (ver
+  abajo).
+
+## Diseño técnico (2026-08-13, parte 3) — anticipo del 50% vía abonos + decisiones de front
+
+**Investigado antes de decidir:** el módulo de abonos (`AbonoServiceImpl`) exige que
+`tipoPedido` sea `APARTADO`/`FIADO` para **todo el pedido**, y calcula el saldo pendiente sobre
+`Pedido.totalPedido` completo. No está pensado para "una sola línea a crédito dentro de un
+pedido que por lo demás ya se pagó de contado" — forzar el pedido completo de flores a
+`APARTADO` solo por una frase pendiente mezclaría mal los conceptos (el reporte de crédito
+mostraría todo el ramo como si fuera a crédito, cuando en realidad el 95% ya se cobró de una vez).
+
+**Decisión: pedido de anticipo separado.** Al aprobar una frase personalizada
+(`PUT /v1/flores/pedidos/detalle/{id}/validar-frase` con `aprobar: true` y `precioAsignado`), el
+back:
+1. Crea una variante "sombra" nueva, específica para esa frase (`ProductoSombraServiceImpl`,
+   igual que los catálogos, pero generada al vuelo con el texto de la frase como nombre).
+2. Crea un `Pedido` **nuevo y separado** (mismo cliente que el pedido original, `tipoPedido:
+   "APARTADO"`, `estadoPedido: "Pendiente"`, `fechaRecogida` deliberadamente `null` para que el
+   scheduler de cancelación automática no lo toque) con una sola línea: esa frase, por el precio
+   asignado.
+3. Enlaza ese pedido nuevo en `RamoPedidoDetalle.pedidoAnticipo` y calcula
+   `montoAnticipo = precioAsignado × 50%`.
+4. Devuelve `pedidoAnticipoId` en la respuesta.
+
+El front registra el pago real con el flujo de abonos que ya existe:
+`POST /v1/abonos/{pedidoAnticipoId}`. Todo el tracking de saldo pendiente, auto-cierre a
+`PAGADO`, y cancelación, es el módulo de abonos de siempre — no se duplicó nada de esa lógica.
+El pedido original (el que ya se cobró completo) nunca cambia de `tipoPedido`.
+
+**Decisiones de producto confirmadas con el usuario (2026-08-13):**
+- **Ubicación en el front:** sección aparte del menú ("Flores eternas"), no mezclado con el
+  catálogo general de bolsas/blusas.
+- **Ramos preconfigurados (`RamoArmado`):** sí se navegan como catálogo normal
+  (`GET /v1/ramos-armados/activos`) — técnicamente ya encajan porque tienen variante real detrás.
+  El configurador "a la medida" vive solo dentro de la sección de flores.
+- **Carrito:** sin restricción de back — cada línea de un ramo es una variante real, puede pasar
+  por el mismo carrito que cualquier producto. Es decisión de front cómo agruparlas
+  visualmente (una tarjeta por ramo con varias líneas debajo, similar al agrupado que ya usan
+  para promociones).
 
 ## Próximos pasos
 
 - ✅ Diseño técnico de catálogos + motor de cálculo (2026-08-12).
 - ✅ Integración con `Pedido`/`Venta` vía variantes "sombra", sin tocar `PedidoServiceImpl`
   (2026-08-12).
+- ✅ Anticipo del 50% vía pedido APARTADO separado + módulo de abonos existente (2026-08-13).
+- ✅ Validación de unicidad de `esPapel` activo en el back (2026-08-13).
+- ✅ Contrato completo documentado en `CAMBIOS_FRONT.md` y respondidas las dudas del front
+  (2026-08-13).
 - ⏳ Correr `migration_flores_eternas.sql` y `migration_flores_eternas_pedido.sql` en QA
-  (`migration_flores_eternas.sql` ya corrió en QA y producción; la segunda parte, de esta misma
-  sesión, todavía no).
-- ⏳ Cobro manual de la frase personalizada una vez validada (sin endpoint todavía — ver límite
-  conocido arriba).
-- ⏳ Pantallas de admin (catálogos, incluida la edición de `precioCosto`/`stock`) y configurador
-  del cliente en el front.
-- ⏳ Documentar contrato final en `CAMBIOS_FRONT.md` una vez el front consuma estos endpoints —
-  incluir que la ubicación de entrega se elige de una lista (`GET /v1/lugares-entrega`), no se
-  escribe libre, y que el pedido se arma con `POST /v1/pedidos/savePedido` usando los
-  `varianteId` que devuelve `/v1/flores/calcular-precio`.
+  (`migration_flores_eternas.sql` ya corrió en QA y producción; la segunda parte todavía no).
+- ⏳ Endpoint de listado global de frases `PENDIENTE_VALIDACION` (hoy solo se consultan por
+  pedido puntual) — si el front pide una pantalla de "bandeja de frases pendientes".
+- ⏳ Pantallas de admin (catálogos, edición de `precioCosto`/`stock`) y configurador del cliente
+  en el front — el front ya tiene lista la parte de catálogos, falta la pantalla del cliente.
