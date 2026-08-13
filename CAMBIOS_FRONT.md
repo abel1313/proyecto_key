@@ -11009,10 +11009,8 @@ fue posible (las variantes sombra ya devolvían 401/nunca aparecían navegables 
 este fix, porque flores eternas siempre vivió en su propia sección), y ahora con el flag queda
 blindado en todos los buscadores además.
 
-### Pendiente de nuestro lado
+### Migración ya corrida
 
-Falta correr **`migration_flores_eternas_multicolor.sql`** en QA y producción (las dos
-anteriores, `migration_flores_eternas.sql` y `migration_flores_eternas_pedido.sql`, ya corrieron
-en ambas). Sin ella no existen `ColorFlor`, `umbralActivacion`, `imagenUrl` ni
-`esCatalogoInterno` en la base — no prueben multicolor todavía. Catálogos siguen vacíos en QA/prod
-a esta fecha, así que no hay riesgo de datos al correrla. Avisamos en cuanto esté aplicada.
+**`migration_flores_eternas_multicolor.sql` ya corrió en QA y producción** (confirmado
+2026-08-13) — igual que las dos anteriores. `ColorFlor`, `umbralActivacion`, `imagenUrl` y
+`esCatalogoInterno` ya existen en ambas bases. Pueden probar multicolor cuando gusten.
