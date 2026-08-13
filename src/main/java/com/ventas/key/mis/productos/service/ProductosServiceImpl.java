@@ -145,7 +145,7 @@ public class ProductosServiceImpl extends
         // viajes a la BD tirados (el SELECT paginado y su COUNT(*) sin filtro) en cada request del
         // catalogo publico, que es el endpoint mas llamado del sistema.
         Page<Producto> productosPaginados = isAdmin
-                ? iProductosRepository.findAll(pageable)
+                ? iProductosRepository.findVisibleParaAdmin(pageable)
                 // Cliente normal: solo productos con stock, habilitados Y con al menos una imagen.
                 : iProductosRepository.findConStockYImagenPublico(pageable);
 

@@ -176,12 +176,17 @@ public class SecurityConfig {
                         .requestMatchers("/v1/accesorios-ramo/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/frases-liston/**").permitAll()
                         .requestMatchers("/v1/frases-liston/**").hasRole("ADMIN")
+                        // Colores de cada especie -- publico para que el cliente elija color tras la cantidad.
+                        .requestMatchers(HttpMethod.GET, "/v1/colores-flor/**").permitAll()
+                        .requestMatchers("/v1/colores-flor/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/admin").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/**").permitAll()
                         .requestMatchers("/v1/ramos-armados/**").hasRole("ADMIN")
                         // "Ticket de produccion" de un ramo, colgado de un Pedido ya creado -- requiere
-                        // sesion igual que el resto de /v1/pedidos/**; validar la frase es solo ADMIN.
+                        // sesion igual que el resto de /v1/pedidos/**; validar la frase y la bandeja
+                        // de frases pendientes de TODOS los pedidos son solo ADMIN.
                         .requestMatchers(HttpMethod.PUT, "/v1/flores/pedidos/detalle/*/validar-frase").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/flores/pedidos/frases-pendientes").hasRole("ADMIN")
                         .requestMatchers("/v1/flores/pedidos/**").authenticated()
                         // Motor de calculo (validar cantidad / cotizar precio): publico, solo lectura/calculo.
                         .requestMatchers("/v1/flores/**").permitAll()

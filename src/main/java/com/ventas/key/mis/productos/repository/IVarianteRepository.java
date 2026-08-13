@@ -22,6 +22,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     List<Variantes> findByProductoId(Integer productoId);
 
+    // Listado general de admin (getAll/findAllNew) sin ningun filtro de negocio -- ve todo
+    // (deshabilitados, sin stock, sin imagen) salvo las variantes "sombra" de flores eternas,
+    // que nunca deben aparecer como si fueran un producto navegable mas.
+    @Query(value = "SELECT v FROM Variantes v WHERE v.producto.esCatalogoInterno = false",
+           countQuery = "SELECT COUNT(v) FROM Variantes v WHERE v.producto.esCatalogoInterno = false")
+    Page<Variantes> findVisibleParaAdmin(Pageable pageable);
+
     // Resolver minimo para la ficha de producto publica: cuando el cliente entra por un link
     // directo/marcador a /tienda/detalle/{varianteId} sin haber pasado por el catalogo, el front
     // no tiene el productoId a mano (antes lo sacaba de GET /tienda/v1/getOne/{id}, que ahora es
@@ -73,10 +80,11 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
            "JOIN FETCH v.producto p " +
            "LEFT JOIN FETCH p.codigoBarras " +
            "LEFT JOIN FETCH v.palabraClave " +
-           "WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' " +
+           "WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false " +
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)",
            countQuery = "SELECT COUNT(v) FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
-           "AND v.habilitado = '1' AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
+           "AND v.habilitado = '1' AND v.producto.esCatalogoInterno = false " +
+           "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findConStockYImagenPublico(Pageable pageable);
 
     @Query("SELECT v FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
@@ -140,6 +148,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND p.esCatalogoInterno = false
         """,
         countQuery = """
         SELECT COUNT(v) FROM Variantes v
@@ -161,6 +170,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND p.esCatalogoInterno = false
         """)
     Page<Variantes> buscarVariantesAdmin(@Param("nombreOCodigo") String nombreOCodigo,
                                           @Param("conStock") Boolean conStock,
@@ -181,7 +191,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
         JOIN FETCH v.producto p
         LEFT JOIN FETCH p.codigoBarras cb
         LEFT JOIN FETCH v.palabraClave pc
-        WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1'
+        WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false
           AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
           AND (:termino IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
@@ -200,7 +210,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
         JOIN v.producto p
         LEFT JOIN p.codigoBarras cb
         LEFT JOIN v.palabraClave pc
-        WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1'
+        WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false
           AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
           AND (:termino IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
@@ -224,15 +234,18 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     // Valores disponibles para poblar los filtros en el front (solo del catalogo visible al publico).
     @Query("SELECT DISTINCT v.talla FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
-           "AND v.habilitado = '1' AND v.talla IS NOT NULL AND v.talla <> '' ORDER BY v.talla")
+           "AND v.habilitado = '1' AND v.producto.esCatalogoInterno = false " +
+           "AND v.talla IS NOT NULL AND v.talla <> '' ORDER BY v.talla")
     List<String> findTallasDisponiblesPublico();
 
     @Query("SELECT DISTINCT v.color FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
-           "AND v.habilitado = '1' AND v.color IS NOT NULL AND v.color <> '' ORDER BY v.color")
+           "AND v.habilitado = '1' AND v.producto.esCatalogoInterno = false " +
+           "AND v.color IS NOT NULL AND v.color <> '' ORDER BY v.color")
     List<String> findColoresDisponiblesPublico();
 
     @Query("SELECT DISTINCT v.marca FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +
-           "AND v.habilitado = '1' AND v.marca IS NOT NULL AND v.marca <> '' ORDER BY v.marca")
+           "AND v.habilitado = '1' AND v.producto.esCatalogoInterno = false " +
+           "AND v.marca IS NOT NULL AND v.marca <> '' ORDER BY v.marca")
     List<String> findMarcasDisponiblesPublico();
 
     // Object[] como tipo de retorno directo hace que Spring Data trate el metodo como
@@ -240,7 +253,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // (ver mismo patron/comentario en IVentaRepository.sumVentasRaw). Por eso se expone
     // como List<Object[]> y se aplana en el metodo default.
     @Query("SELECT MIN(v.producto.precioVenta), MAX(v.producto.precioVenta) FROM Variantes v " +
-           "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1'")
+           "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
+           "AND v.producto.esCatalogoInterno = false")
     List<Object[]> findRangoPreciosPublicoRaw();
 
     default Object[] findRangoPreciosPublico() {
@@ -251,12 +265,14 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
                    "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
+                   "AND v.producto.esCatalogoInterno = false " +
                    "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
                    "OR (v.producto.codigoBarras IS NOT NULL AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))",
            countQuery = "SELECT COUNT(v) FROM Variantes v LEFT JOIN v.palabraClave pc " +
                         "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
+                        "AND v.producto.esCatalogoInterno = false " +
                         "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +

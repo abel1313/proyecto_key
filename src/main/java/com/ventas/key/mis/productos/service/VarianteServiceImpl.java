@@ -669,7 +669,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Pageable pageable = PageRequest.of(pagina - 1, size);
         Page<Variantes> dataPaginacion;
         if(AuthenticationUtils.isAdminContext()){
-            dataPaginacion = this.repoGenerico.findAll(pageable);
+            dataPaginacion = this.iVarianteRepository.findVisibleParaAdmin(pageable);
         }else{
             // Cliente normal: stock + habilitado + con imagen.
             dataPaginacion = this.iVarianteRepository.findConStockYImagenPublico(pageable);

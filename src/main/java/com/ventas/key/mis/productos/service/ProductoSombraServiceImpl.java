@@ -8,10 +8,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 // Crea/sincroniza un par Producto+Variante "sombra" para catalogos de flores eternas (TipoFlor,
-// AccesorioRamo, FraseListonPredefinida, LugarEntrega) que necesitan poder aparecer como una
-// linea real de DetallePedido -- asi savePedido() (PedidoServiceImpl) los vende, descuenta
-// stock, calcula ganancia y valida el precio exactamente igual que a cualquier producto normal,
-// sin que haya que tocar ese codigo. Estas variantes no se editan a mano, solo via este service.
+// ColorFlor, AccesorioRamo, FraseListonPredefinida, LugarEntrega) que necesitan poder aparecer
+// como una linea real de DetallePedido -- asi savePedido() (PedidoServiceImpl) los vende,
+// descuenta stock, calcula ganancia y valida el precio exactamente igual que a cualquier
+// producto normal, sin que haya que tocar ese codigo. Estas variantes no se editan a mano, solo
+// via este service. Se marcan con Producto.esCatalogoInterno=true para que el resto del sistema
+// (buscadores, selectores de promocion/rifa, reportes) las excluya explicitamente.
 @Service
 public class ProductoSombraServiceImpl {
 
@@ -27,8 +29,12 @@ public class ProductoSombraServiceImpl {
         this.iVarianteRepository = iVarianteRepository;
     }
 
-    @Transactional
     public Variantes crear(String nombre, Double precioVenta, Double precioCosto, int stock) {
+        return crear(nombre, precioVenta, precioCosto, stock, null);
+    }
+
+    @Transactional
+    public Variantes crear(String nombre, Double precioVenta, Double precioCosto, int stock, String color) {
         Producto producto = new Producto();
         aplicarDatos(producto, nombre, precioVenta, precioCosto, stock);
         Producto productoGuardado = iProductosRepository.save(producto);
@@ -36,17 +42,23 @@ public class ProductoSombraServiceImpl {
         Variantes variante = new Variantes();
         variante.setProducto(productoGuardado);
         variante.setStock(stock);
+        variante.setColor(color);
         variante.setHabilitado('1');
         return iVarianteRepository.save(variante);
     }
 
-    @Transactional
     public void sincronizar(Variantes variante, String nombre, Double precioVenta, Double precioCosto, int stock) {
+        sincronizar(variante, nombre, precioVenta, precioCosto, stock, variante.getColor());
+    }
+
+    @Transactional
+    public void sincronizar(Variantes variante, String nombre, Double precioVenta, Double precioCosto, int stock, String color) {
         Producto producto = variante.getProducto();
         aplicarDatos(producto, nombre, precioVenta, precioCosto, stock);
         iProductosRepository.save(producto);
 
         variante.setStock(stock);
+        variante.setColor(color);
         iVarianteRepository.save(variante);
     }
 
@@ -57,5 +69,6 @@ public class ProductoSombraServiceImpl {
         producto.setStock(stock);
         producto.setHabilitado('1');
         producto.setCodigoBarrasGenerado(false);
+        producto.setEsCatalogoInterno(true);
     }
 }

@@ -11,7 +11,8 @@ import java.util.List;
 @NoArgsConstructor
 public class RamoArmadoRequestDto {
     private String nombre;
-    private Integer tipoFlorId;
+    private String imagenUrl;
+    private Integer colorFlorId;
     private Integer cantidadFlorValidaId;
     private List<RamoArmadoAccesorioRequestDto> accesorios;
     private Boolean activo;

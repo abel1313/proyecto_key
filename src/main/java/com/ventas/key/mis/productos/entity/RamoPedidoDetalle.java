@@ -1,9 +1,12 @@
 package com.ventas.key.mis.productos.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -11,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 // "Ticket de produccion" de un ramo dentro de un pedido ya creado. NO guarda precios que ya
 // viven como lineas reales de DetallePedido (flores, papel, accesorios, liston predefinido,
@@ -41,6 +45,12 @@ public class RamoPedidoDetalle extends BaseId {
 
     @Column(name = "cantidad_final", nullable = false)
     private Integer cantidadFinal;
+
+    // Desglose por color -- para produccion (armar el ramo con la mezcla exacta que pidio el
+    // cliente), no para precio (eso ya vive en las lineas reales de DetallePedido).
+    @OneToMany(mappedBy = "ramoPedidoDetalle", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
+    private List<RamoPedidoDetalleColor> colores;
 
     @ManyToOne
     @JoinColumn(name = "frase_liston_predefinida_id")

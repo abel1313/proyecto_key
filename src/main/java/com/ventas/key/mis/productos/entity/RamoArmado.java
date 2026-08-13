@@ -15,8 +15,9 @@ import lombok.Setter;
 
 import java.util.List;
 
-// Ramo preconfigurado ("armado"): el admin ya valido que esta cantidad de flores forma bien
-// el circulo (cantidadFlorValida) y ya aplico las reglas obligatorias (papel si >10) al precio.
+// Ramo preconfigurado ("armado"): el admin ya valido que esta cantidad de flores, de este color
+// especifico, forma bien el circulo (cantidadFlorValida, a nivel especie) y ya aplico las
+// reglas obligatorias (papel si supera el umbral) al precio.
 @Entity
 @Table(name = "ramo_armado")
 @Setter
@@ -28,9 +29,14 @@ public class RamoArmado extends BaseId {
     @Column(nullable = false, length = 150)
     private String nombre;
 
+    // Foto de referencia de como va a quedar el ramo. Simple URL por ahora -- no pasa por
+    // micro_imagenes, el admin sube la imagen por fuera y pega el link aqui.
+    @Column(name = "imagen_url", length = 500)
+    private String imagenUrl;
+
     @ManyToOne
-    @JoinColumn(name = "tipo_flor_id", nullable = false)
-    private TipoFlor tipoFlor;
+    @JoinColumn(name = "color_flor_id", nullable = false)
+    private ColorFlor colorFlor;
 
     @ManyToOne
     @JoinColumn(name = "cantidad_flor_valida_id", nullable = false)

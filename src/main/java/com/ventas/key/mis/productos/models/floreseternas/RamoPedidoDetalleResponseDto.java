@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -16,6 +17,7 @@ public class RamoPedidoDetalleResponseDto {
     private Integer tipoFlorId;
     private String tipoFlorNombre;
     private Integer cantidadFinal;
+    private List<RamoPedidoDetalleColorDto> colores;
     private String fraseListonTexto;
     private String fraseListonEstado;
     private Double fraseListonPrecioAsignado;

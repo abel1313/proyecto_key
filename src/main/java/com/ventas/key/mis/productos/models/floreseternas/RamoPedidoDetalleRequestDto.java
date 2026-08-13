@@ -4,18 +4,17 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 public class RamoPedidoDetalleRequestDto {
-    private Integer tipoFlorId;
     private Integer ramoArmadoId;
-    private Integer cantidadFinal;
+    // Mismo desglose que se mando a /v1/flores/calcular-precio -- para produccion, no para precio.
+    private List<ColorSeleccionadoDto> colores;
     private Integer fraseListonPredefinidaId;
     private String fraseListonPersonalizada;
-    // Monto de anticipo ya calculado por /v1/flores/calcular-precio (montoAnticipoSugerido) --
-    // se guarda tal cual, no se recalcula aqui.
-    private Double montoAnticipo;
     private Integer lugarEntregaId;
     private Boolean recogerEnLocal;
     private String telefonoContacto;
