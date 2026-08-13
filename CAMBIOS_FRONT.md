@@ -11062,3 +11062,10 @@ porque recién se está probando el alta real desde el front de estos catálogos
 imágenes. No cambia el contrato del request ni el de la respuesta exitosa; el `save` de estos 4
 endpoints simplemente ya funciona. La edición (`update`) de registros existentes no estaba
 afectada por este bug.
+
+**Actualización 2026-08-13 (mismo día):** al corregir lo del código de barras apareció un segundo
+error igual de bloqueante en el mismo insert: `piezas` (y a continuación habría salido
+`precio_rebaja`) — dos columnas `NOT NULL` más, heredadas de antes de flores eternas, que tampoco
+se llenaban para el producto sombra. Mismo fix: se les asigna `0` como placeholder (igual que ya
+hacía la carga rápida de imágenes con esas mismas columnas). Con esto los 4 endpoints de arriba
+quedan completos — ya no debería aparecer un tercer campo faltante.
