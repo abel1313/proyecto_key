@@ -165,6 +165,27 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()
                         .requestMatchers("/v1/promociones/**").hasRole("ADMIN")
 
+                        // ── Flores eternas — catalogos (lectura publica: el cliente configura
+                        //    y cotiza su ramo sin necesidad de estar logueado, igual que la
+                        //    cinta de promociones; alta/edicion/baja solo ADMIN) ────────────
+                        .requestMatchers(HttpMethod.GET, "/v1/tipos-flor/**").permitAll()
+                        .requestMatchers("/v1/tipos-flor/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/cantidades-flor/**").permitAll()
+                        .requestMatchers("/v1/cantidades-flor/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/accesorios-ramo/**").permitAll()
+                        .requestMatchers("/v1/accesorios-ramo/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/frases-liston/**").permitAll()
+                        .requestMatchers("/v1/frases-liston/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/admin").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/**").permitAll()
+                        .requestMatchers("/v1/ramos-armados/**").hasRole("ADMIN")
+                        // "Ticket de produccion" de un ramo, colgado de un Pedido ya creado -- requiere
+                        // sesion igual que el resto de /v1/pedidos/**; validar la frase es solo ADMIN.
+                        .requestMatchers(HttpMethod.PUT, "/v1/flores/pedidos/detalle/*/validar-frase").hasRole("ADMIN")
+                        .requestMatchers("/v1/flores/pedidos/**").authenticated()
+                        // Motor de calculo (validar cantidad / cotizar precio): publico, solo lectura/calculo.
+                        .requestMatchers("/v1/flores/**").permitAll()
+
                         // ── Cinta de promociones (letrero corrido; el GET /activos lo pinta
                         //    la tienda para CUALQUIER visitante, incluso sin login -- si exigiera
                         //    auth el cliente anonimo la veria vacia. Alta/edicion/baja solo ADMIN) ─

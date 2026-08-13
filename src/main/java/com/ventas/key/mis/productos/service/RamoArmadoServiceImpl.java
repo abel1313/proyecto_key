@@ -1,0 +1,213 @@
+package com.ventas.key.mis.productos.service;
+
+import com.ventas.key.mis.productos.entity.AccesorioRamo;
+import com.ventas.key.mis.productos.entity.CantidadFlorValida;
+import com.ventas.key.mis.productos.entity.RamoArmado;
+import com.ventas.key.mis.productos.entity.RamoArmadoAccesorio;
+import com.ventas.key.mis.productos.entity.TipoFlor;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
+import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoAccesorioRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoAccesorioResponseDto;
+import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoResponseDto;
+import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
+import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
+import com.ventas.key.mis.productos.repository.IRamoArmadoRepository;
+import com.ventas.key.mis.productos.repository.ITipoFlorRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class RamoArmadoServiceImpl {
+
+    private final IRamoArmadoRepository iRamoArmadoRepository;
+    private final ITipoFlorRepository iTipoFlorRepository;
+    private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
+    private final IAccesorioRamoRepository iAccesorioRamoRepository;
+
+    public RamoArmadoServiceImpl(IRamoArmadoRepository iRamoArmadoRepository,
+                                  ITipoFlorRepository iTipoFlorRepository,
+                                  ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
+                                  IAccesorioRamoRepository iAccesorioRamoRepository) {
+        this.iRamoArmadoRepository = iRamoArmadoRepository;
+        this.iTipoFlorRepository = iTipoFlorRepository;
+        this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
+        this.iAccesorioRamoRepository = iAccesorioRamoRepository;
+    }
+
+    @Transactional
+    public RamoArmadoResponseDto crear(RamoArmadoRequestDto dto) {
+        validarRequest(dto);
+        RamoArmado ramo = new RamoArmado();
+        ramo.setActivo(dto.getActivo() == null || dto.getActivo());
+        aplicarDatos(ramo, dto);
+        RamoArmado guardado = iRamoArmadoRepository.save(ramo);
+        return toResponseDto(guardado);
+    }
+
+    @Transactional
+    public RamoArmadoResponseDto editar(Integer id, RamoArmadoRequestDto dto) {
+        validarRequest(dto);
+        RamoArmado ramo = iRamoArmadoRepository.findByIdConAccesorios(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Ramo armado no encontrado: " + id));
+        if (dto.getActivo() != null) {
+            ramo.setActivo(dto.getActivo());
+        }
+        aplicarDatos(ramo, dto);
+        RamoArmado guardado = iRamoArmadoRepository.save(ramo);
+        return toResponseDto(guardado);
+    }
+
+    @Transactional
+    public RamoArmadoResponseDto cambiarActivo(Integer id, boolean activo) {
+        RamoArmado ramo = iRamoArmadoRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Ramo armado no encontrado: " + id));
+        ramo.setActivo(activo);
+        return toResponseDto(iRamoArmadoRepository.save(ramo));
+    }
+
+    public PginaDto<List<RamoArmadoResponseDto>> listarAdmin(int pagina, int size) {
+        Page<RamoArmado> page = iRamoArmadoRepository.findAllConAccesorios(PageRequest.of(pagina - 1, size));
+        return construirPagina(pagina, page);
+    }
+
+    public PginaDto<List<RamoArmadoResponseDto>> listarActivos(int pagina, int size) {
+        Page<RamoArmado> page = iRamoArmadoRepository.findActivosConAccesorios(PageRequest.of(pagina - 1, size));
+        return construirPagina(pagina, page);
+    }
+
+    private PginaDto<List<RamoArmadoResponseDto>> construirPagina(int pagina, Page<RamoArmado> page) {
+        PginaDto<List<RamoArmadoResponseDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(page.getContent().stream().map(this::toResponseDto).toList());
+        return resultado;
+    }
+
+    // Arma precioFlores, la regla del papel obligatorio y la lista de accesorios (excluyendo el
+    // papel de esa lista cuando la regla ya lo cubrio, para no cobrarlo dos veces).
+    private void aplicarDatos(RamoArmado ramo, RamoArmadoRequestDto dto) {
+        TipoFlor tipoFlor = iTipoFlorRepository.findById(dto.getTipoFlorId())
+                .orElseThrow(() -> new ExceptionDataNotFound("Tipo de flor no encontrado: " + dto.getTipoFlorId()));
+        CantidadFlorValida cantidadValida = iCantidadFlorValidaRepository.findById(dto.getCantidadFlorValidaId())
+                .orElseThrow(() -> new ExceptionDataNotFound("Cantidad valida no encontrada: " + dto.getCantidadFlorValidaId()));
+        if (!cantidadValida.getTipoFlor().getId().equals(tipoFlor.getId())) {
+            throw new RuntimeException("La cantidad valida seleccionada no pertenece al tipo de flor elegido");
+        }
+
+        ramo.setNombre(dto.getNombre());
+        ramo.setTipoFlor(tipoFlor);
+        ramo.setCantidadFlorValida(cantidadValida);
+
+        double precioFlores = cantidadValida.getCantidad() * tipoFlor.getPrecioPorFlor();
+        ramo.setPrecioFlores(precioFlores);
+
+        Integer papelAccesorioId = null;
+        if (cantidadValida.getCantidad() > FloresEternasConstantes.UMBRAL_PAPEL_OBLIGATORIO) {
+            Optional<AccesorioRamo> papel = iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue();
+            if (papel.isPresent()) {
+                ramo.setPapelIncluido(true);
+                ramo.setPrecioPapel(papel.get().getPrecio());
+                papelAccesorioId = papel.get().getId();
+            } else {
+                ramo.setPapelIncluido(false);
+                ramo.setPrecioPapel(null);
+            }
+        } else {
+            ramo.setPapelIncluido(false);
+            ramo.setPrecioPapel(null);
+        }
+
+        List<RamoArmadoAccesorio> accesorios = new ArrayList<>();
+        double subtotalAccesorios = 0;
+        if (dto.getAccesorios() != null) {
+            for (RamoArmadoAccesorioRequestDto a : dto.getAccesorios()) {
+                if (papelAccesorioId != null && papelAccesorioId.equals(a.getAccesorioId())) {
+                    continue; // ya cubierto por la regla del papel obligatorio, no duplicar
+                }
+                AccesorioRamo accesorio = iAccesorioRamoRepository.findById(a.getAccesorioId())
+                        .orElseThrow(() -> new ExceptionDataNotFound("Accesorio no encontrado: " + a.getAccesorioId()));
+                int cantidad = a.getCantidad() != null ? a.getCantidad() : 1;
+                RamoArmadoAccesorio detalle = new RamoArmadoAccesorio();
+                detalle.setRamoArmado(ramo);
+                detalle.setAccesorio(accesorio);
+                detalle.setCantidad(cantidad);
+                accesorios.add(detalle);
+                subtotalAccesorios += accesorio.getPrecio() * cantidad;
+            }
+        }
+        if (ramo.getAccesorios() == null) {
+            ramo.setAccesorios(accesorios);
+        } else {
+            ramo.getAccesorios().clear();
+            ramo.getAccesorios().addAll(accesorios);
+        }
+
+        double precioPapel = Boolean.TRUE.equals(ramo.getPapelIncluido()) ? ramo.getPrecioPapel() : 0;
+        ramo.setPrecioTotal(precioFlores + precioPapel + subtotalAccesorios);
+    }
+
+    private void validarRequest(RamoArmadoRequestDto dto) {
+        if (dto.getNombre() == null || dto.getNombre().isBlank()) {
+            throw new RuntimeException("El nombre del ramo es obligatorio");
+        }
+        if (dto.getTipoFlorId() == null) {
+            throw new RuntimeException("El tipo de flor es obligatorio");
+        }
+        if (dto.getCantidadFlorValidaId() == null) {
+            throw new RuntimeException("La cantidad de flores del ramo es obligatoria");
+        }
+    }
+
+    private RamoArmadoResponseDto toResponseDto(RamoArmado ramo) {
+        List<RamoArmadoAccesorioResponseDto> accesorios = ramo.getAccesorios() == null ? List.of()
+                : ramo.getAccesorios().stream().map(this::toAccesorioResponseDto).toList();
+        return new RamoArmadoResponseDto(
+                ramo.getId(),
+                ramo.getNombre(),
+                ramo.getTipoFlor().getId(),
+                ramo.getTipoFlor().getNombre(),
+                ramo.getTipoFlor().getVariante() != null ? ramo.getTipoFlor().getVariante().getId() : null,
+                ramo.getCantidadFlorValida().getCantidad(),
+                ramo.getPrecioFlores(),
+                ramo.getPapelIncluido(),
+                ramo.getPrecioPapel(),
+                papelVarianteId(ramo),
+                accesorios,
+                ramo.getPrecioTotal(),
+                ramo.getActivo());
+    }
+
+    // El papel no se guarda como FK propio en RamoArmado (solo su precio, ya congelado al
+    // guardar) -- para dar el varianteId con el que armar la linea de venta se re-consulta el
+    // accesorio marcado "es papel" vigente. Es informativo, no afecta el precio ya calculado.
+    private Integer papelVarianteId(RamoArmado ramo) {
+        if (!Boolean.TRUE.equals(ramo.getPapelIncluido())) {
+            return null;
+        }
+        return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
+                .map(AccesorioRamo::getVariante)
+                .map(v -> v != null ? v.getId() : null)
+                .orElse(null);
+    }
+
+    private RamoArmadoAccesorioResponseDto toAccesorioResponseDto(RamoArmadoAccesorio detalle) {
+        AccesorioRamo accesorio = detalle.getAccesorio();
+        return new RamoArmadoAccesorioResponseDto(
+                accesorio.getId(),
+                accesorio.getNombre(),
+                detalle.getCantidad(),
+                accesorio.getPrecio(),
+                accesorio.getPrecio() * detalle.getCantidad(),
+                accesorio.getVariante() != null ? accesorio.getVariante().getId() : null);
+    }
+}
