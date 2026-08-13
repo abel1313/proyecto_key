@@ -11,11 +11,17 @@
 > (2026-08-13) — incluye cómo armar `POST /v1/pedidos/savePedido` con los `varianteId` que
 > devuelve `calcular-precio`.
 >
-> ✅ `migration_flores_eternas.sql` (catálogos) ya corrió en **QA y producción**.
+> ✅ **Ambas migraciones (`migration_flores_eternas.sql` y `migration_flores_eternas_pedido.sql`)
+> ya corrieron en QA y producción** (confirmado por el usuario, 2026-08-13).
 >
-> ⏳ **Pendiente:** correr `migration_flores_eternas_pedido.sql` (parte 2) en QA, merge
-> `dev`→`qa` para que el front deje de ver 401 en los endpoints públicos, pruebas end-to-end, y
-> pantalla del cliente en el front (catálogos de admin ya están conectados de su lado).
+> ✅ **Merge `dev`→`qa` hecho y pusheado** (commit `08bf77f`, 2026-08-13) — compiló limpio en el
+> worktree de `qa` antes de subir. El push a `qa` dispara el workflow
+> `.github/workflows/producto-actions-qa.yml` (build + deploy automático por SSH), así que el
+> código debería quedar arriba en QA en unos minutos sin intervención manual.
+>
+> ⏳ **Pendiente:** confirmar con el front que QA ya responde sin 401 una vez que el deploy
+> automático termine, pruebas end-to-end, y pantalla del cliente en el front (catálogos de admin
+> ya están conectados de su lado).
 
 ## El problema
 
