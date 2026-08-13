@@ -10586,3 +10586,32 @@ promoción, según entendimos de esa sección del documento).
 
 **Pendiente de nuestro lado:** correr `migration_flores_eternas_pedido.sql` en QA (la primera,
 `migration_flores_eternas.sql`, ya corrió en QA y producción). Avisamos cuando esté.
+
+---
+
+## ✅ QA listo — ya pueden probar sin 401 (2026-08-13)
+
+Cerrado lo que quedaba pendiente:
+
+- **Ambas migraciones ya corrieron en QA y producción** (`migration_flores_eternas.sql` y
+  `migration_flores_eternas_pedido.sql`).
+- **El código ya está mergeado a `qa` y pusheado** — el push disparó el deploy automático
+  (build + SSH a QA) igual que cualquier otro merge a esa rama. Denle unos minutos si acaban de
+  ver esto y todavía les da 401; si después de 10-15 min sigue igual, avísennos.
+
+Con esto, los GET que documentamos como públicos deberían responder 200 sin token en QA:
+```
+GET /v1/tipos-flor/getAll?page=0&size=5
+GET /v1/accesorios-ramo/getAll?page=0&size=5
+GET /v1/frases-liston/getAll?page=0&size=5
+POST /v1/flores/validar-cantidad
+GET /v1/ramos-armados/activos?pagina=1&size=10
+```
+
+Y ya pueden probar de punta a punta el flujo completo que documentamos arriba: `calcular-precio`
+→ `savePedido` con los `varianteId` → `POST /v1/flores/pedidos/{pedidoId}/detalle` →, si hay
+frase personalizada, `validar-frase` → `POST /v1/abonos/{pedidoAnticipoId}`.
+
+Si al probar encuentran algo que no cuadra con lo documentado, o alguna de las 7 dudas que
+respondimos quedó coja, avisen — preferimos que lo digan ahora que arrancar la pantalla del
+cliente con un supuesto equivocado.
