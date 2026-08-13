@@ -11014,3 +11014,26 @@ blindado en todos los buscadores además.
 **`migration_flores_eternas_multicolor.sql` ya corrió en QA y producción** (confirmado
 2026-08-13) — igual que las dos anteriores. `ColorFlor`, `umbralActivacion`, `imagenUrl` y
 `esCatalogoInterno` ya existen en ambas bases. Pueden probar multicolor cuando gusten.
+
+## 🔧 BACK — fix: los errores de `save`/`update` del CRUD genérico ya no ocultan el motivo real (2026-08-13)
+
+Aplica a **todos** los catálogos que usan el CRUD genérico (`/v1/colores-flor`, `/v1/tipos-flor`,
+`/v1/cantidades-flor`, `/v1/accesorios-ramo`, `/v1/frases-liston`, `/v1/lugares-entrega`,
+`/v1/cinta`, etc.) — cualquier endpoint `POST .../save` o `PUT .../update/{id}`.
+
+**Antes:** si `save`/`update` fallaba por cualquier motivo de negocio (ej. mandar un id que no
+existe en una relación anidada, como `tipoFlor.id` inexistente), el back siempre respondía
+`500` con el mismo mensaje genérico `"Error al guardar el registro"` / `"Error al actualizar el
+registro"`, sin importar la causa real. El campo interno `code` del body además podía marcar
+`404` aunque el status HTTP fuera `500` — ese `code` no reflejaba nada del error real, solo que
+`data` venía `null`.
+
+**Ahora:** el error real se propaga y el status HTTP + mensaje sí reflejan la causa:
+- `404` + mensaje con el detalle (ej. `"Tipo de flor no encontrado: 5"`) cuando el problema es que
+  algo referenciado no existe.
+- `400` + mensaje con el detalle cuando es un error de validación de negocio.
+- `500` solo para errores realmente no esperados (ej. caída de la base de datos).
+
+No cambia el contrato del request ni el de la respuesta exitosa — solo mejora `mensaje`/status en
+los casos de error, que antes siempre eran genéricos. Si el front ya mostraba `mensaje` tal cual
+en pantalla, ahora el usuario va a ver el motivo real en vez de un texto fijo.
