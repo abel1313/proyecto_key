@@ -163,7 +163,7 @@ public class FlorPedidoServiceImpl {
 
         Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, response);
 
-        List<AccesorioCalculadoDto> accesoriosCalculados = calcularAccesorios(dto.getAccesorios(), papelAccesorioId);
+        List<AccesorioCalculadoDto> accesoriosCalculados = calcularAccesorios(dto.getAccesorios(), papelAccesorioId, cantidadFinal);
         response.setAccesoriosCalculados(accesoriosCalculados);
         double subtotalAccesorios = accesoriosCalculados.stream().mapToDouble(AccesorioCalculadoDto::getSubtotal).sum();
         response.setSubtotalAccesorios(subtotalAccesorios);
@@ -200,12 +200,14 @@ public class FlorPedidoServiceImpl {
             return null;
         }
         response.setPapelObligatorioAplicado(true);
-        response.setPrecioPapel(papel.get().getPrecio());
+        response.setPrecioPapel(accesorioRamoService.calcularPrecioPapel(papel.get(), cantidadFinal));
+        response.setPliegosPapel(accesorioRamoService.calcularPliegosPapel(papel.get(), cantidadFinal));
+        response.setPrecioUnitarioPapel(papel.get().getPrecio());
         response.setPapelVarianteId(papel.get().getVariante() != null ? papel.get().getVariante().getId() : null);
         return papel.get().getId();
     }
 
-    private List<AccesorioCalculadoDto> calcularAccesorios(List<AccesorioSeleccionadoDto> seleccionados, Integer papelAccesorioId) {
+    private List<AccesorioCalculadoDto> calcularAccesorios(List<AccesorioSeleccionadoDto> seleccionados, Integer papelAccesorioId, int cantidadFinal) {
         List<AccesorioCalculadoDto> resultado = new ArrayList<>();
         if (seleccionados == null || seleccionados.isEmpty()) {
             return resultado;
@@ -225,9 +227,21 @@ public class FlorPedidoServiceImpl {
             if (!Boolean.TRUE.equals(accesorio.getActivo())) {
                 throw new RuntimeException("El accesorio '" + accesorio.getNombre() + "' no esta disponible actualmente");
             }
+            Integer varianteId = accesorio.getVariante() != null ? accesorio.getVariante().getId() : null;
+            if (Boolean.TRUE.equals(accesorio.getEsPapel())) {
+                // Papel elegido a mano (por debajo del umbral automatico): el costo sigue
+                // dependiendo de la cantidad total de flores del ramo, no de cuantas veces el
+                // cliente lo haya mandado en la lista -- no tiene sentido "elegir cuantos
+                // papeles quiero", eso lo calcula el sistema segun floresPorPliego.
+                Integer pliegos = accesorioRamoService.calcularPliegosPapel(accesorio, cantidadFinal);
+                double subtotal = accesorioRamoService.calcularPrecioPapel(accesorio, cantidadFinal);
+                resultado.add(new AccesorioCalculadoDto(
+                        accesorio.getId(), accesorio.getNombre(), pliegos != null ? pliegos : 1,
+                        accesorio.getPrecio(), subtotal, false, varianteId));
+                continue;
+            }
             int cantidad = entry.getValue();
             double subtotal = accesorio.getPrecio() * cantidad;
-            Integer varianteId = accesorio.getVariante() != null ? accesorio.getVariante().getId() : null;
             resultado.add(new AccesorioCalculadoDto(
                     accesorio.getId(), accesorio.getNombre(), cantidad, accesorio.getPrecio(), subtotal, false, varianteId));
         }

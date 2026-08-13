@@ -45,6 +45,9 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
                                 + otro.getNombre() + "'. Desactivalo antes de activar este.");
                     });
         }
+        if (Boolean.TRUE.equals(req.getEsPapel()) && req.getFloresPorPliego() != null && req.getFloresPorPliego() <= 0) {
+            throw new RuntimeException("Flores por pliego debe ser mayor a cero");
+        }
         int stock = ProductoSombraServiceImpl.STOCK_SIN_CONTROL;
         if (req.getId() != null) {
             AccesorioRamo existente = iAccesorioRamoRepository.findById(req.getId())
@@ -78,5 +81,23 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
     public Optional<AccesorioRamo> obtenerPapelAutomaticoSiAplica(int cantidadFinal) {
         return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
                 .filter(papel -> papel.getUmbralActivacion() != null && cantidadFinal > papel.getUmbralActivacion());
+    }
+
+    // Cuantos pliegos hace falta para envolver "cantidadFlores" flores. Un pliego empezado se
+    // gasta completo (redondeo hacia arriba). Null si el accesorio no tiene floresPorPliego
+    // configurado -- caso retrocompatible, precio fijo unico (ver calcularPrecioPapel).
+    public Integer calcularPliegosPapel(AccesorioRamo papel, int cantidadFlores) {
+        if (papel.getFloresPorPliego() == null || papel.getFloresPorPliego() <= 0) {
+            return null;
+        }
+        return (int) Math.ceil((double) cantidadFlores / papel.getFloresPorPliego());
+    }
+
+    // Precio real del papel para un ramo de "cantidadFlores" flores: pliegosNecesarios x precio
+    // (precio se interpreta como "precio por pliego" en cuanto floresPorPliego esta configurado).
+    // Sin floresPorPliego configurado, se mantiene el precio fijo unico de antes.
+    public double calcularPrecioPapel(AccesorioRamo papel, int cantidadFlores) {
+        Integer pliegos = calcularPliegosPapel(papel, cantidadFlores);
+        return pliegos != null ? pliegos * papel.getPrecio() : papel.getPrecio();
     }
 }
