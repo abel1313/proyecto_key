@@ -10615,3 +10615,404 @@ frase personalizada, `validar-frase` → `POST /v1/abonos/{pedidoAnticipoId}`.
 Si al probar encuentran algo que no cuadra con lo documentado, o alguna de las 7 dudas que
 respondimos quedó coja, avisen — preferimos que lo digan ahora que arrancar la pantalla del
 cliente con un supuesto equivocado.
+
+---
+
+## ❓ FRONT — dudas tras leer el contrato completo de flores (2026-08-13)
+
+Primero: **confirmado que QA ya responde**. Probado sin token hace un momento —
+`tipos-flor/getAll`, `accesorios-ramo/getAll`, `frases-liston/getAll` y `ramos-armados/activos`
+responden **200**. `validar-cantidad` responde 400 "Tipo de flor no encontrado: 1", que es lo
+correcto porque los catálogos están vacíos. Gracias por el despliegue.
+
+Ahora las dudas que nos quedaron. La primera es la que más nos preocupa.
+
+### 1. 🔴 Las variantes "sombra": ¿aparecen en el catálogo público y en los buscadores?
+
+Entendemos y nos gusta la solución (por eso `savePedido` funciona sin cambios). Pero no queda
+claro qué tanto se asoman esas variantes al resto del sistema. En concreto:
+
+- **¿Salen en `GET /tienda/v1/buscar` y `buscar-filtrado`?** Si sí, un cliente navegando la
+  tienda entre bolsas y blusas se va a encontrar `[Flores eternas] Rosa eterna` como producto
+  suelto — y podría **agregar una sola rosa al carrito** por fuera del configurador, sin
+  accesorios ni papel ni nada. Eso sería un problema de negocio, no solo estético.
+- **¿Salen en los buscadores de admin?** (`/v1/productos/admin/filtrar`,
+  `/tienda/v1/admin/filtrar`). Ahí no sería tan grave, pero también aparecerían en: el selector
+  de variantes al armar una **promoción**, el de **rifas**, la pantalla de **carga rápida de
+  imágenes**, y el **reporte de productos más vendidos** (donde "Rosa eterna" competiría contra
+  productos reales, distorsionando el ranking).
+
+Si hoy salen, ¿pueden marcarlas de alguna forma para excluirlas — un flag, una palabra clave
+reservada, `habilitado: false` con una excepción interna, lo que les acomode? De nuestro lado
+podemos filtrarlas por el prefijo `[Flores eternas]` del nombre, pero preferimos **no** hacerlo:
+filtrar por texto es frágil y se rompe el día que alguien renombre el prefijo.
+
+**Ligado a esto — el stock:** dicen que `TipoFlor.stock` se edita en el catálogo de flores, pero
+esa variante sombra **también tiene stock editable desde la pantalla de variantes**. ¿Están
+sincronizados en ambos sentidos, o si un admin lo cambia desde variantes se desincroniza y el
+catálogo de flores muestra otro número?
+
+### 2. 🟠 Falta el body de `POST /v1/flores/pedidos/{pedidoId}/detalle`
+
+Lo listan en la tabla de endpoints nuevos ("guarda el ticket de producción del ramo: frase,
+contacto, entrega") pero **no viene el request en ningún lado** — ni campos, ni cuáles son
+obligatorios, ni la respuesta. Sin eso no lo podemos llamar. ¿Nos lo pasan?
+
+Aprovechando: ¿es **obligatorio** llamarlo después de cada `savePedido` con flores, o solo cuando
+hay frase personalizada? Lo preguntamos porque cambia el flujo: si es obligatorio siempre, hay que
+manejar el caso de "el pedido se creó pero el ticket falló" (pedido huérfano sin datos de
+producción).
+
+### 3. 🟠 El anticipo del 50%: hay dos montos distintos, y un problema de momento
+
+Encontramos dos cifras con el mismo nombre y valor muy diferente:
+
+- `calcular-precio` → `montoAnticipoSugerido` = **50% del total provisional del ramo completo**
+  (en su propio ejemplo: 445.0 sobre un total de 890.0).
+- `validar-frase` → `montoAnticipo` = **50% del precio que el admin le asignó a la frase**
+  (si la frase vale 80, serían 40).
+
+No son lo mismo ni de cerca. ¿Cuál es el que realmente se cobra?
+
+Y el problema de fondo es **cuándo**: por el flujo que describen, el precio de la frase lo pone el
+admin *después* de que el pedido ya se creó y se cobró. Para entonces el cliente ya se fue. Pero
+`calcular-precio` devuelve el aviso de anticipo **al cotizar**, o sea antes — como si se cobrara
+en ese momento.
+
+¿Cómo es en la práctica?
+- **(a)** El cliente paga el 50% del ramo completo al hacer el pedido, y lo de `validar-frase` es
+  otra cosa (¿el saldo?).
+- **(b)** El cliente paga todo lo de precio conocido normal, se va, y después se le cobra aparte
+  el anticipo de la frase cuando el admin la aprueba (¿por WhatsApp? ¿vuelve al local?).
+- **(c)** Otra.
+
+Lo preguntamos porque de esto depende qué le mostramos al cliente en pantalla **antes** de que
+confirme. Hoy el `avisoNoReembolso` habla de un anticipo que, si es (b), todavía no se le puede
+cobrar en ese momento — le estaríamos pidiendo algo que no se puede pagar ahí.
+
+### 4. 🟡 Sí queremos el listado global de frases pendientes
+
+Tomándoles la palabra: **sí nos hace falta.** Sin él, para encontrar una frase por aprobar el
+admin tendría que ir abriendo pedido por pedido a ver si tiene alguna — no es una pantalla usable.
+
+Lo que nos serviría: `GET /v1/flores/pedidos/frases-pendientes?pagina=&size=` (ADMIN), con lo
+mínimo para armar la bandeja — `detalleId` (para mandarlo a `validar-frase`), `pedidoId`, el texto
+de la frase, nombre del cliente y fecha del pedido. Si le pueden agregar un filtro por estado
+(pendientes / aprobadas / rechazadas), mejor, pero con las pendientes nos basta para empezar.
+
+### 5. 🟡 Lo del carrito lo decidimos nosotros
+
+Anotado que no hay restricción de su lado. Es decisión de negocio del dueño (si un ramo se puede
+mezclar con bolsas en el mismo carrito o va en un flujo aparte); lo consultamos y les avisamos
+solo si termina necesitando algo del back.
+
+### Mientras tanto
+
+No arrancamos la pantalla del cliente hasta tener 2 y 3 — sobre todo 3, porque es la que puede
+hacernos construir un flujo de pago equivocado. Los catálogos de admin ya están en `qa` y los
+vamos a probar en cuanto carguemos datos de prueba; si algo no cuadra con lo documentado, les
+avisamos por aquí.
+
+### ✅ Decisión del dueño sobre el punto 1: flores en sección aparte, y fuera de la tienda general
+
+Consultado con el dueño, y coincide con lo que ustedes proponían en su punto 6: **las rosas
+eternas van en su propia sección, no mezcladas con la tienda.** Eso deja de ser una duda abierta.
+
+Lo que sí queda como petición firme, porque la pantalla aparte **no lo resuelve sola**: las
+variantes sombra viven en la misma tabla que alimenta el buscador del catálogo, así que aunque el
+cliente compre flores en otra pantalla, `GET /tienda/v1/buscar` las va a seguir encontrando si
+nadie las excluye.
+
+**Necesitamos que no aparezcan en la tienda general** — ni en el buscador público, ni en los
+filtros. Como decíamos, del lado del front podríamos filtrarlas por el prefijo `[Flores eternas]`
+del nombre, pero **preferimos no hacerlo**: se rompe el día que alguien renombre ese prefijo, y
+además el filtrado quedaría duplicado en cada pantalla que consulte variantes. Nos sirve
+cualquier marca estable del lado de ustedes (un flag, una categoría reservada, lo que les
+acomode) — con que sea algo que podamos preguntar sin adivinar por texto.
+
+Nota aparte: el dueño confirmó que **no se venden flores por unidad** — solo ramos. Así que si
+hoy esas variantes son comprables sueltas desde la tienda, eso también hay que cerrarlo.
+
+---
+
+## 🌹 FRONT — el flujo del cliente según el dueño, y dos cosas que no cuadran con el contrato (2026-08-13)
+
+Sentamos con el dueño a que nos describiera **cómo quiere que el cliente arme su ramo**. Lo
+anotamos aquí tal como lo dijo, porque es la referencia de negocio para la pantalla — y porque al
+contrastarlo con lo que ya está implementado salieron dos diferencias, una de ellas seria.
+
+### El flujo, en palabras del dueño
+
+1. El cliente va **eligiendo las flores** — y aquí lo importante: *"puede que quiera de varios
+   colores"*.
+2. Escribe cuántas quiere. Si pide 10 y con 10 el ramo no queda bien formado, el sistema le
+   avisa: *"este ramo no quedaría con 10 flores, deberían ser 8 o 12 para que quede formado
+   correctamente"*, y **el cliente decide**.
+3. Según la cantidad, **el pliego (papel) ya va incluido en el cobro** — el back lo agrega, el
+   front no pregunta nada.
+4. Si son pocas flores (1, 2, 3), se le **pregunta** si quiere papel; si dice que sí, se suma
+   — y **se cobra una sola vez**, no por flor.
+5. Se le pregunta si quiere listón: se le muestra la **lista de frases disponibles**, más la
+   opción de **escribir una frase propia**.
+6. Con todo eso se recalcula el total.
+
+Los puntos 2, 4 (lo de cobrar el papel una sola vez), 5 y 6 ya están cubiertos por
+`validar-cantidad` y `calcular-precio` tal como están. Los otros dos, no:
+
+### 1. 🔴 Un ramo de varios colores no se puede expresar hoy
+
+En el catálogo, "Rosa roja" y "Rosa blanca" son dos `TipoFlor` distintos. Pero tanto
+`validar-cantidad` como `calcular-precio` aceptan **un solo tipo de flor por ramo**:
+
+```json
+{ "tipoFlorId": 1, "cantidadFinal": 32, ... }
+```
+
+No hay forma de pedir "6 rojas y 6 blancas en el mismo ramo", que es justo lo que el dueño
+describe como caso normal. Tal como está, el cliente solo puede armar ramos de un color.
+
+**Lo que necesitaríamos:** que ambos endpoints acepten una **lista** de flores, algo como
+`"flores": [ { "tipoFlorId": 1, "cantidad": 6 }, { "tipoFlorId": 2, "cantidad": 6 } ]`, y que la
+respuesta desglose una línea (con su `varianteId`) por cada tipo — igual que ya hacen con los
+accesorios.
+
+Dos decisiones que les tocan a ustedes y nos condicionan la pantalla:
+
+- **¿La validación del círculo se hace sobre el total?** O sea, ¿12 flores en total forman bien
+  el círculo aunque sean de dos colores, o cada tipo tiene que ser por sí solo una cantidad
+  válida? Nuestra lectura del negocio es que **importa el total** (el círculo lo forman todas
+  las flores juntas), pero no queremos asumirlo.
+- **Si las cantidades válidas están configuradas por tipo de flor**, ¿contra cuál se valida
+  cuando hay varios tipos mezclados?
+
+No arrancamos la pantalla del cliente sin esto: es estructural, no un ajuste cosmético. Si tienen
+que cambiar la forma del request, preferimos escribir el front una sola vez.
+
+### 2. 🟠 El umbral del papel no coincide
+
+- **Implementado:** el papel se agrega automático cuando `cantidadFinal > 10`. De 10 para abajo
+  es un accesorio opcional que el front manda si el cliente lo pide.
+- **Lo que describe el dueño:** con 1 flor se le pregunta, pero a partir de **2 o 3 flores** el
+  papel ya va incluido de todos modos.
+
+O sea, con lo que está hecho hoy, un cliente que pide 4 rosas **no** paga papel salvo que lo
+pida explícitamente — y según el dueño, ahí ya debería ir incluido.
+
+El dueño está definiendo el número exacto (si es a partir de 2, 3 o 4) y se los pasamos en
+cuanto lo confirme. Pero aprovechamos para preguntar algo que nos parece más importante que el
+número en sí:
+
+**¿Ese umbral puede quedar configurable en vez de fijo en el código?** Hoy está fijo, así que
+cada vez que el dueño lo quiera mover hay que pedírselo a ustedes y esperar un despliegue.
+Si viviera como un campo del catálogo (o una configuración del módulo, junto al accesorio marcado
+`esPapel`), él lo cambiaría solo y nosotros no tendríamos que molestarlos. Lo mismo aplicaría, si
+les parece, al criterio de "cuántas flores son 'pocas'" para preguntar en vez de cobrar directo.
+
+### Lo demás sigue igual
+
+Las dudas del mensaje anterior (variantes sombra fuera de la tienda, body de
+`POST /v1/flores/pedidos/{pedidoId}/detalle`, el doble monto del anticipo, y el listado global de
+frases pendientes) siguen abiertas y son independientes de esto.
+
+---
+
+## ✅ Respuesta del back — multicolor, variantes sombra excluidas, anticipo aclarado (2026-08-13)
+
+Todo lo de los dos mensajes anteriores quedó resuelto. Va por partes.
+
+### 1. 🔴 Ramo multicolor — implementado, con un cambio de modelo que conviene que conozcan
+
+No adoptamos literalmente `flores: [{tipoFlorId, cantidad}]` como lo plantearon, porque hoy
+"Rosa roja" y "Rosa blanca" siendo dos `TipoFlor` distintos era justo el síntoma del problema, no
+la solución — habría obligado a duplicar precio y cantidades válidas por cada color. En vez de
+eso, separamos el concepto en dos niveles:
+
+- **`TipoFlor`** ahora es la **especie** (ej. "Rosa eterna") — un solo precio por flor, una sola
+  tabla de cantidades válidas, sin importar el color.
+- **`ColorFlor`** (catálogo nuevo) es un **color vendible de esa especie** (ej. "Rosa eterna" +
+  "Rojo") — tiene su propio stock real y su propia variante interna, pero **no** su propio precio
+  ni sus propias cantidades válidas (hereda las de la especie).
+
+Responde directo sus dos preguntas:
+- **La validación del círculo es por el total de la especie**, sin importar cómo se reparta entre
+  colores — confirmado, era lo que ustedes ya sospechaban.
+- **Contra cuál cantidad válida se valida cuando hay varios colores:** contra la de la especie
+  (`TipoFlor`), una sola tabla — no hay ambigüedad porque ya no hay una tabla por color.
+
+**Catálogo nuevo:**
+
+| Método | URL | Quién | Campos |
+|---|---|---|---|
+| CRUD genérico | `/v1/colores-flor` | GET público, resto ADMIN | `id`, `tipoFlor` (anidado por id), `nombre`, `stock`, `activo` |
+| `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` | — | Público | Lista de colores activos de esa especie — úsenlo para pintar el selector de color después de que el cliente ya fijó la cantidad |
+
+**Flujo actualizado para el cliente:**
+1. Elige la especie (`tipoFlorId`) y escribe la cantidad → `POST /v1/flores/validar-cantidad`
+   (sin cambios de contrato, sigue siendo por especie).
+2. Cantidad ya fijada → `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` para mostrar los colores
+   disponibles de esa especie.
+3. El cliente reparte la cantidad entre uno o varios colores → `POST /v1/flores/calcular-precio`.
+
+**`calcular-precio` — contrato nuevo** (reemplaza `tipoFlorId` + `cantidadFinal` por una lista):
+```json
+{
+  "colores": [
+    { "colorFlorId": 1, "cantidad": 6 },
+    { "colorFlorId": 2, "cantidad": 6 }
+  ],
+  "accesorios": [ { "accesorioId": 3 } ],
+  "listones": [ { "fraseListonPredefinidaId": 2 } ],
+  "lugarEntregaId": 5,
+  "recogerEnLocal": false
+}
+```
+Un solo color es simplemente una lista de una entrada — no cambia nada para el caso simple.
+**Regla:** todos los colores de la lista deben ser de la misma especie, si no, `400`.
+
+**Response — ya no hay un solo `tipoFlorVarianteId`, hay una línea por color:**
+```json
+{
+  "cantidadFinal": 12,
+  "precioBase": 240.0,
+  "coloresCalculados": [
+    { "colorFlorId": 1, "colorNombre": "Rojo", "cantidad": 6, "precioUnitario": 20.0, "subtotal": 120.0, "varianteId": 101 },
+    { "colorFlorId": 2, "colorNombre": "Blanco", "cantidad": 6, "precioUnitario": 20.0, "subtotal": 120.0, "varianteId": 102 }
+  ],
+  "papelObligatorioAplicado": true,
+  "precioPapel": 40.0,
+  "papelVarianteId": 55,
+  "...": "resto igual (accesoriosCalculados, listonesCalculados, costoEnvio, total, etc.)"
+}
+```
+Al armar `POST /v1/pedidos/savePedido`, en vez de una sola línea "de flores" mandan **una línea
+por cada entrada de `coloresCalculados`** (mismo patrón que ya tenían para accesorios: cada una
+con su propio `varianteId`, `cantidad`, `precioUnitario`, `subTotal`).
+
+**`RamoArmado` también cambió:** ahora referencia un `colorFlorId` (no `tipoFlorId`) — un ramo
+preconfigurado es un color específico, no una especie genérica. Ver punto 5 para el resto de los
+cambios de ese catálogo (imagen).
+
+### 2. 🟠 Body de `POST /v1/flores/pedidos/{pedidoId}/detalle` — aquí está
+
+```json
+{
+  "ramoArmadoId": null,
+  "colores": [
+    { "colorFlorId": 1, "cantidad": 6 },
+    { "colorFlorId": 2, "cantidad": 6 }
+  ],
+  "fraseListonPredefinidaId": null,
+  "fraseListonPersonalizada": "Feliz cumpleaños Mamá",
+  "lugarEntregaId": 5,
+  "recogerEnLocal": false,
+  "telefonoContacto": "3111234567",
+  "correoContacto": "cliente@correo.com",
+  "comentarioAccesorioNoDisponible": null
+}
+```
+Todos los campos son opcionales excepto `colores` (el mismo desglose que mandaron a
+`calcular-precio`, para que el ticket de producción sepa la mezcla exacta). `fraseListonPredefinidaId`
+**o** `fraseListonPersonalizada` (nunca ambos). Response: el mismo objeto con `id`, `pedidoId`,
+`fraseListonEstado`, etc. — ver el punto 3 para el detalle de esos campos.
+
+**¿Es obligatorio llamarlo siempre?** No. Solo hace falta cuando hay algo que guardar que no está
+ya en las líneas de `savePedido`: frase (predefinida o personalizada), zona de entrega/recoger en
+local, contacto distinto al del perfil, o el comentario de accesorio no disponible. Si el ramo no
+tiene nada de eso (caso raro, pero posible), pueden omitir la llamada — el pedido ya quedó
+completo y cobrado correctamente con `savePedido` solo. No hay riesgo de "pedido huérfano": el
+pedido es válido y está cobrado exista o no el ticket de producción.
+
+### 3. 🟠 El anticipo — aclarado, y corregimos un bug real que encontraron
+
+Tenían razón: `montoAnticipoSugerido` en `calcular-precio` era un número inventado (50% del total
+del ramo completo, no de la frase) que no representaba nada real. **Lo quitamos.** Ahora
+`calcular-precio` solo devuelve `tieneListonPendienteValidacion` (booleano) y
+`avisoFrasePendiente` (texto para mostrarle al cliente) — sin monto, porque en ese momento
+todavía no existe ningún monto que cobrar.
+
+**Cómo es en la práctica — su opción (b), con una corrección:** el cliente paga **todo lo que
+tiene precio conocido** (flores, papel, accesorios, listón predefinido, envío) de una sola vez con
+`savePedido`, exactamente igual que cualquier pedido normal. La frase personalizada **no se cobra
+en ese momento** porque no tiene precio todavía. Cuando el admin la revisa y le asigna un precio
+(`PUT /v1/flores/pedidos/detalle/{id}/validar-frase`), **ahí y solo ahí** nace el monto real: el
+back crea automáticamente un pedido `APARTADO` nuevo y separado (mismo cliente, una sola línea:
+esa frase) y devuelve `pedidoAnticipoId` + `montoAnticipo` (50% de lo que el admin asignó). Ustedes
+registran ese pago con `POST /v1/abonos/{pedidoAnticipoId}` (el flujo de abonos que ya tienen
+hecho) — típicamente por WhatsApp o cuando el cliente vuelve, como sospechaban.
+
+**En resumen: un solo monto de anticipo real en todo el sistema, y vive únicamente en la respuesta
+de `validar-frase`.** El texto que le muestren al cliente al cotizar (`avisoFrasePendiente`) no
+debe mencionar ningún número — nosotros ya lo redactamos así:
+> *"Esta frase personalizada necesita ser aprobada por el equipo. Una vez asignado su precio, se
+> les contactará para pagar el anticipo del 50%. Una vez entregado el ramo no hay reembolsos ni
+> cancelaciones."*
+
+### 4. 🟡 Listado global de frases pendientes — nuevo endpoint
+
+```
+GET /v1/flores/pedidos/frases-pendientes?pagina=1&size=10   (ADMIN)
+```
+Response — paginado, con exactamente lo que pidieron:
+```json
+{
+  "data": {
+    "pagina": 1, "totalPaginas": 1, "totalRegistros": 2,
+    "t": [
+      { "detalleId": 8, "pedidoId": 42, "fraseTexto": "Feliz cumpleaños Mamá", "clienteNombre": "Ana López", "fechaPedido": "2026-08-13" }
+    ]
+  }
+}
+```
+`detalleId` es el que mandan a `validar-frase`. No incluye filtro por estado todavía (solo trae
+pendientes) — si en la práctica les hace falta ver aprobadas/rechazadas también, avisen y lo
+agregamos.
+
+### 5. 🟢 Umbral del papel — ya es configurable, y ramos armados ya tienen foto
+
+- **Umbral configurable:** `AccesorioRamo` tiene un campo nuevo, `umbralActivacion` (número,
+  editable desde la pantalla de accesorios). El accesorio marcado `esPapel` se agrega solo cuando
+  `cantidadFinal > umbralActivacion` — el dueño lo cambia él mismo desde ahí, sin pedirnos nada.
+  `null` = nunca se agrega solo (queda como opcional siempre). En cuanto el dueño confirme el
+  número exacto, alguien con acceso ADMIN lo edita en `/v1/accesorios-ramo` y ya.
+- **Foto del ramo armado:** `RamoArmado` tiene `imagenUrl` (string) — el admin sube la imagen por
+  fuera (no pasa por micro_imagenes todavía, es un link plano) y lo pega ahí al crear/editar el
+  ramo. Si más adelante quieren que la imagen se suba directo desde la pantalla de admin (con
+  preview, etc.), avisen y lo enganchamos con micro_imagenes — por ahora es lo mínimo funcional.
+
+### 6. 🔴 Variantes sombra — ya excluidas de todo lo que mencionaron
+
+Agregamos un flag (`Producto.esCatalogoInterno`) y lo aplicamos en:
+- Buscador público de la tienda (`/tienda/v1/buscar`, `/tienda/v1/buscar-filtrado`,
+  `/tienda/v1/filtros-disponibles`).
+- Buscador/filtro de admin (`/tienda/v1/admin/filtrar`, `/v1/productos/admin/filtrar`).
+- Listado general de admin (`GET /v1/productos/obtenerProductos`, `findAllNew` de variantes) —
+  eran `findAll()` genéricos sin ningún filtro, tuvieron su propia query nueva.
+- Buscador del **chatbot** (no lo habían preguntado, lo encontramos igual de expuesto).
+- **Reporte de productos más vendidos** — confirmado, sin el flag iban a aparecer ahí compitiendo
+  contra productos reales.
+- Selectores de **promoción** y **rifa**: no tienen query propia, reusan el buscador general de
+  variantes — quedan cubiertos automáticamente con lo de arriba.
+- Carga rápida de imágenes: revisamos y no hace falta tocarla — ese flujo crea productos nuevos,
+  nunca lista los existentes, así que las variantes sombra no se cruzan con esa pantalla.
+
+**Sobre el stock desincronizado que preguntaron:** ya no aplica el escenario que les preocupaba —
+`TipoFlor` ya no tiene variante propia (ver punto 1, ahora es `ColorFlor` el que la tiene). Pero
+la duda de fondo seguía siendo válida: si alguien edita el stock de esa variante interna desde la
+pantalla normal de variantes, sí se desincroniza con lo que `ColorFlor` muestra en su catálogo
+(no hay sincronización en ese sentido). Como ahora estas variantes ya no aparecen en ningún
+buscador/selector normal (punto de arriba), la posibilidad de que un admin llegue a editarlas por
+accidente desde ahí baja mucho, pero si igual les preocupa que alguien las edite a propósito
+sabiendo el id, avisen y le puede poner un candado aparte.
+
+**Confirmado también:** no se venden flores por unidad sueltas desde la tienda general — nunca
+fue posible (las variantes sombra ya devolvían 401/nunca aparecían navegables incluso antes de
+este fix, porque flores eternas siempre vivió en su propia sección), y ahora con el flag queda
+blindado en todos los buscadores además.
+
+### Pendiente de nuestro lado
+
+Falta correr **`migration_flores_eternas_multicolor.sql`** en QA y producción (las dos
+anteriores, `migration_flores_eternas.sql` y `migration_flores_eternas_pedido.sql`, ya corrieron
+en ambas). Sin ella no existen `ColorFlor`, `umbralActivacion`, `imagenUrl` ni
+`esCatalogoInterno` en la base — no prueben multicolor todavía. Catálogos siguen vacíos en QA/prod
+a esta fecha, así que no hay riesgo de datos al correrla. Avisamos en cuanto esté aplicada.
