@@ -10127,3 +10127,300 @@ ficha (el que ya está en su `dev`/`qa`) sigue funcionando con el resolver nuevo
 `migration_respuesta_resena_historial_acceso.sql` y `migracion_dedup_relaciones_imagenes.sql` ya
 corrieron en ambos ambientes. El tema de imágenes duplicadas queda cerrado — sin más pendientes de
 nuestro lado ahí.
+
+---
+
+## 🆕 BACK — nuevo módulo "Flores eternas": catálogos + motor de cálculo (2026-08-12)
+
+Primera etapa de un módulo nuevo (ramos de flores eternas configurables). Ya está en `dev`/`qa` y
+la migración (`migration_flores_eternas.sql`) ya corrió en **QA y producción**.
+
+### ⚠️ Alcance de esta entrega — qué SÍ y qué NO
+
+- **SÍ:** catálogos de administración (tipos de flor, cantidades válidas, accesorios, frases de
+  listón, ramos preconfigurados) + un motor de cálculo público para cotizar un ramo en vivo.
+- **NO todavía:** no existe endpoint para "confirmar" un ramo cotizado como un pedido real — falta
+  decidir cómo se engancha con `Pedido`/`DetallePedido` de nuestro lado. El front ya puede armar
+  toda la pantalla de configuración y mostrar el precio en vivo con lo que hay aquí, pero el botón
+  final de "confirmar pedido" todavía no tiene a dónde pegarle. Avisamos en cuanto esté.
+
+### Catálogos simples — CRUD genérico (mismo patrón que `/v1/lugares-entrega` y `/v1/cinta`)
+
+GET (`getAll`/`getOne`) es **público** (sin login) en los 4 catálogos de abajo — el cliente
+configura su ramo sin necesitar sesión. `save`/`update`/`delete` son **ADMIN**.
+
+Mismas reglas ya conocidas del CRUD genérico: `getAll` exige `page` (base-0) y `size` en la URL
+sin default; `delete` recibe el id crudo en el body (`1`, no `{ id: 1 }`); `save`/`update` reciben
+el objeto de la entidad completo, no un DTO envuelto.
+
+| Catálogo | Base URL | Campos |
+|---|---|---|
+| Tipos de flor | `/v1/tipos-flor` | `id`, `nombre`, `precioPorFlor`, `activo` |
+| Cantidades válidas | `/v1/cantidades-flor` | `id`, `tipoFlor` (objeto anidado), `cantidad`, `activo` |
+| Accesorios del ramo | `/v1/accesorios-ramo` | `id`, `nombre`, `precio`, `admiteTextoLibre`, `esPapel`, `activo` |
+| Frases de listón predefinidas | `/v1/frases-liston` | `id`, `texto`, `precio`, `activo` |
+
+**Nota sobre `cantidad-flor-valida`:** es "qué cantidades de flores sí forman bien el círculo",
+por tipo de flor — ej. para "Rosa eterna" las válidas podrían ser 18, 20, 28, 32, 34, 48, 52. Al
+guardar/editar, el body lleva el tipo de flor **anidado por id**, no hace falta mandar sus demás
+campos:
+```json
+{ "tipoFlor": { "id": 1 }, "cantidad": 32, "activo": true }
+```
+El `GET` sí devuelve el objeto `tipoFlor` completo (igual que `Concursante` con `configurarRifa`,
+si ya conocen ese patrón de rifas).
+
+**`esPapel`** en accesorios: marca cuál accesorio es "el papel" para la regla del umbral (ver
+motor de cálculo abajo). Debería haber como máximo un accesorio activo con `esPapel: true` a la
+vez.
+
+### Ramos preconfigurados (`/v1/ramos-armados`) — CRUD custom, no genérico
+
+A diferencia de los catálogos de arriba, este no usa el patrón `/getAll`/`/getOne`/`/save`/`/update`
+— tiene sus propias rutas (mismo estilo que `/v1/promociones`):
+
+| Método | URL | Quién | Qué hace |
+|---|---|---|---|
+| `POST` | `/v1/ramos-armados` | ADMIN | Crear |
+| `PUT` | `/v1/ramos-armados/{id}` | ADMIN | Editar |
+| `PUT` | `/v1/ramos-armados/{id}/activo` | ADMIN | Activar/desactivar — body `{ "activo": true }` |
+| `GET` | `/v1/ramos-armados/admin?pagina=1&size=10` | ADMIN | Lista todos (activos e inactivos) |
+| `GET` | `/v1/ramos-armados/activos?pagina=1&size=10` | **Público** | Solo los activos, para la tienda |
+
+**Ojo:** aquí `pagina` es **base-1** (como en `/v1/promociones`), no base-0 como el CRUD genérico
+de arriba — es una inconsistencia que ya existe en el proyecto entre módulos, no es nueva de esto.
+
+Body para crear/editar:
+```json
+{
+  "nombre": "Ramo grande 48 rosas",
+  "tipoFlorId": 1,
+  "cantidadFlorValidaId": 5,
+  "accesorios": [ { "accesorioId": 3, "cantidad": 1 } ],
+  "activo": true
+}
+```
+Response (creado/editado, y en las dos listas):
+```json
+{
+  "id": 10,
+  "nombre": "Ramo grande 48 rosas",
+  "tipoFlorId": 1,
+  "tipoFlorNombre": "Rosa eterna",
+  "cantidad": 48,
+  "precioFlores": 960.0,
+  "papelIncluido": true,
+  "precioPapel": 40.0,
+  "accesorios": [ { "accesorioId": 3, "nombre": "Corona", "cantidad": 1, "precioUnitario": 80.0, "subtotal": 80.0 } ],
+  "precioTotal": 1080.0,
+  "activo": true
+}
+```
+`papelIncluido`/`precioPapel` se calculan **automático** en el back si `cantidad > 10` (no hace
+falta que el front lo mande ni lo agregue a `accesorios`) — ver la regla completa abajo.
+
+### `/v1/lugares-entrega` ahora trae `costoEnvio`
+
+Mismo endpoint de siempre, un campo nuevo en la respuesta: `costoEnvio` (número, puede venir
+`null` si ese lugar no tiene costo de envío configurado — trátenlo como recoger en el local /
+sin costo, no como error).
+
+### Motor de cálculo — público, sin login (`POST /v1/flores/...`)
+
+Estos dos no son CRUD, son cálculo puro (no guardan nada todavía, ver nota de alcance arriba).
+
+**1. `POST /v1/flores/validar-cantidad`** — el cliente escribe libremente cuántas flores quiere;
+esto dice si esa cantidad forma bien el círculo o no, y si no, ofrece alternativas.
+
+Request:
+```json
+{ "tipoFlorId": 1, "cantidadSolicitada": 30 }
+```
+Response:
+```json
+{
+  "cantidadSolicitada": 30,
+  "precioCantidadSolicitada": 600.0,
+  "valida": false,
+  "mensaje": "Con 30 flores el circulo puede no quedar bien formado.",
+  "alternativaMenor": 28,
+  "precioAlternativaMenor": 560.0,
+  "alternativaMayor": 32,
+  "precioAlternativaMayor": 640.0
+}
+```
+Si `valida: true`, las 4 alternativas vienen en `null` (no hace falta mostrarlas). Si la cantidad
+pedida es menor a la más chica configurada en el catálogo (ej. pide 1 o 2), también responde
+`valida: true` directo — es la venta "por unidad", no aplica el ajuste de círculo.
+
+**2. `POST /v1/flores/calcular-precio`** — con la cantidad ya decidida, arma el desglose completo
+y el total (accesorios, papel automático, listón, envío).
+
+Request:
+```json
+{
+  "tipoFlorId": 1,
+  "cantidadFinal": 32,
+  "accesorios": [ { "accesorioId": 3 }, { "accesorioId": 3 } ],
+  "listones": [
+    { "fraseListonPredefinidaId": 2 },
+    { "fraseListonPersonalizada": "Te amo mamá" }
+  ],
+  "lugarEntregaId": 5,
+  "recogerEnLocal": false
+}
+```
+Nota sobre `accesorios`: **repetir la misma entrada tantas veces como unidades se quieran** — en
+el ejemplo de arriba, dos entradas con `accesorioId: 3` = 2 unidades de ese accesorio, cobradas
+cada una. Igual con `listones`: cada entrada es UN listón; cada uno trae **o** una frase
+predefinida (`fraseListonPredefinidaId`) **o** una personalizada (`fraseListonPersonalizada`),
+nunca las dos ni ninguna.
+
+Response:
+```json
+{
+  "cantidadFinal": 32,
+  "precioBase": 640.0,
+  "papelObligatorioAplicado": true,
+  "precioPapel": 40.0,
+  "accesoriosCalculados": [
+    { "accesorioId": 3, "nombre": "Corona", "cantidad": 2, "precioUnitario": 80.0, "subtotal": 160.0, "agregadoAutomaticoPorRegla": false }
+  ],
+  "subtotalAccesorios": 160.0,
+  "listonesCalculados": [
+    { "texto": "Felicidades", "tipo": "PREDEFINIDA", "precio": 50.0 },
+    { "texto": "Te amo mamá", "tipo": "PERSONALIZADA_PENDIENTE", "precio": null }
+  ],
+  "subtotalListones": 50.0,
+  "tieneListonPendienteValidacion": true,
+  "requiereAnticipo50Porciento": true,
+  "montoAnticipoSugerido": 445.0,
+  "avisoNoReembolso": "Este ramo incluye una frase personalizada pendiente de validar. Se requiere un anticipo del 50% para producirlo. Una vez entregado el ramo no hay reembolsos ni cancelaciones.",
+  "recogerEnLocal": false,
+  "costoEnvio": 30.0,
+  "total": 890.0
+}
+```
+
+**Reglas de negocio detrás de estos números (para que la UI tenga sentido):**
+- **Papel automático:** si `cantidadFinal > 10`, el papel se cobra solo — no hay que preguntarle
+  al cliente ni mandarlo en `accesorios`. Con 10 o menos, el papel es un accesorio opcional más
+  (mándenlo en `accesorios` como cualquier otro si el cliente lo quiere).
+- **`tieneListonPendienteValidacion: true`** → el `total` es **provisional** (no incluye el precio
+  de la frase personalizada, todavía no existe). Hay que mostrarle al cliente el
+  `montoAnticipoSugerido` y el `avisoNoReembolso` tal cual, antes de que confirme — es política
+  de negocio, no redacción libre del front.
+- **Envío:** o se manda `lugarEntregaId` (de la lista de `/v1/lugares-entrega`, **no texto
+  libre**) o se manda `recogerEnLocal: true`. Si no se manda ninguno de los dos, `costoEnvio`
+  vuelve `null` (todavía no decidido) y no cuenta en el `total`.
+
+**Errores:** `400` con el motivo en `mensaje` (ej. tipo de flor sin `id`, cantidad ≤ 0, accesorio
+inactivo, listón sin frase). `404` si el `tipoFlorId`/`accesorioId`/`fraseListonPredefinidaId`/
+`lugarEntregaId` no existe. `500` solo ante error interno inesperado.
+
+---
+
+## 🌹 FRONT — catálogos de flores eternas conectados + un 401 que hay que revisar (2026-08-13)
+
+Recibido el módulo. Ya están en `dev`/`qa` del front las **pantallas de administración de los
+catálogos** (tipos de flor, cantidades válidas, accesorios y frases de listón), en una sola
+pantalla con 4 pestañas — `/flores/catalogos`, menú 🌹 Flores eternas.
+
+**Lo que NO hicimos todavía, a propósito:** la pantalla del cliente (configurador del ramo con
+precio en vivo). Como ustedes mismos anotaron, no existe endpoint para confirmar el ramo cotizado
+como pedido, así que esa pantalla terminaría en un botón sin destino. Preferimos esperar a que nos
+digan cómo se engancha con `Pedido`/`DetallePedido`. El servicio del front ya tiene conectados
+`validar-cantidad` y `calcular-precio`, listos para usarse en cuanto exista el cierre del flujo.
+
+### ⚠️ Los GET que documentaron como públicos responden 401 en QA
+
+Probado hoy sin token contra QA:
+
+```
+GET /v1/tipos-flor/getAll?page=0&size=5        → 401
+GET /v1/accesorios-ramo/getAll?page=0&size=5   → 401
+GET /v1/frases-liston/getAll?page=0&size=5     → 401
+POST /v1/flores/validar-cantidad               → 401
+GET /v1/ramos-armados/activos?pagina=1&size=10 → 401
+```
+
+**Aclaramos que el 401 por sí solo no prueba que falte el `permitAll`:** una ruta inventada
+(`/v1/no-existe-nada/getAll`) también responde 401, así que ese código parece ser la respuesta
+genérica para todo lo que no está explícitamente permitido — no distingue "no desplegado" de
+"requiere token". Lo que sí es comparable: `GET /v1/cinta/activos`, que es público y sí está
+desplegado, responde **200** en el mismo ambiente y sin token.
+
+Entonces, o el módulo todavía no está en QA, o le faltó el `permitAll` a esas rutas. ¿Nos
+confirman cuál de las dos? Lo preguntamos porque:
+
+- **No nos bloquea hoy:** las pantallas de catálogos son de admin y mandan token, así que
+  funcionarán en cuanto el módulo esté arriba.
+- **Sí bloquearía la pantalla del cliente**, que es justo la que depende de que esos GET y el
+  motor de cálculo sean públicos (el cliente arma su ramo sin sesión).
+
+### Dudas concretas del contrato
+
+1. **`esPapel`:** entendemos que debe haber **máximo un accesorio activo** con `esPapel: true`.
+   La pantalla ya impide marcar un segundo, pero ¿el back lo valida también, o si por BD quedaran
+   dos activos el cálculo elegiría uno arbitrario?
+2. **Cantidad menor a la más chica del catálogo:** dicen que responde `valida: true` directo
+   ("venta por unidad"). ¿Eso significa que el precio es `cantidad × precioPorFlor` sin ningún
+   ajuste, y que tampoco se le agrega papel aunque supere las 10? (por si alguien pide 12 pero no
+   hay una cantidad válida configurada tan baja).
+3. **`costoEnvio` en `/v1/lugares-entrega`:** ya lo vemos documentado como campo nuevo. ¿Ese
+   costo aplica **solo** a flores, o también debería empezar a mostrarse/cobrarse en los pedidos
+   normales de la tienda? Hoy el front no lo usa en ningún flujo existente; si aplica a todo,
+   habría que meterlo en venta directa y en el checkout, y eso es trabajo aparte que preferimos
+   no asumir por nuestra cuenta.
+4. **Ramos preconfigurados:** al crearlos mandamos `cantidadFlorValidaId`. ¿Ese id es el de la
+   tabla de cantidades válidas (`/v1/cantidades-flor`), verdad? Lo asumimos así porque el nombre
+   coincide, pero no viene explícito en el ejemplo.
+
+### 🚧 Lo que nos hace falta para poder seguir — y por qué
+
+Complemento de las dudas de arriba (que son de contrato). Esto es lo que **bloquea la siguiente
+etapa**: la pantalla donde el cliente arma su ramo. Ninguna de estas es urgente para lo que ya
+entregamos, pero sin resolverlas esa pantalla no se puede hacer completa, y preferimos no
+construirla a medias y tener que rehacerla.
+
+**1. Cómo se convierte un ramo cotizado en un pedido real.** Es el bloqueo principal, ya lo
+anotaron ustedes. Sin esto, el configurador termina en un botón que no puede hacer nada.
+Concretamente necesitamos saber: ¿se crea un `Pedido` normal con un `DetallePedido` especial, o
+es una entidad aparte? ¿Y qué se manda — la configuración completa del ramo (flores, accesorios,
+listones) o solo un total ya calculado? Lo preguntamos porque de eso depende si el ramo se puede
+mezclar en el mismo pedido con productos de la tienda o si va siempre solo.
+
+**2. Los GET públicos (el 401 de arriba).** Sin eso el cliente tendría que iniciar sesión para
+ver siquiera los precios, y por lo que entendemos la idea es justo la contraria.
+
+**3. Cómo se cobra el anticipo del 50%.** El motor ya devuelve `requiereAnticipo50Porciento` y
+`montoAnticipoSugerido` cuando hay frase personalizada, pero no hay nada que diga **cómo se
+registra ese pago**. ¿Se apoya en el módulo de abonos que ya existe (crear el pedido como
+APARTADO y registrar el anticipo como primer abono), o es un flujo nuevo? Si es lo primero, del
+lado del front ya está casi todo hecho y sería cuestión de enlazarlo; si es nuevo, hay que
+diseñarlo.
+
+**4. Quién valida la frase personalizada, y dónde.** El cálculo la deja como
+`PERSONALIZADA_PENDIENTE` con precio `null`. Falta la otra mitad: ¿el admin ve en algún lado la
+lista de frases pendientes, les pone precio y eso actualiza el total del pedido? Si va a existir
+esa pantalla, es front que todavía no está ni planeado — avísennos con tiempo.
+
+**5. ¿Las flores tienen inventario?** En el catálogo actual todo tiene stock y el sistema impide
+vender de más. Aquí no vimos nada de existencias: un cliente podría pedir 200 rosas aunque no
+haya. ¿Es intencional (se producen sobre pedido) o falta esa parte? No es lo mismo para la
+pantalla: si hay stock, hay que mostrarlo y bloquear cantidades.
+
+**6. Dónde vive esto para el cliente.** ¿Es una sección aparte del menú, o las flores aparecen
+también dentro de la tienda junto a bolsas y blusas? Y los **ramos preconfigurados**, ¿se ven
+como productos normales del catálogo o solo dentro del configurador? Esto define si hay que
+tocar el catálogo actual o no.
+
+**7. ¿El ramo pasa por el carrito?** Hoy el carrito guarda variantes y promociones. Un ramo es
+otra cosa (una configuración, no un producto con id). Si debe convivir en el mismo carrito, hay
+que extenderlo; si va directo a "confirmar pedido" sin pasar por ahí, es más simple. Nos sirve
+saberlo antes de empezar, porque cambia bastante la estructura.
+
+**Nota de método:** no asumimos ninguna de estas por nuestra cuenta a propósito. Ya nos pasó en
+este proyecto que dar por hecho una regla de negocio (los precios de las promociones, el orden de
+las migraciones) sale más caro que preguntar. Con que nos contesten 1 y 2 podemos avanzar bastante;
+las demás se pueden ir resolviendo sobre la marcha.
