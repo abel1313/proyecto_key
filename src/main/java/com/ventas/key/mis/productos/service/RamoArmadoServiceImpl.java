@@ -2,20 +2,20 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.AccesorioRamo;
 import com.ventas.key.mis.productos.entity.CantidadFlorValida;
+import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.RamoArmado;
 import com.ventas.key.mis.productos.entity.RamoArmadoAccesorio;
 import com.ventas.key.mis.productos.entity.TipoFlor;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.PginaDto;
-import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
 import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoAccesorioRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoAccesorioResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoResponseDto;
 import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
+import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IRamoArmadoRepository;
-import com.ventas.key.mis.productos.repository.ITipoFlorRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -29,18 +29,21 @@ import java.util.Optional;
 public class RamoArmadoServiceImpl {
 
     private final IRamoArmadoRepository iRamoArmadoRepository;
-    private final ITipoFlorRepository iTipoFlorRepository;
+    private final IColorFlorRepository iColorFlorRepository;
     private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
     private final IAccesorioRamoRepository iAccesorioRamoRepository;
+    private final AccesorioRamoServiceImpl accesorioRamoService;
 
     public RamoArmadoServiceImpl(IRamoArmadoRepository iRamoArmadoRepository,
-                                  ITipoFlorRepository iTipoFlorRepository,
+                                  IColorFlorRepository iColorFlorRepository,
                                   ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
-                                  IAccesorioRamoRepository iAccesorioRamoRepository) {
+                                  IAccesorioRamoRepository iAccesorioRamoRepository,
+                                  AccesorioRamoServiceImpl accesorioRamoService) {
         this.iRamoArmadoRepository = iRamoArmadoRepository;
-        this.iTipoFlorRepository = iTipoFlorRepository;
+        this.iColorFlorRepository = iColorFlorRepository;
         this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
         this.iAccesorioRamoRepository = iAccesorioRamoRepository;
+        this.accesorioRamoService = accesorioRamoService;
     }
 
     @Transactional
@@ -93,35 +96,33 @@ public class RamoArmadoServiceImpl {
         return resultado;
     }
 
-    // Arma precioFlores, la regla del papel obligatorio y la lista de accesorios (excluyendo el
-    // papel de esa lista cuando la regla ya lo cubrio, para no cobrarlo dos veces).
+    // Arma precioFlores, la regla del papel (automatica segun el umbral configurado en el
+    // accesorio) y la lista de accesorios (excluyendo el papel de esa lista cuando la regla ya
+    // lo cubrio, para no cobrarlo dos veces).
     private void aplicarDatos(RamoArmado ramo, RamoArmadoRequestDto dto) {
-        TipoFlor tipoFlor = iTipoFlorRepository.findById(dto.getTipoFlorId())
-                .orElseThrow(() -> new ExceptionDataNotFound("Tipo de flor no encontrado: " + dto.getTipoFlorId()));
+        ColorFlor colorFlor = iColorFlorRepository.findById(dto.getColorFlorId())
+                .orElseThrow(() -> new ExceptionDataNotFound("Color de flor no encontrado: " + dto.getColorFlorId()));
+        TipoFlor tipoFlor = colorFlor.getTipoFlor();
         CantidadFlorValida cantidadValida = iCantidadFlorValidaRepository.findById(dto.getCantidadFlorValidaId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Cantidad valida no encontrada: " + dto.getCantidadFlorValidaId()));
         if (!cantidadValida.getTipoFlor().getId().equals(tipoFlor.getId())) {
-            throw new RuntimeException("La cantidad valida seleccionada no pertenece al tipo de flor elegido");
+            throw new RuntimeException("La cantidad valida seleccionada no pertenece a la especie del color elegido");
         }
 
         ramo.setNombre(dto.getNombre());
-        ramo.setTipoFlor(tipoFlor);
+        ramo.setImagenUrl(dto.getImagenUrl());
+        ramo.setColorFlor(colorFlor);
         ramo.setCantidadFlorValida(cantidadValida);
 
         double precioFlores = cantidadValida.getCantidad() * tipoFlor.getPrecioPorFlor();
         ramo.setPrecioFlores(precioFlores);
 
+        Optional<AccesorioRamo> papel = accesorioRamoService.obtenerPapelAutomaticoSiAplica(cantidadValida.getCantidad());
         Integer papelAccesorioId = null;
-        if (cantidadValida.getCantidad() > FloresEternasConstantes.UMBRAL_PAPEL_OBLIGATORIO) {
-            Optional<AccesorioRamo> papel = iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue();
-            if (papel.isPresent()) {
-                ramo.setPapelIncluido(true);
-                ramo.setPrecioPapel(papel.get().getPrecio());
-                papelAccesorioId = papel.get().getId();
-            } else {
-                ramo.setPapelIncluido(false);
-                ramo.setPrecioPapel(null);
-            }
+        if (papel.isPresent()) {
+            ramo.setPapelIncluido(true);
+            ramo.setPrecioPapel(papel.get().getPrecio());
+            papelAccesorioId = papel.get().getId();
         } else {
             ramo.setPapelIncluido(false);
             ramo.setPrecioPapel(null);
@@ -132,7 +133,7 @@ public class RamoArmadoServiceImpl {
         if (dto.getAccesorios() != null) {
             for (RamoArmadoAccesorioRequestDto a : dto.getAccesorios()) {
                 if (papelAccesorioId != null && papelAccesorioId.equals(a.getAccesorioId())) {
-                    continue; // ya cubierto por la regla del papel obligatorio, no duplicar
+                    continue; // ya cubierto por la regla del papel automatico, no duplicar
                 }
                 AccesorioRamo accesorio = iAccesorioRamoRepository.findById(a.getAccesorioId())
                         .orElseThrow(() -> new ExceptionDataNotFound("Accesorio no encontrado: " + a.getAccesorioId()));
@@ -160,8 +161,8 @@ public class RamoArmadoServiceImpl {
         if (dto.getNombre() == null || dto.getNombre().isBlank()) {
             throw new RuntimeException("El nombre del ramo es obligatorio");
         }
-        if (dto.getTipoFlorId() == null) {
-            throw new RuntimeException("El tipo de flor es obligatorio");
+        if (dto.getColorFlorId() == null) {
+            throw new RuntimeException("El color de la flor es obligatorio");
         }
         if (dto.getCantidadFlorValidaId() == null) {
             throw new RuntimeException("La cantidad de flores del ramo es obligatoria");
@@ -171,12 +172,17 @@ public class RamoArmadoServiceImpl {
     private RamoArmadoResponseDto toResponseDto(RamoArmado ramo) {
         List<RamoArmadoAccesorioResponseDto> accesorios = ramo.getAccesorios() == null ? List.of()
                 : ramo.getAccesorios().stream().map(this::toAccesorioResponseDto).toList();
+        ColorFlor colorFlor = ramo.getColorFlor();
+        TipoFlor tipoFlor = colorFlor.getTipoFlor();
         return new RamoArmadoResponseDto(
                 ramo.getId(),
                 ramo.getNombre(),
-                ramo.getTipoFlor().getId(),
-                ramo.getTipoFlor().getNombre(),
-                ramo.getTipoFlor().getVariante() != null ? ramo.getTipoFlor().getVariante().getId() : null,
+                ramo.getImagenUrl(),
+                tipoFlor.getId(),
+                tipoFlor.getNombre(),
+                colorFlor.getId(),
+                colorFlor.getNombre(),
+                colorFlor.getVariante() != null ? colorFlor.getVariante().getId() : null,
                 ramo.getCantidadFlorValida().getCantidad(),
                 ramo.getPrecioFlores(),
                 ramo.getPapelIncluido(),

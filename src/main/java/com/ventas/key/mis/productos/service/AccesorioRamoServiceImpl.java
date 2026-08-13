@@ -69,4 +69,14 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
         iAccesorioRamoRepository.delete(accesorio);
         return accesorio;
     }
+
+    // Regla del umbral, centralizada aqui porque la usan tanto RamoArmadoServiceImpl como
+    // FlorPedidoServiceImpl: el accesorio activo marcado "es papel" se agrega solo cuando
+    // cantidadFinal supera su propio umbralActivacion (configurable por el admin, ver
+    // AccesorioRamo.umbralActivacion). Sin accesorio "es papel" activo, o con umbralActivacion
+    // null, la regla nunca se dispara sola -- queda como accesorio opcional normal.
+    public Optional<AccesorioRamo> obtenerPapelAutomaticoSiAplica(int cantidadFinal) {
+        return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
+                .filter(papel -> papel.getUmbralActivacion() != null && cantidadFinal > papel.getUmbralActivacion());
+    }
 }

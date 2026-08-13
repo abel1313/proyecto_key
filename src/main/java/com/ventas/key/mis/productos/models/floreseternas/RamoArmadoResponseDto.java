@@ -12,9 +12,12 @@ import java.util.List;
 public class RamoArmadoResponseDto {
     private Integer id;
     private String nombre;
+    private String imagenUrl;
     private Integer tipoFlorId;
     private String tipoFlorNombre;
-    private Integer tipoFlorVarianteId;
+    private Integer colorFlorId;
+    private String colorFlorNombre;
+    private Integer colorFlorVarianteId;
     private Integer cantidad;
     private Double precioFlores;
     private Boolean papelIncluido;

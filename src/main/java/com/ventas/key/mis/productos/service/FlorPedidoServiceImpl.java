@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.AccesorioRamo;
 import com.ventas.key.mis.productos.entity.CantidadFlorValida;
+import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.FraseListonPredefinida;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.TipoFlor;
@@ -10,6 +11,8 @@ import com.ventas.key.mis.productos.models.floreseternas.AccesorioCalculadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.AccesorioSeleccionadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.CalcularPrecioRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.CalcularPrecioResponseDto;
+import com.ventas.key.mis.productos.models.floreseternas.ColorCalculadoDto;
+import com.ventas.key.mis.productos.models.floreseternas.ColorSeleccionadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
 import com.ventas.key.mis.productos.models.floreseternas.ListonCalculadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ListonSeleccionadoDto;
@@ -17,6 +20,7 @@ import com.ventas.key.mis.productos.models.floreseternas.ValidarCantidadRequestD
 import com.ventas.key.mis.productos.models.floreseternas.ValidarCantidadResponseDto;
 import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
+import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IFraseListonPredefinidaRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.repository.ITipoFlorRepository;
@@ -24,34 +28,41 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 // Motor de calculo de precio de un ramo de flores eternas. No persiste nada todavia -- ver
-// nota de alcance en PROPUESTA_FLORES_ETERNAS.md sobre la integracion pendiente con Pedido.
+// PROPUESTA_FLORES_ETERNAS.md, seccion "Diseno tecnico".
 @Service
 public class FlorPedidoServiceImpl {
 
     private final ITipoFlorRepository iTipoFlorRepository;
+    private final IColorFlorRepository iColorFlorRepository;
     private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
     private final IAccesorioRamoRepository iAccesorioRamoRepository;
+    private final AccesorioRamoServiceImpl accesorioRamoService;
     private final IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository;
     private final ILugarEntregaRepository iLugarEntregaRepository;
 
     public FlorPedidoServiceImpl(ITipoFlorRepository iTipoFlorRepository,
+                                  IColorFlorRepository iColorFlorRepository,
                                   ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
                                   IAccesorioRamoRepository iAccesorioRamoRepository,
+                                  AccesorioRamoServiceImpl accesorioRamoService,
                                   IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository,
                                   ILugarEntregaRepository iLugarEntregaRepository) {
         this.iTipoFlorRepository = iTipoFlorRepository;
+        this.iColorFlorRepository = iColorFlorRepository;
         this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
         this.iAccesorioRamoRepository = iAccesorioRamoRepository;
+        this.accesorioRamoService = accesorioRamoService;
         this.iFraseListonPredefinidaRepository = iFraseListonPredefinidaRepository;
         this.iLugarEntregaRepository = iLugarEntregaRepository;
     }
 
+    // Paso 1 del flujo: el cliente ya eligio la especie (tipo de flor) y escribe cuantas quiere
+    // EN TOTAL -- todavia sin elegir color. La validez del circulo es por especie y por el total,
+    // sin importar en cuantos colores se vaya a repartir despues.
     @Transactional(readOnly = true)
     public ValidarCantidadResponseDto validarCantidad(ValidarCantidadRequestDto dto) {
         if (dto.getCantidadSolicitada() == null || dto.getCantidadSolicitada() <= 0) {
@@ -109,21 +120,46 @@ public class FlorPedidoServiceImpl {
         return response;
     }
 
+    // Paso 2: con la cantidad total ya decidida, el cliente reparte esa cantidad entre uno o
+    // varios colores de la MISMA especie y arma el resto del ramo (accesorios, liston, envio).
     @Transactional(readOnly = true)
     public CalcularPrecioResponseDto calcularPrecio(CalcularPrecioRequestDto dto) {
-        if (dto.getCantidadFinal() == null || dto.getCantidadFinal() <= 0) {
-            throw new RuntimeException("La cantidad final debe ser mayor a cero");
+        if (dto.getColores() == null || dto.getColores().isEmpty()) {
+            throw new RuntimeException("Debe indicar al menos un color y su cantidad");
         }
-        TipoFlor tipoFlor = iTipoFlorRepository.findById(dto.getTipoFlorId())
-                .orElseThrow(() -> new ExceptionDataNotFound("Tipo de flor no encontrado: " + dto.getTipoFlorId()));
 
-        int cantidadFinal = dto.getCantidadFinal();
-        double precioBase = cantidadFinal * tipoFlor.getPrecioPorFlor();
+        List<ColorCalculadoDto> coloresCalculados = new ArrayList<>();
+        int cantidadFinal = 0;
+        double precioBase = 0;
+        TipoFlor especie = null;
+        for (ColorSeleccionadoDto sel : dto.getColores()) {
+            if (sel.getCantidad() == null || sel.getCantidad() <= 0) {
+                throw new RuntimeException("La cantidad de cada color debe ser mayor a cero");
+            }
+            ColorFlor color = iColorFlorRepository.findById(sel.getColorFlorId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Color de flor no encontrado: " + sel.getColorFlorId()));
+            if (!Boolean.TRUE.equals(color.getActivo())) {
+                throw new RuntimeException("El color '" + color.getNombre() + "' no esta disponible actualmente");
+            }
+            if (especie == null) {
+                especie = color.getTipoFlor();
+            } else if (!especie.getId().equals(color.getTipoFlor().getId())) {
+                throw new RuntimeException("Todos los colores del ramo deben ser de la misma especie de flor");
+            }
+
+            int cantidad = sel.getCantidad();
+            double subtotal = cantidad * especie.getPrecioPorFlor();
+            cantidadFinal += cantidad;
+            precioBase += subtotal;
+            coloresCalculados.add(new ColorCalculadoDto(
+                    color.getId(), color.getNombre(), cantidad, especie.getPrecioPorFlor(), subtotal,
+                    color.getVariante() != null ? color.getVariante().getId() : null));
+        }
 
         CalcularPrecioResponseDto response = new CalcularPrecioResponseDto();
         response.setCantidadFinal(cantidadFinal);
         response.setPrecioBase(precioBase);
-        response.setTipoFlorVarianteId(tipoFlor.getVariante() != null ? tipoFlor.getVariante().getId() : null);
+        response.setColoresCalculados(coloresCalculados);
 
         Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, response);
 
@@ -143,8 +179,7 @@ public class FlorPedidoServiceImpl {
         boolean tienePendiente = listonesCalculados.stream()
                 .anyMatch(l -> "PERSONALIZADA_PENDIENTE".equals(l.getTipo()));
         response.setTieneListonPendienteValidacion(tienePendiente);
-        response.setRequiereAnticipo50Porciento(tienePendiente);
-        response.setAvisoNoReembolso(tienePendiente ? FloresEternasConstantes.AVISO_NO_REEMBOLSO : null);
+        response.setAvisoFrasePendiente(tienePendiente ? FloresEternasConstantes.AVISO_FRASE_PENDIENTE : null);
 
         double costoEnvio = calcularEnvio(dto, response);
 
@@ -154,18 +189,12 @@ public class FlorPedidoServiceImpl {
                 + subtotalListones
                 + costoEnvio;
         response.setTotal(totalConocido);
-        response.setMontoAnticipoSugerido(
-                tienePendiente ? totalConocido * FloresEternasConstantes.PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA : null);
 
         return response;
     }
 
     private Integer aplicarReglaPapel(int cantidadFinal, CalcularPrecioResponseDto response) {
-        if (cantidadFinal <= FloresEternasConstantes.UMBRAL_PAPEL_OBLIGATORIO) {
-            response.setPapelObligatorioAplicado(false);
-            return null;
-        }
-        Optional<AccesorioRamo> papel = iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue();
+        Optional<AccesorioRamo> papel = accesorioRamoService.obtenerPapelAutomaticoSiAplica(cantidadFinal);
         if (papel.isEmpty()) {
             response.setPapelObligatorioAplicado(false);
             return null;
@@ -181,16 +210,16 @@ public class FlorPedidoServiceImpl {
         if (seleccionados == null || seleccionados.isEmpty()) {
             return resultado;
         }
-        Map<Integer, Integer> cantidadPorAccesorio = new LinkedHashMap<>();
+        java.util.Map<Integer, Integer> cantidadPorAccesorio = new java.util.LinkedHashMap<>();
         for (AccesorioSeleccionadoDto sel : seleccionados) {
-            // El papel ya se cobro via la regla obligatoria -- si el cliente tambien lo eligio
+            // El papel ya se cobro via la regla automatica -- si el cliente tambien lo eligio
             // manualmente en esta lista, se ignora esa entrada para no cobrarlo dos veces.
             if (papelAccesorioId != null && papelAccesorioId.equals(sel.getAccesorioId())) {
                 continue;
             }
             cantidadPorAccesorio.merge(sel.getAccesorioId(), 1, Integer::sum);
         }
-        for (Map.Entry<Integer, Integer> entry : cantidadPorAccesorio.entrySet()) {
+        for (java.util.Map.Entry<Integer, Integer> entry : cantidadPorAccesorio.entrySet()) {
             AccesorioRamo accesorio = iAccesorioRamoRepository.findById(entry.getKey())
                     .orElseThrow(() -> new ExceptionDataNotFound("Accesorio no encontrado: " + entry.getKey()));
             if (!Boolean.TRUE.equals(accesorio.getActivo())) {

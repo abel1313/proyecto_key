@@ -1,24 +1,32 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.DetallePedido;
 import com.ventas.key.mis.productos.entity.FraseListonPredefinida;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.entity.RamoArmado;
 import com.ventas.key.mis.productos.entity.RamoPedidoDetalle;
+import com.ventas.key.mis.productos.entity.RamoPedidoDetalleColor;
 import com.ventas.key.mis.productos.entity.TipoFlor;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.floreseternas.ColorSeleccionadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
+import com.ventas.key.mis.productos.models.floreseternas.FrasePendienteDto;
+import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleColorDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
+import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IFraseListonPredefinidaRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IRamoArmadoRepository;
 import com.ventas.key.mis.productos.repository.IRamoPedidoDetalleRepository;
-import com.ventas.key.mis.productos.repository.ITipoFlorRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +44,7 @@ public class RamoPedidoDetalleServiceImpl {
 
     private final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository;
     private final IPedidoRepository iPedidoRepository;
-    private final ITipoFlorRepository iTipoFlorRepository;
+    private final IColorFlorRepository iColorFlorRepository;
     private final IRamoArmadoRepository iRamoArmadoRepository;
     private final IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository;
     private final ILugarEntregaRepository iLugarEntregaRepository;
@@ -44,14 +52,14 @@ public class RamoPedidoDetalleServiceImpl {
 
     public RamoPedidoDetalleServiceImpl(IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository,
                                          IPedidoRepository iPedidoRepository,
-                                         ITipoFlorRepository iTipoFlorRepository,
+                                         IColorFlorRepository iColorFlorRepository,
                                          IRamoArmadoRepository iRamoArmadoRepository,
                                          IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository,
                                          ILugarEntregaRepository iLugarEntregaRepository,
                                          ProductoSombraServiceImpl productoSombraService) {
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iPedidoRepository = iPedidoRepository;
-        this.iTipoFlorRepository = iTipoFlorRepository;
+        this.iColorFlorRepository = iColorFlorRepository;
         this.iRamoArmadoRepository = iRamoArmadoRepository;
         this.iFraseListonPredefinidaRepository = iFraseListonPredefinidaRepository;
         this.iLugarEntregaRepository = iLugarEntregaRepository;
@@ -60,23 +68,41 @@ public class RamoPedidoDetalleServiceImpl {
 
     @Transactional
     public RamoPedidoDetalleResponseDto adjuntar(Integer pedidoId, RamoPedidoDetalleRequestDto dto) {
-        if (dto.getTipoFlorId() == null) {
-            throw new RuntimeException("El tipo de flor es obligatorio");
-        }
-        if (dto.getCantidadFinal() == null || dto.getCantidadFinal() <= 0) {
-            throw new RuntimeException("La cantidad final debe ser mayor a cero");
+        if (dto.getColores() == null || dto.getColores().isEmpty()) {
+            throw new RuntimeException("Debe indicar al menos un color y su cantidad");
         }
         Pedido pedido = iPedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new ExceptionDataNotFound("Pedido no encontrado: " + pedidoId));
-        TipoFlor tipoFlor = iTipoFlorRepository.findById(dto.getTipoFlorId())
-                .orElseThrow(() -> new ExceptionDataNotFound("Tipo de flor no encontrado: " + dto.getTipoFlorId()));
 
         RamoPedidoDetalle detalle = new RamoPedidoDetalle();
         detalle.setPedido(pedido);
-        detalle.setTipoFlor(tipoFlor);
-        detalle.setCantidadFinal(dto.getCantidadFinal());
         detalle.setFechaCreacion(LocalDateTime.now());
         detalle.setAnticipoPagado(false);
+
+        List<RamoPedidoDetalleColor> colores = new ArrayList<>();
+        int cantidadFinal = 0;
+        TipoFlor especie = null;
+        for (ColorSeleccionadoDto sel : dto.getColores()) {
+            if (sel.getCantidad() == null || sel.getCantidad() <= 0) {
+                throw new RuntimeException("La cantidad de cada color debe ser mayor a cero");
+            }
+            ColorFlor color = iColorFlorRepository.findById(sel.getColorFlorId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Color de flor no encontrado: " + sel.getColorFlorId()));
+            if (especie == null) {
+                especie = color.getTipoFlor();
+            } else if (!especie.getId().equals(color.getTipoFlor().getId())) {
+                throw new RuntimeException("Todos los colores del ramo deben ser de la misma especie de flor");
+            }
+            RamoPedidoDetalleColor lineaColor = new RamoPedidoDetalleColor();
+            lineaColor.setRamoPedidoDetalle(detalle);
+            lineaColor.setColorFlor(color);
+            lineaColor.setCantidad(sel.getCantidad());
+            colores.add(lineaColor);
+            cantidadFinal += sel.getCantidad();
+        }
+        detalle.setTipoFlor(especie);
+        detalle.setCantidadFinal(cantidadFinal);
+        detalle.setColores(colores);
 
         if (dto.getRamoArmadoId() != null) {
             RamoArmado ramoArmado = iRamoArmadoRepository.findById(dto.getRamoArmadoId())
@@ -94,6 +120,9 @@ public class RamoPedidoDetalleServiceImpl {
         return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
     }
 
+    // El anticipo NO se conoce ni se cobra en este paso -- todavia no hay precio de la frase.
+    // Solo queda marcada como pendiente; el monto real se calcula en validarFrase() (abajo),
+    // que es cuando de verdad existe algo que cobrar.
     private void resolverListon(RamoPedidoDetalleRequestDto dto, RamoPedidoDetalle detalle) {
         if (dto.getFraseListonPredefinidaId() != null) {
             FraseListonPredefinida frase = iFraseListonPredefinidaRepository.findById(dto.getFraseListonPredefinidaId())
@@ -106,7 +135,6 @@ public class RamoPedidoDetalleServiceImpl {
             detalle.setFraseListonPersonalizada(dto.getFraseListonPersonalizada());
             detalle.setFraseListonEstado("PENDIENTE_VALIDACION");
             detalle.setAnticipoRequerido(true);
-            detalle.setMontoAnticipo(dto.getMontoAnticipo());
         } else {
             detalle.setFraseListonEstado("NO_APLICA");
             detalle.setAnticipoRequerido(false);
@@ -153,7 +181,8 @@ public class RamoPedidoDetalleServiceImpl {
     // Crea un Pedido APARTADO nuevo, separado del pedido original (que ya se cobro normal),
     // solo para esta frase -- asi el front puede registrar el anticipo del 50% reutilizando el
     // modulo de abonos existente (POST /v1/abonos/{pedidoId}) sin forzar el pedido completo de
-    // flores a volverse credito. El pedido original no se toca.
+    // flores a volverse credito. El pedido original no se toca. Este es el UNICO momento en
+    // que existe un monto de anticipo real -- antes de esto no se cobra ni se sugiere nada.
     private Pedido crearPedidoAnticipoFrase(RamoPedidoDetalle detalle, double precioAsignado) {
         Pedido original = detalle.getPedido();
         String nombreFrase = detalle.getFraseListonPersonalizada();
@@ -193,10 +222,42 @@ public class RamoPedidoDetalleServiceImpl {
         return iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().map(this::toResponseDto).toList();
     }
 
+    public PginaDto<List<FrasePendienteDto>> listarFrasesPendientes(int pagina, int size) {
+        Page<RamoPedidoDetalle> page = iRamoPedidoDetalleRepository.findFrasesPendientes(PageRequest.of(pagina - 1, size));
+        PginaDto<List<FrasePendienteDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(page.getContent().stream().map(this::toFrasePendienteDto).toList());
+        return resultado;
+    }
+
+    private FrasePendienteDto toFrasePendienteDto(RamoPedidoDetalle detalle) {
+        Pedido pedido = detalle.getPedido();
+        String clienteNombre;
+        if (pedido.getCliente() != null) {
+            clienteNombre = pedido.getCliente().getNombrePersona();
+        } else if (pedido.getClienteSinRegistro() != null) {
+            clienteNombre = pedido.getClienteSinRegistro().getNombrePersona();
+        } else {
+            clienteNombre = null;
+        }
+        return new FrasePendienteDto(
+                detalle.getId(),
+                pedido.getId(),
+                detalle.getFraseListonPersonalizada(),
+                clienteNombre,
+                pedido.getFechaPedido());
+    }
+
     private RamoPedidoDetalleResponseDto toResponseDto(RamoPedidoDetalle detalle) {
         String fraseTexto = detalle.getFraseListonPredefinida() != null
                 ? detalle.getFraseListonPredefinida().getTexto()
                 : detalle.getFraseListonPersonalizada();
+        List<RamoPedidoDetalleColorDto> colores = detalle.getColores() == null ? List.of()
+                : detalle.getColores().stream()
+                        .map(c -> new RamoPedidoDetalleColorDto(c.getColorFlor().getId(), c.getColorFlor().getNombre(), c.getCantidad()))
+                        .toList();
         return new RamoPedidoDetalleResponseDto(
                 detalle.getId(),
                 detalle.getPedido().getId(),
@@ -204,6 +265,7 @@ public class RamoPedidoDetalleServiceImpl {
                 detalle.getTipoFlor().getId(),
                 detalle.getTipoFlor().getNombre(),
                 detalle.getCantidadFinal(),
+                colores,
                 fraseTexto,
                 detalle.getFraseListonEstado(),
                 detalle.getFraseListonPrecioAsignado(),

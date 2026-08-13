@@ -1,6 +1,8 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.floreseternas.FrasePendienteDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 // Adjunta el "ticket de produccion" de un ramo a un Pedido ya creado por el flujo normal
@@ -49,6 +52,18 @@ public class RamoPedidoDetalleController {
         } catch (Exception e) {
             log.error("Error al listar detalle de ramo del pedido {}: {}", pedidoId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>((List<RamoPedidoDetalleResponseDto>) null, "Error al listar"));
+        }
+    }
+
+    @GetMapping("/frases-pendientes")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<FrasePendienteDto>>>> listarFrasesPendientes(
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.listarFrasesPendientes(pagina, size)));
+        } catch (Exception e) {
+            log.error("Error al listar frases pendientes: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null, "Error al listar"));
         }
     }
 

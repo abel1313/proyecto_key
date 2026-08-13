@@ -12,9 +12,9 @@ import java.util.List;
 public class CalcularPrecioResponseDto {
     private Integer cantidadFinal;
     private Double precioBase;
-    // Variante "sombra" del tipo de flor -- usarla para la linea de flores en /v1/pedidos/savePedido
-    // (cantidad = cantidadFinal, precioUnitario = precioBase/cantidadFinal, subTotal = precioBase).
-    private Integer tipoFlorVarianteId;
+    // Una linea por cada color pedido, cada una con su propio varianteId -- usarlas para armar
+    // las lineas de /v1/pedidos/savePedido (una por color, no una sola linea "de flores").
+    private List<ColorCalculadoDto> coloresCalculados;
 
     private Boolean papelObligatorioAplicado;
     private Double precioPapel;
@@ -26,10 +26,12 @@ public class CalcularPrecioResponseDto {
 
     private List<ListonCalculadoDto> listonesCalculados;
     private Double subtotalListones;
+    // true si algun liston quedo con frase personalizada sin validar todavia. NO implica que se
+    // cobre nada ahora -- el anticipo real (monto + cuando se cobra) se define recien cuando el
+    // admin valida la frase (ver POST /v1/flores/pedidos/detalle/{id}/validar-frase). El texto
+    // de aviso para el cliente esta en FloresEternasConstantes.AVISO_FRASE_PENDIENTE.
     private Boolean tieneListonPendienteValidacion;
-    private Boolean requiereAnticipo50Porciento;
-    private Double montoAnticipoSugerido;
-    private String avisoNoReembolso;
+    private String avisoFrasePendiente;
 
     private Boolean recogerEnLocal;
     private Double costoEnvio;
@@ -37,7 +39,7 @@ public class CalcularPrecioResponseDto {
     // no tiene costo de envio configurado (nada que cobrar, no hace falta linea).
     private Integer envioVarianteId;
 
-    // Total de todo lo que ya tiene precio conocido. Si tieneListonPendienteValidacion es true,
-    // este total es provisional -- falta el precio que el admin le asigne a la frase personalizada.
+    // Total de todo lo que ya tiene precio conocido (NO incluye la frase personalizada
+    // pendiente, que todavia no tiene precio -- ver arriba).
     private Double total;
 }

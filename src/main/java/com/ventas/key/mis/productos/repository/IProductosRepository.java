@@ -32,11 +32,19 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     // @OneToOne EAGER, asi que sin el fetch cada producto de la pagina costaba un SELECT extra.
     // countQuery explicito obligatorio al usar fetch join con Page.
     @Query(value = "SELECT p FROM Producto p LEFT JOIN FETCH p.codigoBarras " +
-           "WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "WHERE p.stock > 0 AND p.habilitado = '1' AND p.esCatalogoInterno = false " +
            "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)",
            countQuery = "SELECT COUNT(p) FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
+           "AND p.esCatalogoInterno = false " +
            "AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)")
     Page<Producto> findConStockYImagenPublico(Pageable pageable);
+
+    // Listado general de admin (getAll) sin ningun filtro de negocio -- ve todo salvo las
+    // variantes/productos "sombra" de flores eternas, que nunca deben aparecer como si fueran
+    // un producto navegable mas (ver ProductoSombraServiceImpl).
+    @Query(value = "SELECT p FROM Producto p WHERE p.esCatalogoInterno = false",
+           countQuery = "SELECT COUNT(p) FROM Producto p WHERE p.esCatalogoInterno = false")
+    Page<Producto> findVisibleParaAdmin(Pageable pageable);
 
     @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
            "AND LOWER(p.codigoBarras.codigoBarras) = LOWER(:codigoBarras) " +
@@ -77,6 +85,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND p.esCatalogoInterno = false
         """,
         countQuery = """
         SELECT COUNT(p) FROM Producto p
@@ -94,6 +103,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND p.esCatalogoInterno = false
         """)
     Page<Producto> buscarProductosAdmin(@Param("nombreOCodigo") String nombreOCodigo,
                                          @Param("conStock") Boolean conStock,
