@@ -77,6 +77,11 @@ public class ProductoSombraServiceImpl {
         producto.setHabilitado('1');
         producto.setCodigoBarrasGenerado(false);
         producto.setEsCatalogoInterno(true);
+        // piezas y precio_rebaja son columnas NOT NULL heredadas (preexistentes a flores
+        // eternas) que no aplican a un producto sombra -- mismo placeholder que ya usa
+        // CargaImagenesServiceImpl.getProducto() para estas mismas columnas.
+        producto.setPiezas(0.0);
+        producto.setPrecioRebaja(0.0);
         // producto.codigo_barras_id es NOT NULL en BD -- los productos "sombra" no tienen un
         // codigo de barras real (no se venden fisicamente escaneados), asi que se les asigna
         // uno placeholder para poder guardarse, igual que hace CargaImagenesServiceImpl.
