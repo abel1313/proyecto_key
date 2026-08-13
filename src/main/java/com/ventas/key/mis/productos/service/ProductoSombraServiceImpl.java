@@ -1,11 +1,15 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import com.ventas.key.mis.productos.repository.ICodigoBarrasRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 // Crea/sincroniza un par Producto+Variante "sombra" para catalogos de flores eternas (TipoFlor,
 // ColorFlor, AccesorioRamo, FraseListonPredefinida, LugarEntrega) que necesitan poder aparecer
@@ -23,10 +27,13 @@ public class ProductoSombraServiceImpl {
 
     private final IProductosRepository iProductosRepository;
     private final IVarianteRepository iVarianteRepository;
+    private final ICodigoBarrasRepository iCodigoBarrasRepository;
 
-    public ProductoSombraServiceImpl(IProductosRepository iProductosRepository, IVarianteRepository iVarianteRepository) {
+    public ProductoSombraServiceImpl(IProductosRepository iProductosRepository, IVarianteRepository iVarianteRepository,
+                                      ICodigoBarrasRepository iCodigoBarrasRepository) {
         this.iProductosRepository = iProductosRepository;
         this.iVarianteRepository = iVarianteRepository;
+        this.iCodigoBarrasRepository = iCodigoBarrasRepository;
     }
 
     public Variantes crear(String nombre, Double precioVenta, Double precioCosto, int stock) {
@@ -70,5 +77,17 @@ public class ProductoSombraServiceImpl {
         producto.setHabilitado('1');
         producto.setCodigoBarrasGenerado(false);
         producto.setEsCatalogoInterno(true);
+        // producto.codigo_barras_id es NOT NULL en BD -- los productos "sombra" no tienen un
+        // codigo de barras real (no se venden fisicamente escaneados), asi que se les asigna
+        // uno placeholder para poder guardarse, igual que hace CargaImagenesServiceImpl.
+        if (producto.getCodigoBarras() == null) {
+            CodigoBarra codigoBarras = new CodigoBarra();
+            codigoBarras.setCodigoBarras(generarCodigoBarrasPlaceholder());
+            producto.setCodigoBarras(iCodigoBarrasRepository.save(codigoBarras));
+        }
+    }
+
+    private String generarCodigoBarrasPlaceholder() {
+        return "SOMBRA-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 }
