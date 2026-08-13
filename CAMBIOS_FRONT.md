@@ -10424,3 +10424,165 @@ saberlo antes de empezar, porque cambia bastante la estructura.
 este proyecto que dar por hecho una regla de negocio (los precios de las promociones, el orden de
 las migraciones) sale más caro que preguntar. Con que nos contesten 1 y 2 podemos avanzar bastante;
 las demás se pueden ir resolviendo sobre la marcha.
+
+---
+
+## ✅ Respuesta del back — flores eternas: el 401, las dudas, y el flujo completo de pedido (2026-08-13)
+
+### ⚠️ El 401: no era un bug, el módulo nunca había llegado a QA
+
+Confirmado. Todo el trabajo de flores eternas (catálogos + motor de cálculo) se quedó en
+nuestro `dev` local sin subir hasta ahora — nunca llegó a `qa`, por eso el 401 parejo en todo,
+incluyendo rutas que ya estaban documentadas como `permitAll`. **Ya está commiteado y pusheado a
+`dev`** (commit `d12dea8`). En cuanto lo suban a `qa` con su merge normal, esos GET van a
+responder 200 sin token — no hubo que tocar `SecurityConfig`, el `permitAll` que documentamos ya
+estaba bien desde el principio, simplemente no existía en el ambiente donde probaron.
+
+### Dudas concretas del contrato
+
+**1. `esPapel` — ahora sí se valida en el back.** Guardamos un accesorio con `esPapel: true` y
+`activo: true` mientras ya existe otro también activo con `esPapel: true` → `400` con mensaje
+explicando cuál es el que hay que desactivar primero. Ya no puede quedar más de uno activo ni por
+error de BD ni por dos pestañas del admin guardando a la vez.
+
+**2. Cantidad menor a la más chica del catálogo (venta "por unidad") — confirmado como
+asumieron, con una precisión:** el precio es `cantidad × precioPorFlor` sin ningún ajuste, **pero
+el papel automático sigue aplicando si `cantidadFinal > 10`**, sin importar que esa cantidad haya
+entrado por el camino de "sin catálogo configurado". Son dos reglas independientes: la de
+"cantidad válida" solo decide si se sugiere una alternativa; la del papel solo mira el número
+final. Ejemplo con su caso (12 flores, sin cantidad válida tan baja configurada): `validar-cantidad`
+responde `valida: true` sin alternativas, pero al llamar `calcular-precio` con `cantidadFinal: 12`,
+`papelObligatorioAplicado` sale `true` igual.
+
+**3. `costoEnvio` — solo aplica a flores eternas, no a nada más.** Reutilizamos `LugarEntrega`
+únicamente para no crear un catálogo de "zonas" paralelo (es exactamente lo mismo: lista fija de
+lugares configurados), pero **ningún código del checkout normal de la tienda lee `costoEnvio`
+hoy** — ni venta directa, ni `PedidoServiceImpl`, ni el checkout del cliente. Es un campo nuevo
+que solo consume el motor de cálculo de flores (`POST /v1/flores/calcular-precio`). No hace falta
+que lo muestren ni lo cobren en ningún flujo existente — de hecho, por favor no lo hagan sin que
+lo pidamos explícito, porque cobrar envío en la tienda general es una decisión de negocio aparte
+que no se ha tomado.
+
+**4. `cantidadFlorValidaId` en ramos armados — sí, confirmado.** Es el `id` de
+`/v1/cantidades-flor` (la entidad `CantidadFlorValida`). Nombrado igual a propósito para que no
+quedara duda.
+
+### 🚧 Las 7 cosas que bloqueaban la pantalla del cliente — respondidas
+
+**1. Cómo se convierte un ramo cotizado en un pedido real — esta es la pieza grande que
+armamos esta sesión.** Respuesta corta: **no hay un endpoint nuevo para "confirmar el ramo"** —
+se usa el que ya existe, `POST /v1/pedidos/savePedido`, exactamente igual que para bolsas o
+blusas. La única diferencia es de dónde sale el `varianteId` de cada línea.
+
+Cómo queda el flujo completo:
+
+1. El cliente configura el ramo con `POST /v1/flores/validar-cantidad` y
+   `POST /v1/flores/calcular-precio` (sin cambios, esos dos ya los tienen conectados).
+2. **`calcular-precio` ahora también devuelve el `varianteId` de cada componente con precio
+   conocido** — es lo que agregamos hoy:
+   - `tipoFlorVarianteId` → la línea de las flores (cantidad = `cantidadFinal`, precioUnitario =
+     `precioBase / cantidadFinal`, subTotal = `precioBase`).
+   - `papelVarianteId` → si `papelObligatorioAplicado` es `true` (cantidad 1, precio =
+     `precioPapel`).
+   - `accesoriosCalculados[].varianteId` → uno por cada accesorio distinto elegido (cantidad =
+     la que ya viene en `accesoriosCalculados[].cantidad`).
+   - `listonesCalculados[].varianteId` → solo en los de `tipo: "PREDEFINIDA"` (los
+     `PERSONALIZADA_PENDIENTE` no tienen variante todavía, ver punto 4 más abajo).
+   - `envioVarianteId` → si hay `costoEnvio` (null si `recogerEnLocal` o si el lugar no tiene
+     costo configurado).
+3. Con esos `varianteId`, arman el `POST /v1/pedidos/savePedido` de siempre: **una línea en
+   `detalles` por cada componente** (mismo contrato de siempre: `varianteId`, `cantidad`,
+   `precioUnitario`, `subTotal` — nada nuevo, es el mismo body que ya usan para un carrito
+   normal). El `precioUnitario`/`subTotal` que manden tiene que coincidir exacto con el que
+   devolvió `calcular-precio` (la validación de precio de catálogo que ya existe en
+   `savePedido` aplica igual — no es una regla nueva para flores, es la misma de siempre).
+4. **Respuesta a "¿se puede mezclar con productos normales de la tienda en el mismo pedido?":
+   sí, sin ningún problema.** Cada línea de flor/accesorio/envío es una línea de `DetallePedido`
+   como cualquier otra — pueden convivir en el mismo array `detalles` junto con bolsas, blusas,
+   lo que sea. No hicimos ninguna entidad "Pedido de flores" aparte.
+5. **No hicimos ningún cambio a `PedidoServiceImpl`.** Cero riesgo de regresión en el checkout
+   existente — desde su perspectiva, un pedido con flores es indistinguible de uno con productos
+   normales.
+
+**Cómo lo logramos (por si les sirve de contexto):** cada catálogo de flores
+(`TipoFlor`/`AccesorioRamo`/`FraseListonPredefinida`/`LugarEntrega`) ahora tiene, por dentro, una
+variante "sombra" con su producto detrás, que se crea/actualiza sola cuando el ADMIN guarda el
+catálogo (nunca se edita a mano, no aparece como acción separada en ningún lado). Se las
+mencionamos porque van a ver nombres tipo `[Flores eternas] Rosa eterna` si alguna vez consultan
+`/v1/productos` o `/v1/variantes` directo — es intencional, no lo borren ni lo editen desde esas
+pantallas.
+
+**2. Los GET públicos (el 401).** Resuelto arriba — ya está en `dev`, falta su merge a `qa`.
+
+**3. Cómo se cobra el anticipo del 50% — decidimos reutilizar abonos, con un matiz
+importante.** No se puede simplemente crear el pedido completo de flores como `APARTADO`,
+porque las líneas con precio conocido (flores, papel, accesorios, listón predefinido, envío) ya
+se cobran de una vez con `savePedido` normal — meterlas a crédito solo por culpa de una frase sin
+precio mezclaría dos cosas distintas. En vez de eso:
+
+- El pedido de flores se crea **siempre `NORMAL`** (o lo que corresponda según cómo pague el
+  cliente el resto), igual que cualquier otro.
+- Si hay una frase personalizada pendiente, se guarda aparte en `RamoPedidoDetalle` (ver punto 4).
+- **Cuando el ADMIN aprueba esa frase y le pone precio** (`PUT
+  /v1/flores/pedidos/detalle/{id}/validar-frase`), el back automáticamente:
+  1. Crea un producto/variante "sombra" solo para esa frase (con el precio que el admin le puso).
+  2. Crea un **`Pedido` nuevo y separado**, del mismo cliente, `tipoPedido: "APARTADO"`, con una
+     sola línea: esa frase.
+  3. Devuelve `pedidoAnticipoId` (el id de ese pedido nuevo) en la respuesta.
+- El front toma ese `pedidoAnticipoId` y registra el anticipo con el flujo de abonos que **ya
+  tienen hecho**: `POST /v1/abonos/{pedidoAnticipoId}` con el monto (la respuesta de
+  `validar-frase` también trae `montoAnticipo`, ya calculado al 50% del precio asignado).
+- Todo el tracking de "cuánto se ha pagado", el auto-cierre a `PAGADO` cuando se completa, y la
+  cancelación, es el módulo de abonos de siempre — no inventamos nada nuevo ahí.
+
+Por qué separado y no el pedido original: así el pedido "de verdad" (el que ya se cobró
+completo) no quede con `tipoPedido: APARTADO` de forma incorrecta, y el reporte de crédito solo
+muestre lo que realmente es crédito (la frase), no el ramo completo.
+
+**4. Quién valida la frase personalizada, y dónde — ya existe el endpoint, falta la pantalla.**
+```
+PUT /v1/flores/pedidos/detalle/{id}/validar-frase   (ADMIN)
+Body: { "aprobar": true, "precioAsignado": 80.0, "anticipoPagado": false }
+```
+Aprueba (con precio) o rechaza (`aprobar: false`) la frase, y opcionalmente marca si ya se pagó
+el anticipo. Para listar las pendientes: no hay todavía un endpoint de "dame todas las frases
+`PENDIENTE_VALIDACION` de todos los pedidos" — hoy solo existe
+`GET /v1/flores/pedidos/{pedidoId}/detalle` (por pedido puntual). Si quieren una pantalla tipo
+"bandeja de frases pendientes", avísennos y armamos el endpoint de listado global — no lo hicimos
+porque no sabíamos si iba a hacer falta.
+
+**5. ¿Las flores tienen inventario? Sí, real, ya implementado.** `TipoFlor` tiene un campo
+`stock` (flores sueltas disponibles) que edita el admin directo en el catálogo de tipos de flor
+— no hay que ir a ningún lado más. Se descuenta de verdad al vender (vía la línea real de
+`savePedido`, exactamente igual que el stock de cualquier variante). Si intentan vender más
+flores de las que hay, `savePedido` responde el mismo error de "stock insuficiente" que ya
+conocen de productos normales. Los accesorios/listones/envío **no** controlan inventario
+(stock fijo interno, nunca se agotan) — eso sí fue decisión nuestra, avisen si en algún momento
+quieren limitarlos también.
+
+**6. Dónde vive esto para el cliente — decisión de negocio: sección aparte del menú.** Y los
+ramos preconfigurados **sí se navegan como catálogo normal** (`GET /v1/ramos-armados/activos`
+para el listado público) — técnicamente ya encajan porque, como cualquier flor, ya tienen
+variante real detrás. El configurador "a la medida" es la parte que vive solo dentro de la
+sección de flores, no mezclada con bolsas/blusas.
+
+**7. ¿El ramo pasa por el carrito?** Como cada línea (flor, papel, accesorio, listón, envío) es
+una variante real, técnicamente sí puede pasar por el mismo carrito que ya tienen — es una
+decisión de front, no hay ninguna restricción de back. Lo único que cambia es que un "ramo" en el
+carrito probablemente se vea como **varias líneas agrupadas visualmente bajo una tarjeta**, no
+como una sola línea con un solo `id` de producto (parecido a como ya manejan el agrupado de una
+promoción, según entendimos de esa sección del documento).
+
+### Resumen de lo nuevo que pueden empezar a usar
+
+| Endpoint | Qué cambió |
+|---|---|
+| `POST /v1/flores/calcular-precio` | Ahora devuelve `varianteId` en cada componente (ver punto 1 arriba) |
+| `POST /v1/pedidos/savePedido` | Sin cambios — así se confirma un ramo cotizado como pedido real |
+| `POST /v1/flores/pedidos/{pedidoId}/detalle` | Nuevo — guarda el "ticket de producción" del ramo (frase, contacto, entrega) después de crear el pedido con `savePedido` |
+| `GET /v1/flores/pedidos/{pedidoId}/detalle` | Nuevo — consulta ese ticket |
+| `PUT /v1/flores/pedidos/detalle/{id}/validar-frase` | Nuevo, ADMIN — aprueba/rechaza la frase personalizada, devuelve `pedidoAnticipoId` y `montoAnticipo` para registrar el abono |
+| `TipoFlor.stock` | Nuevo — inventario real de flores sueltas |
+
+**Pendiente de nuestro lado:** correr `migration_flores_eternas_pedido.sql` en QA (la primera,
+`migration_flores_eternas.sql`, ya corrió en QA y producción). Avisamos cuando esté.
