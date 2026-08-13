@@ -11069,3 +11069,53 @@ error igual de bloqueante en el mismo insert: `piezas` (y a continuación habrí
 se llenaban para el producto sombra. Mismo fix: se les asigna `0` como placeholder (igual que ya
 hacía la carga rápida de imágenes con esas mismas columnas). Con esto los 4 endpoints de arriba
 quedan completos — ya no debería aparecer un tercer campo faltante.
+
+## 🟡 BACK — el precio del papel ahora escala con la cantidad de flores, no es un monto fijo (2026-08-13)
+
+**Requiere correr `migration_flores_eternas_papel_pliego.sql` en QA** (agrega la columna
+`accesorio_ramo.flores_por_pliego`).
+
+**Antes:** el accesorio marcado `esPapel=true` cobraba un precio **fijo único** en cuanto la
+cantidad de flores superaba `umbralActivacion` — un ramo de 11 flores y uno de 200 pagaban
+exactamente lo mismo de papel.
+
+**Ahora:** `AccesorioRamo` tiene un campo nuevo, `floresPorPliego` (entero, opcional, solo aplica
+al accesorio marcado `esPapel=true`). Configurado ese campo, `precio` pasa a significar **precio
+por pliego** y el costo real se calcula como `pliegosNecesarios × precio`, con
+`pliegosNecesarios = ceil(cantidadFlores / floresPorPliego)` (un pliego empezado se cobra
+completo). Ejemplo: `floresPorPliego=10`, `precio=$5`, ramo de 52 flores → 6 pliegos → **$30** de
+papel (antes hubiera sido un monto fijo único sin importar la cantidad).
+
+Si `floresPorPliego` se deja `null`, el comportamiento es exactamente el de antes (precio fijo
+único) — es 100% retrocompatible, no hay que tocar nada si no se quiere usar esto.
+
+**`umbralActivacion` sigue existiendo y significa lo mismo que antes:** solo decide si el papel se
+agrega automático (cantidad > umbral) o se pregunta como accesorio opcional normal — ya no decide
+el precio. Cuando el cliente elige el papel a mano (por debajo del umbral), el precio también se
+calcula con la fórmula de pliegos según la cantidad total de flores del ramo — **no se le pregunta
+"cuántos papeles quiere"**, eso siempre lo calcula el sistema.
+
+**Contrato nuevo — campos agregados a las respuestas (nada se quitó ni cambió de tipo):**
+- `POST /v1/accesorios-ramo/save` y `/update/{id}`: aceptan `floresPorPliego` en el body (mismo
+  patrón que el resto de campos del CRUD genérico, no hay DTO propio).
+- `POST /v1/flores/calcular-precio` (`CalcularPrecioResponseDto`): 3 campos nuevos —
+  `pliegosPapel` (entero, cuántos pliegos se cobraron; `null` si no aplicó papel o si el accesorio
+  no tiene `floresPorPliego` configurado) y `precioUnitarioPapel` (el precio por pliego exacto).
+  `precioPapel` sigue siendo el **total** a cobrar (ya multiplicado), como antes.
+- `GET/POST /v1/ramos-armados/*` (`RamoArmadoResponseDto`): mismos 2 campos nuevos,
+  `pliegosPapel` y `precioUnitarioPapel`, mismo significado.
+
+**⚠️ Importante para armar la línea real de `POST /v1/pedidos/savePedido`:** cuando hay papel
+aplicado, la línea de esa variante (`papelVarianteId`) debe mandarse con
+`cantidad = pliegosPapel` (o `1` si vino `null`) y `precioUnitario = precioUnitarioPapel` —
+**nunca** `precioUnitario = precioPapel`. El back valida que `precioUnitario` coincida exacto con
+el precio de catálogo del producto interno (que ahora es el precio *por pliego*, no el total); si
+se manda el total como si fuera unitario, el pedido se rechaza con "El precio de ... no es
+válido". Esto solo aplica cuando `floresPorPliego` está configurado — si no, es igual que siempre
+(`cantidad=1`, `precioUnitario=precioPapel`).
+
+**Acción pendiente en QA después de correr la migración:**
+1. Editar el accesorio marcado `esPapel=true` y configurarle `floresPorPliego`.
+2. Los `RamoArmado` que ya se hayan guardado antes de esto tienen `precioPapel`/`precioTotal`
+   **congelados** con la fórmula vieja (precio fijo). Hay que editarlos y volver a guardarlos
+   (aunque sea sin cambios) para que se recalculen con la fórmula nueva.

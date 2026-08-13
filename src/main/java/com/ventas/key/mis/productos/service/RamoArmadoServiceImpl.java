@@ -121,7 +121,7 @@ public class RamoArmadoServiceImpl {
         Integer papelAccesorioId = null;
         if (papel.isPresent()) {
             ramo.setPapelIncluido(true);
-            ramo.setPrecioPapel(papel.get().getPrecio());
+            ramo.setPrecioPapel(accesorioRamoService.calcularPrecioPapel(papel.get(), cantidadValida.getCantidad()));
             papelAccesorioId = papel.get().getId();
         } else {
             ramo.setPapelIncluido(false);
@@ -190,7 +190,9 @@ public class RamoArmadoServiceImpl {
                 papelVarianteId(ramo),
                 accesorios,
                 ramo.getPrecioTotal(),
-                ramo.getActivo());
+                ramo.getActivo(),
+                pliegosPapel(ramo),
+                precioUnitarioPapel(ramo));
     }
 
     // El papel no se guarda como FK propio en RamoArmado (solo su precio, ya congelado al
@@ -203,6 +205,28 @@ public class RamoArmadoServiceImpl {
         return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
                 .map(AccesorioRamo::getVariante)
                 .map(v -> v != null ? v.getId() : null)
+                .orElse(null);
+    }
+
+    // Igual que papelVarianteId: informativo, recalculado con la config vigente del accesorio
+    // "es papel" (no queda congelado, a diferencia de precioPapel/precioTotal).
+    private Integer pliegosPapel(RamoArmado ramo) {
+        if (!Boolean.TRUE.equals(ramo.getPapelIncluido())) {
+            return null;
+        }
+        return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
+                .map(papel -> accesorioRamoService.calcularPliegosPapel(papel, ramo.getCantidadFlorValida().getCantidad()))
+                .orElse(null);
+    }
+
+    // Igual que pliegosPapel: informativo, recalculado en vivo. Es el precioUnitario exacto que
+    // hay que mandar en la linea de savePedido (ver comentario en RamoArmadoResponseDto).
+    private Double precioUnitarioPapel(RamoArmado ramo) {
+        if (!Boolean.TRUE.equals(ramo.getPapelIncluido())) {
+            return null;
+        }
+        return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
+                .map(AccesorioRamo::getPrecio)
                 .orElse(null);
     }
 

@@ -40,6 +40,13 @@ public class AccesorioRamo extends BaseId {
     @Column(name = "umbral_activacion")
     private Integer umbralActivacion;
 
+    // Solo aplica cuando esPapel=true: cuantas flores cubre 1 pliego. Si esta configurado,
+    // "precio" se interpreta como precio POR PLIEGO (ver AccesorioRamoServiceImpl.calcularPrecioPapel)
+    // -- el costo real escala con la cantidad de flores del ramo en vez de ser un monto fijo.
+    // Null = se mantiene el precio fijo unico anterior, retrocompatible.
+    @Column(name = "flores_por_pliego")
+    private Integer floresPorPliego;
+
     @Column(nullable = false)
     private Boolean activo = true;
 
