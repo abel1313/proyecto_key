@@ -11070,6 +11070,67 @@ se llenaban para el producto sombra. Mismo fix: se les asigna `0` como placehold
 hacía la carga rápida de imágenes con esas mismas columnas). Con esto los 4 endpoints de arriba
 quedan completos — ya no debería aparecer un tercer campo faltante.
 
+## ❓➡️✅ Dudas del dueño sobre accesorios/papel/ramos armados — guía completa del flujo (2026-08-13)
+
+Surgieron dudas de fondo sobre cómo encaja todo el módulo de flores eternas (no eran del front,
+eran del dueño del negocio revisando la configuración) — las dejamos aclaradas aquí para que
+quede como referencia de una vez, porque seguro el front las tiene igual al armar las pantallas.
+
+### Son 2 flujos distintos, no uno solo
+
+**A) Cliente arma su ramo a mano** — elige especie, cuántas flores (con la sugerencia de
+`validar-cantidad` si no forma bien el círculo), colores, accesorios, listón y envío/recoger. Todo
+esto ya está documentado arriba (`validar-cantidad`, `calcular-precio`).
+
+**B) Admin preconfigura ramos completos y el cliente elige entre esos** — el admin ya sabe que
+"Rosa eterna cuesta $25", entonces configura de una vez "Ramo de 52 rosas rojas, con corona y
+luces, ya sale en $X" (esto es `RamoArmado`, ver el módulo original). El cliente ve ese ramo ya
+armado y con precio fijo en `GET /v1/ramos-armados/activos` — **no es que haya stock físico
+reservado**, es un catálogo de combinaciones ya validadas y con precio calculado, para no obligar
+a todo cliente a armar su ramo desde cero. Nada nuevo que implementar aquí, el endpoint ya existe
+y es público.
+
+### ¿Para qué sirve "accesorios" (`/v1/accesorios-ramo`)?
+
+Es el catálogo de todo lo que se le puede sumar al ramo aparte de las flores: papel de envoltura,
+corona, luces, cualquier extra con su propio precio. El admin registra ahí nombre + precio (+
+costo). El cliente elige cuáles quiere (y cuántos, salvo el papel — ver abajo) al armar su ramo
+manual, o el admin los agrega directo al configurar un `RamoArmado`.
+
+### El papel — cómo funciona en la práctica
+
+No hay ningún papel "obligatorio porque sí". Se configura marcando **un solo** accesorio activo
+con `esPapel: true` (el back no deja marcar dos a la vez). Dos configuraciones separadas en ese
+mismo accesorio:
+
+- **`umbralActivacion`** — decide **si** el papel se agrega solo. Cantidad de flores > umbral →
+  se agrega y cobra automático, sin preguntar. Cantidad ≤ umbral → el papel queda como accesorio
+  opcional normal (se pregunta, como cualquier otro). Sin ningún accesorio marcado `esPapel`
+  activo, nunca hay papel automático en todo el sistema.
+- **`floresPorPliego`** (agregado hoy, ver la entrada de abajo) — decide **cuánto** cuesta. Antes
+  era un precio fijo único sin importar la cantidad; ahora escala: más flores, más pliegos, más
+  cobro. El detalle técnico completo está en la siguiente entrada.
+
+### `admiteTextoLibre` — existe el campo, pero hoy no hace nada
+
+Se puede marcar/desmarcar al guardar un accesorio, pero **no está conectado a ninguna lógica del
+back todavía** — no cambia el cálculo ni pide ningún texto en ningún endpoint. Probablemente se
+pensó para algo tipo "el cliente puede escribir algo para este accesorio" (similar a la frase del
+listón), pero nunca se implementó. Si el front necesita esa funcionalidad real, avisen y lo
+armamos — por ahora, ignorar ese campo, no tiene efecto.
+
+### ¿Dónde se administra? — por qué no aparece en Productos ni Variantes
+
+Es a propósito: cada accesorio/color/frase/lugar de flores eternas crea por dentro una variante
+"sombra" (ver el punto "Variantes sombra" más arriba) marcada `esCatalogoInterno=true`, que queda
+**excluida explícitamente** de los buscadores/listados normales de Productos y Variantes, de la
+tienda pública, del chatbot y de los selectores de promoción/rifa. No es un bug ni algo mal
+guardado — nunca va a aparecer ahí. Se administra únicamente por su propio endpoint dedicado
+(`/v1/accesorios-ramo`, `/v1/colores-flor`, `/v1/frases-liston`, `/v1/lugares-entrega`, todos CRUD
+genérico). Si el front todavía no tiene una pantalla propia para estos catálogos (separada de
+"Productos"/"Variantes"), es un pendiente de pantalla — avisen si quieren que documentemos el
+detalle de cada uno para armarla.
+
 ## 🟡 BACK — el precio del papel ahora escala con la cantidad de flores, no es un monto fijo (2026-08-13)
 
 **Requiere correr `migration_flores_eternas_papel_pliego.sql` en QA** (agrega la columna
