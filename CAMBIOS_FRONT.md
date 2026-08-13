@@ -11037,3 +11037,28 @@ registro"`, sin importar la causa real. El campo interno `code` del body además
 No cambia el contrato del request ni el de la respuesta exitosa — solo mejora `mensaje`/status en
 los casos de error, que antes siempre eran genéricos. Si el front ya mostraba `mensaje` tal cual
 en pantalla, ahora el usuario va a ver el motivo real en vez de un texto fijo.
+
+## 🔴 BACK — fix: `save` (alta) fallaba con 500/400 en colores de flor, accesorios, frases y lugares de entrega (2026-08-13)
+
+Aplica al alta (creación, no edición) de los catálogos de "flores eternas" que necesitan poder
+venderse como línea de pedido: `POST /v1/colores-flor/save`, `POST /v1/accesorios-ramo/save`,
+`POST /v1/frases-liston/save`, `POST /v1/lugares-entrega/save`.
+
+**Qué pasaba:** al dar de alta un registro nuevo, el back intenta crear por dentro un
+`Producto`/`Variante` interno (nunca visible en el catálogo público — ver el punto "Variantes
+sombra" más arriba) para poder venderlo como una línea real de pedido. Ese insert siempre fallaba
+porque no se le asignaba código de barras, y esa columna es obligatoria en la base de datos. El
+endpoint respondía con el mensaje real del error de SQL, algo como:
+`"could not execute statement [Column 'codigo_barras_id' cannot be null] ..."`.
+
+**Por qué pasó:** todos los demás flujos que crean un `Producto` en el sistema (alta normal, carga
+rápida de imágenes, etc.) generan primero un código de barras — real o temporal — antes de
+guardar. El único servicio que no lo hacía era el que arma estos productos "sombra"
+(`ProductoSombraServiceImpl`, compartido por los 4 endpoints de arriba). No se detectó antes
+porque recién se está probando el alta real desde el front de estos catálogos.
+
+**Fix:** si el producto sombra no trae código de barras, ahora se le genera uno temporal
+(`SOMBRA-XXXXXXXXXXXX`) antes de guardarlo — mismo mecanismo que ya usaba la carga rápida de
+imágenes. No cambia el contrato del request ni el de la respuesta exitosa; el `save` de estos 4
+endpoints simplemente ya funciona. La edición (`update`) de registros existentes no estaba
+afectada por este bug.
