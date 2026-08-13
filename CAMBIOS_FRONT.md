@@ -11180,3 +11180,200 @@ válido". Esto solo aplica cuando `floresPorPliego` está configurado — si no,
 2. Los `RamoArmado` que ya se hayan guardado antes de esto tienen `precioPapel`/`precioTotal`
    **congelados** con la fórmula vieja (precio fijo). Hay que editarlos y volver a guardarlos
    (aunque sea sin cambios) para que se recalculen con la fórmula nueva.
+
+## ❓ CONSULTA AL BACK — `validar-cantidad` parece no comparar contra las cantidades registradas (2026-08-13)
+
+Probando el configurador del cliente en QA, el dueño registró en `/v1/cantidades-flor` (para
+la especie "Flor eterna") solo 2 cantidades válidas: **48** y **62**. Al probar
+`POST /v1/flores/validar-cantidad` con `{ tipoFlorId, cantidadSolicitada: 10 }`, la respuesta
+fue `valida: true` — como si 10 también fuera una cantidad registrada, cuando no lo está.
+
+¿`validar-cantidad` compara contra la tabla de `CantidadFlorValida` de esa especie, o usa alguna
+otra regla (fórmula matemática, rango, etc.) independiente de lo que el admin registra en
+`/v1/cantidades-flor`? Si es lo segundo, para nosotros es importante saberlo para explicarle bien
+al dueño qué controla esa pantalla — hoy el front dice literalmente "cantidades con las que el
+círculo del ramo queda bien formado", asumiendo que es la fuente de verdad de la validación.
+
+---
+
+## 📋 FLORES ETERNAS — LECCIONES APRENDIDAS + ESTADO ACTUAL (2026-08-13)
+
+> Pedido del dueño: dejar anotado en un solo lugar todo en lo que nos hemos equivocado durante
+> este módulo (para no repetirlo) y un corte de qué llevamos armado hasta hoy. No repite el
+> detalle técnico completo de cada feature — eso ya está en las secciones de arriba de este mismo
+> archivo; esto es el resumen de errores + estado.
+
+### ✅ Qué ya existe y funciona
+
+| Pantalla | Ruta | Quién |
+|---|---|---|
+| Catálogos (especie, color, cantidad, accesorios, listón) | `/flores/catalogos` | Admin |
+| Armar ramos preconfigurados (Flujo B) | `/flores/ramos-admin` | Admin |
+| Vitrina pública de ramos ya armados | `/flores/ramos` | Cualquiera |
+| Cliente arma su propio ramo (Flujo A) | `/flores/configurar` | Cualquiera (login solo al confirmar) |
+
+Todo agrupado en un solo lugar del menú (antes estaba repartido en 3 sitios distintos).
+Multicolor, precio del papel por pliego y el umbral configurable ya están conectados.
+
+### ⚠️ Errores/huecos que encontramos y ya corregimos
+
+1. **La vitrina siempre decía "no hay ramos"** — el front tenía los métodos del servicio
+   (`ramoCrear`, `ramosAdmin`, etc.) desde el principio, pero **nunca se construyó la pantalla**
+   que los llamara. No fue un bug de datos ni del back — simplemente faltaba media pantalla.
+   *Cómo lo detectamos: el dueño ya había cargado el catálogo base y aun así no aparecía nada.*
+
+2. **"Se cobra solo desde" y "Flores por pliego" se podían configurar en CUALQUIER accesorio**,
+   sin avisar que el back **solo les hace caso al accesorio marcado `esPapel`** (confirmado por
+   el back: *"El accesorio marcado esPapel se agrega solo cuando cantidadFinal > umbralActivacion"*
+   — ninguno más). Esto llevó al dueño a marcar "corona" como si fuera "el papel" —única forma
+   de lograr el auto-agregado— con un efecto colateral real: el sistema empieza a tratar a
+   "corona" como el envoltorio en el resumen del cliente, el ticket y los reportes.
+   **Fix:** esos 2 campos ahora solo aparecen si "Es el papel" está marcado.
+
+3. **El formulario de EDITAR un accesorio no tenía el checkbox "Es el papel"** — solo existía al
+   crearlo. Una vez marcado mal, no había forma de corregirlo sin borrar y volver a dar de alta
+   (perdiendo el precio/nombre ya cargado). **Fix:** se agregó el checkbox también a edición.
+
+4. **(Nuestro, de testing, no del producto)** Para probar pantallas nuevas sin depender de un
+   login real, usamos un truco de Playwright: inyectar una sesión falsa y navegar con
+   `router.navigateByUrl()` directo desde el navegador. En pantallas **sin guard** (públicas),
+   eso deja la navegación fuera de la "zona" de Angular y las llamadas HTTP de `ngOnInit` nunca
+   se disparan — aunque la pantalla se ve normal. Nos hizo perder tiempo pensando que el
+   configurador del cliente no cargaba nada, cuando el código estaba bien. Se resolvió probando
+   esas pantallas con una carga de página normal (`page.goto` directo) en vez del truco.
+
+### ❓ Pendiente / sin resolver todavía
+
+- **`validar-cantidad` y `colores-flor/por-tipo-flor` no reflejan lo que hay registrado** —
+  confirmado que NO es una especie duplicada (solo existe una "Flor eternal0" en Tipos de flor).
+  `validar-cantidad` sigue dando "válida" una cantidad (10) por debajo de todo lo registrado
+  (20+), y `colores-flor/por-tipo-flor` devuelve vacío aunque esa especie sí tiene 2 colores
+  dados de alta. Consulta con el detalle completo, ya subida, más arriba en este mismo archivo.
+- **El dato de "corona" en QA sigue marcado como papel** — se le explicó el problema al dueño,
+  no lo hemos corregido nosotros ni él ha confirmado si ya lo corrigió.
+- **Imagen para "Tipo de flor"** — el dueño pidió poder subirle una foto a cada especie (o un
+  ícono que abra un modal con la imagen), igual que ya existe para `RamoArmado.imagenUrl`. Hoy
+  `TipoFlor` no tiene ningún campo de imagen — haría falta que el back lo agregue primero.
+- **Umbral de auto-agregado solo para "el papel", no para cualquier accesorio** — quedó aclarado
+  que el diseño actual es a propósito así, y que el lugar correcto para "auto-agregar algo según
+  la cantidad de flores" es únicamente el papel. Si más adelante se necesita que OTRO accesorio
+  también se auto-agregue por cantidad (no solo el papel), es una función nueva que hay que
+  pedirle al back — no está construida.
+- **El checkout real del configurador del cliente (`/flores/configurar`) nunca se probó contra un
+  backend real** — se verificó toda la lógica de armado/cálculo con datos de prueba, pero falta
+  confirmar en vivo que `guardarPedidoVariante` + la verificación de correo + el registro del
+  detalle del ramo funcionan de punta a punta.
+
+---
+
+## ❓ CONSULTA AL BACK — colores y cantidades no aparecen bien en el configurador, aunque están registrados (2026-08-13)
+
+Actualización de la consulta de arriba sobre `validar-cantidad` — se descartó la hipótesis de
+"especie duplicada": en **Tipos de flor** solo existe **una** "Flor eternal0" (`$25.00 c/u`), no
+hay ninguna repetida. Con eso descartado, quedan 2 síntomas reproducibles y concretos:
+
+### 1. `validar-cantidad` sigue validando cantidades que no están registradas
+
+El dueño solo tiene registradas cantidades **de 20 en adelante** en `/v1/cantidades-flor` para
+"Flor eternal0". Al probar en `/flores/configurar` (el configurador del cliente):
+- Especie: "Flor eternal0"
+- Cantidad solicitada: **10**
+- Respuesta: `valida: true`, con el mensaje "10 flores — cantidad válida"
+
+Es decir, `POST /v1/flores/validar-cantidad` da por buena una cantidad que está **por debajo**
+de todas las registradas para esa especie.
+
+### 2. `coloresPorTipoFlor` no devuelve los colores que sí están registrados
+
+En el mismo intento, después de validar la cantidad, el Paso 3 del configurador
+("Reparte tus 10 flores entre colores") dice **"Esta especie todavía no tiene colores
+disponibles"** — pero en Catálogos → Colores sí aparecen 2 colores dados de alta para esa misma
+especie: "Flor eternal0 · Roja" (100 disponibles) y "Flor eternal0 · Verde" (100 disponibles).
+
+El front llama `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` con el `id` de la especie
+seleccionada en el paso 1 (el mismo que se usó para `validar-cantidad`) — y el back responde una
+lista vacía, aunque el catálogo de Colores muestre 2 registros para esa especie.
+
+### Lo que pedimos revisar
+
+¿Puede ser que ambos endpoints (`validar-cantidad` y `colores-flor/por-tipo-flor`) estén
+filtrando o comparando contra un campo que no es el que el dueño está llenando desde
+`/v1/colores-flor/save` y `/v1/cantidades-flor/save`? Por ejemplo, si guardan por
+`tipoFlor.id` pero comparan contra otro identificador, o si hay algún filtro de `activo`/caché
+de por medio. Del lado del front confirmamos que se manda el mismo `tipoFlorId` que aparece
+seleccionado en el dropdown de "¿Qué flor quieres?" — no hay forma de que el front esté
+mandando un id equivocado si solo existe una especie con ese nombre.
+
+---
+
+## ✅ Respuesta del back a las 2 consultas de arriba (2026-08-13)
+
+Probamos los dos casos directo contra QA, con la misma especie (`tipoFlorId: 1`, "Flor eternal0")
+y los mismos datos que describen (48 y 62 registrados).
+
+### 1. `colores-flor/por-tipo-flor/1` — no reproducimos, responde bien ahora mismo
+
+```
+GET /v1/colores-flor/por-tipo-flor/1
+```
+Responde los 2 colores tal cual están en Catálogos (`Roja`, `Verde`, cada uno con su
+`variante.id` y stock 100) — no vacío. No hay ningún filtro raro ni caché de por medio en este
+endpoint (`Cache-Control: no-cache, no-store` en la respuesta, y el servicio no usa `@Cacheable`).
+
+Lo más probable: probaron esto **antes** de que el fix de `piezas`/`precio_rebaja` (ver la entrada
+de arriba, desplegado a las 12:41) terminara de propagarse a QA, o justo mientras `save` todavía
+fallaba por esas columnas — si el guardado del color fallaba a medias en algún intento previo,
+podría haber quedado la sensación de "están en Catálogos pero no aquí" por estar viendo builds
+distintos en pestañas distintas. Ahora mismo, con lo que hay guardado, funciona. Si lo prueban de
+nuevo y **sigue** vacío, pásennos el `tipoFlorId` exacto que están mandando (con eco de la request
+completa) para comparar contra lo que hay en BD — no es un escenario que podamos seguir
+adivinando a ciegas.
+
+### 2. `validar-cantidad` con 10 — no es bug, es la regla de "venta por unidad" documentada desde el módulo original
+
+Confirmado, se reproduce, y es **exactamente el comportamiento diseñado**, no un descuido:
+
+```
+POST /v1/flores/validar-cantidad {"tipoFlorId":1,"cantidadSolicitada":10}
+→ valida:true, mensaje:"Cantidad aceptada tal cual, se cobra por unidad."
+
+POST /v1/flores/validar-cantidad {"tipoFlorId":1,"cantidadSolicitada":55}   (entre 48 y 62)
+→ valida:false, mensaje:"Con 55 flores el circulo puede no quedar bien formado.",
+  alternativaMenor:48, alternativaMayor:62
+
+POST /v1/flores/validar-cantidad {"tipoFlorId":1,"cantidadSolicitada":62}   (registrada)
+→ valida:true, mensaje:"Esta cantidad forma bien el circulo."
+```
+
+La regla real: **solo** las cantidades por **debajo de la más chica registrada** (aquí, menos de
+48) se aceptan automático como "venta por unidad" — pensado para vender 1 o 2 flores sueltas sin
+obligar a que exista una fila en `cantidades-flor` para cada número pequeño. Todo lo demás (entre
+medio o por encima) sí valida estricto contra la tabla, como se ve en el caso de 55 arriba.
+
+El `mensaje` que devuelve el back ya distingue los 3 casos (`"...se cobra por unidad"` vs
+`"...forma bien el circulo"` vs `"...puede no quedar bien formado"`) — si el front está mostrando
+un texto genérico tipo "cantidad válida" sin usar ese campo tal cual, ahí es donde se pierde la
+distinción que el dueño esperaba ver.
+
+**Pregunta para el dueño, porque esto sí es una decisión de negocio y no algo que decidamos
+nosotros:** ¿la venta "por unidad" para cantidades chicas (1, 2, 10 flores sueltas) es un caso que
+quieren mantener, o prefieren que **cualquier** cantidad no registrada en `cantidades-flor` se
+rechace y sugiera la alternativa más cercana (igual que ya pasa con 55)? Si es lo segundo, es un
+cambio de una línea en el back (quitar el caso especial de "menor a la más chica") — avisen y lo
+hacemos.
+
+### Sobre el resto de "Lecciones aprendidas"
+
+- **Puntos 1-4 (vitrina sin pantalla, checkbox de papel en edición, truco de Playwright):** son
+  hallazgos y fixes 100% del lado front, no requieren nada de nuestro lado — quedan solo como
+  registro.
+- **Imagen para `TipoFlor`:** pendiente real del back — hoy `TipoFlor` no tiene ningún campo de
+  imagen (a diferencia de `RamoArmado.imagenUrl`, que sí existe). Es un cambio chico si lo
+  necesitan ya (una columna + el campo en el DTO/entidad); avisen si lo priorizan y lo agregamos.
+- **"Corona" sigue marcada como `esPapel` en QA:** es un dato de configuración, no código — nadie
+  de nuestro lado la va a des-marcar sin que ustedes/el dueño lo confirmen, para no pisar una
+  prueba en curso. Se corrige con `PUT /v1/accesorios-ramo/update/{id}` (`esPapel: false` en
+  "Corona", `esPapel: true` en el accesorio que sí sea el papel real) en cuanto digan luz verde.
+- **Checkout real sin probar contra backend real:** no hay nada pendiente de nuestro lado para
+  habilitarlo — `savePedido` y el registro del detalle del ramo ya están activos en QA, es cuestión
+  de que ustedes corran la prueba de punta a punta cuando puedan.
