@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -20,4 +21,8 @@ public class RamoPedidoDetalleRequestDto {
     private String telefonoContacto;
     private String correoContacto;
     private String comentarioAccesorioNoDisponible;
+    // Mismo valor que se mando a /v1/flores/calcular-precio -- se vuelve a evaluar aqui, en
+    // servidor, si el pedido cae en la ventana de urgencia (ver RamoPedidoDetalleServiceImpl) para
+    // generar el anticipo del 50%. No se confia en un precioUrgencia que mande el front.
+    private LocalDateTime fechaHoraEntrega;
 }

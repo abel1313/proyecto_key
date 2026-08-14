@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.CantidadFlorValida;
 import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.DetallePedido;
 import com.ventas.key.mis.productos.entity.FraseListonPredefinida;
@@ -19,6 +20,7 @@ import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleColorD
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
+import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
 import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IFraseListonPredefinidaRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
@@ -48,7 +50,9 @@ public class RamoPedidoDetalleServiceImpl {
     private final IRamoArmadoRepository iRamoArmadoRepository;
     private final IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository;
     private final ILugarEntregaRepository iLugarEntregaRepository;
+    private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
     private final ProductoSombraServiceImpl productoSombraService;
+    private final FlorPedidoServiceImpl florPedidoService;
 
     public RamoPedidoDetalleServiceImpl(IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository,
                                          IPedidoRepository iPedidoRepository,
@@ -56,14 +60,18 @@ public class RamoPedidoDetalleServiceImpl {
                                          IRamoArmadoRepository iRamoArmadoRepository,
                                          IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository,
                                          ILugarEntregaRepository iLugarEntregaRepository,
-                                         ProductoSombraServiceImpl productoSombraService) {
+                                         ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
+                                         ProductoSombraServiceImpl productoSombraService,
+                                         FlorPedidoServiceImpl florPedidoService) {
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iPedidoRepository = iPedidoRepository;
         this.iColorFlorRepository = iColorFlorRepository;
         this.iRamoArmadoRepository = iRamoArmadoRepository;
         this.iFraseListonPredefinidaRepository = iFraseListonPredefinidaRepository;
         this.iLugarEntregaRepository = iLugarEntregaRepository;
+        this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
         this.productoSombraService = productoSombraService;
+        this.florPedidoService = florPedidoService;
     }
 
     @Transactional
@@ -112,12 +120,34 @@ public class RamoPedidoDetalleServiceImpl {
 
         resolverListon(dto, detalle);
         resolverEntrega(dto, detalle);
+        resolverAnticipoUrgencia(dto, detalle, especie, cantidadFinal);
 
         detalle.setTelefonoContacto(dto.getTelefonoContacto());
         detalle.setCorreoContacto(dto.getCorreoContacto());
         detalle.setComentarioAccesorioNoDisponible(dto.getComentarioAccesorioNoDisponible());
 
         return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
+    }
+
+    // A diferencia de la frase personalizada (cuyo precio no se conoce hasta que el admin la
+    // valida), el extra por urgencia SI se conoce en este momento -- se vuelve a calcular aqui en
+    // servidor (nunca se confia en lo que mande el front) con la misma regla de
+    // FlorPedidoServiceImpl.validarAnticipacionYUrgencia. Si aplica, el anticipo es el 50% del
+    // TOTAL del pedido ya creado (Pedido.totalPedido, precio real validado contra catalogo), no
+    // solo del extra de urgencia.
+    private void resolverAnticipoUrgencia(RamoPedidoDetalleRequestDto dto, RamoPedidoDetalle detalle, TipoFlor especie, int cantidadFinal) {
+        CantidadFlorValida cantidadValida = iCantidadFlorValidaRepository
+                .findByTipoFlorIdAndCantidadAndActivoTrue(especie.getId(), cantidadFinal)
+                .orElse(null);
+        Double precioUrgencia = florPedidoService.validarAnticipacionYUrgencia(
+                dto.getFechaHoraEntrega(), dto.getLugarEntregaId(), dto.getRecogerEnLocal(), cantidadValida, cantidadFinal);
+        if (precioUrgencia == null) {
+            return;
+        }
+        double montoAnticipoUrgencia = detalle.getPedido().getTotalPedido() * FloresEternasConstantes.PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA;
+        String descripcion = "Anticipo por urgencia (entrega el " + dto.getFechaHoraEntrega() + ") del pedido #"
+                + detalle.getPedido().getId();
+        agregarLineaAnticipo(detalle, descripcion, montoAnticipoUrgencia);
     }
 
     // El anticipo NO se conoce ni se cobra en este paso -- todavia no hay precio de la frase.
@@ -167,8 +197,10 @@ public class RamoPedidoDetalleServiceImpl {
             }
             detalle.setFraseListonEstado("VALIDADA");
             detalle.setFraseListonPrecioAsignado(dto.getPrecioAsignado());
-            detalle.setMontoAnticipo(dto.getPrecioAsignado() * FloresEternasConstantes.PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA);
-            detalle.setPedidoAnticipo(crearPedidoAnticipoFrase(detalle, dto.getPrecioAsignado()));
+            double montoAnticipoFrase = dto.getPrecioAsignado() * FloresEternasConstantes.PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA;
+            String descripcion = "Cobro de frase de liston personalizada del pedido #"
+                    + detalle.getPedido().getId() + ": \"" + detalle.getFraseListonPersonalizada() + "\"";
+            agregarLineaAnticipo(detalle, descripcion, montoAnticipoFrase);
         } else {
             detalle.setFraseListonEstado("RECHAZADA");
         }
@@ -178,44 +210,48 @@ public class RamoPedidoDetalleServiceImpl {
         return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
     }
 
-    // Crea un Pedido APARTADO nuevo, separado del pedido original (que ya se cobro normal),
-    // solo para esta frase -- asi el front puede registrar el anticipo del 50% reutilizando el
-    // modulo de abonos existente (POST /v1/abonos/{pedidoId}) sin forzar el pedido completo de
-    // flores a volverse credito. El pedido original no se toca. Este es el UNICO momento en
-    // que existe un monto de anticipo real -- antes de esto no se cobra ni se sugiere nada.
-    private Pedido crearPedidoAnticipoFrase(RamoPedidoDetalle detalle, double precioAsignado) {
-        Pedido original = detalle.getPedido();
-        String nombreFrase = detalle.getFraseListonPersonalizada();
+    // Agrega un cobro de anticipo, ya sea creando el Pedido APARTADO (la primera vez que aplica
+    // para este detalle) o sumando una linea mas a uno que ya existe -- puede pasar que el mismo
+    // pedido necesite anticipo por dos motivos a la vez (ej. urgencia Y frase personalizada), y no
+    // queremos perder la referencia al primero al calcular el segundo. Reutiliza el modulo de
+    // abonos existente (POST /v1/abonos/{pedidoId}) sin forzar el pedido original (ya cobrado
+    // normal) a volverse credito -- el pedido original nunca se toca.
+    private void agregarLineaAnticipo(RamoPedidoDetalle detalle, String descripcionLinea, double monto) {
+        Variantes variante = productoSombraService.crear(descripcionLinea, monto, 0.0, 1);
+        DetallePedido linea = new DetallePedido();
+        linea.setProducto(variante.getProducto());
+        linea.setVariante(variante);
+        linea.setCantidad(1);
+        linea.setPrecioUnitario(monto);
+        linea.setSubTotal(monto);
 
-        Variantes variante = productoSombraService.crear(
-                "Frase personalizada: \"" + nombreFrase + "\"", precioAsignado, 0.0, 1);
+        Pedido pedidoAnticipo = detalle.getPedidoAnticipo();
+        if (pedidoAnticipo == null) {
+            Pedido original = detalle.getPedido();
+            pedidoAnticipo = new Pedido();
+            pedidoAnticipo.setCliente(original.getCliente());
+            pedidoAnticipo.setEstadoPedido("Pendiente");
+            pedidoAnticipo.setFechaPedido(LocalDateTime.now().toLocalDate());
+            pedidoAnticipo.setFechaHoraRegistro(LocalDateTime.now());
+            // fechaRecogida se deja null a proposito: el scheduler de cancelacion automatica
+            // (PedidoCancelacionScheduler) solo actua sobre pedidos con fechaRecogida vencida.
+            pedidoAnticipo.setObservaciones("Anticipo(s) del pedido #" + original.getId() + " -- " + descripcionLinea);
+            pedidoAnticipo.setTipoPedido("APARTADO");
+            pedidoAnticipo.setTotalPagado(0.0);
+            pedidoAnticipo.setDetalles(new ArrayList<>());
+            pedidoAnticipo.setTotalPedido(0.0);
+            detalle.setPedidoAnticipo(pedidoAnticipo);
+            detalle.setMontoAnticipo(0.0);
+        } else {
+            pedidoAnticipo.setObservaciones(pedidoAnticipo.getObservaciones() + " | " + descripcionLinea);
+        }
+        linea.setPedido(pedidoAnticipo);
+        pedidoAnticipo.getDetalles().add(linea);
+        pedidoAnticipo.setTotalPedido(pedidoAnticipo.getTotalPedido() + monto);
+        iPedidoRepository.save(pedidoAnticipo);
 
-        Pedido pedidoAnticipo = new Pedido();
-        pedidoAnticipo.setCliente(original.getCliente());
-        pedidoAnticipo.setEstadoPedido("Pendiente");
-        pedidoAnticipo.setFechaPedido(LocalDateTime.now().toLocalDate());
-        pedidoAnticipo.setFechaHoraRegistro(LocalDateTime.now());
-        // fechaRecogida se deja null a proposito: el scheduler de cancelacion automatica
-        // (PedidoCancelacionScheduler) solo actua sobre pedidos con fechaRecogida vencida.
-        pedidoAnticipo.setObservaciones("Cobro de frase de liston personalizada del pedido #"
-                + original.getId() + ": \"" + nombreFrase + "\"");
-        pedidoAnticipo.setTipoPedido("APARTADO");
-        pedidoAnticipo.setTotalPagado(0.0);
-
-        DetallePedido lineaFrase = new DetallePedido();
-        lineaFrase.setPedido(pedidoAnticipo);
-        lineaFrase.setProducto(variante.getProducto());
-        lineaFrase.setVariante(variante);
-        lineaFrase.setCantidad(1);
-        lineaFrase.setPrecioUnitario(precioAsignado);
-        lineaFrase.setSubTotal(precioAsignado);
-
-        List<DetallePedido> detalles = new ArrayList<>();
-        detalles.add(lineaFrase);
-        pedidoAnticipo.setDetalles(detalles);
-        pedidoAnticipo.setTotalPedido(precioAsignado);
-
-        return iPedidoRepository.save(pedidoAnticipo);
+        detalle.setAnticipoRequerido(true);
+        detalle.setMontoAnticipo((detalle.getMontoAnticipo() != null ? detalle.getMontoAnticipo() : 0.0) + monto);
     }
 
     public List<RamoPedidoDetalleResponseDto> listarPorPedido(Integer pedidoId) {
