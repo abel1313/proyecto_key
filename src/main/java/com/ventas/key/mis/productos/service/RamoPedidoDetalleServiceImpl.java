@@ -13,6 +13,7 @@ import com.ventas.key.mis.productos.entity.TipoFlor;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.floreseternas.AnticipacionResultadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ColorSeleccionadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
 import com.ventas.key.mis.productos.models.floreseternas.FrasePendienteDto;
@@ -120,7 +121,7 @@ public class RamoPedidoDetalleServiceImpl {
 
         resolverListon(dto, detalle);
         resolverEntrega(dto, detalle);
-        resolverAnticipoUrgencia(dto, detalle, especie, cantidadFinal);
+        validarPedidoApartadoSiEsUrgente(dto, especie, cantidadFinal, pedido);
 
         detalle.setTelefonoContacto(dto.getTelefonoContacto());
         detalle.setCorreoContacto(dto.getCorreoContacto());
@@ -129,25 +130,29 @@ public class RamoPedidoDetalleServiceImpl {
         return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
     }
 
-    // A diferencia de la frase personalizada (cuyo precio no se conoce hasta que el admin la
-    // valida), el extra por urgencia SI se conoce en este momento -- se vuelve a calcular aqui en
-    // servidor (nunca se confia en lo que mande el front) con la misma regla de
-    // FlorPedidoServiceImpl.validarAnticipacionYUrgencia. Si aplica, el anticipo es el 50% del
-    // TOTAL del pedido ya creado (Pedido.totalPedido, precio real validado contra catalogo), no
-    // solo del extra de urgencia.
-    private void resolverAnticipoUrgencia(RamoPedidoDetalleRequestDto dto, RamoPedidoDetalle detalle, TipoFlor especie, int cantidadFinal) {
+    // El 50% de urgencia es un ENGANCHE que sale del total, no un cobro aparte -- por eso NO se
+    // crea ningun pedido/linea nueva aqui. El pedido ya tenia que haber nacido con
+    // tipoPedido:"APARTADO" en /v1/pedidos/savePedido (el front lo sabe de antemano por
+    // requiereAnticipo/montoAnticipoSugerido en la respuesta de calcular-precio) y el 50% se
+    // registra como abono via el modulo de credito existente (POST /v1/abonos/{pedidoId}) -- eso
+    // lo hace el front, no este metodo. Aqui solo se vuelve a calcular en servidor (nunca se
+    // confia en el front) para BLOQUEAR el caso en que el pedido llego como "NORMAL" cuando en
+    // realidad requeria anticipo -- evita que un pedido urgente termine cobrado 100% de contado
+    // sin haber pasado por el flujo de credito.
+    private void validarPedidoApartadoSiEsUrgente(RamoPedidoDetalleRequestDto dto, TipoFlor especie, int cantidadFinal, Pedido pedido) {
         CantidadFlorValida cantidadValida = iCantidadFlorValidaRepository
                 .findByTipoFlorIdAndCantidadAndActivoTrue(especie.getId(), cantidadFinal)
                 .orElse(null);
-        Double precioUrgencia = florPedidoService.validarAnticipacionYUrgencia(
+        AnticipacionResultadoDto anticipacion = florPedidoService.validarAnticipacionYUrgencia(
                 dto.getFechaHoraEntrega(), dto.getLugarEntregaId(), dto.getRecogerEnLocal(), cantidadValida, cantidadFinal);
-        if (precioUrgencia == null) {
+        if (anticipacion.getPrecioUrgencia() == null) {
             return;
         }
-        double montoAnticipoUrgencia = detalle.getPedido().getTotalPedido() * FloresEternasConstantes.PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA;
-        String descripcion = "Anticipo por urgencia (entrega el " + dto.getFechaHoraEntrega() + ") del pedido #"
-                + detalle.getPedido().getId();
-        agregarLineaAnticipo(detalle, descripcion, montoAnticipoUrgencia);
+        if (!"APARTADO".equals(pedido.getTipoPedido()) && !"FIADO".equals(pedido.getTipoPedido())) {
+            throw new RuntimeException("Este pedido requiere anticipo por ser una entrega urgente (de hoy o "
+                    + "mañana) -- debio crearse con tipoPedido \"APARTADO\" y el 50% del total registrado como "
+                    + "abono, en vez de cobrarse completo. Corrige el pedido antes de adjuntar el detalle.");
+        }
     }
 
     // El anticipo NO se conoce ni se cobra en este paso -- todavia no hay precio de la frase.
@@ -197,10 +202,8 @@ public class RamoPedidoDetalleServiceImpl {
             }
             detalle.setFraseListonEstado("VALIDADA");
             detalle.setFraseListonPrecioAsignado(dto.getPrecioAsignado());
-            double montoAnticipoFrase = dto.getPrecioAsignado() * FloresEternasConstantes.PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA;
-            String descripcion = "Cobro de frase de liston personalizada del pedido #"
-                    + detalle.getPedido().getId() + ": \"" + detalle.getFraseListonPersonalizada() + "\"";
-            agregarLineaAnticipo(detalle, descripcion, montoAnticipoFrase);
+            detalle.setMontoAnticipo(dto.getPrecioAsignado() * FloresEternasConstantes.PORCENTAJE_ANTICIPO);
+            detalle.setPedidoAnticipo(crearPedidoAnticipoFrase(detalle, dto.getPrecioAsignado()));
         } else {
             detalle.setFraseListonEstado("RECHAZADA");
         }
@@ -210,48 +213,45 @@ public class RamoPedidoDetalleServiceImpl {
         return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
     }
 
-    // Agrega un cobro de anticipo, ya sea creando el Pedido APARTADO (la primera vez que aplica
-    // para este detalle) o sumando una linea mas a uno que ya existe -- puede pasar que el mismo
-    // pedido necesite anticipo por dos motivos a la vez (ej. urgencia Y frase personalizada), y no
-    // queremos perder la referencia al primero al calcular el segundo. Reutiliza el modulo de
-    // abonos existente (POST /v1/abonos/{pedidoId}) sin forzar el pedido original (ya cobrado
-    // normal) a volverse credito -- el pedido original nunca se toca.
-    private void agregarLineaAnticipo(RamoPedidoDetalle detalle, String descripcionLinea, double monto) {
-        Variantes variante = productoSombraService.crear(descripcionLinea, monto, 0.0, 1);
-        DetallePedido linea = new DetallePedido();
-        linea.setProducto(variante.getProducto());
-        linea.setVariante(variante);
-        linea.setCantidad(1);
-        linea.setPrecioUnitario(monto);
-        linea.setSubTotal(monto);
+    // Crea un Pedido APARTADO nuevo, separado del pedido original, solo para esta frase -- asi el
+    // front puede registrar el anticipo del 50% reutilizando el modulo de abonos existente
+    // (POST /v1/abonos/{pedidoId}) sin depender de como haya nacido el pedido original (que puede
+    // ser NORMAL o el mismo ya APARTADO por urgencia -- ver validarPedidoApartadoSiEsUrgente). El
+    // pedido original no se toca. Este es el UNICO momento en que existe un monto de anticipo real
+    // para la frase -- antes de esto no se cobra ni se sugiere nada.
+    private Pedido crearPedidoAnticipoFrase(RamoPedidoDetalle detalle, double precioAsignado) {
+        Pedido original = detalle.getPedido();
+        String nombreFrase = detalle.getFraseListonPersonalizada();
 
-        Pedido pedidoAnticipo = detalle.getPedidoAnticipo();
-        if (pedidoAnticipo == null) {
-            Pedido original = detalle.getPedido();
-            pedidoAnticipo = new Pedido();
-            pedidoAnticipo.setCliente(original.getCliente());
-            pedidoAnticipo.setEstadoPedido("Pendiente");
-            pedidoAnticipo.setFechaPedido(LocalDateTime.now().toLocalDate());
-            pedidoAnticipo.setFechaHoraRegistro(LocalDateTime.now());
-            // fechaRecogida se deja null a proposito: el scheduler de cancelacion automatica
-            // (PedidoCancelacionScheduler) solo actua sobre pedidos con fechaRecogida vencida.
-            pedidoAnticipo.setObservaciones("Anticipo(s) del pedido #" + original.getId() + " -- " + descripcionLinea);
-            pedidoAnticipo.setTipoPedido("APARTADO");
-            pedidoAnticipo.setTotalPagado(0.0);
-            pedidoAnticipo.setDetalles(new ArrayList<>());
-            pedidoAnticipo.setTotalPedido(0.0);
-            detalle.setPedidoAnticipo(pedidoAnticipo);
-            detalle.setMontoAnticipo(0.0);
-        } else {
-            pedidoAnticipo.setObservaciones(pedidoAnticipo.getObservaciones() + " | " + descripcionLinea);
-        }
-        linea.setPedido(pedidoAnticipo);
-        pedidoAnticipo.getDetalles().add(linea);
-        pedidoAnticipo.setTotalPedido(pedidoAnticipo.getTotalPedido() + monto);
-        iPedidoRepository.save(pedidoAnticipo);
+        Variantes variante = productoSombraService.crear(
+                "Frase personalizada: \"" + nombreFrase + "\"", precioAsignado, 0.0, 1);
 
-        detalle.setAnticipoRequerido(true);
-        detalle.setMontoAnticipo((detalle.getMontoAnticipo() != null ? detalle.getMontoAnticipo() : 0.0) + monto);
+        Pedido pedidoAnticipo = new Pedido();
+        pedidoAnticipo.setCliente(original.getCliente());
+        pedidoAnticipo.setEstadoPedido("Pendiente");
+        pedidoAnticipo.setFechaPedido(LocalDateTime.now().toLocalDate());
+        pedidoAnticipo.setFechaHoraRegistro(LocalDateTime.now());
+        // fechaRecogida se deja null a proposito: el scheduler de cancelacion automatica
+        // (PedidoCancelacionScheduler) solo actua sobre pedidos con fechaRecogida vencida.
+        pedidoAnticipo.setObservaciones("Cobro de frase de liston personalizada del pedido #"
+                + original.getId() + ": \"" + nombreFrase + "\"");
+        pedidoAnticipo.setTipoPedido("APARTADO");
+        pedidoAnticipo.setTotalPagado(0.0);
+
+        DetallePedido lineaFrase = new DetallePedido();
+        lineaFrase.setPedido(pedidoAnticipo);
+        lineaFrase.setProducto(variante.getProducto());
+        lineaFrase.setVariante(variante);
+        lineaFrase.setCantidad(1);
+        lineaFrase.setPrecioUnitario(precioAsignado);
+        lineaFrase.setSubTotal(precioAsignado);
+
+        List<DetallePedido> detalles = new ArrayList<>();
+        detalles.add(lineaFrase);
+        pedidoAnticipo.setDetalles(detalles);
+        pedidoAnticipo.setTotalPedido(precioAsignado);
+
+        return iPedidoRepository.save(pedidoAnticipo);
     }
 
     public List<RamoPedidoDetalleResponseDto> listarPorPedido(Integer pedidoId) {
