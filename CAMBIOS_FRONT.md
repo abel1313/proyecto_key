@@ -12507,3 +12507,414 @@ por la urgencia, no lo reemplaza.
    frase personalizada) y el link/flujo de abono correspondiente a `pedidoAnticipoId`.
 3. No hace falta ninguna pantalla nueva — es el mismo mecanismo de anticipo que ya construyeron,
    solo que ahora se puede disparar por dos motivos en vez de uno.
+
+---
+
+## ❓ DUDAS SOBRE LO QUE CONSTRUYERON — urgencia, anticipo y el riesgo de cobrar 150% (2026-08-14)
+
+Primero, lo que el dueño **sí confirma** de lo que armaron, con sus palabras:
+
+> *"Lo que necesitamos es configurar los arreglos: no pueden agregar un ramo para entregar mañana
+> de 100 flores porque es imposible, por eso se va a configurar esa regla, y es con anticipo del
+> 50%."*
+
+Entonces la idea de fondo está bien entendida por ustedes: **bloquear lo que no da tiempo de
+armar, y pedir anticipo del 50%**. Sobre eso no hay discusión.
+
+Lo que sigue son tres dudas concretas antes de que lo conectemos, porque tocan dinero del cliente.
+
+### 1. 🔴 El flujo, tal como está escrito, cobraría 150%
+
+En su explicación del flujo:
+
+```
+Paso 3:  POST /v1/pedidos/savePedido        → "Aquí se cobra el pedido REAL completo
+                                               (incluido el extra de urgencia si aplicó)"
+Paso 4:  POST /v1/flores/pedidos/{id}/detalle → "crea un Pedido APARTADO por el 50% del
+                                               total real del pedido"
+```
+
+Si en el paso 3 ya se cobró el **100%**, el apartado del paso 4 por otro **50%** es dinero
+adicional: el cliente terminaría debiendo 150% del ramo.
+
+Suponemos que es redacción y que la intención es una de estas dos, pero **necesitamos que lo
+confirmen antes de conectarlo**, porque de esto depende cuánto se le cobra a una persona real:
+
+- **(a)** El pedido de flores se crea **sin cobrar** (pendiente), y el apartado del 50% es el
+  anticipo que sí se paga ahora; el resto se liquida al entregar. Es lo que tendría sentido para
+  un anticipo.
+- **(b)** El pedido sí se cobra completo en el paso 3, y entonces **el paso 4 no debería crear
+  ningún apartado** para el caso de urgencia.
+
+¿Cuál es? Si es (a), ¿el pedido principal queda en `APARTADO`/`FIADO` en vez de `NORMAL`?
+
+### 2. 🟠 La regla del "×2" — el dueño no la conoce, hay que preguntársela bien
+
+Ustedes mismos avisaron que la inventaron. Se la explicamos al dueño en sus términos ("si el
+mínimo son 32 horas, se cobra extra entre 32 y 64 horas de anticipación; con más de 64, no") y
+**no la reconoció** — no es algo que él haya pensado.
+
+Antes de que la deje o la cambien, queremos plantearle la pregunta bien hecha, y para eso
+necesitamos entender qué opciones tienen ustedes en mente. La tensión es real: él dijo "un solo
+número" pero también "con mucha anticipación no se cobra extra", y con un solo dato hay que
+derivar el resto de algún lado.
+
+Se nos ocurren estas formas de resolverlo, díganos cuál es viable de su lado y se la planteamos a
+él con manzanas:
+- **Dos números por tamaño:** horas mínimas (bloqueo) y horas de urgencia (cobro). Explícitos,
+  sin fórmulas que adivinar. Es un campo más que llenar, pero no hay ambigüedad.
+- **Un número global de "ventana de urgencia"** (ej. "se cobra extra si faltan menos de 48h"),
+  igual para todos los tamaños.
+- **Dejar el ×2** si al explicárselo bien le parece razonable.
+
+No lo cambien todavía — primero díganos cuál prefieren y se lo preguntamos al dueño con ejemplos
+concretos, no en abstracto.
+
+### 3. 🟡 El rechazo duro: preferimos el `valida:false` que ustedes ofrecieron
+
+Nos ofrecieron cambiar el `RuntimeException` por una respuesta con `valida:false` + mensaje.
+**Sí, por favor.**
+
+El bloqueo en sí está bien y es lo que el dueño quiere (un ramo de 100 para mañana no se puede, y
+punto). El problema es cómo llega: con una excepción, el front recibe un error de la llamada
+completa y, si el mensaje no viaja limpio, el cliente ve un "error interno" en vez de entender qué
+pasó. Con una respuesta estructurada podemos mostrarle el motivo real y guiarlo a cambiar la fecha
+o bajar la cantidad, que es justo lo que queremos que haga.
+
+Ojo, no es que queramos permitir el pedido — sigue sin poder generarse. Es solo que el "no se
+puede" se explique bien.
+
+### Mientras tanto
+
+No conectamos nada de urgencia en el front hasta tener el punto 1 aclarado. Los campos de catálogo
+(`horasMinimasAnticipacion`, `precioUrgencia`, `horasExtraAnticipacion`) sí los podemos ir
+agregando a las pantallas de configuración desde ahora, porque esos no cobran nada por sí solos —
+avísennos cuando estén desplegados en QA.
+
+---
+
+## ✅ RESUELTO por el dueño — el 50% es ENGANCHE del total, no un cobro extra (2026-08-14)
+
+El dueño explicó el flujo completo con sus palabras. Copiamos lo esencial porque zanja la duda
+del 150% y aclara de dónde sale el extra por urgencia:
+
+> *"Primero configura el ramo y ahí se le da un precio, el que sale. Pero el tema es cuando dice
+> cuándo lo quieres y en dónde lo quieres. ¿Qué hacemos si dice: un ramo de 100 flores lo quiero
+> mañana a las 12? Es imposible. Por eso voy a configurar: los ramos que podemos entregar de un
+> día para otro son estos, y esos se cobran más de lo normal — ese campo lo voy a configurar yo.
+> Entonces, antes de hacer el pedido, ya va a saber el cliente cuánto va a pagar en total, **y de
+> ahí se saca el 50% de enganche**. Si quiere el de 100 rosas y nosotros ya tenemos configurado
+> que solo podemos entregar los de 50 flores de un día para otro, con fecha y hora pedido,
+> entonces se hace; si no, pues no — tendría que hacer el pedido antes. Y si lo hace antes,
+> entonces ya no se cobra de más por el trabajo."*
+
+### 1. 🔴 El 150% queda descartado — es la opción (a) de nuestra duda anterior
+
+**El 50% NO es dinero adicional al ramo: es un enganche que sale del total.** *"Ya va a saber el
+cliente cuánto va a pagar en total, y de ahí se saca el 50% de enganche"*.
+
+O sea:
+
+```
+Ramo de 50 flores para mañana  →  total $1,300 (ya con el extra de urgencia adentro)
+                                  el cliente paga ahora  $650  (50% de enganche)
+                                  el resto  $650          al entregar
+```
+
+**Nunca $1,950.** Por lo tanto, el paso 3 (`savePedido`) **no debe cobrar el 100%** — el pedido de
+flores con urgencia tiene que nacer como crédito (`APARTADO`), con el enganche del 50% registrado
+por el flujo de abonos que ya existe, exactamente igual que cualquier apartado del sistema. Es el
+mismo mecanismo que ya tienen andando, no hace falta inventar nada.
+
+Confírmennos que así queda, porque tal como estaba redactado el flujo (cobrar completo **y** crear
+un apartado por otro 50%) se le cobraría de más a una persona real.
+
+### 2. 🟠 La regla del "×2": su explicación apunta a otra cosa
+
+Con lo que acaba de decir, el disparador del extra no son "horas" en abstracto — es **la entrega
+de un día para otro**:
+
+> *"Los ramos que podemos entregar de un día para otro son estos, y esos se cobran más de lo
+> normal (…) si lo hace antes, entonces ya no se cobra de más por el trabajo."*
+
+Es decir, hay **dos umbrales distintos** por tamaño de ramo, y el dueño los piensa por separado:
+
+| Concepto | Qué hace | Ejemplo (ramo de 50) |
+|---|---|---|
+| **Lo mínimo que se puede entregar** | Por debajo, **no se acepta** el pedido | "de un día para otro" (~24h) |
+| **A partir de cuándo ya es normal** | Con esa anticipación o más, **no se cobra extra** | 3 días, digamos |
+
+El ×2 que ustedes derivaron intenta cubrir los dos casos con un solo número, y el dueño no lo
+reconoció al explicárselo. **Nuestra lectura: hacen falta los dos números por tamaño**, que es la
+primera opción que les propusimos. Uno bloquea, el otro decide si se cobra el extra.
+
+Y ojo con un detalle de su ejemplo: *"un ramo de 100 flores lo quiero mañana"* es **imposible**,
+no "urgente y caro". Un ramo de 100 simplemente no tiene ventana de un día para otro — así que
+para ese tamaño el mínimo es mayor, y ahí no hay extra que cobrar: no se puede y ya.
+
+Antes de que cambien código: ¿les cuadra el modelo de dos números? Si sí, se lo confirmamos al
+dueño y se lo pedimos formal.
+
+### 3. Lo demás que confirma su explicación (y ya está bien de su lado)
+
+- **El total se conoce ANTES de pedir**, con el extra de urgencia ya adentro. Eso ya lo cumple
+  `calcular-precio` devolviendo el `total` con `precioUrgencia` sumado — no cambia nada.
+- **El extra depende de la fecha/hora Y de la zona.** También cubierto con `fechaHoraEntrega` +
+  `LugarEntrega.horasExtraAnticipacion`.
+- **El bloqueo es real, no un aviso.** Confirmado: si no da tiempo, no se hace el pedido. Sigue en
+  pie nuestra petición de que llegue como respuesta estructurada y no como excepción, solo para
+  poder explicárselo bien al cliente y que corrija la fecha.
+
+### ✏️ CORRECCIÓN a lo que acabamos de escribir — es UNA sola condición, no dos umbrales
+
+Nos adelantamos al proponer "dos números por tamaño". El dueño lo aclaró con un ejemplo concreto y
+es **más simple** que eso:
+
+> *"Yo voy a configurar cuándo voy a aumentar el precio: **solo si es de un día para otro** y lo
+> podemos hacer. Por ejemplo, si la configuración normal sale en 660, tú vas a buscar: ¿es de un
+> día para otro y está en la hora pactada? Sí — entonces te va a regresar 'auméntale 300', en
+> total serían 960, y de ahí el 50% de enganche."*
+
+**Descarten nuestra propuesta de los dos umbrales.** La regla real es una sola condición binaria:
+
+```
+¿La entrega es de un día para otro (y ese tamaño sí se puede en ese plazo)?
+   SÍ  → precio normal + extra de urgencia
+   NO  → precio normal, sin extra
+```
+
+No hay zona intermedia que calcular, ni fórmula del ×2, ni "a partir de cuántas horas deja de ser
+urgente". Si no es de un día para otro, simplemente no se cobra el extra.
+
+### El caso completo, con los números del dueño
+
+```
+Ramo configurado (flores + papel + accesorios + listón)   $660
+¿Es de un día para otro y sí se puede ese tamaño?          sí
+Extra de urgencia (configurado por él para ese tamaño)    +$300
+                                                    ─────────
+Total que ve el cliente ANTES de pedir                     $960
+Enganche del 50% que paga ahora                            $480
+Resto al entregar                                          $480
+```
+
+Los $300 los configura él por tamaño de ramo. Y el total con el extra **ya se le muestra al
+cliente antes de confirmar** — no es una sorpresa posterior.
+
+### Lo que esto implica para lo que ya construyeron
+
+- **`precioUrgencia` por tamaño: correcto**, así como lo hicieron. Es el "+$300".
+- **`horasMinimasAnticipacion`: correcto** para decidir si ese tamaño **se puede** en ese plazo
+  (el ramo de 100 para mañana no se puede, y ahí no hay extra que cobrar: se rechaza).
+- **La regla del ×2: sobra.** Reemplazarla por la condición de "es de un día para otro".
+- **Falta definir con ustedes** cómo se expresa exactamente "de un día para otro" en el código:
+  ¿por diferencia de día de calendario (la entrega cae mañana o antes), o por horas contra
+  `horasMinimasAnticipacion`? Nos inclinamos por lo primero porque es como lo piensa el dueño
+  ("de un día para otro"), pero es su terreno — díganos cuál les acomoda y lo verificamos con él
+  con un ejemplo concreto, no en abstracto.
+
+Y sigue en pie lo de la sección anterior: **el 50% es enganche del total, no dinero adicional.**
+El ejemplo de arriba lo confirma con números — $960 en total, de los cuales $480 se pagan ahora.
+
+---
+
+# 📌 CHECKLIST — todo lo que está esperando algo de ustedes (2026-08-14)
+
+Consolidado en un solo lugar, porque las últimas vueltas quedaron repartidas en varias secciones y
+es fácil que se pierda algo. Ordenado por urgencia. Lo que no está aquí, está cerrado.
+
+## 🔴 Bloqueantes
+
+**1. El merge `qa → main` de su lado — el 500 en producción**
+
+`GET /tienda/v1/variante/{id}/producto-id` sigue dando 500 en prod (verificado hoy). Ustedes ya
+diagnosticaron que el endpoint nunca se promovió a `main`. **Es lo único que impide cerrar
+`getOne`**, y lleva días parado. Cuando lo hagan, avisen y lo verificamos con curl antes de que
+promuevan el cierre.
+
+**2. Confirmar que el pedido con urgencia nace como APARTADO**
+
+El dueño confirmó con números que el 50% es **enganche del total**, no dinero adicional
+($960 total → $480 ahora → $480 al entregar). Tal como estaba redactado su flujo (cobrar el 100%
+en `savePedido` **y** crear un apartado por otro 50%) se le cobraría de más a una persona real.
+Necesitamos su confirmación explícita de que queda como apartado antes de conectar cualquier cosa
+de urgencia en el front.
+
+## 🟠 Cambios pedidos, esperando que los hagan
+
+**3. Quitar la regla del ×2**
+
+Reemplazarla por la condición binaria "¿es de un día para otro?" (ver la corrección con el ejemplo
+de $660 + $300). Y díganos cómo van a expresar "de un día para otro": ¿diferencia de día de
+calendario, o contra `horasMinimasAnticipacion`?
+
+**4. `valida:false` en vez de `RuntimeException`**
+
+Ya lo habían ofrecido, lo aceptamos. El bloqueo se mantiene — solo queremos poder explicarle al
+cliente por qué no se puede y que corrija la fecha, en vez de un error genérico.
+
+## 🟡 Avisos que esperamos para poder conectar
+
+**5. Cuándo queda en QA el `>=` del umbral** — para verificar que 20 flores con umbral 20 ya
+active el papel (tenemos el curl listo).
+
+**6. Cuándo quedan en QA los campos de urgencia** — `horasMinimasAnticipacion`, `precioUrgencia`,
+`horasExtraAnticipacion`. Los inputs de configuración los podemos ir agregando desde antes; lo que
+no conectamos hasta tener el punto 2 es el cobro.
+
+## ❓ Dudas nuevas que salieron del modelo de enganche
+
+**7. ¿El extra de urgencia aplica también a `RamoArmado`?**
+
+Lo preguntamos hace días y no lo vimos respondido. Un ramo preconfigurado también se puede pedir
+de un día para otro — ¿lleva el mismo extra? ¿Sale de la `CantidadFlorValida` que referencia?
+
+**8. Si hay urgencia Y frase personalizada en el mismo pedido, ¿cómo quedan los anticipos?**
+
+Antes nos dijeron que ambos anticipos van al mismo `Pedido APARTADO`. Pero eso se escribió cuando
+el pedido principal se cobraba completo. **Ahora el pedido principal ya es un apartado** (por el
+enganche del 50%), así que la pregunta cambia: ¿el anticipo de la frase se suma a ese mismo
+pedido, o sigue creándose uno aparte? No queremos que al cliente le queden dos apartados abiertos
+por el mismo ramo.
+
+**9. ¿El 50% se calcula sobre el total incluyendo el envío?**
+
+El `costoEnvio` entra en el `total`. ¿El enganche es sobre ese total con envío, o solo sobre el
+ramo? Cambia el monto que le pedimos al cliente.
+
+**10. ¿Qué pasa si el cliente no especifica fecha/hora?**
+
+Ya nos dijeron que sin `fechaHoraEntrega` no se valida ni se cobra urgencia. Pero entonces un
+cliente puede evitar el extra simplemente no poniendo fecha, y decir después "lo quiero mañana".
+¿Debería ser obligatoria la fecha cuando el ramo se arma en el configurador? Es más una duda de
+negocio que técnica — la planteamos por si conviene cerrarla desde el modelo.
+
+## 📋 De nuestro lado (para que sepan qué falta, no requieren acción)
+
+- Campos de configuración de urgencia en las pantallas de catálogo — los agregamos en cuanto
+  estén en QA.
+- `TipoFlor.precioCosto` en la pantalla de Tipos de flor (ya nos confirmaron que sirve para
+  margen) — lo agregamos esta semana.
+- Captura de fecha/hora de entrega en el configurador — **en pausa hasta el punto 2**.
+- Bandeja de frases pendientes para el admin — pendiente, no bloquea nada.
+
+---
+
+## ✅ Respuesta del back al checklist — 150% corregido, ×2 eliminado, excepción reemplazada (2026-08-14)
+
+Gracias por el detalle, tenían razón en los tres puntos. Corregido antes de que se conectara nada
+en el front (nada de esto había llegado a QA con el diseño viejo).
+
+### 1. 🔴 El 150% — corregido, el 50% ahora es enganche real, sin pedido paralelo
+
+Tenían toda la razón, y de hecho lo que había construido antes era peor de lo que se veía en la
+redacción: creaba un **Pedido APARTADO separado** por el 50%, encima del 100% ya cobrado en
+`savePedido`. Doble error. Ya está reescrito:
+
+- **`POST /v1/pedidos/savePedido` ya NO cobra el 100% cuando hay urgencia.** El front, al ver
+  `requiereAnticipo: true` en la respuesta de `calcular-precio`, debe crear el pedido con
+  `tipoPedido: "APARTADO"` (campo que **ya existe** en `PedidosDTOPedido`, no es nuevo) en vez de
+  dejarlo `NORMAL`. El pedido nace con `$0` pagado, exactamente como cualquier apartado del
+  sistema.
+- El front registra el enganche con el `POST /v1/abonos/{pedidoId}` que **ya existe** — mismo
+  módulo de crédito que usan hoy para cualquier venta a crédito, no hay endpoint nuevo.
+- **Ya no se crea ningún "pedido paralelo" para la urgencia.** Eso solo pasa para la frase
+  personalizada (mecanismo distinto, sin tocar, porque su precio no se conoce hasta que el admin
+  la aprueba — ver punto de abajo).
+- `calcular-precio` ahora devuelve, además de `precioUrgencia`:
+  - `requiereAnticipo` (boolean) — la señal para crear el pedido como `APARTADO`.
+  - `montoAnticipoSugerido` — 50% de `total` (que ya incluye envío, ver punto 9 más abajo).
+- **Redundancia de seguridad:** si el front olvida marcar `tipoPedido: APARTADO` y de todos modos
+  el pedido resulta urgente, `POST /v1/flores/pedidos/{id}/detalle` (paso 4) lo detecta en
+  servidor y **rechaza la llamada completa** con un mensaje explicando que el pedido debió
+  nacer como apartado. No se cobra nada extra ahí — solo bloquea el error antes de que se pierda.
+
+Ejemplo con los números del dueño:
+```
+calcular-precio → total: 960, requiereAnticipo: true, montoAnticipoSugerido: 480
+savePedido      → tipoPedido: "APARTADO"  (el pedido nace en $0 pagado)
+POST /v1/abonos/{pedidoId}  { monto: 480, ... }   → el cliente paga el enganche
+                                                   → resto ($480) se liquida al entregar,
+                                                     con otro abono normal, como cualquier apartado
+```
+
+### 2. 🟠 El ×2 — eliminado, ahora es la condición binaria que describió el dueño
+
+Descartado por completo. La regla ahora es exactamente la que dio con el ejemplo de $660 + $300:
+
+```
+¿La cantidad de flores da tiempo (horasMinimasAnticipacion + zona)?
+   NO → entregaValida: false, se rechaza (ver punto 3)
+   SI → ¿la fecha de entrega cae HOY o MAÑANA (fecha de calendario, no horas)?
+          SI → se cobra precioUrgencia
+          NO → no se cobra nada extra
+```
+
+Elegimos **fecha de calendario** (no horas contra `horasMinimasAnticipacion`) para que "de un día
+para otro" se calcule exactamente como lo dice el dueño, sin ningún número inventado de por medio.
+No quedó ningún umbral adicional que configurar — sigue siendo un solo dato por tamaño
+(`horasMinimasAnticipacion` para el bloqueo, `precioUrgencia` para el monto), tal como pidió.
+
+### 3. 🟡 `RuntimeException` → respuesta estructurada, ya está
+
+`calcular-precio` ya no lanza excepción cuando no da tiempo. Campos nuevos en la respuesta:
+- `entregaValida` (boolean, default `true`) — `false` cuando no alcanza el tiempo.
+- `mensajeEntrega` (string) — el motivo, mismo texto que antes iba en la excepción.
+
+El resto del response se sigue calculando igual (precio, colores, etc.) aunque `entregaValida`
+sea `false`, para que puedan mostrarle el precio igual mientras el cliente corrige la fecha o baja
+la cantidad.
+
+### Respuestas a las dudas nuevas del checklist
+
+**7. ¿Aplica a `RamoArmado`?** No, hoy no — el flujo de comprar un ramo preconfigurado no captura
+`fechaHoraEntrega` en ningún lado (usa directo las variantes/precios ya guardados en el
+`RamoArmado`). Si lo necesitan ahí también, es trabajo adicional: habría que agregar la captura de
+fecha a ese flujo y conectarlo a la misma validación. Avisen si lo priorizan.
+
+**8. ¿Frase + urgencia en el mismo pedido?** Ya no hay conflicto — dejaron de compartir el mismo
+mecanismo. Urgencia ahora usa el pedido principal (vía `tipoPedido:APARTADO` + abono). Frase
+personalizada sigue creando su propio `Pedido APARTADO` lateral, sin cambios. Pueden coexistir sin
+pisarse: dos cosas independientes, cada una con su propio abono.
+
+**9. ¿El 50% incluye envío?** Sí — `montoAnticipoSugerido` es 50% de `total`, y `total` ya incluye
+`costoEnvio` (igual que siempre lo ha incluido). No hay un total "solo del ramo" separado.
+
+**10. ¿Fecha obligatoria para evitar que se evada el extra?** Queda abierta, es decisión de
+negocio del dueño, no algo que resolvamos nosotros en el modelo. Si más adelante deciden que
+`fechaHoraEntrega` sea obligatoria en el configurador, es un cambio del lado del front (validación
+de formulario), no requiere nada nuevo del back.
+
+---
+
+## 🔴 URGENTE — migración pendiente está rompiendo `calcular-precio` en QA ahora mismo
+
+Probamos en vivo contra QA para confirmar el `>=` y encontramos algo más grave: **cualquier
+llamada a `POST /v1/flores/calcular-precio` está fallando en este momento**, con un error de SQL:
+
+```
+[Unknown column 'cfv1_0.horas_minimas_anticipacion' in 'field list']
+```
+
+El código que ya está desplegado en QA espera la columna `horas_minimas_anticipacion` en
+`cantidad_flor_valida`, pero la migración que la agrega (`migration_flores_eternas_urgencia.sql`)
+todavía no se corrió ahí. Esto no es un problema de diseño — es que el código llegó a QA antes que
+el script. Hace falta correr esto en QA **ya**:
+
+```sql
+ALTER TABLE cantidad_flor_valida
+    ADD COLUMN horas_minimas_anticipacion INT NULL,
+    ADD COLUMN precio_urgencia DOUBLE NULL;
+
+ALTER TABLE lugares_entrega
+    ADD COLUMN horas_extra_anticipacion INT NULL;
+```
+
+De paso, no pudimos confirmar al 100% si `migration_flores_eternas_mano_de_obra.sql` (columnas
+`cantidad_flor_valida.mano_de_obra` y `ramo_armado.precio_mano_de_obra`) ya corrió o no —
+`pliegosPorDefecto` sí respondió bien (esa migración sí corrió), pero no tenemos forma de probar
+`mano_de_obra` desde afuera sin token admin. Si no están seguros, correr ese script también es
+seguro — un `ALTER TABLE ADD COLUMN` sobre una columna que ya existe simplemente da un error claro
+de "columna duplicada", no rompe nada.
+
+En cuanto confirmen que corrieron, lo volvemos a probar contra QA.

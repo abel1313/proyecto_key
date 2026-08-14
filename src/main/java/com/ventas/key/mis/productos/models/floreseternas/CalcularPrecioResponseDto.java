@@ -40,9 +40,27 @@ public class CalcularPrecioResponseDto {
 
     // Extra por urgencia ya incluido en "total" -- mismo criterio que precioManoDeObra (sin linea
     // aparte para el cliente). Solo se calcula si el request trae fechaHoraEntrega Y esta cantidad
-    // tiene horasMinimasAnticipacion configurada. Null = no aplico (sin fecha, o con anticipacion
-    // holgada, o sin precioUrgencia configurado para esta cantidad).
+    // tiene horasMinimasAnticipacion configurada. Null = no aplico (sin fecha, o la entrega no es
+    // de un dia para otro, o sin precioUrgencia configurado para esta cantidad).
     private Double precioUrgencia;
+
+    // false = con la fecha/hora de entrega pedida NO da tiempo de armar este tamano de ramo (+
+    // zona) -- el pedido NO se puede generar tal cual. Default true (sin fechaHoraEntrega, o con
+    // tiempo suficiente). Cuando es false, el resto del response SI se sigue calculando (para que
+    // el front pueda mostrar el precio igual), pero el front debe bloquear continuar y usar
+    // mensajeEntrega para que el cliente cambie la fecha/hora o la cantidad.
+    private Boolean entregaValida = true;
+    private String mensajeEntrega;
+
+    // true cuando precioUrgencia aplico -- senal para que el front cree el pedido con
+    // tipoPedido:"APARTADO" en /v1/pedidos/savePedido (no "NORMAL") y registre montoAnticipoSugerido
+    // como abono inicial via POST /v1/abonos/{pedidoId} -- MISMO mecanismo de credito que ya existe
+    // en el sistema, no hay endpoint nuevo. El 50% es un ENGANCHE que sale del total, no un cobro
+    // aparte: el pedido nace en $0 pagado y el abono cubre esa mitad, el resto se liquida despues
+    // con otro abono al entregar.
+    private Boolean requiereAnticipo = false;
+    // 50% de "total" (incluye envio), solo presente cuando requiereAnticipo=true.
+    private Double montoAnticipoSugerido;
 
     private List<ListonCalculadoDto> listonesCalculados;
     private Double subtotalListones;

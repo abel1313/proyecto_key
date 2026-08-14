@@ -2,10 +2,12 @@ package com.ventas.key.mis.productos.models.floreseternas;
 
 public final class FloresEternasConstantes {
 
-    // Porcentaje de anticipo aplicado sobre el precio que el ADMIN le asigna a una frase
-    // personalizada al validarla (ver RamoPedidoDetalleServiceImpl.validarFrase). No se conoce
-    // ni se cobra nada al cotizar -- el anticipo real solo existe a partir de ese momento.
-    public static final double PORCENTAJE_ANTICIPO_FRASE_PERSONALIZADA = 0.5;
+    // Porcentaje de anticipo/enganche, usado en dos casos: (1) sobre el precio que el ADMIN le
+    // asigna a una frase personalizada al validarla (ver RamoPedidoDetalleServiceImpl.validarFrase
+    // -- no se conoce ni se cobra nada al cotizar, el anticipo real solo existe a partir de ese
+    // momento), y (2) sobre el total del pedido cuando la entrega es urgente (ver
+    // FlorPedidoServiceImpl.calcularPrecio -- este SI se conoce al cotizar).
+    public static final double PORCENTAJE_ANTICIPO = 0.5;
 
     // Mensaje que ve el cliente al cotizar, mientras la frase personalizada sigue sin validar.
     // No menciona un monto porque todavia no existe -- eso se define despues, cuando el admin
