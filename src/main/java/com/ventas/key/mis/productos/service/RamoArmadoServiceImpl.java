@@ -117,6 +117,12 @@ public class RamoArmadoServiceImpl {
         double precioFlores = cantidadValida.getCantidad() * tipoFlor.getPrecioPorFlor();
         ramo.setPrecioFlores(precioFlores);
 
+        // Mano de obra: monto que el dueno configuro para ESTE tamano de ramo, sumado directo al
+        // total sin aparecer como accesorio -- el cliente no debe poder distinguir cuanto es
+        // material y cuanto es trabajo (decision del dueno, ver CAMBIOS_FRONT.md).
+        double precioManoDeObra = cantidadValida.getManoDeObra() != null ? cantidadValida.getManoDeObra() : 0;
+        ramo.setPrecioManoDeObra(cantidadValida.getManoDeObra());
+
         Optional<AccesorioRamo> papel = accesorioRamoService.obtenerPapelAutomaticoSiAplica(cantidadValida.getCantidad());
         Integer papelAccesorioId = null;
         if (papel.isPresent()) {
@@ -130,7 +136,6 @@ public class RamoArmadoServiceImpl {
 
         List<RamoArmadoAccesorio> accesorios = new ArrayList<>();
         double subtotalAccesorios = 0;
-        java.util.Set<Integer> idsYaAgregados = new java.util.HashSet<>();
         if (dto.getAccesorios() != null) {
             for (RamoArmadoAccesorioRequestDto a : dto.getAccesorios()) {
                 if (papelAccesorioId != null && papelAccesorioId.equals(a.getAccesorioId())) {
@@ -145,22 +150,7 @@ public class RamoArmadoServiceImpl {
                 detalle.setCantidad(cantidad);
                 accesorios.add(detalle);
                 subtotalAccesorios += accesorio.getPrecio() * cantidad;
-                idsYaAgregados.add(accesorio.getId());
             }
-        }
-        // Accesorios que se cobran en todo ramo sin excepcion (ej. mano de obra) -- se agregan
-        // solos, sin que el dueno tenga que elegirlos al armar el ramo preconfigurado.
-        for (AccesorioRamo autoIncluido : accesorioRamoService.obtenerAccesoriosAutoIncluidos()) {
-            if (idsYaAgregados.contains(autoIncluido.getId())
-                    || (papelAccesorioId != null && papelAccesorioId.equals(autoIncluido.getId()))) {
-                continue;
-            }
-            RamoArmadoAccesorio detalle = new RamoArmadoAccesorio();
-            detalle.setRamoArmado(ramo);
-            detalle.setAccesorio(autoIncluido);
-            detalle.setCantidad(1);
-            accesorios.add(detalle);
-            subtotalAccesorios += autoIncluido.getPrecio();
         }
         if (ramo.getAccesorios() == null) {
             ramo.setAccesorios(accesorios);
@@ -170,7 +160,7 @@ public class RamoArmadoServiceImpl {
         }
 
         double precioPapel = Boolean.TRUE.equals(ramo.getPapelIncluido()) ? ramo.getPrecioPapel() : 0;
-        ramo.setPrecioTotal(precioFlores + precioPapel + subtotalAccesorios);
+        ramo.setPrecioTotal(precioFlores + precioPapel + subtotalAccesorios + precioManoDeObra);
     }
 
     private void validarRequest(RamoArmadoRequestDto dto) {
@@ -206,6 +196,7 @@ public class RamoArmadoServiceImpl {
                 papelVarianteId(ramo),
                 pliegosPapel(ramo),
                 precioUnitarioPapel(ramo),
+                ramo.getPrecioManoDeObra(),
                 accesorios,
                 ramo.getPrecioTotal(),
                 ramo.getActivo());

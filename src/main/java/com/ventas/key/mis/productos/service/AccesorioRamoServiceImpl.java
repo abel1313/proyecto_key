@@ -48,8 +48,8 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
         if (Boolean.TRUE.equals(req.getEsPapel()) && req.getFloresPorPliego() != null && req.getFloresPorPliego() <= 0) {
             throw new RuntimeException("Flores por pliego debe ser mayor a cero");
         }
-        if (Boolean.TRUE.equals(req.getEsPapel()) && req.getUmbralPliegoFijo() != null && req.getUmbralPliegoFijo() <= 0) {
-            throw new RuntimeException("Umbral de pliego fijo debe ser mayor a cero");
+        if (Boolean.TRUE.equals(req.getEsPapel()) && req.getPliegosPorDefecto() != null && req.getPliegosPorDefecto() <= 0) {
+            throw new RuntimeException("Pliegos por defecto debe ser mayor a cero");
         }
         int stock = ProductoSombraServiceImpl.STOCK_SIN_CONTROL;
         if (req.getId() != null) {
@@ -86,35 +86,27 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
                 .filter(papel -> papel.getUmbralActivacion() != null && cantidadFinal > papel.getUmbralActivacion());
     }
 
-    // Accesorios que se cobran en TODO ramo sin excepcion (ej. mano de obra) -- a diferencia del
-    // papel, no dependen de la cantidad de flores. Centralizado aqui por la misma razon que el
-    // metodo de arriba: lo usan tanto RamoArmadoServiceImpl como FlorPedidoServiceImpl.
-    public List<AccesorioRamo> obtenerAccesoriosAutoIncluidos() {
-        return iAccesorioRamoRepository.findByAutoIncluidoTrueAndActivoTrue();
-    }
-
     // Cuantos pliegos hace falta para envolver "cantidadFlores" flores. Orden de prioridad:
-    // 1. umbralPliegoFijo -- si cantidadFlores cae en ese rango (1 a umbralPliegoFijo inclusive),
-    //    SIEMPRE es 1 pliego, sin excepcion: gana incluso sobre el pliegos explicito. Pensado
-    //    para ventas chicas/sueltas donde no tiene sentido prorratear el papel.
-    // 2. pliegosExplicitos -- lo que el dueno configuro a mano para ESE ramo (CantidadFlorValida
+    // 1. pliegosExplicitos -- lo que el dueno configuro a mano para ESE ramo (CantidadFlorValida
     //    .pliegos), porque el papel no es proporcional a la cantidad de flores (depende de como
-    //    se arma). Gana sobre la formula cuando no sea null.
-    // 3. Formula floresPorPliego -- respaldo mientras el dueno no ha configurado el explicito
-    //    (un pliego empezado se gasta completo, redondeo hacia arriba).
-    // 4. null -- ninguna de las anteriores configurada: precio fijo unico de siempre (ver
-    //    calcularPrecioPapel).
+    //    se arma). Gana sobre todo lo demas cuando no sea null.
+    // 2. Formula floresPorPliego -- respaldo automatico mientras el dueno no ha configurado el
+    //    explicito (un pliego empezado se gasta completo, redondeo hacia arriba).
+    // 3. pliegosPorDefecto -- ultimo respaldo, para cuando NI lo explicito NI la formula estan
+    //    configurados (tipicamente cantidades sueltas/chicas sin fila registrada). Reemplaza el
+    //    "1 pliego" implicito de antes por un numero que el dueno puede ajustar.
+    // 4. null -- nada configurado: precio fijo unico de siempre (ver calcularPrecioPapel).
     public Integer calcularPliegosPapel(AccesorioRamo papel, int cantidadFlores, Integer pliegosExplicitos) {
-        if (papel.getUmbralPliegoFijo() != null && cantidadFlores <= papel.getUmbralPliegoFijo()) {
-            return 1;
-        }
         if (pliegosExplicitos != null) {
             return pliegosExplicitos;
         }
-        if (papel.getFloresPorPliego() == null || papel.getFloresPorPliego() <= 0) {
-            return null;
+        if (papel.getFloresPorPliego() != null && papel.getFloresPorPliego() > 0) {
+            return (int) Math.ceil((double) cantidadFlores / papel.getFloresPorPliego());
         }
-        return (int) Math.ceil((double) cantidadFlores / papel.getFloresPorPliego());
+        if (papel.getPliegosPorDefecto() != null && papel.getPliegosPorDefecto() > 0) {
+            return papel.getPliegosPorDefecto();
+        }
+        return null;
     }
 
     // Precio real del papel: pliegosNecesarios x precio (precio se interpreta como "precio por

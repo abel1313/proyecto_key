@@ -163,13 +163,17 @@ public class FlorPedidoServiceImpl {
         response.setPrecioBase(precioBase);
         response.setColoresCalculados(coloresCalculados);
 
-        // Pliegos que el dueno configuro a mano para ESTE tamano de ramo (si existe una
-        // CantidadFlorValida registrada con esta especie+cantidad exactas) -- gana sobre la
-        // formula floresPorPliego en el calculo del papel (ver AccesorioRamoServiceImpl).
-        Integer pliegosExplicitos = iCantidadFlorValidaRepository
-                .findByTipoFlorIdAndCantidadAndActivoTrue(especie.getId(), cantidadFinal)
-                .map(CantidadFlorValida::getPliegos)
-                .orElse(null);
+        // Cantidad registrada que coincide EXACTO con especie+cantidadFinal (si existe) -- de ahi
+        // salen tanto el pliegos explicito como la mano de obra configurados a mano por el dueno
+        // para ESTE tamano de ramo.
+        Optional<CantidadFlorValida> cantidadRegistrada = iCantidadFlorValidaRepository
+                .findByTipoFlorIdAndCantidadAndActivoTrue(especie.getId(), cantidadFinal);
+        Integer pliegosExplicitos = cantidadRegistrada.map(CantidadFlorValida::getPliegos).orElse(null);
+
+        // Mano de obra: se suma directo al total sin aparecer como accesorio -- el cliente no
+        // debe poder distinguir cuanto es material y cuanto es trabajo (decision del dueno).
+        Double precioManoDeObra = cantidadRegistrada.map(CantidadFlorValida::getManoDeObra).orElse(null);
+        response.setPrecioManoDeObra(precioManoDeObra);
 
         Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, pliegosExplicitos, response);
 
@@ -197,7 +201,8 @@ public class FlorPedidoServiceImpl {
                 + (Boolean.TRUE.equals(response.getPapelObligatorioAplicado()) ? response.getPrecioPapel() : 0)
                 + subtotalAccesorios
                 + subtotalListones
-                + costoEnvio;
+                + costoEnvio
+                + (precioManoDeObra != null ? precioManoDeObra : 0);
         response.setTotal(totalConocido);
 
         return response;
@@ -219,24 +224,17 @@ public class FlorPedidoServiceImpl {
 
     private List<AccesorioCalculadoDto> calcularAccesorios(List<AccesorioSeleccionadoDto> seleccionados, Integer papelAccesorioId, int cantidadFinal, Integer pliegosExplicitos) {
         List<AccesorioCalculadoDto> resultado = new ArrayList<>();
-        java.util.Map<Integer, Integer> cantidadPorAccesorio = new java.util.LinkedHashMap<>();
-        if (seleccionados != null) {
-            for (AccesorioSeleccionadoDto sel : seleccionados) {
-                // El papel ya se cobro via la regla automatica -- si el cliente tambien lo eligio
-                // manualmente en esta lista, se ignora esa entrada para no cobrarlo dos veces.
-                if (papelAccesorioId != null && papelAccesorioId.equals(sel.getAccesorioId())) {
-                    continue;
-                }
-                cantidadPorAccesorio.merge(sel.getAccesorioId(), 1, Integer::sum);
-            }
+        if (seleccionados == null || seleccionados.isEmpty()) {
+            return resultado;
         }
-        // Accesorios que se cobran en todo ramo sin excepcion (ej. mano de obra) -- se agregan
-        // solos aunque el cliente no haya elegido ningun accesorio manualmente.
-        for (AccesorioRamo autoIncluido : accesorioRamoService.obtenerAccesoriosAutoIncluidos()) {
-            if (!cantidadPorAccesorio.containsKey(autoIncluido.getId())
-                    && !(papelAccesorioId != null && papelAccesorioId.equals(autoIncluido.getId()))) {
-                cantidadPorAccesorio.put(autoIncluido.getId(), 1);
+        java.util.Map<Integer, Integer> cantidadPorAccesorio = new java.util.LinkedHashMap<>();
+        for (AccesorioSeleccionadoDto sel : seleccionados) {
+            // El papel ya se cobro via la regla automatica -- si el cliente tambien lo eligio
+            // manualmente en esta lista, se ignora esa entrada para no cobrarlo dos veces.
+            if (papelAccesorioId != null && papelAccesorioId.equals(sel.getAccesorioId())) {
+                continue;
             }
+            cantidadPorAccesorio.merge(sel.getAccesorioId(), 1, Integer::sum);
         }
         for (java.util.Map.Entry<Integer, Integer> entry : cantidadPorAccesorio.entrySet()) {
             AccesorioRamo accesorio = iAccesorioRamoRepository.findById(entry.getKey())

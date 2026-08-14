@@ -51,6 +51,11 @@ public class RamoArmado extends BaseId {
     @Column(name = "precio_papel")
     private Double precioPapel;
 
+    // Congelado igual que precioFlores/precioPapel al momento de guardar -- ya esta sumado en
+    // precioTotal, sin aparecer como accesorio (decision del dueno: un solo precio de ramo).
+    @Column(name = "precio_mano_de_obra")
+    private Double precioManoDeObra;
+
     @Column(name = "precio_total", nullable = false)
     private Double precioTotal;
 

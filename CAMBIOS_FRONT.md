@@ -11742,71 +11742,322 @@ nuestro lado para que empiecen a consumirlo.
 
 ---
 
-## 🔴 CAUSA DEL 500 EN PRODUCCIÓN — no es un bug, `main` nunca recibió el endpoint (2026-08-14)
+## ❓ CONSULTA AL BACK — pliegos por defecto fuera de rango + cómo cobrar la mano de obra (2026-08-14)
 
-Investigamos el `GET /tienda/v1/variante/{id}/producto-id` que reportaron con 500 en prod. La
-causa real: **ese endpoint no existe en el código de `main`.**
+El dueño terminó de explicar la regla del papel y salieron dos cosas: una chica que sí les toca, y
+una nueva que ni siquiera está modelada.
 
-Lo agregamos el 2026-08-11 (commit `df5ea15`, "endpoint publico varianteId -> productoId para la
-ficha de producto") directo en `dev`/`qa` — y desde entonces no se ha hecho el merge `qa → main`
-que lo llevaría a producción. Confirmado revisando el código de `main` ahora mismo: no hay
-ninguna mención de `producto-id` ni de `resolverProductoId` en ese branch.
+### 1. Pliegos por defecto cuando la cantidad NO está configurada
 
-Por eso responde 500 con cualquier id: la ruta simplemente no está registrada en el Spring que
-corre en prod — el 500 en vez de un 404 más claro probablemente viene de nginx/el proxy delante
-del backend, no de la aplicación.
+**La regla, en sus palabras:** las cantidades que él deja configuradas (con sus `pliegos`) ya
+llevan papel incluido y el cliente ni se entera. Pero si alguien pide una cantidad **por debajo de
+la más chica configurada**, ahí el papel no está previsto: se le pregunta si lo quiere, y si dice
+que no, *"el ramo va sin papel, solo las puras rosas enrolladas"*.
 
-**No hay nada que corregir en el código** — es un tema de promoción, no de bug. Cuando quieran
-que esto quede resuelto en producción, avísennos y hacemos el merge `qa → main` (trae también el
-resto de lo que ya está validado en QA: flores eternas completo, fix de `validar-cantidad`,
-`pliegos` por ramo, etc. — es la primera vez que se promueve todo ese trabajo). Uds. deciden
-cuándo, dado que hay partes marcadas como "esperando confirmación del dueño" (ver pendientes de
-`AccesorioRamo.precio` y "Corona").
+Eso ya lo resolvimos del lado del front (el papel aparece solo cuando no va por default). Lo que
+falta es cuánto cobrar en ese caso:
+
+```
+POST /calcular-precio  → 19 flores + accesorio Papel (id 7)
+hoy responde:  "Papel x1 = $5"      (1 pliego, el respaldo actual)
+el dueño quiere: 2 pliegos = $10
+```
+
+**Su regla:** para cualquier cantidad no configurada, el papel se cobra como **2 pliegos**. No es
+un número calculado — es lo que él estima que se gasta en un ramo chico.
+
+¿Se puede configurar en vez de dejarlo fijo? Nos imaginamos que encaja junto a los otros campos
+del accesorio papel (donde ya viven `umbralActivacion` y `floresPorPliego`), pero **ustedes deciden
+cómo modelarlo** — solo que el dueño lo pueda cambiar sin pedir despliegue, como los otros.
+
+**Nota de comportamiento que confirmamos de paso:** la "venta por unidad" ya no existe. Antes, una
+cantidad menor a la más chica registrada respondía `valida: true` ("se cobra por unidad"); hoy
+1, 3 y 10 flores responden `valida: false` con el aviso de que el círculo puede no quedar bien.
+¿Fue un cambio a propósito? Lo preguntamos porque quedó como decisión pendiente del dueño y no
+recordamos que la haya respondido. No nos bloquea (el front ya deja continuar con la cantidad que
+el cliente elija), pero sí cambia lo que ve.
+
+### 2. 🆕 La mano de obra no está en el modelo
+
+El dueño preguntó cómo se cobra el trabajo de armar el ramo — y revisando el módulo, **no existe
+en ningún lado**. Hoy el total es: flores + papel + accesorios + listón + envío. El tiempo de
+armarlo no se cobra por ningún concepto.
+
+No les pedimos nada todavía porque primero el dueño tiene que decidir **cómo** quiere cobrarlo
+(monto fijo por ramo, por flor, un porcentaje, o simplemente subir el precio por flor y no
+modelarlo). En cuanto lo defina se los pasamos.
+
+Lo que sí les preguntamos desde ahora, por si condiciona el diseño: **¿ya existe algún concepto
+de "servicio" o "mano de obra"** en el sistema (en pedidos normales, no en flores) que convenga
+reutilizar en vez de inventar uno nuevo para este módulo?
 
 ---
 
-## ✅ Respuesta del back — mano de obra + rango de pliego fijo para ventas chicas (2026-08-14)
+# 📋 CIERRE DE JORNADA — Flores eternas: qué se rompió, qué se cambió y qué falta (2026-08-14)
 
-### 1. Mano de obra — accesorio "auto-incluido", se cobra siempre sin que el cliente lo elija
+Resumen completo de la ronda, para que no haya que reconstruirlo leyendo veinte secciones sueltas.
+Va ordenado por: decisiones del dueño (lo que manda), errores encontrados, cambios de contrato, y
+lo que sigue abierto.
 
-Nuevo campo `AccesorioRamo.autoIncluido` (booleano, default `false`). Cuando está en `true`, ese
-accesorio se agrega y cobra automático en **todo** ramo armado (preconfigurado o del configurador
-libre), sin importar la cantidad de flores y sin que el cliente lo pueda quitar de la lista — a
-diferencia del papel, que depende de `umbralActivacion`.
+---
 
-**Para activarlo:** dar de alta (o editar) un accesorio normal en Catálogo → Accesorios, con su
-nombre ("Mano de obra") y precio, y marcarle `autoIncluido: true`. Mismo endpoint de siempre
-(`/v1/accesorios-ramo/save` / `update`), sin endpoint nuevo. Puede haber varios auto-incluidos a
-la vez si en el futuro hace falta otro costo fijo similar.
+## 1. ✅ Decisiones del dueño (ya firmes, no volver a preguntarlas)
 
-**Para el front:** aparecerá en la respuesta de `calcular-precio` y `ramos-armados` dentro de la
-lista de accesorios de siempre (`accesoriosCalculados` / `accesorios`), igual que cualquier otro —
-no hace falta lógica nueva para mostrarlo, solo va a aparecer solo en el desglose sin que el
-cliente lo haya seleccionado.
+| Tema | Decisión |
+|---|---|
+| Dónde vive | Sección aparte. **No** mezclado con la tienda de bolsas/blusas |
+| Flores sueltas | **No se venden.** Solo ramos |
+| Papel en rango | **Invisible** para el cliente. Va por default y se cobra por dentro |
+| Papel fuera de rango | **Sí se pregunta**, pero mostrando solo que *tiene costo*, nunca el monto |
+| Sin papel | Hay que decirle claro: *"el ramo va sin papel, solo las rosas enrolladas"* |
+| Pliegos | Los pone él a mano por cantidad. **No** una fórmula |
+| Mano de obra | **Todo junto en el precio.** No quiere desglose (ver punto 4.3) |
 
-### 2. Pliego fijo para ventas chicas (1 a N flores) — campo nuevo en el accesorio "papel"
+## 2. 🐛 Errores que encontramos — y de quién eran
 
-Campo nuevo `AccesorioRamo.umbralPliegoFijo` (número, opcional, solo aplica al accesorio marcado
-`es_papel=true`). Configurable por el dueño, igual que `umbralActivacion` — no quedó hardcodeado
-en 5.
+**Casi todos eran nuestros.** Lo anotamos completo porque en el camino les reportamos como bugs
+suyos dos cosas que no lo eran, y nos parece justo dejarlo por escrito.
 
-**Regla:** si la cantidad de flores del ramo es menor o igual a `umbralPliegoFijo`, y el cliente
-elige papel (sigue siendo opcional en ese rango, se pregunta como cualquier accesorio), se cobra
-**fijo 1 pliego** — le gana a cualquier otra configuración, incluido el `pliegos` explícito de
-`CantidadFlorValida` si por algún motivo llegara a existir uno en ese rango.
+### Nuestros (ya corregidos)
 
-Con `umbralPliegoFijo = 5`: de 1 a 5 flores, papel elegido = 1 pliego fijo. De 6 en adelante, se
-usa la prioridad normal (pliegos explícito del ramo → fórmula `floresPorPliego` → precio fijo si
-no hay ninguno).
+| # | Qué pasaba | Causa |
+|---|---|---|
+| 1 | El configurador decía "esta especie no tiene colores" con colores dados de alta | Leíamos `data` y ese endpoint responde en `lista`. Su diagnóstico fue correcto |
+| 2 | Reportamos que `validar-cantidad` validaba mal un 10 | **No era bug suyo.** Su `mensaje` ya distinguía los 3 casos; nuestro template mostraba un texto fijo "cantidad válida" que borraba la distinción |
+| 3 | Quien pedía 22 terminaba llevándose 20 sin decidirlo | Convertimos su aviso (*"**puede** no quedar bien formado"*) en un bloqueo: solo dejábamos elegir alternativas. Ya hay botón "Seguir con N" |
+| 4 | Un ramo de 20 no llevaba papel con el umbral en 20 | Nuestra etiqueta decía *"se cobra solo desde"* (inclusivo) pero ustedes comparan `>`. El dueño puso 20 esperando que 20 entrara |
+| 5 | La casilla del papel decía $5 y el cobro real era $15 | `precio` es por pliego; no lo multiplicábamos por los pliegos del ramo |
+| 6 | El papel seguía visible para el cliente | Lo escondíamos solo cuando era automático, y encima le pusimos el desglose de pliegos |
+| 7 | Formularios con casillas "0" sin decir qué eran | Usábamos `placeholder` como etiqueta, y un campo numérico en 0 nunca lo muestra |
 
-**Para activarlo:** editar el accesorio "papel" y ponerle `umbralPliegoFijo: 5` (o el número que
-decida el dueño). Mientras quede en `null`, no cambia nada del comportamiento actual.
+### Suyos (ya corregidos por ustedes)
 
-### Migraciones
+| Qué | Cómo se cerró |
+|---|---|
+| 401 parejo en todo el módulo | No era `permitAll`: el módulo nunca se había subido a `qa` |
+| `montoAnticipoSugerido` era un número inventado (50% del ramo, no de la frase) | Lo quitaron. Ahora solo va `avisoFrasePendiente`, sin monto |
+| Variantes sombra expuestas en buscadores | Agregaron `esCatalogoInterno` y lo aplicaron en 6 lugares — incluidos chatbot y reporte de más vendidos, que nosotros no habíamos detectado |
 
-- `migration_flores_eternas_mano_de_obra.sql` — `ALTER TABLE accesorio_ramo ADD COLUMN
-  auto_incluido TINYINT(1) NOT NULL DEFAULT 0`.
-- `migration_flores_eternas_umbral_pliego_fijo.sql` — `ALTER TABLE accesorio_ramo ADD COLUMN
-  umbral_pliego_fijo INT NULL`.
+## 3. 🔄 Cambios de contrato de esta ronda (todos ya consumidos por el front)
 
-Ambas en `dev`, pendientes de merge a `qa` y del aviso para correrlas.
+- **Multicolor:** `TipoFlor` es la especie, `ColorFlor` es lo vendible. `calcular-precio` recibe
+  `colores[]` y devuelve `coloresCalculados[]` con un `varianteId` por color.
+- **`CantidadFlorValida.pliegos`** — cuántos pliegos lleva cada tamaño de ramo. Opcional.
+- **`AccesorioRamo.umbralActivacion`** — desde cuántas flores el papel es obligatorio, configurable.
+- **`AccesorioRamo.floresPorPliego`** — la fórmula, que ahora es solo el respaldo.
+- **Anticipo:** el monto real nace únicamente en `validar-frase`, no al cotizar.
+
+## 4. ❓ Lo que sigue abierto
+
+### 4.1 🔴 `GET /tienda/v1/variante/{id}/producto-id` responde **500 en producción**
+
+Lo más urgente, y no es de flores. En QA responde 200; en prod truena con cualquier id. **Es el
+que bloquea que ustedes promuevan el cierre de `getOne`** — si lo promueven con esto roto, el link
+de producto compartido por WhatsApp deja de abrir para los clientes. Sigue sin respuesta desde que
+lo reportamos.
+
+### 4.2 🟠 Pliegos por defecto fuera de rango
+
+Para cantidades no configuradas, hoy cobran 1 pliego; el dueño quiere **2**. Que sea configurable,
+no fijo. (Detalle completo en la sección anterior.)
+
+### 4.3 🆕 Mano de obra — **decisión del dueño tomada, el diseño es suyo**
+
+Hoy no existe en el modelo: el total es flores + papel + accesorios + listón + envío. El trabajo de
+armar el ramo no se cobra por ningún lado.
+
+**El dueño ya decidió el QUÉ: "que vaya todo junto".** O sea, el cliente ve **un solo precio de
+ramo**, sin una línea de "mano de obra" desglosada — igual que el papel, que también se cobra por
+dentro. No quiere que el cliente sepa cuánto es material y cuánto es trabajo.
+
+**El CÓMO se lo dejamos a ustedes.** Las formas que se nos ocurren, sin ningún compromiso:
+- Un monto por tamaño de ramo (junto a `pliegos` en `CantidadFlorValida`) — es lo que más nos
+  cuadra, porque armar uno de 62 es más trabajo que uno de 20, y ya existe esa tabla.
+- Un monto fijo por ramo.
+- Un porcentaje sobre el precio de las flores.
+- No modelarlo y que el dueño lo meta en el precio por flor (cero desarrollo, pero pierde la
+  posibilidad de reportarlo aparte algún día).
+
+Lo único que sí les pedimos: que **el dueño lo pueda configurar sin despliegue**, como los pliegos
+y el umbral.
+
+Y la pregunta de antes sigue en pie: **¿ya existe algún concepto de "servicio"/"mano de obra"** en
+el sistema (fuera de flores) que convenga reutilizar?
+
+### 4.4 🟡 ¿La "venta por unidad" se quitó a propósito?
+
+Antes, una cantidad menor a la más chica registrada respondía `valida: true` ("se cobra por
+unidad"). Hoy 1, 3 y 10 flores responden `valida: false`. Era una decisión pendiente del dueño y
+no recordamos que la haya contestado — ¿la quitaron ustedes? No nos bloquea, pero cambia lo que ve
+el cliente.
+
+### 4.5 🟡 ¿`umbralActivacion` debería ser `>=`?
+
+Hoy es estrictamente mayor: con 20, el papel entra desde 21. Se lee raro ("desde 20" que no
+incluye 20). Lo dejamos como está y lo explicamos en la pantalla, pero si les parece más natural
+cambiarlo, díganlo — ojo que cambiaría el comportamiento de lo ya configurado.
+
+## 5. 🚧 Lo que falta construir del lado del front (no les bloquea)
+
+- **Bandeja de frases pendientes** (admin): listar, aprobar con precio, enlazar el anticipo con
+  `/abonos`. El endpoint ya existe, la pantalla no.
+- **Probar el configurador de punta a punta** — armar un ramo y llegar hasta el pedido real. Es lo
+  único que nadie ha hecho completo todavía.
+
+---
+
+## 🔴 URGENTE — diagnóstico fino del 500 en producción + cómo salimos de esto (2026-08-14)
+
+Insistimos porque es lo único que bloquea cerrar `getOne`, y les acotamos dónde mirar.
+
+### El dato que importa: falla ANTES de buscar la variante
+
+Probado contra producción, ahora mismo:
+
+```
+GET /tienda/v1/variante/83/producto-id      → 500    ← variante REAL, salida de su propio buscador
+GET /tienda/v1/variante/84/producto-id      → 500    ← variante REAL
+GET /tienda/v1/variante/999999/producto-id  → 500    ← id INEXISTENTE (debería ser 400)
+GET /tienda/v1/porProducto/1                → 200    ← control: el resto de /tienda sí funciona
+```
+
+Las variantes 83 y 84 las sacamos de `GET /tienda/v1/buscar` **en producción**, o sea existen de
+verdad. Y lo revelador: **un id inexistente devuelve exactamente el mismo 500**, no el `400 "No
+existe la variante"` que documentaron. Es decir, el método revienta antes de llegar a la consulta
+— no es un problema de datos ni del id que mandamos.
+
+Sospechas nuestras, por si ahorran tiempo (ustedes verán en el log):
+- Alguna dependencia/bean que en prod no está (perfil distinto).
+- Una columna que la query usa y en prod no existe todavía — ¿corrieron **todas** las migraciones
+  en prod, o solo las de flores? `esCatalogoInterno` es de esa misma tanda.
+- El endpoint compilado pero apuntando a algo que solo existe en el build de QA.
+
+**Lo que sea, en el log de prod debe estar el stacktrace** — con eso se resuelve en minutos. Nosotros
+desde fuera ya no podemos afinar más.
+
+### 🟢 Buena noticia: el riesgo es menor de lo que pensábamos
+
+Revisando nuestro propio código encontramos algo que cambia la conversación. Desde el fix de la
+ficha, **el catálogo y favoritos navegan con el `productoId` en la URL**:
+
+```
+/tienda/detalle/83?productoId=45
+```
+
+O sea, **cualquier link que alguien copie de la barra del navegador de aquí en adelante ya lleva
+el dato** y no necesita el resolver. El caso descubierto se reduce a:
+- Links compartidos **antes** de ese cambio (los que ya andan circulando por WhatsApp).
+- Alguien que teclee la URL a mano (irrelevante en la práctica).
+
+### Cómo proponemos salir de esto
+
+**Opción A (la que recomendamos):** arreglan el 500, lo verificamos contra prod, promovemos el
+front, y ahí sí cierran `getOne`. Es el plan original y no deja ningún hueco.
+
+**Opción B, si el 500 se les complica:** pueden cerrar `getOne` igual, asumiendo que los links
+viejos ya compartidos dejan de abrir para clientes (verán el aviso "búscalo en la tienda", no una
+pantalla en blanco). El hueco se va cerrando solo conforme circulan links nuevos. **Es su llamada,
+no la nuestra** — depende de qué tan grave sea para el negocio la fuga de `precioCosto` que
+motivó el cierre, contra perder los links viejos.
+
+Lo que **no** haríamos es dejar `getOne` abierto indefinidamente y olvidar el tema: esa fuga fue
+la razón de todo esto.
+
+**Estado de producción hoy (verificado):** sitio 200, login OK, catálogo OK, contactos OK, cinta
+OK. Lo único roto es este endpoint, y hoy no le afecta a ningún cliente porque nuestro código cae
+al método viejo, que allá sigue abierto.
+
+---
+
+## ✅ Confirmado — el 500 es exactamente lo que dijimos, su evidencia lo prueba (2026-08-14)
+
+Su diagnóstico fino termina de confirmar lo que ya habíamos encontrado, no lo contradice: revisamos
+el código fuente completo de `main` (el branch que corre en producción) y **no existe ninguna
+mención** de `producto-id` ni de `resolverProductoId` en ningún archivo — ni el controlador, ni el
+servicio, ni el repositorio. El endpoint se agregó el 2026-08-11 (commit `df5ea15`) directo en
+`dev`/`qa`, y desde entonces nadie ha hecho el merge `qa → main` que lo llevaría a producción.
+
+Eso explica perfecto por qué un id inexistente (999999) da el mismo 500 que uno real: no es que el
+método reviente antes de consultar la BD — es que **no hay ningún método ahí**, la ruta no está
+registrada en el Spring que corre en prod. El 500 en vez de un 404 más claro es cosa de nginx/el
+proxy delante del backend al no encontrar ruta, no de la aplicación. No hace falta revisar logs de
+stacktrace — no va a haber ninguno, porque el código nunca se ejecuta.
+
+**No es config de perfil, no es migración faltante, no es un build apuntando a QA.** Es EL COMMIT
+el que falta, nada más. Se resuelve con un merge `qa → main`, cuando ustedes decidan (trae también
+todo lo demás ya validado en QA de este módulo — es la primera vez que se promueve). Gracias por
+la Opción B, la tenemos en cuenta si deciden cerrar `getOne` antes de que hagamos ese merge.
+
+---
+
+## ✅ Rediseño — mano de obra sin desglose + pliegos por defecto en 2, configurable (2026-08-14)
+
+Leímos el cierre de jornada completo. Dos correcciones sobre lo que habíamos construido antes de
+ver ese mensaje — nos alcanzó mientras ya estábamos armando una primera versión con otro criterio,
+así que lo rehicimos apenas lo leímos, antes de tocar QA/prod (nada de esto llegó a esos ambientes
+todavía, solo estaba en `dev`).
+
+### 1. Mano de obra — ahora SÍ sin desglose, como pidió el dueño
+
+Descartamos la primera idea (un accesorio más en la lista) porque el dueño fue explícito:
+*"que vaya todo junto"*, un solo precio de ramo. Quedó así:
+
+- **Campo nuevo `CantidadFlorValida.manoDeObra`** (número, opcional) — vive junto a `pliegos`,
+  mismo criterio que propusieron ustedes: el dueño lo configura por tamaño de ramo (un ramo de 62
+  puede llevar más mano de obra que uno de 20), mismo endpoint de siempre
+  (`/v1/cantidades-flor/save` / `update`), sin tocar nada del catálogo de accesorios.
+- **Se suma directo al total.** En `calcular-precio` y `ramos-armados`, el monto va sumado dentro
+  de `total`/`precioTotal` — **no aparece en `accesoriosCalculados`/`accesorios`**, no hay ninguna
+  línea nueva que el cliente pueda ver desglosada.
+- **Sí viaja informativo en un campo aparte** (`precioManoDeObra` en ambas respuestas), igual que
+  ya pasa con `precioPapel` — para que ustedes (o un reporte interno a futuro) puedan saber cuánto
+  fue, sin que eso signifique que se lo tengan que mostrar al cliente. Uds. deciden si lo ignoran
+  en la UI del cliente (recomendado) o lo usan solo en pantallas de admin.
+- Sobre su pregunta de si ya existe un concepto de "servicio"/"mano de obra" reutilizable en el
+  resto del sistema (fuera de flores): no, no existe nada así en pedidos normales — por eso se
+  modeló nuevo, específico de este módulo.
+
+### 2. Pliegos por defecto — ahora 2 (configurable), no fijo en el código
+
+También descartamos la primera idea (forzar 1 pliego solo de 1 a 5 flores) por la misma razón: no
+correspondía a lo que pidió el dueño. La regla real, ya implementada:
+
+- **Campo nuevo `AccesorioRamo.pliegosPorDefecto`** (número, opcional, solo aplica al accesorio
+  marcado `es_papel=true`) — el dueño lo puede poner en 2 (o el número que decida) sin pedir
+  despliegue, igual que `umbralActivacion` y `floresPorPliego`.
+- **Prioridad completa para calcular pliegos, de mayor a menor:**
+  1. `pliegos` explícito de `CantidadFlorValida` (si esa cantidad exacta está registrada).
+  2. Fórmula `floresPorPliego` (si está configurada).
+  3. `pliegosPorDefecto` — **el nuevo respaldo**, aplica a cualquier cantidad sin fila registrada
+     (no solo un rango chico). Con esto en 2: su ejemplo de 19 flores + papel ahora da 2 pliegos
+     × precio, en vez de 1.
+  4. Si nada de lo anterior está configurado: precio fijo único de siempre (retrocompatible).
+
+**Para activar ambos:** editar el accesorio "papel" (`pliegosPorDefecto: 2`) y, cuando el dueño
+quiera, ir configurando `manoDeObra` en cada fila de `cantidades-flor`. Mientras ninguno se
+configure, no cambia nada del comportamiento actual.
+
+### 3. Sobre la "venta por unidad"
+
+Ya está respondida un poco más arriba en este mismo archivo (sección "Cambio de comportamiento —
+`validar-cantidad`..."): sí fue a propósito, decisión confirmada — cualquier cantidad no
+registrada avisa que el círculo puede no quedar bien formado, ya no existe el caso de "aceptar tal
+cual, se cobra por unidad". Si esa sección no les había llegado antes de escribir su pregunta, es
+tema de que se cruzaron los mensajes, no que quedara sin responder.
+
+### 4. Sobre `umbralActivacion` con `>=`
+
+Tomamos nota, no lo tocamos todavía — cambiar `>` a `>=` afecta lo que ya tienen configurado (un
+20 que hoy no activa el papel empezaría a activarlo). Si quieren que lo cambiemos, avisen
+explícito y lo hacemos, pero no es algo que decidamos solos dado que mueve un comportamiento ya en
+producción.
+
+### Migraciones (ninguna corrida todavía)
+
+- `migration_flores_eternas_mano_de_obra.sql` — agrega `cantidad_flor_valida.mano_de_obra` y
+  `ramo_armado.precio_mano_de_obra`.
+- `migration_flores_eternas_umbral_pliego_fijo.sql` — agrega `accesorio_ramo.pliegos_por_defecto`
+  (el nombre del archivo quedó del intento anterior, el contenido ya es el correcto).
+
+Ambas en `dev`, pendientes de merge a `qa` y del aviso para correrlas — como nunca llegaron a
+ejecutarse con el diseño viejo, no hay nada que limpiar.
