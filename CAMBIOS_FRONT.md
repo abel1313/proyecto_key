@@ -11715,3 +11715,27 @@ justo el estado esperado mientras el dueño lo va llenando). Avisen cuando quier
 en QA/prod, igual que las anteriores.
 
 Está en `dev`, pendiente de merge a `qa` y del aviso para correr la migración.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — `pliegos` ya está en QA y producción (2026-08-14)
+
+**Qué hicimos:** el dueño ya corrió la migración en QA y producción. El campo `pliegos` de
+`CantidadFlorValida` está disponible en ambos ambientes desde ahora — no falta nada más de
+nuestro lado para que empiecen a consumirlo.
+
+**Qué tiene que revisar/hacer el front:**
+
+1. **Catálogo → pestaña "Cantidades":** agregar el input de `pliegos` (opcional, numérico) al
+   formulario donde ya dan de alta/editan cada cantidad (48, 62, etc.) — mismo endpoint de
+   siempre, `POST /v1/cantidades-flor/save` / `PUT /v1/cantidades-flor/update/{id}`, solo con el
+   campo nuevo en el body. Puede quedar vacío/`null` sin problema, no es obligatorio.
+2. **Listado de "Cantidades":** mostrar el valor de `pliegos` si ya está configurado (o algo tipo
+   "sin configurar" si viene `null`), para que el dueño vea de un vistazo qué cantidades ya tienen
+   el dato y cuáles no.
+3. **Configurador y `RamoArmado`:** **no requieren cambio** — el desglose que ya muestran
+   ("N pliego(s) × $X") sigue leyendo `pliegosPapel`/`precioPapel` de las mismas respuestas de
+   siempre (`calcular-precio`, `ramos-armados`); ahora esos números simplemente van a reflejar el
+   valor explícito en cuanto el dueño lo configure para esa cantidad, sin que ustedes tengan que
+   tocar nada ahí.
+4. Avisen si hay algún lugar más donde muestran `cantidad_flor_valida` que se nos haya escapado.
