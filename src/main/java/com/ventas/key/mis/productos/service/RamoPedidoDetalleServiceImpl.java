@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 // "Ticket de produccion" de un ramo -- ver comentario en RamoPedidoDetalle. Se adjunta a un
 // Pedido que YA fue creado por el flujo normal (POST /v1/pedidos/savePedido, con las lineas de
@@ -187,10 +188,21 @@ public class RamoPedidoDetalleServiceImpl {
     // aqui -- ver nota de arquitectura en CAMBIOS_FRONT.md sobre por que no se toco el endpoint
     // generico de abonos). Si el pago llega despues de fechaLimitePago, agrega el cargo urgente
     // como linea real al pedido (recotiza) en vez de cancelar el pedido -- decision del dueno.
+    //
+    // El front no tiene forma de saber si un pedido es de flores antes de llamar esto (la pantalla
+    // de abonos es generica para todo el sistema), asi que un pedido SIN RamoPedidoDetalle no es un
+    // error -- responde 200 con cargoRecienAplicado:false igual que "no aplica urgencia todavia",
+    // para que puedan llamarlo siempre sin ensuciar la consola con 400s esperados. Pedido inexistente
+    // si sigue siendo error real.
     @Transactional
     public RevalidarPagoResponseDto revalidarAntesDePagar(Integer pedidoId) {
-        RamoPedidoDetalle detalle = iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().findFirst()
-                .orElseThrow(() -> new ExceptionDataNotFound("No hay detalle de ramo para el pedido: " + pedidoId));
+        Optional<RamoPedidoDetalle> detalleOpt = iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().findFirst();
+        if (detalleOpt.isEmpty()) {
+            Pedido pedidoSinRamo = iPedidoRepository.findById(pedidoId)
+                    .orElseThrow(() -> new ExceptionDataNotFound("Pedido no encontrado: " + pedidoId));
+            return new RevalidarPagoResponseDto(false, null, pedidoSinRamo.getTotalPedido(), null);
+        }
+        RamoPedidoDetalle detalle = detalleOpt.get();
         Pedido pedido = detalle.getPedido();
 
         if (!Boolean.TRUE.equals(detalle.getEsUrgente()) || detalle.getFechaLimitePago() == null) {

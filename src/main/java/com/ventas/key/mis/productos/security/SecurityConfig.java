@@ -154,10 +154,12 @@ public class SecurityConfig {
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers("/v1/abonos/**").hasRole("ADMIN")
 
-                        // ── Lugares de entrega (catalogo; lectura para cualquier autenticado
-                        //    -- lo usa el select del checkout del cliente y el de venta directa;
-                        //    alta/edicion/baja solo ADMIN) ─────────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").authenticated()
+                        // ── Lugares de entrega (catalogo; lectura publica -- mismo criterio que
+                        //    los catalogos de flores de abajo: nombre de zona y costo de envio,
+                        //    nada sensible. Antes era solo "autenticado", lo que dejaba fuera al
+                        //    visitante anonimo del configurador publico de flores (2026-08-14);
+                        //    alta/edicion/baja sigue solo ADMIN) ──────────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").permitAll()
                         .requestMatchers("/v1/lugares-entrega/**").hasRole("ADMIN")
 
                         // ── Promociones (catalogo para cualquier autenticado; gestion ADMIN) ─
