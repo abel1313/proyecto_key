@@ -14106,3 +14106,426 @@ tamaño más cercano, igual que ya pasa con los plazos de entrega.
 
 **No es un bug — es el comportamiento actual**, documentado para que quede claro antes de decidir
 si conviene unificarlo con el resto del rediseño de papel/pliegos que está en discusión arriba.
+
+---
+
+## ✅ FRONT — calendario de entrega conectado + `urgente` ya viaja (2026-08-14)
+
+Conectado todo lo de su último bloque. Está en `dev` y `qa`.
+
+### Lo que quedó
+
+- **`POST /v1/flores/fechas-disponibles`** — el paso 6 del configurador ya no es un select suelto:
+  consulta el plazo real y preselecciona lo más pronto posible. El `<input type="date">` lleva
+  `min` en `primeraFechaValida` y la hora sale de `horasDisponibles`, así que **no hay forma de
+  elegir una fecha que ustedes no puedan cumplir**.
+- **Bloqueo cuando `primeraFechaValida: null`** — se muestra su `mensaje` tal cual y se deshabilita
+  el botón de confirmar. Si el cliente había pedido urgente y por eso vino `null`, el front se
+  regresa solo a normal para que no quede atorado con un botón encendido y sin fecha.
+- **Botón «⚡ Lo necesito antes»**, visible solo con `ofreceUrgente: true`, con el
+  `cargoUrgencia` en la etiqueta.
+- **`urgente` y `fechaHoraEntrega` ya van** en `calcular-precio` y en `.../detalle`.
+- **`requiereAnticipo: true` → el pedido nace `APARTADO`** (con `estadoPedido: "APARTADO"`, no
+  `"Pendiente"`), no `NORMAL` de contado.
+- **`precioUrgencia` sí lleva línea propia en el resumen**, a diferencia del papel y la mano de
+  obra que van fundidos en la línea de flores. El cliente lo eligió a propósito en un botón que ya
+  le decía el precio; escondérselo después sería raro. Verificado que las líneas visibles suman el
+  total exacto (1,225 + 300 = 1,525).
+
+### 🔴 Pero el fix de `calcular-precio` NO está en QA
+
+Su commit de hoy dice que ya acepta `urgente` y cobra el cargo. **En QA no lo hace.** Probado hace
+un momento:
+
+```
+POST /v1/flores/calcular-precio
+{ "colores":[{"colorFlorId":1,"cantidad":48}], "accesorios":[], "listones":[],
+  "urgente": true, "fechaHoraEntrega": "2026-08-15T18:00:00" }
+
+→ precioUrgencia: null,  requiereAnticipo: false,  montoAnticipoSugerido: null,  total: 1225.0
+```
+
+Probado también sin `fechaHoraEntrega` y sin `urgente`: idéntico. Responde 200 siempre, no
+rechaza el campo.
+
+**No es que falte configuración** — `fechas-disponibles`, contra el mismo tamaño y en el mismo
+momento, sí devuelve el cargo:
+
+```
+POST /v1/flores/fechas-disponibles  { "tipoFlorId":1, "cantidad":48, "urgente":true }
+→ primeraFechaValida: "2026-08-15T18:00:00",  cargoUrgencia: 300.0,  ofreceUrgente: true
+```
+
+O sea: el tamaño de 48 tiene su `cargoUrgente: 300` bien puesto y un endpoint lo ve y el otro no.
+Nos late que QA quedó con el build anterior (el de `ec8221d`/`2153f92`, que sí trae
+`fechas-disponibles`) y el commit del hueco no se desplegó. ¿Lo confirman?
+
+**Mientras tanto no rompe nada**: el front ya manda `urgente` y ustedes lo ignoran, así que el
+ramo se cobra como normal. En cuanto desplieguen, empieza a cobrarse solo, sin que toquemos nada.
+
+### ❓ Lo único que nos falta para cerrar el flujo: `revalidar-antes-de-pagar`
+
+Está claro **cuándo** llamarlo (antes de `POST /v1/abonos/{pedidoId}`, y usar el `totalActual` que
+devuelva). Lo que no sabemos es **cómo saber que toca llamarlo**.
+
+Quien cobra el anticipo es el admin desde `/abonos`, y esa pantalla trabaja con pedidos de todo
+tipo — no tiene forma de distinguir un ramo de flores de una venta de blusas. Las opciones que
+vemos:
+
+1. **Llamarlo siempre** antes de cualquier abono e ignorar el error si el pedido no es de flores.
+   Nos incomoda: dispararía un 404/400 en cada cobro normal, y ensuciar la consola con errores
+   esperados hace que después nadie note los de verdad.
+2. **Que el pedido diga que es de flores** — un flag en el detalle del pedido
+   (`GET /v1/pedidos/{id}/detalle`), por ejemplo `esRamoFlores: true` o que venga el
+   `ramoPedidoDetalleId`. Con eso el front llama solo cuando corresponde. **Esta nos parece la
+   más limpia**, pero es campo nuevo de su lado.
+3. Que `revalidar-antes-de-pagar` responda 200 con `cargoRecienAplicado: false` para pedidos que
+   no son de flores, en vez de error. Así la opción 1 deja de ser sucia.
+
+¿Cuál prefieren? Con 2 o 3 lo conectamos de inmediato. **Hasta entonces el cobro tardío de un ramo
+urgente no se está recotizando** — el pedido queda con el precio del momento en que se cotizó.
+
+---
+
+## 🔴 SEGUIMIENTO — el cargo urgente sigue sin aplicarse en QA (2026-08-14, mismo día)
+
+El dueño ya está probando el configurador y **el cargo urgente no le aparece**. Volvimos a medir
+ahora mismo, y agregamos lo que faltaba: **la prueba de que el front sí manda el flag**, capturada
+del navegador al pulsar el botón de urgente.
+
+**Lo que sale del front:**
+```json
+POST /v1/flores/fechas-disponibles
+{"tipoFlorId":1,"cantidad":48,"lugarEntregaId":null,"urgente":true}
+
+POST /v1/flores/calcular-precio
+{"colores":[{"colorFlorId":1,"cantidad":48}],"accesorios":[],"listones":[],
+ "fechaHoraEntrega":"2026-08-16T18:00:00","urgente":true}
+```
+
+**Lo que responde QA, con esos mismos datos:**
+```
+fechas-disponibles → cargoUrgencia: 300.0   ofreceUrgente: true   primeraFechaValida: 2026-08-16T18:00:00
+calcular-precio    → precioUrgencia: null   requiereAnticipo: false   total: 1225.0
+```
+
+Los dos endpoints leen el mismo tamaño (48, con su `cargoUrgente: 300` configurado) en el mismo
+instante: uno lo ve y el otro no. Con eso quedan descartados el front, la configuración del dueño
+y los datos — **solo queda el despliegue**.
+
+**¿Nos confirman si el commit del hueco llegó a QA?** Es lo único que bloquea al dueño para
+terminar de probar el flujo urgente de punta a punta. No corre prisa de nuestro lado: el front ya
+está listo y no hay que tocarlo, empieza a cobrarse solo en cuanto suban.
+
+Sigue abierta también la pregunta del bloque anterior: **cómo sabe `/abonos` que un pedido es de
+flores**, para llamar `revalidar-antes-de-pagar` únicamente cuando corresponde.
+
+---
+
+## 🔴 URGENTE — el cargo sigue sin aplicarse y el dueño ya está vendiendo con eso (2026-08-14)
+
+Tercera vuelta del mismo tema. El dueño está probando el configurador **en vivo** y nos reclama que
+el cargo no aparece. Descartamos ya todo lo que estaba de nuestro lado:
+
+**1. No es el nombre del campo.** Probamos cuatro variantes contra QA, todas con el mismo
+resultado (`precioUrgencia: null`, `total: 515.0` en un ramo de 20):
+
+```
+"urgente": true          → precioUrgencia: null
+"esUrgente": true        → precioUrgencia: null
+"entregaUrgente": true   → precioUrgencia: null
+"urgente": "true"        → precioUrgencia: null
+```
+
+**2. No es la configuración.** El mismo tamaño de 20, en el mismo instante:
+
+```
+fechas-disponibles → cargoUrgencia: 50.0   primeraFechaValida: 2026-08-16T12:00:00
+calcular-precio    → precioUrgencia: null  requiereAnticipo: false  total: 515.0
+```
+
+**3. No es el front.** Ya les mandamos la captura del payload en el bloque anterior.
+
+### ⚠️ El riesgo mientras tanto no es cosmético
+
+Con `requiereAnticipo: false`, un ramo urgente **no solo se cobra sin el extra: nace `NORMAL` en
+vez de `APARTADO`**. O sea, el taller corre a armarlo con prisa, gratis y sin haber recibido el
+50% de enganche. Es dinero que se pierde en cada pedido urgente que entre así.
+
+**Por eso el front ahora bloquea la venta urgente** cuando detecta la incoherencia (pidió urgente
++ el tamaño tiene cargo + el cálculo vuelve sin él): muestra un aviso y deshabilita el botón de
+confirmar. **Se apaga solo en cuanto ustedes devuelvan `precioUrgencia`** — no hay que avisarnos
+ni quitar nada. No sumamos el cargo por nuestra cuenta a propósito: el front no puede crear la
+línea del pedido (no hay variante de urgencia), así que enseñaríamos un total distinto al que se
+cobra, que es peor que no vender.
+
+### 🟠 Aparte — en PRODUCCIÓN los GET de flores piden token
+
+Revisando, encontramos que en prod el configurador público no funcionaría:
+
+```
+PROD  GET /v1/cinta/activos          → 200 (público, ok)
+PROD  GET /v1/tipos-flor/getAll      → 404 "Token invalido o expirado"
+PROD  POST /v1/flores/fechas-disponibles → 404 "Token invalido o expirado"
+```
+
+En QA esos mismos responden 200 sin token. Las rutas `/flores/ramos` y `/flores/configurar` del
+front son **públicas** (un visitante sin cuenta puede armar su ramo y solo se le pide registro al
+confirmar), así que tal como está prod, a ese visitante se le rompe la pantalla completa.
+
+Suponemos que es el mismo `qa → main` pendiente del que ya hablamos. **No corre prisa** — el dueño
+está probando en QA — pero conviene que no se les pase cuando publiquen flores.
+
+### Corrección del bloque anterior — el front ya NO bloquea la venta urgente
+
+El dueño está en pruebas y bloquear le impedía probar justo el flujo urgente. Cambiado a **aviso +
+confirmación**: se le dice cuánto no se está cobrando y que el pedido quedará de contado sin
+anticipo, y decide si continúa. Sigue apagándose solo cuando ustedes devuelvan `precioUrgencia`.
+
+Los dos puntos (cargo urgente y los GET de flores con token en prod) quedan anotados de nuestro
+lado para revisarlos **antes de publicar**, no ahora. Sin prisa.
+
+---
+
+## ✅ CONFIRMADO — el cargo urgente ya se aplica en QA (2026-08-14)
+
+Desplegaron y funciona. Verificado contra QA, ramo de 20 con urgencia:
+
+```
+precioBase 500 + papel 15 (3 pliegos × $5) + urgencia 50  =  total 565
+requiereAnticipo: true    montoAnticipoSugerido: 282.50
+```
+
+Sin urgencia sigue en 515 sin anticipo. El bloqueo defensivo del front **se apagó solo**, como
+dijimos. Probado también en pantalla contra QA real: sale la línea "⚡ Entrega urgente $50.00",
+el total 565 y la nota del anticipo. Gracias.
+
+## 🔴 Encontrado al probar contra QA real — `lugares-entrega/getAll` expulsa al visitante anónimo
+
+```
+GET /v1/lugares-entrega/getAll   sin token  → 401
+GET /v1/tipos-flor/getAll        sin token  → 200
+GET /v1/accesorios-ramo/getAll   sin token  → 200
+GET /v1/cantidades-flor/getAll   sin token  → 200
+```
+
+El configurador pedía las zonas al abrir, para llenar el selector de "¿dónde lo quieres?". Como el
+`TokenInterceptor` manda al login ante **cualquier** 401, el visitante sin cuenta entraba a
+`/flores/configurar` y **salía disparado a `/login` antes de ver nada**. La pantalla es pública a
+propósito (arma su ramo y solo se le pide cuenta al confirmar), así que se rompía el flujo entero
+de un cliente nuevo. No se veía antes porque el dueño prueba con sesión de admin.
+
+**Ya lo tapamos del lado del front:** las zonas se piden solo si hay sesión. El anónimo se queda
+sin selector de zona, que es aceptable pero no ideal.
+
+**¿Pueden hacer público el GET de `lugares-entrega`?** Mismo criterio que los catálogos de flores:
+son nombres de zona y costo de envío, nada sensible, y **el cliente los necesita para saber cuánto
+le cuesta el envío y cómo cambia su fecha de entrega** (la zona suma `horasExtraAnticipacion`).
+Solo el GET — `save`/`update`/`delete` que sigan siendo admin.
+
+Revisado: la vitrina (`/flores/ramos`) no tiene el problema, `ramos-armados/activos` y
+`negocio/contactos` ya son públicos.
+
+## ⚠️ Sube de prioridad — ¿un cliente NO admin puede leer `lugares-entrega/getAll`?
+
+Complemento del punto anterior. El dueño pidió que **la zona de entrega sea obligatoria** para
+confirmar un ramo (antes se podía cerrar la venta sin decir a dónde iba). Ya está hecho: o eliges
+zona, o marcas "voy a recoger en la tienda".
+
+Eso convierte la duda de arriba en algo más serio. Sabemos que sin token responde **401**. Lo que
+**no** pudimos comprobar es qué responde a un **cliente logueado que no es admin**. Si también lo
+rechaza:
+
+- El cliente no ve ninguna zona en el selector.
+- Y como ahora la zona es obligatoria, **su única salida sería "recoger en la tienda"**.
+- O sea: **nadie podría pedir entrega a domicilio**, que es justo lo que el dueño quiere cobrar
+  con `costoEnvio`.
+
+**¿Nos confirman qué responde a un usuario con rol de cliente?** Y si está protegido, la petición
+sigue siendo la misma: **abrir solo el GET** (nombres de zona y costo de envío, nada sensible),
+dejando `save`/`update`/`delete` como admin. Es el mismo criterio con el que ya son públicos
+`tipos-flor`, `accesorios-ramo` y `cantidades-flor`.
+
+No corre prisa para las pruebas de hoy (el dueño prueba como admin), pero **sí hay que resolverlo
+antes de publicar flores**.
+
+---
+
+## 🆕 PETICIÓN DEL DUEÑO — guardar el pedido aunque el cliente no verifique su correo (2026-08-14)
+
+Hoy, si el cliente no tiene el correo verificado, `POST /v1/pedidos/savePedido` **rechaza** y no se
+guarda nada. El front manda el código, y solo si lo captura bien se vuelve a llamar y ahí sí se
+crea el pedido.
+
+**El dueño quiere lo contrario:** que el pedido **se guarde de todos modos**, en estado pendiente.
+Su razón es de negocio, y es buena: hoy, si el cliente no verifica (correo en spam, dirección mal
+escrita, se aburrió), **el dueño no se entera de nada**. Alguien armó un ramo de $565, se fue, y no
+queda ni el nombre. Esa venta se pierde sin rastro.
+
+### Lo que pidió, en sus palabras
+
+> *"Que se guarde como pendiente, para ambos: tanto para el cliente como para el admin. Y cuando se
+> cancele, solo se le deshabilita al cliente, pero el admin lo puede ver como que lo canceló o que
+> no se verificó. Si el cliente no lo verifica, no pasa nada, se queda guardado, y él regresa a ver
+> el registro y ahí lo puede cancelar o verificarlo, según sea el caso."*
+
+Traducido a comportamiento:
+
+| Situación | Qué ve el cliente | Qué ve el admin |
+|---|---|---|
+| Pidió pero no verificó | Su pedido, marcado como pendiente de confirmar | Lo mismo, y **por qué** está pendiente |
+| Vuelve y verifica | Su pedido pasa a normal | Pedido normal |
+| Vuelve y lo cancela | Ya no le aparece | Sigue viéndolo, marcado **cancelado por el cliente** |
+| Nunca vuelve | Sigue ahí, pendiente | Sigue ahí, con el contacto para poder llamarle |
+
+Lo importante para él: **el pedido queda en la base**, y el cliente puede volver después a
+verificarlo o cancelarlo por su cuenta.
+
+### ⚠️ Antes de que diseñen nada — el alcance no es solo flores
+
+`savePedido` lo usan **las dos** pantallas de cliente: el configurador de flores y el carrito
+normal (`venta-variante`). El dueño lo planteó hablando de flores, pero el cambio afectaría
+**todos los pedidos de cliente**. ¿Lo quieren así para todo, o acotado a flores? Nosotros no
+tenemos criterio para decidirlo — se lo preguntamos también a él.
+
+### Lo que necesitamos que decidan ustedes
+
+No les proponemos el modelo; ustedes conocen las implicaciones. Pero estas dudas nos parecen las
+que hay que resolver antes:
+
+1. **¿El pedido pendiente aparta stock?** Si lo aparta, alguien que nunca verifica **bloquea
+   inventario** que sí se podría vender. Si no lo aparta, al verificar días después el stock puede
+   haberse acabado — ¿qué pasa ahí?
+2. **¿Cuenta en reportes y en el dashboard?** Nos parece que no debería sumar a ventas hasta que
+   se confirme, pero es su decisión.
+3. **¿Caduca?** El dueño dijo "no pasa nada, se queda guardado". ¿Indefinidamente? Si no caduca,
+   la lista puede llenarse de pedidos que nadie va a completar.
+4. **¿Cómo lo distinguimos desde el front?** Hoy `estadoPedido` maneja
+   `Pendiente/Cancelado/APARTADO/FIADO/PAGADO/Entregado`. ¿Un estado nuevo? ¿Un campo aparte?
+   ¿Reusan `motivo_cancelacion` para "cancelado por el cliente" vs "no verificó"?
+5. **¿El cliente puede verificar desde el pedido ya creado?** Lo que imaginamos: entra a "Mis
+   pedidos", ve el suyo pendiente y ahí mismo pide el código. Si eso les sirve, ¿el endpoint de
+   enviar código que ya existe (`/v1/clientes/{id}/enviar-codigo-verificacion`) alcanza, o hace
+   falta uno que además "despierte" ese pedido al verificar?
+
+### Lo que haría el front cuando nos digan
+
+- **Configurador y carrito:** dejar de tratar el 400 como error. Si el pedido queda guardado, se le
+  dice *"tu pedido quedó registrado, confírmalo con el código para que lo empecemos"*, en vez del
+  aviso actual de que no se registró.
+- **Mis pedidos (cliente):** distintivo de "pendiente de confirmar" + botones para **verificar** o
+  **cancelar**.
+- **Mis pedidos (admin):** el mismo pedido visible con el motivo, y que **no desaparezca** cuando
+  el cliente lo cancele.
+
+Sin prisa — el dueño sigue en pruebas. Pero nos gustaría saber si lo ven viable antes de que él
+empiece a publicar.
+
+---
+
+## 🔴 BACK — hueco real encontrado: `tipoPedido` y `totalPagado` seguían sin llegar en `PedidoQuery` (2026-08-14)
+
+Releyendo el pendiente del **2026-07-22** ("Confirmado: sí queremos `totalPagado` en la lista de
+pedidos"), el dato nunca llegó a estar disponible — se quedó abierto sin que nadie volviera a
+confirmar que ya estaba. Encontramos la causa real:
+
+**El SQL ya devolvía ambos campos desde julio.** Las 3 queries nativas de `IPedidoRepository`
+(`buscarPedidosPorCliente`, `buscarTodosLosPedidos`, `findPedidoPorId2`) ya arman
+`'tipoPedido', p.tipo_pedido` y `'totalPagado', p.total_pagado` dentro del `JSON_OBJECT`. **Pero
+el DTO `PedidoQuery.java` no declaraba esos dos campos** — Jackson deserializa por nombre y
+descarta en silencio cualquier propiedad del JSON que no tenga un setter/campo correspondiente, sin
+error ni warning. O sea: el dato viajaba hasta la respuesta HTTP y se perdía justo en el último
+paso, invisible desde afuera.
+
+**Ya corregido** (`PedidoQuery.java`, campos `tipoPedido: String` y `totalPagado: Double`
+agregados). Afecta a los 3 endpoints que usan este DTO:
+
+- `GET /v1/pedidos/buscarClientePedido`
+- `GET /v1/pedidos/findPedido/{id}`
+- `GET /v1/pedidos/pediodPorId` (detalle por id+cliente)
+
+**Shape resultante, exactamente como lo pidieron en julio:**
+```json
+{
+  "id": 89,
+  "fecha_pedido": "22/07/2026 00:04",
+  "estado_pedido": "APARTADO",
+  "tipoPedido": "APARTADO",
+  "totalPagado": 150.00,
+  "nombreReceptor": "...",
+  "detalles": [ ... ]
+}
+```
+
+`totalPagado` viene `null` para pedidos `NORMAL` que nunca tuvieron abonos (no `0` forzado — igual
+que ya se comporta `PedidoDetalleResponse.totalPagado`). Ya pueden conectar
+`puedeGenerarTicket(item)` con el criterio que ya tenían listo del lado del front.
+
+## ✅ Respuesta directa — la pantalla de Entregas NO reemplaza a "Ramos armados"
+
+Son dos cosas distintas por diseño, no hay traslape:
+
+- **`RamoArmado`** — un ramo **preconfigurado para mostrar en catálogo**: nombre, foto de
+  referencia, un color fijo, una cantidad fija (`CantidadFlorValida`), y el precio ya calculado
+  (flores + papel + mano de obra congelados). Es contenido de vitrina, para que el cliente elija
+  "quiero este" sin armar nada.
+- **Pantalla de Entregas** — configura, por tamaño de ramo (`CantidadFlorValida`), los plazos y
+  cargos de entrega (`diasNormal`, `diasUrgente`, `cargoUrgente`, etc.). No arma ramos ni tiene
+  foto ni color — es pura configuración de tiempos, y aplica **tanto** a ramos armados como al
+  configurador libre del cliente, porque ambos cuelgan del mismo tamaño (`CantidadFlorValida`).
+
+Dicho de otra forma: `RamoArmado` es "qué se ve y cuánto cuesta"; Entregas es "cuándo se puede
+entregar". Un `RamoArmado` de 48 flores usa los plazos que el dueño configuró para el tamaño 48 en
+la pantalla de Entregas — están relacionados por el tamaño compartido, pero una pantalla no
+sustituye a la otra.
+
+**Nota aparte, ya señalada arriba en este documento:** hoy el cargo de urgencia **no se valida ni
+se cobra** cuando el pedido es un `RamoArmado` preconfigurado (solo aplica al configurador libre) —
+si alguien pide un ramo armado "para mañana", no hay bloqueo ni cargo todavía. Sigue como hueco
+funcional abierto, no como parte de esta respuesta.
+
+---
+
+## 🔧 BACK — resueltos: `revalidar-antes-de-pagar` tolerante + `lugares-entrega` público (2026-08-14)
+
+Dos pendientes de las últimas rondas, ya corregidos.
+
+### 1. `revalidar-antes-de-pagar` — opción 3, la que preferían
+
+Antes: si el pedido no tenía `RamoPedidoDetalle` (no era de flores), el endpoint respondía `400`
+con `"No hay detalle de ramo para el pedido: {id}"`. Ahora responde `200` con
+`cargoRecienAplicado: false` y `totalActual` = el total actual del pedido tal cual, igual que
+cuando sí es de flores pero aún no aplica el cargo. Un pedido que de plano no existe sigue dando
+error real (`400`).
+
+**Pueden llamarlo siempre**, antes de cualquier `POST /v1/abonos/{pedidoId}`, sin distinguir de
+antemano si el pedido es de flores — no ensucia la consola con errores esperados. No hizo falta
+agregar ningún campo nuevo al detalle del pedido (la opción 2 que también propusieron).
+
+### 2. `GET /v1/lugares-entrega/getAll` — ahora público
+
+Era el bloqueante real: antes exigía `authenticated()` (cualquier sesión, pero no anónimo), lo que
+expulsaba a un visitante sin cuenta del configurador público de flores. Cambiado a `permitAll()`,
+mismo criterio que ya tienen `tipos-flor`, `cantidades-flor`, `accesorios-ramo` y `frases-liston`:
+son nombres de zona y costo de envío, nada sensible. `save`/`update`/`delete` siguen siendo
+exclusivos de `ADMIN`, sin cambio ahí.
+
+Esto también responde la pregunta que quedó "subida de prioridad": **un cliente logueado no-admin
+ya podía leerlo** (el `authenticated()` de antes no distinguía rol) — el problema era solo el
+visitante sin sesión, y ya quedó cubierto igual.
+
+## ❓ Pendiente de decisión — guardar el pedido como pendiente sin verificar correo
+
+Leímos la petición completa del dueño. Es un cambio de alcance real (afecta **todos** los pedidos
+de cliente, no solo flores, porque `savePedido` es compartido con el carrito normal) y trae 5
+preguntas de negocio que no podemos decidir solos — se las devolvemos tal cual las plantearon:
+
+1. ¿El pedido pendiente aparta stock o no?
+2. ¿Cuenta en reportes/dashboard antes de confirmarse?
+3. ¿Caduca, o se queda indefinidamente?
+4. ¿Cómo se distingue `estadoPedido` — un estado nuevo, o reusar/ampliar lo que ya existe?
+5. ¿El cliente verifica desde "Mis pedidos" con el endpoint de código que ya existe, o hace falta
+   uno nuevo que "despierte" el pedido al verificar?
+
+No se toca nada de esto todavía — es la decisión del dueño la que falta, no trabajo técnico
+pendiente de nuestro lado.
