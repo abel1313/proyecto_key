@@ -17,6 +17,12 @@ public class LugarEntrega extends BaseId {
     @Column(name = "costo_envio")
     private Double costoEnvio;
 
+    // Horas extra que se suman al minimo de anticipacion requerido por el tamano del ramo (ver
+    // CantidadFlorValida.horasMinimasAnticipacion) por estar esta zona mas lejos/ser mas
+    // complicado llegar. NULL = 0, no suma nada (mismo comportamiento que hoy).
+    @Column(name = "horas_extra_anticipacion")
+    private Integer horasExtraAnticipacion;
+
     // Variante "sombra" -- ver comentario en TipoFlor.variante. Solo se crea/sincroniza cuando
     // costoEnvio no es null (sin costo, no hace falta linea de cobro por envio).
     @ManyToOne

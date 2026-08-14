@@ -175,6 +175,12 @@ public class FlorPedidoServiceImpl {
         Double precioManoDeObra = cantidadRegistrada.map(CantidadFlorValida::getManoDeObra).orElse(null);
         response.setPrecioManoDeObra(precioManoDeObra);
 
+        // Anticipacion: si no da tiempo de armar este tamano de ramo para la fecha/hora pedida,
+        // rechaza el pedido aqui mismo (excepcion). Si da tiempo pero esta justo en el limite,
+        // devuelve el extra de urgencia a cobrar.
+        Double precioUrgencia = validarAnticipacionYUrgencia(dto, cantidadRegistrada.orElse(null), cantidadFinal);
+        response.setPrecioUrgencia(precioUrgencia);
+
         Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, pliegosExplicitos, response);
 
         List<AccesorioCalculadoDto> accesoriosCalculados = calcularAccesorios(dto.getAccesorios(), papelAccesorioId, cantidadFinal, pliegosExplicitos);
@@ -202,7 +208,8 @@ public class FlorPedidoServiceImpl {
                 + subtotalAccesorios
                 + subtotalListones
                 + costoEnvio
-                + (precioManoDeObra != null ? precioManoDeObra : 0);
+                + (precioManoDeObra != null ? precioManoDeObra : 0)
+                + (precioUrgencia != null ? precioUrgencia : 0);
         response.setTotal(totalConocido);
 
         return response;
@@ -304,5 +311,36 @@ public class FlorPedidoServiceImpl {
         response.setCostoEnvio(costo);
         response.setEnvioVarianteId(costo > 0 && lugar.getVariante() != null ? lugar.getVariante().getId() : null);
         return costo;
+    }
+
+    // Sin fechaHoraEntrega en el request, o sin horasMinimasAnticipacion configurada para esta
+    // cantidad, no valida nada -- comportamiento de siempre. Con ambas presentes:
+    // 1. Calcula cuantas horas dan de margen (fechaHoraEntrega - ahora).
+    // 2. El minimo requerido es horasMinimasAnticipacion + el extra de la zona de entrega
+    //    (LugarEntrega.horasExtraAnticipacion, 0 si recogen en local o no hay lugar).
+    // 3. Si el margen no alcanza el minimo, rechaza el pedido -- no se puede generar (el dueno
+    //    ya sabe que no llega a tiempo, prefiere no comprometerse a que quedar mal).
+    // 4. Si alcanza pero esta justo en el limite (hasta el doble del minimo), es "urgente" y se
+    //    cobra el extra configurado para esta cantidad. Con harta anticipacion, no hay cargo.
+    private Double validarAnticipacionYUrgencia(CalcularPrecioRequestDto dto, CantidadFlorValida cantidadValida, int cantidadFinal) {
+        if (dto.getFechaHoraEntrega() == null || cantidadValida == null || cantidadValida.getHorasMinimasAnticipacion() == null) {
+            return null;
+        }
+        int horasExtraZona = 0;
+        if (!Boolean.TRUE.equals(dto.getRecogerEnLocal()) && dto.getLugarEntregaId() != null) {
+            LugarEntrega lugar = iLugarEntregaRepository.findById(dto.getLugarEntregaId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Lugar de entrega no encontrado: " + dto.getLugarEntregaId()));
+            horasExtraZona = lugar.getHorasExtraAnticipacion() != null ? lugar.getHorasExtraAnticipacion() : 0;
+        }
+        int horasRequeridas = cantidadValida.getHorasMinimasAnticipacion() + horasExtraZona;
+        long horasDisponibles = java.time.Duration.between(java.time.LocalDateTime.now(), dto.getFechaHoraEntrega()).toHours();
+        if (horasDisponibles < horasRequeridas) {
+            throw new RuntimeException("No alcanzamos a preparar un ramo de " + cantidadFinal
+                    + " flores para la fecha y hora de entrega solicitadas -- se necesitan al menos "
+                    + horasRequeridas + " horas de anticipacion (contando la zona de entrega). "
+                    + "Elige una fecha/hora mas adelante o reduce la cantidad de flores.");
+        }
+        boolean esUrgente = horasDisponibles <= (long) horasRequeridas * 2;
+        return esUrgente ? cantidadValida.getPrecioUrgencia() : null;
     }
 }

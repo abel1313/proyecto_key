@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -18,4 +19,9 @@ public class CalcularPrecioRequestDto {
     private List<ListonSeleccionadoDto> listones;
     private Integer lugarEntregaId;
     private Boolean recogerEnLocal;
+    // Opcional -- cuando el cliente pide para/le importa una fecha y hora de entrega puntual.
+    // Si esta cantidad tiene horasMinimasAnticipacion configurada y no da tiempo, el calculo
+    // rechaza el pedido (ver FlorPedidoServiceImpl.validarAnticipacionYUrgencia). Sin este campo,
+    // no se valida nada (comportamiento de siempre).
+    private LocalDateTime fechaHoraEntrega;
 }
