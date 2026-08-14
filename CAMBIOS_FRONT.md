@@ -14529,3 +14529,130 @@ preguntas de negocio que no podemos decidir solos — se las devolvemos tal cual
 
 No se toca nada de esto todavía — es la decisión del dueño la que falta, no trabajo técnico
 pendiente de nuestro lado.
+
+---
+
+## ✅ RESPUESTAS DEL DUEÑO — pedido pendiente sin verificar (2026-08-14)
+
+Les devolvieron las 5 preguntas de negocio y ya las contestó. Van tal cual, con la consecuencia
+técnica que le vemos a cada una.
+
+### 1. NO aparta stock — y esto cambia el diseño
+
+> *"Como son rosas eternas y esas solo se hacen por pedido confirmado, entonces no se retiene la
+> mercancía, porque en sí no lo voy a hacer. Y los que tuviera, si me toca venderlos los vendo,
+> porque ya no los tendría."*
+
+El ramo **no se arma hasta que el pedido está confirmado**, así que un pendiente no reserva nada.
+Si mientras tanto entra otra venta que se lleve esas flores, se venden.
+
+**La consecuencia la señaló él mismo, y es la parte importante:**
+
+> *"Si lo pide para mañana y no da el anticipo, y regresa mañana a decir 'siempre sí lo quiero',
+> entonces no se va a poder, porque tiene que modificar la fecha a un día más."*
+
+O sea: **un pedido pendiente NO se puede simplemente "activar"**. Cuando el cliente vuelve, hay
+que **volver a cotizarlo** contra el momento en que vuelve:
+
+- **Stock:** puede que ya no haya esas flores o esos colores.
+- **Fecha:** se recorre. El plazo cuenta **desde el día que confirma**, no desde el día que lo
+  pidió — y eso vale igual para urgente (ahí el aviso sería *"te quedaría para el día siguiente"*).
+- **Precio:** puede haber cambiado.
+
+> *"Si ya pasó tiempo, la fecha serían los días que me lleve hacerlo si no lo pidió urgente; y si
+> lo pidió urgente, lo mismo, pero antes decirle: oye, te quedaría para el siguiente día."*
+
+**Y hay que avisarle ANTES de que confirme**, no después: que vea la fecha nueva (y el precio
+nuevo si cambió) y entonces decida.
+
+### 2. No cuenta como venta
+
+> *"No debería contar como venta porque aún no se confirma, y menos se ha vendido."*
+
+Fuera de reportes y dashboard hasta que se confirme.
+
+### 3. Caduca solo, y queda como perdido
+
+> *"Se guarda un tiempo y después pues se cancelaría por default. El cliente ya no lo vería, solo
+> el admin, pero ya como perdido."*
+
+Un pendiente que nadie confirma **se cancela solo** al pasar el plazo. El cliente deja de verlo; el
+admin lo sigue viendo, marcado como **perdido** (distinto de "cancelado por el cliente", que fue
+una decisión de alguien, y de "no verificó", que es el estado mientras sigue vivo).
+
+⚠️ **Falta el número de días.** No lo dijo; se lo estamos preguntando. Mientras no lo defina, esto
+no se puede implementar.
+
+### 4. Sin responder — es técnica, la dejan en sus manos
+
+Cómo distinguirlo (estado nuevo en `estadoPedido`, campo aparte, etc.) no lo contestó y nos parece
+correcto: es decisión de ustedes. Lo único que pide el negocio es poder distinguir estos cuatro
+casos: **pendiente de confirmar**, **confirmado**, **cancelado por el cliente** y **perdido por
+tiempo**.
+
+### 5. El cliente lo retoma desde donde lo dejó
+
+No le quedó claro cómo se lo planteamos, pero por lo que respondió: vuelve a su pedido, y al
+retomarlo se le recotiza con las reglas del punto 1 antes de confirmar.
+
+### Lo que esto implica del lado del front (cuando definan el modelo)
+
+- Al retomar un pendiente: llamar de nuevo a `fechas-disponibles` y `calcular-precio`, y mostrar
+  **la fecha nueva y el precio nuevo** antes del botón de confirmar.
+- Si el stock ya no alcanza, decírselo ahí mismo — no dejarlo confirmar algo que no se puede armar.
+- Distintivos por estado en "Mis pedidos", y que los **perdidos** solo los vea el admin.
+
+**Sigue sin implementarse nada** — falta el plazo de caducidad y la decisión de modelo del punto 4.
+
+---
+
+## 🛑 CANCELADA — la petición del pedido pendiente se retira, NO la construyan (2026-08-14)
+
+Anula por completo las dos secciones anteriores (la petición y las respuestas del dueño). **No hay
+nada que hacer de su lado** — nos quedamos con el comportamiento que ya existe hoy.
+
+El dueño lo repensó a partir de la consecuencia que él mismo había señalado: si el pedido queda
+pendiente y el cliente vuelve después, **la fecha ya se pasó de todos modos** y hay que recotizar
+stock, fecha y precio. Su conclusión:
+
+> *"Me gusta más que si no lo confirma, que no se guarde nada, porque la hora o fecha ya será
+> tarde. Entonces mejor que configure otro ramo, y hay que avisarle. Ya no lo vería ni el cliente
+> ni el admin, porque en sí no se concretaría nada."*
+
+Es la decisión correcta y además la más barata: guardar un pedido que **igual** habría que
+recotizar entero al retomarlo no aporta nada, y a cambio traía estados nuevos, caducidad,
+distinción de "perdido" y una bandeja que mantener.
+
+### Qué queda entonces — nada nuevo
+
+`POST /v1/pedidos/savePedido` **sigue igual**: rechaza mientras el correo no esté verificado y no
+guarda nada. Es exactamente el comportamiento que ya tienen. **No toquen nada.**
+
+Quedan sin efecto las 5 preguntas de negocio, la caducidad, el estado "perdido" y el punto 4
+(cómo distinguirlo) — ya no aplican.
+
+### Lo único que cambió, y es 100% del front
+
+Que el cliente **entienda** que no se guardó nada, en vez de que el diálogo se cierre en silencio.
+Ya está hecho en las dos pantallas que comparten este flujo:
+
+- **Configurador de flores:** *"Tu ramo no se registró… no guardamos nada. Sigue armado en esta
+  pantalla, pero si sales tendrás que armarlo de nuevo — y la fecha de entrega se cuenta desde el
+  momento en que confirmas, así que dejarlo para después puede correrla."*
+- **Carrito normal:** mismo aviso, adaptado ("tu pedido no se generó… tu carrito sigue aquí").
+
+Perdón por la vuelta — la petición llegó a estar bien planteada, pero al final la respuesta era
+que el problema no valía la solución.
+
+---
+
+## ✅ BACK — recibido, cancelación confirmada, sin trabajo pendiente de nuestro lado (2026-08-14)
+
+Leído completo el hilo (las 5 respuestas del dueño y la cancelación posterior). De acuerdo con la
+conclusión: guardar un pedido que de todos modos hay que recotizar entero al retomarlo no aportaba
+nada, solo costo de mantenimiento (estados nuevos, caducidad, bandeja de "perdidos"). Buena
+decisión pararlo antes de construirlo.
+
+**Confirmado de nuestro lado:** `POST /v1/pedidos/savePedido` no se toca — sigue rechazando sin
+guardar nada mientras el correo no esté verificado, exactamente el comportamiento de siempre. No
+hay ningún cambio de back pendiente de esta petición. Sin nada más que agregar, no bloquea nada.
