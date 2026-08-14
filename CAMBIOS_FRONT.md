@@ -12438,3 +12438,72 @@ mucho más grande de construir, y no es lo que pidió).
 
 `migration_flores_eternas_urgencia.sql` — agrega los 3 campos de arriba. En `dev`, pendiente de
 merge a `qa` y del aviso para correrla.
+
+---
+
+## 🆕 Construido — anticipo del 50% cuando el pedido es urgente, reutilizando el mecanismo de la frase personalizada (2026-08-14)
+
+El dueño confirmó: los pedidos urgentes también necesitan anticipo, **mismo 50% que ya existe**
+para las frases personalizadas, **sin devoluciones** (mismo aviso que ya tienen). Va el flujo
+completo, paso a paso, con dónde entra cada llamada.
+
+### El flujo completo (nada nuevo en el orden, solo un paso que ahora también puede cobrar)
+
+```
+1. Cliente arma el ramo en el configurador (especie, colores, cantidad, accesorios, listón).
+2. Si el cliente especifica fecha/hora de entrega:
+   POST /v1/flores/calcular-precio  { ...lo de siempre..., fechaHoraEntrega }
+   → Si NO alcanza el tiempo (+ zona): la llamada falla, no hay nada que cotizar.
+     El cliente tiene que elegir otra fecha/hora o reducir la cantidad.
+   → Si SI alcanza pero esta al limite: responde total (ya con precioUrgencia sumado,
+     sin desglose) + precioUrgencia informativo.
+   → Si alcanza con harta anticipacion: responde total normal, precioUrgencia: null.
+3. Cliente confirma. Front arma las lineas con los varianteId/precios que calcular-precio
+   devolvio y llama:
+   POST /v1/pedidos/savePedido   (sin cambios, como ya lo hacen)
+   → Aqui se cobra el pedido REAL completo (incluido el extra de urgencia si aplico).
+4. Front adjunta los datos de produccion/contacto, MANDANDO OTRA VEZ fechaHoraEntrega:
+   POST /v1/flores/pedidos/{pedidoId}/detalle   { ...lo de siempre..., fechaHoraEntrega }
+   → Aqui, en el SERVIDOR (no confiamos en lo que dijo calcular-precio antes, se
+     revalida), si el pedido es urgente se genera automaticamente el anticipo: crea (o
+     reutiliza) un Pedido APARTADO por el 50% del total real del pedido, exactamente
+     igual que ya hacen para el anticipo de frase personalizada.
+5. Front consulta:
+   GET /v1/flores/pedidos/{pedidoId}/detalle
+   → Trae anticipoRequerido, montoAnticipo, pedidoAnticipoId -- si vienen con dato,
+     mostrarle al cliente el mismo tipo de aviso que ya tienen para la frase pendiente
+     ("hay que pagar un anticipo del 50%, sin devoluciones") y dirigirlo al mismo flujo
+     de abonos (POST /v1/abonos/{pedidoAnticipoId}) que ya usan hoy.
+```
+
+**Por qué se manda `fechaHoraEntrega` DOS veces (en `calcular-precio` y otra vez en
+`.../detalle`):** son dos momentos distintos y no confiamos ciegamente en lo que ya se cotizó
+antes — el servidor vuelve a calcular todo en el paso 4, igual que ya hacían con los demás
+precios (no se acepta un monto que mande el front sin validar contra catálogo).
+
+### Punto importante: si hay urgencia Y frase personalizada pendiente a la vez
+
+Pueden coexistir en el mismo pedido. En ese caso, **ambos anticipos van al MISMO Pedido
+APARTADO** (mismo `pedidoAnticipoId`), sumados — no se crean dos apartados distintos. El orden en
+que aparecen no importa: si la urgencia se detecta primero (paso 4) y la frase se aprueba después
+(cuando el admin la valida), el anticipo de la frase se **suma** al mismo apartado que ya existía
+por la urgencia, no lo reemplaza.
+
+### Campos usados (sin contrato nuevo, ya documentados arriba)
+
+- `RamoPedidoDetalleRequestDto.fechaHoraEntrega` — mismo campo que ya agregamos a
+  `calcular-precio`, ahora también en el request de `.../detalle`.
+- `RamoPedidoDetalleResponseDto.anticipoRequerido` / `montoAnticipo` / `pedidoAnticipoId` — ya
+  existían para la frase, ahora también se llenan por motivo de urgencia (mismo shape, sin campo
+  nuevo que distinga el motivo — si necesitan saber POR QUÉ se pidió el anticipo para mostrar un
+  mensaje distinto, avisen y le agregamos un campo `motivoAnticipo`).
+
+### Del lado del front
+
+1. Al armar el request de `.../detalle` (paso 4), mandar el mismo `fechaHoraEntrega` que ya
+   mandaron en `calcular-precio`.
+2. Después de adjuntar, volver a consultar el `GET .../detalle` y revisar `anticipoRequerido` —
+   si viene `true`, mostrar el aviso de anticipo (reusen el texto/pantalla que ya tienen para la
+   frase personalizada) y el link/flujo de abono correspondiente a `pedidoAnticipoId`.
+3. No hace falta ninguna pantalla nueva — es el mismo mecanismo de anticipo que ya construyeron,
+   solo que ahora se puede disparar por dos motivos en vez de uno.

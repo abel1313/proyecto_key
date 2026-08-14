@@ -178,7 +178,8 @@ public class FlorPedidoServiceImpl {
         // Anticipacion: si no da tiempo de armar este tamano de ramo para la fecha/hora pedida,
         // rechaza el pedido aqui mismo (excepcion). Si da tiempo pero esta justo en el limite,
         // devuelve el extra de urgencia a cobrar.
-        Double precioUrgencia = validarAnticipacionYUrgencia(dto, cantidadRegistrada.orElse(null), cantidadFinal);
+        Double precioUrgencia = validarAnticipacionYUrgencia(dto.getFechaHoraEntrega(), dto.getLugarEntregaId(),
+                dto.getRecogerEnLocal(), cantidadRegistrada.orElse(null), cantidadFinal);
         response.setPrecioUrgencia(precioUrgencia);
 
         Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, pliegosExplicitos, response);
@@ -322,18 +323,22 @@ public class FlorPedidoServiceImpl {
     //    ya sabe que no llega a tiempo, prefiere no comprometerse a que quedar mal).
     // 4. Si alcanza pero esta justo en el limite (hasta el doble del minimo), es "urgente" y se
     //    cobra el extra configurado para esta cantidad. Con harta anticipacion, no hay cargo.
-    private Double validarAnticipacionYUrgencia(CalcularPrecioRequestDto dto, CantidadFlorValida cantidadValida, int cantidadFinal) {
-        if (dto.getFechaHoraEntrega() == null || cantidadValida == null || cantidadValida.getHorasMinimasAnticipacion() == null) {
+    // Parametros sueltos (no el DTO completo) para que RamoPedidoDetalleServiceImpl tambien la
+    // pueda usar -- ahi se vuelve a evaluar en servidor si el pedido cae en la ventana de
+    // urgencia, para generar el anticipo del 50% (nunca se confia en un valor que mande el front).
+    public Double validarAnticipacionYUrgencia(java.time.LocalDateTime fechaHoraEntrega, Integer lugarEntregaId,
+                                                Boolean recogerEnLocal, CantidadFlorValida cantidadValida, int cantidadFinal) {
+        if (fechaHoraEntrega == null || cantidadValida == null || cantidadValida.getHorasMinimasAnticipacion() == null) {
             return null;
         }
         int horasExtraZona = 0;
-        if (!Boolean.TRUE.equals(dto.getRecogerEnLocal()) && dto.getLugarEntregaId() != null) {
-            LugarEntrega lugar = iLugarEntregaRepository.findById(dto.getLugarEntregaId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Lugar de entrega no encontrado: " + dto.getLugarEntregaId()));
+        if (!Boolean.TRUE.equals(recogerEnLocal) && lugarEntregaId != null) {
+            LugarEntrega lugar = iLugarEntregaRepository.findById(lugarEntregaId)
+                    .orElseThrow(() -> new ExceptionDataNotFound("Lugar de entrega no encontrado: " + lugarEntregaId));
             horasExtraZona = lugar.getHorasExtraAnticipacion() != null ? lugar.getHorasExtraAnticipacion() : 0;
         }
         int horasRequeridas = cantidadValida.getHorasMinimasAnticipacion() + horasExtraZona;
-        long horasDisponibles = java.time.Duration.between(java.time.LocalDateTime.now(), dto.getFechaHoraEntrega()).toHours();
+        long horasDisponibles = java.time.Duration.between(java.time.LocalDateTime.now(), fechaHoraEntrega).toHours();
         if (horasDisponibles < horasRequeridas) {
             throw new RuntimeException("No alcanzamos a preparar un ramo de " + cantidadFinal
                     + " flores para la fecha y hora de entrega solicitadas -- se necesitan al menos "
