@@ -12061,3 +12061,31 @@ producción.
 
 Ambas en `dev`, pendientes de merge a `qa` y del aviso para correrlas — como nunca llegaron a
 ejecutarse con el diseño viejo, no hay nada que limpiar.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — mano de obra y pliegos por defecto, ya en `dev`/`qa` (2026-08-14)
+
+**Qué hicimos:** ya está el código y las migraciones en `dev`/`qa` (commits `67b63e2` / `2bb12c9`).
+El dueño va a correr las 2 migraciones nuevas en QA/prod — cuando avise que ya corrieron, pueden
+empezar a consumir esto:
+
+**Qué tiene que hacer el front:**
+
+1. **Catálogo → pestaña "Cantidades":** agregar el input de `manoDeObra` (opcional, numérico, tipo
+   moneda) al mismo formulario donde ya está `pliegos` — mismo endpoint de siempre
+   (`/v1/cantidades-flor/save` / `update`), solo un campo más en el body.
+2. **Catálogo → Accesorios → el accesorio "papel":** agregar el input de `pliegosPorDefecto`
+   (opcional, numérico) junto a `umbralActivacion` y `floresPorPliego` que ya tienen — mismo
+   endpoint (`/v1/accesorios-ramo/save` / `update`).
+3. **Configurador y `RamoArmado` — el desglose de precio NO debe mostrar `precioManoDeObra` al
+   cliente.** Ese campo sí va a venir en la respuesta de `calcular-precio` y `ramos-armados`
+   (informativo, mismo patrón que `precioPapel`), pero es a propósito para que ustedes lo usen
+   solo si arman una pantalla de admin/reporte — el cliente debe ver un solo precio de ramo, sin
+   línea de "mano de obra" separada. Si hoy renderizan todos los campos del response
+   automáticamente en alguna tabla de debug/admin, cuidado con no filtrarlo a la vista del cliente
+   por accidente.
+4. **No requiere cambio** en cómo calculan `total`/`precioTotal` — ya vienen sumados desde el
+   back, ambos montos incluidos.
+5. Avisen si necesitan que documentemos el shape exacto de algún response con estos campos ya
+   pobladas de ejemplo (`GET` real contra QA), en cuanto el dueño configure algún valor de prueba.
