@@ -11428,3 +11428,95 @@ Si ya están leyendo `lista` y aun así sigue fallando, puede ser caché del nav
 sirviendo un build viejo del front — no hay `@Cacheable` ni caché de servidor de por medio en este
 endpoint (headers `Cache-Control: no-cache, no-store`, confirmado). Avisen con el resultado de
 revisar `lista` vs `data` y seguimos desde ahí.
+
+---
+
+## ✅ FRONT — era `lista` vs `data`, confirmado y corregido + 🔴 el resolver truena en PROD (2026-08-14)
+
+### 1. Su diagnóstico era correcto — el bug era nuestro
+
+Confirmado con `curl` contra QA antes de tocar código:
+
+```
+GET /v1/colores-flor/por-tipo-flor/1  → { "data": null,  "lista": [Roja, Verde] }
+GET /v1/colores-flor/getAll           → { "data": [...], "lista": null }
+```
+
+`FloresService.coloresPorTipoFlor()` leía `r?.data`, así que siempre recibía vacío. Ya corregido
+(lee `lista ?? data`, los dos por si algún día lo normalizan). Va en `dev` (`c933556`) y `qa`
+(`c04b713`).
+
+**Auditamos los otros 6 endpoints del módulo** para no repetirlo: `tipos-flor/getAll`,
+`cantidades-flor/getAll`, `accesorios-ramo/getAll`, `frases-liston/getAll`,
+`ramos-armados/activos` y `validar-cantidad` → **todos devuelven en `data`, con `lista: null`**.
+`por-tipo-flor` es el único distinto. No pedimos que lo cambien (ya está corregido de nuestro
+lado), pero vale la pena que lo sepan por si arman endpoints nuevos: si el resto del módulo usa
+`data`, uno que use `lista` es fácil de pisar.
+
+### 2. Lo de `validar-cantidad` con 10 también era nuestro, no suyo
+
+Tenían razón: el back sí distinguía los tres casos en `mensaje`, pero **nuestro template mostraba
+un texto fijo** ("cantidad válida") e ignoraba ese campo. Por eso un *"se cobra por unidad"* se
+veía idéntico a un *"forma bien el círculo"*, y lo reportamos como bug de ustedes cuando no lo
+era. Ya se muestra su `mensaje` tal cual. Disculpen la vuelta.
+
+**Queda pendiente la decisión de negocio que plantearon** (¿se mantiene la venta por unidad para
+cantidades menores a la más chica registrada, o se rechaza todo lo no registrado?) — se la pasamos
+al dueño, les avisamos en cuanto responda.
+
+### 3. 🔴 `GET /tienda/v1/variante/{id}/producto-id` responde **500 en producción**
+
+Este es nuevo y es el que importa, porque **es el que destraba el cierre de `getOne`**.
+
+```
+QA    GET /tienda/v1/variante/1/producto-id   → 200  { "data": { "productoId": 265 } }   ✅
+PROD  GET /tienda/v1/variante/1/producto-id   → 500  { "mensaje": "Error interno del servidor" }
+PROD  GET /tienda/v1/variante/619/producto-id → 500  (mismo error con otro id)
+```
+
+No es "no existe esa variante" (eso sería 400 según su contrato) ni falta de permisos — es un 500
+con cualquier id que le mandemos. En QA el mismo endpoint funciona perfecto.
+
+**Por qué nos bloquea:** el plan acordado era → nosotros conectamos el resolver (✅ hecho, está en
+`qa`) → promovemos el front a producción → les avisamos → ustedes promueven el cierre de
+`getOne`. Pero si el resolver truena en prod, al promover ambas cosas el **link directo de
+WhatsApp/Facebook queda roto para los clientes**: sin resolver y sin `getOne`, la ficha no tiene
+de dónde sacar el `productoId`.
+
+Hoy no hay daño, porque en prod `getOne` sigue abierto y nuestro código cae a él como respaldo.
+Pero **no promuevan `getOne` hasta que el resolver responda 200 en producción** — y avísennos
+cuando lo arreglen para verificarlo y promover el front nosotros primero.
+
+### Estado del front
+
+| Rama | Commit | Qué trae |
+|---|---|---|
+| `dev` | `c933556` | fix de colores + mensaje de cantidad + módulo de flores completo |
+| `qa` | `c04b713` | lo mismo |
+| `master` (prod) | `e32359c` | **sin** el fix de la ficha — a propósito, esperando el punto 3 |
+
+---
+
+## ✅ Cambio de comportamiento — `validar-cantidad` ahora sugiere alternativa aunque la cantidad sea menor al mínimo registrado (2026-08-13)
+
+**No cambia el contrato** — sigue siendo `POST /v1/flores/validar-cantidad`, mismo request y
+mismo shape de response (`valida`, `mensaje`, `alternativaMenor`, `precioAlternativaMenor`,
+`alternativaMayor`, `precioAlternativaMayor`). Lo que cambia es el criterio de negocio para
+decidir cuándo `valida` sale `true` o `false`:
+
+- **Antes:** una cantidad por debajo de la más chica registrada se aceptaba en silencio
+  (`valida:true`, `"Cantidad aceptada tal cual, se cobra por unidad."`) — así probaron con 12
+  flores contra un mínimo registrado de 48.
+- **Ahora:** esa misma cantidad devuelve `valida:false` con
+  `"Con 12 flores el circulo puede no quedar bien formado."`, igual que ya pasaba con las
+  cantidades intermedias no registradas (ej. 55). Esta es la respuesta a la decisión de negocio
+  que quedó pendiente arriba ("¿se mantiene la venta por unidad para cantidades menores a la más
+  chica registrada?") — el dueño confirmó que NO, que siempre debe avisar y sugerir la alternativa.
+
+**Punto a verificar en el front:** en este caso nuevo, `alternativaMenor` viene `null` (no hay
+nada registrado más abajo) y solo llega `alternativaMayor` con dato. Antes, cuando `valida:false`,
+casi siempre llegaban ambas alternativas — confirmen que la pantalla no rompe ni muestra "null"
+cuando falta la alternativa menor.
+
+Ya está en `dev` y `qa` (`4b1b8e7` / merge `deff517`) — falta el redespliegue del servicio para que
+se refleje en el ambiente.
