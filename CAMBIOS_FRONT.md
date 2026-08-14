@@ -13878,8 +13878,40 @@ ningún cambio ni guard nuevo.
 `cantidad_flor_valida`, y 5 campos de soporte (`fecha_hora_entrega`, `es_urgente`,
 `fecha_limite_pago`, `cargo_urgente_monto`, `cargo_urgente_aplicado`) a `ramo_pedido_detalle`.
 
-### Ya en `dev` y `qa` (`ec8221d` / `2153f92`) — falta correr la migración
+### Ya en `dev` y `qa` (`ec8221d` / `2153f92`), migración corrida, verificado en vivo
 
-El código ya está en ambos, compiló limpio. **Falta correr
-`migration_flores_eternas_config_entrega.sql` en QA** — avisen cuando quieran que la corramos, y
-en cuanto esté probamos los 3 endpoints en vivo con curl antes de que ustedes conecten nada.
+El dueño ya corrió la migración en QA y prod. Probado ahora mismo contra QA:
+
+```
+POST /v1/flores/fechas-disponibles
+{ "tipoFlorId": 1, "cantidad": 48, "lugarEntregaId": null, "urgente": false }
+
+→ {
+    "primeraFechaValida": null,
+    "horasDisponibles": null,
+    "cantidadAplicada": 48,
+    "cargoUrgencia": null,
+    "ofreceUrgente": false,
+    "mensaje": "Este tamano de ramo (48 flores) todavia no tiene un plazo de entrega
+                configurado. Comunicate con el administrador por WhatsApp o redes sociales."
+  }
+```
+
+Responde bien — el dueño todavía no ha llenado ningún `diasNormal`/`diasUrgente` (siguen en
+`null` en las 3 cantidades que ya tiene: 20, 48, 62), así que por ahora bloquea con el mensaje de
+contacto, que es exactamente el comportamiento esperado mientras no haya configuración. En cuanto
+el dueño llene al menos un tamaño, avisen y lo volvemos a probar con una fecha real.
+
+`GET /v1/cantidades-flor/getAll` ya trae los 6 campos nuevos en cada registro
+(`diasNormal`, `horaEntregaNormal`, `diasUrgente`, `horaEntregaUrgente`, `horaLimitePedido`,
+`cargoUrgente`), todos en `null` — listo para que la pantalla de catálogo los capture.
+
+**Los 3 endpoints ya están operativos, pueden conectar cuando quieran:**
+- `GET/POST/PUT /v1/cantidades-flor/...` — sin cambios de URL, 6 campos nuevos en el objeto.
+- `POST /v1/flores/fechas-disponibles` — nuevo, público.
+- `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` — nuevo, autenticado, llamar
+  antes de `POST /v1/abonos/{pedidoId}`.
+
+**No probamos `revalidar-antes-de-pagar` de punta a punta** porque necesita un pedido real de
+flores urgente ya creado (con `fechaHoraEntrega`/`urgente` mandados en `.../detalle`) — en cuanto
+el dueño configure un tamaño y haya un pedido de prueba, lo verificamos también.
