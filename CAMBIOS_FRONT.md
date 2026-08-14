@@ -13066,3 +13066,390 @@ más lo que resulte de la pregunta de las horas, más el % global, más los text
 mismos que todavía le van a preguntar al dueño el detalle de las horas — no vamos a adivinar esa
 parte. En cuanto tengan esa respuesta, mándennos el paquete completo (rango de horas + los otros
 dos puntos) y lo diseñamos junto, en vez de ir campo por campo en rondas separadas.
+
+---
+
+## 🔴 REDISEÑO — la entrega funciona como LISTA BLANCA, no como validación (2026-08-14)
+
+⚠️ **Esto cambia el modelo que construyeron.** `horasMinimasAnticipacion` por tamaño no alcanza
+para expresar lo que el dueño necesita. Léanlo completo antes de tocar código — y por favor no
+construyan nada hasta que lo confirmemos entre los tres.
+
+### La regla de fondo, en una frase
+
+**El dueño da de alta las combinaciones que SÍ puede cumplir. Lo que no esté dado de alta, no se
+puede pedir — punto.** No es "validar si alcanza el tiempo": es buscar una configuración que
+coincida. Si no hay ninguna, el pedido se bloquea y se le dice al cliente que se comunique por
+WhatsApp o redes.
+
+Sus palabras:
+
+> *"Voy a configurar los que más se pueda. Si no encuentras esa configuración, entonces no se
+> puede hacer, aunque esté chiquito el ramo, porque tiene que estar esa configuración. Y si no se
+> puede, le dices que se comunique con el administrador y le dejas las redes sociales o el
+> WhatsApp."*
+
+Ejemplos suyos, tal cual:
+- **100 rosas para mañana** → no hay configuración que lo permita → **no se puede por ningún
+  motivo**.
+- **100 rosas en 3 días** → sí está configurado → se puede.
+- **Ramo de 12 para mañana** → si no está configurado, **tampoco se puede**, aunque sea chico.
+
+Esto último es lo que más se aleja de lo que hay hoy: **el tamaño chico no es automáticamente
+rápido**. Solo se puede lo que él dio de alta.
+
+### La pantalla nueva de administración
+
+Una pantalla aparte (no es la de Cantidades ni la de Ramos armados). Ahí el dueño arma cada
+combinación posible:
+
+| Campo | Ejemplo |
+|---|---|
+| Cantidad de flores | 48 |
+| Accesorios incluidos | los que aplican |
+| **Hora límite para pedir** | 12:00 |
+| **Plazo** | 1 día |
+| **Hora de entrega (a partir de)** | 18:00 |
+| **Cargo extra** | lo que él configure (puede ser 0) |
+
+Se lee así: *"si me lo piden antes de las 12, lo entrego al día siguiente a partir de las 6 pm"*.
+
+**Un mismo ramo lleva varias configuraciones.** Confirmado explícitamente. Ej. el de 100 rosas
+puede tener una a 3 días sin cargo y otra a 2 días con cargo. **Cada renglón trae su propio
+cargo**, y el que aplique define el precio.
+
+### Cómo se resuelve del lado del cliente
+
+El cliente arma su ramo, elige zona (que ya muestra su precio) y elige **fecha y hora de entrega**.
+Entonces:
+
+```
+1. Buscar una configuración que coincida con: cantidad + el plazo que pide.
+   ¿No hay ninguna?  → NO se puede pedir. Mostrar contacto del admin (WhatsApp/redes).
+2. ¿La hora de entrega que pide es alcanzable según esa configuración?
+   Ej: config dice "entrego a partir de las 18:00"; él la quiere a las 16:00 → NO se puede.
+3. ¿Pidió antes de la hora límite (12:00)?
+   Sí → aplica esa configuración, con su cargo (que puede ser 0).
+4. El pago tiene que quedar antes de la hora límite también. Si paga a tiempo, no se le
+   cobra el cargo de esa configuración.
+```
+
+Ejemplo completo del dueño: *"pide a las 11, lo quiere a las 6 o 7 pm — ahí está a tiempo — y
+además paga antes de las 12, que es la configuración: no se le cobra."*
+
+### ❓ Lo que sigue abierto (no construir hasta aclararlo)
+
+**a) El pago tardío.** Es la única parte que no terminamos de amarrar. Si aparta a las 11 pero
+paga hasta las 3 pm, ¿qué pasa? ¿Se le cobra el cargo, se le recorre la entrega, o se cancela? Se
+lo estamos preguntando.
+
+**b) ¿Qué pasa con el configurador libre?** Si el cliente arma 37 rosas y no hay configuración
+para 37, por la regla de arriba **no se podría pedir**. ¿Es lo que quiere el dueño (solo se
+venden los tamaños configurados) o el configurador libre debe seguir funcionando aparte? Se lo
+preguntamos también.
+
+**c) ¿Esta pantalla reemplaza a "Ramos armados"?** Se parecen mucho (ambas arman un ramo completo
+con sus accesorios). Puede que sea la misma con los campos de entrega agregados, en vez de una
+tercera pantalla.
+
+### Qué implica para lo ya construido
+
+- `CantidadFlorValida.horasMinimasAnticipacion` — **probablemente sobra**: el plazo pasa a vivir
+  en cada configuración de entrega, no en el tamaño.
+- `CantidadFlorValida.precioUrgencia` — **también**: el cargo pasa a ser por configuración.
+- `LugarEntrega.costoEnvio` / `horasExtraAnticipacion` — **se quedan**, eso no cambia.
+
+No los borren todavía; primero confirmemos el modelo. Solo avisamos para que no sigan invirtiendo
+en esos dos campos.
+
+### Del lado del front, ya detectado (no bloquea)
+
+En el configurador, el desplegable de zona muestra solo el nombre — **falta que muestre el
+precio** ("Tejupilco — $150"), para que el cliente sepa lo que le van a cobrar al elegirla, no
+hasta ver el total. Es cambio nuestro, el dato ya viene en `costoEnvio`. Anotado.
+
+### ✅ Respuesta a (a) — el pago tardío: se revalida AL PAGAR, y se recotiza como urgente
+
+El dueño lo aclaró:
+
+> *"Antes de cobrar se le menciona tu configuración y que tu pago tiene que quedar antes de la hora
+> que se configuró; si no, tendría que cobrar por ramo urgente el total de lo que se configuró. Y
+> digamos que no hace el pago y llegan las 12:00 — entonces, antes de pagar, valida la hora: si la
+> hora ya pasó, se rechaza y se manda un mensaje de que ya no es posible realizar el pedido con el
+> cobro normal, se cobrará tanto por hacerlo porque es urgente."*
+
+O sea:
+
+```
+1. ANTES de cobrar, se le avisa:  "tu pago tiene que quedar antes de las 12:00,
+                                   si no, se cobra el cargo por urgente"
+2. AL MOMENTO DE PAGAR, se vuelve a validar el reloj:
+   - Hora aún no pasa  → se cobra el precio normal
+   - Hora ya pasó      → se RECHAZA ese cobro y se le informa que ahora aplica el
+                         precio urgente (el cargo configurado)
+```
+
+No se cancela el pedido: **se recotiza**. El cliente decide si acepta el precio urgente.
+
+### ⚠️ Consecuencia técnica que queremos que revisen antes de construirla
+
+Esto significa que **la validación de la hora tiene que ocurrir también en el momento del pago**,
+no solo al cotizar y al crear el pedido. Y hoy el pago de un pedido a crédito se registra con
+`POST /v1/abonos/{pedidoId}` — que es el endpoint **genérico de abonos que usa todo el sistema**
+(apartados de ropa, fiados, todo).
+
+Nos preocupa que se le meta una regla específica de flores a ese endpoint: es de los que más
+flujos tocan, y un cambio ahí puede afectar cobros que hoy funcionan bien y no tienen nada que ver
+con ramos.
+
+Alternativas que se nos ocurren, **ustedes deciden cuál es más sana**:
+- Un endpoint aparte para el pago de pedidos de flores, que valide y luego delegue en el mismo
+  mecanismo de abonos.
+- La validación dentro de `abonos` pero **solo si el pedido es de flores** (con un guard claro que
+  no toque el resto de los casos).
+- Un endpoint de "revalidar antes de pagar" que el front llame justo antes de mandar el abono —
+  más llamadas, pero no toca nada existente.
+
+Nos inclinamos por la primera o la tercera, justamente por no meterle condicionales al cobro de
+todo el sistema. Pero es su terreno; díganos cuál prefieren.
+
+**Ojo con una cosa más:** si la validación queda solo en el front (mostrar el aviso y comparar la
+hora antes de mandar el abono), no sirve — el cliente puede dejar la pantalla abierta y pagar
+después, o alguien puede llamar el endpoint directo. **Tiene que validarse en el servidor.**
+
+### ✅ Respuesta a (b) — NO es lista blanca estricta: se busca el tamaño configurado más cercano
+
+Corregimos lo que escribimos arriba. El dueño aclaró que una cantidad sin configuración propia
+**sí se puede pedir** — hereda las reglas del tamaño configurado más cercano:
+
+> *"37 flores: tienes que ver el rango más cerca. Si el de 37 y el de 48 se piden con tiempo, se
+> tienen que manejar las mismas configuraciones. Por eso nos hace falta un campo que diga 'un ramo
+> lo hago en 3 o 4 días', según cuántas flores son. Si yo configuro el de 48 y pongo que en 3 días
+> lo acabo, y piden 37, entonces va a buscar el ramo más cercano —el de 48— y toma que en 3 días
+> se puede entregar como máximo, y una opción de urgente."*
+
+Entonces el modelo real es:
+
+```
+Él configura por tamaño:
+   Ramo de 48  →  normal:  3 días        (sin cargo)
+                  urgente: 1 día antes de las 12  (+ cargo configurado)
+
+Piden 37 flores  →  no hay config propia
+                 →  se busca el tamaño configurado más cercano (el de 48)
+                 →  se aplican SUS reglas: 3 días normal, o urgente con cargo
+```
+
+**Esto reemplaza lo que escribimos antes sobre "si no está configurado no se puede".** Solo aplica
+el bloqueo cuando de plano no hay ningún tamaño al cual recurrir (ver punto 2 de abajo).
+
+---
+
+## 🧭 Lo que creemos que falta definir — y por qué
+
+El dueño nos pidió anotar también lo que a nuestro juicio hace falta. Va con el porqué de cada uno,
+porque son casos que se van a dar en la vida real y hoy no tienen respuesta.
+
+### 1. "El más cercano" tiene dos lecturas, y una le puede costar dinero
+
+Si están configurados el de **24** y el de **48**, y alguien pide **30**:
+- **El más cercano en distancia** → 24 (|30−24| = 6, contra 18 del 48).
+- **El más cercano hacia arriba** → 48.
+
+**Recomendamos hacia arriba**, y no es un detalle menor: un ramo de 30 le da *más* trabajo que uno
+de 24, así que tomar las reglas del 24 lo compromete a un plazo más corto del que realmente
+necesita. Redondear hacia arriba peca de prudente; redondear al más cercano puede hacerlo quedar
+mal con un cliente. Si el dueño prefiere el más cercano en distancia, que lo diga explícito —
+pero que sea decisión, no accidente.
+
+### 2. ¿Y si piden MÁS que el tamaño más grande configurado?
+
+Si el máximo configurado es 100 y alguien pide 150, no hay "más cercano hacia arriba" al cual
+recurrir. **Ahí sí aplica el bloqueo** con el mensaje de contactar al admin por WhatsApp/redes,
+que el dueño ya había pedido. Lo señalamos porque es el único caso que queda sin cubrir con la
+regla nueva.
+
+### 3. Cada tamaño necesita DOS renglones, no uno
+
+De su explicación: *"toma que en 3 días se puede entregar como máximo, **y una opción de
+urgente**"*. Es decir, por cada tamaño configurado hacen falta al menos dos combinaciones:
+
+| | Plazo | Hora límite de pedido | Entrega a partir de | Cargo |
+|---|---|---|---|---|
+| Normal | 3 días | — | — | $0 |
+| Urgente | 1 día | 12:00 | 18:00 del día siguiente | + lo configurado |
+
+Y podrían ser más de dos (2 días con un cargo menor, por ejemplo). Por eso insistimos en que sea
+una tabla de configuraciones por tamaño, no un par de campos sueltos.
+
+### 4. El cliente tiene que ver bajo qué regla cayó su ramo
+
+Si pide 37 y el sistema le aplica las reglas del de 48, **hay que decírselo**. Si no, no entiende
+por qué su ramo de 37 tarda lo mismo que uno de 48, ni por qué le cobran urgencia. Proponemos un
+texto tipo: *"Tu ramo de 37 flores se prepara con los tiempos de uno de 48: 3 días."* Es front,
+lo hacemos nosotros — lo anotamos aquí solo para que sepan que ese dato (qué configuración se
+aplicó) nos tiene que llegar en la respuesta, no solo el precio final.
+
+### 5. El precio de la zona tiene que verse al elegirla
+
+Ya lo mencionamos: hoy el desplegable dice solo "Tejupilco" y el cliente se entera de los $150
+hasta ver el total. Cambio nuestro, el dato ya viene en `costoEnvio`.
+
+### 6. La validación del reloj tiene que vivir en el servidor
+
+Repetimos lo de la sección anterior porque es lo más fácil de que se cuele: si la hora se valida
+solo en la pantalla, el cliente deja la ventana abierta y paga tarde con el precio de antes.
+
+### 7. ¿Qué pasa con los tamaños que YA están dados de alta en `cantidades-flor`?
+
+Hoy el dueño tiene ahí 20, 48 y 62 (con sus pliegos). Esa tabla define "qué cantidades cierran
+bien el círculo". La nueva configuración de entrega es **otra cosa** (plazos y cargos), aunque
+también se organice por cantidad.
+
+¿Se juntan en la misma tabla o son dos catálogos separados? Nos inclinamos por que la
+configuración de entrega **cuelgue de las cantidades que ya existen** (una cantidad válida puede
+tener N configuraciones de entrega), para que el dueño no tenga que dar de alta el 48 en dos
+lugares distintos y arriesgarse a que queden desalineados. Pero es su modelo, ustedes deciden.
+
+### ✅ CONFIRMADO por el dueño — el redondeo es HACIA ARRIBA
+
+Sobre el punto 1 de arriba: *"Sí, que sea arriba el redondeo."*
+
+Queda decidido, no es interpretación nuestra:
+
+```
+Configurados: 24, 48, 100
+
+Piden 30   →  toma las reglas del 48   (no del 24, aunque 24 esté "más cerca" en distancia)
+Piden 37   →  toma las reglas del 48
+Piden 49   →  toma las reglas del 100
+Piden 150  →  no hay ninguno arriba    →  BLOQUEADO + contactar al admin
+```
+
+**La regla en una línea:** el tamaño configurado inmediato superior, o el exacto si existe. Nunca
+uno menor.
+
+El porqué, para que no se "optimice" después por error: un ramo de 30 le da más trabajo que uno de
+24, así que aplicarle los plazos del 24 lo comprometería a entregar más rápido de lo que
+realmente puede. El redondeo hacia arriba siempre juega a favor del taller.
+
+**Caso borde que queda cubierto con esto:** si piden una cantidad mayor a la del tamaño más grande
+configurado, no hay a qué recurrir y se bloquea (punto 2 de la sección anterior). Es el único
+escenario donde el pedido no se puede generar por falta de configuración.
+
+---
+
+## 🎯 PROPUESTA DEL DUEÑO — el calendario ofrece solo fechas válidas (mejor que rechazar) (2026-08-14)
+
+El dueño propuso un cambio de enfoque en la pantalla del cliente, y **nos parece mejor que todo lo
+anterior**. Vale la pena que lo lean antes de modelar nada, porque simplifica bastante:
+
+> *"Yo configuro los ramos: el de 48 y pongo que me tardo 3 días en hacerlo, y así con los demás,
+> pero los días cambian según el tamaño. Entonces, cuando alguien vaya a realizar un pedido,
+> cuando esté por elegir la fecha: si elige el de 48 y yo dije que en 3 días, le sale un calendario
+> y le dice 'entrega en 3 días' — por ejemplo hoy 14, solo dejaría elegir el día 17, a las horas
+> que yo ponga, por ejemplo a las 5. Igual tomaría el lugar, que ya se estaría cobrando. Y estaría
+> un botón de urgente donde, si lo selecciona, va a poder seleccionar la fecha que quiere entregar
+> — por ejemplo yo configuro urgente: lo puedo entregar en 2 días o mañana, según configure y según
+> dónde se entregue — pero ya sería con un cargo extra, mencionándoselo."*
+
+### Por qué nos parece mejor
+
+Todo lo que veníamos diseñando giraba en torno a **rechazar** lo que no se puede: validar,
+bloquear, mostrar un mensaje, recotizar. Con esto **el error no puede ocurrir**: el calendario
+solo habilita los días que el taller sí puede cumplir, y punto.
+
+Se cae, por innecesario:
+- El rechazo con `entregaValida:false` en el flujo normal (queda solo como red de seguridad del
+  servidor, por si alguien manda una fecha inválida por fuera de la pantalla).
+- La recotización "ya no aplica el precio normal" — no hay nada que recotizar si nunca pudo
+  elegir una fecha imposible.
+
+Y el cargo por urgencia deja de ser una sorpresa al final: es un **botón que el cliente activa a
+propósito**, sabiendo lo que cuesta.
+
+### Cómo quedaría, paso a paso
+
+```
+1. El cliente arma su ramo (48 rosas, accesorios, listón).
+2. Elige la ZONA de entrega  → ya ve su precio ("Tejupilco — $150").
+3. Se le abre el calendario:
+   - Habilitado: solo el día 17 en adelante (3 días, según lo configurado para el 48)
+   - Horas: solo las que el dueño configuró (ej. 17:00)
+   - Todo lo anterior: deshabilitado, no se puede ni clicar
+4. Botón "¿Lo necesitas antes?" (urgente):
+   - Al activarlo, el calendario habilita días más cercanos según la config de urgencia
+   - Se le muestra el cargo ANTES de que elija: "entrega en 1 día — +$300"
+5. Confirma con el precio total ya completo.
+```
+
+### ⚠️ Dos cosas que hay que resolver para que esto funcione
+
+**1. La hora de corte mueve el calendario, no solo la fecha.**
+
+Si hoy es 14 y son las 11:00, el plazo de 3 días cae el **17**. Pero si ya es la 1:00 pm y la hora
+límite era mediodía, el día de hoy ya no cuenta y el primer día hábil sería el **18**. El cálculo
+de "cuál es el primer día seleccionable" tiene que considerar la hora actual, no solo la fecha.
+Si esto lo resuelve el back devolviéndonos la primera fecha/hora válida, mejor — no queremos
+duplicar esa lógica en el front y que se desincronice.
+
+**2. La zona debe elegirse ANTES que la fecha.**
+
+El dueño dijo que el plazo también depende de *"dónde se entregue"*. Si el cliente elige primero
+la fecha y después la zona, la fecha que ya escogió puede dejar de ser válida (una zona lejana
+suma días). En la pantalla vamos a poner la zona antes del calendario, pero se los avisamos porque
+implica que **el cálculo de fechas válidas necesita la zona como parámetro**.
+
+### Lo que necesitaríamos del back para armarlo así
+
+En vez de "validar una fecha que el front propone", nos serviría lo contrario: **que el back nos
+diga qué fechas son válidas**. Algo como:
+
+```
+GET (o POST) /v1/flores/fechas-disponibles
+   { cantidad: 48, lugarEntregaId: 5, urgente: false }
+→ { primeraFechaValida: "2026-08-17T17:00",
+    horasDisponibles: ["17:00"],
+    cargoUrgencia: null }
+
+   ...con urgente: true
+→ { primeraFechaValida: "2026-08-15T17:00",
+    horasDisponibles: ["17:00"],
+    cargoUrgencia: 300.00 }
+```
+
+Con eso el front solo pinta el calendario y no reimplementa ninguna regla — que es justo lo que
+queremos evitar, porque son reglas que el dueño va a seguir moviendo.
+
+**Es una propuesta, no un pedido cerrado.** Si tienen una forma mejor de exponerlo, díganla — lo
+importante es que las reglas vivan de su lado y el front solo muestre.
+
+---
+
+## ✅ ACLARACIÓN — producción NO está caída (2026-08-14)
+
+Nos llegó el comentario de que producción llevaba días caída. Lo probamos en vivo, ahora mismo,
+directo:
+
+```
+GET https://shop.novedades-jade.com.mx/                                   → 200
+GET https://backend.novedades-jade.com.mx/mis-productos/v1/negocio/estado → 200
+GET https://backend.novedades-jade.com.mx/v1/productos/obtenerProductos   → 200, datos reales
+```
+
+El sitio, el backend y el catálogo responden bien. **Producción no está caída.**
+
+Lo único que sigue fallando ahí es lo que ya conocíamos y ya está documentado arriba:
+`GET /tienda/v1/variante/{id}/producto-id` → 500, porque ese endpoint nunca se promovió de
+`qa` a `main`. Es un endpoint puntual, no el sitio completo — y, según confirmaron ustedes mismos
+hace unos días, no le afecta a ningún cliente real porque su código cae al método viejo (`getOne`)
+que sigue funcionando.
+
+Si tienen algo distinto que sí esté fallando en producción, pásennos el endpoint/URL exacto y la
+respuesta que reciben, y lo probamos igual que esto — pero con lo que vemos desde aquí, el sitio
+está arriba y funcionando.
+
+**Sobre el rediseño de arriba (lista blanca / calendario de fechas válidas):** lo leímos completo.
+Es un cambio grande de modelo — no vamos a tocar código todavía, tal como pidieron. En cuanto el
+dueño confirme cuál de las dos propuestas prefiere (la de bloqueo/recotización o la del
+calendario con fechas ya filtradas), lo diseñamos y les avisamos antes de construir nada.
