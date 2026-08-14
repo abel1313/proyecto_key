@@ -33,6 +33,13 @@ public class CantidadFlorValida extends BaseId {
     @Column(name = "pliegos")
     private Integer pliegos;
 
+    // Costo de mano de obra de armar ESTE tamano de ramo, puesto a mano por el dueno (ej. un ramo
+    // de 62 lleva mas trabajo que uno de 20). Se suma directo a precioTotal sin aparecer como
+    // accesorio -- el cliente ve un solo precio de ramo, no un desglose de material vs trabajo
+    // (decision del dueno). Null = sin costo de mano de obra para esta cantidad.
+    @Column(name = "mano_de_obra")
+    private Double manoDeObra;
+
     @Column(nullable = false)
     private Boolean activo = true;
 }

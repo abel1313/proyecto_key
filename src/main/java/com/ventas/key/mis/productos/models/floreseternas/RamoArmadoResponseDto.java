@@ -32,6 +32,10 @@ public class RamoArmadoResponseDto {
     // precioUnitario EXACTO para la linea de /v1/pedidos/savePedido de esta variante (cantidad =
     // pliegosPapel o 1 si es null) -- mismo motivo que CalcularPrecioResponseDto.precioUnitarioPapel.
     private Double precioUnitarioPapel;
+    // Monto de mano de obra ya incluido en precioTotal -- informativo/interno, el front NO debe
+    // mostrarlo como linea aparte al cliente (decision del dueno: "un solo precio de ramo", igual
+    // que el papel automatico). Null si esta cantidad no tiene mano de obra configurada.
+    private Double precioManoDeObra;
     private List<RamoArmadoAccesorioResponseDto> accesorios;
     private Double precioTotal;
     private Boolean activo;

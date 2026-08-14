@@ -33,6 +33,11 @@ public class CalcularPrecioResponseDto {
     private List<AccesorioCalculadoDto> accesoriosCalculados;
     private Double subtotalAccesorios;
 
+    // Monto de mano de obra ya incluido en "total" -- informativo/interno, el front NO debe
+    // mostrarlo como linea aparte al cliente (decision del dueno: "un solo precio de ramo", igual
+    // que el papel automatico). Null si esta cantidad no tiene mano de obra configurada.
+    private Double precioManoDeObra;
+
     private List<ListonCalculadoDto> listonesCalculados;
     private Double subtotalListones;
     // true si algun liston quedo con frase personalizada sin validar todavia. NO implica que se
