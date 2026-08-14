@@ -13453,3 +13453,311 @@ está arriba y funcionando.
 Es un cambio grande de modelo — no vamos a tocar código todavía, tal como pidieron. En cuanto el
 dueño confirme cuál de las dos propuestas prefiere (la de bloqueo/recotización o la del
 calendario con fechas ya filtradas), lo diseñamos y les avisamos antes de construir nada.
+
+### ✅ Confirmado de nuestro lado — y una aclaración: el calendario NO es una de dos propuestas
+
+Gracias por la verificación de producción; **coincide con la nuestra**, la hicimos por separado:
+sitio 200, login 400 (rechaza credenciales falsas, correcto), catálogo 200, contactos 200, cinta
+200. El único en 500 es el resolver, tal como está documentado. Producción está sana.
+
+**Pero hay que corregir una cosa:** escriben *"en cuanto el dueño confirme cuál de las dos
+propuestas prefiere (la de bloqueo/recotización o la del calendario)"*. No son dos propuestas
+entre las que hay que elegir — **el calendario lo propuso el dueño**, no nosotros, y ya está
+decidido.
+
+La secuencia real fue:
+1. Ustedes construyeron la validación con bloqueo/recotización.
+2. Al explicárselo al dueño, él propuso el calendario con fechas ya filtradas.
+3. Nosotros lo documentamos y le dijimos que nos parecía mejor, con el porqué.
+
+**Lo confirmado y firme:**
+- El cliente elige de un **calendario que solo habilita fechas que el taller puede cumplir**.
+- Botón de **urgente** que abre días más cercanos, mostrando el cargo **antes** de elegir.
+- Redondeo **hacia arriba** al tamaño configurado más cercano (37 → reglas del 48).
+- Si piden más que el tamaño más grande configurado → bloqueo + contactar al admin.
+- Validación del reloj **en el servidor** al momento del pago.
+
+El bloqueo/recotización que ya construyeron **no se tira**: queda como red de seguridad del
+servidor, por si llega una fecha inválida por fuera de la pantalla. Simplemente deja de ser el
+camino normal, porque con el calendario el cliente no puede elegir algo imposible.
+
+**Lo que necesitamos de ustedes para avanzar:** cómo lo van a modelar, y si les sirve exponer un
+endpoint que nos devuelva las fechas válidas (se los propusimos en la sección anterior) en vez de
+que el front reimplemente las reglas.
+
+### 📺 Ya está la pantalla de configuración para que la vean
+
+Adelantamos la pantalla de administración donde el dueño va a dar de alta esto — está en `qa`
+(`af332c7`), en 🌹 Flores eternas → 🚚 Entregas. **Todavía no guarda** (los endpoints no existen)
+y lo dice con un aviso; se hizo así para que el dueño la valide antes de que ustedes construyan
+la tabla, y para que tengan una referencia concreta de qué campos espera el front:
+
+```
+Ramo:  [ 48 flores ▾ ]
+
+ENTREGA NORMAL      días: [3]   entrego a las: [16:00]
+ENTREGA URGENTE     ☐ este ramo se puede apurar
+                    días: [1]   entrego a las: [18:00]
+                    pedir antes de: [12:00]   cargo: [$300]
+```
+
+El bloque urgente es opcional a propósito: hay tamaños que no se pueden apurar por ningún motivo
+(el de 100 para el día siguiente, ejemplo del propio dueño). Sin él, al cliente no se le muestra
+la opción.
+
+Los nombres de campo que usamos están en `src/app/flores/models/config-entrega.model.ts` — si les
+acomoda otro modelo, cámbienlo con confianza: el servicio del front está aislado en un solo
+archivo justo para eso.
+
+---
+
+# 📗 ESTADO COMPLETO DE FLORES ETERNAS — todo en un solo lugar (2026-08-14)
+
+Este documento ya lleva muchas secciones del módulo, varias con vueltas y correcciones sobre lo
+mismo. Esto es el estado consolidado: lo acordado, lo hecho, lo que falta y lo que sigue abierto.
+**Si algo de arriba contradice esto, vale esto.**
+
+---
+
+## 1. Decisiones del dueño — firmes, no volver a preguntarlas
+
+| Tema | Decisión |
+|---|---|
+| Dónde vive | Sección propia. **No** mezclado con la tienda de bolsas/blusas |
+| Flores sueltas | **No se venden.** Solo ramos |
+| Papel dentro del rango | **Invisible** para el cliente. Va por default, se cobra por dentro |
+| Papel fuera del rango | Se le pregunta, mostrando solo que *tiene costo*, **nunca el monto** |
+| Sin papel | Avisar: *"el ramo va sin papel, solo las rosas enrolladas"* |
+| Pliegos | Los pone él a mano por tamaño. **No** una fórmula |
+| Pliegos sin configurar | **2 por defecto**, configurable |
+| Mano de obra | **Dentro del precio por flor.** Sin campo propio, sin desglose |
+| Costo del material | En `TipoFlor.precioCosto`, solo para calcular margen |
+| Umbral del papel | **Inclusivo** (`>=`): con 20, un ramo de 20 sí lleva papel |
+| Anticipo urgente | **50% del total, es enganche — NO dinero extra** |
+| Fechas de entrega | **Calendario que solo ofrece lo que el taller puede cumplir** |
+| Cantidad sin configuración | Redondeo **hacia arriba** (37 → reglas del 48) |
+| Cantidad mayor al máximo | **Bloqueo** + contactar al admin por WhatsApp/redes |
+| Pago tardío | Se **recotiza** con cargo urgente, no se cancela |
+
+---
+
+## 2. Lo que YA funciona en QA
+
+**Catálogos completos:** tipos de flor (con precio y costo), colores por especie con su stock,
+cantidades válidas con pliegos, accesorios con las reglas del papel, frases de listón, lugares de
+entrega con costo de envío, y ramos preconfigurados.
+
+**Motor de cálculo:** multicolor (`colores[]` → `coloresCalculados[]` con su `varianteId`),
+papel automático por umbral, pliegos por tamaño, envío por zona.
+
+**Variantes sombra excluidas** de buscadores, filtros, chatbot y reporte de más vendidos.
+
+**Del lado del front:** las 5 pestañas de catálogo, el configurador del cliente, la vitrina de
+ramos armados y la pantalla de gestión de esos ramos. Todo en `qa` (`af332c7`).
+
+---
+
+## 3. Construido pero esperando algo
+
+| Qué | Espera |
+|---|---|
+| `entregaValida` / `requiereAnticipo` / `montoAnticipoSugerido` | Ya responden en QA, pero **el front no los conecta** hasta cerrar el modelo de entregas |
+| Pantalla 🚚 Entregas (front) | Los endpoints del back. Hoy carga y muestra aviso, **no guarda** |
+| `CantidadFlorValida.manoDeObra` | En desuso — quedó en `null` para siempre, no molesta |
+| `horasMinimasAnticipacion` / `precioUrgencia` | **Probablemente los reemplace** el modelo de entregas. No borrarlos aún |
+
+---
+
+## 4. Lo que falta — del back
+
+**🔴 1. El merge `qa → main`.** `GET /tienda/v1/variante/{id}/producto-id` sigue en 500 en
+producción porque nunca se promovió. Es lo único que impide cerrar `getOne`. Lleva días.
+
+**🔴 2. El modelo de configuración de entregas.** Por tamaño de ramo: días y hora de entrega
+normal, y (opcional) días, hora, hora límite de pedido y cargo del plazo urgente. Nuestra
+propuesta es que **cuelgue de `CantidadFlorValida`** en vez de una tabla nueva, para que el dueño
+no registre el mismo tamaño en dos lugares.
+
+**🟠 3. Endpoint de fechas válidas.** Que el back diga *qué fechas se pueden*, en vez de que el
+front proponga una y el back la valide. Así las reglas viven de un solo lado —y el dueño las va a
+seguir moviendo.
+
+**🟠 4. Validación del reloj al momento del pago**, en el servidor. Con el cuidado de **no meterle
+reglas de flores al módulo de abonos genérico**, que usa todo el sistema.
+
+---
+
+## 5. Lo que falta — del front
+
+1. **Conectar el calendario** — en pausa hasta el punto 2 y 3 de arriba.
+2. **Precio de la zona en el desplegable** — hoy dice "Tejupilco" y el cliente se entera de los
+   $150 hasta ver el total. Chico, no depende de nadie.
+3. **Dos campos que se sumen en Tipos de flor** — capturar $10 de flor + $15 de mano de obra en
+   vez de que el dueño haga la cuenta mental. No necesita nada del back: el costo ya se guarda y
+   la mano de obra sale de la resta.
+4. **Bandeja de frases pendientes** para el admin — el endpoint ya existe, la pantalla no.
+5. **Probar el configurador de punta a punta** — armar un ramo y llegar a un pedido real. Nadie lo
+   ha hecho completo todavía.
+
+---
+
+## 6. Dudas abiertas
+
+1. **¿El cargo por urgencia aplica a los ramos preconfigurados** (`RamoArmado`), o solo al
+   configurador a la medida?
+2. **Si un pedido lleva urgencia Y frase personalizada**, ¿los dos anticipos van al mismo apartado?
+   Se preguntó cuando el pedido principal se cobraba completo; ahora que **el pedido principal ya
+   es un apartado**, la respuesta puede ser otra. No queremos dos apartados abiertos por un ramo.
+3. **¿La fecha de entrega debería ser obligatoria** en el configurador? Hoy, sin fecha no se
+   valida ni se cobra urgencia — así que el cliente podría no ponerla y pedirla "para mañana"
+   después. Es duda de negocio, la planteamos por si conviene cerrarla desde el modelo.
+
+---
+
+## 7. Lección de esta ronda, para los dos equipos
+
+Hubo varias vueltas caras: la mano de obra se movió tres veces (por cantidad → por especie →
+adentro del precio, que era donde ya estaba), y la regla de urgencia otras tantas (fórmula ×2 →
+dos umbrales → una sola condición → calendario).
+
+Lo que las causó: **construir sobre una interpretación en vez de sobre un ejemplo del dueño.** Lo
+que las cortó, cada vez, fue pedirle un caso con números: *"$660 + $300 = $960, y de ahí el 50%"*
+zanjó en una frase una discusión de tres mensajes.
+
+Sugerencia para lo que viene: antes de construir una regla de negocio, pedir un ejemplo numérico
+concreto y pegarlo en este documento. Sale más barato que el rediseño.
+
+---
+
+## 📐 LO QUE EL FRONT NECESITA — endpoints concretos para cerrar entregas (2026-08-14)
+
+Aterrizamos lo que falta en request/response, para que no tengan que deducirlo del hilo. **Los
+nombres son propuesta, no imposición** — si les acomoda otra cosa, cámbienlo y avísennos: nuestro
+servicio está aislado en un solo archivo (`src/app/flores/service/config-entrega.service.ts`).
+
+Son tres cosas. La 1 es la que desbloquea la pantalla de admin; la 2, la del cliente; la 3 es la
+que evita un cobro mal hecho.
+
+---
+
+### 1. CRUD de la configuración de entregas — ADMIN
+
+Lo que el dueño da de alta por tamaño de ramo. Es lo que ya está pintado en la pantalla
+🚚 Entregas (en `qa`, sin poder guardar).
+
+```
+GET    /v1/config-entrega/getAll?page=0&size=200     (ADMIN)
+POST   /v1/config-entrega/save                       (ADMIN)
+PUT    /v1/config-entrega/update/{id}                (ADMIN)
+DELETE /v1/config-entrega/delete   body: 1           (ADMIN, id crudo como el resto)
+```
+
+**Objeto:**
+```json
+{
+  "id": 1,
+  "cantidadFlorValidaId": 7,
+  "cantidadFlores": 48,
+
+  "diasNormal": 3,
+  "horaEntregaNormal": "16:00",
+
+  "diasUrgente": 1,
+  "horaEntregaUrgente": "18:00",
+  "horaLimitePedido": "12:00",
+  "cargoUrgente": 300.00,
+
+  "activo": true
+}
+```
+
+- `cantidadFlorValidaId` — apunta al tamaño ya dado de alta en `/v1/cantidades-flor`. **No es un
+  número suelto**: la pantalla lo elige de un selector, para que no se dupliquen tamaños.
+- `cantidadFlores` — solo de lectura, para pintar la lista sin cruzar catálogos. Si les estorba,
+  lo quitamos y cruzamos nosotros.
+- **Todo el bloque urgente puede venir `null`.** Significa que ese tamaño **no se puede apurar**
+  (el de 100 para mañana, ejemplo del dueño) y al cliente no se le muestra el botón.
+
+**Recordatorio del modelo:** les propusimos que esto **cuelgue de `CantidadFlorValida`** en vez de
+ser tabla nueva — el 48 ya está ahí con sus pliegos. Si lo hacen así, estos endpoints no existen y
+los campos viajan en `/v1/cantidades-flor`; nos sirve igual, solo díganlo.
+
+---
+
+### 2. Fechas disponibles — PÚBLICO (lo que arma el calendario)
+
+**Es el que cambia el enfoque.** En vez de que el front proponga una fecha y ustedes la validen,
+ustedes dicen qué fechas se pueden y el front solo las pinta. Así las reglas viven de un solo
+lado, que es lo que el dueño va a seguir moviendo.
+
+```
+POST /v1/flores/fechas-disponibles     (público, igual que calcular-precio)
+```
+
+**Request:**
+```json
+{ "cantidad": 37, "lugarEntregaId": 5, "urgente": false }
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "primeraFechaValida": "2026-08-17T16:00:00",
+    "horasDisponibles": ["16:00"],
+    "cantidadAplicada": 48,
+    "cargoUrgencia": null,
+    "ofreceUrgente": true,
+    "mensaje": null
+  }
+}
+```
+
+Con `"urgente": true` respondería `primeraFechaValida` más cercana y `cargoUrgencia: 300.00`.
+
+**Por qué cada campo:**
+- `primeraFechaValida` — el front deshabilita todo lo anterior en el calendario. **Tiene que
+  considerar la hora actual, no solo la fecha**: si hoy es 14 a las 11:00 el plazo de 3 días cae
+  el 17, pero a la 1:00 pm el día de hoy ya no cuenta y sería el 18. No queremos duplicar ese
+  cálculo en el front y que se desincronice.
+- `cantidadAplicada` — **importante para la UX**: si el cliente pidió 37 y se le aplican las
+  reglas del 48, hay que decírselo (*"tu ramo de 37 se prepara con los tiempos de uno de 48"*).
+  Si no, no entiende por qué tarda lo mismo.
+- `ofreceUrgente` — si es `false`, el front ni siquiera muestra el botón de urgente.
+- `mensaje` — para el caso de bloqueo: piden más que el tamaño máximo configurado y no hay a qué
+  recurrir. Ahí `primeraFechaValida` vendría `null` y el front muestra el mensaje con el contacto
+  del admin.
+- **`lugarEntregaId` va en el request** porque el dueño dijo que el plazo también depende de la
+  zona. Por eso en la pantalla la zona se elige **antes** que la fecha.
+
+---
+
+### 3. Validar el reloj al momento del pago — la que evita cobrar mal
+
+La regla del dueño: el pago tiene que quedar antes de `horaLimitePedido`. Si se pasa, **el pedido
+se recotiza con el cargo urgente** (no se cancela).
+
+Esto obliga a validar **en el momento del cobro**, no solo al cotizar. Y ahí está el problema: hoy
+el pago de un crédito se registra con `POST /v1/abonos/{pedidoId}`, que es **el endpoint genérico
+que usa todo el sistema** (apartados de ropa, fiados, todo). Meterle una regla de flores puede
+afectar cobros que hoy funcionan bien.
+
+Tres formas, **ustedes eligen**:
+- **(a)** Un endpoint aparte para el pago de pedidos de flores, que valide y delegue en el mismo
+  mecanismo de abonos.
+- **(b)** La validación dentro de `abonos`, pero con un guard claro que solo aplique si el pedido
+  es de flores.
+- **(c)** Un endpoint de "revalidar antes de pagar" que el front llame justo antes del abono.
+
+Nos inclinamos por **(a) o (c)**, para no meterle condicionales al cobro de todo el sistema.
+
+⚠️ **No sirve validarlo solo en el front.** El cliente puede dejar la pantalla abierta y pagar
+horas después, o llamar el endpoint directo. Tiene que ser del lado del servidor.
+
+---
+
+### Y lo que sigue sin moverse desde hace días
+
+**`GET /tienda/v1/variante/{id}/producto-id` en 500 en producción** — el merge `qa → main` que
+ustedes mismos diagnosticaron. No es de flores y no bloquea nada de esto, pero es lo único con un
+endpoint roto en producción y es lo que impide cerrar `getOne`.
