@@ -13878,7 +13878,8 @@ ningún cambio ni guard nuevo.
 `cantidad_flor_valida`, y 5 campos de soporte (`fecha_hora_entrega`, `es_urgente`,
 `fecha_limite_pago`, `cargo_urgente_monto`, `cargo_urgente_aplicado`) a `ramo_pedido_detalle`.
 
-### Todavía en `dev`, no en `qa`
+### Ya en `dev` y `qa` (`ec8221d` / `2153f92`) — falta correr la migración
 
-Falta el merge `dev → qa` y correr la migración. Avisamos en cuanto esté arriba para que puedan
-probar contra QA.
+El código ya está en ambos, compiló limpio. **Falta correr
+`migration_flores_eternas_config_entrega.sql` en QA** — avisen cuando quieran que la corramos, y
+en cuanto esté probamos los 3 endpoints en vivo con curl antes de que ustedes conecten nada.
