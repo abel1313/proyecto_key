@@ -12918,3 +12918,56 @@ seguro — un `ALTER TABLE ADD COLUMN` sobre una columna que ya existe simplemen
 de "columna duplicada", no rompe nada.
 
 En cuanto confirmen que corrieron, lo volvemos a probar contra QA.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — migración corrida, falta el redespliegue de QA (2026-08-14)
+
+El dueño ya corrió la migración en QA y producción — confirmado, `calcular-precio` ya no da el
+error de SQL. **Pero el servicio de QA todavía no se volvió a desplegar con el código más
+reciente** (el fix del 150%, el quitar la fórmula ×2, y la respuesta estructurada
+`entregaValida`/`mensajeEntrega`). Lo confirmamos probando en vivo: la respuesta de
+`calcular-precio` en QA ahora mismo trae `precioUrgencia` (eso sí llegó) pero **no** trae
+`entregaValida`, `requiereAnticipo` ni `montoAnticipoSugerido` — señal clara de que corre un
+commit anterior al fix.
+
+**No conecten nada de esto todavía.** Mientras no se confirme el redespliegue, si prueban un caso
+urgente en QA van a ver el comportamiento viejo (la fórmula ×2, y si llegan a completar un pedido
+urgente, el bug del 150% sigue ahí en ese build). Les avisamos en cuanto esté el redespliegue
+confirmado y lo volvamos a probar con curl.
+
+### Resumen de todo lo que va a estar disponible cuando se confirme
+
+Para que tengan el panorama completo en un solo lugar, sin tener que reconstruirlo leyendo todo el
+hilo de arriba:
+
+**`POST /v1/flores/calcular-precio`** — campos nuevos en el response:
+- `entregaValida` (boolean) — `false` si no da tiempo con la fecha/hora pedida. El resto del
+  response se calcula igual, para poder mostrar precio mientras el cliente corrige la fecha.
+- `mensajeEntrega` (string) — el motivo, cuando `entregaValida:false`.
+- `precioUrgencia` (número o `null`) — ya sumado en `total`, sin línea aparte para el cliente.
+- `requiereAnticipo` (boolean) — `true` cuando aplica `precioUrgencia`. Señal para crear el
+  pedido como `APARTADO`.
+- `montoAnticipoSugerido` (número, solo si `requiereAnticipo:true`) — 50% de `total` (incluye
+  envío).
+- Request nuevo: `fechaHoraEntrega` (opcional, ISO `LocalDateTime`).
+
+**`POST /v1/pedidos/savePedido`** — sin cambios de contrato, solo un uso distinto: cuando
+`requiereAnticipo:true`, mandar `tipoPedido: "APARTADO"` en vez de omitirlo/`"NORMAL"`. Campo que
+ya existía.
+
+**`POST /v1/abonos/{pedidoId}`** — sin cambios, es el mecanismo de crédito que ya usan. Ahí se
+registra `montoAnticipoSugerido` como el primer abono.
+
+**`POST /v1/flores/pedidos/{pedidoId}/detalle`** — request nuevo: mismo `fechaHoraEntrega` otra
+vez (se revalida en servidor). Si el pedido llegó como `NORMAL` cuando debía ser `APARTADO`, esta
+llamada rechaza con un mensaje claro — no cobra nada extra, solo bloquea el error.
+
+**Catálogo:**
+- `CantidadFlorValida.horasMinimasAnticipacion` / `precioUrgencia` — por tamaño de ramo.
+- `AccesorioRamo.pliegosPorDefecto` — en el accesorio "papel".
+- `LugarEntrega.horasExtraAnticipacion` — por zona.
+
+Estos 3 campos de catálogo sí los pueden ir agregando a las pantallas desde ahora (no cobran nada
+por sí solos) — ya están en QA (migración corrida). Lo único en pausa es conectar el cobro/bloqueo
+real hasta el redespliegue.
