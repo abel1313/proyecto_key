@@ -78,12 +78,15 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
 
     // Regla del umbral, centralizada aqui porque la usan tanto RamoArmadoServiceImpl como
     // FlorPedidoServiceImpl: el accesorio activo marcado "es papel" se agrega solo cuando
-    // cantidadFinal supera su propio umbralActivacion (configurable por el admin, ver
-    // AccesorioRamo.umbralActivacion). Sin accesorio "es papel" activo, o con umbralActivacion
-    // null, la regla nunca se dispara sola -- queda como accesorio opcional normal.
+    // cantidadFinal ES AL MENOS su propio umbralActivacion (>=, no >) -- configurable por el
+    // admin, ver AccesorioRamo.umbralActivacion. Antes era estrictamente mayor: con umbral=20, un
+    // ramo de exactamente 20 no activaba el papel, contra la lectura natural de "desde 20 lleva
+    // papel". Cambiado a peticion explicita del front/dueno (2026-08-14), el dueno choco 3 veces
+    // con el caso borde. Sin accesorio "es papel" activo, o con umbralActivacion null, la regla
+    // nunca se dispara sola -- queda como accesorio opcional normal.
     public Optional<AccesorioRamo> obtenerPapelAutomaticoSiAplica(int cantidadFinal) {
         return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
-                .filter(papel -> papel.getUmbralActivacion() != null && cantidadFinal > papel.getUmbralActivacion());
+                .filter(papel -> papel.getUmbralActivacion() != null && cantidadFinal >= papel.getUmbralActivacion());
     }
 
     // Cuantos pliegos hace falta para envolver "cantidadFlores" flores. Orden de prioridad:
