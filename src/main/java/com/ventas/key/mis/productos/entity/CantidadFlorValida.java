@@ -25,6 +25,14 @@ public class CantidadFlorValida extends BaseId {
     @Column(nullable = false)
     private Integer cantidad;
 
+    // Cuantos pliegos de papel lleva ESTE ramo, puesto a mano por el dueno -- no es proporcional
+    // a la cantidad de flores (depende de como se arma, tamano del pliego, etc.), por eso no se
+    // deriva de una formula. Null = todavia no lo configuro; en ese caso se usa como respaldo
+    // AccesorioRamo.floresPorPliego (formula) y, si tampoco esta, el precio fijo unico de siempre
+    // (ver AccesorioRamoServiceImpl.calcularPliegosPapel).
+    @Column(name = "pliegos")
+    private Integer pliegos;
+
     @Column(nullable = false)
     private Boolean activo = true;
 }

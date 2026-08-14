@@ -83,21 +83,29 @@ public class AccesorioRamoServiceImpl extends CrudAbstractServiceImpl<
                 .filter(papel -> papel.getUmbralActivacion() != null && cantidadFinal > papel.getUmbralActivacion());
     }
 
-    // Cuantos pliegos hace falta para envolver "cantidadFlores" flores. Un pliego empezado se
-    // gasta completo (redondeo hacia arriba). Null si el accesorio no tiene floresPorPliego
-    // configurado -- caso retrocompatible, precio fijo unico (ver calcularPrecioPapel).
-    public Integer calcularPliegosPapel(AccesorioRamo papel, int cantidadFlores) {
+    // Cuantos pliegos hace falta para envolver "cantidadFlores" flores. Orden de prioridad:
+    // 1. pliegosExplicitos -- lo que el dueno configuro a mano para ESE ramo (CantidadFlorValida
+    //    .pliegos), porque el papel no es proporcional a la cantidad de flores (depende de como
+    //    se arma). Gana siempre que no sea null, sin importar floresPorPliego.
+    // 2. Formula floresPorPliego -- respaldo mientras el dueno no ha configurado el explicito
+    //    (un pliego empezado se gasta completo, redondeo hacia arriba).
+    // 3. null -- ni lo uno ni lo otro configurado: precio fijo unico de siempre (ver
+    //    calcularPrecioPapel).
+    public Integer calcularPliegosPapel(AccesorioRamo papel, int cantidadFlores, Integer pliegosExplicitos) {
+        if (pliegosExplicitos != null) {
+            return pliegosExplicitos;
+        }
         if (papel.getFloresPorPliego() == null || papel.getFloresPorPliego() <= 0) {
             return null;
         }
         return (int) Math.ceil((double) cantidadFlores / papel.getFloresPorPliego());
     }
 
-    // Precio real del papel para un ramo de "cantidadFlores" flores: pliegosNecesarios x precio
-    // (precio se interpreta como "precio por pliego" en cuanto floresPorPliego esta configurado).
-    // Sin floresPorPliego configurado, se mantiene el precio fijo unico de antes.
-    public double calcularPrecioPapel(AccesorioRamo papel, int cantidadFlores) {
-        Integer pliegos = calcularPliegosPapel(papel, cantidadFlores);
+    // Precio real del papel: pliegosNecesarios x precio (precio se interpreta como "precio por
+    // pliego" en cuanto hay pliegos, explicitos o por formula). Sin ninguno de los dos
+    // configurado, se mantiene el precio fijo unico de antes.
+    public double calcularPrecioPapel(AccesorioRamo papel, int cantidadFlores, Integer pliegosExplicitos) {
+        Integer pliegos = calcularPliegosPapel(papel, cantidadFlores, pliegosExplicitos);
         return pliegos != null ? pliegos * papel.getPrecio() : papel.getPrecio();
     }
 }

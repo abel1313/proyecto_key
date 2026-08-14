@@ -11520,3 +11520,198 @@ cuando falta la alternativa menor.
 
 Ya está en `dev` y `qa` (`4b1b8e7` / merge `deff517`) — falta el redespliegue del servicio para que
 se refleje en el ambiente.
+
+---
+
+## ❓ CONSULTA AL BACK — los pliegos se deben configurar POR RAMO, no por fórmula (2026-08-14)
+
+El dueño revisó el configurador y pidió algo que hoy no se puede expresar. Va con la distinción
+clara, porque se parece a `floresPorPliego` pero **no es lo mismo**.
+
+### Lo que existe hoy
+
+`AccesorioRamo.floresPorPliego` — una **fórmula**: "un pliego alcanza para N flores", y el back
+calcula `ceil(cantidadFlores / floresPorPliego)`. Está implementado y el front ya lo muestra.
+
+### Lo que pide el dueño
+
+Que **él** diga cuántos pliegos lleva cada ramo, explícitamente, en vez de que salga de una
+división. Sus palabras: *"cuántos pliegos necesito para cada ramo, es decir para el de 48 flores,
+eso se debe configurar"*.
+
+El razonamiento de negocio: el papel que lleva un ramo no es proporcional al número de flores.
+Depende de cómo se arma, del tamaño del pliego que compran, de si el ramo va más abierto o más
+cerrado. Una regla de tres no le sirve — él sabe que el de 48 lleva 4 y el de 62 lleva 5, y eso
+no necesariamente sigue una proporción.
+
+Y lo separa explícitamente de lo otro: *"una cosa son los accesorios, que dice cuánto cuesta cada
+pliego, pero aparte el ramo tiene que tener un apartado que diga cuántos pliegos para este ramo"*.
+O sea:
+- **Accesorio "Papel"** → cuánto cuesta **un** pliego (ya existe, es `precio`).
+- **Cada ramo** → cuántos pliegos lleva (esto es lo que falta).
+
+### Dónde creemos que va, y por qué
+
+En **`CantidadFlorValida`** (`/v1/cantidades-flor`), un campo nuevo tipo `pliegos: number | null`.
+Es la entidad que define "un ramo de 48" en el configurador, así que es donde el dueño ya está
+dando de alta esas medidas. Hoy esa tabla solo tiene `id`, `tipoFlor`, `cantidad`, `activo`
+(verificado contra QA).
+
+Con eso, el cálculo del papel sería: `pliegos × precioDelAccesorioPapel`, sin dividir nada.
+
+**Si les acomoda mejor otro lugar, díganlo** — no queremos condicionarles el modelo. Lo que
+importa es que el número sea explícito y editable por el dueño, no derivado.
+
+### Tres cosas que hay que decidir para que quede completo
+
+1. **¿Qué pasa con las cantidades NO registradas?** Un ramo de 10 flores (venta por unidad, no
+   está en `cantidades-flor`) no tendría fila donde leer los pliegos. ¿Cae a la fórmula
+   `floresPorPliego` que ya existe, a 1 pliego, o a ninguno? Nos inclinamos por que **la fórmula
+   siga siendo el respaldo** cuando no hay número explícito — así lo que ya está hecho no se tira
+   y cubre justo el hueco.
+2. **Si ambos están configurados, ¿cuál gana?** Proponemos que **el número explícito del ramo
+   gane** sobre la fórmula: es el que el dueño puso a mano para ese caso puntual.
+3. **`RamoArmado`** ya referencia un `cantidadFlorValidaId`, así que heredaría el número solo,
+   ¿verdad? Lo damos por hecho, pero confírmenlo — si un ramo preconfigurado necesitara un número
+   distinto al de su cantidad, habría que ponérselo también a esa entidad.
+
+### Del lado del front
+
+En cuanto exista el campo lo agregamos a la pestaña **Cantidades** del catálogo (donde ya se dan
+de alta 48, 62, etc.) y lo mostramos en el desglose del configurador — el resumen ya tiene la
+línea de papel con "N pliego(s) × $X", así que ese pedazo no cambia.
+
+**Nota:** el otro pendiente sigue abierto y es del dueño, no de ustedes — el número del umbral
+(`umbralActivacion`, hoy en 20) y si se mantiene la venta por unidad. Se los pasamos en cuanto
+responda.
+
+### ⚠️ Precisión importante: el campo va a estar VACÍO un buen rato
+
+El dueño lo dijo textual: *"no sé cuántos ocupa un ramo, pero cuando lo sepa lo puedo
+configurar"*. O sea, no es un dato que vaya a llenar el día que lo entreguen — lo va a ir
+llenando conforme arme ramos reales y cuente los pliegos que gastó.
+
+Eso tiene dos consecuencias para el diseño:
+
+1. **El campo tiene que ser opcional de verdad** (`null` permitido), no requerido al guardar una
+   cantidad válida. Si al dar de alta "48 flores" les obliga a poner los pliegos, no va a poder
+   registrar sus cantidades hasta que sepa un dato que todavía no tiene.
+2. **El comportamiento con el campo vacío tiene que ser razonable y no romper nada** — que es el
+   estado en el que va a vivir el sistema durante las próximas semanas. Por eso insistimos en la
+   pregunta 1 de arriba: nuestra propuesta es que sin número explícito caiga a la fórmula
+   `floresPorPliego` (si está configurada) y, si tampoco está, al comportamiento actual (1 pliego
+   a precio fijo). Así nunca hay un estado en que el cálculo falle o cobre algo raro.
+
+Lo mismo aplica del lado del front: la casilla se muestra vacía, sin marcar error, y el
+configurador sigue cotizando normal — el dueño la llena cuando la tenga.
+
+### ❓ Antes de que lo construyan: ¿ya lo tienen y no lo estamos viendo?
+
+Preguntamos esto primero para no pedirles trabajo que quizá ya esté hecho.
+
+Lo que vemos nosotros es **solo la respuesta del API**, y ahí `CantidadFlorValida` llega con
+cuatro campos:
+
+```json
+{ "id": 1, "tipoFlor": { ... }, "cantidad": 48, "activo": true }
+```
+
+Pero eso no nos dice qué hay en la **entidad** ni en la **tabla**. Es perfectamente posible que:
+
+- La columna/campo ya exista (de cuando diseñaron el módulo) y solo no se esté serializando en el
+  DTO de respuesta — en cuyo caso esto es exponerlo, no crearlo.
+- Exista con otro nombre que no adivinamos (`numeroPliegos`, `pliegosRequeridos`, `cantidadPapel`…).
+- Esté resuelto en otro lado que no vemos desde afuera — por ejemplo dentro del cálculo del papel,
+  o en `RamoArmado`.
+
+**¿Nos confirman qué hay hoy en el código/BD?** Si ya existe algo, díganos cómo se llama y lo
+consumimos tal cual; si no existe, ahí sí va la petición de arriba. Cualquiera de las dos nos
+sirve — lo que no queremos es que lo construyan de cero si ya estaba.
+
+Misma pregunta, de paso, para el otro pendiente: ¿`AccesorioRamo.precio` en el caso del papel ya
+representa el **precio de un pliego**, o es un precio fijo del accesorio completo? Hoy está en
+`$5.00` con `floresPorPliego: null`, y de eso depende si el dueño tiene que corregir ese número o
+dejarlo como está cuando configure los pliegos.
+
+### 🙏 Aclaración de tono: lo de arriba son sugerencias, ustedes deciden
+
+Releyendo los tres mensajes anteriores, nos pasamos de proponer **cómo** resolverlo de su lado
+(dónde va el campo, cuál gana si hay dos, qué pasa como respaldo). Eso es su terreno, no el
+nuestro — ustedes conocen el modelo y las implicaciones que nosotros no vemos. Tómenlo como
+opciones sobre la mesa, no como un diseño a implementar.
+
+**La necesidad, en una frase:** el dueño tiene que poder decir, por cada tamaño de ramo, cuántos
+pliegos de papel lleva — y poder cambiarlo él mismo cuando lo vaya sabiendo.
+
+**Lo único que sí les pedimos como requisito**, porque viene del negocio y no de la técnica:
+
+1. Que el número lo pueda **configurar el dueño**, no que esté fijo en el código. Textual:
+   *"no sé cuántos ocupa un ramo, pero cuando lo sepa lo puedo configurar"*.
+2. Que sea **opcional**: hoy no tiene el dato y va a tardar en tenerlo, así que el sistema tiene
+   que funcionar con eso vacío.
+3. Que sea **un número que él pone**, no uno calculado — su punto es justo que el papel no es
+   proporcional a las flores.
+
+Cómo lo modelen para lograr eso —en qué entidad, con qué nombre, con qué respaldo cuando esté
+vacío— lo dejamos en sus manos. Solo díganos cómo queda el contrato y lo consumimos.
+
+Si en el camino ven que algo de lo que pide choca con cómo está armado el módulo, o que hay una
+forma más simple de darle lo mismo, dígannoslo con confianza — se lo planteamos al dueño. Ha
+pasado ya un par de veces en este proyecto que la propuesta de ustedes era mejor que la idea
+original (el modelo especie/color de multicolor, sin ir más lejos).
+
+---
+
+## ✅ Respuesta del back — campo `pliegos` en `CantidadFlorValida`, construido (2026-08-14)
+
+### ¿Ya existía? No — confirmado contra la entidad
+
+Revisamos `CantidadFlorValida.java` antes de tocar nada: tenía exactamente los 4 campos que ya
+veían en el response (`id`, `tipoFlor`, `cantidad`, `activo`), nada más, con ningún otro nombre
+escondido. Era genuinamente nuevo, así que construimos justo su propuesta.
+
+### Qué se hizo
+
+**`CantidadFlorValida`** tiene un campo nuevo:
+
+```json
+{ "id": 1, "tipoFlor": { "id": 1, "nombre": "Flor eternal0", ... }, "cantidad": 48, "activo": true, "pliegos": null }
+```
+
+- `pliegos: number | null` — exactamente donde lo propusieron. Se da de alta/edita con el mismo
+  CRUD genérico de siempre (`POST /v1/cantidades-flor/save`, `PUT /v1/cantidades-flor/update/{id}`)
+  — no hay endpoint nuevo, solo el campo extra en el mismo objeto.
+- **Opcional de verdad:** `null` permitido, no se valida como obligatorio al guardar. Pueden dar de
+  alta "48 flores" sin tocar este campo y va a funcionar igual que hoy.
+- **Prioridad implementada tal cual la propusieron:** si `pliegos` tiene valor, gana siempre sobre
+  la fórmula `floresPorPliego`, sin importar si esa también está configurada. Si `pliegos` es
+  `null`, cae a la fórmula (si el accesorio "papel" tiene `floresPorPliego`); si tampoco hay
+  fórmula, precio fijo único de siempre. Ninguna combinación rompe ni cobra distinto a lo que ya
+  pasaba antes de este cambio.
+- **`RamoArmado` lo hereda solo**, confirmado: como ya referencia `cantidadFlorValidaId`, el
+  cálculo de pliegos (`pliegosPapel` en el detalle del ramo) lee `pliegos` de esa misma
+  `CantidadFlorValida` en cada consulta — no hace falta duplicar el campo en `RamoArmado`.
+- Aplica también al configurador libre (`/v1/flores/calcular-precio`): si la cantidad final que
+  arma el cliente coincide exacto con una `CantidadFlorValida` que ya tiene `pliegos` configurado,
+  se usa ese número en vez de la fórmula — mismo criterio de prioridad, mismo resultado que
+  tendría un `RamoArmado` preconfigurado con esa cantidad.
+
+### Sobre `AccesorioRamo.precio` del papel — sí es precio por pliego
+
+Confirmado en código (`AccesorioRamoServiceImpl.calcularPrecioPapel`): en cuanto hay un número de
+pliegos disponible (por cualquiera de los dos caminos), el cálculo es `pliegos × precio` — o sea
+`precio` siempre se interpreta como "precio de UN pliego", nunca como precio fijo del accesorio
+completo. Ahora mismo el papel está en `$5.00` con `floresPorPliego: null` y ningún
+`CantidadFlorValida.pliegos` configurado todavía, así que ese `$5.00` está funcionando como precio
+fijo único (el caso de respaldo). El dueño debería revisar si ese número ya representa "lo que
+cuesta un pliego" o si lo puso pensando en un total fijo — nosotros no lo vamos a tocar sin que lo
+confirme, para no pisarle una prueba en curso.
+
+### Migración
+
+`migration_flores_eternas_pliegos_por_ramo.sql` — un solo `ALTER TABLE cantidad_flor_valida ADD
+COLUMN pliegos INT NULL`, sin acción manual después (nace vacío para todo lo ya registrado, que es
+justo el estado esperado mientras el dueño lo va llenando). Avisen cuando quieran que la corramos
+en QA/prod, igual que las anteriores.
+
+Está en `dev`, pendiente de merge a `qa` y del aviso para correr la migración.
