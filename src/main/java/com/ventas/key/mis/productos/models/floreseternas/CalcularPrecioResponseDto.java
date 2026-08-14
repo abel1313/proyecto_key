@@ -38,6 +38,12 @@ public class CalcularPrecioResponseDto {
     // que el papel automatico). Null si esta cantidad no tiene mano de obra configurada.
     private Double precioManoDeObra;
 
+    // Extra por urgencia ya incluido en "total" -- mismo criterio que precioManoDeObra (sin linea
+    // aparte para el cliente). Solo se calcula si el request trae fechaHoraEntrega Y esta cantidad
+    // tiene horasMinimasAnticipacion configurada. Null = no aplico (sin fecha, o con anticipacion
+    // holgada, o sin precioUrgencia configurado para esta cantidad).
+    private Double precioUrgencia;
+
     private List<ListonCalculadoDto> listonesCalculados;
     private Double subtotalListones;
     // true si algun liston quedo con frase personalizada sin validar todavia. NO implica que se

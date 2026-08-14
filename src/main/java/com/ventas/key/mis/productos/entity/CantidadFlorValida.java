@@ -40,6 +40,21 @@ public class CantidadFlorValida extends BaseId {
     @Column(name = "mano_de_obra")
     private Double manoDeObra;
 
+    // Minimo de horas de anticipacion (SIN contar la zona de entrega, ver
+    // LugarEntrega.horasExtraAnticipacion) que el dueno necesita para poder armar ESTE tamano de
+    // ramo -- lo sabe por experiencia, no es una formula. Si la fecha/hora de entrega pedida no
+    // da ese margen, el pedido se rechaza (ver FlorPedidoServiceImpl.validarAnticipacionYUrgencia).
+    // Null = sin validar anticipacion para esta cantidad (comportamiento de siempre).
+    @Column(name = "horas_minimas_anticipacion")
+    private Integer horasMinimasAnticipacion;
+
+    // Extra que se cobra cuando el pedido cae dentro de la ventana de urgencia para este tamano
+    // (justo al limite de horasMinimasAnticipacion, no con mucha anticipacion) -- se suma directo
+    // al total, mismo criterio que manoDeObra: sin aparecer como accesorio. Null = sin cargo de
+    // urgencia para esta cantidad.
+    @Column(name = "precio_urgencia")
+    private Double precioUrgencia;
+
     @Column(nullable = false)
     private Boolean activo = true;
 }

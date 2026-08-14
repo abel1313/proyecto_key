@@ -12364,3 +12364,77 @@ calcular ganancia (`subTotal - precioCosto × cantidad`) en cualquier venta del 
 campo decorativo, ya está conectado de punta a punta. Pueden agregarlo con confianza a la pantalla
 de «Tipos de flor» junto al precio por flor, exactamente para lo que lo pensaron: que el dueño
 registre su costo real y el sistema calcule el margen solo, igual que con cualquier otro producto.
+
+---
+
+## 🆕 Construido — bloqueo por anticipación insuficiente + extra por urgencia (2026-08-14)
+
+El dueño ya definió la regla completa (vía conversación directa): él conoce, por tamaño de ramo,
+cuántas horas mínimas de anticipación necesita para armarlo, y quiere que el sistema **rechace el
+pedido** si no da tiempo — no solo que avise, que **no se pueda generar**. Y quiere poder
+configurar esto él mismo, sin pedir despliegue.
+
+### Campos nuevos
+
+- **`CantidadFlorValida.horasMinimasAnticipacion`** (número, opcional) — mínimo de horas entre
+  "ahora" y la fecha/hora de entrega pedida para poder armar ese tamaño, sin contar la zona.
+- **`CantidadFlorValida.precioUrgencia`** (número, opcional) — extra que se cobra cuando el pedido
+  cae justo en el límite de esas horas mínimas.
+- **`LugarEntrega.horasExtraAnticipacion`** (número, opcional) — horas extra que se suman al
+  mínimo por zonas más lejanas/complicadas. Todos se configuran con los mismos endpoints CRUD de
+  siempre (`/v1/cantidades-flor`, `/v1/lugares-entrega`).
+
+### Contrato nuevo en `calcular-precio`
+
+- **Request:** campo nuevo `fechaHoraEntrega` (opcional, `LocalDateTime` ISO). Si no lo mandan, no
+  se valida ni se cobra nada de esto — comportamiento idéntico al de hoy.
+- **Response:** campo nuevo `precioUrgencia` — mismo criterio que `precioManoDeObra`: ya sumado en
+  `total`, informativo, **sin línea aparte para el cliente**.
+- **Si NO alcanza el tiempo mínimo (+ zona): la llamada completa falla** con un `RuntimeException`
+  (mensaje tipo *"No alcanzamos a preparar un ramo de 100 flores para la fecha y hora de entrega
+  solicitadas -- se necesitan al menos X horas de anticipación..."*). No hay respuesta parcial ni
+  alternativa sugerida — el front debe mostrar ese mensaje tal cual y pedir otra fecha/hora o
+  cantidad. Avisen si prefieren que en vez de una excepción devolvamos un campo `valida:false` con
+  mensaje (como hace `validar-cantidad`) para manejarlo más suave en la UI — lo cambiamos si les
+  sirve más así.
+
+### ⚠️ Una decisión nuestra que necesitamos que confirmen
+
+El dueño pidió **un solo número por tamaño** (no dos), pero también dejó claro que con mucha
+anticipación (ej. 10 días) no se debe cobrar el extra, solo cuando está "al límite". Con un solo
+número no hay forma de distinguir "justo al límite" de "con harta anticipación" sin inventar algo
+más — así que definimos una regla derivada: **se considera urgente (y se cobra el extra) si la
+anticipación real es de hasta el DOBLE del mínimo configurado.** Ejemplo con mínimo=32h: de 32h a
+64h de anticipación → se cobra; más de 64h → no se cobra nada.
+
+Es una fórmula que inventamos nosotros para resolver la tensión entre "un solo número" y "no
+cobrar con mucha anticipación" — **no es algo que el dueño haya confirmado literalmente.** Si el
+×2 no refleja lo que él tiene en mente, díganoslo (o pregúntenle directo) y lo ajustamos — es un
+solo número en el código, cambiarlo no tiene complicación.
+
+### Cómo se calcula "no alcanza el tiempo" — capacidad de un pedido a la vez
+
+Confirmado con el dueño (indirecto, via esta conversación): la validación es **por pedido
+individual**, no contra una agenda que sume todos los pedidos ya comprometidos ese día. Si el
+dueño sabe que puede armar un ramo de 50 rosas con 32 horas de aviso, eso vale para cualquier
+pedido de 50 rosas que llegue con esa anticipación, sin importar cuántos otros pedidos haya — es
+una regla configurada de su experiencia, no un sistema de agenda/capacidad acumulada (eso sería
+mucho más grande de construir, y no es lo que pidió).
+
+### Del lado del front
+
+1. Agregar captura de fecha/hora de entrega en el configurador — mandar `fechaHoraEntrega` en
+   `calcular-precio` cuando el cliente la especifique. Si no la especifica, no manden el campo (o
+   `null`) y todo sigue igual que hoy.
+2. Manejar el caso de rechazo (`RuntimeException`/error de la llamada) mostrando el mensaje del
+   back, con opción de elegir otra fecha/hora o reducir cantidad.
+3. **No mostrar `precioUrgencia` como línea aparte al cliente** — mismo criterio que
+   `precioManoDeObra`.
+4. Catálogo → pestaña "Cantidades": agregar inputs opcionales de `horasMinimasAnticipacion` y
+   `precioUrgencia`.
+5. Catálogo → "Lugares de entrega": agregar input opcional de `horasExtraAnticipacion`.
+
+### Migración (ninguna corrida todavía)
+
+`migration_flores_eternas_urgencia.sql` — agrega los 3 campos de arriba. En `dev`, pendiente de
+merge a `qa` y del aviso para correrla.
