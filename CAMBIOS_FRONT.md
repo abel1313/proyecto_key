@@ -12971,3 +12971,98 @@ llamada rechaza con un mensaje claro — no cobra nada extra, solo bloquea el er
 Estos 3 campos de catálogo sí los pueden ir agregando a las pantallas desde ahora (no cobran nada
 por sí solos) — ya están en QA (migración corrida). Lo único en pausa es conectar el cobro/bloqueo
 real hasta el redespliegue.
+
+---
+
+## 🔴 PETICIÓN DEL DUEÑO — el RANGO de urgencia también tiene que ser configurable (2026-08-14)
+
+Le hicimos una auditoría de qué puede configurar él y qué está fijo en el código de ustedes. Al
+ver la lista, respondió que **quiere configurar las tres cosas que están fijas** — y sobre la más
+importante (cuándo se cobra el extra) lo explicó así:
+
+> *"Yo configuro para ramos de 50 flores: y está en la fecha que se pide más 1 día, entonces tiene
+> que estar entre estas horas, o se cobrará el cargo extra. Ya lo configuré, y no solo este —
+> es para otros ramos de más flores. Entonces el cliente configura su ramo y dice 'quiero que me
+> lo entreguen tal fecha', y ya vas: checas la fecha que pidió contra la fecha en que estamos,
+> validas si está en el rango, y si está en el rango entonces se cobra lo que hayamos
+> configurado."*
+
+### Qué cambia respecto a lo que construyeron
+
+Hoy `precioUrgencia` (el monto) sí es configurable por tamaño — eso está bien. **Lo que NO es
+configurable es la condición**: qué cuenta como "de un día para otro" lo decide el código de
+ustedes, y el dueño quiere decidirlo él, **por tamaño de ramo**.
+
+Su modelo, tal como lo describe:
+
+```
+Ramo de 50 flores  →  urgente si la entrega cae dentro de: fecha del pedido + 1 día
+                      y en el rango de horas [__ : __]
+                      → si cae ahí, se cobra +$300 (el precioUrgencia que ya existe)
+
+Ramo de 100 flores →  su propio rango, distinto (más días, porque tarda más)
+```
+
+O sea, además del monto necesita poder configurar **cuántos días** y **entre qué horas** cuenta
+como urgente, por cada tamaño.
+
+Nos falta entender bien la parte de las horas antes de pedirles una forma concreta —
+le vamos a preguntar si se refiere a (a) la hora de ENTREGA que pide el cliente, o (b) una hora
+límite para RECIBIR el pedido (tipo "si lo pides después de las 6pm ya no alcanza para mañana").
+Se los pasamos en cuanto lo aclare, para no pedirles un campo que después haya que mover.
+
+**Lo que sí les podemos adelantar:** el número de días tiene que ser un campo suyo, no una
+constante. Si de una vez lo pueden dejar así (`diasAnticipacionUrgencia` o como prefieran
+nombrarlo, por `CantidadFlorValida`), adelantan la mitad.
+
+### Las otras dos que también quiere controlar
+
+**1. El porcentaje del anticipo (hoy fijo en 50%).** Aplica igual al anticipo por urgencia y al de
+la frase personalizada. Es dinero y es lo primero que uno querría ajustar según cómo responda la
+gente. ¿Se puede volver configurable? Con que sea un solo valor global nos sirve — no hace falta
+uno por tamaño.
+
+**2. Los textos que ve el cliente** (`avisoFrasePendiente`, el aviso de "anticipo del 50%, sin
+devoluciones"). Hoy vienen redactados desde el back. El dueño quiere poder cambiar cómo están
+escritos sin pedir despliegue. Si les parece mucho, la alternativa es que nos los devuelvan como
+están y los movamos a una pantalla de configuración del front — pero entonces el porcentaje que
+se menciona en el texto y el que se cobra de verdad podrían desincronizarse, así que preferimos
+que vivan del mismo lado que el cálculo.
+
+### Por qué insistimos con esto ahora
+
+Están con el módulo en la mano. Cada uno de estos tres es un campo más ahora, o un
+"hay que volver a abrir el módulo" en un mes. El dueño ya demostró en esta misma ronda que va a
+querer mover estos números (movió el umbral del papel, los pliegos, y ahora esto) — no es una
+suposición nuestra.
+
+---
+
+## ✅ CONFIRMADO — QA redesplegado, `entregaValida`/`requiereAnticipo`/`montoAnticipoSugerido` ya responden (2026-08-14)
+
+Probado en vivo ahora mismo contra QA:
+
+```
+POST /v1/flores/calcular-precio  { "colores": [{"colorFlorId":1,"cantidad":20}] }
+→ 200, incluye: "entregaValida":true, "mensajeEntrega":null, "requiereAnticipo":false,
+  "montoAnticipoSugerido":null, "precioUrgencia":null
+```
+
+Ya está el build correcto corriendo (antes solo traía `precioUrgencia`, sin los otros 4 campos —
+esa era la señal de que faltaba el redespliegue). **Ya pueden conectar el flujo completo de
+urgencia** que quedó documentado arriba (`calcular-precio` con `fechaHoraEntrega` →
+`savePedido` con `tipoPedido:"APARTADO"` cuando `requiereAnticipo:true` → `POST /v1/abonos/{id}`
+con `montoAnticipoSugerido` → `.../detalle` con el mismo `fechaHoraEntrega`).
+
+No pudimos probar el caso de bloqueo ni el de urgencia real todavía porque **no hay ninguna
+`CantidadFlorValida` con `horasMinimasAnticipacion`/`precioUrgencia` configurada en QA** (el
+catálogo de cantidades está vacío). En cuanto el dueño registre al menos una, avisen y lo
+probamos de punta a punta con datos reales.
+
+### Sobre la petición nueva (rango configurable, % de anticipo, textos)
+
+La leímos. Va a requerir varios campos nuevos (`diasAnticipacionUrgencia` por tamaño como mínimo,
+más lo que resulte de la pregunta de las horas, más el % global, más los textos). Dijeron ustedes
+mismos que todavía le van a preguntar al dueño el detalle de las horas — no vamos a adivinar esa
+parte. En cuanto tengan esa respuesta, mándennos el paquete completo (rango de horas + los otros
+dos puntos) y lo diseñamos junto, en vez de ir campo por campo en rondas separadas.
