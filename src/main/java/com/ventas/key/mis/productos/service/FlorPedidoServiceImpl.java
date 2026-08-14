@@ -163,9 +163,17 @@ public class FlorPedidoServiceImpl {
         response.setPrecioBase(precioBase);
         response.setColoresCalculados(coloresCalculados);
 
-        Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, response);
+        // Pliegos que el dueno configuro a mano para ESTE tamano de ramo (si existe una
+        // CantidadFlorValida registrada con esta especie+cantidad exactas) -- gana sobre la
+        // formula floresPorPliego en el calculo del papel (ver AccesorioRamoServiceImpl).
+        Integer pliegosExplicitos = iCantidadFlorValidaRepository
+                .findByTipoFlorIdAndCantidadAndActivoTrue(especie.getId(), cantidadFinal)
+                .map(CantidadFlorValida::getPliegos)
+                .orElse(null);
 
-        List<AccesorioCalculadoDto> accesoriosCalculados = calcularAccesorios(dto.getAccesorios(), papelAccesorioId, cantidadFinal);
+        Integer papelAccesorioId = aplicarReglaPapel(cantidadFinal, pliegosExplicitos, response);
+
+        List<AccesorioCalculadoDto> accesoriosCalculados = calcularAccesorios(dto.getAccesorios(), papelAccesorioId, cantidadFinal, pliegosExplicitos);
         response.setAccesoriosCalculados(accesoriosCalculados);
         double subtotalAccesorios = accesoriosCalculados.stream().mapToDouble(AccesorioCalculadoDto::getSubtotal).sum();
         response.setSubtotalAccesorios(subtotalAccesorios);
@@ -195,21 +203,21 @@ public class FlorPedidoServiceImpl {
         return response;
     }
 
-    private Integer aplicarReglaPapel(int cantidadFinal, CalcularPrecioResponseDto response) {
+    private Integer aplicarReglaPapel(int cantidadFinal, Integer pliegosExplicitos, CalcularPrecioResponseDto response) {
         Optional<AccesorioRamo> papel = accesorioRamoService.obtenerPapelAutomaticoSiAplica(cantidadFinal);
         if (papel.isEmpty()) {
             response.setPapelObligatorioAplicado(false);
             return null;
         }
         response.setPapelObligatorioAplicado(true);
-        response.setPrecioPapel(accesorioRamoService.calcularPrecioPapel(papel.get(), cantidadFinal));
-        response.setPliegosPapel(accesorioRamoService.calcularPliegosPapel(papel.get(), cantidadFinal));
+        response.setPrecioPapel(accesorioRamoService.calcularPrecioPapel(papel.get(), cantidadFinal, pliegosExplicitos));
+        response.setPliegosPapel(accesorioRamoService.calcularPliegosPapel(papel.get(), cantidadFinal, pliegosExplicitos));
         response.setPrecioUnitarioPapel(papel.get().getPrecio());
         response.setPapelVarianteId(papel.get().getVariante() != null ? papel.get().getVariante().getId() : null);
         return papel.get().getId();
     }
 
-    private List<AccesorioCalculadoDto> calcularAccesorios(List<AccesorioSeleccionadoDto> seleccionados, Integer papelAccesorioId, int cantidadFinal) {
+    private List<AccesorioCalculadoDto> calcularAccesorios(List<AccesorioSeleccionadoDto> seleccionados, Integer papelAccesorioId, int cantidadFinal, Integer pliegosExplicitos) {
         List<AccesorioCalculadoDto> resultado = new ArrayList<>();
         if (seleccionados == null || seleccionados.isEmpty()) {
             return resultado;
@@ -235,8 +243,8 @@ public class FlorPedidoServiceImpl {
                 // dependiendo de la cantidad total de flores del ramo, no de cuantas veces el
                 // cliente lo haya mandado en la lista -- no tiene sentido "elegir cuantos
                 // papeles quiero", eso lo calcula el sistema segun floresPorPliego.
-                Integer pliegos = accesorioRamoService.calcularPliegosPapel(accesorio, cantidadFinal);
-                double subtotal = accesorioRamoService.calcularPrecioPapel(accesorio, cantidadFinal);
+                Integer pliegos = accesorioRamoService.calcularPliegosPapel(accesorio, cantidadFinal, pliegosExplicitos);
+                double subtotal = accesorioRamoService.calcularPrecioPapel(accesorio, cantidadFinal, pliegosExplicitos);
                 resultado.add(new AccesorioCalculadoDto(
                         accesorio.getId(), accesorio.getNombre(), pliegos != null ? pliegos : 1,
                         accesorio.getPrecio(), subtotal, false, varianteId));

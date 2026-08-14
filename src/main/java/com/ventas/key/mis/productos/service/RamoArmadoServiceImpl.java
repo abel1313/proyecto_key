@@ -121,7 +121,7 @@ public class RamoArmadoServiceImpl {
         Integer papelAccesorioId = null;
         if (papel.isPresent()) {
             ramo.setPapelIncluido(true);
-            ramo.setPrecioPapel(accesorioRamoService.calcularPrecioPapel(papel.get(), cantidadValida.getCantidad()));
+            ramo.setPrecioPapel(accesorioRamoService.calcularPrecioPapel(papel.get(), cantidadValida.getCantidad(), cantidadValida.getPliegos()));
             papelAccesorioId = papel.get().getId();
         } else {
             ramo.setPapelIncluido(false);
@@ -214,8 +214,9 @@ public class RamoArmadoServiceImpl {
         if (!Boolean.TRUE.equals(ramo.getPapelIncluido())) {
             return null;
         }
+        CantidadFlorValida cantidadValida = ramo.getCantidadFlorValida();
         return iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
-                .map(papel -> accesorioRamoService.calcularPliegosPapel(papel, ramo.getCantidadFlorValida().getCantidad()))
+                .map(papel -> accesorioRamoService.calcularPliegosPapel(papel, cantidadValida.getCantidad(), cantidadValida.getPliegos()))
                 .orElse(null);
     }
 
