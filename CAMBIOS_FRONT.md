@@ -12089,3 +12089,278 @@ empezar a consumir esto:
    back, ambos montos incluidos.
 5. Avisen si necesitan que documentemos el shape exacto de algún response con estos campos ya
    pobladas de ejemplo (`GET` real contra QA), en cuanto el dueño configure algún valor de prueba.
+
+---
+
+## 🔧 AJUSTE — la mano de obra la quiere en la ESPECIE, no por cantidad (2026-08-14)
+
+Apenas vio la pantalla, el dueño pidió moverla: *"la mano de obra debería quedar aquí para que
+vaya incluido en cada ramo"* — señalando la pestaña **Tipos de flor** (la especie), no la de
+Cantidades donde ustedes la pusieron.
+
+Su lógica: quiere configurarla **una vez por especie** y que aplique sola a todos los ramos de esa
+flor, en vez de ir llenándola renglón por renglón en cada cantidad válida.
+
+### Lo que proponemos (para no tirar lo que ya construyeron)
+
+**Agregar `TipoFlor.manoDeObra`** (número, opcional) y dejar la que ya hicieron en
+`CantidadFlorValida.manoDeObra` como **excepción opcional**, con la misma prioridad que ya usan
+para los pliegos:
+
+1. `CantidadFlorValida.manoDeObra` — si esa cantidad tiene un valor propio, gana.
+2. `TipoFlor.manoDeObra` — el valor base de la especie, el que va a usar el dueño.
+3. Si ninguno está configurado: no se cobra mano de obra (como hoy).
+
+Así el dueño llena **un solo número por especie** y ya está —que es lo que pidió— pero si algún
+día quiere cobrar distinto el ramo de 62 que el de 12, tiene dónde ponerlo sin pedir otro cambio.
+Es exactamente el patrón que ya tiene el módulo para los pliegos, así que no introduce un concepto
+nuevo.
+
+**Le planteamos al dueño la contra** (con una sola cifra por especie, armar un ramo de 62 cuesta
+lo mismo que uno de 12) y aun así prefiere la simpleza de configurarlo una vez. Por eso pedimos
+que la de especie sea la principal, no al revés.
+
+### Lo demás sigue igual
+
+`precioManoDeObra` en las respuestas de `calcular-precio`/`ramos-armados` no cambia: mismo campo,
+mismo comportamiento (sumado en `total`, informativo, sin línea propia). Al front le da igual de
+dónde salga el número.
+
+**Del lado del front:** en cuanto exista `TipoFlor.manoDeObra` lo agregamos a la pestaña «Tipos de
+flor», junto al precio por flor. El campo que ya pusimos en «Cantidades» se queda como está — pasa
+a leerse como "excepción para este tamaño".
+
+### ✅ Confirmado: las 2 migraciones anteriores ya corrieron en QA
+
+Verificado con `curl`: `cantidad_flor_valida.mano_de_obra`, `accesorio_ramo.pliegos_por_defecto` y
+`precioManoDeObra` en `calcular-precio` ya responden (todos en `null`, sin configurar todavía).
+El front que los consume ya está en `qa` (`bb8ada3`).
+
+---
+
+## 🔧 CORRECCIÓN + 🆕 REQUERIMIENTO — mano de obra por ramo, y un extra por urgencia (2026-08-14)
+
+Disculpen el ida y vuelta: la mano de obra ya se movió una vez y **cambia otra vez**. Preferimos
+avisar antes de que construyan sobre el lugar equivocado. Le preguntamos al dueño con las tres
+opciones sobre la mesa (una sola global / por especie / por tamaño de ramo) y esto respondió,
+textual:
+
+> *"Más bien sería por ramo, porque cobraría por hacer el ramo, y un apartado para agregar el
+> extra por si lo quieren de un día para otro."*
+
+### 1. Mano de obra: **un monto por ramo, configurado una sola vez**
+
+**Descarten el pedido anterior de `TipoFlor.manoDeObra`** — no la quiere por especie. Es un cobro
+único por el trabajo de armar el ramo, igual para cualquiera, configurado en un solo lugar del
+módulo (una configuración general de flores, no una fila por especie ni por cantidad).
+
+Lo que ya construyeron en `CantidadFlorValida.manoDeObra` **no lo tiren**: si les sirve, que quede
+como excepción opcional por tamaño (misma prioridad que usan para los pliegos). Pero el número que
+el dueño va a llenar es el global — no lo obliguen a capturarlo por renglón.
+
+Dónde vive esa "configuración general" lo deciden ustedes: si ya existe una tabla de parámetros
+del sistema, ahí; si no, como les acomode. Lo único importante es que **el dueño la pueda cambiar
+sin despliegue**, como todo lo demás de este módulo.
+
+### 2. 🆕 Extra por urgencia ("de un día para otro")
+
+Esto es nuevo, no existe en ningún lado del módulo. El dueño quiere poder cobrar un **extra cuando
+el cliente pide el ramo con prisa** — sus palabras: *"un apartado para agregar el extra por si lo
+quieren de un día para otro"*.
+
+Tiene sentido para el negocio: armar un ramo eterno lleva su tiempo, y sacarlo de un día para otro
+obliga a dejar otras cosas.
+
+**Todavía no tenemos el detalle fino** — se lo estamos preguntando al dueño y se los pasamos en
+cuanto conteste. Lo que falta definir:
+
+- ¿Monto fijo o porcentaje del ramo?
+- ¿Quién lo activa: el cliente marcando "lo necesito para mañana" en el configurador, o el admin
+  al capturar el pedido?
+- ¿A partir de cuántos días de anticipación se considera urgente? (¿solo "para mañana", o también
+  "para pasado mañana"?)
+- ¿Aplica también a los ramos preconfigurados (`RamoArmado`), o solo al configurador?
+
+**No empiecen a construirlo todavía** — esperen a que les pasemos esas respuestas, justo para no
+repetir lo que acaba de pasar con la mano de obra. Se los adelantamos solo para que lo tengan en
+el radar y, si ven que choca con algo del modelo, nos avisen desde ahora.
+
+### Lo que sí pueden dar por firme
+
+- `precioManoDeObra` en las respuestas: **sin cambios**. Sumado en `total`, informativo, sin línea
+  propia. Al front le da igual de dónde salga el número.
+- El cliente **nunca** ve la mano de obra desglosada. Eso no se ha movido en ninguna vuelta.
+- Cuando exista el extra por urgencia, asumimos el mismo criterio salvo que digan lo contrario:
+  sumado al total, sin desglose. Si el dueño quiere que ese sí se vea (para justificar el cobro),
+  se los avisamos.
+
+---
+
+## ❌ CANCELADO — la mano de obra NO necesita campo nuevo (2026-08-14)
+
+Última vuelta de este tema, y termina en que **no hay que construir nada**. Disculpen las idas y
+vueltas — al menos se detuvo antes de que llegara a QA.
+
+El dueño llegó solo a la conclusión, y tiene toda la razón:
+
+> *"Si la voy a meter por cada flor: la flor sale en 10 pesos y por mano de obra por cada flor son
+> 15, en total la flor quedaría en 25 — que es como está actualmente, ¿no?"*
+
+Efectivamente. **`TipoFlor.precioPorFlor` ya es un precio final que puede incluir la mano de obra.**
+Los $25 que tiene configurados hoy ya son "material + trabajo". No hace falta ningún campo nuevo
+para cobrarla.
+
+Y de paso resuelve mejor la objeción que le habíamos hecho: al ir por flor, **escala sola con el
+tamaño** (un ramo de 62 paga más mano de obra que uno de 12), que es exactamente lo que se perdía
+con un monto fijo por ramo o por especie.
+
+### Qué hacer con lo que ya construyeron
+
+- **`TipoFlor.manoDeObra`** — nunca lo construyeron, solo lo pedimos. **Descártenlo.**
+- **`CantidadFlorValida.manoDeObra`** — ya está en `dev`/`qa` y la migración corrió. **Déjenlo
+  como está**, no hace falta revertir: queda en `null` para siempre y no afecta nada (el back solo
+  lo suma si tiene valor). Si les molesta cargar un campo muerto, revíertanlo cuando les quede
+  cómodo, pero no es urgente ni nos bloquea.
+- **`precioManoDeObra`** en las respuestas — igual, se queda devolviendo `null`. El front ya lo
+  maneja así.
+
+Del lado del front no quitamos el campo de la pantalla de Cantidades todavía (por si el dueño
+cambia de opinión otra vez), pero le dijimos que lo deje vacío y que la mano de obra la meta en el
+precio por flor.
+
+### 🆕 Lo que SÍ sigue en pie: el extra por urgencia
+
+Ese requerimiento **no se cancela** — sigue pendiente de que el dueño nos pase los detalles
+(monto fijo o porcentaje, quién lo activa, desde cuántos días, si aplica a ramos preconfigurados).
+Se los pasamos en cuanto conteste. Sigue el mismo pedido: **no lo construyan hasta entonces.**
+
+### ❓ Una consecuencia que sí queremos resolver
+
+Metiendo la mano de obra en el precio por flor, el dueño **pierde de vista cuánto de su venta fue
+material y cuánto fue trabajo**. Vimos que `TipoFlor` ya tiene un campo `precioCosto` (hoy en
+`null`) que no estábamos usando ni mostrando en ninguna pantalla.
+
+¿Ese campo es para eso — el costo del material, para calcular margen? Si es así, se lo agregamos
+a la pantalla de «Tipos de flor» para que registre ahí sus $10, y así puede saber su ganancia real
+sin cambiar lo que ve el cliente. Confírmennos para qué lo pensaron antes de que le demos un uso
+que no era.
+
+---
+
+## 🔧 PETICIÓN EXPLÍCITA — cambiar `umbralActivacion` de `>` a `>=` (2026-08-14)
+
+Ustedes lo dejaron a nuestra decisión ("si quieren que lo cambiemos, avisen explícito"). **Sí,
+por favor cámbienlo.** Va el porqué, porque no es capricho.
+
+### El dueño ya chocó con esto tres veces
+
+Configuró el umbral en **20** entendiendo "de 20 flores en adelante lleva papel". Arma un ramo de
+20, y el papel le aparece como opción — porque ustedes comparan `cantidadFinal > umbralActivacion`
+y 20 no es mayor que 20.
+
+Verificado ahora mismo en QA:
+```
+umbral = 20
+20 flores → papelObligatorioAplicado: false
+21 flores → papelObligatorioAplicado: true
+```
+
+Ya le explicamos dos veces que ponga 19 para lograr lo que quiere, y ya le corregimos la etiqueta
+de la pantalla a "Obligatorio con más de" con el aviso del caso borde. **Y aun así volvió a
+reportarlo.** Cuando alguien se equivoca tres veces con la misma configuración, el problema es el
+diseño, no la persona: nadie escribe "19" queriendo decir "20".
+
+### Por qué no lo podemos resolver del lado del front
+
+Lo pensamos. Podríamos ocultar el papel cuando la cantidad iguala el umbral, pero **ustedes son
+quienes deciden agregarlo y cobrarlo**: el front lo escondería y el ramo saldría de verdad sin
+papel y sin el cobro. Eso es peor que el síntoma actual. La única fuente de verdad de "este ramo
+lleva papel" es `papelObligatorioAplicado`, y esa la calculan ustedes.
+
+### Sobre el riesgo que mencionaron
+
+Tienen razón en que cambia el comportamiento de lo ya configurado: un 20 que hoy no activa el
+papel empezaría a activarlo. **En este caso eso es justo lo que se busca** — el único valor
+configurado hoy es ese 20 del dueño, en QA, y es el que está mal interpretado. En producción el
+módulo de flores todavía no existe, así que no hay nada que se pueda romper allá.
+
+Si prefieren no tocar la comparación, la alternativa es que **la pantalla le reste 1 sola** al
+guardar (el dueño escribe 20, se guarda 19). No nos gusta —guardar algo distinto de lo que la
+persona escribió se presta a confusión cuando alguien lea el dato después— pero la ponemos sobre
+la mesa por si cambiar `>` tiene implicaciones que no vemos.
+
+Avisen cuál toman y lo verificamos contra QA en cuanto esté.
+
+### 📸 Reproducción exacta, con lo que el dueño ve en pantalla
+
+Nos dicen que esto "ya lo estaba manejando el back". Va el caso real, paso a paso, con lo que
+responde QA hoy — para que quede claro dónde se corta:
+
+1. El dueño escribe **22** y pulsa Validar.
+2. `validar-cantidad` responde `valida:false`, con alternativas 20 y 48. **Correcto.**
+3. Elige **"Usar 20"**. La pantalla confirma "20 flores".
+4. Llega al paso de accesorios y **el papel le aparece como opción**, cuando él ya lo tiene
+   configurado para que un ramo de 20 lo lleve incluido.
+
+El paso 4 no es una decisión del front: nosotros solo mostramos el papel como opcional cuando
+ustedes NO lo marcan como automático. Y con la configuración actual:
+
+```
+umbral configurado = 20   (lo puso el dueño)
+POST /v1/flores/calcular-precio  → 20 flores  → papelObligatorioAplicado: false
+POST /v1/flores/calcular-precio  → 21 flores  → papelObligatorioAplicado: true
+```
+
+O sea, **con 20 flores el back dice explícitamente que el papel NO va incluido**. El front está
+respetando esa respuesta. Si escondiéramos el papel de todas formas, el ramo saldría sin papel y
+sin cobrarlo — por eso insistimos con el `>=` en la sección de arriba.
+
+**Si de su lado ya lo cambiaron**, entonces no está desplegado en QA: lo acabamos de consultar y
+sigue devolviendo `false` para 20. Avísennos cuando esté arriba y lo verificamos con el mismo
+curl.
+
+### Un detalle de la misma pantalla que sí era nuestro (ya corregido)
+
+En esa captura también se veía, al mismo tiempo, el "✅ 20 flores — cantidad válida" **y debajo**
+la advertencia del 22 con sus tres botones, como si todavía hubiera algo que elegir. Era un
+descuido nuestro: no ocultábamos el bloque de advertencia después de que el cliente ya había
+decidido. Corregido y subido a `qa` (`dcd5aad`). Lo aclaramos para que no se confunda con lo
+anterior — ese sí era del front, el del papel no.
+
+---
+
+## ✅ Respuesta del back — `>=` cambiado, mano de obra confirmada, `precioCosto` sí es margen (2026-08-14)
+
+### 1. `umbralActivacion` ya es `>=`
+
+Cambiado tal cual pidieron: `cantidadFinal >= umbralActivacion` en vez de `>`. Con umbral=20, un
+ramo de exactamente 20 ahora sí activa el papel automático. Confirmado que era el único lugar del
+código que hacía esta comparación — no hay otro `>` escondido en otro flujo. Subiendo a `dev`/`qa`
+ahora, en cuanto esté les avisamos para que verifiquen con el mismo curl que ya tenían armado
+(20 → `papelObligatorioAplicado: true`).
+
+### 2. Mano de obra — de acuerdo, queda en el precio por flor, sin campo nuevo
+
+Confirmado de nuestro lado también: no hace falta ningún campo. `TipoFlor.precioPorFlor` ya es el
+precio final que el dueño define libremente, así que meter la mano de obra ahí es válido y además
+escala solo con el tamaño del ramo (correcto, como ya se dieron cuenta).
+
+`CantidadFlorValida.manoDeObra` se queda como está — en `null` para siempre mientras no se use,
+sin afectar ningún cálculo (el back solo la suma si tiene valor, y hoy nunca lo tiene). No hace
+falta revertirla, coincidimos en que no es urgente.
+
+### 3. Extra por urgencia — anotado, esperamos el detalle antes de construir
+
+Quedó registrado, no vamos a empezar nada hasta que el dueño responda las 4 preguntas
+(monto fijo o porcentaje, quién lo activa, desde cuántos días, si aplica a `RamoArmado`). Avisen
+en cuanto tengan la respuesta.
+
+### 4. `TipoFlor.precioCosto` — confirmado, es para margen
+
+Rastreado en el código: `ColorFlorServiceImpl.save()` ya sincroniza `tipoFlor.getPrecioCosto()`
+al producto "sombra" real de cada color (`productoSombraService.sincronizar(...)`), y ese
+`Producto.precioCosto` es el mismo campo que usa `AbonoServiceImpl`/`VentaServiceImpl` para
+calcular ganancia (`subTotal - precioCosto × cantidad`) en cualquier venta del sistema — no es un
+campo decorativo, ya está conectado de punta a punta. Pueden agregarlo con confianza a la pantalla
+de «Tipos de flor» junto al precio por flor, exactamente para lo que lo pensaron: que el dueño
+registre su costo real y el sistema calcule el margen solo, igual que con cualquier otro producto.

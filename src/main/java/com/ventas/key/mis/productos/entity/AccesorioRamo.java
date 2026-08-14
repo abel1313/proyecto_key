@@ -31,9 +31,9 @@ public class AccesorioRamo extends BaseId {
     @Column(name = "admite_texto_libre", nullable = false)
     private Boolean admiteTextoLibre = false;
 
-    // Regla del umbral: si la cantidad final de flores es > umbralActivacion, este accesorio se
-    // agrega y cobra automatico, sin preguntar (ver FlorPedidoServiceImpl). Null = nunca se
-    // agrega solo, siempre es opcional (se pregunta, como cualquier otro accesorio).
+    // Regla del umbral: si la cantidad final de flores es >= umbralActivacion, este accesorio se
+    // agrega y cobra automatico, sin preguntar (ver AccesorioRamoServiceImpl.obtenerPapelAutomaticoSiAplica).
+    // Null = nunca se agrega solo, siempre es opcional (se pregunta, como cualquier otro accesorio).
     @Column(name = "es_papel", nullable = false)
     private Boolean esPapel = false;
 
