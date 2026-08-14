@@ -21,6 +21,7 @@ import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleColorD
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.RevalidarPagoResponseDto;
 import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
 import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IFraseListonPredefinidaRepository;
@@ -122,6 +123,7 @@ public class RamoPedidoDetalleServiceImpl {
         resolverListon(dto, detalle);
         resolverEntrega(dto, detalle);
         validarPedidoApartadoSiEsUrgente(dto, especie, cantidadFinal, pedido);
+        resolverFechaLimitePago(dto, detalle, especie, cantidadFinal);
 
         detalle.setTelefonoContacto(dto.getTelefonoContacto());
         detalle.setCorreoContacto(dto.getCorreoContacto());
@@ -153,6 +155,79 @@ public class RamoPedidoDetalleServiceImpl {
                     + "mañana) -- debio crearse con tipoPedido \"APARTADO\" y el 50% del total registrado como "
                     + "abono, en vez de cobrarse completo. Corrige el pedido antes de adjuntar el detalle.");
         }
+    }
+
+    // Guarda fechaHoraEntrega/esUrgente/fechaLimitePago/cargoUrgenteMonto -- modelo nuevo de
+    // config-entrega (dias_normal/dias_urgente/hora_limite_pedido/cargo_urgente en
+    // CantidadFlorValida). Con esto guardado, revalidarAntesDePagar() puede chequear despues,
+    // en el momento del pago, si ya vencio la hora limite sin depender de que el front vuelva a
+    // mandar nada. Mismo redondeo hacia arriba que fechas-disponibles.
+    private void resolverFechaLimitePago(RamoPedidoDetalleRequestDto dto, RamoPedidoDetalle detalle, TipoFlor especie, int cantidadFinal) {
+        detalle.setFechaHoraEntrega(dto.getFechaHoraEntrega());
+        boolean urgente = Boolean.TRUE.equals(dto.getUrgente());
+        detalle.setEsUrgente(urgente);
+        if (!urgente) {
+            return;
+        }
+        CantidadFlorValida aplicada = iCantidadFlorValidaRepository
+                .findActivasPorTipoFlorOrdenadas(especie.getId()).stream()
+                .filter(c -> c.getCantidad() >= cantidadFinal)
+                .findFirst()
+                .orElse(null);
+        if (aplicada == null || aplicada.getHoraLimitePedido() == null || aplicada.getCargoUrgente() == null) {
+            return;
+        }
+        java.time.LocalDate hoy = java.time.LocalDate.now();
+        java.time.LocalDate diaLimite = java.time.LocalTime.now().isBefore(aplicada.getHoraLimitePedido()) ? hoy : hoy.plusDays(1);
+        detalle.setFechaLimitePago(diaLimite.atTime(aplicada.getHoraLimitePedido()));
+        detalle.setCargoUrgenteMonto(aplicada.getCargoUrgente());
+    }
+
+    // Se llama justo antes de POST /v1/abonos/{pedidoId} (el front lo hace, no queda automatico
+    // aqui -- ver nota de arquitectura en CAMBIOS_FRONT.md sobre por que no se toco el endpoint
+    // generico de abonos). Si el pago llega despues de fechaLimitePago, agrega el cargo urgente
+    // como linea real al pedido (recotiza) en vez de cancelar el pedido -- decision del dueno.
+    @Transactional
+    public RevalidarPagoResponseDto revalidarAntesDePagar(Integer pedidoId) {
+        RamoPedidoDetalle detalle = iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().findFirst()
+                .orElseThrow(() -> new ExceptionDataNotFound("No hay detalle de ramo para el pedido: " + pedidoId));
+        Pedido pedido = detalle.getPedido();
+
+        if (!Boolean.TRUE.equals(detalle.getEsUrgente()) || detalle.getFechaLimitePago() == null) {
+            return new RevalidarPagoResponseDto(
+                    false, null, pedido.getTotalPedido(), null);
+        }
+        if (Boolean.TRUE.equals(detalle.getCargoUrgenteAplicado())) {
+            return new RevalidarPagoResponseDto(
+                    false, null, pedido.getTotalPedido(), null);
+        }
+        if (LocalDateTime.now().isBefore(detalle.getFechaLimitePago())) {
+            return new RevalidarPagoResponseDto(
+                    false, null, pedido.getTotalPedido(), null);
+        }
+
+        double cargo = detalle.getCargoUrgenteMonto() != null ? detalle.getCargoUrgenteMonto() : 0.0;
+        Variantes variante = productoSombraService.crear(
+                "Cargo por entrega urgente (pago fuera de tiempo) - pedido #" + pedido.getId(), cargo, 0.0, 1);
+        DetallePedido linea = new DetallePedido();
+        linea.setPedido(pedido);
+        linea.setProducto(variante.getProducto());
+        linea.setVariante(variante);
+        linea.setCantidad(1);
+        linea.setPrecioUnitario(cargo);
+        linea.setSubTotal(cargo);
+        pedido.getDetalles().add(linea);
+        pedido.setTotalPedido(pedido.getTotalPedido() + cargo);
+        iPedidoRepository.save(pedido);
+
+        detalle.setCargoUrgenteAplicado(true);
+        iRamoPedidoDetalleRepository.save(detalle);
+
+        String mensaje = "Tu pago llego despues de la hora limite para el precio normal, asi que se "
+                + "aplico el cargo por entrega urgente ($" + cargo + "). Tu nuevo total es $"
+                + pedido.getTotalPedido() + " -- vuelve a intentar el pago con ese monto.";
+        return new RevalidarPagoResponseDto(
+                true, cargo, pedido.getTotalPedido(), mensaje);
     }
 
     // El anticipo NO se conoce ni se cobra en este paso -- todavia no hay precio de la frase.

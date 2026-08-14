@@ -14,6 +14,8 @@ import com.ventas.key.mis.productos.models.floreseternas.CalcularPrecioRequestDt
 import com.ventas.key.mis.productos.models.floreseternas.CalcularPrecioResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.ColorCalculadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ColorSeleccionadoDto;
+import com.ventas.key.mis.productos.models.floreseternas.FechasDisponiblesRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.FechasDisponiblesResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
 import com.ventas.key.mis.productos.models.floreseternas.ListonCalculadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ListonSeleccionadoDto;
@@ -366,5 +368,83 @@ public class FlorPedidoServiceImpl {
         boolean esDeUnDiaParaOtro = !fechaHoraEntrega.toLocalDate().isAfter(java.time.LocalDate.now().plusDays(1));
         Double precioUrgencia = esDeUnDiaParaOtro ? cantidadValida.getPrecioUrgencia() : null;
         return new AnticipacionResultadoDto(true, null, precioUrgencia);
+    }
+
+    // El calendario del cliente: en vez de que el front proponga una fecha y el back la valide,
+    // el back dice directamente que fechas se pueden. Ver CAMBIOS_FRONT.md, seccion "config
+    // entrega" -- construido sobre los campos nuevos de CantidadFlorValida (diasNormal,
+    // horaEntregaNormal, diasUrgente, horaEntregaUrgente, horaLimitePedido, cargoUrgente).
+    @Transactional(readOnly = true)
+    public FechasDisponiblesResponseDto fechasDisponibles(FechasDisponiblesRequestDto dto) {
+        if (dto.getTipoFlorId() == null || dto.getCantidad() == null || dto.getCantidad() <= 0) {
+            throw new RuntimeException("tipoFlorId y cantidad son obligatorios");
+        }
+        FechasDisponiblesResponseDto response = new FechasDisponiblesResponseDto();
+
+        // Redondeo hacia arriba: el tamano configurado mas chico que sea >= lo pedido (nunca uno
+        // menor -- un ramo mas grande da mas trabajo, aplicarle un plazo mas corto comprometeria
+        // al taller a entregar mas rapido de lo que en realidad puede). Confirmado por el dueno.
+        List<CantidadFlorValida> registradas = iCantidadFlorValidaRepository
+                .findActivasPorTipoFlorOrdenadas(dto.getTipoFlorId());
+        CantidadFlorValida aplicada = registradas.stream()
+                .filter(c -> c.getCantidad() >= dto.getCantidad())
+                .findFirst()
+                .orElse(null);
+
+        if (aplicada == null) {
+            response.setMensaje("No tenemos configurado ningun tamano de ramo igual o mayor a "
+                    + dto.getCantidad() + " flores para esta especie. Comunicate con el "
+                    + "administrador por WhatsApp o redes sociales para revisar tu pedido.");
+            response.setOfreceUrgente(false);
+            return response;
+        }
+        response.setCantidadAplicada(aplicada.getCantidad());
+
+        boolean ofreceUrgente = aplicada.getDiasUrgente() != null
+                && aplicada.getHoraEntregaUrgente() != null
+                && aplicada.getHoraLimitePedido() != null;
+        response.setOfreceUrgente(ofreceUrgente);
+
+        boolean urgente = Boolean.TRUE.equals(dto.getUrgente());
+        if (urgente && !ofreceUrgente) {
+            response.setMensaje("Este tamano de ramo (" + aplicada.getCantidad()
+                    + " flores) no se puede entregar de un dia para otro.");
+            return response;
+        }
+        if (!urgente && (aplicada.getDiasNormal() == null || aplicada.getHoraEntregaNormal() == null)) {
+            response.setMensaje("Este tamano de ramo (" + aplicada.getCantidad()
+                    + " flores) todavia no tiene un plazo de entrega configurado. "
+                    + "Comunicate con el administrador por WhatsApp o redes sociales.");
+            return response;
+        }
+
+        int horasExtraZona = 0;
+        if (dto.getLugarEntregaId() != null) {
+            LugarEntrega lugar = iLugarEntregaRepository.findById(dto.getLugarEntregaId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Lugar de entrega no encontrado: " + dto.getLugarEntregaId()));
+            horasExtraZona = lugar.getHorasExtraAnticipacion() != null ? lugar.getHorasExtraAnticipacion() : 0;
+        }
+
+        java.time.LocalDate hoy = java.time.LocalDate.now();
+        java.time.LocalDateTime primeraFechaValida;
+        Double cargo = null;
+
+        if (urgente) {
+            // Si ya paso la hora limite de hoy, el plazo urgente se corre a partir de manana --
+            // el dia de hoy "ya no cuenta" (confirmado por el dueno con el ejemplo de la hora de
+            // corte moviendo el calendario, no solo la fecha).
+            java.time.LocalDate diaInicio = java.time.LocalTime.now().isBefore(aplicada.getHoraLimitePedido())
+                    ? hoy : hoy.plusDays(1);
+            primeraFechaValida = diaInicio.plusDays(aplicada.getDiasUrgente()).atTime(aplicada.getHoraEntregaUrgente());
+            cargo = aplicada.getCargoUrgente();
+        } else {
+            primeraFechaValida = hoy.plusDays(aplicada.getDiasNormal()).atTime(aplicada.getHoraEntregaNormal());
+        }
+        primeraFechaValida = primeraFechaValida.plusHours(horasExtraZona);
+
+        response.setPrimeraFechaValida(primeraFechaValida);
+        response.setHorasDisponibles(List.of(primeraFechaValida.toLocalTime().toString()));
+        response.setCargoUrgencia(cargo);
+        return response;
     }
 }

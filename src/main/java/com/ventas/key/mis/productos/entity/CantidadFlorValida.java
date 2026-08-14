@@ -10,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalTime;
+
 @Entity
 @Table(name = "cantidad_flor_valida")
 @Setter
@@ -54,6 +56,43 @@ public class CantidadFlorValida extends BaseId {
     // urgencia para esta cantidad.
     @Column(name = "precio_urgencia")
     private Double precioUrgencia;
+
+    // ============================================================
+    // Configuracion de entregas (reemplaza en la practica a horasMinimasAnticipacion/
+    // precioUrgencia de arriba -- se dejan esos dos sin usar, no se borran). El dueno da de alta,
+    // por cada tamano de ramo, cuanto tarda entregarlo normal y (opcional) si se puede apurar y
+    // con que cargo. Ver FlorPedidoServiceImpl.fechasDisponibles.
+    // ============================================================
+
+    // Plazo normal: cuantos dias tarda armar/entregar este tamano, sin nada de urgencia. Null =
+    // este tamano todavia no tiene plazo normal configurado.
+    @Column(name = "dias_normal")
+    private Integer diasNormal;
+
+    // Hora del dia en que se entrega con el plazo normal (ej. 16:00).
+    @Column(name = "hora_entrega_normal")
+    private LocalTime horaEntregaNormal;
+
+    // Plazo urgente: cuantos dias tarda si el cliente paga antes de horaLimitePedido. Null = este
+    // tamano NO se puede apurar por ningun motivo (ej. un ramo de 100 flores para el dia
+    // siguiente) -- el cliente ni siquiera ve la opcion de urgente.
+    @Column(name = "dias_urgente")
+    private Integer diasUrgente;
+
+    // Hora de entrega del plazo urgente.
+    @Column(name = "hora_entrega_urgente")
+    private LocalTime horaEntregaUrgente;
+
+    // Hora limite del dia para que el PAGO cuente para el plazo urgente de HOY -- si el pago
+    // llega despues, el plazo urgente se corre a partir de manana (ver
+    // FlorPedidoServiceImpl.fechasDisponibles). Solo aplica si diasUrgente no es null.
+    @Column(name = "hora_limite_pedido")
+    private LocalTime horaLimitePedido;
+
+    // Cargo extra que se cobra cuando aplica el plazo urgente -- se suma directo al total, sin
+    // aparecer como accesorio (mismo criterio que manoDeObra).
+    @Column(name = "cargo_urgente")
+    private Double cargoUrgente;
 
     @Column(nullable = false)
     private Boolean activo = true;

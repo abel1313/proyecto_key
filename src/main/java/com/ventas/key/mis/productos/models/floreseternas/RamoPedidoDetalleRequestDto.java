@@ -25,4 +25,8 @@ public class RamoPedidoDetalleRequestDto {
     // servidor, si el pedido cae en la ventana de urgencia (ver RamoPedidoDetalleServiceImpl) para
     // generar el anticipo del 50%. No se confia en un precioUrgencia que mande el front.
     private LocalDateTime fechaHoraEntrega;
+    // Mismo flag que se mando a /v1/flores/fechas-disponibles -- indica si el cliente eligio el
+    // plazo urgente. Determina si se guarda fechaLimitePago para revalidar el pago despues (ver
+    // RamoPedidoDetalleServiceImpl.revalidarAntesDePagar).
+    private Boolean urgente;
 }

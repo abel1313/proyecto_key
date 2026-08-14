@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.models.floreseternas.FrasePendienteDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.RevalidarPagoResponseDto;
 import com.ventas.key.mis.productos.service.RamoPedidoDetalleServiceImpl;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,21 @@ public class RamoPedidoDetalleController {
         } catch (Exception e) {
             log.error("Error al listar frases pendientes: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null, "Error al listar"));
+        }
+    }
+
+    // El front llama esto justo antes de POST /v1/abonos/{pedidoId} para saber si el plazo
+    // urgente ya vencio -- si vencio, aqui mismo se agrega el cargo urgente al pedido
+    // (recotizacion) y el front debe usar totalActual para el monto del abono, no uno calculado
+    // antes. No toca el endpoint generico de abonos, ver RamoPedidoDetalleServiceImpl.
+    @PostMapping("/{pedidoId}/revalidar-antes-de-pagar")
+    public ResponseEntity<ResponseGeneric<RevalidarPagoResponseDto>> revalidarAntesDePagar(
+            @PathVariable Integer pedidoId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.revalidarAntesDePagar(pedidoId)));
+        } catch (Exception e) {
+            log.error("Error al revalidar pago del pedido {}: {}", pedidoId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
