@@ -13915,3 +13915,194 @@ el dueño llene al menos un tamaño, avisen y lo volvemos a probar con una fecha
 **No probamos `revalidar-antes-de-pagar` de punta a punta** porque necesita un pedido real de
 flores urgente ya creado (con `fechaHoraEntrega`/`urgente` mandados en `.../detalle`) — en cuanto
 el dueño configure un tamaño y haya un pedido de prueba, lo verificamos también.
+
+---
+
+## 🔴 HUECO ENCONTRADO Y CORREGIDO — `calcular-precio` no cobraba el cargo del modelo nuevo (2026-08-14)
+
+Releyendo antes de dar la sesión por documentada, encontramos algo que se nos había pasado:
+`calcular-precio` seguía calculando `requiereAnticipo`/`montoAnticipoSugerido` únicamente con el
+modelo viejo (`CantidadFlorValida.horasMinimasAnticipacion`/`precioUrgencia`) — que nadie va a
+llenar nunca, porque el modelo real es el de `diasNormal`/`diasUrgente`/`cargoUrgente`.
+
+**Riesgo real:** con un pedido urgente de verdad (usando el modelo nuevo), `requiereAnticipo`
+hubiera salido `false` — el pedido se habría creado `NORMAL` y cobrado el 100% de contado, en vez
+de nacer `APARTADO` con el 50% de enganche. Exactamente el mismo bug del 150% que ya habíamos
+corregido, reapareciendo por el lado del cargo que no se estaba sumando.
+
+**Ya corregido, mismo commit que el resto de hoy.** `calcular-precio` ahora:
+1. Acepta `urgente` (boolean) en el request — mismo flag que ya mandan a `fechas-disponibles`.
+2. Si `urgente:true`, busca el tamaño aplicado con el mismo redondeo hacia arriba, y si tiene
+   `cargoUrgente`/`diasUrgente`/`horaLimitePedido` configurados, ese es el monto que se cobra y
+   dispara `requiereAnticipo`.
+3. El modelo viejo (`horasMinimasAnticipacion`) queda como respaldo silencioso — si algún día
+   alguien lo llena por error, no rompe nada, solo no hace nada nuevo.
+
+**Del lado del front:** al llamar `calcular-precio` para un ramo donde el cliente activó el botón
+de urgente en el calendario, manden también `"urgente": true` — mismo valor que ya mandan a
+`fechas-disponibles`. Sin ese flag, no se cobra el cargo ni se marca `requiereAnticipo`, aunque el
+tamaño sí tenga plazo urgente configurado.
+
+---
+
+## ✅ FRONT — configuración de entregas conectada + un bug que habría borrado datos (2026-08-14)
+
+Recibido y conectado. Está en `dev` (`6eda241`) y `qa` (`f072de0`).
+
+### Lo que quedó
+
+**Pantalla 🚚 Entregas** (`/flores/entregas`, en el menú 🌹 Flores eternas). Ya guarda de verdad,
+contra `/v1/cantidades-flor` — se borraron el modelo y el servicio provisionales que habíamos
+escrito mientras ustedes decidían.
+
+Cambió de forma respecto a lo que les habíamos enseñado: como los plazos cuelgan de los tamaños
+que ya existen, la pantalla **no crea ni borra tamaños**. Lista los que ya están dados de alta
+(hoy 20, 48 y 62) y a cada uno le configura sus plazos. Los tamaños se siguen creando en
+Catálogos → Cantidades, como antes.
+
+**Buena decisión la de colgarlo ahí** — se nota al usarlo: el dueño ve sus tres tamaños y les va
+poniendo plazos, sin tener que volver a capturar cuántas flores son.
+
+### 🐛 Un bug que atajamos, y que les puede pasar en otros catálogos
+
+Al agregar los 6 campos, el compilador marcó los 3 lugares donde la pantalla de Catálogos guarda
+una cantidad (alta, edición inline, toggle de activo). Ninguno mandaba los campos nuevos.
+
+Como **el CRUD genérico reemplaza el registro completo**, eso significaba que:
+
+```
+1. El dueño configura los plazos del ramo de 48 en la pantalla de Entregas.
+2. Semanas después corrige los pliegos de ese mismo 48 desde Catálogos.
+3. Los plazos de entrega desaparecen.  ← sin ningún error, sin que nadie note por qué
+```
+
+Ya está corregido: los 3 puntos reenvían los 6 campos tal cual venían.
+
+**Se los contamos porque no es un problema nuestro nada más.** Cualquier pantalla —suya o
+nuestra— que guarde una entidad del CRUD genérico mandando solo algunos campos, borra el resto en
+silencio. Con `CantidadFlorValida` ya vamos en 12 campos y creciendo; si en algún momento les
+parece razonable un `PATCH` que solo toque lo enviado, nos evitaría esta clase de error de raíz.
+No lo pedimos como cambio ahora, solo lo dejamos anotado.
+
+### ⚠️ Detalle del formato de horas
+
+Las horas llegan como `HH:mm:ss` ("16:00:00"), pero un `<input type="time">` de HTML solo entiende
+`HH:mm` — si se le pasa el valor con segundos, **el campo se queda vacío sin dar ningún error**.
+Lo resolvimos del lado del front (recortar al leer, completar al guardar), no hace falta que
+cambien nada. Lo anotamos por si alguien más consume esos campos y ve el mismo síntoma.
+
+### Sobre `tipoFlorId` en `fechas-disponibles`
+
+Tienen razón y no lo habíamos considerado: `CantidadFlorValida` es por (especie, cantidad), así
+que sin la especie no hay contra qué hacer el redondeo hacia arriba. Ya lo mandamos.
+
+### Lo que sigue de nuestro lado
+
+1. **Conectar el calendario** en el configurador del cliente — usando `fechas-disponibles` para
+   deshabilitar lo que no se puede, con el botón de urgente mostrando su cargo antes de elegir.
+2. **Llamar `revalidar-antes-de-pagar`** antes del abono, y usar el `totalActual` que devuelva.
+3. **Precio de la zona en el desplegable** ("Tejupilco — $150"), que hoy solo muestra el nombre.
+
+Lo 1 y 2 arrancan en cuanto el dueño configure al menos un tamaño — ahorita `fechas-disponibles`
+responde el mensaje de "sin plazo configurado" para los tres, que es lo correcto.
+
+### Lo único que sigue sin moverse
+
+**`GET /tienda/v1/variante/{id}/producto-id` → 500 en producción.** El merge `qa → main` que
+ustedes mismos diagnosticaron hace días. No bloquea flores, pero es el único endpoint roto en
+producción y es lo que impide cerrar `getOne`.
+
+---
+
+## 🌹 FRONT — el papel salía como casilla opcional en un ramo que ya tenía pliegos (2026-08-14)
+
+**No es un bug de ustedes ni nuestro — es que son dos configuraciones separadas que tienen que
+concordar a mano, y nada lo verifica.** Lo dejo escrito porque la propuesta del final sí les toca
+decidirla.
+
+### Qué pasó
+
+El dueño probó «Arma tu ramo» con 20 flores y le salió `☐ Papel (tiene costo)` como casilla
+opcional. Su reclamo, textual: *"ya habíamos quedado que entre 1 y 5 flores entonces sí se ponía
+el papel, porque cuando configuro los ramos ya puse cuántos pliegos usaría"*.
+
+Estado real de QA, verificado con curl:
+
+| Dónde | Valor |
+|---|---|
+| `accesorios-ramo` → Papel → `umbralActivacion` | **20** |
+| `cantidades-flor` → 20 flores → `pliegos` | 3 |
+| `cantidades-flor` → 48 flores → `pliegos` | 5 |
+| `cantidades-flor` → 62 flores → `pliegos` | 7 |
+
+Con el umbral en 20 y la comparación en **estrictamente mayor**, un ramo de exactamente 20 no
+lleva papel automático — aunque tenga sus 3 pliegos ya registrados. Los de 48 y 62 sí entraban.
+Comportamiento correcto según lo implementado; lo que falla es que el dueño configuró los pliegos
+por tamaño dando por hecho que eso bastaba, sin saber que hay un segundo número en otra pestaña
+que manda sobre eso.
+
+### Lo que hicimos del lado del front
+
+1. **Alerta en Catálogos → Accesorios** que cruza los dos catálogos y avisa: *"estos tamaños ya
+   tienen pliegos configurados pero no van a llevar papel automático porque quedan por debajo del
+   corte de N"*, con el número que debería poner.
+2. **`papelForzado` del configurador ahora obedece a `papelObligatorioAplicado`** en vez de
+   recalcular el umbral por su cuenta. Antes duplicaba su fórmula, con el riesgo obvio: si el
+   front escondiera el papel creyendo que va incluido y ustedes no lo agregaran, el ramo saldría
+   **sin papel y sin cobro**. Esconder no es incluir — quien lo agrega son ustedes.
+
+### 💡 Propuesta (esto sí lo deciden ustedes)
+
+**Que el papel se derive de `CantidadFlorValida.pliegos`**: si el tamaño tiene pliegos
+configurados, lleva papel; si no los tiene, se le pregunta al cliente. `umbralActivacion` dejaría
+de hacer falta.
+
+Por qué lo sugerimos: hoy son dos números, en dos pantallas, que tienen que estar coordinados y
+nada lo garantiza. El dueño ya se topó con eso a la primera prueba. Con esto habría **un solo
+lugar** donde configurarlo y sería imposible desalinearlo — que además es como él ya lo tiene en
+la cabeza ("si configuré los pliegos, es porque lleva papel").
+
+Efecto secundario que nos gusta: se acaba de paso la confusión del `>` vs `>=`, que fue justo lo
+que mordió aquí (el corte en 20 y el ramo de 20).
+
+**Si prefieren dejarlo como está, también está bien** — con la alerta nueva el dueño ya ve cuándo
+los dos números no concuerdan. No hace falta que cambien nada para que funcione; es solo que
+tendrá que mantener los dos sincronizados él.
+
+**Mientras tanto no bloquea nada:** basta con que ponga el umbral en 5 y el comportamiento queda
+como él lo describió (preguntar solo de 1 a 5 flores, incluido de 6 en adelante).
+
+---
+
+## 🟡 BACK — precisión sobre "el más cercano hacia arriba": no aplica igual a todo (2026-08-14)
+
+Sobre el hilo de arriba (papel vs pliegos, y la propuesta de derivarlo uno del otro): confirmamos
+con el dueño un caso adicional que vale la pena dejar anotado, porque puede confundir cuando el
+tamaño pedido **no está registrado exacto** (a diferencia del ejemplo de arriba, donde el 20 sí
+estaba dado de alta con sus 3 pliegos).
+
+Ejemplo: el dueño tiene registrado el tamaño 25 (con sus pliegos, plazos, etc.) pero NO el 20.
+Alguien pide 20 flores. Hoy, en el código, pasan tres cosas independientes — no una sola cascada
+consistente:
+
+- **`validar-cantidad`** recomienda el 25 como `alternativaMayor` (el tamaño válido más cercano
+  hacia arriba). Esto ya lo conocen.
+- **`diasNormal` / `diasUrgente` / `cargoUrgente`** (plazos de entrega) → SÍ heredan del 25: el
+  redondeo hacia arriba ya está implementado ahí (es el mismo mecanismo confirmado y documentado
+  arriba para `fechas-disponibles`).
+- **`pliegos` (papel) y `manoDeObra`** → NO heredan del 25. Buscan coincidencia EXACTA con la
+  cantidad pedida (20); si no la encuentran, caen a la fórmula `floresPorPliego` o al respaldo
+  `pliegosPorDefecto` — nunca toman los pliegos que el dueño configuró para el 25.
+- **El umbral del papel (`umbralActivacion`)** → tampoco mira "el más cercano". Compara la
+  cantidad REAL pedida (20) contra el umbral, sin importar qué tamaño se haya recomendado como
+  alternativa.
+
+O sea: si piden una cantidad sin fila propia, que aparezca o no el papel (y cuántos pliegos se
+cobren) depende de reglas que no tienen que ver con el tamaño recomendado como "más cercano" —
+hoy son tres mecanismos independientes. Con la propuesta de arriba (derivar el papel de
+`pliegos`) esto se simplifica para el caso donde SÍ hay fila exacta, pero el hueco de la cantidad
+sin registrar seguiría abierto salvo que decidan que `pliegos`/`manoDeObra` también hereden del
+tamaño más cercano, igual que ya pasa con los plazos de entrega.
+
+**No es un bug — es el comportamiento actual**, documentado para que quede claro antes de decidir
+si conviene unificarlo con el resto del rediseño de papel/pliegos que está en discusión arriba.

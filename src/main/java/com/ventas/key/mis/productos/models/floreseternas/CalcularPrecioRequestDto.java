@@ -24,4 +24,8 @@ public class CalcularPrecioRequestDto {
     // rechaza el pedido (ver FlorPedidoServiceImpl.validarAnticipacionYUrgencia). Sin este campo,
     // no se valida nada (comportamiento de siempre).
     private LocalDateTime fechaHoraEntrega;
+    // Mismo flag que se manda a /v1/flores/fechas-disponibles -- si el cliente eligio el plazo
+    // urgente del calendario. Determina si se cobra CantidadFlorValida.cargoUrgente (modelo
+    // nuevo de config-entrega) y si el pedido requiere anticipo.
+    private Boolean urgente;
 }

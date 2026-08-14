@@ -178,14 +178,33 @@ public class FlorPedidoServiceImpl {
         Double precioManoDeObra = cantidadRegistrada.map(CantidadFlorValida::getManoDeObra).orElse(null);
         response.setPrecioManoDeObra(precioManoDeObra);
 
-        // Anticipacion: si no da tiempo de armar este tamano de ramo para la fecha/hora pedida,
-        // entregaValida sale false (el front debe bloquear continuar). Si da tiempo y la entrega
-        // es de hoy o manana, devuelve el extra de urgencia a cobrar.
+        // Anticipacion -- modelo viejo (horasMinimasAnticipacion/precioUrgencia), se queda como
+        // red de seguridad pero hoy nadie lo llena: si no da tiempo, entregaValida sale false.
         AnticipacionResultadoDto anticipacion = validarAnticipacionYUrgencia(dto.getFechaHoraEntrega(), dto.getLugarEntregaId(),
                 dto.getRecogerEnLocal(), cantidadRegistrada.orElse(null), cantidadFinal);
         response.setEntregaValida(anticipacion.isEntregaValida());
         response.setMensajeEntrega(anticipacion.getMensajeEntrega());
-        Double precioUrgencia = anticipacion.getPrecioUrgencia();
+
+        // Cargo urgente -- modelo nuevo de config-entrega (mismo redondeo hacia arriba que
+        // fechas-disponibles). Es el que de verdad se va a usar: el dueno llena diasNormal/
+        // diasUrgente/cargoUrgente, no los campos viejos de arriba.
+        Double cargoUrgenteNuevoModelo = null;
+        if (Boolean.TRUE.equals(dto.getUrgente())) {
+            int cantidadFinalFinal = cantidadFinal;
+            CantidadFlorValida aplicadaEntrega = iCantidadFlorValidaRepository
+                    .findActivasPorTipoFlorOrdenadas(especie.getId()).stream()
+                    .filter(c -> c.getCantidad() >= cantidadFinalFinal)
+                    .findFirst()
+                    .orElse(null);
+            if (aplicadaEntrega != null && aplicadaEntrega.getCargoUrgente() != null
+                    && aplicadaEntrega.getDiasUrgente() != null && aplicadaEntrega.getHoraLimitePedido() != null) {
+                cargoUrgenteNuevoModelo = aplicadaEntrega.getCargoUrgente();
+            }
+        }
+
+        // El que aplique (nuevo modelo tiene prioridad -- es el vigente; el viejo solo se usa si
+        // el nuevo no dio nada, puramente por si algun tamano viejo se quedo con datos sueltos).
+        Double precioUrgencia = cargoUrgenteNuevoModelo != null ? cargoUrgenteNuevoModelo : anticipacion.getPrecioUrgencia();
         response.setPrecioUrgencia(precioUrgencia);
         response.setRequiereAnticipo(precioUrgencia != null);
 
