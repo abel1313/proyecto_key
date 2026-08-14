@@ -219,17 +219,24 @@ public class FlorPedidoServiceImpl {
 
     private List<AccesorioCalculadoDto> calcularAccesorios(List<AccesorioSeleccionadoDto> seleccionados, Integer papelAccesorioId, int cantidadFinal, Integer pliegosExplicitos) {
         List<AccesorioCalculadoDto> resultado = new ArrayList<>();
-        if (seleccionados == null || seleccionados.isEmpty()) {
-            return resultado;
-        }
         java.util.Map<Integer, Integer> cantidadPorAccesorio = new java.util.LinkedHashMap<>();
-        for (AccesorioSeleccionadoDto sel : seleccionados) {
-            // El papel ya se cobro via la regla automatica -- si el cliente tambien lo eligio
-            // manualmente en esta lista, se ignora esa entrada para no cobrarlo dos veces.
-            if (papelAccesorioId != null && papelAccesorioId.equals(sel.getAccesorioId())) {
-                continue;
+        if (seleccionados != null) {
+            for (AccesorioSeleccionadoDto sel : seleccionados) {
+                // El papel ya se cobro via la regla automatica -- si el cliente tambien lo eligio
+                // manualmente en esta lista, se ignora esa entrada para no cobrarlo dos veces.
+                if (papelAccesorioId != null && papelAccesorioId.equals(sel.getAccesorioId())) {
+                    continue;
+                }
+                cantidadPorAccesorio.merge(sel.getAccesorioId(), 1, Integer::sum);
             }
-            cantidadPorAccesorio.merge(sel.getAccesorioId(), 1, Integer::sum);
+        }
+        // Accesorios que se cobran en todo ramo sin excepcion (ej. mano de obra) -- se agregan
+        // solos aunque el cliente no haya elegido ningun accesorio manualmente.
+        for (AccesorioRamo autoIncluido : accesorioRamoService.obtenerAccesoriosAutoIncluidos()) {
+            if (!cantidadPorAccesorio.containsKey(autoIncluido.getId())
+                    && !(papelAccesorioId != null && papelAccesorioId.equals(autoIncluido.getId()))) {
+                cantidadPorAccesorio.put(autoIncluido.getId(), 1);
+            }
         }
         for (java.util.Map.Entry<Integer, Integer> entry : cantidadPorAccesorio.entrySet()) {
             AccesorioRamo accesorio = iAccesorioRamoRepository.findById(entry.getKey())

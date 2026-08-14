@@ -47,6 +47,21 @@ public class AccesorioRamo extends BaseId {
     @Column(name = "flores_por_pliego")
     private Integer floresPorPliego;
 
+    // Solo aplica cuando esPapel=true: hasta esta cantidad de flores (inclusive), si el cliente
+    // elige papel se cobra fijo 1 pliego, sin importar floresPorPliego ni el pliegos explicito de
+    // CantidadFlorValida -- pensado para ventas chicas/sueltas (1 a N flores) donde no tiene
+    // sentido prorratear el papel. Gana sobre cualquier otra config en ese rango. Null = esta
+    // regla nunca se dispara, se usa la prioridad normal (ver calcularPliegosPapel).
+    @Column(name = "umbral_pliego_fijo")
+    private Integer umbralPliegoFijo;
+
+    // Si esta activo, este accesorio se agrega y cobra automatico en TODO ramo armado, sin
+    // importar la cantidad de flores (a diferencia del papel, que solo se auto-agrega arriba de
+    // su umbralActivacion). Pensado para costos que siempre aplican, ej. mano de obra de armado.
+    // No es exclusivo -- puede haber varios accesorios auto-incluidos a la vez.
+    @Column(name = "auto_incluido", nullable = false)
+    private Boolean autoIncluido = false;
+
     @Column(nullable = false)
     private Boolean activo = true;
 

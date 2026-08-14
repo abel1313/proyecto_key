@@ -11739,3 +11739,74 @@ nuestro lado para que empiecen a consumirlo.
    valor explícito en cuanto el dueño lo configure para esa cantidad, sin que ustedes tengan que
    tocar nada ahí.
 4. Avisen si hay algún lugar más donde muestran `cantidad_flor_valida` que se nos haya escapado.
+
+---
+
+## 🔴 CAUSA DEL 500 EN PRODUCCIÓN — no es un bug, `main` nunca recibió el endpoint (2026-08-14)
+
+Investigamos el `GET /tienda/v1/variante/{id}/producto-id` que reportaron con 500 en prod. La
+causa real: **ese endpoint no existe en el código de `main`.**
+
+Lo agregamos el 2026-08-11 (commit `df5ea15`, "endpoint publico varianteId -> productoId para la
+ficha de producto") directo en `dev`/`qa` — y desde entonces no se ha hecho el merge `qa → main`
+que lo llevaría a producción. Confirmado revisando el código de `main` ahora mismo: no hay
+ninguna mención de `producto-id` ni de `resolverProductoId` en ese branch.
+
+Por eso responde 500 con cualquier id: la ruta simplemente no está registrada en el Spring que
+corre en prod — el 500 en vez de un 404 más claro probablemente viene de nginx/el proxy delante
+del backend, no de la aplicación.
+
+**No hay nada que corregir en el código** — es un tema de promoción, no de bug. Cuando quieran
+que esto quede resuelto en producción, avísennos y hacemos el merge `qa → main` (trae también el
+resto de lo que ya está validado en QA: flores eternas completo, fix de `validar-cantidad`,
+`pliegos` por ramo, etc. — es la primera vez que se promueve todo ese trabajo). Uds. deciden
+cuándo, dado que hay partes marcadas como "esperando confirmación del dueño" (ver pendientes de
+`AccesorioRamo.precio` y "Corona").
+
+---
+
+## ✅ Respuesta del back — mano de obra + rango de pliego fijo para ventas chicas (2026-08-14)
+
+### 1. Mano de obra — accesorio "auto-incluido", se cobra siempre sin que el cliente lo elija
+
+Nuevo campo `AccesorioRamo.autoIncluido` (booleano, default `false`). Cuando está en `true`, ese
+accesorio se agrega y cobra automático en **todo** ramo armado (preconfigurado o del configurador
+libre), sin importar la cantidad de flores y sin que el cliente lo pueda quitar de la lista — a
+diferencia del papel, que depende de `umbralActivacion`.
+
+**Para activarlo:** dar de alta (o editar) un accesorio normal en Catálogo → Accesorios, con su
+nombre ("Mano de obra") y precio, y marcarle `autoIncluido: true`. Mismo endpoint de siempre
+(`/v1/accesorios-ramo/save` / `update`), sin endpoint nuevo. Puede haber varios auto-incluidos a
+la vez si en el futuro hace falta otro costo fijo similar.
+
+**Para el front:** aparecerá en la respuesta de `calcular-precio` y `ramos-armados` dentro de la
+lista de accesorios de siempre (`accesoriosCalculados` / `accesorios`), igual que cualquier otro —
+no hace falta lógica nueva para mostrarlo, solo va a aparecer solo en el desglose sin que el
+cliente lo haya seleccionado.
+
+### 2. Pliego fijo para ventas chicas (1 a N flores) — campo nuevo en el accesorio "papel"
+
+Campo nuevo `AccesorioRamo.umbralPliegoFijo` (número, opcional, solo aplica al accesorio marcado
+`es_papel=true`). Configurable por el dueño, igual que `umbralActivacion` — no quedó hardcodeado
+en 5.
+
+**Regla:** si la cantidad de flores del ramo es menor o igual a `umbralPliegoFijo`, y el cliente
+elige papel (sigue siendo opcional en ese rango, se pregunta como cualquier accesorio), se cobra
+**fijo 1 pliego** — le gana a cualquier otra configuración, incluido el `pliegos` explícito de
+`CantidadFlorValida` si por algún motivo llegara a existir uno en ese rango.
+
+Con `umbralPliegoFijo = 5`: de 1 a 5 flores, papel elegido = 1 pliego fijo. De 6 en adelante, se
+usa la prioridad normal (pliegos explícito del ramo → fórmula `floresPorPliego` → precio fijo si
+no hay ninguno).
+
+**Para activarlo:** editar el accesorio "papel" y ponerle `umbralPliegoFijo: 5` (o el número que
+decida el dueño). Mientras quede en `null`, no cambia nada del comportamiento actual.
+
+### Migraciones
+
+- `migration_flores_eternas_mano_de_obra.sql` — `ALTER TABLE accesorio_ramo ADD COLUMN
+  auto_incluido TINYINT(1) NOT NULL DEFAULT 0`.
+- `migration_flores_eternas_umbral_pliego_fijo.sql` — `ALTER TABLE accesorio_ramo ADD COLUMN
+  umbral_pliego_fijo INT NULL`.
+
+Ambas en `dev`, pendientes de merge a `qa` y del aviso para correrlas.

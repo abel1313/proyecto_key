@@ -130,6 +130,7 @@ public class RamoArmadoServiceImpl {
 
         List<RamoArmadoAccesorio> accesorios = new ArrayList<>();
         double subtotalAccesorios = 0;
+        java.util.Set<Integer> idsYaAgregados = new java.util.HashSet<>();
         if (dto.getAccesorios() != null) {
             for (RamoArmadoAccesorioRequestDto a : dto.getAccesorios()) {
                 if (papelAccesorioId != null && papelAccesorioId.equals(a.getAccesorioId())) {
@@ -144,7 +145,22 @@ public class RamoArmadoServiceImpl {
                 detalle.setCantidad(cantidad);
                 accesorios.add(detalle);
                 subtotalAccesorios += accesorio.getPrecio() * cantidad;
+                idsYaAgregados.add(accesorio.getId());
             }
+        }
+        // Accesorios que se cobran en todo ramo sin excepcion (ej. mano de obra) -- se agregan
+        // solos, sin que el dueno tenga que elegirlos al armar el ramo preconfigurado.
+        for (AccesorioRamo autoIncluido : accesorioRamoService.obtenerAccesoriosAutoIncluidos()) {
+            if (idsYaAgregados.contains(autoIncluido.getId())
+                    || (papelAccesorioId != null && papelAccesorioId.equals(autoIncluido.getId()))) {
+                continue;
+            }
+            RamoArmadoAccesorio detalle = new RamoArmadoAccesorio();
+            detalle.setRamoArmado(ramo);
+            detalle.setAccesorio(autoIncluido);
+            detalle.setCantidad(1);
+            accesorios.add(detalle);
+            subtotalAccesorios += autoIncluido.getPrecio();
         }
         if (ramo.getAccesorios() == null) {
             ramo.setAccesorios(accesorios);
