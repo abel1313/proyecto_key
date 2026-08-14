@@ -81,10 +81,12 @@ public class FlorPedidoServiceImpl {
         response.setCantidadSolicitada(cantidadSolicitada);
         response.setPrecioCantidadSolicitada(precioSolicitada);
 
-        // Sin catalogo configurado, o la cantidad pedida es menor a la mas chica configurada:
-        // no aplica el ajuste de "circulo" (venta por unidad, ej. 1 o 2 flores sueltas).
-        boolean menorQueLaMasChica = !validas.isEmpty() && cantidadSolicitada < validas.get(0).getCantidad();
-        if (validas.isEmpty() || menorQueLaMasChica) {
+        // Sin catalogo configurado para esta especie: no hay nada contra que validar, se acepta
+        // tal cual (venta por unidad). Si SI hay catalogo, toda cantidad que no sea exacta -- este
+        // por arriba, en medio o por debajo de la mas chica registrada -- pasa por la logica de
+        // abajo y se le sugiere la alternativa mas cercana (antes, por debajo de la mas chica se
+        // aceptaba en silencio; decision del dueno: avisar siempre que el circulo no completa).
+        if (validas.isEmpty()) {
             response.setValida(true);
             response.setMensaje("Cantidad aceptada tal cual, se cobra por unidad.");
             return response;

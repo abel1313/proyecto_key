@@ -188,11 +188,11 @@ public class RamoArmadoServiceImpl {
                 ramo.getPapelIncluido(),
                 ramo.getPrecioPapel(),
                 papelVarianteId(ramo),
+                pliegosPapel(ramo),
+                precioUnitarioPapel(ramo),
                 accesorios,
                 ramo.getPrecioTotal(),
-                ramo.getActivo(),
-                pliegosPapel(ramo),
-                precioUnitarioPapel(ramo));
+                ramo.getActivo());
     }
 
     // El papel no se guarda como FK propio en RamoArmado (solo su precio, ya congelado al
