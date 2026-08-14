@@ -11377,3 +11377,54 @@ hacemos.
 - **Checkout real sin probar contra backend real:** no hay nada pendiente de nuestro lado para
   habilitarlo — `savePedido` y el registro del detalle del ramo ya están activos en QA, es cuestión
   de que ustedes corran la prueba de punta a punta cuando puedan.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — `colores-flor/por-tipo-flor` responde bien, revisar `lista` vs `data` (2026-08-13)
+
+**Qué hicimos:** nos reportaron que en el configurador seguía saliendo "Esta especie todavía no
+tiene colores disponibles" con 12 flores de "Flor eternal0" (aunque la cantidad sí validaba bien).
+Le pegamos directo al endpoint en QA con un token admin para ver qué devolvía realmente el back.
+
+**Qué tiene que revisar el front:**
+1. Abrir el código que llama `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` en el paso 3 del
+   configurador ("Reparte tus flores entre colores") y confirmar si lee `response.data` o
+   `response.lista`. **El arreglo de colores viene en `lista`, `data` siempre es `null` en este
+   endpoint.** Si el código lee `data`, ese es el bug — corregirlo a `lista`.
+2. Si ya leen `lista` y sigue fallando, probar en una pestaña de incógnito o con hard refresh —
+   podría ser caché del navegador/service worker sirviendo un build viejo (el back confirmó que el
+   endpoint no cachea nada, ver headers abajo).
+3. Avisar con el resultado apenas lo revisen, para no seguir adivinando a ciegas.
+
+Nos reportaron que en el configurador seguía saliendo "Esta especie todavía no tiene colores
+disponibles" con 12 flores de "Flor eternal0" (que sí valida cantidad correctamente). Volvimos a
+probar el endpoint en vivo contra QA, directo con el token admin, en este momento:
+
+```
+GET /mis-productos/v1/colores-flor/por-tipo-flor/1
+```
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": null,
+  "lista": [
+    { "id": 1, "nombre": "Roja", "stock": 100, "activo": true, "tipoFlor": { "id": 1, ... }, "variante": {...} },
+    { "id": 2, "nombre": "Verde", "stock": 100, "activo": true, "tipoFlor": { "id": 1, ... }, "variante": {...} }
+  ]
+}
+```
+
+Sigue respondiendo bien — los 2 colores están ahí, igual que la vez pasada. **Punto importante que
+no habíamos aclarado antes:** este endpoint devuelve el arreglo en el campo **`lista`**, no en
+`data` (`data` viene `null` a propósito — es el mismo `ResponseGeneric` de siempre, pero la
+variante de constructor que se usa para listas llena `lista`, no `data`). Si el código del front
+para este llamado específico lee `response.data` en vez de `response.lista`, va a leer `null` y
+mostrar "no hay colores disponibles" aunque el back sí los esté mandando — con el mismo patrón del
+bug que ya tuvimos en su momento con el refresh de JWT (`response.response.accessToken` vs
+`response.accessToken`).
+
+Si ya están leyendo `lista` y aun así sigue fallando, puede ser caché del navegador/service worker
+sirviendo un build viejo del front — no hay `@Cacheable` ni caché de servidor de por medio en este
+endpoint (headers `Cache-Control: no-cache, no-store`, confirmado). Avisen con el resultado de
+revisar `lista` vs `data` y seguimos desde ahí.
