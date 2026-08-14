@@ -102,4 +102,30 @@ public class RamoPedidoDetalle extends BaseId {
 
     @Column(name = "fecha_creacion", nullable = false)
     private LocalDateTime fechaCreacion;
+
+    // Fecha/hora de entrega que el cliente eligio (mismo dato que ya se mando a calcular-precio y
+    // fechas-disponibles). Informativo -- para produccion y para la revalidacion del pago urgente.
+    @Column(name = "fecha_hora_entrega")
+    private LocalDateTime fechaHoraEntrega;
+
+    // Si el cliente eligio el plazo urgente para este pedido (ver CantidadFlorValida.diasUrgente).
+    @Column(name = "es_urgente", nullable = false)
+    private Boolean esUrgente = false;
+
+    // Momento exacto limite para que el PAGO cuente con el precio normal -- si el abono llega
+    // despues, se aplica cargoUrgenteMonto (ver RamoPedidoDetalleServiceImpl.revalidarAntesDePagar).
+    // Null si esUrgente=false.
+    @Column(name = "fecha_limite_pago")
+    private LocalDateTime fechaLimitePago;
+
+    // Cuanto se cobraria si el pago llega despues de fechaLimitePago (copiado de
+    // CantidadFlorValida.cargoUrgente al momento de adjuntar, para no depender de que el dueno no
+    // haya cambiado el catalogo entre que se creo el pedido y se pago).
+    @Column(name = "cargo_urgente_monto")
+    private Double cargoUrgenteMonto;
+
+    // true una vez que el cargo por pago tardio ya se agrego como linea al pedido -- evita
+    // agregarlo dos veces si revalidarAntesDePagar se llama mas de una vez.
+    @Column(name = "cargo_urgente_aplicado", nullable = false)
+    private Boolean cargoUrgenteAplicado = false;
 }

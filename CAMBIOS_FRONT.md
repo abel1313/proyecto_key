@@ -13761,3 +13761,124 @@ horas después, o llamar el endpoint directo. Tiene que ser del lado del servido
 **`GET /tienda/v1/variante/{id}/producto-id` en 500 en producción** — el merge `qa → main` que
 ustedes mismos diagnosticaron. No es de flores y no bloquea nada de esto, pero es lo único con un
 endpoint roto en producción y es lo que impide cerrar `getOne`.
+
+---
+
+## 🚧 CONSTRUIDO — los 3 puntos, en `dev` (todavía sin merge a `qa`) (2026-08-14)
+
+Arrancamos con los tres. Compilado y verificado localmente; falta subir a `qa` y correr la
+migración. Documentamos aquí el contrato real, con las decisiones que tomamos donde ustedes nos
+dejaron elegir.
+
+### 1. Config-entrega — SÍ cuelga de `CantidadFlorValida`, sin CRUD nuevo
+
+Tal como propusieron y preferimos: **no hay endpoints `/v1/config-entrega/*` nuevos.** Los 6
+campos se agregaron directo a `CantidadFlorValida` y se manejan con el mismo CRUD de siempre:
+
+```
+GET/POST/PUT  /v1/cantidades-flor/...
+```
+
+Campos nuevos (nombres calcados de su `config-entrega.model.ts`, con un ajuste — ver abajo):
+
+```json
+{
+  "id": 7,
+  "tipoFlor": { "id": 1, ... },
+  "cantidad": 48,
+  "pliegos": 3,
+
+  "diasNormal": 3,
+  "horaEntregaNormal": "16:00:00",
+
+  "diasUrgente": 1,
+  "horaEntregaUrgente": "18:00:00",
+  "horaLimitePedido": "12:00:00",
+  "cargoUrgente": 300.00
+}
+```
+
+Igual que ustedes propusieron: **todo el bloque urgente puede venir `null`** (ese tamaño no se
+puede apurar). `cantidadFlores` que mencionaban como solo-lectura no hizo falta agregarlo — ya
+viene en el mismo objeto como `cantidad`.
+
+### 2. `POST /v1/flores/fechas-disponibles` — construido, con un campo agregado
+
+```json
+// Request
+{ "tipoFlorId": 1, "cantidad": 37, "lugarEntregaId": 5, "urgente": false }
+```
+
+**Le agregamos `tipoFlorId`, que no estaba en su propuesta.** `CantidadFlorValida` es por
+(especie, cantidad) — sin la especie no hay forma de saber contra qué catálogo de tamaños buscar
+el redondeo hacia arriba (dos especies distintas pueden tener tamaños configurados distintos). Es
+el mismo dato que ya mandan en `calcular-precio`/`validar-cantidad`, así que no debería ser
+información nueva para el front.
+
+```json
+// Response
+{
+  "primeraFechaValida": "2026-08-17T16:00:00",
+  "horasDisponibles": ["16:00"],
+  "cantidadAplicada": 48,
+  "cargoUrgencia": null,
+  "ofreceUrgente": true,
+  "mensaje": null
+}
+```
+
+Shape idéntico a lo que propusieron. `primeraFechaValida` ya considera la hora actual contra
+`horaLimitePedido` (si piden `urgente:true` y ya pasó la hora límite de hoy, corre el plazo a
+partir de mañana) y ya suma las horas extra de la zona (`LugarEntrega.horasExtraAnticipacion`).
+
+**Caso de bloqueo** (piden más que el tamaño máximo configurado, o `urgente:true` para un tamaño
+sin bloque urgente): `primeraFechaValida: null`, `mensaje` con el texto para mostrarle al cliente
+y dirigirlo a WhatsApp/redes.
+
+### 3. Validación del reloj al pagar — opción (c), sin tocar `abonos`
+
+Elegimos la que ustedes también preferían: un endpoint aparte que el front llama **antes** de
+`POST /v1/abonos/{pedidoId}`, no una regla metida dentro de abonos.
+
+```
+POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar     (sin body, autenticado)
+```
+
+```json
+// Response
+{
+  "cargoRecienAplicado": true,
+  "cargoAgregado": 300.00,
+  "totalActual": 1260.00,
+  "mensaje": "Tu pago llego despues de la hora limite para el precio normal, asi que se aplico el cargo por entrega urgente ($300.0). Tu nuevo total es $1260.0 -- vuelve a intentar el pago con ese monto."
+}
+```
+
+**Cómo funciona:** al adjuntar el detalle del pedido (`POST .../pedidos/{id}/detalle`), ahora
+también mandan `urgente` (boolean, mismo valor que usaron en `fechas-disponibles`) junto con
+`fechaHoraEntrega`. El back calcula y **guarda** en ese momento la `fechaLimitePago` exacta y el
+`cargoUrgenteMonto` correspondiente — así no depende de que el front vuelva a mandar nada después.
+
+Cuando el front esté por cobrar el anticipo, llama primero a este endpoint:
+- **Si todavía no vence, o no era urgente:** `cargoRecienAplicado: false`, no cambia nada — sigan
+  con `POST /v1/abonos/{pedidoId}` normal.
+- **Si ya venció:** el back agrega la línea del cargo urgente al pedido real (recotiza, no
+  cancela — como pidió el dueño), devuelve el `totalActual` ya actualizado, y el front debe usar
+  **ese** monto para el abono, no el que tenía calculado antes.
+- Es idempotente: si lo llaman dos veces, la segunda vez ya no vuelve a aplicar el cargo
+  (`cargoUrgenteAplicado` queda marcado internamente).
+
+**Por qué no puede validarse solo en el front:** ya lo habíamos dicho, coincidimos — por eso este
+endpoint es servidor, y el `POST /v1/abonos/{pedidoId}` que ya usan sigue exactamente igual, sin
+ningún cambio ni guard nuevo.
+
+### Migración (pendiente de correr)
+
+`migration_flores_eternas_config_entrega.sql` — agrega los 6 campos de arriba a
+`cantidad_flor_valida`, y 5 campos de soporte (`fecha_hora_entrega`, `es_urgente`,
+`fecha_limite_pago`, `cargo_urgente_monto`, `cargo_urgente_aplicado`) a `ramo_pedido_detalle`.
+
+### Todavía en `dev`, no en `qa`
+
+Falta el merge `dev → qa` y correr la migración. Avisamos en cuanto esté arriba para que puedan
+probar contra QA.

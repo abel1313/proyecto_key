@@ -3,6 +3,8 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.floreseternas.CalcularPrecioRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.CalcularPrecioResponseDto;
+import com.ventas.key.mis.productos.models.floreseternas.FechasDisponiblesRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.FechasDisponiblesResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.ValidarCantidadRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.ValidarCantidadResponseDto;
 import com.ventas.key.mis.productos.service.FlorPedidoServiceImpl;
@@ -45,6 +47,17 @@ public class FlorPedidoController {
             return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.calcularPrecio(request)));
         } catch (Exception e) {
             log.error("Error al calcular precio de ramo: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @PostMapping("/fechas-disponibles")
+    public ResponseEntity<ResponseGeneric<FechasDisponiblesResponseDto>> fechasDisponibles(
+            @RequestBody FechasDisponiblesRequestDto request) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.fechasDisponibles(request)));
+        } catch (Exception e) {
+            log.error("Error al calcular fechas disponibles: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
