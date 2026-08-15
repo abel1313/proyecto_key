@@ -14656,3 +14656,167 @@ decisión pararlo antes de construirlo.
 **Confirmado de nuestro lado:** `POST /v1/pedidos/savePedido` no se toca — sigue rechazando sin
 guardar nada mientras el correo no esté verificado, exactamente el comportamiento de siempre. No
 hay ningún cambio de back pendiente de esta petición. Sin nada más que agregar, no bloquea nada.
+
+---
+
+## ✅ FRONT — bandeja de frases de listón construida + 3 dudas (2026-08-14)
+
+Era la última pieza del módulo sin construir. Ya está en `dev` y `qa`: ruta `/flores/frases`,
+admin, link "🎗️ Frases por aprobar" dentro del grupo de Flores.
+
+**Lo que hace:** lista `GET /v1/flores/pedidos/frases-pendientes` (paginado base-1), muestra la
+frase, el cliente, la fecha y un enlace al pedido; por fila, un campo de precio y los botones
+aprobar / rechazar → `PUT /v1/flores/pedidos/detalle/{detalleId}/validar-frase`.
+
+Al aprobar, como ustedes crean un pedido `APARTADO` aparte, la pantalla ofrece **ir a cobrar el
+anticipo de una vez** (`/abonos?pedidoId={pedidoAnticipoId}`) — si el dueño tiene que buscarlo a
+mano después, se queda sin cobrar.
+
+**Confirmado con el dueño** un punto que ya funcionaba pero no estaba dicho en voz alta: **el ramo
+con frase personalizada SÍ se guarda** (se vende con total provisional) y lo único que queda
+pendiente es la frase. No se confunde con el caso del correo sin verificar, que se canceló.
+
+### ❓ 1. Aviso al dueño cuando entra una frase nueva — nos lo pidió y no existe
+
+> *"Cuando el cliente elija el nombre del listón nuevo, me debe llegar un correo para estar al
+> tanto y revisarlo y ponerle el precio."*
+
+Tiene sentido: hoy **nadie le avisa**. Si no entra a la bandeja por su cuenta, la frase se queda
+ahí y el ramo no se puede terminar de cobrar. ¿Pueden mandar un correo al admin cuando se guarda
+un `RamoPedidoDetalle` con `fraseListonPersonalizada`? Nos parece más de ustedes que nuestro (el
+front no debería depender de que el admin tenga la pantalla abierta), pero si prefieren que lo
+resolvamos de otra forma, díganlo.
+
+### ❓ 2. ¿Y al cliente le avisan cuando ya tiene precio?
+
+El cliente se fue con un total **provisional**. Cuando el dueño le pone precio a la frase, ¿se le
+notifica? Si no, se queda esperando sin saber cuánto debe ni que ya puede pagar el anticipo. No
+sabemos si eso ya lo hacen al crear el pedido del anticipo.
+
+### ❓ 3. ¿Para qué es `anticipoPagado` en `IValidarFraseRequest`?
+
+Está en el contrato (`{ aprobar, precioAsignado?, anticipoPagado? }`) pero no lo documentaron.
+**Hoy no lo mandamos.** ¿Es para cuando el cliente ya pagó en efectivo y no hay que generar el
+pedido del anticipo? Si es eso, agregamos un checkbox "ya me lo pagó" en la bandeja.
+
+Ninguna de las tres bloquea: la pantalla funciona y se puede aprobar y cobrar hoy mismo.
+
+---
+
+## 🆕 PETICIÓN DEL DUEÑO — guardar el ARMADO mientras se cotiza la frase (2026-08-14)
+
+Complementa la bandeja de frases que ya construimos. Le explicamos cómo quedó implementado (venta
+inmediata con total provisional + pedido de anticipo aparte al aprobar) y **no era lo que él tenía
+en mente**. Lo que quiere:
+
+> *"Lo que tenía pensado era: llega el correo, reviso, y **en lo que reviso, el ramo se debería
+> guardar para que no lo haga desde 0** y ya nomás agregue el listón."*
+
+Secuencia que describe:
+
+1. El cliente arma su ramo y escribe una frase que no existe.
+2. **Se guarda la frase** (pendiente) y **se guarda el armado del ramo**. No se vende nada aún.
+3. Le llega el correo al dueño.
+4. El dueño revisa, le pone precio, y la frase queda registrada.
+5. El cliente vuelve, **su ramo sigue armado**, solo agrega el listón ya con precio, y **entonces**
+   hace el pedido con el total completo.
+
+### ⚠️ La distinción que importa — armado guardado ≠ pedido pendiente
+
+Se lo planteamos así y nos parece la clave de todo:
+
+- **Pedido pendiente** = una venta a medias en el sistema. **Ya lo canceló él mismo** hace unas
+  horas (ver la sección 🛑 más arriba): trae estados nuevos, caducidad, bandeja de "perdidos" y
+  ensucia reportes.
+- **Armado guardado** = el ramo a medias esperando, **no es una venta**. No aparta stock, no entra
+  en reportes, no tiene estados de pedido. Solo existe para que el cliente no lo arme otra vez.
+
+**Vamos con lo segundo**, porque le da exactamente lo que pidió sin ninguno de los problemas que
+ya rechazó. Lo dejamos dicho para que él corrija si lo pensaba como venta pendiente.
+
+### Lo que esto implicaría de su lado
+
+No les proponemos el modelo — ustedes deciden. Lo que el negocio necesita:
+
+1. **Guardar el armado** (especie, cantidad, reparto por color, accesorios, la frase pendiente y
+   la zona) asociado al cliente, **sin crear pedido**. Algo así como un borrador o cotización.
+2. **Avisar al dueño por correo** cuando entra una frase nueva — ya se los pedimos en el bloque
+   anterior; con esto se vuelve más necesario, porque ahora hay un cliente esperando.
+3. **Avisar al cliente cuando su frase ya tiene precio**, con la forma de volver a su armado. Sin
+   eso se queda esperando sin saber que ya puede pedir.
+4. Al retomarlo, **la fecha y el precio se recalculan** contra ese momento — regla que él ya
+   fijó: *"la fecha serían los días que me lleve hacerlo, contados desde que confirma"*.
+
+### ❓ Lo que no sabemos y le toca a ustedes evaluar
+
+- ¿El armado guardado caduca? (para el pedido pendiente él dijo que sí; aquí no lo mencionó)
+- ¿Un cliente puede tener varios armados guardados a la vez, o solo uno?
+- Al aprobar la frase, **¿sigue teniendo sentido crear el pedido `APARTADO` del anticipo** que
+  hoy genera `validar-frase`? En este flujo el cliente todavía no ha comprado, así que ese
+  anticipo separado parece sobrar — el precio de la frase entraría como una línea más del pedido
+  normal cuando confirme.
+
+Ese último punto es el que más nos preocupa: **el flujo actual y el que pide el dueño chocan ahí**.
+Antes de que construyamos nada del lado del front, necesitamos saber cómo lo quieren resolver.
+
+---
+
+## ✅ BACK — las 2 notificaciones por correo, ya implementadas (2026-08-14)
+
+Ambas en el mismo commit, reusando `EmailService` (el mismo que ya manda códigos de verificación y
+ticket de rifa) y `chat.admin-email` (el correo del admin que ya existe para las escalaciones del
+chatbot — mismo destinatario, no hicimos uno nuevo):
+
+1. **Aviso al admin** — al guardar un `RamoPedidoDetalle` con frase personalizada
+   (`fraseListonEstado: PENDIENTE_VALIDACION`), se manda un correo a `chat.admin-email` con la
+   frase y el número de pedido. Dispara dentro de `POST /v1/flores/pedidos/{pedidoId}/detalle`, no
+   requiere nada nuevo del front.
+2. **Aviso al cliente** — al aprobar la frase (`PUT .../validar-frase` con `aprobar: true`), se
+   manda un correo a `detalle.correoContacto` con la frase y el precio asignado, avisando que ya
+   puede pagar el anticipo. Si `correoContacto` viene `null` (no lo mandaron en `.../detalle`), no
+   se manda nada — no es un error, simplemente no hay a quién avisarle.
+
+Ninguno de los dos bloquea el guardado si el correo falla (mismo comportamiento que ya tiene
+`EmailService.enviarTicket`: intenta, loggea el error, no lanza excepción).
+
+### `anticipoPagado` — aclarado, y su suposición no era correcta
+
+Reviamos el código: **no** es "ya pagó en efectivo, no generes el pedido del anticipo". Hoy es solo
+una bandera informativa — `validarFrase` la guarda tal cual la manden, pero **siempre** crea el
+`Pedido APARTADO` del anticipo al aprobar, sin importar su valor. O sea que si mandan
+`anticipoPagado: true` hoy, el pedido de anticipo se crea de todos modos y quedaría duplicado
+contra un pago que ya se hizo en efectivo.
+
+Si quieren ese checkbox "ya me lo pagó" funcionando de verdad (que si está en `true` NO se cree el
+`Pedido APARTADO` del anticipo, y en su lugar se marque cobrado directo), díganlo explícito y lo
+conectamos — no lo cambiamos solos porque toca cómo se contabiliza un cobro en efectivo fuera del
+sistema, y eso sí es decisión suya/del dueño, no técnica.
+
+## ❓ BACK — de acuerdo con "armado guardado ≠ pedido pendiente", pero es una pieza nueva, no un ajuste
+
+Coincidimos con la lectura: es la distinción correcta y evita todo lo que el dueño ya rechazó del
+pedido pendiente. Antes de ponernos a construir, aclaramos el tamaño real del cambio y confirmamos
+el punto que más les preocupa:
+
+**Sobre el choque con `validar-frase` — tienen razón, y no es un detalle menor.** Hoy
+`crearPedidoAnticipoFrase()` depende de que ya exista un `Pedido` real (`detalle.getPedido()`) —
+todo `RamoPedidoDetalle` cuelga de un pedido ya creado por `savePedido`. En el modelo que pide el
+dueño, en el momento de guardar el armado **todavía no hay pedido, ni cliente comprometido a nada**
+— es un borrador. Así que la pregunta que ustedes ya se hicieron tiene una sola respuesta posible:
+**no puede seguir existiendo un "pedido de anticipo" separado en este flujo**, porque no hay pedido
+del cual colgarlo. Coincidimos con lo que proponen: el precio de la frase se vuelve una línea más
+del pedido normal cuando el cliente por fin confirma, ya con el armado retomado.
+
+**Por qué esto no es "agregarle un campo a lo que ya existe":** `RamoPedidoDetalle` fue diseñado
+a propósito para vivir solo dentro de un `Pedido` ya creado (ver el comentario al inicio de
+`RamoPedidoDetalleServiceImpl`). Un armado guardado sin pedido es una entidad distinta — un
+borrador/cotización — que no tiene hoy ni tabla ni endpoints. Es una pieza nueva del módulo, no un
+ajuste sobre la bandeja de frases que acabamos de terminar.
+
+**No lo empezamos a construir todavía.** Antes de diseñarlo bien, nos hace falta lo mismo que ya
+le preguntaron al dueño y quedó sin contestar:
+
+1. ¿El armado guardado caduca, y con qué plazo?
+2. ¿Un cliente puede tener varios armados guardados a la vez, o solo uno activo?
+
+Con esas dos respuestas lo diseñamos y les avisamos antes de tocar código, como siempre.

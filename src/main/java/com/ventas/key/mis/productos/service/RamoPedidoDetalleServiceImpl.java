@@ -56,6 +56,10 @@ public class RamoPedidoDetalleServiceImpl {
     private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
     private final ProductoSombraServiceImpl productoSombraService;
     private final FlorPedidoServiceImpl florPedidoService;
+    private final EmailService emailService;
+
+    @org.springframework.beans.factory.annotation.Value("${chat.admin-email:admin@novedades-jade.com.mx}")
+    private String adminEmail;
 
     public RamoPedidoDetalleServiceImpl(IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository,
                                          IPedidoRepository iPedidoRepository,
@@ -65,7 +69,8 @@ public class RamoPedidoDetalleServiceImpl {
                                          ILugarEntregaRepository iLugarEntregaRepository,
                                          ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
                                          ProductoSombraServiceImpl productoSombraService,
-                                         FlorPedidoServiceImpl florPedidoService) {
+                                         FlorPedidoServiceImpl florPedidoService,
+                                         EmailService emailService) {
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iPedidoRepository = iPedidoRepository;
         this.iColorFlorRepository = iColorFlorRepository;
@@ -75,6 +80,7 @@ public class RamoPedidoDetalleServiceImpl {
         this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
         this.productoSombraService = productoSombraService;
         this.florPedidoService = florPedidoService;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -130,7 +136,21 @@ public class RamoPedidoDetalleServiceImpl {
         detalle.setCorreoContacto(dto.getCorreoContacto());
         detalle.setComentarioAccesorioNoDisponible(dto.getComentarioAccesorioNoDisponible());
 
-        return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
+        RamoPedidoDetalle guardado = iRamoPedidoDetalleRepository.save(detalle);
+
+        // Aviso al dueno: sin esto nadie sabe que hay una frase nueva esperando precio salvo que
+        // entre a la bandeja por su cuenta -- pedido explicito del dueno (2026-08-14). No bloquea
+        // el guardado del pedido si el correo falla (enviarTicket ya traga la excepcion).
+        if ("PENDIENTE_VALIDACION".equals(guardado.getFraseListonEstado())) {
+            String asunto = "Frase nueva por aprobar - pedido #" + pedido.getId();
+            String html = "<p>Un cliente pidio una frase personalizada de liston nueva:</p>"
+                    + "<h3>\"" + guardado.getFraseListonPersonalizada() + "\"</h3>"
+                    + "<p>Pedido #" + pedido.getId() + ". Entra a la bandeja de frases pendientes "
+                    + "para ponerle precio y aprobarla o rechazarla.</p>";
+            emailService.enviarTicket(adminEmail, asunto, html);
+        }
+
+        return toResponseDto(guardado);
     }
 
     // El 50% de urgencia es un ENGANCHE que sale del total, no un cobro aparte -- por eso NO se
@@ -297,7 +317,20 @@ public class RamoPedidoDetalleServiceImpl {
         if (dto.getAnticipoPagado() != null) {
             detalle.setAnticipoPagado(dto.getAnticipoPagado());
         }
-        return toResponseDto(iRamoPedidoDetalleRepository.save(detalle));
+        RamoPedidoDetalle guardado = iRamoPedidoDetalleRepository.save(detalle);
+
+        // Aviso al cliente: se fue con un total provisional, sin esto no sabe que ya puede pagar
+        // el anticipo de su frase -- mismo pedido explicito del dueno que el aviso al admin de
+        // arriba. Solo en aprobacion (el rechazo no tiene monto que cobrar).
+        if (Boolean.TRUE.equals(dto.getAprobar()) && guardado.getCorreoContacto() != null) {
+            String asunto = "Tu frase de liston ya tiene precio - pedido #" + guardado.getPedido().getId();
+            String html = "<p>Tu frase personalizada de liston ya fue revisada:</p>"
+                    + "<h3>\"" + guardado.getFraseListonPersonalizada() + "\"</h3>"
+                    + "<p>Precio: $" + guardado.getFraseListonPrecioAsignado() + "</p>"
+                    + "<p>Ya puedes pagar el anticipo del 50% para que empecemos a armar tu ramo.</p>";
+            emailService.enviarTicket(guardado.getCorreoContacto(), asunto, html);
+        }
+        return toResponseDto(guardado);
     }
 
     // Crea un Pedido APARTADO nuevo, separado del pedido original, solo para esta frase -- asi el
