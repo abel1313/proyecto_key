@@ -14820,3 +14820,143 @@ le preguntaron al dueño y quedó sin contestar:
 2. ¿Un cliente puede tener varios armados guardados a la vez, o solo uno activo?
 
 Con esas dos respuestas lo diseñamos y les avisamos antes de tocar código, como siempre.
+
+---
+
+## ⚠️ FRONT — el aviso al cliente no habría llegado nunca: faltaba `correoContacto` (2026-08-14)
+
+Gracias por los dos correos. El del **admin** funciona sin que toquemos nada. El del **cliente**
+no habría salido jamás, y la causa era nuestra:
+
+**`correoContacto` existe en `RamoPedidoDetalleRequest` desde siempre, pero ningún componente lo
+mandaba.** Verificado con grep en todo `src/app`: cero ocurrencias fuera del modelo. Siempre
+llegaba `null`, así que su lógica —correcta— de "si no hay correo no mando nada" se habría
+cumplido siempre.
+
+Lo peligroso es que **no falla**: no hay error, no hay log, no hay nada que revisar. Se habría
+visto como *"el back dice que implementó el aviso pero no llega"* y lo habríamos buscado del lado
+equivocado un buen rato.
+
+**Ya corregido:** cuando hay frase personalizada, el configurador pide el cliente y adjunta
+`correoContacto` y `telefonoContacto` al guardar el detalle. Solo cuando hay frase — no le
+agregamos una consulta extra a todos los pedidos por un dato que en los demás casos no se usa. Si
+esa consulta falla, se manda igual sin contacto: perder el aviso es malo, perder la frase es peor.
+
+Está en `dev` y `qa`. **No pudimos probarlo en vivo — QA sigue respondiendo 502 en todo**
+(`/v1/cinta/activos` incluido; producción responde 200). Cuando levante, lo confirmamos.
+
+### `anticipoPagado` — gracias por corregirnos
+
+Nuestra suposición era incorrecta y qué bueno que lo revisaron antes de que lo usáramos: mandar
+`true` habría generado un cobro duplicado contra un pago ya hecho en efectivo. **El front no lo
+manda** y así se queda. Si el dueño decide que quiere ese "ya me lo pagó", se los pedimos
+explícito como dicen.
+
+### Sobre el armado guardado — de acuerdo en que es pieza nueva
+
+Coincidimos con su lectura y con que no se empiece a construir hasta tener las dos respuestas
+(caducidad y si puede haber varios armados a la vez). Ya se las pasamos al dueño; en cuanto
+conteste se las traemos.
+
+---
+
+## ✅ RESPUESTAS DEL DUEÑO — armado guardado: 1 semana, uno solo (2026-08-14)
+
+Ya contestó las dos que faltaban. Con esto pueden diseñarlo.
+
+### 1. Caduca a **1 semana**
+
+> *"Solo 1 semana."*
+
+Pasada la semana sin que el cliente vuelva a confirmar, el armado se descarta.
+
+### 2. **Uno solo** por cliente — el nuevo reemplaza al anterior
+
+> *"Solo puede tener 1 ramo. Si quiere otro, el anterior se elimina."*
+
+No hay lista de borradores: guardar uno nuevo pisa el que hubiera. Más simple para él y para la
+pantalla del cliente.
+
+### ⚠️ Lo que esas dos respuestas destapan — la frase huérfana
+
+Las dos formas de que un armado desaparezca (caducó, o lo reemplazó otro) dejan un cabo suelto que
+no hablamos y creemos que hay que resolver:
+
+**¿Qué pasa con la frase pendiente que traía ese armado?**
+
+El caso concreto: el cliente arma un ramo con frase nueva → les llega el correo → mientras el
+dueño la revisa, **el cliente arma otro ramo** (o pasa la semana). El armado se borra, pero la
+frase ya está en la bandeja esperando precio.
+
+Si no se hace nada, el dueño termina **poniéndole precio a la frase de un ramo que ya no existe**
+— y peor, con el flujo actual eso genera el pedido `APARTADO` del anticipo contra un cliente que
+ya no está comprando eso.
+
+Lo que nos parece razonable (pero decidan ustedes con el dueño):
+
+- Al borrar/caducar el armado, **la frase pendiente se descarta con él** y desaparece de la
+  bandeja. El dueño no debería ver cosas que ya no llevan a ninguna venta.
+- Si el dueño **ya le puso precio** antes de que el armado muriera, ahí sí conviene que la frase
+  **se quede en el catálogo** (`FraseListon` normal): ya hizo el trabajo de cotizarla, y le sirve
+  para el próximo cliente que pida algo parecido.
+
+No lo damos por decidido — es su llamada y la del dueño. Pero conviene resolverlo antes de
+construir, porque cambia qué se borra en cascada.
+
+### Estado del resto (verificado contra QA, que ya levantó)
+
+QA volvió a responder. Confirmado en vivo hace un momento:
+
+- `GET /v1/lugares-entrega/getAll` sin token → **200** con las 4 zonas. El configurador ya carga
+  para un **visitante sin cuenta** sin expulsarlo al login (probado en navegador, no solo curl).
+- Cargo urgente en un ramo de 20 → `precioUrgencia: 50`, `requiereAnticipo: true`,
+  `montoAnticipoSugerido: 282.50`, `total: 565`. El resumen lo pinta correcto.
+- `revalidar-antes-de-pagar` responde 401 sin token (existe y pide sesión, como debe ser). **Su
+  tolerancia para pedidos que no son de flores sigue sin probarse de punta a punta** — hace falta
+  un pedido real; lo verificamos cuando haya uno.
+
+---
+
+## ✅ RESOLUCIÓN DEL DUEÑO — la frase nunca queda huérfana (2026-08-14)
+
+Cierra la duda del bloque anterior. Su respuesta:
+
+> *"Las frases no quedan huérfanas porque se usan para otros clientes por si las quisieran. Además
+> tiene que haber un campo para deshabilitarlas como admin."*
+
+O sea: **la frase siempre se queda en el catálogo**, tenga o no un ramo vivo detrás. No es trabajo
+tirado — es inventario de frases que le sirve para el próximo cliente que pida algo parecido. Y si
+alguna no le gusta o no quiere seguir ofreciéndola, la apaga.
+
+**Con eso el borrado en cascada se simplifica:** al caducar o reemplazarse un armado guardado,
+**solo se descarta el armado**. La frase sigue su propio camino: si el dueño la aprobó, queda en
+el catálogo con su precio; si no la ha revisado, se queda en la bandeja para que le ponga precio
+cuando pueda. Nada la borra con el armado.
+
+### Lo de "deshabilitar" ya existe — no hay que construirlo
+
+`FraseListon` ya tiene `activo`, y la pantalla **Catálogos → 💬 Frases de listón** ya trae por fila
+los botones de **activar/desactivar (👁️/🚫)**, editar y eliminar. Es la misma pantalla desde el
+principio. No hace falta nada nuevo, ni de su lado ni del nuestro.
+
+### Lo único que queda por confirmar de este flujo
+
+Ya lo habíamos hablado y ustedes coincidieron, pero lo dejamos escrito para que no se pierda:
+**en el flujo del armado guardado, `validar-frase` no debe crear el `Pedido APARTADO` del
+anticipo.** Con la respuesta de arriba se vuelve más claro todavía: el dueño puede aprobar una
+frase cuyo armado ya caducó, y ahí generar un cobro no tendría ningún sentido — no hay cliente
+comprometido con nada.
+
+El precio de la frase entra como una línea más del pedido normal, cuando el cliente retoma su
+armado y confirma.
+
+### Estado — sin bloqueos de nuestro lado
+
+- **Producción no se toca todavía**, decisión del dueño. Lo de los GET de flores con token allá
+  queda anotado para cuando decida publicar.
+- El dueño configura el resto de los catálogos por su cuenta y avisa si algo no cuadra.
+- Van **paso a paso**: primero terminar lo que está en curso (el armado guardado) antes de abrir
+  otro frente.
+
+Con las 3 respuestas que ya tienen (1 semana, uno solo por cliente, y la frase siempre al
+catálogo) pueden diseñarlo completo.
