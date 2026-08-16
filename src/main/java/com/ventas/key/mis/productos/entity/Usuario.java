@@ -107,6 +107,16 @@ public class Usuario implements UserDetails {
     @Column(name = "password_temporal")
     private Boolean passwordTemporal = Boolean.FALSE;
 
+    /**
+     * Momento del ultimo cambio de contrasena (self-service, restablecer por codigo, o reseteo
+     * de ADMIN). El access token es stateless y no se puede revocar antes de sus 15 minutos de
+     * vida - este campo es lo que permite rechazarlo igual: si el token fue emitido (iat) antes
+     * de esta fecha, ya no es valido aunque su firma y expiracion sigan siendo correctas. Ver
+     * {@link com.ventas.key.mis.productos.filter.JwtAuthenticationFilter}.
+     */
+    @Column(name = "password_actualizado_en")
+    private LocalDateTime passwordActualizadoEn;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();

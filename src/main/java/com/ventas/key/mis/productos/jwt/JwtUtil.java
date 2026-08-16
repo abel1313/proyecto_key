@@ -117,6 +117,11 @@ public class JwtUtil {
         return Jwts.parserBuilder().setSigningKey(getSecretKey()).build().parseClaimsJws(token).getBody().getSubject();
     }
 
+    /** Fecha de emision (iat) del token — se compara contra Usuario.passwordActualizadoEn para rechazar access tokens viejos. */
+    public Date extractIssuedAt(String token) {
+        return Jwts.parserBuilder().setSigningKey(getSecretKey()).build().parseClaimsJws(token).getBody().getIssuedAt();
+    }
+
     public boolean validateToken(String token, UserDetails userDetails) {
         try {
             String username = extractUsername(token);
