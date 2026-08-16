@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Set;
 
 @Component
@@ -79,6 +80,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // chequeo seguia operando con el access token ya emitido hasta que expirara.
                 if (!userDetails.isEnabled()) {
                     log.warn("Token rechazado, cuenta deshabilitada: {}", username);
+                } else if (tokenEmitidoAntesDeCambioPassword(jwt, userDetails)) {
+                    log.warn("Token rechazado, emitido antes del ultimo cambio de contrasena: {}", username);
                 } else if (jwtUtil.validateToken(jwt, userDetails)) {
                     if (debeBloquearPorPasswordTemporal(userDetails, request)) {
                         log.warn("Acceso bloqueado por contrasena temporal sin cambiar: {} -> {}",
@@ -98,6 +101,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * El access token es stateless y vive hasta 15 minutos sin poder revocarse en el servidor.
+     * Cambiar la contrasena ya mata el refresh token (sesion_refresh), pero el access token ya
+     * emitido seguia funcionando hasta expirar por su cuenta. Comparando su iat contra
+     * {@code passwordActualizadoEn} se corta de inmediato, igual que el chequeo de isEnabled().
+     */
+    private boolean tokenEmitidoAntesDeCambioPassword(String jwt, UserDetails userDetails) {
+        if (!(userDetails instanceof Usuario usuario) || usuario.getPasswordActualizadoEn() == null) {
+            return false;
+        }
+        try {
+            Date iat = jwtUtil.extractIssuedAt(jwt);
+            Date cambio = java.sql.Timestamp.valueOf(usuario.getPasswordActualizadoEn());
+            return iat != null && iat.before(cambio);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

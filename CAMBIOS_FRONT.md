@@ -14960,3 +14960,142 @@ armado y confirma.
 
 Con las 3 respuestas que ya tienen (1 semana, uno solo por cliente, y la frase siempre al
 catálogo) pueden diseñarlo completo.
+
+---
+
+## ✅ BACK — `solicitar-cambio-correo` ya no finge éxito si el correo no sale (2026-08-15)
+
+No es un endpoint nuevo, es un fix de comportamiento en uno que ya usan (`POST
+/v1/usuarios/{id}/solicitar-cambio-correo`). Se descubrió con una prueba real: el envío
+fallaba silenciosamente (problema del proveedor de correo, ver detalle abajo) y el endpoint
+igual respondía "código enviado".
+
+**Antes:** el endpoint guardaba el código pendiente y llamaba a mandar el correo, pero
+ignoraba si el envío realmente había funcionado. Siempre respondía 200 con `"Codigo enviado
+al correo nuevo"` (o `"Ya tienes un codigo vigente..."` en el segundo intento) aunque el
+correo jamás hubiera salido — el usuario se quedaba esperando un código que no iba a llegar,
+y encima el mensaje le decía que revisara su bandeja.
+
+**Ahora:** si el envío de correo falla de verdad, el endpoint responde **400** con el motivo
+real (ej. `"No se pudo enviar el correo de verificacion, intenta de nuevo en unos minutos"`) y
+**no** deja guardado el código pendiente — así el siguiente intento es limpio, no choca con un
+"código vigente" fantasma. Nada cambia en el contrato del endpoint (mismo request/response),
+solo la honestidad de cuándo responde 200 vs 400.
+
+**Nota aparte, no es del front:** se encontró y arregló por separado un bug de infraestructura
+en QA (variables de entorno viejas + intento fallido de usar el correo del dominio propio en
+vez de Gmail, bloqueado por el proveedor de hosting de correo) — el correo de QA sigue
+funcionando con Gmail mientras se resuelve un ticket de soporte externo. No requiere ninguna
+acción del front, se deja anotado por completitud.
+
+**Actualización 2026-08-16 — ya se resolvió del todo, ver sección de abajo.** QA dejó Gmail y
+ahora manda correo con el dominio propio (`qa.boutique.bolsas@novedades-jade.com.mx`).
+
+---
+
+---
+
+## 📄 ESTADO CONSOLIDADO DEL MÓDULO DE FLORES (2026-08-15)
+
+El dueño pidió tener en un solo lugar *"lo que tenemos, lo que llevamos y lo que nos falta"*. Se
+creó **`ESTADO_FLORES_ETERNAS.md`** en la raíz del repo del front. Lo dejamos anotado aquí para
+que ustedes sepan que existe y qué contiene, porque varias secciones les tocan.
+
+**Qué trae:** las 7 pantallas construidas, cómo se arma el precio (y qué se le esconde al cliente
+y por qué), las 8 reglas de negocio vigentes, lo que se descartó con su motivo, lo que ustedes
+están diseñando, y los pendientes con casillas.
+
+### Lo que les toca a ustedes, en corto
+
+**En curso — armado guardado.** Ya tienen las 3 respuestas del dueño (caduca a 1 semana, uno solo
+por cliente, la frase siempre queda en el catálogo). Recordatorio del punto que amarramos: en ese
+flujo **aprobar una frase ya no debe generar el pedido de anticipo aparte**; el precio entra como
+una línea más del pedido normal cuando el cliente retoma y confirma.
+
+**Antes de publicar (no urge, el dueño no toca prod todavía):**
+
+1. **En producción los GET de flores piden token.** `/v1/tipos-flor/getAll` y
+   `/v1/flores/fechas-disponibles` responden 404 "Token invalido o expirado" allá; en QA ya son
+   públicos. Como `/flores/ramos` y `/flores/configurar` son rutas **públicas** del front, un
+   visitante sin cuenta vería la pantalla rota.
+2. **Los ramos armados (`RamoArmado`) no validan ni cobran urgencia** — ustedes lo señalaron. Si
+   alguien pide un ramo preconfigurado "para mañana", no hay bloqueo de fecha ni cargo.
+
+**Opcional, si el dueño lo pide:** que `anticipoPagado: true` NO cree el pedido de anticipo (hoy
+lo crea igual y duplicaría un cobro hecho en efectivo). No lo pide todavía.
+
+### ⚠️ El backend de QA se sigue cayendo (2026-08-14/15, histórico)
+
+Todo el 2026-08-14 estuvo intermitente: **502 en todo**, incluido `/v1/cinta/activos`. Levantaba
+un rato y se volvía a caer; ahora mismo sigue en 502. **Producción responde 200 siempre**, y los
+dos sitios de front cargan bien — o sea que es ese servicio, no la red ni el despliegue del front.
+
+Esto **bloquea cualquier prueba en vivo** del dueño. Es lo más urgente ahora mismo: no hay trabajo
+de código pendiente que lo detenga, lo detiene el ambiente.
+
+> Nota al sincronizar (2026-08-16): esta sección quedó tal cual la escribió el front el
+> 2026-08-15. El día 16 se usó QA extensivamente (varias pruebas de correo/login) sin ver 502,
+> así que probablemente ya se estabilizó — pero no se confirma aquí porque no fue el foco de esta
+> sesión.
+
+---
+
+## 🔧 BACK — QA deja Gmail, correo ahora sale por el dominio propio (2026-08-16)
+
+No es cambio de contrato para el front (mismos endpoints, mismo comportamiento observable:
+200/400 igual que antes). Se deja anotado porque tocó tres capas distintas de la misma cadena
+de correo, por si el síntoma reaparece.
+
+**Camino recorrido en esta sesión** (soporte de Hosting-Mexico avisó por correo que ya habían
+"hecho los cambios" del ticket 551620 — arrancó de ahí):
+
+1. **DNS del subdominio de correo** (`mail.novedades-jade.com.mx`) estaba mal apuntado a una IP
+   ajena — nunca fue bloqueo de firewall como se pensó en la investigación previa (2026-08-15).
+   Hosting-Mexico corrigió el **MX** del dominio, pero el subdominio `mail.` seguía sin propagar
+   al momento de probar — se usó el hostname real del servidor (`hapi.hosting-mexico.net`)
+   directo para no esperar la propagación.
+2. **Protocolo:** `application-qa.yml` seguía forzando `STARTTLS` (config vieja de Gmail) contra
+   un puerto que espera **SSL implícito** (465) — rechazo inmediato de conexión
+   (`Exception reading response`). Corregido en el yml: `mail.smtp.ssl.enable: true`, sin
+   STARTTLS.
+3. **`EmailService.java` nunca seteaba el remitente (`From`)** — Gmail lo toleraba, el servidor
+   de Hosting-Mexico no: rechazaba el envío como `SendFailedException: Invalid Addresses`.
+   Fix: `helper.setFrom(remitente)` con `spring.mail.username` como remitente. Confirmado con
+   una prueba SMTP directa (con `From` funciona, sin `From` falla) antes de aplicar el fix.
+
+**Estado:** confirmado end-to-end en QA (correo real recibido). `dev` y `qa` al día; falta
+correr en `main`/prod cuando se decida subir (prod sigue en Gmail por ahora, funcionando).
+
+---
+
+## 🔧 BACK — el access token ahora se rechaza de inmediato al cambiar contraseña (2026-08-16)
+
+Refuerza lo ya documentado arriba ("el refresh token muere en el instante" al cambiar
+contraseña). No es un endpoint nuevo ni cambia ningún contrato — es una capa extra de
+seguridad que **cambia qué código de error puede llegar** en un caso puntual.
+
+**Antes:** al cambiar la contraseña (por cualquiera de los 3 caminos — self-service, código de
+"olvidé mi contraseña", o reseteo de ADMIN) se invalidaba el **refresh token** (sesión en BD),
+pero el **access token (JWT)** que el usuario ya tenía en el navegador seguía funcionando
+normal hasta sus 15 minutos de vida — porque el JWT es *stateless*, el back no lo puede revocar
+a la mitad. O sea: si el front no redirigía al login de inmediato tras un cambio de contraseña
+exitoso, ese usuario (o quien le haya robado la sesión) seguía operando con llamadas normales
+hasta por 15 minutos más, aunque el refresh ya estuviera muerto.
+
+**Ahora:** el back guarda cuándo fue el último cambio de contraseña, y en cada request revisa
+si el access token fue **emitido antes** de ese momento. Si es así, lo rechaza al instante —
+mismo mecanismo que ya existía para "cuenta deshabilitada".
+
+**Lo que el front ve distinto:** si sigue usando un access token viejo después de un cambio de
+contraseña exitoso (`cambiar-password`, `restablecer-password`, o reseteo por ADMIN), cualquier
+llamada a un endpoint protegido con ese token ahora responde **401** de inmediato, en vez de
+seguir funcionando hasta que expire solo. Esto refuerza — no reemplaza — la recomendación ya
+documentada: **seguir mandando al login apenas llega el 200 de éxito**, sin esperar a que el
+back corte el paso.
+
+**Pendiente:** correr `migration_password_actualizado_en.sql` (agrega
+`usuario_modificacion.password_actualizado_en`) en `dev`/`qa`/`main` antes de que este chequeo
+tenga efecto — mientras la columna no exista en la BD el campo llega `null` y el comportamiento
+es el de antes (no rompe nada, solo no aplica el refuerzo).
+
+---
