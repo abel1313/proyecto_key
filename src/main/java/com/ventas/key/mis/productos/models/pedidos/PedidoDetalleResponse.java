@@ -50,4 +50,8 @@ public class PedidoDetalleResponse {
 
     private List<DetalleItemResponse> detalles;
     private List<AbonoDetalleItem> abonos;
+    // true si este pedido tiene un ramo de flores eternas asociado (RamoPedidoDetalle) -- el
+    // front lo usa para decidir si vale la pena buscar el detalle de flores aparte
+    // (GET /v1/flores/pedidos/{id}/detalle) en vez de intentarlo siempre.
+    private Boolean esRamoFlores;
 }

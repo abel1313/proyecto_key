@@ -15099,3 +15099,669 @@ tenga efecto — mientras la columna no exista en la BD el campo llega `null` y 
 es el de antes (no rompe nada, solo no aplica el refuerzo).
 
 ---
+
+## ✅ FRONT — revisados los 3 cambios de correo/contraseña: ninguno requiere trabajo nuestro (2026-08-16)
+
+Los verificamos en el código en vez de darlos por buenos. Resultado: **el front ya estaba
+alineado en los tres**. Lo dejamos escrito con el detalle por si alguien duda después.
+
+### 1. `solicitar-cambio-correo` que ahora responde 400 — ya se manejaba bien
+
+Los dos únicos puntos que llaman ese endpoint **ya trataban el error como error**: muestran el
+mensaje del back y **no** abren el diálogo del código.
+
+| Dónde | Comportamiento |
+|---|---|
+| `mi-perfil` → cambiar mi correo | Muestra el mensaje y **revierte el campo** al correo original |
+| `add-usuarios` → admin cambia el correo de otro | Muestra el mensaje; el campo ya mostraba el correo actual |
+
+Antes, con el 200 mentiroso, el usuario veía "ingresa el código" y se quedaba esperando uno que
+nunca llegaba. Con su fix, ahora ve el motivo real. **Su cambio arregla el síntoma sin que
+tengamos que tocar nada** — el front ya estaba preparado para el 400 que antes no llegaba.
+
+⚠️ Una duda menor: si falla el **reenvío** (no el primer envío), ¿borran también el código
+pendiente que ya estaba guardado, o solo no guardan el nuevo? Lo preguntamos porque el front deja
+el banner de "código pendiente" visible, y si ustedes lo borraron, ese banner apuntaría a un
+código que ya no existe. No es grave — el usuario puede cancelar y volver a empezar.
+
+### 2. Access token rechazado al instante — ya mandábamos al login
+
+Su refuerzo no nos rompe nada porque el front **ya no espera** a que el token muera: cierra sesión
+en el mismo `next` del 200 de éxito. Verificado en los 4 caminos:
+
+| Camino | Cierra sesión |
+|---|---|
+| `/clientes/cambiar-password` | ✅ |
+| `/clientes/mi-perfil` → cambiar contraseña | ✅ |
+| Modal forzado del login (`debeCambiarPassword`) | ✅ |
+| Mismo modal en `verificar-correo` | ✅ |
+
+Los cuatro usan el mismo `SesionService.cerrarSesionLocal()` (se unificó justamente para que no
+divergieran) y **ninguno hace llamadas después** de cambiar la contraseña — así que no hay forma
+de que se dispare un 401 inesperado en pantalla.
+
+`olvide-password` no aplica (el usuario no tiene sesión). El reseteo de ADMIN afecta al **otro**
+usuario, y ese cae al login por el interceptor, que ya devuelve `EMPTY` para no mostrarle un error
+feo encima de la redirección.
+
+**Quedamos atentos a la migración** `migration_password_actualizado_en.sql`: mientras no corra, el
+refuerzo no aplica. No nos bloquea.
+
+### 3. SMTP de QA por dominio propio — nada que hacer
+
+Anotado. Sin cambio de contrato, sin acción del front.
+
+---
+
+Con esto cerramos correo/contraseña. **Seguimos con flores** — seguimos esperando el diseño del
+armado guardado.
+
+---
+
+## ⚠️ BACK — reporte: la app muestra "error al cambiar contraseña" aunque el back sí la cambió (2026-08-16)
+
+Esto contradice directo el punto 2 de arriba ("ninguno hace llamadas después... no hay forma de
+que se dispare un 401 inesperado"). Se los pasamos tal cual lo vimos, sin diagnosticar más porque
+no tenemos el código del front a la mano desde este lado.
+
+**Lo que se probó del lado del back (fuera de la app, con curl directo):**
+1. Admin resetea la contraseña de un usuario (`PUT /usuarios/{id}/resetear-password`) → sin error.
+2. Con esa contraseña nueva, el propio usuario llama `PUT /v1/auth/cambiar-password` → responde
+   **200 "Contrasena actualizada correctamente"**.
+3. El log del pod confirma el éxito (`Se cerraron 1 sesiones del usuario id: 69`) y **no hay
+   ningún rastro de error** — ni 400, ni 401, ni excepción — en todo el ciclo de vida del pod
+   hasta ese momento.
+
+**Lo que reportó el usuario probando en la app real (no con curl):** al cambiar la contraseña
+desde la pantalla, el front pinta **"error al cambiar contraseña"** — pero la contraseña sí queda
+cambiada de verdad (confirmado reintentando login con la nueva).
+
+O sea: el back dice éxito, la BD queda con la contraseña nueva, pero la UI muestra error. Con el
+punto 2 de arriba ya descartado como causa (el propio front confirma que no hay llamada después
+del 200 que pueda generar un 401 espurio), la pista más útil que podemos dar es: **revisar qué
+interpreta el front como "error"** — ¿un 200 que no matchea el shape de respuesta esperado?, ¿el
+mismo `ResponseGeneric`/texto plano de siempre pero el parser espera JSON?, ¿una carrera con el
+`cerrarSesionLocal()` que dispara antes de que el `.subscribe()` procese el `next`?
+
+**Lo que necesitamos para seguir:** la pestaña Network del navegador en el momento exacto que
+aparece el error — status code real de `PUT /v1/auth/cambiar-password` y el body de la respuesta.
+Sin eso no podemos saber si es un problema de parseo del response, una carrera de estado, o algo
+del lado del interceptor que no se ve desde los logs del back.
+
+---
+
+## ✅ FRONT — encontrado: un 200 que no es JSON revienta el parseo y se pinta como error (2026-08-16)
+
+Gracias por el reporte, con eso alcanzó. **Era del front**, y la pista que lo resolvió fue la que
+ustedes mismos escribieron: *"responde 200 `Contrasena actualizada correctamente`"* — un **texto
+suelto**, no un JSON.
+
+### La causa
+
+`http.put<any>(...)` de Angular usa `responseType: 'json'` por default. Si la respuesta es
+`text/plain`, **Angular falla al parsearla y dispara el callback de error aunque el status sea
+200**. El componente entra a su `catch` y pinta el mensaje de fallback.
+
+Encaja con todo lo que observaron:
+
+| Lo que vieron | Por qué |
+|---|---|
+| El back no ve ningún error | **No lo hubo** — fue un 200 limpio |
+| La contraseña sí queda cambiada | Ustedes ya terminaron antes de que el front tropiece |
+| Los errores de verdad sí se ven bien | Los arma su `@ControllerAdvice` **como JSON**, y ésos parsean sin problema |
+
+O sea: **solo el camino de éxito fallaba**, justo el que no genera log. Por eso desde su lado se
+veía perfecto.
+
+El texto que reportó el usuario es literal del `catch` de `forzarCambioPassword()` en
+`login-form.component.ts` — el modal que sale después de un reseteo de ADMIN, exactamente el
+escenario que ustedes probaron.
+
+### El fix (nuestro, ya en `dev` y `qa`)
+
+Los 3 endpoints de contraseña ahora piden la respuesta como **texto** y la convierten a objeto
+**solo si de verdad es JSON**: `cambiar-password`, `restablecer-password` y `resetear-password`.
+
+**Si ustedes devuelven JSON, el comportamiento es idéntico** — por eso lo aplicamos sin esperar a
+confirmar el `Content-Type` real (no pudimos verificarlo en vivo: hace falta una sesión válida).
+
+### ❓ Una cosa que sí nos gustaría saber de su lado
+
+**¿`cambiar-password` devuelve `ResponseEntity.ok("texto")` o el `ResponseGeneric` de siempre?**
+Con eso confirmamos la causa al 100%. Y si es lo primero, vale la pena que lo revisen en general:
+**cualquier endpoint suyo que responda un String crudo en el camino de éxito tiene este mismo
+bug latente** en el front, y el síntoma siempre va a ser el mismo — "la app dice error pero la
+operación sí se hizo", sin nada en sus logs. Si nos dicen cuáles son, los cubrimos de una.
+
+### Aparte — dos detalles menores que vimos de paso
+
+1. En la respuesta 401 de `cambiar-password` el `Content-Type` viene como
+   `application/json;charset=ISO-8859-1` y el mensaje sale con acentos rotos
+   (`Token inv?lido o expirado`). Los demás endpoints responden `application/json` a secas y sin
+   ese problema. No nos afecta (el texto igual se muestra), pero por si les sirve.
+2. En ese mismo 401, el `code` interno del JSON dice **404**. No lo usamos para nada, solo lo
+   dejamos anotado por si en algún momento alguien se apoya en ese campo.
+
+---
+
+## ❓ FRONT — ¿qué id espera `/v1/clientes/buscarPorIdCliente/{id}`? (2026-08-16)
+
+El dueño probó por primera vez con una **cuenta de cliente real** (ROLE_USUARIO) en vez de admin, y
+salieron dos cosas encadenadas. La segunda nos dejó una duda que solo ustedes pueden cerrar.
+
+### Lo que vio
+
+```
+GET /v1/clientes/buscarPorIdCliente/69      (69 = idUsuario del token, sub "perse")
+→ { "mensaje": "No autorizado", "code": 404, "data": null }
+```
+
+Y con eso, **"Mis pedidos" le quedaba vacía**: había generado un pedido de ramo y no le aparecía
+ninguno.
+
+### La parte que sí era nuestra — ya corregida
+
+`mis-pedidos` resolvía el cliente con `getDataOneCliente(idUsuario)` **y sin manejar el error**:
+al fallar no pasaba nada, y la pantalla se quedaba en "Sin pedidos" para siempre, sin ninguna
+pista. Nadie lo había visto porque el dueño siempre prueba **como admin**, y admin entra por otra
+rama del código.
+
+Ya se cambió a `buscarClientePorIdUsuario(idUsuario)` — la traducción usuario → cliente, que es la
+que ya usaban el carrito y el configurador de ramos — y se agregó un estado que explica y ofrece
+completar los datos.
+
+### La duda para ustedes
+
+**¿`buscarPorIdCliente/{id}` espera el id de CLIENTE o el de USUARIO?**
+
+Lo preguntamos porque en el front hay **4 pantallas que le pasan el `idUsuario`**:
+`mi-perfil`, `mis-datos`, `detalle-productos` y (hasta hoy) `mis-pedidos`.
+
+- Si espera **clienteId** → esas 3 que quedan están rotas para clientes reales, por el mismo
+  motivo y con el mismo síntoma silencioso. Las corregimos igual que `mis-pedidos`.
+- Si espera **idUsuario** → entonces el "No autorizado" del ejemplo es otra cosa, y nos gustaría
+  saber qué (¿el usuario 69 no tiene cliente?, ¿el endpoint pide algún rol?).
+
+No las tocamos hasta que nos digan: no podemos comprobarlo desde aquí (hace falta una sesión de
+cliente real y no tenemos credenciales de prueba), y cambiarlas a ciegas rompería las que hoy sí
+funcionen.
+
+### Aparte — el mensaje "No autorizado" con `code: 404`
+
+Si el caso real es "este usuario no tiene perfil de cliente", **"No autorizado" despista**: suena a
+permisos. Ya nos pasó con favoritos, que para el mismo usuario responde
+`"Tu cuenta todavia no tiene un perfil de cliente completo"` — ese sí es claro y el front pudo
+usarlo para mostrar algo útil. Si pudieran devolver algo así aquí también, lo aprovechamos igual.
+
+⚠️ Y como ya les comentamos: el `code` interno dice **404** en éste, en el 401 de
+`cambiar-password` y en otros. No lo usamos para nada, pero por eso tenemos que distinguir estos
+casos **por el texto del mensaje**, que es frágil.
+
+---
+
+## ✅ BACK — respuestas: confirmado el texto plano, y `buscarPorIdCliente` espera CLIENTE id (2026-08-16)
+
+### 1. Confirmado: `cambiar-password` sí devuelve `ResponseEntity.ok("texto")`
+
+No es `ResponseGeneric`, es un `String` crudo — Spring lo manda como `text/plain`. Causa
+confirmada al 100%.
+
+**Lista completa de endpoints con este mismo patrón** (200 con `String` crudo en vez de
+`ResponseGeneric`), para que apliquen el mismo fix de una sola vez:
+
+| Método | Endpoint | Texto que devuelve |
+|---|---|---|
+| POST | `/v1/auth/logout` | `"Sesión cerrada"` |
+| POST | `/v1/auth/enviar-codigo-verificacion` | `"Codigo enviado al correo registrado"` |
+| POST | `/v1/auth/verificar-correo` | `"Correo verificado correctamente"` |
+| POST | `/v1/auth/olvide-password` | `"Si el correo esta registrado, se envio un codigo de verificacion"` |
+| PUT | `/v1/auth/restablecer-password` | `"Contrasena actualizada correctamente"` |
+| PUT | `/v1/auth/cambiar-password` | `"Contrasena actualizada correctamente"` |
+| PUT | `/v1/auth/mi-perfil` | `"Perfil actualizado correctamente"` |
+| GET | `/v1/auth/validar` | `"Token válido"` |
+| GET | `/chat/admin/version` | `"chat-v3-usuarioId-2026-06-18"` (endpoint de diagnóstico, bajo tráfico) |
+
+`PUT /v1/usuarios/{id}/resetear-password` **no está en la lista** — ese ya devuelve
+`ResponseGeneric<String>` (JSON de verdad), así que su fix defensivo (pedir como texto y parsear
+solo si es JSON) simplemente no tiene nada que convertir ahí, sin romper nada.
+
+No vamos a migrar estos a `ResponseGeneric` de una — cambiar el contrato rompería lo que ya
+funciona con su fix aplicado. Si en algún momento se homogeniza todo a `ResponseGeneric`, se
+avisa aquí antes.
+
+### 2. `buscarPorIdCliente/{id}` espera el id de **CLIENTE**, no el de usuario
+
+Confirmado en el código (`ClienteControllerImpl.findByIdCliente`):
+
+```java
+boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+        && actual.getCliente().getId() == idCliente;
+```
+
+Compara contra `actual.getCliente().getId()` — el id de la fila en `clientes`, que es un PK
+**distinto** del `idUsuario` del token. Cuando mandan `idUsuario` (69), nunca va a matchear con
+el `clienteId` real de esa persona (salvo coincidencia), de ahí el 403 "No autorizado" — el mismo
+bug silencioso que ya encontraron en `mis-pedidos`, latente en las otras 3 pantallas
+(`mi-perfil`, `mis-datos`, `detalle-productos`). Confirma su hipótesis 1: sí, están rotas para
+clientes reales, apliquen el mismo `buscarClientePorIdUsuario(idUsuario)` que ya usaron.
+
+**Sobre el mensaje "No autorizado" con `code: 404`:** tiene sentido lo que piden. Se deja anotado
+como pendiente (no es cambio de contrato, solo mejorar el mensaje) — no se toca en esta sesión
+para no mezclarlo con lo demás, se hace aparte cuando se homogenice el sistema de códigos de
+error entero (el `code: 404` fijo en varios 401/403 ya está anotado como deuda desde antes).
+
+---
+
+## 📋 RESUMEN DE LA SESIÓN — correo QA + seguridad de contraseña (2026-08-16)
+
+Todo lo que se tocó hoy, para no tener que releer la conversación completa después.
+
+### Errores encontrados y corregidos (back)
+
+| # | Error | Causa real | Fix |
+|---|---|---|---|
+| 1 | Correo de QA no salía por el dominio propio | Iba pelando capas: primero se creyó que Hostinger bloqueaba el firewall (falso); la causa real era que `mail.novedades-jade.com.mx` apuntaba a una IP ajena por DNS mal configurado (ticket 551620) | Hosting-Mexico corrigió el **MX**; mientras el subdominio `mail.` termina de propagar, `application-qa.yml` usa el hostname real (`hapi.hosting-mexico.net`) directo |
+| 2 | Con el DNS corregido, seguía sin conectar | `application-qa.yml` forzaba `STARTTLS` (config vieja de Gmail) contra el puerto 465, que espera **SSL implícito** — rechazo de protocolo (`Exception reading response`) | `mail.smtp.ssl.enable: true`, se quitó STARTTLS |
+| 3 | Con protocolo correcto, el envío seguía rechazado | `EmailService.java` nunca seteaba `From` — Gmail lo toleraba, Hosting-Mexico no (`SendFailedException: Invalid Addresses`) | `helper.setFrom(remitente)` con `spring.mail.username`. Confirmado con prueba SMTP directa antes de aplicar |
+| 4 | Access token seguía funcionando hasta 15 min después de cambiar la contraseña, aunque el refresh ya estuviera muerto | El JWT es *stateless*, no se puede revocar a mitad de su vida | Se guarda `passwordActualizadoEn` en `Usuario` y `JwtAuthenticationFilter` rechaza cualquier token emitido antes de ese momento (mismo patrón que "cuenta deshabilitada") |
+
+### Pendiente / sin cerrar
+
+- **`mail.novedades-jade.com.mx` sigue sin propagar** (todavía resuelve a la IP ajena `75.2.60.5`
+  al momento de escribir esto). Cuando propague, se puede volver a ese hostname en el yml sin
+  tocar nada más — no es urgente, `hapi.hosting-mexico.net` funciona igual de bien mientras tanto.
+- **`main`/prod no tiene ninguno de estos 4 fixes todavía** — se decidió dejarlo solo en `dev`/`qa`
+  por ahora. Prod sigue mandando correo por Gmail (funciona) y sin el refuerzo del access token.
+- ~~Reporte abierto con el front: la app pinta "error al cambiar contraseña" aunque el back
+  confirma éxito~~ — **resuelto por el front**: era un `String` crudo (`text/plain`) que Angular
+  no puede parsear como JSON incluso en un 200, y su interceptor lo trataba como error. Fix ya en
+  `dev`/`qa` del front. De paso salió una lista de otros 8 endpoints nuestros con el mismo patrón
+  (200 con texto plano) que quedaron documentados por si algún día se homogeniza a `ResponseGeneric`.
+- **Nuevo, sin cerrar:** el front encontró que `buscarPorIdCliente/{id}` espera el id de
+  **CLIENTE**, no el de usuario — confirmado en el código. Tres pantallas del front
+  (`mi-perfil`, `mis-datos`, `detalle-productos`) le pasan `idUsuario` por error, mismo bug
+  silencioso que ya corrigieron en `mis-pedidos`. Queda de su lado aplicar el mismo fix.
+- **Migración `migration_password_actualizado_en.sql`:** ya corrida en QA (y en la BD de prod,
+  aunque el código de prod todavía no la usa — no hace daño, es una columna extra que el código
+  viejo ignora).
+
+### Lo que ya quedó cerrado y confirmado end-to-end
+
+- Correo real recibido en QA usando `qa.boutique.bolsas@novedades-jade.com.mx` vía Hosting-Mexico.
+- Cambio de contraseña (self-service) probado con curl: 200 + log limpio, contraseña
+  efectivamente actualizada en BD.
+- Reseteo de contraseña por ADMIN probado igual, sin errores.
+
+---
+
+## 📌 RESUMEN — la sesión de hoy destapó una familia entera de bugs: "solo se probó como admin" (2026-08-16)
+
+Lo dejamos escrito completo porque **el patrón se va a repetir** y conviene que las dos partes lo
+tengamos presente. El disparador fue el dueño probando por primera vez con una **cuenta de cliente
+real** (ROLE_USUARIO) en vez de admin.
+
+### La causa común de todo
+
+Casi todas las pantallas del cliente tienen **una rama para admin y otra para cliente**
+(`if (isAdminUser) … else …`). El dueño siempre probó por la de admin, que funciona. **La rama del
+cliente llevaba tiempo rota y nadie la había pisado.**
+
+Y lo que la hacía invisible: **llamadas sin manejo de error**. Cuando fallaban, no pasaba
+*nada* — ni mensaje, ni consola, ni pista. La pantalla simplemente se quedaba vacía o el botón
+dejaba de responder. Un error visible se reporta en un día; uno mudo puede durar meses.
+
+### Lo que se encontró y se corrigió (todo ya en `dev` y `qa`)
+
+| Dónde | Qué pasaba | Gravedad |
+|---|---|---|
+| **Checkout de productos** | El botón de comprar **no hacía nada**. Venta perdida en silencio | 🔴 |
+| **Mis pedidos** | Lista vacía para siempre. El cliente había hecho un pedido y no lo veía | 🔴 |
+| **Mis datos** | Formulario en blanco sin explicación | 🟠 |
+| **Favoritos** | Dejaba entrar y recibía con un `Swal` rojo de "Error" sin salida | 🟠 |
+| **Corazón del catálogo** | Se mostraba a quien no puede usarlo; solo podía dar error | 🟠 |
+| **Cambiar contraseña** | Pintaba error sobre una operación exitosa (era el parseo del 200) | 🔴 |
+| **Admin que se resetea a sí mismo** | Se quedaba sin sesión sin aviso | 🟡 |
+
+En los dos primeros, además, se resolvía el cliente con **`getDataOneCliente(idUsuario)`** —
+`buscarPorIdCliente` espera el id de **cliente**. Se cambiaron a `buscarClientePorIdUsuario`, que
+es la traducción correcta y la que ya usaban el carrito y el configurador de ramos.
+
+### Lo que quedaba pendiente de nuestro lado — ya respondido arriba
+
+1. **¿Qué id espera `buscarPorIdCliente/{id}`?** → **id de CLIENTE**, confirmado en código. Ver
+   sección "✅ BACK — respuestas" más arriba.
+2. **¿`cambiar-password` responde `ResponseEntity.ok("texto")`?** → Sí, confirmado, más la lista
+   completa de los otros 8 endpoints con el mismo patrón. Ver la misma sección de arriba.
+3. **Mensajes que despistan (`"No autorizado"` con `code: 404`)** → anotado como deuda pendiente,
+   se atiende cuando se homogenice el sistema de códigos de error completo.
+
+### Lo que cambiaron de método, para que no se repita
+
+- **Auditaron las 16 pantallas que ve un cliente** buscando `.subscribe()` sin `error`. Se
+  corrigieron las que dejaban la pantalla o el checkout muertos; las cargas accesorias
+  (contactos, catálogos de adorno) se dejaron fallando calladas a propósito.
+- **Regla nueva del front:** toda llamada que condicione lo que se muestra necesita `error`, y ese
+  `error` tiene que decir algo accionable — no solo apagar un spinner.
+- **Y la que más les costó:** probar como admin no valida nada de lo que ve un cliente. Son dos
+  caminos distintos del código.
+
+---
+
+---
+
+## ✅ FRONT — cerrado todo lo de sus dos respuestas (2026-08-16)
+
+Gracias, con las dos confirmaciones quedó cerrado de nuestro lado. Ya está en `dev` y `qa`.
+
+### 1. Las 3 pantallas del `clienteId` — corregidas
+
+`mi-perfil`, `mis-datos` y `detalle-productos` ya traducen con
+`buscarClientePorIdUsuario(idUsuario)` antes de pedir la ficha. Lo que se rompía en cada una:
+
+| Pantalla | Síntoma real para el cliente |
+|---|---|
+| `mi-perfil` | El campo de correo quedaba vacío |
+| `mis-datos` | Formulario en blanco (y sin `error`, sin ninguna explicación) |
+| `detalle-productos` | 🔴 El botón de comprar **no hacía nada** |
+
+### 2. Los endpoints de texto plano — **eran más de los que creíamos**
+
+Su lista fue muy útil: **el front usa 7 de los 9**, y solo teníamos cubiertos 2. Los otros 5 ya
+llevan el mismo parseo tolerante. El que más nos preocupó:
+
+**`POST /v1/auth/verificar-correo`** — una verificación **exitosa** se le mostraba al usuario como
+*"código incorrecto o expirado"*. O sea que verificaba bien, veía un error, y volvía a intentar con
+un código ya consumido. Nunca lograba pasar la verificación por pantalla, aunque del lado de
+ustedes hubiera quedado verificado.
+
+Los otros: `enviar-codigo-verificacion`, `olvide-password`, `mi-perfil` y `logout`.
+
+Confirmamos también lo de `resetear-password`: efectivamente ya devuelve `ResponseGeneric`, así que
+ahí el fix defensivo no tiene nada que convertir. Sin cambios.
+
+**De acuerdo en no migrarlos a `ResponseGeneric`** — ya funcionan con el fix y cambiar el contrato
+ahora solo movería el riesgo de lado. Si algún día se homogeniza, avisan y lo acompañamos.
+
+### ⚠️ Una petición, por lo que costó encontrarlo
+
+Cuando agreguen un endpoint nuevo, **si va a responder un `String` crudo, avísenlo aquí**. No es
+por gusto: ese patrón produce el síntoma más engañoso que nos hemos topado — *"la app dice error
+pero la operación sí se hizo"*, **sin nada en sus logs**, porque desde su lado no hubo ningún
+error. Nos costó una sesión entera de ida y vuelta encontrarlo, y ahora ya sabemos que estuvo
+mordiendo en silencio en `verificar-correo` quién sabe desde cuándo.
+
+Con `ResponseGeneric` no pasa. Si van a salirse de ese patrón, con que quede escrito basta.
+
+### Lo que queda abierto
+
+Nada de esto nos bloquea:
+
+- Los mensajes que despistan (`"No autorizado"` cuando es "no tiene perfil de cliente") y el
+  `code: 404` fijo — ya lo tienen anotado como deuda. Mientras tanto distinguimos **por el texto**.
+- **Nada probado en vivo con cuenta de cliente**: todo esto se corrigió leyendo código. El dueño va
+  a probar con su cuenta `perse` y avisamos si algo sigue fallando.
+- Seguimos esperando el diseño del **armado guardado** de flores.
+
+---
+
+## 🌹 FRONT — el detalle de un pedido de flores: 3 problemas, 1 corregido, 2 los necesitamos de ustedes (2026-08-16)
+
+El dueño abrió el detalle de un pedido de ramo por primera vez. Salieron tres cosas.
+
+### 1. 🔴 Bucle infinito de peticiones de imagen — corregido (era nuestro)
+
+`<img [src]="…/imagen/v1/{productoId}">` fallaba (los productos sombra de flores **nunca tienen
+imagen**), el handler ponía `assets/img/no-image.png`, **ese archivo no existe en el proyecto**, y
+volvía a fallar → bucle. El dueño lo cazó con **50+ peticiones** al mismo 404.
+
+Ya corregido: el reemplazo ahora es un data URI (no puede dar 404) y se desconecta el handler
+antes de reasignar. Estaba en 3 pantallas; en las otras dos no se notaba porque sus productos sí
+tienen imagen. **Flores lo destapó.**
+
+### 2. 🟠 El cliente podía modificar su pedido ya confirmado — corregido
+
+El botón "−" de cada artículo se le mostraba **también al cliente**. Ya es solo admin.
+
+**Y en un ramo lo bloqueamos incluso para el admin**, a propósito: `DELETE /v1/pedidos/{id}/detalle/{productoId}`
+borra una línea **sin recalcular nada**. En un ramo eso deja el **papel** con los pliegos del
+tamaño viejo, la **fecha** con el plazo del tamaño viejo y el **cargo de urgencia** sin revisar. El
+pedido queda internamente inconsistente y nadie se entera.
+
+### 3. ❓ El cliente no debería ver el papel — necesitamos una marca de ustedes
+
+El dueño: *"el papel eso no lo tiene que ver el cliente, ese va incluido"*. Es coherente con lo ya
+acordado (en el configurador el papel es invisible y se cobra dentro de la línea de flores).
+
+**Pero en el detalle del pedido sí aparece como renglón**, porque ahí es una línea real.
+
+**No lo escondimos por nuestra cuenta y queremos explicar por qué:** si ocultamos esa línea, **las
+líneas visibles dejan de sumar el total** y el cliente ve un descuadre — peor que ver el papel. La
+salida limpia es **agrupar las líneas internas del ramo en una sola** ("Ramo de 20 flores
+eternas"), conservando el total.
+
+Para eso necesitamos distinguir las líneas, y **hoy solo podemos hacerlo por el nombre**
+(`[Flores eternas] …`), que es frágil: si alguien renombra un producto, se rompe en silencio.
+
+**¿Pueden marcar las líneas en `GET /v1/pedidos/{id}/detalle`?** Con algo así nos basta:
+
+- `esLineaInterna: true` en las líneas que el cliente no debería ver por separado (papel), y/o
+- `esRamoFlores: true` a nivel del pedido.
+
+Ya usamos la marca por nombre como parche provisional para el punto 2 — falla hacia el lado
+seguro (si deja de detectar, vuelve a permitir editar), pero no queremos construir la vista del
+cliente sobre eso.
+
+### 4. ❓ No existe forma de editar un ramo — pregunta de diseño
+
+El dueño lo pidió: *"debe haber una parte que sí deje editar las rosas o el armado"*. Y tiene
+sentido: hoy lo único que hay es el borrado de líneas sueltas, que para un ramo es **peor que no
+tener nada** (punto 2).
+
+Editar un ramo de verdad implica **rehacer la cotización**: recalcular pliegos, plazo, urgencia y
+total. O sea, algo parecido a "reabrir el armado" — que se parece mucho al **armado guardado** que
+ya están diseñando.
+
+**¿Tiene sentido que sean la misma pieza?** Un ramo confirmado que se "reabre" para editarlo
+volvería a pasar por `calcular-precio` y se re-confirmaría, igual que un armado retomado. Antes de
+que diseñen dos cosas separadas, nos parecía mejor plantearlo. Lo consultamos también con el dueño.
+
+---
+
+## 🌹 EL DUEÑO DEFINIÓ CÓMO EDITAR UN RAMO — y confirma que es la misma pieza del armado guardado (2026-08-16)
+
+Continuación directa del punto 4 de arriba. Le planteamos la duda y su respuesta cierra el diseño:
+
+> *"Puede ser el mismo pedido: uno debería decir **detalle**, para revisar lo que tiene, y otro que
+> diga **editar**, y tiene que mandar al mismo **armar ramo** pero con los datos cargados, ¿no?"*
+
+Es exactamente lo que sospechábamos, y confirma que **no son dos piezas: es una**.
+
+### El flujo que queda definido
+
+```
+Pedido de ramo
+   ├── "Detalle"  → solo lectura: qué lleva, cuánto costó, fecha
+   └── "Editar"   → abre /flores/configurar CON EL ARMADO CARGADO
+                       ↓ el cliente/admin cambia lo que sea
+                    se recotiza (calcular-precio + fechas-disponibles)
+                       ↓
+                    se vuelve a confirmar
+```
+
+O sea: **editar un ramo confirmado = retomar un armado guardado**, con la única diferencia de que
+uno viene de un pedido real y el otro de un borrador. Misma pantalla, misma recotización, mismas
+reglas (fecha desde que confirma, stock revisado, precio nuevo).
+
+**Nos parece que deberían diseñarlo como un solo mecanismo.** Si el armado guardado ya va a tener
+"cargar un armado en el configurador", editar un pedido es ese mismo cargador apuntando a otra
+fuente.
+
+### ⚠️ Lo que falta para poder recargar — un hueco concreto
+
+Comparamos lo que hoy devuelve `GET /v1/flores/pedidos/{id}/detalle` contra lo que el configurador
+necesita para reconstruirse:
+
+| Dato | ¿Viene hoy? |
+|---|---|
+| Colores y cantidades | ✅ `colores[]` |
+| Frase (predefinida o personalizada) | ✅ |
+| Zona / recoger en local | ✅ |
+| Fecha y `urgente` | ✅ |
+| **Especie y cantidad total** | ⚠️ Deducibles de `colores[]`, pero preferimos que vengan explícitos |
+| **🔴 Accesorios elegidos** | ❌ **No vienen** |
+
+**Los accesorios son el hueco real.** Sin ellos, al reabrir un ramo el cliente perdería la corona o
+las luces que había elegido, y ni él ni el admin lo notarían hasta la entrega. ¿Pueden agregarlos
+al detalle (`accesorios: [{ accesorioId, cantidad }]`)?
+
+### ❓ Tres decisiones que no son nuestras
+
+1. **¿Qué pasa con el pedido original al editar?** ¿Se actualiza en su lugar, o se cancela y se
+   crea uno nuevo? Nos inclinamos por actualizarlo (el cliente espera "su" pedido, no dos), pero
+   toca stock y numeración — es su llamada.
+2. **¿Y si ya tiene un anticipo pagado?** Un ramo urgente nace `APARTADO` con el 50%. Si al editar
+   el total sube o baja, ese anticipo ya no es la mitad. ¿Se recalcula el saldo, se pide la
+   diferencia, se devuelve? **Esto sí es decisión del dueño**, se la vamos a preguntar.
+3. **¿Hasta cuándo se puede editar?** Un ramo que ya se está armando en el taller no debería poder
+   cambiarse. ¿Se corta en algún estado, o con la hora límite que ya existe?
+
+### Lo que ya hicimos del lado del front
+
+El botón de quitar líneas sueltas quedó **bloqueado en ramos, incluso para admin** (ver punto 2 de
+la sección anterior) — precisamente para no dejar una forma de "editar" que no recotiza nada.
+**El botón "Editar" no existe todavía**: lo construimos cuando esto esté definido, para no hacerlo
+dos veces.
+
+---
+
+## ✅ BACK — respuestas a las 3 decisiones + implementado `editar-ramo` (2026-08-16)
+
+El dueño ya respondió las 3 decisiones pendientes. Resumen y lo que se implementó con eso.
+
+### Las 3 decisiones, ya resueltas
+
+1. **Solo el ADMIN edita.** El cliente nunca agrega ni quita nada — solo ve el detalle
+   (sin la línea de papel, ver `esLineaInterna` abajo). Si el cliente quiere cambiar el listón,
+   una corona, las luces, etc., se lo pide al admin.
+2. **El admin SÍ puede agregar o quitar, no solo agregar** (esto corrige lo que habíamos
+   propuesto nosotros la vuelta pasada). La única regla dura: **no se puede bajar el total por
+   debajo de lo que el cliente ya pagó** — eso implicaría un reembolso, que no soportamos todavía.
+   Si el nuevo total es más alto que antes, la diferencia se cobra con el módulo de abonos que ya
+   existe (efectivo o transferencia, igual que cualquier anticipo de crédito — nunca tarjeta,
+   misma regla `DN-1` que ya tenían).
+3. **Sin restricción por estado del pedido** (el dueño lo pidió explícito: "no importa en que
+   estado esté"). La única excepción que agregamos por sentido común, sin que nos lo pidieran
+   así — avísenos si no debería ser así: **no se puede editar un pedido `cancelado`**.
+
+### 🆕 `PUT /v1/flores/pedidos/{pedidoId}/editar-ramo` — solo ADMIN
+
+Reemplaza los colores y accesorios de un ramo ya guardado y recotiza esa parte. **Alcance
+limitado a propósito en esta primera versión** — no toca fecha de entrega, urgencia, envío ni
+el listón (ver "Lo que NO cubre" abajo).
+
+**Request:**
+```json
+PUT /v1/flores/pedidos/42/editar-ramo
+Authorization: Bearer {accessToken}  (rol ADMIN)
+{
+  "colores": [
+    { "colorFlorId": 3, "cantidad": 10 },
+    { "colorFlorId": 5, "cantidad": 10 }
+  ],
+  "accesorios": [
+    { "accesorioId": 7 },
+    { "accesorioId": 7 },
+    { "accesorioId": 9 }
+  ]
+}
+```
+- `colores`: obligatorio, al menos uno. Reemplaza TODOS los colores del ramo (no es un delta).
+  Todos deben ser de la misma especie (mismo `TipoFlor`).
+- `accesorios`: opcional. Una entrada por unidad (igual que `calcular-precio`) — 2 coronas =
+  2 entradas con el mismo `accesorioId`. Reemplaza TODOS los accesorios elegidos. **No incluyan
+  el papel aquí** — se recalcula solo, según la nueva cantidad total de flores (igual que
+  siempre).
+
+**Response 200:**
+```json
+{
+  "response": {
+    "ramo": { /* mismo shape que GET .../detalle, ver abajo */ },
+    "totalPedidoAnterior": 850.0,
+    "totalPedidoNuevo": 1020.0,
+    "diferencia": 170.0
+  },
+  "mensaje": null
+}
+```
+- `diferencia` = `totalPedidoNuevo - totalPedidoAnterior`. **Positiva → el cliente debe pagar
+  más** (regístrenlo con `POST /v1/abonos/{pedidoId}` como ya hacen). Negativa o cero → no debe
+  nada más, no genera ningún reembolso ni ajuste automático.
+
+**400 — casos posibles:**
+- `"Debe indicar al menos un color y su cantidad"` — `colores` vacío o null.
+- `"La cantidad de cada color debe ser mayor a cero"`.
+- `"Todos los colores del ramo deben ser de la misma especie de flor"`.
+- `"El color '...' no esta disponible actualmente"` / `"El accesorio '...' no esta disponible
+  actualmente"` — se desactivó entre que el cliente armó el ramo original y ahora.
+- `"No se puede editar el ramo de un pedido cancelado"`.
+- `"Este cambio bajaria el total a $X, por debajo de lo que el cliente ya pago ($Y). Implicaria
+  devolver dinero, y este endpoint no lo soporta -- quita menos cosas."` — el guardrail del
+  punto 2 de arriba.
+- `"Color de flor no encontrado: {id}"` / `"Accesorio no encontrado: {id}"` — id inexistente.
+- `"Este pedido no tiene un ramo de flores asociado: {id}"` — pedidoId válido pero sin
+  `RamoPedidoDetalle` (no es un pedido de flores).
+
+**403:** si quien llama no es ADMIN (mismo formato que cualquier otro endpoint protegido por rol).
+
+### Lo que NO cubre esta primera versión (a propósito)
+
+- **Fecha de entrega, urgencia, envío y listón no se pueden cambiar con este endpoint.** Cambiar
+  cualquiera de esos reabre reglas propias (la ventana de anticipación/urgencia, la aprobación de
+  frase personalizada con su propio precio) que preferimos no mezclar con esto todavía. Si hace
+  falta, es un endpoint aparte más adelante.
+- El cargo de urgencia (si el pedido ya lo tenía) **se mantiene fijo**, no se re-evalúa aunque la
+  cantidad de flores cambie de bracket.
+
+### Enriquecimiento de endpoints ya existentes
+
+**`GET /v1/pedidos/{id}/detalle`** — 2 campos nuevos, sin quitar nada:
+- A nivel raíz: `"esRamoFlores": true|false` — para saber si vale la pena pedir el detalle de
+  flores aparte.
+- En cada línea de `detalles[]`: `"esLineaInterna": true|false` — `true` únicamente en la línea
+  del papel. Úsenlo para esconderla o agruparla, en vez de detectar por nombre de producto.
+
+**`GET /v1/flores/pedidos/{pedidoId}/detalle`** — 1 campo nuevo:
+- `"accesorios": [{ "accesorioId": 7, "accesorioNombre": "Corona", "cantidad": 2 }, ...]` — los
+  accesorios elegidos (sin el papel, que no es una elección). Es justo el hueco que reportaron.
+- Recordatorio: `tipoFlorId`, `tipoFlorNombre` y `cantidadFinal` **ya existían** como campos
+  explícitos en este mismo response — no hace falta deducirlos de `colores[]`.
+
+### Fotos por color/accesorio — ya es posible, sin cambios de back
+
+Revisamos el modelo: cada `ColorFlor` y cada `AccesorioRamo` **ya tiene una variante "sombra"**
+ligada (`variante.id`), el mismo mecanismo de siempre para reusar imágenes de producto. Eso
+significa que **ya pueden pedir la foto de cada color/accesorio hoy mismo**, sin que nosotros
+cambiemos nada:
+
+1. `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` (o el listado normal de accesorios) ya trae
+   `variante.id` en cada elemento del JSON.
+2. Con ese id, `GET /v1/variantes/imagenes/{varianteId}` (endpoint ya existente) devuelve la
+   imagen.
+
+Si el payload de la lista de colores/accesorios les resulta muy pesado por traer el objeto
+`variante` completo anidado, avísennos y los recortamos a solo `varianteId` — no lo tocamos
+todavía para no romper nada que ya use el objeto completo.
+
+Lo de armar la vista con "10 flores de un color + 10 de otro" según lo que se va eligiendo es
+puramente de front (composición visual con las fotos ya disponibles) — no necesita nada nuevo
+de nuestro lado.
+
+### Pendiente — no implementado en esta sesión
+
+- **Auditoría de envío de correo** (si necesitan saber cuándo se reenvió un código): hoy solo
+  queda en logs de aplicación, no en BD. Si lo necesitan, es un cambio aparte — avisen.
+- Nada de esto requiere migración de base de datos — reutiliza tablas y columnas que ya existían.
+
+Implementado y compilando; falta el push a `dev`/`qa` de nuestro lado antes de que puedan
+probarlo — lo avisamos aquí en cuanto esté.

@@ -21,6 +21,7 @@ import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IAbonoRepository;
+import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
@@ -29,6 +30,7 @@ import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IPromocionRepository;
+import com.ventas.key.mis.productos.repository.IRamoPedidoDetalleRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
@@ -75,6 +77,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IPromocionRepository iPromocionRepository;
     private final PromocionServiceImpl promocionService;
     private final ILugarEntregaRepository iLugarEntregaRepository;
+    private final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository;
+    private final IAccesorioRamoRepository iAccesorioRamoRepository;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -94,7 +98,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final IVarianteRepository iVarianteRepository,
                              final IPromocionRepository iPromocionRepository,
                              final PromocionServiceImpl promocionService,
-                             final ILugarEntregaRepository iLugarEntregaRepository) {
+                             final ILugarEntregaRepository iLugarEntregaRepository,
+                             final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository,
+                             final IAccesorioRamoRepository iAccesorioRamoRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -109,6 +115,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iPromocionRepository = iPromocionRepository;
         this.promocionService = promocionService;
         this.iLugarEntregaRepository = iLugarEntregaRepository;
+        this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
+        this.iAccesorioRamoRepository = iAccesorioRamoRepository;
     }
 
     // lugarEntregaId es opcional (null = no se captura el lugar de entrega en ese pedido)
@@ -542,6 +550,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         a.getId(), a.getMonto(), a.getFechaPago(), a.getMetodoPago(), a.getNota(), a.getMontoDado()))
                 .toList());
 
+        // esRamoFlores / esLineaInterna: para que el front pueda distinguir el pedido de flores y
+        // esconder/agrupar la linea del papel sin depender del nombre del producto (fragil).
+        boolean esRamoFlores = !iRamoPedidoDetalleRepository.findByPedidoId(pedido.getId()).isEmpty();
+        resp.setEsRamoFlores(esRamoFlores);
+        Integer varianteIdPapel = esRamoFlores
+                ? iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
+                        .map(a -> a.getVariante() != null ? a.getVariante().getId() : null)
+                        .orElse(null)
+                : null;
+
         List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
             DetalleItemResponse item = new DetalleItemResponse();
             item.setId(dp.getId());
@@ -557,6 +575,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 item.setTalla(dp.getVariante().getTalla());
                 item.setColor(dp.getVariante().getColor());
                 item.setDescripcion(dp.getVariante().getDescripcion());
+                item.setEsLineaInterna(varianteIdPapel != null && varianteIdPapel.equals(dp.getVariante().getId()));
             }
             if (dp.getPromocion() != null) {
                 item.setPromocionId(dp.getPromocion().getId());
