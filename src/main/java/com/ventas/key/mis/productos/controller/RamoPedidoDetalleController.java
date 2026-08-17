@@ -2,6 +2,8 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.floreseternas.EditarRamoRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.EditarRamoResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.FrasePendienteDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
@@ -12,6 +14,7 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,6 +82,22 @@ public class RamoPedidoDetalleController {
             return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.revalidarAntesDePagar(pedidoId)));
         } catch (Exception e) {
             log.error("Error al revalidar pago del pedido {}: {}", pedidoId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    // Solo ADMIN: reemplaza colores/accesorios de un ramo ya guardado y recotiza esa parte
+    // (fecha/urgencia/envio/liston no se tocan, ver EditarRamoRequestDto). El front debe mostrar
+    // response.diferencia al admin -- si es positiva, falta registrar esa diferencia como abono
+    // (POST /v1/abonos/{pedidoId}, ya existente) para que el pedido quede cuadrado.
+    @PutMapping("/{pedidoId}/editar-ramo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ResponseGeneric<EditarRamoResponseDto>> editarRamo(
+            @PathVariable Integer pedidoId, @RequestBody EditarRamoRequestDto request) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.editarRamo(pedidoId, request)));
+        } catch (Exception e) {
+            log.warn("Error al editar ramo del pedido {}: {}", pedidoId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }

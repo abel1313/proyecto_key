@@ -35,4 +35,7 @@ public class RamoPedidoDetalleResponseDto {
     // real con POST /v1/abonos/{pedidoAnticipoId} (modulo de abonos existente). Null hasta que
     // el admin apruebe la frase con precio.
     private Integer pedidoAnticipoId;
+    // Accesorios elegidos (sin el papel, ver AccesorioSeleccionadoRamoDto) -- para reconstruir
+    // el configurador al editar el ramo. Lista vacia si no eligio ninguno.
+    private List<AccesorioSeleccionadoRamoDto> accesorios;
 }

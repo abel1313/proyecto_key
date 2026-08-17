@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.AccesorioRamo;
 import com.ventas.key.mis.productos.entity.CantidadFlorValida;
 import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.DetallePedido;
@@ -13,8 +14,12 @@ import com.ventas.key.mis.productos.entity.TipoFlor;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.floreseternas.AccesorioSeleccionadoDto;
+import com.ventas.key.mis.productos.models.floreseternas.AccesorioSeleccionadoRamoDto;
 import com.ventas.key.mis.productos.models.floreseternas.AnticipacionResultadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ColorSeleccionadoDto;
+import com.ventas.key.mis.productos.models.floreseternas.EditarRamoRequestDto;
+import com.ventas.key.mis.productos.models.floreseternas.EditarRamoResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.FloresEternasConstantes;
 import com.ventas.key.mis.productos.models.floreseternas.FrasePendienteDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleColorDto;
@@ -22,6 +27,7 @@ import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleReques
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RevalidarPagoResponseDto;
+import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
 import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IFraseListonPredefinidaRepository;
@@ -36,8 +42,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 // "Ticket de produccion" de un ramo -- ver comentario en RamoPedidoDetalle. Se adjunta a un
 // Pedido que YA fue creado por el flujo normal (POST /v1/pedidos/savePedido, con las lineas de
@@ -54,8 +64,10 @@ public class RamoPedidoDetalleServiceImpl {
     private final IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository;
     private final ILugarEntregaRepository iLugarEntregaRepository;
     private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
+    private final IAccesorioRamoRepository iAccesorioRamoRepository;
     private final ProductoSombraServiceImpl productoSombraService;
     private final FlorPedidoServiceImpl florPedidoService;
+    private final AccesorioRamoServiceImpl accesorioRamoService;
     private final EmailService emailService;
 
     @org.springframework.beans.factory.annotation.Value("${chat.admin-email:admin@novedades-jade.com.mx}")
@@ -68,8 +80,10 @@ public class RamoPedidoDetalleServiceImpl {
                                          IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository,
                                          ILugarEntregaRepository iLugarEntregaRepository,
                                          ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
+                                         IAccesorioRamoRepository iAccesorioRamoRepository,
                                          ProductoSombraServiceImpl productoSombraService,
                                          FlorPedidoServiceImpl florPedidoService,
+                                         AccesorioRamoServiceImpl accesorioRamoService,
                                          EmailService emailService) {
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iPedidoRepository = iPedidoRepository;
@@ -78,8 +92,10 @@ public class RamoPedidoDetalleServiceImpl {
         this.iFraseListonPredefinidaRepository = iFraseListonPredefinidaRepository;
         this.iLugarEntregaRepository = iLugarEntregaRepository;
         this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
+        this.iAccesorioRamoRepository = iAccesorioRamoRepository;
         this.productoSombraService = productoSombraService;
         this.florPedidoService = florPedidoService;
+        this.accesorioRamoService = accesorioRamoService;
         this.emailService = emailService;
     }
 
@@ -406,6 +422,36 @@ public class RamoPedidoDetalleServiceImpl {
                 pedido.getFechaPedido());
     }
 
+    // Los accesorios no viven como lista estructurada en RamoPedidoDetalle -- se derivan de las
+    // lineas reales del Pedido (DetallePedido) haciendo match por varianteId contra el catalogo
+    // de AccesorioRamo. Se excluye el papel (esPapel=true): no es una eleccion del cliente, se
+    // recalcula solo segun la cantidad final de flores.
+    private List<AccesorioSeleccionadoRamoDto> extraerAccesorios(Pedido pedido) {
+        if (pedido == null || pedido.getDetalles() == null) {
+            return List.of();
+        }
+        List<AccesorioSeleccionadoRamoDto> resultado = new ArrayList<>();
+        // No hay un findByVarianteId: el catalogo de accesorios es chico, se trae completo una
+        // vez y se matchea en memoria contra el varianteId de cada linea del pedido.
+        List<AccesorioRamo> catalogo = iAccesorioRamoRepository.findAll();
+        Map<Integer, AccesorioRamo> porVarianteId = new LinkedHashMap<>();
+        for (AccesorioRamo a : catalogo) {
+            if (a.getVariante() != null && !Boolean.TRUE.equals(a.getEsPapel())) {
+                porVarianteId.put(a.getVariante().getId(), a);
+            }
+        }
+        for (DetallePedido linea : pedido.getDetalles()) {
+            if (linea.getVariante() == null) {
+                continue;
+            }
+            AccesorioRamo accesorio = porVarianteId.get(linea.getVariante().getId());
+            if (accesorio != null) {
+                resultado.add(new AccesorioSeleccionadoRamoDto(accesorio.getId(), accesorio.getNombre(), linea.getCantidad()));
+            }
+        }
+        return resultado;
+    }
+
     private RamoPedidoDetalleResponseDto toResponseDto(RamoPedidoDetalle detalle) {
         String fraseTexto = detalle.getFraseListonPredefinida() != null
                 ? detalle.getFraseListonPredefinida().getTexto()
@@ -435,6 +481,172 @@ public class RamoPedidoDetalleServiceImpl {
                 detalle.getCorreoContacto(),
                 detalle.getComentarioAccesorioNoDisponible(),
                 detalle.getFechaCreacion(),
-                detalle.getPedidoAnticipo() != null ? detalle.getPedidoAnticipo().getId() : null);
+                detalle.getPedidoAnticipo() != null ? detalle.getPedidoAnticipo().getId() : null,
+                extraerAccesorios(detalle.getPedido()));
+    }
+
+    // Reemplaza colores y accesorios de un ramo ya guardado -- recotiza SOLO esa parte (flores +
+    // papel + accesorios). Fecha de entrega, urgencia, envio y liston NO se tocan: reabrirlos
+    // implicaria re-disparar sus propias reglas (aprobacion de frase, ventana de anticipacion) y
+    // se dejo fuera de esta primera version a proposito. Solo ADMIN (ver controller). Sin
+    // restriccion de estadoPedido salvo "cancelado" -- el dueno pidio que el admin pueda editar
+    // sin importar en que estado este, la unica excepcion obvia es un pedido ya cancelado.
+    @Transactional
+    public EditarRamoResponseDto editarRamo(Integer pedidoId, EditarRamoRequestDto dto) {
+        if (dto.getColores() == null || dto.getColores().isEmpty()) {
+            throw new RuntimeException("Debe indicar al menos un color y su cantidad");
+        }
+        RamoPedidoDetalle detalle = iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().findFirst()
+                .orElseThrow(() -> new ExceptionDataNotFound("Este pedido no tiene un ramo de flores asociado: " + pedidoId));
+        Pedido pedido = detalle.getPedido();
+        if ("cancelado".equalsIgnoreCase(pedido.getEstadoPedido())) {
+            throw new RuntimeException("No se puede editar el ramo de un pedido cancelado");
+        }
+
+        // 1. Validar los nuevos colores (misma regla que adjuntar(): todos de la misma especie).
+        TipoFlor especie = null;
+        int cantidadFinal = 0;
+        double nuevoPrecioBase = 0;
+        List<ColorFlor> coloresNuevos = new ArrayList<>();
+        for (ColorSeleccionadoDto sel : dto.getColores()) {
+            if (sel.getCantidad() == null || sel.getCantidad() <= 0) {
+                throw new RuntimeException("La cantidad de cada color debe ser mayor a cero");
+            }
+            ColorFlor color = iColorFlorRepository.findById(sel.getColorFlorId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Color de flor no encontrado: " + sel.getColorFlorId()));
+            if (!Boolean.TRUE.equals(color.getActivo())) {
+                throw new RuntimeException("El color '" + color.getNombre() + "' no esta disponible actualmente");
+            }
+            if (especie == null) {
+                especie = color.getTipoFlor();
+            } else if (!especie.getId().equals(color.getTipoFlor().getId())) {
+                throw new RuntimeException("Todos los colores del ramo deben ser de la misma especie de flor");
+            }
+            coloresNuevos.add(color);
+            cantidadFinal += sel.getCantidad();
+            nuevoPrecioBase += sel.getCantidad() * especie.getPrecioPorFlor();
+        }
+
+        // 2. Papel: nunca es una eleccion directa aqui, se recalcula solo segun la NUEVA cantidad
+        // final (mismo criterio que FlorPedidoServiceImpl.aplicarReglaPapel).
+        Integer pliegosExplicitos = iCantidadFlorValidaRepository
+                .findByTipoFlorIdAndCantidadAndActivoTrue(especie.getId(), cantidadFinal)
+                .map(CantidadFlorValida::getPliegos).orElse(null);
+        AccesorioRamo papelAplicado = accesorioRamoService.obtenerPapelAutomaticoSiAplica(cantidadFinal).orElse(null);
+        double nuevoPrecioPapel = papelAplicado != null
+                ? accesorioRamoService.calcularPrecioPapel(papelAplicado, cantidadFinal, pliegosExplicitos) : 0;
+
+        // 3. Accesorios elegidos (sin contar el papel, calculado aparte arriba) -- una entrada por
+        // unidad en el request, se agrupan por accesorioId igual que calcularAccesorios().
+        Map<Integer, Integer> cantidadPorAccesorio = new LinkedHashMap<>();
+        if (dto.getAccesorios() != null) {
+            for (AccesorioSeleccionadoDto sel : dto.getAccesorios()) {
+                if (papelAplicado != null && papelAplicado.getId().equals(sel.getAccesorioId())) {
+                    continue;
+                }
+                cantidadPorAccesorio.merge(sel.getAccesorioId(), 1, Integer::sum);
+            }
+        }
+        Map<Integer, AccesorioRamo> accesoriosElegidos = new LinkedHashMap<>();
+        double nuevoSubtotalAccesorios = 0;
+        for (Map.Entry<Integer, Integer> entry : cantidadPorAccesorio.entrySet()) {
+            AccesorioRamo accesorio = iAccesorioRamoRepository.findById(entry.getKey())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Accesorio no encontrado: " + entry.getKey()));
+            if (!Boolean.TRUE.equals(accesorio.getActivo())) {
+                throw new RuntimeException("El accesorio '" + accesorio.getNombre() + "' no esta disponible actualmente");
+            }
+            accesoriosElegidos.put(entry.getKey(), accesorio);
+            nuevoSubtotalAccesorios += accesorio.getPrecio() * entry.getValue();
+        }
+
+        double nuevoSubtotalComposicion = nuevoPrecioBase + nuevoPrecioPapel + nuevoSubtotalAccesorios;
+
+        // 4. Cuanto vale HOY, dentro del pedido, la composicion vieja (flores + papel +
+        // accesorios) -- se identifica por varianteId contra el catalogo, igual que
+        // extraerAccesorios(). Todo lo que NO matchea (liston, envio, cargo urgente) se conserva
+        // tal cual.
+        Set<Integer> varianteIdsComposicion = new HashSet<>();
+        if (detalle.getColores() != null) {
+            detalle.getColores().forEach(c -> {
+                if (c.getColorFlor().getVariante() != null) {
+                    varianteIdsComposicion.add(c.getColorFlor().getVariante().getId());
+                }
+            });
+        }
+        iAccesorioRamoRepository.findAll().forEach(a -> {
+            if (a.getVariante() != null) {
+                varianteIdsComposicion.add(a.getVariante().getId());
+            }
+        });
+
+        double subtotalComposicionVieja = 0;
+        List<DetallePedido> lineasAConservar = new ArrayList<>();
+        for (DetallePedido linea : pedido.getDetalles()) {
+            if (linea.getVariante() != null && varianteIdsComposicion.contains(linea.getVariante().getId())) {
+                subtotalComposicionVieja += linea.getSubTotal() != null ? linea.getSubTotal() : 0;
+            } else {
+                lineasAConservar.add(linea);
+            }
+        }
+
+        double totalPedidoActual = pedido.getTotalPedido() != null ? pedido.getTotalPedido() : 0.0;
+        double totalPedidoNuevo = totalPedidoActual - subtotalComposicionVieja + nuevoSubtotalComposicion;
+
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        if (totalPedidoNuevo < totalPagado) {
+            throw new RuntimeException("Este cambio bajaria el total a $" + String.format("%.2f", totalPedidoNuevo)
+                    + ", por debajo de lo que el cliente ya pago ($" + String.format("%.2f", totalPagado)
+                    + "). Implicaria devolver dinero, y este endpoint no lo soporta -- quita menos cosas.");
+        }
+
+        // 5. Reemplazar lineas: se conservan las ajenas a la composicion, se quitan las viejas de
+        // flores/papel/accesorios y se agregan las nuevas.
+        pedido.getDetalles().clear();
+        pedido.getDetalles().addAll(lineasAConservar);
+        for (int i = 0; i < coloresNuevos.size(); i++) {
+            ColorFlor color = coloresNuevos.get(i);
+            int cantidad = dto.getColores().get(i).getCantidad();
+            if (color.getVariante() != null) {
+                pedido.getDetalles().add(construirLineaPedido(pedido, color.getVariante(), cantidad, especie.getPrecioPorFlor()));
+            }
+        }
+        if (papelAplicado != null && papelAplicado.getVariante() != null) {
+            pedido.getDetalles().add(construirLineaPedido(pedido, papelAplicado.getVariante(), 1, nuevoPrecioPapel));
+        }
+        for (Map.Entry<Integer, Integer> entry : cantidadPorAccesorio.entrySet()) {
+            AccesorioRamo accesorio = accesoriosElegidos.get(entry.getKey());
+            if (accesorio.getVariante() != null) {
+                pedido.getDetalles().add(construirLineaPedido(pedido, accesorio.getVariante(), entry.getValue(), accesorio.getPrecio()));
+            }
+        }
+        pedido.setTotalPedido(totalPedidoNuevo);
+        iPedidoRepository.save(pedido);
+
+        // 6. Sincronizar el ticket de produccion (RamoPedidoDetalle) con la nueva composicion.
+        detalle.getColores().clear();
+        for (int i = 0; i < coloresNuevos.size(); i++) {
+            RamoPedidoDetalleColor lineaColor = new RamoPedidoDetalleColor();
+            lineaColor.setRamoPedidoDetalle(detalle);
+            lineaColor.setColorFlor(coloresNuevos.get(i));
+            lineaColor.setCantidad(dto.getColores().get(i).getCantidad());
+            detalle.getColores().add(lineaColor);
+        }
+        detalle.setTipoFlor(especie);
+        detalle.setCantidadFinal(cantidadFinal);
+        RamoPedidoDetalle guardado = iRamoPedidoDetalleRepository.save(detalle);
+
+        return new EditarRamoResponseDto(toResponseDto(guardado), totalPedidoActual, totalPedidoNuevo,
+                totalPedidoNuevo - totalPedidoActual);
+    }
+
+    private DetallePedido construirLineaPedido(Pedido pedido, Variantes variante, int cantidad, double precioUnitario) {
+        DetallePedido linea = new DetallePedido();
+        linea.setPedido(pedido);
+        linea.setProducto(variante.getProducto());
+        linea.setVariante(variante);
+        linea.setCantidad(cantidad);
+        linea.setPrecioUnitario(precioUnitario);
+        linea.setSubTotal(cantidad * precioUnitario);
+        return linea;
     }
 }

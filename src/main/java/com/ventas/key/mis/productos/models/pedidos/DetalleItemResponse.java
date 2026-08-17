@@ -18,4 +18,8 @@ public class DetalleItemResponse {
     private Double subTotal;
     private Integer promocionId;
     private String promocionDescripcion;
+    // true si es una linea que el cliente no deberia ver por separado (ej. el papel de un ramo
+    // de flores eternas, que va incluido en el precio de las flores) -- el front la agrupa o la
+    // esconde en vez de mostrarla como renglon suelto. false/ausente en cualquier otra linea.
+    private Boolean esLineaInterna;
 }
