@@ -8937,12 +8937,15 @@ existen mejor pero van a devolver 400 (credenciales no configuradas) hasta enton
 
 ---
 
-## ✅ Ya se puede probar en QA — credenciales de Meta cargadas (2026-08-17)
+## ✅ Ya se puede probar en QA — credenciales de Meta cargadas (2026-08-17, corregido el mismo día)
 
-El bloqueo de arriba ya se resolvió: el Page Access Token de larga duración (no expira) de la
-página real **"Novedades Jade"** ya está cargado en QA (`FACEBOOK_PAGE_ID`/`FACEBOOK_PAGE_ACCESS_TOKEN`
-como variables de entorno del deployment, más el rollout ya aplicado). **El camino feliz ya se
-puede probar de verdad en QA**, no solo el 400 de credenciales.
+El bloqueo de arriba ya se resolvió: el Page Access Token de larga duración (no expira) ya está
+cargado. **Corrección importante:** la página correcta del negocio es **"NovedadesJade"** (sin
+espacio, id `645820348605806`) — no "Novedades Jade" con espacio (`1275448475648441`), que se
+había configurado primero por error. La correcta es la que tiene vinculada la cuenta real de
+Instagram (`novedades_bolsas_jade`). Si alguno de los dos lados guardó el ID viejo en algún lado,
+hay que actualizarlo. **El camino feliz ya se puede probar de verdad en QA**, no solo el 400 de
+credenciales.
 
 **Para que ustedes puedan probarlo, falta su parte:** traer de vuelta la rama
 `backup/facebook-redes-sociales` de su repo (mismo nombre que la nuestra, a propósito) — el
@@ -8964,12 +8967,12 @@ casi el mismo trámite de permisos de Meta cuando se necesite; TikTok es aparte.
 ## 🆕 BACK — adelantado el código de Instagram mientras ustedes restauran Facebook (2026-08-17)
 
 Mientras ustedes traen de vuelta su rama de Facebook, adelantamos del lado del back el primer
-endpoint de Instagram — para no quedarnos parados esperando. **Importante: esto NO se puede
-probar todavía**, falta un requisito que solo el dueño puede resolver desde Meta Business Suite:
-**la cuenta de Instagram profesional (Business/Creator) todavía no está vinculada** a la página de
-Facebook "Novedades Jade" (lo verificamos contra la Graph API, `instagram_business_account` no
-viene en la respuesta de la página). Sin eso, `instagram.account-id` va a seguir vacío y el
-endpoint responde 400.
+endpoint de Instagram — para no quedarnos parados esperando.
+
+**Ya se resolvió el bloqueo de la cuenta** (ver la corrección de arriba): la cuenta de Instagram
+profesional `novedades_bolsas_jade` ya está vinculada, pero a la página "NovedadesJade"
+(`645820348605806`), no a la que se había configurado primero. Ya con eso corregido, `instagram.account-id`
+tiene el valor real (`17841444237033427`) y el endpoint ya se puede probar de verdad en QA.
 
 ### 🆕 `POST /v1/redes-sociales/instagram/publicar` — solo ADMIN
 
