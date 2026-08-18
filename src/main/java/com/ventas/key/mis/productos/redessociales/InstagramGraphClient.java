@@ -1,0 +1,121 @@
+package com.ventas.key.mis.productos.redessociales;
+
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.time.Duration;
+import java.util.Map;
+
+/**
+ * Publica fotos en la cuenta de Instagram profesional vinculada a la pagina, via Graph API
+ * ({@code /{ig-user-id}/media} + {@code /{ig-user-id}/media_publish}). Reusa el mismo Page
+ * Access Token que Facebook -- una cuenta de Instagram Business/Creator solo puede publicarse
+ * a traves de la pagina de Facebook a la que esta vinculada, no tiene credenciales propias.
+ *
+ * Requiere que la cuenta de Instagram ya este vinculada a la pagina en Meta Business Suite y
+ * que la app tenga los permisos instagram_basic/instagram_content_publish aprobados -- sin eso
+ * la Graph API responde error, no hay forma de evitarlo desde el codigo.
+ *
+ * A diferencia de Facebook, la Content Publishing API de Instagram SIEMPRE publica de inmediato
+ * -- no soporta scheduled_publish_time. Programar quedaria pendiente de un scheduler propio si
+ * algun dia se pide.
+ */
+@Service
+@Slf4j
+public class InstagramGraphClient {
+
+    @Value("${instagram.account-id:}")
+    private String igUserId;
+
+    @Value("${facebook.page-access-token:}")
+    private String pageAccessToken;
+
+    @Value("${facebook.api-version:v21.0}")
+    private String apiVersion;
+
+    private final WebClient.Builder builder;
+    private WebClient webClient;
+
+    public InstagramGraphClient(WebClient.Builder builder) {
+        this.builder = builder;
+    }
+
+    @PostConstruct
+    void init() {
+        this.webClient = builder.baseUrl("https://graph.facebook.com").build();
+    }
+
+    public String publicarFoto(String imagenUrlPublica, String caption) {
+        if (igUserId.isBlank() || pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o "
+                    + "FACEBOOK_PAGE_ACCESS_TOKEN (la cuenta de Instagram publica a traves de la misma pagina)");
+        }
+        if (imagenUrlPublica == null || imagenUrlPublica.isBlank()) {
+            throw new ExceptionErrorInesperado("No hay una URL publica de imagen disponible para publicar");
+        }
+
+        String creationId = crearContenedor(imagenUrlPublica, caption);
+        String mediaId = publicarContenedor(creationId);
+        log.info("Publicado en Instagram, id={}", mediaId);
+        return mediaId;
+    }
+
+    private String crearContenedor(String imagenUrlPublica, String caption) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("image_url", imagenUrlPublica);
+        form.add("caption", caption);
+        form.add("access_token", pageAccessToken);
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{igUserId}/media", apiVersion, igUserId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(form))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Instagram rechazo la imagen: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(30))
+                .block();
+
+        if (response == null || response.get("id") == null) {
+            throw new ExceptionErrorInesperado("Instagram no devolvio id de contenedor al crear la publicacion: " + response);
+        }
+        return String.valueOf(response.get("id"));
+    }
+
+    private String publicarContenedor(String creationId) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("creation_id", creationId);
+        form.add("access_token", pageAccessToken);
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{igUserId}/media_publish", apiVersion, igUserId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(form))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Instagram rechazo publicar el contenedor: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(30))
+                .block();
+
+        if (response == null || response.get("id") == null) {
+            throw new ExceptionErrorInesperado("Instagram no devolvio id de publicacion: " + response);
+        }
+        return String.valueOf(response.get("id"));
+    }
+}
