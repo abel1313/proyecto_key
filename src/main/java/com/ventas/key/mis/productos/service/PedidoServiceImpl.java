@@ -602,6 +602,20 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             throw new RuntimeException("No se pueden editar los datos de entrega de un pedido cancelado");
         }
 
+        // fechaEntrega/lugarEntregaId aqui no recalculan nada de flores (fechaLimitePago,
+        // cargoUrgenteMonto, esUrgente) -- un pedido de ramo podia cotizarse sin urgencia, pagarse,
+        // y despues moverse a una fecha urgente por este endpoint sin cobrar el cargo. Reportado
+        // por el front 2026-08-17 (ya bloqueado en su UI); aqui se bloquea tambien del lado del
+        // back para que no se pueda saltar llamando el endpoint directo. Usar
+        // PUT /v1/flores/pedidos/{id}/editar-ramo para mover la fecha de un ramo, que si recotiza.
+        boolean tocaFechaOLugar = requestG.getFechaEntrega() != null || requestG.getLugarEntregaId() != null;
+        if (tocaFechaOLugar && !iRamoPedidoDetalleRepository.findByPedidoId(id).isEmpty()) {
+            throw new RuntimeException("Este pedido es un ramo de flores -- la fecha de entrega y el lugar no se "
+                    + "pueden cambiar desde aqui porque no recalculan el cargo de urgencia. Para mover la fecha usa "
+                    + "PUT /v1/flores/pedidos/" + id + "/editar-ramo (el lugar todavia no se puede cambiar en un "
+                    + "ramo por ningun endpoint).");
+        }
+
         if (requestG.getNombreReceptor() != null) {
             pedido.setNombreReceptor(requestG.getNombreReceptor());
         }

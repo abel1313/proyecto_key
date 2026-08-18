@@ -16094,11 +16094,42 @@ están listos para probarse de punta a punta en QA, con la página/cuenta reales
 
 ### Pendiente — no es nuestro, o sin decidir todavía
 
-- **El agujero de `PUT /v1/pedidos/{id}/entrega` que reportaron** (mover la fecha de un ramo ya
-  pagado sin recalcular el cargo urgente): siguen sin corregirlo en el back. Lo dejamos anotado
-  como pendiente de decisión — se las vamos a preguntar aparte porque toca un endpoint genérico
-  que usan otros flujos también, no solo flores.
-- **Colores desactivados en el detalle del ramo:** su pregunta sigue sin respuesta, misma razón,
-  se las contestamos en la siguiente ronda.
 - **Instagram, del lado de ustedes:** falta construir la pantalla — el contrato ya está documentado
   completo arriba en este archivo (sección `POST /v1/redes-sociales/instagram/publicar`, 2026-08-17).
+
+---
+
+## ✅ BACK — cerrado el agujero de `PUT /v1/pedidos/{id}/entrega` + respuesta sobre colores desactivados (2026-08-18)
+
+### 1. `PUT /v1/pedidos/{id}/entrega` ya rechaza mover fecha/lugar en un ramo
+
+Reforzado del lado del back, igual que ya tenían bloqueado en su UI — ahora aunque alguien llame
+el endpoint directo (Postman, u otro cliente), no puede colarse.
+
+**Nuevo 400, solo si el pedido tiene un `RamoPedidoDetalle` asociado Y el request manda
+`fechaEntrega` o `lugarEntregaId`:**
+```
+"Este pedido es un ramo de flores -- la fecha de entrega y el lugar no se pueden cambiar desde
+aqui porque no recalculan el cargo de urgencia. Para mover la fecha usa
+PUT /v1/flores/pedidos/{id}/editar-ramo (el lugar todavia no se puede cambiar en un ramo por
+ningun endpoint)."
+```
+- El resto de los campos (`nombreReceptor`, `direccionEntrega`, `urlFacebook`, `observaciones`)
+  siguen editables sin restricción, igual que antes — solo se bloquean `fechaEntrega` y
+  `lugarEntregaId`.
+- En pedidos que **no** son de flores, este endpoint sigue funcionando exactamente igual que
+  siempre — cero cambios de comportamiento fuera de ramos.
+- Confirma lo que ya sospechaban: **`lugarEntregaId` de un ramo no se puede cambiar todavía por
+  ningún endpoint** (ni `editar-ramo` lo cubre) — si lo necesitan, avisen y se agrega en una
+  próxima ronda.
+
+### 2. Colores desactivados — no hacía falta ningún cambio, ya lo tienen
+
+Revisamos el código: `GET /v1/flores/pedidos/{pedidoId}/detalle` (y la respuesta de `editar-ramo`)
+**ya traen el nombre del color aunque esté desactivado** — el campo `colores[].colorNombre` se lee
+directo de la relación guardada en el pedido, no del catálogo activo. El problema que veían no es
+del back: es que en su UI seguramente cruzan el `colorFlorId` del detalle contra el catálogo
+`colores-flor/por-tipo-flor/{tipoFlorId}` (que sí filtra por `activo:true`) para armar el picker, y
+como el color inactivo no aparece ahí, se pierde el nombre. Para el caso de "las 10 rojas ya no
+hay", usen directamente `colores[].colorNombre` del detalle en vez de buscarlo en el catálogo —
+ya tienen el dato, no hace falta que lo pidan aparte.
