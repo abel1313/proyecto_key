@@ -91,30 +91,35 @@ sesión de cambios de backend:
 
 ### Regla — CAMBIOS_FRONT.md es espejo bidireccional con el repo del front (documentos_front_back_nodevedaades_jade)
 
-`CAMBIOS_FRONT.md` vive en dos lugares y **siempre deben quedar idénticos**:
+`CAMBIOS_FRONT.md` vive en dos lugares y **debe quedar idéntico en ambos cuando se sincroniza**:
 - Aquí: `D:\proyectos\proyecto_key_new\CAMBIOS_FRONT.md`
 - Repo del front: `D:\proyectos\documentos_front_back_nodevedaades_jade\CAMBIOS_FRONT.md` (rama `main`, sin dev/qa)
 
-**Antes de editar `CAMBIOS_FRONT.md` en cualquiera de los dos lados**, revisar primero cuál de los
-dos tiene el cambio más reciente (`git log -1` en ambos repos) — puede que el front haya editado
-directamente el del repo nuevo (agregando una consulta, por ejemplo) sin que el micro se haya
-enterado.
+**⚠️ NO tocar el repo del front (ningún archivo, incluido `CAMBIOS_FRONT.md`) sin que el usuario lo
+pida explícitamente en ese momento.** No hay autorización permanente ni automática — ni para
+sincronizar el doc, ni para pushear commits del front que estén sin subir, ni para ningún otro
+`cp`/`git add`/`git commit`/`git push` ahí. Esto revierte una autorización anterior que sí era
+automática; se dejó así a propósito después de dos incidentes donde tocar ese repo por cuenta
+propia generó fricción (ver memoria `feedback_no_tocar_repo_front_sin_permiso`).
 
-- **Si el cambio se originó aquí** (edición de código + doc en la misma sesión, lo más común):
-  copiar el archivo completo a la ruta del repo del front, sobrescribiendo el destino (no fusionar
-  a mano), y hacer commit + push directo a `main` de ese repo.
-- **Si el cambio se originó en el repo del front** (alguien editó `CAMBIOS_FRONT.md` allá
-  directamente, ej. agregó una consulta o dato): copiar ese archivo de vuelta a
-  `proyecto_key_new/CAMBIOS_FRONT.md`, sobrescribiendo el de aquí.
-- Esto se hace **siempre** que se detecte una diferencia entre los dos, sin necesidad de que el
-  usuario lo pida cada vez — es una autorización permanente específica para este archivo y esta
-  sincronización en ambas direcciones, no aplica al resto de las reglas de "no hacer commit/push
-  automático" de arriba.
-- El resto de ese repo (`CLAUDE.md`, `README.md`, otros archivos que ya existan ahí) no se toca —
-  solo se sincroniza `CAMBIOS_FRONT.md`.
-- Si en algún momento **ambos lados tienen cambios distintos y no triviales a la vez** (conflicto
-  real, no solo uno más nuevo que el otro), no se sobrescribe nada solo: se le muestra el diff al
-  usuario y se pregunta cuál gana antes de pisar contenido.
+**Lo que sí se puede hacer sin pedir permiso:** leer el repo del front (`git log`, `git diff`,
+`git show`, comparar contra la copia local) para informar al usuario si hay contenido nuevo o
+diferencias — la restricción es sobre escribir/modificar/pushear, no sobre consultar.
+
+**Cuando el usuario SÍ pida sincronizar**, seguir este procedimiento:
+1. Revisar primero cuál de los dos tiene el cambio más reciente (`git fetch origin` +
+   `git log -1` **comparando contra `origin/main`, no solo el HEAD local** — un commit puede
+   existir localmente en el repo del front sin haberse pusheado nunca).
+2. **Si el cambio se originó aquí:** copiar el archivo completo a la ruta del repo del front,
+   sobrescribiendo el destino (no fusionar a mano), confirmar con `diff` que quedaron idénticos, y
+   hacer commit + push a `main` de ese repo.
+3. **Si el cambio se originó en el repo del front:** copiar ese archivo de vuelta a
+   `proyecto_key_new/CAMBIOS_FRONT.md`, sobrescribiendo el de aquí.
+4. El resto de ese repo (`CLAUDE.md`, `README.md`, otros archivos que ya existan ahí) no se toca —
+   solo `CAMBIOS_FRONT.md`.
+5. Si **ambos lados tienen cambios distintos y no triviales a la vez** (conflicto real, no solo
+   uno más nuevo que el otro), no se sobrescribe nada solo: mostrar el diff al usuario y preguntar
+   cuál gana antes de pisar contenido.
 
 ## JWT — Configuración y problema conocido resuelto
 
