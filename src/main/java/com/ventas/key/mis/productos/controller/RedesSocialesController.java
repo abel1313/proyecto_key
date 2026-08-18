@@ -41,7 +41,9 @@ public class RedesSocialesController {
                 "(2) otra imagen ya guardada de esa variante (mandando imagenId), o (3) un archivo nuevo " +
                 "(imagenNueva) que se publica tal cual llega -- a máxima calidad, sin redimensionar -- y que " +
                 "NO se guarda en la galería de la variante, es exclusivo de esa publicación. " +
-                "Si scheduledPublishTime viene, programa la publicación (published=false); si no, publica de inmediato."
+                "Si scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job a esa " +
+                "hora (no el scheduler nativo de Meta -- decisión explícita para que Facebook/Instagram/TikTok " +
+                "salgan siempre sincronizados); si no, publica de inmediato."
     )
     @PostMapping(value = "/facebook/publicar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnFacebook(
@@ -69,7 +71,8 @@ public class RedesSocialesController {
         description = "Sube un video junto con la descripción a POST /{page-id}/videos de la Graph API. " +
                 "A diferencia de la foto, el catálogo no guarda video de variantes -- el archivo es " +
                 "obligatorio en cada llamada, nunca se persiste en el microservicio de imágenes. " +
-                "Si scheduledPublishTime viene, programa la publicación; si no, publica de inmediato."
+                "Si scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job a esa " +
+                "hora; si no, publica de inmediato."
     )
     @PostMapping(value = "/facebook/publicar-video", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarVideoEnFacebook(
@@ -89,18 +92,22 @@ public class RedesSocialesController {
         summary = "Publicar un Reel de una variante en la página de Facebook",
         description = "Sube el video con subida reanudable (POST /{page-id}/video_reels, varios pasos absorbidos " +
                 "aqui) y publica un Reel. Sin validar duracion/proporcion/peso -- lo que Facebook rechace lo " +
-                "rechaza con su propio error. Publica siempre de inmediato, no soporta programar. El archivo es " +
-                "obligatorio en cada llamada, nunca se persiste."
+                "rechaza con su propio error. Si scheduledPublishTime viene, se guarda como PROGRAMADA y la " +
+                "publica nuestro propio job a esa hora (no el scheduler nativo de Meta, por consistencia con " +
+                "Instagram/TikTok que no lo tienen); si no, publica de inmediato. El archivo es obligatorio en " +
+                "cada llamada, nunca se persiste."
     )
     @PostMapping(value = "/facebook/publicar-reel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarReelEnFacebook(
             @RequestParam Integer varianteId,
             @RequestParam String descripcion,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
         log.info("Publicar Reel en Facebook - varianteId={}, bytes={}", varianteId, video.getSize());
 
-        PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnFacebook(varianteId, descripcion, video);
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnFacebook(
+                varianteId, descripcion, scheduledPublishTime, video);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
 
@@ -108,8 +115,10 @@ public class RedesSocialesController {
         summary = "Publicar una variante en la cuenta de Instagram vinculada a la página",
         description = "Primera versión: solo foto ya guardada en el catálogo (imagenId o la principal de la " +
                 "variante si se omite) -- Instagram necesita una URL pública de la imagen, no acepta un archivo " +
-                "nuevo subido directo como Facebook. Publica siempre de inmediato, no soporta programar. " +
-                "Requiere que la cuenta de Instagram ya esté vinculada a la página en Meta Business Suite."
+                "nuevo subido directo como Facebook. Si scheduledPublishTime viene, se guarda como PROGRAMADA y " +
+                "la publica nuestro propio job (Instagram no tiene programación nativa, es un límite real de su " +
+                "API); si no, publica de inmediato. Requiere que la cuenta de Instagram ya esté vinculada a la " +
+                "página en Meta Business Suite."
     )
     @PostMapping("/instagram/publicar")
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnInstagram(
@@ -141,19 +150,23 @@ public class RedesSocialesController {
     @Operation(
         summary = "Publicar un video de una variante en TikTok",
         description = "Sube el video con Direct Post (Content Posting API v2) y lo publica. Sin validar " +
-                "duración/proporción/peso -- lo que TikTok rechace lo rechaza con su propio error. Mientras la " +
-                "app no esté auditada, solo funciona con cuentas Target User de Sandbox, y el video sale " +
-                "forzado a privado (SELF_ONLY). El archivo es obligatorio en cada llamada, nunca se persiste."
+                "duración/proporción/peso -- lo que TikTok rechace lo rechaza con su propio error. Si " +
+                "scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job (TikTok " +
+                "no tiene programación nativa); si no, publica de inmediato. Mientras la app no esté auditada, " +
+                "solo funciona con cuentas Target User de Sandbox, y el video sale forzado a privado " +
+                "(SELF_ONLY). El archivo es obligatorio en cada llamada, nunca se persiste."
     )
     @PostMapping(value = "/tiktok/publicar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnTikTok(
             @RequestParam Integer varianteId,
             @RequestParam String descripcion,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
         log.info("Publicar en TikTok - varianteId={}, bytes={}", varianteId, video.getSize());
 
-        PublicacionSocialDto publicacion = publicacionSocialService.publicarEnTikTok(varianteId, descripcion, video);
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarEnTikTok(
+                varianteId, descripcion, scheduledPublishTime, video);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
 
@@ -161,18 +174,22 @@ public class RedesSocialesController {
         summary = "Publicar un Reel de una variante en Instagram",
         description = "Sube el video con subida reanudable (varios pasos con la Graph API, absorbidos aqui) y " +
                 "publica un Reel. El video se manda tal cual llega -- sin validar duracion/proporcion/peso, " +
-                "vertical u horizontal, lo que Instagram rechace lo rechaza con su propio error. Publica siempre " +
-                "de inmediato, no soporta programar. El archivo es obligatorio en cada llamada, nunca se persiste."
+                "vertical u horizontal, lo que Instagram rechace lo rechaza con su propio error. Si " +
+                "scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job " +
+                "(Instagram no tiene programación nativa); si no, publica de inmediato. El archivo es " +
+                "obligatorio en cada llamada, nunca se persiste."
     )
     @PostMapping(value = "/instagram/publicar-reel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarReelEnInstagram(
             @RequestParam Integer varianteId,
             @RequestParam String descripcion,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
         log.info("Publicar Reel en Instagram - varianteId={}, bytes={}", varianteId, video.getSize());
 
-        PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnInstagram(varianteId, descripcion, video);
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnInstagram(
+                varianteId, descripcion, scheduledPublishTime, video);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
 }

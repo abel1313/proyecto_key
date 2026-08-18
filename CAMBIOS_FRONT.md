@@ -16702,3 +16702,47 @@ Sin resolver todavía — se le preguntó al usuario, en espera de respuesta.
 Todo lo de Facebook/Instagram/TikTok construido esta sesión vive en `dev`/`qa` — **no se ha tocado
 `main`/producción**, decisión consistente con cómo se ha manejado el resto de módulos grandes de
 este proyecto (se deja el merge a main aparte, a propósito).
+
+---
+
+## ✅ BACK — decidido: programación con job propio para las 3 redes, incluido Facebook (2026-08-18)
+
+Resuelta la duda que dejamos pendiente arriba. El dueño confirmó: **job propio para Facebook,
+Instagram y TikTok** — ninguna de las 3 usa el scheduler nativo de su plataforma (aunque Facebook
+sí lo tiene), para que las 3 salgan siempre juntas o ninguna, nunca a medias. Ya está construido.
+
+### Qué cambia en el contrato — mismo campo, nuevo comportamiento
+
+**`scheduledPublishTime` ahora existe en los 6 endpoints de publicar** (antes solo en Facebook
+foto/video): Facebook foto, Facebook video, **Facebook Reel (nuevo)**, **Instagram foto
+(nuevo)**, **Instagram Reel (nuevo)**, **TikTok (nuevo)**. Mismo formato ISO datetime que ya
+usaban. Si se omite, publica de inmediato — sin cambios ahí.
+
+- **Ya no hay límite máximo de fecha impuesto por cada red** (los 29 días de Facebook Reel, los 6
+  meses del video de feed) — como es nuestro propio job, no la API de Meta/TikTok directamente,
+  no aplica ninguno de esos límites. Solo se mantiene el mínimo de **10 minutos de anticipación**
+  (igual en las 6), como validación operativa razonable, no un límite de plataforma.
+- **`estado` en la respuesta ahora puede ser `"PROGRAMADA"`** (esperando su hora), además de
+  `"PUBLICADA"` y `"FALLIDA"` (nuevo — el job reintenta hasta 3 veces antes de rendirse).
+- **2 campos nuevos en la respuesta:** `intentos` (cuántas veces el job lo intentó) y
+  `ultimoError` (mensaje del último fallo, útil para mostrarle al admin por qué no salió). Ambos
+  `null`/`0` mientras no haya habido ningún intento fallido.
+- Cuando `estado:"PROGRAMADA"`, `postIdFacebook` viene `null` — todavía no existe el post, se
+  llena cuando el job la publique de verdad.
+
+### Cómo funciona por dentro (informativo, no cambia nada de su lado)
+
+El archivo (video/foto ad-hoc) se guarda temporalmente en la base de datos mientras espera su
+hora, y se libera en cuanto se publica o falla definitivamente — no queda ocupando espacio para
+siempre. Un job corre cada minuto buscando publicaciones vencidas y las dispara.
+
+### Migraciones — ya corridas en dev/qa
+
+`migration_publicacion_social_programada.sql` (columnas nuevas en `publicacion_social`) y
+`migration_tiktok_token.sql` — confirmado que ya corrieron en ambos ambientes.
+
+### Sigue sin probarse en vivo
+
+Ni la publicación inmediata de Reels/TikTok ni el nuevo flujo de programación se han probado
+contra las APIs reales todavía. En cuanto el dueño haga la primera prueba real (inmediata o
+programada), avisamos con el resultado.

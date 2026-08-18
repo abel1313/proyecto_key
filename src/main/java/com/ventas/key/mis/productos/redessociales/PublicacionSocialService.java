@@ -18,9 +18,15 @@ import org.springframework.web.multipart.MultipartFile;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
+// Las 3 redes (Facebook, Instagram, TikTok) programan su publicacion de la MISMA forma: se
+// guarda aqui con estado "PROGRAMADA" y PublicacionSocialScheduler la dispara a la hora exacta.
+// Decision explicita del dueno (2026-08-18): aunque Facebook si tiene scheduler nativo de Meta
+// (video_state=SCHEDULED), NO se usa -- Instagram y TikTok nunca tuvieron esa opcion (limite real
+// de esas APIs, no nuestro), asi que si Facebook fuera nativo, las 3 podrian desincronizarse
+// (Facebook sale aunque el servidor este caido a esa hora, las otras dos no). Con las 3 por el
+// mismo job, siempre salen juntas o ninguna.
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -50,8 +56,8 @@ public class PublicacionSocialService {
                 .orElseThrow(() -> new ExceptionDataNotFound(
                         "No existe la variante con id " + request.getVarianteId()));
 
-        byte[] bytesImagen;
-        String contentType;
+        byte[] bytesImagen = null;
+        String contentType = null;
         Long imagenId = null;
 
         if (imagenNueva != null && !imagenNueva.isEmpty()) {
@@ -69,28 +75,15 @@ public class PublicacionSocialService {
                     variante.getId(), bytesImagen.length);
         } else {
             imagenId = request.getImagenId() != null ? request.getImagenId() : imagenPrincipalDe(variante.getId());
-            ImagenDto imagen = imagenPort.getOne(imagenId);
-            if (imagen == null || imagen.getImagen() == null) {
-                throw new ExceptionErrorInesperado(
-                        "La variante " + variante.getId() + " no tiene una imagen disponible para publicar");
-            }
-            bytesImagen = imagen.getImagen();
-            contentType = imagen.getContentType();
         }
 
-        Long scheduledEpoch = null;
+        PublicacionSocial nueva = nuevaPublicacion(variante, "facebook", "foto", request.getDescripcion(),
+                imagenId, bytesImagen, contentType);
+
         if (request.getScheduledPublishTime() != null) {
-            validarVentanaProgramacion(request.getScheduledPublishTime());
-            scheduledEpoch = request.getScheduledPublishTime()
-                    .atZone(ZoneId.systemDefault())
-                    .toEpochSecond();
+            return programar(nueva, request.getScheduledPublishTime());
         }
-
-        String postId = facebookGraphClient.publicarFoto(
-                bytesImagen, contentType, request.getDescripcion(), scheduledEpoch);
-
-        return guardarPublicacion(variante, "foto", request.getDescripcion(), imagenId,
-                postId, request.getScheduledPublishTime(), scheduledEpoch);
+        return ejecutarYGuardar(nueva);
     }
 
     /**
@@ -104,64 +97,40 @@ public class PublicacionSocialService {
         Variantes variante = varianteRepository.findById(varianteId)
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
 
-        if (video == null || video.isEmpty()) {
-            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
-        }
+        byte[] bytesVideo = leerBytes(video, "video");
 
-        byte[] bytesVideo;
-        try {
-            bytesVideo = video.getBytes();
-        } catch (IOException e) {
-            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
-        }
+        PublicacionSocial nueva = nuevaPublicacion(variante, "facebook", "video", descripcion,
+                null, bytesVideo, video.getContentType());
 
-        Long scheduledEpoch = null;
         if (scheduledPublishTime != null) {
-            validarVentanaProgramacion(scheduledPublishTime);
-            scheduledEpoch = scheduledPublishTime.atZone(ZoneId.systemDefault()).toEpochSecond();
+            return programar(nueva, scheduledPublishTime);
         }
-
-        log.info("Publicando video en Facebook, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
-        String videoId = facebookGraphClient.publicarVideo(
-                bytesVideo, video.getContentType(), descripcion, scheduledEpoch);
-
-        return guardarPublicacion(variante, "video", descripcion, null,
-                videoId, scheduledPublishTime, scheduledEpoch);
+        return ejecutarYGuardar(nueva);
     }
 
-    /**
-     * Reel de la página. Sin programar -- video_reels no lo soporta igual que /videos, siempre
-     * publica de inmediato. Mismo criterio que el video normal: el archivo siempre viene en el
-     * request, nunca se persiste.
-     */
+    /** Reel de la página -- mismo criterio que el video: archivo siempre en el request. */
     @Transactional
-    public PublicacionSocialDto publicarReelEnFacebook(Integer varianteId, String descripcion, MultipartFile video) {
+    public PublicacionSocialDto publicarReelEnFacebook(Integer varianteId, String descripcion,
+                                                         LocalDateTime scheduledPublishTime, MultipartFile video) {
         Variantes variante = varianteRepository.findById(varianteId)
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
 
-        if (video == null || video.isEmpty()) {
-            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        byte[] bytesVideo = leerBytes(video, "video");
+
+        PublicacionSocial nueva = nuevaPublicacion(variante, "facebook", "reel", descripcion,
+                null, bytesVideo, video.getContentType());
+
+        if (scheduledPublishTime != null) {
+            return programar(nueva, scheduledPublishTime);
         }
-
-        byte[] bytesVideo;
-        try {
-            bytesVideo = video.getBytes();
-        } catch (IOException e) {
-            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
-        }
-
-        log.info("Publicando Reel en Facebook, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
-        String videoId = facebookGraphClient.publicarReel(bytesVideo, video.getContentType(), descripcion);
-
-        return guardarPublicacion(variante, "reel", descripcion, null, videoId, null, null);
+        return ejecutarYGuardar(nueva);
     }
 
     // Primera version de Instagram, alcance recortado a proposito: solo imagen ya guardada en el
     // catalogo (imagenId o la principal de la variante), nunca un archivo ad-hoc -- Instagram
     // necesita una URL publica para la imagen, no acepta bytes subidos directo como Facebook, y
     // un archivo recien llegado del admin todavia no tiene esa URL sin antes guardarlo en el
-    // microservicio de imagenes (paso que se deja para una version futura si hace falta). Tampoco
-    // soporta programar -- la Content Publishing API de Instagram siempre publica de inmediato.
+    // microservicio de imagenes (paso que se deja para una version futura si hace falta).
     @Transactional
     public PublicacionSocialDto publicarEnInstagram(PublicarInstagramRequest request) {
         Variantes variante = varianteRepository.findById(request.getVarianteId())
@@ -169,63 +138,33 @@ public class PublicacionSocialService {
                         "No existe la variante con id " + request.getVarianteId()));
 
         Long imagenId = request.getImagenId() != null ? request.getImagenId() : imagenPrincipalDe(variante.getId());
-        if (endpointImagenes == null || endpointImagenes.isBlank()) {
-            throw new ExceptionErrorInesperado("No se pudo construir la URL publica de la imagen: falta configurar api.imagenes");
+
+        PublicacionSocial nueva = nuevaPublicacion(variante, "instagram", "foto", request.getDescripcion(),
+                imagenId, null, null);
+
+        if (request.getScheduledPublishTime() != null) {
+            return programar(nueva, request.getScheduledPublishTime());
         }
-        String urlImagen = endpointImagenes + "v1/imagenes/file/" + imagenId;
-
-        String mediaId = instagramGraphClient.publicarFoto(urlImagen, request.getDescripcion());
-
-        return guardarPublicacionInstagram(variante, request.getDescripcion(), imagenId, mediaId);
+        return ejecutarYGuardar(nueva);
     }
 
-    private PublicacionSocialDto guardarPublicacionInstagram(Variantes variante, String descripcion,
-                                                                Long imagenId, String mediaId) {
-        return guardarPublicacionInstagram(variante, descripcion, imagenId, mediaId, "foto");
-    }
-
-    private PublicacionSocialDto guardarPublicacionInstagram(Variantes variante, String descripcion,
-                                                                Long imagenId, String mediaId, String tipoPublicacion) {
-        PublicacionSocial publicacion = new PublicacionSocial();
-        publicacion.setVariante(variante);
-        publicacion.setPlataforma("instagram");
-        publicacion.setTipoPublicacion(tipoPublicacion);
-        publicacion.setDescripcionPublicada(descripcion);
-        publicacion.setImagenId(imagenId);
-        publicacion.setPostIdFacebook(mediaId);
-        publicacion.setFechaPublicacion(LocalDateTime.now());
-        publicacion.setEstado("PUBLICADA");
-
-        publicacion = publicacionSocialRepository.save(publicacion);
-        log.info("Publicación en Instagram creada: tipo={}, varianteId={}, mediaId={}", tipoPublicacion, variante.getId(), mediaId);
-
-        return PublicacionSocialDto.from(publicacion);
-    }
-
-    // Reel de Instagram -- a diferencia de la foto, el video SIEMPRE viene en el request (igual
-    // que el video de Facebook): el catalogo no guarda video de variantes, no hay "principal" a
-    // la cual caer. InstagramGraphClient absorbe toda la complejidad de la subida reanudable, el
-    // front sigue mandando un multipart normal como con Facebook.
+    // Reel de Instagram -- el video SIEMPRE viene en el request (igual que el de Facebook): el
+    // catalogo no guarda video de variantes, no hay "principal" a la cual caer.
     @Transactional
-    public PublicacionSocialDto publicarReelEnInstagram(Integer varianteId, String descripcion, MultipartFile video) {
+    public PublicacionSocialDto publicarReelEnInstagram(Integer varianteId, String descripcion,
+                                                          LocalDateTime scheduledPublishTime, MultipartFile video) {
         Variantes variante = varianteRepository.findById(varianteId)
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
 
-        if (video == null || video.isEmpty()) {
-            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        byte[] bytesVideo = leerBytes(video, "video");
+
+        PublicacionSocial nueva = nuevaPublicacion(variante, "instagram", "reel", descripcion,
+                null, bytesVideo, video.getContentType());
+
+        if (scheduledPublishTime != null) {
+            return programar(nueva, scheduledPublishTime);
         }
-
-        byte[] bytesVideo;
-        try {
-            bytesVideo = video.getBytes();
-        } catch (IOException e) {
-            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
-        }
-
-        log.info("Publicando Reel en Instagram, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
-        String mediaId = instagramGraphClient.publicarReel(bytesVideo, video.getContentType(), descripcion);
-
-        return guardarPublicacionInstagram(variante, descripcion, null, mediaId, "reel");
+        return ejecutarYGuardar(nueva);
     }
 
     /**
@@ -235,56 +174,148 @@ public class PublicacionSocialService {
      * y el video sale forzado a privado -- ver TikTokGraphClient.
      */
     @Transactional
-    public PublicacionSocialDto publicarEnTikTok(Integer varianteId, String descripcion, MultipartFile video) {
+    public PublicacionSocialDto publicarEnTikTok(Integer varianteId, String descripcion,
+                                                  LocalDateTime scheduledPublishTime, MultipartFile video) {
         Variantes variante = varianteRepository.findById(varianteId)
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
 
-        if (video == null || video.isEmpty()) {
-            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        byte[] bytesVideo = leerBytes(video, "video");
+
+        PublicacionSocial nueva = nuevaPublicacion(variante, "tiktok", "video", descripcion,
+                null, bytesVideo, video.getContentType());
+
+        if (scheduledPublishTime != null) {
+            return programar(nueva, scheduledPublishTime);
         }
-
-        byte[] bytesVideo;
-        try {
-            bytesVideo = video.getBytes();
-        } catch (IOException e) {
-            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
-        }
-
-        log.info("Publicando en TikTok, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
-        String publishId = tikTokGraphClient.publicarVideo(bytesVideo, video.getContentType(), descripcion);
-
-        PublicacionSocial publicacion = new PublicacionSocial();
-        publicacion.setVariante(variante);
-        publicacion.setPlataforma("tiktok");
-        publicacion.setTipoPublicacion("video");
-        publicacion.setDescripcionPublicada(descripcion);
-        publicacion.setPostIdFacebook(publishId);
-        publicacion.setFechaPublicacion(LocalDateTime.now());
-        publicacion.setEstado("PUBLICADA");
-        publicacion = publicacionSocialRepository.save(publicacion);
-
-        return PublicacionSocialDto.from(publicacion);
+        return ejecutarYGuardar(nueva);
     }
 
-    private PublicacionSocialDto guardarPublicacion(Variantes variante, String tipoPublicacion, String descripcion,
-                                                      Long imagenId, String postId,
-                                                      LocalDateTime scheduledPublishTime, Long scheduledEpoch) {
-        PublicacionSocial publicacion = new PublicacionSocial();
-        publicacion.setVariante(variante);
-        publicacion.setPlataforma("facebook");
-        publicacion.setTipoPublicacion(tipoPublicacion);
-        publicacion.setDescripcionPublicada(descripcion);
-        publicacion.setImagenId(imagenId);
-        publicacion.setPostIdFacebook(postId);
-        publicacion.setScheduledPublishTime(scheduledPublishTime);
-        publicacion.setFechaPublicacion(LocalDateTime.now());
-        publicacion.setEstado(scheduledEpoch != null ? "PROGRAMADA" : "PUBLICADA");
+    private byte[] leerBytes(MultipartFile video, String etiqueta) {
+        if (video == null || video.isEmpty()) {
+            throw new ExceptionErrorInesperado("Falta el archivo de " + etiqueta + " a publicar");
+        }
+        try {
+            return video.getBytes();
+        } catch (IOException e) {
+            throw new ExceptionErrorInesperado("No se pudo leer el " + etiqueta + " enviado: " + e.getMessage());
+        }
+    }
 
-        publicacion = publicacionSocialRepository.save(publicacion);
-        log.info("Publicación en Facebook creada: tipo={}, varianteId={}, postId={}, estado={}",
-                tipoPublicacion, variante.getId(), postId, publicacion.getEstado());
+    private PublicacionSocial nuevaPublicacion(Variantes variante, String plataforma, String tipoPublicacion,
+                                                String descripcion, Long imagenId, byte[] contenidoBytes, String contentType) {
+        PublicacionSocial p = new PublicacionSocial();
+        p.setVariante(variante);
+        p.setPlataforma(plataforma);
+        p.setTipoPublicacion(tipoPublicacion);
+        p.setDescripcionPublicada(descripcion);
+        p.setImagenId(imagenId);
+        p.setContenidoBytes(contenidoBytes);
+        p.setContentType(contentType);
+        p.setIntentos(0);
+        return p;
+    }
 
-        return PublicacionSocialDto.from(publicacion);
+    // Min 10 minutos de anticipacion (mismo criterio operativo de siempre), sin el limite de 29
+    // dias/6 meses que imponia cada red -- ya no aplica, es nuestro propio job, no su API.
+    private PublicacionSocialDto programar(PublicacionSocial p, LocalDateTime scheduledPublishTime) {
+        LocalDateTime ahora = LocalDateTime.now();
+        if (scheduledPublishTime.isBefore(ahora.plusMinutes(10))) {
+            throw new ExceptionErrorInesperado("Hay que programar la publicación con al menos 10 minutos de anticipación");
+        }
+        p.setScheduledPublishTime(scheduledPublishTime);
+        p.setEstado("PROGRAMADA");
+        PublicacionSocial guardada = publicacionSocialRepository.save(p);
+        log.info("Publicación programada: plataforma={}, tipo={}, varianteId={}, para={}",
+                p.getPlataforma(), p.getTipoPublicacion(), p.getVariante().getId(), scheduledPublishTime);
+        return PublicacionSocialDto.from(guardada);
+    }
+
+    private PublicacionSocialDto ejecutarYGuardar(PublicacionSocial p) {
+        ejecutar(p);
+        PublicacionSocial guardada = publicacionSocialRepository.save(p);
+        return PublicacionSocialDto.from(guardada);
+    }
+
+    // Llamado por PublicacionSocialScheduler para cada fila "PROGRAMADA" que ya llegó a su hora.
+    // A diferencia de la publicación inmediata, aquí un error NO se propaga como excepción al
+    // caller -- se guarda el fallo (intentos/ultimoError) para reintentar en la siguiente pasada
+    // del job, hasta 3 veces, y ahí sí se marca "FALLIDA" en definitiva.
+    @Transactional
+    public void ejecutarProgramada(PublicacionSocial p) {
+        try {
+            ejecutar(p);
+        } catch (Exception e) {
+            int intentos = (p.getIntentos() == null ? 0 : p.getIntentos()) + 1;
+            p.setIntentos(intentos);
+            p.setUltimoError(e.getMessage());
+            log.warn("Fallo al ejecutar publicación programada id={} (intento {}): {}", p.getId(), intentos, e.getMessage());
+            if (intentos >= 3) {
+                p.setEstado("FALLIDA");
+                p.setContenidoBytes(null);
+                log.error("Publicación programada id={} marcada FALLIDA tras 3 intentos", p.getId());
+            }
+        }
+        publicacionSocialRepository.save(p);
+    }
+
+    // Deja p listo para guardar (postIdFacebook, estado, fechaPublicacion) -- el caller decide
+    // cuándo hacer el save.
+    private void ejecutar(PublicacionSocial p) {
+        String resultId;
+        if ("facebook".equals(p.getPlataforma())) {
+            resultId = ejecutarFacebook(p);
+        } else if ("instagram".equals(p.getPlataforma())) {
+            resultId = ejecutarInstagram(p);
+        } else if ("tiktok".equals(p.getPlataforma())) {
+            resultId = tikTokGraphClient.publicarVideo(p.getContenidoBytes(), p.getContentType(), p.getDescripcionPublicada());
+        } else {
+            throw new ExceptionErrorInesperado("Plataforma desconocida: " + p.getPlataforma());
+        }
+
+        p.setPostIdFacebook(resultId);
+        p.setEstado("PUBLICADA");
+        p.setFechaPublicacion(LocalDateTime.now());
+        p.setContenidoBytes(null); // ya no hace falta, no dejar el blob ocupando espacio
+        log.info("Publicación ejecutada: plataforma={}, tipo={}, varianteId={}, id={}",
+                p.getPlataforma(), p.getTipoPublicacion(), p.getVariante().getId(), resultId);
+    }
+
+    private String ejecutarFacebook(PublicacionSocial p) {
+        if ("foto".equals(p.getTipoPublicacion())) {
+            byte[] bytes = p.getContenidoBytes();
+            String contentType = p.getContentType();
+            if (bytes == null) {
+                ImagenDto imagen = imagenPort.getOne(p.getImagenId());
+                if (imagen == null || imagen.getImagen() == null) {
+                    throw new ExceptionErrorInesperado(
+                            "La variante " + p.getVariante().getId() + " no tiene una imagen disponible para publicar");
+                }
+                bytes = imagen.getImagen();
+                contentType = imagen.getContentType();
+            }
+            return facebookGraphClient.publicarFoto(bytes, contentType, p.getDescripcionPublicada(), null);
+        }
+        if ("video".equals(p.getTipoPublicacion())) {
+            return facebookGraphClient.publicarVideo(p.getContenidoBytes(), p.getContentType(), p.getDescripcionPublicada(), null);
+        }
+        if ("reel".equals(p.getTipoPublicacion())) {
+            return facebookGraphClient.publicarReel(p.getContenidoBytes(), p.getContentType(), p.getDescripcionPublicada());
+        }
+        throw new ExceptionErrorInesperado("Tipo de publicación de Facebook desconocido: " + p.getTipoPublicacion());
+    }
+
+    private String ejecutarInstagram(PublicacionSocial p) {
+        if ("foto".equals(p.getTipoPublicacion())) {
+            if (endpointImagenes == null || endpointImagenes.isBlank()) {
+                throw new ExceptionErrorInesperado("No se pudo construir la URL pública de la imagen: falta configurar api.imagenes");
+            }
+            String urlImagen = endpointImagenes + "v1/imagenes/file/" + p.getImagenId();
+            return instagramGraphClient.publicarFoto(urlImagen, p.getDescripcionPublicada());
+        }
+        if ("reel".equals(p.getTipoPublicacion())) {
+            return instagramGraphClient.publicarReel(p.getContenidoBytes(), p.getContentType(), p.getDescripcionPublicada());
+        }
+        throw new ExceptionErrorInesperado("Tipo de publicación de Instagram desconocido: " + p.getTipoPublicacion());
     }
 
     private Long imagenPrincipalDe(Integer varianteId) {
@@ -295,17 +326,5 @@ public class PublicacionSocialService {
         }
         // La query ya ordena principal=true primero.
         return imagenes.get(0).getImagen().getId();
-    }
-
-    private void validarVentanaProgramacion(LocalDateTime scheduledPublishTime) {
-        LocalDateTime ahora = LocalDateTime.now();
-        if (scheduledPublishTime.isBefore(ahora.plusMinutes(10))) {
-            throw new ExceptionErrorInesperado(
-                    "Facebook exige programar la publicación con al menos 10 minutos de anticipación");
-        }
-        if (scheduledPublishTime.isAfter(ahora.plusMonths(6))) {
-            throw new ExceptionErrorInesperado(
-                    "Facebook no permite programar publicaciones a más de 6 meses en el futuro");
-        }
     }
 }
