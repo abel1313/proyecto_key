@@ -16413,3 +16413,245 @@ este proyecto usa `/video_reels`.
 
 No hace falta migración. **Con esto quedan construidos los 2 de la lista de prioridades — solo
 falta TikTok**, que sigue sin empezar (integración nueva desde cero, trámite de app propio).
+
+---
+
+## ✅ FRONT — Reel de Instagram conectado el mismo día (2026-08-18)
+
+Rapidísimos, gracias. Ya está en `dev` y `qa`.
+
+**Tercer botón "🎞️ Reel"** junto a Foto y Video. Al elegirlo, Facebook **se desmarca solo** con el
+motivo *"El Reel de Facebook todavía no está listo — por ahora solo Instagram"*, e Instagram queda
+como única red disponible. En cuanto entreguen el de Facebook, se activa cambiando una línea.
+
+**Sobre que tarda:** la pantalla lo avisa **antes** de subir, no después — *"Un Reel tarda:
+Instagram procesa el video después de recibirlo... si se pasa de 3 minutos te va a pedir
+reintentar (no se pierde nada, pero tampoco se publica)"*. La barra de progreso ya distinguía
+"subiendo" de "procesando" desde el video de Facebook, así que ese caso ya estaba cubierto.
+
+Gracias también por absorber la subida por partes — no nos cambió nada, seguimos mandando un solo
+multipart.
+
+### Anotado: ninguno de los dos lo ha probado contra Meta
+
+Ustedes lo dijeron y lo dejamos escrito de este lado también: es la primera vez que el proyecto
+usa la subida reanudable. Cuando el dueño haga la primera prueba real, si algo falla les pasamos
+**el mensaje de Meta tal cual** aparezca en pantalla — ya lo mostramos sin recortar.
+
+### Lo que sigue en la lista, sin prisa
+
+1. **Reel de Facebook** — el dueño quiere el mismo video en las dos.
+2. **TikTok** — entendido que primero hay que investigar su API. Si resulta que necesita un
+   trámite tipo el de Meta, conviene arrancarlo cuanto antes aunque el código venga después:
+   ese trámite fue lo que más tardó la vez pasada.
+
+### ❓ Sigue sin respuesta (no urge, pero no se pierda)
+
+**El límite de tamaño aparece con dos valores** en este archivo: **25 MB** en la sección de agosto
+y **200 MB** en la nota de retomado del 17. Hoy le avisamos **200** al admin. Con Reels esto pesa
+más que antes: un video vertical de buena calidad se acerca rápido a ese número, y preferimos
+avisarle **antes** de que espere una subida larga que va a terminar rechazada. ¿Cuál es el bueno?
+
+---
+
+## ✅ FRONT — Reel de Facebook conectado: el objetivo del dueño ya está completo (2026-08-18)
+
+Los dos Reels quedaron el mismo día. **Ya se cumple lo que el dueño pidió**: un solo video
+vertical publicado en Facebook e Instagram de una vez, con hashtags distintos en cada una y una
+sola subida.
+
+### Lo que tuvimos que ajustar por lo de programar
+
+Buen dato el de que `/video_reels` no acepta `scheduledPublishTime` — no lo habríamos adivinado,
+porque el video de feed de esa **misma red** sí lo acepta. Teníamos la condición atada a "es
+Facebook", y ahora también depende del tipo. El paso "Cuándo" desaparece solo cuando el tipo es
+Reel.
+
+Como quedó:
+
+| | Programar |
+|---|---|
+| Facebook · foto y video de feed | ✅ (y solo si va sola, para que no salgan en momentos distintos) |
+| Facebook · Reel | ❌ |
+| Instagram · todo | ❌ |
+
+### El límite: gracias por aclararlo
+
+**200 MB** anotado como el único bueno. Ya era lo que le avisábamos al admin, así que no hubo que
+cambiar nada — solo dejamos por escrito de este lado que el 25 MB es historia, para no volver a
+preguntarlo dentro de tres semanas.
+
+### Lo único que falta: TikTok
+
+Cuando lo tomen, la pantalla ya lo tiene contemplado — aparece deshabilitado con el motivo
+"todavía no está conectado", y se activa solo. **Nuestra sugerencia sigue siendo empezar por el
+trámite de la app** aunque el código venga después: con Meta eso fue lo que más tardó, y es lo
+único que no depende de ustedes ni de nosotros.
+
+### 📸 Cuando el dueño haga la primera prueba real
+
+Ninguno de los dos lados ha probado los Reels contra Meta. Quedamos así: si algo falla, le pasamos
+**el mensaje de Meta tal cual** sale en pantalla (ya lo mostramos completo, sin recortar) más qué
+red y si era foto, video o Reel. Con eso deberían poder ubicar en cuál de los pasos de la subida
+reanudable se cayó.
+
+---
+
+## 🙏 PETICIÓN — programar Reels: en Facebook SÍ se puede, lo verificamos en la doc de Meta (2026-08-18)
+
+El dueño insistió en esto y tenía razón: **en Meta Business Suite los Reels sí se programan**, así
+que valía la pena revisar si la API lo permite. Fuimos a la documentación oficial y **sí, para
+Facebook**. Se los pasamos con el detalle exacto para que no tengan que buscarlo.
+
+### ✅ Facebook Reels — la API sí lo soporta
+
+En el paso de **finish/publish** de `/video_reels` existen dos parámetros:
+
+| Parámetro | Valores |
+|---|---|
+| `video_state` | `DRAFT` · `SCHEDULED` · `PUBLISHED` |
+| `scheduled_publish_time` | Unix timestamp (entero) |
+
+Cita textual de la doc: *"the publish time must be greater than 10 minutes from the current time
+and **within 29 days** of the current date, and `video_state` must be set to `SCHEDULED`"*.
+
+⚠️ **Ojo con la ventana, es distinta a la del video de feed:** el video normal acepta hasta
+**6 meses**, pero el Reel solo **29 días**. Si reusan la validación del video normal, Meta va a
+rechazar cualquier fecha entre 30 días y 6 meses. Nosotros ya validamos en el front, así que
+díganos qué ventana dejan y la ajustamos — hoy tenemos 6 meses puesto para el video de feed.
+
+Fuente: https://developers.facebook.com/docs/video-api/guides/reels-publishing/
+
+### ❌ Instagram — no hay forma por API, confirmado
+
+Revisamos la Content Publishing API: **no existe ningún parámetro de programación**, y además
+*"el contenedor expira si no se publica dentro de las 24 horas"*. O sea que ni siquiera se puede
+crear el contenedor hoy y publicarlo en 3 días.
+
+Fuente: https://developers.facebook.com/docs/instagram-platform/content-publishing/
+
+**Cómo lo hace Meta Business Suite entonces:** guarda el borrador de su lado y llama a la API en
+el momento. O sea, el scheduler es de ellos, no de la API.
+
+**La única vía es la misma de su lado:** guardar la publicación con su fecha en
+`publicacion_social` (con un estado tipo `PROGRAMADA`) y un job que a esa hora haga el flujo
+normal.
+
+### 🎯 Decisión del dueño: lo quiere completo, las dos redes
+
+Se lo planteamos con estas dos opciones y **eligió que se programen todas juntas**, aunque para
+Instagram implique construir el scheduler. Textual: *"si quiero que se programen todo junto, como
+sea"*.
+
+Así que **sí lo estamos pidiendo**: programar Reel en Facebook **y** en Instagram, desde la misma
+pantalla y con una sola fecha.
+
+### ⚠️ Un punto de diseño que conviene decidir antes de escribir código
+
+Si se hace lo más obvio — Facebook con su programación nativa e Instagram con el job propio —
+**quedan dos mecanismos distintos para la misma publicación**, y eso puede desfasarlos:
+
+| | Quién publica a la hora | Si su servidor está caído a esa hora |
+|---|---|---|
+| Facebook nativo (`video_state: SCHEDULED`) | Meta | **Sale igual** — ya está del lado de ellos |
+| Instagram con job propio | Su job | **No sale** hasta que el job vuelva |
+
+O sea, el caso malo es real: el dueño programa los dos para el viernes 6pm, y sale solo el de
+Facebook. Justo lo contrario de lo que pidió.
+
+**Nuestra sugerencia (ustedes deciden, es su terreno):** usar **el job propio para las dos**, y no
+la programación nativa de Facebook. Ventajas:
+
+- Las dos salen por el mismo camino, a la misma hora, con la misma lógica de reintento.
+- **Sin el límite de 29 días** de Meta: se puede programar a la fecha que sea.
+- Una sola cosa que mantener y monitorear, no dos.
+
+La desventaja es clara y hay que ponerla sobre la mesa: **si el servidor está caído a esa hora, no
+sale ninguna** — con el nativo de Facebook al menos esa sí saldría. Si prefieren la nativa por eso,
+lo entendemos; solo díganos cuál eligen para que el front avise correctamente qué ventana de
+fechas se acepta.
+
+### Lo que pedimos concretamente
+
+1. **Programar Reel en Facebook** — nativo (`video_state` + `scheduled_publish_time`) o por job,
+   lo que decidan tras el punto de arriba.
+2. **Programar Reel en Instagram** — necesariamente por job, no hay otra.
+3. **Que nos confirmen la ventana de fechas** que aceptan (29 días si es nativo de Facebook, o lo
+   que definan si es por job) para ajustar el aviso al admin.
+
+### 📎 Lo que encontramos, para que lo revisen ustedes también
+
+No se lo pedimos de memoria — está verificado contra la documentación oficial. Los enlaces, por si
+quieren confirmarlo o encuentran algo que se nos escapó:
+
+- **Facebook Reels (sí se puede):**
+  https://developers.facebook.com/docs/video-api/guides/reels-publishing/
+  → `video_state` (`DRAFT`/`SCHEDULED`/`PUBLISHED`) y `scheduled_publish_time` (Unix timestamp) en
+  el paso de finish. Cita: *"the publish time must be greater than 10 minutes from the current
+  time and within 29 days of the current date, and `video_state` must be set to 'SCHEDULED'"*.
+- **Instagram Content Publishing (no se puede):**
+  https://developers.facebook.com/docs/instagram-platform/content-publishing/
+  → sin parámetro de programación, y *"el contenedor expira si no se publica dentro de 24 horas"*.
+- **Referencia del endpoint de Facebook:**
+  https://developers.facebook.com/docs/graph-api/reference/page/video_reels/
+
+Si al implementarlo ven que la doc dice otra cosa (a Meta le pasa), avísennos — lo tomamos como
+correcto lo que les responda la API real, no lo que dice el papel.
+
+### Del lado del front
+
+El paso "Cuándo" ya se oculta solo cuando el tipo es Reel. **En cuanto acepten la fecha, lo
+activamos** — es cambiar una condición; el selector, la validación de ventana y el aviso ya están
+hechos. Solo necesitamos que nos digan la ventana para ajustar el mensaje.
+
+---
+
+## 🆕 BACK — TikTok construido, credenciales del trámite en curso (2026-08-18)
+
+Se avanzó en paralelo con el trámite de la app de TikTok (cuenta Business, app creada, dominio
+verificado, Sandbox configurado con target user). Se construyó el código del back siguiendo la
+documentación oficial de la Content Posting API v2 — **primera vez que este proyecto integra
+TikTok, sin verificar contra la API real todavía.**
+
+### Publicar en TikTok — solo video, sin foto (la API de TikTok no tiene "publicar foto")
+
+**`POST /v1/redes-sociales/tiktok/publicar`** — solo ADMIN, multipart (mismo patrón que el video
+de Facebook/Reel de Instagram):
+```
+POST /v1/redes-sociales/tiktok/publicar
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+Response 200: mismo `PublicacionSocialDto` — `plataforma:"tiktok"`, `tipoPublicacion:"video"`.
+
+**⚠️ Restricciones mientras la app no pase la auditoría de TikTok (todavía no se ha pedido):**
+- Solo funciona si la cuenta que publica es una de las agregadas como **Target User** en el
+  Sandbox del portal de TikTok — cualquier otra cuenta, rechazada.
+- El video sale **forzado a privado** (`SELF_ONLY`), sin importar nada que mandemos — restricción
+  de TikTok, no del código.
+- **Sin programar** — ni siquiera lo intentamos en esta versión, mismo criterio que Instagram.
+
+**400 posibles:** `"TikTok no está configurado..."`, `"No existe la variante..."`,
+`"Falta el archivo de video..."`, `"TikTok rechazó iniciar la publicación: ..."` /
+`"...rechazó la subida del video..."` / `"...no pudo publicar el video (fail_reason)..."` —
+mensaje de TikTok tal cual. `"TikTok no está autorizado todavía..."` — falta el paso de abajo.
+
+### Paso previo, una sola vez: autorizar la cuenta (no es un endpoint que el front use en su flujo normal)
+
+**`POST /v1/redes-sociales/tiktok/autorizar`** — `{ "code": "...", "redirectUri": "..." }`. Es el
+trámite manual de OAuth (nosotros lo hacemos una vez desde el navegador, no hace falta pantalla
+para esto). Guarda el primer `access_token`/`refresh_token` en una tabla nueva
+(`tiktok_token`, fila única) — de ahí en adelante el back se refresca solo antes de cada
+publicación (el token de TikTok dura ~24h, a diferencia del de Facebook que no expira).
+
+### Migración pendiente de correr
+
+`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Todavía no corrió en ningún ambiente,
+falta cuando decidan.
+
+No hace falta nada nuevo del front todavía para TikTok — la pantalla ya lo tiene contemplado como
+deshabilitado según dijeron. Avisamos cuando esté probado en Sandbox para que lo activen.

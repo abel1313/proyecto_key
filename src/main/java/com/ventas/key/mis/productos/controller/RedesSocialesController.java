@@ -1,15 +1,18 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.redessociales.AutorizarTikTokRequest;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocialDto;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocialService;
 import com.ventas.key.mis.productos.redessociales.PublicarFacebookRequest;
 import com.ventas.key.mis.productos.redessociales.PublicarInstagramRequest;
+import com.ventas.key.mis.productos.redessociales.TikTokGraphClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 
-@Tag(name = "Redes sociales", description = "Publicar variantes del catálogo en Facebook e Instagram")
+@Tag(name = "Redes sociales", description = "Publicar variantes del catálogo en Facebook, Instagram y TikTok")
 @RestController
 @RequestMapping("/v1/redes-sociales")
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ import java.time.LocalDateTime;
 public class RedesSocialesController {
 
     private final PublicacionSocialService publicacionSocialService;
+    private final TikTokGraphClient tikTokGraphClient;
 
     @Operation(
         summary = "Publicar una variante en la página de Facebook",
@@ -114,6 +118,42 @@ public class RedesSocialesController {
         log.info("Publicar en Instagram - varianteId={}, imagenId={}", request.getVarianteId(), request.getImagenId());
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarEnInstagram(request);
+        return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
+
+    @Operation(
+        summary = "Completar el login OAuth de TikTok (paso único, manual)",
+        description = "Cambia el 'code' que TikTok manda por URL tras autorizar la cuenta por el primer " +
+                "access_token/refresh_token, y los guarda -- de ahí en adelante se refrescan solos. Ver " +
+                "TIKTOK_SETUP.md paso 4-5. Solo hace falta llamarlo una vez, salvo que se revoque el acceso."
+    )
+    @PostMapping("/tiktok/autorizar")
+    public ResponseEntity<ResponseGeneric<String>> autorizarTikTok(@RequestBody AutorizarTikTokRequest request) {
+        try {
+            tikTokGraphClient.autorizarConCode(request.getCode(), request.getRedirectUri());
+            return ResponseEntity.ok(new ResponseGeneric<>("TikTok autorizado correctamente"));
+        } catch (Exception e) {
+            log.warn("Error al autorizar TikTok: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((String) null, e.getMessage()));
+        }
+    }
+
+    @Operation(
+        summary = "Publicar un video de una variante en TikTok",
+        description = "Sube el video con Direct Post (Content Posting API v2) y lo publica. Sin validar " +
+                "duración/proporción/peso -- lo que TikTok rechace lo rechaza con su propio error. Mientras la " +
+                "app no esté auditada, solo funciona con cuentas Target User de Sandbox, y el video sale " +
+                "forzado a privado (SELF_ONLY). El archivo es obligatorio en cada llamada, nunca se persiste."
+    )
+    @PostMapping(value = "/tiktok/publicar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnTikTok(
+            @RequestParam Integer varianteId,
+            @RequestParam String descripcion,
+            @RequestParam MultipartFile video) {
+
+        log.info("Publicar en TikTok - varianteId={}, bytes={}", varianteId, video.getSize());
+
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarEnTikTok(varianteId, descripcion, video);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
 

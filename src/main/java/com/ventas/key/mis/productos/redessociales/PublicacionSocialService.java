@@ -32,6 +32,7 @@ public class PublicacionSocialService {
     private final ImagenPort imagenPort;
     private final FacebookGraphClient facebookGraphClient;
     private final InstagramGraphClient instagramGraphClient;
+    private final TikTokGraphClient tikTokGraphClient;
 
     @Value("${api.imagenes:}")
     private String endpointImagenes;
@@ -225,6 +226,44 @@ public class PublicacionSocialService {
         String mediaId = instagramGraphClient.publicarReel(bytesVideo, video.getContentType(), descripcion);
 
         return guardarPublicacionInstagram(variante, descripcion, null, mediaId, "reel");
+    }
+
+    /**
+     * Publica un video en TikTok (Direct Post). Mismo criterio que el resto: el archivo siempre
+     * viene en el request, nunca se persiste en el microservicio de imágenes. Mientras la app no
+     * esté auditada por TikTok, solo funciona con cuentas agregadas como Target User en Sandbox,
+     * y el video sale forzado a privado -- ver TikTokGraphClient.
+     */
+    @Transactional
+    public PublicacionSocialDto publicarEnTikTok(Integer varianteId, String descripcion, MultipartFile video) {
+        Variantes variante = varianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+
+        if (video == null || video.isEmpty()) {
+            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        }
+
+        byte[] bytesVideo;
+        try {
+            bytesVideo = video.getBytes();
+        } catch (IOException e) {
+            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
+        }
+
+        log.info("Publicando en TikTok, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
+        String publishId = tikTokGraphClient.publicarVideo(bytesVideo, video.getContentType(), descripcion);
+
+        PublicacionSocial publicacion = new PublicacionSocial();
+        publicacion.setVariante(variante);
+        publicacion.setPlataforma("tiktok");
+        publicacion.setTipoPublicacion("video");
+        publicacion.setDescripcionPublicada(descripcion);
+        publicacion.setPostIdFacebook(publishId);
+        publicacion.setFechaPublicacion(LocalDateTime.now());
+        publicacion.setEstado("PUBLICADA");
+        publicacion = publicacionSocialRepository.save(publicacion);
+
+        return PublicacionSocialDto.from(publicacion);
     }
 
     private PublicacionSocialDto guardarPublicacion(Variantes variante, String tipoPublicacion, String descripcion,
