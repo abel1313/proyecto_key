@@ -16263,3 +16263,88 @@ Escrito siguiendo el contrato documentado de la Graph API de subida reanudable d
 **nadie lo ha probado contra Meta real** — es la primera vez que este proyecto usa ese mecanismo.
 Si algún paso de los 4 responde distinto a lo esperado, el error de Meta va a venir tal cual en el
 mensaje del 400, avísennos con eso si algo falla raro.
+
+---
+
+## ✅ FRONT — al día con todo lo suyo + estado completo y qué falta (2026-08-18)
+
+Bajamos sus 4 commits. Todo lo que nos tocaba de ahí **ya está hecho y subido** a `dev` y `qa`.
+
+### 1. Lo del color desactivado — tenían razón, el bug era nuestro
+
+Gracias por revisarlo en vez de darnos por buena la petición. Efectivamente cruzábamos
+`colorFlorId` contra `colores-flor/por-tipo-flor/{id}` (que filtra activos) y por eso perdíamos
+justo el color caído. **Ya usamos `colores[].colorNombre` del detalle**, y el admin ahora ve
+*"Ya no hay 10 Blanca — esas flores hay que repartirlas entre los colores de abajo"*.
+
+Nos quedamos con la regla para no repetirlo: **para mostrar algo ya guardado en un pedido, usar lo
+que trae el pedido, no el catálogo.** El catálogo dice qué se puede vender hoy; el pedido dice qué
+se vendió. Vale igual para accesorios y frases.
+
+### 2. `PUT /entrega` reforzado — gracias
+
+Nuestro bloqueo de UI se queda como primera barrera (evita el viaje inútil), pero ya no es lo
+único. Anotado también que **`lugarEntregaId` de un ramo no se puede cambiar por ningún endpoint**
+— por eso lo mostramos bloqueado al editar. No lo pedimos por ahora; si el dueño lo necesita,
+avisamos.
+
+### 3. La pantalla de Instagram **sí está construida** — corrección a su checklist
+
+En su checklist pusieron *"ustedes todavía no construyeron la pantalla"*. Ya está: se subió el
+mismo día. Y con el ID correcto de página no tenemos nada que cambiar — **el front nunca manda el
+id de página ni el de cuenta**, esos viven solo en su configuración.
+
+**Facebook e Instagram están listos para probar de punta a punta desde la UI.**
+
+---
+
+## 📋 ESTADO COMPLETO — qué hay, qué falta y en qué orden
+
+Resumen de lo hablado con el dueño, para que ambos lados tengamos la misma foto.
+
+### Lo que ya funciona
+
+| | Foto | Video de feed | Reel | Programar |
+|---|---|---|---|---|
+| **Facebook** | ✅ | ✅ | ❌ | ✅ |
+| **Instagram** | ✅ | ❌ | ❌ | ❌ (su API no lo permite) |
+| **TikTok** | ❌ | ❌ | ❌ | — |
+
+La pantalla ya publica en **varias redes de una sola vez**: el archivo se sube una vez, el texto
+se escribe una vez, y los **hashtags van por red** (se concatenan antes de mandarles la
+`descripcion`). Si una red falla y otra no, se muestra el resultado **por red**.
+
+### 🎯 Lo que falta — en orden de prioridad del dueño
+
+1. **Reel en Instagram** ← su objetivo real, es donde más le importa
+2. **Reel en Facebook** — mismo video
+3. **TikTok** (publicar video)
+
+Ver la petición completa con las 4 preguntas de dimensionamiento en la sección
+"🙏 PETICIÓN — Reels (Facebook + Instagram) y TikTok" de más arriba. **La pantalla ya está lista
+para recibirlos**: TikTok incluso ya aparece deshabilitado con el motivo "todavía no está
+conectado", y se activa solo cuando exista el endpoint.
+
+### ⚠️ Dos límites que NO son de nadie aquí — que quede el porqué
+
+- **La música no se puede elegir por API.** Meta no expone su biblioteca de audio: un Reel
+  publicado desde el sistema sale con el audio del archivo. El dueño la va a pegar al editar. Si
+  alguien reporta después "los Reels no traen música de Instagram", **no es un bug** de ninguno de
+  los dos lados.
+- **Riesgo derivado:** música comercial pegada al archivo puede hacer que Instagram silencie el
+  Reel por derechos de autor. No hay nada que hacer desde el código.
+
+### ❓ Preguntas nuestras que siguen abiertas
+
+1. **El límite de tamaño aparece con dos valores** en este mismo archivo: **25 MB** en la sección
+   de agosto y **200 MB** en la nota de retomado. Hoy le avisamos **200** al admin. ¿Cuál es el
+   bueno, o son dos cosas distintas (foto vs. video)? Nos importa para avisarle **antes** de que
+   espere una subida larga que va a terminar rechazada.
+2. **¿Video/Reel en Instagram entra en sus planes?** Ya está en la petición de arriba, lo
+   repetimos aquí solo para que no se pierda entre todo lo demás.
+
+### Lo de flores, para cerrar el tema
+
+Todo lo suyo está conectado: `editar-ramo` (con fecha), `cancelar` del cliente, `esRamoFlores`,
+`esLineaInterna` y ahora `colorNombre`. **Lo único sin probar contra QA real** es el camino
+completo de editar un ramo y cobrar la diferencia — nos falta un pedido de verdad para eso.
