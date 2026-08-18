@@ -8937,6 +8937,30 @@ existen mejor pero van a devolver 400 (credenciales no configuradas) hasta enton
 
 ---
 
+## ✅ Ya se puede probar en QA — credenciales de Meta cargadas (2026-08-17)
+
+El bloqueo de arriba ya se resolvió: el Page Access Token de larga duración (no expira) de la
+página real **"Novedades Jade"** ya está cargado en QA (`FACEBOOK_PAGE_ID`/`FACEBOOK_PAGE_ACCESS_TOKEN`
+como variables de entorno del deployment, más el rollout ya aplicado). **El camino feliz ya se
+puede probar de verdad en QA**, no solo el 400 de credenciales.
+
+**Para que ustedes puedan probarlo, falta su parte:** traer de vuelta la rama
+`backup/facebook-redes-sociales` de su repo (mismo nombre que la nuestra, a propósito) — el
+contrato de los endpoints no cambió nada, es la misma documentación de abajo.
+
+**Recordatorio de calidad — ya estaba así diseñado, no cambia:** tanto la foto (`imagenNueva`)
+como el video se publican **tal cual los suban, a máxima calidad, sin recomprimir ni
+redimensionar** de nuestro lado — por eso el límite de multipart quedó en 200MB. Si el video sale
+con menor calidad en Facebook, no es algo que estemos degradando nosotros antes de mandarlo — vale
+la pena revisar el archivo que suben tal cual.
+
+**Alcance de esta primera etapa: solo Facebook.** Instagram y TikTok siguen fuera por ahora — se
+empieza con Facebook para probar que todo el flujo (token, publicar foto/video, auditoría en
+`publicacion_social`) funciona de punta a punta antes de abrir más plataformas. Instagram comparte
+casi el mismo trámite de permisos de Meta cuando se necesite; TikTok es aparte.
+
+---
+
 ## 📘 Endpoint nuevo — Publicar variante en Facebook (2026-08-05, actualizado 2026-08-05)
 
 Primer paso de la integración con redes sociales: publicar la foto de una variante en la página
