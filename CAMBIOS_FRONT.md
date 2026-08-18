@@ -16192,3 +16192,74 @@ editar el video. Lo anotamos aquí para que quede el porqué: si más adelante a
 
 ⚠️ **Y un riesgo derivado:** si el video lleva música comercial pegada, Instagram puede silenciarlo
 por derechos de autor. No hay nada que podamos hacer desde el código; es al editar.
+
+---
+
+## ✅ BACK — respuestas + Reel de Instagram ya construido (2026-08-18)
+
+Empezamos por Instagram (es donde más le importa al dueño, según ustedes). Facebook Reel y TikTok
+quedan para una próxima ronda.
+
+### Respuestas a sus 4 preguntas
+
+1. **El mismo archivo sirve, vertical u horizontal — no validamos nada del lado del back.** Mismo
+   criterio que ya usamos con el video normal de Facebook: se manda tal cual a la Graph API, y si
+   el formato no es válido, Instagram lo rechaza con su propio mensaje, que les regresamos igual
+   que cualquier otro error de Meta.
+2. **Endpoint aparte**, no el mismo de foto/video con un parámetro — el mecanismo de subida es
+   distinto (ver punto 3), no tenía sentido forzarlo dentro del mismo contrato.
+3. **La subida por partes la absorbe el back por completo.** Ustedes siguen mandando el archivo
+   en un solo multipart, exactamente como ya hacen con el video de Facebook — nosotros hacemos
+   los 4 pasos de la subida reanudable de Instagram (crear contenedor, subir el video, esperar a
+   que Meta lo procese, publicar) sin que les cambie nada de su lado.
+4. **TikTok:** no tenemos referencia previa de este proyecto con su API — no sabemos todavía si su
+   trámite de app es tan largo como el de Meta. Se investiga cuando toque esa parte.
+
+### 🆕 `POST /v1/redes-sociales/instagram/publicar-reel` — solo ADMIN
+
+**Multipart**, igual que el video de Facebook (no JSON como la foto de Instagram, porque aquí sí
+se manda un archivo):
+
+```
+POST /v1/redes-sociales/instagram/publicar-reel
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}  (rol ADMIN)
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+
+- `video` es obligatorio en cada llamada — igual que el video de Facebook, no hay "reel principal
+  guardado de la variante", el catálogo no guarda video.
+- **Puede tardar** — a diferencia de la foto, Meta procesa el video después de subirlo antes de
+  poder publicarlo. El back espera hasta 3 minutos internamente antes de rendirse. Si tienen
+  spinner/loading en el botón, que aguante ese tiempo (mismo criterio que ya usan con el video de
+  Facebook, que también avisaron que tarda).
+
+**Response 200:** mismo shape que ya usan para Instagram (`PublicacionSocialDto`) —
+`plataforma:"instagram"`, `tipoPublicacion:"reel"` (para diferenciarlo de `"foto"`).
+
+**400 — casos posibles:**
+- `"Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o FACEBOOK_PAGE_ACCESS_TOKEN..."` —
+  no debería pasarles, ya está configurado en QA.
+- `"No existe la variante con id {id}"`.
+- `"Falta el archivo de video a publicar"`.
+- `"Instagram rechazo crear el contenedor del Reel: ..."` / `"...rechazo la subida del video...:
+  ..."` / `"...no pudo procesar el video del Reel (status: ERROR/EXPIRED)"` — error real de la
+  Graph API, con el detalle de Meta tal cual.
+- `"Instagram sigue procesando el video del Reel despues de 3 minutos -- intenta publicarlo de
+  nuevo en unos minutos"` — el video tardó más de lo que esperamos internamente. No se perdió
+  nada, pero no genera post; hay que reintentar.
+
+**403:** si quien llama no es ADMIN.
+
+No hace falta migración — reusa `publicacion_social` (mismo `plataforma`/`tipoPublicacion` que ya
+tenían las publicaciones de Instagram, solo cambia el valor).
+
+### ⚠️ Sin probar todavía en vivo
+
+Escrito siguiendo el contrato documentado de la Graph API de subida reanudable de Instagram, pero
+**nadie lo ha probado contra Meta real** — es la primera vez que este proyecto usa ese mecanismo.
+Si algún paso de los 4 responde distinto a lo esperado, el error de Meta va a venir tal cual en el
+mensaje del 400, avísennos con eso si algo falla raro.

@@ -97,4 +97,23 @@ public class RedesSocialesController {
         PublicacionSocialDto publicacion = publicacionSocialService.publicarEnInstagram(request);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
+
+    @Operation(
+        summary = "Publicar un Reel de una variante en Instagram",
+        description = "Sube el video con subida reanudable (varios pasos con la Graph API, absorbidos aqui) y " +
+                "publica un Reel. El video se manda tal cual llega -- sin validar duracion/proporcion/peso, " +
+                "vertical u horizontal, lo que Instagram rechace lo rechaza con su propio error. Publica siempre " +
+                "de inmediato, no soporta programar. El archivo es obligatorio en cada llamada, nunca se persiste."
+    )
+    @PostMapping(value = "/instagram/publicar-reel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarReelEnInstagram(
+            @RequestParam Integer varianteId,
+            @RequestParam String descripcion,
+            @RequestParam MultipartFile video) {
+
+        log.info("Publicar Reel en Instagram - varianteId={}, bytes={}", varianteId, video.getSize());
+
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnInstagram(varianteId, descripcion, video);
+        return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
 }

@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,9 @@ public class InstagramGraphClient {
 
     private final WebClient.Builder builder;
     private WebClient webClient;
+    // rupload.facebook.com es el host de subida binaria de Meta, distinto del de la Graph API
+    // normal -- mismo mecanismo que usa Facebook para /video_reels.
+    private WebClient uploadClient;
 
     public InstagramGraphClient(WebClient.Builder builder) {
         this.builder = builder;
@@ -53,6 +57,7 @@ public class InstagramGraphClient {
     @PostConstruct
     void init() {
         this.webClient = builder.baseUrl("https://graph.facebook.com").build();
+        this.uploadClient = builder.clone().baseUrl("https://rupload.facebook.com").build();
     }
 
     public String publicarFoto(String imagenUrlPublica, String caption) {
@@ -117,5 +122,114 @@ public class InstagramGraphClient {
             throw new ExceptionErrorInesperado("Instagram no devolvio id de publicacion: " + response);
         }
         return String.valueOf(response.get("id"));
+    }
+
+    // Reel -- a diferencia de la foto, el video no se manda por URL: se sube directo con "subida
+    // reanudable" (mismo mecanismo que usa Facebook para /video_reels), asi el admin no necesita
+    // que el archivo exista en ningun lado publico de antemano. 4 pasos: crear el contenedor en
+    // modo resumable, subir los bytes a rupload.facebook.com, esperar a que Meta termine de
+    // procesar el video (puede tardar), y publicar el contenedor -- este ultimo paso reusa
+    // publicarContenedor(), es identico al de la foto.
+    public String publicarReel(byte[] video, String contentType, String caption) {
+        if (igUserId.isBlank() || pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o "
+                    + "FACEBOOK_PAGE_ACCESS_TOKEN (la cuenta de Instagram publica a traves de la misma pagina)");
+        }
+        if (video == null || video.length == 0) {
+            throw new ExceptionErrorInesperado("No hay video disponible para publicar");
+        }
+
+        String containerId = crearContenedorReelResumable(caption);
+        subirVideoResumable(containerId, video, contentType);
+        esperarProcesado(containerId);
+        String mediaId = publicarContenedor(containerId);
+        log.info("Reel publicado en Instagram, id={}", mediaId);
+        return mediaId;
+    }
+
+    private String crearContenedorReelResumable(String caption) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("media_type", "REELS");
+        form.add("upload_type", "resumable");
+        form.add("caption", caption);
+        form.add("access_token", pageAccessToken);
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{igUserId}/media", apiVersion, igUserId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(form))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Instagram rechazo crear el contenedor del Reel: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(30))
+                .block();
+
+        if (response == null || response.get("id") == null) {
+            throw new ExceptionErrorInesperado("Instagram no devolvio id de contenedor para el Reel: " + response);
+        }
+        return String.valueOf(response.get("id"));
+    }
+
+    private void subirVideoResumable(String containerId, byte[] video, String contentType) {
+        Map<?, ?> response = uploadClient.post()
+                .uri("/ig-api-upload/{version}/{containerId}", apiVersion, containerId)
+                .header("Authorization", "OAuth " + pageAccessToken)
+                .header("offset", "0")
+                .header("file_size", String.valueOf(video.length))
+                .contentType(contentType != null ? MediaType.parseMediaType(contentType) : MediaType.APPLICATION_OCTET_STREAM)
+                .body(BodyInserters.fromResource(new ByteArrayResource(video)))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Instagram rechazo la subida del video del Reel: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofMinutes(5))
+                .block();
+
+        if (response == null || !Boolean.TRUE.equals(response.get("success"))) {
+            throw new ExceptionErrorInesperado("Instagram no confirmo la subida del video del Reel: " + response);
+        }
+    }
+
+    // Meta procesa el video de forma asincrona despues de subirlo -- sin esperar a que termine,
+    // media_publish falla porque el contenedor todavia no tiene un video utilizable. Se consulta
+    // cada 3 segundos hasta un maximo de 60 intentos (~3 minutos); si tarda mas que eso se avisa
+    // con un mensaje claro en vez de dejar la peticion colgada indefinidamente.
+    private void esperarProcesado(String containerId) {
+        for (int intento = 0; intento < 60; intento++) {
+            Map<?, ?> estado = webClient.get()
+                    .uri("/{version}/{containerId}?fields=status_code", apiVersion, containerId)
+                    .header("Authorization", "Bearer " + pageAccessToken)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                            .defaultIfEmpty("")
+                            .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                    "Instagram rechazo consultar el estado del Reel: " + err))))
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofSeconds(15))
+                    .block();
+
+            String statusCode = estado != null && estado.get("status_code") != null
+                    ? String.valueOf(estado.get("status_code")) : null;
+
+            if ("FINISHED".equals(statusCode)) {
+                return;
+            }
+            if ("ERROR".equals(statusCode) || "EXPIRED".equals(statusCode)) {
+                throw new ExceptionErrorInesperado("Instagram no pudo procesar el video del Reel (status: " + statusCode + ")");
+            }
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ExceptionErrorInesperado("Se interrumpio la espera del procesamiento del Reel");
+            }
+        }
+        throw new ExceptionErrorInesperado("Instagram sigue procesando el video del Reel despues de 3 minutos -- "
+                + "intenta publicarlo de nuevo en unos minutos");
     }
 }
