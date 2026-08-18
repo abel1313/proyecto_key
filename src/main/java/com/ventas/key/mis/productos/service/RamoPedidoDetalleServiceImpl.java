@@ -200,9 +200,18 @@ public class RamoPedidoDetalleServiceImpl {
     // en el momento del pago, si ya vencio la hora limite sin depender de que el front vuelva a
     // mandar nada. Mismo redondeo hacia arriba que fechas-disponibles.
     private void resolverFechaLimitePago(RamoPedidoDetalleRequestDto dto, RamoPedidoDetalle detalle, TipoFlor especie, int cantidadFinal) {
-        detalle.setFechaHoraEntrega(dto.getFechaHoraEntrega());
-        boolean urgente = Boolean.TRUE.equals(dto.getUrgente());
+        aplicarFechaEntrega(detalle, dto.getFechaHoraEntrega(), Boolean.TRUE.equals(dto.getUrgente()), especie, cantidadFinal);
+    }
+
+    // Compartido entre adjuntar() y editarRamo() -- calcula fechaLimitePago/cargoUrgenteMonto para
+    // el tamano (redondeo hacia arriba, mismo criterio que fechasDisponibles()) que aplique a
+    // cantidadFinal. Deja fechaLimitePago/cargoUrgenteMonto en null si el tamano no tiene
+    // cargo_urgente configurado -- revalidarAntesDePagar() ya sabe tratar eso como "no aplica".
+    private void aplicarFechaEntrega(RamoPedidoDetalle detalle, LocalDateTime fechaHoraEntrega, boolean urgente, TipoFlor especie, int cantidadFinal) {
+        detalle.setFechaHoraEntrega(fechaHoraEntrega);
         detalle.setEsUrgente(urgente);
+        detalle.setFechaLimitePago(null);
+        detalle.setCargoUrgenteMonto(null);
         if (!urgente) {
             return;
         }
@@ -482,15 +491,20 @@ public class RamoPedidoDetalleServiceImpl {
                 detalle.getComentarioAccesorioNoDisponible(),
                 detalle.getFechaCreacion(),
                 detalle.getPedidoAnticipo() != null ? detalle.getPedidoAnticipo().getId() : null,
-                extraerAccesorios(detalle.getPedido()));
+                extraerAccesorios(detalle.getPedido()),
+                detalle.getFechaHoraEntrega(),
+                detalle.getEsUrgente(),
+                detalle.getFechaLimitePago(),
+                detalle.getCargoUrgenteMonto());
     }
 
     // Reemplaza colores y accesorios de un ramo ya guardado -- recotiza SOLO esa parte (flores +
-    // papel + accesorios). Fecha de entrega, urgencia, envio y liston NO se tocan: reabrirlos
-    // implicaria re-disparar sus propias reglas (aprobacion de frase, ventana de anticipacion) y
-    // se dejo fuera de esta primera version a proposito. Solo ADMIN (ver controller). Sin
-    // restriccion de estadoPedido salvo "cancelado" -- el dueno pidio que el admin pueda editar
-    // sin importar en que estado este, la unica excepcion obvia es un pedido ya cancelado.
+    // papel + accesorios). Opcionalmente tambien reemplaza fechaHoraEntrega/urgente (ver punto 7
+    // abajo). Envio y liston siguen sin tocarse: reabrirlos implicaria re-disparar sus propias
+    // reglas (aprobacion de frase) y se dejaron fuera de esta version a proposito. Solo ADMIN
+    // (ver controller). Sin restriccion de estadoPedido salvo "cancelado" -- el dueno pidio que
+    // el admin pueda editar sin importar en que estado este, la unica excepcion obvia es un
+    // pedido ya cancelado.
     @Transactional
     public EditarRamoResponseDto editarRamo(Integer pedidoId, EditarRamoRequestDto dto) {
         if (dto.getColores() == null || dto.getColores().isEmpty()) {
@@ -633,7 +647,32 @@ public class RamoPedidoDetalleServiceImpl {
         }
         detalle.setTipoFlor(especie);
         detalle.setCantidadFinal(cantidadFinal);
+
+        // 7. Fecha de entrega/urgencia -- opcional. Bloqueado si el cargo urgente de la fecha
+        // vieja ya se cobro (revalidarAntesDePagar ya agrego la linea al pedido): cambiar la
+        // fecha aqui dejaria ese cargo sin relacion con la fecha real, y este endpoint no
+        // soporta ajustarlo/reembolsarlo. El admin debe resolver ese caso aparte.
+        LocalDateTime fechaAnterior = detalle.getFechaHoraEntrega();
+        boolean fechaCambio = dto.getFechaHoraEntrega() != null
+                && !dto.getFechaHoraEntrega().equals(fechaAnterior);
+        if (fechaCambio) {
+            if (Boolean.TRUE.equals(detalle.getCargoUrgenteAplicado())) {
+                throw new RuntimeException("Este pedido ya tiene aplicado el cargo por entrega urgente de la "
+                        + "fecha anterior -- no se puede cambiar la fecha de entrega con este endpoint.");
+            }
+            aplicarFechaEntrega(detalle, dto.getFechaHoraEntrega(), Boolean.TRUE.equals(dto.getUrgente()), especie, cantidadFinal);
+        }
+
         RamoPedidoDetalle guardado = iRamoPedidoDetalleRepository.save(detalle);
+
+        // Aviso al cliente: pidio el dueno explicitamente (puede que el nuevo armado tarde mas y
+        // haya que correr la fecha) -- sin esto el cliente no se entera hasta que le llegue tarde.
+        if (fechaCambio && guardado.getCorreoContacto() != null) {
+            String asunto = "Cambio en la fecha de entrega de tu pedido #" + guardado.getPedido().getId();
+            String html = "<p>La fecha de entrega de tu ramo se actualizo:</p>"
+                    + "<p>Nueva fecha/hora de entrega: " + guardado.getFechaHoraEntrega() + "</p>";
+            emailService.enviarTicket(guardado.getCorreoContacto(), asunto, html);
+        }
 
         return new EditarRamoResponseDto(toResponseDto(guardado), totalPedidoActual, totalPedidoNuevo,
                 totalPedidoNuevo - totalPedidoActual);

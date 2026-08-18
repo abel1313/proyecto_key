@@ -15820,3 +15820,60 @@ construimos.**
 Preguntaban si les estorba el objeto `variante` completo anidado. **Por ahora no** — son listas
 chicas (3 colores, 3 accesorios) y no se piden en bucle. Si algún día crecen, avisamos. No lo
 toquen por nosotros.
+
+---
+
+## ✅ BACK — el dueño definió el alcance: opción 2, `editar-ramo` ahora también cambia la fecha (2026-08-17)
+
+Resolviendo la duda del punto anterior: **"que mande al mismo armar ramo pero con los datos
+cargados"** significa que el admin sí debe poder recorrer la fecha de entrega desde esa misma
+pantalla — el caso real es que el cliente pida algo que tarda más de lo normal en armarse, el
+admin corre la fecha y le avisa. No se abre el envío ni el listón todavía — eso sigue fuera.
+
+### Qué cambió en `PUT /v1/flores/pedidos/{pedidoId}/editar-ramo`
+
+Dos campos nuevos en el request, **ambos opcionales**:
+
+```json
+PUT /v1/flores/pedidos/42/editar-ramo
+{
+  "colores": [ { "colorFlorId": 3, "cantidad": 10 } ],
+  "accesorios": [ { "accesorioId": 7 } ],
+  "fechaHoraEntrega": "2026-08-20T18:00:00",
+  "urgente": false
+}
+```
+
+- Si **omiten `fechaHoraEntrega`** (o mandan `null`): comportamiento idéntico a como estaba —
+  la fecha del pedido no se toca. Totalmente retrocompatible, no rompe nada de lo que ya tienen.
+- Si la **mandan**: reemplaza `fechaHoraEntrega`/`urgente` del ramo y recalcula la hora límite de
+  pago con cargo urgente (`fechaLimitePago`/`cargoUrgenteMonto`) para el tamaño de ramo que quede
+  después de la edición — mismo criterio que usa `fechas-disponibles`.
+- **Nosotros no volvemos a validar el calendario completo aquí** (días de anticipación, si el
+  tamaño ofrece urgente, etc.) — eso ya lo hace `fechas-disponibles`. Llámenlo primero para que el
+  admin elija una fecha válida, y manden el resultado tal cual a `editar-ramo`. Este endpoint solo
+  aplica la fecha que ya validaron y recalcula el cargo urgente asociado.
+- **Aviso automático al cliente:** si el ramo tiene `correoContacto` y la fecha cambió de verdad,
+  se le manda un correo avisando la nueva fecha/hora de entrega. Sin acción del front.
+
+**Nuevo 400:**
+- `"Este pedido ya tiene aplicado el cargo por entrega urgente de la fecha anterior -- no se puede
+  cambiar la fecha de entrega con este endpoint."` — pasa solo si el pago llegó tarde y
+  `revalidar-antes-de-pagar` ya le sumó el cargo urgente al pedido con la fecha vieja. Cambiar la
+  fecha ahí dejaría ese cargo ya cobrado sin relación con la nueva fecha, y este endpoint no
+  soporta ajustarlo ni reembolsarlo — es un caso que el admin tiene que resolver aparte (avísennos
+  si de verdad lo necesitan y lo diseñamos).
+
+### `GET .../detalle` y la respuesta de `editar-ramo` — 4 campos nuevos
+
+Se agregaron a `RamoPedidoDetalleResponseDto` (el mismo shape que ya usan en `ramo` de la
+respuesta de `editar-ramo` y en el detalle del ramo): `fechaHoraEntrega`, `esUrgente`,
+`fechaLimitePago`, `cargoUrgenteMonto`. Antes no venían explícitos en este objeto — si en algún
+lugar ya los estaban sacando de otro endpoint, no cambia nada; si no, ya los tienen aquí para
+reconstruir el configurador al editar.
+
+### Todavía pendiente, decisión aparte
+
+Sigue sin resolver **si el cliente puede cancelar su propio pedido** (el dueño confirmó que sí,
+antes de pagar el anticipo) — hoy `DELETE /v1/pedidos/delete/{id}` es solo ADMIN, no existe forma
+de que el cliente cancele el suyo. Es una pieza nueva, la vamos a diseñar aparte.
