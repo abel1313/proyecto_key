@@ -131,6 +131,10 @@ facebook:
 instagram:
   account-id: ${INSTAGRAM_ACCOUNT_ID:}
 
+tiktok:
+  client-key: ${TIKTOK_CLIENT_KEY:}
+  client-secret: ${TIKTOK_CLIENT_SECRET:}
+
 
 
 

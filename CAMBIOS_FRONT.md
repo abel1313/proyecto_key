@@ -16603,3 +16603,55 @@ correcto lo que les responda la API real, no lo que dice el papel.
 El paso "Cuándo" ya se oculta solo cuando el tipo es Reel. **En cuanto acepten la fecha, lo
 activamos** — es cambiar una condición; el selector, la validación de ventana y el aviso ya están
 hechos. Solo necesitamos que nos digan la ventana para ajustar el mensaje.
+
+---
+
+## 🆕 BACK — TikTok construido, credenciales del trámite en curso (2026-08-18)
+
+Se avanzó en paralelo con el trámite de la app de TikTok (cuenta Business, app creada, dominio
+verificado, Sandbox configurado con target user). Se construyó el código del back siguiendo la
+documentación oficial de la Content Posting API v2 — **primera vez que este proyecto integra
+TikTok, sin verificar contra la API real todavía.**
+
+### Publicar en TikTok — solo video, sin foto (la API de TikTok no tiene "publicar foto")
+
+**`POST /v1/redes-sociales/tiktok/publicar`** — solo ADMIN, multipart (mismo patrón que el video
+de Facebook/Reel de Instagram):
+```
+POST /v1/redes-sociales/tiktok/publicar
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+Response 200: mismo `PublicacionSocialDto` — `plataforma:"tiktok"`, `tipoPublicacion:"video"`.
+
+**⚠️ Restricciones mientras la app no pase la auditoría de TikTok (todavía no se ha pedido):**
+- Solo funciona si la cuenta que publica es una de las agregadas como **Target User** en el
+  Sandbox del portal de TikTok — cualquier otra cuenta, rechazada.
+- El video sale **forzado a privado** (`SELF_ONLY`), sin importar nada que mandemos — restricción
+  de TikTok, no del código.
+- **Sin programar** — ni siquiera lo intentamos en esta versión, mismo criterio que Instagram.
+
+**400 posibles:** `"TikTok no está configurado..."`, `"No existe la variante..."`,
+`"Falta el archivo de video..."`, `"TikTok rechazó iniciar la publicación: ..."` /
+`"...rechazó la subida del video..."` / `"...no pudo publicar el video (fail_reason)..."` —
+mensaje de TikTok tal cual. `"TikTok no está autorizado todavía..."` — falta el paso de abajo.
+
+### Paso previo, una sola vez: autorizar la cuenta (no es un endpoint que el front use en su flujo normal)
+
+**`POST /v1/redes-sociales/tiktok/autorizar`** — `{ "code": "...", "redirectUri": "..." }`. Es el
+trámite manual de OAuth (nosotros lo hacemos una vez desde el navegador, no hace falta pantalla
+para esto). Guarda el primer `access_token`/`refresh_token` en una tabla nueva
+(`tiktok_token`, fila única) — de ahí en adelante el back se refresca solo antes de cada
+publicación (el token de TikTok dura ~24h, a diferencia del de Facebook que no expira).
+
+### Migración pendiente de correr
+
+`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Todavía no corrió en ningún ambiente,
+falta cuando decidan.
+
+No hace falta nada nuevo del front todavía para TikTok — la pantalla ya lo tiene contemplado como
+deshabilitado según dijeron. Avisamos cuando esté probado en Sandbox para que lo activen.
