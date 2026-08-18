@@ -69,6 +69,7 @@ public class RamoPedidoDetalleServiceImpl {
     private final FlorPedidoServiceImpl florPedidoService;
     private final AccesorioRamoServiceImpl accesorioRamoService;
     private final EmailService emailService;
+    private final com.ventas.key.mis.productos.service.api.IPedidoService pedidoService;
 
     @org.springframework.beans.factory.annotation.Value("${chat.admin-email:admin@novedades-jade.com.mx}")
     private String adminEmail;
@@ -84,7 +85,8 @@ public class RamoPedidoDetalleServiceImpl {
                                          ProductoSombraServiceImpl productoSombraService,
                                          FlorPedidoServiceImpl florPedidoService,
                                          AccesorioRamoServiceImpl accesorioRamoService,
-                                         EmailService emailService) {
+                                         EmailService emailService,
+                                         com.ventas.key.mis.productos.service.api.IPedidoService pedidoService) {
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iPedidoRepository = iPedidoRepository;
         this.iColorFlorRepository = iColorFlorRepository;
@@ -97,6 +99,35 @@ public class RamoPedidoDetalleServiceImpl {
         this.florPedidoService = florPedidoService;
         this.accesorioRamoService = accesorioRamoService;
         this.emailService = emailService;
+        this.pedidoService = pedidoService;
+    }
+
+    // Para el chequeo de dueno en el controller (RamoPedidoDetalleController.cancelarPropio) --
+    // antes de dejar cancelar, hay que saber de quien es el pedido sin exponer el resto del
+    // detalle. Null si el pedido no tiene cliente registrado (venta de mostrador).
+    public Integer obtenerClienteIdPropietario(Integer pedidoId) {
+        RamoPedidoDetalle detalle = iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().findFirst()
+                .orElseThrow(() -> new ExceptionDataNotFound("Este pedido no tiene un ramo de flores asociado: " + pedidoId));
+        Pedido pedido = detalle.getPedido();
+        return pedido.getCliente() != null ? pedido.getCliente().getId() : null;
+    }
+
+    // El cliente cancela su propio pedido de flores -- SOLO antes de pagar el anticipo
+    // (pedido.totalPagado en 0), pedido explicito del dueno (2026-08-17): despues de eso ya hay
+    // dinero de por medio y solo el admin puede cancelar (DELETE /v1/pedidos/delete/{id}). El
+    // chequeo de que quien llama es realmente el dueno del pedido va en el controller, antes de
+    // llamar aqui -- este metodo asume que ya se valido.
+    @Transactional
+    public void cancelarPropio(Integer pedidoId) {
+        RamoPedidoDetalle detalle = iRamoPedidoDetalleRepository.findByPedidoId(pedidoId).stream().findFirst()
+                .orElseThrow(() -> new ExceptionDataNotFound("Este pedido no tiene un ramo de flores asociado: " + pedidoId));
+        Pedido pedido = detalle.getPedido();
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        if (totalPagado > 0) {
+            throw new RuntimeException("Ya se registro un pago para este pedido -- no puedes cancelarlo tu mismo, "
+                    + "contacta al administrador.");
+        }
+        pedidoService.deletePedidoById(pedidoId, "CANCELADO_POR_CLIENTE");
     }
 
     @Transactional

@@ -9,12 +9,15 @@ import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleReques
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleResponseDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoPedidoDetalleValidarFraseRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.RevalidarPagoResponseDto;
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.service.RamoPedidoDetalleServiceImpl;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -100,6 +103,31 @@ public class RamoPedidoDetalleController {
         } catch (Exception e) {
             log.warn("Error al editar ramo del pedido {}: {}", pedidoId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    // El cliente cancela su propio pedido de flores, solo antes de pagar el anticipo -- pedido
+    // explicito del dueno (2026-08-17). El chequeo de dueno va aqui (mismo patron que
+    // ClienteControllerImpl): el ADMIN siempre puede (para eso ya tiene el endpoint generico,
+    // pero no tiene sentido bloquearlo aqui tambien), cualquier otro solo si es su propio pedido.
+    @DeleteMapping("/{pedidoId}/cancelar")
+    public ResponseEntity<ResponseGeneric<String>> cancelarPropio(@PathVariable Integer pedidoId) {
+        try {
+            if (!AuthenticationUtils.isAdminContext()) {
+                Usuario actual = AuthenticationUtils.currentUsuario();
+                Integer clienteIdPropietario = ramoPedidoDetalleService.obtenerClienteIdPropietario(pedidoId);
+                boolean esDueno = actual.getCliente() != null && clienteIdPropietario != null
+                        && actual.getCliente().getId().equals(clienteIdPropietario);
+                if (!esDueno) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(new ResponseGeneric<>((String) null, "No autorizado -- este pedido no es tuyo"));
+                }
+            }
+            ramoPedidoDetalleService.cancelarPropio(pedidoId);
+            return ResponseEntity.ok(new ResponseGeneric<>("Pedido cancelado correctamente"));
+        } catch (Exception e) {
+            log.warn("Error al cancelar pedido {} por el cliente: {}", pedidoId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((String) null, e.getMessage()));
         }
     }
 

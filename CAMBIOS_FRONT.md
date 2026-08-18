@@ -15877,3 +15877,40 @@ reconstruir el configurador al editar.
 Sigue sin resolver **si el cliente puede cancelar su propio pedido** (el dueño confirmó que sí,
 antes de pagar el anticipo) — hoy `DELETE /v1/pedidos/delete/{id}` es solo ADMIN, no existe forma
 de que el cliente cancele el suyo. Es una pieza nueva, la vamos a diseñar aparte.
+
+---
+
+## 🆕 BACK — `DELETE /v1/flores/pedidos/{pedidoId}/cancelar` — el cliente cancela su propio pedido (2026-08-17)
+
+Resuelto con el dueño: **solo pedidos de flores** (no es un cambio general para todo `/v1/pedidos`),
+y **solo antes de que se registre cualquier pago** (`Pedido.totalPagado` en 0 — no específico del
+anticipo de flores, aplica igual a un pedido normal que nunca se pagó).
+
+**Request:**
+```
+DELETE /v1/flores/pedidos/42/cancelar
+Authorization: Bearer {accessToken}
+```
+Sin body. Requiere sesión (cliente o admin) — no es público.
+
+**Response 200:**
+```json
+{ "response": "Pedido cancelado correctamente", "mensaje": null }
+```
+Reutiliza la misma lógica de `DELETE /v1/pedidos/delete/{id}` (devuelve stock, marca
+`estadoPedido: "cancelado"`, evita caché) — es el mismo cancelado de siempre, solo con una puerta
+distinta para que lo dispare el propio cliente.
+
+**403:** `"No autorizado -- este pedido no es tuyo"` — el que llama no es ADMIN ni el cliente dueño
+del pedido (chequeo por `Usuario.cliente.id`, no por lo que mande el request).
+
+**400 — casos posibles:**
+- `"Ya se registro un pago para este pedido -- no puedes cancelarlo tu mismo, contacta al
+  administrador."` — `totalPagado > 0`. A partir de ahí solo el admin puede cancelar (endpoint
+  general, que sí maneja devoluciones).
+- `"Este pedido no tiene un ramo de flores asociado: {id}"` — pedidoId válido pero no es un pedido
+  de flores (este endpoint no aplica a pedidos normales).
+- `"No se puede cancelar un pedido en estado: cancelado"` — ya estaba cancelado.
+
+**El ADMIN también puede llamar este mismo endpoint** (no hace falta que use el genérico) — se
+salta el chequeo de dueño, pero las reglas de `totalPagado`/estado siguen aplicando igual.
