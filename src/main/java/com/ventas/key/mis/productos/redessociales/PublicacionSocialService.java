@@ -128,6 +128,33 @@ public class PublicacionSocialService {
                 videoId, scheduledPublishTime, scheduledEpoch);
     }
 
+    /**
+     * Reel de la página. Sin programar -- video_reels no lo soporta igual que /videos, siempre
+     * publica de inmediato. Mismo criterio que el video normal: el archivo siempre viene en el
+     * request, nunca se persiste.
+     */
+    @Transactional
+    public PublicacionSocialDto publicarReelEnFacebook(Integer varianteId, String descripcion, MultipartFile video) {
+        Variantes variante = varianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+
+        if (video == null || video.isEmpty()) {
+            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        }
+
+        byte[] bytesVideo;
+        try {
+            bytesVideo = video.getBytes();
+        } catch (IOException e) {
+            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
+        }
+
+        log.info("Publicando Reel en Facebook, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
+        String videoId = facebookGraphClient.publicarReel(bytesVideo, video.getContentType(), descripcion);
+
+        return guardarPublicacion(variante, "reel", descripcion, null, videoId, null, null);
+    }
+
     // Primera version de Instagram, alcance recortado a proposito: solo imagen ya guardada en el
     // catalogo (imagenId o la principal de la variante), nunca un archivo ad-hoc -- Instagram
     // necesita una URL publica para la imagen, no acepta bytes subidos directo como Facebook, y

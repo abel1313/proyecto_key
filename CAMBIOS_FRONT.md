@@ -9066,6 +9066,9 @@ imagenNueva:                  (opcional, part de tipo archivo)
 
 **Límite de tamaño:** el micro acepta hasta **25 MB** por archivo/request (`imagenNueva` incluida)
 — configurado así a propósito para no capar fotos de cámara a resolución completa.
+**⚠️ DESACTUALIZADO — ver la corrección más abajo (2026-08-18): el límite real hoy es 200 MB, no
+25 MB.** Se dejó este párrafo tal cual como estaba, no se borró, para no perder el rastro de por
+qué existía el límite original.
 
 **Response 200:**
 ```json
@@ -16348,3 +16351,65 @@ conectado", y se activa solo cuando exista el endpoint.
 Todo lo suyo está conectado: `editar-ramo` (con fecha), `cancelar` del cliente, `esRamoFlores`,
 `esLineaInterna` y ahora `colorNombre`. **Lo único sin probar contra QA real** es el camino
 completo de editar un ramo y cobrar la diferencia — nos falta un pedido de verdad para eso.
+
+---
+
+## ✅ BACK — respuestas a sus 2 preguntas + Reel de Facebook construido (2026-08-18)
+
+### 1. El límite es 200 MB — el de 25 MB es historia vieja
+
+Tienen razón en la confusión, era nuestro doc desactualizado (ya lo marcamos arriba). **200 MB es
+el único límite real hoy**, y es global — no hay un límite distinto por endpoint, aplica igual a
+`imagenNueva` de foto, video de feed y Reel. El de 25 MB fue el original, antes de que se subiera
+para poder soportar video (ver la sección "Ya corrió y está verificada" de agosto). Avísenle 200 al
+admin con confianza.
+
+### 2. Video/Reel en Instagram — sí está en los planes, ya lo tienen documentado arriba
+
+Ya está construido (`POST /v1/redes-sociales/instagram/publicar-reel`, ver sección de hoy más
+arriba). Es lo único que confirmamos: llegó en el mismo mensaje que su pregunta.
+
+### 🆕 `POST /v1/redes-sociales/facebook/publicar-reel` — solo ADMIN
+
+Segundo en la lista de prioridades del dueño, ya construido. Mismo mecanismo de subida reanudable
+que Instagram, pero es el endpoint propio de Facebook (`/video_reels`, 3 pasos: iniciar, subir,
+finalizar) — internos distintos, misma idea.
+
+**Multipart**, igual que el Reel de Instagram y el video normal:
+```
+POST /v1/redes-sociales/facebook/publicar-reel
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}  (rol ADMIN)
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+
+- `video` obligatorio en cada llamada, igual que el video de feed — no hay Reel "principal" de la
+  variante.
+- **No soporta programar** — a diferencia del video normal de Facebook, que sí acepta
+  `scheduledPublishTime`. `/video_reels` no lo soportó en esta implementación; si lo necesitan,
+  avisen y se evalúa.
+- Sin validar duración/proporción/peso, mismo criterio que el resto — se manda tal cual.
+
+**Response 200:** mismo shape (`PublicacionSocialDto`) — `plataforma:"facebook"`,
+`tipoPublicacion:"reel"`.
+
+**400 — casos posibles:**
+- `"Facebook no está configurado: faltan FACEBOOK_PAGE_ID o FACEBOOK_PAGE_ACCESS_TOKEN"` — no
+  debería pasarles, ya configurado en QA.
+- `"No existe la variante con id {id}"` / `"Falta el archivo de video a publicar"`.
+- `"Facebook rechazó iniciar el Reel: ..."` / `"...rechazó la subida del video del Reel: ..."` /
+  `"...rechazó publicar el Reel: ..."` — error real de la Graph API, mensaje de Meta tal cual.
+- `"Facebook no devolvió video_id/upload_url al iniciar el Reel: ..."` /
+  `"Facebook no confirmó la subida..."` / `"...no confirmó la publicación..."` — Meta respondió
+  200 pero sin los campos esperados; caso raro, avísennos si lo ven.
+
+**403:** si quien llama no es ADMIN.
+
+**⚠️ Sin probar contra Meta real**, misma advertencia que el Reel de Instagram — primera vez que
+este proyecto usa `/video_reels`.
+
+No hace falta migración. **Con esto quedan construidos los 2 de la lista de prioridades — solo
+falta TikTok**, que sigue sin empezar (integración nueva desde cero, trámite de app propio).
