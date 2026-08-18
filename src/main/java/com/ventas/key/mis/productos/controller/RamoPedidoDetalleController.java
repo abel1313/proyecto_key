@@ -86,10 +86,11 @@ public class RamoPedidoDetalleController {
         }
     }
 
-    // Solo ADMIN: reemplaza colores/accesorios de un ramo ya guardado y recotiza esa parte
-    // (fecha/urgencia/envio/liston no se tocan, ver EditarRamoRequestDto). El front debe mostrar
-    // response.diferencia al admin -- si es positiva, falta registrar esa diferencia como abono
-    // (POST /v1/abonos/{pedidoId}, ya existente) para que el pedido quede cuadrado.
+    // Solo ADMIN: reemplaza colores/accesorios de un ramo ya guardado y recotiza esa parte;
+    // opcionalmente tambien fechaHoraEntrega/urgente (envio/liston siguen sin tocarse, ver
+    // EditarRamoRequestDto). El front debe mostrar response.diferencia al admin -- si es
+    // positiva, falta registrar esa diferencia como abono (POST /v1/abonos/{pedidoId}, ya
+    // existente) para que el pedido quede cuadrado.
     @PutMapping("/{pedidoId}/editar-ramo")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseGeneric<EditarRamoResponseDto>> editarRamo(

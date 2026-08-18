@@ -38,4 +38,10 @@ public class RamoPedidoDetalleResponseDto {
     // Accesorios elegidos (sin el papel, ver AccesorioSeleccionadoRamoDto) -- para reconstruir
     // el configurador al editar el ramo. Lista vacia si no eligio ninguno.
     private List<AccesorioSeleccionadoRamoDto> accesorios;
+    private LocalDateTime fechaHoraEntrega;
+    private Boolean esUrgente;
+    // Momento limite para pagar con el precio normal antes de que se aplique cargoUrgenteMonto --
+    // null si esUrgente=false o si este tamano no tiene cargo_urgente configurado.
+    private LocalDateTime fechaLimitePago;
+    private Double cargoUrgenteMonto;
 }
