@@ -16133,3 +16133,62 @@ del back: es que en su UI seguramente cruzan el `colorFlorId` del detalle contra
 como el color inactivo no aparece ahí, se pierde el nombre. Para el caso de "las 10 rojas ya no
 hay", usen directamente `colores[].colorNombre` del detalle en vez de buscarlo en el catálogo —
 ya tienen el dato, no hace falta que lo pidan aparte.
+
+---
+
+## 🙏 PETICIÓN — Reels (Facebook + Instagram) y TikTok (2026-08-18)
+
+El dueño definió su objetivo real y no es la foto: **es el Reel**. Un mismo video vertical
+publicado en **Facebook, Instagram y TikTok**. La foto y el video de feed que ya tenemos le
+sirven, pero son el camino secundario.
+
+Ustedes ya lo habían anticipado — *"Si quieren Historia o Reel, avisen y se dimensiona aparte"*.
+Pues avisamos: **lo queremos**.
+
+### Lo que se pide, por prioridad
+
+| # | Qué | Nota |
+|---|---|---|
+| 1 | **Reel en Instagram** | Es la red donde más le importa al dueño |
+| 2 | **Reel en Facebook** | Mismo video, misma publicación |
+| 3 | **TikTok** (publicar video) | Sabemos que es otro ecosistema y otro trámite — va al final |
+
+No pedimos Historias por ahora.
+
+### Lo que el front ya tiene listo
+
+La pantalla ya está construida para esto, **no hace falta que esperen a nadie**:
+
+- El archivo se sube **una sola vez** y se manda a cada red marcada.
+- El texto es **uno solo** (es el mismo post) y los **hashtags van por red** — se concatenan
+  antes de mandar. Ustedes reciben la `descripcion` ya armada, como hoy.
+- TikTok ya aparece en la pantalla, **deshabilitado**, con el motivo "todavía no está conectado".
+  En cuanto exista el endpoint, se activa.
+- Las publicaciones se mandan **una tras otra** y mostramos el resultado **por red**, porque una
+  puede fallar y otra no (justo lo que pasa hoy con Instagram sin vincular).
+
+### Preguntas para dimensionarlo
+
+1. **¿El mismo archivo sirve para las 3?** Nosotros mandaríamos un solo video vertical (9:16).
+   ¿Hace falta que el front valide algo antes de subir — duración, proporción, peso — o ustedes
+   lo rechazan con un mensaje claro y con eso basta? Preferimos avisarle **antes** de que espere
+   una subida larga que va a terminar rechazada.
+2. **¿El endpoint sería el mismo de video con un parámetro** (`tipoPublicacion: reel`), **o uno
+   aparte**? Nos da igual, es para saber cómo armarlo.
+3. **¿La subida por partes cambia algo para nosotros?** Hoy mandamos el archivo en un solo
+   multipart y pintamos la barra con `reportProgress`. Si el flujo resumable requiere que el
+   front participe (pedir una sesión de subida, mandar los trozos), dígannos y lo armamos — pero
+   si lo pueden absorber ustedes y nosotros seguimos mandando el archivo igual, mejor.
+4. **TikTok:** ¿saben ya si su API necesita que el dueño haga un trámite tipo el de Meta (app,
+   revisión, permisos)? Es para irlo empezando en paralelo, porque en Meta ese trámite fue lo
+   que más tardó.
+
+### ⚠️ Un aviso sobre la música, por si alguien lo pregunta
+
+Le explicamos al dueño que **la música de la biblioteca de Instagram no se puede elegir por API**
+— un Reel publicado desde el sistema sale con el audio del archivo. Él va a pegar la música al
+editar el video. Lo anotamos aquí para que quede el porqué: si más adelante alguien reporta
+"los Reels no traen la música de Instagram", no es un bug nuestro ni de ustedes.
+
+⚠️ **Y un riesgo derivado:** si el video lleva música comercial pegada, Instagram puede silenciarlo
+por derechos de autor. No hay nada que podamos hacer desde el código; es al editar.
