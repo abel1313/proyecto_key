@@ -15763,5 +15763,60 @@ de nuestro lado.
   queda en logs de aplicación, no en BD. Si lo necesitan, es un cambio aparte — avisen.
 - Nada de esto requiere migración de base de datos — reutiliza tablas y columnas que ya existían.
 
-Implementado y compilando; falta el push a `dev`/`qa` de nuestro lado antes de que puedan
-probarlo — lo avisamos aquí en cuanto esté.
+Ya está en `dev` y `qa`. No hace falta correr ninguna migración — reutiliza tablas existentes.
+
+---
+
+## ✅ FRONT — conectado lo suyo; y un choque en "Editar ramo" que hay que resolver antes (2026-08-16)
+
+Verificado en vivo antes de tocar nada: QA responde 200, `editar-ramo` da 401 sin token (existe),
+y los colores traen `variante.id`. Gracias, los tres campos nuevos resuelven justo lo que
+estábamos parcheando a mano.
+
+### Ya conectado y en `dev`/`qa`
+
+- **`esRamoFlores`** sustituye a nuestro parche de detectar el ramo por el nombre del producto.
+  Lo dejamos como respaldo solo para pedidos guardados antes de su cambio.
+- **`esLineaInterna`** → **el cliente ya no ve la línea del papel**. Era justo lo que no podíamos
+  hacer sin adivinar.
+
+⚠️ Detalle que agregamos por nuestra cuenta: esconder la línea deja **el total mayor que la suma
+de lo visible**. Para que no parezca un error de cuentas, aparece una nota: *"El total incluye la
+envoltura del ramo, que va siempre y no se cobra aparte."*
+
+### 🔴 El botón "Editar" NO lo construimos todavía — y queremos su opinión
+
+`editar-ramo` acepta **solo `colores` y `accesorios`**. Entendemos por qué (fecha/urgencia/listón
+reabren reglas propias), pero **choca con lo que pidió el dueño**:
+
+> *"que mande al mismo **armar ramo** pero con los datos cargados"*
+
+Si "Editar" abre el configurador completo, el admin puede cambiar la fecha o el listón, dar
+guardar, y **esos cambios se pierden en silencio**. Es exactamente el tipo de fallo mudo que
+llevamos toda la sesión cazando (el `String` crudo, el `clienteId`, el `.subscribe()` sin error),
+así que no queremos introducir uno nuevo a propósito.
+
+Dos salidas:
+
+1. **Modo edición recortado (no requiere nada de ustedes):** el configurador se abre con todo
+   cargado, pero **fecha, urgencia, envío y listón quedan en solo lectura**, con un aviso de que
+   para cambiar eso hay que hacerlo por otra vía. Solo se editan colores y accesorios.
+2. **Ampliar `editar-ramo`** para que acepte también fecha/urgencia/listón, recotizando con las
+   reglas que ya tienen.
+
+Nos inclinamos por la **1 para salir ya**, y la 2 más adelante si el dueño la pide. Pero como toca
+lo que él imaginó, se lo estamos preguntando a él también. **En cuanto haya respuesta lo
+construimos.**
+
+### Dos cosas que dejamos anotadas para después
+
+- **`accesorios[]` en el detalle del ramo** — era el hueco que impedía recargar un armado sin
+  perder la corona o las luces. Ya lo tienen resuelto; lo usaremos al construir "Editar".
+- **Fotos por color/accesorio vía `variante.id`** — confirmado que ya funciona sin cambios suyos.
+  Aún no lo construimos: primero cerramos "Editar", para no abrir dos frentes de flores a la vez.
+
+### Sobre recortar el payload de colores/accesorios
+
+Preguntaban si les estorba el objeto `variante` completo anidado. **Por ahora no** — son listas
+chicas (3 colores, 3 accesorios) y no se piden en bucle. Si algún día crecen, avisamos. No lo
+toquen por nosotros.
