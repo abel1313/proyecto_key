@@ -153,10 +153,15 @@ public class PublicacionSocialService {
 
     private PublicacionSocialDto guardarPublicacionInstagram(Variantes variante, String descripcion,
                                                                 Long imagenId, String mediaId) {
+        return guardarPublicacionInstagram(variante, descripcion, imagenId, mediaId, "foto");
+    }
+
+    private PublicacionSocialDto guardarPublicacionInstagram(Variantes variante, String descripcion,
+                                                                Long imagenId, String mediaId, String tipoPublicacion) {
         PublicacionSocial publicacion = new PublicacionSocial();
         publicacion.setVariante(variante);
         publicacion.setPlataforma("instagram");
-        publicacion.setTipoPublicacion("foto");
+        publicacion.setTipoPublicacion(tipoPublicacion);
         publicacion.setDescripcionPublicada(descripcion);
         publicacion.setImagenId(imagenId);
         publicacion.setPostIdFacebook(mediaId);
@@ -164,9 +169,35 @@ public class PublicacionSocialService {
         publicacion.setEstado("PUBLICADA");
 
         publicacion = publicacionSocialRepository.save(publicacion);
-        log.info("Publicación en Instagram creada: varianteId={}, mediaId={}", variante.getId(), mediaId);
+        log.info("Publicación en Instagram creada: tipo={}, varianteId={}, mediaId={}", tipoPublicacion, variante.getId(), mediaId);
 
         return PublicacionSocialDto.from(publicacion);
+    }
+
+    // Reel de Instagram -- a diferencia de la foto, el video SIEMPRE viene en el request (igual
+    // que el video de Facebook): el catalogo no guarda video de variantes, no hay "principal" a
+    // la cual caer. InstagramGraphClient absorbe toda la complejidad de la subida reanudable, el
+    // front sigue mandando un multipart normal como con Facebook.
+    @Transactional
+    public PublicacionSocialDto publicarReelEnInstagram(Integer varianteId, String descripcion, MultipartFile video) {
+        Variantes variante = varianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+
+        if (video == null || video.isEmpty()) {
+            throw new ExceptionErrorInesperado("Falta el archivo de video a publicar");
+        }
+
+        byte[] bytesVideo;
+        try {
+            bytesVideo = video.getBytes();
+        } catch (IOException e) {
+            throw new ExceptionErrorInesperado("No se pudo leer el video enviado: " + e.getMessage());
+        }
+
+        log.info("Publicando Reel en Instagram, varianteId={}, bytes={}", variante.getId(), bytesVideo.length);
+        String mediaId = instagramGraphClient.publicarReel(bytesVideo, video.getContentType(), descripcion);
+
+        return guardarPublicacionInstagram(variante, descripcion, null, mediaId, "reel");
     }
 
     private PublicacionSocialDto guardarPublicacion(Variantes variante, String tipoPublicacion, String descripcion,
