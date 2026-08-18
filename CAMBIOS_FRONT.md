@@ -16606,6 +16606,80 @@ hechos. Solo necesitamos que nos digan la ventana para ajustar el mensaje.
 
 ---
 
+## 📌 FRONT — dónde va la pantalla de redes y qué falta (2026-08-18, cierre del día)
+
+Resumen de lo que llevamos, para que no haya que releer el hilo.
+
+### La pantalla quedó rediseñada — el dueño la describió y no era la que teníamos
+
+Nos la explicó él directamente y hubo que rehacerla. Su flujo, textual: *"tiene que haber un
+[área] para cargar el video y ese video es para las 3 redes... 3 pestañas... eso solo es para
+poner los hashtags porque ahí sí va a ser lo diferente, y un textarea para el texto que irá en las
+3 redes... un botón de mostrar... eso quedaría al final"*.
+
+Cómo está ahora:
+
+```
+2 · Qué vas a publicar    [Foto] [Video] [Reel]
+
+    ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+          Arrastra aquí tu video          ← una sola vez, va a todas
+    └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+
+    Texto del post  [ ... ]               ← uno solo, igual en las 3
+
+3 · Redes y hashtags
+    ✓ Facebook | ✓ Instagram | TikTok     ← pestañas
+
+    ☑ Publicar en Instagram
+    Hashtags para Instagram [ ... ]        ← lo único que cambia por red
+
+    [ Mostrar cómo va a quedar ]           ← vista previa, al final
+```
+
+**Lo que les llega a ustedes no cambia:** siguen recibiendo `descripcion` ya armada (texto +
+hashtags de esa red concatenados) y el archivo en un multipart, una llamada por red.
+
+### ✅ Confirmado por el dueño: el producto SIEMPRE va a estar
+
+Les preguntamos internamente si haría falta que `varianteId` fuera opcional (para un Reel del
+local, un saludo, una promo general). **El dueño confirmó que siempre va a publicar sobre un
+producto del catálogo**, así que **no hace falta ningún cambio de su lado** — el paso de elegir
+producto se queda obligatorio como está hoy. Lo anotamos para que quede cerrado y no vuelva a
+salir la duda.
+
+### Estado de las 3 redes
+
+| | Foto | Video de feed | Reel | Programar |
+|---|---|---|---|---|
+| **Facebook** | ✅ | ✅ | ✅ | foto/video ✅ · **Reel ⏳ pedido** |
+| **Instagram** | ✅ | — | ✅ | **⏳ pedido** (requiere job propio) |
+| **TikTok** | ❌ | ❌ | ❌ | — |
+
+### Lo que está en su cancha, por orden
+
+1. **Programar Reels en ambas redes** — pedido en la sección de arriba, con la doc de Meta
+   verificada y el punto de diseño del desfase (dos mecanismos distintos pueden hacer que salga
+   una y la otra no). **Es lo que más le importa al dueño ahora.**
+2. **TikTok** — sin empezar. Recordamos la sugerencia: **arrancar por el trámite de la app**
+   aunque el código venga después; con Meta eso fue lo que más tardó y es lo único que no depende
+   de código.
+
+### Sin probar contra Meta — ninguno de los dos lados
+
+Foto y video de feed ya se pueden probar con confianza. **Los Reels no**: es la primera vez que el
+proyecto usa la subida reanudable (`/video_reels` y la de Instagram). Cuando el dueño haga la
+primera prueba real les pasamos el mensaje de Meta tal cual salga en pantalla, más la red y el
+tipo, para que puedan ubicar en qué paso se cayó.
+
+### 🌹 Flores — sin pendientes de nuestro lado
+
+Todo lo suyo está conectado: `editar-ramo` con fecha, `cancelar` del cliente, `esRamoFlores`,
+`esLineaInterna` y `colorNombre`. Lo único que falta ahí es **probar el camino completo con un
+pedido real** (editar un ramo y cobrar la diferencia), que no depende de código.
+
+---
+
 ## 🆕 BACK — TikTok construido, credenciales del trámite en curso (2026-08-18)
 
 Se avanzó en paralelo con el trámite de la app de TikTok (cuenta Business, app creada, dominio
