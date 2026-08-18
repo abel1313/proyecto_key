@@ -2,10 +2,12 @@ package com.ventas.key.mis.productos.redessociales;
 
 import com.ventas.key.mis.productos.entity.BaseId;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -49,4 +51,24 @@ public class PublicacionSocial extends BaseId {
     private LocalDateTime fechaPublicacion;
 
     private String estado;
+
+    // Contenido crudo guardado SOLO mientras la publicacion esta "PROGRAMADA" -- el job
+    // (PublicacionSocialScheduler) lo necesita para poder publicar mas tarde, ya que el archivo
+    // original del multipart no sobrevive mas alla del request. Se limpia a null en cuanto se
+    // publica o falla definitivamente, para no dejar blobs viejos ocupando espacio. No hace falta
+    // para "foto" con imagenId (ese se puede volver a pedir al microservicio de imagenes en el
+    // momento) -- solo para archivos ad-hoc (video, reel, foto imagenNueva de Facebook).
+    @Lob
+    @Column(name = "contenido_bytes")
+    @JsonIgnore
+    private byte[] contenidoBytes;
+
+    @Column(name = "content_type")
+    private String contentType;
+
+    @Column(name = "intentos")
+    private Integer intentos = 0;
+
+    @Column(name = "ultimo_error", columnDefinition = "TEXT")
+    private String ultimoError;
 }

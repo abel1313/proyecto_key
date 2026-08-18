@@ -22,6 +22,8 @@ public class PublicacionSocialDto {
     private LocalDateTime scheduledPublishTime;
     private LocalDateTime fechaPublicacion;
     private String estado;
+    private Integer intentos;
+    private String ultimoError;
 
     public static PublicacionSocialDto from(PublicacionSocial p) {
         return new PublicacionSocialDto(
@@ -33,7 +35,9 @@ public class PublicacionSocialDto {
                 p.getPostIdFacebook(),
                 p.getScheduledPublishTime(),
                 p.getFechaPublicacion(),
-                p.getEstado()
+                p.getEstado(),
+                p.getIntentos(),
+                p.getUltimoError()
         );
     }
 }
