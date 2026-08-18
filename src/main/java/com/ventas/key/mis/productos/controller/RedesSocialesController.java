@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocialDto;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocialService;
 import com.ventas.key.mis.productos.redessociales.PublicarFacebookRequest;
+import com.ventas.key.mis.productos.redessociales.PublicarInstagramRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 
-@Tag(name = "Redes sociales", description = "Publicar variantes del catálogo en Facebook")
+@Tag(name = "Redes sociales", description = "Publicar variantes del catálogo en Facebook e Instagram")
 @RestController
 @RequestMapping("/v1/redes-sociales")
 @RequiredArgsConstructor
@@ -76,6 +78,23 @@ public class RedesSocialesController {
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarVideoEnFacebook(
                 varianteId, descripcion, scheduledPublishTime, video);
+        return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
+
+    @Operation(
+        summary = "Publicar una variante en la cuenta de Instagram vinculada a la página",
+        description = "Primera versión: solo foto ya guardada en el catálogo (imagenId o la principal de la " +
+                "variante si se omite) -- Instagram necesita una URL pública de la imagen, no acepta un archivo " +
+                "nuevo subido directo como Facebook. Publica siempre de inmediato, no soporta programar. " +
+                "Requiere que la cuenta de Instagram ya esté vinculada a la página en Meta Business Suite."
+    )
+    @PostMapping("/instagram/publicar")
+    public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnInstagram(
+            @RequestBody PublicarInstagramRequest request) {
+
+        log.info("Publicar en Instagram - varianteId={}, imagenId={}", request.getVarianteId(), request.getImagenId());
+
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarEnInstagram(request);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
     }
 }

@@ -8961,7 +8961,62 @@ casi el mismo trámite de permisos de Meta cuando se necesite; TikTok es aparte.
 
 ---
 
-## 📘 Endpoint nuevo — Publicar variante en Facebook (2026-08-05, actualizado 2026-08-05)
+## 🆕 BACK — adelantado el código de Instagram mientras ustedes restauran Facebook (2026-08-17)
+
+Mientras ustedes traen de vuelta su rama de Facebook, adelantamos del lado del back el primer
+endpoint de Instagram — para no quedarnos parados esperando. **Importante: esto NO se puede
+probar todavía**, falta un requisito que solo el dueño puede resolver desde Meta Business Suite:
+**la cuenta de Instagram profesional (Business/Creator) todavía no está vinculada** a la página de
+Facebook "Novedades Jade" (lo verificamos contra la Graph API, `instagram_business_account` no
+viene en la respuesta de la página). Sin eso, `instagram.account-id` va a seguir vacío y el
+endpoint responde 400.
+
+### 🆕 `POST /v1/redes-sociales/instagram/publicar` — solo ADMIN
+
+Primera versión, alcance recortado a propósito (mismo criterio que se usó con Facebook al
+principio):
+
+- **Solo imagen ya guardada en el catálogo** — a diferencia de Facebook, Instagram no acepta un
+  archivo subido directo: su API pide una **URL pública** de la imagen. Reusamos la URL que ya
+  sirve el microservicio de imágenes (la misma que usan para mostrar fotos en el catálogo), así
+  que no hace falta que suban nada nuevo por ahora — sin soporte para archivo ad-hoc como
+  `imagenNueva` en Facebook (se puede agregar después si hace falta).
+- **No se puede programar.** La Content Publishing API de Instagram siempre publica de inmediato,
+  a diferencia de Facebook que sí soporta `scheduledPublishTime` — no es una limitación nuestra,
+  es así del lado de Meta.
+- **Content-Type: `application/json`** (no multipart, porque no se manda ningún archivo).
+
+**Request:**
+```json
+POST /v1/redes-sociales/instagram/publicar
+Authorization: Bearer {accessToken}  (rol ADMIN)
+{
+  "varianteId": 42,
+  "descripcion": "Bolsa nueva temporada 🎒",
+  "imagenId": 501
+}
+```
+- `imagenId` opcional — si se omite, usa la imagen principal ya guardada de esa variante (igual
+  que Facebook).
+
+**Response 200:** mismo shape que ya usan para Facebook (`PublicacionSocialDto`) —
+`plataforma:"instagram"`, `tipoPublicacion:"foto"`. **Ojo:** el id que devuelve Instagram viaja en
+el mismo campo `postIdFacebook` que usa Facebook (no se agregó un campo nuevo para no tocar el
+contrato ya existente) — fíjense en `plataforma` para saber de cuál red es.
+
+**400 — casos posibles:**
+- `"Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o FACEBOOK_PAGE_ACCESS_TOKEN..."` —
+  el caso de hoy, hasta que se vincule la cuenta.
+- `"No existe la variante con id {id}"`.
+- `"La variante {id} no tiene ninguna imagen guardada"` — sin `imagenId` y sin imagen principal.
+- `"Instagram rechazo la imagen: ..."` / `"Instagram rechazo publicar el contenedor: ..."` — error
+  real de la Graph API (formato de imagen no soportado, cuenta sin permisos, etc.), con el mensaje
+  de Meta tal cual.
+
+**403:** si quien llama no es ADMIN.
+
+No hace falta migración — reusa la tabla `publicacion_social` que ya existía para Facebook
+(`plataforma` ya era una columna genérica).
 
 Primer paso de la integración con redes sociales: publicar la foto de una variante en la página
 de Facebook del negocio. Solo Facebook por ahora — Instagram y TikTok quedan para después (Instagram

@@ -10,10 +10,12 @@ import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -29,6 +31,17 @@ public class PublicacionSocialService {
     private final IPublicacionSocialRepository publicacionSocialRepository;
     private final ImagenPort imagenPort;
     private final FacebookGraphClient facebookGraphClient;
+    private final InstagramGraphClient instagramGraphClient;
+
+    @Value("${api.imagenes:}")
+    private String endpointImagenes;
+
+    @PostConstruct
+    void init() {
+        if (endpointImagenes != null && !endpointImagenes.isBlank() && !endpointImagenes.endsWith("/")) {
+            endpointImagenes = endpointImagenes + "/";
+        }
+    }
 
     @Transactional
     public PublicacionSocialDto publicarEnFacebook(PublicarFacebookRequest request, MultipartFile imagenNueva) {
@@ -113,6 +126,47 @@ public class PublicacionSocialService {
 
         return guardarPublicacion(variante, "video", descripcion, null,
                 videoId, scheduledPublishTime, scheduledEpoch);
+    }
+
+    // Primera version de Instagram, alcance recortado a proposito: solo imagen ya guardada en el
+    // catalogo (imagenId o la principal de la variante), nunca un archivo ad-hoc -- Instagram
+    // necesita una URL publica para la imagen, no acepta bytes subidos directo como Facebook, y
+    // un archivo recien llegado del admin todavia no tiene esa URL sin antes guardarlo en el
+    // microservicio de imagenes (paso que se deja para una version futura si hace falta). Tampoco
+    // soporta programar -- la Content Publishing API de Instagram siempre publica de inmediato.
+    @Transactional
+    public PublicacionSocialDto publicarEnInstagram(PublicarInstagramRequest request) {
+        Variantes variante = varianteRepository.findById(request.getVarianteId())
+                .orElseThrow(() -> new ExceptionDataNotFound(
+                        "No existe la variante con id " + request.getVarianteId()));
+
+        Long imagenId = request.getImagenId() != null ? request.getImagenId() : imagenPrincipalDe(variante.getId());
+        if (endpointImagenes == null || endpointImagenes.isBlank()) {
+            throw new ExceptionErrorInesperado("No se pudo construir la URL publica de la imagen: falta configurar api.imagenes");
+        }
+        String urlImagen = endpointImagenes + "v1/imagenes/file/" + imagenId;
+
+        String mediaId = instagramGraphClient.publicarFoto(urlImagen, request.getDescripcion());
+
+        return guardarPublicacionInstagram(variante, request.getDescripcion(), imagenId, mediaId);
+    }
+
+    private PublicacionSocialDto guardarPublicacionInstagram(Variantes variante, String descripcion,
+                                                                Long imagenId, String mediaId) {
+        PublicacionSocial publicacion = new PublicacionSocial();
+        publicacion.setVariante(variante);
+        publicacion.setPlataforma("instagram");
+        publicacion.setTipoPublicacion("foto");
+        publicacion.setDescripcionPublicada(descripcion);
+        publicacion.setImagenId(imagenId);
+        publicacion.setPostIdFacebook(mediaId);
+        publicacion.setFechaPublicacion(LocalDateTime.now());
+        publicacion.setEstado("PUBLICADA");
+
+        publicacion = publicacionSocialRepository.save(publicacion);
+        log.info("Publicación en Instagram creada: varianteId={}, mediaId={}", variante.getId(), mediaId);
+
+        return PublicacionSocialDto.from(publicacion);
     }
 
     private PublicacionSocialDto guardarPublicacion(Variantes variante, String tipoPublicacion, String descripcion,
