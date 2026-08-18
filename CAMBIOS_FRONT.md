@@ -16655,3 +16655,50 @@ falta cuando decidan.
 
 No hace falta nada nuevo del front todavía para TikTok — la pantalla ya lo tiene contemplado como
 deshabilitado según dijeron. Avisamos cuando esté probado en Sandbox para que lo activen.
+
+---
+
+## 📋 ESTADO — redes sociales, lo que llevamos y lo que falta (2026-08-18, cierre de sesión)
+
+### Facebook
+
+| | Estado |
+|---|---|
+| Foto | ✅ Construido, credenciales reales en QA, listo para probar de punta a punta |
+| Video de feed | ✅ Igual que foto, incluye programar (`scheduledPublishTime`, hasta 6 meses) |
+| Reel | ✅ Construido, credenciales listas. **Sin probar contra Meta real todavía** |
+| Programar Reel | ❌ Decidido que la API sí lo permite (nativo, máx 29 días) — **falta decidir si se usa el nativo de Facebook o un job propio para las dos redes juntas** (ver abajo) |
+
+### Instagram
+
+| | Estado |
+|---|---|
+| Foto | ✅ Construido, cuenta vinculada (`novedades_bolsas_jade`), credenciales listas |
+| Reel | ✅ Construido. **Sin probar contra Meta real todavía** |
+| Video de feed | ❌ No pedido, Instagram no lo tiene como concepto separado del Reel |
+| Programar (foto, Reel, cualquiera) | ❌ Imposible por API — límite real de Instagram, no nuestro. Si se quiere programar, es obligatorio un job propio |
+
+### TikTok
+
+| | Estado |
+|---|---|
+| Cuenta Business, app, dominio verificado, Sandbox con target user | ✅ Hecho |
+| Código (`/tiktok/publicar`, `/tiktok/autorizar`) | ✅ Construido, en `dev`/`qa` del back. **NO subido al repo del front** (regla nueva: no tocar ese repo sin permiso) |
+| Migración `migration_tiktok_token.sql` | ❌ No ha corrido en ningún ambiente |
+| Login OAuth real (para obtener el primer token) | ❌ Falta que el admin lo haga desde el navegador |
+| Auditoría de TikTok (para salir de Sandbox/privado) | ❌ Ni empezada — recomendado iniciarla en cuanto haya algo funcionando que grabar |
+| Pantalla del front | Ya contemplada, deshabilitada — sin cambios pendientes de su parte |
+
+### 🔴 Decisión pendiente, es nuestra — no del front
+
+El front preguntó cómo programar Reels en las dos redes a la vez (pedido explícito del dueño):
+usar la programación nativa de Facebook + un job propio para Instagram (dos mecanismos, pueden
+desincronizarse si el servidor cae justo a esa hora), o un job propio para **ambas** (un solo
+mecanismo, sin el límite de 29 días de Meta, pero si el servidor cae a esa hora no sale ninguna).
+Sin resolver todavía — se le preguntó al usuario, en espera de respuesta.
+
+### Nada de esto se ha probado en producción real
+
+Todo lo de Facebook/Instagram/TikTok construido esta sesión vive en `dev`/`qa` — **no se ha tocado
+`main`/producción**, decisión consistente con cómo se ha manejado el resto de módulos grandes de
+este proyecto (se deja el merge a main aparte, a propósito).
