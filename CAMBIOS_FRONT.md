@@ -15991,3 +15991,66 @@ del pedido (chequeo por `Usuario.cliente.id`, no por lo que mande el request).
 
 **El ADMIN también puede llamar este mismo endpoint** (no hace falta que use el genérico) — se
 salta el chequeo de dueño, pero las reglas de `totalPagado`/estado siguen aplicando igual.
+
+---
+
+## ✅ FRONT — implementado: editar ramo, cancelar del cliente, y un agujero de cobro que cerramos (2026-08-17)
+
+Ya está en `dev` y `qa` del front. Gracias por abrir la fecha en `editar-ramo` — era justo lo que
+faltaba para poder construirlo.
+
+### Editar ramo
+
+Vive en el **detalle del pedido**, no en la card de la lista: `GET /v1/pedidos/buscarClientePedido`
+no trae `esRamoFlores`, así que desde la lista no sabemos si mostrar el botón sin pedir el detalle
+de cada pedido. Abre `/flores/configurar?pedidoId=42` con todo precargado.
+
+Seguimos su recomendación: **`fechas-disponibles` primero**, y a `editar-ramo` solo va lo que ya
+se validó ahí. La fecha se manda **únicamente si cambió**; si no, se omite y ustedes la dejan
+intacta.
+
+**Un detalle de UX que resultó importante:** cuando el admin sube el tamaño del ramo, volvemos a
+preguntar el plazo y le avisamos *"con este cambio ya no alcanza para el 20 — lo más pronto es el
+23"*. Es lo que necesita para negociar por teléfono antes de aceptar el cambio. La fecha ya pactada
+**no se pisa** mientras siga siendo posible: cambiar un accesorio no debe mover la entrega.
+
+### Cancelar del cliente — conectado
+
+`DELETE /v1/flores/pedidos/{id}/cancelar` ya está en el botón "Cancelar" del cliente. Antes ese
+botón llamaba al endpoint de admin y le respondía **403 mudo**. Ahora se pide el detalle primero y
+se decide: ramo sin pagos → su endpoint; ya pagó o no es un ramo → se le dice que nos escriba, en
+vez de mandarlo a un error inevitable.
+
+### 🔴 Un agujero de cobro que encontramos de paso (ya cerrado, sin cambios de back)
+
+El modal **"📍 Entrega"** (`PUT /v1/pedidos/{id}/entrega`) **lo ve el cliente** y su campo de fecha
+es libre, sin validar nada. En un ramo eso permitía:
+
+1. Cotizar entrega el 22 → sin cargo → pagar $1,225.
+2. Ya pagado, abrir "Entrega" y mover la fecha al 19.
+3. El taller lo arma con prisa y **los $300 de urgencia nunca se cobran**. Nadie se entera.
+
+Lo cerramos en el front: en un pedido de ramo, **fecha y lugar quedan bloqueados** (para todos,
+admin incluido — ese campo no recalcula nada) y se remite a "Editar ramo", que sí recotiza. Los
+demás campos siguen editables, y en pedidos normales no cambia nada.
+
+**Si les parece, valdría la pena reforzarlo también del lado de ustedes** — hoy `PUT .../entrega`
+acepta cualquier fecha en un pedido con `RamoPedidoDetalle`, sin tocar `fechaLimitePago` ni el
+cargo urgente. Nosotros ya no la mandamos en ramos, pero el endpoint sigue abierto. Ustedes deciden
+si vale la pena.
+
+### ❓ Una duda menor sobre `editar-ramo`
+
+**¿Qué pasa con un color que se desactivó después de la venta?** Hoy, al precargar, un color que ya
+no está en `colores-flor/por-tipo-flor` desaparece de la lista y el admin ve que le faltan flores
+por repartir. Es un comportamiento aceptable (no puede volver a mandarlo, ustedes lo rechazan con
+*"El color '...' no esta disponible actualmente"*), pero **el admin no sabe qué color se cayó ni
+cuántas flores eran**. ¿Podrían dejar en el detalle del ramo el nombre del color aunque esté
+inactivo, para poder decirle *"las 10 rojas ya no hay, ¿con cuál las cambiamos?"*? No es urgente
+—pasa solo si desactivan un color con pedidos vivos— pero si es barato de su lado, ayuda.
+
+### ⚠️ QA sigue caído
+
+`https://qa.backend.novedades-jade.com.mx` responde **502 en todo**, incluido `/v1/cinta/activos`
+(que es público). Verificamos todo esto con el backend simulado; **falta probarlo contra el suyo**
+en cuanto lo levanten.
