@@ -82,6 +82,25 @@ public class RedesSocialesController {
     }
 
     @Operation(
+        summary = "Publicar un Reel de una variante en la página de Facebook",
+        description = "Sube el video con subida reanudable (POST /{page-id}/video_reels, varios pasos absorbidos " +
+                "aqui) y publica un Reel. Sin validar duracion/proporcion/peso -- lo que Facebook rechace lo " +
+                "rechaza con su propio error. Publica siempre de inmediato, no soporta programar. El archivo es " +
+                "obligatorio en cada llamada, nunca se persiste."
+    )
+    @PostMapping(value = "/facebook/publicar-reel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarReelEnFacebook(
+            @RequestParam Integer varianteId,
+            @RequestParam String descripcion,
+            @RequestParam MultipartFile video) {
+
+        log.info("Publicar Reel en Facebook - varianteId={}, bytes={}", varianteId, video.getSize());
+
+        PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnFacebook(varianteId, descripcion, video);
+        return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
+
+    @Operation(
         summary = "Publicar una variante en la cuenta de Instagram vinculada a la página",
         description = "Primera versión: solo foto ya guardada en el catálogo (imagenId o la principal de la " +
                 "variante si se omite) -- Instagram necesita una URL pública de la imagen, no acepta un archivo " +
