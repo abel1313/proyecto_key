@@ -16054,3 +16054,51 @@ inactivo, para poder decirle *"las 10 rojas ya no hay, ¿con cuál las cambiamos
 `https://qa.backend.novedades-jade.com.mx` responde **502 en todo**, incluido `/v1/cinta/activos`
 (que es público). Verificamos todo esto con el backend simulado; **falta probarlo contra el suyo**
 en cuanto lo levanten.
+
+---
+
+## ✅ BACK — QA ya tiene TODO cargado y correcto — Facebook e Instagram listos para probar de verdad (2026-08-18)
+
+Confirmado el 502 de arriba como resuelto. Cierre de la sesión de Facebook/Instagram — resumen de
+todo lo que cambió, para no tener que releer el hilo completo:
+
+### Qué se corrigió al final
+
+La página de Facebook que se había configurado primero (**"Novedades Jade"**, con espacio, id
+`1275448475648441`) **era la equivocada** — la cuenta administra 4 páginas y esa no es donde vive
+la presencia real del negocio. La correcta es **"NovedadesJade"** (sin espacio, id
+`645820348605806`), la que tiene vinculada la cuenta real de Instagram
+(`novedades_bolsas_jade`, IG business account id `17841444237033427`). Si en algún momento
+guardaron el ID viejo (`1275448475648441`) en cualquier parte de su código, hay que cambiarlo.
+
+### QA — verificado en vivo, las 3 variables están correctas
+
+```
+FACEBOOK_PAGE_ID=645820348605806
+FACEBOOK_PAGE_ACCESS_TOKEN=<token de larga duración, no expira>
+INSTAGRAM_ACCOUNT_ID=17841444237033427
+```
+
+**Ya no hay ningún bloqueo de credenciales.** `POST /v1/redes-sociales/facebook/publicar`,
+`POST /v1/redes-sociales/facebook/publicar-video` y `POST /v1/redes-sociales/instagram/publicar`
+están listos para probarse de punta a punta en QA, con la página/cuenta reales.
+
+### Checklist de lo que se tocó en esta ronda (todo con request/response/excepciones ya documentado arriba en este archivo, buscar por título)
+
+| Qué | Endpoint | Estado |
+|---|---|---|
+| Facebook restaurado (foto/video) | `POST /v1/redes-sociales/facebook/publicar[-video]` | ✅ Código + credenciales listas. Contrato sin cambios respecto a como estaba documentado antes de la pausa. |
+| Instagram nuevo | `POST /v1/redes-sociales/instagram/publicar` | ✅ Código + credenciales listas. **Ustedes todavía no construyeron la pantalla** — es lo único que falta para poder probarlo de su lado. |
+| Editar ramo con fecha | `PUT /v1/flores/pedidos/{id}/editar-ramo` | ✅ Ya lo conectaron (gracias). |
+| Cancelar del cliente | `DELETE /v1/flores/pedidos/{id}/cancelar` | ✅ Ya lo conectaron. |
+
+### Pendiente — no es nuestro, o sin decidir todavía
+
+- **El agujero de `PUT /v1/pedidos/{id}/entrega` que reportaron** (mover la fecha de un ramo ya
+  pagado sin recalcular el cargo urgente): siguen sin corregirlo en el back. Lo dejamos anotado
+  como pendiente de decisión — se las vamos a preguntar aparte porque toca un endpoint genérico
+  que usan otros flujos también, no solo flores.
+- **Colores desactivados en el detalle del ramo:** su pregunta sigue sin respuesta, misma razón,
+  se las contestamos en la siguiente ronda.
+- **Instagram, del lado de ustedes:** falta construir la pantalla — el contrato ya está documentado
+  completo arriba en este archivo (sección `POST /v1/redes-sociales/instagram/publicar`, 2026-08-17).
