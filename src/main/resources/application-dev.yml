@@ -114,6 +114,11 @@ chat:
   admin-email: ${CHAT_ADMIN_EMAIL:qa.boutique.bolsas@novedades-jade.com.mx}
   forzar-notificacion: true
 
+facebook:
+  page-id: asdasd
+  page-access-token: asdasd
+  api-version: v21.0
+
 whatsapp:
   # Proveedor activo: callmebot | twilio | ninguno
   proveedor: ${WHATSAPP_PROVEEDOR:callmebot}

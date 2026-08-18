@@ -8922,23 +8922,18 @@ para diagnosticarlo con precisión en vez de seguir adivinando.
 
 ---
 
-## ⏸️ PAUSADO — todo lo de Facebook se sacó de `dev`/`qa` (2026-08-05)
+## ▶️ RETOMADO — el feature de Facebook vuelve a `dev`/`qa` (2026-08-17)
 
-**Los endpoints `POST /v1/redes-sociales/facebook/publicar` y `POST /v1/redes-sociales/facebook/publicar-video`
-YA NO EXISTEN en `dev` ni en `qa` a partir de ahora.** Se decidió pausar el feature completo —
-código, config y tabla `publicacion_social` — mientras se resuelve la configuración de la app de
-Meta (¡gracias por resolver lo de la Política de Privacidad, ver la sección de ustedes más abajo
-para las preguntas pendientes de ese punto — siguen vigentes, esto no las cambia!).
+Se pausó el 2026-08-05 (ver historial más abajo) mientras se resolvía la configuración de la app
+de Meta. Se retoma ahora: **los endpoints `POST /v1/redes-sociales/facebook/publicar` y
+`POST /v1/redes-sociales/facebook/publicar-video` vuelven a existir en `dev`/`qa`**, código
+restaurado tal cual desde la rama `backup/facebook-redes-sociales`, sin cambios de contrato — la
+documentación de abajo sigue vigente tal cual estaba.
 
-**Nada se perdió**: todo el código quedó respaldado en la rama `backup/facebook-redes-sociales`
-de `proyecto_key`, listo para retomarse cuando se reactive el trabajo. Si mientras tanto conectan
-algo contra estos endpoints en QA, van a ver 404 — no es un bug, es que efectivamente no está
-desplegado.
-
-Dejamos toda la documentación de abajo (contrato de los endpoints, flujo de pantalla, respuestas
-a sus preguntas, y la sección de ustedes sobre la Política de Privacidad) **tal cual**, como
-referencia para cuando se retome — no hace falta rehacerla, solo va a volver a aplicar cuando el
-código regrese a `dev`/`qa`.
+**Sigue pendiente del lado de Meta:** generar el Page Access Token de larga duración (el bloqueo
+que quedó pendiente en agosto) y cargar App ID/App Secret/ID de página/token en la config del
+back. Hasta que eso esté, el camino feliz sigue sin poder probarse en vivo — los endpoints
+existen mejor pero van a devolver 400 (credenciales no configuradas) hasta entonces.
 
 ---
 
