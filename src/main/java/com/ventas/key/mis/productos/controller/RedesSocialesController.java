@@ -72,16 +72,18 @@ public class RedesSocialesController {
     }
 
     @Operation(
-        summary = "Publicar un video de una variante en la página de Facebook",
+        summary = "Publicar un video en la página de Facebook",
         description = "Sube un video junto con la descripción a POST /{page-id}/videos de la Graph API. " +
                 "A diferencia de la foto, el catálogo no guarda video de variantes -- el archivo es " +
                 "obligatorio en cada llamada, nunca se persiste en el microservicio de imágenes. " +
+                "varianteId es OPCIONAL -- el video no depende de un producto del catálogo; si se manda, solo " +
+                "queda registrado en el historial para saber a qué variante se asoció esa publicación. " +
                 "Si scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job a esa " +
                 "hora; si no, publica de inmediato."
     )
     @PostMapping(value = "/facebook/publicar-video", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarVideoEnFacebook(
-            @RequestParam Integer varianteId,
+            @RequestParam(required = false) Integer varianteId,
             @RequestParam String descripcion,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
@@ -94,17 +96,18 @@ public class RedesSocialesController {
     }
 
     @Operation(
-        summary = "Publicar un Reel de una variante en la página de Facebook",
+        summary = "Publicar un Reel en la página de Facebook",
         description = "Sube el video con subida reanudable (POST /{page-id}/video_reels, varios pasos absorbidos " +
                 "aqui) y publica un Reel. Sin validar duracion/proporcion/peso -- lo que Facebook rechace lo " +
-                "rechaza con su propio error. Si scheduledPublishTime viene, se guarda como PROGRAMADA y la " +
-                "publica nuestro propio job a esa hora (no el scheduler nativo de Meta, por consistencia con " +
-                "Instagram/TikTok que no lo tienen); si no, publica de inmediato. El archivo es obligatorio en " +
-                "cada llamada, nunca se persiste."
+                "rechaza con su propio error. varianteId es OPCIONAL -- el Reel no depende de un producto del " +
+                "catálogo; si se manda, solo queda registrado en el historial. Si scheduledPublishTime viene, se " +
+                "guarda como PROGRAMADA y la publica nuestro propio job a esa hora (no el scheduler nativo de " +
+                "Meta, por consistencia con Instagram/TikTok que no lo tienen); si no, publica de inmediato. El " +
+                "archivo es obligatorio en cada llamada, nunca se persiste."
     )
     @PostMapping(value = "/facebook/publicar-reel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarReelEnFacebook(
-            @RequestParam Integer varianteId,
+            @RequestParam(required = false) Integer varianteId,
             @RequestParam String descripcion,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
@@ -153,18 +156,20 @@ public class RedesSocialesController {
     }
 
     @Operation(
-        summary = "Subir un video de una variante a TikTok (modo Upload/borrador)",
+        summary = "Subir un video a TikTok (modo Upload/borrador)",
         description = "Sube el video con el modo 'Upload' de la Content Posting API v2 -- llega como borrador " +
                 "al inbox de la cuenta autorizada, el dueño lo tiene que terminar de publicar manualmente desde " +
                 "el celular. No es Direct Post: el scope video.publish que se necesitaría para auto-publicar no " +
                 "está disponible sin pasar la auditoría de TikTok. Sin validar duración/proporción/peso -- lo " +
-                "que TikTok rechace lo rechaza con su propio error. Si scheduledPublishTime viene, se guarda " +
-                "como PROGRAMADA y la publica (sube el borrador) nuestro propio job a esa hora; si no, sube de " +
-                "inmediato. El archivo es obligatorio en cada llamada, nunca se persiste."
+                "que TikTok rechace lo rechaza con su propio error. varianteId es OPCIONAL -- el video no " +
+                "depende de un producto del catálogo; si se manda, solo queda registrado en el historial. Si " +
+                "scheduledPublishTime viene, se guarda como PROGRAMADA y la publica (sube el borrador) nuestro " +
+                "propio job a esa hora; si no, sube de inmediato. El archivo es obligatorio en cada llamada, " +
+                "nunca se persiste."
     )
     @PostMapping(value = "/tiktok/publicar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnTikTok(
-            @RequestParam Integer varianteId,
+            @RequestParam(required = false) Integer varianteId,
             @RequestParam String descripcion,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
@@ -177,17 +182,18 @@ public class RedesSocialesController {
     }
 
     @Operation(
-        summary = "Publicar un Reel de una variante en Instagram",
+        summary = "Publicar un Reel en Instagram",
         description = "Sube el video con subida reanudable (varios pasos con la Graph API, absorbidos aqui) y " +
                 "publica un Reel. El video se manda tal cual llega -- sin validar duracion/proporcion/peso, " +
-                "vertical u horizontal, lo que Instagram rechace lo rechaza con su propio error. Si " +
-                "scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job " +
-                "(Instagram no tiene programación nativa); si no, publica de inmediato. El archivo es " +
+                "vertical u horizontal, lo que Instagram rechace lo rechaza con su propio error. varianteId es " +
+                "OPCIONAL -- el Reel no depende de un producto del catálogo; si se manda, solo queda registrado " +
+                "en el historial. Si scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro " +
+                "propio job (Instagram no tiene programación nativa); si no, publica de inmediato. El archivo es " +
                 "obligatorio en cada llamada, nunca se persiste."
     )
     @PostMapping(value = "/instagram/publicar-reel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarReelEnInstagram(
-            @RequestParam Integer varianteId,
+            @RequestParam(required = false) Integer varianteId,
             @RequestParam String descripcion,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {

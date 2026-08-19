@@ -17032,3 +17032,38 @@ desactualizada le va a mentir.
 
 Quedamos igual: si algo falla les pasamos **el mensaje tal cual salga en pantalla**, la red y el
 tipo (foto/video/Reel). Lo mostramos completo y sin recortar justamente para eso.
+
+---
+
+## ⚠️ BACK — `varianteId` ahora es OPCIONAL en video/Reel/TikTok (2026-08-18)
+
+Se encontró probando en vivo: mandar el video sin `varianteId` daba `500 Internal Server Error`
+en vez de un error claro. Dos cosas cambiaron:
+
+**1. `varianteId` ya no es obligatorio** en estos 4 endpoints (sigue siendo `Integer`, solo que
+ahora se puede omitir del todo o mandar vacío):
+- `POST /mis-productos/v1/redes-sociales/facebook/publicar-video`
+- `POST /mis-productos/v1/redes-sociales/facebook/publicar-reel`
+- `POST /mis-productos/v1/redes-sociales/instagram/publicar-reel`
+- `POST /mis-productos/v1/redes-sociales/tiktok/publicar`
+
+Motivo: a diferencia de la foto (que sí necesita una variante para sacar la imagen guardada), el
+video/Reel siempre se sube "suelto" desde el archivo del request — no depende de un producto del
+catálogo. Si de todas formas se manda `varianteId`, se sigue validando que exista y queda
+registrado en el historial de esa variante; si no se manda, la publicación queda sin variante
+asociada (no aparece en el historial "por variante", pero sí en el resto de los datos que ya
+devuelve el endpoint).
+
+`facebook/publicar` (foto) e `instagram/publicar` (foto) **no cambiaron** — ahí `varianteId` (o
+`imagenId`) sigue siendo necesario porque de ahí sale la imagen a publicar.
+
+**2. Parámetro faltante ahora responde `400`, no `500`.** Cualquier `@RequestParam` obligatorio
+que falte en cualquier endpoint del back (no solo redes sociales) va a responder:
+```json
+{ "mensaje": "Falta el parámetro requerido: <nombre>", "code": 400 }
+```
+en vez de `500 Error interno del servidor` como pasaba antes — era un problema de clasificación
+de errores, no algo nuevo que vaya a aparecer de la nada.
+
+> Pendiente correr `migration_publicacion_social_variante_opcional.sql` en dev/qa (quita el
+> `NOT NULL` de `publicacion_social.variante_id`).
