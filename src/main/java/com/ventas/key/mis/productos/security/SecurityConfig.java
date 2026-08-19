@@ -99,6 +99,10 @@ public class SecurityConfig {
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/v1/mp/webhook").permitAll()
 
+                        // ── Webhook Facebook -- comentarios (llamada sin auth desde Meta,
+                        // validado por firma X-Hub-Signature-256 dentro del controlador) ──────
+                        .requestMatchers("/v1/redes-sociales/facebook/webhook").permitAll()
+
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
                         .requestMatchers("/v1/palabras-clave/**").hasRole("ADMIN")

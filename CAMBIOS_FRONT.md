@@ -17166,3 +17166,36 @@ Ya corregido: los 3 clientes (`FacebookGraphClient`, `InstagramGraphClient`, `Ti
 ahora arman su propio `WebClient` aislado, completamente ajeno al filtro interno — nunca más van a
 recibir nuestro JWT mezclado con el token de la red social. Sin cambios de contrato para front,
 nada que ajustar de su lado. Listo para volver a probar en vivo.
+
+---
+
+## ✅ Pruebas en vivo — resultado final (2026-08-19)
+
+- **Facebook** (Reel) — ✅ publica directo y público, confirmado con `postIdFacebook` real y
+  `estado: PUBLICADA`.
+- **Instagram** (Reel) — ✅ igual, confirmado con `postIdFacebook` real.
+- **TikTok** — ✅ el flujo funciona de punta a punta (confirmado dos veces contra la API real de
+  TikTok, `status: SEND_TO_USER_INBOX`), pero el video nunca llega al dispositivo/app real —
+  **es una limitación documentada de TikTok: el modo Sandbox no entrega contenido real del
+  Content Posting API**, solo simula la respuesta para que el desarrollador valide su
+  integración. No es un bug de nuestro código ni de la cuenta (se confirmó que `@novedadesjade8`
+  es la cuenta correcta y está en Target Users).
+- **Auditoría de TikTok ("Content Posting API audit") ya fue enviada hoy** (Products: Login Kit +
+  Content Posting API; Scopes: `user.info.basic` + `video.upload`; video de demo grabado en QA,
+  aceptado porque TikTok exige Sandbox para el primer envío). Respuesta esperada: unos días a 2
+  semanas. Cuando aprueben, el mismo endpoint (`/tiktok/publicar`) pasa a publicar directo sin
+  el paso manual del celular — no hace falta ningún cambio de código de ningún lado.
+- Pendiente el merge a `main` una vez que quede aprobada la auditoría (o antes, a decidir).
+
+---
+
+## 🆕 Bot de respuestas a comentarios de Facebook (2026-08-19) — informativo, no requiere nada de front
+
+Nuevo: cuando alguien comenta un post/Reel de la página de Facebook, un bot contesta
+automáticamente (reusa el mismo motor del chat del sitio, con el producto del post como contexto
+si aplica). Primer comentario de una persona → siempre saluda; después, si no entiende, se queda
+callado. Es 100% backend + Meta (Meta llama directo a un webhook nuestro) — **no hay ningún
+endpoint ni cambio de contrato que afecte al front**, se las dejamos anotado solo para que sepan
+que existe. Pendiente: registrar el webhook en el portal de Meta y pedir el permiso
+`pages_manage_engagement` (aparte del que ya tienen para publicar) — sin eso, el bot puede recibir
+comentarios pero no puede contestarlos todavía.
