@@ -1,7 +1,9 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.redessociales.ActualizarHashtagsRequest;
 import com.ventas.key.mis.productos.redessociales.AutorizarTikTokRequest;
+import com.ventas.key.mis.productos.redessociales.HashtagsDefault;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocialDto;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocialService;
 import com.ventas.key.mis.productos.redessociales.PublicarFacebookRequest;
@@ -15,7 +17,10 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -148,13 +153,14 @@ public class RedesSocialesController {
     }
 
     @Operation(
-        summary = "Publicar un video de una variante en TikTok",
-        description = "Sube el video con Direct Post (Content Posting API v2) y lo publica. Sin validar " +
-                "duración/proporción/peso -- lo que TikTok rechace lo rechaza con su propio error. Si " +
-                "scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job (TikTok " +
-                "no tiene programación nativa); si no, publica de inmediato. Mientras la app no esté auditada, " +
-                "solo funciona con cuentas Target User de Sandbox, y el video sale forzado a privado " +
-                "(SELF_ONLY). El archivo es obligatorio en cada llamada, nunca se persiste."
+        summary = "Subir un video de una variante a TikTok (modo Upload/borrador)",
+        description = "Sube el video con el modo 'Upload' de la Content Posting API v2 -- llega como borrador " +
+                "al inbox de la cuenta autorizada, el dueño lo tiene que terminar de publicar manualmente desde " +
+                "el celular. No es Direct Post: el scope video.publish que se necesitaría para auto-publicar no " +
+                "está disponible sin pasar la auditoría de TikTok. Sin validar duración/proporción/peso -- lo " +
+                "que TikTok rechace lo rechaza con su propio error. Si scheduledPublishTime viene, se guarda " +
+                "como PROGRAMADA y la publica (sube el borrador) nuestro propio job a esa hora; si no, sube de " +
+                "inmediato. El archivo es obligatorio en cada llamada, nunca se persiste."
     )
     @PostMapping(value = "/tiktok/publicar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnTikTok(
@@ -191,5 +197,30 @@ public class RedesSocialesController {
         PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnInstagram(
                 varianteId, descripcion, scheduledPublishTime, video);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
+
+    @Operation(
+        summary = "Obtener los hashtags por default de las 3 redes",
+        description = "Un set fijo de hashtags por red (facebook/instagram/tiktok) para que el front los " +
+                "precargue siempre al abrir el formulario de publicar -- el admin ya no los reescribe a mano " +
+                "cada vez, aunque puede editarlos/quitarlos antes de enviar. Devuelve las 3 filas siempre " +
+                "(se siembran vacías en la migración)."
+    )
+    @GetMapping("/hashtags-default")
+    public ResponseEntity<ResponseGeneric<HashtagsDefault>> obtenerHashtagsDefault() {
+        return ResponseEntity.ok(new ResponseGeneric<HashtagsDefault>(publicacionSocialService.obtenerHashtagsDefault()));
+    }
+
+    @Operation(
+        summary = "Actualizar los hashtags por default de una red",
+        description = "redSocial debe ser 'facebook', 'instagram' o 'tiktok'. Reemplaza el valor completo " +
+                "guardado para esa red -- no es un append."
+    )
+    @PutMapping("/hashtags-default/{redSocial}")
+    public ResponseEntity<ResponseGeneric<HashtagsDefault>> actualizarHashtagsDefault(
+            @PathVariable String redSocial, @RequestBody ActualizarHashtagsRequest request) {
+
+        HashtagsDefault actualizado = publicacionSocialService.actualizarHashtagsDefault(redSocial, request.getHashtags());
+        return ResponseEntity.ok(new ResponseGeneric<>(actualizado));
     }
 }

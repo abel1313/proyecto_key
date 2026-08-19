@@ -662,17 +662,36 @@ kubectl exec rabbitmq-0 -n default -- rabbitmqctl list_vhosts
 
 **Mapa de rutas Nginx → K8s (6 virtual hosts):**
 
-| Dominio | Nginx proxy_pass | App en K8s |
-|---|---|---|
-| `backend.novedades-jade.com.mx` | `51.178.29.99:30010` | proyecto-key back (prod) |
-| `backend-imagenes.novedades-jade.com.mx` | `127.0.0.1:30096` | micro_imagenes (prod) |
-| `shop.novedades-jade.com.mx` | `127.0.0.1:30001` | front Angular (prod) |
-| `qa.backend.novedades-jade.com.mx` | `127.0.0.1:31010` | proyecto-key back (QA) |
-| `qa.backend-imagenes.novedades-jade.com.mx` | `127.0.0.1:31096` | micro_imagenes (QA) |
-| `qa.shop.novedades-jade.com.mx` | `127.0.0.1:31001` | front Angular (QA) |
+| Dominio | Nginx proxy_pass | App en K8s | `client_max_body_size` |
+|---|---|---|---|
+| `backend.novedades-jade.com.mx` | `51.178.29.99:30010` | proyecto-key back (prod) | ❌ no tiene — pendiente (ver nota abajo) |
+| `backend-imagenes.novedades-jade.com.mx` | `127.0.0.1:30096` | micro_imagenes (prod) | ✅ `40m` |
+| `shop.novedades-jade.com.mx` | `127.0.0.1:30001` | front Angular (prod) | — (no recibe uploads) |
+| `qa.backend.novedades-jade.com.mx` | `127.0.0.1:31010` | proyecto-key back (QA) | ✅ `200M` (agregado 2026-08-18) |
+| `qa.backend-imagenes.novedades-jade.com.mx` | `127.0.0.1:31096` | micro_imagenes (QA) | ✅ `40m` |
+| `qa.shop.novedades-jade.com.mx` | `127.0.0.1:31001` | front Angular (QA) | — (no recibe uploads) |
+| `back-app-futbol.novedades-jade.com.mx` | `127.0.0.1:31765` | prioridades-backend (futbol) | ✅ `10M` |
 
 Config base: `/etc/nginx/nginx.conf` — incluye `/etc/nginx/sites-enabled/*`
 Sites habilitados: `backend`, `backend-imagenes`, `backend-imagenes-qa`, `backend-qa`, `frontend`, `frontend-qa`
+
+> `backend-qa` y `backend-imagenes-qa` son **archivos reales** en `sites-enabled/`
+> (no symlinks a `sites-available/`, a diferencia de `backend`, `backend-imagenes`, `frontend`).
+> Para editarlos hay que tocar directo `/etc/nginx/sites-enabled/<nombre>`.
+
+**⚠️ Nota — falta `client_max_body_size` en `backend` (PROD):**
+Fix del 2026-08-18: `qa.backend` (redes sociales — subir video a Facebook/Instagram/TikTok
+vía `/mis-productos/v1/redes-sociales/...`) daba `413 Request Entity Too Large` porque
+Nginx corta en 1MB por default y el video nunca llegaba al pod. Se agregó
+`client_max_body_size 200M;` (mismo valor que `spring.servlet.multipart.max-request-size`
+en `application.yml`) al bloque `server` de `/etc/nginx/sites-enabled/backend-qa`.
+**Cuando esta feature se suba a producción, `/etc/nginx/sites-available/backend` va a
+necesitar el mismo ajuste — hoy no lo tiene.**
+
+```bash
+sudo sed -i '2a\    client_max_body_size 200M;' /etc/nginx/sites-available/backend
+sudo nginx -t && sudo systemctl reload nginx
+```
 
 ### P28. ¿Dónde están los certificados SSL?
 > Respuesta: **Certbot + Let's Encrypt**, instalado directo en la VPS (no en K8s).
