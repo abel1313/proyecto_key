@@ -11,4 +11,9 @@ public interface IComentarioSocialRepository extends BaseRepository<ComentarioSo
     Optional<ComentarioSocial> findByCommentId(String commentId);
 
     boolean existsByAutorId(String autorId);
+
+    // Sirve para reconocer, cuando Meta reenvia por webhook un comentario del cual la Pagina es
+    // autora, si es un eco de nuestro propio bot (ya guardado aqui) o una respuesta manual del
+    // admin (no encontrado -> ver FacebookCommentBotService.detectarRespuestaManualYPausar).
+    boolean existsByRespuestaCommentId(String respuestaCommentId);
 }

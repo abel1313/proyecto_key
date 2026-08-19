@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.redessociales.FacebookCommentBotService;
+import com.ventas.key.mis.productos.redessociales.InstagramCommentBotService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +26,13 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
-// Webhook de Meta para comentarios de la página de Facebook -- endpoint público (Meta lo llama
-// directo, sin nuestro JWT, ver SecurityConfig). Dispara el bot de comentarios
-// (FacebookCommentBotService) cuando alguien comenta un post/Reel/video de la página.
-@Tag(name = "Facebook Webhook", description = "Recibe eventos de comentarios de Meta y dispara el bot de respuestas")
+// Webhook de Meta para comentarios de Facebook E Instagram -- endpoint público (Meta lo llama
+// directo, sin nuestro JWT, ver SecurityConfig). Una sola URL recibe ambos: Meta distingue el
+// tipo de evento con el campo "object" del payload ("page" para Facebook, "instagram" para
+// Instagram) -- por eso no hizo falta registrar una URL nueva para Instagram, solo una
+// suscripción adicional sobre el mismo callback_url. Dispara FacebookCommentBotService o
+// InstagramCommentBotService según corresponda.
+@Tag(name = "Facebook Webhook", description = "Recibe eventos de comentarios de Meta (Facebook e Instagram) y dispara el bot de respuestas")
 @RestController
 @RequestMapping("/v1/redes-sociales/facebook")
 @RequiredArgsConstructor
@@ -36,6 +40,7 @@ import java.util.Map;
 public class FacebookWebhookController {
 
     private final FacebookCommentBotService commentBotService;
+    private final InstagramCommentBotService instagramCommentBotService;
     private final ObjectMapper objectMapper;
 
     @Value("${facebook.webhook-verify-token:}")
@@ -112,6 +117,7 @@ public class FacebookWebhookController {
     @SuppressWarnings("unchecked")
     private void procesarPayload(String rawBody) throws Exception {
         Map<String, Object> payload = objectMapper.readValue(rawBody, Map.class);
+        String object = stringDe(payload.get("object"));
         List<Map<String, Object>> entries = (List<Map<String, Object>>) payload.get("entry");
         if (entries == null) return;
 
@@ -120,20 +126,51 @@ public class FacebookWebhookController {
             if (changes == null) continue;
 
             for (Map<String, Object> change : changes) {
-                if (!"feed".equals(change.get("field"))) continue;
-                Map<String, Object> value = (Map<String, Object>) change.get("value");
-                if (value == null) continue;
-                if (!"comment".equals(value.get("item")) || !"add".equals(value.get("verb"))) continue;
-
-                String commentId = stringDe(value.get("comment_id"));
-                String postId = stringDe(value.get("post_id"));
-                String mensaje = (String) value.get("message");
-                Map<String, Object> from = (Map<String, Object>) value.get("from");
-                String autorId = from != null ? stringDe(from.get("id")) : null;
-
-                commentBotService.procesarComentario(commentId, postId, mensaje, autorId);
+                if ("instagram".equals(object)) {
+                    procesarCambioInstagram(change);
+                } else {
+                    procesarCambioFacebook(change);
+                }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void procesarCambioFacebook(Map<String, Object> change) {
+        if (!"feed".equals(change.get("field"))) return;
+        Map<String, Object> value = (Map<String, Object>) change.get("value");
+        if (value == null) return;
+        if (!"comment".equals(value.get("item")) || !"add".equals(value.get("verb"))) return;
+
+        String commentId = stringDe(value.get("comment_id"));
+        String postId = stringDe(value.get("post_id"));
+        String parentId = stringDe(value.get("parent_id"));
+        String mensaje = (String) value.get("message");
+        Map<String, Object> from = (Map<String, Object>) value.get("from");
+        String autorId = from != null ? stringDe(from.get("id")) : null;
+
+        commentBotService.procesarComentario(commentId, postId, parentId, mensaje, autorId);
+    }
+
+    // Sin verificar contra la API real todavia -- primera vez que este proyecto recibe webhooks
+    // de comentarios de Instagram, escrito siguiendo la forma documentada del payload (campo
+    // "comments", value.id/text/from/media/parent_id). Si algun campo llega distinto a lo
+    // esperado, revisar aqui primero.
+    @SuppressWarnings("unchecked")
+    private void procesarCambioInstagram(Map<String, Object> change) {
+        if (!"comments".equals(change.get("field"))) return;
+        Map<String, Object> value = (Map<String, Object>) change.get("value");
+        if (value == null) return;
+
+        String commentId = stringDe(value.get("id"));
+        String parentId = stringDe(value.get("parent_id"));
+        String mensaje = (String) value.get("text");
+        Map<String, Object> from = (Map<String, Object>) value.get("from");
+        String autorId = from != null ? stringDe(from.get("id")) : null;
+        Map<String, Object> media = (Map<String, Object>) value.get("media");
+        String postId = media != null ? stringDe(media.get("id")) : null;
+
+        instagramCommentBotService.procesarComentario(commentId, postId, parentId, mensaje, autorId);
     }
 
     private String stringDe(Object valor) {

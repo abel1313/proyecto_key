@@ -43,6 +43,13 @@ public class ComentarioSocial extends BaseId {
     @Column(name = "respuesta", columnDefinition = "TEXT")
     private String respuesta;
 
+    // El comment_id que devolvió Facebook de NUESTRA propia respuesta -- sirve para reconocer,
+    // cuando ese mismo id vuelve por el webhook (Meta notifica cualquier comentario nuevo, incluidos
+    // los que hacemos nosotros), que es un eco de nuestro propio bot y no una respuesta manual del
+    // admin. Ver FacebookCommentBotService.detectarRespuestaManualYPausar.
+    @Column(name = "respuesta_comment_id", length = 100)
+    private String respuestaCommentId;
+
     @Column(name = "fecha")
     private LocalDateTime fecha;
 }

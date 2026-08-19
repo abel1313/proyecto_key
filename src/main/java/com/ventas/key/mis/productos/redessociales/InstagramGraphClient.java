@@ -233,4 +233,36 @@ public class InstagramGraphClient {
         throw new ExceptionErrorInesperado("Instagram sigue procesando el video del Reel despues de 3 minutos -- "
                 + "intenta publicarlo de nuevo en unos minutos");
     }
+
+    // Contesta un comentario existente (POST /{ig-comment-id}/replies) -- lo usa el bot de
+    // comentarios (ver InstagramCommentBotService). Requiere el permiso instagram_manage_comments,
+    // distinto de instagram_content_publish (el que ya se tiene para publicar). Sin verificar
+    // contra la API real todavia -- primera vez que este proyecto contesta comentarios de
+    // Instagram, escrito siguiendo el mismo contrato documentado que ya funciono para Facebook.
+    public String responderComentario(String commentId, String mensaje) {
+        if (pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Instagram no está configurado: falta FACEBOOK_PAGE_ACCESS_TOKEN");
+        }
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("message", mensaje);
+        form.add("access_token", pageAccessToken);
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{commentId}/replies", apiVersion, commentId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(form))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Instagram rechazó responder el comentario: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(20))
+                .block();
+
+        if (response == null || response.get("id") == null) {
+            throw new ExceptionErrorInesperado("Instagram no confirmó la respuesta al comentario: " + response);
+        }
+        return String.valueOf(response.get("id"));
+    }
 }

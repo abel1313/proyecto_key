@@ -176,13 +176,22 @@ public class ChatbotService {
             }
             contexto.append(". Prioriza este producto en tu respuesta si el comentario pregunta por él o por su precio.\n");
         }
+        contexto.append("""
+                Si el cliente pregunta algo ESPECÍFICO sobre un producto (precio, stock, tallas, \
+                colores, disponibilidad, etc.) y NO tienes ese dato exacto en el catálogo de arriba \
+                (por ejemplo, el precio aparece vacío o el producto no está en el catálogo), NO \
+                inventes ni supongas una respuesta. En ese caso responde ÚNICAMENTE con ##ESCALAR## \
+                (sin nada más de texto) para que un administrador lo conteste directamente.
+                """);
         if (esPrimeraVez) {
             contexto.append("""
                     Este es el PRIMER comentario de esta persona -- nunca le hemos contestado antes. \
                     SIEMPRE debes responder con al menos un saludo cordial de bienvenida, aunque su \
                     comentario no sea una pregunta clara o no tenga relación con la tienda. Si además \
                     pregunta algo entendible sobre un producto, contesta la pregunta junto con el \
-                    saludo. NUNCA uses ##FAREWELL## en este caso -- siempre hay que darle la bienvenida.
+                    saludo. NUNCA uses ##FAREWELL## en este caso -- siempre hay que darle la bienvenida. \
+                    Esto NO aplica a ##ESCALAR## -- si pregunta un dato específico que no tienes, sigue \
+                    usando ##ESCALAR## aunque sea su primer comentario.
                     """);
         }
 
