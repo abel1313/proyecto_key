@@ -257,6 +257,37 @@ public class FacebookGraphClient {
         }
     }
 
+    // Contesta un comentario existente (POST /{comment-id}/comments) -- lo usa el bot de
+    // comentarios (ver FacebookCommentBotService). Requiere el permiso pages_manage_engagement,
+    // DISTINTO de pages_manage_posts (el que ya se tiene para publicar) -- si Facebook rechaza
+    // esta llamada con un error de permisos, es porque falta pedir ese scope aparte en Meta.
+    public String responderComentario(String commentId, String mensaje) {
+        if (pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Facebook no está configurado: falta FACEBOOK_PAGE_ACCESS_TOKEN");
+        }
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("message", mensaje);
+        form.add("access_token", pageAccessToken);
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{commentId}/comments", apiVersion, commentId)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(form))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Facebook rechazó responder el comentario: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(20))
+                .block();
+
+        if (response == null || response.get("id") == null) {
+            throw new ExceptionErrorInesperado("Facebook no confirmó la respuesta al comentario: " + response);
+        }
+        return String.valueOf(response.get("id"));
+    }
+
     private String extensionDe(String contentType) {
         if (contentType == null) return "jpg";
         if (contentType.contains("png")) return "png";

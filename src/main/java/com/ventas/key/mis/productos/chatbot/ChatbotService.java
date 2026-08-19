@@ -64,6 +64,10 @@ public class ChatbotService {
     }
 
     private List<Map<String, String>> construirMensajes(ChatbotRequest request) {
+        return construirMensajes(request, null);
+    }
+
+    private List<Map<String, String>> construirMensajes(ChatbotRequest request, String contextoAdicional) {
         String contexto = obtenerContextoVariantes();
 
         String sistemPrompt = """
@@ -136,6 +140,10 @@ public class ChatbotService {
         List<Map<String, String>> mensajes = new ArrayList<>();
         mensajes.add(Map.of("role", "system", "content", sistemPrompt));
 
+        if (contextoAdicional != null && !contextoAdicional.isBlank()) {
+            mensajes.add(Map.of("role", "system", "content", contextoAdicional));
+        }
+
         if (request.getHistorial() != null) {
             for (ChatbotRequest.MensajeHistorial h : request.getHistorial()) {
                 if ("user".equals(h.getRol()) || "assistant".equals(h.getRol())) {
@@ -145,6 +153,45 @@ public class ChatbotService {
         }
 
         return mensajes;
+    }
+
+    // Responder un comentario de red social (Facebook por ahora, ver FacebookCommentBotService)
+    // reusando el mismo prompt/catalogo del chat del sitio -- mismo "cerebro", nuevo canal. Sin
+    // historial (un comentario es una interaccion suelta, no una conversacion con hilo). Si el
+    // post tiene una variante asociada, se agrega como contexto extra para que el bot priorice
+    // ese producto. La respuesta puede seguir trayendo ##FAREWELL##/##BUSCAR## -- el caller decide
+    // que hacer con eso (##BUSCAR## no aplica a un comentario de texto plano, se limpia sin usar).
+    //
+    // esPrimeraVez: si es el primer comentario de este autor (nunca antes le contestamos, ver
+    // ComentarioSocial), el bot SIEMPRE debe contestar -- minimo un saludo de cortesia, aunque el
+    // comentario no traiga una pregunta clara -- decision explicita del dueño. De ahi en adelante,
+    // si no entiende, se queda callado (##FAREWELL##) como el resto de las interacciones.
+    public Mono<String> responderComentarioRedSocial(String comentario, Variantes varianteDelPost, boolean esPrimeraVez) {
+        StringBuilder contexto = new StringBuilder();
+        if (varianteDelPost != null) {
+            contexto.append("Este comentario es sobre esta publicación específica, que es del producto: ")
+                    .append(varianteDelPost.getProducto().getNombre());
+            if (varianteDelPost.getDescripcion() != null && !varianteDelPost.getDescripcion().isBlank()) {
+                contexto.append(". ").append(varianteDelPost.getDescripcion());
+            }
+            contexto.append(". Prioriza este producto en tu respuesta si el comentario pregunta por él o por su precio.\n");
+        }
+        if (esPrimeraVez) {
+            contexto.append("""
+                    Este es el PRIMER comentario de esta persona -- nunca le hemos contestado antes. \
+                    SIEMPRE debes responder con al menos un saludo cordial de bienvenida, aunque su \
+                    comentario no sea una pregunta clara o no tenga relación con la tienda. Si además \
+                    pregunta algo entendible sobre un producto, contesta la pregunta junto con el \
+                    saludo. NUNCA uses ##FAREWELL## en este caso -- siempre hay que darle la bienvenida.
+                    """);
+        }
+
+        ChatbotRequest request = new ChatbotRequest();
+        request.setMensaje(comentario);
+
+        List<Map<String, String>> mensajes = construirMensajes(request, contexto.toString());
+        mensajes.add(Map.of("role", "user", "content", comentario));
+        return llamarOpenAI(mensajes);
     }
 
     private Mono<String> llamarOpenAI(List<Map<String, String>> mensajes) {
