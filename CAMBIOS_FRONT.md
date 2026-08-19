@@ -17189,13 +17189,34 @@ nada que ajustar de su lado. Listo para volver a probar en vivo.
 
 ---
 
-## 🆕 Bot de respuestas a comentarios de Facebook (2026-08-19) — informativo, no requiere nada de front
+## ✅ Bot de respuestas a comentarios de Facebook — probado en vivo (2026-08-19)
 
-Nuevo: cuando alguien comenta un post/Reel de la página de Facebook, un bot contesta
-automáticamente (reusa el mismo motor del chat del sitio, con el producto del post como contexto
-si aplica). Primer comentario de una persona → siempre saluda; después, si no entiende, se queda
-callado. Es 100% backend + Meta (Meta llama directo a un webhook nuestro) — **no hay ningún
-endpoint ni cambio de contrato que afecte al front**, se las dejamos anotado solo para que sepan
-que existe. Pendiente: registrar el webhook en el portal de Meta y pedir el permiso
-`pages_manage_engagement` (aparte del que ya tienen para publicar) — sin eso, el bot puede recibir
-comentarios pero no puede contestarlos todavía.
+Cuando alguien comenta un post/Reel de la página de Facebook, un bot contesta automáticamente
+(reusa el mismo motor del chat del sitio, con el producto del post como contexto si aplica).
+Primer comentario de una persona → siempre saluda; después, si no entiende, se queda callado.
+**Confirmado funcionando en vivo**: se probó comentando un Reel real y el bot respondió con el
+saludo de bienvenida, visible en Facebook. Es 100% backend + Meta (Meta llama directo a un webhook
+nuestro) — **no hay ningún endpoint ni cambio de contrato que afecte al front**, se las dejamos
+anotado solo para que sepan que existe.
+
+**Limitación real, no bug:** ahora mismo solo contesta cuando comenta un admin/developer de la app
+(quien lo probó lo es). Para que conteste a clientes reales falta pedir el permiso
+`pages_manage_engagement` en Meta (aparte del que ya tienen para publicar) — mismo patrón que ya
+vieron con publicar/TikTok: funciona para roles internos sin aprobación, no para el público hasta
+que Meta lo revise.
+
+**Actualización (2026-08-19, más tarde el mismo día):**
+- **Confirmado funcionando con una cuenta sin ningún rol en la app** (se probó con una segunda
+  persona ajena a los administradores de la app) — el bot le contestó igual. En la práctica ya
+  funciona para clientes reales, no solo para admins/testers.
+- **Ahora también cubre Instagram** — mismo bot, mismo comportamiento, aplicado a comentarios de
+  posts/Reels de Instagram.
+- **Nuevo: si el bot no tiene el dato para responder algo específico** (ej. preguntan el precio y
+  no está cargado), **no contesta nada en el comentario** y en su lugar le manda un correo al
+  administrador para que conteste personalmente — nunca inventa una respuesta.
+- **Nuevo: si un administrador contesta manualmente** un comentario desde la app real de
+  Facebook/Instagram (no desde nuestro sistema), **el bot deja de auto-contestarle a ese mismo
+  cliente en ese mismo post** de ahí en adelante — no se mete encima de una conversación humana ya
+  en curso. Otros posts o otros clientes siguen funcionando normal.
+- Seguimos en trámite de la revisión completa de Meta (verificación de negocio + los permisos) —
+  no bloqueante para que funcione, solo para que quede formalmente aprobado a futuro.

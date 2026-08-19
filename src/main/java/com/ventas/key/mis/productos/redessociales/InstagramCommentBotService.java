@@ -11,69 +11,54 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-// Orquesta el bot de comentarios de Facebook: recibe el evento ya parseado del webhook
-// (FacebookWebhookController), decide si contesta, escala por correo, o se calla -- y si contesta
-// reusa el mismo "cerebro" del chat del sitio (ChatbotService) -- misma logica de entender/
-// resolver, distinto canal de salida.
+// Mismo patron que FacebookCommentBotService, aplicado a comentarios de Instagram -- mismo
+// webhook (Meta permite recibir eventos de "page" e "instagram" en la misma URL, distinguidos
+// por el campo "object" del payload, ver FacebookWebhookController), misma logica de
+// saludo/escalar/pausar, distinto cliente de API (InstagramGraphClient, POST .../replies en vez
+// de .../comments) y distinta forma de reconocerse a si mismo (igUserId en vez de pageId).
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class FacebookCommentBotService {
+public class InstagramCommentBotService {
 
     private final ChatbotService chatbotService;
     private final ChatbotBlockService blockService;
-    private final FacebookGraphClient facebookGraphClient;
+    private final InstagramGraphClient instagramGraphClient;
     private final EmailService emailService;
     private final IPublicacionSocialRepository publicacionSocialRepository;
     private final IComentarioSocialRepository comentarioSocialRepository;
     private final IComentarioPausaRepository comentarioPausaRepository;
 
-    @Value("${facebook.page-id:}")
-    private String pageId;
+    @Value("${instagram.account-id:}")
+    private String igUserId;
 
     @Value("${chat.admin-email:}")
     private String adminEmail;
 
-    // Facebook espera una respuesta rapida al webhook (idealmente unos pocos segundos) -- se
-    // procesa en el mismo hilo por simplicidad (OpenAI + Facebook, ~2-4s en total). Si en
-    // produccion esto empieza a causar timeouts/reintentos de Meta, mover a un job async (el
-    // proyecto ya tiene RabbitMQ para eso, ver PublicacionSocialScheduler como referencia).
     public void procesarComentario(String commentId, String postId, String parentId, String comentarioTexto, String autorId) {
-        if (autorId != null && autorId.equals(pageId)) {
-            // Es un comentario hecho por la propia pagina -- nuestro propio bot, o un admin
-            // respondiendo manualmente desde la app real de Facebook. Nunca se auto-contesta a si
-            // misma (evita loop infinito); si es una respuesta manual, se detecta y se pausa el
-            // bot para ese cliente en ese post.
+        if (autorId != null && autorId.equals(igUserId)) {
             detectarRespuestaManualYPausar(commentId, parentId);
             return;
         }
         if (comentarioTexto == null || comentarioTexto.isBlank() || commentId == null) {
             return;
         }
-
-        // Idempotencia: Meta a veces reenvia el mismo evento -- si ya existe una fila con este
-        // commentId, no se vuelve a procesar (evita responder duplicado).
         if (comentarioSocialRepository.findByCommentId(commentId).isPresent()) {
-            log.info("Comentario {} ya fue procesado antes, se ignora el reenvío", commentId);
+            log.info("Comentario IG {} ya fue procesado antes, se ignora el reenvío", commentId);
             return;
         }
-
-        // Un admin ya contestó manualmente a este cliente en este post -- el bot no vuelve a
-        // meterse en esa conversación, indefinido, hasta que se borre la pausa a mano.
         if (autorId != null && postId != null
                 && comentarioPausaRepository.existsByAutorIdAndPostId(autorId, postId)) {
-            log.info("Comentario {} ignorado -- un admin ya intervino manualmente con este cliente en este post", commentId);
+            log.info("Comentario IG {} ignorado -- un admin ya intervino manualmente con este cliente en este post", commentId);
             return;
         }
 
         String claveAbuso = autorId != null ? autorId : commentId;
         if (blockService.estaBloqueado(claveAbuso) || blockService.estaCooldown(claveAbuso)) {
-            log.info("Comentario {} ignorado -- autor {} en cooldown/bloqueado", commentId, claveAbuso);
+            log.info("Comentario IG {} ignorado -- autor {} en cooldown/bloqueado", commentId, claveAbuso);
             return;
         }
 
-        // Primera vez de este autor -- nunca antes le contestamos -- el bot SIEMPRE saluda
-        // (salvo que la pregunta se tenga que escalar, ver ChatbotService).
         boolean esPrimeraVez = autorId == null || !comentarioSocialRepository.existsByAutorId(autorId);
 
         Variantes variante = publicacionSocialRepository.findByPostIdFacebook(postId)
@@ -84,14 +69,11 @@ public class FacebookCommentBotService {
         try {
             respuesta = chatbotService.responderComentarioRedSocial(comentarioTexto, variante, esPrimeraVez).block();
         } catch (Exception e) {
-            log.warn("Error consultando el chatbot para el comentario {}: {}", commentId, e.getMessage());
+            log.warn("Error consultando el chatbot para el comentario IG {}: {}", commentId, e.getMessage());
             return;
         }
 
         if (respuesta != null && respuesta.contains("##ESCALAR##")) {
-            // El bot detectó una pregunta específica que no puede contestar con seguridad (ej. un
-            // dato que falta en el catálogo) -- no se contesta nada en Facebook, se avisa al admin
-            // por correo para que conteste personalmente. Decisión explícita del dueño.
             escalarPorCorreo(commentId, postId, comentarioTexto);
             guardarRegistro(commentId, postId, autorId, comentarioTexto, null, null);
             return;
@@ -108,12 +90,8 @@ public class FacebookCommentBotService {
         }
 
         if (noComprendido) {
-            // A diferencia del chat del sitio (que si muestra un mensaje de despedida), aqui NO
-            // se contesta nada -- publicar un "no te entendi" bajo un comentario público se ve
-            // mal. Decision explicita del dueño. (esPrimeraVez fuerza al modelo a no llegar aqui,
-            // pero se deja la red de seguridad por si igual pasara.)
             blockService.registrarFarewell(claveAbuso);
-            log.info("Comentario {} no se contesta (no comprendido)", commentId);
+            log.info("Comentario IG {} no se contesta (no comprendido)", commentId);
             guardarRegistro(commentId, postId, autorId, comentarioTexto, null, null);
             return;
         }
@@ -121,19 +99,16 @@ public class FacebookCommentBotService {
         blockService.registrarMensajeNormal(claveAbuso);
         String respuestaCommentId = null;
         try {
-            respuestaCommentId = facebookGraphClient.responderComentario(commentId, respuestaLimpia);
-            log.info("Comentario {} respondido por el bot (primeraVez={})", commentId, esPrimeraVez);
+            respuestaCommentId = instagramGraphClient.responderComentario(commentId, respuestaLimpia);
+            log.info("Comentario IG {} respondido por el bot (primeraVez={})", commentId, esPrimeraVez);
         } catch (Exception e) {
-            log.warn("No se pudo responder el comentario {} en Facebook: {}", commentId, e.getMessage());
+            log.warn("No se pudo responder el comentario IG {} en Instagram: {}", commentId, e.getMessage());
             respuestaLimpia = null;
         }
 
         guardarRegistro(commentId, postId, autorId, comentarioTexto, respuestaLimpia, respuestaCommentId);
     }
 
-    // Detecta si un comentario hecho por la Pagina es el eco de nuestra propia respuesta (ya
-    // registrada con su commentId en respuesta_comment_id) o una respuesta manual del admin desde
-    // la app real de Facebook. Si es manual, pausa el bot para ese cliente en ese post.
     private void detectarRespuestaManualYPausar(String commentId, String parentId) {
         if (parentId == null || parentId.isBlank()) {
             return;
@@ -151,7 +126,7 @@ public class FacebookCommentBotService {
                 pausa.setPostId(original.getPostId());
                 pausa.setFecha(LocalDateTime.now());
                 comentarioPausaRepository.save(pausa);
-                log.info("Admin respondió manualmente al comentario {} -- bot pausado para autor={} en post={}",
+                log.info("Admin respondió manualmente al comentario IG {} -- bot pausado para autor={} en post={}",
                         parentId, original.getAutorId(), original.getPostId());
             }
         });
@@ -159,17 +134,17 @@ public class FacebookCommentBotService {
 
     private void escalarPorCorreo(String commentId, String postId, String comentarioTexto) {
         if (adminEmail == null || adminEmail.isBlank()) {
-            log.warn("No se pudo escalar el comentario {} -- chat.admin-email no configurado", commentId);
+            log.warn("No se pudo escalar el comentario IG {} -- chat.admin-email no configurado", commentId);
             return;
         }
-        String asunto = "Un cliente preguntó algo que el bot no supo responder -- Facebook";
-        String html = "<p>Un cliente comentó en un post de Facebook y el bot no tenía suficiente información "
+        String asunto = "Un cliente preguntó algo que el bot no supo responder -- Instagram";
+        String html = "<p>Un cliente comentó en un post de Instagram y el bot no tenía suficiente información "
                 + "en el catálogo para contestar con seguridad -- no se publicó ninguna respuesta.</p>"
                 + "<p><b>Comentario:</b> " + escapeHtml(comentarioTexto) + "</p>"
                 + "<p><b>Post:</b> " + escapeHtml(postId) + "</p>"
-                + "<p>Entra a Facebook y contesta directamente el comentario.</p>";
+                + "<p>Entra a Instagram y contesta directamente el comentario.</p>";
         emailService.enviarTicket(adminEmail, asunto, html);
-        log.info("Comentario {} escalado por correo al admin (bot no tenía el dato)", commentId);
+        log.info("Comentario IG {} escalado por correo al admin (bot no tenía el dato)", commentId);
     }
 
     private String escapeHtml(String texto) {
@@ -181,7 +156,7 @@ public class FacebookCommentBotService {
         ComentarioSocial registro = new ComentarioSocial();
         registro.setCommentId(commentId);
         registro.setPostId(postId);
-        registro.setRedSocial("facebook");
+        registro.setRedSocial("instagram");
         registro.setAutorId(autorId);
         registro.setMensaje(mensaje);
         registro.setRespuesta(respuesta);
