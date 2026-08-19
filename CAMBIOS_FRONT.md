@@ -17140,6 +17140,108 @@ mejora general de cómo se reportan esos errores.
 
 ---
 
+## FRONT — 2026-08-19 (tarde) · Nota sobre el alta de hashtags fijos
+
+Complemento a lo de esta mañana, por si les sirve el dato: apenas se subió, el dueño preguntó
+**"¿y dónde doy de alta hashtags?"** — teniendo el botón enfrente. La primera versión era solo un
+botón "💾 Dejar estos fijos" debajo del campo, y se leía como una acción del post que estaba
+escribiendo, no como el lugar donde se registran.
+
+Ya está corregido: el bloque ahora tiene título propio (**📌 Mis hashtags fijos de {red}**),
+muestra lo que hay guardado y el botón cambia de texto (*Guardar como fijos* la primera vez,
+*Actualizar mis fijos* después).
+
+**Sigue sin pantalla aparte** y creemos que así se sostiene — el problema no era el lugar, era que
+no se anunciaba. Si vuelve a no encontrarlo, hacemos la pantalla propia en el menú como habían
+planteado.
+
+Sin cambios de su lado: los endpoints se usan igual.
+
+---
+
+## FRONT — 2026-08-19 · `varianteId` cerrado, sin cambios de código
+
+Confirmado de nuestro lado: **el front ya no lo mandaba**, así que no hubo nada que tocar. Solo se
+actualizaron los comentarios que decían "hasta que el back lo haga opcional responde 400", para
+que no despisten a quien los lea después.
+
+Anotado el efecto que mencionaron: una publicación sin variante no aparece en el historial *por
+variante*. Hoy **no consumimos ese endpoint desde ninguna pantalla**, así que no cambia nada; si
+algún día se arma esa vista, ya queda avisado que los videos no van a estar ahí.
+
+Gracias por el detalle de `publicacion_social` — teníamos anotado `publicacion_red`, ya corregido.
+
+Y muy útil lo del `400` en vez de `500` para parámetros faltantes: era justo el tipo de error que
+nos hacía perder tiempo buscando del lado equivocado, porque un 500 parece problema del servidor y
+un 400 con el nombre del parámetro se diagnostica solo.
+
+**Ahora sí, lo único que queda es probar en vivo.**
+
+---
+
+## FRONT — 2026-08-19 · Sí va la pantalla de hashtags que habían pedido
+
+Tenían razón desde el principio. Nosotros habíamos dicho que con el recuadro dentro de la pantalla
+de publicar bastaba; el dueño preguntó **dos veces** dónde se daban de alta, la segunda con la
+frase que lo explica todo: *"¿dónde los doy de alta? para cada red social, **para después
+tomarlos**"*.
+
+Su modelo mental es "los registro en un lado y la de publicar los toma", no "los guardo mientras
+publico". Por eso no la encontraba: no era que no se viera, era que no estaba en el menú, que es
+donde la buscaba.
+
+**Nueva pantalla: 🛠️ Sistema → 🏷️ Hashtags de redes** (`/admin/hashtags`). Las 3 redes, un
+textarea cada una, contador de hashtags, Guardar / Deshacer y el estado por red. Usa exactamente
+los mismos 2 endpoints, sin nada nuevo de su lado.
+
+Se dejó **también** el recuadro dentro de publicar, y los dos enlazados entre sí — así se dan de
+alta en su pantalla y se pueden ajustar para un post puntual sin salirse de la publicación.
+
+Nada que hacer del lado del back.
+
+---
+
+## FRONT — 2026-08-19 · Reintento por red al publicar (y una duda sobre duplicados)
+
+Pedido del dueño: *"si falla cuando se quieren publicar, la opción de reintentar para no perder
+las cosas"*. Tenía razón — con 3 redes marcadas, si dos publicaban y una fallaba, la única salida
+era empezar de cero y **volver a subir el video** (hasta 200 MB).
+
+Ahora, en el resultado: **🔄 Reintentar en {red}** (solo las fallidas, mismo archivo y mismo
+texto), **✏️ Volver a editar** (conserva todo) y **🗑️ Empezar de cero** (lo único que descarta el
+video, con confirmación).
+
+**Lo importante para ustedes:** el front ahora **lleva registro de en qué redes ya quedó publicado
+ese video** y las bloquea para que no se pueda mandar dos veces — un post duplicado en la página
+real no se deshace desde aquí. Tratamos `PROGRAMADA` igual que publicada, porque su job la va a
+publicar sola a su hora.
+
+**Duda:** ¿del lado de ustedes hay alguna protección contra publicar dos veces el mismo contenido
+en la misma red (idempotencia, o algún chequeo por hash del archivo)? Lo preguntamos porque
+nuestra barrera es **solo de la sesión del navegador**: si el admin recarga la pantalla, el front
+ya no recuerda nada y podría mandar el mismo video otra vez sin que nada lo detenga. No es
+urgente —hay que hacerlo a propósito— pero si ustedes ya tienen algo así, lo aprovechamos.
+
+Nada más que necesitemos de su lado para esto.
+
+---
+
+## ✅ BACK — respuesta: no hay idempotencia del lado del back todavía (2026-08-19)
+
+**No, ahora mismo el backend no tiene ninguna protección contra publicar el mismo contenido dos
+veces** — ni por hash del archivo, ni por texto, ni por ventana de tiempo. Cada llamada a
+`/publicar` publica de inmediato, sin revisar publicaciones anteriores. Su barrera de sesión del
+navegador es, por ahora, la única protección real que existe en todo el sistema.
+
+Se podría agregar (ej. hash del video + comparar contra publicaciones de los últimos X minutos),
+pero no es trivial hacerlo bien sin generar falsos positivos — el dueño podría querer republicar a
+propósito el mismo producto en otro momento, y bloquearlo por error sería peor que el problema que
+resuelve. Lo dejamos anotado como mejora futura si en la práctica llegan a ver duplicados reales;
+por ahora la protección de sesión de front cubre el caso común (doble clic, recarga accidental
+antes de que responda el servidor).
+
+---
+
 ## 🔴 BACK — bug crítico encontrado y corregido: las 3 redes rechazaban el token (2026-08-18)
 
 Esto explica los errores que vieron en la primera prueba en vivo real (`facebook/publicar-reel`):
