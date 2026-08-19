@@ -21,6 +21,15 @@ public class WebClientConfig {
 
     private ExchangeFilterFunction jwtHeaderFilter() {
         return ExchangeFilterFunction.ofRequestProcessor(request -> {
+            // Si el caller ya puso su propio Authorization (FacebookGraphClient/InstagramGraphClient
+            // usan "OAuth <pageAccessToken>", TikTokGraphClient usa "Bearer <accessToken>" -- son
+            // credenciales de la API externa, no las nuestras), NO lo tocamos. ClientRequest.Builder
+            // .header() agrega en vez de reemplazar, asi que sin este check el request salia con 2
+            // headers Authorization y la API externa lo rechazaba (Facebook: "access token could not
+            // be decrypted"; TikTok: 400 en su load balancer de borde antes de llegar a su API).
+            if (request.headers().containsKey(HttpHeaders.AUTHORIZATION)) {
+                return Mono.just(request);
+            }
             var auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getCredentials() != null) {
                 ClientRequest autenticado = ClientRequest.from(request)
