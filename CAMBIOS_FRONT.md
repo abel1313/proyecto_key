@@ -17337,3 +17337,20 @@ que Meta lo revise.
   ninguno de los dos casos.
 - Falta pedir el permiso `instagram_manage_comments` en la solicitud de revisión de Meta (aparte
   de los 9 permisos de Facebook que ya se llenaron).
+
+### Update — webhook de Instagram: bloqueado por permiso, confirmado (2026-08-19)
+
+Backend de QA ya volvió a estar arriba (el 502 se resolvió solo, como la vez anterior) y la
+suscripción a nivel app para `object=instagram` sí se registró bien (`{"success":true}`). Pero al
+suscribir la cuenta de Instagram específica (`POST /{ig-user-id}/subscribed_apps?subscribed_fields=comments`),
+Meta respondió:
+```
+(#3) Application does not have the capability to make this API call.
+```
+Confirma que el bloqueo es exactamente el permiso `instagram_manage_comments` que falta pedir en
+la revisión — no hay nada más que intentar desde código o por API hasta que Meta lo apruebe.
+**Facebook no se vio afectado** — se verificó que la suscripción de `feed` de la página (la que ya
+tiene las 2 pruebas reales confirmadas) sigue intacta.
+
+**Pendiente concreto:** agregar `instagram_manage_comments` a la solicitud de revisión de Meta que
+ya está en curso (los 9 permisos de Facebook + verificación de negocio, enviada hoy).
