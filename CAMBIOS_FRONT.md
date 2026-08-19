@@ -16967,3 +16967,68 @@ admin los puede seguir editando después de insertarlos, no quedan bloqueados.
   privado (`SELF_ONLY`) y solo funciona con cuentas agregadas como Target User. Conviene
   iniciarla pronto porque es lo que más tarda y no depende de código.
 - Pendiente el merge a `main` una vez que las pruebas en vivo salgan bien.
+
+---
+
+## 📋 FRONT — cierre: lo que llevamos y lo que falta (2026-08-19)
+
+Bajamos su respuesta. **Las dos dudas que teníamos quedaron cerradas y no hubo que cambiar código**
+por ninguna.
+
+### Lo del job caído — perfecto, era justo lo que preocupaba
+
+Que busque **todas las `PROGRAMADA` vencidas** y no solo las del minuto exacto es lo que hacía
+falta para que programar con job propio no fuera un riesgo. Y que **un servidor caído no consuma
+intentos** cierra el otro flanco: si no, tres caídas seguidas habrían quemado los 3 reintentos sin
+que la API rechazara nada.
+
+Con eso, el trade-off que aceptamos al elegir job propio para las 3 queda cubierto.
+
+### 🆕 Chuleta dentro de la pantalla (solo front, no les afecta)
+
+El dueño se topó con *"TikTok no me deja seleccionarlo"* estando en Foto. Era correcto (TikTok no
+publica fotos), pero el motivo no se veía. Además de arreglar ese aviso, pidió que quedara anotado
+**"para ver si no es video, ya sé por qué"**.
+
+Lo pusimos **dentro de la pantalla**, en un botón plegable — no en un documento que nadie va a
+abrir:
+
+|  | Foto | Video | Reel | Programar |
+|---|---|---|---|---|
+| Facebook | ✅ | ✅ | ✅ | ✅ |
+| Instagram | ✅ | ❌ | ✅ | ✅ |
+| TikTok | ❌ | ✅ | ✅ | ✅ |
+
+Incluye las reglas que no se ven en una tabla: la música va pegada en el archivo, el video se sube
+una sola vez, el mínimo de 10 minutos, y **que el video privado de TikTok en Sandbox no es un
+error**.
+
+⚠️ **Si alguna red cambia lo que acepta, avísennos** — por ejemplo si TikTok sale de Sandbox, o si
+Instagram habilita video de feed. Esa tabla es lo único que el dueño va a mirar, y si queda
+desactualizada le va a mentir.
+
+### Estado — front
+
+| | Estado |
+|---|---|
+| Facebook (foto, video, Reel) | ✅ Conectado |
+| Instagram (foto, Reel) | ✅ Conectado |
+| TikTok (video, Reel) | ✅ Conectado |
+| Programar en las 3 | ✅ Conectado, sin fecha máxima |
+| Resultado por red (`PUBLICADA`/`PROGRAMADA`/`FALLIDA` con `ultimoError`) | ✅ Se muestra |
+| Chuleta de capacidades | ✅ |
+
+**Nada nos falta de su lado.** Todo lo que pedimos está entregado.
+
+### Lo que falta — y ninguno es de código
+
+1. **Probarlo en vivo contra las APIs reales.** Ni ustedes ni nosotros lo hemos hecho: ni Reels,
+   ni TikTok, ni programación. Es lo siguiente.
+2. **La auditoría de TikTok** para salir de Sandbox. Insistimos: **es lo que más tarda y no
+   depende de nadie escribiendo código.** Mientras tanto todo TikTok sale privado.
+3. **El merge a `main`.** De acuerdo con dejarlo hasta que las pruebas en vivo salgan bien.
+
+### Cuando el dueño pruebe
+
+Quedamos igual: si algo falla les pasamos **el mensaje tal cual salga en pantalla**, la red y el
+tipo (foto/video/Reel). Lo mostramos completo y sin recortar justamente para eso.
