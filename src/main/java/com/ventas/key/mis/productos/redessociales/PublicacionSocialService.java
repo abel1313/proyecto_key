@@ -95,8 +95,7 @@ public class PublicacionSocialService {
     @Transactional
     public PublicacionSocialDto publicarVideoEnFacebook(Integer varianteId, String descripcion,
                                                           LocalDateTime scheduledPublishTime, MultipartFile video) {
-        Variantes variante = varianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+        Variantes variante = variantePorIdOpcional(varianteId);
 
         byte[] bytesVideo = leerBytes(video, "video");
 
@@ -113,8 +112,7 @@ public class PublicacionSocialService {
     @Transactional
     public PublicacionSocialDto publicarReelEnFacebook(Integer varianteId, String descripcion,
                                                          LocalDateTime scheduledPublishTime, MultipartFile video) {
-        Variantes variante = varianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+        Variantes variante = variantePorIdOpcional(varianteId);
 
         byte[] bytesVideo = leerBytes(video, "video");
 
@@ -154,8 +152,7 @@ public class PublicacionSocialService {
     @Transactional
     public PublicacionSocialDto publicarReelEnInstagram(Integer varianteId, String descripcion,
                                                           LocalDateTime scheduledPublishTime, MultipartFile video) {
-        Variantes variante = varianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+        Variantes variante = variantePorIdOpcional(varianteId);
 
         byte[] bytesVideo = leerBytes(video, "video");
 
@@ -177,8 +174,7 @@ public class PublicacionSocialService {
     @Transactional
     public PublicacionSocialDto publicarEnTikTok(Integer varianteId, String descripcion,
                                                   LocalDateTime scheduledPublishTime, MultipartFile video) {
-        Variantes variante = varianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+        Variantes variante = variantePorIdOpcional(varianteId);
 
         byte[] bytesVideo = leerBytes(video, "video");
 
@@ -189,6 +185,18 @@ public class PublicacionSocialService {
             return programar(nueva, scheduledPublishTime);
         }
         return ejecutarYGuardar(nueva);
+    }
+
+    // Video/reel/tiktok: el contenido es siempre un archivo suelto, no depende de un producto del
+    // catalogo -- a diferencia de la foto (que si necesita variante para sacar la imagen), aqui
+    // varianteId es opcional. Si viene, igual se valida que exista (sigue sirviendo para ligar la
+    // publicacion a un producto cuando el video SI es promocional de algo puntual).
+    private Variantes variantePorIdOpcional(Integer varianteId) {
+        if (varianteId == null) {
+            return null;
+        }
+        return varianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
     }
 
     private byte[] leerBytes(MultipartFile video, String etiqueta) {
@@ -227,7 +235,7 @@ public class PublicacionSocialService {
         p.setEstado("PROGRAMADA");
         PublicacionSocial guardada = publicacionSocialRepository.save(p);
         log.info("Publicación programada: plataforma={}, tipo={}, varianteId={}, para={}",
-                p.getPlataforma(), p.getTipoPublicacion(), p.getVariante().getId(), scheduledPublishTime);
+                p.getPlataforma(), p.getTipoPublicacion(), varianteIdDe(p), scheduledPublishTime);
         return PublicacionSocialDto.from(guardada);
     }
 
@@ -278,7 +286,11 @@ public class PublicacionSocialService {
         p.setFechaPublicacion(LocalDateTime.now());
         p.setContenidoBytes(null); // ya no hace falta, no dejar el blob ocupando espacio
         log.info("Publicación ejecutada: plataforma={}, tipo={}, varianteId={}, id={}",
-                p.getPlataforma(), p.getTipoPublicacion(), p.getVariante().getId(), resultId);
+                p.getPlataforma(), p.getTipoPublicacion(), varianteIdDe(p), resultId);
+    }
+
+    private Integer varianteIdDe(PublicacionSocial p) {
+        return p.getVariante() != null ? p.getVariante().getId() : null;
     }
 
     private String ejecutarFacebook(PublicacionSocial p) {
