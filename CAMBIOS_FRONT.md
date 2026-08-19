@@ -17220,3 +17220,18 @@ que Meta lo revise.
   en curso. Otros posts o otros clientes siguen funcionando normal.
 - Seguimos en trámite de la revisión completa de Meta (verificación de negocio + los permisos) —
   no bloqueante para que funcione, solo para que quede formalmente aprobado a futuro.
+
+### Pendiente — falta probar en vivo (2026-08-19, cierre de sesión)
+
+- **Facebook**: código y webhook ya funcionando, probado con 2 personas reales (sin rol en la
+  app), confirmado en base de datos.
+- **Instagram**: código ya está en `dev`/`qa` (mismo patrón que Facebook), pero **la suscripción
+  del webhook de Instagram en Meta todavía no se pudo registrar** — el backend de QA dio `502
+  Bad Gateway` justo al intentarlo (el pod tardó en levantar tras el último deploy, mismo patrón
+  que ya pasó una vez hoy y se resolvió solo en unos minutos). Falta reintentar el registro
+  cuando el backend esté arriba, y después probar comentando en un post/Reel real de Instagram.
+- **Escalar por correo** (bot no sabe el dato → avisa al admin, no contesta) y **pausa tras
+  respuesta manual del admin** — código construido y desplegado, **sin probar en vivo todavía**
+  ninguno de los dos casos.
+- Falta pedir el permiso `instagram_manage_comments` en la solicitud de revisión de Meta (aparte
+  de los 9 permisos de Facebook que ya se llenaron).
