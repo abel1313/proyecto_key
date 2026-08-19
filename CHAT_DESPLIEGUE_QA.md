@@ -147,7 +147,94 @@ Authorization: Bearer <token>
 
 ## Por qué se usa Gmail y no Hostinger
 
-El VPS de OVH bloquea los puertos SMTP salientes (587 y 465) para prevenir spam.
-Verificado con `nc -zv mail.novedades-jade.com.mx 587` → timeout sin respuesta.
+**Corregido 2026-08-15 — el diagnóstico de abajo (de cuando se escribió este doc, 2026-06-17)
+estaba mal apuntado.** No es OVH quien bloquea. Ver la investigación completa en
+"SMTP de Hostinger bloqueado — investigación 2026-08-15" más abajo.
 
-Para usar el correo de Hostinger hay que pedir a OVH que desbloqueen los puertos.
+~~El VPS de OVH bloquea los puertos SMTP salientes (587 y 465) para prevenir spam.~~
+~~Verificado con `nc -zv mail.novedades-jade.com.mx 587` → timeout sin respuesta.~~
+~~Para usar el correo de Hostinger hay que pedir a OVH que desbloqueen los puertos.~~
+
+En realidad: el VPS **sí** puede mandar SMTP saliente sin problema (confirmado con Gmail,
+puertos 465 y 587, IPv4 e IPv6). El bloqueo es específico hacia `mail.novedades-jade.com.mx` —
+Hostinger está descartando las conexiones que vienen de la IP del VPS.
+
+---
+
+## SMTP de Hostinger bloqueado — investigación 2026-08-15
+
+**Disparador:** `POST /v1/usuarios/{id}/solicitar-cambio-correo` fallaba con `"Authentication
+failed"` (a veces) o simplemente no llegaba el correo (otras veces), de forma inconsistente.
+
+### Causas encontradas, en orden (se fueron pelando una por una)
+
+**1. `EmailService.enviarTicket()` no capturaba `MailException`.** Solo capturaba
+`jakarta.mail.MessagingException`. `JavaMailSender.send()` lanza `MailException` (unchecked,
+sin relación con `MessagingException`) cuando falla la conexión/autenticación SMTP real — se
+escapaba sin capturar pese a que el contrato del método decía "no lanza excepción", rompía el
+`@Transactional` de `UsuarioVerificacionService.solicitarCambioCorreo` y devolvía el error
+crudo de SMTP al cliente. **Fix:** el catch ahora también atrapa `MailException`
+(`EmailService.java`).
+
+**2. `solicitarCambioCorreo` ignoraba si el correo realmente salió.** Guardaba el
+`correoPendiente`/código y llamaba a `emailService.enviarCodigoVerificacion(...)` sin mirar el
+`boolean` que devuelve — siempre respondía "código enviado" aunque el envío real hubiera
+fallado. Peor: por 15 minutos, el siguiente intento veía "código vigente" y le decía al usuario
+que revisara su bandeja, sin que jamás hubiera llegado nada. **Fix:** si el envío falla, se
+lanza `RuntimeException` (hace rollback del guardado, el endpoint responde 400 con el motivo
+real en vez de fingir éxito) — `UsuarioVerificacionService.java`.
+
+**3. Intento de usar el correo propio del dominio (`mail.novedades-jade.com.mx`) en vez de
+Gmail.** Se encontraron 2 cuentas ya creadas en cPanel para esto:
+`boutique.bolsas@novedades-jade.com.mx` (prod) y `qa.boutique.bolsas@novedades-jade.com.mx`
+(QA), ambas activas y sin restricciones. cPanel → "Connect Devices" confirma el protocolo
+correcto: **puerto 465 con SSL/TLS implícito**, no 587 con STARTTLS (el yml original usaba
+587+STARTTLS, mal). Se corrigió `application-qa.yml` a `host: mail.novedades-jade.com.mx,
+port: 465, mail.smtp.ssl.enable: true`.
+
+**4. Variables de entorno viejas pisando el yml.** `SPRING_MAIL_HOST=smtp.gmail.com` y
+`SPRING_MAIL_PORT=587` seguían fijas en el deployment de QA desde junio (ver arriba, nunca se
+quitaron pese a la nota de "sobran una vez que se regenere la imagen"). Las variables de
+entorno de Spring Boot siempre ganan sobre el yml, así que aunque el archivo ya decía
+Hostinger, seguía conectando a Gmail. **Fix:**
+`kubectl set env deployment/proyecto-key-deployment -n qa SPRING_MAIL_HOST- SPRING_MAIL_PORT-`
+(el `-` al final borra la variable).
+
+**5. Con las 4 causas anteriores resueltas, la app sí intentaba conectar a
+`mail.novedades-jade.com.mx:465` — y daba timeout de verdad.** Se aisló con `nc` corrido
+**directo en la VPS** (no dentro de un pod, para descartar Kubernetes):
+```bash
+nc -zv -w5 -4 mail.novedades-jade.com.mx 465   # timeout
+nc -zv -w5 -4 mail.novedades-jade.com.mx 587   # timeout
+nc -zv -w5 -4 smtp.gmail.com 587               # succeeded
+nc -zv -w5 -4 smtp.gmail.com 465               # succeeded
+ping -4 -c3 8.8.8.8                            # funciona normal
+```
+Con esto se descarta: firewall del VPS (`ufw` inactivo, `iptables OUTPUT` en `ACCEPT`), IPv4
+roto en general (Gmail conecta bien por IPv4), y el ticket viejo de OVH del 2026-06-18 queda
+confirmado correcto (**OVH no bloquea salida**, nunca fue el problema).
+
+**Conclusión: el bloqueo es del lado de Hostinger.** Su servidor de correo descarta
+silenciosamente (timeout, no rechazo activo) las conexiones SMTP que vienen de la IP del VPS
+(`51.178.29.99`, rango de OVH) — típico de firewalls tipo CSF/ConfigServer en hosting
+compartido que bloquean por defecto rangos de IP de datacenter/VPS como medida anti-spam.
+
+### Estado actual (2026-08-15)
+
+- `application-qa.yml` **revertido a Gmail** (`smtp.gmail.com:587`, STARTTLS) — funciona,
+  confirmado. QA sigue operando sin caída de correo.
+- Los fixes de los puntos 1 y 2 (captura de `MailException`, no fingir éxito si falla el envío)
+  **sí quedaron aplicados** — son mejoras válidas independientes del proveedor SMTP que se use.
+- **Pendiente:** ticket a soporte de Hostinger pidiendo que desbloqueen la IP `51.178.29.99`
+  para conexiones SMTP entrantes hacia `mail.novedades-jade.com.mx` (puertos 465/587). También
+  se mandó un mensaje de seguimiento a OVH para descartar del todo un filtro de salida
+  específico hacia esa IP destino (poco probable dado que Gmail sí conecta, pero se cubre por
+  completitud).
+- Cuando Hostinger confirme el desbloqueo: revertir `application-qa.yml` a
+  `host: mail.novedades-jade.com.mx, port: 465, mail.smtp.ssl.enable: true` y volver a poner
+  `MAIL_USERNAME=qa.boutique.bolsas@novedades-jade.com.mx` / `MAIL_PASSWORD=<la que se
+  configuró en cPanel>` vía `kubectl set env`. Confirmar con el mismo `nc` antes de dar por
+  cerrado.
+- **Nota aparte:** en algún punto de las pruebas, un intento con `correoNuevo` mal formado
+  (probablemente typo del usuario) devolvió `400 Validacion fallida: correoNuevo: El correo no
+  tiene un formato valido` — comportamiento esperado, no es bug.

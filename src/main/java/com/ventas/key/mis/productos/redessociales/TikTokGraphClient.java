@@ -16,15 +16,15 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 /**
- * Publica videos en la cuenta de TikTok del negocio via Content Posting API (Direct Post).
- * A diferencia de Facebook/Instagram, el token expira cada ~24h y el refresh token rota en cada
- * uso -- este cliente maneja todo eso solo, leyendo/actualizando {@link TikTokToken} (fila unica,
- * id=1) antes de cada publicacion. Ver TIKTOK_SETUP.md para el tramite completo con Meta... con
- * TikTok, y ver el comentario de {@link #publicarVideo} sobre la restriccion de Sandbox.
+ * Sube videos a la cuenta de TikTok del negocio via Content Posting API, modo "Upload" (borrador
+ * al inbox, no Direct Post -- el scope video.publish que requeriría Direct Post no está disponible
+ * sin auditoría de TikTok). A diferencia de Facebook/Instagram, el token expira cada ~24h y el
+ * refresh token rota en cada uso -- este cliente maneja todo eso solo, leyendo/actualizando
+ * {@link TikTokToken} (fila unica, id=1) antes de cada publicacion. Ver TIKTOK_SETUP.md para el
+ * tramite completo, y ver el comentario de {@link #publicarVideo} sobre el modo Upload.
  *
  * Escrito siguiendo la documentacion oficial de TikTok for Developers (Content Posting API v2),
  * sin verificar contra la API real -- primera vez que este proyecto integra TikTok. Si algun
@@ -140,14 +140,14 @@ public class TikTokGraphClient {
     }
 
     /**
-     * Publica un video via Direct Post. Sin validar duracion/proporcion/peso, mismo criterio que
-     * el resto de publicaciones de este proyecto.
+     * Sube un video en modo "Upload" (borrador al inbox de TikTok del usuario). Sin validar
+     * duracion/proporcion/peso, mismo criterio que el resto de publicaciones de este proyecto.
      *
-     * ⚠️ Mientras la app no pase la auditoria de TikTok ("Content Posting API audit"), esta
-     * llamada SOLO funciona con las cuentas agregadas como Target User en el Sandbox del portal
-     * -- para cualquier otra cuenta, TikTok la rechaza. Ademas, el video sale forzado a
-     * visibilidad SELF_ONLY (privado) sin importar el privacy_level pedido -- restriccion de la
-     * plataforma, no de este codigo. Ver TIKTOK_SETUP.md.
+     * ⚠️ No es Direct Post: el scope registrado en el portal para esta app es {@code video.upload},
+     * no {@code video.publish} -- ese segundo scope ni siquiera aparece disponible para agregar
+     * sin pasar antes por la auditoria de TikTok. Con {@code video.upload} el video llega como
+     * borrador al inbox de la cuenta autorizada y el dueño lo tiene que terminar de publicar
+     * manualmente desde el celular -- no sale publicado solo. Ver TIKTOK_SETUP.md.
      */
     public String publicarVideo(byte[] video, String contentType, String caption) {
         if (video == null || video.length == 0) {
@@ -155,49 +155,18 @@ public class TikTokGraphClient {
         }
         String accessToken = obtenerAccessTokenValido();
 
-        String privacyLevel = consultarPrivacyLevelDisponible(accessToken);
-        String publishId = iniciarPublicacion(accessToken, video.length, caption, privacyLevel);
+        String publishId = iniciarPublicacion(accessToken, video.length, caption);
         subirVideo(publishId, accessToken, video, contentType);
         esperarPublicado(publishId, accessToken);
 
-        log.info("Video publicado en TikTok, publish_id={}", publishId);
+        log.info("Video subido como borrador a TikTok, publish_id={}", publishId);
         return publishId;
     }
 
-    // TikTok exige consultar que niveles de privacidad puede usar esta cuenta antes de publicar
-    // -- mientras la app no este auditada, la unica opcion real es SELF_ONLY (privado). Se toma
-    // ese si esta disponible; si no, el primero que la cuenta permita.
     @SuppressWarnings("unchecked")
-    private String consultarPrivacyLevelDisponible(String accessToken) {
-        Map<?, ?> response = webClient.post()
-                .uri("/v2/post/publish/creator_info/query/")
-                .header("Authorization", "Bearer " + accessToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
-                        .defaultIfEmpty("")
-                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
-                                "TikTok rechazó consultar la info del creador: " + err))))
-                .bodyToMono(Map.class)
-                .timeout(Duration.ofSeconds(20))
-                .block();
-
-        Map<?, ?> data = response != null ? (Map<?, ?>) response.get("data") : null;
-        List<String> opciones = data != null ? (List<String>) data.get("privacy_level_options") : null;
-        if (opciones == null || opciones.isEmpty()) {
-            throw new ExceptionErrorInesperado("TikTok no devolvió privacy_level_options para esta cuenta: " + response);
-        }
-        return opciones.contains("SELF_ONLY") ? "SELF_ONLY" : opciones.get(0);
-    }
-
-    @SuppressWarnings("unchecked")
-    private String iniciarPublicacion(String accessToken, int videoSize, String caption, String privacyLevel) {
+    private String iniciarPublicacion(String accessToken, int videoSize, String caption) {
         Map<String, Object> postInfo = Map.of(
-                "title", caption != null ? caption : "",
-                "privacy_level", privacyLevel,
-                "disable_duet", false,
-                "disable_comment", false,
-                "disable_stitch", false
+                "title", caption != null ? caption : ""
         );
         Map<String, Object> sourceInfo = Map.of(
                 "source", "FILE_UPLOAD",
@@ -208,7 +177,7 @@ public class TikTokGraphClient {
         Map<String, Object> body = Map.of("post_info", postInfo, "source_info", sourceInfo);
 
         Map<?, ?> response = webClient.post()
-                .uri("/v2/post/publish/video/init/")
+                .uri("/v2/post/publish/inbox/video/init/")
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(body))

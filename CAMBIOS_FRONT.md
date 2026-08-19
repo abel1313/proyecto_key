@@ -16820,3 +16820,150 @@ siempre. Un job corre cada minuto buscando publicaciones vencidas y las dispara.
 Ni la publicación inmediata de Reels/TikTok ni el nuevo flujo de programación se han probado
 contra las APIs reales todavía. En cuanto el dueño haga la primera prueba real (inmediata o
 programada), avisamos con el resultado.
+
+---
+
+## ✅ FRONT — TikTok y programación conectados; pantalla reordenada (2026-08-18)
+
+Todo en `dev` y `qa`. Con esto **las 3 redes están conectadas de punta a punta desde la UI**.
+
+### TikTok
+
+Conectado `POST /v1/redes-sociales/tiktok/publicar`. Al elegir **Foto**, TikTok se desmarca solo
+con el motivo *"TikTok solo acepta video, no fotos"*.
+
+Lo de que el video sale **privado** en Sandbox lo avisamos **antes** de publicar, no después — si
+no, el dueño publicaría, no lo vería en su perfil y creería que falló. Es un aviso que **no
+bloquea**, a diferencia de los motivos que sí deshabilitan la red.
+
+`/tiktok/autorizar` **no lo tocamos**: entendido que es el trámite manual de OAuth que corren
+ustedes una vez. No hicimos pantalla para eso.
+
+### Programación en las 3 — gracias por tomar la opción del job propio
+
+Es la que sugerimos justamente para que **no salga una y la otra no**. Ya está conectado
+`scheduledPublishTime` en los 6 endpoints, y del lado nuestro:
+
+- **Quitamos la validación de fecha máxima.** Tenían razón: los 29 días y los 6 meses eran límites
+  *de la API de Meta*, y con el job propio no aplican. Solo validamos el mínimo de 10 minutos.
+- **`FALLIDA` se muestra con su `ultimoError`** — es lo único que le dice al admin por qué no
+  salió, así que va visible, no escondido en un log.
+- Cuando viene `PROGRAMADA` no intentamos armar el link del post (`postIdFacebook` es `null`
+  todavía) — nos avisaron a tiempo, gracias.
+
+### La pantalla quedó reordenada (no les afecta)
+
+El dueño la volvió a describir y la reordenamos: **video → texto → redes/hashtags → cuándo →
+producto**. El producto se fue al final porque es un requisito de ustedes, no parte del flujo con
+el que él piensa. **Lo que les llega no cambia en nada** — mismos endpoints, misma `descripcion`
+ya concatenada, un request por red.
+
+### ⚠️ Nada probado contra las APIs reales todavía
+
+Ni TikTok, ni los Reels, ni el flujo de programación — de ninguno de los dos lados. Cuando el
+dueño haga la primera prueba les pasamos el mensaje tal cual salga, la red y el tipo.
+
+**Un caso que conviene tener presente al probar programación:** como ahora publica su job y no
+Meta, si el servidor está caído a la hora exacta **no sale ninguna de las 3**. Es el trade-off que
+aceptamos a cambio de que salgan juntas. ¿Tienen algún reintento si el job no corrió a su hora
+(por ejemplo, que agarre las vencidas al arrancar), o solo los 3 intentos una vez que sí corre?
+
+### Lo único que queda de TikTok
+
+- ~~Correr `migration_tiktok_token.sql` y hacer el login OAuth una vez.~~ **Ya hecho (2026-08-19)**
+  — token guardado y validado contra la API de TikTok, cuenta `novedadesJade` conectada.
+- La auditoría de TikTok para salir de Sandbox — lo que decíamos: **conviene empezarla ya**, es lo
+  que más tarda y no depende de código.
+
+---
+
+## ✅ BACK — respuesta: reintentos del job si el servidor estuvo caído (2026-08-19)
+
+**Sí, se recupera solo, no hace falta ningún manejo especial de su lado.**
+
+El scheduler (`PublicacionSocialScheduler`, corre cada minuto) no busca "las que vencen en este
+minuto exacto" — busca **todas las que sigan en `PROGRAMADA` con `scheduledPublishTime <= ahora`**.
+Si el servidor estuvo caído justo a la hora programada, en cuanto vuelve a levantar, la primera
+corrida del job (máximo ~1 minuto después del arranque) las recoge igual, sin importar cuánto
+tiempo llevaban vencidas.
+
+Los **3 intentos** que se marcan en `FALLIDA` son solo por fallos reales de ejecución (la API de
+Meta/TikTok rechaza la llamada) — si el servidor simplemente no corrió porque estaba caído, no se
+consume ningún intento: la fila sigue en `PROGRAMADA` tal cual estaba y tiene sus 3 intentos
+completos disponibles para cuando el servidor vuelva.
+
+---
+
+## 📋 BACK — estado general Facebook/Instagram/TikTok (2026-08-19)
+
+### Lo que tenemos
+
+- Las 3 redes conectadas de punta a punta (front ↔ back), incluida programación unificada con
+  nuestro job propio (`scheduledPublishTime` en los 6 endpoints).
+- TikTok autorizado: login OAuth hecho, token guardado y **validado contra la API real de
+  TikTok** — cuenta Sandbox `novedadesJade` respondiendo `open_id`/`display_name` correctamente.
+- Migraciones (`migration_publicacion_social_programada.sql`, `migration_tiktok_token.sql`)
+  corridas en dev y qa.
+- Todo esto en `dev`/`qa` — no ha subido a `main`/producción todavía.
+
+### Lo que falta
+
+### 🆕 Hashtags por default (2026-08-18) — para no reescribirlos a mano cada vez
+
+Idea del dueño: guardar un set fijo de hashtags por red social, y que el front los precargue
+siempre en el campo de descripción al abrir el formulario de publicar (el admin los puede
+editar/quitar antes de enviar, no arrancan bloqueados).
+
+**GET** `/mis-productos/v1/redes-sociales/hashtags-default`
+Devuelve siempre las 3 filas (facebook/instagram/tiktok), sembradas vacías desde la migración —
+no hay caso 404 que manejar la primera vez.
+```json
+{
+  "lista": [
+    { "id": 1, "redSocial": "facebook", "hashtags": "", "actualizadoEn": "2026-08-18T10:00:00" },
+    { "id": 2, "redSocial": "instagram", "hashtags": "", "actualizadoEn": "2026-08-18T10:00:00" },
+    { "id": 3, "redSocial": "tiktok", "hashtags": "", "actualizadoEn": "2026-08-18T10:00:00" }
+  ]
+}
+```
+
+**PUT** `/mis-productos/v1/redes-sociales/hashtags-default/{redSocial}`
+`redSocial` en la URL debe ser `facebook`, `instagram` o `tiktok`. Body:
+```json
+{ "hashtags": "#BOLSAS #NovedadesJade #ParaTi" }
+```
+Reemplaza el valor completo guardado para esa red (no es un append). Responde el objeto
+actualizado con el mismo shape que el GET (`data`, no `lista`, porque es un solo registro).
+`redSocial` inválido → `404` con mensaje.
+
+Migración ya corrida en dev y qa (2026-08-18) — el endpoint ya funciona en ambos ambientes.
+
+### 🎨 Pantallas que necesitamos de este lado (front)
+
+**1. Pantalla de gestión de hashtags por red** (nueva, en el módulo de redes sociales)
+Un formulario simple con las 3 redes (Facebook / Instagram / TikTok), donde el admin pueda
+**agregar, editar o eliminar** los hashtags guardados de cada una. No hace falta UI compleja de
+"tags" tipo chips necesariamente — puede ser un textarea libre por red que se guarda tal cual
+con `PUT /hashtags-default/{redSocial}` (reemplaza el string completo, así que cualquier edición
+o borrado de un hashtag se resuelve mandando el texto ya corregido). Al entrar a la pantalla,
+cargar el estado actual con el `GET /hashtags-default`.
+
+**2. En cada pantalla de publicar (Facebook/Instagram/TikTok)** — en la parte donde se escribe
+la descripción/hashtags de la publicación, agregar una opción tipo "usar hashtags guardados" que
+jale **de un jalón** todos los hashtags default de esa red específica (llamando al mismo `GET
+/hashtags-default` y filtrando por `redSocial`, o insertando el campo `hashtags` de la fila que
+corresponda a la red en la que se está publicando) y los inserte en el campo de descripción. El
+admin los puede seguir editando después de insertarlos, no quedan bloqueados.
+
+---
+
+- **Primer intento de prueba en vivo (2026-08-18): los 3 dieron `413 Request Entity Too Large`**
+  antes de llegar al backend — el Nginx de la VPS delante de `qa.backend.novedades-jade.com.mx`
+  no tenía `client_max_body_size` configurado (default de Nginx: 1MB), así que el video nunca
+  llegaba a Spring Boot. **Ya corregido** (se subió el límite a 200MB, igual que
+  `spring.servlet.multipart.max-request-size`). No fue un bug de la lógica de publicación —
+  reintentando ahora contra las APIs reales.
+- **Auditoría de TikTok** para salir de modo Sandbox — mientras no pase, el video sale forzado a
+  privado (`SELF_ONLY`) y solo funciona con cuentas agregadas como Target User. Conviene
+  iniciarla pronto porque es lo que más tarda y no depende de código.
+- Pendiente el merge a `main` una vez que las pruebas en vivo salgan bien.

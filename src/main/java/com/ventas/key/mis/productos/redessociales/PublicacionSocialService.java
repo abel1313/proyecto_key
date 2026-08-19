@@ -35,6 +35,7 @@ public class PublicacionSocialService {
     private final IVarianteRepository varianteRepository;
     private final IVarianteImagenRepository varianteImagenRepository;
     private final IPublicacionSocialRepository publicacionSocialRepository;
+    private final IHashtagsDefaultRepository hashtagsDefaultRepository;
     private final ImagenPort imagenPort;
     private final FacebookGraphClient facebookGraphClient;
     private final InstagramGraphClient instagramGraphClient;
@@ -316,6 +317,20 @@ public class PublicacionSocialService {
             return instagramGraphClient.publicarReel(p.getContenidoBytes(), p.getContentType(), p.getDescripcionPublicada());
         }
         throw new ExceptionErrorInesperado("Tipo de publicación de Instagram desconocido: " + p.getTipoPublicacion());
+    }
+
+    public List<HashtagsDefault> obtenerHashtagsDefault() {
+        return hashtagsDefaultRepository.findAllByOrderByRedSocialAsc();
+    }
+
+    @Transactional
+    public HashtagsDefault actualizarHashtagsDefault(String redSocial, String hashtags) {
+        HashtagsDefault h = hashtagsDefaultRepository.findByRedSocial(redSocial.toLowerCase())
+                .orElseThrow(() -> new ExceptionDataNotFound(
+                        "Red social desconocida: '" + redSocial + "' -- debe ser facebook, instagram o tiktok"));
+        h.setHashtags(hashtags);
+        h.setActualizadoEn(LocalDateTime.now());
+        return hashtagsDefaultRepository.save(h);
     }
 
     private Long imagenPrincipalDe(Integer varianteId) {
