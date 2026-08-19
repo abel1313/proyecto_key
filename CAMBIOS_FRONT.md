@@ -17354,3 +17354,74 @@ tiene las 2 pruebas reales confirmadas) sigue intacta.
 
 **Pendiente concreto:** agregar `instagram_manage_comments` a la solicitud de revisión de Meta que
 ya está en curso (los 9 permisos de Facebook + verificación de negocio, enviada hoy).
+
+### Update — trámite de `instagram_manage_comments` en curso + caso abierto de Facebook (2026-08-19)
+
+**Trámite del permiso, avanzando (guiado en vivo por captura de pantalla, sin acceso directo al
+dashboard):**
+- Confirmado que en la lista de "Nuevas solicitudes" (pendiente, sin enviar) ya estaban los 9
+  permisos, **incluyendo `pages_manage_engagement`** — o sea que cuando se apruebe este paquete,
+  el bot de Facebook también queda habilitado para clientes reales de forma oficial (ya funciona
+  hoy sin aprobación porque Meta permite probar sin auditoría, pero quedará formalmente aprobado).
+- **Trampa de la UI encontrada de nuevo:** el caso de uso "Administrar mensajes y contenido en
+  Instagram" del panel principal de la app `novedadesJade` redirige al panel de configuración de
+  `novedadesJade-IG` (la app separada de "Instagram API with Instagram Login", permisos
+  `instagram_business_*`) — **no es el camino**. El permiso correcto se encuentra yendo directo a
+  **Revisar → Permisos y funciones**, y cambiando el **selector de caso de uso** (arriba de la
+  lista) a **"API de Instagram con inicio de sesión de Facebook"** — ahí sí aparece
+  `instagram_manage_comments` (distinto de `instagram_business_manage_comments`, que es el de la
+  app equivocada).
+- Se confirmó que el asistente de IA de **Meta Business Suite** (no el de developers.facebook.com)
+  puede sugerir un camino totalmente distinto y equivocado: un permiso `reply_comments` de
+  **persona** en Configuración → Personas → Administrar, que sirve solo para que un humano
+  conteste manualmente desde la interfaz web de Business Suite — no tiene relación con el permiso
+  de **app** que necesita nuestro bot para llamar la Graph API programáticamente. Si se vuelve a
+  preguntar ahí, hay que ser explícito de que es un permiso de app en App Review, no de persona en
+  Business Suite.
+- Descripción del uso ya redactada y agregada al formulario de solicitud de acceso avanzado (en
+  inglés, como pidió el formulario).
+- **Pendiente antes de poder enviar:** el formulario exige **"1 llamada de prueba a la API"**
+  completada (marcaba "0 de 1") antes de dejar enviar la revisión, más el video de pantalla
+  mostrando el flujo real — ninguno de los dos se ha hecho todavía.
+
+**Diagnóstico de la llamada de prueba (mismo día, más tarde):** se corrió `debug_token` contra el
+`page-access-token` que ya está en uso en QA (el mismo que publica fotos/reels hoy) y se confirmó
+que **no trae `instagram_manage_comments`** en sus scopes:
+```
+scopes: pages_show_list, business_management, instagram_basic, instagram_content_publish,
+instagram_manage_messages, pages_read_engagement, pages_read_user_content, pages_manage_posts,
+pages_manage_engagement, public_profile
+```
+(Nota aparte: `instagram_manage_messages` está en el token pero no estaba en la lista de 9 permisos
+de la solicitud pendiente — viene de una autorización previa, no bloqueante, revisar si hace falta
+agregarlo también a la revisión más adelante.)
+
+**Plan para completar la llamada de prueba, sin terminar todavía:**
+1. Generar un token nuevo (temporal, solo para prueba) desde el Graph API Explorer
+   (developers.facebook.com/tools/explorer), app `novedadesJade`, marcando `instagram_manage_comments`
+   junto con los permisos que ya tenía, token de **página** (NovedadesJade).
+2. Obtener un ID de post real de Instagram con el token actual (solo lectura):
+   `GET https://graph.facebook.com/v21.0/17841444237033427/media?limit=1`
+3. Con el token NUEVO, publicar un comentario de prueba en ese post:
+   `POST https://graph.facebook.com/v21.0/{media-id}/comments` con `message=...` — esto cuenta
+   como llamada de prueba real de gestión de comentarios. Se puede borrar después con
+   `DELETE /{comment-id}`.
+
+**Pendiente:** el usuario iba a generar el token nuevo en el Graph API Explorer y correr los pasos
+2-3 desde su VPS (el `curl` de escritura con el token no se corrió desde este entorno porque el
+clasificador de auto-mode de Claude Code bloqueó enviar el token real por `curl` — el usuario lo
+corre directo). Después de esto todavía falta el video de pantalla y enviar la revisión.
+
+### Caso abierto sin resolver — un comentario real de Facebook no fue contestado por el bot (2026-08-19)
+
+Reportado por el dueño: alguien comentó en un post de Facebook (primera vez de esa persona en ese
+post) y el bot no contestó. Se descartaron por confirmación directa del usuario:
+- No llegó correo de escalamiento (`escalarPorCorreo` no se disparó).
+- No había pausa previa por respuesta manual de un admin en ese post/autor.
+
+**Sin diagnosticar todavía** — no hay acceso a logs ni BD de QA desde este entorno (el cluster EKS
+no es alcanzable, ver limitación ya conocida). Causas que faltan por descartar, en orden de
+probabilidad: cooldown/bloqueo de abuso del autor (`ChatbotBlockService`), fallo silencioso al
+publicar la respuesta en Facebook (se loguea como warning, no se reintenta ni se avisa a nadie), o
+que el webhook nunca llegó (firma inválida, suscripción caída, pod abajo en ese momento). Falta
+retomar esto con acceso a logs/BD de QA o pidiéndole al usuario que corra la consulta.
