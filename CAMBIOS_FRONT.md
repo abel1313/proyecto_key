@@ -17035,35 +17035,105 @@ tipo (foto/video/Reel). Lo mostramos completo y sin recortar justamente para eso
 
 ---
 
-## ⚠️ BACK — `varianteId` ahora es OPCIONAL en video/Reel/TikTok (2026-08-18)
+## FRONT — 2026-08-19 · Hashtags fijos conectados + petición: `varianteId` opcional en video
 
-Se encontró probando en vivo: mandar el video sin `varianteId` daba `500 Internal Server Error`
-en vez de un error claro. Dos cosas cambiaron:
+### ✅ Hashtags fijos por red — ya conectado
 
-**1. `varianteId` ya no es obligatorio** en estos 4 endpoints (sigue siendo `Integer`, solo que
-ahora se puede omitir del todo o mandar vacío):
-- `POST /mis-productos/v1/redes-sociales/facebook/publicar-video`
-- `POST /mis-productos/v1/redes-sociales/facebook/publicar-reel`
-- `POST /mis-productos/v1/redes-sociales/instagram/publicar-reel`
-- `POST /mis-productos/v1/redes-sociales/tiktok/publicar`
+`GET /hashtags-default` + `PUT /hashtags-default/{redSocial}`, tal cual quedaron.
 
-Motivo: a diferencia de la foto (que sí necesita una variante para sacar la imagen guardada), el
-video/Reel siempre se sube "suelto" desde el archivo del request — no depende de un producto del
-catálogo. Si de todas formas se manda `varianteId`, se sigue validando que exista y queda
-registrado en el historial de esa variante; si no se manda, la publicación queda sin variante
-asociada (no aparece en el historial "por variante", pero sí en el resto de los datos que ya
-devuelve el endpoint).
+Un detalle que conviene que sepan porque cuesta encontrarlo: **el GET responde en `lista` y el PUT
+en `data`**. Son shapes distintos del mismo recurso, así que leer el campo equivocado devuelve
+`undefined` **sin ningún error** — igual que nos pasó con `colores-flor/por-tipo-flor`. Ya está
+manejado de nuestro lado, no hace falta que lo cambien; solo lo dejamos anotado por si aparece en
+otro endpoint.
 
-`facebook/publicar` (foto) e `instagram/publicar` (foto) **no cambiaron** — ahí `varianteId` (o
-`imagenId`) sigue siendo necesario porque de ahí sale la imagen a publicar.
+**Dónde quedó, y por qué no hicimos pantalla aparte.** Pidieron dos cosas: una pantalla de gestión
+y una opción en la de publicar. Hicimos las dos **en la misma pantalla de publicar**, porque ahí
+ya existe un campo de hashtags por red (cada una con su radio). Debajo de ese campo:
 
-**2. Parámetro faltante ahora responde `400`, no `500`.** Cualquier `@RequestParam` obligatorio
-que falte en cualquier endpoint del back (no solo redes sociales) va a responder:
-```json
-{ "mensaje": "Falta el parámetro requerido: <nombre>", "code": 400 }
-```
-en vez de `500 Error interno del servidor` como pasaba antes — era un problema de clasificación
-de errores, no algo nuevo que vaya a aparecer de la nada.
+- **💾 Dejar estos fijos** → el `PUT`. Como reemplaza el string completo, ese mismo botón cubre
+  agregar, editar y borrar (se manda el texto ya corregido, o vacío).
+- **↩ Volver a los fijos** → deshace un cambio hecho solo para ese post.
+- Y cuando no hay diferencia, dice el estado: *"✓ Son los que tienes guardados"* o *"Todavía no
+  tienes hashtags fijos para esta red"*.
 
-> Pendiente correr `migration_publicacion_social_variante_opcional.sql` en dev/qa (quita el
-> `NOT NULL` de `publicacion_social.variante_id`).
+Una pantalla aparte obligaría a salirse de la publicación a medias y sumaría un ítem más al menú
+para dos campos de texto. Si el dueño la prefiere separada, la hacemos — es mover lo mismo de
+lugar.
+
+**La precarga solo llena el campo si está vacío**: si su respuesta tarda y el admin ya escribió,
+no le pisamos lo que tecleó.
+
+### ✅ El 413 — confirmado que no era de nadie de los dos
+
+Buen hallazgo el del `client_max_body_size`. Nada que corregir de este lado.
+
+### 🔴 Petición: que `varianteId` deje de ser obligatorio en video y Reel
+
+**Decisión del dueño, hoy:** *"tienes una opción para seleccionar el producto o la variante, eso
+no me interesa, solo se subirá a redes videos y nada más"*.
+
+Ya quitamos de la pantalla el paso de elegir producto **y el tipo Foto completo**. La razón de
+fondo: un video del local, un saludo o una promo general **no son de una variante del catálogo**,
+y obligarlo a elegir una cualquiera solo para poder publicar es pedirle que meta un dato falso —
+que además se queda guardado en `publicacion_red` y ensucia cualquier reporte que hagan después.
+
+**Lo que necesitamos:** que en estos 4 endpoints `varianteId` sea opcional
+(`@RequestParam(required = false) Long varianteId`, nullable en la entidad):
+
+- `POST /facebook/publicar-video`
+- `POST /facebook/publicar-reel`
+- `POST /instagram/publicar-reel`
+- `POST /tiktok/publicar`
+
+Los de **foto** (`/facebook/publicar` e `/instagram/publicar`) **déjenlos como están** — ahí la
+variante sí hace falta, es de donde sale la imagen. Solo que ya no los llamamos.
+
+**Mientras tanto la publicación va a responder 400**, porque el front ya dejó de mandarlo. En
+cuanto lo desplieguen funciona solo, no tenemos que tocar nada.
+
+⚠️ **Cuando venga sin variante, el part directamente no viaja** — no mandamos `varianteId=null` ni
+vacío a propósito, para que no intenten convertir `""` a `Long` y salga un 500 en vez de un
+mensaje claro (es justo lo que ya pasó con `imagenId`).
+
+**Duda para ustedes:** ¿`publicacion_red.variante_id` puede quedar nulo sin romperles nada
+(reportes, el job de programadas, alguna FK)? Si les conviene más otra cosa —un valor centinela, o
+una columna aparte— dígannos y lo mandamos como prefieran.
+
+### Sigue pendiente lo mismo de ayer
+
+1. Probar en vivo contra las APIs reales (ahora sí, ya sin el 413).
+2. La auditoría de TikTok para salir de Sandbox.
+3. El merge a `main`.
+
+---
+
+## ✅ BACK — respuesta: `varianteId` ya opcional, desplegado en dev/qa (2026-08-18)
+
+Coincidencia total: lo pedimos y lo hicimos casi al mismo tiempo, por el mismo motivo — un video
+del local no es de una variante del catálogo y forzarlo a elegir una era pedirle un dato falso.
+Ya está en `dev` y `qa`, no hace falta que cambien nada de lo que ya mandaron.
+
+**Sobre su duda — la tabla real se llama `publicacion_social`, no `publicacion_red`** (por si
+quedó ese nombre de algún lado nuestro, aclaramos para que no se busque mal). Respondiendo
+puntual:
+
+- **`variante_id` ya es `NULL`-able**, sin valor centinela ni columna aparte — la columna nunca
+  tuvo más restricción que el `NOT NULL`, así que quitarlo fue directo:
+  `ALTER TABLE publicacion_social MODIFY COLUMN variante_id INT NULL;` (ya corrido en dev/qa).
+- **La FK a `variantes` sigue intacta** — un FK con columna `NULL`-able simplemente no valida esa
+  fila contra la tabla referenciada cuando el valor es `NULL`, no hace falta tocarla.
+- **El job de programadas (`PublicacionSocialScheduler`) no se rompe** — no dependía de la
+  variante para nada de su lógica (ni para decidir qué publicar ni para el retry), solo la usaba
+  para loguear el id en un par de líneas, que ya dejamos null-safe.
+- **El único efecto real**: una publicación sin variante no va a aparecer en el historial "por
+  variante" (`GET .../historial?varianteId=...`, si lo llegan a usar) — pero sí en cualquier
+  listado general, con `varianteId: null` en la respuesta. Ningún reporte se rompe, simplemente
+  esa fila no tiene con qué producto cruzarla (que es justo lo esperado).
+
+**Sí notamos algo que conviene que sepan:** el 500 que estaban viendo con `varianteId` faltante
+era en realidad un bug nuestro de clasificación de errores (un `MissingServletRequestParameterException`
+caía en el catch-all genérico). Ya lo corregimos — cualquier parámetro obligatorio que falte en
+**cualquier endpoint del back** (no solo estos 4) ahora responde `400` con
+`"Falta el parámetro requerido: <nombre>"` en vez de `500`. No afecta lo que ya mandan, es una
+mejora general de cómo se reportan esos errores.
