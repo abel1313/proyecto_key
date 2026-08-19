@@ -10,6 +10,8 @@ import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+// cambio de humo 2026-08-18: forzar rebuild/redeploy de QA para confirmar que el fix del
+// Authorization duplicado (ver jwtHeaderFilter abajo) realmente llegue al pod.
 @Configuration
 public class WebClientConfig {
 
