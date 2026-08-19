@@ -17137,3 +17137,32 @@ caía en el catch-all genérico). Ya lo corregimos — cualquier parámetro obli
 **cualquier endpoint del back** (no solo estos 4) ahora responde `400` con
 `"Falta el parámetro requerido: <nombre>"` en vez de `500`. No afecta lo que ya mandan, es una
 mejora general de cómo se reportan esos errores.
+
+---
+
+## 🔴 BACK — bug crítico encontrado y corregido: las 3 redes rechazaban el token (2026-08-18)
+
+Esto explica los errores que vieron en la primera prueba en vivo real (`facebook/publicar-reel`):
+
+```
+❌ Facebook: "The access token could not be decrypted" (code 190, OAuthException)
+❌ Instagram: "The access token could not be decrypted" (code 190, OAuthException)
+❌ TikTok: 400 Bad Request (HTML crudo, pie "TLB" — ni siquiera es un error de su API real)
+```
+
+**No era el token ni la config** (page-id, page-access-token e instagram account-id en QA están
+correctos, confirmado contra `application-dev.yml`). Era un bug de nuestro lado: hay un filtro
+global (`WebClientConfig.jwtHeaderFilter`) que le agrega el JWT del admin logueado a **cualquier**
+request saliente que haga la app — pensado para los microservicios internos (imágenes), que no
+ponen su propio `Authorization`. El problema: ese filtro usa `.header(...)`, que **agrega** en vez
+de reemplazar. Facebook, Instagram y TikTok ya ponen su propio `Authorization` para autenticarse
+contra *su* API — el filtro les sumaba un segundo `Authorization` con nuestro JWT interno. El
+request salía con **dos headers `Authorization`**, y:
+- Facebook no podía parsear cuál usar → `"could not be decrypted"`.
+- El load balancer de borde de TikTok rechazaba el request duplicado con 400 antes de llegar
+  siquiera a su API real (por eso la respuesta era HTML plano, no el JSON de error de TikTok).
+
+Ya corregido: los 3 clientes (`FacebookGraphClient`, `InstagramGraphClient`, `TikTokGraphClient`)
+ahora arman su propio `WebClient` aislado, completamente ajeno al filtro interno — nunca más van a
+recibir nuestro JWT mezclado con el token de la red social. Sin cambios de contrato para front,
+nada que ajustar de su lado. Listo para volver a probar en vivo.

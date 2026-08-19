@@ -41,18 +41,22 @@ public class TikTokGraphClient {
     @Value("${tiktok.client-secret:}")
     private String clientSecret;
 
-    private final WebClient.Builder builder;
     private final ITikTokTokenRepository tokenRepository;
     private WebClient webClient;
 
-    public TikTokGraphClient(WebClient.Builder builder, ITikTokTokenRepository tokenRepository) {
-        this.builder = builder;
+    public TikTokGraphClient(ITikTokTokenRepository tokenRepository) {
         this.tokenRepository = tokenRepository;
     }
 
+    // OJO: WebClient.builder() nuevo aqui a proposito, NO un WebClient.Builder inyectado por
+    // Spring -- el bean compartido carga el jwtHeaderFilter de WebClientConfig (agrega el JWT de
+    // nuestra propia app a cada request saliente, para los microservicios internos). TikTok ya
+    // recibe su propio access_token por header Bearer -- si tambien le llega nuestro JWT via el
+    // filtro, el request sale con 2 headers Authorization y el load balancer de borde de TikTok
+    // lo rechaza con 400 antes de llegar a su API (bug real encontrado 2026-08-18).
     @PostConstruct
     void init() {
-        this.webClient = builder.clone().baseUrl("https://open.tiktokapis.com").build();
+        this.webClient = WebClient.builder().baseUrl("https://open.tiktokapis.com").build();
     }
 
     // Paso unico, manual: despues de que el admin autoriza la cuenta en el navegador

@@ -36,21 +36,22 @@ public class FacebookGraphClient {
     @Value("${facebook.api-version:v21.0}")
     private String apiVersion;
 
-    private final WebClient.Builder builder;
     private WebClient webClient;
     // Host de subida binaria de Meta para /video_reels -- la URL exacta la devuelve el paso
     // "start" (uploadUrl), pero siempre cae en este host, asi que se deja armado un WebClient
     // aparte igual que en InstagramGraphClient.
     private WebClient uploadClient;
 
-    public FacebookGraphClient(WebClient.Builder builder) {
-        this.builder = builder;
-    }
-
+    // OJO: WebClient.builder() nuevo aqui a proposito, NO el WebClient.Builder inyectado por
+    // Spring -- ese carga el jwtHeaderFilter de WebClientConfig (agrega el JWT de nuestra propia
+    // app a cada request saliente, para los microservicios internos). Facebook ya recibe su
+    // propio access_token (por header OAuth en video_reels, o por body/query en el resto) --
+    // si tambien le llega nuestro JWT via el filtro, Facebook no puede parsear el Authorization
+    // y responde "The access token could not be decrypted" (bug real encontrado 2026-08-18).
     @PostConstruct
     void init() {
-        this.webClient = builder.baseUrl("https://graph.facebook.com").build();
-        this.uploadClient = builder.clone().build();
+        this.webClient = WebClient.builder().baseUrl("https://graph.facebook.com").build();
+        this.uploadClient = WebClient.builder().build();
     }
 
     public String publicarFoto(byte[] imagen, String contentType, String mensaje, Long scheduledEpochSeconds) {

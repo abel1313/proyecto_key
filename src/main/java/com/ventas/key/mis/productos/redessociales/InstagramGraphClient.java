@@ -44,20 +44,21 @@ public class InstagramGraphClient {
     @Value("${facebook.api-version:v21.0}")
     private String apiVersion;
 
-    private final WebClient.Builder builder;
     private WebClient webClient;
     // rupload.facebook.com es el host de subida binaria de Meta, distinto del de la Graph API
     // normal -- mismo mecanismo que usa Facebook para /video_reels.
     private WebClient uploadClient;
 
-    public InstagramGraphClient(WebClient.Builder builder) {
-        this.builder = builder;
-    }
-
+    // OJO: WebClient.builder() nuevo aqui a proposito, NO el WebClient.Builder inyectado por
+    // Spring -- ese carga el jwtHeaderFilter de WebClientConfig (agrega el JWT de nuestra propia
+    // app a cada request saliente, para los microservicios internos). Instagram/Facebook ya
+    // reciben su propio access_token (por header OAuth/Bearer, o por body/query) -- si tambien
+    // le llega nuestro JWT via el filtro, la API no puede parsear el Authorization y responde
+    // "The access token could not be decrypted" (bug real encontrado 2026-08-18).
     @PostConstruct
     void init() {
-        this.webClient = builder.baseUrl("https://graph.facebook.com").build();
-        this.uploadClient = builder.clone().baseUrl("https://rupload.facebook.com").build();
+        this.webClient = WebClient.builder().baseUrl("https://graph.facebook.com").build();
+        this.uploadClient = WebClient.builder().baseUrl("https://rupload.facebook.com").build();
     }
 
     public String publicarFoto(String imagenUrlPublica, String caption) {
