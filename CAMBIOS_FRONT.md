@@ -17511,12 +17511,43 @@ malformed` cada vez. Se cambió a armar el body a mano con `UriUtils.encode()` (
 prueba real que sí escapa `%2A`/`%21`). Desplegado en dev+qa el mismo día — cualquier futura
 re-autorización de TikTok (si se revoca el acceso) ya no debería toparse con este error.
 
-**⚠️ Pendiente de confirmar:** el primer video de prueba se publicó exitosamente según TikTok
-(`publish_id: v_inbox_file~v2.7675959956415318017`, confirmado por `post/publish/status/fetch`
-como `SEND_TO_USER_INBOX` antes de que el backend devolviera éxito) — pero el usuario no lo
-encontró en el inbox de la app de TikTok con la cuenta `novedadesjade8`. Según la documentación
-oficial de TikTok, en modo sandbox el video sí debería llegar como notificación del sistema en el
-inbox (privacidad `SELF_ONLY`) esperando que el usuario le dé clic para terminar de publicarlo.
-Sin resolver todavía — puede ser que se estuviera revisando con la cuenta equivocada, un retraso
-de notificación propio de una app sin auditar, o algo por confirmar con soporte de TikTok
-Developers usando el `publish_id` de arriba como evidencia.
+**⚠️ Pendiente de confirmar, sin resolver:** se probó con **2 videos** de prueba (no solo uno) y
+ambos fueron confirmados por TikTok como recibidos (`SEND_TO_USER_INBOX` en
+`post/publish/status/fetch`, revisado varias veces incluso justo después de subir el segundo) —
+pero ninguno apareció en el celular con la cuenta `novedadesjade8`, ni en Borradores ni en Inbox,
+revisando de inmediato ambas veces. Se descartó cuenta equivocada (`GET
+/v1/redes-sociales/tiktok/whoami` confirma que el token pertenece a la cuenta correcta,
+`display_name: novedadesJade`). Se agregaron 3 endpoints de diagnóstico manual (protegidos, rol
+ADMIN) para investigar esto sin gastar más videos de prueba: `GET
+/v1/redes-sociales/tiktok/estado/{publishId}`, `GET /v1/redes-sociales/tiktok/whoami`, `GET
+/v1/redes-sociales/tiktok/videos` (este último intenta listar el contenido con la Display API,
+pero probablemente falle con `scope_not_authorized` porque no se pidió el scope `video.list` al
+autorizar). **Decisión del usuario: pausado por ahora** — no vale la pena seguir gastando pruebas.
+Candidatos de causa, sin confirmar: limitación real de apps sin auditar (la versión de producción
+ya está "in review"), o algo que solo soporte de TikTok Developers puede aclarar con los
+`publish_id` como evidencia (`v_inbox_file~v2.7675959956415318017`,
+`v_inbox_file~v2.7675980555712038929`).
+
+### 4. Instagram — bot de mensajes directos (DM), nuevo (2026-08-20)
+
+Mismo patrón que el bot de comentarios, pero para la bandeja de Direct de Instagram — no existía
+antes de hoy. **No expone ningún endpoint nuevo para el front**, todo se dispara solo vía webhook
+(igual que comentarios), así que no hay nada que el front tenga que llamar o cambiar.
+
+- Nuevo `InstagramDirectMessageBotService`: reusa el mismo chatbot, el mismo límite de 20
+  mensajes/hora (`ChatbotBlockService`, compartido con comentarios y el chat del sitio), y la
+  misma lógica de escalar por correo / saludo de bienvenida en el primer contacto.
+- Diferencia con comentarios: un DM no está ligado a un post, así que no hay contexto de
+  variante/producto (se contesta sin ese dato extra) y la pausa por respuesta manual del admin es
+  por cliente completo, no por cliente+post.
+- El webhook (`/v1/redes-sociales/facebook/webhook`, el mismo de siempre) ahora también procesa el
+  arreglo `messaging` del payload de Meta, además de `changes` (comentarios) — ya se agregó del
+  lado de Meta la suscripción del campo `messages` sobre el objeto `instagram` (confirmado vía
+  `GET /{app-id}/subscriptions`, junto con `comments` que ya estaba activo).
+
+**⚠️ Acción requerida antes de que funcione en QA:** correr manualmente
+`src/main/resources/static/migration_mensaje_directo.sql` contra `inventario_key_qa` (crea las
+tablas `mensaje_directo_social` y `mensaje_directo_pausa` — `ddl-auto` está en `none`, no se crean
+solas). Sin esta migración, el bot va a fallar (con error de tabla inexistente) en cuanto llegue el
+primer DM real. **Sin probar todavía en vivo** — a diferencia de comentarios, no se mandó un DM de
+prueba real esta sesión.
