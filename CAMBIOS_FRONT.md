@@ -3095,6 +3095,25 @@ código de barras registrado — si no, el campo no viene). Úsenlos para difere
 tarjetas que comparten nombre/marca/precio idénticos (ej. mostrar el código de barras chiquito
 debajo del nombre cuando `talla`/`color` vengan ambos `null`).
 
+**`bloqueado` / `segundosEspera` — contrato completo (nunca se había documentado, 2026-08-20):**
+estos 2 campos ya existían desde antes, pero ahora hay 3 escenarios distintos que los usan, todos
+con la misma forma de response (`respuesta` humano-legible + `bloqueado` + `segundosEspera`) — el
+front no necesita distinguir el motivo, solo mostrar `respuesta` y, si `segundosEspera > 0`,
+deshabilitar el input hasta que pase ese tiempo (o dejarlo intentar de nuevo, el back vuelve a
+rechazar igual si no ha pasado el tiempo):
+
+1. **Bloqueo por abuso (ya existía):** tras 3 mensajes que el bot no entiende, `bloqueado: true`
+   con `segundosEspera` de hasta 30 horas.
+2. **Cooldown entre mensajes incomprendidos (ya existía):** `bloqueado: false` con un
+   `segundosEspera` corto (45s) — es solo una pausa breve, no un bloqueo real.
+3. **🆕 Límite de 20 mensajes/hora (nuevo, 2026-08-20):** para que nadie agote la cuota de OpenAI
+   preguntando cosas válidas sin parar (con o sin sesión iniciada, aplica igual a todos). Al
+   llegar a 20 mensajes en la última hora, responde `bloqueado: true` con `segundosEspera` de
+   hasta 1 hora y el texto: *"Alcanzaste el límite de consultas por ahora. Podrás seguir
+   escribiendo en X minuto(s), o si es urgente contáctanos directamente. ¡Gracias por tu
+   paciencia!"*. Mismo mecanismo aplicado también en los bots de comentarios de Facebook e
+   Instagram (ahí no aplica al front, es interno).
+
 ---
 
 ### 2. GET /v1/chatbot/buscar — "Ver más" sin IA
@@ -17407,10 +17426,16 @@ agregarlo también a la revisión más adelante.)
    como llamada de prueba real de gestión de comentarios. Se puede borrar después con
    `DELETE /{comment-id}`.
 
-**Pendiente:** el usuario iba a generar el token nuevo en el Graph API Explorer y correr los pasos
-2-3 desde su VPS (el `curl` de escritura con el token no se corrió desde este entorno porque el
-clasificador de auto-mode de Claude Code bloqueó enviar el token real por `curl` — el usuario lo
-corre directo). Después de esto todavía falta el video de pantalla y enviar la revisión.
+**✅ Llamada de prueba completada (mismo día, más tarde todavía):** el usuario generó el token
+nuevo en el Graph API Explorer (confirmado con `debug_token` que ya traía `instagram_manage_comments`
+entre los scopes), se sacó el page access token real de la página NovedadesJade vía `/me/accounts`,
+y se publicó un comentario real de prueba en un post existente de Instagram
+(`media_id 18163556644462169` → `comment_id 17873226558562899` devuelto por la API). El `curl` de
+escritura lo corrió el usuario directo en su VPS (el clasificador de auto-mode de Claude Code
+bloquea mandar un token real por `curl` desde este entorno, incluso siendo legítimo). Meta avisa
+que el "1 de 1" del formulario puede tardar hasta 24h en reflejarse. Pendiente decidir si se borra
+el comentario de prueba (`DELETE /{comment_id}`) o se deja. Después de esto todavía falta el video
+de pantalla y enviar la revisión formalmente.
 
 ### Caso abierto sin resolver — un comentario real de Facebook no fue contestado por el bot (2026-08-19)
 
