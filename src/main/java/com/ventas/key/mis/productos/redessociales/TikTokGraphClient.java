@@ -14,6 +14,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -91,11 +92,23 @@ public class TikTokGraphClient {
         log.info("Token de TikTok refrescado, open_id={}", response.get("open_id"));
     }
 
+    // BodyInserters.fromFormData() no escapaba "*"/"!" en el "code" de TikTok (deja esos
+    // caracteres tal cual, sigue la convencion antigua de application/x-www-form-urlencoded en
+    // vez de RFC 3986) -- TikTok rechazaba el intercambio con "invalid_request: parameters are
+    // malformed" apenas el code traia esos caracteres (bug real encontrado 2026-08-20, confirmado
+    // comparando contra un curl con --data-urlencode que si funcionaba). Se arma el body a mano
+    // con UriUtils.encode(), que si escapa esos caracteres.
     private Map<?, ?> intercambiarToken(MultiValueMap<String, String> form) {
+        String bodyCodificado = form.entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream()
+                        .map(valor -> org.springframework.web.util.UriUtils.encode(entry.getKey(), StandardCharsets.UTF_8)
+                                + "=" + org.springframework.web.util.UriUtils.encode(valor, StandardCharsets.UTF_8)))
+                .collect(java.util.stream.Collectors.joining("&"));
+
         Map<?, ?> response = webClient.post()
                 .uri("/v2/oauth/token/")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(BodyInserters.fromFormData(form))
+                .bodyValue(bodyCodificado)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
                         .defaultIfEmpty("")
