@@ -239,26 +239,20 @@ public class TikTokGraphClient {
                 .block();
     }
 
+    // Consulta suelta del estado (para diagnostico manual via endpoint admin, ver
+    // RedesSocialesController) -- misma llamada que esperarPublicado() pero sin el loop, y
+    // devolviendo el "data" completo tal cual (incluye fail_reason, publicaly_available_post_id,
+    // uploaded_bytes si TikTok los trae) en vez de solo el status.
+    public Map<?, ?> consultarEstado(String publishId) {
+        return consultarEstadoInterno(publishId, obtenerAccessTokenValido());
+    }
+
     // Igual que Instagram: TikTok procesa el video en segundo plano despues de subirlo. Se
     // consulta cada 3 segundos hasta 60 intentos (~3 min) antes de avisar que sigue procesando.
     @SuppressWarnings("unchecked")
     private void esperarPublicado(String publishId, String accessToken) {
         for (int intento = 0; intento < 60; intento++) {
-            Map<?, ?> response = webClient.post()
-                    .uri("/v2/post/publish/status/fetch/")
-                    .header("Authorization", "Bearer " + accessToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(BodyInserters.fromValue(Map.of("publish_id", publishId)))
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
-                            .defaultIfEmpty("")
-                            .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
-                                    "TikTok rechazó consultar el estado de la publicación: " + err))))
-                    .bodyToMono(Map.class)
-                    .timeout(Duration.ofSeconds(15))
-                    .block();
-
-            Map<?, ?> data = response != null ? (Map<?, ?>) response.get("data") : null;
+            Map<?, ?> data = consultarEstadoInterno(publishId, accessToken);
             String status = data != null && data.get("status") != null ? String.valueOf(data.get("status")) : null;
 
             if ("PUBLISH_COMPLETE".equals(status) || "SEND_TO_USER_INBOX".equals(status)) {
@@ -266,7 +260,7 @@ public class TikTokGraphClient {
             }
             if ("FAILED".equals(status)) {
                 throw new ExceptionErrorInesperado("TikTok no pudo publicar el video (publish_id=" + publishId
-                        + "): " + (data != null ? data.get("fail_reason") : response));
+                        + "): " + (data != null ? data.get("fail_reason") : "sin detalle"));
             }
             try {
                 Thread.sleep(3000);
@@ -277,5 +271,23 @@ public class TikTokGraphClient {
         }
         throw new ExceptionErrorInesperado("TikTok sigue procesando el video (publish_id=" + publishId
                 + ") después de 3 minutos -- puede que ya se haya publicado, revisa en la app antes de reintentar");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<?, ?> consultarEstadoInterno(String publishId, String accessToken) {
+        Map<?, ?> response = webClient.post()
+                .uri("/v2/post/publish/status/fetch/")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromValue(Map.of("publish_id", publishId)))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "TikTok rechazó consultar el estado de la publicación: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(15))
+                .block();
+        return response != null ? (Map<?, ?>) response.get("data") : null;
     }
 }

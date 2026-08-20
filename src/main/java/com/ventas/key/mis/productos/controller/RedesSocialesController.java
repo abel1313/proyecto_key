@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Tag(name = "Redes sociales", description = "Publicar variantes del catálogo en Facebook, Instagram y TikTok")
 @RestController
@@ -203,6 +204,17 @@ public class RedesSocialesController {
         PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnInstagram(
                 varianteId, descripcion, scheduledPublishTime, video);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
+
+    @Operation(
+        summary = "Consultar el estado actual de una publicación de TikTok (diagnóstico manual)",
+        description = "Vuelve a preguntarle a TikTok el estado de un publish_id ya usado antes (no crea nada " +
+                "nuevo) -- útil para confirmar si sigue en el inbox del usuario, si falló, o si TikTok ya le " +
+                "asignó un ID público, sin tener que publicar otro video de prueba."
+    )
+    @GetMapping("/tiktok/estado/{publishId}")
+    public ResponseEntity<ResponseGeneric<Map<?, ?>>> consultarEstadoTikTok(@PathVariable String publishId) {
+        return ResponseEntity.ok(new ResponseGeneric<>(tikTokGraphClient.consultarEstado(publishId)));
     }
 
     @Operation(
