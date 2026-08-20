@@ -247,6 +247,30 @@ public class TikTokGraphClient {
         return consultarEstadoInterno(publishId, obtenerAccessTokenValido());
     }
 
+    // Diagnostico: intenta listar el contenido de la cuenta directo con la Display API
+    // (/v2/video/list/) para ver si los videos subidos por Upload existen de verdad del lado de
+    // TikTok aunque no aparezcan en la app. El scope autorizado es solo user.info.basic +
+    // video.upload -- si TikTok exige video.list (que no se pidio al autorizar), va a rechazar
+    // con scope_not_authorized; ese resultado en si mismo ya es informacion util.
+    @SuppressWarnings("unchecked")
+    public Map<?, ?> listarVideos() {
+        Map<?, ?> body = Map.of("max_count", 10);
+        Map<?, ?> response = webClient.post()
+                .uri("/v2/video/list/?fields=id,title,create_time,share_url,video_description")
+                .header("Authorization", "Bearer " + obtenerAccessTokenValido())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromValue(body))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "TikTok rechazó listar videos: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(15))
+                .block();
+        return response != null ? (Map<?, ?>) response.get("data") : null;
+    }
+
     // Diagnostico: confirma a que cuenta de TikTok pertenece el token guardado (open_id/
     // display_name) -- util para descartar que el token autorizado no sea el de la cuenta que se
     // cree. Solo pide campos cubiertos por el scope user.info.basic (el unico autorizado) --
