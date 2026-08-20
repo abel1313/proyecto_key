@@ -247,6 +247,24 @@ public class TikTokGraphClient {
         return consultarEstadoInterno(publishId, obtenerAccessTokenValido());
     }
 
+    // Diagnostico: confirma a que cuenta de TikTok pertenece el token guardado (username/open_id)
+    // -- util para descartar que el token autorizado no sea el de la cuenta que se cree.
+    @SuppressWarnings("unchecked")
+    public Map<?, ?> quienSoy() {
+        Map<?, ?> response = webClient.get()
+                .uri("/v2/user/info/?fields=open_id,username,display_name")
+                .header("Authorization", "Bearer " + obtenerAccessTokenValido())
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "TikTok rechazó consultar el usuario: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(15))
+                .block();
+        return response != null ? (Map<?, ?>) response.get("data") : null;
+    }
+
     // Igual que Instagram: TikTok procesa el video en segundo plano despues de subirlo. Se
     // consulta cada 3 segundos hasta 60 intentos (~3 min) antes de avisar que sigue procesando.
     @SuppressWarnings("unchecked")

@@ -218,6 +218,16 @@ public class RedesSocialesController {
     }
 
     @Operation(
+        summary = "Confirmar a qué cuenta de TikTok pertenece el token guardado (diagnóstico manual)",
+        description = "Devuelve open_id/username/display_name de la cuenta autorizada -- para descartar que el " +
+                "token guardado no sea el de la cuenta esperada."
+    )
+    @GetMapping("/tiktok/whoami")
+    public ResponseEntity<ResponseGeneric<Map<?, ?>>> tikTokWhoAmI() {
+        return ResponseEntity.ok(new ResponseGeneric<>(tikTokGraphClient.quienSoy()));
+    }
+
+    @Operation(
         summary = "Obtener los hashtags por default de las 3 redes",
         description = "Un set fijo de hashtags por red (facebook/instagram/tiktok) para que el front los " +
                 "precargue siempre al abrir el formulario de publicar -- el admin ya no los reescribe a mano " +
