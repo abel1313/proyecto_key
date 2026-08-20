@@ -228,6 +228,17 @@ public class RedesSocialesController {
     }
 
     @Operation(
+        summary = "Listar el contenido de la cuenta de TikTok directo con su API (diagnóstico manual)",
+        description = "Intenta /v2/video/list/ para confirmar si los videos subidos existen del lado de TikTok " +
+                "aunque no aparezcan en la app. Puede fallar con scope_not_authorized si el scope video.list no " +
+                "fue autorizado -- ese resultado también es información válida para el diagnóstico."
+    )
+    @GetMapping("/tiktok/videos")
+    public ResponseEntity<ResponseGeneric<Map<?, ?>>> tikTokListarVideos() {
+        return ResponseEntity.ok(new ResponseGeneric<>(tikTokGraphClient.listarVideos()));
+    }
+
+    @Operation(
         summary = "Obtener los hashtags por default de las 3 redes",
         description = "Un set fijo de hashtags por red (facebook/instagram/tiktok) para que el front los " +
                 "precargue siempre al abrir el formulario de publicar -- el admin ya no los reescribe a mano " +
