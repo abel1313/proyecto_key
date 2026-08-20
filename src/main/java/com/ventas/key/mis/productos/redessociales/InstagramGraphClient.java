@@ -234,6 +234,39 @@ public class InstagramGraphClient {
                 + "intenta publicarlo de nuevo en unos minutos");
     }
 
+    // Manda un mensaje directo (POST /{ig-user-id}/messages) -- lo usa el bot de DM
+    // (InstagramDirectMessageBotService). A diferencia de responder un comentario (form-urlencoded,
+    // el comment-id va en la URL), el Send API de Instagram usa JSON con el destinatario en el
+    // body y el access_token como query param -- formato distinto, mismo Page Access Token.
+    public String enviarMensajeDirecto(String recipientId, String mensaje) {
+        if (igUserId.isBlank() || pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o "
+                    + "FACEBOOK_PAGE_ACCESS_TOKEN");
+        }
+        Map<String, Object> body = Map.of(
+                "recipient", Map.of("id", recipientId),
+                "message", Map.of("text", mensaje)
+        );
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{igUserId}/messages?access_token={token}", apiVersion, igUserId, pageAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromValue(body))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Instagram rechazó enviar el mensaje directo: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(20))
+                .block();
+
+        if (response == null || response.get("message_id") == null) {
+            throw new ExceptionErrorInesperado("Instagram no confirmó el envío del mensaje directo: " + response);
+        }
+        return String.valueOf(response.get("message_id"));
+    }
+
     // Contesta un comentario existente (POST /{ig-comment-id}/replies) -- lo usa el bot de
     // comentarios (ver InstagramCommentBotService). Requiere el permiso instagram_manage_comments,
     // distinto de instagram_content_publish (el que ya se tiene para publicar). Sin verificar
