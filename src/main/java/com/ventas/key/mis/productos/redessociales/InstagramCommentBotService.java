@@ -59,6 +59,16 @@ public class InstagramCommentBotService {
             return;
         }
 
+        // Limite de 20 mensajes/hora por autor -- evita agotar la cuota de OpenAI aunque el
+        // cliente pregunte cosas validas sin parar. Igual que "no comprendido", no se contesta
+        // nada publico (decision del dueno de no publicar mensajes de rechazo bajo un comentario).
+        if (blockService.limiteMensajesExcedido(claveAbuso)) {
+            log.info("Comentario IG {} ignorado -- autor {} alcanzo el limite de mensajes por hora", commentId, claveAbuso);
+            guardarRegistro(commentId, postId, autorId, comentarioTexto, null, null);
+            return;
+        }
+        blockService.registrarMensaje(claveAbuso);
+
         boolean esPrimeraVez = autorId == null || !comentarioSocialRepository.existsByAutorId(autorId);
 
         Variantes variante = publicacionSocialRepository.findByPostIdFacebook(postId)
