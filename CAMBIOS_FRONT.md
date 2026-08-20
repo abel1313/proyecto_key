@@ -17450,3 +17450,73 @@ probabilidad: cooldown/bloqueo de abuso del autor (`ChatbotBlockService`), fallo
 publicar la respuesta en Facebook (se loguea como warning, no se reintenta ni se avisa a nadie), o
 que el webhook nunca llegó (firma inválida, suscripción caída, pod abajo en ese momento). Falta
 retomar esto con acceso a logs/BD de QA o pidiéndole al usuario que corra la consulta.
+
+**✅ Resuelto/superado (2026-08-20):** al día siguiente se probó de nuevo end-to-end, tanto Facebook
+como Instagram, y el bot **sí contestó** en ambos casos (ver sesión completa abajo). El caso puntual
+del 19 nunca se diagnosticó a fondo (seguía sin acceso a logs/BD de QA), pero como el flujo ya se
+confirmó funcionando de forma repetida, se cierra como no bloqueante — si vuelve a pasar, retomar
+con logs reales en ese momento.
+
+---
+
+## Redes sociales — sesión de pruebas y fixes (2026-08-20)
+
+### 1. Facebook + Instagram — bot de comentarios confirmado funcionando en vivo
+
+Se hicieron pruebas reales publicando/comentando en ambas plataformas:
+- **Instagram:** el permiso `instagram_manage_comments` que estaba bloqueado ya se aprobó y el
+  webhook (`object: instagram`, campo `comments`) ya está suscrito y activo (confirmado por
+  `GET /{app-id}/subscriptions` con el App Secret). El bot contestó un comentario real de una
+  cuenta distinta a la propia página en menos de 20 segundos.
+- **Facebook:** mismo resultado, contestó un comentario real en menos de 10 segundos.
+- **Ojo con un error común al probar:** si comentas estando logueado **como la propia página**
+  (`NovedadesJade` / `novedades_bolsas_jade`) en vez de con una cuenta personal distinta, el bot
+  **no contesta a propósito** — está diseñado para ignorar comentarios de sí misma (evita
+  loop/auto-respuesta). No es un bug, hay que probar con una cuenta realmente distinta.
+- **Limitación pendiente de Meta (no de este proyecto):** mientras la app siga en modo desarrollo
+  (revisión ya enviada, pendiente de aprobación), el bot solo contesta si quien comenta tiene rol
+  de Admin/Developer/Tester en la app — un cliente público cualquiera no recibirá respuesta hasta
+  que la revisión de Meta se apruebe.
+
+### 2. Chatbot — límite de 20 mensajes/hora (sitio web, Facebook, Instagram)
+
+Ver documentación completa arriba en la sección "Chatbot — Tarjetas de productos" (contrato de
+`bloqueado`/`segundosEspera`). Implementado y desplegado en dev+qa el mismo día.
+
+### 3. TikTok — investigación de comentarios (sin viabilidad) y autorización de publicar (resuelta)
+
+**Comentarios de TikTok — descartado por ahora:** se investigó si se podía replicar el bot de
+comentarios de Meta en TikTok. Conclusión, con fuentes oficiales:
+- El **Content Posting API** (el que ya usa este proyecto para publicar video) no tiene ningún
+  endpoint de lectura/respuesta de comentarios.
+- Los endpoints de comentarios (`reply-to-a-comment`, `comment-list`) viven en un producto
+  totalmente distinto, **"TikTok API for Business"** (`business-api.tiktok.com`), que es la suite
+  de **Ads/Marketing de pago** (Business Center, no la cuenta de negocio normal ya conectada).
+- **"TikTok Shop Partner Center"** (a donde el portal redirigió al intentar entrar) tampoco aplica
+  — es exclusivamente para desarrolladores de e-commerce de vendedores de TikTok Shop.
+- No se encontró ningún webhook de "comentario nuevo" — de construirse algún día, sería por
+  *polling* (consultar `comment-list` periódicamente), no reactivo como Meta.
+- **Decisión:** pausado. Requeriría un Business Center de TikTok Ads nuevo y sin garantía de que
+  aplique a contenido orgánico — no vale la pena el esfuerzo ahora mismo.
+
+**Autorización de publicar — completada:** faltaba el paso 4-5 de `TIKTOK_SETUP.md` (login OAuth
+de la cuenta `novedadesjade8`). Ya se hizo — `access_token`/`refresh_token`/`open_id` guardados en
+BD de QA, se refresca solo antes de expirar (~24h).
+
+**🐛 Bug real encontrado y corregido en el camino:** `TikTokGraphClient.intercambiarToken` usaba
+`BodyInserters.fromFormData()` de Spring, que **no escapa `*` ni `!`** (sigue la convención vieja
+de `application/x-www-form-urlencoded`, no RFC 3986) — y los `code` que emite TikTok casi siempre
+traen esos caracteres. TikTok rechazaba el intercambio con `invalid_request: parameters are
+malformed` cada vez. Se cambió a armar el body a mano con `UriUtils.encode()` (verificado con una
+prueba real que sí escapa `%2A`/`%21`). Desplegado en dev+qa el mismo día — cualquier futura
+re-autorización de TikTok (si se revoca el acceso) ya no debería toparse con este error.
+
+**⚠️ Pendiente de confirmar:** el primer video de prueba se publicó exitosamente según TikTok
+(`publish_id: v_inbox_file~v2.7675959956415318017`, confirmado por `post/publish/status/fetch`
+como `SEND_TO_USER_INBOX` antes de que el backend devolviera éxito) — pero el usuario no lo
+encontró en el inbox de la app de TikTok con la cuenta `novedadesjade8`. Según la documentación
+oficial de TikTok, en modo sandbox el video sí debería llegar como notificación del sistema en el
+inbox (privacidad `SELF_ONLY`) esperando que el usuario le dé clic para terminar de publicarlo.
+Sin resolver todavía — puede ser que se estuviera revisando con la cuenta equivocada, un retraso
+de notificación propio de una app sin auditar, o algo por confirmar con soporte de TikTok
+Developers usando el `publish_id` de arriba como evidencia.
