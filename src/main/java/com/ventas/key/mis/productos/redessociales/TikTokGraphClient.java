@@ -247,12 +247,15 @@ public class TikTokGraphClient {
         return consultarEstadoInterno(publishId, obtenerAccessTokenValido());
     }
 
-    // Diagnostico: confirma a que cuenta de TikTok pertenece el token guardado (username/open_id)
-    // -- util para descartar que el token autorizado no sea el de la cuenta que se cree.
+    // Diagnostico: confirma a que cuenta de TikTok pertenece el token guardado (open_id/
+    // display_name) -- util para descartar que el token autorizado no sea el de la cuenta que se
+    // cree. Solo pide campos cubiertos por el scope user.info.basic (el unico autorizado) --
+    // "username" necesita el scope user.info.profile, que no se pidio, y TikTok lo rechaza con
+    // "scope_not_authorized" si se incluye.
     @SuppressWarnings("unchecked")
     public Map<?, ?> quienSoy() {
         Map<?, ?> response = webClient.get()
-                .uri("/v2/user/info/?fields=open_id,username,display_name")
+                .uri("/v2/user/info/?fields=open_id,display_name,avatar_url")
                 .header("Authorization", "Bearer " + obtenerAccessTokenValido())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
