@@ -11,6 +11,7 @@ import com.ventas.key.mis.productos.repository.IConfiguracionNegocioRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -131,7 +132,13 @@ public class NegocioService {
     }
 
     private ConfiguracionNegocio obtenerConfig() {
-        List<ConfiguracionNegocio> configs = repo.findAll();
+        // Ordenado por id ASC a proposito: sin esto, MySQL no garantiza el orden de un
+        // findAll() sin ORDER BY, y "la primera fila" podia variar entre llamadas. Si alguna
+        // vez llega a haber mas de una fila (ej. una carrera entre 2 requests casi simultaneos
+        // la primera vez que se crea la config), eso hacia que se borrara la fila equivocada
+        // segun cual "ganara" en ser la primera -- con riesgo real de perder datos ya guardados.
+        // Con el orden fijo, siempre se conserva la fila mas antigua (menor id) de forma estable.
+        List<ConfiguracionNegocio> configs = repo.findAll(Sort.by(Sort.Direction.ASC, "id"));
         if (configs.isEmpty()) {
             return repo.save(new ConfiguracionNegocio());
         }
