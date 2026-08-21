@@ -9,4 +9,6 @@ import lombok.*;
 public class ContactosUpdateDto {
     private String whatsappUrl;
     private String facebookUrl;
+    private String instagramUrl;
+    private String tiktokUrl;
 }
