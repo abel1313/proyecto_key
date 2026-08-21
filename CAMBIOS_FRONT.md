@@ -17607,3 +17607,38 @@ front (solo pidieron `config`, `contactos` GET y `contactos` PUT) y sigue exponi
 **Pendiente:** correr `src/main/resources/static/migration_negocio_instagram_tiktok.sql` contra
 `inventario_key_qa` antes de probar en QA (agrega `instagram_url`/`tiktok_url` a
 `configuracion_negocio`, `ddl-auto` está en `none`).
+
+---
+
+## Nuevo — GET /v1/negocio/estado ahora trae el horario (2026-08-21)
+
+**Esto sí actualiza la nota de arriba:** `GET /v1/negocio/estado` se tocó — se agregaron
+`horaApertura`/`horaCierre` para poder armar en el login/home un texto de estado con horario
+("atendemos hasta las X" / "abrimos a las X"), sin tener que llamar a `/config` (que es ADMIN).
+
+**Request:** `GET /mis-productos/v1/negocio/estado` (público, sin token — sin cambios de auth)
+**Response** (agrega los 2 campos al final, resto sin cambios):
+```json
+{
+  "abierto": true,
+  "whatsappUrl": null,
+  "facebookUrl": null,
+  "horaApertura": "11:00",
+  "horaCierre": "18:00"
+}
+```
+`whatsappUrl`/`facebookUrl` se siguen mandando `null` cuando `abierto: true` (comportamiento
+existente, sin cambios). `horaApertura`/`horaCierre` se mandan **siempre**, sin importar si está
+abierto o cerrado — el front los necesita en los dos casos. Pueden venir `null` si el admin nunca
+configuró horario (`PUT /v1/negocio/horario` nunca se llamó).
+
+**Sugerencia de copy para el texto de estado** (evitando la palabra suelta "abierto", que se
+escucha raro sola):
+
+| Estado | Texto sugerido |
+|---|---|
+| `abierto: true` | "Estamos recibiendo pedidos ahora — hoy atendemos hasta las {horaCierre}" |
+| `abierto: false` | "Por ahora no estamos recibiendo pedidos — abrimos a las {horaApertura}" |
+
+Si `horaApertura`/`horaCierre` vienen `null` (nunca configurado), caer a un texto sin horario:
+"Estamos recibiendo pedidos ahora" / "Por ahora no estamos recibiendo pedidos, vuelve más tarde".
