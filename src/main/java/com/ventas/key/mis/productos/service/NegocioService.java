@@ -5,9 +5,14 @@ import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioConfigDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioEstadoDto;
+import com.ventas.key.mis.productos.dto.negocio.RedSocialCreateDto;
+import com.ventas.key.mis.productos.dto.negocio.RedSocialDto;
+import com.ventas.key.mis.productos.dto.negocio.RedSocialUpdateDto;
 import com.ventas.key.mis.productos.entity.ConfiguracionNegocio;
+import com.ventas.key.mis.productos.entity.RedSocialNegocio;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.repository.IConfiguracionNegocioRepository;
+import com.ventas.key.mis.productos.repository.IRedSocialNegocioRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +33,7 @@ public class NegocioService {
     private static final int CONFIG_ID = 1;
 
     private final IConfiguracionNegocioRepository repo;
+    private final IRedSocialNegocioRepository redSocialRepo;
 
     public NegocioEstadoDto getEstado() {
         ConfiguracionNegocio config = obtenerConfig();
@@ -122,6 +128,45 @@ public class NegocioService {
             repo.save(config);
             log.warn("Negocio cerrado automáticamente por hora límite {}", horaLimite);
         }
+    }
+
+    /** Público — solo las redes activas, para que el front las pinte en la tienda. */
+    public List<RedSocialDto> listarRedesSocialesPublico() {
+        return redSocialRepo.findByActivoTrue().stream()
+                .map(r -> RedSocialDto.builder().nombre(r.getNombre()).url(r.getUrl()).build())
+                .toList();
+    }
+
+    /** Solo ADMIN — todas las redes (activas e inactivas) para gestionarlas en el panel. */
+    public List<RedSocialNegocio> listarRedesSociales() {
+        return redSocialRepo.findAll();
+    }
+
+    @Transactional
+    public RedSocialNegocio crearRedSocial(RedSocialCreateDto dto) {
+        RedSocialNegocio red = new RedSocialNegocio();
+        red.setNombre(dto.getNombre());
+        red.setUrl(dto.getUrl());
+        red.setActivo(true);
+        return redSocialRepo.save(red);
+    }
+
+    @Transactional
+    public RedSocialNegocio actualizarRedSocial(Integer id, RedSocialUpdateDto dto) {
+        RedSocialNegocio red = redSocialRepo.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró la red social con id " + id));
+        if (dto.getNombre() != null) red.setNombre(dto.getNombre());
+        if (dto.getUrl() != null) red.setUrl(dto.getUrl());
+        if (dto.getActivo() != null) red.setActivo(dto.getActivo());
+        return redSocialRepo.save(red);
+    }
+
+    @Transactional
+    public void eliminarRedSocial(Integer id) {
+        if (!redSocialRepo.existsById(id)) {
+            throw new ExceptionDataNotFound("No se encontró la red social con id " + id);
+        }
+        redSocialRepo.deleteById(id);
     }
 
     private ConfiguracionNegocio obtenerConfig() {

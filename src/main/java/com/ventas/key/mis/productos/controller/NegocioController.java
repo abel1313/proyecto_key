@@ -5,13 +5,19 @@ import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioConfigDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioEstadoDto;
+import com.ventas.key.mis.productos.dto.negocio.RedSocialCreateDto;
+import com.ventas.key.mis.productos.dto.negocio.RedSocialDto;
+import com.ventas.key.mis.productos.dto.negocio.RedSocialUpdateDto;
 import com.ventas.key.mis.productos.entity.ConfiguracionNegocio;
+import com.ventas.key.mis.productos.entity.RedSocialNegocio;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.NegocioService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/v1/negocio")
@@ -66,5 +72,38 @@ public class NegocioController {
     public ResponseEntity<ResponseGeneric<ConfiguracionNegocio>> actualizarContactos(
             @RequestBody ContactosUpdateDto dto) {
         return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarContactos(dto)));
+    }
+
+    /** Público — lista de redes sociales activas (nombre + url) para pintar en el front */
+    @GetMapping("/redes-sociales/publico")
+    public ResponseEntity<ResponseGeneric<List<RedSocialDto>>> getRedesSocialesPublico() {
+        return ResponseEntity.ok(new ResponseGeneric<List<RedSocialDto>>(negocioService.listarRedesSocialesPublico()));
+    }
+
+    /** Solo ADMIN — lista completa de redes sociales (activas e inactivas) */
+    @GetMapping("/redes-sociales")
+    public ResponseEntity<ResponseGeneric<List<RedSocialNegocio>>> getRedesSociales() {
+        return ResponseEntity.ok(new ResponseGeneric<List<RedSocialNegocio>>(negocioService.listarRedesSociales()));
+    }
+
+    /** Solo ADMIN — dar de alta una red social nueva */
+    @PostMapping("/redes-sociales")
+    public ResponseEntity<ResponseGeneric<RedSocialNegocio>> crearRedSocial(
+            @RequestBody RedSocialCreateDto dto) {
+        return ResponseEntity.ok(new ResponseGeneric<>(negocioService.crearRedSocial(dto)));
+    }
+
+    /** Solo ADMIN — actualizar nombre, url y/o activo de una red social existente */
+    @PutMapping("/redes-sociales/{id}")
+    public ResponseEntity<ResponseGeneric<RedSocialNegocio>> actualizarRedSocial(
+            @PathVariable Integer id, @RequestBody RedSocialUpdateDto dto) {
+        return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarRedSocial(id, dto)));
+    }
+
+    /** Solo ADMIN — eliminar una red social */
+    @DeleteMapping("/redes-sociales/{id}")
+    public ResponseEntity<ResponseGeneric<String>> eliminarRedSocial(@PathVariable Integer id) {
+        negocioService.eliminarRedSocial(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Red social eliminada correctamente"));
     }
 }

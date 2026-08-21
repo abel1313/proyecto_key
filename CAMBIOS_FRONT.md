@@ -9308,4 +9308,74 @@ compartir de su lado (capturas, specs, lo que sea), puede ir aquí también.
    todavía no lo prendimos.** Confirmado en el código (`AuthController.java`, default `false`,
    no está seteado a `true` en ningún yml de ningún ambiente). Lo dejamos así hasta confirmar con
    el usuario cuándo conviene encenderlo — nada roto de su lado, es una decisión pendiente
+
+---
+
+## 📘 Aclaración — horario del negocio y endpoint nuevo de redes sociales (2026-08-21)
+
+### Horario: `GET /v1/negocio/estado` (público) nunca ha incluido `horaApertura`/`horaCierre`
+
+Se revisó por qué en la pantalla pública seguía viéndose un horario viejo después de guardar uno
+nuevo desde el admin. **No es un bug, es que ese dato nunca viajó ahí:**
+
+- `GET /v1/negocio/estado` (público, sin login) solo devuelve `abierto`, `whatsappUrl` y
+  `facebookUrl` — **nunca ha tenido `horaApertura`/`horaCierre` en el response.**
+- El horario configurado sí se guarda bien y sí se puede leer, pero solo vía
+  `GET /v1/negocio/config`, que es **ADMIN-only**. Ese endpoint no tiene caché — lee directo de
+  base de datos en cada llamada, así que si el admin guardó un horario nuevo con
+  `PUT /v1/negocio/horario`, `GET /v1/negocio/config` ya lo refleja de inmediato.
+- Confirmado con el usuario: la pantalla de horario es solo para el panel de admin, no se muestra
+  al público (el front ya avisa "abierto"/"cerrado" con `GET /v1/negocio/estado`), así que **no
+  se tocó nada de este endpoint** — no hacía falta.
+
+### Endpoint nuevo — redes sociales dinámicas (2026-08-21)
+
+Antes el back solo soportaba dos redes fijas como columnas (`whatsappUrl`, `facebookUrl` en
+`GET /v1/negocio/estado`, `/contactos` y `/config`). No existía ningún campo para Instagram,
+TikTok u otras redes — si el admin las configuraba en algún lado del front, el back no tenía
+dónde guardarlas ni cómo devolverlas.
+
+Se agregó una lista dinámica: el admin da de alta cualquier red social (nombre + url), sin límite
+fijo ni necesidad de tocar código para agregar una red nueva.
+
+**`GET /v1/negocio/redes-sociales/publico`** (público, 2026-08-21) — el front consume este para pintar
+los íconos/links de redes en la tienda.
+
+```
+GET /mis-productos/v1/negocio/redes-sociales/publico
+```
+
+Response (solo redes marcadas como activas):
+```json
+{
+  "data": [
+    { "nombre": "Instagram", "url": "https://instagram.com/novedadesjade" },
+    { "nombre": "TikTok", "url": "https://tiktok.com/@novedadesjade" }
+  ]
+}
+```
+- Si no hay ninguna red activa, `data` viene como lista vacía `[]` con `code: 200` (no es un error).
+- `whatsappUrl`/`facebookUrl` de `/contactos` y `/estado` **siguen existiendo tal cual, no se
+  quitaron** — este endpoint nuevo es aparte, para las redes adicionales. Si quieren unificar todo
+  en una sola lista (incluyendo WhatsApp y Facebook), avisen para evaluarlo.
+
+**Endpoints ADMIN nuevos (requieren rol ADMIN):**
+
+```
+GET    /v1/negocio/redes-sociales        → lista completa (activas e inactivas), para el panel de gestión
+POST   /v1/negocio/redes-sociales        → body: { "nombre": "Instagram", "url": "https://..." } (nace activa)
+PUT    /v1/negocio/redes-sociales/{id}   → body: { "nombre"?, "url"?, "activo"? } (campos opcionales, solo actualiza los que vengan)
+DELETE /v1/negocio/redes-sociales/{id}   → elimina la red social
+```
+
+- Response de los 4 endpoints ADMIN es la entidad completa (`id`, `nombre`, `url`, `activo`), salvo
+  `DELETE` que responde un mensaje de texto.
+- `404` si se intenta `PUT`/`DELETE` sobre un `id` que no existe.
+- `activo=false` la oculta del endpoint público sin borrarla — útil para desactivar temporalmente
+  una red sin perder la URL guardada.
+
+**⚠️ Requiere migración de base de datos antes de desplegar** — la tabla `red_social_negocio` no
+existe todavía en ningún ambiente (`ddl-auto: none`). Correr
+`src/main/resources/static/migration_red_social_negocio.sql` en QA/prod antes del deploy, o el
+panel de redes sociales tronará con error de tabla no encontrada.
    nuestra, no un olvido silencioso.
