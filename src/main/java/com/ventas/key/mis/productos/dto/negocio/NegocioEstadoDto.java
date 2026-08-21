@@ -11,4 +11,6 @@ public class NegocioEstadoDto {
     private boolean abierto;
     private String whatsappUrl;
     private String facebookUrl;
+    private String horaApertura; // "HH:mm"
+    private String horaCierre;   // "HH:mm"
 }
