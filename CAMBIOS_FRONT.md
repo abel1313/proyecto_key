@@ -17551,3 +17551,59 @@ tablas `mensaje_directo_social` y `mensaje_directo_pausa` — `ddl-auto` está e
 solas). Sin esta migración, el bot va a fallar (con error de tabla inexistente) en cuanto llegue el
 primer DM real. **Sin probar todavía en vivo** — a diferencia de comentarios, no se mandó un DM de
 prueba real esta sesión.
+
+---
+
+## Respuesta a la consulta del front — Instagram y TikTok en contactos del negocio (2026-08-21)
+
+Implementado. Se agregaron `instagramUrl`/`tiktokUrl` a los 3 endpoints que pidieron, mismo
+tratamiento que `whatsappUrl`/`facebookUrl` (texto libre, nullable, sin validación de formato).
+**No tiene relación con el módulo de "Publicar en redes sociales"** — esto es solo el link de
+contacto del negocio para los QR de los tickets.
+
+**Request:** `GET /mis-productos/v1/negocio/config` (ADMIN)
+**Response** (agrega los 2 campos al final, resto sin cambios):
+```json
+{
+  "abierto": true,
+  "whatsappUrl": "https://wa.me/5215512345678?text=Hola!",
+  "facebookUrl": "https://facebook.com/NovedadesJade",
+  "instagramUrl": "https://instagram.com/novedades_bolsas_jade",
+  "tiktokUrl": "https://tiktok.com/@novedadesjade8",
+  "horaApertura": "09:00",
+  "horaCierre": "21:00"
+}
+```
+
+**Request:** `GET /mis-productos/v1/negocio/contactos` (público, sin token)
+**Response:**
+```json
+{
+  "whatsappUrl": "https://wa.me/5215512345678?text=Hola!",
+  "facebookUrl": "https://facebook.com/NovedadesJade",
+  "instagramUrl": "https://instagram.com/novedades_bolsas_jade",
+  "tiktokUrl": "https://tiktok.com/@novedadesjade8"
+}
+```
+
+**Request:** `PUT /mis-productos/v1/negocio/contactos` (ADMIN) — body:
+```json
+{
+  "whatsappUrl": "https://wa.me/5215512345678?text=Hola!",
+  "facebookUrl": "https://facebook.com/NovedadesJade",
+  "instagramUrl": "https://instagram.com/novedades_bolsas_jade",
+  "tiktokUrl": "https://tiktok.com/@novedadesjade8"
+}
+```
+`instagramUrl`/`tiktokUrl` pueden venir vacíos (`""`) o `null` si el admin no los llenó — mismo
+comportamiento que ya tienen hoy `whatsappUrl`/`facebookUrl` (si el campo viene `null` en el body,
+no se toca el valor guardado; si viene `""`, se guarda vacío). Response: la entidad
+`ConfiguracionNegocio` completa (igual que hoy), ya incluye los 2 campos nuevos.
+
+**Nota importante — GET /v1/negocio/estado NO se tocó.** Ese endpoint no estaba en la consulta del
+front (solo pidieron `config`, `contactos` GET y `contactos` PUT) y sigue exponiendo únicamente
+`whatsappUrl`/`facebookUrl`, igual que antes.
+
+**Pendiente:** correr `src/main/resources/static/migration_negocio_instagram_tiktok.sql` contra
+`inventario_key_qa` antes de probar en QA (agrega `instagram_url`/`tiktok_url` a
+`configuracion_negocio`, `ddl-auto` está en `none`).

@@ -46,6 +46,8 @@ public class NegocioService {
         return ContactosPublicosDto.builder()
                 .whatsappUrl(config.getWhatsappUrl())
                 .facebookUrl(config.getFacebookUrl())
+                .instagramUrl(config.getInstagramUrl())
+                .tiktokUrl(config.getTiktokUrl())
                 .build();
     }
 
@@ -56,6 +58,8 @@ public class NegocioService {
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.getWhatsappUrl())
                 .facebookUrl(config.getFacebookUrl())
+                .instagramUrl(config.getInstagramUrl())
+                .tiktokUrl(config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
                 .build();
@@ -102,6 +106,8 @@ public class NegocioService {
         ConfiguracionNegocio config = obtenerConfig();
         if (dto.getWhatsappUrl() != null) config.setWhatsappUrl(dto.getWhatsappUrl());
         if (dto.getFacebookUrl() != null) config.setFacebookUrl(dto.getFacebookUrl());
+        if (dto.getInstagramUrl() != null) config.setInstagramUrl(dto.getInstagramUrl());
+        if (dto.getTiktokUrl() != null) config.setTiktokUrl(dto.getTiktokUrl());
         config.setActualizadoEn(LocalDateTime.now());
         return repo.save(config);
     }
