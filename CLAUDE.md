@@ -49,6 +49,35 @@ git checkout qa && git merge main --no-ff && git push origin qa
 `main` no tiene RabbitMQ configurado — los YMLs de cada rama son independientes.
 El merge solo mueve código Java, nunca sobreescribe los YMLs del ambiente destino.
 
+### Feature que no va a llegar a main junto con el resto → rama propia (feature branch)
+
+**Por qué existe esta regla:** el 2026-08-21 hubo que llevar `qa` a `main` con una excepción (todo
+menos el módulo de redes sociales, bloqueado por credenciales de prod sin definir y App Review de
+Meta sin aprobar). Como redes sociales se había desarrollado directo en `dev` mezclado commit a
+commit con todo lo demás durante semanas, promoverlo a `main` significó revisar a mano archivo por
+archivo qué sacar de un merge de 164 archivos — lento y con riesgo de error. Para que esto no se
+repita:
+
+**Regla:** si una feature tiene una razón conocida por la que NO va a poder subir a `main` junto
+con el resto en el próximo ciclo (depende de credenciales que faltan, de una aprobación externa
+pendiente, de una decisión de negocio sin cerrar, etc.), se desarrolla en su propia rama
+(`feature/nombre-corto`, creada desde `dev`), **no directo en `dev`**. Solo se mergea esa rama a
+`dev` (y de ahí sigue el flujo normal a `qa`/`main`) cuando ya se sabe que va a poder subir junto
+con todo lo demás. Mientras siga bloqueada, se prueba en la rama propia (o se levanta un ambiente
+aparte si hace falta probarla desplegada) sin contaminar `dev`/`qa`.
+
+Si una feature bloqueada **ya** se mezcló en `dev`/`qa` antes de saber que iba a bloquear (como
+pasó con redes sociales), no hay que deshacer el historial — simplemente el día que toque promover
+a `main` se hace la exclusión a mano una vez (como el 2026-08-21) y, desde ahí en adelante, esa
+feature específica se sigue tratando en su propia rama hasta que se resuelva.
+
+**Consecuencia práctica para cambios chicos que SÍ van directo a `main`** (como agregar dos campos
+a un endpoint que ya existe): si en ese momento `dev`/`qa` cargan por delante una feature bloqueada
+que `main` no tiene (caso redes sociales hoy), promoverlos a `main` **no puede ser un
+`git merge qa` normal** — eso traería de vuelta la feature bloqueada. Hay que promoverlos con
+`git cherry-pick` de los commits puntuales del cambio chico directo a `main`, no con merge del
+branch completo, hasta que la feature bloqueada se resuelva y vuelva a quedar todo parejo.
+
 ### Mapeo rama → base de datos
 
 | Rama | Base de datos |
