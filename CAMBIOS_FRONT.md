@@ -17451,6 +17451,32 @@ publicar la respuesta en Facebook (se loguea como warning, no se reintenta ni se
 que el webhook nunca llegó (firma inválida, suscripción caída, pod abajo en ese momento). Falta
 retomar esto con acceso a logs/BD de QA o pidiéndole al usuario que corra la consulta.
 
+### Update — reintento de suscripción del webhook de Instagram, sigue bloqueado (2026-08-19)
+
+Se generó un token nuevo desde el Graph API Explorer con `instagram_manage_comments` marcado, y se
+confirmó por `debug_token` que el scope **sí aparece** en el token (`scopes: [..., "instagram_manage_comments",
+...]`). Con el page access token de "NovedadesJade" derivado de ese mismo token (vía `/me/accounts`), se
+reintentó:
+
+```
+POST /17841444237033427/subscribed_apps?subscribed_fields=comments
+```
+
+Mismo resultado que la vez anterior:
+```
+(#3) Application does not have the capability to make this API call.
+```
+
+**Conclusión:** que un permiso aparezca marcado/seleccionado en el Graph API Explorer (y por lo tanto
+en los `scopes` del token vía `debug_token`) **no significa que Meta ya lo aprobó** — son dos cosas
+distintas. La app sigue sin la capacidad real habilitada para `instagram_manage_comments` hasta que
+se complete y apruebe la revisión oficial (App Review). No hay nada más que probar desde código o
+por API mientras tanto.
+
+**Sigue pendiente exactamente lo mismo que ya estaba anotado:** completar la llamada de prueba de
+comentarios que exige el formulario de revisión, grabar el video de pantalla, y enviar la solicitud
+a Meta con `instagram_manage_comments` incluido.
+
 **✅ Resuelto/superado (2026-08-20):** al día siguiente se probó de nuevo end-to-end, tanto Facebook
 como Instagram, y el bot **sí contestó** en ambos casos (ver sesión completa abajo). El caso puntual
 del 19 nunca se diagnosticó a fondo (seguía sin acceso a logs/BD de QA), pero como el flujo ya se
