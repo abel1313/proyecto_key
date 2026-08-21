@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -62,6 +63,17 @@ public class ExceptionGlobal {
                 .collect(Collectors.joining(", "));
         log.warn("Validacion fallida: {}", errores);
         return build(HttpStatus.BAD_REQUEST, "Datos invalidos: " + errores);
+    }
+
+    // Sin este handler, un @RequestParam obligatorio que no llega (ej. varianteId en los
+    // endpoints de redes sociales) caia en el catch-all de Exception.class de abajo -- salia
+    // como 500 "Error interno del servidor" en vez de decir claramente que parametro faltaba.
+    // MissingServletRequestParameterException extiende ServletException, no RuntimeException,
+    // por eso no lo agarraba el handler de RuntimeException de arriba.
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ResponseGeneric<Void>> parametroFaltante(MissingServletRequestParameterException ex) {
+        log.warn("Parametro requerido faltante: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "Falta el parámetro requerido: " + ex.getParameterName());
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

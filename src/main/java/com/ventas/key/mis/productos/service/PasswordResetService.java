@@ -71,6 +71,7 @@ public class PasswordResetService {
         usuario.setCodigoResetPasswordExpira(null);
         usuario.setIntentosCodigoReset(0);
         usuario.setPasswordTemporal(false);
+        usuario.setPasswordActualizadoEn(LocalDateTime.now());
         usuarioRepository.save(usuario);
 
         // Caso "me entraron a la cuenta y cambio la contrasena": sin esto el atacante seguia
@@ -112,6 +113,7 @@ public class PasswordResetService {
 
         usuario.setPassword(passwordEncoder.encode(nuevaPassword));
         usuario.setPasswordTemporal(false);
+        usuario.setPasswordActualizadoEn(LocalDateTime.now());
         usuarioRepository.save(usuario);
 
         sesionRefreshService.cerrarTodasLasSesiones(usuario.getId());

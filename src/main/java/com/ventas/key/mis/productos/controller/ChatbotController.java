@@ -75,6 +75,19 @@ public class ChatbotController {
             return Mono.just(ResponseEntity.ok(result));
         }
 
+        // --- Límite de 20 mensajes/hora -- evita agotar la cuota de OpenAI aunque las preguntas
+        // sean válidas y el bot sí las entienda. Se revisa antes de llamar a la IA a propósito.
+        if (blockService.limiteMensajesExcedido(ip)) {
+            long segs = blockService.segundosRestantesLimite(ip);
+            Map<String, Object> result = new HashMap<>();
+            result.put("respuesta", "Alcanzaste el límite de consultas por ahora. Podrás seguir escribiendo en "
+                    + formatearTiempo(segs) + ", o si es urgente contáctanos directamente. ¡Gracias por tu paciencia!");
+            result.put("bloqueado", true);
+            result.put("segundosEspera", segs);
+            return Mono.just(ResponseEntity.ok(result));
+        }
+        blockService.registrarMensaje(ip);
+
         return chatbotService.chat(request)
                 .flatMap(respuesta -> {
                     boolean tieneBuscarInicial = respuesta.contains("##BUSCAR[");

@@ -110,6 +110,15 @@ public class SecurityConfig {
 
                         // ── Tienda / variantes (GETs públicos; escritura solo ADMIN) ────────
                         .requestMatchers(HttpMethod.GET, "/tienda/admin/**", "/tienda/v1/admin/**").hasRole("ADMIN")
+                        // El CRUD generico heredado de AbstractController devuelve la entidad
+                        // Variantes cruda -> arrastra el Producto completo, con precio_costo y
+                        // precio_rebaja, y sin el filtro de catalogo publico (listaba tambien
+                        // variantes deshabilitadas y sin stock). Estaba cayendo en el permitAll de
+                        // abajo, asi que cualquiera sin token podia sacar el margen de la tienda
+                        // con /tienda/getAll?page=0&size=1000. El front no los usa (usa
+                        // /tienda/v1/buscar y /tienda/v1/buscar-filtrado), asi que pasan a ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/tienda/getAll", "/tienda/v1/getAll",
+                                "/tienda/getOne/**", "/tienda/v1/getOne/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/tienda/**").permitAll()
                         .requestMatchers("/tienda/**").hasRole("ADMIN")
 
@@ -145,16 +154,44 @@ public class SecurityConfig {
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers("/v1/abonos/**").hasRole("ADMIN")
 
-                        // ── Lugares de entrega (catalogo; lectura para cualquier autenticado
-                        //    -- lo usa el select del checkout del cliente y el de venta directa;
-                        //    alta/edicion/baja solo ADMIN) ─────────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").authenticated()
+                        // ── Lugares de entrega (catalogo; lectura publica -- mismo criterio que
+                        //    los catalogos de flores de abajo: nombre de zona y costo de envio,
+                        //    nada sensible. Antes era solo "autenticado", lo que dejaba fuera al
+                        //    visitante anonimo del configurador publico de flores (2026-08-14);
+                        //    alta/edicion/baja sigue solo ADMIN) ──────────────────────────────
+                        .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").permitAll()
                         .requestMatchers("/v1/lugares-entrega/**").hasRole("ADMIN")
 
                         // ── Promociones (catalogo para cualquier autenticado; gestion ADMIN) ─
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()
                         .requestMatchers("/v1/promociones/**").hasRole("ADMIN")
+
+                        // ── Flores eternas — catalogos (lectura publica: el cliente configura
+                        //    y cotiza su ramo sin necesidad de estar logueado, igual que la
+                        //    cinta de promociones; alta/edicion/baja solo ADMIN) ────────────
+                        .requestMatchers(HttpMethod.GET, "/v1/tipos-flor/**").permitAll()
+                        .requestMatchers("/v1/tipos-flor/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/cantidades-flor/**").permitAll()
+                        .requestMatchers("/v1/cantidades-flor/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/accesorios-ramo/**").permitAll()
+                        .requestMatchers("/v1/accesorios-ramo/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/frases-liston/**").permitAll()
+                        .requestMatchers("/v1/frases-liston/**").hasRole("ADMIN")
+                        // Colores de cada especie -- publico para que el cliente elija color tras la cantidad.
+                        .requestMatchers(HttpMethod.GET, "/v1/colores-flor/**").permitAll()
+                        .requestMatchers("/v1/colores-flor/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/admin").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/**").permitAll()
+                        .requestMatchers("/v1/ramos-armados/**").hasRole("ADMIN")
+                        // "Ticket de produccion" de un ramo, colgado de un Pedido ya creado -- requiere
+                        // sesion igual que el resto de /v1/pedidos/**; validar la frase y la bandeja
+                        // de frases pendientes de TODOS los pedidos son solo ADMIN.
+                        .requestMatchers(HttpMethod.PUT, "/v1/flores/pedidos/detalle/*/validar-frase").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/flores/pedidos/frases-pendientes").hasRole("ADMIN")
+                        .requestMatchers("/v1/flores/pedidos/**").authenticated()
+                        // Motor de calculo (validar cantidad / cotizar precio): publico, solo lectura/calculo.
+                        .requestMatchers("/v1/flores/**").permitAll()
 
                         // ── Cinta de promociones (letrero corrido; el GET /activos lo pinta
                         //    la tienda para CUALQUIER visitante, incluso sin login -- si exigiera
@@ -169,6 +206,7 @@ public class SecurityConfig {
                         //    service decide si es dueno o ADMIN el que puede borrar) ─────────
                         .requestMatchers(HttpMethod.GET, "/v1/resenas/mis-resenas").authenticated()
                         .requestMatchers(HttpMethod.GET, "/v1/resenas/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/v1/resenas/*/responder").hasRole("ADMIN")
                         .requestMatchers("/v1/resenas/**").authenticated()
 
                         // ── Ventas (reclamo de compra es del cliente autenticado; el resto ADMIN) ──
@@ -202,6 +240,15 @@ public class SecurityConfig {
                         // ── Admin (gestión interna del servidor) ──────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
                         .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+
+                        // ── Actuator ──────────────────────────────────────────────────────
+                        // qa/docker exponen 'caches' ademas de 'health'. Sin esta regla caian en
+                        // el anyRequest().authenticated() del final, asi que CUALQUIER usuario con
+                        // sesion (un cliente de la tienda) podia listar y vaciar los caches del
+                        // micro (DELETE /actuator/caches) y degradar la tienda a voluntad.
+                        // health queda abierto porque lo consulta el probe de k8s.
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
 
                         // ── WebSocket (handshake HTTP público) ────────────────────────────
                         .requestMatchers("/ws/**").permitAll()

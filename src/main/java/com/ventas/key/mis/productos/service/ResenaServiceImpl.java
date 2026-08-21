@@ -9,6 +9,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaEditarDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaRequestDto;
+import com.ventas.key.mis.productos.models.resenas.ResenaResponderDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaResponseDto;
 import com.ventas.key.mis.productos.models.resenas.ResenaResumenDto;
 import com.ventas.key.mis.productos.repository.IDetalleVentaVarianteRepository;
@@ -129,6 +130,22 @@ public class ResenaServiceImpl {
         return resultado;
     }
 
+    // Solo ADMIN llega aqui (ver regla dedicada en SecurityConfig) -- no valida dueno de la
+    // resena a proposito, cualquier ADMIN puede responder cualquier resena, no solo la del
+    // producto que el gestiona.
+    @Transactional
+    public ResenaResponseDto responder(Integer resenaId, ResenaResponderDto dto) {
+        if (dto.getRespuesta() == null || dto.getRespuesta().isBlank()) {
+            throw new RuntimeException("La respuesta no puede estar vacia");
+        }
+        Resena resena = iResenaRepository.findById(resenaId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la resena con id: " + resenaId));
+        resena.setRespuestaAdmin(dto.getRespuesta());
+        resena.setFechaRespuesta(LocalDateTime.now());
+        Resena guardada = iResenaRepository.save(resena);
+        return toResponseDto(guardada, null);
+    }
+
     public ResenaResumenDto resumenPorVariante(Integer varianteId) {
         Object[] fila = iResenaRepository.resumenPorVariante(varianteId);
         Double promedio = fila[0] != null ? ((Number) fila[0]).doubleValue() : 0.0;
@@ -157,6 +174,8 @@ public class ResenaServiceImpl {
                 resena.getComentario(),
                 resena.getFechaCreacion(),
                 nombreCliente,
-                clienteActualId != null && clienteActualId.equals(c.getId()));
+                clienteActualId != null && clienteActualId.equals(c.getId()),
+                resena.getRespuestaAdmin(),
+                resena.getFechaRespuesta());
     }
 }

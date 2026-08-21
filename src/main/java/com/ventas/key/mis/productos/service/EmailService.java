@@ -4,6 +4,8 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,9 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+
+    @Value("${spring.mail.username}")
+    private String remitente;
 
     /**
      * Envía un correo HTML al destinatario.
@@ -27,13 +32,19 @@ public class EmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(remitente);
             helper.setTo(destinatario);
             helper.setSubject(asunto);
             helper.setText(htmlContent, true);
             mailSender.send(message);
             log.info("Correo enviado a: {}", destinatario);
             return true;
-        } catch (MessagingException e) {
+        } catch (MessagingException | MailException e) {
+            // MailException (ej. MailSendException por timeout/conexion SMTP con OVH) es RuntimeException
+            // sin relacion con MessagingException - si no se captura aqui, se escapa del metodo pese a
+            // que el contrato de la clase (ver javadocs) es "nunca lanza excepcion", y en los callers
+            // @Transactional (ej. UsuarioVerificacionService.solicitarCambioCorreo) hace rollback del
+            // guardado que ya se habia hecho antes de mandar el correo.
             log.error("Error enviando correo a {}: {}", destinatario, e.getMessage());
             return false;
         }

@@ -54,4 +54,10 @@ public class Producto  extends BaseId{
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "palabra_clave_id")
     private PalabraClave palabraClave;
+
+    // true = producto "sombra" sintetico (ver ProductoSombraServiceImpl, modulo de flores
+    // eternas) -- existe solo para poder venderse como linea real de un pedido, nunca debe
+    // aparecer en el catalogo publico, buscadores de admin, ni selectores de promocion/rifa.
+    @Column(name = "es_catalogo_interno", nullable = false)
+    private Boolean esCatalogoInterno = false;
 }

@@ -140,7 +140,13 @@ public class UsuarioVerificacionService {
         usuario.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
         usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
-        emailService.enviarCodigoVerificacion(correoNuevo, codigo);
+        boolean correoEnviado = emailService.enviarCodigoVerificacion(correoNuevo, codigo);
+        if (!correoEnviado) {
+            // Si el correo no salio de verdad, no dejamos el codigo pendiente guardado - si no,
+            // el siguiente intento lo veria como "yaVigente" y le diria al usuario que revise su
+            // bandeja cuando nunca le llego nada. @Transactional hace rollback del save de arriba.
+            throw new RuntimeException("No se pudo enviar el correo de verificacion, intenta de nuevo en unos minutos");
+        }
         return true;
     }
 

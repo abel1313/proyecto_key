@@ -1,6 +1,8 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.HistorialAcceso;
 import com.ventas.key.mis.productos.entity.SesionRefresh;
+import com.ventas.key.mis.productos.repository.IHistorialAccesoRepository;
 import com.ventas.key.mis.productos.repository.ISesionRefreshRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,7 @@ public class SesionRefreshService {
     private static final int REFRESH_EXPIRA_DIAS = 7;
 
     private final ISesionRefreshRepository sesionRepository;
+    private final IHistorialAccesoRepository historialAccesoRepository;
 
     /** Datos que el controller necesita para armar el refresh token de una sesion recien abierta. */
     public record SesionNueva(String sessionId, String jti, long sessionStartMillis) {}
@@ -53,6 +56,16 @@ public class SesionRefreshService {
         sesion.setExpira(ahora.plusDays(REFRESH_EXPIRA_DIAS));
         sesion.setCreado(ahora);
         sesionRepository.save(sesion);
+
+        // Fila de auditoria aparte de SesionRefresh: esta nunca se borra (ni en logout, ni en
+        // reuso, ni en el barrido de expiradas), asi que el historial de accesos sobrevive aunque
+        // la sesion de seguridad ya se haya cerrado.
+        HistorialAcceso historial = new HistorialAcceso();
+        historial.setUsuarioId(usuarioId);
+        historial.setSessionId(sesion.getSessionId());
+        historial.setFechaLogin(ahora);
+        historial.setUltimaActividad(ahora);
+        historialAccesoRepository.save(historial);
 
         long sessionStartMillis = ahora.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
         return new SesionNueva(sesion.getSessionId(), sesion.getJti(), sessionStartMillis);
@@ -112,6 +125,12 @@ public class SesionRefreshService {
         sesion.setJti(jtiNuevo);
         sesion.setExpira(ahora.plusDays(REFRESH_EXPIRA_DIAS));
         sesionRepository.save(sesion);
+
+        // El refresh exitoso es la senal de "la sesion sigue activa" que ya tenemos gratis (corre
+        // solo cuando el access token expira y el front sigue haciendo requests) -- de ahi sale la
+        // duracion aproximada de la sesion en el historial de accesos.
+        historialAccesoRepository.actualizarUltimaActividad(sessionId, ahora);
+
         return Optional.of(jtiNuevo);
     }
 

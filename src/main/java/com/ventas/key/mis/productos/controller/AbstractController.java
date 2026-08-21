@@ -113,13 +113,10 @@ public abstract class AbstractController<
     @Override
     public ResponseEntity<ResponseGeneric<Response>> save(
             @Validated @RequestBody Response requestG, BindingResult result) {
-        try {
-            return ejecutarGuardado(requestG, result);                                            // [4] delegado al método privado, eliminada la duplicación
-        } catch (Exception e) {
-            log.error("Error al guardar: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResponseGeneric<>(null, "Error al guardar el registro"));
-        }
+        // Sin try/catch: las excepciones de negocio (ExceptionDataNotFound, RuntimeException, etc.)
+        // se dejan propagar a ExceptionGlobal, que ya mapea cada tipo al status y mensaje real
+        // correctos. Antes se atrapaban aqui y se pisaban con un mensaje generico fijo.
+        return ejecutarGuardado(requestG, result);
     }
 
     @Operation(summary = "Actualizar registro existente", description = "Actualiza el registro identificado por tipoDato con los nuevos datos.")
@@ -135,18 +132,12 @@ public abstract class AbstractController<
             @Parameter(description = "Identificador del registro a actualizar") @PathVariable TipoDato tipoDato,
             @Validated @RequestBody Response requestG,
             BindingResult result) throws Exception {
-        try {
-            return ejecutarGuardado(requestG, result);                                            // [4] delegado al método privado, eliminada la duplicación
-        } catch (Exception e) {
-            log.error("Error al actualizar id {}: {}", tipoDato, e.getMessage(), e);             // [2] log conservando stack trace en lugar de throw new Exception(e.getMessage())
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ResponseGeneric<>(null, "Error al actualizar el registro"));
-        }
+        return ejecutarGuardado(requestG, result);
     }
 
     // Lógica común de save y update extraída aquí para no duplicarla    [4]
     private ResponseEntity<ResponseGeneric<Response>> ejecutarGuardado(
-            Response requestG, BindingResult result) throws Exception {
+            Response requestG, BindingResult result) {
         if (result.hasErrors()) {
             ResponseGeneric<Response> errorResponse = new ResponseGeneric<>((Response) null);
             errorResponse.setMensaje(getErroresGeneric(result));                                  // [7] reutiliza getErroresGeneric() en lugar de duplicar el stream

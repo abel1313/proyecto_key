@@ -15,6 +15,7 @@ public interface IDetalleVentaVarianteRepository extends BaseRepository<DetalleV
     @Query("SELECT dv.variante.id, dv.variante.producto.nombre, dv.variante.talla, dv.variante.color, " +
            "SUM(dv.cantidad), SUM(dv.subTotal) " +
            "FROM DetalleVentaVariante dv WHERE dv.fechaVenta BETWEEN :desde AND :hasta " +
+           "AND dv.variante.producto.esCatalogoInterno = false " +
            "GROUP BY dv.variante.id, dv.variante.producto.nombre, dv.variante.talla, dv.variante.color " +
            "ORDER BY SUM(dv.cantidad) DESC")
     List<Object[]> productosMasVendidos(

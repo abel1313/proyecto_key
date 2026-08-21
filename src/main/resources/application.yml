@@ -3,6 +3,22 @@ spring:
     active: dev
   cache:
     type: simple
+  jpa:
+    properties:
+      hibernate:
+        # Red de seguridad contra el N+1 de las asociaciones @ManyToOne/@OneToOne EAGER
+        # (Variantes.producto, Variantes.palabraClave, Producto.codigoBarras, VarianteImagen.imagen).
+        # Sin esto, una pagina de 20 variantes disparaba ~1 SELECT por variante y por asociacion
+        # (~80 queries por request). Con batch fetching Hibernate agrupa esos SELECT en
+        # "WHERE id IN (...)" de hasta 50 ids, asi que la misma pagina baja a ~4-6 queries.
+        # Aplica a TODOS los perfiles (este documento no tiene on-profile).
+        default_batch_fetch_size: 50
+  servlet:
+    multipart:
+      # 200MB para poder subir video a Facebook a calidad completa (fotos no necesitan tanto,
+      # pero el límite es compartido por ambos endpoints del multipart).
+      max-file-size: 200MB
+      max-request-size: 200MB
 
 server:
   port: 9091

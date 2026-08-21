@@ -18,6 +18,7 @@ import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.service.api.IUsuarioService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import java.time.LocalDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -153,6 +154,7 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         String nuevaPassword = generarPasswordAleatoria();
         existe.setPassword(passwordEncoder.encode(nuevaPassword));
         existe.setPasswordTemporal(true);
+        existe.setPasswordActualizadoEn(LocalDateTime.now());
         usuarioRepository.save(existe);
 
         // El reseteo por admin suele ser la respuesta a una cuenta comprometida: si no se cierran
