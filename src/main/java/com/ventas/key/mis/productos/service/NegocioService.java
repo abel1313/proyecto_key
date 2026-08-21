@@ -32,11 +32,16 @@ public class NegocioService {
 
     public NegocioEstadoDto getEstado() {
         ConfiguracionNegocio config = obtenerConfig();
-        // Los links de contacto solo se exponen al frontend cuando el negocio está cerrado
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
+        // Los links de contacto solo se exponen al frontend cuando el negocio está cerrado.
+        // El horario si se expone siempre (abierto o cerrado) -- el front lo necesita en los
+        // dos casos para armar el texto de estado ("atendemos hasta las X" / "abrimos a las X").
         return NegocioEstadoDto.builder()
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.isAbierto() ? null : config.getWhatsappUrl())
                 .facebookUrl(config.isAbierto() ? null : config.getFacebookUrl())
+                .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
+                .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
                 .build();
     }
 
