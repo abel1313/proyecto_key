@@ -17632,13 +17632,22 @@ existente, sin cambios). `horaApertura`/`horaCierre` se mandan **siempre**, sin 
 abierto o cerrado — el front los necesita en los dos casos. Pueden venir `null` si el admin nunca
 configuró horario (`PUT /v1/negocio/horario` nunca se llamó).
 
-**Sugerencia de copy para el texto de estado** (evitando la palabra suelta "abierto", que se
-escucha raro sola):
+**Sugerencia de copy para el texto de estado** (corregido 2026-08-21: la tienda vende productos
+que ya están en stock, no es fabricación por encargo — se descartó la palabra "pedidos" del texto,
+va directo a si el local está abierto o cerrado):
 
 | Estado | Texto sugerido |
 |---|---|
-| `abierto: true` | "Estamos recibiendo pedidos ahora — hoy atendemos hasta las {horaCierre}" |
-| `abierto: false` | "Por ahora no estamos recibiendo pedidos — abrimos a las {horaApertura}" |
+| `abierto: true` | "¡Local abierto! Puedes comprar hasta las {horaCierre}" |
+| `abierto: false` | "Local cerrado — abrimos a las {horaApertura}" |
 
 Si `horaApertura`/`horaCierre` vienen `null` (nunca configurado), caer a un texto sin horario:
-"Estamos recibiendo pedidos ahora" / "Por ahora no estamos recibiendo pedidos, vuelve más tarde".
+"Local abierto" / "Local cerrado por ahora".
+
+### Sugerencia de UX para el form de admin — limpiar una red social ya guardada (no requiere back)
+
+Cuando un campo de red social (`whatsappUrl`/`facebookUrl`/`instagramUrl`/`tiktokUrl`) ya tiene una
+URL guardada y el admin se equivocó y quiere reemplazarla, agregar algo tipo un checkbox o botón de
+"limpiar" al lado del campo que seleccione/borre el texto de un tirón, en vez de borrar letra por
+letra. Del lado del back no hace falta nada — mandar `""` en el `PUT /v1/negocio/contactos` ya
+limpia el campo sin problema (ver contrato arriba: `null` = no tocar, `""` = guardar vacío).
