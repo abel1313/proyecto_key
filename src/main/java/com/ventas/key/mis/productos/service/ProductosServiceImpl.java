@@ -38,6 +38,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -220,6 +224,7 @@ public class ProductosServiceImpl extends
         productoAdmin.setMarca(p.getMarca());
         productoAdmin.setContenido(p.getContenido());
         productoAdmin.setHabilitado(p.getHabilitado());
+        productoAdmin.setFechaCreacion(p.getFechaCreacion());
 
         return productoAdmin;
     }
@@ -240,8 +245,8 @@ public class ProductosServiceImpl extends
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
         Page<Producto> resultado = isAdmin
-                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, pageable)
-                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, pageable);
+                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, null, null, pageable)
+                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, null, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
@@ -672,13 +677,19 @@ public class ProductosServiceImpl extends
     // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
     // clientes normales exigen stock>0 + habilitado + con imagen.
     @Cacheable(value = "obtenerProductosCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #page + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #page + ':' + #size")
     public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(String nombreOCodigo, Boolean conStock,
-            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, int size, int page) {
+            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
+            LocalDate fechaHasta, int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
+        // fechaDesde/fechaHasta llegan como dia calendario (sin hora) -- se expanden al rango
+        // completo de ese dia para que "buscar el 22/08" incluya todo desde las 00:00:00 hasta
+        // las 23:59:59.999999999, no solo el instante exacto de medianoche.
+        LocalDateTime desde = fechaDesde != null ? fechaDesde.atStartOfDay() : null;
+        LocalDateTime hasta = fechaHasta != null ? fechaHasta.atTime(LocalTime.MAX) : null;
         Page<Producto> productosPaginados = iProductosRepository.buscarProductosAdmin(
-                texto, conStock, conImagenes, habilitado, codigoGenerado, pageable);
+                texto, conStock, conImagenes, habilitado, codigoGenerado, desde, hasta, pageable);
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();

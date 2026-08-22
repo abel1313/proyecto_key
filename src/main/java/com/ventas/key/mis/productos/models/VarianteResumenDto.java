@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -22,4 +24,6 @@ public class VarianteResumenDto {
     private String codigoBarras;
     private String nombreProducto;
     private char habilitado;
+    // Null en variantes creadas antes de la migracion -- ver comentario en Variantes.java.
+    private LocalDateTime fechaCreacion;
 }

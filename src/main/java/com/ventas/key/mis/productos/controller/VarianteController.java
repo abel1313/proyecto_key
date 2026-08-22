@@ -16,12 +16,15 @@ import com.ventas.key.mis.productos.models.variantes.ProductoIdDto;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDate;
 
 import java.util.List;
 import java.util.Optional;
@@ -227,10 +230,14 @@ public class VarianteController extends AbstractController<
             @RequestParam(required = false) Boolean conImagenes,
             @RequestParam(required = false) Boolean habilitado,
             @RequestParam(required = false) Boolean codigoGenerado,
+            // Mismo filtro de fecha que ProductosControllerImpl.filtrarProductosAdmin -- ver
+            // comentario ahi para el motivo (codigo de barras al azar de la carga rapida).
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, pagina, size)));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, pagina, size)));
     }
 
     @PutMapping("/v1/admin/habilitar-lote")

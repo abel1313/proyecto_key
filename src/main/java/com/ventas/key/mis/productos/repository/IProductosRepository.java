@@ -85,6 +85,8 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
+          AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
         """,
         countQuery = """
@@ -103,6 +105,8 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
+          AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
         """)
     Page<Producto> buscarProductosAdmin(@Param("nombreOCodigo") String nombreOCodigo,
@@ -110,6 +114,8 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                                          @Param("conImagenes") Boolean conImagenes,
                                          @Param("habilitado") Boolean habilitado,
                                          @Param("codigoGenerado") Boolean codigoGenerado,
+                                         @Param("fechaDesde") java.time.LocalDateTime fechaDesde,
+                                         @Param("fechaHasta") java.time.LocalDateTime fechaHasta,
                                          Pageable pageable);
 
     // --- guardado ---

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "producto")
 @Setter
@@ -60,4 +62,18 @@ public class Producto  extends BaseId{
     // aparecer en el catalogo publico, buscadores de admin, ni selectores de promocion/rifa.
     @Column(name = "es_catalogo_interno", nullable = false)
     private Boolean esCatalogoInterno = false;
+
+    // Nace null en productos creados antes de esta migracion (sin backfill retroactivo, mismo
+    // criterio que correo_verificado). Sirve para poder filtrar por fecha en admin/filtrar --
+    // necesario porque la carga rapida de imagenes asigna un codigo de barras al azar
+    // (BRD-XXXXXXXXXXXX), asi que buscar el borrador reciente por nombre/codigo no sirve de nada.
+    @Column(name = "fecha_creacion")
+    private LocalDateTime fechaCreacion;
+
+    @PrePersist
+    private void asignarFechaCreacion() {
+        if (this.fechaCreacion == null) {
+            this.fechaCreacion = LocalDateTime.now();
+        }
+    }
 }
