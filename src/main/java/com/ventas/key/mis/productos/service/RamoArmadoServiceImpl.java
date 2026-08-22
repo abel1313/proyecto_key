@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.RamoArmado;
 import com.ventas.key.mis.productos.entity.RamoArmadoAccesorio;
 import com.ventas.key.mis.productos.entity.TipoFlor;
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.floreseternas.RamoArmadoAccesorioRequestDto;
@@ -33,17 +34,20 @@ public class RamoArmadoServiceImpl {
     private final ICantidadFlorValidaRepository iCantidadFlorValidaRepository;
     private final IAccesorioRamoRepository iAccesorioRamoRepository;
     private final AccesorioRamoServiceImpl accesorioRamoService;
+    private final ProductoSombraServiceImpl productoSombraService;
 
     public RamoArmadoServiceImpl(IRamoArmadoRepository iRamoArmadoRepository,
                                   IColorFlorRepository iColorFlorRepository,
                                   ICantidadFlorValidaRepository iCantidadFlorValidaRepository,
                                   IAccesorioRamoRepository iAccesorioRamoRepository,
-                                  AccesorioRamoServiceImpl accesorioRamoService) {
+                                  AccesorioRamoServiceImpl accesorioRamoService,
+                                  ProductoSombraServiceImpl productoSombraService) {
         this.iRamoArmadoRepository = iRamoArmadoRepository;
         this.iColorFlorRepository = iColorFlorRepository;
         this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
         this.iAccesorioRamoRepository = iAccesorioRamoRepository;
         this.accesorioRamoService = accesorioRamoService;
+        this.productoSombraService = productoSombraService;
     }
 
     @Transactional
@@ -161,6 +165,22 @@ public class RamoArmadoServiceImpl {
 
         double precioPapel = Boolean.TRUE.equals(ramo.getPapelIncluido()) ? ramo.getPrecioPapel() : 0;
         ramo.setPrecioTotal(precioFlores + precioPapel + subtotalAccesorios + precioManoDeObra);
+
+        sincronizarVarianteSombra(ramo);
+    }
+
+    // Crea (alta) o sincroniza (edicion) la variante "sombra" del ramo -- unicamente para poder
+    // reusar el sistema de fotos de variantes ya existente (ver comentario en RamoArmado.variante).
+    // A diferencia de ColorFlor/AccesorioRamo/FraseListonPredefinida, esta variante nunca se vende:
+    // no se referencia en ninguna linea de pedido, no se descuenta stock real de ella.
+    private void sincronizarVarianteSombra(RamoArmado ramo) {
+        int stock = ProductoSombraServiceImpl.STOCK_SIN_CONTROL;
+        if (ramo.getVariante() != null) {
+            productoSombraService.sincronizar(ramo.getVariante(), ramo.getNombre(), ramo.getPrecioTotal(), 0.0, stock);
+        } else {
+            Variantes variante = productoSombraService.crear(ramo.getNombre(), ramo.getPrecioTotal(), 0.0, stock);
+            ramo.setVariante(variante);
+        }
     }
 
     private void validarRequest(RamoArmadoRequestDto dto) {
@@ -184,6 +204,8 @@ public class RamoArmadoServiceImpl {
                 ramo.getId(),
                 ramo.getNombre(),
                 ramo.getImagenUrl(),
+                ramo.getVariante() != null ? ramo.getVariante().getId() : null,
+                ramo.getVariante() != null ? ramo.getVariante().getProducto().getId() : null,
                 tipoFlor.getId(),
                 tipoFlor.getNombre(),
                 colorFlor.getId(),

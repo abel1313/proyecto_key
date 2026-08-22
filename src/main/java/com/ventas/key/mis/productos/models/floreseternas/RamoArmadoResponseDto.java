@@ -13,6 +13,14 @@ public class RamoArmadoResponseDto {
     private Integer id;
     private String nombre;
     private String imagenUrl;
+    // Id de la variante "sombra" del ramo (no del color) -- usar este varianteId para subir/leer
+    // las fotos del ramo YA ARMADO completo via el sistema de imagenes de variantes que ya existe:
+    // POST /tienda/v1/guardarConImagenes y GET /tienda/v1/imagenes/{varianteId}. Esta variante
+    // nunca se vende ni aparece en un pedido, solo sirve para colgarle fotos.
+    private Integer varianteId;
+    // Id del producto "sombra" detras de esa variante -- guardarConImagenes lo exige siempre
+    // (VarianteDetalle.productoId), aunque sea una actualizacion sobre una variante existente.
+    private Integer varianteProductoId;
     private Integer tipoFlorId;
     private String tipoFlorNombre;
     private Integer colorFlorId;
