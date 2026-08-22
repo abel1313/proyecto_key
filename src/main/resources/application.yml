@@ -24,6 +24,14 @@ server:
   port: 9091
   servlet:
     context-path: /mis-productos
+  tomcat:
+    # Sin esto, Tomcat usa su default de 2MB. Si algo rechaza el request antes de terminar de
+    # leer el body completo (401 por JWT vencido, error de validacion, etc.) mientras aun falta
+    # por leer mas de ese limite del multipart, Tomcat no puede "tragarse" el resto del body para
+    # responder limpio y corta la conexion en seco -- el navegador lo reporta como "error de red"
+    # generico en vez del error HTTP real (401/400/etc). Se iguala a max-request-size de arriba
+    # para que esto nunca pase con imagenes/videos dentro de ese limite.
+    max-swallow-size: 200MB
 
 ---
 
