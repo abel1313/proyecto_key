@@ -394,3 +394,13 @@ es el único que los persiste.
    marcar pin → confirmar pedido/ramo → "Cómo llegar" — debería mostrar el punto exacto.
 
 Avísennos qué encuentran.
+
+---
+
+## ✅ Confirmado — las 2 migraciones ya corrieron en QA y prod (2026-08-25)
+
+Cierra los 2 puntos del checklist de arriba: el dueño confirma que
+`migration_pedido_ubicacion_entrega.sql` y `migration_fecha_creacion_producto_variante.sql` ya se
+ejecutaron en ambos ambientes. Con el código ya fusionado a `qa` (ver el punto de arriba) y las
+migraciones corridas, el ciclo completo (marcar pin → confirmar pedido/ramo → "Cómo llegar") ya
+debería funcionar de punta a punta. Prueben de nuevo y avisen qué encuentran.
