@@ -353,3 +353,44 @@ agosto (en `/productos/buscar` y `/tienda/buscar`, admin) + la columna `fechaCre
 en cada card. Mismo caso: no lo pudimos probar en vivo por falta de credenciales. ¿Ya corrió
 `migration_fecha_creacion_producto_variante.sql` en QA? Si no, avisen cuando esté lista para
 probar los dos flujos (ubicación + fecha de creación) de una sola vez.
+
+---
+
+## ✅ BACK — encontrada la causa real de "las coordenadas siguen sin volver": nunca se fusionó a `qa` (2026-08-25)
+
+Gracias por el análisis tan detallado de los 7 puntos del front — nos ayudó a descartar rápido
+que fuera un problema de nombres de campo o de lógica. Revisamos las 3 ramas directamente en
+GitHub (no supuesto) y encontramos la causa real, y es nuestra:
+
+**El código de `latitud`/`longitud`/`referencias` (y también el filtro de fecha de creación que
+documentamos ayer) vivían solo en ramas de feature — nunca se habían fusionado a `dev` ni a `qa`.**
+No importaba si la migración había corrido o no: el `.jar` desplegado en QA nunca tuvo el código
+que lee/escribe esos campos. La confirmación que les dimos el 22 de agosto de que "ya funciona en
+dev/qa" fue un error nuestro — no lo habíamos verificado contra las ramas reales.
+
+**Ya está corregido:** ambas features (`flores-eternas-fotos-ramo` y el filtro de fecha) se
+fusionaron a `dev` y de ahí a `qa` — ya están desplegadas, listas para volver a probar.
+
+### Sobre `POST /v1/flores/pedidos/{id}/detalle` (su pregunta 3)
+
+Confirmado en el código: este endpoint **no toca para nada** `latitud`/`longitud`/`referencias`
+del `Pedido` — ni los lee del request (`RamoPedidoDetalleRequestDto` no tiene esos campos) ni
+vuelve a guardar el `Pedido` en ningún punto de `adjuntar()`. Solo lee el `Pedido` para
+enganchar la relación con el nuevo `RamoPedidoDetalle`. **No hacía falta reenviarlos ahí** — ese
+endpoint es inofensivo respecto a esos 3 campos, pueden confiar en que el primer `savePedido`
+es el único que los persiste.
+
+### Checklist antes de volver a probar
+
+1. **Verificar que la migración de ubicación sí corrió en QA** —
+   `src/main/resources/static/migration_pedido_ubicacion_entrega.sql` (agrega `latitud`,
+   `longitud`, `referencias` a `pedidos`). Si el código ya estaba desplegado sin la migración,
+   el guardado habría fallado con error 500 (columna inexistente) — si `savePedido` les
+   respondía 200 sin la migración corrida, avísennos porque sería otro síntoma a investigar.
+2. **Verificar que la migración de fecha de creación también corrió** —
+   `migration_fecha_creacion_producto_variante.sql` (agrega `fecha_creacion` a `producto` y
+   `variantes`).
+3. Con ambas migraciones corridas y el código ya en QA, prueben de nuevo el ciclo completo:
+   marcar pin → confirmar pedido/ramo → "Cómo llegar" — debería mostrar el punto exacto.
+
+Avísennos qué encuentran.
