@@ -404,3 +404,74 @@ Cierra los 2 puntos del checklist de arriba: el dueño confirma que
 ejecutaron en ambos ambientes. Con el código ya fusionado a `qa` (ver el punto de arriba) y las
 migraciones corridas, el ciclo completo (marcar pin → confirmar pedido/ramo → "Cómo llegar") ya
 debería funcionar de punta a punta. Prueben de nuevo y avisen qué encuentran.
+
+---
+
+## 🚨 URGENTE — reenviamos: lat/lng por zona en `LugarEntrega`, sigue sin respuesta desde el 22 de agosto
+
+> Esta consulta se mandó hace 3 días (`CAMBIOS_FRONT.md`, sección "❓ CONSULTA AL BACK — lat/lng
+> por zona...") y no llegó respuesta ni en el corte del 22 ni en el del 25 — se las reenviamos
+> completa para que no se pierda entre los demás hilos, el dueño la marcó como prioridad.
+
+**El problema:** el picker de mapa (checkout y "Arma tu ramo") siempre arranca centrado en un
+punto fijo (Tejupilco), sin importar qué zona elija el cliente en el `<select>` de
+`LugarEntrega`. Elegir "Zacazonapan" no mueve el mapa — sigue mostrando otro pueblo, y el cliente
+tiene que buscar manualmente con el buscador de texto que agregamos como parche (Nominatim,
+gratis, pero no resuelve el fondo).
+
+**Lo que se necesita:** que `LugarEntrega` (`/v1/lugares-entrega`) tenga su propio centroide:
+
+```
+latitud   Double  (nullable — zonas viejas sin configurar simplemente no recentran)
+longitud  Double  (nullable)
+```
+
+Del lado del front ya está el gancho hecho — `SelectorUbicacionComponent` ya reacciona a un
+cambio de `centroDefault`, solo falta el dato real por zona en vez del genérico que usamos hoy.
+Mismo criterio que ya usaron para `costoEnvio`/`horasExtraAnticipacion` en ese mismo modelo:
+opcional, no afecta al checkout general de la tienda.
+
+**Confirmen por favor:**
+1. Si es viable, cuándo lo pueden agregar (aunque sea aproximado).
+2. Si prefieren otro enfoque (por ejemplo, que el front calcule el centroide localmente con
+   Nominatim buscando el nombre de la zona, sin tocar el back) — abierto a sugerencias, lo que
+   importa es cerrar el punto.
+
+---
+
+## ✅ BACK — implementado: `LugarEntrega` ya tiene `latitud`/`longitud` (2026-08-25)
+
+Perdón la demora — se responde ahora, agregado tal cual lo pidieron.
+
+**`latitud`/`longitud`** (`Double`, nullable) agregados a la entidad `LugarEntrega`. Como este
+recurso usa el CRUD genérico (`AbstractController`, sin DTO propio), ya quedan disponibles sin
+más cambios en los 4 endpoints existentes:
+
+- `POST /v1/lugares-entrega/save` y `PUT /v1/lugares-entrega/update` — aceptan los 2 campos
+  opcionales junto a `nombre`/`costoEnvio`/`horasExtraAnticipacion` que ya recibían.
+- `GET /v1/lugares-entrega/obtener...` (listado) y `GET /v1/lugares-entrega/findById/{id}` — los
+  devuelven junto al resto de campos de la entidad.
+
+```json
+{
+  "id": 3,
+  "nombre": "Zacazonapan",
+  "costoEnvio": 50.0,
+  "horasExtraAnticipacion": 2,
+  "latitud": 18.652,
+  "longitud": -100.219
+}
+```
+
+**Zonas viejas sin configurar** → `latitud`/`longitud` vienen `null` (no hay backfill retroactivo,
+mismo criterio que `fechaCreacion` y `correoVerificado`) — el `SelectorUbicacionComponent` debe
+seguir usando su centro por defecto cuando vengan null, tal como ya lo tienen previsto.
+
+**⚠️ Requiere migración antes de desplegar** —
+`src/main/resources/static/migration_lugar_entrega_centroide.sql` (agrega `latitud`/`longitud`
+a `lugares_entrega`). Pendiente correr en dev/qa/prod (`ddl-auto: none`).
+
+### Rama
+
+Como no depende de nada bloqueado, va directo a `dev` (no en rama de feature aparte) — se fusiona
+a `qa` en cuanto se pruebe, siguiendo el flujo normal.
