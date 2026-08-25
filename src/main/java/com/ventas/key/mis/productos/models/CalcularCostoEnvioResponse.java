@@ -14,4 +14,8 @@ public class CalcularCostoEnvioResponse {
     private boolean dentroDeRango;
     private Double costoEnvio;
     private Integer anilloId;
+    // Variante "sombra" a facturar (del anillo si aplico, o de la zona si no tiene anillos
+    // configurados) -- la usa FlorPedidoServiceImpl.calcularEnvio para armar la linea del pedido,
+    // igual que ya hacia con LugarEntrega.variante antes de que existieran los anillos.
+    private Integer varianteId;
 }

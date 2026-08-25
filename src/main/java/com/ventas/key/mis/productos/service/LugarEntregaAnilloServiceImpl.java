@@ -41,6 +41,12 @@ public class LugarEntregaAnilloServiceImpl {
                 .stream().map(this::aResponse).toList();
     }
 
+    // Usado por FlorPedidoServiceImpl.calcularEnvio para decidir si exigir el punto marcado
+    // (lat/lng) antes de poder cobrar, sin duplicar la logica de calcularCosto.
+    public boolean tieneAnillos(Integer lugarEntregaId) {
+        return !iLugarEntregaAnilloRepository.findByLugarEntregaIdOrderByRadioMetrosAsc(lugarEntregaId).isEmpty();
+    }
+
     @Transactional
     public AnilloResponse crear(Integer lugarEntregaId, AnilloRequest req) {
         LugarEntrega lugar = iLugarEntregaRepository.findById(lugarEntregaId)
@@ -101,7 +107,9 @@ public class LugarEntregaAnilloServiceImpl {
         // Zona sin anillos configurados todavia -- se comporta igual que hoy, costo fijo de la
         // zona completa, sin geocerca.
         if (anillos.isEmpty()) {
-            return new CalcularCostoEnvioResponse(true, lugar.getCostoEnvio(), null);
+            Integer varianteId = lugar.getCostoEnvio() != null && lugar.getCostoEnvio() > 0 && lugar.getVariante() != null
+                    ? lugar.getVariante().getId() : null;
+            return new CalcularCostoEnvioResponse(true, lugar.getCostoEnvio(), null, varianteId);
         }
 
         if (lugar.getLatitud() == null || lugar.getLongitud() == null) {
@@ -118,10 +126,11 @@ public class LugarEntregaAnilloServiceImpl {
         // distancia es el mas especifico que contiene al punto.
         for (LugarEntregaAnillo anillo : anillos) {
             if (distancia <= anillo.getRadioMetros()) {
-                return new CalcularCostoEnvioResponse(true, anillo.getCostoEnvio(), anillo.getId());
+                Integer varianteId = anillo.getVariante() != null ? anillo.getVariante().getId() : null;
+                return new CalcularCostoEnvioResponse(true, anillo.getCostoEnvio(), anillo.getId(), varianteId);
             }
         }
-        return new CalcularCostoEnvioResponse(false, null, null);
+        return new CalcularCostoEnvioResponse(false, null, null, null);
     }
 
     private void validarRequest(AnilloRequest req) {

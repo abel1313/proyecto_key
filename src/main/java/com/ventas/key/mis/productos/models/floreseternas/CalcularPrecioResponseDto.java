@@ -76,6 +76,14 @@ public class CalcularPrecioResponseDto {
     // Variante "sombra" del lugar de entrega elegido -- null si recogerEnLocal o si el lugar
     // no tiene costo de envio configurado (nada que cobrar, no hace falta linea).
     private Integer envioVarianteId;
+    // false = la zona elegida tiene anillos de cobro por distancia configurados y el punto
+    // marcado (latitud/longitud del request) quedo fuera de todos ellos -- el front debe
+    // bloquear "Confirmar mi ramo" con mensajeEnvio, igual que ya hace con entregaValida=false.
+    // Default true: sin anillos configurados en la zona (comportamiento de siempre), o mientras
+    // el cliente todavia no marca el punto (en ese caso costoEnvio/envioVarianteId vienen null,
+    // no se cobra nada, pero tampoco se bloquea con un error que todavia no aplica).
+    private Boolean envioDentroDeRango = true;
+    private String mensajeEnvio;
 
     // Total de todo lo que ya tiene precio conocido (NO incluye la frase personalizada
     // pendiente, que todavia no tiene precio -- ver arriba).
