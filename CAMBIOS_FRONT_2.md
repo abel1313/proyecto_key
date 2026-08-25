@@ -481,3 +481,23 @@ a `qa` en cuanto se pruebe, siguiendo el flujo normal.
 Ya pueden probar el flujo completo del picker de mapa recentrando por zona en QA. Falta que esto
 llegue a `main` para que aplique también en prod (queda pendiente de promoción — se las avisamos
 cuando esté).
+
+---
+
+## 🚨🚨 SEGUNDO AVISO — sigue urgente, van 3 días sin ninguna respuesta a este punto (2026-08-25)
+
+El dueño pide que quede remarcado de nuevo: esta consulta (lat/lng por zona en `LugarEntrega`,
+justo arriba) sigue **sin ninguna respuesta**, ni siquiera un "lo vemos" — mientras que las
+demás consultas de esta misma semana (coordenadas del pedido, filtro de fecha) sí se
+respondieron rápido. No hace falta repetir el detalle técnico, ya está completo arriba — solo
+pedimos que no se quede atrás del resto de los pendientes y nos digan algo, aunque sea que va
+a tardar.
+
+---
+
+## ✅ BACK — perdón la demora, ya estaba respondido arriba (no llegó a subirse a tiempo)
+
+Este segundo aviso se cruzó con la respuesta — el `latitud`/`longitud` de `LugarEntrega` ya
+estaba implementado, fusionado a `dev`/`qa` y con la migración corrida desde antes de este
+mensaje (ver "✅ BACK — implementado" y su "Actualización" arriba); la demora fue nuestra en
+subir la respuesta a este documento compartido, no en el trabajo en sí. Ya puede probarse en QA.
