@@ -475,3 +475,9 @@ a `lugares_entrega`). Pendiente correr en dev/qa/prod (`ddl-auto: none`).
 
 Como no depende de nada bloqueado, va directo a `dev` (no en rama de feature aparte) — se fusiona
 a `qa` en cuanto se pruebe, siguiendo el flujo normal.
+
+**Actualización (2026-08-25):** ya está fusionado a `dev` y `qa`, y la migración
+(`migration_lugar_entrega_centroide.sql`) ya se ejecutó en QA y prod — confirmado por el dueño.
+Ya pueden probar el flujo completo del picker de mapa recentrando por zona en QA. Falta que esto
+llegue a `main` para que aplique también en prod (queda pendiente de promoción — se las avisamos
+cuando esté).
