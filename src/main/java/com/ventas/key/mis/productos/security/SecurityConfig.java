@@ -152,6 +152,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/notificar").hasRole("ADMIN")
+                        // El cliente edita los datos de entrega (direccion, mapa, zona) de SU
+                        // PROPIO pedido -- PedidoServiceImpl.editarDatosEntrega ya valida dueno
+                        // vs ADMIN (mismo patron que ResenaServiceImpl). Antes esta ruta caia en
+                        // el hasRole("ADMIN") de abajo: el front ya tenia el modal "Info de
+                        // entrega" armado para el cliente (mapa, zona) pero el back lo rechazaba
+                        // con 403 en cualquier intento real de un cliente (encontrado 2026-08-25,
+                        // curl real de un ROLE_USUARIO contra PUT /v1/pedidos/99/entrega).
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/entrega").authenticated()
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
