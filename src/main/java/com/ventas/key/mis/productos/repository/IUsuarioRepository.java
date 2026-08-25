@@ -29,12 +29,17 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
 
 
 
+    // 'eliminar' un usuario es soft-delete (enabled=false, ver UsuarioServiceImpl.eliminarUsuario)
+    // -- sin el filtro de enabled aqui, un usuario "eliminado" desde el admin seguia apareciendo
+    // en el listado para siempre, aunque se recargara la pagina (encontrado 2026-08-25).
     @Query("""
     SELECT u
     FROM Usuario u
-    WHERE u.username LIKE CONCAT('%', :buscar, '%')
+    WHERE u.enabled = true AND u.username LIKE CONCAT('%', :buscar, '%')
 """)
     Page<Usuario> findAllPage(@Param("buscar") String buscar, Pageable pageable);
+
+    Page<Usuario> findByEnabledTrue(Pageable pageable);
 
 
     @Query("SELECT u.cliente.id FROM Usuario u WHERE u.id = :id")

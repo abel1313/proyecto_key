@@ -62,7 +62,7 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Page<UserDto> dataPaginacion;
 
         if (buscar.isEmpty()) {
-            dataPaginacion = usuarioRepository.findAll(pageable).map(this::toUserDto);
+            dataPaginacion = usuarioRepository.findByEnabledTrue(pageable).map(this::toUserDto);
         } else {
             dataPaginacion = usuarioRepository.findAllPage(buscar, pageable).map(this::toUserDto);
         }
