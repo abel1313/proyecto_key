@@ -162,9 +162,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").permitAll()
                         .requestMatchers("/v1/lugares-entrega/**").hasRole("ADMIN")
 
-                        // ── Promociones (catalogo para cualquier autenticado; gestion ADMIN) ─
+                        // ── Promociones (catalogo publico -- mismo criterio que la cinta de
+                        //    promociones de abajo: el listado de "hay promos activas" lo pinta la
+                        //    tienda para CUALQUIER visitante, incluso sin login. Estaba en
+                        //    ".authenticated()" -- el visitante anonimo de /tienda/buscar recibia
+                        //    401 en esta llamada de fondo (BuscarComponent.ngOnInit la dispara
+                        //    siempre), lo que el interceptor del front interpretaba como "sesion
+                        //    muerta" y lo mandaba al login sin haber iniciado sesion nunca
+                        //    (encontrado 2026-08-25, al arreglar el redirect raiz que antes
+                        //    tapaba este bug enviando a todos al login de todas formas). Gestion
+                        //    (crear/editar/borrar) sigue solo ADMIN) ────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").permitAll()
                         .requestMatchers("/v1/promociones/**").hasRole("ADMIN")
 
                         // ── Flores eternas — catalogos (lectura publica: el cliente configura
