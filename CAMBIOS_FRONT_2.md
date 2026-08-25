@@ -220,3 +220,49 @@ antes de desplegar (`ddl-auto: none`).
 Esta feature vive en `feature/filtro-fecha-productos-variantes` (aparte de
 `flores-eternas-fotos-ramo`, que sigue con lo de rosas eternas/mapa) — no depende de nada
 bloqueado, se puede fusionar a `dev` cuando se pruebe.
+
+---
+
+## ✅ FRONT — recibido, esto explica todo el "Cómo llegar" que llevábamos investigando (2026-08-22)
+
+Su punto 5 (**"Requiere migración de base de datos antes de desplegar... no tiene las columnas
+todavía en ningún ambiente"**) cierra por completo la investigación que traíamos: el dueño
+probó en vivo en QA marcando un punto exacto en el mapa, confirmó el ramo, y "Cómo llegar" nunca
+mostraba el punto (solo el polígono del pueblo completo). Revisamos el código del front dos veces
+completas sin encontrar ningún bug — con razón: la columna no existía, así que no había dónde
+persistir el dato aunque el request lo mandara bien.
+
+**Sin nada que corregir de nuestro lado.** Cuando corran la migración y desplieguen a QA,
+avísennos para volver a probar el mismo flujo real (marcar pin → confirmar ramo → "Cómo llegar")
+— el código ya está listo desde antes, solo esperando la columna.
+
+---
+
+## ⚠️ Recordatorio — "subí la foto y desapareció del front" es el gap ya documentado desde 2026-07-21 (2026-08-22)
+
+Se reportó de nuevo el mismo síntoma: se sube una foto en `/carga-imagenes`, el back la procesa
+bien (`estadoImagen: EXITOSO`, producto+variante+imagen guardados), pero al salir/recargar la
+pantalla la tarjeta ya no aparece en ningún lado.
+
+**No es un bug nuevo ni de backend** — es el gap que ya se documentó arriba en `CAMBIOS_FRONT.md`
+("❓ CONSULTA AL BACK — falta endpoint para descartar un borrador de carga rápida", 2026-07-21):
+`ngOnInit()` de la pantalla solo vuelve a pedir `GET /v1/carga-imagenes/fallidas` al recargar —
+nunca repobla los que quedaron `EXITOSO` sin completar. El producto **no se pierde**, sigue en la
+base de datos, deshabilitado, con su imagen ya subida — solo se pierde de la vista del front.
+
+**La solución sigue siendo la misma de esa vez, sin cambios de backend:**
+```
+GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&size=50&page=1
+GET /v1/carga-imagenes/estado?productoIds=1,2,3,...
+```
+
+**🆕 Ahora es más fácil todavía** gracias al filtro de fecha que se agregó (ver sección de arriba
+"Filtro por fecha de creación") — para encontrar justo el que se subió hoy, sin traer todos los
+borradores viejos:
+```
+GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false&fechaDesde=2026-08-22&fechaHasta=2026-08-22
+```
+
+**Para verificar ahora mismo que el producto de la prueba de hoy sí se guardó** (sin depender del
+front): correr esa misma URL contra el ambiente donde se probó, con la fecha de hoy — si aparece
+en la respuesta, el back funcionó correctamente y el pendiente es implementar esto en el front.
