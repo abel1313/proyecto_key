@@ -245,6 +245,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
             pedido.setNombreReceptor(request.getNombreReceptor());
             pedido.setDireccionEntrega(request.getDireccionEntrega());
+            pedido.setLatitud(request.getLatitud());
+            pedido.setLongitud(request.getLongitud());
+            pedido.setReferencias(request.getReferencias());
             pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
             pedido.setUrlFacebook(request.getUrlFacebook());
             pedido.setFechaPedido(LocalDate.now());
@@ -276,6 +279,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
         pedido.setNombreReceptor(request.getNombreReceptor());
         pedido.setDireccionEntrega(request.getDireccionEntrega());
+        pedido.setLatitud(request.getLatitud());
+        pedido.setLongitud(request.getLongitud());
+        pedido.setReferencias(request.getReferencias());
         pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
         pedido.setUrlFacebook(request.getUrlFacebook());
         pedido.setFechaPedido(LocalDate.now());

@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -65,4 +66,14 @@ public class RamoArmado extends BaseId {
     @OneToMany(mappedBy = "ramoArmado", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
     private List<RamoArmadoAccesorio> accesorios;
+
+    // Variante "sombra" -- ver comentario en TipoFlor.variante / ProductoSombraServiceImpl.
+    // A diferencia de ColorFlor/AccesorioRamo/FraseListonPredefinida, esta variante NUNCA se
+    // vende ni aparece en una linea de pedido (el ramo se descompone en sus piezas reales al
+    // ordenarse) -- existe unicamente para poder reusar el sistema de fotos de variantes ya
+    // existente (POST /tienda/v1/guardarConImagenes, GET /tienda/v1/imagenes/{varianteId}, etc.)
+    // sin construir nada nuevo. Sigue quedando fuera del catalogo publico (esCatalogoInterno=true).
+    @ManyToOne
+    @JoinColumn(name = "variante_id")
+    private Variantes variante;
 }

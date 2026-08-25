@@ -146,6 +146,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setObservaciones(requestG.getObservaciones());
         pedido.setNombreReceptor(requestG.getNombreReceptor());
         pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        pedido.setLatitud(requestG.getLatitud());
+        pedido.setLongitud(requestG.getLongitud());
+        pedido.setReferencias(requestG.getReferencias());
         pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
         pedido.setUrlFacebook(requestG.getUrlFacebook());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
@@ -520,6 +523,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
         resp.setNombreReceptor(pedido.getNombreReceptor());
         resp.setDireccionEntrega(pedido.getDireccionEntrega());
+        resp.setLatitud(pedido.getLatitud());
+        resp.setLongitud(pedido.getLongitud());
+        resp.setReferencias(pedido.getReferencias());
         resp.setUrlFacebook(pedido.getUrlFacebook());
         if (pedido.getLugarEntrega() != null) {
             resp.setLugarEntregaId(pedido.getLugarEntrega().getId());
@@ -621,6 +627,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         if (requestG.getDireccionEntrega() != null) {
             pedido.setDireccionEntrega(requestG.getDireccionEntrega());
+        }
+        if (requestG.getLatitud() != null) {
+            pedido.setLatitud(requestG.getLatitud());
+        }
+        if (requestG.getLongitud() != null) {
+            pedido.setLongitud(requestG.getLongitud());
+        }
+        if (requestG.getReferencias() != null) {
+            pedido.setReferencias(requestG.getReferencias());
         }
         if (requestG.getLugarEntregaId() != null) {
             pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));

@@ -9,10 +9,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
@@ -92,12 +94,18 @@ public class ProductosControllerImpl {
             @RequestParam(required = false) Boolean conImagenes,
             @RequestParam(required = false) Boolean habilitado,
             @RequestParam(required = false) Boolean codigoGenerado,
+            // Filtro por fecha de creacion (dia calendario, formato yyyy-MM-dd). Pensado sobre
+            // todo para encontrar borradores de la carga rapida de imagenes, que nacen con un
+            // codigo de barras al azar (BRD-XXXXXXXXXXXX) -- buscar "los de hoy" es la unica via
+            // practica cuando hay muchos productos. fechaDesde=fechaHasta=hoy = "solo hoy".
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "1") int page) {
-        log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} codigoGenerado={} page={} size={}",
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, page, size);
+        log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} codigoGenerado={} fechaDesde={} fechaHasta={} page={} size={}",
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, page, size);
         return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, size, page));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, size, page));
     }
 
     @PutMapping("{id}/habilitar")

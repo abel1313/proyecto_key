@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "variantes")
 @Setter
@@ -43,4 +45,15 @@ public class Variantes  extends BaseId {
     @Column(name = "habilitado")
     private char habilitado = '1';
 
+    // Nace null en variantes creadas antes de esta migracion (sin backfill retroactivo, mismo
+    // criterio que Producto.fechaCreacion). Ver comentario en Producto.java para el motivo.
+    @Column(name = "fecha_creacion")
+    private LocalDateTime fechaCreacion;
+
+    @PrePersist
+    private void asignarFechaCreacion() {
+        if (this.fechaCreacion == null) {
+            this.fechaCreacion = LocalDateTime.now();
+        }
+    }
 }
