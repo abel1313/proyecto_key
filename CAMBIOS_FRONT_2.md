@@ -501,3 +501,56 @@ Este segundo aviso se cruzó con la respuesta — el `latitud`/`longitud` de `Lu
 estaba implementado, fusionado a `dev`/`qa` y con la migración corrida desde antes de este
 mensaje (ver "✅ BACK — implementado" y su "Actualización" arriba); la demora fue nuestra en
 subir la respuesta a este documento compartido, no en el trabajo en sí. Ya puede probarse en QA.
+
+**Actualización (2026-08-25, más tarde):** ya llegó también a `main` (producción) — **falta
+correr la migración en la BD de prod** (`inventario_key`, sin sufijo) antes de que sirva ahí:
+```sql
+ALTER TABLE lugares_entrega ADD COLUMN latitud DOUBLE NULL;
+ALTER TABLE lugares_entrega ADD COLUMN longitud DOUBLE NULL;
+```
+
+---
+
+## 🚨 BACK — bug de autorización corregido: el cliente NO podía guardar su propia ubicación de entrega (2026-08-25)
+
+Encontrado probando en vivo con un curl real (`PUT /v1/pedidos/{id}/entrega`, cuenta
+`ROLE_USUARIO`): el back respondía **403 "No tiene permisos para acceder a este recurso"**
+siempre, sin importar los datos — el endpoint exigía `ROLE_ADMIN` a nivel de configuración de
+seguridad. Esto significa que **ningún cliente real pudo guardar nunca su ubicación exacta ni
+cambiar su zona de entrega** desde que existe el modal "Info de entrega" del lado del front —
+el flujo estaba bien armado ahí, pero cada intento real de un cliente chocaba con este 403.
+
+**Antes:** `PUT /v1/pedidos/**` (todo, sin excepción) exigía `hasRole("ADMIN")`.
+
+**Después:** `PUT /v1/pedidos/{id}/entrega` específicamente ahora acepta cualquier usuario
+autenticado — el propio servicio (`PedidoServiceImpl.editarDatosEntrega`) valida que solo pueda
+editar la entrega de **su propio** pedido (comparando `pedido.cliente` contra el cliente del JWT),
+igual que ya funciona el sistema de reseñas (dueño edita la suya, ADMIN edita cualquiera). El
+resto de rutas `PUT`/`DELETE` de `/v1/pedidos/**` (confirmar pedido, eliminar, etc.) siguen
+exigiendo `ROLE_ADMIN` sin cambios — no se abrió nada más de lo necesario.
+
+**Nada cambia en el contrato del request/response** — mismo body, mismos campos
+(`nombreReceptor`/`direccionEntrega`/`latitud`/`longitud`/`referencias`/`lugarEntregaId`/
+`fechaEntrega`) documentados arriba. Si un cliente intenta editar un pedido que no es suyo, ahora
+recibe un error de negocio claro ("No puedes editar la entrega de un pedido que no es tuyo") en
+vez de silenciosamente no poder hacer nada.
+
+Ya está en `dev`, `qa` y `main` — sin migración pendiente, no toca ninguna columna nueva.
+
+---
+
+## ✅ BACK — otros 2 ajustes de permisos encontrados hoy mismo (2026-08-25)
+
+De paso, mientras se investigaba lo de arriba, se encontraron y corrigieron 2 problemas más,
+ninguno requiere nada del front:
+
+1. **`GET /v1/promociones/activas` era `.authenticated()`, ahora es público.** La pantalla
+   pública de la tienda (`tienda/buscar`) llama a este endpoint para cualquier visitante,
+   incluido uno sin sesión — antes eso le daba 401, y el interceptor del front lo interpretaba
+   como "sesión muerta" y lo mandaba al login sin haber iniciado sesión nunca. Mismo criterio que
+   ya tenía `/v1/cinta/activos`.
+2. **Login rechazaba usernames de menos de 3 caracteres con un 400**, incluso para cuentas ya
+   existentes con un username corto (ej. de 2 letras) — no podían entrar con ninguna contraseña,
+   ni una recién reseteada por admin. Quitado el mínimo de longitud en el login (igual que ya
+   tenía la contraseña, por el mismo motivo: exigir un mínimo ahí no aporta seguridad, solo
+   rompe cuentas viejas).
