@@ -353,3 +353,125 @@ agosto (en `/productos/buscar` y `/tienda/buscar`, admin) + la columna `fechaCre
 en cada card. Mismo caso: no lo pudimos probar en vivo por falta de credenciales. ¿Ya corrió
 `migration_fecha_creacion_producto_variante.sql` en QA? Si no, avisen cuando esté lista para
 probar los dos flujos (ubicación + fecha de creación) de una sola vez.
+
+---
+
+## ✅ BACK — encontrada la causa real de "las coordenadas siguen sin volver": nunca se fusionó a `qa` (2026-08-25)
+
+Gracias por el análisis tan detallado de los 7 puntos del front — nos ayudó a descartar rápido
+que fuera un problema de nombres de campo o de lógica. Revisamos las 3 ramas directamente en
+GitHub (no supuesto) y encontramos la causa real, y es nuestra:
+
+**El código de `latitud`/`longitud`/`referencias` (y también el filtro de fecha de creación que
+documentamos ayer) vivían solo en ramas de feature — nunca se habían fusionado a `dev` ni a `qa`.**
+No importaba si la migración había corrido o no: el `.jar` desplegado en QA nunca tuvo el código
+que lee/escribe esos campos. La confirmación que les dimos el 22 de agosto de que "ya funciona en
+dev/qa" fue un error nuestro — no lo habíamos verificado contra las ramas reales.
+
+**Ya está corregido:** ambas features (`flores-eternas-fotos-ramo` y el filtro de fecha) se
+fusionaron a `dev` y de ahí a `qa` — ya están desplegadas, listas para volver a probar.
+
+### Sobre `POST /v1/flores/pedidos/{id}/detalle` (su pregunta 3)
+
+Confirmado en el código: este endpoint **no toca para nada** `latitud`/`longitud`/`referencias`
+del `Pedido` — ni los lee del request (`RamoPedidoDetalleRequestDto` no tiene esos campos) ni
+vuelve a guardar el `Pedido` en ningún punto de `adjuntar()`. Solo lee el `Pedido` para
+enganchar la relación con el nuevo `RamoPedidoDetalle`. **No hacía falta reenviarlos ahí** — ese
+endpoint es inofensivo respecto a esos 3 campos, pueden confiar en que el primer `savePedido`
+es el único que los persiste.
+
+### Checklist antes de volver a probar
+
+1. **Verificar que la migración de ubicación sí corrió en QA** —
+   `src/main/resources/static/migration_pedido_ubicacion_entrega.sql` (agrega `latitud`,
+   `longitud`, `referencias` a `pedidos`). Si el código ya estaba desplegado sin la migración,
+   el guardado habría fallado con error 500 (columna inexistente) — si `savePedido` les
+   respondía 200 sin la migración corrida, avísennos porque sería otro síntoma a investigar.
+2. **Verificar que la migración de fecha de creación también corrió** —
+   `migration_fecha_creacion_producto_variante.sql` (agrega `fecha_creacion` a `producto` y
+   `variantes`).
+3. Con ambas migraciones corridas y el código ya en QA, prueben de nuevo el ciclo completo:
+   marcar pin → confirmar pedido/ramo → "Cómo llegar" — debería mostrar el punto exacto.
+
+Avísennos qué encuentran.
+
+---
+
+## ✅ Confirmado — las 2 migraciones ya corrieron en QA y prod (2026-08-25)
+
+Cierra los 2 puntos del checklist de arriba: el dueño confirma que
+`migration_pedido_ubicacion_entrega.sql` y `migration_fecha_creacion_producto_variante.sql` ya se
+ejecutaron en ambos ambientes. Con el código ya fusionado a `qa` (ver el punto de arriba) y las
+migraciones corridas, el ciclo completo (marcar pin → confirmar pedido/ramo → "Cómo llegar") ya
+debería funcionar de punta a punta. Prueben de nuevo y avisen qué encuentran.
+
+---
+
+## 🚨 URGENTE — reenviamos: lat/lng por zona en `LugarEntrega`, sigue sin respuesta desde el 22 de agosto
+
+> Esta consulta se mandó hace 3 días (`CAMBIOS_FRONT.md`, sección "❓ CONSULTA AL BACK — lat/lng
+> por zona...") y no llegó respuesta ni en el corte del 22 ni en el del 25 — se las reenviamos
+> completa para que no se pierda entre los demás hilos, el dueño la marcó como prioridad.
+
+**El problema:** el picker de mapa (checkout y "Arma tu ramo") siempre arranca centrado en un
+punto fijo (Tejupilco), sin importar qué zona elija el cliente en el `<select>` de
+`LugarEntrega`. Elegir "Zacazonapan" no mueve el mapa — sigue mostrando otro pueblo, y el cliente
+tiene que buscar manualmente con el buscador de texto que agregamos como parche (Nominatim,
+gratis, pero no resuelve el fondo).
+
+**Lo que se necesita:** que `LugarEntrega` (`/v1/lugares-entrega`) tenga su propio centroide:
+
+```
+latitud   Double  (nullable — zonas viejas sin configurar simplemente no recentran)
+longitud  Double  (nullable)
+```
+
+Del lado del front ya está el gancho hecho — `SelectorUbicacionComponent` ya reacciona a un
+cambio de `centroDefault`, solo falta el dato real por zona en vez del genérico que usamos hoy.
+Mismo criterio que ya usaron para `costoEnvio`/`horasExtraAnticipacion` en ese mismo modelo:
+opcional, no afecta al checkout general de la tienda.
+
+**Confirmen por favor:**
+1. Si es viable, cuándo lo pueden agregar (aunque sea aproximado).
+2. Si prefieren otro enfoque (por ejemplo, que el front calcule el centroide localmente con
+   Nominatim buscando el nombre de la zona, sin tocar el back) — abierto a sugerencias, lo que
+   importa es cerrar el punto.
+
+---
+
+## ✅ BACK — implementado: `LugarEntrega` ya tiene `latitud`/`longitud` (2026-08-25)
+
+Perdón la demora — se responde ahora, agregado tal cual lo pidieron.
+
+**`latitud`/`longitud`** (`Double`, nullable) agregados a la entidad `LugarEntrega`. Como este
+recurso usa el CRUD genérico (`AbstractController`, sin DTO propio), ya quedan disponibles sin
+más cambios en los 4 endpoints existentes:
+
+- `POST /v1/lugares-entrega/save` y `PUT /v1/lugares-entrega/update` — aceptan los 2 campos
+  opcionales junto a `nombre`/`costoEnvio`/`horasExtraAnticipacion` que ya recibían.
+- `GET /v1/lugares-entrega/obtener...` (listado) y `GET /v1/lugares-entrega/findById/{id}` — los
+  devuelven junto al resto de campos de la entidad.
+
+```json
+{
+  "id": 3,
+  "nombre": "Zacazonapan",
+  "costoEnvio": 50.0,
+  "horasExtraAnticipacion": 2,
+  "latitud": 18.652,
+  "longitud": -100.219
+}
+```
+
+**Zonas viejas sin configurar** → `latitud`/`longitud` vienen `null` (no hay backfill retroactivo,
+mismo criterio que `fechaCreacion` y `correoVerificado`) — el `SelectorUbicacionComponent` debe
+seguir usando su centro por defecto cuando vengan null, tal como ya lo tienen previsto.
+
+**⚠️ Requiere migración antes de desplegar** —
+`src/main/resources/static/migration_lugar_entrega_centroide.sql` (agrega `latitud`/`longitud`
+a `lugares_entrega`). Pendiente correr en dev/qa/prod (`ddl-auto: none`).
+
+### Rama
+
+Como no depende de nada bloqueado, va directo a `dev` (no en rama de feature aparte) — se fusiona
+a `qa` en cuanto se pruebe, siguiendo el flujo normal.
