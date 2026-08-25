@@ -19,6 +19,9 @@ public class PedidosDTOPedido {
     private String tipoPedido;
     private String nombreReceptor;
     private String direccionEntrega;
+    private Double latitud;
+    private Double longitud;
+    private String referencias;
     private Integer lugarEntregaId;
     private String urlFacebook;
     private List<DetallePedidosDTOPedido> detalles;
