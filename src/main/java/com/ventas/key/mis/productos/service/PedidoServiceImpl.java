@@ -604,6 +604,17 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
+        // El cliente solo puede editar la entrega de SU propio pedido; ADMIN puede cualquiera.
+        // Mismo patron que ResenaServiceImpl (dueno vs ADMIN) -- ver SecurityConfig, esta ruta
+        // ya no exige ROLE_ADMIN, asi que la validacion de propiedad vive aqui.
+        if (!AuthenticationUtils.isAdminContext()) {
+            Cliente clienteActual = AuthenticationUtils.currentUsuario().getCliente();
+            if (clienteActual == null || pedido.getCliente() == null
+                    || !pedido.getCliente().getId().equals(clienteActual.getId())) {
+                throw new RuntimeException("No puedes editar la entrega de un pedido que no es tuyo");
+            }
+        }
+
         if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("No se pueden editar los datos de entrega de un pedido cancelado");
         }
