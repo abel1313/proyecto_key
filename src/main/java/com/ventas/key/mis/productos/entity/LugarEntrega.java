@@ -23,6 +23,15 @@ public class LugarEntrega extends BaseId {
     @Column(name = "horas_extra_anticipacion")
     private Integer horasExtraAnticipacion;
 
+    // Centroide de la zona, para que el picker de mapa del front arranque centrado ahi en vez
+    // de un punto fijo generico. NULL = zona vieja sin configurar, el front sigue usando su
+    // centro por defecto.
+    @Column(name = "latitud")
+    private Double latitud;
+
+    @Column(name = "longitud")
+    private Double longitud;
+
     // Variante "sombra" -- ver comentario en TipoFlor.variante. Solo se crea/sincroniza cuando
     // costoEnvio no es null (sin costo, no hace falta linea de cobro por envio).
     @ManyToOne
