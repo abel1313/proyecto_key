@@ -172,6 +172,9 @@ public class SecurityConfig {
                         //    visitante anonimo del configurador publico de flores (2026-08-14);
                         //    alta/edicion/baja sigue solo ADMIN) ──────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/lugares-entrega/**").permitAll()
+                        // calcular-costo (anillos) lo llama el checkout ANTES de que el cliente tenga
+                        // sesion necesariamente (visitante anonimo cotizando) -- ver DISENO_ZONAS_POR_ANILLO.md.
+                        .requestMatchers(HttpMethod.POST, "/v1/lugares-entrega/*/calcular-costo").permitAll()
                         .requestMatchers("/v1/lugares-entrega/**").hasRole("ADMIN")
 
                         // ── Promociones (catalogo publico -- mismo criterio que la cinta de

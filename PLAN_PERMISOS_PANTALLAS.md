@@ -208,3 +208,8 @@ no de diseñarlo desde cero.
 
 No se empieza la Fase 2 hasta que la Fase 1 esté funcionando y probada en QA — son dos entregas
 separadas, no un solo cambio gigante.
+
+
+Pero aqui me surguio una duda, por ejemplo
+Acutalmente lo que te digo es que por ejemplo si yo quiero que el rol x solo pueda acceder a tales rutas o menuas a eso me refiero por ejemplo algunos menu u opciones llevan a otras
+endpoint y mi duda es, entonces no se va a basar a los endpoint? si no a los menus?
