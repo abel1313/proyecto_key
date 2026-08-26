@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -36,11 +37,23 @@ public class JwtUtil {
     }
 
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
+        return generateToken(userDetails, idUsuarioRegistrado, List.of());
+    }
+
+    /**
+     * @param pantallas rutas (Submenu.ruta) efectivas del usuario -- rol + sus excepciones (ver
+     *                  UsuarioServiceImpl.submenusEfectivos). El front las usa para armar el menu
+     *                  dinamico y el PantallaGuard sin tener que pedirlas al back en cada navegacion.
+     *                  Se recalculan en cada login/refresh (cada 15 min como maximo), asi que un
+     *                  cambio de permisos por el admin tarda como mucho eso en reflejarse.
+     */
+    public String generateToken(UserDetails userDetails, long idUsuarioRegistrado, List<String> pantallas) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
                 .map(mpa -> mpa.getAuthority())
                 .collect(Collectors.toList()));
         claims.put("idUsuario", idUsuarioRegistrado);
+        claims.put("pantallas", pantallas);
         return Jwts.builder()
                 .setClaims(claims)
                 .setId(java.util.UUID.randomUUID().toString())   // jti — para poder invalidarlo

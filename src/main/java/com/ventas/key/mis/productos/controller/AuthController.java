@@ -20,7 +20,7 @@ import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
 import com.ventas.key.mis.productos.service.SesionRefreshService;
-import com.ventas.key.mis.productos.service.api.IUsuarioService;
+import com.ventas.key.mis.productos.service.UsuarioServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioVerificacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,7 +46,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Tag(name = "Autenticacion", description = "Login, logout, registro y renovacion de tokens JWT. El refresh token se guarda en cookie HttpOnly.")
 @RestController
@@ -62,7 +64,7 @@ public class AuthController {
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
     private final UsuarioVerificacionService usuarioVerificacionService;
-    private final IUsuarioService usuarioService;
+    private final UsuarioServiceImpl usuarioService;
     private final SesionRefreshService sesionRefreshService;
 
     @Value("${cookie.secure:true}")
@@ -147,7 +149,8 @@ public class AuthController {
             // deteccion de reuso puedan invalidar el refresh token del lado del servidor.
             SesionRefreshService.SesionNueva sesion = sesionRefreshService.crearSesion(usr.getId());
 
-            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
+            List<String> pantallas = pantallasEfectivas(usr.getId());
+            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(), pantallas);
             String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(),
                     sesion.sessionStartMillis(), sesion.jti(), sesion.sessionId());
 
@@ -223,7 +226,8 @@ public class AuthController {
             }
 
             long sessionStart = jwtUtil.extractSessionStart(refreshToken);
-            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId());
+            List<String> pantallas = pantallasEfectivas(usr.getId());
+            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(), pantallas);
             String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart,
                     jtiNuevo.get(), sessionId);
 
@@ -521,6 +525,13 @@ public class AuthController {
      */
     private boolean faltaHeaderAntiCsrf(HttpServletRequest request) {
         return exigirHeaderRefresh && request.getHeader(HEADER_ANTI_CSRF) == null;
+    }
+
+    /** Rutas (Submenu.ruta) efectivas del usuario -- se meten al JWT para el PantallaGuard/menu dinamico. */
+    private List<String> pantallasEfectivas(int usuarioId) {
+        return usuarioService.submenusEfectivos(usuarioId).stream()
+                .map(com.ventas.key.mis.productos.entity.Submenu::getRuta)
+                .collect(Collectors.toList());
     }
 
     /** Gasta un intento en las dos claves del login (IP y usuario) — solo tras un fallo real. */
