@@ -70,13 +70,24 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
 
     @Override
     public PginaDto<List<UserDto>> findAllPage(int pagina, int size, String buscar) {
+        return findAllPage(pagina, size, buscar, true);
+    }
+
+    // activos=false -> lista los desactivados (soft-delete), para poder reactivarlos.
+    public PginaDto<List<UserDto>> findAllPage(int pagina, int size, String buscar, boolean activos) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         Page<UserDto> dataPaginacion;
 
         if (buscar.isEmpty()) {
-            dataPaginacion = usuarioRepository.findByEnabledTrue(pageable).map(this::toUserDto);
+            dataPaginacion = (activos
+                    ? usuarioRepository.findByEnabledTrue(pageable)
+                    : usuarioRepository.findByEnabledFalse(pageable)
+            ).map(this::toUserDto);
         } else {
-            dataPaginacion = usuarioRepository.findAllPage(buscar, pageable).map(this::toUserDto);
+            dataPaginacion = (activos
+                    ? usuarioRepository.findAllPage(buscar, pageable)
+                    : usuarioRepository.findAllPageInactivos(buscar, pageable)
+            ).map(this::toUserDto);
         }
 
         PginaDto<List<UserDto>> pginaDto = new PginaDto<>();
@@ -189,6 +200,16 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
                 .orElseThrow(() -> new ExceptionDataNotFound("El usuario no existe"));
         existe.setEnabled(false);
         usuarioRepository.save(existe);
+    }
+
+    // Contraparte de eliminarUsuario -- reactiva a alguien a quien se le hizo soft-delete
+    // (por accidente o porque volvió a hacer falta), sin tener que tocar la base a mano.
+    @Transactional
+    public UserDto activarUsuario(int id) {
+        Usuario existe = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("El usuario no existe"));
+        existe.setEnabled(true);
+        return toUserDto(usuarioRepository.save(existe));
     }
 
     @Override
