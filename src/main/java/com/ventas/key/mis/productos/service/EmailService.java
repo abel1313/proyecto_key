@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -16,9 +17,16 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final NegocioService negocioService;
 
     @Value("${spring.mail.username}")
     private String remitente;
+
+    // Direccion del negocio para el pie de los correos -- no existe ningun campo de direccion en
+    // ConfiguracionNegocio ni pantalla que lo administre todavia, asi que queda fija aqui por
+    // ahora. Si mas adelante se agrega un campo editable en Sistema > Negocio & Contactos, mover
+    // esto a leerlo de ahi (mismo criterio que ya se uso para whatsapp/facebook/instagram/tiktok).
+    private static final String DIRECCION_NEGOCIO = null;
 
     /**
      * Envía un correo HTML al destinatario, envuelto automáticamente en la plantilla de marca
@@ -80,14 +88,49 @@ public class EmailService {
                 + "font-family:Arial,Helvetica,sans-serif;\">"
                 + contenidoHtml
                 + "</td></tr>"
-                // Pie
-                + "<tr><td style=\"padding:16px 28px;background-color:#f9fafb;text-align:center;"
+                // Pie -- redes sociales (las que el negocio tenga configuradas) + direccion
+                + "<tr><td style=\"padding:20px 28px 18px;background-color:#f9fafb;text-align:center;"
                 + "border-top:1px solid #eef1f0;\">"
+                + filaRedesSociales()
+                + (DIRECCION_NEGOCIO != null && !DIRECCION_NEGOCIO.isBlank()
+                        ? "<p style=\"margin:0 0 6px;font-size:12px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;\">"
+                          + "📍 " + DIRECCION_NEGOCIO + "</p>"
+                        : "")
                 + "<p style=\"margin:0;font-size:12px;color:#9ca3af;font-family:Arial,Helvetica,sans-serif;\">"
                 + "Novedades Jade — Este es un correo automático, no respondas a este mensaje.</p>"
                 + "</td></tr>"
                 + "</table>"
                 + "</td></tr></table>";
+    }
+
+    /**
+     * Fila de links a las redes sociales activas del negocio -- solo muestra las que de verdad
+     * tienen URL configurada en Sistema > Negocio & Contactos (ConfiguracionNegocio), no una
+     * lista fija: si mañana se agrega o se quita una red ahí, el correo se actualiza solo.
+     * Envuelto en try/catch porque enviarTicket() no debe fallar un envío completo (ej. un
+     * código de verificación urgente) solo porque no se pudo leer esta config secundaria.
+     */
+    private String filaRedesSociales() {
+        try {
+            ContactosPublicosDto c = negocioService.getContactosPublicos();
+            StringBuilder sb = new StringBuilder();
+            agregarRedSocial(sb, c.getWhatsappUrl(), "💬", "WhatsApp");
+            agregarRedSocial(sb, c.getFacebookUrl(), "📘", "Facebook");
+            agregarRedSocial(sb, c.getInstagramUrl(), "📷", "Instagram");
+            agregarRedSocial(sb, c.getTiktokUrl(), "🎵", "TikTok");
+            if (sb.length() == 0) return "";
+            return "<p style=\"margin:0 0 12px;\">" + sb + "</p>";
+        } catch (Exception e) {
+            log.warn("No se pudo cargar la configuracion de negocio para el pie del correo: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    private void agregarRedSocial(StringBuilder sb, String url, String emoji, String nombre) {
+        if (url == null || url.isBlank()) return;
+        if (sb.length() > 0) sb.append("&nbsp;&nbsp;");
+        sb.append("<a href=\"").append(url).append("\" style=\"text-decoration:none;font-size:20px;\" "
+                + "title=\"").append(nombre).append("\">").append(emoji).append("</a>");
     }
 
     /**
