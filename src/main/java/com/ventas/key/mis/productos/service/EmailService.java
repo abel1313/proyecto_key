@@ -26,7 +26,7 @@ public class EmailService {
     // ConfiguracionNegocio ni pantalla que lo administre todavia, asi que queda fija aqui por
     // ahora. Si mas adelante se agrega un campo editable en Sistema > Negocio & Contactos, mover
     // esto a leerlo de ahi (mismo criterio que ya se uso para whatsapp/facebook/instagram/tiktok).
-    private static final String DIRECCION_NEGOCIO = null;
+    private static final String DIRECCION_NEGOCIO = "Luvianos, Estado de México, Salida a Hermiltepec";
 
     /**
      * Envía un correo HTML al destinatario, envuelto automáticamente en la plantilla de marca
