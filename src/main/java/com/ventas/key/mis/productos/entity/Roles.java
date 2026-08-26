@@ -29,6 +29,16 @@ public class Roles extends BaseId {
     )
     private Set<Permiso> permisos = new HashSet<>();
 
+    // Pantallas base del rol -- Fase 1 de PLAN_PERMISOS_PANTALLAS.md (repo compartido). Separado
+    // de "permisos" a proposito: esto es visibilidad de pantalla, no accion sobre datos.
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "rol_submenu",
+            joinColumns = @JoinColumn(name = "rol_id"),
+            inverseJoinColumns = @JoinColumn(name = "submenu_id")
+    )
+    private Set<Submenu> submenus = new HashSet<>();
+
     @JsonIgnore
     @ManyToMany(mappedBy = "roles")
     private Set<Usuario> usuarios = new HashSet<>();

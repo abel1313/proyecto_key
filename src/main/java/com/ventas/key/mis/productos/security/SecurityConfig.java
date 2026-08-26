@@ -171,6 +171,9 @@ public class SecurityConfig {
                         //    consumiendo esto para decidir su propio menu, es solo el catalogo base.
                         .requestMatchers("/v1/menu/**").hasRole("ADMIN")
                         .requestMatchers("/v1/submenu/**").hasRole("ADMIN")
+                        // rol_submenu -- CRUD de roles + asignacion de pantallas por rol (mismo
+                        // criterio, solo ADMIN por ahora).
+                        .requestMatchers("/v1/roles/**").hasRole("ADMIN")
 
                         // ── Lugares de entrega (catalogo; lectura publica -- mismo criterio que
                         //    los catalogos de flores de abajo: nombre de zona y costo de envio,
