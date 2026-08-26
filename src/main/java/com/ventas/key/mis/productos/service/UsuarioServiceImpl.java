@@ -2,7 +2,9 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Permiso;
 import com.ventas.key.mis.productos.entity.Roles;
+import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.entity.UsuarioSubmenu;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
@@ -14,8 +16,12 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IPermisoRepository;
 import com.ventas.key.mis.productos.repository.IRolRepository;
+import com.ventas.key.mis.productos.repository.ISubmenuRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
+import com.ventas.key.mis.productos.repository.IUsuarioSubmenuRepository;
 import com.ventas.key.mis.productos.service.api.IUsuarioService;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import java.time.LocalDateTime;
@@ -37,6 +43,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     private final IUsuarioRepository usuarioRepository;
     private final IRolRepository rolRepository;
     private final IPermisoRepository permisoRepository;
+    private final ISubmenuRepository submenuRepository;
+    private final IUsuarioSubmenuRepository usuarioSubmenuRepository;
     private final UsuarioVerificacionService usuarioVerificacionService;
     private final SesionRefreshService sesionRefreshService;
 
@@ -45,6 +53,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
                               PasswordEncoder passwordEncoder,
                               IRolRepository rolRepository,
                               IPermisoRepository permisoRepository,
+                              ISubmenuRepository submenuRepository,
+                              IUsuarioSubmenuRepository usuarioSubmenuRepository,
                               UsuarioVerificacionService usuarioVerificacionService,
                               SesionRefreshService sesionRefreshService) {
         super(repoGenerico, error);
@@ -52,6 +62,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         this.passwordEncoder = passwordEncoder;
         this.rolRepository = rolRepository;
         this.permisoRepository = permisoRepository;
+        this.submenuRepository = submenuRepository;
+        this.usuarioSubmenuRepository = usuarioSubmenuRepository;
         this.usuarioVerificacionService = usuarioVerificacionService;
         this.sesionRefreshService = sesionRefreshService;
     }
@@ -218,5 +230,48 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
 
     public List<Permiso> listarPermisos() {
         return permisoRepository.findAll();
+    }
+
+    // ── Excepciones de pantalla por usuario (usuario_submenu) ───────────────────
+    // Ver PLAN_PERMISOS_PANTALLAS.md seccion 3 -- concedido=true suma una pantalla que el rol no
+    // da, concedido=false quita una que el rol si daria, sin tocar el rol para nadie mas.
+
+    @Transactional
+    public UsuarioSubmenu agregarSubmenuUsuario(Integer usuarioId, Integer submenuId, boolean concedido) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        Submenu submenu = submenuRepository.findById(submenuId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Submenu no encontrado"));
+        UsuarioSubmenu excepcion = usuarioSubmenuRepository.findByUsuarioIdAndSubmenuId(usuarioId, submenuId)
+                .orElseGet(() -> {
+                    UsuarioSubmenu nueva = new UsuarioSubmenu();
+                    nueva.setUsuario(usuario);
+                    nueva.setSubmenu(submenu);
+                    return nueva;
+                });
+        excepcion.setConcedido(concedido);
+        return usuarioSubmenuRepository.save(excepcion);
+    }
+
+    @Transactional
+    public void quitarSubmenuUsuario(Integer usuarioId, Integer submenuId) {
+        usuarioSubmenuRepository.findByUsuarioIdAndSubmenuId(usuarioId, submenuId)
+                .ifPresent(usuarioSubmenuRepository::delete);
+    }
+
+    public List<UsuarioSubmenu> listarExcepcionesSubmenu(Integer usuarioId) {
+        return usuarioSubmenuRepository.findByUsuarioId(usuarioId);
+    }
+
+    public Set<Submenu> submenusEfectivos(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        Set<Submenu> efectivos = new HashSet<>(usuario.getRoles() != null
+                ? usuario.getRoles().getSubmenus() : Set.of());
+        List<UsuarioSubmenu> excepciones = usuarioSubmenuRepository.findByUsuarioId(usuarioId);
+        excepciones.stream().filter(UsuarioSubmenu::getConcedido).forEach(e -> efectivos.add(e.getSubmenu()));
+        excepciones.stream().filter(e -> !e.getConcedido())
+                .forEach(e -> efectivos.removeIf(s -> s.getId().equals(e.getSubmenu().getId())));
+        return efectivos;
     }
 }

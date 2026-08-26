@@ -2,7 +2,9 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.Permiso;
 import com.ventas.key.mis.productos.entity.Roles;
+import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.entity.UsuarioSubmenu;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
@@ -137,5 +139,39 @@ public class UsuarioController extends AbstractController<
             @PathVariable Integer usuarioId,
             @PathVariable Integer permisoId) {
         return ResponseEntity.ok(usu.quitarPermisoExtra(usuarioId, permisoId));
+    }
+
+    // ── Excepciones de pantalla por usuario (encima de lo que ya da su rol) ─────
+
+    @GetMapping("/{usuarioId}/submenus/efectivos")
+    public ResponseEntity<ResponseGeneric<List<Submenu>>> submenusEfectivos(@PathVariable Integer usuarioId) {
+        return ResponseEntity.ok(new ResponseGeneric<List<Submenu>>(List.copyOf(usu.submenusEfectivos(usuarioId))));
+    }
+
+    @GetMapping("/{usuarioId}/submenus/excepciones")
+    public ResponseEntity<ResponseGeneric<List<UsuarioSubmenu>>> excepcionesSubmenu(@PathVariable Integer usuarioId) {
+        return ResponseEntity.ok(new ResponseGeneric<List<UsuarioSubmenu>>(usu.listarExcepcionesSubmenu(usuarioId)));
+    }
+
+    @PostMapping("/{usuarioId}/submenus/{submenuId}")
+    public ResponseEntity<ResponseGeneric<UsuarioSubmenu>> agregarSubmenuUsuario(
+            @PathVariable Integer usuarioId,
+            @PathVariable Integer submenuId,
+            @RequestParam(defaultValue = "true") boolean concedido) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(usu.agregarSubmenuUsuario(usuarioId, submenuId, concedido)));
+        } catch (Exception e) {
+            ResponseGeneric<UsuarioSubmenu> error = new ResponseGeneric<>((UsuarioSubmenu) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @DeleteMapping("/{usuarioId}/submenus/{submenuId}")
+    public ResponseEntity<Void> quitarSubmenuUsuario(
+            @PathVariable Integer usuarioId,
+            @PathVariable Integer submenuId) {
+        usu.quitarSubmenuUsuario(usuarioId, submenuId);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -166,6 +166,15 @@ public class SecurityConfig {
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers("/v1/abonos/**").hasRole("ADMIN")
 
+                        // ── Menu/Submenu (catalogo de pantallas, Fase 1 de PLAN_PERMISOS_PANTALLAS.md
+                        //    -- repo compartido). Solo ADMIN por ahora: todavia no hay ningun rol/usuario
+                        //    consumiendo esto para decidir su propio menu, es solo el catalogo base.
+                        .requestMatchers("/v1/menu/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/submenu/**").hasRole("ADMIN")
+                        // rol_submenu -- CRUD de roles + asignacion de pantallas por rol (mismo
+                        // criterio, solo ADMIN por ahora).
+                        .requestMatchers("/v1/roles/**").hasRole("ADMIN")
+
                         // ── Lugares de entrega (catalogo; lectura publica -- mismo criterio que
                         //    los catalogos de flores de abajo: nombre de zona y costo de envio,
                         //    nada sensible. Antes era solo "autenticado", lo que dejaba fuera al
