@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.entity.Menu;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.IMenuRepository;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,12 @@ public class MenuServiceImpl extends CrudAbstractServiceImpl<
     public Menu delete(Integer id) throws Exception {
         Menu menu = iMenuRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Menu no encontrado: " + id));
+        // Sin esto, borrar el último Menu deja el catálogo completamente vacío -- ningún
+        // Submenu nuevo tendría dónde agruparse hasta volver a dar de alta uno a mano.
+        if (iMenuRepository.count() <= 1) {
+            throw new ExceptionOperacionNoPermitida(
+                    "No se puede eliminar \"" + menu.getNombre() + "\": es el único menú que queda en el catálogo.");
+        }
         iMenuRepository.delete(menu);
         return menu;
     }

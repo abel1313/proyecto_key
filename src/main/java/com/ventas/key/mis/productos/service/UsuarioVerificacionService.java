@@ -1,8 +1,10 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
+import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ public class UsuarioVerificacionService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final IUsuarioRepository usuarioRepository;
+    private final IClienteRepository clienteRepository;
     private final EmailService emailService;
     private final ClienteServiceImpl clienteService;
 
@@ -176,6 +179,17 @@ public class UsuarioVerificacionService {
         usuario.setCodigoVerificacionExpira(null);
         usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
+
+        // Antes este flujo (cambio de correo del Usuario, ej. admin editando "Actualizar
+        // usuario") dejaba el Cliente vinculado con el correo VIEJO -- el otro sentido
+        // (ClienteServiceImpl.verificarCorreo, cambio desde "Mi perfil") sí sincronizaba hacia
+        // Usuario.email, pero este no sincronizaba hacia Cliente.correoElectronico. Resultado:
+        // dependiendo de POR DONDE se cambiara el correo, quedaba consistente o no.
+        if (usuario.getCliente() != null) {
+            Cliente cliente = usuario.getCliente();
+            cliente.setCorreoElectronico(usuario.getEmail());
+            clienteRepository.save(cliente);
+        }
     }
 
     /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */
