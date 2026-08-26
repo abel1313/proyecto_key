@@ -43,9 +43,17 @@ public class UsuarioController extends AbstractController<
     public ResponseEntity<ResponseGeneric<PginaDto<List<UserDto>>>> findAllPage(
             @RequestParam String buscar,
             @RequestParam int page,
-            @RequestParam int size) {
-        PginaDto<List<UserDto>> result = usu.findAllPage(page, size, buscar);
+            @RequestParam int size,
+            @RequestParam(defaultValue = "true") boolean activos) {
+        PginaDto<List<UserDto>> result = usu.findAllPage(page, size, buscar, activos);
         return ResponseEntity.ok(new ResponseGeneric<>(result));
+    }
+
+    // Contraparte de eliminarUsuarioDto -- reactiva a alguien desactivado por error o que volvió
+    // a hacer falta, sin tener que tocar la base a mano.
+    @PutMapping("/{id}/activar")
+    public ResponseEntity<ResponseGeneric<UserDto>> activarUsuario(@PathVariable int id) {
+        return ResponseEntity.ok(new ResponseGeneric<>(usu.activarUsuario(id)));
     }
 
     @PutMapping("/updateUsuario/{id}")
