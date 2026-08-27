@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.entity.AccionSubmenu;
 import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
+import com.ventas.key.mis.productos.models.PermisosEfectivosDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.UsuarioServiceImpl;
 import jakarta.servlet.FilterChain;
@@ -138,24 +139,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /**
      * Junta los authorities normales del usuario (ROLE_x, permisos) con uno
      * "{@value #PREFIJO_AUTORIDAD_PANTALLA}&lt;ruta&gt;" por cada pantalla que
-     * {@link UsuarioServiceImpl#submenusEfectivos} le da en ESTE momento -- se recalcula en cada
+     * {@link UsuarioServiceImpl#permisosEfectivos} le da en ESTE momento -- se recalcula en cada
      * request, así que a diferencia del claim "pantallas" del JWT (que solo se recalcula en
      * login/refresh, hasta 15 min de rezago) esto refleja un cambio de permisos al instante. Si
      * falla (usuario recien creado sin rol, error de datos) no tumba el request: sigue solo con
      * los authorities normales, igual que antes de este cambio.
+     *
+     * <p><b>Encontrado 2026-08-27 (lentitud reportada en login y en cualquier pantalla que
+     * mandara el token):</b> esto llamaba a submenusEfectivos + submenusEscritura +
+     * accionesEfectivas por separado -- 3 fetches redundantes del MISMO usuario en cada request
+     * autenticado. Se corrigió a UN SOLO fetch via {@code permisosEfectivos}.
      */
     private Collection<? extends GrantedAuthority> autoridadesConPantallas(UserDetails userDetails) {
         List<GrantedAuthority> authorities = new ArrayList<>(userDetails.getAuthorities());
         if (userDetails instanceof Usuario usuario && usuario.getId() != null) {
             try {
-                for (Submenu s : usuarioService.submenusEfectivos(usuario.getId())) {
+                PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usuario.getId());
+                for (Submenu s : permisos.getPantallas()) {
                     authorities.add(new SimpleGrantedAuthority(PREFIJO_AUTORIDAD_PANTALLA + s.getRuta()));
                 }
-                for (Submenu s : usuarioService.submenusEscritura(usuario.getId())) {
+                for (Submenu s : permisos.getPantallasEscritura()) {
                     authorities.add(new SimpleGrantedAuthority(
                             PREFIJO_AUTORIDAD_PANTALLA + s.getRuta() + SUFIJO_AUTORIDAD_ESCRITURA));
                 }
-                for (AccionSubmenu a : usuarioService.accionesEfectivas(usuario.getId())) {
+                for (AccionSubmenu a : permisos.getAcciones()) {
                     authorities.add(new SimpleGrantedAuthority(PREFIJO_AUTORIDAD_PANTALLA
                             + a.getSubmenu().getRuta() + SUFIJO_AUTORIDAD_ACCION + a.getClave()));
                 }
