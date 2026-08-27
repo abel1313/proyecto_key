@@ -82,6 +82,21 @@ public class SecurityConfig {
         return authorities;
     }
 
+    /**
+     * Fase 3 de permisos (2026-08-27, piloto en Modelos): exige una accion puntual dentro de una
+     * pantalla (ej. "eliminar" en "productos/buscar"), no solo el Editar general de esa pantalla
+     * -- ver {@link JwtAuthenticationFilter#SUFIJO_AUTORIDAD_ACCION} y {@code AccionSubmenu}. Se
+     * usa para los endpoints de UNA sola pantalla que antes caian en el catch-all de
+     * {@link #pantallaEscribir}, compartido con otras pantallas hermanas (Modelos/Agregar
+     * modelo/Agregar producto) -- separarlos permite, por ejemplo, dar "eliminar" sin dar
+     * "habilitar" en Modelos, cosa que pantallaEscribir no podia distinguir.
+     */
+    private static String[] accion(String ruta, String clave) {
+        return new String[] { "ROLE_ADMIN",
+                JwtAuthenticationFilter.PREFIJO_AUTORIDAD_PANTALLA + ruta
+                        + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ACCION + clave };
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         log.info("SecurityConfig cargado");
@@ -155,6 +170,16 @@ public class SecurityConfig {
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
                         // Varias pantallas distintas escriben aca (Modelos, Agregar modelo,
                         // Agregar producto) -- cualquiera de las tres basta.
+                        // Fase 3 de permisos (piloto en Modelos): estas 4 rutas son acciones
+                        // puntuales de la tarjeta de producto en "Modelos" -- antes de que
+                        // pantallaEscribir las capturara junto con todo lo demas de Productos,
+                        // se separan para poder dar "eliminar" sin dar "habilitar", etc.
+                        .requestMatchers(HttpMethod.DELETE, "/v1/productos/deleteBy/**")
+                                .hasAnyAuthority(accion("productos/buscar", "eliminar"))
+                        .requestMatchers(HttpMethod.PUT, "/v1/productos/*/habilitar", "/v1/productos/admin/habilitar-lote")
+                                .hasAnyAuthority(accion("productos/buscar", "habilitar"))
+                        .requestMatchers(HttpMethod.GET, "/v1/productos/admin/sin-variantes/reporte")
+                                .hasAnyAuthority(accion("productos/buscar", "descargar-excel"))
                         .requestMatchers(HttpMethod.GET, "/v1/productos/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/v1/productos/**").permitAll()
@@ -180,6 +205,10 @@ public class SecurityConfig {
                                 "/tienda/getOne/**", "/tienda/v1/getOne/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/tienda/**").permitAll()
+                        // Fase 3 de permisos (piloto en Modelos): "Crear variantes" (🧩) de la
+                        // tarjeta de producto en Modelos, antes capturado por el catch-all de abajo.
+                        .requestMatchers(HttpMethod.POST, "/tienda/v1/inicializarDesdeProducto")
+                                .hasAnyAuthority(accion("productos/buscar", "crear-variantes"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
@@ -246,6 +275,10 @@ public class SecurityConfig {
                         .requestMatchers("/v1/menu/**").hasAnyAuthority(pantallaEscribir("gestion-menu"))
                         .requestMatchers(HttpMethod.GET, "/v1/submenu/**").hasAnyAuthority(pantalla("gestion-menu"))
                         .requestMatchers("/v1/submenu/**").hasAnyAuthority(pantallaEscribir("gestion-menu"))
+                        // Catalogo de acciones granulares por pantalla (Fase 3 de permisos,
+                        // piloto en Modelos) -- solo lectura, mismo gate que Menu/Submenu porque
+                        // Gestión de roles ya depende de esa pantalla para pintar el catalogo.
+                        .requestMatchers(HttpMethod.GET, "/v1/accion-submenu/**").hasAnyAuthority(pantalla("gestion-menu"))
                         // rol_submenu -- CRUD de roles + asignacion de pantallas por rol.
                         .requestMatchers(HttpMethod.GET, "/v1/roles/**").hasAnyAuthority(pantalla("gestion-menu/roles"))
                         .requestMatchers("/v1/roles/**").hasAnyAuthority(pantallaEscribir("gestion-menu/roles"))

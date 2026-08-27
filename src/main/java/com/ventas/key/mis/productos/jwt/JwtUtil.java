@@ -37,7 +37,7 @@ public class JwtUtil {
     }
 
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
-        return generateToken(userDetails, idUsuarioRegistrado, List.of(), List.of());
+        return generateToken(userDetails, idUsuarioRegistrado, List.of(), List.of(), List.of());
     }
 
     /**
@@ -53,9 +53,15 @@ public class JwtUtil {
      *                  claim; se manda ademas para que el front pueda, pantalla por pantalla,
      *                  mostrar un modo de solo lectura (ocultar/deshabilitar guardar-editar-borrar)
      *                  en vez de dejar que el usuario intente y se tope con un 403.
+     * @param pantallasAcciones acciones puntuales dentro de una pantalla que el usuario puede usar
+     *                  (Fase 3 de permisos, piloto en Modelos 2026-08-27), formato "ruta:clave"
+     *                  (ej. "productos/buscar:eliminar") -- ver UsuarioServiceImpl.accionesEfectivas.
+     *                  Mismo criterio que pantallasEscritura: el backend ya lo exige via
+     *                  SecurityConfig.accion(), este claim es para que el front pueda mostrar u
+     *                  ocultar cada boton puntual sin adivinar.
      */
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado, List<String> pantallas,
-                                 List<String> pantallasEscritura) {
+                                 List<String> pantallasEscritura, List<String> pantallasAcciones) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
                 .map(mpa -> mpa.getAuthority())
@@ -63,6 +69,7 @@ public class JwtUtil {
         claims.put("idUsuario", idUsuarioRegistrado);
         claims.put("pantallas", pantallas);
         claims.put("pantallasEscritura", pantallasEscritura);
+        claims.put("pantallasAcciones", pantallasAcciones);
         return Jwts.builder()
                 .setClaims(claims)
                 .setId(java.util.UUID.randomUUID().toString())   // jti — para poder invalidarlo

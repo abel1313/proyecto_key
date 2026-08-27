@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.entity.AccionSubmenu;
 import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
@@ -62,6 +63,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * ella (crear/editar/borrar) -- Fase 2 de permisos de accion, ver
      * SecurityConfig.pantallaEscribir(). Antes de esto, dar una pantalla era todo-o-nada. */
     public static final String SUFIJO_AUTORIDAD_ESCRITURA = "_ESCRIBIR";
+
+    /** Sufijo para una accion puntual dentro de una pantalla (Fase 3 de permisos, piloto en
+     * Modelos 2026-08-27) -- authority final: "PANTALLA_&lt;ruta&gt;_ACCION_&lt;clave&gt;". Ver
+     * SecurityConfig#accion. Independiente de {@link #SUFIJO_AUTORIDAD_ESCRITURA}: un rol puede
+     * tener Editar sin una accion puntual, o viceversa. */
+    public static final String SUFIJO_AUTORIDAD_ACCION = "_ACCION_";
 
     @Autowired
     private JwtUtil jwtUtil;
@@ -147,6 +154,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 for (Submenu s : usuarioService.submenusEscritura(usuario.getId())) {
                     authorities.add(new SimpleGrantedAuthority(
                             PREFIJO_AUTORIDAD_PANTALLA + s.getRuta() + SUFIJO_AUTORIDAD_ESCRITURA));
+                }
+                for (AccionSubmenu a : usuarioService.accionesEfectivas(usuario.getId())) {
+                    authorities.add(new SimpleGrantedAuthority(PREFIJO_AUTORIDAD_PANTALLA
+                            + a.getSubmenu().getRuta() + SUFIJO_AUTORIDAD_ACCION + a.getClave()));
                 }
             } catch (Exception e) {
                 log.warn("No se pudieron calcular las pantallas efectivas de {}: {}", usuario.getUsername(), e.getMessage());

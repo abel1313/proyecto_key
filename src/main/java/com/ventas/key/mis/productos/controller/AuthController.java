@@ -151,7 +151,8 @@ public class AuthController {
 
             List<String> pantallas = pantallasEfectivas(usr.getId());
             List<String> pantallasEscritura = pantallasEscrituraEfectivas(usr.getId());
-            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(), pantallas, pantallasEscritura);
+            List<String> pantallasAcciones = pantallasAccionesEfectivas(usr.getId());
+            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(), pantallas, pantallasEscritura, pantallasAcciones);
             String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(),
                     sesion.sessionStartMillis(), sesion.jti(), sesion.sessionId());
 
@@ -229,7 +230,8 @@ public class AuthController {
             long sessionStart = jwtUtil.extractSessionStart(refreshToken);
             List<String> pantallas = pantallasEfectivas(usr.getId());
             List<String> pantallasEscritura = pantallasEscrituraEfectivas(usr.getId());
-            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(), pantallas, pantallasEscritura);
+            List<String> pantallasAcciones = pantallasAccionesEfectivas(usr.getId());
+            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(), pantallas, pantallasEscritura, pantallasAcciones);
             String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart,
                     jtiNuevo.get(), sessionId);
 
@@ -541,6 +543,14 @@ public class AuthController {
     private List<String> pantallasEscrituraEfectivas(int usuarioId) {
         return usuarioService.submenusEscritura(usuarioId).stream()
                 .map(com.ventas.key.mis.productos.entity.Submenu::getRuta)
+                .collect(Collectors.toList());
+    }
+
+    /** Acciones puntuales dentro de una pantalla que el usuario puede usar (Fase 3 de permisos,
+     * piloto en Modelos 2026-08-27), formato "ruta:clave" -- ver {@link #pantallasEscrituraEfectivas}. */
+    private List<String> pantallasAccionesEfectivas(int usuarioId) {
+        return usuarioService.accionesEfectivas(usuarioId).stream()
+                .map(a -> a.getSubmenu().getRuta() + ":" + a.getClave())
                 .collect(Collectors.toList());
     }
 
