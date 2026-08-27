@@ -246,6 +246,11 @@ public class PromocionServiceImpl {
                 variante.getTalla(),
                 variante.getColor(),
                 detalle.getCantidad(),
+                // Faltaba: sin esto, la pantalla de admin (GET /v1/promociones/admin) siempre
+                // mostraba "precio normal" y el ahorro en $0.00 para promociones ya guardadas
+                // (encontrado 2026-08-27, auditoria de correctitud) -- mismo dato que ya trae
+                // PromocionDetalleActivaDto para la pantalla publica.
+                variante.getProducto().getPrecioVenta(),
                 detalle.getPrecioEnPromocion(),
                 obtenerImagenUrl(variante.getId()),
                 variante.getStock());
