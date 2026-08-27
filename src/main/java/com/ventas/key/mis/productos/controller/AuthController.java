@@ -150,7 +150,10 @@ public class AuthController {
             // deteccion de reuso puedan invalidar el refresh token del lado del servidor.
             SesionRefreshService.SesionNueva sesion = sesionRefreshService.crearSesion(usr.getId());
 
-            PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usr.getId());
+            // usr ya viene con Roles+sus 4 colecciones EAGER cargadas (authManager.authenticate()
+            // llama a loadUserByUsername por dentro) -- pasar el objeto en vez del id evita
+            // volver a pedirlo a la BD.
+            PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usr);
             String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(),
                     pantallasClaim(permisos), pantallasEscrituraClaim(permisos), pantallasAccionesClaim(permisos));
             String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(),
@@ -228,7 +231,9 @@ public class AuthController {
             }
 
             long sessionStart = jwtUtil.extractSessionStart(refreshToken);
-            PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usr.getId());
+            // usr ya viene con Roles+sus 4 colecciones EAGER cargadas (loadUserByUsername de
+            // arriba) -- pasar el objeto en vez del id evita volver a pedirlo a la BD.
+            PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usr);
             String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(),
                     pantallasClaim(permisos), pantallasEscrituraClaim(permisos), pantallasAccionesClaim(permisos));
             String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart,

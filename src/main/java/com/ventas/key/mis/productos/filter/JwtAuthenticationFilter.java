@@ -148,13 +148,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * <p><b>Encontrado 2026-08-27 (lentitud reportada en login y en cualquier pantalla que
      * mandara el token):</b> esto llamaba a submenusEfectivos + submenusEscritura +
      * accionesEfectivas por separado -- 3 fetches redundantes del MISMO usuario en cada request
-     * autenticado. Se corrigió a UN SOLO fetch via {@code permisosEfectivos}.
+     * autenticado. Se corrigió a UN SOLO fetch via {@code permisosEfectivos} -- pero ese metodo
+     * TODAVIA volvia a pedir el Usuario a la BD, duplicando el fetch que
+     * {@code userDetailsService.loadUserByUsername} YA hizo unas lineas arriba en el mismo
+     * request. Aqui abajo se usa la variante que reutiliza el {@code usuario} que ya tenemos en
+     * memoria (mismo objeto que dejó {@code userDetails}), sin volver a tocar la BD para
+     * Usuario/Roles -- solo la query de excepciones de usuario_submenu.
      */
     private Collection<? extends GrantedAuthority> autoridadesConPantallas(UserDetails userDetails) {
         List<GrantedAuthority> authorities = new ArrayList<>(userDetails.getAuthorities());
         if (userDetails instanceof Usuario usuario && usuario.getId() != null) {
             try {
-                PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usuario.getId());
+                PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usuario);
                 for (Submenu s : permisos.getPantallas()) {
                     authorities.add(new SimpleGrantedAuthority(PREFIJO_AUTORIDAD_PANTALLA + s.getRuta()));
                 }

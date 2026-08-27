@@ -318,21 +318,37 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     }
 
     /**
-     * Junta pantallas + pantallasEscritura + acciones en UN SOLO fetch del usuario (encontrado
-     * 2026-08-27: JwtAuthenticationFilter y AuthController.login/refresh llamaban a
-     * submenusEfectivos + submenusEscritura + accionesEfectivas por separado, cada una haciendo
-     * su propio usuarioRepository.findById() -- 3 fetches redundantes del MISMO usuario en cada
-     * request autenticado, con Usuario.roles EAGER y Roles con 4 colecciones @ManyToMany EAGER
-     * arrastrando varias queries cada vez. Esto era el causante de la lentitud reportada en
-     * login y en cualquier pantalla que mandara el token, no solo en las nuevas). Usar este
-     * metodo en vez de las 3 sueltas para cualquier caller que necesite las 3 juntas.
+     * Version por id: solo para un caller que NO tenga ya el Usuario en memoria. Hace su propio
+     * fetch -- si ya tienes el Usuario (caso normal: JwtAuthenticationFilter y
+     * AuthController.login/refresh lo reciben de loadUserByUsername/authManager.authenticate,
+     * que YA cargaron Usuario+Roles+sus 4 colecciones EAGER), usa
+     * {@link #permisosEfectivos(Usuario)} para no volver a pedirlo.
      */
     public PermisosEfectivosDto permisosEfectivos(Integer usuarioId) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return permisosEfectivos(usuario);
+    }
+
+    /**
+     * Junta pantallas + pantallasEscritura + acciones a partir de un Usuario YA CARGADO, sin
+     * volver a pedirlo a la BD -- solo hace falta 1 query extra (las excepciones de
+     * usuario_submenu, que no viven en el grafo EAGER de Usuario/Roles).
+     *
+     * <p><b>Encontrado 2026-08-27 (lentitud reportada en login y en cualquier pantalla que
+     * mandara el token, empeoro notablemente al agregar Fase 3):</b> primero se detecto que
+     * JwtAuthenticationFilter y AuthController.login/refresh llamaban a submenusEfectivos +
+     * submenusEscritura + accionesEfectivas por separado (3 fetches redundantes). Se corrigio a
+     * un solo permisosEfectivos(usuarioId) -- pero ese metodo TAMBIEN volvia a pedir el Usuario
+     * por su cuenta, duplicando el fetch que loadUserByUsername/authManager.authenticate() YA
+     * habian hecho segundos antes en el mismo request (Usuario.roles es EAGER y Roles tiene 4
+     * colecciones @ManyToMany EAGER -- cargarlo 2 veces seguidas costaba el doble de lo
+     * necesario). Esta version reusa el objeto que el caller ya tiene en memoria.
+     */
+    public PermisosEfectivosDto permisosEfectivos(Usuario usuario) {
         Set<Submenu> pantallas = new HashSet<>(usuario.getRoles() != null
                 ? usuario.getRoles().getSubmenus() : Set.of());
-        List<UsuarioSubmenu> excepciones = usuarioSubmenuRepository.findByUsuarioId(usuarioId);
+        List<UsuarioSubmenu> excepciones = usuarioSubmenuRepository.findByUsuarioId(usuario.getId());
         excepciones.stream().filter(UsuarioSubmenu::getConcedido).forEach(e -> pantallas.add(e.getSubmenu()));
         excepciones.stream().filter(e -> !e.getConcedido())
                 .forEach(e -> pantallas.removeIf(s -> s.getId().equals(e.getSubmenu().getId())));
