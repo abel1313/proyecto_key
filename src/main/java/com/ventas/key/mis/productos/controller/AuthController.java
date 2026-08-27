@@ -150,7 +150,8 @@ public class AuthController {
             SesionRefreshService.SesionNueva sesion = sesionRefreshService.crearSesion(usr.getId());
 
             List<String> pantallas = pantallasEfectivas(usr.getId());
-            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(), pantallas);
+            List<String> pantallasEscritura = pantallasEscrituraEfectivas(usr.getId());
+            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(), pantallas, pantallasEscritura);
             String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(),
                     sesion.sessionStartMillis(), sesion.jti(), sesion.sessionId());
 
@@ -227,7 +228,8 @@ public class AuthController {
 
             long sessionStart = jwtUtil.extractSessionStart(refreshToken);
             List<String> pantallas = pantallasEfectivas(usr.getId());
-            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(), pantallas);
+            List<String> pantallasEscritura = pantallasEscrituraEfectivas(usr.getId());
+            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(), pantallas, pantallasEscritura);
             String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart,
                     jtiNuevo.get(), sessionId);
 
@@ -530,6 +532,14 @@ public class AuthController {
     /** Rutas (Submenu.ruta) efectivas del usuario -- se meten al JWT para el PantallaGuard/menu dinamico. */
     private List<String> pantallasEfectivas(int usuarioId) {
         return usuarioService.submenusEfectivos(usuarioId).stream()
+                .map(com.ventas.key.mis.productos.entity.Submenu::getRuta)
+                .collect(Collectors.toList());
+    }
+
+    /** Subconjunto de {@link #pantallasEfectivas} en las que el usuario ademas puede ESCRIBIR --
+     * Fase 2 de permisos de accion (2026-08-27), ver UsuarioServiceImpl.submenusEscritura. */
+    private List<String> pantallasEscrituraEfectivas(int usuarioId) {
+        return usuarioService.submenusEscritura(usuarioId).stream()
                 .map(com.ventas.key.mis.productos.entity.Submenu::getRuta)
                 .collect(Collectors.toList());
     }

@@ -51,4 +51,30 @@ public class RolesController extends AbstractController<
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
     }
+
+    // Fase 2 de permisos de accion: ademas de VER la pantalla (arriba), puede ESCRIBIR en ella
+    // (crear/editar/borrar). Requiere tener ya el "ver" -- ver RolesServiceImpl.agregarSubmenuEscritura.
+    @PostMapping("/{rolId}/submenus/{submenuId}/escritura")
+    public ResponseEntity<ResponseGeneric<Roles>> agregarSubmenuEscritura(
+            @PathVariable Integer rolId, @PathVariable Integer submenuId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarSubmenuEscritura(rolId, submenuId)));
+        } catch (Exception e) {
+            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @DeleteMapping("/{rolId}/submenus/{submenuId}/escritura")
+    public ResponseEntity<ResponseGeneric<Roles>> quitarSubmenuEscritura(
+            @PathVariable Integer rolId, @PathVariable Integer submenuId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarSubmenuEscritura(rolId, submenuId)));
+        } catch (Exception e) {
+            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
 }

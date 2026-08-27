@@ -65,6 +65,25 @@ public class SecurityConfig {
         return authorities;
     }
 
+    /**
+     * Fase 2 de permisos de accion (2026-08-27): igual que {@link #pantalla}, pero para las
+     * operaciones de ESCRITURA (crear/editar/borrar) de una pantalla -- exige la authority
+     * "PANTALLA_&lt;ruta&gt;_ESCRIBIR" que {@link JwtAuthenticationFilter} solo agrega cuando el
+     * rol tiene esa pantalla en rol_submenu_escritura, no solo en rol_submenu. Antes de esto,
+     * dar de alta una pantalla alcanzaba automaticamente para escribir en ella; ahora es un
+     * segundo permiso explicito. Los GET de cada bloque siguen pidiendo {@link #pantalla} (ver
+     * la pantalla no cambia), solo los metodos que modifican datos piden este.
+     */
+    private static String[] pantallaEscribir(String... rutas) {
+        String[] authorities = new String[rutas.length + 1];
+        authorities[0] = "ROLE_ADMIN";
+        for (int i = 0; i < rutas.length; i++) {
+            authorities[i + 1] = JwtAuthenticationFilter.PREFIJO_AUTORIDAD_PANTALLA + rutas[i]
+                    + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ESCRITURA;
+        }
+        return authorities;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         log.info("SecurityConfig cargado");
@@ -106,14 +125,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes/*/imagen").permitAll()
-                        .requestMatchers("/v1/negocio/**").hasAnyAuthority(pantalla("admin/negocio"))
-                        .requestMatchers("/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))
+                        .requestMatchers(HttpMethod.GET, "/v1/negocio/**").hasAnyAuthority(pantalla("admin/negocio"))
+                        .requestMatchers("/v1/negocio/**").hasAnyAuthority(pantallaEscribir("admin/negocio"))
+                        .requestMatchers(HttpMethod.GET, "/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))
+                        .requestMatchers("/presentacion/**").hasAnyAuthority(pantallaEscribir("admin/presentacion"))
 
                         // ── Personalización de tema -- catálogo dinámico de variables (GET
                         //    /activo público: hasta un visitante anónimo necesita el tema activo
                         //    para pintar la tienda; el resto del CRUD es solo ADMIN) ──────────
                         .requestMatchers(HttpMethod.GET, "/v1/tema-variable/activo").permitAll()
-                        .requestMatchers("/v1/tema-variable/**").hasAnyAuthority(pantalla("personalizacion"))
+                        .requestMatchers(HttpMethod.GET, "/v1/tema-variable/**").hasAnyAuthority(pantalla("personalizacion"))
+                        .requestMatchers("/v1/tema-variable/**").hasAnyAuthority(pantallaEscribir("personalizacion"))
 
                         // ── Auth ──────────────────────────────────────────────────────────
                         .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar",
@@ -130,7 +152,7 @@ public class SecurityConfig {
 
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
-                        .requestMatchers("/v1/palabras-clave/**").hasAnyAuthority(pantalla("palabras-clave"))
+                        .requestMatchers("/v1/palabras-clave/**").hasAnyAuthority(pantallaEscribir("palabras-clave"))
 
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
                         // Varias pantallas distintas escriben aca (Modelos, Agregar modelo,
@@ -139,11 +161,16 @@ public class SecurityConfig {
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/v1/productos/**").permitAll()
                         .requestMatchers("/v1/productos/**")
-                                .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
+                                .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta"))
 
                         // ── Tienda / variantes (GETs públicos; escritura solo ADMIN) ────────
+                        // Gestionar promociones usa /tienda/v1/admin/filtrar para su buscador de
+                        // variantes embebido -- sin admin/promociones aca, ese permiso solo
+                        // alcanzaba para el CRUD propio de promociones pero no para buscar la
+                        // variante a promocionar.
                         .requestMatchers(HttpMethod.GET, "/tienda/admin/**", "/tienda/v1/admin/**")
-                                .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
+                                .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
+                                        "admin/promociones"))
                         // El CRUD generico heredado de AbstractController devuelve la entidad
                         // Variantes cruda -> arrastra el Producto completo, con precio_costo y
                         // precio_rebaja, y sin el filtro de catalogo publico (listaba tambien
@@ -155,11 +182,17 @@ public class SecurityConfig {
                                 "/tienda/getOne/**", "/tienda/v1/getOne/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/tienda/**").permitAll()
+                        // Catalogos de flores y Administrar ramos armados suben fotos de sus
+                        // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
+                        // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
+                        // para guardar una foto y el usuario se topaba con un 403 "escondido".
                         .requestMatchers("/tienda/**")
-                                .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
+                                .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta",
+                                        "flores/catalogos", "flores/ramos-admin"))
 
                         // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
-                        .requestMatchers("/v1/carga-imagenes/**").hasAnyAuthority(pantalla("carga-imagenes"))
+                        .requestMatchers(HttpMethod.GET, "/v1/carga-imagenes/**").hasAnyAuthority(pantalla("carga-imagenes"))
+                        .requestMatchers("/v1/carga-imagenes/**").hasAnyAuthority(pantallaEscribir("carga-imagenes"))
 
                         // ── Imágenes (GETs públicos excepto caché; escritura solo ADMIN) ────
                         .requestMatchers(HttpMethod.GET, "/imagen/cache/**").hasRole("ADMIN")
@@ -168,17 +201,19 @@ public class SecurityConfig {
 
                         // ── Usuarios (gestion de cuentas/roles/permisos: solo ADMIN) ──────
                         .requestMatchers("/v1/usuarios/buscarClientePorIdUsuario/**").permitAll()
-                        .requestMatchers("/v1/usuarios/**").hasAnyAuthority(pantalla("usuarios/buscar"))
+                        .requestMatchers(HttpMethod.GET, "/v1/usuarios/**").hasAnyAuthority(pantalla("usuarios/buscar"))
+                        .requestMatchers("/v1/usuarios/**").hasAnyAuthority(pantallaEscribir("usuarios/buscar"))
 
                         // ── Clientes (alta/edicion propia para autenticado — control de
                         //    propiedad en ClienteControllerImpl; busqueda y baja solo ADMIN) ──
                         .requestMatchers(HttpMethod.GET, "/v1/clientes/buscar").hasAnyAuthority(pantalla("clientes/buscar"))
-                        .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasAnyAuthority(pantalla("clientes/buscar"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasAnyAuthority(pantallaEscribir("clientes/buscar"))
                         .requestMatchers("/v1/clientes/**").authenticated()
 
                         // ── Cliente sin registro (alta + verificacion de correo, solo ADMIN
                         //    lo captura durante la venta directa) ──────────────────────────
-                        .requestMatchers("/v1/clientes-sin-registro/**").hasAnyAuthority(pantalla("tienda/venta-directa"))
+                        .requestMatchers(HttpMethod.GET, "/v1/clientes-sin-registro/**").hasAnyAuthority(pantalla("tienda/venta-directa"))
+                        .requestMatchers("/v1/clientes-sin-registro/**").hasAnyAuthority(pantallaEscribir("tienda/venta-directa"))
 
                         // ── Pedidos (consulta y alta para autenticado; gestión solo ADMIN) ──
                         // buscarClientePedido busca SIN filtro de dueño en TODOS los pedidos de
@@ -203,15 +238,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
-                        .requestMatchers("/v1/abonos/**").hasAnyAuthority(pantalla("abonos"))
+                        .requestMatchers(HttpMethod.GET, "/v1/abonos/**").hasAnyAuthority(pantalla("abonos"))
+                        .requestMatchers("/v1/abonos/**").hasAnyAuthority(pantallaEscribir("abonos"))
 
                         // ── Menu/Submenu (catalogo de pantallas, Fase 1 de PLAN_PERMISOS_PANTALLAS.md
                         //    -- repo compartido). Fase 2: ya hay pantallas dedicadas para esto
                         //    (gestion-menu / gestion-menu/roles), asi que dejan de ser hasRole fijo.
-                        .requestMatchers("/v1/menu/**").hasAnyAuthority(pantalla("gestion-menu"))
-                        .requestMatchers("/v1/submenu/**").hasAnyAuthority(pantalla("gestion-menu"))
+                        .requestMatchers(HttpMethod.GET, "/v1/menu/**").hasAnyAuthority(pantalla("gestion-menu"))
+                        .requestMatchers("/v1/menu/**").hasAnyAuthority(pantallaEscribir("gestion-menu"))
+                        .requestMatchers(HttpMethod.GET, "/v1/submenu/**").hasAnyAuthority(pantalla("gestion-menu"))
+                        .requestMatchers("/v1/submenu/**").hasAnyAuthority(pantallaEscribir("gestion-menu"))
                         // rol_submenu -- CRUD de roles + asignacion de pantallas por rol.
-                        .requestMatchers("/v1/roles/**").hasAnyAuthority(pantalla("gestion-menu/roles"))
+                        .requestMatchers(HttpMethod.GET, "/v1/roles/**").hasAnyAuthority(pantalla("gestion-menu/roles"))
+                        .requestMatchers("/v1/roles/**").hasAnyAuthority(pantallaEscribir("gestion-menu/roles"))
 
                         // ── Lugares de entrega (catalogo; lectura publica -- mismo criterio que
                         //    los catalogos de flores de abajo: nombre de zona y costo de envio,
@@ -222,7 +261,7 @@ public class SecurityConfig {
                         // calcular-costo (anillos) lo llama el checkout ANTES de que el cliente tenga
                         // sesion necesariamente (visitante anonimo cotizando) -- ver DISENO_ZONAS_POR_ANILLO.md.
                         .requestMatchers(HttpMethod.POST, "/v1/lugares-entrega/*/calcular-costo").permitAll()
-                        .requestMatchers("/v1/lugares-entrega/**").hasAnyAuthority(pantalla("lugares-entrega"))
+                        .requestMatchers("/v1/lugares-entrega/**").hasAnyAuthority(pantallaEscribir("lugares-entrega"))
 
                         // ── Promociones (catalogo publico -- mismo criterio que la cinta de
                         //    promociones de abajo: el listado de "hay promos activas" lo pinta la
@@ -236,29 +275,30 @@ public class SecurityConfig {
                         //    (crear/editar/borrar) sigue solo ADMIN) ────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/admin/**").hasAnyAuthority(pantalla("admin/promociones"))
                         .requestMatchers(HttpMethod.GET, "/v1/promociones/activas").permitAll()
-                        .requestMatchers("/v1/promociones/**").hasAnyAuthority(pantalla("admin/promociones"))
+                        .requestMatchers(HttpMethod.GET, "/v1/promociones/**").hasAnyAuthority(pantalla("admin/promociones"))
+                        .requestMatchers("/v1/promociones/**").hasAnyAuthority(pantallaEscribir("admin/promociones"))
 
                         // ── Flores eternas — catalogos (lectura publica: el cliente configura
                         //    y cotiza su ramo sin necesidad de estar logueado, igual que la
                         //    cinta de promociones; alta/edicion/baja solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/tipos-flor/**").permitAll()
-                        .requestMatchers("/v1/tipos-flor/**").hasAnyAuthority(pantalla("flores/catalogos"))
+                        .requestMatchers("/v1/tipos-flor/**").hasAnyAuthority(pantallaEscribir("flores/catalogos"))
                         .requestMatchers(HttpMethod.GET, "/v1/cantidades-flor/**").permitAll()
-                        .requestMatchers("/v1/cantidades-flor/**").hasAnyAuthority(pantalla("flores/catalogos"))
+                        .requestMatchers("/v1/cantidades-flor/**").hasAnyAuthority(pantallaEscribir("flores/catalogos"))
                         .requestMatchers(HttpMethod.GET, "/v1/accesorios-ramo/**").permitAll()
-                        .requestMatchers("/v1/accesorios-ramo/**").hasAnyAuthority(pantalla("flores/catalogos"))
+                        .requestMatchers("/v1/accesorios-ramo/**").hasAnyAuthority(pantallaEscribir("flores/catalogos"))
                         .requestMatchers(HttpMethod.GET, "/v1/frases-liston/**").permitAll()
-                        .requestMatchers("/v1/frases-liston/**").hasAnyAuthority(pantalla("flores/catalogos"))
+                        .requestMatchers("/v1/frases-liston/**").hasAnyAuthority(pantallaEscribir("flores/catalogos"))
                         // Colores de cada especie -- publico para que el cliente elija color tras la cantidad.
                         .requestMatchers(HttpMethod.GET, "/v1/colores-flor/**").permitAll()
-                        .requestMatchers("/v1/colores-flor/**").hasAnyAuthority(pantalla("flores/catalogos"))
+                        .requestMatchers("/v1/colores-flor/**").hasAnyAuthority(pantallaEscribir("flores/catalogos"))
                         .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/admin").hasAnyAuthority(pantalla("flores/ramos-admin"))
                         .requestMatchers(HttpMethod.GET, "/v1/ramos-armados/**").permitAll()
-                        .requestMatchers("/v1/ramos-armados/**").hasAnyAuthority(pantalla("flores/ramos-admin"))
+                        .requestMatchers("/v1/ramos-armados/**").hasAnyAuthority(pantallaEscribir("flores/ramos-admin"))
                         // "Ticket de produccion" de un ramo, colgado de un Pedido ya creado -- requiere
                         // sesion igual que el resto de /v1/pedidos/**; validar la frase y la bandeja
                         // de frases pendientes de TODOS los pedidos son solo ADMIN.
-                        .requestMatchers(HttpMethod.PUT, "/v1/flores/pedidos/detalle/*/validar-frase").hasAnyAuthority(pantalla("flores/frases"))
+                        .requestMatchers(HttpMethod.PUT, "/v1/flores/pedidos/detalle/*/validar-frase").hasAnyAuthority(pantallaEscribir("flores/frases"))
                         .requestMatchers(HttpMethod.GET, "/v1/flores/pedidos/frases-pendientes").hasAnyAuthority(pantalla("flores/frases"))
                         .requestMatchers("/v1/flores/pedidos/**").authenticated()
                         // Motor de calculo (validar cantidad / cotizar precio): publico, solo lectura/calculo.
@@ -268,7 +308,8 @@ public class SecurityConfig {
                         //    la tienda para CUALQUIER visitante, incluso sin login -- si exigiera
                         //    auth el cliente anonimo la veria vacia. Alta/edicion/baja solo ADMIN) ─
                         .requestMatchers(HttpMethod.GET, "/v1/cinta/activos").permitAll()
-                        .requestMatchers("/v1/cinta/**").hasAnyAuthority(pantalla("admin/cinta"))
+                        .requestMatchers(HttpMethod.GET, "/v1/cinta/**").hasAnyAuthority(pantalla("admin/cinta"))
+                        .requestMatchers("/v1/cinta/**").hasAnyAuthority(pantallaEscribir("admin/cinta"))
 
                         // ── Favoritos (100% del cliente autenticado, sin vista admin) ───────
                         .requestMatchers("/v1/favoritos/**").authenticated()
@@ -291,29 +332,46 @@ public class SecurityConfig {
                         .requestMatchers("/v1/pagos/**").hasRole("ADMIN")
 
                         // ── Gastos ────────────────────────────────────────────────────────
-                        .requestMatchers("/v1/gastos/**").hasAnyAuthority(pantalla("gastos/buscar"))
+                        .requestMatchers(HttpMethod.GET, "/v1/gastos/**").hasAnyAuthority(pantalla("gastos/buscar"))
+                        .requestMatchers("/v1/gastos/**").hasAnyAuthority(pantallaEscribir("gastos/buscar"))
 
                         // ── Reportes de ventas ───────────────────────────────────────────
-                        .requestMatchers("/v1/reportes/**").hasAnyAuthority(pantalla("reportes"))
+                        .requestMatchers(HttpMethod.GET, "/v1/reportes/**").hasAnyAuthority(pantalla("reportes"))
+                        .requestMatchers("/v1/reportes/**").hasAnyAuthority(pantallaEscribir("reportes"))
 
                         // ── Dashboard ─────────────────────────────────────────────────────
-                        .requestMatchers("/v1/dashboard/**").hasAnyAuthority(pantalla("dashboard"))
+                        .requestMatchers(HttpMethod.GET, "/v1/dashboard/**").hasAnyAuthority(pantalla("dashboard"))
+                        .requestMatchers("/v1/dashboard/**").hasAnyAuthority(pantallaEscribir("dashboard"))
 
                         // ── Redes sociales (publicar variantes en Facebook) ───────────────
-                        .requestMatchers("/v1/redes-sociales/**").hasAnyAuthority(pantalla("admin/facebook", "admin/hashtags"))
+                        .requestMatchers(HttpMethod.GET, "/v1/redes-sociales/**").hasAnyAuthority(pantalla("admin/facebook", "admin/hashtags"))
+                        .requestMatchers("/v1/redes-sociales/**").hasAnyAuthority(pantallaEscribir("admin/facebook", "admin/hashtags"))
 
                         // ── Rifas y concursantes ──────────────────────────────────────────
-                        .requestMatchers(
+                        .requestMatchers(HttpMethod.GET,
                                 "/v1/rifa/**", "/v1/ganadorRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
                         ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar"))
+                        .requestMatchers(
+                                "/v1/rifa/**", "/v1/ganadorRifa/**",
+                                "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
+                        ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar"))
 
                         // ── Carga de documentos (Excel) ───────────────────────────────────
-                        .requestMatchers("/v1/documentos/**").hasAnyAuthority(pantalla("tienda/cargar-excel"))
+                        .requestMatchers(HttpMethod.GET, "/v1/documentos/**").hasAnyAuthority(pantalla("tienda/cargar-excel"))
+                        .requestMatchers("/v1/documentos/**").hasAnyAuthority(pantallaEscribir("tienda/cargar-excel"))
 
                         // ── Admin (gestión interna del servidor) ──────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
-                        .requestMatchers("/v1/admin/**").hasAnyAuthority(pantalla("admin/cache"))
+                        // Reconciliacion de imagenes ya tiene su propia pantalla en el catalogo
+                        // (admin/reconciliacion-imagenes) -- antes vivia bajo admin/cache, asi que
+                        // dar solo ese permiso especifico no alcanzaba para usarla.
+                        .requestMatchers(HttpMethod.GET, "/v1/admin/reconciliacion/**")
+                                .hasAnyAuthority(pantalla("admin/reconciliacion-imagenes"))
+                        .requestMatchers("/v1/admin/reconciliacion/**")
+                                .hasAnyAuthority(pantallaEscribir("admin/reconciliacion-imagenes"))
+                        .requestMatchers(HttpMethod.GET, "/v1/admin/**").hasAnyAuthority(pantalla("admin/cache"))
+                        .requestMatchers("/v1/admin/**").hasAnyAuthority(pantallaEscribir("admin/cache"))
 
                         // ── Actuator ──────────────────────────────────────────────────────
                         // qa/docker exponen 'caches' ademas de 'health'. Sin esta regla caian en
@@ -328,7 +386,8 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
 
                         // ── Chat en vivo (panel admin requiere ADMIN; conexión pública) ───
-                        .requestMatchers("/v1/chat/admin/**").hasAnyAuthority(pantalla("admin/chat"))
+                        .requestMatchers(HttpMethod.GET, "/v1/chat/admin/**").hasAnyAuthority(pantalla("admin/chat"))
+                        .requestMatchers("/v1/chat/admin/**").hasAnyAuthority(pantallaEscribir("admin/chat"))
                         // El historial por usuarioId/clienteId es SOLO para el chat de un usuario
                         // ya autenticado (ver ChatLiveService.conectar() en el front -- nunca lo
                         // llama si no hay usuarioId). Estaba cayendo en el permitAll de abajo sin

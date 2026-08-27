@@ -16741,10 +16741,9 @@ para esto). Guarda el primer `access_token`/`refresh_token` en una tabla nueva
 (`tiktok_token`, fila única) — de ahí en adelante el back se refresca solo antes de cada
 publicación (el token de TikTok dura ~24h, a diferencia del de Facebook que no expira).
 
-### Migración pendiente de correr
+### Migración
 
-`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Todavía no corrió en ningún ambiente,
-falta cuando decidan.
+`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Ejecutada en QA y prod (2026-08-27).
 
 No hace falta nada nuevo del front todavía para TikTok — la pantalla ya lo tiene contemplado como
 deshabilitado según dijeron. Avisamos cuando esté probado en Sandbox para que lo activen.
@@ -17793,6 +17792,126 @@ equivalente en el catálogo todavía (gestión de imágenes compartida, gestión
 PUT/DELETE, Ventas, MercadoPago, Pagos, responder Reseñas, Actuator) — si en algún momento se
 necesita que un rol no-admin los use, hay que darlos de alta como pantalla primero.
 
+### Corrección — 3 pantallas que dependían "escondidas" de otra pantalla (2026-08-27)
+
+Al armar el mapa completo pantalla→endpoint se encontraron 3 pantallas cuya funcionalidad
+dependía de un permiso ajeno sin que nada lo indicara: dar de alta esa pantalla sola a un rol no
+alcanzaba, y el usuario se topaba con un 403 al usar una parte de la vista sin entender por qué.
+Corregido:
+
+- **Catálogos** (`flores/catalogos`) y **Administrar ramos armados** (`flores/ramos-admin`):
+  subir la foto de un color/accesorio/frase/ramo llama a `POST /tienda/v1/guardarConImagenes`
+  (endpoint genérico de variantes), que antes solo aceptaba las pantallas de Productos
+  (`productos/buscar`/`productos/agregar`/`tienda/venta`). Ahora también acepta la pantalla propia
+  de cada vista.
+- **Gestionar promociones** (`admin/promociones`): el buscador de variantes embebido para armar
+  el combo llama a `GET /tienda/v1/admin/filtrar`, que antes solo aceptaba las pantallas de
+  Productos. Ahora también acepta `admin/promociones`.
+- **Reconciliación de imágenes**: antes compartía la pantalla `admin/cache` ("Limpiar caché") en
+  vez de tener la suya propia — el submenú `admin/reconciliacion-imagenes` ya existía en el
+  catálogo pero no se usaba. Ahora `POST/GET /v1/admin/reconciliacion/**` exige esa pantalla
+  propia (o `ROLE_ADMIN`), separado de "Limpiar caché".
+
+**Nota:** las 3 correcciones son aditivas (agregan una pantalla alternativa, no quitan la que ya
+funcionaba) — no rompen nada para quien ya tenía acceso vía las pantallas de Productos.
+
+**⚠️ Interdependencias que siguen igual, documentadas pero no cambiadas** (decisión de producto,
+no bug): "Entregas" (`flores/entregas`) no tiene endpoints propios, reutiliza por completo el CRUD
+de "Catálogos → Cantidades" (`flores/catalogos`); no hay una pantalla independiente para separar
+esas dos vistas si algún día se necesitara.
+
+---
+
+## Fase 2 de permisos de acción — Ver vs. Editar por pantalla (2026-08-27)
+
+Hasta ahora, dar una pantalla a un rol era todo-o-nada: si un rol podía VER "Modelos", automática-
+mente podía también crear/editar/borrar productos — no existía forma de dar acceso de solo lectura.
+Ya no: cada pantalla ahora tiene dos permisos independientes, **Ver** (como antes, sin cambios de
+comportamiento) y **Editar** (nuevo). Editar solo se puede dar si el rol ya tiene Ver de esa misma
+pantalla; si a un rol se le quita el Ver, el back automáticamente le quita también el Editar (no
+queda un permiso de escritura "huérfano" sin el de lectura).
+
+**Dónde se configura:** Sistema → Gestión de roles (`/gestion-menu/roles`) — cada pantalla del
+listado ahora tiene 2 checkboxes en vez de 1: "☑ (pantalla)" (Ver, como siempre) y "☑ ✏️ Editar"
+al lado, deshabilitado hasta que Ver esté marcado.
+
+**Nuevos endpoints** (mismo patrón que los ya existentes para Ver):
+- `POST /v1/roles/{rolId}/submenus/{submenuId}/escritura` — le da a `rolId` permiso de Editar en
+  `submenuId`. 400 si el rol todavía no tiene el Ver de esa pantalla.
+- `DELETE /v1/roles/{rolId}/submenus/{submenuId}/escritura` — le quita el Editar (el Ver no se
+  toca). 400 si es ROLE_ADMIN y la pantalla es `gestion-menu`/`gestion-menu/roles` (protegidas,
+  mismo criterio que ya existía para el Ver).
+- Ambos devuelven el `Roles` completo actualizado, igual que los endpoints de Ver — el campo nuevo
+  es `submenusEscritura: ISubmenu[]` (además del `submenus: ISubmenu[]` que ya existía), tanto en
+  la respuesta de estos 2 endpoints como en `GET /v1/roles/getAll`.
+
+**Cómo lo aplica el backend (no requiere nada del front, ya está activo):** cada pantalla que
+antes exigía `ROLE_ADMIN` o la authority `PANTALLA_<ruta>` para TODOS los métodos, ahora separa:
+los `GET` siguen pidiendo solo `PANTALLA_<ruta>` (Ver, sin cambio), y `POST`/`PUT`/`DELETE` piden
+además `PANTALLA_<ruta>_ESCRIBIR` (Editar, nuevo — se rechaza con 403 si el rol no lo tiene aunque
+sí pueda ver la pantalla). Aplica a las ~20 pantallas que ya eran de gestión (Usuarios, Roles,
+Menú/Submenú, Gastos, Reportes, Dashboard, Redes sociales, Rifas, Documentos, Admin/Reconciliación,
+Chat admin, Negocio, Presentación, Personalización, Productos/Tienda admin, Promociones, Flores
+catálogos/ramos-admin/frases, Cinta, Clientes, Carga de imágenes, Lugares de entrega, Palabras
+clave, Abonos, Clientes-sin-registro). Las pantallas cuya lectura ya era 100% pública (el catálogo
+que ve cualquier visitante) no cambian: ahí "Ver" nunca estuvo restringido, solo Editar.
+
+**Migración `migration_permiso_escritura.sql` — ya ejecutada en QA y prod (2026-08-27).** Creó la
+tabla `rol_submenu_escritura` y sembró, para cada rol que ya tenía una pantalla, el permiso de
+Editar de esa misma pantalla — nadie perdió acceso al correrla (el comportamiento "ver = poder
+editar" que existía hasta ahora quedó exactamente igual para todo rol ya existente, incluido
+ROLE_ADMIN). Desde ahora, el admin puede ir a Gestión de roles y quitarle a un rol el Editar de
+una pantalla puntual sin tocar las demás.
+
+**JWT — nuevo claim, todavía no consumido por las pantallas individuales:** el access token ahora
+trae, además de `pantallas: string[]` (como ya existía), un `pantallasEscritura: string[]` — el
+subconjunto de esas pantallas donde el usuario logueado puede además escribir. El backend YA
+rechaza con 403 cualquier escritura fuera de ese subconjunto sin importar este claim (la seguridad
+real está en `SecurityConfig`, no en el front). El claim se agregó para que, más adelante, cada
+uno de los ~45 componentes admin pueda leerlo y mostrar un modo de solo lectura (ocultar/deshabi-
+litar botones de guardar/editar/borrar) en vez de dejar que el usuario intente y se tope con un
+403 recién al hacer clic — **eso todavía no está hecho pantalla por pantalla**, es trabajo pendiente
+aparte. Hoy, un rol con solo Ver en una pantalla verá los mismos botones de siempre en esa pantalla,
+pero al usarlos el back los rechazará.
+
+**Alcance de esta entrega — qué SÍ y qué NO:**
+- SÍ: enforcement completo en el backend (imposible saltárselo desde el front).
+- SÍ: la UI de Gestión de roles para configurar Ver/Editar por pantalla y rol.
+- SÍ: el claim `pantallasEscritura` en el JWT, listo para consumirse.
+- NO (pendiente): deshabilitar/ocultar botones de guardar-editar-borrar dentro de cada una de las
+  ~45 pantallas admin cuando el usuario solo tiene Ver. Sin eso, un rol de solo lectura ve los
+  botones igual mientras no llegue el fix pantalla por pantalla, pero no puede completar la acción
+  (el back la rechaza).
+- Las excepciones por usuario individual (`usuario_submenu`) siguen siendo solo de nivel Ver — no
+  tienen su propio Editar; ese nivel de granularidad hoy solo se controla por rol.
+
+---
+
+## UI de excepciones de pantalla por usuario individual (2026-08-27)
+
+El backend de `usuario_submenu` (concedido=true/false, encima de lo que ya da el rol) existía
+desde antes sin pantalla en el front. Ya tiene una: dentro de **Sistema → Usuarios → Actualizar
+usuario** (`app-add-usuarios`, mismo componente para alta y edición), justo debajo de "Rol" y
+"💾 Guardar permisos", aparece una nueva sección plegable **"🔓 Excepciones de pantalla de
+{usuario}"** — solo visible editando un usuario existente (no al dar de alta uno nuevo), con el
+mismo acordeón por grupo que usa Gestión de roles.
+
+Cada pantalla del catálogo es un botón con 3 estados, que se ciclan con un clic:
+1. **Según su rol** (sin excepción — estado normal, la mayoría).
+2. **✅ Se le dio acceso** (`concedido=true`) — el usuario ve/usa esa pantalla aunque su rol no
+   se la dé.
+3. **🚫 Se le quitó acceso** (`concedido=false`) — el usuario NO ve esa pantalla aunque su rol sí
+   se la dé.
+
+Un cuarto clic vuelve a "Según su rol" (borra la excepción). Usa los endpoints que ya existían:
+`GET /v1/usuarios/{id}/submenus/excepciones`, `POST /v1/usuarios/{id}/submenus/{submenuId}?concedido=`,
+`DELETE /v1/usuarios/{id}/submenus/{submenuId}`.
+
+**Importante:** esta excepción individual sigue siendo solo de nivel **Ver** (lo que ya se sabía
+antes de Fase 2 de permisos de acción) — no tiene su propio Editar. Si un usuario necesita
+Editar en una pantalla que su rol no le da, hoy la única forma es dársela vía Gestión de roles
+(afecta a todo el rol) o cambiarle el rol; una excepción individual de Editar no está construida.
+
 ---
 
 # Mapa de pantallas → endpoints → protección → microservicio (2026-08-27)
@@ -17815,7 +17934,11 @@ del back, pero se documenta abajo en cada pantalla donde aplica.
   valida que sea tu propio recurso (Fase 2 de seguridad, IDOR corregidas el 2026-08-27).
 - **Pantalla `x`** = el backend exige `ROLE_ADMIN` **o** que tu rol tenga esa pantalla concedida
   en Gestión de roles (Fase 2 de permisos, 2026-08-27) — antes de eso todo lo admin exigía
-  `ROLE_ADMIN` fijo sin importar qué pantallas tuviera asignadas tu rol.
+  `ROLE_ADMIN` fijo sin importar qué pantallas tuviera asignadas tu rol. Desde la Fase 2 de
+  permisos de acción (ver sección propia más arriba), esto aplica tal cual a los `GET` (Ver); los
+  métodos que escriben (`POST`/`PUT`/`DELETE`) además piden el checkbox "Editar" de esa misma
+  pantalla, no solo el de "Ver" — no lo repito en cada entrada de abajo para no duplicar 45 veces
+  lo mismo, aplica parejo a todas las que dicen "Pantalla `x`".
 - **ROLE_ADMIN fijo** = todavía no tiene una pantalla equivalente en el catálogo; solo admin,
   sin importar qué le asignes a otro rol.
 
@@ -18056,7 +18179,7 @@ del back, pero se documenta abajo en cada pantalla donde aplica.
 - `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll` — público
 - `POST/PUT/DELETE` de cada uno de los 5 catálogos anteriores — pantalla `flores/catalogos`
 - `GET /tienda/v1/imagenes/{varianteId}` — público
-- `POST /tienda/v1/guardarConImagenes` (subir foto de un color/accesorio/frase) — ⚠️ pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`, **no** `flores/catalogos` (la escritura de foto pasa por el endpoint de variantes del catálogo general)
+- `POST /tienda/v1/guardarConImagenes` (subir foto de un color/accesorio/frase) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `flores/catalogos` (desde 2026-08-27; antes solo aceptaba las de productos y dar solo `flores/catalogos` daba 403 al subir foto)
 **Microservicio:** SÍ — cada color/accesorio/frase es una "variante interna"; subir su foto dispara el microservicio de imágenes.
 
 ### 🚚 Entregas
@@ -18081,7 +18204,7 @@ del back, pero se documenta abajo en cada pantalla donde aplica.
 - `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll` — público
 - `GET /v1/ramos-armados/admin`, `POST /v1/ramos-armados`, `PUT /v1/ramos-armados/{id}`, `PUT /v1/ramos-armados/{id}/activo` — pantalla `flores/ramos-admin`
 - `GET /tienda/v1/imagenes/{varianteId}` — público
-- `POST /tienda/v1/guardarConImagenes` (subir foto del ramo) — ⚠️ pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`, no `flores/ramos-admin`
+- `POST /tienda/v1/guardarConImagenes` (subir foto del ramo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `flores/ramos-admin` (desde 2026-08-27; antes solo aceptaba las de productos y dar solo `flores/ramos-admin` daba 403 al subir foto)
 **Microservicio:** SÍ — el ramo armado tiene su "variante sombra"; su foto se sube al microservicio y alimenta la vitrina pública.
 
 ---
@@ -18100,7 +18223,7 @@ del back, pero se documenta abajo en cada pantalla donde aplica.
 **Componente:** `src/app/admin/promociones/gestion-promociones.component.ts`
 **Endpoints:**
 - `GET /v1/promociones/admin`, `POST /v1/promociones`, `PUT /v1/promociones/{id}`, `PUT /v1/promociones/{id}/activo` — pantalla `admin/promociones`
-- `GET /tienda/v1/admin/filtrar` (buscador de variantes para armar el combo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (⚠️ distinta de `admin/promociones` — el usuario necesita AMBAS pantallas para usar esta vista completa)
+- `GET /tienda/v1/admin/filtrar` (buscador de variantes para armar el combo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `admin/promociones` (desde 2026-08-27; antes exigía además una de las de productos y solo `admin/promociones` no alcanzaba para el buscador de variantes)
 **Microservicio:** SÍ indirectamente, vía `imagenUrl` de cada variante listada.
 
 ### 📢 Cinta de anuncios
@@ -18176,7 +18299,7 @@ del back, pero se documenta abajo en cada pantalla donde aplica.
 **Ruta front:** `/admin/reconciliacion-imagenes`
 **Componente:** `src/app/admin/reconciliacion-imagenes/reconciliacion-imagenes.component.ts`
 **Endpoints:**
-- `POST /v1/admin/reconciliacion/imagenes?productoId=` (opcional), `POST /v1/admin/reconciliacion/imagenes/limpiar-bd`, `GET /v1/admin/reconciliacion/imagenes/resultado` — pantalla `admin/cache` (⚠️ no tiene pantalla propia, comparte protección con "Limpiar caché")
+- `POST /v1/admin/reconciliacion/imagenes?productoId=` (opcional), `POST /v1/admin/reconciliacion/imagenes/limpiar-bd`, `GET /v1/admin/reconciliacion/imagenes/resultado` — pantalla propia `admin/reconciliacion-imagenes` (desde 2026-08-27; antes compartía protección con "Limpiar caché" — `admin/cache` — y dar solo esta pantalla no alcanzaba)
 **Microservicio:** SÍ — `ReconciliacionImagenService` compara cada imagen de BD contra el archivo físico en disco local; si existe localmente pero no en el microservicio, lo REENVÍA para repararlo (`reparados[]`); si tampoco existe localmente, queda en `faltantesEnDisco[]` (irreparable desde aquí). "Limpiar BD" hace lo inverso: borra de BD los registros cuyo archivo ya no existe ni localmente.
 **Microservicio:** monolito + microservicio de imágenes (recibe reparaciones).
 

@@ -57,6 +57,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * equivalente en el catalogo. */
     public static final String PREFIJO_AUTORIDAD_PANTALLA = "PANTALLA_";
 
+    /** Sufijo que se suma a la authority de una pantalla cuando el rol, ademas de poder VERLA
+     * (authority base {@link #PREFIJO_AUTORIDAD_PANTALLA}&lt;ruta&gt;), tambien puede ESCRIBIR en
+     * ella (crear/editar/borrar) -- Fase 2 de permisos de accion, ver
+     * SecurityConfig.pantallaEscribir(). Antes de esto, dar una pantalla era todo-o-nada. */
+    public static final String SUFIJO_AUTORIDAD_ESCRITURA = "_ESCRIBIR";
+
     @Autowired
     private JwtUtil jwtUtil;
     @Autowired
@@ -137,6 +143,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 for (Submenu s : usuarioService.submenusEfectivos(usuario.getId())) {
                     authorities.add(new SimpleGrantedAuthority(PREFIJO_AUTORIDAD_PANTALLA + s.getRuta()));
+                }
+                for (Submenu s : usuarioService.submenusEscritura(usuario.getId())) {
+                    authorities.add(new SimpleGrantedAuthority(
+                            PREFIJO_AUTORIDAD_PANTALLA + s.getRuta() + SUFIJO_AUTORIDAD_ESCRITURA));
                 }
             } catch (Exception e) {
                 log.warn("No se pudieron calcular las pantallas efectivas de {}: {}", usuario.getUsername(), e.getMessage());

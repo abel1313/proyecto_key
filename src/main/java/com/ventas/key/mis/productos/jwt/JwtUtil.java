@@ -37,7 +37,7 @@ public class JwtUtil {
     }
 
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
-        return generateToken(userDetails, idUsuarioRegistrado, List.of());
+        return generateToken(userDetails, idUsuarioRegistrado, List.of(), List.of());
     }
 
     /**
@@ -46,14 +46,23 @@ public class JwtUtil {
      *                  dinamico y el PantallaGuard sin tener que pedirlas al back en cada navegacion.
      *                  Se recalculan en cada login/refresh (cada 15 min como maximo), asi que un
      *                  cambio de permisos por el admin tarda como mucho eso en reflejarse.
+     * @param pantallasEscritura subconjunto de {@code pantallas} en las que el usuario, ademas de
+     *                  poder VERLAS, puede ESCRIBIR (crear/editar/borrar) -- Fase 2 de permisos
+     *                  de accion (2026-08-27), ver UsuarioServiceImpl.submenusEscritura. El
+     *                  backend ya lo exige via SecurityConfig.pantallaEscribir() sin importar este
+     *                  claim; se manda ademas para que el front pueda, pantalla por pantalla,
+     *                  mostrar un modo de solo lectura (ocultar/deshabilitar guardar-editar-borrar)
+     *                  en vez de dejar que el usuario intente y se tope con un 403.
      */
-    public String generateToken(UserDetails userDetails, long idUsuarioRegistrado, List<String> pantallas) {
+    public String generateToken(UserDetails userDetails, long idUsuarioRegistrado, List<String> pantallas,
+                                 List<String> pantallasEscritura) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
                 .map(mpa -> mpa.getAuthority())
                 .collect(Collectors.toList()));
         claims.put("idUsuario", idUsuarioRegistrado);
         claims.put("pantallas", pantallas);
+        claims.put("pantallasEscritura", pantallasEscritura);
         return Jwts.builder()
                 .setClaims(claims)
                 .setId(java.util.UUID.randomUUID().toString())   // jti — para poder invalidarlo
