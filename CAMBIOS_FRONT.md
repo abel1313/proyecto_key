@@ -17677,3 +17677,118 @@ URL guardada y el admin se equivocó y quiere reemplazarla, agregar algo tipo un
 "limpiar" al lado del campo que seleccione/borre el texto de un tirón, en vez de borrar letra por
 letra. Del lado del back no hace falta nada — mandar `""` en el `PUT /v1/negocio/contactos` ya
 limpia el campo sin problema (ver contrato arriba: `null` = no tocar, `""` = guardar vacío).
+
+---
+
+## Nuevo — Personalización de tema: catálogo dinámico de variables (2026-08-27)
+
+**⚠️ Reemplaza por completo un diseño anterior de columnas fijas (`GET/PUT /v1/tema`) que se
+documentó y se descartó el mismo día sin llegar a subirse a ningún ambiente — si alguien vio esa
+versión, ignórenla, nunca se desplegó.** El diseño final es un catálogo tipo "dar de alta" (mismo
+patrón que Menu/Submenu): cada variable de color/forma es una FILA editable, no una columna fija.
+Agregar una variable nueva no requiere ningún cambio de código, ni back ni front.
+
+Respalda la pantalla admin `/personalizacion` (`src/app/tema-admin/`, `src/app/services/tema/`).
+
+**Request:** `GET /mis-productos/v1/tema-variable/activo` (público, sin token — hasta un
+visitante anónimo necesita el tema activo para pintar la tienda)
+**Response:** arreglo de variables, cada una:
+```json
+{
+  "id": 5,
+  "clave": "app-bg",
+  "etiqueta": "Fondo de la página",
+  "grupo": "Página",
+  "tipo": "color",
+  "valorClaro": "#F3FAF6",
+  "valorOscuro": "#000000",
+  "orden": 1
+}
+```
+- `clave`: nombre del custom property CSS **sin** el prefijo `--` (se aplica como
+  `document.body.style.setProperty('--' + clave, valor)`). Coincide con un `var(--esa-clave)`
+  que ya existe en `styles.scss` — si el dueño da de alta una clave que ningún `.scss` consume
+  todavía, no tiene efecto visual (no rompe nada, simplemente no se ve hasta que algún componente
+  la use).
+- `tipo`: `'color'` | `'numero'` | `'seleccion'`. `'seleccion'` hoy solo aplica a la variable
+  `card-shadow` (valores `suave`/`media`/`fuerte`, el front trae su propio mapa a box-shadow real).
+  `'numero'` es para valores estructurales como `card-radius` (px).
+- `valorOscuro` puede venir `null` — en ese caso se usa `valorClaro` para los dos modos (variables
+  estructurales que no cambian de noche).
+
+**CRUD completo (ADMIN)**, mismo patrón genérico que Menu/Submenu:
+- `POST /mis-productos/v1/tema-variable/save` — dar de alta una variable nueva.
+- `PUT /mis-productos/v1/tema-variable/update/{id}` — editar.
+- `DELETE /mis-productos/v1/tema-variable/delete` (body: el `id`, número plano) — eliminar. Es
+  seguro borrar cualquiera: la app simplemente vuelve a usar el valor fijo de código para esa
+  variable, no hay ninguna protección de "no dejar la última" (a diferencia de Menu/Submenu).
+- `GET /mis-productos/v1/tema-variable/getAll?page=0&size=100` — listado paginado (pantalla admin).
+
+**Semilla inicial (25 variables)**, ya sembradas con los mismos valores que tenía `styles.scss`
+a mano, así que el primer `GET /activo` no cambia nada visualmente: grupos **Marca**
+(`brand-1`, `brand-2`, `brand-3`, `app-accent-ink`), **Página** (`app-bg`, `app-text`,
+`app-text-muted`, `app-border`), **Card** (`card-header-bg`, `card-body-bg`, `card-footer-bg`,
+`card-border`, `card-radius`, `card-shadow`), **Tablas** (`table-header-bg`, `table-header-text`,
+`table-row-hover`, `table-border`), **Menú lateral** (`sb-header-bg`, `sb-body-bg`,
+`sb-footer-bg`, `sb-text`, `sb-border`), **Formularios** (`form-section-bg`, `input-bg`).
+
+**Alias automáticos:** algunas claves, al aplicarse, también pisan un `--custom-property` con
+otro nombre que otra pantalla más vieja consume con el mismo valor por defecto (para no duplicar
+filas idénticas en el catálogo) — ver `ALIAS_LEGACY` en `services/tema/tema.model.ts`. Ej.: editar
+`app-bg` también cambia `--page-bg`; editar `app-text` también cambia `--header-text` y
+`--input-text`; editar `card-body-bg` también cambia `--card-bg` y `--app-surface`.
+
+**Pendiente:** correr `migration_tema_variable.sql` (raíz del repo back) — crea la tabla
+`tema_variable`, la siembra con las 25 variables, y da de alta la pantalla "Personalización"
+(grupo Sistema, ruta `personalizacion`) en el catálogo de permisos + se la asigna a ROLE_ADMIN.
+Sin esto el link del navbar da "sin acceso" aunque el usuario sea admin.
+
+---
+
+## Fix de seguridad — varios endpoints no validaban dueño (IDOR) (2026-08-27)
+
+Auditoría completa de "cada quien solo ve lo suyo" en toda la API. **Ningún contrato de
+request/response cambió** — mismos endpoints, mismos campos. Lo que cambió es que ahora rechazan
+(403) cuando el usuario autenticado no es ni el dueño del recurso ni ADMIN. Documentado porque el
+front puede empezar a ver 403 en escenarios que antes "funcionaban por accidente" (ej. probando
+con IDs de otro usuario a mano).
+
+- **Antes:** `GET /v1/pedidos/findPedido/{id}`, `findPedido/{idPedido}/{idCliente}` y
+  `{id}/detalle` devolvían los pedidos de **cualquier** cliente con solo cambiar el id en la URL,
+  para cualquier usuario logueado. **Después:** si no eres ADMIN, el `id`/`idCliente` de la URL se
+  ignora y siempre se usa el cliente del usuario autenticado. El front no necesita cambiar nada —
+  ya mandaba el id correcto en el flujo normal (`mis-pedidos.component.ts` lo resuelve del propio
+  usuario).
+- **Antes:** `GET /v1/pedidos/buscarClientePedido` (búsqueda global sin filtro de dueño) la podía
+  llamar cualquier usuario autenticado. **Después:** requiere ADMIN. Ya solo la llama el front
+  cuando `isAdminUser=true`, sin cambio de comportamiento para el flujo normal.
+- **Antes:** en Flores eternas, `POST/GET /v1/flores/pedidos/{pedidoId}/detalle` y
+  `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` no validaban dueño del pedido.
+  **Después:** mismo chequeo dueño-o-admin que ya tenía `DELETE .../cancelar`.
+- **Antes:** `GET /v1/chat/historial/usuario/{usuarioId}` y `/historial/cliente/{clienteId}` eran
+  **públicos** (sin login) y sin chequeo de dueño — cualquiera en internet podía leer el chat
+  privado de cualquier cliente. **Después:** requieren sesión y que seas tú (o ADMIN). El historial
+  por `sesionId` (chat anónimo) sigue público a propósito — es un UUID random, no adivinable.
+- **Antes:** `POST /v1/clientes/{id}/enviar-codigo-verificacion` lo podía disparar cualquier
+  usuario logueado contra cualquier cliente (spam/molestia, no fuga de datos). **Después:** dueño
+  o ADMIN.
+
+---
+
+## Fase 2 de permisos por pantalla — el backend ahora respeta las pantallas asignadas por rol (2026-08-27)
+
+Hasta ahora, Menu/Submenu/`rol_submenu` (Fase 1) solo decidían qué mostraba el **front** (menú
+dinámico + guard de rutas) — el backend seguía protegiendo cada endpoint admin con
+`hasRole("ADMIN")` fijo, así que darle una pantalla a un rol distinto de ROLE_ADMIN la hacía
+aparecer en el menú, pero cualquier llamada real al API le devolvía 403 igual.
+
+Ya no: la mayoría de los endpoints admin ahora aceptan `ROLE_ADMIN` **o** la pantalla equivalente
+concedida al usuario (calculada en cada request, no depende de refrescar el token). Si le dan a
+un rol una pantalla del catálogo (ej. "Modelos" → `productos/buscar`), ese rol ya puede usar de
+verdad los endpoints que esa pantalla necesita, no solo verlos en el menú. No cambia ningún
+contrato de request/response — mismos endpoints, mismos campos, solo cambia quién puede llamarlos.
+
+Un puñado de endpoints admin siguen exigiendo `ROLE_ADMIN` fijo porque no tienen una pantalla
+equivalente en el catálogo todavía (gestión de imágenes compartida, gestión de Pedidos vía
+PUT/DELETE, Ventas, MercadoPago, Pagos, responder Reseñas, Actuator) — si en algún momento se
+necesita que un rol no-admin los use, hay que darlos de alta como pantalla primero.

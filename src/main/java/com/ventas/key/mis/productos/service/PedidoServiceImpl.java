@@ -342,16 +342,29 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     public PageableDto<List<PedidoGenerico>> obtenerPedido(int id, int size, int pageSize) {
+        // `id` es un cliente_id -- sin este chequeo cualquier usuario autenticado podia mandar el
+        // id de OTRO cliente por la URL y ver su historial completo de pedidos (nombre, correo,
+        // telefono y detalle de cada compra), pura IDOR (encontrado 2026-08-27). ADMIN si puede
+        // consultar el de cualquiera; un cliente solo el suyo, sin importar que id venga en la URL.
+        int idEfectivo = AuthenticationUtils.isAdminContext() ? id : idClientePropio();
         Pageable pageable = PageRequest.of(pageSize, size);
-        Page<String> jsonList = iPedidoRepository.findPedidoPorId2(id, pageable);
+        Page<String> jsonList = iPedidoRepository.findPedidoPorId2(idEfectivo, pageable);
         return getListPageableDto(jsonList);
     }
 
     @Override
     public PageableDto<List<PedidoGenerico>> obtenerPedidoPorId(int idPedido, int idCliente,int size, int pageSize) {
+        // Mismo chequeo que obtenerPedido() -- idCliente tambien es atacable por URL.
+        int idClienteEfectivo = AuthenticationUtils.isAdminContext() ? idCliente : idClientePropio();
         Pageable pageable = PageRequest.of(pageSize, size);
-        Page<String> jsonList = iPedidoRepository.pediodPorId(idPedido, idCliente,pageable);
+        Page<String> jsonList = iPedidoRepository.pediodPorId(idPedido, idClienteEfectivo,pageable);
         return getListPageableDto(jsonList);
+    }
+
+    /** Cliente del usuario autenticado, o -1 (ningun cliente tiene ese id) si no tiene uno ligado. */
+    private int idClientePropio() {
+        Cliente cliente = AuthenticationUtils.currentUsuario().getCliente();
+        return cliente != null ? cliente.getId() : -1;
     }
 
     @Override
@@ -502,6 +515,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     public PedidoDetalleResponse getDetallePedido(int id) {
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + id));
+
+        // El detalle de un pedido solo lo puede ver su dueno o ADMIN -- mismo patron que
+        // editarDatosEntrega() (encontrado junto con la misma IDOR en obtenerPedido/obtenerPedidoPorId).
+        if (!AuthenticationUtils.isAdminContext()) {
+            Cliente clienteActual = AuthenticationUtils.currentUsuario().getCliente();
+            if (clienteActual == null || pedido.getCliente() == null
+                    || !pedido.getCliente().getId().equals(clienteActual.getId())) {
+                throw new RuntimeException("No puedes ver el detalle de un pedido que no es tuyo");
+            }
+        }
 
         double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
         double totalPedido = pedido.getTotalPedido() != null ? pedido.getTotalPedido() : 0.0;
