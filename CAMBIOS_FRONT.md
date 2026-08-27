@@ -18270,3 +18270,57 @@ primero: gestión de imágenes compartida (`/imagen/**` fuera de lo público), g
 PUT/DELETE (cancelar, confirmar, eliminar), Ventas (`/v1/ventas/**` salvo reclamar), MercadoPago
 (`/v1/mp/**` salvo el webhook y el uso ya cubierto por otras pantallas via `PagoService`), Pagos
 (`/v1/pagos/**`), responder Reseñas, Actuator.
+
+---
+
+## Auditoría de correctitud — 7 bugs reales encontrados y corregidos (2026-08-27)
+
+Revisión endpoint por endpoint (URL, método, parámetros, body y forma de la respuesta) de las 45
+pantallas del mapa de arriba, comparando el front contra el backend real. **No cambia contrato
+para nadie que ya integró bien** — estos eran bugs de código, no diseño de API.
+
+1. **🎁 Administrar ramos armados — corrupción de stock (crítico).** Subir la foto de un ramo
+   armado mandaba `{ id, producto: { id } }` sin el resto de la variante. `guardarConImagenes`
+   guarda la entidad completa (no hace merge), así que el `stock` llegaba en 0 y **pisaba el
+   inventario real** del producto sombra en cada foto subida. Corregido: ahora se trae la variante
+   completa (`GET /tienda/v1/getOne/{id}`) antes de subir la foto, igual que ya hacía "Catálogos".
+
+2. **💰 Gastos — pantalla entera vacía (crítico).** `gastos.service.ts` leía `r.response` en vez
+   de `r.data` en los 6 métodos (buscar/save/update/delete gastos, buscar ventas, reporte). El
+   backend siempre envía `data`. Las 3 pestañas (Gastos, Ventas, Reporte) mostraban "vacío" con
+   status 200, sin ningún error visible. Corregido.
+
+3. **📋 Cobro con terminal (Mis pedidos / Venta directa) — cuotas ignoradas.** El backend nunca
+   mandaba el campo `cuotas` en las opciones de meses del diálogo de cobro; el front caía a
+   `?? 1` y el pago a la terminal siempre se mandaba a **1 solo pago**, sin importar si el admin
+   eligió 3/6/9/12 meses. Corregido: `OpcionMesesDto` ahora incluye `cuotas` (parseado de
+   `MesesIntereses.meses`).
+
+4. **Mis Datos / Mi Perfil / Arma tu ramo — `GET /v1/clientes/buscarPorIdCliente/{id}` con
+   semántica contradictoria.** El endpoint tenía DOS interpretaciones distintas de su propio
+   parámetro dentro del mismo método: el chequeo de dueño esperaba id de **Cliente**, pero la
+   consulta a BD filtraba por `usuario.id`. "Funcionaba" solo cuando `Cliente.id` coincidía por
+   casualidad con `Usuario.id`. Corregido en el repositorio (ahora filtra por `Cliente.id`, como
+   dice su nombre y su chequeo de seguridad) + se agregó `findByUsuarioId()` aparte para el único
+   caller interno que sí necesitaba esa otra búsqueda + se corrigió `configurar-ramo.component.ts`
+   (mandaba `idUsuario` directo, con un comentario que decía justo lo contrario de lo correcto).
+
+5. **👥 Clientes → Buscar — la paginación nunca avanzaba.** El front leía `res.data.totalElementos`,
+   un campo que `PageableDto` nunca tuvo (solo trae `list` y `totalPaginas`). Corregido para leer
+   `totalPaginas` directo.
+
+6. **🛍️ Tienda — habilitar/deshabilitar una sola variante daba 404.** Solo existía el endpoint de
+   lote (`PUT /tienda/v1/admin/habilitar-lote`); el botón individual de la búsqueda de tienda
+   llamaba a `PUT /tienda/v1/{id}/habilitar`, que no existía. Se agregó, mismo patrón que
+   `ProductosControllerImpl`.
+
+7. **🎁 Gestionar promociones — "precio normal" siempre en $0.00.** `PromocionDetalleResponseDto`
+   (usado por `GET /v1/promociones/admin`) no traía `precioNormal`, a diferencia del DTO gemelo de
+   la pantalla pública que sí lo tiene. Corregido, mismo dato (`producto.precioVenta`).
+
+**Encontrado pero sin corregir a propósito (bajo impacto, no rompe nada hoy):** el DTO de opciones
+de pago tampoco manda `requiereTerminal` (el front ya tiene un fallback que funciona por nombre de
+forma de pago); "Arma tu ramo" manda `latitud`/`longitud`/`referencias` al guardar el detalle del
+ramo pero el DTO del backend no los admite (Jackson los descarta en silencio, sin impacto porque
+esos datos ya se guardan por otro lado en `savePedido`) — si de verdad hace falta ese refuerzo,
+hay que agregar los campos al DTO, es decisión de producto, no un bug urgente.

@@ -13,6 +13,7 @@ public class PromocionDetalleResponseDto {
     private String talla;
     private String color;
     private Integer cantidad;
+    private Double precioNormal;
     private Double precioEnPromocion;
     private String imagenUrl;
     private Integer existencias;
