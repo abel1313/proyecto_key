@@ -77,4 +77,31 @@ public class RolesController extends AbstractController<
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
     }
+
+    // Fase 3 de permisos (piloto en Modelos): acciones puntuales dentro de una pantalla (ej.
+    // "eliminar", "habilitar"), independientes del Editar general. Requiere tener ya el "ver" de
+    // la pantalla dueña de la acción -- ver RolesServiceImpl.agregarAccion.
+    @PostMapping("/{rolId}/acciones/{accionId}")
+    public ResponseEntity<ResponseGeneric<Roles>> agregarAccion(
+            @PathVariable Integer rolId, @PathVariable Integer accionId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarAccion(rolId, accionId)));
+        } catch (Exception e) {
+            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @DeleteMapping("/{rolId}/acciones/{accionId}")
+    public ResponseEntity<ResponseGeneric<Roles>> quitarAccion(
+            @PathVariable Integer rolId, @PathVariable Integer accionId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarAccion(rolId, accionId)));
+        } catch (Exception e) {
+            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
 }

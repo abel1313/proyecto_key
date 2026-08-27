@@ -1,11 +1,13 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.AccionSubmenu;
 import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.repository.IAccionSubmenuRepository;
 import com.ventas.key.mis.productos.repository.IRolRepository;
 import com.ventas.key.mis.productos.repository.ISubmenuRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
@@ -34,13 +36,15 @@ public class RolesServiceImpl extends CrudAbstractServiceImpl<
     private final IRolRepository rolRepository;
     private final ISubmenuRepository submenuRepository;
     private final IUsuarioRepository usuarioRepository;
+    private final IAccionSubmenuRepository accionSubmenuRepository;
 
     public RolesServiceImpl(IRolRepository repository, ErrorGenerico error, ISubmenuRepository submenuRepository,
-                             IUsuarioRepository usuarioRepository) {
+                             IUsuarioRepository usuarioRepository, IAccionSubmenuRepository accionSubmenuRepository) {
         super(repository, error);
         this.rolRepository = repository;
         this.submenuRepository = submenuRepository;
         this.usuarioRepository = usuarioRepository;
+        this.accionSubmenuRepository = accionSubmenuRepository;
     }
 
     @Transactional
@@ -65,9 +69,11 @@ public class RolesServiceImpl extends CrudAbstractServiceImpl<
                             + "\" -- es la pantalla que asigna permisos, y sin ella nadie podria volver a dárselos.");
         }
         rol.getSubmenus().removeIf(s -> s.getId().equals(submenuId));
-        // Sin ver la pantalla no tiene sentido poder escribir en ella -- se cae en cascada para
-        // no dejar una fila huerfana en rol_submenu_escritura (invariante que garantiza esta clase).
+        // Sin ver la pantalla no tiene sentido poder escribir en ella, ni usar ninguna de sus
+        // acciones puntuales -- se caen ambas en cascada para no dejar filas huerfanas en
+        // rol_submenu_escritura / rol_accion (invariante que garantiza esta clase).
         rol.getSubmenusEscritura().removeIf(s -> s.getId().equals(submenuId));
+        rol.getAcciones().removeIf(a -> a.getSubmenu().getId().equals(submenuId));
         return rolRepository.save(rol);
     }
 
@@ -100,6 +106,33 @@ public class RolesServiceImpl extends CrudAbstractServiceImpl<
                             + "\" -- es la pantalla que asigna permisos, y sin ella nadie podria volver a dárselos.");
         }
         rol.getSubmenusEscritura().removeIf(s -> s.getId().equals(submenuId));
+        return rolRepository.save(rol);
+    }
+
+    // ── Fase 3 de permisos: acciones puntuales dentro de una pantalla (piloto en Modelos) ──
+
+    @Transactional
+    public Roles agregarAccion(Integer rolId, Integer accionId) {
+        Roles rol = rolRepository.findById(rolId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Rol no encontrado"));
+        AccionSubmenu accion = accionSubmenuRepository.findById(accionId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Accion no encontrada"));
+        if (rol.getSubmenus().stream().noneMatch(s -> s.getId().equals(accion.getSubmenu().getId()))) {
+            throw new ExceptionOperacionNoPermitida(
+                    "\"" + rol.getNombreRol() + "\" primero necesita poder VER \"" + accion.getSubmenu().getNombre()
+                            + "\" antes de poder usar la acción \"" + accion.getEtiqueta() + "\".");
+        }
+        rol.getAcciones().add(accion);
+        return rolRepository.save(rol);
+    }
+
+    @Transactional
+    public Roles quitarAccion(Integer rolId, Integer accionId) {
+        Roles rol = rolRepository.findById(rolId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Rol no encontrado"));
+        accionSubmenuRepository.findById(accionId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Accion no encontrada"));
+        rol.getAcciones().removeIf(a -> a.getId().equals(accionId));
         return rolRepository.save(rol);
     }
 

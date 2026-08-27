@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.AccionSubmenu;
 import com.ventas.key.mis.productos.entity.Permiso;
 import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.entity.Submenu;
@@ -304,5 +305,14 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
         return usuario.getRoles() != null ? usuario.getRoles().getSubmenusEscritura() : Set.of();
+    }
+
+    // Fase 3 de permisos (2026-08-27, piloto en Modelos): acciones puntuales dentro de una
+    // pantalla (ej. "eliminar", "habilitar" en Modelos). Mismo alcance que submenusEscritura --
+    // solo del rol, sin excepciones por usuario individual todavia.
+    public Set<AccionSubmenu> accionesEfectivas(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuario.getRoles() != null ? usuario.getRoles().getAcciones() : Set.of();
     }
 }

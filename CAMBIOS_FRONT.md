@@ -17914,6 +17914,77 @@ Editar en una pantalla que su rol no le da, hoy la única forma es dársela vía
 
 ---
 
+## Fase 3 de permisos — acciones granulares por pantalla, piloto en Modelos (2026-08-27)
+
+El usuario señaló, viendo la pantalla real, que "Editar" es demasiado ancho: **Modelos**
+(`productos/buscar`) no tiene ninguna acción de "editar el modelo" en sí (el botón "Actualizar"
+en realidad navega a "Agregar modelo" — otra pantalla), y en cambio tiene varias acciones
+independientes entre sí en cada tarjeta de producto: **Habilitar/deshabilitar, Eliminar, Crear
+variantes, Compartir imagen, Descargar Excel, Ver filtros de administración**. Con Ver/Editar
+nada más, dar "Editar" daba las 6 de un jalón — no se podía, por ejemplo, dejar que alguien
+elimine productos pero no vea el Excel.
+
+**Hallazgo más grave en el camino:** ninguno de esos botones (ni los de Modelos ni los de otras
+25 pantallas admin) estaba conectado al sistema de pantallas/permisos en absoluto — todos
+dependían de una bandera `isAdminUser`/`isAdminService` que en el código es literalmente
+`roles.includes('ROLE_ADMIN')`. O sea: aunque a un rol se le diera "Editar" en Modelos, esa
+pantalla no le mostraba ningún botón administrativo si el rol no era exactamente ROLE_ADMIN. Se
+corrigió esto **solo en Modelos** (el piloto); las otras 25 pantallas con el mismo patrón se
+quedan con el gap conocido hasta que se decida extender esto — ver lista completa más abajo.
+
+**Diseño — tabla nueva `accion_submenu` + `rol_accion`:** dentro de una pantalla, cada acción
+puntual es su propio registro (clave/etiqueta/orden), y un rol la tiene o no la tiene
+independientemente de las demás. Requiere que el rol ya tenga el **Ver** de la pantalla dueña
+(no el Editar — se decidió así para no forzar una jerarquía de 3 niveles en el piloto). Si se le
+quita el Ver a un rol, se le caen en cascada tanto el Editar como todas sus acciones puntuales de
+esa pantalla.
+
+**Nuevos endpoints:**
+- `GET /v1/accion-submenu/getAll` — catálogo completo (todas las pantallas que ya tengan
+  acciones dadas de alta; hoy solo Modelos). Mismo nivel de protección que `/v1/menu/**` y
+  `/v1/submenu/**` (pantalla `gestion-menu`).
+- `POST /v1/roles/{rolId}/acciones/{accionId}` / `DELETE /v1/roles/{rolId}/acciones/{accionId}`
+  — dar/quitar una acción puntual a un rol. 400 si el rol todavía no tiene el Ver de la pantalla
+  dueña. Devuelven el `Roles` completo actualizado (nuevo campo `acciones: IAccionSubmenu[]`,
+  además de `submenus` y `submenusEscritura` que ya existían).
+
+**Dónde se configura:** Gestión de roles — dentro de cada pantalla que tenga acciones
+registradas, debajo del Ver/Editar aparece una fila con un checkbox por acción (ej. "Habilitar /
+deshabilitar producto", "Eliminar producto"…), deshabilitados hasta marcar Ver.
+
+**JWT — nuevo claim `pantallasAcciones: string[]`**, formato `"ruta:clave"` (ej.
+`"productos/buscar:eliminar"`). El backend ya lo exige vía `SecurityConfig.accion()` sin
+importar este claim; el front lo usa para decidir qué botón mostrar.
+
+**Backend — 4 endpoints de Modelos separados del `pantallaEscribir` compartido:**
+- `DELETE /v1/productos/deleteBy/**` → accion "eliminar"
+- `PUT /v1/productos/*/habilitar`, `PUT /v1/productos/admin/habilitar-lote` → accion "habilitar"
+- `POST /tienda/v1/inicializarDesdeProducto` → accion "crear-variantes"
+- `GET /v1/productos/admin/sin-variantes/reporte` → accion "descargar-excel"
+
+"Compartir imagen" y "Ver filtros de administración" no tienen endpoint propio (front-only, sin
+mutación de datos) — se controlan solo en el front, sin gate nuevo en `SecurityConfig`.
+
+**Front — Modelos (`all.component.ts`/`.html`) reescrito para no usar `isAdminUser`:**
+`esVistaAdmin` (¿ve la pantalla en modo admin? controla lo informativo: badge "Deshabilitado",
+atenuar tarjeta), `puedeActualizarProducto` (reusa la pantalla `productos/agregar`, no una acción
+nueva), `puedeHabilitar`, `puedeEliminar`, `puedeCrearVariantes`, `puedeCompartirImagen`,
+`puedeDescargarExcel`, `puedeVerFiltrosAdmin`. Nuevos métodos `tienePantalla()`/`tieneAccion()`
+en `AuthService` (`src/app/auth/auth.service.ts`) — el mismo servicio que ya inyectan las otras
+25 pantallas con `isAdminUser`, listo para que se reemplace ahí también cuando se decida extender.
+
+**Migración `migration_accion_submenu.sql` — ya ejecutada en QA y prod (2026-08-27).** Creó
+`accion_submenu` y `rol_accion`, sembró las 6 acciones de Modelos, y le dio a todo rol que ya
+tenía Editar en Modelos las 6 automáticamente (nadie perdió acceso al correrla).
+
+**Las otras 25 pantallas con el mismo problema (`isAdminUser`/`isAdminService` hardcoded a
+ROLE_ADMIN, desconectado de pantallas/acciones), pendientes de decidir si se extiende:**
+`add-usuarios`, `configurar-ramo` (flores), navbar, `variante/buscar`, `mis-pedidos`,
+`productos/add`, `venta-variante`, `detalle-variante`, `promociones`, `detalle-productos`,
+`detalle-producto`, `historial-mp`, `detalle-pedido`.
+
+---
+
 # Mapa de pantallas → endpoints → protección → microservicio (2026-08-27)
 
 Documento generado revisando, para cada una de las 45 pantallas del catálogo Menu/Submenu, qué
