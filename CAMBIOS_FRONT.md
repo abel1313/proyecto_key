@@ -17792,3 +17792,481 @@ Un puñado de endpoints admin siguen exigiendo `ROLE_ADMIN` fijo porque no tiene
 equivalente en el catálogo todavía (gestión de imágenes compartida, gestión de Pedidos vía
 PUT/DELETE, Ventas, MercadoPago, Pagos, responder Reseñas, Actuator) — si en algún momento se
 necesita que un rol no-admin los use, hay que darlos de alta como pantalla primero.
+
+---
+
+# Mapa de pantallas → endpoints → protección → microservicio (2026-08-27)
+
+Documento generado revisando, para cada una de las 45 pantallas del catálogo Menu/Submenu, qué
+componente Angular la implementa, qué endpoints del backend llama, con qué nivel de protección
+(`SecurityConfig.java`, incluye la Fase 2 de permisos por pantalla), y si dispara una llamada
+interna al microservicio externo de imágenes.
+
+**Arquitectura:** un solo backend monolito ("mis-productos", Spring Boot) + **un** microservicio
+externo separado, el de **imágenes** (guarda/sirve los archivos de imagen; configurado vía la
+property `app.imagenes`, ej. `http://.../mis-productos`). El monolito llama a ese microservicio
+internamente desde los servicios de productos/variantes/promociones/ramos armados/presentación
+cuando hay imágenes de por medio — no es una llamada que el front haga directo, ocurre del lado
+del back, pero se documenta abajo en cada pantalla donde aplica.
+
+**Cómo leer "protección":**
+- **Público** = sin necesidad de sesión.
+- **Autenticado** = cualquier usuario logueado; si dice "dueño-o-admin" es porque el código
+  valida que sea tu propio recurso (Fase 2 de seguridad, IDOR corregidas el 2026-08-27).
+- **Pantalla `x`** = el backend exige `ROLE_ADMIN` **o** que tu rol tenga esa pantalla concedida
+  en Gestión de roles (Fase 2 de permisos, 2026-08-27) — antes de eso todo lo admin exigía
+  `ROLE_ADMIN` fijo sin importar qué pantallas tuviera asignadas tu rol.
+- **ROLE_ADMIN fijo** = todavía no tiene una pantalla equivalente en el catálogo; solo admin,
+  sin importar qué le asignes a otro rol.
+
+---
+
+## 📦 Catálogo
+
+### 📦 Modelos
+**Ruta front:** `/productos/buscar`
+**Componente:** `src/app/productos/producto/busca/busca.component.ts` (envuelve a `all/all.component.ts`, que trae la grilla y la lógica real)
+**Endpoints:**
+- `GET /v1/productos/obtenerProductos?page=&size=` — público
+- `GET /v1/productos/buscarNombreOrCodigoBarra?nombre=&page=&size=` — público
+- `GET /v1/productos/admin/filtrar?...` — pantalla `productos/buscar`, `productos/agregar` o `tienda/venta`
+- `DELETE /v1/productos/deleteBy/{id}` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `PUT /v1/productos/{id}/habilitar?habilitar=` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `PUT /v1/productos/admin/habilitar-lote` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `GET /v1/productos/admin/sin-variantes/reporte` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (descarga Excel)
+- `POST /tienda/v1/inicializarDesdeProducto` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (con imágenes opcionales)
+**Microservicio:** monolito principal + microservicio de imágenes cuando se usa "Inicializar variantes" con fotos.
+
+### 📦 Agregar modelo
+**Ruta front:** `/productos/agregar`
+**Componente:** `src/app/productos/producto/add/add.component.ts`
+**Endpoints:**
+- `POST /v1/productos/save` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`. Las fotos van embebidas en base64 dentro del mismo payload (`listImagenes`).
+**Microservicio:** monolito + microservicio de imágenes — al guardar con `listImagenes`, el backend las sube internamente.
+
+### 📦 Agregar producto
+**Ruta front:** `/tienda/venta`
+**Componente:** `src/app/variante/agregar/agregar.component.ts`
+**Endpoints:**
+- `GET /v1/productos/buscarNombreOrCodigoBarra?...` — público
+- `POST /tienda/v1/guardarConImagenes` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+**Microservicio:** monolito + microservicio de imágenes — `guardarConImagenes` sube las fotos de la variante.
+
+### 📦 Carga rápida de imágenes
+**Ruta front:** `/carga-imagenes`
+**Componente:** `src/app/carga-imagenes/carga-imagenes.component.ts`
+**Endpoints:**
+- `POST /v1/carga-imagenes/subir-imagen` — pantalla `carga-imagenes`
+- `GET /v1/carga-imagenes/estado?productoIds=...` — pantalla `carga-imagenes`
+- `POST /v1/carga-imagenes/{productoId}/reintentar-imagen` — pantalla `carga-imagenes`
+- `PUT /v1/carga-imagenes/{productoId}/completar` — pantalla `carga-imagenes`
+- `DELETE /v1/carga-imagenes/{productoId}` — pantalla `carga-imagenes`
+**Microservicio:** monolito + microservicio de imágenes — es la pantalla dedicada a esto: cada imagen subida/descartada se refleja allá.
+
+### 📦 Cargar Excel
+**Ruta front:** `/tienda/cargar-excel`
+**Componente:** `src/app/documentos/carga-archivo/carga-archivo.component.ts`
+**Endpoints:**
+- `POST /v1/documentos/productos` — pantalla `tienda/cargar-excel`
+**Microservicio:** solo el monolito (el Excel trae datos, no imágenes).
+
+### 📦 Categorías
+**Ruta front:** `/palabras-clave`
+**Componente:** `src/app/palabras-clave/gestion/gestion-palabras-clave.component.ts`
+**Endpoints:**
+- `GET /v1/palabras-clave/getAll?page=&size=` — público
+- `POST /v1/palabras-clave/save` — pantalla `palabras-clave`
+- `PUT /v1/palabras-clave/update/{id}` — pantalla `palabras-clave`
+- `DELETE /v1/palabras-clave/delete` — pantalla `palabras-clave`
+**Microservicio:** solo el monolito.
+
+---
+
+## 🚚 Envíos
+
+### 🚚 Zonas de entrega
+**Ruta front:** `/lugares-entrega`
+**Componente:** `src/app/lugares-entrega/gestion/gestion-lugares.component.ts` (+ `anillos-editor/anillos-editor.component.ts` para anillos de distancia/precio)
+**Endpoints:**
+- `GET /v1/lugares-entrega/getAll?page=&size=` — público
+- `POST /v1/lugares-entrega/save`, `PUT /v1/lugares-entrega/update/{id}`, `DELETE /v1/lugares-entrega/delete` — pantalla `lugares-entrega`
+- `GET /v1/lugares-entrega/{id}/anillos` — público
+- `POST /v1/lugares-entrega/{id}/anillos`, `PUT /v1/lugares-entrega/anillos/{id}`, `DELETE /v1/lugares-entrega/anillos/{id}` — pantalla `lugares-entrega`
+**Microservicio:** solo el monolito.
+
+---
+
+## 📋 Pedidos
+
+### 📋 Mis pedidos
+**Ruta front:** `/pedidos/mis-pedidos`
+**Componente:** `src/app/pedidos/mis-pedidos/mis-pedidos.component.ts` — el MISMO componente sirve dos roles según `isAdminUser` (guard de ruta: solo `AuthGuard`, cualquier usuario logueado).
+
+**Común a ambos modos:**
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/lugares-entrega/getAll` — público
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/pedidos/{pedidoId}/detalle` — autenticado, dueño-o-admin
+- `PUT /v1/pedidos/{pedidoId}/entrega` — autenticado, dueño
+
+**Modo cliente (usuario normal):**
+- `GET /v1/pedidos/findPedido/{id}?size&page` — autenticado, dueño-o-admin
+- `GET /v1/pedidos/findPedido/{idPedido}/{idCliente}?size&page` — autenticado, dueño-o-admin
+- `DELETE /v1/flores/pedidos/{id}/cancelar` — autenticado, dueño-o-admin (solo ramos sin pago)
+
+**Modo admin (isAdminUser=true):**
+- `GET /v1/pedidos/buscarClientePedido?...` — ROLE_ADMIN fijo
+- `DELETE /v1/pedidos/delete/{id}?motivo=...` — ROLE_ADMIN fijo
+- `PUT /v1/pedidos/confirmar/{id}` — ROLE_ADMIN fijo
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+- `GET /v1/pagos/opciones-estructuradas` — ROLE_ADMIN fijo
+- `POST /v1/mp/iniciar`, `GET /v1/mp/estado/{intentId}`, `DELETE /v1/mp/cancelar/{intentId}` — ROLE_ADMIN fijo (cobro con terminal física)
+
+**Microservicio:** solo el monolito — no muestra imágenes de producto.
+
+### 📋 Historial de pagos (MP)
+**Ruta front:** `/pedidos/historial-mp`
+**Componente:** `src/app/pedidos/historial-mp/historial-mp.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /v1/mp/historial?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/pedido/{pedidoId}?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/estado/{estado}?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/mp?desde&hasta` — ROLE_ADMIN fijo (consulta directo a Mercado Pago)
+**Microservicio:** solo el monolito.
+
+---
+
+## 💰 Ventas
+
+### 💰 Venta directa
+**Ruta front:** `/tienda/venta-directa`
+**Componente:** `src/app/variante/venta-directa/venta-directa.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `POST /v1/clientes-sin-registro`, `POST /v1/clientes-sin-registro/{id}/enviar-codigo`, `POST /v1/clientes-sin-registro/{id}/verificar-codigo` — pantalla `tienda/venta-directa`
+- `GET /v1/clientes/buscar?nombre&page&size` — pantalla `clientes/buscar`
+- `POST /v1/clientes/{clienteId}/enviar-codigo-verificacion`, `POST /v1/clientes/{clienteId}/verificar-correo` — autenticado (self-service)
+- `GET /v1/lugares-entrega/getAll` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/pagos/opciones-estructuradas` — ROLE_ADMIN fijo
+- `POST /v1/ventas/save` — ROLE_ADMIN fijo
+- `POST /v1/abonos/{pedidoId}` — pantalla `abonos` (venta a crédito)
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+- `POST /v1/mp/iniciar`, `GET /v1/mp/estado/{intentId}`, `DELETE /v1/mp/cancelar/{intentId}` — ROLE_ADMIN fijo
+**Microservicio:** SÍ — `GET /tienda/v1/buscar` trae `imagenUrl` por variante (miniaturas + visor), resuelta contra el microservicio de imágenes.
+
+### 💰 Créditos / Abonos
+**Ruta front:** `/abonos`
+**Componente:** `src/app/abonos/abonos.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/abonos/reporte/estado-cuenta`, `/reporte/pagados`, `/reporte/cancelados` — pantalla `abonos`
+- `PUT /v1/abonos/{pedidoId}/cancelar`, `POST /v1/abonos/{pedidoId}`, `POST /v1/abonos/{pedidoIdOrigen}/transferir` — pantalla `abonos`
+- `GET /v1/pedidos/{pedidoId}/detalle` — autenticado, dueño-o-admin
+- `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` — autenticado, dueño-o-admin
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+**Microservicio:** no aplica — no renderiza imágenes de producto.
+
+### 💰 Gastos
+**Ruta front:** `/gastos/buscar`
+**Componente:** `src/app/gastos/all/all.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/gastos/buscar?...`, `DELETE /v1/gastos/{id}`, `GET /v1/gastos/reporte?fechaInicio&fechaFin` — pantalla `gastos/buscar`
+- `GET /v1/ventas/buscar?...` — ROLE_ADMIN fijo (pestaña "ventas" de esta misma vista, cae bajo otro prefijo)
+**Microservicio:** solo el monolito.
+
+---
+
+## 📊 Reportes
+
+### 📊 Dashboard
+**Ruta front:** `/dashboard`
+**Componente:** `src/app/dashboard/dashboard.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/dashboard/resumen` — pantalla `dashboard` (se refresca cada 5 min)
+**Microservicio:** solo el monolito.
+
+### 📊 Reportes de ventas
+**Ruta front:** `/reportes`
+**Componente:** `src/app/reportes/reportes.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/reportes/ventas/diario?fecha`, `/mensual?mes`, `/cliente/{clienteId}`, `/productos-mas-vendidos?...`, `/promociones?...` — pantalla `reportes`
+- `GET /v1/clientes/buscar?nombre&page&size` — pantalla `clientes/buscar` (autocomplete del reporte por cliente)
+**Microservicio:** solo el monolito.
+
+---
+
+## 🎰 Rifas
+
+### 🎰 Rifa de productos
+**Ruta front:** `/rifas/agregar`
+**Componente:** `src/app/rifas/agregar-rifa/agregar-rifa.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `GET/POST/PUT /v1/configurarRifa/**`, `/v1/configurarRifaVariante/**`, `/v1/concursante/**`, `/v1/ganadorRifa/**` (buscar, save, editar, esPrueba, sortear, continuarVariante, reiniciar, importarDePedidos, copiarDeRifa, etc.) — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar` (cualquiera habilita)
+**Microservicio:** SÍ — muestra imágenes de la(s) variante(s) premio, resueltas por el back.
+
+### 🎰 Rifa mensual
+**Ruta front:** `/rifas/mes`
+**Componente:** `src/app/rifas/rifa-mes/rifa-mes.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:** mismo `RifaService`, subconjunto del flujo de sorteo (`configurarRifa`, `configurarRifaVariante`, `concursante`, `ganadorRifa`) — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar`.
+**Microservicio:** SÍ — vista previa de imagen de la variante seleccionada.
+
+### 🎰 Ver rifas activas
+**Ruta front:** `/rifas/buscar`
+**Componente:** `src/app/rifas/buscar-rifa/buscar-rifa.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/configurarRifa/buscar?...`, `GET /v1/ganadorRifa/estado/{rifaId}`, `POST /v1/ganadorRifa/reiniciar/{rifaId}?completo` — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar`
+**Microservicio:** no aplica — listado de rifas configuradas, sin imágenes en el template.
+
+---
+
+## 🌹 Flores eternas
+
+### 🌹 Ramos de flores
+**Ruta front:** `/flores/ramos` — **pública, sin login**
+**Componente:** `src/app/flores/vitrina/vitrina-flores.component.ts`
+**Endpoints:**
+- `GET /v1/ramos-armados/activos` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+**Microservicio:** SÍ — la portada de cada ramo se resuelve contra el microservicio de imágenes.
+
+### 🌷 Arma tu ramo
+**Ruta front:** `/flores/configurar` — **pública, sin login** (solo `confirmarPedido()` exige cuenta, lo resuelve el propio componente)
+**Componente:** `src/app/flores/configurar/configurar-ramo.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll`, `/v1/cantidades-flor/getAll`, `/v1/colores-flor/por-tipo-flor/{id}`, `/v1/lugares-entrega/getAll` — público
+- `POST /v1/flores/validar-cantidad`, `/calcular-precio`, `/fechas-disponibles` — público
+- `GET /v1/flores/pedidos/{id}/detalle` — autenticado, dueño-o-admin (modo edición)
+- `PUT /v1/flores/pedidos/{id}/editar-ramo` — ROLE_ADMIN fijo (recotizar un ramo ya vendido)
+- `POST /v1/flores/pedidos/{id}/detalle` — autenticado, dueño-o-admin (ticket de producción)
+- `POST /v1/pedidos/savePedido` — autenticado (confirmar pedido)
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/clientes/buscarPorIdCliente/{idUsuario}` — autenticado (self-service, valida dueño)
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+**Microservicio:** solo lectura de fotos ya guardadas — no sube nada desde aquí.
+
+### 🌸 Catálogos
+**Ruta front:** `/flores/catalogos`
+**Componente:** `src/app/flores/catalogos/catalogos-flores.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll` — público
+- `POST/PUT/DELETE` de cada uno de los 5 catálogos anteriores — pantalla `flores/catalogos`
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+- `POST /tienda/v1/guardarConImagenes` (subir foto de un color/accesorio/frase) — ⚠️ pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`, **no** `flores/catalogos` (la escritura de foto pasa por el endpoint de variantes del catálogo general)
+**Microservicio:** SÍ — cada color/accesorio/frase es una "variante interna"; subir su foto dispara el microservicio de imágenes.
+
+### 🚚 Entregas
+**Ruta front:** `/flores/entregas`
+**Componente:** `src/app/flores/entregas/config-entregas.component.ts`
+**Endpoints:**
+- `GET /v1/cantidades-flor/getAll` — público
+- `PUT /v1/cantidades-flor/update/{id}` (días/hora de entrega normal y urgente por tamaño) — ⚠️ pantalla `flores/catalogos`, no una pantalla propia — esta vista no tiene tabla/endpoints propios, reutiliza el CRUD de "Catálogos → Cantidades"
+**Microservicio:** no aplica.
+
+### 🎗️ Frases por aprobar
+**Ruta front:** `/flores/frases`
+**Componente:** `src/app/flores/frases/bandeja-frases.component.ts`
+**Endpoints:**
+- `GET /v1/flores/pedidos/frases-pendientes`, `PUT /v1/flores/pedidos/detalle/{detalleId}/validar-frase` — pantalla `flores/frases`
+**Microservicio:** no aplica.
+
+### 🎁 Administrar ramos armados
+**Ruta front:** `/flores/ramos-admin`
+**Componente:** `src/app/flores/ramos-admin/gestion-ramos-flores.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll` — público
+- `GET /v1/ramos-armados/admin`, `POST /v1/ramos-armados`, `PUT /v1/ramos-armados/{id}`, `PUT /v1/ramos-armados/{id}/activo` — pantalla `flores/ramos-admin`
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+- `POST /tienda/v1/guardarConImagenes` (subir foto del ramo) — ⚠️ pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`, no `flores/ramos-admin`
+**Microservicio:** SÍ — el ramo armado tiene su "variante sombra"; su foto se sube al microservicio y alimenta la vitrina pública.
+
+---
+
+## 📣 Marketing
+
+### 🎁 Promociones activas
+**Ruta front:** `/promociones` (guard front: `AuthGuard`, pero el endpoint real es público)
+**Componente:** `src/app/promociones/promociones.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/activas` — público
+**Microservicio:** SÍ indirectamente — cada promoción trae `imagenUrl` de la variante en el combo, resuelta por el back.
+
+### 🎁 Gestionar promociones
+**Ruta front:** `/admin/promociones`
+**Componente:** `src/app/admin/promociones/gestion-promociones.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/admin`, `POST /v1/promociones`, `PUT /v1/promociones/{id}`, `PUT /v1/promociones/{id}/activo` — pantalla `admin/promociones`
+- `GET /tienda/v1/admin/filtrar` (buscador de variantes para armar el combo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (⚠️ distinta de `admin/promociones` — el usuario necesita AMBAS pantallas para usar esta vista completa)
+**Microservicio:** SÍ indirectamente, vía `imagenUrl` de cada variante listada.
+
+### 📢 Cinta de anuncios
+**Ruta front:** `/admin/cinta`
+**Componente:** `src/app/admin/cinta/gestion-cinta.component.ts`
+**Endpoints:**
+- `GET /v1/cinta/getAll?page=0&size=200`, `POST /v1/cinta/save`, `PUT /v1/cinta/update/{id}`, `DELETE /v1/cinta/delete` — pantalla `admin/cinta`
+- `GET /v1/cinta/activos` — público
+**Microservicio:** no aplica — solo texto.
+
+### 📘 Publicar en redes
+**Ruta front:** `/admin/facebook`
+**Componente:** `src/app/admin/redes-sociales/publicar-facebook.component.ts`
+**Endpoints:**
+- `GET /v1/redes-sociales/hashtags-default`, `PUT /v1/redes-sociales/hashtags-default/{red}` — pantalla `admin/hashtags`
+- `POST /v1/redes-sociales/instagram/publicar-reel`, `/facebook/publicar-video`, `/facebook/publicar-reel`, `/tiktok/publicar` — pantalla `admin/facebook`
+- `GET /tienda/v1/buscar` (etiquetar producto en el video, opcional) — público
+**Microservicio:** NO en esta pantalla a propósito — solo publica video (decisión del dueño), nunca llama al método de publicar foto que sí reutilizaría el microservicio de imágenes.
+
+### 🏷️ Hashtags de redes
+**Ruta front:** `/admin/hashtags`
+**Componente:** `src/app/admin/hashtags/gestion-hashtags.component.ts`
+**Endpoints:**
+- `GET /v1/redes-sociales/hashtags-default`, `PUT /v1/redes-sociales/hashtags-default/{red}` — pantalla `admin/hashtags`
+**Microservicio:** no aplica.
+
+---
+
+## 🛠️ Sistema
+
+### 👥 Usuarios
+**Ruta front:** `/usuarios/buscar`
+**Componente:** `src/app/usuarios/usuarios/all-usuarios/all-usuarios.component.ts`
+**Endpoints:**
+- `GET /v1/usuarios/getAllPage?buscar=&page=&size=&activos=`, `PUT /v1/usuarios/{id}/resetear-password`, `DELETE /v1/usuarios/eliminarUsuarioDto/{id}`, `PUT /v1/usuarios/{id}/activar`, `GET /v1/usuarios/roles`, `PUT /v1/usuarios/{id}/rol/{rolId}` — pantalla `usuarios/buscar`
+- `POST /v1/auth/enviar-codigo-verificacion`, `/verificar-correo` — público
+**Microservicio:** solo el monolito.
+
+### 🏪 Negocio & Contactos
+**Ruta front:** `/admin/negocio`
+**Componente:** `src/app/admin/config-negocio/config-negocio.component.ts`
+**Endpoints:**
+- `GET /v1/negocio/config`, `POST /v1/negocio/abrir`, `/cerrar`, `PUT /v1/negocio/horario`, `/contactos` — pantalla `admin/negocio`
+**Microservicio:** solo el monolito.
+
+### 💬 Chat en vivo
+**Ruta front:** `/admin/chat`
+**Componente:** `src/app/admin/chat-admin/chat-admin.component.ts`
+**Endpoints:**
+- `GET /v1/chat/admin/sesiones`, `GET /v1/chat/admin/historial/{sesionId}?...`, `POST /v1/chat/admin/cerrar/{sesionId}` — pantalla `admin/chat`
+- WebSocket STOMP sobre `/ws` — handshake público
+**Nota:** el mismo controller (`ChatAdminController`) expone `GET /v1/chat/historial/usuario/{id}` y `/historial/cliente/{id}` que usa el chat del propio CLIENTE (no el panel admin) — desde 2026-08-27 requieren sesión y validan dueño-o-admin (antes eran públicos sin chequeo, corregido). `/historial/{sesionId}` (chat anónimo) sigue público a propósito, es un UUID no adivinable.
+**Microservicio:** solo el monolito.
+
+### 🖼️ Imágenes de presentación
+**Ruta front:** `/admin/presentacion`
+**Componente:** `src/app/admin/presentacion-imagenes/presentacion-imagenes.component.ts`
+**Endpoints:**
+- `GET /presentacion/v1/imagenes/todas`, `PUT /presentacion/v1/imagenes/{id}` — pantalla `admin/presentacion`
+- `GET /presentacion/v1/imagenes/{id}/imagen` — público
+**Microservicio:** SÍ — guardar/reemplazar la imagen la sube al microservicio externo; el listado y el `.../imagen` sirven el binario desde allá.
+
+### 🔍 Diagnóstico de imágenes
+**Ruta front:** `/admin/diagnostico-imagenes`
+**Componente:** `src/app/admin/diagnostico-imagenes/diagnostico-imagenes.component.ts`
+**Endpoints:**
+- `GET /v1/productos/buscarNombreOrCodigoBarra?...`, `GET /tienda/v1/buscar?...` — público
+- `GET /v1/productos/admin/diagnostico-imagenes/{productoId}` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (no una pantalla propia)
+- `GET /tienda/v1/admin/diagnostico-imagenes/{varianteId}` — misma pantalla
+**Microservicio:** SÍ, es el propósito de la pantalla — compara BD local (`producto_imagen_copy`/`variante_imagen`) contra si el microservicio externo realmente tiene el archivo. `total=0` → nunca se guardó en BD; `total>0` con archivo ausente en el microservicio → registro sobrevivió en BD pero el archivo se perdió allá. Ver detalle completo en `CLAUDE.md`.
+
+### 🔧 Reconciliación de imágenes
+**Ruta front:** `/admin/reconciliacion-imagenes`
+**Componente:** `src/app/admin/reconciliacion-imagenes/reconciliacion-imagenes.component.ts`
+**Endpoints:**
+- `POST /v1/admin/reconciliacion/imagenes?productoId=` (opcional), `POST /v1/admin/reconciliacion/imagenes/limpiar-bd`, `GET /v1/admin/reconciliacion/imagenes/resultado` — pantalla `admin/cache` (⚠️ no tiene pantalla propia, comparte protección con "Limpiar caché")
+**Microservicio:** SÍ — `ReconciliacionImagenService` compara cada imagen de BD contra el archivo físico en disco local; si existe localmente pero no en el microservicio, lo REENVÍA para repararlo (`reparados[]`); si tampoco existe localmente, queda en `faltantesEnDisco[]` (irreparable desde aquí). "Limpiar BD" hace lo inverso: borra de BD los registros cuyo archivo ya no existe ni localmente.
+**Microservicio:** monolito + microservicio de imágenes (recibe reparaciones).
+
+### 🗑️ Limpiar caché
+**Ruta front:** `/admin/cache`
+**Componente:** `src/app/admin/cache/cache.component.ts`
+**Endpoints:**
+- `DELETE /v1/admin/cache` — pantalla `admin/cache`
+**Microservicio:** solo el monolito (limpia Redis, no toca el microservicio de imágenes).
+
+### 🗂️ Menús y submenús
+**Ruta front:** `/gestion-menu`
+**Componente:** `src/app/menu-admin/gestion/gestion-menu.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/menu/**` y `/v1/submenu/**` — pantalla `gestion-menu`
+**Microservicio:** solo el monolito.
+
+### 🛡️ Gestión de roles
+**Ruta front:** `/gestion-menu/roles`
+**Componente:** `src/app/menu-admin/gestion-roles/gestion-roles.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/roles/**` + `POST/DELETE /v1/roles/{rolId}/submenus/{submenuId}` — pantalla `gestion-menu/roles`
+- `GET /v1/menu/getAll`, `GET /v1/submenu/getAll` (armar el checklist) — pantalla `gestion-menu` (necesita ambas pantallas)
+**Microservicio:** solo el monolito.
+
+### 🎨 Personalización
+**Ruta front:** `/personalizacion`
+**Componente:** `src/app/tema-admin/gestion/gestion-personalizacion.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/tema-variable/**` — pantalla `personalizacion`
+- `GET /v1/tema-variable/activo` — público (lo usa toda la app al arrancar, no solo esta pantalla)
+**Microservicio:** solo el monolito.
+
+---
+
+## Sin grupo (fuera del sistema de permisos — "básicos")
+
+### 👥 Clientes
+**Ruta front:** `/clientes/buscar`
+**Componente:** `src/app/clietes/clientes-buscar/clientes-buscar.component.ts`
+**Endpoints:**
+- `GET /v1/clientes/buscar?nombre=&page=&size=` — pantalla `clientes/buscar`
+- `POST /v1/clientes/{id}/enviar-codigo-verificacion`, `/verificar-correo` — autenticado (self-service; dueño-o-admin desde el fix de 2026-08-27)
+- `DELETE /v1/clientes/{id}/verificacion-correo` — pantalla `clientes/buscar`
+**Microservicio:** solo el monolito.
+
+### 🏠 Home
+**Ruta front:** `/home` — estática, sin llamadas HTTP, fuera del sistema de permisos.
+
+### 🛍️ Tienda
+**Ruta front:** `/tienda/buscar` — pública (cualquier visitante o usuario logueado)
+**Componente:** `src/app/variante/buscar/buscar.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/activas`, `GET /tienda/v1/filtros-disponibles`, `GET /tienda/v1/buscar`, `/buscar-filtrado`, `/porProducto/{id}/paginado/resumen` — público
+- `GET /v1/favoritos/ids`, `POST/DELETE /v1/favoritos/{varianteId}` — autenticado (si hay sesión)
+- Si es admin: `GET /tienda/v1/admin/filtrar`, `/getOne/{id}`, `PUT /tienda/v1/{id}/habilitar`, `/admin/habilitar-lote` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+**Microservicio:** solo lectura de imágenes ya guardadas (vía URL), no sube nada.
+
+### ❤️ Favoritos
+**Ruta front:** `/favoritos` — cualquier usuario logueado
+**Componente:** `src/app/favoritos/favoritos.component.ts`
+**Endpoints:**
+- `GET /v1/favoritos?pagina=&size=`, `DELETE /v1/favoritos/{varianteId}` — autenticado (100% del usuario, sin id manipulable)
+**Microservicio:** solo el monolito.
+
+### 💬 Chat
+**Ruta front:** `/chat` — cualquier usuario logueado
+**Componente:** `src/app/chat/chat-usuario/chat-usuario.component.ts`
+**Endpoints:**
+- `GET /v1/chat/historial/usuario/{usuarioId}?pagina=&size=` — autenticado, dueño-o-admin
+- WebSocket handshake `${api_Url}/ws` — público
+**Microservicio:** solo el monolito.
+
+### 📱 Código QR de la tienda
+**Ruta front:** `/qr` — estática, genera el QR en el navegador a partir de una URL fija, sin llamadas HTTP.
+
+### 🔑 Login
+**Ruta front:** `/login` — pública por definición
+**Componente:** `src/app/login/login-form/login-form.component.ts`
+**Endpoints:**
+- `POST /v1/auth/login` — público
+- `GET /v1/negocio/estado`, `/contactos` — público
+**Microservicio:** solo el monolito.
+
+---
+
+## Endpoints ROLE_ADMIN fijo sin pantalla propia todavía (recordatorio de la Fase 2)
+
+Si algún día quieres que un rol no-admin use alguno de estos, hay que darlo de alta como pantalla
+primero: gestión de imágenes compartida (`/imagen/**` fuera de lo público), gestión de Pedidos vía
+PUT/DELETE (cancelar, confirmar, eliminar), Ventas (`/v1/ventas/**` salvo reclamar), MercadoPago
+(`/v1/mp/**` salvo el webhook y el uso ya cubierto por otras pantallas via `PagoService`), Pagos
+(`/v1/pagos/**`), responder Reseñas, Actuator.
