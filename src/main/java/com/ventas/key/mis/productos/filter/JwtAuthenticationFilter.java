@@ -1,9 +1,11 @@
 package com.ventas.key.mis.productos.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.service.UsuarioServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -20,7 +24,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 
 @Component
@@ -40,10 +47,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/v1/auth/validar"
     );
 
+    /** Prefijo de authority para cada pantalla (submenu.ruta) que el usuario tiene concedida --
+     * ver {@link #autoridadesConPantallas}. Fase 2 de PLAN_PERMISOS_PANTALLAS.md: hasta ahora
+     * Menu/Submenu/rol_submenu solo decidian que ve el FRONT (menu dinamico + PantallaGuard),
+     * pero el backend seguia protegiendo todo con hasRole("ADMIN") fijo -- darle una pantalla a
+     * un rol no-admin la hacia aparecer en el menu, pero cualquier request real le devolvia 403
+     * igual. Con esto SecurityConfig ya puede pedir hasAnyAuthority("ROLE_ADMIN",
+     * "PANTALLA_<ruta>") en vez de hasRole("ADMIN") fijo en los endpoints que tengan una pantalla
+     * equivalente en el catalogo. */
+    public static final String PREFIJO_AUTORIDAD_PANTALLA = "PANTALLA_";
+
     @Autowired
     private JwtUtil jwtUtil;
     @Autowired
     private UserDetailsService userDetailsService;
+    @Autowired
+    private UsuarioServiceImpl usuarioService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -89,8 +108,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         responderPasswordTemporal(response);
                         return;
                     }
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(userDetails, jwt, userDetails.getAuthorities());
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails, jwt, autoridadesConPantallas(userDetails));
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
@@ -101,6 +120,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Junta los authorities normales del usuario (ROLE_x, permisos) con uno
+     * "{@value #PREFIJO_AUTORIDAD_PANTALLA}&lt;ruta&gt;" por cada pantalla que
+     * {@link UsuarioServiceImpl#submenusEfectivos} le da en ESTE momento -- se recalcula en cada
+     * request, así que a diferencia del claim "pantallas" del JWT (que solo se recalcula en
+     * login/refresh, hasta 15 min de rezago) esto refleja un cambio de permisos al instante. Si
+     * falla (usuario recien creado sin rol, error de datos) no tumba el request: sigue solo con
+     * los authorities normales, igual que antes de este cambio.
+     */
+    private Collection<? extends GrantedAuthority> autoridadesConPantallas(UserDetails userDetails) {
+        List<GrantedAuthority> authorities = new ArrayList<>(userDetails.getAuthorities());
+        if (userDetails instanceof Usuario usuario && usuario.getId() != null) {
+            try {
+                for (Submenu s : usuarioService.submenusEfectivos(usuario.getId())) {
+                    authorities.add(new SimpleGrantedAuthority(PREFIJO_AUTORIDAD_PANTALLA + s.getRuta()));
+                }
+            } catch (Exception e) {
+                log.warn("No se pudieron calcular las pantallas efectivas de {}: {}", usuario.getUsername(), e.getMessage());
+            }
+        }
+        return authorities;
     }
 
     /**

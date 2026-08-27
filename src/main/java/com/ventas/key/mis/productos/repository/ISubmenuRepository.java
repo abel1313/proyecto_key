@@ -9,4 +9,6 @@ import java.util.List;
 public interface ISubmenuRepository extends BaseRepository<Submenu, Integer> {
 
     List<Submenu> findByMenuId(Integer menuId);
+
+    long countByMenuId(Integer menuId);
 }

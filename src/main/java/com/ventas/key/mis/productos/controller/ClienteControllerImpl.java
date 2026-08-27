@@ -188,6 +188,17 @@ public class ClienteControllerImpl extends AbstractController<
     })
     @PostMapping("/{id}/enviar-codigo-verificacion")
     public ResponseEntity<ResponseGeneric<String>> enviarCodigoVerificacion(@PathVariable Integer id) {
+        // Sin este chequeo cualquier usuario autenticado podia mandar el id de OTRO cliente y
+        // hacerle llegar codigos de verificacion sin que los pidiera -- no filtra datos (el
+        // codigo va al correo YA registrado del dueno), pero es spam/molestia y puede invalidar
+        // un codigo que el dueno real estaba a punto de usar (encontrado 2026-08-27 junto con la
+        // misma falla en Pedidos). Mismo patron esDueno que findByIdCliente(), arriba.
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
         try {
             sGenerico.enviarCodigoVerificacionCorreo(id);
             return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo registrado"));
