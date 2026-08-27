@@ -13,6 +13,7 @@ import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
+import com.ventas.key.mis.productos.models.PermisosEfectivosDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IPermisoRepository;
@@ -314,5 +315,29 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
         return usuario.getRoles() != null ? usuario.getRoles().getAcciones() : Set.of();
+    }
+
+    /**
+     * Junta pantallas + pantallasEscritura + acciones en UN SOLO fetch del usuario (encontrado
+     * 2026-08-27: JwtAuthenticationFilter y AuthController.login/refresh llamaban a
+     * submenusEfectivos + submenusEscritura + accionesEfectivas por separado, cada una haciendo
+     * su propio usuarioRepository.findById() -- 3 fetches redundantes del MISMO usuario en cada
+     * request autenticado, con Usuario.roles EAGER y Roles con 4 colecciones @ManyToMany EAGER
+     * arrastrando varias queries cada vez. Esto era el causante de la lentitud reportada en
+     * login y en cualquier pantalla que mandara el token, no solo en las nuevas). Usar este
+     * metodo en vez de las 3 sueltas para cualquier caller que necesite las 3 juntas.
+     */
+    public PermisosEfectivosDto permisosEfectivos(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        Set<Submenu> pantallas = new HashSet<>(usuario.getRoles() != null
+                ? usuario.getRoles().getSubmenus() : Set.of());
+        List<UsuarioSubmenu> excepciones = usuarioSubmenuRepository.findByUsuarioId(usuarioId);
+        excepciones.stream().filter(UsuarioSubmenu::getConcedido).forEach(e -> pantallas.add(e.getSubmenu()));
+        excepciones.stream().filter(e -> !e.getConcedido())
+                .forEach(e -> pantallas.removeIf(s -> s.getId().equals(e.getSubmenu().getId())));
+        Set<Submenu> pantallasEscritura = usuario.getRoles() != null ? usuario.getRoles().getSubmenusEscritura() : Set.of();
+        Set<AccionSubmenu> acciones = usuario.getRoles() != null ? usuario.getRoles().getAcciones() : Set.of();
+        return new PermisosEfectivosDto(pantallas, pantallasEscritura, acciones);
     }
 }
