@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.IRolRepository;
 import com.ventas.key.mis.productos.repository.ISubmenuRepository;
+import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,11 +33,14 @@ public class RolesServiceImpl extends CrudAbstractServiceImpl<
 
     private final IRolRepository rolRepository;
     private final ISubmenuRepository submenuRepository;
+    private final IUsuarioRepository usuarioRepository;
 
-    public RolesServiceImpl(IRolRepository repository, ErrorGenerico error, ISubmenuRepository submenuRepository) {
+    public RolesServiceImpl(IRolRepository repository, ErrorGenerico error, ISubmenuRepository submenuRepository,
+                             IUsuarioRepository usuarioRepository) {
         super(repository, error);
         this.rolRepository = repository;
         this.submenuRepository = submenuRepository;
+        this.usuarioRepository = usuarioRepository;
     }
 
     @Transactional
@@ -75,6 +79,17 @@ public class RolesServiceImpl extends CrudAbstractServiceImpl<
                 .orElseThrow(() -> new ExceptionDataNotFound("Rol no encontrado: " + id));
         if (ROL_ADMIN.equals(rol.getNombreRol())) {
             throw new ExceptionOperacionNoPermitida("El rol ROLE_ADMIN no se puede eliminar.");
+        }
+        // Sin este chequeo se intentaba borrar el rol aunque hubiera usuarios con ese rol
+        // asignado (Usuario.roles es @ManyToOne obligatorio) -- la unica razon de que no
+        // rompiera nada hasta ahora es que la FK de la BD lo rechazaba con un 500 generico
+        // en vez de un mensaje util, o -- si esa FK no existe en el ambiente -- dejaba a esos
+        // usuarios con un rol_usuario huerfano incapaz de volver a iniciar sesion.
+        long usuariosConEsteRol = usuarioRepository.countByRolesId(id);
+        if (usuariosConEsteRol > 0) {
+            throw new ExceptionOperacionNoPermitida(
+                    "No se puede eliminar \"" + rol.getNombreRol() + "\": tiene " + usuariosConEsteRol
+                            + " usuario(s) asignado(s). Cámbiales el rol primero.");
         }
         rolRepository.delete(rol);
         return rol;

@@ -56,6 +56,11 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     @Query("SELECT u.cliente.id FROM Usuario u WHERE u.id = :id")
     Integer existsUsuarioByClienteId(@Param("id") Integer id);
 
+    // Usado por RolesServiceImpl.delete() para bloquear el borrado de un rol que todavia
+    // tiene usuarios asignados -- sin este chequeo, RolesServiceImpl.delete() no validaba
+    // nada antes de borrar (encontrado 2026-08-27, hallazgo del usuario).
+    long countByRolesId(Integer rolId);
+
 
 
 }
