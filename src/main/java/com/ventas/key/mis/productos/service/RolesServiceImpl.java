@@ -65,6 +65,41 @@ public class RolesServiceImpl extends CrudAbstractServiceImpl<
                             + "\" -- es la pantalla que asigna permisos, y sin ella nadie podria volver a dárselos.");
         }
         rol.getSubmenus().removeIf(s -> s.getId().equals(submenuId));
+        // Sin ver la pantalla no tiene sentido poder escribir en ella -- se cae en cascada para
+        // no dejar una fila huerfana en rol_submenu_escritura (invariante que garantiza esta clase).
+        rol.getSubmenusEscritura().removeIf(s -> s.getId().equals(submenuId));
+        return rolRepository.save(rol);
+    }
+
+    // ── Fase 2 de permisos de accion: quien puede ademas ESCRIBIR (no solo ver) ────────────
+
+    @Transactional
+    public Roles agregarSubmenuEscritura(Integer rolId, Integer submenuId) {
+        Roles rol = rolRepository.findById(rolId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Rol no encontrado"));
+        Submenu submenu = submenuRepository.findById(submenuId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Submenu no encontrado"));
+        if (rol.getSubmenus().stream().noneMatch(s -> s.getId().equals(submenuId))) {
+            throw new ExceptionOperacionNoPermitida(
+                    "\"" + rol.getNombreRol() + "\" primero necesita poder VER \"" + submenu.getNombre()
+                            + "\" antes de poder escribir en ella.");
+        }
+        rol.getSubmenusEscritura().add(submenu);
+        return rolRepository.save(rol);
+    }
+
+    @Transactional
+    public Roles quitarSubmenuEscritura(Integer rolId, Integer submenuId) {
+        Roles rol = rolRepository.findById(rolId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Rol no encontrado"));
+        Submenu submenu = submenuRepository.findById(submenuId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Submenu no encontrado"));
+        if (ROL_ADMIN.equals(rol.getNombreRol()) && RUTAS_PROTEGIDAS_ADMIN.contains(submenu.getRuta())) {
+            throw new ExceptionOperacionNoPermitida(
+                    "No se le puede quitar a ROLE_ADMIN la escritura en \"" + submenu.getNombre()
+                            + "\" -- es la pantalla que asigna permisos, y sin ella nadie podria volver a dárselos.");
+        }
+        rol.getSubmenusEscritura().removeIf(s -> s.getId().equals(submenuId));
         return rolRepository.save(rol);
     }
 

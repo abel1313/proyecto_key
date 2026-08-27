@@ -295,4 +295,14 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
                 .forEach(e -> efectivos.removeIf(s -> s.getId().equals(e.getSubmenu().getId())));
         return efectivos;
     }
+
+    // Fase 2 de permisos de accion (2026-08-27): de las pantallas efectivas de arriba, cuales
+    // ademas dan ESCRIBIR (crear/editar/borrar). A diferencia de submenusEfectivos(), esto SOLO
+    // sale del rol -- las excepciones por usuario (usuario_submenu) siguen siendo nada mas de
+    // visibilidad, no tienen su propio nivel de accion todavia (no hay front para eso aun).
+    public Set<Submenu> submenusEscritura(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuario.getRoles() != null ? usuario.getRoles().getSubmenusEscritura() : Set.of();
+    }
 }
