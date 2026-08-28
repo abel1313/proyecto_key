@@ -476,16 +476,22 @@ public class FlorPedidoServiceImpl {
         java.time.LocalDateTime primeraFechaValida;
         Double cargo = null;
 
+        // Bug encontrado 2026-08-28: horaLimitePedido ("si ya pasó esta hora, hoy ya no cuenta
+        // como día 0") solo se aplicaba a la entrega URGENTE -- la entrega NORMAL siempre contaba
+        // "hoy" como día 0 sin importar la hora, así que pedir a las 11pm con diasNormal=3 daba
+        // la misma fecha que pedirlo a las 8am, cuando en la práctica ya no alcanzan a arrancar
+        // hoy. Se unifica: la misma hora de corte decide el día de arranque para los dos casos.
+        // Con horaLimitePedido sin configurar (catálogos viejos que nunca la fijaron para la
+        // entrega normal), se mantiene el comportamiento de siempre -- hoy cuenta como día 0.
+        java.time.LocalDate diaInicio = (aplicada.getHoraLimitePedido() != null
+                && !java.time.LocalTime.now().isBefore(aplicada.getHoraLimitePedido()))
+                ? hoy.plusDays(1) : hoy;
+
         if (urgente) {
-            // Si ya paso la hora limite de hoy, el plazo urgente se corre a partir de manana --
-            // el dia de hoy "ya no cuenta" (confirmado por el dueno con el ejemplo de la hora de
-            // corte moviendo el calendario, no solo la fecha).
-            java.time.LocalDate diaInicio = java.time.LocalTime.now().isBefore(aplicada.getHoraLimitePedido())
-                    ? hoy : hoy.plusDays(1);
             primeraFechaValida = diaInicio.plusDays(aplicada.getDiasUrgente()).atTime(aplicada.getHoraEntregaUrgente());
             cargo = aplicada.getCargoUrgente();
         } else {
-            primeraFechaValida = hoy.plusDays(aplicada.getDiasNormal()).atTime(aplicada.getHoraEntregaNormal());
+            primeraFechaValida = diaInicio.plusDays(aplicada.getDiasNormal()).atTime(aplicada.getHoraEntregaNormal());
         }
         primeraFechaValida = primeraFechaValida.plusHours(horasExtraZona);
 
