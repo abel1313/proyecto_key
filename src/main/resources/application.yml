@@ -20,6 +20,15 @@ spring:
       max-file-size: 200MB
       max-request-size: 200MB
 
+# URL pública real del backend (dominio + context-path), para armar links absolutos que se
+# consumen FUERA de la app (ej. <img src> del logo en el encabezado de los correos -- un cliente
+# de correo no puede resolver una ruta relativa). Vacío por default a propósito: cada ambiente
+# tiene su propio dominio y, como el resto de la config sensible al ambiente (DB_URL, TOKEN_JWT),
+# se define por variable de entorno, no hardcodeada acá -- ver EmailService.encabezadoMarca(),
+# que si esto queda vacío simplemente no muestra el logo (mismo fallback de ícono+texto de antes).
+app:
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
+
 server:
   port: 9091
   servlet:

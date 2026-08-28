@@ -18,9 +18,15 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final NegocioService negocioService;
+    private final LogoService logoService;
 
     @Value("${spring.mail.username}")
     private String remitente;
+
+    // Ver el comentario largo de app.public-base-url en application.yml -- si queda vacío (no
+    // configurado en este ambiente) el encabezado cae al ícono+texto de siempre, no rompe nada.
+    @Value("${app.public-base-url:}")
+    private String publicBaseUrl;
 
     // Direccion del negocio para el pie de los correos -- no existe ningun campo de direccion en
     // ConfiguracionNegocio ni pantalla que lo administre todavia, asi que queda fija aqui por
@@ -134,19 +140,30 @@ public class EmailService {
     }
 
     /**
-     * Contenido del encabezado de marca -- hoy es solo ícono + texto porque no existe ningún
-     * archivo de logo en el proyecto (confirmado con el dueño, 2026-08-25). Cuando exista uno,
-     * cambiar ÚNICAMENTE este método: subir el archivo a algo con URL pública (ej. junto a las
-     * imágenes de presentación que ya sirve el back, o al hosting del front) y reemplazar el
-     * <div> del ícono por
-     *   "<img src=\"https://.../logo.png\" width=\"150\" alt=\"Novedades Jade\" "
-     *   + "style=\"display:block;margin:0 auto;\">"
-     * -- un <img src="data:..."> (base64) NO sirve aquí: muchos clientes de correo (Gmail incluido
-     * en varios casos) lo bloquean o lo quitan: el logo necesita vivir en una URL real, accesible
-     * sin login, para que cargue en el correo. No hace falta tocar envolverPlantilla() ni ningún
-     * llamador de enviarTicket() -- todos los correos del sistema recogen el cambio solos.
+     * Contenido del encabezado de marca. Pedido 2026-08-28: ya hay logo (LogoService, admin sube
+     * y elige cuál usar en Personalización) -- si hay uno activo Y el ambiente tiene
+     * app.public-base-url configurada, se usa como <img>; si falta cualquiera de las dos cosas
+     * (todavía no se subió/activó un logo, o este ambiente no configuró su dominio público),
+     * cae al ícono+texto de siempre. Nunca falla el envío del correo por esto -- ver el
+     * try/catch, mismo criterio que filaRedesSociales().
+     *
+     * Un <img src="data:..."> (base64) NO sirve acá: muchos clientes de correo (Gmail incluido en
+     * varios casos) lo bloquean o lo quitan -- el logo necesita vivir en una URL real, accesible
+     * sin login, para que cargue en el correo (por eso GET /logos/{id}/imagen es público).
      */
     private String encabezadoMarca() {
+        try {
+            if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+                var logo = logoService.obtenerActivo().orElse(null);
+                if (logo != null) {
+                    String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+                    return "<img src=\"" + base + logo.getUrlImagen() + "\" width=\"150\" alt=\"Novedades Jade\" "
+                            + "style=\"display:block;margin:0 auto;max-width:150px;height:auto;\">";
+                }
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo cargar el logo activo para el encabezado del correo: {}", e.getMessage());
+        }
         return "<div style=\"font-size:26px;line-height:1;\">🛍️</div>"
                 + "<div style=\"color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.3px;"
                 + "margin-top:6px;font-family:Arial,Helvetica,sans-serif;\">Novedades Jade</div>";
