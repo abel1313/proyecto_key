@@ -11,6 +11,7 @@ import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.models.ConfirmarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.EnviarCodigoVerificacionUsuarioRequest;
 import com.ventas.key.mis.productos.models.OlvidePasswordRequest;
+import com.ventas.key.mis.productos.models.PermisosEfectivosDto;
 import com.ventas.key.mis.productos.models.RegistroRequest;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.RestablecerPasswordRequest;
@@ -20,7 +21,7 @@ import com.ventas.key.mis.productos.service.LoginRateLimiterService;
 import com.ventas.key.mis.productos.service.PasswordResetService;
 import com.ventas.key.mis.productos.service.RegistroService;
 import com.ventas.key.mis.productos.service.SesionRefreshService;
-import com.ventas.key.mis.productos.service.api.IUsuarioService;
+import com.ventas.key.mis.productos.service.UsuarioServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioVerificacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,7 +47,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Tag(name = "Autenticacion", description = "Login, logout, registro y renovacion de tokens JWT. El refresh token se guarda en cookie HttpOnly.")
 @RestController
@@ -62,7 +65,7 @@ public class AuthController {
     private final LoginRateLimiterService rateLimiterService;
     private final UserDetailsService userDetailsService;
     private final UsuarioVerificacionService usuarioVerificacionService;
-    private final IUsuarioService usuarioService;
+    private final UsuarioServiceImpl usuarioService;
     private final SesionRefreshService sesionRefreshService;
 
     @Value("${cookie.secure:true}")
@@ -147,7 +150,12 @@ public class AuthController {
             // deteccion de reuso puedan invalidar el refresh token del lado del servidor.
             SesionRefreshService.SesionNueva sesion = sesionRefreshService.crearSesion(usr.getId());
 
-            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId());
+            // usr ya viene con Roles+sus 4 colecciones EAGER cargadas (authManager.authenticate()
+            // llama a loadUserByUsername por dentro) -- pasar el objeto en vez del id evita
+            // volver a pedirlo a la BD.
+            PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usr);
+            String accessToken  = jwtUtil.generateToken((UserDetails) auth.getPrincipal(), usr.getId(),
+                    pantallasClaim(permisos), pantallasEscrituraClaim(permisos), pantallasAccionesClaim(permisos));
             String refreshToken = jwtUtil.generateRefreshToken((UserDetails) auth.getPrincipal(), usr.getId(),
                     sesion.sessionStartMillis(), sesion.jti(), sesion.sessionId());
 
@@ -223,7 +231,11 @@ public class AuthController {
             }
 
             long sessionStart = jwtUtil.extractSessionStart(refreshToken);
-            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId());
+            // usr ya viene con Roles+sus 4 colecciones EAGER cargadas (loadUserByUsername de
+            // arriba) -- pasar el objeto en vez del id evita volver a pedirlo a la BD.
+            PermisosEfectivosDto permisos = usuarioService.permisosEfectivos(usr);
+            String newAccessToken  = jwtUtil.generateToken(userDetails, usr.getId(),
+                    pantallasClaim(permisos), pantallasEscrituraClaim(permisos), pantallasAccionesClaim(permisos));
             String newRefreshToken = jwtUtil.generateRefreshToken(userDetails, usr.getId(), sessionStart,
                     jtiNuevo.get(), sessionId);
 
@@ -521,6 +533,35 @@ public class AuthController {
      */
     private boolean faltaHeaderAntiCsrf(HttpServletRequest request) {
         return exigirHeaderRefresh && request.getHeader(HEADER_ANTI_CSRF) == null;
+    }
+
+    /**
+     * Rutas (Submenu.ruta) efectivas del usuario -- se meten al JWT para el PantallaGuard/menu
+     * dinamico. Recibe el {@link PermisosEfectivosDto} ya calculado (un solo fetch del usuario
+     * en {@code usuarioService.permisosEfectivos}) en vez de pedirlo de nuevo -- encontrado
+     * 2026-08-27: antes cada uno de estos 3 metodos hacia su propio fetch redundante del mismo
+     * usuario, triplicando las queries de login/refresh.
+     */
+    private List<String> pantallasClaim(PermisosEfectivosDto permisos) {
+        return permisos.getPantallas().stream()
+                .map(com.ventas.key.mis.productos.entity.Submenu::getRuta)
+                .collect(Collectors.toList());
+    }
+
+    /** Subconjunto de {@link #pantallasClaim} en las que el usuario ademas puede ESCRIBIR --
+     * Fase 2 de permisos de accion (2026-08-27), ver UsuarioServiceImpl.submenusEscritura. */
+    private List<String> pantallasEscrituraClaim(PermisosEfectivosDto permisos) {
+        return permisos.getPantallasEscritura().stream()
+                .map(com.ventas.key.mis.productos.entity.Submenu::getRuta)
+                .collect(Collectors.toList());
+    }
+
+    /** Acciones puntuales dentro de una pantalla que el usuario puede usar (Fase 3 de permisos,
+     * piloto en Modelos 2026-08-27), formato "ruta:clave". */
+    private List<String> pantallasAccionesClaim(PermisosEfectivosDto permisos) {
+        return permisos.getAcciones().stream()
+                .map(a -> a.getSubmenu().getRuta() + ":" + a.getClave())
+                .collect(Collectors.toList());
     }
 
     /** Gasta un intento en las dos claves del login (IP y usuario) — solo tras un fallo real. */

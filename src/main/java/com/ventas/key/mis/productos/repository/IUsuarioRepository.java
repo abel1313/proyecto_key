@@ -41,9 +41,25 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
 
     Page<Usuario> findByEnabledTrue(Pageable pageable);
 
+    // Contraparte para el filtro "ver desactivados" -- deja consultar a quien se le hizo soft-delete
+    // (por si fue sin querer) para poder reactivarlo, ver UsuarioServiceImpl.activarUsuario.
+    @Query("""
+    SELECT u
+    FROM Usuario u
+    WHERE u.enabled = false AND u.username LIKE CONCAT('%', :buscar, '%')
+""")
+    Page<Usuario> findAllPageInactivos(@Param("buscar") String buscar, Pageable pageable);
+
+    Page<Usuario> findByEnabledFalse(Pageable pageable);
+
 
     @Query("SELECT u.cliente.id FROM Usuario u WHERE u.id = :id")
     Integer existsUsuarioByClienteId(@Param("id") Integer id);
+
+    // Usado por RolesServiceImpl.delete() para bloquear el borrado de un rol que todavia
+    // tiene usuarios asignados -- sin este chequeo, RolesServiceImpl.delete() no validaba
+    // nada antes de borrar (encontrado 2026-08-27, hallazgo del usuario).
+    long countByRolesId(Integer rolId);
 
 
 

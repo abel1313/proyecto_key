@@ -44,6 +44,8 @@ public class RamoPedidoDetalleController {
     public ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> adjuntar(
             @PathVariable Integer pedidoId, @RequestBody RamoPedidoDetalleRequestDto request) {
         try {
+            ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
+            if (noAutorizado != null) return noAutorizado;
             return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.adjuntar(pedidoId, request)));
         } catch (Exception e) {
             log.error("Error al adjuntar detalle de ramo al pedido {}: {}", pedidoId, e.getMessage(), e);
@@ -55,11 +57,30 @@ public class RamoPedidoDetalleController {
     public ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> listarPorPedido(
             @PathVariable Integer pedidoId) {
         try {
+            ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
+            if (noAutorizado != null) return noAutorizado;
             return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.listarPorPedido(pedidoId)));
         } catch (Exception e) {
             log.error("Error al listar detalle de ramo del pedido {}: {}", pedidoId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>((List<RamoPedidoDetalleResponseDto>) null, "Error al listar"));
         }
+    }
+
+    /**
+     * ADMIN siempre puede; cualquier otro usuario solo si el pedido es suyo -- mismo patron que
+     * cancelarPropio() de abajo. Sin esto, adjuntar()/listarPorPedido()/revalidarAntesDePagar()
+     * aceptaban CUALQUIER pedidoId de CUALQUIER cliente (IDOR, encontrado 2026-08-27 junto con la
+     * misma falla en PedidoServiceImpl -- ver ese archivo).
+     */
+    private <T> ResponseEntity<ResponseGeneric<T>> rechazarSiNoEsDueno(Integer pedidoId) {
+        if (AuthenticationUtils.isAdminContext()) return null;
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        Integer clienteIdPropietario = ramoPedidoDetalleService.obtenerClienteIdPropietario(pedidoId);
+        boolean esDueno = actual.getCliente() != null && clienteIdPropietario != null
+                && actual.getCliente().getId().equals(clienteIdPropietario);
+        if (esDueno) return null;
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ResponseGeneric<>((T) null, "No autorizado -- este pedido no es tuyo"));
     }
 
     @GetMapping("/frases-pendientes")
@@ -82,6 +103,8 @@ public class RamoPedidoDetalleController {
     public ResponseEntity<ResponseGeneric<RevalidarPagoResponseDto>> revalidarAntesDePagar(
             @PathVariable Integer pedidoId) {
         try {
+            ResponseEntity<ResponseGeneric<RevalidarPagoResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
+            if (noAutorizado != null) return noAutorizado;
             return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.revalidarAntesDePagar(pedidoId)));
         } catch (Exception e) {
             log.error("Error al revalidar pago del pedido {}: {}", pedidoId, e.getMessage(), e);

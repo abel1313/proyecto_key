@@ -16741,10 +16741,9 @@ para esto). Guarda el primer `access_token`/`refresh_token` en una tabla nueva
 (`tiktok_token`, fila única) — de ahí en adelante el back se refresca solo antes de cada
 publicación (el token de TikTok dura ~24h, a diferencia del de Facebook que no expira).
 
-### Migración pendiente de correr
+### Migración
 
-`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Todavía no corrió en ningún ambiente,
-falta cuando decidan.
+`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Ejecutada en QA y prod (2026-08-27).
 
 No hace falta nada nuevo del front todavía para TikTok — la pantalla ya lo tiene contemplado como
 deshabilitado según dijeron. Avisamos cuando esté probado en Sandbox para que lo activen.
@@ -17677,3 +17676,845 @@ URL guardada y el admin se equivocó y quiere reemplazarla, agregar algo tipo un
 "limpiar" al lado del campo que seleccione/borre el texto de un tirón, en vez de borrar letra por
 letra. Del lado del back no hace falta nada — mandar `""` en el `PUT /v1/negocio/contactos` ya
 limpia el campo sin problema (ver contrato arriba: `null` = no tocar, `""` = guardar vacío).
+
+---
+
+## Nuevo — Personalización de tema: catálogo dinámico de variables (2026-08-27)
+
+**⚠️ Reemplaza por completo un diseño anterior de columnas fijas (`GET/PUT /v1/tema`) que se
+documentó y se descartó el mismo día sin llegar a subirse a ningún ambiente — si alguien vio esa
+versión, ignórenla, nunca se desplegó.** El diseño final es un catálogo tipo "dar de alta" (mismo
+patrón que Menu/Submenu): cada variable de color/forma es una FILA editable, no una columna fija.
+Agregar una variable nueva no requiere ningún cambio de código, ni back ni front.
+
+Respalda la pantalla admin `/personalizacion` (`src/app/tema-admin/`, `src/app/services/tema/`).
+
+**Request:** `GET /mis-productos/v1/tema-variable/activo` (público, sin token — hasta un
+visitante anónimo necesita el tema activo para pintar la tienda)
+**Response:** arreglo de variables, cada una:
+```json
+{
+  "id": 5,
+  "clave": "app-bg",
+  "etiqueta": "Fondo de la página",
+  "grupo": "Página",
+  "tipo": "color",
+  "valorClaro": "#F3FAF6",
+  "valorOscuro": "#000000",
+  "orden": 1
+}
+```
+- `clave`: nombre del custom property CSS **sin** el prefijo `--` (se aplica como
+  `document.body.style.setProperty('--' + clave, valor)`). Coincide con un `var(--esa-clave)`
+  que ya existe en `styles.scss` — si el dueño da de alta una clave que ningún `.scss` consume
+  todavía, no tiene efecto visual (no rompe nada, simplemente no se ve hasta que algún componente
+  la use).
+- `tipo`: `'color'` | `'numero'` | `'seleccion'`. `'seleccion'` hoy solo aplica a la variable
+  `card-shadow` (valores `suave`/`media`/`fuerte`, el front trae su propio mapa a box-shadow real).
+  `'numero'` es para valores estructurales como `card-radius` (px).
+- `valorOscuro` puede venir `null` — en ese caso se usa `valorClaro` para los dos modos (variables
+  estructurales que no cambian de noche).
+
+**CRUD completo (ADMIN)**, mismo patrón genérico que Menu/Submenu:
+- `POST /mis-productos/v1/tema-variable/save` — dar de alta una variable nueva.
+- `PUT /mis-productos/v1/tema-variable/update/{id}` — editar.
+- `DELETE /mis-productos/v1/tema-variable/delete` (body: el `id`, número plano) — eliminar. Es
+  seguro borrar cualquiera: la app simplemente vuelve a usar el valor fijo de código para esa
+  variable, no hay ninguna protección de "no dejar la última" (a diferencia de Menu/Submenu).
+- `GET /mis-productos/v1/tema-variable/getAll?page=0&size=100` — listado paginado (pantalla admin).
+
+**Semilla inicial (25 variables)**, ya sembradas con los mismos valores que tenía `styles.scss`
+a mano, así que el primer `GET /activo` no cambia nada visualmente: grupos **Marca**
+(`brand-1`, `brand-2`, `brand-3`, `app-accent-ink`), **Página** (`app-bg`, `app-text`,
+`app-text-muted`, `app-border`), **Card** (`card-header-bg`, `card-body-bg`, `card-footer-bg`,
+`card-border`, `card-radius`, `card-shadow`), **Tablas** (`table-header-bg`, `table-header-text`,
+`table-row-hover`, `table-border`), **Menú lateral** (`sb-header-bg`, `sb-body-bg`,
+`sb-footer-bg`, `sb-text`, `sb-border`), **Formularios** (`form-section-bg`, `input-bg`).
+
+**Alias automáticos:** algunas claves, al aplicarse, también pisan un `--custom-property` con
+otro nombre que otra pantalla más vieja consume con el mismo valor por defecto (para no duplicar
+filas idénticas en el catálogo) — ver `ALIAS_LEGACY` en `services/tema/tema.model.ts`. Ej.: editar
+`app-bg` también cambia `--page-bg`; editar `app-text` también cambia `--header-text` y
+`--input-text`; editar `card-body-bg` también cambia `--card-bg` y `--app-surface`.
+
+**Pendiente:** correr `migration_tema_variable.sql` (raíz del repo back) — crea la tabla
+`tema_variable`, la siembra con las 25 variables, y da de alta la pantalla "Personalización"
+(grupo Sistema, ruta `personalizacion`) en el catálogo de permisos + se la asigna a ROLE_ADMIN.
+Sin esto el link del navbar da "sin acceso" aunque el usuario sea admin.
+
+---
+
+## Fix de seguridad — varios endpoints no validaban dueño (IDOR) (2026-08-27)
+
+Auditoría completa de "cada quien solo ve lo suyo" en toda la API. **Ningún contrato de
+request/response cambió** — mismos endpoints, mismos campos. Lo que cambió es que ahora rechazan
+(403) cuando el usuario autenticado no es ni el dueño del recurso ni ADMIN. Documentado porque el
+front puede empezar a ver 403 en escenarios que antes "funcionaban por accidente" (ej. probando
+con IDs de otro usuario a mano).
+
+- **Antes:** `GET /v1/pedidos/findPedido/{id}`, `findPedido/{idPedido}/{idCliente}` y
+  `{id}/detalle` devolvían los pedidos de **cualquier** cliente con solo cambiar el id en la URL,
+  para cualquier usuario logueado. **Después:** si no eres ADMIN, el `id`/`idCliente` de la URL se
+  ignora y siempre se usa el cliente del usuario autenticado. El front no necesita cambiar nada —
+  ya mandaba el id correcto en el flujo normal (`mis-pedidos.component.ts` lo resuelve del propio
+  usuario).
+- **Antes:** `GET /v1/pedidos/buscarClientePedido` (búsqueda global sin filtro de dueño) la podía
+  llamar cualquier usuario autenticado. **Después:** requiere ADMIN. Ya solo la llama el front
+  cuando `isAdminUser=true`, sin cambio de comportamiento para el flujo normal.
+- **Antes:** en Flores eternas, `POST/GET /v1/flores/pedidos/{pedidoId}/detalle` y
+  `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` no validaban dueño del pedido.
+  **Después:** mismo chequeo dueño-o-admin que ya tenía `DELETE .../cancelar`.
+- **Antes:** `GET /v1/chat/historial/usuario/{usuarioId}` y `/historial/cliente/{clienteId}` eran
+  **públicos** (sin login) y sin chequeo de dueño — cualquiera en internet podía leer el chat
+  privado de cualquier cliente. **Después:** requieren sesión y que seas tú (o ADMIN). El historial
+  por `sesionId` (chat anónimo) sigue público a propósito — es un UUID random, no adivinable.
+- **Antes:** `POST /v1/clientes/{id}/enviar-codigo-verificacion` lo podía disparar cualquier
+  usuario logueado contra cualquier cliente (spam/molestia, no fuga de datos). **Después:** dueño
+  o ADMIN.
+
+---
+
+## Fase 2 de permisos por pantalla — el backend ahora respeta las pantallas asignadas por rol (2026-08-27)
+
+Hasta ahora, Menu/Submenu/`rol_submenu` (Fase 1) solo decidían qué mostraba el **front** (menú
+dinámico + guard de rutas) — el backend seguía protegiendo cada endpoint admin con
+`hasRole("ADMIN")` fijo, así que darle una pantalla a un rol distinto de ROLE_ADMIN la hacía
+aparecer en el menú, pero cualquier llamada real al API le devolvía 403 igual.
+
+Ya no: la mayoría de los endpoints admin ahora aceptan `ROLE_ADMIN` **o** la pantalla equivalente
+concedida al usuario (calculada en cada request, no depende de refrescar el token). Si le dan a
+un rol una pantalla del catálogo (ej. "Modelos" → `productos/buscar`), ese rol ya puede usar de
+verdad los endpoints que esa pantalla necesita, no solo verlos en el menú. No cambia ningún
+contrato de request/response — mismos endpoints, mismos campos, solo cambia quién puede llamarlos.
+
+Un puñado de endpoints admin siguen exigiendo `ROLE_ADMIN` fijo porque no tienen una pantalla
+equivalente en el catálogo todavía (gestión de imágenes compartida, gestión de Pedidos vía
+PUT/DELETE, Ventas, MercadoPago, Pagos, responder Reseñas, Actuator) — si en algún momento se
+necesita que un rol no-admin los use, hay que darlos de alta como pantalla primero.
+
+### Corrección — 3 pantallas que dependían "escondidas" de otra pantalla (2026-08-27)
+
+Al armar el mapa completo pantalla→endpoint se encontraron 3 pantallas cuya funcionalidad
+dependía de un permiso ajeno sin que nada lo indicara: dar de alta esa pantalla sola a un rol no
+alcanzaba, y el usuario se topaba con un 403 al usar una parte de la vista sin entender por qué.
+Corregido:
+
+- **Catálogos** (`flores/catalogos`) y **Administrar ramos armados** (`flores/ramos-admin`):
+  subir la foto de un color/accesorio/frase/ramo llama a `POST /tienda/v1/guardarConImagenes`
+  (endpoint genérico de variantes), que antes solo aceptaba las pantallas de Productos
+  (`productos/buscar`/`productos/agregar`/`tienda/venta`). Ahora también acepta la pantalla propia
+  de cada vista.
+- **Gestionar promociones** (`admin/promociones`): el buscador de variantes embebido para armar
+  el combo llama a `GET /tienda/v1/admin/filtrar`, que antes solo aceptaba las pantallas de
+  Productos. Ahora también acepta `admin/promociones`.
+- **Reconciliación de imágenes**: antes compartía la pantalla `admin/cache` ("Limpiar caché") en
+  vez de tener la suya propia — el submenú `admin/reconciliacion-imagenes` ya existía en el
+  catálogo pero no se usaba. Ahora `POST/GET /v1/admin/reconciliacion/**` exige esa pantalla
+  propia (o `ROLE_ADMIN`), separado de "Limpiar caché".
+
+**Nota:** las 3 correcciones son aditivas (agregan una pantalla alternativa, no quitan la que ya
+funcionaba) — no rompen nada para quien ya tenía acceso vía las pantallas de Productos.
+
+**⚠️ Interdependencias que siguen igual, documentadas pero no cambiadas** (decisión de producto,
+no bug): "Entregas" (`flores/entregas`) no tiene endpoints propios, reutiliza por completo el CRUD
+de "Catálogos → Cantidades" (`flores/catalogos`); no hay una pantalla independiente para separar
+esas dos vistas si algún día se necesitara.
+
+---
+
+## Fase 2 de permisos de acción — Ver vs. Editar por pantalla (2026-08-27)
+
+Hasta ahora, dar una pantalla a un rol era todo-o-nada: si un rol podía VER "Modelos", automática-
+mente podía también crear/editar/borrar productos — no existía forma de dar acceso de solo lectura.
+Ya no: cada pantalla ahora tiene dos permisos independientes, **Ver** (como antes, sin cambios de
+comportamiento) y **Editar** (nuevo). Editar solo se puede dar si el rol ya tiene Ver de esa misma
+pantalla; si a un rol se le quita el Ver, el back automáticamente le quita también el Editar (no
+queda un permiso de escritura "huérfano" sin el de lectura).
+
+**Dónde se configura:** Sistema → Gestión de roles (`/gestion-menu/roles`) — cada pantalla del
+listado ahora tiene 2 checkboxes en vez de 1: "☑ (pantalla)" (Ver, como siempre) y "☑ ✏️ Editar"
+al lado, deshabilitado hasta que Ver esté marcado.
+
+**Nuevos endpoints** (mismo patrón que los ya existentes para Ver):
+- `POST /v1/roles/{rolId}/submenus/{submenuId}/escritura` — le da a `rolId` permiso de Editar en
+  `submenuId`. 400 si el rol todavía no tiene el Ver de esa pantalla.
+- `DELETE /v1/roles/{rolId}/submenus/{submenuId}/escritura` — le quita el Editar (el Ver no se
+  toca). 400 si es ROLE_ADMIN y la pantalla es `gestion-menu`/`gestion-menu/roles` (protegidas,
+  mismo criterio que ya existía para el Ver).
+- Ambos devuelven el `Roles` completo actualizado, igual que los endpoints de Ver — el campo nuevo
+  es `submenusEscritura: ISubmenu[]` (además del `submenus: ISubmenu[]` que ya existía), tanto en
+  la respuesta de estos 2 endpoints como en `GET /v1/roles/getAll`.
+
+**Cómo lo aplica el backend (no requiere nada del front, ya está activo):** cada pantalla que
+antes exigía `ROLE_ADMIN` o la authority `PANTALLA_<ruta>` para TODOS los métodos, ahora separa:
+los `GET` siguen pidiendo solo `PANTALLA_<ruta>` (Ver, sin cambio), y `POST`/`PUT`/`DELETE` piden
+además `PANTALLA_<ruta>_ESCRIBIR` (Editar, nuevo — se rechaza con 403 si el rol no lo tiene aunque
+sí pueda ver la pantalla). Aplica a las ~20 pantallas que ya eran de gestión (Usuarios, Roles,
+Menú/Submenú, Gastos, Reportes, Dashboard, Redes sociales, Rifas, Documentos, Admin/Reconciliación,
+Chat admin, Negocio, Presentación, Personalización, Productos/Tienda admin, Promociones, Flores
+catálogos/ramos-admin/frases, Cinta, Clientes, Carga de imágenes, Lugares de entrega, Palabras
+clave, Abonos, Clientes-sin-registro). Las pantallas cuya lectura ya era 100% pública (el catálogo
+que ve cualquier visitante) no cambian: ahí "Ver" nunca estuvo restringido, solo Editar.
+
+**Migración `migration_permiso_escritura.sql` — ya ejecutada en QA y prod (2026-08-27).** Creó la
+tabla `rol_submenu_escritura` y sembró, para cada rol que ya tenía una pantalla, el permiso de
+Editar de esa misma pantalla — nadie perdió acceso al correrla (el comportamiento "ver = poder
+editar" que existía hasta ahora quedó exactamente igual para todo rol ya existente, incluido
+ROLE_ADMIN). Desde ahora, el admin puede ir a Gestión de roles y quitarle a un rol el Editar de
+una pantalla puntual sin tocar las demás.
+
+**JWT — nuevo claim, todavía no consumido por las pantallas individuales:** el access token ahora
+trae, además de `pantallas: string[]` (como ya existía), un `pantallasEscritura: string[]` — el
+subconjunto de esas pantallas donde el usuario logueado puede además escribir. El backend YA
+rechaza con 403 cualquier escritura fuera de ese subconjunto sin importar este claim (la seguridad
+real está en `SecurityConfig`, no en el front). El claim se agregó para que, más adelante, cada
+uno de los ~45 componentes admin pueda leerlo y mostrar un modo de solo lectura (ocultar/deshabi-
+litar botones de guardar/editar/borrar) en vez de dejar que el usuario intente y se tope con un
+403 recién al hacer clic — **eso todavía no está hecho pantalla por pantalla**, es trabajo pendiente
+aparte. Hoy, un rol con solo Ver en una pantalla verá los mismos botones de siempre en esa pantalla,
+pero al usarlos el back los rechazará.
+
+**Alcance de esta entrega — qué SÍ y qué NO:**
+- SÍ: enforcement completo en el backend (imposible saltárselo desde el front).
+- SÍ: la UI de Gestión de roles para configurar Ver/Editar por pantalla y rol.
+- SÍ: el claim `pantallasEscritura` en el JWT, listo para consumirse.
+- NO (pendiente): deshabilitar/ocultar botones de guardar-editar-borrar dentro de cada una de las
+  ~45 pantallas admin cuando el usuario solo tiene Ver. Sin eso, un rol de solo lectura ve los
+  botones igual mientras no llegue el fix pantalla por pantalla, pero no puede completar la acción
+  (el back la rechaza).
+- Las excepciones por usuario individual (`usuario_submenu`) siguen siendo solo de nivel Ver — no
+  tienen su propio Editar; ese nivel de granularidad hoy solo se controla por rol.
+
+---
+
+## UI de excepciones de pantalla por usuario individual (2026-08-27)
+
+El backend de `usuario_submenu` (concedido=true/false, encima de lo que ya da el rol) existía
+desde antes sin pantalla en el front. Ya tiene una: dentro de **Sistema → Usuarios → Actualizar
+usuario** (`app-add-usuarios`, mismo componente para alta y edición), justo debajo de "Rol" y
+"💾 Guardar permisos", aparece una nueva sección plegable **"🔓 Excepciones de pantalla de
+{usuario}"** — solo visible editando un usuario existente (no al dar de alta uno nuevo), con el
+mismo acordeón por grupo que usa Gestión de roles.
+
+Cada pantalla del catálogo es un botón con 3 estados, que se ciclan con un clic:
+1. **Según su rol** (sin excepción — estado normal, la mayoría).
+2. **✅ Se le dio acceso** (`concedido=true`) — el usuario ve/usa esa pantalla aunque su rol no
+   se la dé.
+3. **🚫 Se le quitó acceso** (`concedido=false`) — el usuario NO ve esa pantalla aunque su rol sí
+   se la dé.
+
+Un cuarto clic vuelve a "Según su rol" (borra la excepción). Usa los endpoints que ya existían:
+`GET /v1/usuarios/{id}/submenus/excepciones`, `POST /v1/usuarios/{id}/submenus/{submenuId}?concedido=`,
+`DELETE /v1/usuarios/{id}/submenus/{submenuId}`.
+
+**Importante:** esta excepción individual sigue siendo solo de nivel **Ver** (lo que ya se sabía
+antes de Fase 2 de permisos de acción) — no tiene su propio Editar. Si un usuario necesita
+Editar en una pantalla que su rol no le da, hoy la única forma es dársela vía Gestión de roles
+(afecta a todo el rol) o cambiarle el rol; una excepción individual de Editar no está construida.
+
+---
+
+## Fase 3 de permisos — acciones granulares por pantalla, piloto en Modelos (2026-08-27)
+
+El usuario señaló, viendo la pantalla real, que "Editar" es demasiado ancho: **Modelos**
+(`productos/buscar`) no tiene ninguna acción de "editar el modelo" en sí (el botón "Actualizar"
+en realidad navega a "Agregar modelo" — otra pantalla), y en cambio tiene varias acciones
+independientes entre sí en cada tarjeta de producto: **Habilitar/deshabilitar, Eliminar, Crear
+variantes, Compartir imagen, Descargar Excel, Ver filtros de administración**. Con Ver/Editar
+nada más, dar "Editar" daba las 6 de un jalón — no se podía, por ejemplo, dejar que alguien
+elimine productos pero no vea el Excel.
+
+**Hallazgo más grave en el camino:** ninguno de esos botones (ni los de Modelos ni los de otras
+25 pantallas admin) estaba conectado al sistema de pantallas/permisos en absoluto — todos
+dependían de una bandera `isAdminUser`/`isAdminService` que en el código es literalmente
+`roles.includes('ROLE_ADMIN')`. O sea: aunque a un rol se le diera "Editar" en Modelos, esa
+pantalla no le mostraba ningún botón administrativo si el rol no era exactamente ROLE_ADMIN. Se
+corrigió esto **solo en Modelos** (el piloto); las otras 25 pantallas con el mismo patrón se
+quedan con el gap conocido hasta que se decida extender esto — ver lista completa más abajo.
+
+**Diseño — tabla nueva `accion_submenu` + `rol_accion`:** dentro de una pantalla, cada acción
+puntual es su propio registro (clave/etiqueta/orden), y un rol la tiene o no la tiene
+independientemente de las demás. Requiere que el rol ya tenga el **Ver** de la pantalla dueña
+(no el Editar — se decidió así para no forzar una jerarquía de 3 niveles en el piloto). Si se le
+quita el Ver a un rol, se le caen en cascada tanto el Editar como todas sus acciones puntuales de
+esa pantalla.
+
+**Nuevos endpoints:**
+- `GET /v1/accion-submenu/getAll` — catálogo completo (todas las pantallas que ya tengan
+  acciones dadas de alta; hoy solo Modelos). Mismo nivel de protección que `/v1/menu/**` y
+  `/v1/submenu/**` (pantalla `gestion-menu`).
+- `POST /v1/roles/{rolId}/acciones/{accionId}` / `DELETE /v1/roles/{rolId}/acciones/{accionId}`
+  — dar/quitar una acción puntual a un rol. 400 si el rol todavía no tiene el Ver de la pantalla
+  dueña. Devuelven el `Roles` completo actualizado (nuevo campo `acciones: IAccionSubmenu[]`,
+  además de `submenus` y `submenusEscritura` que ya existían).
+
+**Dónde se configura:** Gestión de roles — dentro de cada pantalla que tenga acciones
+registradas, debajo del Ver/Editar aparece una fila con un checkbox por acción (ej. "Habilitar /
+deshabilitar producto", "Eliminar producto"…), deshabilitados hasta marcar Ver.
+
+**JWT — nuevo claim `pantallasAcciones: string[]`**, formato `"ruta:clave"` (ej.
+`"productos/buscar:eliminar"`). El backend ya lo exige vía `SecurityConfig.accion()` sin
+importar este claim; el front lo usa para decidir qué botón mostrar.
+
+**Backend — 4 endpoints de Modelos separados del `pantallaEscribir` compartido:**
+- `DELETE /v1/productos/deleteBy/**` → accion "eliminar"
+- `PUT /v1/productos/*/habilitar`, `PUT /v1/productos/admin/habilitar-lote` → accion "habilitar"
+- `POST /tienda/v1/inicializarDesdeProducto` → accion "crear-variantes"
+- `GET /v1/productos/admin/sin-variantes/reporte` → accion "descargar-excel"
+
+"Compartir imagen" y "Ver filtros de administración" no tienen endpoint propio (front-only, sin
+mutación de datos) — se controlan solo en el front, sin gate nuevo en `SecurityConfig`.
+
+**Front — Modelos (`all.component.ts`/`.html`) reescrito para no usar `isAdminUser`:**
+`esVistaAdmin` (¿ve la pantalla en modo admin? controla lo informativo: badge "Deshabilitado",
+atenuar tarjeta), `puedeActualizarProducto` (reusa la pantalla `productos/agregar`, no una acción
+nueva), `puedeHabilitar`, `puedeEliminar`, `puedeCrearVariantes`, `puedeCompartirImagen`,
+`puedeDescargarExcel`, `puedeVerFiltrosAdmin`. Nuevos métodos `tienePantalla()`/`tieneAccion()`
+en `AuthService` (`src/app/auth/auth.service.ts`) — el mismo servicio que ya inyectan las otras
+25 pantallas con `isAdminUser`, listo para que se reemplace ahí también cuando se decida extender.
+
+**Migración `migration_accion_submenu.sql` — ya ejecutada en QA y prod (2026-08-27).** Creó
+`accion_submenu` y `rol_accion`, sembró las 6 acciones de Modelos, y le dio a todo rol que ya
+tenía Editar en Modelos las 6 automáticamente (nadie perdió acceso al correrla).
+
+**Las otras 25 pantallas con el mismo problema (`isAdminUser`/`isAdminService` hardcoded a
+ROLE_ADMIN, desconectado de pantallas/acciones), pendientes de decidir si se extiende:**
+`add-usuarios`, `configurar-ramo` (flores), navbar, `variante/buscar`, `mis-pedidos`,
+`productos/add`, `venta-variante`, `detalle-variante`, `promociones`, `detalle-productos`,
+`detalle-producto`, `historial-mp`, `detalle-pedido`.
+
+---
+
+# Mapa de pantallas → endpoints → protección → microservicio (2026-08-27)
+
+Documento generado revisando, para cada una de las 45 pantallas del catálogo Menu/Submenu, qué
+componente Angular la implementa, qué endpoints del backend llama, con qué nivel de protección
+(`SecurityConfig.java`, incluye la Fase 2 de permisos por pantalla), y si dispara una llamada
+interna al microservicio externo de imágenes.
+
+**Arquitectura:** un solo backend monolito ("mis-productos", Spring Boot) + **un** microservicio
+externo separado, el de **imágenes** (guarda/sirve los archivos de imagen; configurado vía la
+property `app.imagenes`, ej. `http://.../mis-productos`). El monolito llama a ese microservicio
+internamente desde los servicios de productos/variantes/promociones/ramos armados/presentación
+cuando hay imágenes de por medio — no es una llamada que el front haga directo, ocurre del lado
+del back, pero se documenta abajo en cada pantalla donde aplica.
+
+**Cómo leer "protección":**
+- **Público** = sin necesidad de sesión.
+- **Autenticado** = cualquier usuario logueado; si dice "dueño-o-admin" es porque el código
+  valida que sea tu propio recurso (Fase 2 de seguridad, IDOR corregidas el 2026-08-27).
+- **Pantalla `x`** = el backend exige `ROLE_ADMIN` **o** que tu rol tenga esa pantalla concedida
+  en Gestión de roles (Fase 2 de permisos, 2026-08-27) — antes de eso todo lo admin exigía
+  `ROLE_ADMIN` fijo sin importar qué pantallas tuviera asignadas tu rol. Desde la Fase 2 de
+  permisos de acción (ver sección propia más arriba), esto aplica tal cual a los `GET` (Ver); los
+  métodos que escriben (`POST`/`PUT`/`DELETE`) además piden el checkbox "Editar" de esa misma
+  pantalla, no solo el de "Ver" — no lo repito en cada entrada de abajo para no duplicar 45 veces
+  lo mismo, aplica parejo a todas las que dicen "Pantalla `x`".
+- **ROLE_ADMIN fijo** = todavía no tiene una pantalla equivalente en el catálogo; solo admin,
+  sin importar qué le asignes a otro rol.
+
+---
+
+## 📦 Catálogo
+
+### 📦 Modelos
+**Ruta front:** `/productos/buscar`
+**Componente:** `src/app/productos/producto/busca/busca.component.ts` (envuelve a `all/all.component.ts`, que trae la grilla y la lógica real)
+**Endpoints:**
+- `GET /v1/productos/obtenerProductos?page=&size=` — público
+- `GET /v1/productos/buscarNombreOrCodigoBarra?nombre=&page=&size=` — público
+- `GET /v1/productos/admin/filtrar?...` — pantalla `productos/buscar`, `productos/agregar` o `tienda/venta`
+- `DELETE /v1/productos/deleteBy/{id}` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `PUT /v1/productos/{id}/habilitar?habilitar=` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `PUT /v1/productos/admin/habilitar-lote` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `GET /v1/productos/admin/sin-variantes/reporte` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (descarga Excel)
+- `POST /tienda/v1/inicializarDesdeProducto` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (con imágenes opcionales)
+**Microservicio:** monolito principal + microservicio de imágenes cuando se usa "Inicializar variantes" con fotos.
+
+### 📦 Agregar modelo
+**Ruta front:** `/productos/agregar`
+**Componente:** `src/app/productos/producto/add/add.component.ts`
+**Endpoints:**
+- `POST /v1/productos/save` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`. Las fotos van embebidas en base64 dentro del mismo payload (`listImagenes`).
+**Microservicio:** monolito + microservicio de imágenes — al guardar con `listImagenes`, el backend las sube internamente.
+
+### 📦 Agregar producto
+**Ruta front:** `/tienda/venta`
+**Componente:** `src/app/variante/agregar/agregar.component.ts`
+**Endpoints:**
+- `GET /v1/productos/buscarNombreOrCodigoBarra?...` — público
+- `POST /tienda/v1/guardarConImagenes` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+**Microservicio:** monolito + microservicio de imágenes — `guardarConImagenes` sube las fotos de la variante.
+
+### 📦 Carga rápida de imágenes
+**Ruta front:** `/carga-imagenes`
+**Componente:** `src/app/carga-imagenes/carga-imagenes.component.ts`
+**Endpoints:**
+- `POST /v1/carga-imagenes/subir-imagen` — pantalla `carga-imagenes`
+- `GET /v1/carga-imagenes/estado?productoIds=...` — pantalla `carga-imagenes`
+- `POST /v1/carga-imagenes/{productoId}/reintentar-imagen` — pantalla `carga-imagenes`
+- `PUT /v1/carga-imagenes/{productoId}/completar` — pantalla `carga-imagenes`
+- `DELETE /v1/carga-imagenes/{productoId}` — pantalla `carga-imagenes`
+**Microservicio:** monolito + microservicio de imágenes — es la pantalla dedicada a esto: cada imagen subida/descartada se refleja allá.
+
+### 📦 Cargar Excel
+**Ruta front:** `/tienda/cargar-excel`
+**Componente:** `src/app/documentos/carga-archivo/carga-archivo.component.ts`
+**Endpoints:**
+- `POST /v1/documentos/productos` — pantalla `tienda/cargar-excel`
+**Microservicio:** solo el monolito (el Excel trae datos, no imágenes).
+
+### 📦 Categorías
+**Ruta front:** `/palabras-clave`
+**Componente:** `src/app/palabras-clave/gestion/gestion-palabras-clave.component.ts`
+**Endpoints:**
+- `GET /v1/palabras-clave/getAll?page=&size=` — público
+- `POST /v1/palabras-clave/save` — pantalla `palabras-clave`
+- `PUT /v1/palabras-clave/update/{id}` — pantalla `palabras-clave`
+- `DELETE /v1/palabras-clave/delete` — pantalla `palabras-clave`
+**Microservicio:** solo el monolito.
+
+---
+
+## 🚚 Envíos
+
+### 🚚 Zonas de entrega
+**Ruta front:** `/lugares-entrega`
+**Componente:** `src/app/lugares-entrega/gestion/gestion-lugares.component.ts` (+ `anillos-editor/anillos-editor.component.ts` para anillos de distancia/precio)
+**Endpoints:**
+- `GET /v1/lugares-entrega/getAll?page=&size=` — público
+- `POST /v1/lugares-entrega/save`, `PUT /v1/lugares-entrega/update/{id}`, `DELETE /v1/lugares-entrega/delete` — pantalla `lugares-entrega`
+- `GET /v1/lugares-entrega/{id}/anillos` — público
+- `POST /v1/lugares-entrega/{id}/anillos`, `PUT /v1/lugares-entrega/anillos/{id}`, `DELETE /v1/lugares-entrega/anillos/{id}` — pantalla `lugares-entrega`
+**Microservicio:** solo el monolito.
+
+---
+
+## 📋 Pedidos
+
+### 📋 Mis pedidos
+**Ruta front:** `/pedidos/mis-pedidos`
+**Componente:** `src/app/pedidos/mis-pedidos/mis-pedidos.component.ts` — el MISMO componente sirve dos roles según `isAdminUser` (guard de ruta: solo `AuthGuard`, cualquier usuario logueado).
+
+**Común a ambos modos:**
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/lugares-entrega/getAll` — público
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/pedidos/{pedidoId}/detalle` — autenticado, dueño-o-admin
+- `PUT /v1/pedidos/{pedidoId}/entrega` — autenticado, dueño
+
+**Modo cliente (usuario normal):**
+- `GET /v1/pedidos/findPedido/{id}?size&page` — autenticado, dueño-o-admin
+- `GET /v1/pedidos/findPedido/{idPedido}/{idCliente}?size&page` — autenticado, dueño-o-admin
+- `DELETE /v1/flores/pedidos/{id}/cancelar` — autenticado, dueño-o-admin (solo ramos sin pago)
+
+**Modo admin (isAdminUser=true):**
+- `GET /v1/pedidos/buscarClientePedido?...` — ROLE_ADMIN fijo
+- `DELETE /v1/pedidos/delete/{id}?motivo=...` — ROLE_ADMIN fijo
+- `PUT /v1/pedidos/confirmar/{id}` — ROLE_ADMIN fijo
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+- `GET /v1/pagos/opciones-estructuradas` — ROLE_ADMIN fijo
+- `POST /v1/mp/iniciar`, `GET /v1/mp/estado/{intentId}`, `DELETE /v1/mp/cancelar/{intentId}` — ROLE_ADMIN fijo (cobro con terminal física)
+
+**Microservicio:** solo el monolito — no muestra imágenes de producto.
+
+### 📋 Historial de pagos (MP)
+**Ruta front:** `/pedidos/historial-mp`
+**Componente:** `src/app/pedidos/historial-mp/historial-mp.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /v1/mp/historial?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/pedido/{pedidoId}?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/estado/{estado}?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/mp?desde&hasta` — ROLE_ADMIN fijo (consulta directo a Mercado Pago)
+**Microservicio:** solo el monolito.
+
+---
+
+## 💰 Ventas
+
+### 💰 Venta directa
+**Ruta front:** `/tienda/venta-directa`
+**Componente:** `src/app/variante/venta-directa/venta-directa.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `POST /v1/clientes-sin-registro`, `POST /v1/clientes-sin-registro/{id}/enviar-codigo`, `POST /v1/clientes-sin-registro/{id}/verificar-codigo` — pantalla `tienda/venta-directa`
+- `GET /v1/clientes/buscar?nombre&page&size` — pantalla `clientes/buscar`
+- `POST /v1/clientes/{clienteId}/enviar-codigo-verificacion`, `POST /v1/clientes/{clienteId}/verificar-correo` — autenticado (self-service)
+- `GET /v1/lugares-entrega/getAll` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/pagos/opciones-estructuradas` — ROLE_ADMIN fijo
+- `POST /v1/ventas/save` — ROLE_ADMIN fijo
+- `POST /v1/abonos/{pedidoId}` — pantalla `abonos` (venta a crédito)
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+- `POST /v1/mp/iniciar`, `GET /v1/mp/estado/{intentId}`, `DELETE /v1/mp/cancelar/{intentId}` — ROLE_ADMIN fijo
+**Microservicio:** SÍ — `GET /tienda/v1/buscar` trae `imagenUrl` por variante (miniaturas + visor), resuelta contra el microservicio de imágenes.
+
+### 💰 Créditos / Abonos
+**Ruta front:** `/abonos`
+**Componente:** `src/app/abonos/abonos.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/abonos/reporte/estado-cuenta`, `/reporte/pagados`, `/reporte/cancelados` — pantalla `abonos`
+- `PUT /v1/abonos/{pedidoId}/cancelar`, `POST /v1/abonos/{pedidoId}`, `POST /v1/abonos/{pedidoIdOrigen}/transferir` — pantalla `abonos`
+- `GET /v1/pedidos/{pedidoId}/detalle` — autenticado, dueño-o-admin
+- `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` — autenticado, dueño-o-admin
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+**Microservicio:** no aplica — no renderiza imágenes de producto.
+
+### 💰 Gastos
+**Ruta front:** `/gastos/buscar`
+**Componente:** `src/app/gastos/all/all.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/gastos/buscar?...`, `DELETE /v1/gastos/{id}`, `GET /v1/gastos/reporte?fechaInicio&fechaFin` — pantalla `gastos/buscar`
+- `GET /v1/ventas/buscar?...` — ROLE_ADMIN fijo (pestaña "ventas" de esta misma vista, cae bajo otro prefijo)
+**Microservicio:** solo el monolito.
+
+---
+
+## 📊 Reportes
+
+### 📊 Dashboard
+**Ruta front:** `/dashboard`
+**Componente:** `src/app/dashboard/dashboard.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/dashboard/resumen` — pantalla `dashboard` (se refresca cada 5 min)
+**Microservicio:** solo el monolito.
+
+### 📊 Reportes de ventas
+**Ruta front:** `/reportes`
+**Componente:** `src/app/reportes/reportes.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/reportes/ventas/diario?fecha`, `/mensual?mes`, `/cliente/{clienteId}`, `/productos-mas-vendidos?...`, `/promociones?...` — pantalla `reportes`
+- `GET /v1/clientes/buscar?nombre&page&size` — pantalla `clientes/buscar` (autocomplete del reporte por cliente)
+**Microservicio:** solo el monolito.
+
+---
+
+## 🎰 Rifas
+
+### 🎰 Rifa de productos
+**Ruta front:** `/rifas/agregar`
+**Componente:** `src/app/rifas/agregar-rifa/agregar-rifa.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `GET/POST/PUT /v1/configurarRifa/**`, `/v1/configurarRifaVariante/**`, `/v1/concursante/**`, `/v1/ganadorRifa/**` (buscar, save, editar, esPrueba, sortear, continuarVariante, reiniciar, importarDePedidos, copiarDeRifa, etc.) — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar` (cualquiera habilita)
+**Microservicio:** SÍ — muestra imágenes de la(s) variante(s) premio, resueltas por el back.
+
+### 🎰 Rifa mensual
+**Ruta front:** `/rifas/mes`
+**Componente:** `src/app/rifas/rifa-mes/rifa-mes.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:** mismo `RifaService`, subconjunto del flujo de sorteo (`configurarRifa`, `configurarRifaVariante`, `concursante`, `ganadorRifa`) — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar`.
+**Microservicio:** SÍ — vista previa de imagen de la variante seleccionada.
+
+### 🎰 Ver rifas activas
+**Ruta front:** `/rifas/buscar`
+**Componente:** `src/app/rifas/buscar-rifa/buscar-rifa.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/configurarRifa/buscar?...`, `GET /v1/ganadorRifa/estado/{rifaId}`, `POST /v1/ganadorRifa/reiniciar/{rifaId}?completo` — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar`
+**Microservicio:** no aplica — listado de rifas configuradas, sin imágenes en el template.
+
+---
+
+## 🌹 Flores eternas
+
+### 🌹 Ramos de flores
+**Ruta front:** `/flores/ramos` — **pública, sin login**
+**Componente:** `src/app/flores/vitrina/vitrina-flores.component.ts`
+**Endpoints:**
+- `GET /v1/ramos-armados/activos` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+**Microservicio:** SÍ — la portada de cada ramo se resuelve contra el microservicio de imágenes.
+
+### 🌷 Arma tu ramo
+**Ruta front:** `/flores/configurar` — **pública, sin login** (solo `confirmarPedido()` exige cuenta, lo resuelve el propio componente)
+**Componente:** `src/app/flores/configurar/configurar-ramo.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll`, `/v1/cantidades-flor/getAll`, `/v1/colores-flor/por-tipo-flor/{id}`, `/v1/lugares-entrega/getAll` — público
+- `POST /v1/flores/validar-cantidad`, `/calcular-precio`, `/fechas-disponibles` — público
+- `GET /v1/flores/pedidos/{id}/detalle` — autenticado, dueño-o-admin (modo edición)
+- `PUT /v1/flores/pedidos/{id}/editar-ramo` — ROLE_ADMIN fijo (recotizar un ramo ya vendido)
+- `POST /v1/flores/pedidos/{id}/detalle` — autenticado, dueño-o-admin (ticket de producción)
+- `POST /v1/pedidos/savePedido` — autenticado (confirmar pedido)
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/clientes/buscarPorIdCliente/{idUsuario}` — autenticado (self-service, valida dueño)
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+**Microservicio:** solo lectura de fotos ya guardadas — no sube nada desde aquí.
+
+### 🌸 Catálogos
+**Ruta front:** `/flores/catalogos`
+**Componente:** `src/app/flores/catalogos/catalogos-flores.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll` — público
+- `POST/PUT/DELETE` de cada uno de los 5 catálogos anteriores — pantalla `flores/catalogos`
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+- `POST /tienda/v1/guardarConImagenes` (subir foto de un color/accesorio/frase) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `flores/catalogos` (desde 2026-08-27; antes solo aceptaba las de productos y dar solo `flores/catalogos` daba 403 al subir foto)
+**Microservicio:** SÍ — cada color/accesorio/frase es una "variante interna"; subir su foto dispara el microservicio de imágenes.
+
+### 🚚 Entregas
+**Ruta front:** `/flores/entregas`
+**Componente:** `src/app/flores/entregas/config-entregas.component.ts`
+**Endpoints:**
+- `GET /v1/cantidades-flor/getAll` — público
+- `PUT /v1/cantidades-flor/update/{id}` (días/hora de entrega normal y urgente por tamaño) — ⚠️ pantalla `flores/catalogos`, no una pantalla propia — esta vista no tiene tabla/endpoints propios, reutiliza el CRUD de "Catálogos → Cantidades"
+**Microservicio:** no aplica.
+
+### 🎗️ Frases por aprobar
+**Ruta front:** `/flores/frases`
+**Componente:** `src/app/flores/frases/bandeja-frases.component.ts`
+**Endpoints:**
+- `GET /v1/flores/pedidos/frases-pendientes`, `PUT /v1/flores/pedidos/detalle/{detalleId}/validar-frase` — pantalla `flores/frases`
+**Microservicio:** no aplica.
+
+### 🎁 Administrar ramos armados
+**Ruta front:** `/flores/ramos-admin`
+**Componente:** `src/app/flores/ramos-admin/gestion-ramos-flores.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll` — público
+- `GET /v1/ramos-armados/admin`, `POST /v1/ramos-armados`, `PUT /v1/ramos-armados/{id}`, `PUT /v1/ramos-armados/{id}/activo` — pantalla `flores/ramos-admin`
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+- `POST /tienda/v1/guardarConImagenes` (subir foto del ramo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `flores/ramos-admin` (desde 2026-08-27; antes solo aceptaba las de productos y dar solo `flores/ramos-admin` daba 403 al subir foto)
+**Microservicio:** SÍ — el ramo armado tiene su "variante sombra"; su foto se sube al microservicio y alimenta la vitrina pública.
+
+---
+
+## 📣 Marketing
+
+### 🎁 Promociones activas
+**Ruta front:** `/promociones` (guard front: `AuthGuard`, pero el endpoint real es público)
+**Componente:** `src/app/promociones/promociones.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/activas` — público
+**Microservicio:** SÍ indirectamente — cada promoción trae `imagenUrl` de la variante en el combo, resuelta por el back.
+
+### 🎁 Gestionar promociones
+**Ruta front:** `/admin/promociones`
+**Componente:** `src/app/admin/promociones/gestion-promociones.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/admin`, `POST /v1/promociones`, `PUT /v1/promociones/{id}`, `PUT /v1/promociones/{id}/activo` — pantalla `admin/promociones`
+- `GET /tienda/v1/admin/filtrar` (buscador de variantes para armar el combo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `admin/promociones` (desde 2026-08-27; antes exigía además una de las de productos y solo `admin/promociones` no alcanzaba para el buscador de variantes)
+**Microservicio:** SÍ indirectamente, vía `imagenUrl` de cada variante listada.
+
+### 📢 Cinta de anuncios
+**Ruta front:** `/admin/cinta`
+**Componente:** `src/app/admin/cinta/gestion-cinta.component.ts`
+**Endpoints:**
+- `GET /v1/cinta/getAll?page=0&size=200`, `POST /v1/cinta/save`, `PUT /v1/cinta/update/{id}`, `DELETE /v1/cinta/delete` — pantalla `admin/cinta`
+- `GET /v1/cinta/activos` — público
+**Microservicio:** no aplica — solo texto.
+
+### 📘 Publicar en redes
+**Ruta front:** `/admin/facebook`
+**Componente:** `src/app/admin/redes-sociales/publicar-facebook.component.ts`
+**Endpoints:**
+- `GET /v1/redes-sociales/hashtags-default`, `PUT /v1/redes-sociales/hashtags-default/{red}` — pantalla `admin/hashtags`
+- `POST /v1/redes-sociales/instagram/publicar-reel`, `/facebook/publicar-video`, `/facebook/publicar-reel`, `/tiktok/publicar` — pantalla `admin/facebook`
+- `GET /tienda/v1/buscar` (etiquetar producto en el video, opcional) — público
+**Microservicio:** NO en esta pantalla a propósito — solo publica video (decisión del dueño), nunca llama al método de publicar foto que sí reutilizaría el microservicio de imágenes.
+
+### 🏷️ Hashtags de redes
+**Ruta front:** `/admin/hashtags`
+**Componente:** `src/app/admin/hashtags/gestion-hashtags.component.ts`
+**Endpoints:**
+- `GET /v1/redes-sociales/hashtags-default`, `PUT /v1/redes-sociales/hashtags-default/{red}` — pantalla `admin/hashtags`
+**Microservicio:** no aplica.
+
+---
+
+## 🛠️ Sistema
+
+### 👥 Usuarios
+**Ruta front:** `/usuarios/buscar`
+**Componente:** `src/app/usuarios/usuarios/all-usuarios/all-usuarios.component.ts`
+**Endpoints:**
+- `GET /v1/usuarios/getAllPage?buscar=&page=&size=&activos=`, `PUT /v1/usuarios/{id}/resetear-password`, `DELETE /v1/usuarios/eliminarUsuarioDto/{id}`, `PUT /v1/usuarios/{id}/activar`, `GET /v1/usuarios/roles`, `PUT /v1/usuarios/{id}/rol/{rolId}` — pantalla `usuarios/buscar`
+- `POST /v1/auth/enviar-codigo-verificacion`, `/verificar-correo` — público
+**Microservicio:** solo el monolito.
+
+### 🏪 Negocio & Contactos
+**Ruta front:** `/admin/negocio`
+**Componente:** `src/app/admin/config-negocio/config-negocio.component.ts`
+**Endpoints:**
+- `GET /v1/negocio/config`, `POST /v1/negocio/abrir`, `/cerrar`, `PUT /v1/negocio/horario`, `/contactos` — pantalla `admin/negocio`
+**Microservicio:** solo el monolito.
+
+### 💬 Chat en vivo
+**Ruta front:** `/admin/chat`
+**Componente:** `src/app/admin/chat-admin/chat-admin.component.ts`
+**Endpoints:**
+- `GET /v1/chat/admin/sesiones`, `GET /v1/chat/admin/historial/{sesionId}?...`, `POST /v1/chat/admin/cerrar/{sesionId}` — pantalla `admin/chat`
+- WebSocket STOMP sobre `/ws` — handshake público
+**Nota:** el mismo controller (`ChatAdminController`) expone `GET /v1/chat/historial/usuario/{id}` y `/historial/cliente/{id}` que usa el chat del propio CLIENTE (no el panel admin) — desde 2026-08-27 requieren sesión y validan dueño-o-admin (antes eran públicos sin chequeo, corregido). `/historial/{sesionId}` (chat anónimo) sigue público a propósito, es un UUID no adivinable.
+**Microservicio:** solo el monolito.
+
+### 🖼️ Imágenes de presentación
+**Ruta front:** `/admin/presentacion`
+**Componente:** `src/app/admin/presentacion-imagenes/presentacion-imagenes.component.ts`
+**Endpoints:**
+- `GET /presentacion/v1/imagenes/todas`, `PUT /presentacion/v1/imagenes/{id}` — pantalla `admin/presentacion`
+- `GET /presentacion/v1/imagenes/{id}/imagen` — público
+**Microservicio:** SÍ — guardar/reemplazar la imagen la sube al microservicio externo; el listado y el `.../imagen` sirven el binario desde allá.
+
+### 🔍 Diagnóstico de imágenes
+**Ruta front:** `/admin/diagnostico-imagenes`
+**Componente:** `src/app/admin/diagnostico-imagenes/diagnostico-imagenes.component.ts`
+**Endpoints:**
+- `GET /v1/productos/buscarNombreOrCodigoBarra?...`, `GET /tienda/v1/buscar?...` — público
+- `GET /v1/productos/admin/diagnostico-imagenes/{productoId}` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (no una pantalla propia)
+- `GET /tienda/v1/admin/diagnostico-imagenes/{varianteId}` — misma pantalla
+**Microservicio:** SÍ, es el propósito de la pantalla — compara BD local (`producto_imagen_copy`/`variante_imagen`) contra si el microservicio externo realmente tiene el archivo. `total=0` → nunca se guardó en BD; `total>0` con archivo ausente en el microservicio → registro sobrevivió en BD pero el archivo se perdió allá. Ver detalle completo en `CLAUDE.md`.
+
+### 🔧 Reconciliación de imágenes
+**Ruta front:** `/admin/reconciliacion-imagenes`
+**Componente:** `src/app/admin/reconciliacion-imagenes/reconciliacion-imagenes.component.ts`
+**Endpoints:**
+- `POST /v1/admin/reconciliacion/imagenes?productoId=` (opcional), `POST /v1/admin/reconciliacion/imagenes/limpiar-bd`, `GET /v1/admin/reconciliacion/imagenes/resultado` — pantalla propia `admin/reconciliacion-imagenes` (desde 2026-08-27; antes compartía protección con "Limpiar caché" — `admin/cache` — y dar solo esta pantalla no alcanzaba)
+**Microservicio:** SÍ — `ReconciliacionImagenService` compara cada imagen de BD contra el archivo físico en disco local; si existe localmente pero no en el microservicio, lo REENVÍA para repararlo (`reparados[]`); si tampoco existe localmente, queda en `faltantesEnDisco[]` (irreparable desde aquí). "Limpiar BD" hace lo inverso: borra de BD los registros cuyo archivo ya no existe ni localmente.
+**Microservicio:** monolito + microservicio de imágenes (recibe reparaciones).
+
+### 🗑️ Limpiar caché
+**Ruta front:** `/admin/cache`
+**Componente:** `src/app/admin/cache/cache.component.ts`
+**Endpoints:**
+- `DELETE /v1/admin/cache` — pantalla `admin/cache`
+**Microservicio:** solo el monolito (limpia Redis, no toca el microservicio de imágenes).
+
+### 🗂️ Menús y submenús
+**Ruta front:** `/gestion-menu`
+**Componente:** `src/app/menu-admin/gestion/gestion-menu.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/menu/**` y `/v1/submenu/**` — pantalla `gestion-menu`
+**Microservicio:** solo el monolito.
+
+### 🛡️ Gestión de roles
+**Ruta front:** `/gestion-menu/roles`
+**Componente:** `src/app/menu-admin/gestion-roles/gestion-roles.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/roles/**` + `POST/DELETE /v1/roles/{rolId}/submenus/{submenuId}` — pantalla `gestion-menu/roles`
+- `GET /v1/menu/getAll`, `GET /v1/submenu/getAll` (armar el checklist) — pantalla `gestion-menu` (necesita ambas pantallas)
+**Microservicio:** solo el monolito.
+
+### 🎨 Personalización
+**Ruta front:** `/personalizacion`
+**Componente:** `src/app/tema-admin/gestion/gestion-personalizacion.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/tema-variable/**` — pantalla `personalizacion`
+- `GET /v1/tema-variable/activo` — público (lo usa toda la app al arrancar, no solo esta pantalla)
+**Microservicio:** solo el monolito.
+
+---
+
+## Sin grupo (fuera del sistema de permisos — "básicos")
+
+### 👥 Clientes
+**Ruta front:** `/clientes/buscar`
+**Componente:** `src/app/clietes/clientes-buscar/clientes-buscar.component.ts`
+**Endpoints:**
+- `GET /v1/clientes/buscar?nombre=&page=&size=` — pantalla `clientes/buscar`
+- `POST /v1/clientes/{id}/enviar-codigo-verificacion`, `/verificar-correo` — autenticado (self-service; dueño-o-admin desde el fix de 2026-08-27)
+- `DELETE /v1/clientes/{id}/verificacion-correo` — pantalla `clientes/buscar`
+**Microservicio:** solo el monolito.
+
+### 🏠 Home
+**Ruta front:** `/home` — estática, sin llamadas HTTP, fuera del sistema de permisos.
+
+### 🛍️ Tienda
+**Ruta front:** `/tienda/buscar` — pública (cualquier visitante o usuario logueado)
+**Componente:** `src/app/variante/buscar/buscar.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/activas`, `GET /tienda/v1/filtros-disponibles`, `GET /tienda/v1/buscar`, `/buscar-filtrado`, `/porProducto/{id}/paginado/resumen` — público
+- `GET /v1/favoritos/ids`, `POST/DELETE /v1/favoritos/{varianteId}` — autenticado (si hay sesión)
+- Si es admin: `GET /tienda/v1/admin/filtrar`, `/getOne/{id}`, `PUT /tienda/v1/{id}/habilitar`, `/admin/habilitar-lote` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+**Microservicio:** solo lectura de imágenes ya guardadas (vía URL), no sube nada.
+
+### ❤️ Favoritos
+**Ruta front:** `/favoritos` — cualquier usuario logueado
+**Componente:** `src/app/favoritos/favoritos.component.ts`
+**Endpoints:**
+- `GET /v1/favoritos?pagina=&size=`, `DELETE /v1/favoritos/{varianteId}` — autenticado (100% del usuario, sin id manipulable)
+**Microservicio:** solo el monolito.
+
+### 💬 Chat
+**Ruta front:** `/chat` — cualquier usuario logueado
+**Componente:** `src/app/chat/chat-usuario/chat-usuario.component.ts`
+**Endpoints:**
+- `GET /v1/chat/historial/usuario/{usuarioId}?pagina=&size=` — autenticado, dueño-o-admin
+- WebSocket handshake `${api_Url}/ws` — público
+**Microservicio:** solo el monolito.
+
+### 📱 Código QR de la tienda
+**Ruta front:** `/qr` — estática, genera el QR en el navegador a partir de una URL fija, sin llamadas HTTP.
+
+### 🔑 Login
+**Ruta front:** `/login` — pública por definición
+**Componente:** `src/app/login/login-form/login-form.component.ts`
+**Endpoints:**
+- `POST /v1/auth/login` — público
+- `GET /v1/negocio/estado`, `/contactos` — público
+**Microservicio:** solo el monolito.
+
+---
+
+## Endpoints ROLE_ADMIN fijo sin pantalla propia todavía (recordatorio de la Fase 2)
+
+Si algún día quieres que un rol no-admin use alguno de estos, hay que darlo de alta como pantalla
+primero: gestión de imágenes compartida (`/imagen/**` fuera de lo público), gestión de Pedidos vía
+PUT/DELETE (cancelar, confirmar, eliminar), Ventas (`/v1/ventas/**` salvo reclamar), MercadoPago
+(`/v1/mp/**` salvo el webhook y el uso ya cubierto por otras pantallas via `PagoService`), Pagos
+(`/v1/pagos/**`), responder Reseñas, Actuator.
+
+---
+
+## Auditoría de correctitud — 7 bugs reales encontrados y corregidos (2026-08-27)
+
+Revisión endpoint por endpoint (URL, método, parámetros, body y forma de la respuesta) de las 45
+pantallas del mapa de arriba, comparando el front contra el backend real. **No cambia contrato
+para nadie que ya integró bien** — estos eran bugs de código, no diseño de API.
+
+1. **🎁 Administrar ramos armados — corrupción de stock (crítico).** Subir la foto de un ramo
+   armado mandaba `{ id, producto: { id } }` sin el resto de la variante. `guardarConImagenes`
+   guarda la entidad completa (no hace merge), así que el `stock` llegaba en 0 y **pisaba el
+   inventario real** del producto sombra en cada foto subida. Corregido: ahora se trae la variante
+   completa (`GET /tienda/v1/getOne/{id}`) antes de subir la foto, igual que ya hacía "Catálogos".
+
+2. **💰 Gastos — pantalla entera vacía (crítico).** `gastos.service.ts` leía `r.response` en vez
+   de `r.data` en los 6 métodos (buscar/save/update/delete gastos, buscar ventas, reporte). El
+   backend siempre envía `data`. Las 3 pestañas (Gastos, Ventas, Reporte) mostraban "vacío" con
+   status 200, sin ningún error visible. Corregido.
+
+3. **📋 Cobro con terminal (Mis pedidos / Venta directa) — cuotas ignoradas.** El backend nunca
+   mandaba el campo `cuotas` en las opciones de meses del diálogo de cobro; el front caía a
+   `?? 1` y el pago a la terminal siempre se mandaba a **1 solo pago**, sin importar si el admin
+   eligió 3/6/9/12 meses. Corregido: `OpcionMesesDto` ahora incluye `cuotas` (parseado de
+   `MesesIntereses.meses`).
+
+4. **Mis Datos / Mi Perfil / Arma tu ramo — `GET /v1/clientes/buscarPorIdCliente/{id}` con
+   semántica contradictoria.** El endpoint tenía DOS interpretaciones distintas de su propio
+   parámetro dentro del mismo método: el chequeo de dueño esperaba id de **Cliente**, pero la
+   consulta a BD filtraba por `usuario.id`. "Funcionaba" solo cuando `Cliente.id` coincidía por
+   casualidad con `Usuario.id`. Corregido en el repositorio (ahora filtra por `Cliente.id`, como
+   dice su nombre y su chequeo de seguridad) + se agregó `findByUsuarioId()` aparte para el único
+   caller interno que sí necesitaba esa otra búsqueda + se corrigió `configurar-ramo.component.ts`
+   (mandaba `idUsuario` directo, con un comentario que decía justo lo contrario de lo correcto).
+
+5. **👥 Clientes → Buscar — la paginación nunca avanzaba.** El front leía `res.data.totalElementos`,
+   un campo que `PageableDto` nunca tuvo (solo trae `list` y `totalPaginas`). Corregido para leer
+   `totalPaginas` directo.
+
+6. **🛍️ Tienda — habilitar/deshabilitar una sola variante daba 404.** Solo existía el endpoint de
+   lote (`PUT /tienda/v1/admin/habilitar-lote`); el botón individual de la búsqueda de tienda
+   llamaba a `PUT /tienda/v1/{id}/habilitar`, que no existía. Se agregó, mismo patrón que
+   `ProductosControllerImpl`.
+
+7. **🎁 Gestionar promociones — "precio normal" siempre en $0.00.** `PromocionDetalleResponseDto`
+   (usado por `GET /v1/promociones/admin`) no traía `precioNormal`, a diferencia del DTO gemelo de
+   la pantalla pública que sí lo tiene. Corregido, mismo dato (`producto.precioVenta`).
+
+**Encontrado pero sin corregir a propósito (bajo impacto, no rompe nada hoy):** el DTO de opciones
+de pago tampoco manda `requiereTerminal` (el front ya tiene un fallback que funciona por nombre de
+forma de pago); "Arma tu ramo" manda `latitud`/`longitud`/`referencias` al guardar el detalle del
+ramo pero el DTO del backend no los admite (Jackson los descarta en silencio, sin impacto porque
+esos datos ya se guardan por otro lado en `savePedido`) — si de verdad hace falta ese refuerzo,
+hay que agregar los campos al DTO, es decisión de producto, no un bug urgente.

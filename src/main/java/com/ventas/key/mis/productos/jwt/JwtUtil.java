@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -36,11 +37,39 @@ public class JwtUtil {
     }
 
     public String generateToken(UserDetails userDetails, long idUsuarioRegistrado) {
+        return generateToken(userDetails, idUsuarioRegistrado, List.of(), List.of(), List.of());
+    }
+
+    /**
+     * @param pantallas rutas (Submenu.ruta) efectivas del usuario -- rol + sus excepciones (ver
+     *                  UsuarioServiceImpl.submenusEfectivos). El front las usa para armar el menu
+     *                  dinamico y el PantallaGuard sin tener que pedirlas al back en cada navegacion.
+     *                  Se recalculan en cada login/refresh (cada 15 min como maximo), asi que un
+     *                  cambio de permisos por el admin tarda como mucho eso en reflejarse.
+     * @param pantallasEscritura subconjunto de {@code pantallas} en las que el usuario, ademas de
+     *                  poder VERLAS, puede ESCRIBIR (crear/editar/borrar) -- Fase 2 de permisos
+     *                  de accion (2026-08-27), ver UsuarioServiceImpl.submenusEscritura. El
+     *                  backend ya lo exige via SecurityConfig.pantallaEscribir() sin importar este
+     *                  claim; se manda ademas para que el front pueda, pantalla por pantalla,
+     *                  mostrar un modo de solo lectura (ocultar/deshabilitar guardar-editar-borrar)
+     *                  en vez de dejar que el usuario intente y se tope con un 403.
+     * @param pantallasAcciones acciones puntuales dentro de una pantalla que el usuario puede usar
+     *                  (Fase 3 de permisos, piloto en Modelos 2026-08-27), formato "ruta:clave"
+     *                  (ej. "productos/buscar:eliminar") -- ver UsuarioServiceImpl.accionesEfectivas.
+     *                  Mismo criterio que pantallasEscritura: el backend ya lo exige via
+     *                  SecurityConfig.accion(), este claim es para que el front pueda mostrar u
+     *                  ocultar cada boton puntual sin adivinar.
+     */
+    public String generateToken(UserDetails userDetails, long idUsuarioRegistrado, List<String> pantallas,
+                                 List<String> pantallasEscritura, List<String> pantallasAcciones) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities().stream()
                 .map(mpa -> mpa.getAuthority())
                 .collect(Collectors.toList()));
         claims.put("idUsuario", idUsuarioRegistrado);
+        claims.put("pantallas", pantallas);
+        claims.put("pantallasEscritura", pantallasEscritura);
+        claims.put("pantallasAcciones", pantallasAcciones);
         return Jwts.builder()
                 .setClaims(claims)
                 .setId(java.util.UUID.randomUUID().toString())   // jti — para poder invalidarlo

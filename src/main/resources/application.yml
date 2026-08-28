@@ -20,6 +20,15 @@ spring:
       max-file-size: 200MB
       max-request-size: 200MB
 
+# URL pública real del backend (dominio + context-path), para armar links absolutos que se
+# consumen FUERA de la app (ej. <img src> del logo en el encabezado de los correos -- un cliente
+# de correo no puede resolver una ruta relativa). Vacío por default a propósito: cada ambiente
+# tiene su propio dominio y, como el resto de la config sensible al ambiente (DB_URL, TOKEN_JWT),
+# se define por variable de entorno, no hardcodeada acá -- ver EmailService.encabezadoMarca(),
+# que si esto queda vacío simplemente no muestra el logo (mismo fallback de ícono+texto de antes).
+app:
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
+
 server:
   port: 9091
   servlet:
@@ -33,39 +42,6 @@ server:
     # para que esto nunca pase con imagenes/videos dentro de ese limite.
     max-swallow-size: 200MB
 
----
-
-spring:
-  config:
-    activate:
-      on-profile: dev
-  datasource:
-    url: jdbc:mysql://167.88.164.132:3306/dummy_pruebas
-#    url: ${SPRING_DATASOURCE_URL}
-#    username: ${SPRING_DATASOURCE_USERNAME}
-    username: trece
-#    password: ${SPRING_DATASOURCE_PASSWORD}
-    password: Luvianos*13
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    show-sql: false
-    hibernate:
-      ddl-auto: none
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-#logging:
-#  level:
-#    org.hibernate.SQL: DEBUG
-#    org.hibernate.orm.jdbc.bind: TRACE
-
-logging:
-  level:
-    root: INFO
-    com.miempresa: DEBUG
-
-guardar-imagenes:
-  ruta_imagenes: D:\\Imagenes
 ---
 
 spring:

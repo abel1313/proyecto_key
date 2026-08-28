@@ -21,6 +21,7 @@ import com.ventas.key.mis.productos.models.floreseternas.ListonCalculadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ListonSeleccionadoDto;
 import com.ventas.key.mis.productos.models.floreseternas.ValidarCantidadRequestDto;
 import com.ventas.key.mis.productos.models.floreseternas.ValidarCantidadResponseDto;
+import com.ventas.key.mis.productos.models.CalcularCostoEnvioResponse;
 import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.ICantidadFlorValidaRepository;
 import com.ventas.key.mis.productos.repository.IColorFlorRepository;
@@ -46,6 +47,7 @@ public class FlorPedidoServiceImpl {
     private final AccesorioRamoServiceImpl accesorioRamoService;
     private final IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository;
     private final ILugarEntregaRepository iLugarEntregaRepository;
+    private final LugarEntregaAnilloServiceImpl anilloService;
 
     public FlorPedidoServiceImpl(ITipoFlorRepository iTipoFlorRepository,
                                   IColorFlorRepository iColorFlorRepository,
@@ -53,7 +55,8 @@ public class FlorPedidoServiceImpl {
                                   IAccesorioRamoRepository iAccesorioRamoRepository,
                                   AccesorioRamoServiceImpl accesorioRamoService,
                                   IFraseListonPredefinidaRepository iFraseListonPredefinidaRepository,
-                                  ILugarEntregaRepository iLugarEntregaRepository) {
+                                  ILugarEntregaRepository iLugarEntregaRepository,
+                                  LugarEntregaAnilloServiceImpl anilloService) {
         this.iTipoFlorRepository = iTipoFlorRepository;
         this.iColorFlorRepository = iColorFlorRepository;
         this.iCantidadFlorValidaRepository = iCantidadFlorValidaRepository;
@@ -61,6 +64,7 @@ public class FlorPedidoServiceImpl {
         this.accesorioRamoService = accesorioRamoService;
         this.iFraseListonPredefinidaRepository = iFraseListonPredefinidaRepository;
         this.iLugarEntregaRepository = iLugarEntregaRepository;
+        this.anilloService = anilloService;
     }
 
     // Paso 1 del flujo: el cliente ya eligio la especie (tipo de flor) y escribe cuantas quiere
@@ -331,19 +335,43 @@ public class FlorPedidoServiceImpl {
         if (Boolean.TRUE.equals(dto.getRecogerEnLocal())) {
             response.setRecogerEnLocal(true);
             response.setCostoEnvio(0.0);
+            response.setEnvioDentroDeRango(true);
             return 0.0;
         }
         if (dto.getLugarEntregaId() == null) {
             response.setRecogerEnLocal(false);
             response.setCostoEnvio(null);
+            response.setEnvioDentroDeRango(true);
             return 0.0;
         }
-        LugarEntrega lugar = iLugarEntregaRepository.findById(dto.getLugarEntregaId())
+        // Confirma que la zona existe (mismo comportamiento de siempre) -- el costo real se
+        // resuelve abajo via anilloService, que ya sabe caer al costoEnvio fijo de esta misma
+        // entidad cuando la zona no tiene anillos configurados.
+        iLugarEntregaRepository.findById(dto.getLugarEntregaId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Lugar de entrega no encontrado: " + dto.getLugarEntregaId()));
-        double costo = lugar.getCostoEnvio() != null ? lugar.getCostoEnvio() : 0.0;
         response.setRecogerEnLocal(false);
+
+        // Zona con anillos de cobro por distancia (ver DISENO_ZONAS_POR_ANILLO.md) pero el
+        // cliente todavia no marca el punto en el mapa -- no se puede cobrar todavia, pero
+        // tampoco es un error: sin punto, no se bloquea con envioDentroDeRango=false.
+        if (anilloService.tieneAnillos(dto.getLugarEntregaId()) && (dto.getLatitud() == null || dto.getLongitud() == null)) {
+            response.setCostoEnvio(null);
+            response.setEnvioVarianteId(null);
+            response.setEnvioDentroDeRango(true);
+            return 0.0;
+        }
+
+        CalcularCostoEnvioResponse r = anilloService.calcularCosto(dto.getLugarEntregaId(), dto.getLatitud(), dto.getLongitud());
+        response.setEnvioDentroDeRango(r.isDentroDeRango());
+        if (!r.isDentroDeRango()) {
+            response.setCostoEnvio(null);
+            response.setEnvioVarianteId(null);
+            response.setMensajeEnvio("El punto que marcaste está fuera de las zonas de entrega configuradas -- marca un punto más cercano.");
+            return 0.0;
+        }
+        double costo = r.getCostoEnvio() != null ? r.getCostoEnvio() : 0.0;
         response.setCostoEnvio(costo);
-        response.setEnvioVarianteId(costo > 0 && lugar.getVariante() != null ? lugar.getVariante().getId() : null);
+        response.setEnvioVarianteId(r.getVarianteId());
         return costo;
     }
 
@@ -448,16 +476,22 @@ public class FlorPedidoServiceImpl {
         java.time.LocalDateTime primeraFechaValida;
         Double cargo = null;
 
+        // Bug encontrado 2026-08-28: horaLimitePedido ("si ya pasó esta hora, hoy ya no cuenta
+        // como día 0") solo se aplicaba a la entrega URGENTE -- la entrega NORMAL siempre contaba
+        // "hoy" como día 0 sin importar la hora, así que pedir a las 11pm con diasNormal=3 daba
+        // la misma fecha que pedirlo a las 8am, cuando en la práctica ya no alcanzan a arrancar
+        // hoy. Se unifica: la misma hora de corte decide el día de arranque para los dos casos.
+        // Con horaLimitePedido sin configurar (catálogos viejos que nunca la fijaron para la
+        // entrega normal), se mantiene el comportamiento de siempre -- hoy cuenta como día 0.
+        java.time.LocalDate diaInicio = (aplicada.getHoraLimitePedido() != null
+                && !java.time.LocalTime.now().isBefore(aplicada.getHoraLimitePedido()))
+                ? hoy.plusDays(1) : hoy;
+
         if (urgente) {
-            // Si ya paso la hora limite de hoy, el plazo urgente se corre a partir de manana --
-            // el dia de hoy "ya no cuenta" (confirmado por el dueno con el ejemplo de la hora de
-            // corte moviendo el calendario, no solo la fecha).
-            java.time.LocalDate diaInicio = java.time.LocalTime.now().isBefore(aplicada.getHoraLimitePedido())
-                    ? hoy : hoy.plusDays(1);
             primeraFechaValida = diaInicio.plusDays(aplicada.getDiasUrgente()).atTime(aplicada.getHoraEntregaUrgente());
             cargo = aplicada.getCargoUrgente();
         } else {
-            primeraFechaValida = hoy.plusDays(aplicada.getDiasNormal()).atTime(aplicada.getHoraEntregaNormal());
+            primeraFechaValida = diaInicio.plusDays(aplicada.getDiasNormal()).atTime(aplicada.getHoraEntregaNormal());
         }
         primeraFechaValida = primeraFechaValida.plusHours(horasExtraZona);
 

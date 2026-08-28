@@ -65,7 +65,7 @@ implements IClienteService {
                 .setParameter("usuarioId", usuario.getId())
                 .setParameter("correo", correo)
                 .executeUpdate();
-        return iClienteRepository.findClienteById(usuario.getId())
+        return iClienteRepository.findByUsuarioId(usuario.getId())
                 .orElseThrow(() -> new RuntimeException("Error al auto-crear cliente para usuario " + usuario.getId()));
     }
 

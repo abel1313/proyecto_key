@@ -29,6 +29,41 @@ public class Roles extends BaseId {
     )
     private Set<Permiso> permisos = new HashSet<>();
 
+    // Pantallas base del rol -- Fase 1 de PLAN_PERMISOS_PANTALLAS.md (repo compartido). Separado
+    // de "permisos" a proposito: esto es visibilidad de pantalla, no accion sobre datos.
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "rol_submenu",
+            joinColumns = @JoinColumn(name = "rol_id"),
+            inverseJoinColumns = @JoinColumn(name = "submenu_id")
+    )
+    private Set<Submenu> submenus = new HashSet<>();
+
+    // Fase 2 de permisos de accion (2026-08-27): de las pantallas que el rol YA puede ver
+    // (arriba), cuales ademas puede escribir (crear/editar/borrar), no solo mirar. Un submenu
+    // aqui SIEMPRE debe estar tambien en "submenus" -- lo garantiza RolesServiceImpl, no la BD.
+    // Sin esta distincion, dar una pantalla era todo-o-nada (ver == poder editar).
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "rol_submenu_escritura",
+            joinColumns = @JoinColumn(name = "rol_id"),
+            inverseJoinColumns = @JoinColumn(name = "submenu_id")
+    )
+    private Set<Submenu> submenusEscritura = new HashSet<>();
+
+    // Fase 3 de permisos (2026-08-27, piloto en Modelos): acciones puntuales dentro de una
+    // pantalla que el rol puede usar (ej. "eliminar", "habilitar" en Modelos), independientes
+    // entre si y de "submenusEscritura" -- un rol puede tener Editar sin "eliminar", o viceversa.
+    // Cada AccionSubmenu aqui SIEMPRE debe pertenecer a un Submenu que el rol ya tenga en
+    // "submenus" -- lo garantiza RolesServiceImpl, no la BD.
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "rol_accion",
+            joinColumns = @JoinColumn(name = "rol_id"),
+            inverseJoinColumns = @JoinColumn(name = "accion_submenu_id")
+    )
+    private Set<AccionSubmenu> acciones = new HashSet<>();
+
     @JsonIgnore
     @ManyToMany(mappedBy = "roles")
     private Set<Usuario> usuarios = new HashSet<>();
