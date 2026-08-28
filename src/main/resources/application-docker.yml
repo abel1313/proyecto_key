@@ -81,6 +81,15 @@ management:
 guardar-imagenes:
   ruta_imagenes: /app/imagenes
 
+# URL pública real de este backend -- la usa EmailService para armar el <img> del logo en el
+# encabezado de los correos (ver LOGOS_DEPLOY.md, feature de Logos). Se agrega el valor acá de
+# una vez aunque el resto de la feature (Logo/LogoService/LogoController) todavía no esté en esta
+# rama -- si la clave no la usa ningún @Value todavía, Spring simplemente la ignora, no rompe
+# nada. Cuando se promueva la feature completa a main no va a hacer falta tocar este archivo de
+# nuevo.
+app:
+  public-base-url: https://backend.novedades-jade.com.mx/mis-productos
+
 springdoc:
   swagger-ui:
     enabled: true
