@@ -91,6 +91,14 @@ management:
 guardar-imagenes:
   ruta_imagenes: /app/imagenes
 
+# URL pública real de este backend -- la usa EmailService para armar el <img> del logo en el
+# encabezado de los correos (ver LOGOS_DEPLOY.md). Hardcodeada acá (no es secreto) para que no
+# dependa de que alguien la vuelva a setear a mano con kubectl set env si el deployment se
+# recrea desde cero -- si en algún momento se vuelve a inyectar por variable de entorno
+# (APP_PUBLIC_BASE_URL), esa gana por encima de este valor (mayor precedencia en Spring).
+app:
+  public-base-url: https://qa.backend.novedades-jade.com.mx/mis-productos
+
 springdoc:
   swagger-ui:
     enabled: true
