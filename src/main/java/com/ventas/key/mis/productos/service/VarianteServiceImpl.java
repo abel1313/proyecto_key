@@ -632,6 +632,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     private void ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
+        // El front manda el stock final ya calculado (actual + agregar - quitar) -- guard acá
+        // por si llega negativo de todos modos: validarStockContraProducto() suma stocks
+        // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
+        // negativo aislado no lo detecta (reduce la suma en vez de superarla).
+        if (detalle.getStock() < 0) {
+            throw new ExceptionDataNotFound("El stock de la variante no puede quedar negativo");
+        }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
         int diff = detalle.getStock() - actual.getStock();

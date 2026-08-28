@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -334,8 +335,17 @@ public class ProductosServiceImpl extends
     }
 
 
+    // @CacheEvict va aquí (clase concreta), no en la interfaz: con proxying CGLIB (default de
+    // Spring Boot, spring.aop.proxy-target-class=true) las anotaciones de caché puestas solo en
+    // el método de la interfaz no se aplican -- el guardado corría igual, pero
+    // obtenerProductosCache/buscarNombreOrCodigoBarrasCache/findByIdCache nunca se invalidaban,
+    // así que tras guardar/actualizar un producto (ej. sumar stock) el listado y el detalle
+    // seguían mostrando el valor viejo hasta que expirara el TTL de Redis o alguien limpiara la
+    // caché a mano (AdminController DELETE /cache). Bug reportado 2026-08-28: "tengo 10, agrego
+    // 10, y me sigue mostrando 10".
     @Override
     @Transactional
+    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache","detalleImagen","detalle"}, allEntries = true)
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto resultado = guardarProducto(productoDetalle);
@@ -508,6 +518,13 @@ public class ProductosServiceImpl extends
                 nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
             } else if (productoDetalle.getEliminarStock() > 0) {
                 nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
+                // "Eliminar stock" no validaba contra el stock real -- se podía mandar un valor
+                // mayor al disponible y el producto quedaba guardado con stock negativo (bug
+                // reportado 2026-08-28: "con la validación que no puede quedar -1").
+                if (nuevoStock < 0) {
+                    throw new ExceptionErrorInesperado("No se puede eliminar " + productoDetalle.getEliminarStock()
+                            + " unidades: solo hay " + prodExistenteNoOpt.getStock() + " en stock");
+                }
             } else {
                 nuevoStock = productoDetalle.getStock();
             }
