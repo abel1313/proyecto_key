@@ -28,5 +28,12 @@ public class Submenu extends BaseId {
     @Column(length = 10)
     private String icono;
 
+    // Texto para el boton info (ℹ️) en Gestion de roles: que es esta pantalla y donde vive en el
+    // menu (2026-08-28, mismo pedido que ya se resolvio para las acciones puntuales de
+    // AccionSubmenu -- "cada opcion" incluye tambien el Ver/Editar de cada pantalla, no solo las
+    // acciones finas). Null en pantallas viejas sin describir todavia.
+    @Column(length = 255)
+    private String descripcion;
+
     private Integer orden;
 }
