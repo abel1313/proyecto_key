@@ -20,6 +20,15 @@ spring:
       max-file-size: 200MB
       max-request-size: 200MB
 
+# URL pública real de este backend (dominio + context-path) -- la usa EmailService para armar el
+# <img> del logo en el encabezado de los correos (feature de Logos, todavía sin promover a esta
+# rama -- ver LOGOS_DEPLOY.md en dev/qa). Se agrega el valor ya mismo en el bloque SIN perfil
+# (aplica sin importar si el ambiente activa "docker" o "prod") para no depender de adivinar cuál
+# de los dos está activo acá. Mientras el resto de la feature no llegue a esta rama, ningún
+# @Value la lee todavía -- Spring la ignora, no rompe nada.
+app:
+  public-base-url: https://backend.novedades-jade.com.mx/mis-productos
+
 server:
   port: 9091
   servlet:
