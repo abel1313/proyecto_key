@@ -150,6 +150,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/tema-variable/**").hasAnyAuthority(pantalla("personalizacion"))
                         .requestMatchers("/v1/tema-variable/**").hasAnyAuthority(pantallaEscribir("personalizacion"))
 
+                        // ── Logos (misma pantalla "personalizacion" -- es parte de la marca).
+                        //    GET /activo y GET /{id}/imagen públicos: el correo lo carga sin
+                        //    sesión, y hasta un visitante anónimo puede necesitar mostrarlo. ────
+                        .requestMatchers(HttpMethod.GET, "/logos/activo").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/logos/*/imagen").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/logos/**").hasAnyAuthority(pantalla("personalizacion"))
+                        .requestMatchers("/logos/**").hasAnyAuthority(pantallaEscribir("personalizacion"))
+
                         // ── Auth ──────────────────────────────────────────────────────────
                         .requestMatchers("/v1/auth/login", "/v1/auth/registrar", "/v1/auth/refresh", "/v1/auth/validar",
                                 "/v1/auth/olvide-password", "/v1/auth/restablecer-password",
