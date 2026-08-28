@@ -27,5 +27,12 @@ public class AccionSubmenu extends BaseId {
     @Column(nullable = false, length = 120)
     private String etiqueta;
 
+    // Texto largo opcional para el tooltip del checkbox en Gestión de roles -- explica en dónde
+    // exactamente aparece esta acción en la pantalla real (2026-08-28, pedido del usuario tras
+    // separar "filtros-admin" en un permiso por checkbox: quería que cada opción "dijera" dónde
+    // se va a poner sin tener que adivinar). Null en las acciones de antes de esta fecha.
+    @Column(length = 255)
+    private String descripcion;
+
     private Integer orden;
 }

@@ -23,6 +23,7 @@ import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IAbonoRepository;
 import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
+import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
@@ -79,6 +80,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final ILugarEntregaRepository iLugarEntregaRepository;
     private final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository;
     private final IAccesorioRamoRepository iAccesorioRamoRepository;
+    private final IColorFlorRepository iColorFlorRepository;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -100,7 +102,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final PromocionServiceImpl promocionService,
                              final ILugarEntregaRepository iLugarEntregaRepository,
                              final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository,
-                             final IAccesorioRamoRepository iAccesorioRamoRepository) {
+                             final IAccesorioRamoRepository iAccesorioRamoRepository,
+                             final IColorFlorRepository iColorFlorRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -117,6 +120,24 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iLugarEntregaRepository = iLugarEntregaRepository;
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iAccesorioRamoRepository = iAccesorioRamoRepository;
+        this.iColorFlorRepository = iColorFlorRepository;
+    }
+
+    // Bug encontrado 2026-08-28: ColorFlor.stock (lo que ve el cliente en "Arma tu ramo" al
+    // repartir flores entre colores) es una copia separada del stock real, que vive en la
+    // variante "sombra" de ese color (ver ProductoSombraServiceImpl). Cada vez que un pedido
+    // mueve el stock de esa variante (venta, cancelación, edición de detalle) hay que empujar el
+    // mismo valor a ColorFlor.stock -- si no, con cada ramo vendido la variante baja pero
+    // ColorFlor.stock se queda pegado en el número viejo, hasta que el configurador ofrece más
+    // flores de las que en realidad quedan y el pedido explota al guardar con "Stock
+    // insuficiente" (síntoma reportado: el configurador decía 100 disponibles, la variante ya
+    // tenía 20). No hace falta clamp a 0: la variante nunca queda negativa (los checks de arriba
+    // ya lo garantizan), así que tampoco ColorFlor.stock.
+    private void sincronizarStockColorFlor(Variantes variante) {
+        iColorFlorRepository.findByVarianteId(variante.getId()).ifPresent(color -> {
+            color.setStock(variante.getStock());
+            iColorFlorRepository.save(color);
+        });
     }
 
     // lugarEntregaId es opcional (null = no se captura el lugar de entrega en ese pedido)
@@ -174,6 +195,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 }
                 variante.setStock(variante.getStock() - mpa.getCantidad());
                 iVarianteRepository.save(variante);
+                sincronizarStockColorFlor(variante);
 
                 prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
                         .orElseThrow(() -> new RuntimeException("Producto no encontrado para variante: " + mpa.getVarianteId()));
@@ -435,6 +457,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                             .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
                     variante.setStock(variante.getStock() + detalle.getCantidad());
                     iVarianteRepository.save(variante);
+                    sincronizarStockColorFlor(variante);
                 }
             });
         }
@@ -484,6 +507,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
                 variante.setStock(variante.getStock() + detalle.getCantidad());
                 iVarianteRepository.save(variante);
+                sincronizarStockColorFlor(variante);
             }
             iDetallePedidoRepository.delete(detalle);
             pedido.getDetalles().remove(detalle);
@@ -495,6 +519,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
                 variante.setStock(variante.getStock() + cantidad);
                 iVarianteRepository.save(variante);
+                sincronizarStockColorFlor(variante);
             }
             detalle.setCantidad(detalle.getCantidad() - cantidad);
             detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
