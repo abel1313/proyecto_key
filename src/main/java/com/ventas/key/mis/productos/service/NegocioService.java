@@ -40,6 +40,8 @@ public class NegocioService {
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.isAbierto() ? null : config.getWhatsappUrl())
                 .facebookUrl(config.isAbierto() ? null : config.getFacebookUrl())
+                .instagramUrl(config.isAbierto() ? null : config.getInstagramUrl())
+                .tiktokUrl(config.isAbierto() ? null : config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
                 .build();
