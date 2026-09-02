@@ -157,7 +157,7 @@ public class ClienteControllerImpl extends AbstractController<
         @ApiResponse(responseCode = "401", description = "No autenticado")
     })
     @GetMapping("buscarPorIdCliente/{idCliente}")
-    public ResponseEntity<ResponseGeneric<Optional<Cliente>>> findByIdCliente(
+    public ResponseEntity<ResponseGeneric<Cliente>> findByIdCliente(
             @Parameter(description = "ID del cliente") @PathVariable int idCliente) {
         Usuario actual = AuthenticationUtils.currentUsuario();
         boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null

@@ -18,7 +18,7 @@ public interface IClienteService extends ICrud<
                                                 Integer,
                                                 PginaDto<List<Cliente>>>{
 
-    ResponseGeneric<Optional<Cliente>> findClienteById(int id);
+    ResponseGeneric<Cliente> findClienteById(int id);
 
     PageableDto<List<ClienteBusquedaDto>> buscarClientes(String nombre, int page, int size);
 

@@ -239,6 +239,60 @@ menú lateral, hasta abajo, tarjeta con tu nombre → **"Mi perfil"**.
 debe verse el mismo aviso, con un link a **aviso de privacidad** que abre `/privacidad` en
 pestaña nueva.
 
+aqui un detalle, estoy revisando que para el cliente estas mostrando todos los filtro y se supune que eso se lo tiene que asignar
+el admin, pero ya revise admin y no lo veo asi
+Ahora necesito aclarar estos punto, se supone que lo que yo queria era lo que tengo en la pantalla poderlo asignar si asi quisiera
+Ejemplo
+tienda/buscar
+    Lo primero es revisar si este uri el cliente lo puede visitar o tiene acceso este es un ejemplo porque se supone
+    que este es publico pero digamos que no lo es, entonces primero el usuario tieiene este permiso
+    Por eso te decia que tenemos que tener todas las uri para asignarlas a los usuarios
+    Por ejemplo creo un rol Solo tienda por ejemplo entonces ya primero veo todas las rutas que existen pero claro tienen
+    que estar como unidas a que me refiero si ponemos esta uri tenemos que tener todo lo que tiene esta uri
+    ejemplo un buscador, que ese buscador al poner algo hace la peticion a un endpoint eso tambnien tenerlo para configurar que pasa si no quiero que tenga esa opcion
+    esta misma pantalla tiene el carrito lo mismo poner el carrito y la uri a la que hace la peticion para saber si se lo damos,
+    Tambien tiene los filtros pero me gustaria que fueran idividuales para solo agregar uno aqui lo mismo si agrego un filtro pues si debe dejar hacer la busqueda por ese filtro
+    Y asi con las demas opciones, ahora ya termine esta pantalla
+    Ahora me voy a catalogo modelos, lo mismo esta opcion se la asigno al usuario la podria ver, si por alguna razon no se la asigno entinces no tendria permiso a nuinguna de este modelo por ejemplo a la mejor
+    Puede pasar que no le tiene permiso para ese uri pero a la mejor se quedo seleccionado otros permisos dentro de ese modelo
+    Entonces en postman si podria hacer las peticiones entinces si no tiene ese menu no puede acceder a ningun otro endpoint entiendes?
+    Te lo digo porque modelo es similar a tienda solo que aca son los productos y tiene casi los mismos filtros igual lo mismo que en tienda
+Otra pantalla CATALOGO AGREGAR MODELO y asi para los demas creo que el fitro solo es el que mas importa lo demas tiene que tener acceso o que le asigne ese permiso
+Por eso te digo que tenemos que seleccionar o tener esas opciones ojo cada opcion que aparezca digamos en la asignacion de roles y permisso
+por ejemplo eta la uri tienda/modelo, esta si es conocida peroq ue pasa si pones otra ruta que a la mejor no se
+que es o a donde lleva entonces lo que necesito es no se si poner un link para que me muestre que es o a donde nos llevaria o que haria en esa pantalla
+para tener claro las cosas?
+
+otro menu que tienes que hacer similar a tienda buscar es el de pedidos hay varias cosas que quisiera asignar, por ejemplo
+Los buscadores, ovio si no doy acceso a un buscador sus botones no tienen que aparecer pero si puede aparecen el buscador y solo 1 boton
+por eso todo tiene que ser con permiso
+y cada card de pedido tiene una opcion o un boton que tambien tiene que ser administrable para que lo revises bien y saques todos los endpoint
+y EN PEDIDOS EN LA CARD DICE DETALLE LO SELECCIONAMOS Y NOS LLEVA A OTRA PANTALLA QUE TIENE botones lo mismo que sean administrables
+
+entonces en los permisos como lo veo es asi
+Asi quedaria
+
+Menu
+    Pedido y aqui no se como se maneje si no hace peticiones a ningun lado pues lo dejamos pero si hace peticiones pues mencionarlas para saber que hace cuando selecciona ese item del menu
+    hISTORIAL MERCADO PAGO ES BOTON Ycomo algo qu diga que hace ese boton y a donde hace las peticiones para saber si lo activo o doy permiso o no
+    buscador pedido lo mismo a donde hace peticion y que hace
+        pagados lo mismo
+        cancelados
+    filtro por lugar lo mismo saber a done hace la peticion y que hace y para que y puedo asignar a un usuario
+        normal
+        apartado
+        ir pagando lo mismo
+ESTAN LAS CARD AQUI por cada card
+    detalle
+        editar ramo
+        imprimir ticket
+        reenviar tiket
+        como llegar
+
+y tambien los botones de chatbol y las redes sociales entiendes hasta aqui, no hagas nada primero tenemos que entender las cosas para seguir
+
+para que revises por ejemplo tienda buscar y modelo buscar o producto buscar, ahi esta mostrando los filtros a un cliente norma
+y se supone que eso es configurable aprte que ahorita ya van a ser mas configurables
 ---
 
 ## 2. Preferencia de correos — lado del cliente
@@ -268,6 +322,77 @@ prendido, algo no se guardó bien.
 **Qué esperar:** el toggle debe **seguir apagado**. Si se prende solo después de guardar el
 formulario general, es un bug — el diseño evita justo eso (el toggle usa un endpoint aparte a
 propósito).
+Aqui para hacer pruebas lo que hace falta es es poder enviar correos de promocion no? por ejemplo yo como admin
+genero promociones y se las puedo enviar a lso que quieren recibir promociones y eso pero aqui hay que ver como los enviamos
+no sea que nos banien el correo no se tu dime si lo ves asi me refiero a enviar cada cierto tiempo cada 5 min por ejemplo
+pro cuando active la opcion es decir hagao la promocion y aparece quieres enviar la promocion en este correo y digo que si entonces se envian los 5 primeros
+pasan 5 min y se envian a los otros 5 y asi, 5 es un decir que sea configurable tambien y otra cosa que puede pasar que diga
+ya no quiero que me lleguen corres y pues ya no le llegan solo los de restablecimiento de contra solo ese seria como el mas importante no?
+
+
+
+y YA QUE ANDO REVISANDO AQUI
+Primero
+    Una persona puede entrar a la tienda sin tener que estar registrada, puede ver los productos y hasta puede agregar al carrito
+    pero lo que no puede hacer es generar el pedido porque primero se tiene que dar de alta como usuario y
+    entonces ahi cuando de generar pedido si no esta registrado tiene que mandar el mensaje que ya esta que dice que para genrar
+el pedido se tiene que registrar primero me parece y no debe dejar generar pedido ni nada
+entonces cuando el usuario se registra la opcion cliente se da de alta pero todo vacio solo el id se genera porque porque
+para que pase el usuario tiene que ir a registrar sus datos para poder genrar un pedido para saber quien es entonces la segunda es
+Si el cliente esta registrado solo registrados y aun no registra datos en cleinte, tiene que aparecer el modal de para generar el pedido tiene que llenar sus datos y mandarlo
+a la pantalla de llenar sus datos del cliente y ya al final si tiene todo listo entonces ya puede hacer pedido, lo que esta pasando ahorita es acabo de generar un usuario y el cliente se genero
+con el puro id y actualmene quiero generar el pedido pero dice que no encuentra el cliente y en este caso el cliente ya deberia estar ahora deberia mencionar que para generar un pedido
+tiene que generar o llenar sus datos y con l opciona enviarlo me parece que eso ya esta solo es revisarlo bien y otra cosa cuando agrego cosas al carrito y me envia a generar el pedido
+aparece la opcion de enviar  o lugar de entrega y eso no debe aparecer aca o si? porque si hace un pedido y lo paga en linea tiene que pasar al local a recogerno no? o como lo ves?
+Hay que revisar porque a veces me dice o me aparece el modal que tengo que llenar mis datos y a veces sale el error que te menciono para que revises bien 
+Esto lo hice como cliente o usuario normal
+req
+curl 'https://qa.backend.novedades-jade.com.mx/mis-productos/v1/clientes/buscarPorIdCliente/28' \
+-H 'Accept: application/json, text/plain, */*' \
+-H 'Accept-Language: es-419,es;q=0.5' \
+-H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJwYW50YWxsYXNBY2Npb25lcyI6WyJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1uby1oYWJpbGl0YWRvcyIsInByb2R1Y3Rvcy9idXNjYXI6ZWxpbWluYXIiLCJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1jb24taW1hZ2VuZXMiLCJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1jb2RpZ28tZ2VuZXJhZG8iLCJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1jb24tc3RvY2siLCJwcm9kdWN0b3MvYnVzY2FyOmNyZWFyLXZhcmlhbnRlcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWZlY2hhLWNyZWFjaW9uIiwicHJvZHVjdG9zL2J1c2Nhcjpjb21wYXJ0aXItaW1hZ2VuIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tc2luLXN0b2NrIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tc2luLWltYWdlbmVzIiwicHJvZHVjdG9zL2J1c2NhcjpkZXNjYXJnYXItZXhjZWwiLCJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1oYWJpbGl0YWRvcyIsInByb2R1Y3Rvcy9idXNjYXI6aGFiaWxpdGFyIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tY29kaWdvLXJlYWwiXSwicm9sZXMiOlsiUEVESURPU19DUkVBUiIsIlBST0RVQ1RPU19MRUVSIiwiUk9MRV9VU1VBUklPIiwiUEVESURPU19MRUVSIl0sImlkVXN1YXJpbyI6NzEsInBhbnRhbGxhcyI6W10sInBhbnRhbGxhc0VzY3JpdHVyYSI6W10sImp0aSI6Ijk4Nzg5Y2QyLTU2YWMtNDczNS1hYjdiLWMzNTM1NDBjOGNjMiIsInN1YiI6ImluaWNpb1Nlc2lvbiIsImlhdCI6MTc4ODM4MjYxMiwiZXhwIjoxNzg4MzgzNTEyfQ.pR77m7YKRLgjRpv8SYv9Kxbv4b75QGZeh1V7CKWbtYw' \
+-H 'Connection: keep-alive' \
+-H 'Origin: https://qa.shop.novedades-jade.com.mx' \
+-H 'Referer: https://qa.shop.novedades-jade.com.mx/' \
+-H 'Sec-Fetch-Dest: empty' \
+-H 'Sec-Fetch-Mode: cors' \
+-H 'Sec-Fetch-Site: same-site' \
+-H 'Sec-GPC: 1' \
+-H 'User-Agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36' \
+-H 'sec-ch-ua: "Not;A=Brand";v="8", "Chromium";v="150", "Brave";v="150"' \
+-H 'sec-ch-ua-mobile: ?1' \
+-H 'sec-ch-ua-platform: "Android"'
+
+resp
+{
+"mensaje": "Could not read JSON:Cannot construct instance of `java.util.Optional` (no Creators, like default constructor, exist): cannot deserialize from Object value (no delegate- or property-based Creator)\n at [Source: (byte[])\"{\"@class\":\"com.ventas.key.mis.productos.models.ResponseGeneric\",\"mensaje\":\"La peticion fue exitosa\",\"code\":200,\"data\":{\"@class\":\"java.util.Optional\",\"empty\":false,\"present\":true},\"lista\":null}\"; line: 1, column: 150] (through reference chain: com.ventas.key.mis.productos.models.ResponseGeneric[\"data\"]) ",
+"code": 400,
+"data": null,
+"lista": null
+}
+y comoa dmin
+curl 'https://qa.backend.novedades-jade.com.mx/mis-productos/v1/ventas/save' \
+-H 'Accept: application/json, text/plain, */*' \
+-H 'Accept-Language: es-419,es;q=0.5' \
+-H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJwYW50YWxsYXNBY2Npb25lcyI6WyJ0aWVuZGEvYnVzY2FyOmZpbHRyby1jb24taW1hZ2VuZXMiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1uby1oYWJpbGl0YWRvcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLXNpbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6Y29tcGFydGlyLWltYWdlbiIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLXNpbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWhhYmlsaXRhZG9zIiwicHJvZHVjdG9zL2J1c2NhcjplbGltaW5hciIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWNvbi1zdG9jayIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLWNvbi1zdG9jayIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLXNpbi1zdG9jayIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLW5vLWhhYmlsaXRhZG9zIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tY29kaWdvLXJlYWwiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1jb2RpZ28tcmVhbCIsInByb2R1Y3Rvcy9idXNjYXI6Y3JlYXItdmFyaWFudGVzIiwidGllbmRhL2J1c2NhcjpmaWx0cm8taGFiaWxpdGFkb3MiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1jb2RpZ28tZ2VuZXJhZG8iLCJwcm9kdWN0b3MvYnVzY2FyOmRlc2Nhcmdhci1leGNlbCIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLXNpbi1zdG9jayIsInByb2R1Y3Rvcy9idXNjYXI6aGFiaWxpdGFyIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tY29uLWltYWdlbmVzIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tY29kaWdvLWdlbmVyYWRvIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tZmVjaGEtY3JlYWNpb24iLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1mZWNoYS1jcmVhY2lvbiJdLCJyb2xlcyI6WyJQUk9EVUNUT1NfTEVFUiIsIkNMSUVOVEVTX0VMSU1JTkFSIiwiR0FTVE9TX0dFU1RJT05BUiIsIlBFRElET1NfRUxJTUlOQVIiLCJWQVJJQU5URVNfRURJVEFSIiwiVkVOVEFTX0NSRUFSIiwiUFJPRFVDVE9TX0VMSU1JTkFSIiwiVkFSSUFOVEVTX0xFRVIiLCJDTElFTlRFU19FRElUQVIiLCJWQVJJQU5URVNfQ1JFQVIiLCJWRU5UQVNfTEVFUiIsIlBFRElET1NfQ1JFQVIiLCJSSUZBU19HRVNUSU9OQVIiLCJQUk9EVUNUT1NfQ1JFQVIiLCJQQUdPU19MRUVSIiwiTVBfQ09CUkFSIiwiQ0xJRU5URVNfTEVFUiIsIlJPTEVfQURNSU4iLCJVU1VBUklPU19HRVNUSU9OQVIiLCJQRURJRE9TX0VESVRBUiIsIkNMSUVOVEVTX0NSRUFSIiwiUEVESURPU19MRUVSIiwiUFJPRFVDVE9TX0VESVRBUiIsIklNQUdFTkVTX0dFU1RJT05BUiJdLCJpZFVzdWFyaW8iOjQzLCJwYW50YWxsYXMiOlsiYWRtaW4vY2FjaGUiLCJhZG1pbi9wcm9tb2Npb25lcyIsImFib25vcyIsImFkbWluL3ByZXNlbnRhY2lvbiIsImhvbWUiLCJmYXZvcml0b3MiLCJmbG9yZXMvcmFtb3MtYWRtaW4iLCJ0aWVuZGEvY2FyZ2FyLWV4Y2VsIiwicGVkaWRvcy9oaXN0b3JpYWwtbXAiLCJwcm9kdWN0b3MvYnVzY2FyIiwiZmxvcmVzL2ZyYXNlcyIsInBlZGlkb3MvbWlzLXBlZGlkb3MiLCJkYXNoYm9hcmQiLCJhZG1pbi9uZWdvY2lvIiwiY2hhdCIsInJpZmFzL21lcyIsImFkbWluL3JlY29uY2lsaWFjaW9uLWltYWdlbmVzIiwibG9naW4iLCJmbG9yZXMvcmFtb3MiLCJ0aWVuZGEvdmVudGEiLCJyaWZhcy9idXNjYXIiLCJwZXJzb25hbGl6YWNpb24iLCJhZG1pbi9kaWFnbm9zdGljby1pbWFnZW5lcyIsInFyIiwiZmxvcmVzL2NvbmZpZ3VyYXIiLCJ1c3Vhcmlvcy9idXNjYXIiLCJhZG1pbi9jaGF0IiwiZmxvcmVzL2VudHJlZ2FzIiwiYWRtaW4vaGFzaHRhZ3MiLCJjbGllbnRlcy9idXNjYXIiLCJmbG9yZXMvY2F0YWxvZ29zIiwiYWRtaW4vZmFjZWJvb2siLCJnYXN0b3MvYnVzY2FyIiwicHJvZHVjdG9zL2FncmVnYXIiLCJwYWxhYnJhcy1jbGF2ZSIsImFkbWluL2NpbnRhIiwidGllbmRhL2J1c2NhciIsInJpZmFzL2FncmVnYXIiLCJnZXN0aW9uLW1lbnUvcm9sZXMiLCJ0aWVuZGEvdmVudGEtZGlyZWN0YSIsImx1Z2FyZXMtZW50cmVnYSIsImNhcmdhLWltYWdlbmVzIiwiZ2VzdGlvbi1tZW51IiwicHJvbW9jaW9uZXMiLCJyZXBvcnRlcyJdLCJwYW50YWxsYXNFc2NyaXR1cmEiOlsiYWRtaW4vY2FjaGUiLCJhZG1pbi9wcm9tb2Npb25lcyIsImFib25vcyIsImFkbWluL3ByZXNlbnRhY2lvbiIsImhvbWUiLCJmYXZvcml0b3MiLCJmbG9yZXMvcmFtb3MtYWRtaW4iLCJ0aWVuZGEvY2FyZ2FyLWV4Y2VsIiwicGVkaWRvcy9oaXN0b3JpYWwtbXAiLCJwcm9kdWN0b3MvYnVzY2FyIiwiZmxvcmVzL2ZyYXNlcyIsInBlZGlkb3MvbWlzLXBlZGlkb3MiLCJkYXNoYm9hcmQiLCJhZG1pbi9uZWdvY2lvIiwiY2hhdCIsInJpZmFzL21lcyIsImFkbWluL3JlY29uY2lsaWFjaW9uLWltYWdlbmVzIiwibG9naW4iLCJmbG9yZXMvcmFtb3MiLCJ0aWVuZGEvdmVudGEiLCJyaWZhcy9idXNjYXIiLCJwZXJzb25hbGl6YWNpb24iLCJhZG1pbi9kaWFnbm9zdGljby1pbWFnZW5lcyIsInFyIiwiZmxvcmVzL2NvbmZpZ3VyYXIiLCJ1c3Vhcmlvcy9idXNjYXIiLCJhZG1pbi9jaGF0IiwiZmxvcmVzL2VudHJlZ2FzIiwiYWRtaW4vaGFzaHRhZ3MiLCJjbGllbnRlcy9idXNjYXIiLCJmbG9yZXMvY2F0YWxvZ29zIiwiYWRtaW4vZmFjZWJvb2siLCJnYXN0b3MvYnVzY2FyIiwicHJvZHVjdG9zL2FncmVnYXIiLCJwYWxhYnJhcy1jbGF2ZSIsImFkbWluL2NpbnRhIiwidGllbmRhL2J1c2NhciIsInJpZmFzL2FncmVnYXIiLCJnZXN0aW9uLW1lbnUvcm9sZXMiLCJ0aWVuZGEvdmVudGEtZGlyZWN0YSIsImx1Z2FyZXMtZW50cmVnYSIsImNhcmdhLWltYWdlbmVzIiwiZ2VzdGlvbi1tZW51IiwicHJvbW9jaW9uZXMiLCJyZXBvcnRlcyJdLCJqdGkiOiJkOGMzNmUzMS02YmFjLTRhNTAtOThhZC03ZDk2MzMzNzExYzMiLCJzdWIiOiJhZG1pbiIsImlhdCI6MTc4ODM4MzUxOCwiZXhwIjoxNzg4Mzg0NDE4fQ.XvjpAhp_Aep5YLE1WxAM6mFkAuCiGDc4uSQv4Q28L6k' \
+-H 'Connection: keep-alive' \
+-H 'Content-Type: application/json' \
+-H 'Origin: https://qa.shop.novedades-jade.com.mx' \
+-H 'Referer: https://qa.shop.novedades-jade.com.mx/' \
+-H 'Sec-Fetch-Dest: empty' \
+-H 'Sec-Fetch-Mode: cors' \
+-H 'Sec-Fetch-Site: same-site' \
+-H 'Sec-GPC: 1' \
+-H 'User-Agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36' \
+-H 'sec-ch-ua: "Not;A=Brand";v="8", "Chromium";v="150", "Brave";v="150"' \
+-H 'sec-ch-ua-mobile: ?1' \
+-H 'sec-ch-ua-platform: "Android"' \
+--data-raw '{"usuarioId":43,"clienteId":23,"detalles":[{"productoId":0,"varianteId":602,"cantidad":1,"precioVenta":300,"subTotal":300}],"pagosYMesesId":1}'
+504 Gateway Time-out
+
+
+
+hasta aqui no detenemos porque no puedo generar un pedido
 
 6. Vuelve a prenderlo, para dejarlo en su estado normal.
 
