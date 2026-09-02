@@ -248,18 +248,24 @@ y hay que construirlo desde cero.**
 
 ### 2.4 Alternativas de pasarela investigadas (México, 2026)
 
-| Gateway | Comisión tarjeta | Fuerte en | Nota |
-|---|---|---|---|
-| **Mercado Pago** | variable, competitivo en MX | reconocimiento de marca, ya está la cuenta creada | Recomendado como principal — reutiliza cuenta existente |
-| **Conekta** | 2.9% + $2.5 MXN, ~$9 MXN OXXO, 1% SPEI | mejor relación precio/valor, soporte 100% en español, MSI nativos | Buena alternativa/backup si se quiere OXXO más barato |
-| **OpenPay** | 2.9% + $2.5 MXN (negociable a volumen) | MSI hasta 24 meses, respaldo BBVA | Interesante si el volumen de ventas crece |
-| **Stripe** | competitivo en comisión base | multimoneda, control técnico | Menos fuerte en OXXO/SPEI nativo — no es prioridad para este negocio (100% MX) |
-| **PayPal** | 3.95% + $4 MXN | reconocimiento de marca internacional | Comisión más alta, no es lo más competitivo aquí |
-| **Clip** | — | fuerte si además se necesita POS físico unificado con online bajo un solo proveedor | Solo relevante si se reemplaza también la parte presencial |
+**Corrección 2026-09-02:** las URLs de comisiones de la primera versión de este documento
+apuntaban a portales de DESARROLLADOR (requieren cuenta/sesión para cargar — por eso Conekta
+"no cargaba"). Las de abajo son las páginas PÚBLICAS de precios, sin login.
 
-**Recomendación:** Mercado Pago Checkout Pro como principal (ya se tiene la cuenta y experiencia
-con su plataforma vía Point). Conekta queda como alternativa a evaluar más adelante si se
-necesita mejor tarifa en OXXO/SPEI — no es indispensable para el primer lanzamiento.
+| Gateway | Comisión tarjeta (con IVA salvo que se indique) | Fuerte en | Nota |
+|---|---|---|---|
+| **Mercado Pago** | Variable según plazo de liberación (al instante / 7 días / 30 días) — a menor plazo, mayor comisión | Reconocimiento de marca, ya está la cuenta creada | Recomendado como principal — reutiliza cuenta existente |
+| **Conekta** | 2.9% + $2.5 MXN + IVA · OXXO $10–13 MXN + IVA · SPEI $12.5 MXN + IVA | Mejor relación precio/valor, soporte 100% en español, MSI nativos | Buena alternativa/backup si se quiere OXXO más barato |
+| **OpenPay** | 2.9% + $2.5 MXN (tarjeta nacional) · 3.99% + IVA (tarjeta extranjera) | MSI hasta 24 meses, respaldo BBVA, sin renta mensual ni membresía | Interesante si el volumen de ventas crece |
+| **Stripe** | 3.60% + $3 MXN + IVA | Multimoneda, control técnico | **Más caro que Conekta/OpenPay en la comisión base** — corregido respecto a la versión anterior de este doc, que no traía el número real |
+| **PayPal** | 3.95% + $4 MXN + IVA | Reconocimiento de marca internacional | La comisión más alta de las cinco |
+| **Clip** | — | Fuerte si además se necesita POS físico unificado con online bajo un solo proveedor | Solo relevante si se reemplaza también la parte presencial |
+
+**Recomendación (sin cambios):** Mercado Pago Checkout Pro como principal (ya se tiene la cuenta
+y experiencia con su plataforma vía Point). Conekta queda como alternativa a evaluar más adelante
+si se necesita mejor tarifa en OXXO/SPEI — no es indispensable para el primer lanzamiento. Con
+las cifras reales confirmadas, Stripe queda descartado por precio (es la segunda comisión más
+alta de tarjeta, después de PayPal) — no solo por SPEI/OXXO débil como se dijo antes.
 
 **Pendiente de decidir:** si se implementa Mercado Pago solo, o Mercado Pago + Conekta desde el
 arranque (impacta cuánto trabajo de entrada).
@@ -267,38 +273,39 @@ arranque (impacta cuánto trabajo de entrada).
 ### 2.5 URLs oficiales para validar esta información antes de implementar
 
 **Mercado Pago**
-- Checkout Pro — overview / cómo integrarlo: https://www.mercadopago.com.mx/developers/es/docs/checkout-pro/overview
+- Comisiones por cobro (Checkout, Link de pago, Point) — página pública: https://www.mercadopago.com.mx/ayuda/costo-recibir-pagos_220
+- Checkout Pro — overview / cómo integrarlo (requiere cuenta de developer para ver todo el contenido): https://www.mercadopago.com.mx/developers/es/docs/checkout-pro/overview
 - Checkout API — requisitos previos (cuenta, credenciales, sandbox): https://www.mercadopago.com.mx/developers/es/docs/checkout-api/prerequisites
 - Terminal Point Mini — ficha del producto: https://www.mercadopago.com.mx/herramientas-para-vender/lectores-point/point-mini
-- Guía de comisiones de Point: https://www.mercadopago.com.mx/blog/comisiones-point-mercado-pago-mexico
 - Términos del programa (de aquí sale el umbral de $15,000 MXN / 5 pagadores): https://www.mercadopago.com.mx/ayuda/5251
 - Repositorios oficiales de SDKs: https://github.com/mercadopago
 
 **Conekta**
-- Portal de desarrolladores (punto de entrada): https://developers.conekta.com/
-- API Keys de producción (cómo se obtienen): https://developers.conekta.com/docs/api-keys-producci%C3%B3n
-- Sitio comercial (planes/comisiones): https://www.conekta.com/
+- **Comisiones — página pública de precios (sin login):** https://www.conekta.com/pricing
+- Portal de desarrolladores (requiere cuenta): https://developers.conekta.com/
+- API Keys de producción (cómo se obtienen, ya adentro del portal): https://developers.conekta.com/docs/api-keys-producci%C3%B3n
 
 **OpenPay**
+- **Comisiones — tabla pública de precios (sin login):** https://www.openpay.mx/comisiones
 - Documentación / introducción: https://documents.openpay.mx/docs/introduction.html
 - Referencia de API: https://documents.openpay.mx/docs/api
 - Ambiente de pruebas (sandbox): https://sandbox-dashboard.openpay.mx
 
 **Stripe**
+- **Comisiones — página pública de precios (sin login):** https://stripe.com/pricing
 - Pagos con OXXO (guía técnica, español): https://docs.stripe.com/payments/oxxo?locale=es-419
-- Página comercial OXXO México: https://stripe.com/mx/payment-method/oxxo
 - Nota: Stripe no tiene SPEI nativo como método de pago dedicado en Payment Intents (sí acepta
   tarjetas y OXXO) — confirmar contra la documentación si esto cambió antes de descartarlo por
-  ese motivo.
+  ese motivo (aunque ya quedó descartado por precio, ver 2.4).
 
 **PayPal**
-- Portal de desarrolladores: https://developer.paypal.com
-- Comisiones para negocios en México: https://www.paypal.com/mx/business/paypal-business-fees
-- Integración personalizada de checkout: https://www.paypal.com/mx/business/accept-payments/checkout/integration
+- **Comisiones para negocios en México — página pública (sin login):** https://www.paypal.com/mx/business/paypal-business-fees
+- Portal de desarrolladores (requiere cuenta): https://developer.paypal.com
 
-Antes de escribir código de integración, revisar la página de requisitos/prerequisitos de cada
-uno (arriba) porque los términos y comisiones cambian con el tiempo — este documento es de
-2026-09-02 y no se actualiza solo.
+Antes de escribir código de integración, revisar la página de comisiones de cada uno (arriba,
+marcadas en negrita) porque los términos y comisiones cambian con el tiempo — este documento es
+de 2026-09-02 y no se actualiza solo. Las páginas de "portal de desarrolladores" son las que
+piden iniciar sesión/crear cuenta — normal que no carguen sin loguearse, no es un error del link.
 
 ---
 
