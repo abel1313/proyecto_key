@@ -1,215 +1,248 @@
-# Plan — Permisos por pantalla (quién puede ver/hacer qué en el admin)
+# Roadmap de pruebas — cambios en QA (2026-09-02)
 
-> Documento de **análisis**, no de implementación. Nada de esto está programado todavía —
-> es la base para decidir el diseño antes de tocar código, tal como se pidió.
+Guía paso a paso para probar en el ambiente de QA todo lo que se subió hoy (backend commit
+`9abd60a`, frontend commit `ad53e1c`). Cada bloque trae la **ruta de clics exacta** en el menú
+(qué acordeón abrir, qué opción elegir) además de los pasos y qué esperar ver. No incluye
+pasarelas de pago — eso vive aparte en `feature/pasarelas-pago` y no se toca hasta que se
+apruebe.
 
-## 1. Lo que ya existe hoy (y no lo sabías que ya estaba)
+---
 
-Alguien —en otra sesión, antes de esta— ya dejó construida **media solución** a nivel de base de
-datos y backend. Nunca se conectó a nada, pero está ahí:
+## 0. Antes de probar nada — bloqueante
 
-### Tablas y entidades ya creadas
-```
-usuario_modificacion (Usuario)
-  └─ rol_usuario ────────► roles (Roles)          -- 1 rol por usuario
-  └─ usuario_permiso ────► permisos (Permiso)      -- permisos EXTRA, aparte del rol
-
-roles ── rol_permiso ──► permisos                  -- permisos base de cada rol
-```
-
-- **`Permiso`** (`entity/Permiso.java`) — fila = un nombre de permiso (`PRODUCTOS_LEER`, etc.)
-- **`Roles`** (`entity/Roles.java`) — cada rol tiene un set de permisos base
-- **`Usuario.permisosExtra`** — permisos individuales, *encima* de los que ya da el rol (esto es
-  clave: ya existe el mecanismo de "a este usuario en particular, además de su rol, dale esto
-  extra" que es justo lo que pediste — "poder dar permisos si yo quisiera")
-
-### Catálogo de permisos ya sembrado (`static/querys.sql`)
-Ya hay **22 permisos** con nomenclatura `MODULO_ACCION`, y **4 roles** con un set distinto cada
-uno:
-
-| Permiso | ROLE_ADMIN | ROLE_EMPLEADO | ROLE_CAJERO | ROLE_USUARIO |
-|---|:---:|:---:|:---:|:---:|
-| PRODUCTOS_LEER/CREAR/EDITAR/ELIMINAR | ✅ | LEER/CREAR/EDITAR | — | LEER |
-| VARIANTES_LEER/CREAR/EDITAR | ✅ | ✅ | — | — |
-| PEDIDOS_LEER/CREAR/EDITAR/ELIMINAR | ✅ | ✅ | LEER | LEER/CREAR |
-| VENTAS_LEER/CREAR | ✅ | ✅ | — | — |
-| CLIENTES_LEER/CREAR/EDITAR/ELIMINAR | ✅ | LEER/CREAR/EDITAR | — | — |
-| MP_COBRAR | ✅ | ✅ | ✅ | — |
-| GASTOS_GESTIONAR | ✅ | — | — | — |
-| RIFAS_GESTIONAR | ✅ | — | — | — |
-| USUARIOS_GESTIONAR | ✅ | — | — | — |
-| IMAGENES_GESTIONAR | ✅ | ✅ | — | — |
-| PAGOS_LEER | ✅ | ✅ | ✅ | — |
-
-### Backend ya expone el CRUD completo (`UsuarioController.java`)
-```
-GET    /v1/usuarios/roles                        -- listar roles
-GET    /v1/usuarios/permisos                      -- listar permisos
-PUT    /v1/usuarios/{id}/rol/{rolId}              -- cambiar el rol de un usuario
-POST   /v1/usuarios/{id}/permisos/{permisoId}     -- darle un permiso extra
-DELETE /v1/usuarios/{id}/permisos/{permisoId}     -- quitarle un permiso extra
-```
-Todo esto **ya funciona** si lo llamas con Postman/curl ahora mismo.
-
-### Lo que NO existe — el 50% que falta
-1. **Nada en el back revisa estos permisos.** Busqué `hasAuthority` en todo el proyecto — cero
-   resultados. Cada endpoint hoy solo pregunta "¿es ADMIN?" (`hasRole("ADMIN")`) o "¿está
-   logueado?" — nunca "¿tiene el permiso `PEDIDOS_EDITAR`?". Los permisos viajan en el JWT
-   (`Usuario.getAuthorities()` ya los mete ahí) pero nadie los lee del otro lado.
-2. **El front no tiene ninguna pantalla para esto.** No hay ningún botón "cambiar rol" ni
-   "asignar permiso" en la pantalla de Usuarios — busqué las 4 llamadas del backend de arriba en
-   todo el código Angular y no aparecen en ningún lado.
-3. **No existe el concepto de "pantalla".** Lo que tienes son permisos de *acción sobre datos*
-   (`PRODUCTOS_LEER`), no de *visibilidad de ruta*. Hoy qué pantallas aparecen en el menú lo
-   decide un array fijo en el código (`GROUP_ROUTES` en `navbar.component.ts`) y cada ruta tiene
-   un guard hardcodeado (`AuthGuard`, `AdminGuardGuard`) — binario: o eres ADMIN o no, nada más
-   fino que eso.
-
-## 2. El problema que señalaste, con un ejemplo real de tu propio catálogo
-
-Dijiste: *"resulta que ese permiso también sirve para otra pantalla que a la mejor no quiero que
-veas"*. Es un riesgo real y concreto con lo que ya existe. Ejemplo con tus propios permisos:
-
-`PRODUCTOS_LEER` es un permiso de **acción sobre datos** ("puede leer productos"). Si mañana
-decidieras usar ESE MISMO permiso para decidir qué pantallas mostrar, tendría que dárselo a
-cualquier pantalla que necesite leer productos — y en tu sistema eso incluye la "Búsqueda de
-productos" normal, pero también "Carga rápida de imágenes", "Reportes", el buscador dentro de
-"Armar promoción", etc. Si le das `PRODUCTOS_LEER` a un cajero solo para que vea el buscador
-simple, sin querer también le abrirías (si esas otras pantallas se gatean con el mismo permiso)
-acceso a pantallas que nunca quisiste que tocara.
-
-**La causa raíz:** estás mezclando dos preguntas distintas bajo un solo concepto:
-- *"¿Puede este usuario **hacer** X sobre los datos?"* (leer/crear/editar/borrar — nivel API)
-- *"¿Puede este usuario **ver** esta pantalla en su menú?"* (nivel ruta/UI)
-
-Son cosas relacionadas pero no son la misma cosa, y una pantalla puede necesitar varios permisos
-de acción por dentro (para distintas llamadas que hace), y un mismo permiso de acción puede ser
-necesario en varias pantallas sin relación entre sí. Intentar resolver "visibilidad de pantalla"
-reutilizando directamente el catálogo de permisos de acción es exactamente lo que te va a causar
-el problema que describes.
-
-## 3. Diseño propuesto — separar las dos cosas
-
-**No tocar el sistema de `Permiso` que ya existe** (autorización de acciones). En vez de
-reutilizarlo, se agrega un concepto **nuevo y paralelo**, mismo patrón exacto que ya usa el
-proyecto para permisos — así que aplica igual a `Pantalla` (Fase 1, front) como a `Permiso`
-(Fase 2, back — ver sección 6):
+Confirma que estas dos migraciones ya corrieron contra la base de datos de QA
+(`inventario_key_qa`). Si no corrieron, el backend va a tronar o los campos van a comportarse
+como si no existieran:
 
 ```
-NUEVA: Pantalla (id, clave, nombre, ruta, grupo, orden)
-
-NUEVA: rol_pantalla     (rol_id, pantalla_id)                       -- pantallas base del rol
-NUEVA: usuario_pantalla (usuario_id, pantalla_id, concedido BOOLEAN) -- excepcion por usuario
+src/main/resources/static/migration_privacidad_preferencias_correo.sql
+src/main/resources/static/migration_umbral_stock_bajo.sql
 ```
 
-Cada `Pantalla` es autocontenida: no depende de qué permisos de acción use por dentro, así que
-asignarla a un usuario nunca "contamina" el acceso a otra pantalla sin relación.
+Cómo confirmarlo rápido: en la BD de QA, `DESCRIBE usuario_modificacion;` debe mostrar
+`acepto_privacidad` y `fecha_acepto_privacidad`; `DESCRIBE clientes;` debe mostrar
+`recibir_correos`; `DESCRIBE configuracion_negocio;` debe mostrar `umbral_stock_bajo`.
 
-### Excepciones por usuario — agregar Y quitar (decidido: sí hace falta quitar)
+Además, para probar los correos (seguimiento de pedido, stock bajo, restock) necesitas que el
+SMTP de QA esté configurado y funcionando, y usar un correo real que puedas revisar.
 
-`usuario_pantalla` no es solo "extra" como `usuario_permiso` hoy — lleva una columna
-`concedido` (true/false) para poder tanto **sumar** una pantalla que el rol no da, como
-**restar** una que el rol sí daría por defecto:
+---
 
+## 1. Aviso de privacidad al registrarse
+Aqui para este aviso de privacidad, es lo mismo que aceptar que en caso de alguna cancelacion el cliente debe de asumir el cobro por cancelacion? lo mismo cuando valla a hacer la cancelacion se debe mostrar un mensaje mencionando que debera o solo se le podra regresar la cantidad restante por el cobro con tarjeta pero no decirle directo que es po rla tarjeta algo mas cordial y legal y otra cosa que pasa por ejemplo si comprarn algo y pagan con tarjeta de credito y ya que tienen la mercancia ponen que ellos no hicieron la compra para hacer la cancelacion del producto y quedarse con el producto y el dinero ahi que pasa que podemos hacer y si se hace como podemos evitarlo?
+Cuando intento registrame y no acepto el aviso de privacidad si se ve el chec para seleccionar pero 2 cosas el primero es que el check esta muy basico no tiene diseño para que se vea correcto o bien que de un gusto verlo y aceptaro y ademas si se ve pero en ningun lado dice que tiene que acepar las politicas de privacidad
+
+**Ruta de clics:** cierra sesión (o abre una ventana privada) → en la pantalla de **Login**,
+abajo del botón de iniciar sesión, dale clic a **"Regístrate aquí"**. Eso te lleva al formulario
+de registro público.
+
+**Pasos:**
+1. Llena el formulario de registro (usuario, correo, contraseña) SIN marcar el checkbox de
+   privacidad.
+2. Intenta enviarlo.
+
+**Qué esperar:** el botón "Registrarse" debe estar deshabilitado mientras el checkbox no esté
+marcado — no debería dejarte enviar el formulario en absoluto.
+
+**Pasos (continuación):**
+3. Marca el checkbox "Acepto el aviso de privacidad".
+4. Click en el link "aviso de privacidad" (antes de enviar).
+
+**Qué esperar:** debe abrirse `/privacidad` en una pestaña nueva, con contenido real (no en
+blanco).
+Al dar clic en el aviso de privacidad no se abre nada para que lo revises.
+
+Y cuando se reenvia el codigo nuevo es necesario que el codigo que se puso hay que limpiarlo y si no hay numero pues no se hace nada la cosa es que si se reenvia el codigo se limpie la caja y hay que validar el envio de codigo de validacion, porque ya lo reenvie 2 veces i dice que es incorrecto
+
+**Pasos (continuación):**
+5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
+
+**Qué esperar:** el registro se completa igual que siempre — este cambio no debe alterar el
+flujo de verificación de correo que ya conocías.
+
+**Verificación en BD (opcional, para admin/dev):**
+```sql
+SELECT username, acepto_privacidad, fecha_acepto_privacidad
+FROM usuario_modificacion WHERE username = 'el_usuario_que_registraste';
 ```
-pantallas_efectivas(usuario) =
-    ( pantallas_del_rol(usuario)
-      ∪ { p : usuario_pantalla(usuario, p, concedido=true)  } )
-    − { p : usuario_pantalla(usuario, p, concedido=false) }
-```
+Debe mostrar `acepto_privacidad = 1` y una fecha/hora reciente.
 
-Ejemplo real de lo que pediste: "es EMPLEADO pero a este en particular no le den Reportes" → una
-fila `usuario_pantalla(ese_usuario, Reportes, concedido=false)`, sin tocar el rol EMPLEADO para
-nadie más.
+**Caso negativo a probar:** como ADMIN, menú lateral → acordeón **🛠️ Sistema** → **"👥 Usuarios"**
+→ busca un usuario y edítalo ("Actualizar usuario"). **El checkbox de privacidad NO debe
+aparecer ahí** — solo aplica al autoregistro.
+ya entre como admin, pero no veo en la pantalla la opcion que mencionas para validarlo, entonces si lo acepta no aprece, pero se supone que para poder geenrar un registro tiene que aparecer o aceptar el aviso no?
+---
 
-### Gestión de roles — el admin va a poder crear roles nuevos, no solo asignar los 4 que ya existen
+## 2. Preferencia de correos — lado del cliente
 
-Aclaraste el punto 3: no es que cada usuario se configure 100% individual sin rol, sino que
-**vas a poder crear tus propios roles desde una pantalla nueva de administración** (ej. crear
-"ROL EMPLEADO" o cualquier otro nombre) y ahí marcar, con checkboxes, qué pantallas puede ver ese
-rol y (en la Fase 2, ver abajo) qué acciones puede hacer. Los 4 roles ya sembrados
-(ADMIN/EMPLEADO/CAJERO/USUARIO) dejan de ser una lista fija en el código — pasan a ser datos
-editables en esa pantalla, igual que cualquier otro catálogo del sistema. **Corrección tras
-revisar el código:** hoy el backend solo tiene `GET /v1/usuarios/roles` (listar) — no existe
-todavía ningún endpoint para crear/editar/borrar un rol ni para asignarle pantallas/permisos, así
-que esa pantalla de "Gestión de roles" necesita su propio controller nuevo (CRUD de `Roles` +
-endpoints para marcar sus pantallas y permisos), no es algo que ya esté armado. Un usuario nuevo
-se crea eligiendo uno de esos roles (los 4 actuales u otro que se haya creado después) y hereda
-automáticamente su set de pantallas.
+**Ruta de clics:** loguéate como cliente → en el menú lateral, hasta abajo hay una tarjeta con
+tu nombre de usuario → ahí dale clic a **"Mis datos"** (ícono 👤).
 
-### De dónde sale el catálogo inicial de pantallas
-No hay que inventarlo — ya existe, hardcodeado en `navbar.component.ts`
-(`GROUP_ROUTES`), con ~30 rutas ya agrupadas en 8 categorías (misproductos, pedidos, ventas,
-analitica, rifas, flores, imagenes, sistema). Ese array se convierte directo en las filas
-semilla de la tabla `Pantalla` — es trabajo de trasladar un catálogo que ya está bien pensado,
-no de diseñarlo desde cero.
+**Pasos:**
+1. Entra a "Mis datos" y busca la sección **"Preferencias"**, con un toggle que dice algo como
+   "Recibir correos de seguimiento de pedido y alertas de stock".
 
-### Cómo lo consume el front
-- El JWT ya lleva roles y permisos (`Usuario.getAuthorities()`); se le agregan las claves de
-  `Pantalla` que el usuario tiene, mismo mecanismo.
-- Un guard genérico nuevo (`PantallaGuard`) reemplaza los guards hardcodeados por ruta — revisa
-  "¿esta ruta está en las pantallas del usuario?" en vez de "¿es ADMIN?".
-- El menú (`navbar.component.ts`) deja de usar el array fijo `GROUP_ROUTES` y arma los grupos
-  dinámicamente a partir de las pantallas que sí tiene el usuario — un ítem sin permiso
-  simplemente no se pinta, en vez de estar pero fallar al hacer clic.
+**Qué esperar:** el toggle debe aparecer **activado** por default (así nace todo cliente nuevo o
+existente que nunca lo tocó).
 
-## 4. Cómo migrar sin romper nada de golpe (lo que pediste explícitamente)
+**Pasos (continuación):**
+2. Apágalo.
+3. Recarga la página completa (F5).
 
-1. **ROLE_ADMIN recibe automáticamente TODAS las pantallas** — ya es su comportamiento actual (ve
-   todo), solo hay que preservarlo al sembrar `rol_pantalla`.
-2. **Los usuarios/roles que ya existen (EMPLEADO/CAJERO/USUARIO) heredan como línea base
-   exactamente lo que hoy pueden ver** — antes de programar, hay que mapear "qué guard tiene cada
-   ruta hoy" contra "qué rol debería tener esa pantalla", para que nadie pierda ni gane acceso el
-   día que esto se active. Es un trabajo de mapeo 1 vez, no de diseño nuevo.
-3. Un usuario nuevo se crea con su rol de siempre → hereda ese set base automáticamente, sin tener
-   que configurar nada a mano cada vez (tal como pediste: *"que tenga los permisos solo lo que
-   tiene actualmente"*).
-4. El admin, desde la pantalla de Usuarios, podría agregar/quitar pantallas puntuales a un
-   usuario individual sin tocar su rol — igual que ya existe hoy para `permisosExtra`.
+**Qué esperar:** el toggle debe seguir apagado después de recargar — si vuelve a aparecer
+prendido, algo no se guardó bien.
 
-## 5. Decisiones ya cerradas contigo
+**Pasos (continuación) — el caso que más importa probar:**
+4. Con el toggle todavía apagado, edita cualquier OTRO dato (ej. tu número de teléfono) y dale
+   click al botón grande **"Guardar cambios"** del formulario (no al toggle).
+5. Recarga la página otra vez.
 
-1. **Alcance: los dos, en 2 fases.** Primero pantallas/menú (front), después permisos de acción
-   exigidos de verdad en el backend — pero el modelo de datos se diseña completo desde ahora para
-   que la Fase 2 no obligue a rehacer nada de la Fase 1 (ver roadmap, sección 6).
-2. **Excepciones: agregar Y quitar.** `usuario_pantalla` lleva la columna `concedido` (sección 3).
-3. **Roles como plantilla, con gestión propia.** Los usuarios se crean con un rol; el admin va a
-   poder crear/editar roles nuevos desde una pantalla dedicada (sección 3).
-4. **Aplica en el próximo login**, igual que ya se comportan hoy los cambios de rol/permiso — sin
-   trabajo extra de forzar cierre de sesión.
+**Qué esperar:** el toggle debe **seguir apagado**. Si se prende solo después de guardar el
+formulario general, es un bug — el diseño evita justo eso (el toggle usa un endpoint aparte a
+propósito).
 
-## 6. Roadmap en 2 fases
+6. Vuelve a prenderlo, para dejarlo en su estado normal.
 
-### Fase 1 — Pantallas (front) — la que se construye primero
-1. Migración: tabla `pantallas` + `rol_pantalla` + `usuario_pantalla` (con `concedido`).
-2. Semilla: volcar el catálogo de `GROUP_ROUTES` (navbar) a filas de `pantallas`, y armar
-   `rol_pantalla` mapeando el guard actual de cada ruta contra cada rol existente (para que nadie
-   pierda ni gane acceso al activarse).
-3. Backend: controller nuevo para `Pantalla` (CRUD básico) + endpoints para asignar/quitar
-   pantalla a un rol y a un usuario (mismo patrón que ya existe para `permisosExtra`, agregando
-   el flag `concedido`) + endpoint de "gestión de roles" (crear/editar rol, marcarle pantallas).
-4. JWT: agregar las claves de `Pantalla` efectivas del usuario (mismo lugar donde ya van roles y
-   permisos).
-5. Front: `PantallaGuard` genérico reemplazando `AuthGuard`/`AdminGuardGuard` ruta por ruta; menú
-   dinámico en vez de `GROUP_ROUTES` fijo; pantalla nueva de "Gestión de roles" (crear rol,
-   marcar sus pantallas) y ampliar la pantalla de Usuarios (cambiar rol, agregar/quitar pantallas
-   extra a un usuario individual).
+---
 
-### Fase 2 — Permisos de acción (backend) — después, cuando la Fase 1 esté probada
-1. Mismo mecanismo (`concedido` en `usuario_permiso`, hoy es solo "extra" — se le agrega la misma
-   columna) para poder también quitarle a un usuario un permiso de acción que su rol daría.
-2. Revisar controller por controller (son ~50, ver `AbstractController`) qué `Permiso` de los 22
-   ya sembrados le corresponde a cada endpoint de escritura, y reemplazar los `hasRole("ADMIN")`
-   genéricos por `hasAuthority("PRODUCTOS_EDITAR")` puntuales donde aplique — trabajo grande,
-   controller por controller, no se hace de un tirón.
-3. La misma pantalla de "Gestión de roles" del front se amplía para marcar también permisos de
-   acción por rol (checkboxes de LEER/CREAR/EDITAR/ELIMINAR por módulo), reusando el catálogo de
-   22 permisos que ya existe.
+## 3. Preferencia de correos — lado del admin (por cliente)
 
-No se empieza la Fase 2 hasta que la Fase 1 esté funcionando y probada en QA — son dos entregas
-separadas, no un solo cambio gigante.
+**Ruta de clics:** como ADMIN, en el menú lateral (fuera de cualquier acordeón, es un ítem
+suelto) → **👥 Clientes** → se abre el buscador → busca al cliente de prueba → botón
+**"👁️ Ver/Editar"** sobre su fila.
 
+**Pasos:**
+1. Busca la misma sección "Preferencias" en esa pantalla.
 
-Pero aqui me surguio una duda, por ejemplo
-Acutalmente lo que te digo es que por ejemplo si yo quiero que el rol x solo pueda acceder a tales rutas o menuas a eso me refiero por ejemplo algunos menu u opciones llevan a otras
-endpoint y mi duda es, entonces no se va a basar a los endpoint? si no a los menus?
+**Qué esperar:** debe mostrar el estado real de ESE cliente (si en el paso 2 lo dejaste
+apagado para algún cliente de prueba, aquí debe verse apagado).
+
+**Pasos (continuación):**
+2. Cámbialo desde aquí (como admin).
+3. Vuelve a entrar como ese cliente (o recarga si ya estás logueado como él) → "Mis datos".
+
+**Qué esperar:** el cambio que hizo el admin se refleja también del lado del cliente — es el
+mismo dato, dos pantallas distintas para tocarlo.
+
+---
+
+## 4. Correo de seguimiento de pedido
+
+**Requiere:** un cliente de prueba con correo real (que puedas revisar) y con la preferencia de
+correos **activada** (ver sección 2).
+
+**Ruta de clics (admin):** menú lateral → acordeón **📋 Pedidos** (dale clic para desplegarlo) →
+**"Mis pedidos"**. Ahí, sobre el pedido del cliente de prueba, están los botones **"Confirmar
+cobro"** y **"Cancelar"**.
+
+**Pasos:**
+1. Genera un pedido con ese cliente (flujo normal de compra, como Tienda o Arma tu ramo).
+2. En Pedidos → Mis pedidos, sobre ese pedido, dale **"Confirmar cobro"** (lo pasa a "Entregado").
+
+**Qué esperar:** al correo del cliente debe llegar un mensaje con asunto tipo
+**"Tu pedido #X — Entregado — Novedades Jade"**, con el estado en una tarjeta destacada.
+
+**Pasos (continuación):**
+3. Genera otro pedido con el mismo cliente y dale **"Cancelar"** en la misma pantalla.
+
+**Qué esperar:** debe llegar un correo "Tu pedido #X — cancelado — Novedades Jade".
+
+**Caso negativo a probar:**
+4. Apaga la preferencia de correos de ese cliente (sección 2 o 3).
+5. Confirma o cancela otro pedido suyo.
+
+**Qué esperar:** **NO debe llegar ningún correo** — pero el pedido sí se debe confirmar/cancelar
+normalmente (el envío del correo es "silencioso": si falla o se omite, no debe romper la
+operación del pedido).
+
+---
+
+## 5. Alerta de "volvió el stock" (Favoritos)
+
+**Requiere:** un cliente de prueba con correo real y preferencia de correos activada.
+
+**Ruta de clics (cliente) — marcar favorito:** loguéate como ese cliente → menú lateral →
+**🛍️ Tienda** (ítem suelto, arriba del todo) → en cualquier tarjeta de producto, dale clic al
+ícono de corazón 🤍 (esquina de la tarjeta) — se pone ❤️.
+
+**Ruta de clics (admin) — editar el stock de esa misma variante:** menú lateral → acordeón
+**📦 Catálogo** → **"🔍 Modelos"** → busca el producto que marcaste como favorito → ábrelo →
+entra a la variante correspondiente (talla/color) → cambia el campo de stock.
+
+**Pasos:**
+1. Con el cliente de prueba, marca una variante como Favorito (ruta de arriba).
+2. Como ADMIN, entra a esa variante y bájale el stock a **0** (guardar).
+3. Como ADMIN, entra a la MISMA variante otra vez y súbele el stock (ej. a 10) — guardar.
+
+**Qué esperar:** al correo del cliente debe llegar **"¡Ya volvió el stock! — Novedades Jade"**
+con el nombre del producto y (si aplica) talla/color.
+
+**Pasos (continuación) — probar que no duplica avisos:**
+4. Edita la variante de nuevo sin que pase por 0 (ej. de 10 a 15, guardar).
+
+**Qué esperar:** **NO debe llegar otro correo** — el aviso solo se dispara en la transición real
+de sin-stock a con-stock, no en cualquier edición.
+
+**Pasos (continuación):**
+5. Bájala a 0 otra vez y vuelve a subirle stock.
+
+**Qué esperar:** esta vez **sí debe volver a llegar** el correo — es un ciclo nuevo de
+agotado→reabastecido.
+
+---
+
+## 6. Alerta de stock bajo al admin (digest diario)
+
+**Ruta de clics:** como ADMIN, en el menú lateral, dale clic al acordeón **🛠️ Sistema** para
+desplegarlo → ahí verás varias opciones, entre ellas **"🏪 Negocio & Contactos"** → dale clic →
+se abre la pantalla de configuración del negocio → baja hasta la sección
+**"📦 Alertas de stock bajo"** (es la última, después de Estado/Horario/Contactos).
+
+**Pasos:**
+1. Verifica que el campo de umbral muestre **5** por default (si nunca se ha tocado).
+2. Cámbialo (ej. a 10) → **Guardar umbral**.
+3. Recarga la página.
+
+**Qué esperar:** debe seguir mostrando 10 (persistencia).
+
+**Pasos (continuación) — probar el envío real:**
+4. Asegúrate de que exista al menos una variante habilitada con stock ≤ el umbral configurado
+   (bájale el stock a una de prueba si hace falta, por otra vía distinta a "guardarConImagenes"
+   no cuenta — usa la pantalla normal de editar variante).
+5. El envío real ocurre solo, todos los días a las **7:00 a.m.** — para probarlo sin esperar,
+   pídele a quien tenga acceso al servidor/consola de QA que dispare manualmente el método
+   `StockBajoService.verificarYNotificar()` (o espera a que sean las 7 a.m. en un ambiente donde
+   el scheduler esté activo).
+
+**Qué esperar:** cada usuario con rol ADMIN y correo activo debe recibir un correo
+**"Aviso de stock bajo (N)"** con la lista completa de variantes bajas y su stock actual.
+
+**Pasos (continuación):**
+6. Sube el stock de esa variante por encima del umbral y vuelve a disparar el barrido.
+
+**Qué esperar:** esa variante ya no debe aparecer en el correo (o no debe llegar correo si era
+la única baja) — y en el log del backend debe verse
+`StockBajoService: sin variantes en o por debajo del umbral`.
+
+---
+
+## Checklist rápido para ir tachando
+
+- [ ] Migraciones corridas en BD de QA (paso 0)
+- [ ] Registro bloquea sin checkbox de privacidad; link a `/privacidad` funciona
+- [ ] Checkbox de privacidad NO aparece cuando admin edita a otro usuario
+- [ ] Toggle de correos en "Mis datos": persiste tras recargar
+- [ ] Toggle de correos: sobrevive guardar otros campos del formulario (no se resetea)
+- [ ] Toggle de correos visible y editable desde admin en clientes/mostrar
+- [ ] Correo de seguimiento llega al confirmar pedido ("Entregado")
+- [ ] Correo de seguimiento llega al cancelar pedido
+- [ ] Correo de seguimiento NO llega si `recibirCorreos = false`
+- [ ] Correo de restock llega al pasar de stock 0 a >0 en una variante favorita
+- [ ] Correo de restock NO se duplica en ediciones que no cruzan por 0
+- [ ] Umbral de stock bajo configurable y persiste
+- [ ] Digest de stock bajo llega a todos los admin con la lista correcta
+
+---
+
+**Si algo falla:** anota el paso exacto y lo que viste vs. lo que esperabas — con eso puedo ir
+directo al archivo/línea en cuestión sin tener que re-investigar todo el flujo de nuevo.
