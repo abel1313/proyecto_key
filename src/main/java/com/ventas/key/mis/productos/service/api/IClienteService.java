@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.ventas.key.mis.productos.entity.Cliente;
+import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.ICrud;
 import com.ventas.key.mis.productos.models.PageableDto;
@@ -20,5 +21,8 @@ public interface IClienteService extends ICrud<
     ResponseGeneric<Optional<Cliente>> findClienteById(int id);
 
     PageableDto<List<ClienteBusquedaDto>> buscarClientes(String nombre, int page, int size);
+
+    // Detalle completo para la pantalla admin de ver/editar cliente -- ver ClienteAdminDetalleDto.
+    ResponseGeneric<Optional<ClienteAdminDetalleDto>> obtenerDetalleAdmin(int id);
 
 }
