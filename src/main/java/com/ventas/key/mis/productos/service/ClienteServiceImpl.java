@@ -147,10 +147,20 @@ implements IClienteService {
         iClienteRepository.save(cliente);
     }
 
+    /**
+     * Devuelve Cliente (no Optional) a proposito: cachear un ResponseGeneric<Optional<Cliente>>
+     * en Redis rompia la lectura de vuelta -- el serializador de Redis guarda el Optional con
+     * metadatos de tipo ("@class") que jackson-datatype-jdk8 no sabe reconstruir, y la siguiente
+     * peticion (cache hit) tronaba con "Cannot construct instance of java.util.Optional" en vez
+     * de devolver el cliente. Reproducido en QA 2026-09-02 al generar un pedido: el cliente
+     * recien registrado no se podia leer por este endpoint una vez que la respuesta quedaba en
+     * cache. El front (cliente.service.ts) ya esperaba un Cliente plano en `data`, no un
+     * Optional, asi que este cambio no le afecta.
+     */
     @Override
     @Cacheable(value = "clienteCache", key = "#id")
-    public ResponseGeneric<Optional<Cliente>> findClienteById(int id) {
-        return new ResponseGeneric<>(this.iClienteRepository.findClienteById(id));
+    public ResponseGeneric<Cliente> findClienteById(int id) {
+        return new ResponseGeneric<>(this.iClienteRepository.findClienteById(id).orElse(null));
     }
 
     @Override
