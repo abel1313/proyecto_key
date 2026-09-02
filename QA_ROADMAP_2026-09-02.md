@@ -72,29 +72,6 @@ de registro público.
    privacidad.
 2. Intenta enviarlo.
 
-Res => ya se ve que se acepto el aviso de privacidad
-
-Res
-curl 'https://qa.backend.novedades-jade.com.mx/mis-productos/v1/auth/verificar-correo' \
--H 'Accept: application/json, text/plain, */*' \
--H 'Accept-Language: es-419,es;q=0.7' \
--H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJwYW50YWxsYXNBY2Npb25lcyI6WyJwcm9kdWN0b3MvYnVzY2FyOmRlc2Nhcmdhci1leGNlbCIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLXNpbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6aGFiaWxpdGFyIiwicHJvZHVjdG9zL2J1c2NhcjpjcmVhci12YXJpYW50ZXMiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1zaW4taW1hZ2VuZXMiLCJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1jb2RpZ28tcmVhbCIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWNvbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLXNpbi1zdG9jayIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLW5vLWhhYmlsaXRhZG9zIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tY29uLXN0b2NrIiwidGllbmRhL2J1c2NhcjpmaWx0cm8tY29kaWdvLWdlbmVyYWRvIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tZmVjaGEtY3JlYWNpb24iLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1mZWNoYS1jcmVhY2lvbiIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLWNvbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWhhYmlsaXRhZG9zIiwicHJvZHVjdG9zL2J1c2Nhcjpjb21wYXJ0aXItaW1hZ2VuIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tbm8taGFiaWxpdGFkb3MiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1jb2RpZ28tcmVhbCIsInByb2R1Y3Rvcy9idXNjYXI6ZWxpbWluYXIiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1zaW4tc3RvY2siLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1oYWJpbGl0YWRvcyIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLWNvbi1zdG9jayIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWNvZGlnby1nZW5lcmFkbyJdLCJyb2xlcyI6WyJQUk9EVUNUT1NfTEVFUiIsIkNMSUVOVEVTX0VMSU1JTkFSIiwiUEVESURPU19FTElNSU5BUiIsIkdBU1RPU19HRVNUSU9OQVIiLCJWQVJJQU5URVNfRURJVEFSIiwiVkVOVEFTX0NSRUFSIiwiUFJPRFVDVE9TX0VMSU1JTkFSIiwiVkFSSUFOVEVTX0xFRVIiLCJDTElFTlRFU19FRElUQVIiLCJWQVJJQU5URVNfQ1JFQVIiLCJWRU5UQVNfTEVFUiIsIlBFRElET1NfQ1JFQVIiLCJSSUZBU19HRVNUSU9OQVIiLCJQUk9EVUNUT1NfQ1JFQVIiLCJQQUdPU19MRUVSIiwiQ0xJRU5URVNfTEVFUiIsIk1QX0NPQlJBUiIsIlJPTEVfQURNSU4iLCJVU1VBUklPU19HRVNUSU9OQVIiLCJQRURJRE9TX0VESVRBUiIsIlBFRElET1NfTEVFUiIsIlBST0RVQ1RPU19FRElUQVIiLCJDTElFTlRFU19DUkVBUiIsIklNQUdFTkVTX0dFU1RJT05BUiJdLCJpZFVzdWFyaW8iOjQzLCJwYW50YWxsYXMiOlsidXN1YXJpb3MvYnVzY2FyIiwiYWRtaW4vcHJlc2VudGFjaW9uIiwicmlmYXMvYnVzY2FyIiwiY2hhdCIsInFyIiwiYWRtaW4vcHJvbW9jaW9uZXMiLCJyZXBvcnRlcyIsImZsb3Jlcy9yYW1vcyIsImFkbWluL2NpbnRhIiwibHVnYXJlcy1lbnRyZWdhIiwicHJvbW9jaW9uZXMiLCJnZXN0aW9uLW1lbnUvcm9sZXMiLCJob21lIiwicmlmYXMvbWVzIiwicHJvZHVjdG9zL2J1c2NhciIsImZsb3Jlcy9yYW1vcy1hZG1pbiIsImFkbWluL2RpYWdub3N0aWNvLWltYWdlbmVzIiwicmlmYXMvYWdyZWdhciIsImdhc3Rvcy9idXNjYXIiLCJhZG1pbi9oYXNodGFncyIsImZsb3Jlcy9lbnRyZWdhcyIsInBlZGlkb3MvbWlzLXBlZGlkb3MiLCJhZG1pbi9jaGF0IiwiY2FyZ2EtaW1hZ2VuZXMiLCJhZG1pbi9jYWNoZSIsImRhc2hib2FyZCIsImZsb3Jlcy9mcmFzZXMiLCJwZWRpZG9zL2hpc3RvcmlhbC1tcCIsInRpZW5kYS92ZW50YS1kaXJlY3RhIiwiYWRtaW4vbmVnb2NpbyIsInByb2R1Y3Rvcy9hZ3JlZ2FyIiwiYWJvbm9zIiwidGllbmRhL2J1c2NhciIsImdlc3Rpb24tbWVudSIsImNsaWVudGVzL2J1c2NhciIsImZhdm9yaXRvcyIsInBlcnNvbmFsaXphY2lvbiIsInRpZW5kYS92ZW50YSIsInBhbGFicmFzLWNsYXZlIiwiYWRtaW4vZmFjZWJvb2siLCJhZG1pbi9yZWNvbmNpbGlhY2lvbi1pbWFnZW5lcyIsImZsb3Jlcy9jYXRhbG9nb3MiLCJsb2dpbiIsImZsb3Jlcy9jb25maWd1cmFyIiwidGllbmRhL2Nhcmdhci1leGNlbCJdLCJwYW50YWxsYXNFc2NyaXR1cmEiOlsidXN1YXJpb3MvYnVzY2FyIiwiYWRtaW4vcHJlc2VudGFjaW9uIiwicmlmYXMvYnVzY2FyIiwiY2hhdCIsInFyIiwiYWRtaW4vcHJvbW9jaW9uZXMiLCJyZXBvcnRlcyIsImZsb3Jlcy9yYW1vcyIsImFkbWluL2NpbnRhIiwibHVnYXJlcy1lbnRyZWdhIiwicHJvbW9jaW9uZXMiLCJnZXN0aW9uLW1lbnUvcm9sZXMiLCJob21lIiwicmlmYXMvbWVzIiwicHJvZHVjdG9zL2J1c2NhciIsImZsb3Jlcy9yYW1vcy1hZG1pbiIsImFkbWluL2RpYWdub3N0aWNvLWltYWdlbmVzIiwicmlmYXMvYWdyZWdhciIsImdhc3Rvcy9idXNjYXIiLCJhZG1pbi9oYXNodGFncyIsImZsb3Jlcy9lbnRyZWdhcyIsInBlZGlkb3MvbWlzLXBlZGlkb3MiLCJhZG1pbi9jaGF0IiwiY2FyZ2EtaW1hZ2VuZXMiLCJhZG1pbi9jYWNoZSIsImRhc2hib2FyZCIsImZsb3Jlcy9mcmFzZXMiLCJwZWRpZG9zL2hpc3RvcmlhbC1tcCIsInRpZW5kYS92ZW50YS1kaXJlY3RhIiwiYWRtaW4vbmVnb2NpbyIsInByb2R1Y3Rvcy9hZ3JlZ2FyIiwiYWJvbm9zIiwidGllbmRhL2J1c2NhciIsImdlc3Rpb24tbWVudSIsImNsaWVudGVzL2J1c2NhciIsImZhdm9yaXRvcyIsInBlcnNvbmFsaXphY2lvbiIsInRpZW5kYS92ZW50YSIsInBhbGFicmFzLWNsYXZlIiwiYWRtaW4vZmFjZWJvb2siLCJhZG1pbi9yZWNvbmNpbGlhY2lvbi1pbWFnZW5lcyIsImZsb3Jlcy9jYXRhbG9nb3MiLCJsb2dpbiIsImZsb3Jlcy9jb25maWd1cmFyIiwidGllbmRhL2Nhcmdhci1leGNlbCJdLCJqdGkiOiJiNGZmODcyYS0wMTZlLTRmZjYtODA5YS0wNDI2ZDBhODk4ZDYiLCJzdWIiOiJhZG1pbiIsImlhdCI6MTc4ODM3MTkwOSwiZXhwIjoxNzg4MzcyODA5fQ.OchoEMLTXFf7ZJPi4c5v0pcqjAIs786fdV6AtfUlXzY' \
--H 'Connection: keep-alive' \
--H 'Content-Type: application/json' \
--b 'refreshToken=eyJhbGciOiJIUzI1NiJ9.eyJzZXNzaW9uU3RhcnQiOjE3ODgzNjkxNjMwNDUsImlkVXN1YXJpbyI6NDMsInNlc3Npb25JZCI6IjQ2YTY5ZDZjLTg5N2UtNDFlZC1iNWEzLWMxMDg2MmIxMjhlNCIsInR5cGUiOiJyZWZyZXNoIiwianRpIjoiOGQ1MTc3YjctMmE4MS00NjY3LWFmY2YtOWQ2NzgwMWVkMDAyIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3ODgzNzE5MDksImV4cCI6MTc4ODk3NjcwOX0.pzWP0lF5il9kqQzdfmvIGETg8RVogmPDEVVxB4epR84' \
--H 'Origin: https://qa.shop.novedades-jade.com.mx' \
--H 'Referer: https://qa.shop.novedades-jade.com.mx/' \
--H 'Sec-Fetch-Dest: empty' \
--H 'Sec-Fetch-Mode: cors' \
--H 'Sec-Fetch-Site: same-site' \
--H 'Sec-GPC: 1' \
--H 'User-Agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36' \
--H 'sec-ch-ua: "Not;A=Brand";v="8", "Chromium";v="150", "Brave";v="150"' \
--H 'sec-ch-ua-mobile: ?1' \
--H 'sec-ch-ua-platform: "Android"' \
---data-raw '{"userName":"inicioSesion","codigo":"771964"}'
-Codigo de verificacion invalido
-
 **Qué esperar:** el botón "Registrarse" debe estar deshabilitado mientras el checkbox no esté
 marcado — no debería dejarte enviar el formulario en absoluto.
 
@@ -122,6 +99,90 @@ blanco).
 > se quedaba mostrando el código viejo (ya inválido en el back) y si lo mandabas sin
 > retipearlo, claro que decía "incorrecto". Ahora al reenviar se limpia el campo
 > automáticamente.
+
+> 💬 **Tu comentario:** curl real desde el navegador mostrando que `POST /v1/auth/verificar-correo`
+> devuelve **"Codigo de verificacion invalido"** con `{"userName":"inicioSesion","codigo":"771964"}`
+> (User-Agent Android/Chrome móvil) — "sigue con errores al validar el código del correo".
+>
+> **✅ Corregido — causa raíz encontrada.** No era el back (revisé `UsuarioVerificacionService`:
+> comparación de código simple, 15 min de expiración, 5 intentos — todo correcto). El bug estaba
+> en el front: la pantalla de verificar-correo solo sabía "ya mandé un código" a través de
+> `history.state` (lo que Angular pasa al navegar). En **móvil**, si el navegador descarga la
+> pestaña mientras el usuario va a revisar su correo (algo muy común: sales de la app a Gmail y
+> el sistema operativo libera la pestaña en segundo plano) y luego regresa, Angular arranca de
+> cero y ese `history.state` se pierde — la pantalla, sin avisar, disparaba **otro código nuevo**,
+> invalidando el que el usuario ya tenía abierto en su bandeja. El código se veía perfecto, pero
+> el back ya tenía guardado uno distinto — de ahí "código inválido" con un código que a simple
+> vista estaba bien. Fix: se agregó un respaldo en `sessionStorage` (esto sí sobrevive a que el
+> navegador descargue/restaure la pestaña) para no reenviar en silencio si ya hay un código
+> vigente (mismo margen de 15 minutos que usa el back). Commit `c4848f0` (frontend).
+>
+> **Para volver a probar:** genera un código nuevo (registro o reintenta login sin verificar),
+> ve a tu correo SIN cerrar ni cambiar de pestaña de la app hasta escribir el código — o si
+> cambias de pestaña, hazlo con calma, el respaldo nuevo debería sostener el código vigente
+> aunque el navegador descargue la pestaña de en medio.
+
+> 💬 **Tu comentario:** "sigue igual Codigo de verificacion invalido" (después del fix de arriba,
+> ya desplegado en QA — confirmado con el workflow de GitHub Actions, corrió y terminó bien).
+>
+> **✅ Se encontraron y corrigieron DOS causas más, independientes de la de arriba:**
+> 1. **El input del código tenía `autocomplete="one-time-code"`** — ese atributo activa el
+>    autofill de SMS de Android/Chrome (sugiere o inserta automáticamente un código detectado en
+>    un mensaje de texto reciente). Este código llega por **correo**, no por SMS: si el celular
+>    tenía cualquier otro SMS con un código de 6 dígitos alrededor de esa hora (banco,
+>    paquetería, verificación en dos pasos de otra app), Android pudo autocompletar el campo con
+>    ESE código ajeno sin que se notara — el usuario ve 6 dígitos y los manda creyendo que son
+>    los correctos, pero no son los que llegaron al correo. Se quitó el atributo.
+> 2. **Bug real en el envío automático de código** (login con cuenta sin verificar, y registro
+>    nuevo): el front navegaba a la pantalla de verificación marcando `codigoEnviado: true`
+>    **aunque el envío del código hubiera fallado** (red, límite de intentos, etc.) — si fallaba,
+>    la pantalla de verificación creía que ya existía un código válido esperando y nunca
+>    reintentaba ni mostraba ningún error; el usuario quedaba escribiendo contra un código que
+>    nunca llegó a generarse. Ahora ese flag solo se manda cuando el envío sí tuvo éxito.
+>
+> Commit `fe537ae` (frontend), ya en `qa`. **Si al volver a probar sigue fallando**, lo más útil
+> que me puedes mandar es: (a) otro curl igual de completo al que mandaste, (b) si fue en el
+> mismo celular con otros SMS de códigos llegando cerca de esa hora, y (c) si fue inmediatamente
+> después de recibir el correo o pasó un rato/cambiaste de pantalla de en medio — con eso puedo
+> ir directo a la causa exacta en vez de seguir probando teorías a ciegas.
+
+> 💬 **Tu comentario:** seguía fallando, con evidencia contundente: revisaste la BD (`SELECT
+> codigo_verificacion, codigo_verificacion_expira, intentos_codigo_verificacion...`) y el código
+> guardado coincidía EXACTO con el que mandabas, sin intentos fallidos registrados — y aun así
+> "Codigo de verificacion invalido". Y lo probaste también desde el modal de admin ("Actualizar
+> usuario" → "✉️ Verificar correo"), con el mismo resultado.
+>
+> **✅ Causa raíz real, encontrada con esa evidencia.** `enviarCodigoVerificacion()` (el método
+> que manda el código) **siempre generaba y mandaba uno nuevo, sin importar si ya había uno
+> vigente sin usar** — a diferencia de `solicitarCambioCorreo()` (el de cambio de correo), que
+> ya tenía protección para esto. Cada vez que se abre la pantalla de verificación, cada intento
+> de login con una cuenta sin verificar, y **cada apertura del modal "Verificar correo" del
+> admin** disparaban un envío que invalidaba en silencio el código que ya estaba en tu correo —
+> sin avisar nada. Si probaste el modal de admin más de una vez (normal al estar probando), cada
+> apertura mandó un código distinto y el que tenías copiado dejó de ser válido, aunque coincidiera
+> con el que viste en un correo anterior.
+>
+> **Fix:** se agregó `forzarNuevo` (default `false`) — los envíos automáticos ahora reutilizan el
+> código vigente si no expiró, en vez de invalidarlo. El botón explícito "Reenviar código" sigue
+> mandando uno nuevo siempre. Commits `39aa06f` (backend) + `5b07104` (frontend), ya en `qa`.
+>
+> **Para volver a probar:** abre el modal de admin o la pantalla de verificación UNA sola vez,
+> usa el código de ESE correo (ya no debería importar si lo vuelves a abrir después — el código
+> se mantiene vigente mientras no expire).
+
+> 💬 **Tu comentario:** con ese fix ya avanzó, pero apareció un error nuevo y distinto en el log
+> del back: `Field 'nombre_persona' doesn't have a default value` al verificar el correo de
+> "inicioSesion" — un `INSERT INTO clientes` que tronaba.
+>
+> **✅ Corregido — y es buena señal:** este error confirma que el fix anterior sí funcionó (ya
+> pasó la comparación del código, por eso llegó hasta el paso de auto-crear el Cliente vinculado
+> al verificar). El bug era otro, en `crearClienteDesdeRegistro()`: inserta el Cliente auto-
+> creado sin nombre/apellido paterno a propósito (todavía no existen, por eso
+> `datos_completos = 0`), pero esas dos columnas seguían **NOT NULL sin default en la BD real**
+> — a diferencia de correo/teléfono/apellido materno, que sí se habían vuelto opcionales en una
+> migración anterior. Se mandan como `''` (vacío) en vez de alterar la tabla: la app ya trata
+> `''` igual que `NULL` para estos dos campos. Commit `0c18308` (backend), ya en `qa`. No requiere
+> correr ninguna migración nueva.
 
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
