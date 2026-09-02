@@ -772,6 +772,21 @@ public class ProductosServiceImpl extends
             dto.setDetalleExternoLista("error al consultar microservicio: " + e.getMessage());
         }
 
+        // La miniatura del listado es un recurso DISTINTO al que se probó arriba -- ver
+        // getPrimerasImagenes()/mapperByRol(). Se prueba por separado porque puede fallar
+        // aunque la imagen completa (arriba) sí exista.
+        Long imagenIdListado = getPrimerasImagenes(List.of(productoId)).get(productoId);
+        if (imagenIdListado == null) {
+            dto.setMiniaturaPresenteEnMicroservicio(false);
+            dto.setDetalleMiniatura("sin imagenId — este producto no tiene ninguna imagen registrada en producto_imagen (BD local)");
+        } else {
+            boolean miniaturaOk = imagenProductoClienteVPS.verificarMiniatura(imagenIdListado);
+            dto.setMiniaturaPresenteEnMicroservicio(miniaturaOk);
+            dto.setDetalleMiniatura(miniaturaOk
+                    ? "miniatura presente (imagenId=" + imagenIdListado + ")"
+                    : "miniatura NO disponible en el microservicio (imagenId=" + imagenIdListado + ") -- esto es lo que hace que el listado/búsqueda se vea sin imagen");
+        }
+
         return dto;
     }
 
