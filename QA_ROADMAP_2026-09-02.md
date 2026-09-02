@@ -644,6 +644,42 @@ perfumería, cancelación antes de entrega), ahora deben verse dos párrafos nue
 
 ---
 
+## 9. Fix — imagen no aparecía en "Modelos buscar" al agregar un producto nuevo
+
+> 💬 **Tu comentario:** "cuando agrego un modelo y cargo una imagen... se guarda correctamente,
+> entonces lo busco en Modelos buscar... la imagen como tal no aparece aunque se haiga guardado,
+> pero si en el modelo que agregué me voy a detalle-productos/detalle-producto/401 aquí sí
+> muestra el producto." Después me pasaste el repo `micro_imagenes` para revisarlo.
+>
+> **✅ Corregido — causa raíz real, y era determinística (pasaba siempre, no a veces).** Al
+> agregar un producto CON imagen en un solo paso, el back le genera un id local aleatorio a la
+> imagen antes de subirla al microservicio de imágenes — pero el micro, al recibir el archivo,
+> le asigna SU PROPIO id, distinto (son dos servicios generando ids independientes en momentos
+> distintos). El código nunca guardaba la relación producto-imagen en la tabla local
+> (`producto_imagen_copy`) con el id correcto — de hecho, no la guardaba en absoluto, solo
+> mandaba un mensaje a RabbitMQ que **el propio microservicio de imágenes consume para su propia
+> base**, no la nuestra.
+>
+> El listado/búsqueda arma la miniatura leyendo el id de esa tabla local — que por lo anterior
+> quedaba vacía SIEMPRE para un producto creado así. El detalle sí funcionaba porque le pregunta
+> directo al microservicio por el id del producto, sin pasar por esa tabla local.
+>
+> Se corrigió usando el id REAL que devuelve el micro (en vez del generado localmente antes de
+> subir) al guardar la relación local — mismo patrón que ya usa correctamente otra pantalla
+> (carga rápida de imágenes). De paso se corrigió el mismo problema en las imágenes de variantes
+> cuando se sube imagen a un producto ya existente. Commit `0d55768` (backend), ya en `qa`.
+>
+> **Además**, mientras investigaba hasta el fondo (revisé también `micro_imagenes`): encontré que
+> ese servicio tragaba en silencio cualquier error al generar la miniatura del listado (devolvía
+> 204 sin loguear el detalle real) — ya se corrigió ahí también para que quede loggeado el error
+> completo si algo similar vuelve a pasar (commit `6dc7a43` en `micro_imagenes`, rama `dev` —
+> ese repo no lo mergeé a `qa`/`master` todavía, avísame si quieres que lo suba).
+>
+> **Para volver a probar:** agrega un producto nuevo con imagen desde "Catálogo → Agregar
+> modelo", y revisa que la imagen sí aparezca en "Modelos buscar" (no solo en el detalle).
+
+---
+
 **Si algo falla:** anota el paso exacto y lo que viste vs. lo que esperabas — con eso puedo ir
 directo al archivo/línea en cuestión sin tener que re-investigar todo el flujo de nuevo.
 
