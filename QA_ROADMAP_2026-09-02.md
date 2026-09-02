@@ -72,29 +72,6 @@ de registro público.
    privacidad.
 2. Intenta enviarlo.
 
-Res => ya se ve que se acepto el aviso de privacidad
-
-Res
-curl 'https://qa.backend.novedades-jade.com.mx/mis-productos/v1/auth/verificar-correo' \
--H 'Accept: application/json, text/plain, */*' \
--H 'Accept-Language: es-419,es;q=0.7' \
--H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJwYW50YWxsYXNBY2Npb25lcyI6WyJwcm9kdWN0b3MvYnVzY2FyOmRlc2Nhcmdhci1leGNlbCIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLXNpbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6aGFiaWxpdGFyIiwicHJvZHVjdG9zL2J1c2NhcjpjcmVhci12YXJpYW50ZXMiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1zaW4taW1hZ2VuZXMiLCJwcm9kdWN0b3MvYnVzY2FyOmZpbHRyby1jb2RpZ28tcmVhbCIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWNvbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLXNpbi1zdG9jayIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLW5vLWhhYmlsaXRhZG9zIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tY29uLXN0b2NrIiwidGllbmRhL2J1c2NhcjpmaWx0cm8tY29kaWdvLWdlbmVyYWRvIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tZmVjaGEtY3JlYWNpb24iLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1mZWNoYS1jcmVhY2lvbiIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLWNvbi1pbWFnZW5lcyIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWhhYmlsaXRhZG9zIiwicHJvZHVjdG9zL2J1c2Nhcjpjb21wYXJ0aXItaW1hZ2VuIiwicHJvZHVjdG9zL2J1c2NhcjpmaWx0cm8tbm8taGFiaWxpdGFkb3MiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1jb2RpZ28tcmVhbCIsInByb2R1Y3Rvcy9idXNjYXI6ZWxpbWluYXIiLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1zaW4tc3RvY2siLCJ0aWVuZGEvYnVzY2FyOmZpbHRyby1oYWJpbGl0YWRvcyIsInRpZW5kYS9idXNjYXI6ZmlsdHJvLWNvbi1zdG9jayIsInByb2R1Y3Rvcy9idXNjYXI6ZmlsdHJvLWNvZGlnby1nZW5lcmFkbyJdLCJyb2xlcyI6WyJQUk9EVUNUT1NfTEVFUiIsIkNMSUVOVEVTX0VMSU1JTkFSIiwiUEVESURPU19FTElNSU5BUiIsIkdBU1RPU19HRVNUSU9OQVIiLCJWQVJJQU5URVNfRURJVEFSIiwiVkVOVEFTX0NSRUFSIiwiUFJPRFVDVE9TX0VMSU1JTkFSIiwiVkFSSUFOVEVTX0xFRVIiLCJDTElFTlRFU19FRElUQVIiLCJWQVJJQU5URVNfQ1JFQVIiLCJWRU5UQVNfTEVFUiIsIlBFRElET1NfQ1JFQVIiLCJSSUZBU19HRVNUSU9OQVIiLCJQUk9EVUNUT1NfQ1JFQVIiLCJQQUdPU19MRUVSIiwiQ0xJRU5URVNfTEVFUiIsIk1QX0NPQlJBUiIsIlJPTEVfQURNSU4iLCJVU1VBUklPU19HRVNUSU9OQVIiLCJQRURJRE9TX0VESVRBUiIsIlBFRElET1NfTEVFUiIsIlBST0RVQ1RPU19FRElUQVIiLCJDTElFTlRFU19DUkVBUiIsIklNQUdFTkVTX0dFU1RJT05BUiJdLCJpZFVzdWFyaW8iOjQzLCJwYW50YWxsYXMiOlsidXN1YXJpb3MvYnVzY2FyIiwiYWRtaW4vcHJlc2VudGFjaW9uIiwicmlmYXMvYnVzY2FyIiwiY2hhdCIsInFyIiwiYWRtaW4vcHJvbW9jaW9uZXMiLCJyZXBvcnRlcyIsImZsb3Jlcy9yYW1vcyIsImFkbWluL2NpbnRhIiwibHVnYXJlcy1lbnRyZWdhIiwicHJvbW9jaW9uZXMiLCJnZXN0aW9uLW1lbnUvcm9sZXMiLCJob21lIiwicmlmYXMvbWVzIiwicHJvZHVjdG9zL2J1c2NhciIsImZsb3Jlcy9yYW1vcy1hZG1pbiIsImFkbWluL2RpYWdub3N0aWNvLWltYWdlbmVzIiwicmlmYXMvYWdyZWdhciIsImdhc3Rvcy9idXNjYXIiLCJhZG1pbi9oYXNodGFncyIsImZsb3Jlcy9lbnRyZWdhcyIsInBlZGlkb3MvbWlzLXBlZGlkb3MiLCJhZG1pbi9jaGF0IiwiY2FyZ2EtaW1hZ2VuZXMiLCJhZG1pbi9jYWNoZSIsImRhc2hib2FyZCIsImZsb3Jlcy9mcmFzZXMiLCJwZWRpZG9zL2hpc3RvcmlhbC1tcCIsInRpZW5kYS92ZW50YS1kaXJlY3RhIiwiYWRtaW4vbmVnb2NpbyIsInByb2R1Y3Rvcy9hZ3JlZ2FyIiwiYWJvbm9zIiwidGllbmRhL2J1c2NhciIsImdlc3Rpb24tbWVudSIsImNsaWVudGVzL2J1c2NhciIsImZhdm9yaXRvcyIsInBlcnNvbmFsaXphY2lvbiIsInRpZW5kYS92ZW50YSIsInBhbGFicmFzLWNsYXZlIiwiYWRtaW4vZmFjZWJvb2siLCJhZG1pbi9yZWNvbmNpbGlhY2lvbi1pbWFnZW5lcyIsImZsb3Jlcy9jYXRhbG9nb3MiLCJsb2dpbiIsImZsb3Jlcy9jb25maWd1cmFyIiwidGllbmRhL2Nhcmdhci1leGNlbCJdLCJwYW50YWxsYXNFc2NyaXR1cmEiOlsidXN1YXJpb3MvYnVzY2FyIiwiYWRtaW4vcHJlc2VudGFjaW9uIiwicmlmYXMvYnVzY2FyIiwiY2hhdCIsInFyIiwiYWRtaW4vcHJvbW9jaW9uZXMiLCJyZXBvcnRlcyIsImZsb3Jlcy9yYW1vcyIsImFkbWluL2NpbnRhIiwibHVnYXJlcy1lbnRyZWdhIiwicHJvbW9jaW9uZXMiLCJnZXN0aW9uLW1lbnUvcm9sZXMiLCJob21lIiwicmlmYXMvbWVzIiwicHJvZHVjdG9zL2J1c2NhciIsImZsb3Jlcy9yYW1vcy1hZG1pbiIsImFkbWluL2RpYWdub3N0aWNvLWltYWdlbmVzIiwicmlmYXMvYWdyZWdhciIsImdhc3Rvcy9idXNjYXIiLCJhZG1pbi9oYXNodGFncyIsImZsb3Jlcy9lbnRyZWdhcyIsInBlZGlkb3MvbWlzLXBlZGlkb3MiLCJhZG1pbi9jaGF0IiwiY2FyZ2EtaW1hZ2VuZXMiLCJhZG1pbi9jYWNoZSIsImRhc2hib2FyZCIsImZsb3Jlcy9mcmFzZXMiLCJwZWRpZG9zL2hpc3RvcmlhbC1tcCIsInRpZW5kYS92ZW50YS1kaXJlY3RhIiwiYWRtaW4vbmVnb2NpbyIsInByb2R1Y3Rvcy9hZ3JlZ2FyIiwiYWJvbm9zIiwidGllbmRhL2J1c2NhciIsImdlc3Rpb24tbWVudSIsImNsaWVudGVzL2J1c2NhciIsImZhdm9yaXRvcyIsInBlcnNvbmFsaXphY2lvbiIsInRpZW5kYS92ZW50YSIsInBhbGFicmFzLWNsYXZlIiwiYWRtaW4vZmFjZWJvb2siLCJhZG1pbi9yZWNvbmNpbGlhY2lvbi1pbWFnZW5lcyIsImZsb3Jlcy9jYXRhbG9nb3MiLCJsb2dpbiIsImZsb3Jlcy9jb25maWd1cmFyIiwidGllbmRhL2Nhcmdhci1leGNlbCJdLCJqdGkiOiJiNGZmODcyYS0wMTZlLTRmZjYtODA5YS0wNDI2ZDBhODk4ZDYiLCJzdWIiOiJhZG1pbiIsImlhdCI6MTc4ODM3MTkwOSwiZXhwIjoxNzg4MzcyODA5fQ.OchoEMLTXFf7ZJPi4c5v0pcqjAIs786fdV6AtfUlXzY' \
--H 'Connection: keep-alive' \
--H 'Content-Type: application/json' \
--b 'refreshToken=eyJhbGciOiJIUzI1NiJ9.eyJzZXNzaW9uU3RhcnQiOjE3ODgzNjkxNjMwNDUsImlkVXN1YXJpbyI6NDMsInNlc3Npb25JZCI6IjQ2YTY5ZDZjLTg5N2UtNDFlZC1iNWEzLWMxMDg2MmIxMjhlNCIsInR5cGUiOiJyZWZyZXNoIiwianRpIjoiOGQ1MTc3YjctMmE4MS00NjY3LWFmY2YtOWQ2NzgwMWVkMDAyIiwic3ViIjoiYWRtaW4iLCJpYXQiOjE3ODgzNzE5MDksImV4cCI6MTc4ODk3NjcwOX0.pzWP0lF5il9kqQzdfmvIGETg8RVogmPDEVVxB4epR84' \
--H 'Origin: https://qa.shop.novedades-jade.com.mx' \
--H 'Referer: https://qa.shop.novedades-jade.com.mx/' \
--H 'Sec-Fetch-Dest: empty' \
--H 'Sec-Fetch-Mode: cors' \
--H 'Sec-Fetch-Site: same-site' \
--H 'Sec-GPC: 1' \
--H 'User-Agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36' \
--H 'sec-ch-ua: "Not;A=Brand";v="8", "Chromium";v="150", "Brave";v="150"' \
--H 'sec-ch-ua-mobile: ?1' \
--H 'sec-ch-ua-platform: "Android"' \
---data-raw '{"userName":"inicioSesion","codigo":"771964"}'
-Codigo de verificacion invalido
-
 **Qué esperar:** el botón "Registrarse" debe estar deshabilitado mientras el checkbox no esté
 marcado — no debería dejarte enviar el formulario en absoluto.
 
@@ -122,6 +99,28 @@ blanco).
 > se quedaba mostrando el código viejo (ya inválido en el back) y si lo mandabas sin
 > retipearlo, claro que decía "incorrecto". Ahora al reenviar se limpia el campo
 > automáticamente.
+
+> 💬 **Tu comentario:** curl real desde el navegador mostrando que `POST /v1/auth/verificar-correo`
+> devuelve **"Codigo de verificacion invalido"** con `{"userName":"inicioSesion","codigo":"771964"}`
+> (User-Agent Android/Chrome móvil) — "sigue con errores al validar el código del correo".
+>
+> **✅ Corregido — causa raíz encontrada.** No era el back (revisé `UsuarioVerificacionService`:
+> comparación de código simple, 15 min de expiración, 5 intentos — todo correcto). El bug estaba
+> en el front: la pantalla de verificar-correo solo sabía "ya mandé un código" a través de
+> `history.state` (lo que Angular pasa al navegar). En **móvil**, si el navegador descarga la
+> pestaña mientras el usuario va a revisar su correo (algo muy común: sales de la app a Gmail y
+> el sistema operativo libera la pestaña en segundo plano) y luego regresa, Angular arranca de
+> cero y ese `history.state` se pierde — la pantalla, sin avisar, disparaba **otro código nuevo**,
+> invalidando el que el usuario ya tenía abierto en su bandeja. El código se veía perfecto, pero
+> el back ya tenía guardado uno distinto — de ahí "código inválido" con un código que a simple
+> vista estaba bien. Fix: se agregó un respaldo en `sessionStorage` (esto sí sobrevive a que el
+> navegador descargue/restaure la pestaña) para no reenviar en silencio si ya hay un código
+> vigente (mismo margen de 15 minutos que usa el back). Commit `c4848f0` (frontend).
+>
+> **Para volver a probar:** genera un código nuevo (registro o reintenta login sin verificar),
+> ve a tu correo SIN cerrar ni cambiar de pestaña de la app hasta escribir el código — o si
+> cambias de pestaña, hazlo con calma, el respaldo nuevo debería sostener el código vigente
+> aunque el navegador descargue la pestaña de en medio.
 
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
