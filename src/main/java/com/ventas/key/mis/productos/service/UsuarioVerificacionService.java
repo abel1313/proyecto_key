@@ -36,12 +36,34 @@ public class UsuarioVerificacionService {
 
     @Transactional
     public void enviarCodigoVerificacion(String usernameOEmail) {
+        enviarCodigoVerificacion(usernameOEmail, true);
+    }
+
+    /**
+     * @param forzarNuevo false = reutiliza el código vigente si todavía no expiró, en vez de
+     *                    generar y mandar otro (evita invalidar en silencio uno que el usuario
+     *                    todavía no alcanzó a usar cuando el envío lo dispara la propia
+     *                    aplicacion -- cargar la pantalla, un login fallido por correo sin
+     *                    verificar, el modal de verificacion del admin -- en vez de un click
+     *                    explicito de "reenviar". Mismo patron que ya usa
+     *                    {@link #solicitarCambioCorreo(Usuario, String)} para el cambio de
+     *                    correo. true = siempre manda uno nuevo (boton explicito de reenviar).
+     */
+    @Transactional
+    public void enviarCodigoVerificacion(String usernameOEmail, boolean forzarNuevo) {
         Usuario usuario = buscarPorUsernameOEmail(usernameOEmail);
         if (usuario.getEmail() == null || usuario.getEmail().isBlank()) {
             throw new RuntimeException("El usuario no tiene correo registrado");
         }
         if (Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
             throw new RuntimeException("El correo ya esta verificado");
+        }
+        boolean yaVigente = !forzarNuevo
+                && usuario.getCodigoVerificacion() != null
+                && usuario.getCodigoVerificacionExpira() != null
+                && LocalDateTime.now().isBefore(usuario.getCodigoVerificacionExpira());
+        if (yaVigente) {
+            return;
         }
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
         usuario.setCodigoVerificacion(codigo);
