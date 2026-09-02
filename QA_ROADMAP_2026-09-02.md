@@ -170,6 +170,20 @@ blanco).
 > usa el código de ESE correo (ya no debería importar si lo vuelves a abrir después — el código
 > se mantiene vigente mientras no expire).
 
+> 💬 **Tu comentario:** con ese fix ya avanzó, pero apareció un error nuevo y distinto en el log
+> del back: `Field 'nombre_persona' doesn't have a default value` al verificar el correo de
+> "inicioSesion" — un `INSERT INTO clientes` que tronaba.
+>
+> **✅ Corregido — y es buena señal:** este error confirma que el fix anterior sí funcionó (ya
+> pasó la comparación del código, por eso llegó hasta el paso de auto-crear el Cliente vinculado
+> al verificar). El bug era otro, en `crearClienteDesdeRegistro()`: inserta el Cliente auto-
+> creado sin nombre/apellido paterno a propósito (todavía no existen, por eso
+> `datos_completos = 0`), pero esas dos columnas seguían **NOT NULL sin default en la BD real**
+> — a diferencia de correo/teléfono/apellido materno, que sí se habían vuelto opcionales en una
+> migración anterior. Se mandan como `''` (vacío) en vez de alterar la tabla: la app ya trata
+> `''` igual que `NULL` para estos dos campos. Commit `0c18308` (backend), ya en `qa`. No requiere
+> correr ninguna migración nueva.
+
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
 
