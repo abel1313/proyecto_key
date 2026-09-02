@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -41,6 +42,12 @@ public class Usuario implements UserDetails {
     @JoinColumn(name = "rol_usuario")
     private Roles roles;
 
+    // @BatchSize: sin esto, cada fila de un listado paginado (getAllPage) dispara su propio
+    // SELECT aparte para traer permisosExtra (N+1 -- 10 filas = 10 queries extra). Con
+    // @BatchSize, Hibernate agrupa esas cargas en un solo SELECT ... WHERE usuario_id IN (...)
+    // por página, sin afectar la paginación (a diferencia de un JOIN FETCH sobre una colección,
+    // que Hibernate pagina en memoria -- por eso esto y no eso).
+    @BatchSize(size = 25)
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "usuario_permiso",
