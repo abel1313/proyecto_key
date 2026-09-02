@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -47,7 +49,20 @@ public class Usuario implements UserDetails {
     // @BatchSize, Hibernate agrupa esas cargas en un solo SELECT ... WHERE usuario_id IN (...)
     // por página, sin afectar la paginación (a diferencia de un JOIN FETCH sobre una colección,
     // que Hibernate pagina en memoria -- por eso esto y no eso).
+    //
+    // @Fetch(SELECT): sin esto, EAGER + @ManyToMany hace JOIN en la MISMA query que carga el
+    // Usuario -- y como Usuario.roles (abajo) tambien es EAGER y Roles tiene 4 colecciones
+    // EAGER propias (permisos/submenus/submenusEscritura/acciones, ver Roles.java), cargar UN
+    // usuario terminaba en un solo SELECT con 5 colecciones unidas por JOIN a la vez: el
+    // producto cartesiano de esas 5 (ej. 20 acciones x 15 permisos x 10 submenus x ... ) se
+    // multiplica en vez de sumarse, y puede llegar a millones de filas para un solo usuario.
+    // Con @Fetch(SELECT) cada colección se trae en su propio SELECT separado -- sigue siendo
+    // EAGER (poblada al momento en que el JWT filter la necesita, fuera de una transaccion),
+    // solo que ya no se multiplica con las demas. Encontrado en QA 2026-09-02:
+    // OutOfMemoryError: Java heap space cargando un usuario via loadUserByUsername (se ejecuta
+    // en CADA peticion autenticada, no solo en el login -- ver JwtAuthenticationFilter).
     @BatchSize(size = 25)
+    @Fetch(FetchMode.SELECT)
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "usuario_permiso",
