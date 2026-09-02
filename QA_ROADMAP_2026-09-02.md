@@ -394,6 +394,31 @@ curl 'https://qa.backend.novedades-jade.com.mx/mis-productos/v1/ventas/save' \
 
 hasta aqui no detenemos porque no puedo generar un pedido
 
+> **✅ Corregido — causa raíz encontrada en el primer curl (el de `buscarPorIdCliente/28`).**
+> Ese endpoint estaba cacheado en Redis devolviendo `Optional<Cliente>` -- el serializador de
+> Redis guarda el Optional con metadatos de tipo que Jackson no sabe reconstruir al leerlo de
+> vuelta, así que cualquier cache hit tronaba con "Cannot construct instance of
+> java.util.Optional" en vez de devolver el cliente. Justo el escenario que describes: un
+> cliente recién registrado (solo con el id, sin nombre/apellido/teléfono) intentando generar su
+> primer pedido -- la pantalla necesita este endpoint para saber si ya tiene datos completos, y
+> al fallar, probablemente por eso a veces te salía el modal de "completa tus datos" y a veces el
+> error en su lugar (dependía de si esa consulta ya estaba en caché rota o no). Se cambió a
+> devolver `Cliente` normal (no `Optional`) -- no afecta al front, que ya esperaba un objeto
+> plano. Commit `4b6b87a` (backend), ya en `qa`.
+>
+> **Si al volver a probar el mismo cliente (id 28 o el que sea) sigue fallando**, puede que
+> quede una entrada de caché ya "envenenada" de antes del fix -- pídele a quien tenga acceso al
+> panel de admin que limpie la caché de Redis una vez (opción ya existente en `AdminController`)
+> y vuelve a intentar.
+>
+> **El segundo curl (`ventas/save`, 504 Gateway Timeout) es otra cosa distinta** -- ese request
+> hace una llamada real a Mercado Pago (`requiereTerminal`/pago con terminal Point), no es el
+> checkout normal de cliente. No lo pude diagnosticar desde aquí (necesito logs del servidor en
+> el momento exacto del timeout, no tengo acceso a eso). Si al generar un pedido normal como
+> cliente (no ese curl directo con `pagosYMesesId`) sigue tronando después del fix de arriba,
+> dime y lo investigamos aparte -- si era solo consecuencia del cliente no encontrado, ya debería
+> quedar resuelto con este fix.
+
 6. Vuelve a prenderlo, para dejarlo en su estado normal.
 
 ---
