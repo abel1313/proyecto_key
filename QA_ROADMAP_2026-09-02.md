@@ -1,8 +1,10 @@
 # Roadmap de pruebas — cambios en QA (2026-09-02)
 
-Guía paso a paso para probar en el ambiente de QA todo lo que se subió hoy (backend commit
-`9abd60a`, frontend commit `ad53e1c`). Cada bloque trae la **ruta de clics exacta** en el menú
-(qué acordeón abrir, qué opción elegir) además de los pasos y qué esperar ver. No incluye
+Guía paso a paso para probar en el ambiente de QA todo lo que se subió hoy (backend hasta
+`c3fa3ef`, frontend hasta `a16cc0a` — incluye las secciones 1 a 6 de siempre más lo agregado tras
+tus comentarios: visibilidad de aceptación de privacidad para admin/cliente y la política de
+cancelación/contracargos en Términos, sección 7). Cada bloque trae la **ruta de clics exacta** en
+el menú (qué acordeón abrir, qué opción elegir) además de los pasos y qué esperar ver. No incluye
 pasarelas de pago — eso vive aparte en `feature/pasarelas-pago` y no se toca hasta que se
 apruebe.
 
@@ -136,6 +138,22 @@ aparecer ahí** — solo aplica al autoregistro.
 >   ahí — se aceptó una sola vez, en el registro.
 > - **El propio cliente** — en el menú de usuario → **"Mi perfil"**, arriba de "Datos de
 >   cuenta", la misma info con link directo al aviso de privacidad.
+
+**Ruta de clics (probar lo agregado — lado admin):** como ADMIN, menú lateral → acordeón
+**🛠️ Sistema** → **"👥 Usuarios"** → busca el usuario que registraste en el paso 1 → botón para
+editarlo ("Actualizar usuario").
+
+**Qué esperar:** arriba de todo el formulario, antes de "Nombre de usuario", debe verse un aviso
+de solo lectura: "✅ Aceptó el aviso de privacidad el DD/MM/AAAA HH:mm" (con ícono verde). Si
+pruebas con una cuenta vieja (creada antes de este control), debe verse en rojo "❌ No aceptó el
+aviso de privacidad...".
+
+**Ruta de clics (probar lo agregado — lado cliente):** loguéate con el usuario que registraste →
+menú lateral, hasta abajo, tarjeta con tu nombre → **"Mi perfil"**.
+
+**Qué esperar:** arriba de la sección "Datos de cuenta" (antes del campo "Nombre de usuario")
+debe verse el mismo aviso, con un link a **aviso de privacidad** que abre `/privacidad` en
+pestaña nueva.
 
 ---
 
@@ -292,6 +310,36 @@ la única baja) — y en el log del backend debe verse
 
 ---
 
+## 7. Términos y condiciones — cancelación con tarjeta y contracargos
+
+Respuesta a tu comentario de la sección 1 sobre dónde debía ir el tema de cobros/cancelación con
+tarjeta y fraude por contracargo: se agregó a Términos y condiciones, no a Privacidad. El texto es
+general (no menciona ninguna pasarela específica todavía, porque aún no se elige ni implementa
+una) — cuando se implemente la pasarela elegida, este texto se puede afinar con detalles propios
+de esa pasarela si hace falta.
+
+**Ruta de clics:** no requiere sesión — desde cualquier pantalla, en el pie de página o donde
+esté enlazado, dale clic a **"Términos y condiciones"** (o navega directo a `/termConditions`).
+También se puede llegar desde el checkbox de privacidad en el registro → aviso de privacidad →
+ahí mismo hay link cruzado a Términos, o desde la sección "Privacidad" al final de la propia
+página de Términos.
+
+**Pasos:**
+1. Entra a `/termConditions`.
+2. Busca la sección **"Cambios, devoluciones y cancelaciones"** (a la mitad de la página).
+
+**Qué esperar:** además del párrafo que ya existía (defectos de fabricación, cambios de
+perfumería, cancelación antes de entrega), ahora deben verse dos párrafos nuevos:
+- Uno explicando que la cancelación de un pago con tarjeta se resuelve con reembolso al mismo
+  medio de pago (no en efectivo), procesado por el banco emisor, y que el tiempo en que se ve
+  reflejado depende de las políticas del banco.
+- Otro explicando que ante un problema con un cargo hay que contactar primero a Novedades Jade
+  (no ir directo al banco), y qué pasa si de todos modos se presenta un contracargo no
+  fundamentado (evidencia ante el banco/pasarela, posible suspensión de cuenta, acciones legales
+  en caso de fraude comprobado).
+
+---
+
 ## Checklist rápido para ir tachando
 
 - [ ] Migraciones corridas en BD de QA (paso 0)
@@ -307,6 +355,9 @@ la única baja) — y en el log del backend debe verse
 - [ ] Correo de restock NO se duplica en ediciones que no cruzan por 0
 - [ ] Umbral de stock bajo configurable y persiste
 - [ ] Digest de stock bajo llega a todos los admin con la lista correcta
+- [ ] Admin ve aviso de aceptación de privacidad (fecha) en "Actualizar usuario"
+- [ ] Cliente ve el mismo aviso en "Mi perfil", con link a `/privacidad`
+- [ ] Términos y condiciones muestra los 2 párrafos nuevos de cancelación/contracargos con tarjeta
 
 ---
 
