@@ -21,11 +21,14 @@ para decidir el diseño antes de programar.
 | **Documento fiscal** | Constancia de Situación Fiscal actualizada (se descarga del portal del SAT) | Constancia de situación fiscal expedida en los últimos 6 meses + Pasaporte o INE | — |
 | **Requisito particular** | Ninguno adicional relevante | **Debe ser cliente BBVA con cuenta de cheques empresarial** — esto es un filtro real, hay que confirmar si el negocio ya tiene o puede abrir una | Ninguno adicional para cuenta básica |
 | **Costo de alta** | Gratis | Gratis (aprobación sujeta a revisión de OpenPay) | Gratis |
+para este que se tiene que tener chequera hay que descartarlo
 
 **Nota importante:** el requisito de OpenPay de ser cliente BBVA con cuenta empresarial es el
 único de los tres que depende de una relación bancaria específica — hay que confirmarlo antes de
 invertir tiempo en su integración, porque si el negocio no es o no puede ser cliente BBVA, OpenPay
 queda descartado sin importar lo demás.
+
+Y aqui lo que estoy revisando y quiero que busques en fuentes confiables y sin enventar, necesito que busques dcual es la forma de hacer el negocio los pagos, es decir separar las cuentas personales con las del negocio, por ejemplo la ceunta de mercado pago que tengo para la aplicacion esta en en la cuenta ya del negocio, la de paypal igual aqui lo que quiero que busques es cual sera la forma de hacer los cobros si no hay algun problema con el sat o con el estado porque no tengo RFC para el negocio tengo rfc yo personalmente persona fisica pero quiero que el negocio sea aparte pero como te digo no tengo dado de alta el negocio para que veas que puede pasar
 
 **Fuentes:**
 - Mercado Pago — RFC y cuenta empresa: https://www.mercadopago.com.mx/blog/dar-de-alta-rfc-cuenta-negocio · https://www.mercadopago.com.mx/blog/requisitos-cuenta-empresa-mercado-pago
@@ -54,6 +57,8 @@ dar de alta las 3 cuentas (gratis) y comparar dentro de cada panel antes de eleg
 - OpenPay MSI: https://www.klar.mx/tarjeta-meses-sin-intereses/openpay · https://www.openpay.mx/comisiones
 - PayPal MSI: https://www.paypal.com/mx/business/accept-payments/checkout/installments · https://www.paypal.com/mx/brc/article/installments-merchant
 
+
+Entonces como voy a saber cuanto cobran en donde lo puedo buscar para agregar el precio correcto?
 ---
 
 ## 3. Implementación técnica completa (de punta a punta)
@@ -180,6 +185,9 @@ zona de envío? Esto no es solo una decisión de pagos — afecta el checkout ge
 comisión que ya pagó por esa venta** — es un costo real a considerar en la política de
 devoluciones (ej. si el negocio decide absorber ese costo o cobrárselo al cliente en casos de
 devolución por cambio de opinión vs. error del negocio).
+
+para cobrarse al cliente como lo hariamos o como se hace' otra cosa hay que inicar con mercado pago y paypal en la aplicacion pero primero quiero ya al final de este doc pomgas ya el resumen final de que vamos a necesitar y hay que poner lo que hace falta para ir revisando
+
 
 **Fuentes:**
 - Mercado Pago: https://www.mercadopago.com.mx/developers/en/docs/checkout-api-orders/refunds-cancellations
