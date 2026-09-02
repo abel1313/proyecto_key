@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 public class VarianteDto {
 
     private Integer id;
+    private String nombreProducto;
     private String talla;
     private String descripcion;
     private String color;
