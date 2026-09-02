@@ -57,12 +57,20 @@ implements IClienteService {
      * Auto-alta del Cliente al verificar el correo de un Usuario recien registrado (mejora 15).
      * Bypass deliberado de Bean Validation (nombre/apellidos/telefono aun no existen) via INSERT
      * nativo — un repository.save() normal dispararia @NotBlank/@NotNull de Cliente.java.
+     *
+     * nombre_persona y apeido_paterno van como '' (no NULL): a diferencia de
+     * correo_electronico/numero_telefonico/apeido_materno, esas dos columnas siguen siendo
+     * NOT NULL sin default en la BD real -- el INSERT sin ellas tronaba con
+     * "Field 'nombre_persona' doesn't have a default value" al verificar el correo de una
+     * cuenta nueva (QA 2026-09-02). '' se trata igual que NULL en toda la app (ver
+     * Cliente.recalcularDatosCompletos(), que usa isBlank()), asi que no cambia el significado
+     * de "datos incompletos" -- solo evita la excepcion sin tener que alterar la tabla.
      */
     @Transactional
     public Cliente crearClienteDesdeRegistro(Usuario usuario, String correo) {
         entityManager.createNativeQuery(
-                "INSERT INTO clientes (usuario_id, correo_electronico, correo_verificado, datos_completos) " +
-                "VALUES (:usuarioId, :correo, 1, 0)")
+                "INSERT INTO clientes (usuario_id, correo_electronico, correo_verificado, datos_completos, nombre_persona, apeido_paterno) " +
+                "VALUES (:usuarioId, :correo, 1, 0, '', '')")
                 .setParameter("usuarioId", usuario.getId())
                 .setParameter("correo", correo)
                 .executeUpdate();
