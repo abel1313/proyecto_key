@@ -146,6 +146,30 @@ blanco).
 > después de recibir el correo o pasó un rato/cambiaste de pantalla de en medio — con eso puedo
 > ir directo a la causa exacta en vez de seguir probando teorías a ciegas.
 
+> 💬 **Tu comentario:** seguía fallando, con evidencia contundente: revisaste la BD (`SELECT
+> codigo_verificacion, codigo_verificacion_expira, intentos_codigo_verificacion...`) y el código
+> guardado coincidía EXACTO con el que mandabas, sin intentos fallidos registrados — y aun así
+> "Codigo de verificacion invalido". Y lo probaste también desde el modal de admin ("Actualizar
+> usuario" → "✉️ Verificar correo"), con el mismo resultado.
+>
+> **✅ Causa raíz real, encontrada con esa evidencia.** `enviarCodigoVerificacion()` (el método
+> que manda el código) **siempre generaba y mandaba uno nuevo, sin importar si ya había uno
+> vigente sin usar** — a diferencia de `solicitarCambioCorreo()` (el de cambio de correo), que
+> ya tenía protección para esto. Cada vez que se abre la pantalla de verificación, cada intento
+> de login con una cuenta sin verificar, y **cada apertura del modal "Verificar correo" del
+> admin** disparaban un envío que invalidaba en silencio el código que ya estaba en tu correo —
+> sin avisar nada. Si probaste el modal de admin más de una vez (normal al estar probando), cada
+> apertura mandó un código distinto y el que tenías copiado dejó de ser válido, aunque coincidiera
+> con el que viste en un correo anterior.
+>
+> **Fix:** se agregó `forzarNuevo` (default `false`) — los envíos automáticos ahora reutilizan el
+> código vigente si no expiró, en vez de invalidarlo. El botón explícito "Reenviar código" sigue
+> mandando uno nuevo siempre. Commits `39aa06f` (backend) + `5b07104` (frontend), ya en `qa`.
+>
+> **Para volver a probar:** abre el modal de admin o la pantalla de verificación UNA sola vez,
+> usa el código de ESE correo (ya no debería importar si lo vuelves a abrir después — el código
+> se mantiene vigente mientras no expire).
+
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
 
