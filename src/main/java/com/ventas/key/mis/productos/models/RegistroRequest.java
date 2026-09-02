@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.models;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -20,4 +21,7 @@ public class RegistroRequest {
     @Email(message = "El email debe tener un formato valido")
     @Size(max = 150, message = "El email no puede superar los 150 caracteres")
     private String email;
+
+    @AssertTrue(message = "Debes aceptar el aviso de privacidad para registrarte")
+    private boolean aceptoPrivacidad;
 }

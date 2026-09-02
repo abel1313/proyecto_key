@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.PreferenciaCorreoRequest;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VerificarCorreoRequest;
 import com.ventas.key.mis.productos.service.ClienteServiceImpl;
@@ -84,6 +85,10 @@ public class ClienteControllerImpl extends AbstractController<
         if (existente != null) {
             requestG.setCodigoVerificacion(existente.getCodigoVerificacion());
             requestG.setCodigoVerificacionExpira(existente.getCodigoVerificacionExpira());
+            // La preferencia de correos SOLO se cambia via PUT /{id}/preferencias-correo -- si el
+            // guardado generico la dejara pasar, cualquier form que no la incluya en su payload
+            // (ej. "Mis datos") la resetearia al default de la clase (true) en cada guardado.
+            requestG.setRecibirCorreos(existente.getRecibirCorreos());
 
             String correoNuevo = requestG.getCorreoElectronico();
             String correoActual = existente.getCorreoElectronico();
@@ -256,6 +261,30 @@ public class ClienteControllerImpl extends AbstractController<
             return ResponseEntity.ok(new ResponseGeneric<>("Verificacion de correo reseteada"));
         } catch (Exception e) {
             log.error("Error al resetear verificacion de correo de clienteId={}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Activar/desactivar correos no transaccionales", description = "Correo de seguimiento de pedido y alerta de stock de favoritos. No afecta el ticket de compra ni los codigos de verificacion/reset, que siguen enviandose siempre. Solo el dueno del registro o un ADMIN pueden cambiarla.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Preferencia actualizada"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado")
+    })
+    @PutMapping("/{id}/preferencias-correo")
+    public ResponseEntity<ResponseGeneric<String>> actualizarPreferenciaCorreo(
+            @PathVariable Integer id, @RequestBody PreferenciaCorreoRequest request) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        try {
+            return ResponseEntity.ok(sGenerico.actualizarPreferenciaCorreo(id, request.isRecibirCorreos()));
+        } catch (Exception e) {
+            log.error("Error al actualizar preferencia de correo de clienteId={}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }
