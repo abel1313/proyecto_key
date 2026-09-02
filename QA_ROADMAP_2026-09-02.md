@@ -1,8 +1,10 @@
 # Roadmap de pruebas — cambios en QA (2026-09-02)
 
 Guía paso a paso para probar en el ambiente de QA todo lo que se subió hoy (backend commit
-`9abd60a`, frontend commit `ad53e1c`). No incluye pasarelas de pago — eso vive aparte en
-`feature/pasarelas-pago` y no se toca hasta que se apruebe.
+`9abd60a`, frontend commit `ad53e1c`). Cada bloque trae la **ruta de clics exacta** en el menú
+(qué acordeón abrir, qué opción elegir) además de los pasos y qué esperar ver. No incluye
+pasarelas de pago — eso vive aparte en `feature/pasarelas-pago` y no se toca hasta que se
+apruebe.
 
 ---
 
@@ -28,7 +30,9 @@ SMTP de QA esté configurado y funcionando, y usar un correo real que puedas rev
 
 ## 1. Aviso de privacidad al registrarse
 
-**Dónde:** `/usuarios/registrar` (sin sesión iniciada — cierra sesión o usa ventana privada).
+**Ruta de clics:** cierra sesión (o abre una ventana privada) → en la pantalla de **Login**,
+abajo del botón de iniciar sesión, dale clic a **"Regístrate aquí"**. Eso te lleva al formulario
+de registro público.
 
 **Pasos:**
 1. Llena el formulario de registro (usuario, correo, contraseña) SIN marcar el checkbox de
@@ -58,15 +62,16 @@ FROM usuario_modificacion WHERE username = 'el_usuario_que_registraste';
 ```
 Debe mostrar `acepto_privacidad = 1` y una fecha/hora reciente.
 
-**Caso negativo a probar:** entra como ADMIN a "Usuarios" → edita a un usuario existente
-("Actualizar usuario"). **El checkbox de privacidad NO debe aparecer ahí** — solo aplica al
-autoregistro.
+**Caso negativo a probar:** como ADMIN, menú lateral → acordeón **🛠️ Sistema** → **"👥 Usuarios"**
+→ busca un usuario y edítalo ("Actualizar usuario"). **El checkbox de privacidad NO debe
+aparecer ahí** — solo aplica al autoregistro.
 
 ---
 
 ## 2. Preferencia de correos — lado del cliente
 
-**Dónde:** loguéate como cliente → menú de usuario (esquina) → **Mis datos**.
+**Ruta de clics:** loguéate como cliente → en el menú lateral, hasta abajo hay una tarjeta con
+tu nombre de usuario → ahí dale clic a **"Mis datos"** (ícono 👤).
 
 **Pasos:**
 1. Entra a "Mis datos" y busca la sección **"Preferencias"**, con un toggle que dice algo como
@@ -97,8 +102,9 @@ propósito).
 
 ## 3. Preferencia de correos — lado del admin (por cliente)
 
-**Dónde:** como ADMIN → **Clientes → Buscar** → botón "👁️ Ver/Editar" sobre cualquier cliente
-(te lleva a `/clientes/mostrar/:id`).
+**Ruta de clics:** como ADMIN, en el menú lateral (fuera de cualquier acordeón, es un ítem
+suelto) → **👥 Clientes** → se abre el buscador → busca al cliente de prueba → botón
+**"👁️ Ver/Editar"** sobre su fila.
 
 **Pasos:**
 1. Busca la misma sección "Preferencias" en esa pantalla.
@@ -120,16 +126,19 @@ mismo dato, dos pantallas distintas para tocarlo.
 **Requiere:** un cliente de prueba con correo real (que puedas revisar) y con la preferencia de
 correos **activada** (ver sección 2).
 
+**Ruta de clics (admin):** menú lateral → acordeón **📋 Pedidos** (dale clic para desplegarlo) →
+**"Mis pedidos"**. Ahí, sobre el pedido del cliente de prueba, están los botones **"Confirmar
+cobro"** y **"Cancelar"**.
+
 **Pasos:**
-1. Genera un pedido con ese cliente (flujo normal de compra).
-2. Como ADMIN, confirma ese pedido (el flujo que lo pasa a estado "Entregado" — el botón/acción
-   que ya usabas para confirmar pedidos).
+1. Genera un pedido con ese cliente (flujo normal de compra, como Tienda o Arma tu ramo).
+2. En Pedidos → Mis pedidos, sobre ese pedido, dale **"Confirmar cobro"** (lo pasa a "Entregado").
 
 **Qué esperar:** al correo del cliente debe llegar un mensaje con asunto tipo
 **"Tu pedido #X — Entregado — Novedades Jade"**, con el estado en una tarjeta destacada.
 
 **Pasos (continuación):**
-3. Genera otro pedido con el mismo cliente y cancélalo.
+3. Genera otro pedido con el mismo cliente y dale **"Cancelar"** en la misma pantalla.
 
 **Qué esperar:** debe llegar un correo "Tu pedido #X — cancelado — Novedades Jade".
 
@@ -147,10 +156,18 @@ operación del pedido).
 
 **Requiere:** un cliente de prueba con correo real y preferencia de correos activada.
 
+**Ruta de clics (cliente) — marcar favorito:** loguéate como ese cliente → menú lateral →
+**🛍️ Tienda** (ítem suelto, arriba del todo) → en cualquier tarjeta de producto, dale clic al
+ícono de corazón 🤍 (esquina de la tarjeta) — se pone ❤️.
+
+**Ruta de clics (admin) — editar el stock de esa misma variante:** menú lateral → acordeón
+**📦 Catálogo** → **"🔍 Modelos"** → busca el producto que marcaste como favorito → ábrelo →
+entra a la variante correspondiente (talla/color) → cambia el campo de stock.
+
 **Pasos:**
-1. Con ese cliente, entra al detalle de una variante cualquiera y márcala como **Favorito**.
-2. Como ADMIN, edita esa variante y bájale el stock a **0** (guardar).
-3. Como ADMIN, edita la MISMA variante otra vez y súbele el stock (ej. a 10) — guardar.
+1. Con el cliente de prueba, marca una variante como Favorito (ruta de arriba).
+2. Como ADMIN, entra a esa variante y bájale el stock a **0** (guardar).
+3. Como ADMIN, entra a la MISMA variante otra vez y súbele el stock (ej. a 10) — guardar.
 
 **Qué esperar:** al correo del cliente debe llegar **"¡Ya volvió el stock! — Novedades Jade"**
 con el nombre del producto y (si aplica) talla/color.
@@ -171,8 +188,10 @@ agotado→reabastecido.
 
 ## 6. Alerta de stock bajo al admin (digest diario)
 
-**Dónde:** como ADMIN → **Sistema → Negocio & Contactos** (`config-negocio`) → sección
-**"📦 Alertas de stock bajo"**.
+**Ruta de clics:** como ADMIN, en el menú lateral, dale clic al acordeón **🛠️ Sistema** para
+desplegarlo → ahí verás varias opciones, entre ellas **"🏪 Negocio & Contactos"** → dale clic →
+se abre la pantalla de configuración del negocio → baja hasta la sección
+**"📦 Alertas de stock bajo"** (es la última, después de Estado/Horario/Contactos).
 
 **Pasos:**
 1. Verifica que el campo de umbral muestre **5** por default (si nunca se ha tocado).
