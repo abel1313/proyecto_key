@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
 import com.ventas.key.mis.productos.jwt.JwtUtil;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
+import com.ventas.key.mis.productos.models.MiPerfilResponseDto;
 import com.ventas.key.mis.productos.models.AuthRequest;
 import com.ventas.key.mis.productos.models.AuthResponse;
 import com.ventas.key.mis.productos.models.CambiarPasswordRequest;
@@ -447,6 +448,16 @@ public class AuthController {
             log.warn("Error al actualizar perfil para {}: {}", authentication.getName(), e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
+    }
+
+    @Operation(summary = "Ver mi perfil (usuario logueado)", description = "Solo lectura -- incluye si aceptó el aviso de privacidad y cuándo (pedido en QA 2026-09-02).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfil obtenido correctamente"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @GetMapping("/mi-perfil")
+    public ResponseEntity<ResponseGeneric<MiPerfilResponseDto>> obtenerMiPerfil(Authentication authentication) {
+        return ResponseEntity.ok(new ResponseGeneric<>(usuarioService.obtenerMiPerfil(authentication.getName())));
     }
 
     // ── Cambio de MI PROPIO correo (self-service) — verificar antes de guardar ──

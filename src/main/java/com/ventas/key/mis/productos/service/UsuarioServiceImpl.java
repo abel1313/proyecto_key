@@ -13,6 +13,7 @@ import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
+import com.ventas.key.mis.productos.models.MiPerfilResponseDto;
 import com.ventas.key.mis.productos.models.PermisosEfectivosDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
@@ -110,6 +111,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         dto.setPermisosExtra(u.getPermisosExtra().stream()
                 .map(Permiso::getNombrePermiso)
                 .collect(Collectors.toSet()));
+        dto.setAceptoPrivacidad(u.getAceptoPrivacidad());
+        dto.setFechaAceptoPrivacidad(u.getFechaAceptoPrivacidad());
         return dto;
     }
 
@@ -140,6 +143,15 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
         existe.setUsername(request.getUsername());
         usuarioRepository.save(existe);
+    }
+
+    /** Self-service: lo que el propio usuario puede ver de su cuenta (pedido en QA 2026-09-02,
+     *  para que el cliente pueda confirmar si aceptó el aviso de privacidad y cuándo). */
+    @Override
+    public MiPerfilResponseDto obtenerMiPerfil(String username) {
+        Usuario u = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        return new MiPerfilResponseDto(u.getUsername(), u.getEmail(), u.getAceptoPrivacidad(), u.getFechaAceptoPrivacidad());
     }
 
     /** Admin: solicita el cambio de correo de OTRO usuario (por id) - manda el codigo al correo nuevo. */

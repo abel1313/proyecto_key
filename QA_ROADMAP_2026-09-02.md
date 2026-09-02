@@ -29,8 +29,37 @@ SMTP de QA esté configurado y funcionando, y usar un correo real que puedas rev
 ---
 
 ## 1. Aviso de privacidad al registrarse
-Aqui para este aviso de privacidad, es lo mismo que aceptar que en caso de alguna cancelacion el cliente debe de asumir el cobro por cancelacion? lo mismo cuando valla a hacer la cancelacion se debe mostrar un mensaje mencionando que debera o solo se le podra regresar la cantidad restante por el cobro con tarjeta pero no decirle directo que es po rla tarjeta algo mas cordial y legal y otra cosa que pasa por ejemplo si comprarn algo y pagan con tarjeta de credito y ya que tienen la mercancia ponen que ellos no hicieron la compra para hacer la cancelacion del producto y quedarse con el producto y el dinero ahi que pasa que podemos hacer y si se hace como podemos evitarlo?
-Cuando intento registrame y no acepto el aviso de privacidad si se ve el chec para seleccionar pero 2 cosas el primero es que el check esta muy basico no tiene diseño para que se vea correcto o bien que de un gusto verlo y aceptaro y ademas si se ve pero en ningun lado dice que tiene que acepar las politicas de privacidad
+
+> 💬 **Tu comentario:** ¿aceptar el aviso de privacidad es lo mismo que aceptar que en una
+> cancelación el cliente asume el cobro? ¿Hay que mostrar un mensaje al cancelar, de forma
+> cordial y legal, sin decir directo que es "por la tarjeta"? Y el caso de fraude: alguien
+> compra con tarjeta, recibe la mercancía, y luego dice que no reconoce la compra para quedarse
+> con producto y dinero — ¿qué podemos hacer y cómo lo evitamos?
+>
+> **Respuesta:** son dos documentos distintos y el aviso de privacidad NO cubre ninguno de los
+> dos. El aviso de privacidad (lo que ya existe en `/privacidad`) es sobre qué datos personales
+> recaba la tienda y cómo los usa — no habla de cobros, cancelaciones ni reembolsos. Lo que
+> describes (mensaje de cancelación, política de reembolso, y el caso de fraude con
+> contracargo/"no reconozco la compra") es 100% del dominio de la pasarela de pago, y ya lo
+> dejé anotado en `PASARELAS_PAGO_MP_OPENPAY_PAYPAL.md` sección 5 (reembolsos) — falta
+> agregar ahí el tema puntual del fraude por contracargo ("friendly fraud"), que es real y
+> conocido: Mercado Pago/OpenPay/PayPal manejan esto con su propio proceso de disputa (el
+> negocio sube evidencia — confirmación de entrega, firma, dirección que coincide — y la red de
+> la tarjeta decide), y la prevención pasa por exigir firma de recibido y activar 3D Secure en
+> el checkout (traslada la responsabilidad del fraude al banco emisor cuando se usa
+> correctamente). Esto se investiga a fondo cuando se diseñe el checkout de pasarelas, no antes
+> — no aplica todavía porque hoy no hay cobro con tarjeta online.
+>
+> **Respuesta (¿dónde va este contenido — privacidad, términos, o juntos?):** en
+> **Términos y condiciones** (`/termConditions`), NO en privacidad, y no conviene juntarlos —
+> son dos fundamentos legales distintos en México (LFPDPPP para privacidad; protección al
+> consumidor para las reglas de venta). Ya existe una sección real ahí, "Cambios, devoluciones
+> y cancelaciones" — es donde hay que ampliar el tema de contracargos cuando se implemente el
+> pago con tarjeta. No lo escribo todavía porque el texto depende de qué pasarela se elija y su
+> política real de reembolso.
+>
+> **Respuesta (checkbox básico / no dice que hay que aceptar):** tenías razón en las dos cosas,
+> ya corregido — ver "✅ Corregido" abajo.
 
 **Ruta de clics:** cierra sesión (o abre una ventana privada) → en la pantalla de **Login**,
 abajo del botón de iniciar sesión, dale clic a **"Regístrate aquí"**. Eso te lleva al formulario
@@ -50,9 +79,24 @@ marcado — no debería dejarte enviar el formulario en absoluto.
 
 **Qué esperar:** debe abrirse `/privacidad` en una pestaña nueva, con contenido real (no en
 blanco).
-Al dar clic en el aviso de privacidad no se abre nada para que lo revises.
 
-Y cuando se reenvia el codigo nuevo es necesario que el codigo que se puso hay que limpiarlo y si no hay numero pues no se hace nada la cosa es que si se reenvia el codigo se limpie la caja y hay que validar el envio de codigo de validacion, porque ya lo reenvie 2 veces i dice que es incorrecto
+> 💬 **Tu comentario:** "Al dar clic en el aviso de privacidad no se abre nada para que lo
+> revises."
+>
+> **✅ Corregido.** El link estaba metido DENTRO del `<label>` que envuelve el checkbox — el
+> navegador prioriza el toggle del checkbox sobre la navegación del link y por eso no abría
+> nada. Lo saqué del label, como línea aparte con ícono ("↗ Leer el aviso de privacidad
+> completo"), y de paso rediseñé toda la caja: ahora tiene fondo/borde propio, el checkbox es
+> más grande, y el texto dice claramente "Acepto el **aviso de privacidad** para crear mi
+> cuenta" en vez del checkbox suelto y sin contexto que había antes.
+
+> 💬 **Tu comentario:** "Cuando se reenvía el código nuevo es necesario que el código que se
+> puso hay que limpiarlo... porque ya lo reenvié 2 veces y dice que es incorrecto."
+>
+> **✅ Corregido.** Era un bug real, independiente de lo de privacidad — al reenviar, el campo
+> se quedaba mostrando el código viejo (ya inválido en el back) y si lo mandabas sin
+> retipearlo, claro que decía "incorrecto". Ahora al reenviar se limpia el campo
+> automáticamente.
 
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
@@ -70,7 +114,29 @@ Debe mostrar `acepto_privacidad = 1` y una fecha/hora reciente.
 **Caso negativo a probar:** como ADMIN, menú lateral → acordeón **🛠️ Sistema** → **"👥 Usuarios"**
 → busca un usuario y edítalo ("Actualizar usuario"). **El checkbox de privacidad NO debe
 aparecer ahí** — solo aplica al autoregistro.
-ya entre como admin, pero no veo en la pantalla la opcion que mencionas para validarlo, entonces si lo acepta no aprece, pero se supone que para poder geenrar un registro tiene que aparecer o aceptar el aviso no?
+
+> 💬 **Tu comentario:** "Ya entré como admin, pero no veo en la pantalla la opción que
+> mencionas para validarlo — si lo acepta no aparece, pero se supone que para poder generar un
+> registro tiene que aparecer o aceptar el aviso, ¿no?"
+>
+> **Respuesta:** lo que probaste salió bien — que NO aparezca ahí es el comportamiento
+> correcto, no un bug. Son dos pantallas distintas con dos propósitos distintos:
+> - **Registro público** (`/usuarios/registrar`, sección de arriba) — el checkbox SÍ aparece
+>   y SÍ es obligatorio, porque ahí es donde una persona crea su cuenta por primera vez.
+> - **Admin editando a otro usuario** ("Actualizar usuario") — el checkbox NO aparece a
+>   propósito, porque el admin no está creando la cuenta, solo edita datos de alguien que ya
+>   se registró (y ya aceptó, o no existiría la cuenta).
+>
+> Dicho esto, tu pregunta de fondo era válida — confirmaste que sí, sí o sí es obligatorio para
+> registrarse (ya estaba así), y pediste que tanto el admin como el propio cliente pudieran
+> verlo. **✅ Agregado:**
+> - **Admin** — en "Actualizar usuario" (esta misma pantalla), arriba de todo, ahora se ve un
+>   aviso: "✅ Aceptó el aviso de privacidad el DD/MM/AAAA HH:mm" (en rojo "❌ No aceptó..." si
+>   es una cuenta vieja de antes de este control). Es de solo lectura, no se puede editar desde
+>   ahí — se aceptó una sola vez, en el registro.
+> - **El propio cliente** — en el menú de usuario → **"Mi perfil"**, arriba de "Datos de
+>   cuenta", la misma info con link directo al aviso de privacidad.
+
 ---
 
 ## 2. Preferencia de correos — lado del cliente
