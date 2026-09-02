@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -160,6 +161,21 @@ public class ClienteControllerImpl extends AbstractController<
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
         }
         return ResponseEntity.status(HttpStatus.OK).body(sGenerico.findClienteById(idCliente));
+    }
+
+    @Operation(summary = "Detalle completo de cliente para admin", description = "Igual que buscarPorIdCliente, pero incluye el usuarioId y username del usuario vinculado (Cliente.usuario no viaja en el JSON del endpoint normal) -- lo necesita la pantalla de ver/editar cliente para poder guardar despues.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Detalle encontrado"),
+        @ApiResponse(responseCode = "403", description = "No es ADMIN"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @GetMapping("admin/detalle/{idCliente}")
+    public ResponseEntity<ResponseGeneric<Optional<ClienteAdminDetalleDto>>> obtenerDetalleAdmin(
+            @Parameter(description = "ID del cliente") @PathVariable int idCliente) {
+        if (!AuthenticationUtils.isAdminContext()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        return ResponseEntity.status(HttpStatus.OK).body(sGenerico.obtenerDetalleAdmin(idCliente));
     }
 
     @Operation(summary = "Buscar clientes por nombre (paginado)", description = "Retorna una pagina de clientes cuyo nombre contiene el texto buscado.")

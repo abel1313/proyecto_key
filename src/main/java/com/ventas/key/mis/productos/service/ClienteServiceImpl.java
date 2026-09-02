@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -130,6 +131,22 @@ implements IClienteService {
     @Cacheable(value = "clienteCache", key = "#id")
     public ResponseGeneric<Optional<Cliente>> findClienteById(int id) {
         return new ResponseGeneric<>(this.iClienteRepository.findClienteById(id));
+    }
+
+    @Override
+    public ResponseGeneric<Optional<ClienteAdminDetalleDto>> obtenerDetalleAdmin(int id) {
+        Optional<Cliente> clienteOpt = this.iClienteRepository.findClienteById(id);
+        if (clienteOpt.isEmpty()) {
+            return new ResponseGeneric<>(Optional.empty());
+        }
+        Cliente cliente = clienteOpt.get();
+        Usuario usuario = cliente.getUsuario();
+        ClienteAdminDetalleDto dto = new ClienteAdminDetalleDto(
+                cliente,
+                usuario != null ? usuario.getId() : null,
+                usuario != null ? usuario.getUsername() : null
+        );
+        return new ResponseGeneric<>(Optional.of(dto));
     }
 
     @Override
