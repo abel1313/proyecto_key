@@ -70,6 +70,18 @@ implements IClienteService {
                 .orElseThrow(() -> new RuntimeException("Error al auto-crear cliente para usuario " + usuario.getId()));
     }
 
+    /** Toggle de correos no transaccionales (seguimiento de pedido, alerta de stock). */
+    @Transactional
+    public ResponseGeneric<String> actualizarPreferenciaCorreo(int idCliente, boolean recibirCorreos) {
+        Cliente cliente = iClienteRepository.findById(idCliente)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+        cliente.setRecibirCorreos(recibirCorreos);
+        iClienteRepository.save(cliente);
+        return new ResponseGeneric<>(recibirCorreos
+                ? "Notificaciones por correo activadas"
+                : "Notificaciones por correo desactivadas");
+    }
+
     public void enviarCodigoVerificacionCorreo(Integer clienteId) {
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));

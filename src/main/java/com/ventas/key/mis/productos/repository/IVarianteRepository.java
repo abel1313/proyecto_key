@@ -55,6 +55,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     Page<Variantes> findByStockGreaterThanAndProducto_Habilitado(int stock, char habilitado, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(int stock, char habilitado, String codigoBarras, Pageable pageable);
 
+    // Para el digest diario de StockBajoScheduler -- excluye deshabilitadas y el catalogo interno
+    // (variantes "sombra" de flores eternas, que nunca son vendibles por si solas).
+    @Query("SELECT v FROM Variantes v JOIN FETCH v.producto p " +
+           "WHERE v.stock <= :umbral AND v.habilitado = '1' AND p.esCatalogoInterno = false " +
+           "ORDER BY v.stock ASC")
+    List<Variantes> findConStockBajo(@Param("umbral") int umbral);
+
     Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
 
     @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")

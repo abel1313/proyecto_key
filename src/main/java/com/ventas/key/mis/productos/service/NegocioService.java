@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.dto.negocio.AlertaStockUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
@@ -70,7 +71,20 @@ public class NegocioService {
                 .tiktokUrl(config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
+                .umbralStockBajo(config.getUmbralStockBajo() != null
+                        ? config.getUmbralStockBajo() : ConfiguracionNegocio.UMBRAL_DEFAULT_STOCK_BAJO)
                 .build();
+    }
+
+    @Transactional
+    public NegocioConfigDto actualizarUmbralStockBajo(AlertaStockUpdateDto dto) {
+        ConfiguracionNegocio config = obtenerConfig();
+        if (dto.getUmbralStockBajo() != null && dto.getUmbralStockBajo() > 0) {
+            config.setUmbralStockBajo(dto.getUmbralStockBajo());
+        }
+        config.setActualizadoEn(LocalDateTime.now());
+        repo.save(config);
+        return getConfig();
     }
 
     @Transactional

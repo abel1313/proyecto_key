@@ -11,6 +11,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -239,6 +241,72 @@ public class EmailService {
                 + "</div>"
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Nos pondremos en contacto contigo "
                 + "para coordinar la entrega.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
+     * Avisa al cliente que el estado de su pedido cambió (confirmado/entregado o cancelado).
+     * Correo NO transaccional -- el llamador debe verificar {@code Cliente.recibirCorreos} antes
+     * de invocar este método (ver PedidoServiceImpl.notificarSeguimientoPedido).
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarSeguimientoPedido(String destinatario, String nombreCliente, Integer pedidoId, String estado) {
+        String asunto = "Tu pedido #" + pedidoId + " — " + estado + " — Novedades Jade";
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+                + "<p style=\"margin:0 0 12px;\">El estado de tu pedido <strong>#" + pedidoId + "</strong> cambió a:</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
+                + "font-size:20px;font-weight:700;padding:12px 26px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">" + estado + "</span>"
+                + "</div>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Puedes consultar el detalle "
+                + "completo desde \"Mis pedidos\" en la app.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
+     * Avisa al cliente que un producto que tiene en Favoritos volvió a tener stock.
+     * Correo NO transaccional -- el llamador debe verificar {@code Cliente.recibirCorreos} antes
+     * de invocar este método (ver VarianteServiceImpl.notificarRestock).
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarAlertaStock(String destinatario, String nombreCliente, String nombreProducto, String detalleVariante) {
+        String asunto = "¡Ya volvió el stock! — Novedades Jade";
+        String detalle = (detalleVariante != null && !detalleVariante.isBlank()) ? " (" + detalleVariante + ")" : "";
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+                + "<p style=\"margin:0 0 12px;\">Buenas noticias: uno de tus favoritos ya está "
+                + "disponible de nuevo:</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
+                + "font-size:18px;font-weight:700;padding:12px 22px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">" + nombreProducto + detalle + "</span>"
+                + "</div>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Corre, las existencias son "
+                + "limitadas. Puedes verlo en tus Favoritos dentro de la app.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
+     * Digest diario para el admin (StockBajoScheduler) con las variantes en o por debajo del
+     * umbral configurado. {@code lineas} ya viene formateada por StockBajoService (nombre de
+     * producto + talla/color + stock) para que EmailService no dependa de la entidad Variantes.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarAlertaStockBajo(String destinatario, List<String> lineas, int umbral) {
+        String asunto = "Aviso de stock bajo (" + lineas.size() + ") — Novedades Jade";
+        StringBuilder filas = new StringBuilder();
+        for (String linea : lineas) {
+            filas.append("<tr><td style=\"padding:8px 10px;border-bottom:1px solid #eef1f0;font-size:13px;\">")
+                 .append(linea).append("</td></tr>");
+        }
+        String html = "<p style=\"margin:0 0 4px;\">Estas variantes están en o por debajo del umbral de "
+                + umbral + " unidades:</p>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+                + "style=\"margin:16px 0;border:1px solid #eef1f0;border-radius:8px;overflow:hidden;\">"
+                + filas
+                + "</table>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Puedes ajustar el umbral desde "
+                + "Sistema &gt; Negocio &amp; Contactos en la app.</p>";
         return enviarTicket(destinatario, asunto, html);
     }
 }

@@ -356,6 +356,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         pedido.setEstadoPedido("Entregado");
         this.iPedidoRepository.save(pedido);
+        notificarSeguimientoPedido(pedido);
         this.vImpl.save(venta);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -466,6 +467,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setMotivoCancelacion(motivo);
         pedido.setFechaCancelacion(LocalDate.now());
         iPedidoRepository.save(pedido);
+        notificarSeguimientoPedido(pedido);
 
         if (esDevolucion) {
             iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
@@ -722,6 +724,24 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         String asunto = "Comprobante de tu pedido #" + id + " — Novedades Jade";
         return emailService.enviarTicket(requestG.getCorreo(), asunto, requestG.getTicketHtml());
+    }
+
+    /**
+     * Correo de seguimiento ante un cambio de estado del pedido (confirmado/entregado o
+     * cancelado). NO transaccional -- respeta Cliente.recibirCorreos, a diferencia del ticket de
+     * compra (notificarPedido) que el cliente dispara explícitamente con un checkbox propio.
+     * Nunca debe tumbar la transacción que confirma/cancela el pedido si el envío falla.
+     */
+    private void notificarSeguimientoPedido(Pedido pedido) {
+        try {
+            Cliente cliente = pedido.getCliente();
+            if (cliente == null || !Boolean.TRUE.equals(cliente.getRecibirCorreos())) return;
+            String correo = cliente.getCorreoElectronico();
+            if (correo == null || correo.isBlank()) return;
+            emailService.enviarSeguimientoPedido(correo, cliente.getNombrePersona(), pedido.getId(), pedido.getEstadoPedido());
+        } catch (Exception e) {
+            log.warn("No se pudo notificar seguimiento del pedido id={}: {}", pedido.getId(), e.getMessage());
+        }
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {

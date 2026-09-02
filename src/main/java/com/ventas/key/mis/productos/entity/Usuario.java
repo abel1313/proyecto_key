@@ -124,6 +124,13 @@ public class Usuario implements UserDetails {
     @Column(name = "password_actualizado_en")
     private LocalDateTime passwordActualizadoEn;
 
+    /** Aceptación del aviso de privacidad al registrarse — obligatoria, validada en RegistroRequest. */
+    @Column(name = "acepto_privacidad", nullable = false)
+    private Boolean aceptoPrivacidad = Boolean.FALSE;
+
+    @Column(name = "fecha_acepto_privacidad")
+    private LocalDateTime fechaAceptoPrivacidad;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();
