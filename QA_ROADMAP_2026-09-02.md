@@ -646,3 +646,107 @@ perfumería, cancelación antes de entrega), ahora deben verse dos párrafos nue
 
 **Si algo falla:** anota el paso exacto y lo que viste vs. lo que esperabas — con eso puedo ir
 directo al archivo/línea en cuestión sin tener que re-investigar todo el flujo de nuevo.
+
+
+
+
+quiero hacer pruebas, pero desde mi terminal, es decir desde mi aplicacion le paso el dinero a al terminal y desde la terminal puedo hacer el cobro solo que en la terminal es solo por o metiendo la tarjeta ahi como le hago?
+Hora:16:10
+Mensaje del asistente:
+Para hacer pruebas cobrando con tu terminal Point (que desde tu sistema “le pases el monto” y que en la terminal el cliente pague insertando/acercando/deslizando la tarjeta), lo que tenés que implementar es el flujo de “intención de pago”: tu app crea la intención por API y la terminal la carga automáticamente para que se cobre ahí.
+
+Cómo probar (flujo recomendado)
+1) Usá credenciales de producción para las pruebas de Point.
+
+En Point, las pruebas se validan haciendo cargos reales por montos mínimos y luego devolviéndolos (reembolso) desde la terminal.
+
+2) Asigná la intención al dispositivo (necesitás el deviceId del Point ya configurado).
+
+3) Desde tu backend, llamá a la API Crear una intención de pago (POST) indicando al menos:
+
+amount (monto)
+external_reference (para identificar esta prueba en tu sistema)
+Guía del endpoint: Crear intención de pago (API de Point)
+
+4) (Opcional pero recomendado) Validá que la intención quedó bien creada consultándola con Buscar intención de pago (GET).
+
+Buscar intención de pago
+
+5) En la terminal Point, iniciás el cobro y el comprador paga con tarjeta (chip/NFC/banda).
+
+La prueba completa está detallada acá: Probar el procesamiento de pagos
+
+6) Verificá que te lleguen las notificaciones (Webhooks) y usá tu external_reference para conciliar el evento con tu sistema. (En la notificación vas a poder identificar el pago, por ejemplo con el payment.id).
+
+7) Para confirmar el resultado del pago, consultá el pago por API con el id recibido:
+
+Obtener pago por id
+
+8) Para cerrar el circuito de prueba, hacé el reembolso desde la terminal (así se reintegra el dinero a la tarjeta), tal como indica la guía.
+
+Lecturas útiles
+Vista general de la integración de Point (cómo funciona el flujo): Mercado Pago Point
+Etapas de pruebas: Prueba de integración
+Para ayudarte con precisión
+¿Qué terminal estás usando (Point Smart 1 / Point Smart 2) y ya la tenés configurada/vinculada a tu cuenta y con el deviceId a mano?
+
+
+
+Mi mensaje:
+tengo la 2
+Hora:16:39
+Mensaje del asistente:
+Perfecto: con Point Smart 2 el flujo para “pasarle el monto desde tu app y cobrar en la terminal con tarjeta” es por intención de pago (payment intent). La terminal no recibe “saldo” como tal: recibe una intención con el monto y ahí se ejecuta el cobro (chip/NFC/banda).
+
+Siguiente paso (Point Smart 2): dejá lista la terminal y obtené el deviceId
+1) Configurá/vinculá la terminal a tu cuenta siguiendo la guía oficial:
+
+Configurar la terminal Point
+
+2) Con esa terminal ya configurada, identificá el **deviceId** del Point (lo vas a necesitar para crear la intención desde tu backend).
+
+Crear el cobro “desde tu aplicación” (intención) y cobrar con tarjeta en la terminal
+3) Desde tu backend, creá la intención apuntando a ese deviceId (POST):
+
+Crear intención de pago (API de Point)
+
+4) En la Point Smart 2, iniciás el cobro y el cliente paga con la tarjeta (insertar/acercar/deslizar).
+
+El paso a paso completo de pruebas está acá:
+
+Probar el procesamiento de pagos
+
+5) Validá por API el resultado del pago con el id que recibas por notificaciones:
+
+Obtener pago por id
+
+Recomendación para agilizar tu integración (opcional)
+Si estás desarrollando esto en tu IDE, podés usar el Mercado Pago MCP Server para consultar docs y armar el flujo más rápido:
+
+Mercado Pago MCP Server
+
+Para indicarte el paso exacto que te falta: ¿ya tenés la Point Smart 2 vinculada (puedes entrar al menú y operar) y ya viste el **deviceId**? Si me confirmas eso, te digo cuál sería el próximo llamado que deberías hacer desde tu backend y qué deberías ver en la terminal.
+
+
+
+Mi mensaje:
+seria este N950NCBC02460220?
+Hora:16:40
+Mensaje del asistente:
+Ese valor (N950NCBC02460220) parece el número de serie que viene en la etiqueta del dispositivo, pero **no es el deviceId** que te pide la API para crear la intención de pago.
+
+Para obtener el deviceId correcto tenés que listar tus dispositivos por API y usar el id que devuelve Mercado Pago:
+
+1) Listá los dispositivos asociados a tu cuenta:
+
+Endpoint: Obtener dispositivos
+2) En la respuesta, buscá el dispositivo cuyo id termine con caracteres que coincidan con el serial de tu terminal (la doc indica que podés identificarlo así). Ese id completo (suele verse parecido a PAX_...__SMARTPOS...) es el que tenés que usar como deviceId.
+
+3) Con ese deviceId, ya podés crear la intención:
+
+Endpoint: Crear intención de pago (API de Point)
+Si en algún momento te aparece el error de “serial con formato inválido”, fijate esta guía (clave: no recortar ni modificar el serial):
+
+Cómo resolver “Device serial with invalid format”
+
+Si querés, pegá aquí (tapando tu token) **solo el fragmento del id** que te devuelve el listado de dispositivos, y te digo cuál es el deviceId que corresponde a tu Point Smart 2.
