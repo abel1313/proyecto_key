@@ -419,6 +419,26 @@ hasta aqui no detenemos porque no puedo generar un pedido
 > dime y lo investigamos aparte -- si era solo consecuencia del cliente no encontrado, ya debería
 > quedar resuelto con este fix.
 
+> 💬 **Tu comentario:** "pero es que seleccioné pago en efectivo, no sé por qué marca que por
+> mercado, revisa el front como lo hace aquí tienda/venta-directa" -- eso explicaba el 504 de
+> arriba: al elegir Efectivo, igual disparaba la llamada a Mercado Pago.
+>
+> **✅ Corregido -- y no era el front.** El front (`venta-directa.component.ts`) hace bien su
+> parte: solo manda el `pagosYMesesId` de lo que el admin/cliente clickeó, tal cual viene
+> configurado desde el back (`getOpcionesEstructuradas()`). La decisión de "esto necesita
+> terminal de Mercado Pago o no" la toma el BACK, y ahí estaba el bug real:
+> `VentaServiceImpl.saveVentaDetalle()` decidía `requiereTerminal` comparando el id de
+> `tarifa_terminal` contra un número fijo (`!= 3`) -- asumiendo que la fila "sin terminal" de esa
+> tabla siempre cae en el id 3. Esa tabla no tiene una migración que la siembre igual en cada
+> ambiente, así que el id depende del orden en que se cargó en cada base -- en QA la fila
+> correspondiente a "sin terminal" aparentemente no quedó en el id 3, así que Efectivo terminaba
+> tratándose como si necesitara terminal igual.
+>
+> Se agregó un chequeo directo por el nombre de la forma de pago (`tipoPago.formaPago ==
+> "Efectivo"`, sin importar mayúsculas/espacios) que gana sobre el id de tarifa_terminal -- ya
+> no depende de qué id le haya tocado a esa fila en cada base de datos. Commit `bd64ee8`
+> (backend), ya en `qa`.
+
 6. Vuelve a prenderlo, para dejarlo en su estado normal.
 
 ---
