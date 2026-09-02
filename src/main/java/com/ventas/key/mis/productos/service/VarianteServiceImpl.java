@@ -150,6 +150,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoId(productoId).stream().map(v -> {
             VarianteDto dto = new VarianteDto();
             dto.setId(v.getId());
+            dto.setNombreProducto(v.getProducto().getNombre());
             dto.setTalla(v.getTalla());
             dto.setDescripcion(v.getDescripcion());
             dto.setColor(v.getColor());
