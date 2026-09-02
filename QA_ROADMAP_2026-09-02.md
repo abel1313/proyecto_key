@@ -122,6 +122,30 @@ blanco).
 > cambias de pestaña, hazlo con calma, el respaldo nuevo debería sostener el código vigente
 > aunque el navegador descargue la pestaña de en medio.
 
+> 💬 **Tu comentario:** "sigue igual Codigo de verificacion invalido" (después del fix de arriba,
+> ya desplegado en QA — confirmado con el workflow de GitHub Actions, corrió y terminó bien).
+>
+> **✅ Se encontraron y corrigieron DOS causas más, independientes de la de arriba:**
+> 1. **El input del código tenía `autocomplete="one-time-code"`** — ese atributo activa el
+>    autofill de SMS de Android/Chrome (sugiere o inserta automáticamente un código detectado en
+>    un mensaje de texto reciente). Este código llega por **correo**, no por SMS: si el celular
+>    tenía cualquier otro SMS con un código de 6 dígitos alrededor de esa hora (banco,
+>    paquetería, verificación en dos pasos de otra app), Android pudo autocompletar el campo con
+>    ESE código ajeno sin que se notara — el usuario ve 6 dígitos y los manda creyendo que son
+>    los correctos, pero no son los que llegaron al correo. Se quitó el atributo.
+> 2. **Bug real en el envío automático de código** (login con cuenta sin verificar, y registro
+>    nuevo): el front navegaba a la pantalla de verificación marcando `codigoEnviado: true`
+>    **aunque el envío del código hubiera fallado** (red, límite de intentos, etc.) — si fallaba,
+>    la pantalla de verificación creía que ya existía un código válido esperando y nunca
+>    reintentaba ni mostraba ningún error; el usuario quedaba escribiendo contra un código que
+>    nunca llegó a generarse. Ahora ese flag solo se manda cuando el envío sí tuvo éxito.
+>
+> Commit `fe537ae` (frontend), ya en `qa`. **Si al volver a probar sigue fallando**, lo más útil
+> que me puedes mandar es: (a) otro curl igual de completo al que mandaste, (b) si fue en el
+> mismo celular con otros SMS de códigos llegando cerca de esa hora, y (c) si fue inmediatamente
+> después de recibir el correo o pasó un rato/cambiaste de pantalla de en medio — con eso puedo
+> ir directo a la causa exacta en vez de seguir probando teorías a ciegas.
+
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
 
