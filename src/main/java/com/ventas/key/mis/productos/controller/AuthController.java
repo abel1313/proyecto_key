@@ -314,7 +314,7 @@ public class AuthController {
                     .body("Demasiados intentos. Intente de nuevo en 15 minutos.");
         }
         try {
-            usuarioVerificacionService.enviarCodigoVerificacion(request.getUserName());
+            usuarioVerificacionService.enviarCodigoVerificacion(request.getUserName(), request.isForzarNuevo());
             return ResponseEntity.ok("Codigo enviado al correo registrado");
         } catch (Exception e) {
             log.warn("Error al enviar codigo de verificacion para {}: {}", request.getUserName(), e.getMessage());
