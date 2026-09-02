@@ -50,6 +50,14 @@ SMTP de QA esté configurado y funcionando, y usar un correo real que puedas rev
 > correctamente). Esto se investiga a fondo cuando se diseñe el checkout de pasarelas, no antes
 > — no aplica todavía porque hoy no hay cobro con tarjeta online.
 >
+> **Respuesta (¿dónde va este contenido — privacidad, términos, o juntos?):** en
+> **Términos y condiciones** (`/termConditions`), NO en privacidad, y no conviene juntarlos —
+> son dos fundamentos legales distintos en México (LFPDPPP para privacidad; protección al
+> consumidor para las reglas de venta). Ya existe una sección real ahí, "Cambios, devoluciones
+> y cancelaciones" — es donde hay que ampliar el tema de contracargos cuando se implemente el
+> pago con tarjeta. No lo escribo todavía porque el texto depende de qué pasarela se elija y su
+> política real de reembolso.
+>
 > **Respuesta (checkbox básico / no dice que hay que aceptar):** tenías razón en las dos cosas,
 > ya corregido — ver "✅ Corregido" abajo.
 
@@ -119,11 +127,15 @@ aparecer ahí** — solo aplica al autoregistro.
 >   propósito, porque el admin no está creando la cuenta, solo edita datos de alguien que ya
 >   se registró (y ya aceptó, o no existiría la cuenta).
 >
-> Dicho esto, tu pregunta de fondo es válida: hoy el admin no tiene forma de VER si un usuario
-> aceptó el aviso (se guarda en BD — `acepto_privacidad`/`fecha_acepto_privacidad` — pero no se
-> muestra en ninguna pantalla). Si te sirve para auditoría, puedo agregar un dato de solo
-> lectura tipo "Aceptó aviso de privacidad: sí, 02/09/2026" en la pantalla de "Actualizar
-> usuario" — dime si lo quieres y lo agrego.
+> Dicho esto, tu pregunta de fondo era válida — confirmaste que sí, sí o sí es obligatorio para
+> registrarse (ya estaba así), y pediste que tanto el admin como el propio cliente pudieran
+> verlo. **✅ Agregado:**
+> - **Admin** — en "Actualizar usuario" (esta misma pantalla), arriba de todo, ahora se ve un
+>   aviso: "✅ Aceptó el aviso de privacidad el DD/MM/AAAA HH:mm" (en rojo "❌ No aceptó..." si
+>   es una cuenta vieja de antes de este control). Es de solo lectura, no se puede editar desde
+>   ahí — se aceptó una sola vez, en el registro.
+> - **El propio cliente** — en el menú de usuario → **"Mi perfil"**, arriba de "Datos de
+>   cuenta", la misma info con link directo al aviso de privacidad.
 
 ---
 
