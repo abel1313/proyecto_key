@@ -100,6 +100,28 @@ blanco).
 > retipearlo, claro que decía "incorrecto". Ahora al reenviar se limpia el campo
 > automáticamente.
 
+> 💬 **Tu comentario:** curl real desde el navegador mostrando que `POST /v1/auth/verificar-correo`
+> devuelve **"Codigo de verificacion invalido"** con `{"userName":"inicioSesion","codigo":"771964"}`
+> (User-Agent Android/Chrome móvil) — "sigue con errores al validar el código del correo".
+>
+> **✅ Corregido — causa raíz encontrada.** No era el back (revisé `UsuarioVerificacionService`:
+> comparación de código simple, 15 min de expiración, 5 intentos — todo correcto). El bug estaba
+> en el front: la pantalla de verificar-correo solo sabía "ya mandé un código" a través de
+> `history.state` (lo que Angular pasa al navegar). En **móvil**, si el navegador descarga la
+> pestaña mientras el usuario va a revisar su correo (algo muy común: sales de la app a Gmail y
+> el sistema operativo libera la pestaña en segundo plano) y luego regresa, Angular arranca de
+> cero y ese `history.state` se pierde — la pantalla, sin avisar, disparaba **otro código nuevo**,
+> invalidando el que el usuario ya tenía abierto en su bandeja. El código se veía perfecto, pero
+> el back ya tenía guardado uno distinto — de ahí "código inválido" con un código que a simple
+> vista estaba bien. Fix: se agregó un respaldo en `sessionStorage` (esto sí sobrevive a que el
+> navegador descargue/restaure la pestaña) para no reenviar en silencio si ya hay un código
+> vigente (mismo margen de 15 minutos que usa el back). Commit `c4848f0` (frontend).
+>
+> **Para volver a probar:** genera un código nuevo (registro o reintenta login sin verificar),
+> ve a tu correo SIN cerrar ni cambiar de pestaña de la app hasta escribir el código — o si
+> cambias de pestaña, hazlo con calma, el respaldo nuevo debería sostener el código vigente
+> aunque el navegador descargue la pestaña de en medio.
+
 **Pasos (continuación):**
 5. Completa el registro normal (verificación de correo incluida, como ya lo probaste antes).
 
