@@ -32,9 +32,13 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     // 'eliminar' un usuario es soft-delete (enabled=false, ver UsuarioServiceImpl.eliminarUsuario)
     // -- sin el filtro de enabled aqui, un usuario "eliminado" desde el admin seguia apareciendo
     // en el listado para siempre, aunque se recargara la pagina (encontrado 2026-08-25).
+    // JOIN FETCH u.roles: evita el N+1 de traer el rol con un SELECT aparte por cada fila de la
+    // página (roles es *-to-one, un JOIN FETCH acá es seguro -- no cambia el conteo de filas ni
+    // pagina en memoria, a diferencia de hacerlo sobre una colección como permisosExtra).
     @Query("""
     SELECT u
     FROM Usuario u
+    JOIN FETCH u.roles
     WHERE u.enabled = true AND u.username LIKE CONCAT('%', :buscar, '%')
 """)
     Page<Usuario> findAllPage(@Param("buscar") String buscar, Pageable pageable);
@@ -46,6 +50,7 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     @Query("""
     SELECT u
     FROM Usuario u
+    JOIN FETCH u.roles
     WHERE u.enabled = false AND u.username LIKE CONCAT('%', :buscar, '%')
 """)
     Page<Usuario> findAllPageInactivos(@Param("buscar") String buscar, Pageable pageable);
