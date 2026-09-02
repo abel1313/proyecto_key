@@ -615,5 +615,34 @@ perfumería, cancelación antes de entrega), ahora deben verse dos párrafos nue
 
 ---
 
+## 8. Fix crítico — OutOfMemoryError al cargar cualquier usuario
+
+> 💬 **Tu comentario:** pegaste un log real del back con
+> `Caused by: java.lang.OutOfMemoryError: Java heap space`, sobre un SQL enorme con 5 tablas
+> de permisos/roles/submenus unidas por JOIN al cargar un usuario por id.
+>
+> **✅ Corregido — bug grave, no ligado a ninguna feature de hoy.** `Roles` tiene 4 colecciones
+> `@ManyToMany` EAGER (permisos, submenus, submenusEscritura, acciones) y `Usuario` tiene una
+> quinta (permisosExtra). Sin la configuración correcta, Hibernate las trae **todas juntas en un
+> solo JOIN** al cargar el usuario — el producto cartesiano de 5 colecciones (ej. 20 acciones ×
+> 15 permisos × 10 submenus × 8 submenusEscritura × 5 permisosExtra) se **multiplica** en vez de
+> sumarse, y puede llegar a millones de filas para un solo usuario.
+>
+> Esto no pasaba solo al hacer login: `JwtAuthenticationFilter` llama a `loadUserByUsername()`
+> (el mismo query) **en cada petición autenticada** — podía tronar con cualquier usuario
+> logueado, en cualquier momento, no solo en un flujo específico.
+>
+> **Fix:** se agregó `@Fetch(FetchMode.SELECT)` a las 5 colecciones — siguen siendo EAGER (nada
+> cambia para el código que ya las usa), pero cada una se trae en su propio SELECT separado en
+> vez de unirse por JOIN, sin producto cartesiano. Verificado con la suite completa de tests del
+> proyecto (todos pasan). Commit `bd4e870` (backend), ya en `qa`.
+>
+> **No hay una ruta de clics específica para probar esto** — es transversal a toda la app. Si
+> notas lentitud o errores raros al navegar como cualquier usuario (no solo un flujo puntual),
+> repórtalo — antes de este fix cualquier petición podía ser la que hiciera tronar el servidor
+> por memoria.
+
+---
+
 **Si algo falla:** anota el paso exacto y lo que viste vs. lo que esperabas — con eso puedo ir
 directo al archivo/línea en cuestión sin tener que re-investigar todo el flujo de nuevo.
