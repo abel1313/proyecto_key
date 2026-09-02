@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.dto.negocio.AlertaStockUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
@@ -66,5 +67,12 @@ public class NegocioController {
     public ResponseEntity<ResponseGeneric<ConfiguracionNegocio>> actualizarContactos(
             @RequestBody ContactosUpdateDto dto) {
         return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarContactos(dto)));
+    }
+
+    /** Solo ADMIN — umbral de stock bajo para el aviso diario por correo (StockBajoScheduler) */
+    @PutMapping("/alertas-stock")
+    public ResponseEntity<ResponseGeneric<NegocioConfigDto>> actualizarUmbralStockBajo(
+            @RequestBody AlertaStockUpdateDto dto) {
+        return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarUmbralStockBajo(dto)));
     }
 }

@@ -90,10 +90,47 @@ compilado (`mvn compile` OK), frontend verificado (`tsc --noEmit` y `ng build` O
      correo (evita duplicados).
   6. Volver a bajarla a 0 y reabastecer de nuevo → **sí** debe reenviarse (es un ciclo nuevo).
 
-### 0.5 Pendiente antes de desplegar
-Correr `src/main/resources/static/migration_privacidad_preferencias_correo.sql` en las bases de
-dev/qa (agrega `acepto_privacidad`/`fecha_acepto_privacidad` a `usuario_modificacion` y
-`recibir_correos` a `clientes`) — sin esto el backend no arranca limpio contra esas BDs.
+### 0.5 Alerta de stock bajo al admin (digest diario)
+- **Qué cambió:** a diferencia de la alerta de restock de Favoritos (que dispara por evento en
+  `VarianteServiceImpl`), esta es un **barrido diario a las 7:00 a.m.** (`StockBajoScheduler`)
+  que revisa todas las variantes habilitadas con stock en o por debajo de un umbral y manda UN
+  correo por admin con la lista completa. Se eligió barrido en vez de enganchar cada punto donde
+  baja el stock porque hay al menos 5 lugares distintos que lo decrementan (pedidos, venta
+  directa, abonos, rifas, ajuste manual de producto) — enganchar los 5 es frágil y fácil de
+  romper con un sexto lugar futuro; el barrido los cubre todos sin tocarlos, y de paso sirve de
+  recordatorio mientras la variante siga baja (no solo la primera vez).
+  El umbral es configurable por el admin (default 5 si nunca se configura) desde
+  Sistema > Negocio & Contactos.
+- **Archivos:** `entity/ConfiguracionNegocio.java` (+ `umbralStockBajo`), `dto/negocio/NegocioConfigDto.java`,
+  `dto/negocio/AlertaStockUpdateDto.java` (nuevo), `controller/NegocioController.java` (`PUT
+  /v1/negocio/alertas-stock`), `service/NegocioService.java`, `service/StockBajoService.java`
+  (nuevo), `scheduler/StockBajoScheduler.java` (nuevo), `repository/IVarianteRepository.java`
+  (`findConStockBajo`), `repository/IUsuarioRepository.java` (`findByRoles_NombreRolAndEnabledTrue`),
+  `service/EmailService.java` (`enviarAlertaStockBajo`) (back) · `negocio.service.ts`,
+  `config-negocio.component.ts/.html` — nueva sección "📦 Alertas de stock bajo" (front).
+- **Cómo validarlo:**
+  1. Como ADMIN, ir a Sistema > Negocio & Contactos → sección "Alertas de stock bajo" → debe
+     mostrar 5 por default si nunca se configuró.
+  2. Cambiar el umbral (ej. a 10) → Guardar → recargar → debe seguir en 10 (persistencia).
+  3. Confirmar que hay al menos una variante habilitada con stock ≤ ese umbral (bajarle el stock
+     a una de prueba si hace falta).
+  4. Ejecutar el barrido a mano sin esperar a las 7 a.m. — desde un cliente REST/consola con el
+     bean `StockBajoService` (o esperar a la hora real en un ambiente donde el scheduler esté
+     activo) → debe llegar a cada admin con correo real un correo "Aviso de stock bajo (N)" con
+     la lista de variantes y su stock actual.
+  5. Subir esa variante por encima del umbral → correr el barrido de nuevo → esa variante ya no
+     debe aparecer en el correo (o no debe llegar correo si era la única baja).
+  6. Si no hay ninguna variante baja, el barrido no debe mandar ningún correo (se evita el "todo
+     bien" diario, revisar el log: `StockBajoService: sin variantes en o por debajo del umbral`).
+
+### 0.6 Pendiente antes de desplegar
+Correr en las bases de dev/qa:
+- `src/main/resources/static/migration_privacidad_preferencias_correo.sql` (`acepto_privacidad`/
+  `fecha_acepto_privacidad` en `usuario_modificacion`, `recibir_correos` en `clientes`)
+- `src/main/resources/static/migration_umbral_stock_bajo.sql` (`umbral_stock_bajo` en
+  `configuracion_negocio`)
+
+Sin esto el backend no arranca limpio contra esas BDs.
 
 ---
 
@@ -355,8 +392,9 @@ preferencia de correo (opt-in/opt-out) en `Cliente` ni en ninguna entidad.**
 **Ojo: hay dos cosas distintas con el mismo nombre.**
 
 ### 5.1 Ya pendiente en `PLAN_MEJORAS.md` (ítem #4) — alerta al ADMIN
-"Alertas stock bajo al admin" — ⏳ pendiente back y front. Es para que el negocio sepa cuándo
-reabastecer, no es para el cliente. Ya estaba planeada desde antes, sigue sin construirse.
+**✅ Implementado 2026-09-02** — ver sección 0.5 arriba (digest diario 7 a.m., umbral configurable
+desde Sistema > Negocio & Contactos). Era para que el negocio supiera cuándo reabastecer, no para
+el cliente — eso es lo de la sección 5.2.
 
 ### 5.2 Lo que pidió ahora — alerta al CLIENTE, ligada a Favoritos
 Esto es nuevo: que un cliente con un producto en Favoritos que está sin stock reciba una alerta
@@ -413,7 +451,7 @@ puede empezar a programar el modelo de datos.
 | WhatsApp automatizado | ⚠️ Código existe pero usa método no oficial y está apagado — hay que decidir cuándo migrar a Cloud API oficial |
 | Correo de recordatorio + opt-out | ❌ No existe — falta campo de preferencia + definir disparador |
 | Correo de seguimiento de pedido | ❌ No existe — falta enganchar a cambios de estado de `Pedido` |
-| Alerta stock bajo (admin) | ⏳ Ya pendiente desde antes en `PLAN_MEJORAS.md` #4 |
+| Alerta stock bajo (admin) | ✅ Implementado 2026-09-02 (ver 0.5) |
 | Alerta "volvió el stock" (cliente, vía Favoritos) | ❌ No existe — nueva, pero reutiliza el módulo de Favoritos ya construido |
 | Programa de lealtad | ❌ No existe — falta decidir mecánica de puntos antes de programar el modelo |
 

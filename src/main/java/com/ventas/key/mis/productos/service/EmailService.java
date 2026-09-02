@@ -11,6 +11,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -281,6 +283,30 @@ public class EmailService {
                 + "</div>"
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Corre, las existencias son "
                 + "limitadas. Puedes verlo en tus Favoritos dentro de la app.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
+     * Digest diario para el admin (StockBajoScheduler) con las variantes en o por debajo del
+     * umbral configurado. {@code lineas} ya viene formateada por StockBajoService (nombre de
+     * producto + talla/color + stock) para que EmailService no dependa de la entidad Variantes.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarAlertaStockBajo(String destinatario, List<String> lineas, int umbral) {
+        String asunto = "Aviso de stock bajo (" + lineas.size() + ") — Novedades Jade";
+        StringBuilder filas = new StringBuilder();
+        for (String linea : lineas) {
+            filas.append("<tr><td style=\"padding:8px 10px;border-bottom:1px solid #eef1f0;font-size:13px;\">")
+                 .append(linea).append("</td></tr>");
+        }
+        String html = "<p style=\"margin:0 0 4px;\">Estas variantes están en o por debajo del umbral de "
+                + umbral + " unidades:</p>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+                + "style=\"margin:16px 0;border:1px solid #eef1f0;border-radius:8px;overflow:hidden;\">"
+                + filas
+                + "</table>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Puedes ajustar el umbral desde "
+                + "Sistema &gt; Negocio &amp; Contactos en la app.</p>";
         return enviarTicket(destinatario, asunto, html);
     }
 }

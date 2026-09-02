@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -66,6 +67,7 @@ public interface IUsuarioRepository extends BaseRepository<Usuario,Integer>{
     // nada antes de borrar (encontrado 2026-08-27, hallazgo del usuario).
     long countByRolesId(Integer rolId);
 
-
+    // Destinatarios del correo de stock bajo (StockBajoService) -- todos los admin activos.
+    List<Usuario> findByRoles_NombreRolAndEnabledTrue(String nombreRol);
 
 }

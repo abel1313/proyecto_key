@@ -15,4 +15,5 @@ public class NegocioConfigDto {
     private String tiktokUrl;
     private String horaApertura; // "HH:mm"
     private String horaCierre;   // "HH:mm"
+    private Integer umbralStockBajo;
 }
