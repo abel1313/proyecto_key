@@ -48,4 +48,21 @@ public interface IClienteRepository extends BaseRepository<Cliente,Integer> {
     """)
     Page<ClienteBusquedaDto> buscarPorNombre(@Param("nombre") String nombre, Pageable pageable);
 
+    // Usado por PromocionServiceImpl.enviarCorreoPromocionAsync -- solo clientes que activaron
+    // el checkbox de promociones Y ya tienen el correo verificado (no tiene caso mandarle una
+    // promocion a un correo que ni siquiera se confirmo que existe). Orden explicito por id para
+    // que la paginacion en lotes de 10 sea estable entre paginas.
+    @Query("""
+    SELECT c FROM Cliente c
+    WHERE c.recibirPromociones = true AND c.correoVerificado = true
+    ORDER BY c.id
+    """)
+    Page<Cliente> findElegiblesParaCorreoPromociones(Pageable pageable);
+
+    @Query("""
+    SELECT COUNT(c) FROM Cliente c
+    WHERE c.recibirPromociones = true AND c.correoVerificado = true
+    """)
+    long contarElegiblesParaCorreoPromociones();
+
 }

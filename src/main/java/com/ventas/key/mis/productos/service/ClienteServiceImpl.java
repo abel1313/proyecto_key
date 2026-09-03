@@ -90,6 +90,18 @@ implements IClienteService {
                 : "Notificaciones por correo desactivadas");
     }
 
+    /** Toggle independiente del de arriba -- controla solo los correos de promociones. */
+    @Transactional
+    public ResponseGeneric<String> actualizarPreferenciaPromociones(int idCliente, boolean recibirPromociones) {
+        Cliente cliente = iClienteRepository.findById(idCliente)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+        cliente.setRecibirPromociones(recibirPromociones);
+        iClienteRepository.save(cliente);
+        return new ResponseGeneric<>(recibirPromociones
+                ? "Correos de promociones activados"
+                : "Correos de promociones desactivados");
+    }
+
     public void enviarCodigoVerificacionCorreo(Integer clienteId) {
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
