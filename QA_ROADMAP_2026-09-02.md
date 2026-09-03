@@ -561,6 +561,20 @@ Ya lo veo que este correo es para el adminn, entonces para los clientes es solo 
 **Qué esperar:** cada usuario con rol ADMIN y correo activo debe recibir un correo
 **"Aviso de stock bajo (N)"** con la lista completa de variantes bajas y su stock actual.
 Consulta que pasa si ya no metyo mas stock a ese variante cada dia enviaria el correo?
+
+> 💬 **Tu pregunta:** "¿qué pasa si ya no metió más stock a esa variante, cada día enviaría el
+> correo?"
+>
+> **Sí, todos los días** — es a propósito, no es un bug. `StockBajoService` no guarda "ya avisé de
+> esta" en ningún lado: cada vez que corre el barrido (`StockBajoScheduler`) vuelve a consultar
+> TODAS las variantes por debajo del umbral y manda el correo de nuevo con la lista completa,
+> mientras la variante siga baja. El propio comentario en el código lo explica: sirve de
+> **recordatorio mientras la variante siga baja**, no solo la primera vez que cruzó el umbral — la
+> idea es que un admin no lo pueda "perder" en el inbox y olvidarse de reponer. Deja de llegar
+> únicamente cuando subís el stock por encima del umbral (o si eliminás/deshabilitás la variante).
+> Si preferís que solo avise la primera vez (y no todos los días hasta reponer), avisame y lo
+> cambio — hoy es diseño intencional, no falta nada roto.
+
 **Pasos (continuación):**
 6. Sube el stock de esa variante por encima del umbral y vuelve a disparar el barrido.
 
