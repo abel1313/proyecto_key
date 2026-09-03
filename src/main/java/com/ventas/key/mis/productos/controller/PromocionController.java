@@ -86,4 +86,30 @@ public class PromocionController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null, "Error al listar promociones"));
         }
     }
+
+    @GetMapping("/correo/elegibles")
+    public ResponseEntity<ResponseGeneric<Long>> contarElegiblesParaCorreo() {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(promocionService.contarElegiblesParaCorreoPromocion()));
+        } catch (Exception e) {
+            log.error("Error al contar elegibles para correo de promocion: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ResponseGeneric<>(null, "Error al contar clientes"));
+        }
+    }
+
+    // Dispara el envio en su propio hilo (ver AsyncConfig#correoMasivoExecutor) y responde de
+    // inmediato -- no espera a que termine de mandarle el correo a todos los clientes elegibles.
+    @PostMapping("/{id}/enviar-correo")
+    public ResponseEntity<ResponseGeneric<String>> enviarCorreo(@PathVariable Integer id) {
+        try {
+            promocionService.validarExistePromocion(id);
+            long elegibles = promocionService.contarElegiblesParaCorreoPromocion();
+            promocionService.enviarCorreoPromocionAsync(id);
+            return ResponseEntity.ok(new ResponseGeneric<>(
+                    "Envío iniciado a " + elegibles + " cliente(s), en tandas de 10"));
+        } catch (Exception e) {
+            log.error("Error al iniciar envio de correo de promocion {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
 }

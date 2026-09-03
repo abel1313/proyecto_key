@@ -875,3 +875,85 @@ Fuentes consultadas: [Reembolsar una order — API Orders (Point)](https://www.m
 [¿Cómo voy a recibir el reembolso de una compra de Point?](https://www.mercadopago.com.mx/ayuda/28577),
 [Tengo que devolver un pago con Point](https://www.mercadopago.com.mx/ayuda/tengo-que-devolver-un-pago-con-point_2608),
 [Generá reembolsos parciales vía API con Mercado Pago Point](https://www.mercadopago.com.ar/developers/es/news/2025/12/15/Generate-partial-refunds-via-API-with-Mercado-Pago-Point).
+
+---
+
+## 11. Correo de promociones — checkbox por cliente + envío en tandas de 10
+
+> 💬 **Tu comentario:** "sobre los correo también debe a ver un chec en donde le podamos decir o
+> enviar las promociones que tenemos si en los clientes tiene el chec seleccionado entonces les
+> llegaría [...] en las promociones una opción para programar enviar de 10 en 10 correo a todos
+> los que tengan el check seleccionado y en ese correo tiene que mencionarle que si no quiere
+> recibir los correos explicarle en dónde ir para quitarlos [...] y también explicarle dónde
+> encontraría las promociones."
+
+### ⚠️ Paso manual OBLIGATORIO antes de probar — correr la migración
+
+`ddl-auto` está en `none` en todos los ambientes (igual que todas las migraciones anteriores):
+la columna nueva **no se crea sola**. Antes de desplegar/probar esto en QA hay que correr a mano
+contra la BD de QA (`inventario_key_qa`, la misma de `dev`/`qa`):
+
+```sql
+ALTER TABLE clientes ADD COLUMN recibir_promociones TINYINT(1) NOT NULL DEFAULT 1;
+```
+
+(archivo `migration_recibir_promociones.sql`, mismo patrón que las demás). **Si no se corre esto
+antes, TODO lo que toque la tabla `clientes` empieza a fallar** (Hibernate intenta leer una
+columna que no existe) — no es opcional, es bloqueante para toda la app, no solo para esta feature.
+
+### ✅ Lo que se construyó
+
+- **Checkbox independiente** `recibirPromociones` en `Cliente` (además del ya existente
+  `recibirCorreos` de seguimiento de pedido/stock) — se activa `true` por default para clientes
+  nuevos y existentes (mismo criterio que `recibirCorreos`).
+- **"Mis datos"** (cliente) y **"Ver cliente"** (admin, `clientes/buscar` → detalle) ahora
+  muestran dos toggles separados en la sección Preferencias: uno para correos de
+  seguimiento/stock, otro para promociones — se pueden prender/apagar independientemente uno del
+  otro, cada uno guarda al instante (no hace falta darle a "Guardar cambios" del formulario).
+- **Botón "✉️ Enviar correo"** en cada card de **Gestión de promociones** (admin): al darle clic,
+  primero pregunta a cuántos clientes les llegaría (confirmación con el número real) y, si
+  confirmás, dispara el envío.
+- **Envío en tandas de 10** con 3 segundos de pausa entre tandas (para no disparar todos los
+  correos de golpe y arriesgar que el proveedor de correo marque la cuenta como spam por ráfaga)
+  — corre en su propio hilo en el backend, así que la pantalla no se queda "colgada" esperando; el
+  admin ve "Envío iniciado a N cliente(s)" de inmediato y el envío sigue en segundo plano.
+- **El correo** incluye: la descripción de la promoción, un botón "Ver promoción" que lleva a
+  `/promociones` en la app, y al final una nota explicando que si ya no quiere recibir correos de
+  promociones puede desactivarlos desde "Mi perfil" (con link directo cuando el ambiente tiene
+  `app.public-base-url` configurado) — casilla "Recibir promociones".
+- Solo le llega a clientes con **correo verificado** además del checkbox activado (no tiene caso
+  mandarle promociones a un correo que nunca se confirmó que existe).
+
+### Ruta de clics para probar
+
+**Cliente (activar/desactivar):**
+1. Inicia sesión como cliente → menú de usuario → **"Mis datos"**.
+2. Baja hasta **Preferencias** → verás dos toggles: el de correos de seguimiento (ya existía) y el
+   nuevo **"Recibir promociones"**, activado por default.
+3. Apágalo → confirma que no se movió el otro toggle (son independientes) → recárgalo → debe
+   seguir apagado.
+
+**Admin (activar/desactivar en cualquier cliente):**
+1. Menú lateral → **"👥 Clientes"** → buscar → abre el detalle de un cliente.
+2. Misma sección Preferencias, mismos dos toggles, editables desde aquí también.
+
+**Admin (enviar el correo):**
+1. Menú lateral → acordeón de promociones → **Gestión de promociones**.
+2. En cualquier promoción (activa o no), botón **"✉️ Enviar correo"**.
+3. Debe salir un modal confirmando "Se enviará a N cliente(s)..." — si dice 0, es porque ningún
+   cliente de prueba tiene el checkbox activado todavía (activa uno primero, paso de arriba).
+4. Confirma → debe salir "Envío iniciado a N cliente(s)" casi de inmediato (no espera a que se
+   termine de mandar) → revisa la bandeja del cliente de prueba, debe llegar el correo con la
+   promoción, el botón "Ver promoción" y la nota de cómo desactivarlo.
+
+### ⬜ Lo que quedó pendiente de tu comentario (no se hizo en esta pasada)
+
+- El correo de "ticket"/confirmación al cliente y aviso al admin **cuando se genera un pedido**
+  (mencionaste: "cuando se hace un pedido de parte del cliente o del admin tiene que enviar el
+  correo del ticket y para el cliente [...] me tiene que llegar un correo avisando que hizo un
+  pedido") — no se tocó en esta sesión, falta confirmar qué de eso ya existe hoy (el ticket de
+  venta sí se manda siempre, fuera de `recibirCorreos`, según el comentario de
+  `EmailService.enviarTicket`) y qué falta agregar. Avísame si querés que lo revise a continuación.
+- La opción de **programar** el envío (mandarlo más tarde, no solo "enviar ahora") no se
+  construyó — hoy el botón manda de inmediato (en tandas de 10, pero arrancando al momento del
+  clic). Si querías programarlo para una hora/fecha específica, es trabajo aparte.

@@ -36,4 +36,20 @@ public class AsyncConfig {
         // request, donde si existe) y lo instala en el hilo del pool mientras corre.
         return new DelegatingSecurityContextAsyncTaskExecutor(executor);
     }
+
+    // Un solo hilo a proposito (PromocionServiceImpl.enviarCorreoPromocionAsync): el envio de
+    // correos de promociones es EN LOTES DE 10 con una pausa entre lotes (evitar que el SMTP de
+    // OVH marque la cuenta como spam por rafaga), no en paralelo -- correPoolSize=1 obliga a que
+    // los envios queden en fila si el admin dispara mas de una promocion casi al mismo tiempo, en
+    // vez de mandarlas todas a la vez.
+    @Bean("correoMasivoExecutor")
+    public Executor correoMasivoExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("correo-masivo-");
+        executor.initialize();
+        return new DelegatingSecurityContextAsyncTaskExecutor(executor);
+    }
 }

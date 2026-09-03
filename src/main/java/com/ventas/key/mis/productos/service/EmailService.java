@@ -309,4 +309,44 @@ public class EmailService {
                 + "Sistema &gt; Negocio &amp; Contactos en la app.</p>";
         return enviarTicket(destinatario, asunto, html);
     }
+
+    /**
+     * Correo de promoción nueva, enviado en lote por PromocionServiceImpl a los clientes con el
+     * checkbox de promociones activado. Correo NO transaccional -- el llamador debe verificar
+     * {@code Cliente.recibirPromociones} antes de invocar este método (mismo criterio que
+     * enviarAlertaStock/Cliente.recibirCorreos).
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarPromocion(String destinatario, String nombreCliente, String descripcionPromocion) {
+        String asunto = "🎉 Nueva promoción — Novedades Jade";
+        String base = normalizarBaseUrl();
+        String botonVerPromos = base != null
+                ? "<div style=\"text-align:center;margin:6px 0 4px;\">"
+                  + "<a href=\"" + base + "/promociones\" style=\"display:inline-block;background-color:#00875A;"
+                  + "color:#ffffff;font-size:15px;font-weight:700;padding:12px 26px;border-radius:10px;"
+                  + "text-decoration:none;font-family:Arial,Helvetica,sans-serif;\">Ver promoción</a></div>"
+                : "<p style=\"margin:0 0 12px;\">Entra a la sección <strong>Promociones</strong> en la app "
+                  + "para verla completa.</p>";
+        String dondeDesactivar = base != null
+                ? "en <a href=\"" + base + "/clientes/mis-datos\">Mi perfil</a>"
+                : "en Mi perfil &gt; Mis datos";
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+                + "<p style=\"margin:0 0 12px;\">¡Tenemos una promoción nueva para ti!</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
+                + "font-size:17px;font-weight:700;padding:12px 22px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">" + descripcionPromocion + "</span>"
+                + "</div>"
+                + botonVerPromos
+                + "<p style=\"margin:16px 0 0;color:#6b7280;font-size:12px;\">Si ya no quieres recibir "
+                + "correos de promociones, puedes desactivarlos " + dondeDesactivar
+                + " (casilla \"Recibir promociones\").</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /** {@code null} si app.public-base-url no está configurado en este ambiente (no rompe nada, ver publicBaseUrl). */
+    private String normalizarBaseUrl() {
+        if (publicBaseUrl == null || publicBaseUrl.isBlank()) return null;
+        return publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+    }
 }
