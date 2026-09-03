@@ -390,3 +390,122 @@ dejaste anotado en `QA_ROADMAP_2026-09-02.md`, no está claro si el checkout gen
 mostrar la opción de "lugar de entrega" o no — y (b) definir de dónde sale el horario de entrega
 para un pedido a domicilio del checkout general (¿lo agenda el admin manualmente al procesar el
 pedido, o se calcula automático por zona/ruta como en flores?).
+
+---
+
+## 10. Implementación de Mercado Pago Checkout Pro y PayPal — 2026-09-03
+
+### ✅ Lo que ya se construyó (back y front)
+
+**Backend:**
+- `PagoOnline` — tabla unificada de seguimiento de pagos online (decidida en esta sesión):
+  `proveedor` (`MP_CHECKOUT`/`PAYPAL`), `pedidoId`, `clienteId`, `referenciaExterna` (preference
+  id / order id), `pagoIdExterno` (payment id / capture id), `monto`, `estado`
+  (`CREATED`/`APPROVED`/`REJECTED`/`CANCELLED`/`REFUNDED`). Migración:
+  `migration_pago_online.sql` (pendiente de correr en QA/prod, igual que las demás).
+- `MercadoPagoCheckoutService` — Checkout Pro (SDK que ya estaba en el proyecto, `sdk-java`, sin
+  dependencia nueva): crea la `Preference`, guarda el `PagoOnline`, y el webhook
+  (`POST /v1/mp/checkout/webhook`, público) confirma consultando directo a la API de MP (nunca se
+  confía en el body del webhook a ciegas).
+- `PayPalCheckoutService` — Orders API v2 con el **SDK oficial** (`com.paypal.sdk:checkout-sdk`,
+  agregado al `pom.xml`, decidido sobre REST directo). Crea la orden y expone `capturarOrden`
+  — a diferencia de MP, PayPal **no confirma solo con un webhook** en este flujo simple: hay que
+  capturar la orden explícitamente cuando el cliente vuelve aprobada (lo dispara el front).
+- `PedidoServiceImpl.confirmarPagoOnline` — cuando cualquiera de las dos pasarelas confirma el
+  pago, marca el pedido como `PAGADO` y genera la `Venta` bajo el catálogo `TARJETA` existente
+  (decidido en esta sesión: no se crean renglones nuevos en `pagos_y_meses` por pasarela, ver
+  sección 8 de este mismo doc).
+- Seguridad (`SecurityConfig`): `POST /v1/mp/checkout/preference/{id}` y `/v1/paypal/**` requieren
+  sesión (cualquier cliente logueado, el service valida que el pedido sea suyo);
+  `POST /v1/mp/checkout/webhook` es público (MP llama desde afuera, mismo criterio que el webhook
+  de Point que ya existía).
+
+**Frontend:**
+- `PagoService` (`pedidos/pago.service.ts`) — `crearPreferenceCheckoutMP`, `crearOrdenPaypal`,
+  `capturarOrdenPaypal`.
+- Botón **"Pagar en línea"** en "Mis pedidos" (visible solo al propio cliente, no al admin, y solo
+  si el pedido no está ya pagado) — pregunta Mercado Pago o PayPal y redirige
+  (`window.location.href`) a la pasarela elegida.
+- `PagoResultadoComponent` (`/pago/resultado`, ruta pública) — pantalla a la que regresa el
+  navegador tras pagar. Para PayPal dispara la captura automáticamente (usa el `token` que PayPal
+  agrega solo a la URL); para MP solo muestra el mensaje, la confirmación real ya llegó por
+  webhook.
+
+### ⚠️ Qué falta para poder probar — credenciales y dónde conseguirlas
+
+**Mercado Pago Checkout Pro: NO hace falta ninguna credencial nueva.** Usa el mismo
+`mercadopago.access-token` que ya está configurado y en uso para Point (`ACCESS_TOKE_MERCADO_PAGO`
+en QA/prod) — es la misma cuenta, solo un endpoint distinto de la misma API. Con eso ya alcanza
+para probar en sandbox (`mercadopago.sandbox: true` en QA, ya está así).
+
+**PayPal: SÍ hace falta dar de alta la app y conseguir credenciales — todavía no existen.**
+1. Entra a **[developer.paypal.com](https://developer.paypal.com/api/rest)** e inicia sesión con
+   tu cuenta de PayPal (o créala si no tienes una — no hace falta que sea "Business" todavía para
+   sacar credenciales de **sandbox**, pero sí para las de **producción** más adelante).
+2. En el **Developer Dashboard**, activa el toggle **Sandbox** (arriba) y ve a
+   **Apps & Credentials**.
+3. Dale **Create App** → ponle un nombre (ej. "Novedades Jade") → tipo **Merchant** → **Create App**.
+4. Ahí mismo vas a ver el **Client ID** y el **Secret** (dale clic a "Show" para verlo) — esas son
+   las credenciales de **sandbox**, sirven para probar sin mover dinero real.
+5. Copia esos dos valores y agrégalos como variables de entorno en el ambiente de QA:
+   - `PAYPAL_CLIENT_ID`
+   - `PAYPAL_CLIENT_SECRET`
+   (ya están referenciadas en `application-qa.yml`/`application-dev.yml`/`application-docker.yml`
+   — solo falta que las variables de entorno existan con el valor real).
+6. Cuando quieras probar/lanzar en **producción**, cambia el toggle a **Live** en el mismo
+   dashboard y repite el paso 3-4 — esas credenciales solo funcionan si la cuenta de PayPal detrás
+   ya es una cuenta **Business** verificada (ver sección 1 de este doc, "Dar de alta la cuenta de
+   PayPal Business" sigue pendiente en la lista de tareas).
+
+**Antes de probar en QA, correr la migración a mano** (mismo criterio que siempre, `ddl-auto: none`):
+```sql
+-- contenido completo en migration_pago_online.sql
+CREATE TABLE pago_online ( ... );
+```
+
+### Ruta de clics para probar (una vez con las credenciales de PayPal)
+
+1. Como cliente, genera un pedido (que quede con stock/detalles válidos).
+2. Ve a **"Mis pedidos"** → en la card del pedido pendiente, botón **"Pagar en línea"**.
+3. Elige **Mercado Pago** → te lleva al checkout de MP (sandbox) → paga con una
+   [tarjeta de prueba](https://www.mercadopago.com.mx/developers/es/docs/checkout-pro/additional-content/your-integrations/test/cards)
+   → debe volver a `/pago/resultado?estado=success` y, unos segundos después (vía webhook), el
+   pedido debe pasar a **PAGADO** en "Mis pedidos".
+4. Repite el pedido de prueba y esta vez elige **PayPal** → inicia sesión con una
+   [cuenta de sandbox de PayPal](https://developer.paypal.com/dashboard/accounts) (comprador de
+   prueba) → aprueba el pago → debe volver a `/pago/resultado?estado=success`, capturar solo, y el
+   pedido debe pasar a **PAGADO** de inmediato (no depende de webhook).
+5. Verifica en ambos casos que se generó la **Venta** correspondiente (reportes/historial) bajo el
+   método "TARJETA".
+
+---
+
+## 11. Reembolso de pagos online — respuesta a "¿se regresa el dinero Y el producto?"
+
+> 💬 **Tu pregunta (2026-09-03):** "hay que hacer que se regrese el dinero si hay devolución [...]
+> qué pasa si se lleva el producto y después cancela el producto, ¿se le regresaría el dinero y
+> además el producto?"
+
+**Construido, y diseñado a propósito en DOS pasos separados — no uno automático:**
+
+1. **Cancelar el pedido** (ya existía, `PedidoServiceImpl.deletePedidoById`) — si el pedido ya
+   estaba "Entregado"/"PAGADO", cancelarlo **ya era, y sigue siendo, una acción exclusiva de
+   ADMIN** (regla que ya estaba en el código). Ahí se regresa el stock y la Venta pasa a
+   "Devuelta". **Esto asume que el admin ya verificó que el producto físico regresó** — el sistema
+   no tiene forma de comprobar eso por sí solo, es un paso operativo humano, no algo que el
+   software pueda garantizar.
+2. **Reembolsar el dinero** (nuevo, `POST /v1/pagos-online/{pedidoId}/reembolsar`, botón
+   "Reembolsar" en Mis Pedidos admin) — **es un segundo clic aparte, deliberadamente NO
+   automático al cancelar**. El back además **exige que el paso 1 ya haya pasado** (rechaza si el
+   pedido no está cancelado todavía) — no se puede reembolsar sin haber cancelado primero.
+
+**Por qué así y no automático:** justo para evitar el riesgo que preguntaste — que cancelar solo
+(sin que el producto haya vuelto de verdad) dispare el dinero de vuelta también. Como cancelar un
+pedido ya entregado sigue siendo ADMIN-only, y reembolsar es un botón aparte que un admin tiene
+que apretar a propósito, nunca pasa "solo" con que el cliente pida cancelar — necesita que un
+humano confirme la devolución física primero (cancelar) y decida reembolsar después.
+
+**Nota:** el reembolso es **total** (no parcial) en esta primera versión, usando `PaymentClient.refund()`
+de MP y la API de Payments de PayPal sobre el capture id. El reembolso parcial (por si en algún
+momento quieren cobrarle al cliente la comisión perdida, ver sección 5) queda pendiente si hace
+falta después.

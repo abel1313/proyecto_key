@@ -119,6 +119,11 @@ mercadopago:
   device-id: ${DEVICE_ID}
   sandbox: false
 
+paypal:
+  client-id: ${PAYPAL_CLIENT_ID:}
+  client-secret: ${PAYPAL_CLIENT_SECRET:}
+  sandbox: false
+
 openai:
   api-key: ${OPENAI_API_KEY}
   model: gpt-4o-mini

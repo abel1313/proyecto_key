@@ -105,6 +105,11 @@ mercadopago:
   device-id: aaaa
   sandbox: false
 
+paypal:
+  client-id: ${PAYPAL_CLIENT_ID:}
+  client-secret: ${PAYPAL_CLIENT_SECRET:}
+  sandbox: true
+
 chat:
   admin-email: ${CHAT_ADMIN_EMAIL:qa.boutique.bolsas@novedades-jade.com.mx}
   forzar-notificacion: true

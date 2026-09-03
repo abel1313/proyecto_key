@@ -726,6 +726,90 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         return emailService.enviarTicket(requestG.getCorreo(), asunto, requestG.getTicketHtml());
     }
 
+    // Catalogo interno de pagos (pagos_y_meses) -- decidido 2026-09-03: los pagos online por
+    // Checkout Pro de Mercado Pago y PayPal se registran bajo el mismo renglon "TARJETA" que ya
+    // usan los abonos con tarjeta en persona (ver AbonoServiceImpl.PAGOS_TARJETA), en vez de
+    // crear renglones nuevos por pasarela -- mas simple para arrancar, aunque los reportes no
+    // distinguen tarjeta fisica de online por ahora.
+    private static final int PAGOS_TARJETA_ONLINE = 2;
+
+    /**
+     * Confirma un pago online (Checkout Pro MP o PayPal) ya aprobado por la pasarela: marca el
+     * pedido como PAGADO y genera la Venta -- mismo patron que
+     * AbonoServiceImpl.crearVentaDesdePedido (sin descontar comision/tarifa, ese calculo es
+     * exclusivo del flujo de Point/updatePedido). Se usa el Usuario ligado al propio Cliente
+     * (Cliente.usuario) como responsable de la venta, porque aqui no hay ningun admin operando --
+     * el pago lo completo el cliente solo, sin intervencion humana de por medio.
+     * Idempotente: si el pedido ya esta PAGADO no vuelve a generar otra Venta (un webhook de MP/
+     * PayPal puede reintentar la misma notificacion mas de una vez).
+     */
+    @Transactional
+    public void confirmarPagoOnline(Integer pedidoId) {
+        Pedido pedido = iPedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+
+        if ("PAGADO".equals(pedido.getEstadoPedido()) || "Entregado".equals(pedido.getEstadoPedido())) {
+            log.info("confirmarPagoOnline: pedido {} ya esta {}, no se genera otra venta",
+                    pedidoId, pedido.getEstadoPedido());
+            return;
+        }
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            log.warn("confirmarPagoOnline: pedido {} esta cancelado, se ignora la confirmacion de pago", pedidoId);
+            return;
+        }
+
+        Cliente cliente = pedido.getCliente();
+        if (cliente == null || cliente.getUsuario() == null) {
+            log.error("confirmarPagoOnline: pedido {} sin cliente/usuario, no se puede generar la venta", pedidoId);
+            return;
+        }
+
+        PagosYMeses pagosYMeses = iPagosYMesesRepository.findById(PAGOS_TARJETA_ONLINE)
+                .orElseThrow(() -> new RuntimeException("Catálogo de pago no encontrado: " + PAGOS_TARJETA_ONLINE));
+
+        List<DetalleVentaVariante> detallesVenta = new ArrayList<>();
+        for (DetallePedido dp : pedido.getDetalles()) {
+            double precioCosto = dp.getVariante() != null ? dp.getVariante().getProducto().getPrecioCosto() : 0.0;
+            double subTotal = dp.getSubTotal();
+            double ganancia = subTotal - (precioCosto * dp.getCantidad());
+
+            DetalleVentaVariante dvv = new DetalleVentaVariante();
+            dvv.setCantidad(dp.getCantidad());
+            dvv.setPrecioUnitario(dp.getPrecioUnitario());
+            dvv.setSubTotal(subTotal);
+            dvv.setPrecioCosto(precioCosto);
+            dvv.setGanancia(ganancia);
+            dvv.setFechaVenta(LocalDate.now());
+            dvv.setVariante(dp.getVariante());
+            detallesVenta.add(dvv);
+        }
+
+        double totalVenta = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
+        double gananciaTotal = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getGanancia).sum();
+
+        Venta venta = new Venta();
+        venta.setEstadoVenta("Entregado");
+        venta.setFechaVenta(LocalDateTime.now());
+        venta.setUsuario(cliente.getUsuario());
+        venta.setCliente(cliente);
+        venta.setPagosYMeses(pagosYMeses);
+        venta.setPedido(pedido);
+        venta.setTotalVenta(totalVenta);
+        venta.setGananciaTotal(gananciaTotal);
+        detallesVenta.forEach(dvv -> dvv.setVenta(venta));
+        venta.setDetalles(detallesVenta);
+        iVentaRepository.save(venta);
+
+        pedido.setEstadoPedido("PAGADO");
+        pedido.setTotalPagado(pedido.getTotalPedido());
+        iPedidoRepository.save(pedido);
+        notificarSeguimientoPedido(pedido);
+        cacheService.evictAll();
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+
+        log.info("Pedido {} confirmado como PAGADO por pago online — total: {}", pedidoId, totalVenta);
+    }
+
     /**
      * Correo de seguimiento ante un cambio de estado del pedido (confirmado/entregado o
      * cancelado). NO transaccional -- respeta Cliente.recibirCorreos, a diferencia del ticket de

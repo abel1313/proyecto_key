@@ -167,6 +167,20 @@ public class SecurityConfig {
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/v1/mp/webhook").permitAll()
 
+                        // ── Checkout Pro MercadoPago (pago online, 2026-09-03) ─────────────
+                        // webhook: MP llama desde afuera, sin auth. preference: cualquier
+                        // cliente logueado crea la suya (el service valida que el pedido sea
+                        // suyo) -- ambos matchers ANTES del hasRole("ADMIN") generico de
+                        // /v1/mp/** de mas abajo.
+                        .requestMatchers("/v1/mp/checkout/webhook").permitAll()
+                        .requestMatchers("/v1/mp/checkout/preference/**").authenticated()
+
+                        // ── PayPal Orders API v2 (pago online, 2026-09-03) ─────────────────
+                        // Sin webhook publico en este flujo simple -- el propio cliente logueado
+                        // dispara crear-orden y capturar al volver de PayPal (ver
+                        // PayPalCheckoutService, no verifica firma de webhook todavia).
+                        .requestMatchers("/v1/paypal/**").authenticated()
+
                         // ── Webhook Facebook -- comentarios (llamada sin auth desde Meta,
                         // validado por firma X-Hub-Signature-256 dentro del controlador) ──────
                         .requestMatchers("/v1/redes-sociales/facebook/webhook").permitAll()
@@ -369,6 +383,9 @@ public class SecurityConfig {
 
                         // ── Pagos catálogo ────────────────────────────────────────────────
                         .requestMatchers("/v1/pagos/**").hasRole("ADMIN")
+
+                        // ── Reembolso de pagos online (2026-09-03, ver PagoOnlineService) ──
+                        .requestMatchers("/v1/pagos-online/**").hasRole("ADMIN")
 
                         // ── Gastos ────────────────────────────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/gastos/**").hasAnyAuthority(pantalla("gastos/buscar"))

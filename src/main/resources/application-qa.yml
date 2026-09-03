@@ -116,6 +116,14 @@ mercadopago:
   device-id: ${DEVICE_ID}
   sandbox: true
 
+# Vacio hasta que se de de alta la cuenta de PayPal Business (ver PASARELAS_PAGO_MP_OPENPAY_PAYPAL.md
+# seccion 7) -- con client-id/secret vacios, PayPalCheckoutService se auto-deshabilita al arrancar
+# sin tronar el resto de la app (ver el comentario en su @PostConstruct).
+paypal:
+  client-id: ${PAYPAL_CLIENT_ID:}
+  client-secret: ${PAYPAL_CLIENT_SECRET:}
+  sandbox: true
+
 redis:
   dns: redis
 
