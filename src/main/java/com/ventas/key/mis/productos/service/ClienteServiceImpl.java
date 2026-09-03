@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -168,11 +169,29 @@ implements IClienteService {
      * recien registrado no se podia leer por este endpoint una vez que la respuesta quedaba en
      * cache. El front (cliente.service.ts) ya esperaba un Cliente plano en `data`, no un
      * Optional, asi que este cambio no le afecta.
+     *
+     * Mismo problema, otra variante (encontrado 2026-09-03): listDirecciones es @OneToMany LAZY,
+     * asi que Hibernate lo entrega como un proxy (org.hibernate.collection.internal.PersistentSet),
+     * no un Set comun. El ObjectMapper de Redis usa "default typing" (CacheTtlConfig/RedisConfig)
+     * para poder reconstruir el tipo real al leer -- eso significa que guarda el nombre de esa
+     * clase de Hibernate en el JSON. En la siguiente peticion (cache hit), Jackson intenta
+     * reconstruir un PersistentSet de verdad, que exige una Session de Hibernate activa -- y como
+     * ya es una peticion distinta, no hay ninguna, y truena con "failed to lazily initialize a
+     * collection: could not initialize proxy - no Session" (se ve como "Could not read JSON"
+     * porque asi reporta el error GenericJackson2JsonRedisSerializer.deserialize()). Se fuerza la
+     * carga aqui (todavia con la Session de esta peticion abierta) y se copia a un LinkedHashSet
+     * comun antes de cachear, para que lo que se guarde en Redis sea un tipo que Jackson pueda
+     * reconstruir sin depender de Hibernate.
      */
     @Override
+    @Transactional(readOnly = true)
     @Cacheable(value = "clienteCache", key = "#id")
     public ResponseGeneric<Cliente> findClienteById(int id) {
-        return new ResponseGeneric<>(this.iClienteRepository.findClienteById(id).orElse(null));
+        Cliente cliente = this.iClienteRepository.findClienteById(id).orElse(null);
+        if (cliente != null && cliente.getListDirecciones() != null) {
+            cliente.setListDirecciones(new LinkedHashSet<>(cliente.getListDirecciones()));
+        }
+        return new ResponseGeneric<>(cliente);
     }
 
     @Override
