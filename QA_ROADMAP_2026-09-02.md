@@ -127,18 +127,18 @@ blanco).
 >
 > **✅ Se encontraron y corrigieron DOS causas más, independientes de la de arriba:**
 > 1. **El input del código tenía `autocomplete="one-time-code"`** — ese atributo activa el
->    autofill de SMS de Android/Chrome (sugiere o inserta automáticamente un código detectado en
->    un mensaje de texto reciente). Este código llega por **correo**, no por SMS: si el celular
->    tenía cualquier otro SMS con un código de 6 dígitos alrededor de esa hora (banco,
->    paquetería, verificación en dos pasos de otra app), Android pudo autocompletar el campo con
->    ESE código ajeno sin que se notara — el usuario ve 6 dígitos y los manda creyendo que son
->    los correctos, pero no son los que llegaron al correo. Se quitó el atributo.
+     >    autofill de SMS de Android/Chrome (sugiere o inserta automáticamente un código detectado en
+     >    un mensaje de texto reciente). Este código llega por **correo**, no por SMS: si el celular
+     >    tenía cualquier otro SMS con un código de 6 dígitos alrededor de esa hora (banco,
+     >    paquetería, verificación en dos pasos de otra app), Android pudo autocompletar el campo con
+     >    ESE código ajeno sin que se notara — el usuario ve 6 dígitos y los manda creyendo que son
+     >    los correctos, pero no son los que llegaron al correo. Se quitó el atributo.
 > 2. **Bug real en el envío automático de código** (login con cuenta sin verificar, y registro
->    nuevo): el front navegaba a la pantalla de verificación marcando `codigoEnviado: true`
->    **aunque el envío del código hubiera fallado** (red, límite de intentos, etc.) — si fallaba,
->    la pantalla de verificación creía que ya existía un código válido esperando y nunca
->    reintentaba ni mostraba ningún error; el usuario quedaba escribiendo contra un código que
->    nunca llegó a generarse. Ahora ese flag solo se manda cuando el envío sí tuvo éxito.
+     >    nuevo): el front navegaba a la pantalla de verificación marcando `codigoEnviado: true`
+     >    **aunque el envío del código hubiera fallado** (red, límite de intentos, etc.) — si fallaba,
+     >    la pantalla de verificación creía que ya existía un código válido esperando y nunca
+     >    reintentaba ni mostraba ningún error; el usuario quedaba escribiendo contra un código que
+     >    nunca llegó a generarse. Ahora ese flag solo se manda cuando el envío sí tuvo éxito.
 >
 > Commit `fe537ae` (frontend), ya en `qa`. **Si al volver a probar sigue fallando**, lo más útil
 > que me puedes mandar es: (a) otro curl igual de completo al que mandaste, (b) si fue en el
@@ -208,20 +208,20 @@ aparecer ahí** — solo aplica al autoregistro.
 > **Respuesta:** lo que probaste salió bien — que NO aparezca ahí es el comportamiento
 > correcto, no un bug. Son dos pantallas distintas con dos propósitos distintos:
 > - **Registro público** (`/usuarios/registrar`, sección de arriba) — el checkbox SÍ aparece
->   y SÍ es obligatorio, porque ahí es donde una persona crea su cuenta por primera vez.
+    >   y SÍ es obligatorio, porque ahí es donde una persona crea su cuenta por primera vez.
 > - **Admin editando a otro usuario** ("Actualizar usuario") — el checkbox NO aparece a
->   propósito, porque el admin no está creando la cuenta, solo edita datos de alguien que ya
->   se registró (y ya aceptó, o no existiría la cuenta).
+    >   propósito, porque el admin no está creando la cuenta, solo edita datos de alguien que ya
+    >   se registró (y ya aceptó, o no existiría la cuenta).
 >
 > Dicho esto, tu pregunta de fondo era válida — confirmaste que sí, sí o sí es obligatorio para
 > registrarse (ya estaba así), y pediste que tanto el admin como el propio cliente pudieran
 > verlo. **✅ Agregado:**
 > - **Admin** — en "Actualizar usuario" (esta misma pantalla), arriba de todo, ahora se ve un
->   aviso: "✅ Aceptó el aviso de privacidad el DD/MM/AAAA HH:mm" (en rojo "❌ No aceptó..." si
->   es una cuenta vieja de antes de este control). Es de solo lectura, no se puede editar desde
->   ahí — se aceptó una sola vez, en el registro.
+    >   aviso: "✅ Aceptó el aviso de privacidad el DD/MM/AAAA HH:mm" (en rojo "❌ No aceptó..." si
+    >   es una cuenta vieja de antes de este control). Es de solo lectura, no se puede editar desde
+    >   ahí — se aceptó una sola vez, en el registro.
 > - **El propio cliente** — en el menú de usuario → **"Mi perfil"**, arriba de "Datos de
->   cuenta", la misma info con link directo al aviso de privacidad.
+    >   cuenta", la misma info con link directo al aviso de privacidad.
 
 **Ruta de clics (probar lo agregado — lado admin):** como ADMIN, menú lateral → acordeón
 **🛠️ Sistema** → **"👥 Usuarios"** → busca el usuario que registraste en el paso 1 → botón para
@@ -244,19 +244,19 @@ el admin, pero ya revise admin y no lo veo asi
 Ahora necesito aclarar estos punto, se supone que lo que yo queria era lo que tengo en la pantalla poderlo asignar si asi quisiera
 Ejemplo
 tienda/buscar
-    Lo primero es revisar si este uri el cliente lo puede visitar o tiene acceso este es un ejemplo porque se supone
-    que este es publico pero digamos que no lo es, entonces primero el usuario tieiene este permiso
-    Por eso te decia que tenemos que tener todas las uri para asignarlas a los usuarios
-    Por ejemplo creo un rol Solo tienda por ejemplo entonces ya primero veo todas las rutas que existen pero claro tienen
-    que estar como unidas a que me refiero si ponemos esta uri tenemos que tener todo lo que tiene esta uri
-    ejemplo un buscador, que ese buscador al poner algo hace la peticion a un endpoint eso tambnien tenerlo para configurar que pasa si no quiero que tenga esa opcion
-    esta misma pantalla tiene el carrito lo mismo poner el carrito y la uri a la que hace la peticion para saber si se lo damos,
-    Tambien tiene los filtros pero me gustaria que fueran idividuales para solo agregar uno aqui lo mismo si agrego un filtro pues si debe dejar hacer la busqueda por ese filtro
-    Y asi con las demas opciones, ahora ya termine esta pantalla
-    Ahora me voy a catalogo modelos, lo mismo esta opcion se la asigno al usuario la podria ver, si por alguna razon no se la asigno entinces no tendria permiso a nuinguna de este modelo por ejemplo a la mejor
-    Puede pasar que no le tiene permiso para ese uri pero a la mejor se quedo seleccionado otros permisos dentro de ese modelo
-    Entonces en postman si podria hacer las peticiones entinces si no tiene ese menu no puede acceder a ningun otro endpoint entiendes?
-    Te lo digo porque modelo es similar a tienda solo que aca son los productos y tiene casi los mismos filtros igual lo mismo que en tienda
+Lo primero es revisar si este uri el cliente lo puede visitar o tiene acceso este es un ejemplo porque se supone
+que este es publico pero digamos que no lo es, entonces primero el usuario tieiene este permiso
+Por eso te decia que tenemos que tener todas las uri para asignarlas a los usuarios
+Por ejemplo creo un rol Solo tienda por ejemplo entonces ya primero veo todas las rutas que existen pero claro tienen
+que estar como unidas a que me refiero si ponemos esta uri tenemos que tener todo lo que tiene esta uri
+ejemplo un buscador, que ese buscador al poner algo hace la peticion a un endpoint eso tambnien tenerlo para configurar que pasa si no quiero que tenga esa opcion
+esta misma pantalla tiene el carrito lo mismo poner el carrito y la uri a la que hace la peticion para saber si se lo damos,
+Tambien tiene los filtros pero me gustaria que fueran idividuales para solo agregar uno aqui lo mismo si agrego un filtro pues si debe dejar hacer la busqueda por ese filtro
+Y asi con las demas opciones, ahora ya termine esta pantalla
+Ahora me voy a catalogo modelos, lo mismo esta opcion se la asigno al usuario la podria ver, si por alguna razon no se la asigno entinces no tendria permiso a nuinguna de este modelo por ejemplo a la mejor
+Puede pasar que no le tiene permiso para ese uri pero a la mejor se quedo seleccionado otros permisos dentro de ese modelo
+Entonces en postman si podria hacer las peticiones entinces si no tiene ese menu no puede acceder a ningun otro endpoint entiendes?
+Te lo digo porque modelo es similar a tienda solo que aca son los productos y tiene casi los mismos filtros igual lo mismo que en tienda
 Otra pantalla CATALOGO AGREGAR MODELO y asi para los demas creo que el fitro solo es el que mas importa lo demas tiene que tener acceso o que le asigne ese permiso
 Por eso te digo que tenemos que seleccionar o tener esas opciones ojo cada opcion que aparezca digamos en la asignacion de roles y permisso
 por ejemplo eta la uri tienda/modelo, esta si es conocida peroq ue pasa si pones otra ruta que a la mejor no se
@@ -273,21 +273,21 @@ entonces en los permisos como lo veo es asi
 Asi quedaria
 
 Menu
-    Pedido y aqui no se como se maneje si no hace peticiones a ningun lado pues lo dejamos pero si hace peticiones pues mencionarlas para saber que hace cuando selecciona ese item del menu
-    hISTORIAL MERCADO PAGO ES BOTON Ycomo algo qu diga que hace ese boton y a donde hace las peticiones para saber si lo activo o doy permiso o no
-    buscador pedido lo mismo a donde hace peticion y que hace
-        pagados lo mismo
-        cancelados
-    filtro por lugar lo mismo saber a done hace la peticion y que hace y para que y puedo asignar a un usuario
-        normal
-        apartado
-        ir pagando lo mismo
+Pedido y aqui no se como se maneje si no hace peticiones a ningun lado pues lo dejamos pero si hace peticiones pues mencionarlas para saber que hace cuando selecciona ese item del menu
+hISTORIAL MERCADO PAGO ES BOTON Ycomo algo qu diga que hace ese boton y a donde hace las peticiones para saber si lo activo o doy permiso o no
+buscador pedido lo mismo a donde hace peticion y que hace
+pagados lo mismo
+cancelados
+filtro por lugar lo mismo saber a done hace la peticion y que hace y para que y puedo asignar a un usuario
+normal
+apartado
+ir pagando lo mismo
 ESTAN LAS CARD AQUI por cada card
-    detalle
-        editar ramo
-        imprimir ticket
-        reenviar tiket
-        como llegar
+detalle
+editar ramo
+imprimir ticket
+reenviar tiket
+como llegar
 
 y tambien los botones de chatbol y las redes sociales entiendes hasta aqui, no hagas nada primero tenemos que entender las cosas para seguir
 
@@ -306,6 +306,10 @@ tu nombre de usuario → ahí dale clic a **"Mis datos"** (ícono 👤).
 
 **Qué esperar:** el toggle debe aparecer **activado** por default (así nace todo cliente nuevo o
 existente que nunca lo tocó).
+Pero aqui pense que los correos de stock iba a ser para el admin es decir para mi, porque para el cliente si no hace el pedido solo se hace si tiene stock y no se guarda en base que quiso algo que ya no hay y sobre los correo tambien debe a ver un chec en donde le podamos decir o enviar las promociones que tenemos si en los clientes tiene el chec seleccionado entonces les llegaria y lo mismo cada cliente tiene que tener los chec para des habilitar lso correos, actualmente lo que se me ocurre es que tengan el check de las promociones nada mas y cuando yo haga una promocion envio los correos pero como te habia dicho en las promociones una opcion para prgramar enviar de 10 en 10 coprreo a todos los que tengan el check seleccionado y en ese correo tiene que mencionarle que si no quiere recibir los correos explicarle en dodne ir para quitarlos
+Y hace fa;lta hacer eso en las promociones para poder hacer pruebas de enviar el correo en una promocion
+Y tambien explicarle donde encontraria las promociones
+Y esos si cuando se hace un pedido de parte del cleinte o del admin tiene que envioar el correo del ticket y para el clinete si el cliente hace un pedido me tiene que llegar un correo avisando que hizo un pedido
 
 **Pasos (continuación):**
 2. Apágalo.
@@ -333,9 +337,9 @@ ya no quiero que me lleguen corres y pues ya no le llegan solo los de restableci
 
 y YA QUE ANDO REVISANDO AQUI
 Primero
-    Una persona puede entrar a la tienda sin tener que estar registrada, puede ver los productos y hasta puede agregar al carrito
-    pero lo que no puede hacer es generar el pedido porque primero se tiene que dar de alta como usuario y
-    entonces ahi cuando de generar pedido si no esta registrado tiene que mandar el mensaje que ya esta que dice que para genrar
+Una persona puede entrar a la tienda sin tener que estar registrada, puede ver los productos y hasta puede agregar al carrito
+pero lo que no puede hacer es generar el pedido porque primero se tiene que dar de alta como usuario y
+entonces ahi cuando de generar pedido si no esta registrado tiene que mandar el mensaje que ya esta que dice que para genrar
 el pedido se tiene que registrar primero me parece y no debe dejar generar pedido ni nada
 entonces cuando el usuario se registra la opcion cliente se da de alta pero todo vacio solo el id se genera porque porque
 para que pase el usuario tiene que ir a registrar sus datos para poder genrar un pedido para saber quien es entonces la segunda es
@@ -344,7 +348,7 @@ a la pantalla de llenar sus datos del cliente y ya al final si tiene todo listo 
 con el puro id y actualmene quiero generar el pedido pero dice que no encuentra el cliente y en este caso el cliente ya deberia estar ahora deberia mencionar que para generar un pedido
 tiene que generar o llenar sus datos y con l opciona enviarlo me parece que eso ya esta solo es revisarlo bien y otra cosa cuando agrego cosas al carrito y me envia a generar el pedido
 aparece la opcion de enviar  o lugar de entrega y eso no debe aparecer aca o si? porque si hace un pedido y lo paga en linea tiene que pasar al local a recogerno no? o como lo ves?
-Hay que revisar porque a veces me dice o me aparece el modal que tengo que llenar mis datos y a veces sale el error que te menciono para que revises bien 
+Hay que revisar porque a veces me dice o me aparece el modal que tengo que llenar mis datos y a veces sale el error que te menciono para que revises bien
 Esto lo hice como cliente o usuario normal
 req
 curl 'https://qa.backend.novedades-jade.com.mx/mis-productos/v1/clientes/buscarPorIdCliente/28' \
@@ -493,6 +497,8 @@ cobro"** y **"Cancelar"**.
 normalmente (el envío del correo es "silencioso": si falla o se omite, no debe romper la
 operación del pedido).
 
+Pero aqui debe de enviar correo si es que se llega a cancelar el pedido ya sea por el usuario o por el tiempo que no recogieron ahi tiene el tiempo
+
 ---
 
 ## 5. Alerta de "volvió el stock" (Favoritos)
@@ -535,7 +541,7 @@ agotado→reabastecido.
 desplegarlo → ahí verás varias opciones, entre ellas **"🏪 Negocio & Contactos"** → dale clic →
 se abre la pantalla de configuración del negocio → baja hasta la sección
 **"📦 Alertas de stock bajo"** (es la última, después de Estado/Horario/Contactos).
-
+Ya lo veo que este correo es para el adminn, entonces para los clientes es solo si da corazoncito no?
 **Pasos:**
 1. Verifica que el campo de umbral muestre **5** por default (si nunca se ha tocado).
 2. Cámbialo (ej. a 10) → **Guardar umbral**.
@@ -554,7 +560,7 @@ se abre la pantalla de configuración del negocio → baja hasta la sección
 
 **Qué esperar:** cada usuario con rol ADMIN y correo activo debe recibir un correo
 **"Aviso de stock bajo (N)"** con la lista completa de variantes bajas y su stock actual.
-
+Consulta que pasa si ya no metyo mas stock a ese variante cada dia enviaria el correo?
 **Pasos (continuación):**
 6. Sube el stock de esa variante por encima del umbral y vuelve a disparar el barrido.
 
@@ -571,6 +577,8 @@ tarjeta y fraude por contracargo: se agregó a Términos y condiciones, no a Pri
 general (no menciona ninguna pasarela específica todavía, porque aún no se elige ni implementa
 una) — cuando se implemente la pasarela elegida, este texto se puede afinar con detalles propios
 de esa pasarela si hace falta.
+Hay que implementar lo que te comente que si cancela despues de pagar que se le va a cobrar pero al cliente
+
 
 **Ruta de clics:** no requiere sesión — desde cualquier pantalla, en el pie de página o donde
 esté enlazado, dale clic a **"Términos y condiciones"** (o navega directo a `/termConditions`).
@@ -786,3 +794,70 @@ Si en algún momento te aparece el error de “serial con formato inválido”, 
 Cómo resolver “Device serial with invalid format”
 
 Si querés, pegá aquí (tapando tu token) **solo el fragmento del id** que te devuelve el listado de dispositivos, y te digo cuál es el deviceId que corresponde a tu Point Smart 2.
+
+---
+
+## 10. Mercado Pago Point — cómo funcionan las devoluciones/reembolsos (para cerrar el circuito de pruebas)
+
+> 💬 **Tu pregunta:** "ayudame a bajar cambios de back par que revises el roadmap y veas lo que
+> agregue de mercado pago para la simulacion necesito que busques eso y lo complementes para el
+> caso de las devoluciones si cobran o que pasa o como hacerle?"
+
+Complementando el punto 8 del hilo pegado arriba ("cerrá el circuito de prueba haciendo el
+reembolso") — esto es lo que dice la documentación oficial de Mercado Pago sobre reembolsos de
+pagos con Point, verificado por búsqueda (no de memoria):
+
+**¿Cobran algo por hacer la devolución? No.**
+Al reembolsar un pago, Mercado Pago devuelve el dinero al cliente y **te acredita de vuelta la
+comisión de venta que ya te habían cobrado** — o sea, ni vos ni el cliente pagan nada extra por la
+devolución en sí. El cliente no queda con ningún cargo por el pago que te hizo. Esto aplica igual a
+tus pruebas: cobrás el monto mínimo, lo devolvés, y no perdés la comisión ni el cliente (de prueba)
+paga de más.
+
+**¿Cómo se hace? Dos caminos:**
+
+1. **Desde la terminal / app de Mercado Pago (manual, el que menciona el hilo pegado arriba):**
+   Actividad → seleccionás el cobro → "Devolver dinero" → indicás el monto (podés devolver menos
+   del total si es parcial) → confirmar. Es el camino más simple para cerrar el circuito de prueba
+   sin escribir código.
+
+2. **Por API (si en algún momento se quiere automatizar la devolución desde el back, no solo para
+   pruebas manuales):** hay dos endpoints distintos según qué se está reembolsando:
+    - `POST /v1/payments/{id}/refunds` — reembolso clásico sobre un pago ya aprobado, usando el
+      `payment.id` (el mismo que ya se consulta en `MercadoPagoService.consultarEstado`/webhook vía
+      `getPaymentIntentStatus`, o el que llega en la notificación). Sin `amount` en el body = reembolso
+      total; con `amount` = reembolso parcial.
+    - `POST /v1/point/orders/{order_id}/refund` (Point Orders API) — específico para pagos cobrados
+      con Point vía el modelo de "orders". Mismo criterio: sin `amount` = total, con `amount` =
+      parcial (soporta varios reembolsos parciales sobre la misma orden mientras la suma no supere
+      el total). Solo funciona sobre órdenes con `status=processed`.
+    - **Plazo:** hasta 90 días después de aprobado el pago (algunos medios de pago específicos de
+      otros países tienen ventanas más cortas, no aplica a México/tarjeta física).
+    - Respuesta exitosa: `201`, con el pago pasando a `refunded` (total) o `partially_refunded`
+      (parcial).
+
+**Estado actual en el código — esto NO está implementado, es solo para pruebas manuales por ahora:**
+`MercadoPagoService.java` únicamente tiene `cancelar(intentId)`
+(`PointClient().cancelPaymentIntent(...)`), que **cancela una intención de cobro que todavía no se
+cobró** (antes de que el cliente pase la tarjeta) — no es un reembolso, es evitar que se llegue a
+cobrar. No hay ningún método que llame a `/refunds` sobre un pago ya `FINISHED`.
+
+Del lado de negocio, `PedidoServiceImpl` sí tiene el concepto de devolución (`esDevolucion` cuando
+el pedido está "Entregado" o "PAGADO"), pero **solo maneja inventario** (regresa el stock) — no
+dispara ningún reembolso real a Mercado Pago. Si un pedido se cobró con la terminal Point y se
+marca como devuelto en el sistema, hoy el dinero no se devuelve solo: hay que hacerlo aparte, a
+mano, desde la terminal/app como se explica arriba.
+
+**Para tus pruebas de ahora mismo:** no hace falta tocar código — devolvé el cargo de prueba desde
+la terminal o la app (opción 1) y listo, no se pierde comisión ni queda nada pendiente.
+
+**Pregunta abierta (para cuando termines de probar el cobro):** ¿querés que además implemente la
+devolución automática por API (opción 2) enganchada a cuando un admin marca un pedido pagado con
+Point como devuelto, o por ahora lo dejamos manual desde la terminal/app como está? Es un cambio de
+código nuevo, no algo que ya exista a medias.
+
+Fuentes consultadas: [Reembolsar una order — API Orders (Point)](https://www.mercadopago.com.mx/developers/es/reference/in-person-payments/point/orders/refund-order/post),
+[Crear reembolso — Reembolsos](https://www.mercadopago.com.mx/developers/es/reference/chargebacks/_payments_id_refunds/post),
+[¿Cómo voy a recibir el reembolso de una compra de Point?](https://www.mercadopago.com.mx/ayuda/28577),
+[Tengo que devolver un pago con Point](https://www.mercadopago.com.mx/ayuda/tengo-que-devolver-un-pago-con-point_2608),
+[Generá reembolsos parciales vía API con Mercado Pago Point](https://www.mercadopago.com.ar/developers/es/news/2025/12/15/Generate-partial-refunds-via-API-with-Mercado-Pago-Point).
