@@ -242,7 +242,39 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido saved = this.iPedidoRepository.save(pedido);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        notificarPedidoCreado(saved);
         return saved;
+    }
+
+    /**
+     * Al generar un pedido (2026-09-03): confirmación SIEMPRE al cliente (comprobante, no
+     * transaccional -- no depende de recibirCorreos, ver EmailService.enviarConfirmacionPedido) y
+     * aviso a los admins SOLO si quien generó el pedido fue el propio cliente (si lo generó un
+     * admin, ya lo sabe). Nunca debe tumbar la transacción de creación del pedido si el correo falla.
+     */
+    private void notificarPedidoCreado(Pedido pedido) {
+        try {
+            Cliente cliente = pedido.getCliente();
+            if (cliente != null && cliente.getCorreoElectronico() != null && !cliente.getCorreoElectronico().isBlank()) {
+                emailService.enviarConfirmacionPedido(
+                        cliente.getCorreoElectronico(), cliente.getNombrePersona(), pedido.getId(), pedido.getTotalPedido());
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo enviar confirmacion de pedido id={}: {}", pedido.getId(), e.getMessage());
+        }
+
+        if (AuthenticationUtils.isAdminContext()) return;
+
+        try {
+            String nombreCliente = pedido.getCliente() != null ? pedido.getCliente().getNombrePersona() : "Cliente";
+            List<Usuario> admins = iUsuarioRepository.findByRoles_NombreRolAndEnabledTrue("ROLE_ADMIN");
+            for (Usuario admin : admins) {
+                if (admin.getEmail() == null || admin.getEmail().isBlank()) continue;
+                emailService.enviarAvisoNuevoPedido(admin.getEmail(), pedido.getId(), nombreCliente, pedido.getTotalPedido());
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a los admins del pedido nuevo id={}: {}", pedido.getId(), e.getMessage());
+        }
     }
 
     // El precio/subtotal que manda el cliente en una linea normal (sin promocionId) debe

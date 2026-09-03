@@ -102,7 +102,7 @@ public class PromocionController {
     @PostMapping("/{id}/enviar-correo")
     public ResponseEntity<ResponseGeneric<String>> enviarCorreo(@PathVariable Integer id) {
         try {
-            promocionService.validarExistePromocion(id);
+            promocionService.validarPromocionVigenteParaCorreo(id);
             long elegibles = promocionService.contarElegiblesParaCorreoPromocion();
             promocionService.enviarCorreoPromocionAsync(id);
             return ResponseEntity.ok(new ResponseGeneric<>(

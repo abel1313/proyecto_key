@@ -186,13 +186,24 @@ public class PromocionServiceImpl {
     }
 
     // Valida sincronicamente ANTES de disparar el envio async -- enviarCorreoPromocionAsync ya
-    // valida el id tambien, pero @Async corre en otro hilo: si se dejara solo esa validacion, un
-    // id invalido le devolveria 200 "envio iniciado" al admin y el error quedaria solo en el log.
+    // vuelve a validar (por si la promocion se desactiva/vence en el rato que tarda el envio),
+    // pero @Async corre en otro hilo: si se dejara solo esa validacion, una promocion invalida o
+    // vencida le devolveria 200 "envio iniciado" al admin y el error quedaria solo en el log.
+    // Pedido 2026-09-03: no se puede mandar el correo de una promocion que ya no esta vigente.
     @Transactional(readOnly = true)
-    public void validarExistePromocion(Integer id) {
-        if (!iPromocionRepository.existsById(id)) {
-            throw new ExceptionDataNotFound("Promocion no encontrada: " + id);
+    public void validarPromocionVigenteParaCorreo(Integer id) {
+        Promocion promo = iPromocionRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Promocion no encontrada: " + id));
+        if (!esVigente(promo)) {
+            throw new RuntimeException("La promocion '" + promo.getDescripcion()
+                    + "' no esta vigente (inactiva o vencida) -- no se puede enviar el correo.");
         }
+    }
+
+    private boolean esVigente(Promocion promo) {
+        return Boolean.TRUE.equals(promo.getActivo())
+                && promo.getFechaVencimiento() != null
+                && promo.getFechaVencimiento().isAfter(LocalDateTime.now());
     }
 
     /**
@@ -206,8 +217,17 @@ public class PromocionServiceImpl {
     @Async("correoMasivoExecutor")
     public void enviarCorreoPromocionAsync(Integer promocionId) {
         try {
-            Promocion promo = iPromocionRepository.findById(promocionId)
+            // findByIdConDetalle (no findById) -- hace falta el primer detalle para sacarle la
+            // imagen a la variante y que el correo no se vea "muy sencillo" (pedido 2026-09-03).
+            Promocion promo = iPromocionRepository.findByIdConDetalle(promocionId)
                     .orElseThrow(() -> new RuntimeException("Promocion no encontrada: " + promocionId));
+            if (!esVigente(promo)) {
+                log.warn("Correo de promocion {} cancelado: ya no esta vigente (inactiva o vencida)", promocionId);
+                return;
+            }
+            String imagenUrl = promo.getDetalles() != null && !promo.getDetalles().isEmpty()
+                    ? obtenerImagenUrl(promo.getDetalles().get(0).getVariante().getId())
+                    : null;
 
             int pagina = 0;
             int enviados = 0;
@@ -218,7 +238,7 @@ public class PromocionServiceImpl {
                         PageRequest.of(pagina, TAMANO_LOTE_CORREO_PROMOCION));
                 for (Cliente cliente : lote.getContent()) {
                     boolean ok = emailService.enviarPromocion(
-                            cliente.getCorreoElectronico(), cliente.getNombrePersona(), promo.getDescripcion());
+                            cliente.getCorreoElectronico(), cliente.getNombrePersona(), promo.getDescripcion(), imagenUrl);
                     if (ok) enviados++; else fallidos++;
                 }
                 pagina++;
@@ -237,15 +257,29 @@ public class PromocionServiceImpl {
         }
     }
 
+    // Pedido 2026-09-03: "se supone que si hago una promocion es porque hay existencias" -- antes
+    // no se validaba nada de stock al crear/editar, asi que se podia armar un combo que ya
+    // calculaba 0 instancias disponibles (calcularInstanciasDisponibles) y el admin no se
+    // enteraba hasta que lo veia "Sin disponibilidad" en el catalogo publico. Ahora se exige que
+    // alcance para AL MENOS 1 combo completo en el momento de guardar.
     private List<PromocionDetalle> construirDetalles(PromocionRequestDto dto, Promocion promo) {
         List<PromocionDetalle> detalles = new ArrayList<>();
         for (PromocionDetalleRequestDto d : dto.getDetalles()) {
             Variantes variante = iVarianteRepository.findById(d.getVarianteId())
                     .orElseThrow(() -> new RuntimeException("La variante " + d.getVarianteId() + " no existe"));
+            int cantidadRequerida = d.getCantidad() != null ? d.getCantidad() : 1;
+            int stockActual = variante.getStock();
+            if (stockActual < cantidadRequerida) {
+                throw new RuntimeException("No hay existencias suficientes de "
+                        + variante.getProducto().getNombre()
+                        + (variante.getTalla() != null ? " (talla " + variante.getTalla() + ")" : "")
+                        + " para armar ni un combo -- stock actual: " + stockActual
+                        + ", necesarios por combo: " + cantidadRequerida);
+            }
             PromocionDetalle detalle = new PromocionDetalle();
             detalle.setPromocion(promo);
             detalle.setVariante(variante);
-            detalle.setCantidad(d.getCantidad() != null ? d.getCantidad() : 1);
+            detalle.setCantidad(cantidadRequerida);
             detalle.setPrecioEnPromocion(d.getPrecioEnPromocion());
             detalles.add(detalle);
         }
