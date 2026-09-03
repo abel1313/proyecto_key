@@ -21,20 +21,61 @@ para decidir el diseño antes de programar.
 | **Documento fiscal** | Constancia de Situación Fiscal actualizada (se descarga del portal del SAT) | Constancia de situación fiscal expedida en los últimos 6 meses + Pasaporte o INE | — |
 | **Requisito particular** | Ninguno adicional relevante | **Debe ser cliente BBVA con cuenta de cheques empresarial** — esto es un filtro real, hay que confirmar si el negocio ya tiene o puede abrir una | Ninguno adicional para cuenta básica |
 | **Costo de alta** | Gratis | Gratis (aprobación sujeta a revisión de OpenPay) | Gratis |
-para este que se tiene que tener chequera hay que descartarlo
 
-**Nota importante:** el requisito de OpenPay de ser cliente BBVA con cuenta empresarial es el
-único de los tres que depende de una relación bancaria específica — hay que confirmarlo antes de
-invertir tiempo en su integración, porque si el negocio no es o no puede ser cliente BBVA, OpenPay
-queda descartado sin importar lo demás.
+> 💬 **Tu comentario:** "para este que se tiene que tener chequera hay que descartarlo"
+>
+> **✅ Decidido: OpenPay queda descartado.** De las 3 pasarelas investigadas quedan **Mercado Pago
+> y PayPal**. No se vuelve a mencionar OpenPay en el resto de este documento salvo como referencia
+> histórica de por qué se descartó.
 
-Y aqui lo que estoy revisando y quiero que busques en fuentes confiables y sin enventar, necesito que busques dcual es la forma de hacer el negocio los pagos, es decir separar las cuentas personales con las del negocio, por ejemplo la ceunta de mercado pago que tengo para la aplicacion esta en en la cuenta ya del negocio, la de paypal igual aqui lo que quiero que busques es cual sera la forma de hacer los cobros si no hay algun problema con el sat o con el estado porque no tengo RFC para el negocio tengo rfc yo personalmente persona fisica pero quiero que el negocio sea aparte pero como te digo no tengo dado de alta el negocio para que veas que puede pasar
+**Nota importante (histórica):** el requisito de OpenPay de ser cliente BBVA con cuenta empresarial
+era el que lo descartó — no depende de nosotros, depende de una relación bancaria que no se tiene.
+
+### 1.1 Separar cuentas personales del negocio sin tener RFC de negocio — qué dice el SAT
+
+> 💬 **Tu pregunta:** "quiero que busques cuál será la forma de hacer los cobros si no hay algún
+> problema con el SAT o con el estado porque no tengo RFC para el negocio, tengo RFC yo
+> personalmente persona física pero quiero que el negocio sea aparte pero no tengo dado de alta el
+> negocio."
+
+Investigado en fuentes oficiales/especializadas (no inventado). **Aviso: esto es información
+general, no es asesoría fiscal formal — para la decisión final conviene confirmarlo con un
+contador**, pero esto es lo que encontré:
+
+- **Ya tenés RFC** (persona física), pero por lo que describís (cuentas de MP/PayPal del negocio
+  abiertas con tu RFC personal, sin haber dado de alta actividad empresarial) el RFC probablemente
+  está registrado en un régimen que **no cubre ingresos por actividad empresarial** (ej. régimen de
+  sueldos/asalariados). El dinero que entra por la tienda es, a ojos del SAT, ingreso por actividad
+  empresarial — y recibirlo bajo un RFC sin ese régimen dado de alta es una **actividad no
+  registrada** ante el SAT: infracción al Artículo 27 del Código Fiscal de la Federación, con multa
+  de **$4,220 a $13,020 MXN** por no registrarse correctamente (Artículo 80 CFF).
+- **Desde el 1 de abril de 2026 el SAT tiene acceso en tiempo real a los datos de las plataformas
+  digitales** (Mercado Pago, PayPal, etc.) — ya no es "capaz que no se dan cuenta", están viendo
+  las operaciones conforme pasan.
+- **No hace falta crear una persona moral (empresa aparte) para separar esto.** La vía normal para
+  "quiero seguir siendo persona física pero que el negocio esté formalmente separado/declarado" es
+  dar de alta (o actualizar) tu mismo RFC con el régimen **RESICO (Régimen Simplificado de
+  Confianza)** si tus ingresos anuales no superan $3,500,000 MXN — permite actividad empresarial
+  con tasas de ISR reducidas, requiere e.firma y Buzón Tributario activos, y expedir CFDI (factura
+  electrónica) por lo que vendas. Es el régimen pensado exactamente para este caso (negocio chico
+  operado por una persona física).
+- **Consecuencia práctica de NO estar dado de alta correctamente:** las plataformas (MP/PayPal)
+  pueden aplicarte retenciones altas por default sobre lo que te depositan (hasta 20% de ISR + 100%
+  del IVA cuando no detectan un RFC válido con el régimen correcto) — aparte del riesgo de multa
+  del SAT. Dado de alta en RESICO, esas retenciones bajan mucho y quedás del lado correcto.
+
+**Siguiente paso recomendado (no es código, es trámite):** dar de alta actividad empresarial bajo
+RESICO en tu RFC actual (trámite en el portal del SAT, gratis) antes de escalar el volumen de
+cobros por MP/PayPal — así separás formalmente lo personal de lo del negocio sin necesitar
+constituir una empresa aparte.
 
 **Fuentes:**
 - Mercado Pago — RFC y cuenta empresa: https://www.mercadopago.com.mx/blog/dar-de-alta-rfc-cuenta-negocio · https://www.mercadopago.com.mx/blog/requisitos-cuenta-empresa-mercado-pago
-- OpenPay — requisitos de solicitudes de pago: https://ayuda.openpay.mx/ayuda/cuales-son-los-requisitos-para-utilizar-solicitudes-de-pago/
-- OpenPay — guía de validación documental persona moral (PDF oficial): https://public.openpay.mx/web/descargables/2025/guia-validacion-documental-persona-moral.pdf
 - PayPal — condiciones de uso: https://www.paypal.com/mx/legalhub/paypal/useragreement-full
+- Obligaciones fiscales SAT para ventas digitales 2026: https://base.com/es-MX/blog/obligaciones-fiscales-sat-ecommerce-2026/
+- SAT vigilando PayPal y Mercado Pago en tiempo real desde abril 2026: https://www.mibolsillo.com/tips/confirmado-sat-vigila-paypal-y-mercado-pago-en-2026-transferencias-bajo-revision-fiscal-evita-multas-20260115-0025.html
+- Persona física con actividad empresarial (SAT oficial): https://www.sat.gob.mx/portal/public/personas-fisicas/pf-actividades-empresariales-y-profesionales
+- RESICO 2026 — requisitos y cómo darte de alta: https://idconline.mx/fiscal-contable/2026/01/14/resico-2026-requisitos-para-que-personas-fisicas-se-incorporen-o-cambien-de-regimen · https://finanzasactivas.com/resico/
 
 ---
 
@@ -57,8 +98,16 @@ dar de alta las 3 cuentas (gratis) y comparar dentro de cada panel antes de eleg
 - OpenPay MSI: https://www.klar.mx/tarjeta-meses-sin-intereses/openpay · https://www.openpay.mx/comisiones
 - PayPal MSI: https://www.paypal.com/mx/business/accept-payments/checkout/installments · https://www.paypal.com/mx/brc/article/installments-merchant
 
+> 💬 **Tu pregunta:** "¿cómo voy a saber cuánto cobran, en dónde lo puedo buscar para agregar el
+> precio correcto?"
+>
+> Como la cuenta de Mercado Pago que ya usás para Point es la del negocio, entrás directo:
+> **Mercado Pago → Tu negocio → Configuración → Comisiones y MSI** (mismo menú que activa el
+> "Ofrecer MSI" mencionado arriba) — ahí aparece el % exacto por número de meses, ya calculado para
+> tu cuenta. Para PayPal es el equivalente dentro del **Panel de negocio de PayPal → Tarifas**. No
+> hay atajo público — hay que entrar a cada panel una vez tengas la cuenta lista para cobros online
+> (la de Point ya la tenés; falta dar de alta PayPal si no está).
 
-Entonces como voy a saber cuanto cobran en donde lo puedo buscar para agregar el precio correcto?
 ---
 
 ## 3. Implementación técnica completa (de punta a punta)
@@ -165,9 +214,16 @@ fuera del radio"— y no duplica lógica ya construida. La opción 2 es más sim
 menos exacta. Se puede combinar: anillos para el cálculo fino, y un flag manual de emergencia por
 si el admin quiere apagar una zona completa sin tocar los anillos uno por uno.
 
-**Pendiente de decidir:** ¿se bloquea SOLO el pago online fuera de cobertura (el pedido se sigue
-tomando, pero se cobra en persona/transferencia), o se bloquea el pedido completo fuera de la
-zona de envío? Esto no es solo una decisión de pagos — afecta el checkout general.
+> 💬 **Tu comentario (2026-09-03):** "hay que revisar en las pasarelas que los cobros solo se
+> puedan hacer en las zonas que solo aceptamos o los que vamos a hacer las entregas."
+>
+> **✅ Decidido:** si el punto del cliente NO cae en ninguna zona de cobertura (ningún
+> `LugarEntrega`/anillo), **se bloquea el pedido completo, no solo el pago online** — tus palabras:
+> "todos los pagos, porque solo llevamos a las zonas que agregamos". Tiene sentido: si no
+> repartimos ahí, tampoco tiene caso tomar el pedido para pago en persona o transferencia, porque
+> físicamente no se le va a poder entregar. Queda **opción 1** de arriba (reusar `calcular-costo`)
+> pero sin la rama de "se sigue permitiendo pago contra entrega/transferencia" — fuera de zona, el
+> checkout general simplemente no deja generar el pedido.
 
 ---
 
@@ -186,12 +242,26 @@ comisión que ya pagó por esa venta** — es un costo real a considerar en la p
 devoluciones (ej. si el negocio decide absorber ese costo o cobrárselo al cliente en casos de
 devolución por cambio de opinión vs. error del negocio).
 
-para cobrarse al cliente como lo hariamos o como se hace' otra cosa hay que inicar con mercado pago y paypal en la aplicacion pero primero quiero ya al final de este doc pomgas ya el resumen final de que vamos a necesitar y hay que poner lo que hace falta para ir revisando
-
+> 💬 **Tu pregunta:** "para cobrarse al cliente [la comisión perdida] como lo haríamos o cómo se
+> hace" — y en `QA_ROADMAP_2026-09-02.md` sección 7 ya habías dejado dicho: "hay que implementar
+> que si cancela después de pagar se le va a cobrar [algo] al cliente."
+>
+> **Cómo se hace en la práctica (ninguna pasarela te deja "cobrar solo la comisión" como
+> transacción propia):** no existe un endpoint de "cárgale la comisión al cliente" — la forma real
+> es que el reembolso que le hacés al cliente sea **por el total menos la comisión que perdiste**,
+> usando el reembolso PARCIAL que las 3 pasarelas soportan (`amount` en el request, sección de
+> arriba). Ejemplo: pedido de $500, comisión ya cobrada $17.40 (3.48% MP) → si el cliente cancela
+> por su cuenta después de pagar, se le reembolsan $482.60 en vez de $500. El cliente ve reflejado
+> menos dinero del que pagó — eso ES "cobrarle" la comisión, no hay un cargo aparte.
+>
+> **Pendiente de decidir (política de negocio, no técnico):** ¿esto aplica siempre que el cliente
+> cancela después de pagar, o solo si la cancelación es por decisión del cliente (no por un error
+> del negocio, producto agotado, etc.)? Esto también hay que reflejarlo en el texto de Términos y
+> condiciones (sección 7 del roadmap) para que el cliente lo sepa ANTES de pagar, no se entere al
+> momento de cancelar.
 
 **Fuentes:**
 - Mercado Pago: https://www.mercadopago.com.mx/developers/en/docs/checkout-api-orders/refunds-cancellations
-- OpenPay: https://documents.openpay.mx/docs/api (sección refund)
 - PayPal: https://docs.paypal.ai/reference/api/rest/captures/refund-captured-payment · https://developer.paypal.com/docs/multiparty/issue-refund/
 
 ---
@@ -201,3 +271,122 @@ para cobrarse al cliente como lo hariamos o como se hace' otra cosa hay que inic
 Ver artifact publicado por separado con ejemplos de cómo se vería la selección de método de pago
 en el checkout (pantalla de selección, tarjetas de MSI, y pantalla de retorno). No es código
 final, es para elegir dirección visual antes de construir la pantalla real.
+
+---
+
+## 7. Resumen final — qué ya tenemos y qué falta para avanzar
+
+> 💬 **Tu pedido:** "quiero ya al final de este doc pongas ya el resumen final de que vamos a
+> necesitar y hay que poner lo que hace falta para ir revisando."
+
+### ✅ Ya resuelto / decidido
+- ✅ Comparadas las 3 pasarelas candidatas (requisitos, MSI, implementación técnica, reembolsos).
+- ✅ **OpenPay descartado** — requiere ser cliente BBVA empresarial, no aplica.
+- ✅ Cuenta de Mercado Pago del negocio ya existe y ya está en uso (Point) — no hay que crearla de
+  cero para Checkout Pro, es la misma cuenta.
+- ✅ Investigado qué pasa fiscalmente por no tener el negocio dado de alta ante el SAT (sección
+  1.1) — camino recomendado: RESICO sobre tu RFC actual.
+- ✅ El sistema de zonas de cobertura (`LugarEntrega`/`LugarEntregaAnillo`/anillos) ya existe en
+  código y se puede reusar para restringir pago online por zona (sección 4) — no hay que
+  construirlo desde cero, solo conectarlo al checkout general.
+- ✅ Confirmado: en las 3 pasarelas, al reembolsar se pierde la comisión — y cómo trasladar ese
+  costo al cliente es vía reembolso parcial (sección 5).
+- ✅ Mockups visuales del checkout ya publicados (sección 6).
+- ✅ **Zona sin cobertura → se bloquea el pedido completo** (todas las formas de pago), no solo el
+  pago online (sección 4).
+- ✅ **Flag de MSI es sí/no simple** en `Producto` y en `Promocion` (con herencia de Producto a
+  Variante, no configurable por número de meses) — sección 8.
+
+### ⬜ Falta decidir (negocio, no requiere código todavía)
+- ⬜ **Confirmar con un contador** el trámite de RESICO/actividad empresarial antes de escalar
+  cobros — recomendado no arrancar en producción con volumen real hasta resolver esto.
+- ⬜ Dar de alta la cuenta de **PayPal Business** (si no está ya) para poder comparar su % de MSI
+  contra el de Mercado Pago dentro del panel.
+- ⬜ Decidir la política exacta de "se cobra la comisión perdida al cliente": ¿siempre que cancele
+  después de pagar, o solo si la cancelación es por su decisión (no por error/falta de stock del
+  negocio)? Esto debe quedar escrito en Términos y condiciones antes de activarlo.
+- ⬜ Decidir de dónde sale el horario de entrega a domicilio en el checkout general (¿lo agenda el
+  admin a mano, o se calcula por zona/ruta como en flores eternas?) — sección 9.
+
+### ⬜ Falta construir (una vez tomadas las decisiones de arriba)
+- ⬜ Campo de **estado de pago** en `Pedido` (independiente del `estadoPedido` logístico).
+- ⬜ Endpoint + `Preference` de **Mercado Pago Checkout Pro** (back) y redirección al `init_point`
+  (front) — sección 3.1.
+- ⬜ Integración de **PayPal Orders API v2** (crear orden + capturar) — sección 3.2.
+- ⬜ Webhook propio por pasarela (uno para MP Checkout Pro, uno para PayPal) — no se comparte con
+  el webhook de Point que ya existe.
+- ⬜ Pantalla de retorno del checkout (`/pago/resultado` o similar) que confirma el estado contra la
+  API del proveedor, nunca contra lo que dice la URL de vuelta a ciegas.
+- ⬜ Activar la validación de zona de cobertura en el checkout general de la tienda (hoy solo
+  flores eternas la usa).
+- ⬜ El endpoint de reembolso parcial (uno por pasarela) para cuando se decida automatizar la
+  devolución (hoy es manual, ver también sección 10 de `QA_ROADMAP_2026-09-02.md` para el caso de
+  Point).
+- ⬜ Ver sección 8 (nueva, 2026-09-03): flag de elegibilidad de MSI por Producto/Variante/Promoción.
+- ⬜ Ver sección 9 (nueva, 2026-09-03): aviso de horario de recolección/entrega tras generar pedido.
+
+---
+
+## 8. Elegibilidad de "meses sin intereses" por Producto/Variante y por Promoción
+
+> 💬 **Tu pedido (2026-09-03):** "para mercado pago hay que agregar una opción en la cual si está
+> activado ese producto en productos que las variantes deben heredarlo... si está activado es que
+> se dejaría hacer el pago con tarjeta a meses, con eso solo si tiene la opción lo puede hacer
+> todas las variantes porque en el producto se agregó esa opción, lo mismo para las promociones,
+> pero el pago con tarjeta o crédito sí se podrían hacer pero a 1 solo mes... y además agregarlo
+> para la forma de pago en línea igual que tenga o sirva para saber si se puede pagar a 3 meses,
+> igual el checkout porque si se va a poder hacer el pago en línea pero solo a 1 pago con
+> tarjetas."
+
+**Diseño según lo que describís (confirmando que entendí bien):**
+- Es un flag **por Producto**: `permiteMesesSinIntereses` (o el nombre que prefieras), no por
+  Variante — **las variantes lo heredan de su producto, no se configura variante por variante**.
+  Si el producto lo tiene activado, todas sus variantes quedan elegibles para MSI; si no, esas
+  variantes solo aceptan tarjeta/crédito a **1 pago** (de contado, sin cuotas).
+- **Independiente, mismo patrón en Promoción** — un flag propio en `Promocion`, no heredado del
+  producto ni al revés (una promoción puede activar MSI aunque el/los productos que agrupa no lo
+  tengan marcado individualmente, y viceversa).
+- El checkout (pago en línea) lee este flag al armar el cobro: si CUALQUIER línea del carrito no
+  es elegible, esa línea (o el pedido completo, según se decida) se limita a 1 pago; si todo es
+  elegible, se ofrece la opción de meses.
+
+**Esto encaja con la API real de Mercado Pago** (no es solo un flag decorativo): la `Preference`
+de Checkout Pro (sección 3.1) acepta `payment_methods.installments` — ahí se manda el máximo de
+cuotas permitido PARA ESA preferencia específica. Si el flag da "no elegible", se crea la
+`Preference` con `installments: 1` (fuerza pago de contado); si da "elegible", se manda el máximo
+que la cuenta tenga configurado (o el tope que quieras, ej. 3). Es decir, esto se resuelve al
+armar cada `Preference`, no hace falta configurarlo dentro del panel de Mercado Pago por producto.
+
+**✅ Decidido (2026-09-03):**
+- **El flag es sí/no simple**, no configurable por número de meses — un booleano en `Producto` y
+  otro en `Promocion`. El número exacto de meses que se ofrecen (3/6/9/12) lo sigue controlando la
+  cuenta de Mercado Pago/PayPal desde su propio panel; nuestro flag solo decide si ese producto o
+  promoción entra a MSI o se limita a 1 pago.
+- **Todavía NO se programa el modelo de datos** — dijiste "esperar" a decidir el resto del diseño
+  de pagos (sección 7) antes de tocar entidades, para no tener que ajustarlo dos veces. Queda
+  anotado aquí listo para construirse cuando lo pidas.
+
+---
+
+## 9. Aviso de horario al cliente: recoger en tienda vs. entrega a domicilio
+
+> 💬 **Tu pedido (2026-09-03):** "recuerda que si hacen pedido y pagan o no pagan, nosotros le
+> avisamos: si pasa al local puede pasar cuando esté abierto, pero si se va a llevar a domicilio
+> entonces le tenemos que avisar cuándo lo llevaríamos a su lugar."
+
+Esto **no depende de si el pedido se pagó en línea o no** — aplica a cualquier pedido, ligado a
+si es para **recoger en tienda** o **entrega a domicilio**:
+- **Recoger en tienda:** el correo de confirmación de pedido (ya existe, `QA_ROADMAP` sección 4)
+  solo necesita recordarle el **horario de atención del negocio** (ya configurado en
+  `ConfiguracionNegocio` — Estado/Horario/Contactos) — no hace falta un horario específico por
+  pedido.
+- **Entrega a domicilio:** el correo tiene que decirle **cuándo se le va a llevar** — un horario o
+  ventana de entrega concreta para ESE pedido, no el horario general del negocio.
+
+**Lo que ya existe y se puede reusar:** el módulo de flores eternas ya maneja logística de entrega
+por pedido (`entregas`, con lugar/anillo de cobertura). Lo que falta es: (a) que el checkout
+general (ropa/bolsas) también capture si el pedido es para recoger o a domicilio — hoy, según
+dejaste anotado en `QA_ROADMAP_2026-09-02.md`, no está claro si el checkout general debería
+mostrar la opción de "lugar de entrega" o no — y (b) definir de dónde sale el horario de entrega
+para un pedido a domicilio del checkout general (¿lo agenda el admin manualmente al procesar el
+pedido, o se calcula automático por zona/ruta como en flores?).
