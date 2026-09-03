@@ -30,6 +30,17 @@ public class EmailService {
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
 
+    // publicBaseUrl (arriba) es la URL del BACKEND (ej. qa.backend.novedades-jade.com.mx/mis-productos)
+    // -- sirve para servir imagenes (logo) que el cliente de correo carga directo, pero NO para
+    // links que el usuario debe abrir en el navegador: un link ahi cae en la API, no en la app, y
+    // el navegador termina mostrando el JSON crudo del backend (ej. "Token invalido o expirado")
+    // en vez de la pantalla de Angular (bug real 2026-09-03: "Ver promocion"/"Mi perfil" del
+    // correo de promociones no llevaban a ningun lado por esto). api.cors_angular ya existe y es
+    // la URL real del FRONTEND por ambiente (ConfigSocket la usa para CORS) -- se reusa aqui para
+    // cualquier link que el correo mande a abrir en el navegador.
+    @Value("${api.cors_angular:}")
+    private String frontendBaseUrl;
+
     // Direccion del negocio para el pie de los correos -- no existe ningun campo de direccion en
     // ConfiguracionNegocio ni pantalla que lo administre todavia, asi que queda fija aqui por
     // ahora. Si mas adelante se agrega un campo editable en Sistema > Negocio & Contactos, mover
@@ -287,6 +298,50 @@ public class EmailService {
     }
 
     /**
+     * Confirmación de que el pedido se generó (2026-09-03) -- se manda SIEMPRE al crear el
+     * pedido, sin importar quién lo generó (cliente o admin) ni Cliente.recibirCorreos: es un
+     * comprobante, mismo criterio que notificarPedido/reenviarComprobante (el ticket de compra no
+     * depende de la preferencia de correos, ver el comentario en Cliente.recibirCorreos).
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarConfirmacionPedido(String destinatario, String nombreCliente, Integer pedidoId, Double total) {
+        String asunto = "Recibimos tu pedido #" + pedidoId + " — Novedades Jade";
+        String totalStr = total != null ? String.format("$%.2f", total) : "";
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+                + "<p style=\"margin:0 0 12px;\">¡Recibimos tu pedido! Ya lo estamos preparando.</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
+                + "font-size:20px;font-weight:700;padding:12px 26px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">Pedido #" + pedidoId + "</span>"
+                + (totalStr.isEmpty() ? "" : "<div style=\"margin-top:8px;color:#1f2937;font-size:15px;\">Total: <strong>" + totalStr + "</strong></div>")
+                + "</div>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Puedes ver el detalle y el "
+                + "estado de tu pedido desde \"Mis pedidos\" en la app.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
+     * Aviso al admin de que un cliente generó un pedido nuevo (2026-09-03) -- solo se dispara
+     * cuando el pedido lo generó el propio cliente (ver PedidoServiceImpl.notificarPedidoCreado):
+     * si lo generó un admin, ya lo sabe, no hace falta avisarle.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarAvisoNuevoPedido(String destinatarioAdmin, Integer pedidoId, String nombreCliente, Double total) {
+        String asunto = "Nuevo pedido #" + pedidoId + " de " + nombreCliente + " — Novedades Jade";
+        String totalStr = total != null ? String.format("$%.2f", total) : "";
+        String html = "<p style=\"margin:0 0 12px;\"><strong>" + nombreCliente + "</strong> generó un pedido nuevo:</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
+                + "font-size:20px;font-weight:700;padding:12px 26px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">Pedido #" + pedidoId + "</span>"
+                + (totalStr.isEmpty() ? "" : "<div style=\"margin-top:8px;color:#1f2937;font-size:15px;\">Total: <strong>" + totalStr + "</strong></div>")
+                + "</div>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Revísalo desde la sección de "
+                + "Pedidos en la app.</p>";
+        return enviarTicket(destinatarioAdmin, asunto, html);
+    }
+
+    /**
      * Digest diario para el admin (StockBajoScheduler) con las variantes en o por debajo del
      * umbral configurado. {@code lineas} ya viene formateada por StockBajoService (nombre de
      * producto + talla/color + stock) para que EmailService no dependa de la entidad Variantes.
@@ -317,9 +372,9 @@ public class EmailService {
      * enviarAlertaStock/Cliente.recibirCorreos).
      * @return true si el envío fue exitoso, false si falló (no lanza excepción).
      */
-    public boolean enviarPromocion(String destinatario, String nombreCliente, String descripcionPromocion) {
+    public boolean enviarPromocion(String destinatario, String nombreCliente, String descripcionPromocion, String imagenUrl) {
         String asunto = "🎉 Nueva promoción — Novedades Jade";
-        String base = normalizarBaseUrl();
+        String base = normalizar(frontendBaseUrl);
         String botonVerPromos = base != null
                 ? "<div style=\"text-align:center;margin:6px 0 4px;\">"
                   + "<a href=\"" + base + "/promociones\" style=\"display:inline-block;background-color:#00875A;"
@@ -330,8 +385,19 @@ public class EmailService {
         String dondeDesactivar = base != null
                 ? "en <a href=\"" + base + "/clientes/mis-datos\">Mi perfil</a>"
                 : "en Mi perfil &gt; Mis datos";
+        // La imagen es de la primera variante del combo (PromocionServiceImpl.enviarCorreoPromocionAsync)
+        // -- opcional a proposito: una promocion puede no tener imagen cargada todavia, el correo
+        // no debe romperse por eso, solo se ve mas plano (mismo criterio que el resto del correo,
+        // que ya cae a texto cuando falta algo opcional).
+        String imagenHtml = (imagenUrl != null && !imagenUrl.isBlank())
+                ? "<div style=\"text-align:center;margin:0 0 18px;\">"
+                  + "<img src=\"" + imagenUrl + "\" alt=\"" + descripcionPromocion + "\" width=\"320\" "
+                  + "style=\"display:block;margin:0 auto;max-width:100%;height:auto;border-radius:12px;\">"
+                  + "</div>"
+                : "";
         String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">¡Tenemos una promoción nueva para ti!</p>"
+                + imagenHtml
                 + "<div style=\"text-align:center;margin:22px 0;\">"
                 + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
                 + "font-size:17px;font-weight:700;padding:12px 22px;border-radius:10px;"
@@ -344,9 +410,9 @@ public class EmailService {
         return enviarTicket(destinatario, asunto, html);
     }
 
-    /** {@code null} si app.public-base-url no está configurado en este ambiente (no rompe nada, ver publicBaseUrl). */
-    private String normalizarBaseUrl() {
-        if (publicBaseUrl == null || publicBaseUrl.isBlank()) return null;
-        return publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+    /** {@code null} si la url no está configurada en este ambiente (no rompe nada). */
+    private String normalizar(String url) {
+        if (url == null || url.isBlank()) return null;
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

@@ -939,21 +939,120 @@ columna que no existe) — no es opcional, es bloqueante para toda la app, no so
 
 **Admin (enviar el correo):**
 1. Menú lateral → acordeón de promociones → **Gestión de promociones**.
-2. En cualquier promoción (activa o no), botón **"✉️ Enviar correo"**.
+2. En una promoción **vigente** (activa y no vencida), botón **"✉️ Enviar correo"** debe estar
+   habilitado; en una inactiva o vencida debe verse deshabilitado (con tooltip explicando por qué).
 3. Debe salir un modal confirmando "Se enviará a N cliente(s)..." — si dice 0, es porque ningún
    cliente de prueba tiene el checkbox activado todavía (activa uno primero, paso de arriba).
 4. Confirma → debe salir "Envío iniciado a N cliente(s)" casi de inmediato (no espera a que se
    termine de mandar) → revisa la bandeja del cliente de prueba, debe llegar el correo con la
-   promoción, el botón "Ver promoción" y la nota de cómo desactivarlo.
+   promoción, la imagen (si el combo tiene alguna variante con imagen cargada), el botón "Ver
+   promoción" y la nota de cómo desactivarlo.
 
-### ⬜ Lo que quedó pendiente de tu comentario (no se hizo en esta pasada)
+### 🔧 Correcciones de una segunda pasada (mismo día, tras tu feedback probando)
 
-- El correo de "ticket"/confirmación al cliente y aviso al admin **cuando se genera un pedido**
-  (mencionaste: "cuando se hace un pedido de parte del cliente o del admin tiene que enviar el
-  correo del ticket y para el cliente [...] me tiene que llegar un correo avisando que hizo un
-  pedido") — no se tocó en esta sesión, falta confirmar qué de eso ya existe hoy (el ticket de
-  venta sí se manda siempre, fuera de `recibirCorreos`, según el comentario de
-  `EmailService.enviarTicket`) y qué falta agregar. Avísame si querés que lo revise a continuación.
+> 💬 **Tu feedback:** "para enviar el correo en promociones hace falta validar que la promoción
+> esté válida [...] dice que sí envía el correo pero 'ver promoción' cuando doy clic no lleva a
+> ningún lado por el token, dice esto {"mensaje":"Token inválido o expirado"...} lo mismo si doy
+> 'mi perfil' [...] está muy sencillo, no se puede poner la imagen de la promoción para que sea
+> llamativa?"
+
+1. **✅ Validación de vigencia antes de enviar:** ahora el back rechaza el envío si la promoción
+   está inactiva o vencida (antes solo validaba que existiera). El botón "Enviar correo" también
+   se deshabilita en el front para promociones no vigentes, para que ni se pueda intentar.
+2. **✅ Bug real de los links "Ver promoción"/"Mi perfil" — encontrado y corregido:** el correo
+   armaba esos links con `app.public-base-url`, que es la URL del **backend**
+   (`qa.backend.novedades-jade.com.mx/mis-productos`), no la del frontend — por eso el navegador
+   mostraba el JSON crudo del backend ("Token inválido o expirado") en vez de abrir la app. Ahora
+   usa `api.cors_angular` (ya configurada por ambiente, es la URL real del front —
+   `qa.shop.novedades-jade.com.mx` en QA) para estos dos links. `app.public-base-url` se queda
+   igual que antes, solo para la imagen del logo en el encabezado (esa sí debe ser del backend).
+3. **✅ Imagen de la promoción en el correo:** se agrega la imagen de la primera variante del combo
+   (si tiene una cargada) arriba de la descripción, para que no se vea tan plano. Si esa variante
+   no tiene imagen todavía, el correo se ve igual que antes (no se rompe).
+
+### ✅ Validación de existencias al CREAR/EDITAR una promoción (nuevo, mismo feedback)
+
+> 💬 **Tu comentario:** "para generar las promociones hay que revisar que cuando se haga la
+> promoción exista disponibilidad, porque se supone que hice la promoción y dice que no hay
+> existencias y se supone que si hago una promoción es porque hay existencias."
+
+Antes, crear/editar una promoción no validaba nada de stock — se podía guardar un combo cuya
+cantidad requerida por variante fuera mayor al stock real, y el problema no se notaba hasta que
+aparecía "❌ Sin disponibilidad" en el catálogo público. Ahora, al guardar, si **cualquier**
+variante del combo no alcanza para armar ni 1 combo completo (stock actual < cantidad
+configurada), se rechaza con un mensaje señalando cuál variante y cuánto stock hace falta.
+
+**Ruta de clics para probar:** Gestión de promociones → Nueva promoción → agrega una variante y
+ponle una **cantidad mayor a su stock actual** (ej. cantidad 5 en una variante con solo 2 en
+stock) → Guardar → debe rechazar con el mensaje de existencias insuficientes, mencionando la
+variante y los números exactos. Con cantidad dentro del stock disponible, debe guardar normal.
+
+### ⬜ Lo que quedó pendiente de tu comentario original de promociones (no se hizo)
+
+- El correo de "ticket"/confirmación al cliente y aviso al admin **cuando se genera un pedido** ya
+  se resolvió — ver sección 12 más abajo.
 - La opción de **programar** el envío (mandarlo más tarde, no solo "enviar ahora") no se
   construyó — hoy el botón manda de inmediato (en tandas de 10, pero arrancando al momento del
   clic). Si querías programarlo para una hora/fecha específica, es trabajo aparte.
+
+---
+
+## 12. Correo al generar un pedido — confirmación al cliente + aviso al admin
+
+> 💬 **Tu comentario:** "cuando se hace un pedido de parte del cliente o del admin tiene que
+> enviar el correo del ticket y para el cliente si el cliente hace un pedido me tiene que llegar
+> un correo avisando que hizo un pedido."
+
+### Lo que encontré (antes de tocar nada)
+
+`PedidoServiceImpl.savePedido()` — el método real que crea el pedido (`POST
+/v1/pedidos/savePedido`, lo puede llamar tanto un cliente logueado como un admin, mismo
+endpoint) — **no mandaba ningún correo**. Lo único que ya existía:
+- `notificarPedido`/"reenviar comprobante": el cliente lo dispara a mano desde la app después de
+  generar el pedido (no es automático).
+- `notificarSeguimientoPedido`: correo automático, pero solo dispara cuando el pedido pasa a
+  **Entregado** o **cancelado** — nada al momento de crearlo.
+
+O sea: el hueco que describiste era real, no había ningún correo automático al generar el pedido,
+ni para el cliente ni para el admin.
+
+### ✅ Lo que se construyó
+
+- **Al cliente:** correo de confirmación **siempre** que se genera un pedido ("Recibimos tu
+  pedido #X"), sin importar quién lo generó (cliente o admin) — es un comprobante, igual que el
+  ticket de compra ya existente, así que **no depende del checkbox `recibirCorreos`** (mismo
+  criterio que ese correo).
+- **Al admin:** correo de aviso ("Nuevo pedido #X de [nombre]") a **todos los ADMIN activos con
+  correo** (mismo patrón que la alerta de stock bajo) — pero **solo cuando el pedido lo generó el
+  propio cliente**. Si lo generó un admin (ej. toma un pedido por teléfono), no se le avisa a sí
+  mismo — ya lo sabe.
+- Ninguno de los dos correos puede tumbar la creación del pedido si el envío falla (try/catch +
+  log, mismo criterio que el resto de correos no críticos).
+
+### ⚠️ Supuestos que hice — avísame si alguno no es lo que querías
+
+1. Asumí que el correo al cliente es **siempre**, no depende de la preferencia de correos —
+   porque lo describiste junto con "el correo del ticket", y el ticket ya existente tampoco
+   depende de esa preferencia. Si en realidad querías que si respete `recibirCorreos`, lo cambio.
+2. Asumí que el aviso al admin es solo cuando el pedido lo genera el **cliente**, porque dijiste
+   "si el cliente hace un pedido me tiene que llegar un correo" — específicamente mencionaste al
+   cliente como quien dispara el aviso. Si también querés que te avise cuando OTRO admin genera un
+   pedido (no solo vos), dímelo.
+3. Le avisa a **todos** los usuarios con rol ADMIN activo, no solo a uno — igual que la alerta de
+   stock bajo. Si quieres que sea configurable (solo ciertos admins), es cambio aparte.
+
+### Ruta de clics para probar
+
+**Confirmación al cliente:**
+1. Login como cliente → agrega productos al carrito → genera un pedido.
+2. Revisa la bandeja del correo del cliente: debe llegar **"Recibimos tu pedido #X"** con el
+   total, casi de inmediato.
+3. Repite con el checkbox de "Recibir correos" (el general, no el de promociones) **desactivado**
+   → el correo de confirmación debe llegar igual (no depende de ese checkbox).
+
+**Aviso al admin:**
+4. Con el mismo pedido del cliente (paso 1-2), revisa la bandeja de un usuario ADMIN activo →
+   debe llegar **"Nuevo pedido #X de [nombre del cliente]"**.
+5. Ahora genera un pedido **desde una cuenta ADMIN** (si existe ese flujo en la app) → el admin
+   que lo generó NO debe recibir el aviso a sí mismo (verifica en su propia bandeja).
+6. Si hay más de un ADMIN activo con correo, confirma que **todos** reciben el aviso, no solo uno.
