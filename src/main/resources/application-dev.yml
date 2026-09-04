@@ -46,8 +46,8 @@ spring:
   mail:
     host: mail.novedades-jade.com.mx
     port: 587
-    username: ${MAIL_USERNAME:qa.boutique.bolsas@novedades-jade.com.mx}
-    password: ${MAIL_PASSWORD:NovedadesJade *13}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
@@ -60,7 +60,7 @@ clave-seguridad:
 
 seguridad:
   cors:
-    origenes-permitidos: http://localhost:4200,http://51.178.29.99:30001,https://venta-bolsas-online.netlify.app
+    origenes-permitidos: http://localhost:4200,http://51.178.29.99:30001,https://venta-bolsas-online.netlify.app,https://shop.novedades-jade.com.mx,https://front.novedades-jade.com.mx,https://novedades-jade.com.mx,https://www.novedades-jade.com.mx
 
 cookie:
   secure: false  # true en producción (requiere HTTPS)
@@ -106,7 +106,7 @@ mercadopago:
   sandbox: false
 
 chat:
-  admin-email: ${CHAT_ADMIN_EMAIL:qa.boutique.bolsas@novedades-jade.com.mx}
+  admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
   forzar-notificacion: true
 
 facebook:
