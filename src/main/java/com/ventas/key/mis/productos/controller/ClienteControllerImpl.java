@@ -47,6 +47,20 @@ public class ClienteControllerImpl extends AbstractController<
 
     private final UsuarioDetailsService usuarioDetailsService;
 
+    // save(Cliente, BindingResult) no lleva @Valid -- por eso las anotaciones de Cliente
+    // (@Email en correoElectronico, etc.) nunca se disparan aqui, y el front puede mandar
+    // cualquier texto como correo (encontrado 2026-09-04: se guardo "qa" como correo de un
+    // cliente sin que el back lo rechazara). No se agrega @Valid al parametro completo porque
+    // Cliente tiene otros campos @NotBlank/@NotNull (nombrePersona, apeidoPaterno,
+    // numeroTelefonico) que este mismo endpoint ya guarda parcialmente en flujos existentes
+    // (ej. el Cliente auto-creado al registrarse, que arranca con esos campos vacios a
+    // proposito -- ver ClienteServiceImpl.crearClienteDesdeRegistro) -- validar todo el objeto
+    // rompería esos casos. Se valida solo el formato del correo, y solo cuando de verdad se
+    // esta intentando cambiar (mismo punto donde ya se decide si aplica directo o queda
+    // pendiente de verificar, un poco mas abajo).
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$");
+
     public ClienteControllerImpl(ClienteServiceImpl sGenerico, UsuarioDetailsService usuarioDetailsService) {
         super(sGenerico);
         this.usuarioDetailsService = usuarioDetailsService;
@@ -97,6 +111,9 @@ public class ClienteControllerImpl extends AbstractController<
             String correoNuevo = requestG.getCorreoElectronico();
             String correoActual = existente.getCorreoElectronico();
             boolean cambioDeCorreo = correoNuevo != null && !correoNuevo.equalsIgnoreCase(correoActual);
+            if (cambioDeCorreo && !EMAIL_PATTERN.matcher(correoNuevo).matches()) {
+                throw new RuntimeException("El correo electronico no tiene un formato valido");
+            }
             if (cambioDeCorreo && !AuthenticationUtils.isAdminContext()) {
                 // Mejora 15: el correo nuevo NO se aplica de inmediato — queda pendiente de
                 // verificar. El correo actual (ya verificado) sigue siendo el vigente.
