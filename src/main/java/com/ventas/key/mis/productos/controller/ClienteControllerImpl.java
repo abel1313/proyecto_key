@@ -58,8 +58,11 @@ public class ClienteControllerImpl extends AbstractController<
     // rompería esos casos. Se valida solo el formato del correo, y solo cuando de verdad se
     // esta intentando cambiar (mismo punto donde ya se decide si aplica directo o queda
     // pendiente de verificar, un poco mas abajo).
+    // (\.[\w-]+)+ (no solo un ".[a-zA-Z]{2,}" final) -- un dominio de 1 sola terminacion
+    // rechazaba en falso cualquier correo con TLD compuesto como "novedades-jade.com.mx"
+    // (encontrado 2026-09-04 al probarlo con un correo real del propio dominio del negocio).
     private static final java.util.regex.Pattern EMAIL_PATTERN =
-            java.util.regex.Pattern.compile("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$");
+            java.util.regex.Pattern.compile("^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$");
 
     public ClienteControllerImpl(ClienteServiceImpl sGenerico, UsuarioDetailsService usuarioDetailsService) {
         super(sGenerico);
