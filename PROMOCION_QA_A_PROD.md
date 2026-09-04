@@ -61,7 +61,7 @@ Base: diff de archivos `migration_*.sql` entre el commit del último merge qa→
 | 10 | `migration_tema_variable_card_header_footer_v2.sql` | Agrega tokens `card-header-bg`/`card-footer-bg` | `SELECT clave FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 2 filas | ✅ existen 2 |
 | 11 | `migration_tema_variable_card_header_text.sql` | Agrega token `card-header-text` | `SELECT 1 FROM tema_variable WHERE clave='card-header-text';` | ✅ existe |
 | 12 | `migration_tema_variable_limpiar_card_header_footer.sql` | Borra 2 tokens viejos que no controlaban nada real (correr ANTES de la v2 de arriba si se aplican juntas, revisar orden) | `SELECT 1 FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 0 filas (antes de correr la v2) | ✅ ya no existen (correcto, se borraron) |
-| 13 | `migration_tema_variable_pk_semanticos.sql` | Agrega 12 tokens `pk-success/-warning/-danger/-info` (+ variantes) | ⚠️ mi consulta original tenía un error (`LIKE '--pk-%'`, pero la clave real NO lleva `--`) — la correcta es `SELECT COUNT(*) FROM tema_variable WHERE grupo='Estados';` → 12 | ❓ el "0" reportado puede haber sido por mi consulta mal escrita, no porque falte correrlo — re-revisar con la consulta corregida antes de correr nada | hay 12
+| 13 | `migration_tema_variable_pk_semanticos.sql` | Agrega 12 tokens `pk-success/-warning/-danger/-info` (+ variantes) | `SELECT COUNT(*) FROM tema_variable WHERE grupo='Estados';` → 12 | ✅ hay 12 (con la consulta corregida — confirmado, sí está corrido, era mi consulta original la que estaba mal) |
 | 14 | `migration_tema_variable_placeholder.sql` | Agrega token `input-placeholder` | `SELECT 1 FROM tema_variable WHERE clave='input-placeholder';` | ✅ existe (1 en ambos) |
 | 15 | `migration_lugar_entrega_anillo.sql` | Crea tabla `lugar_entrega_anillo` (cobro por distancia) | `SHOW TABLES LIKE 'lugar_entrega_anillo';` | ✅ existe en ambos |
 | 16 | `migration_lugar_entrega_centroide.sql` | Agrega `latitud`/`longitud` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'latitud';` | ✅ existe en ambos |
@@ -171,13 +171,13 @@ limpios, en un bloque de código aparte de la tabla para que no pase de nuevo.
 
 | # | Qué revisar | Estado |
 |---|---|---|
-| 1 | RabbitMQ configurado en `default` (recordatorio de `CLAUDE.md`: "main no tiene RabbitMQ configurado") — ¿sigue siendo así o ya se armó? | ⬜ |
-| 2 | Redis en `default` — activo y con la misma config que `qa` | ⬜ |
-| 3 | `TOKEN_JWT` en `default` — variable/secret presente | ⬜ |
-| 4 | ConfigMap/env de `default` vs `qa` — diffear para ver qué le falta a prod de lo que ya tiene qa | ⬜ |
-| 5 | `application-docker.yml` (perfil activo real en prod hoy, ver sección 5) vs `application-qa.yml` en el jar desplegado — confirmar que no falta ninguna propiedad nueva usada por el código que se va a promover | ⬜ |
-| 6 | Espacio en disco / memoria libres en la VPS antes de un rollout grande | ⬜ |
-| 7 | Docker Hub — confirmar que el workflow de `main` sigue subiendo bien la imagen (login/creds vigentes) | ⬜ |
+| 1 | RabbitMQ configurado en `default` | ✅ **`rabbitmq-0` Running** — OJO: esto contradice la nota vieja de `CLAUDE.md` ("main no tiene RabbitMQ configurado") — esa afirmación quedó desactualizada, hay que corregirla ahí también cuando se pueda |
+| 2 | Redis en `default` | ✅ `redis-...-fmmqj` Running |
+| 3 | `TOKEN_JWT` en `default` | ✅ presente (`token-jwt: bW...`, no hace falta ver más) |
+| 4 | ConfigMap/env de `default` vs `qa` | ✅ diff corrido — solo difieren metadatos de k8s (`creationTimestamp`/`namespace`/`resourceVersion`/`uid`), el contenido real es igual. Ojo: esto probablemente significa que los ConfigMaps no son donde vive la config sensible de esta app (esa se inyecta con `kubectl set env` directo al Deployment, según `k8s/DEPLOY_COMMANDS.md`) — no es una comparación tan reveladora como pensé |
+| 5 | `application-docker.yml` del pod | ⬜ **no se llegó a correr** — lo que se pegó fue `kubectl get pods -n qa` (otro comando, no el de este ítem). Falta correr el de abajo cuando puedas |
+| 6 | Espacio en disco / memoria libres | ⚠️ **memoria ajustada**: 7.6Gi total, solo 179Mi libres "real" (aunque 1.8Gi "available" contando cache reciclable — eso es lo que más importa en Linux). Disco: 83% usado (13G libres de 72G). No es crítico hoy, pero antes de un rollout con varios pods nuevos a la vez conviene tenerlo presente — si se pone justo, un rollout puede hacer que k8s mate pods por OOM |
+| 7 | Docker Hub | ⬜ falta revisar |
 
 Comandos (copiar tal cual, sin backslash antes del `|`):
 
@@ -260,6 +260,12 @@ ubuntu@vps-da9a48f5:~$
 de esto)*
 
 - 2026-09-04 — Documento creado, sin revisar todavía.
+- 2026-09-04 — Revisada la sección 1.a completa (28 scripts): **todos ✅** en prod, incluido el
+  #13 que parecía faltar (era mi consulta de verificación la que estaba mal escrita). Sección
+  1.c también confirmada. Sección 2 (VPS): ítems 1-4 y 6 revisados (RabbitMQ y Redis SÍ están
+  configurados en `default` — corrige la nota vieja de `CLAUDE.md`; memoria de la VPS ajustada,
+  ojo con eso). Faltan: ítem 5 (cat del yml del pod, se corrió otro comando por error) y 7
+  (Docker Hub). Sección 1.a y 1.c ya están listas para el día del merge real.
 
 ---
 
@@ -281,8 +287,11 @@ de esto)*
 
 ## 5. Renombrar el perfil `docker` → `prod` (tu pregunta 2026-09-04)
 
-**No arrancar esto todavía** — es aparte de la promoción de arriba, pero queda documentado acá
-porque también es "antes de tocar prod, entender qué implica".
+**Decisión 2026-09-04: NO renombrar todavía.** El perfil sigue llamándose `docker` — `application-docker.yml`
+sigue siendo el que corre en prod, sin tocar. Lo único que SÍ se hizo ya es el paso 1 de la
+lista de abajo (limpiar el bloque `prod` viejo y sin usar de `application.yml`, que no
+dependía de nada de esto). El resto queda como explicación de qué implicaría el día que
+decidas hacer el cambio real — no arrancar el resto todavía.
 
 ### Qué hay hoy exactamente
 En `src/main/resources/` tenés 4 archivos de perfil: `application-dev.yml`,
@@ -312,9 +321,10 @@ pod sin poder conectar a la base de datos (o conectando con las variables equivo
 arrancar. Este es el paso que hay que resolver PRIMERO, antes de cualquier otra cosa.
 
 ### Pasos, en orden
-1. **Borrar (o resolver) el bloque `on-profile: prod` viejo dentro de `application.yml`** —
-   parece un intento abandonado de antes de que "docker" se volviera la convención real. Si no
-   se usa en ningún lado hoy (se puede confirmar con el paso 2 de abajo), se borra sin más.
+1. ✅ **Hecho (2026-09-04)** — Se borró el bloque `on-profile: prod` viejo dentro de
+   `application.yml` (era un intento abandonado de antes de que "docker" se volviera la
+   convención real; no lo usaba nada, así que no afecta a `dev`/`qa`/`docker`). El resto de
+   `application.yml` queda igual. `application-docker.yml` NO se tocó.
 2. **Confirmar el perfil realmente activo hoy en el pod de prod**, antes de asumir nada:
    ```bash
    kubectl get deployment proyecto-key-deployment -n default -o jsonpath='{.spec.template.spec.containers[0].env}' | grep -i profile
