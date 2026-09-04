@@ -49,6 +49,26 @@ a Tienda (`tienda/buscar`).
 
 ---
 
+## Tarea A (cont. 2) — Agrupar acciones por categoría en Gestión de roles (2026-09-04)
+
+El checklist de acciones salía todo junto (15 en Modelos, 11 en Tienda) sin separar filtros de
+las opciones de la tarjeta o del buscador.
+
+### 1. Script — `migration_accion_submenu_categoria.sql` ✅ ejecutado en QA y prod
+Agrega la columna `accion_submenu.categoria` y renumera `orden` para que cada categoría quede
+en un tramo contiguo:
+- **Modelos**: Filtros (los 9 + Excel) → Tarjeta de modelo (eliminar/habilitar/crear-variantes/
+  compartir-imagen) → Buscador (escanear código).
+- **Tienda**: Filtros (los 9) → Tarjeta de variante (habilitar/compartir-imagen).
+
+### 2. Probar en Gestión de roles
+- [ ] Abrir Modelos y Tienda → confirmar que las acciones aparecen en 3 (Modelos) / 2 (Tienda)
+      bloques con su propio sub-encabezado en mayúsculas, en vez de una lista plana.
+- [ ] Confirmar que dentro de cada bloque el orden de los checkboxes tiene sentido (filtros en
+      el mismo orden que la barra real, tarjeta en el orden de los botones de la tarjeta).
+
+---
+
 ## Tarea A — Permisos finos en `tienda/buscar` (habilitar / compartir imagen)
 
 Ya ejecutaste `migration_accion_tienda_habilitar_compartir.sql` en QA y prod ✅ — falta la
