@@ -1,0 +1,25 @@
+# Perfil para correr el proyecto LOCAL (tu máquina / IDE, para debuggear) apuntando a los datos
+# reales de QA -- base de datos, correo, imágenes, Mercado Pago, etc. Todo igual que "qa", excepto
+# Redis y RabbitMQ, que en QA corren DENTRO del clúster de Kubernetes (IPs internas 10.43.x.x, no
+# alcanzables desde afuera) -- aquí se apuntan a localhost, con Redis y RabbitMQ corriendo en
+# Docker en tu propia máquina (ver .env.example en la raíz del proyecto para los comandos).
+#
+# Cómo usarlo: SPRING_PROFILES_ACTIVE=qa,local-qa (en ese orden -- "qa" carga primero como base,
+# "local-qa" se aplica despues y solo pisa lo que este aqui).
+#
+# El "spring.config.import" de abajo carga automaticamente un archivo ".env" en la raíz del
+# proyecto (mismo mecanismo que ya usa application-dev.yml) -- copia .env.example como .env,
+# rellena los valores, y Spring lo lee solo al arrancar. No hace falta ningun plugin de IDE
+# para cargar el .env.
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  redis:
+    host: localhost
+    port: 6379
+  rabbitmq:
+    host: localhost
+    port: 5672
+
+redis:
+  dns: localhost
