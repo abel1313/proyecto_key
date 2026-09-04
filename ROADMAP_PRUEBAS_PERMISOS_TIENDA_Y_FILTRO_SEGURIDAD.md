@@ -15,8 +15,8 @@ Surgió al revisar `productos/buscar` (Modelos) en Gestión de roles: etiquetas 
 ("Eliminar producto" sonaba a comando, "Crear variantes" no existe tal cual en pantalla), el
 escáner de código de barras seguía público, y cada check disparaba su propia petición al toque.
 
-### 1. Nuevo script — `migration_accion_modelos_etiquetas_y_escaner.sql`
-Todavía no lo ejecutaste. Hace 2 cosas:
+### 1. Script — `migration_accion_modelos_etiquetas_y_escaner.sql` ✅ ejecutado en QA y prod
+Hace 2 cosas:
 - Renombra las 5 etiquetas de Modelos para que incluyan el ícono/ubicación real del botón
   (ej. "Eliminar producto" → "Eliminar (✕ en la tarjeta)").
 - Agrega la acción nueva `escanear-codigo` (📷) — antes el escáner era público, ahora es un
