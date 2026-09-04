@@ -23,3 +23,7 @@ spring:
 
 redis:
   dns: localhost
+
+seguridad:
+  cors:
+    origenes-permitidos: http://localhost:4200
