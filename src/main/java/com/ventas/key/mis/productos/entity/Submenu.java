@@ -35,5 +35,16 @@ public class Submenu extends BaseId {
     @Column(length = 255)
     private String descripcion;
 
+    // Texto para el boton info (ℹ️) del checkbox "Editar" en Gestion de roles (2026-09-04) --
+    // distinto de `descripcion` (que explica el "Ver"). Hace falta aparte porque el back
+    // (SecurityConfig.pantallaEscribir) a veces comparte el permiso de escritura entre varias
+    // pantallas hermanas via OR (ej. Modelos + Agregar modelo + Agregar producto son la MISMA
+    // authority "escribir"), algo que no se puede adivinar solo mirando la pantalla actual -- un
+    // usuario marco "Editar" en Modelos y nunca vio que hiciera nada ahi, porque Modelos es solo
+    // buscar/listar, sin formulario propio: el efecto se nota en las otras pantallas del grupo.
+    // Null = usa el texto generico de verInfoVerEditar() en el front.
+    @Column(length = 255)
+    private String descripcionEscritura;
+
     private Integer orden;
 }
