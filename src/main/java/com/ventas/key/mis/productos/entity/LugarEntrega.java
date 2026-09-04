@@ -37,4 +37,14 @@ public class LugarEntrega extends BaseId {
     @ManyToOne
     @JoinColumn(name = "variante_id")
     private Variantes variante;
+
+    // 2026-09-04: distingue la fila de este catalogo que representa "recoger en el local" de las
+    // zonas de entrega reales (Tejupilco, Zacazonapan, etc.). El checkout normal de la tienda usa
+    // esto para decidir si muestra el calendario de fecha de recogida (PedidoServiceImpl.savePedido
+    // solo valida/rellena Pedido.fechaRecogida cuando el lugar elegido tiene esto en true) -- para
+    // una zona de entrega real, la fecha la coordina el admin despues a mano (editar entrega), no
+    // el cliente en el checkout. Debe haber como mucho una fila en true (no se valida en BD, es
+    // responsabilidad de quien administra el catalogo).
+    @Column(name = "es_recoger_en_tienda")
+    private Boolean esRecogerEnTienda;
 }
