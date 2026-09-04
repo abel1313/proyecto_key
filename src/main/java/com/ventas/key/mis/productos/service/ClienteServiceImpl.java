@@ -103,6 +103,57 @@ implements IClienteService {
                 : "Correos de promociones desactivados");
     }
 
+    // Mismo patron que UsuarioVerificacionService.solicitarCambioCorreo, pero para Cliente --
+    // pedido 2026-09-04: cambiar el correo desde "Mis datos" cuando ya esta verificado debia
+    // poder dispararse solo (al salir del campo), sin depender de guardar el resto del
+    // formulario primero como hacia el flujo viejo (embebido en ClienteControllerImpl.save()).
+    // Duplica el regex de EMAIL_PATTERN (ClienteControllerImpl) a proposito: son dos puntos de
+    // entrada distintos para el mismo cambio de correo (el guardado general del formulario, y
+    // este endpoint dedicado), cada uno necesita validar el formato en su propio punto.
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$");
+
+    /**
+     * Solicita el cambio de correo del propio cliente (o el que edita un admin) -- verificar
+     * antes de guardar: el correo real NO se toca aqui, solo se guarda como correoPendiente y se
+     * manda el codigo a la direccion nueva. Si el codigo nunca se confirma (verificarCorreo), el
+     * correo real nunca cambia.
+     *
+     * Si ya hay un codigo vigente para el MISMO correo nuevo (no expiro), no se reenvia correo --
+     * evita que reintentos/doble-click (o un doble blur del input) manden varios correos con
+     * codigos distintos. Devuelve true si mando un correo nuevo, false si reutilizo uno vigente.
+     */
+    @Transactional
+    public boolean solicitarCambioCorreo(Integer clienteId, String correoNuevo) {
+        Cliente cliente = iClienteRepository.findById(clienteId)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+        if (correoNuevo == null || correoNuevo.isBlank()) {
+            throw new RuntimeException("El correo nuevo es requerido");
+        }
+        if (!EMAIL_PATTERN.matcher(correoNuevo).matches()) {
+            throw new RuntimeException("El correo electronico no tiene un formato valido");
+        }
+        if (correoNuevo.equalsIgnoreCase(cliente.getCorreoElectronico())) {
+            throw new RuntimeException("Ese ya es el correo actual");
+        }
+        boolean yaVigente = correoNuevo.equalsIgnoreCase(cliente.getCorreoPendiente())
+                && cliente.getCodigoVerificacionExpira() != null
+                && LocalDateTime.now().isBefore(cliente.getCodigoVerificacionExpira());
+        if (yaVigente) {
+            return false;
+        }
+        String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
+        cliente.setCorreoPendiente(correoNuevo);
+        cliente.setCodigoVerificacion(codigo);
+        cliente.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
+        iClienteRepository.save(cliente);
+        boolean correoEnviado = emailService.enviarCodigoVerificacion(correoNuevo, codigo);
+        if (!correoEnviado) {
+            throw new RuntimeException("No se pudo enviar el correo de verificacion, intenta de nuevo en unos minutos");
+        }
+        return true;
+    }
+
     public void enviarCodigoVerificacionCorreo(Integer clienteId) {
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));

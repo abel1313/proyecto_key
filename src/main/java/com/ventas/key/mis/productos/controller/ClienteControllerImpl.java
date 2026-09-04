@@ -11,6 +11,7 @@ import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.PreferenciaCorreoRequest;
 import com.ventas.key.mis.productos.models.PreferenciaPromocionesRequest;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.SolicitarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.VerificarCorreoRequest;
 import com.ventas.key.mis.productos.service.ClienteServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioDetailsService;
@@ -131,6 +132,16 @@ public class ClienteControllerImpl extends AbstractController<
                 // admin), sin dejar nada pendiente.
                 requestG.setCorreoVerificado(true);
                 requestG.setCorreoPendiente(null);
+                // Encontrado 2026-09-04: esta rama nunca sincronizaba hacia Usuario.email (la
+                // sincronizacion solo vivia en ClienteServiceImpl.verificarCorreo, el camino con
+                // codigo) -- un admin editando su propio correo por aqui dejaba su Cliente
+                // actualizado pero su Usuario.email en null para siempre, y cualquier cosa que
+                // dependiera de Usuario.email (ej. el aviso de "nuevo pedido" a los admins)
+                // nunca lo encontraba.
+                if (usr.get().getEmail() == null || !usr.get().getEmail().equalsIgnoreCase(correoNuevo)) {
+                    usr.get().setEmail(correoNuevo);
+                    usuarioDetailsService.guardar(usr.get());
+                }
             } else {
                 requestG.setCorreoPendiente(existente.getCorreoPendiente());
                 requestG.setCorreoVerificado(existente.getCorreoVerificado());
@@ -223,6 +234,34 @@ public class ClienteControllerImpl extends AbstractController<
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(resultado));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @Operation(summary = "Solicitar cambio de correo del cliente", description = "Manda un codigo de 6 digitos al correo NUEVO (no al actual). El correo real no cambia todavia -- solo se guarda como pendiente hasta confirmar el codigo con /verificar-correo. Pensado para dispararse solo (ej. al salir del campo de correo en 'Mis datos'), sin depender de guardar el resto del formulario.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Codigo enviado (o reutilizado uno ya vigente)"),
+        @ApiResponse(responseCode = "400", description = "Correo invalido, ya es el correo actual, o cliente no encontrado"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN")
+    })
+    @PostMapping("/{id}/solicitar-cambio-correo")
+    public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(
+            @PathVariable Integer id, @Valid @RequestBody SolicitarCambioCorreoRequest request) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        try {
+            boolean enviado = sGenerico.solicitarCambioCorreo(id, request.getCorreoNuevo());
+            String mensaje = enviado
+                    ? "Codigo enviado al correo nuevo"
+                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
+        } catch (Exception e) {
+            log.error("Error al solicitar cambio de correo de clienteId={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 

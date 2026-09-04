@@ -27,6 +27,7 @@ public interface IUsuarioService extends ICrud<
     void eliminarUsuario(int tipoDato);
     void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request);
     MiPerfilResponseDto obtenerMiPerfil(String username);
+    void aceptarPrivacidad(String username);
     boolean solicitarCambioCorreo(Integer id, String correoNuevo);
     void confirmarCambioCorreo(Integer id, String codigo);
     CambioCorreoPendienteResponseDto obtenerCambioCorreoPendiente(Integer id);
