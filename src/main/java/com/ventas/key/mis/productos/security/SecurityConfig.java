@@ -167,10 +167,6 @@ public class SecurityConfig {
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/v1/mp/webhook").permitAll()
 
-                        // ── Webhook Facebook -- comentarios (llamada sin auth desde Meta,
-                        // validado por firma X-Hub-Signature-256 dentro del controlador) ──────
-                        .requestMatchers("/v1/redes-sociales/facebook/webhook").permitAll()
-
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
                         .requestMatchers("/v1/palabras-clave/**").hasAnyAuthority(pantallaEscribir("palabras-clave"))
@@ -386,10 +382,6 @@ public class SecurityConfig {
                         // ── Dashboard ─────────────────────────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/dashboard/**").hasAnyAuthority(pantalla("dashboard"))
                         .requestMatchers("/v1/dashboard/**").hasAnyAuthority(pantallaEscribir("dashboard"))
-
-                        // ── Redes sociales (publicar variantes en Facebook) ───────────────
-                        .requestMatchers(HttpMethod.GET, "/v1/redes-sociales/**").hasAnyAuthority(pantalla("admin/facebook", "admin/hashtags"))
-                        .requestMatchers("/v1/redes-sociales/**").hasAnyAuthority(pantallaEscribir("admin/facebook", "admin/hashtags"))
 
                         // ── Rifas y concursantes ──────────────────────────────────────────
                         .requestMatchers(HttpMethod.GET,
