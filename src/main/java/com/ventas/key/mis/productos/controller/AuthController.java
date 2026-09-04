@@ -460,6 +460,17 @@ public class AuthController {
         return ResponseEntity.ok(new ResponseGeneric<>(usuarioService.obtenerMiPerfil(authentication.getName())));
     }
 
+    @Operation(summary = "Aceptar el aviso de privacidad ahora (usuario logueado)", description = "Para cuentas que nunca pasaron por el registro publico -- ej. un admin, o una cuenta vieja creada antes de este control -- y por lo tanto nunca tuvieron oportunidad de aceptarlo. Idempotente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Aviso de privacidad aceptado"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @PostMapping("/aceptar-privacidad")
+    public ResponseEntity<ResponseGeneric<String>> aceptarPrivacidad(Authentication authentication) {
+        usuarioService.aceptarPrivacidad(authentication.getName());
+        return ResponseEntity.ok(new ResponseGeneric<>("Aviso de privacidad aceptado"));
+    }
+
     // ── Cambio de MI PROPIO correo (self-service) — verificar antes de guardar ──
     // El email real no cambia hasta confirmar-cambio-correo con el codigo correcto.
 

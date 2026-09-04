@@ -154,6 +154,26 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         return new MiPerfilResponseDto(u.getUsername(), u.getEmail(), u.getAceptoPrivacidad(), u.getFechaAceptoPrivacidad());
     }
 
+    /**
+     * Self-service: acepta el aviso de privacidad ahora mismo -- pensado para cuentas que nunca
+     * pasaron por el registro publico (el unico lugar donde antes se podia aceptar), como un
+     * admin, o cualquier cuenta vieja creada antes de este control (pedido 2026-09-04: "como
+     * admin no lo acepte, entonces como lo aceptaria ahora?"). Idempotente: si ya lo habia
+     * aceptado, no pisa la fecha original.
+     */
+    @Override
+    @Transactional
+    public void aceptarPrivacidad(String username) {
+        Usuario existe = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        if (Boolean.TRUE.equals(existe.getAceptoPrivacidad())) {
+            return;
+        }
+        existe.setAceptoPrivacidad(true);
+        existe.setFechaAceptoPrivacidad(LocalDateTime.now());
+        usuarioRepository.save(existe);
+    }
+
     /** Admin: solicita el cambio de correo de OTRO usuario (por id) - manda el codigo al correo nuevo. */
     @Override
     public boolean solicitarCambioCorreo(Integer id, String correoNuevo) {
