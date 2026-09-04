@@ -9,6 +9,46 @@ No mezclar la prueba/aprobación de las 2 — son independientes, se fusionan a 
 
 ---
 
+## Tarea A (cont.) — Ajustes en Modelos tras revisar Gestión de roles (2026-09-04)
+
+Surgió al revisar `productos/buscar` (Modelos) en Gestión de roles: etiquetas confusas
+("Eliminar producto" sonaba a comando, "Crear variantes" no existe tal cual en pantalla), el
+escáner de código de barras seguía público, y cada check disparaba su propia petición al toque.
+
+### 1. Nuevo script — `migration_accion_modelos_etiquetas_y_escaner.sql`
+Todavía no lo ejecutaste. Hace 2 cosas:
+- Renombra las 5 etiquetas de Modelos para que incluyan el ícono/ubicación real del botón
+  (ej. "Eliminar producto" → "Eliminar (✕ en la tarjeta)").
+- Agrega la acción nueva `escanear-codigo` (📷) — antes el escáner era público, ahora es un
+  permiso más, dado por defecto solo a ROLE_ADMIN (cualquier otro rol que lo usara porque era
+  público lo deja de ver hasta que se le asigne).
+
+### 2. Probar en Gestión de roles
+- [ ] Abrir el submenu Modelos → confirmar que las 5 etiquetas ya no dicen "Eliminar producto"/
+      "Crear variantes" a secas, sino con el ícono real entre paréntesis.
+- [ ] Confirmar que aparece una 6ta casilla nueva: "Escanear código de barras (📷)".
+
+### 3. Probar el gate del escáner
+- [ ] Con un rol SIN `escanear-codigo`: en Modelos, los 2 botones de cámara (arriba en móvil, y
+      el ícono 📷 junto al buscador) no deben aparecer.
+- [ ] Dándole la acción al rol: ambos botones deben volver a aparecer y funcionar.
+
+### 4. Guardado diferido — ya NO se guarda al toque
+- [ ] Marcar/desmarcar varios checks seguidos (Ver, Editar, o varias acciones) de una misma
+      pantalla → NO debe dispararse ninguna petición todavía; la fila se resalta y aparece
+      "Cambios sin guardar en esta pantalla" con los botones ✕ Descartar / 💾 Actualizar.
+- [ ] "✕ Descartar" → los checks vuelven a lo que estaba guardado antes, sin mandar nada.
+- [ ] "💾 Actualizar" → recién ahí se mandan los cambios pendientes de ESA pantalla (y solo esa).
+- [ ] Cambiar de rol en la columna izquierda con cambios sin guardar en el anterior → se
+      descartan solos (no se arrastran de un rol a otro).
+- [ ] Esto ya es así en TODAS las pantallas de Gestión de roles, no solo Modelos — probarlo
+      también en cualquier otra pantalla (ej. Usuarios) para confirmar que no quedó rota.
+
+Próximo paso (pendiente, no en este pase): aplicar la misma revisión de etiquetas/descripciones
+a Tienda (`tienda/buscar`).
+
+---
+
 ## Tarea A — Permisos finos en `tienda/buscar` (habilitar / compartir imagen)
 
 Ya ejecutaste `migration_accion_tienda_habilitar_compartir.sql` en QA y prod ✅ — falta la
