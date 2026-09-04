@@ -3,7 +3,9 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.dto.variantes.IndependizarVarianteRequestDto;
 import com.ventas.key.mis.productos.dto.variantes.RequestVarianteDto;
+import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
+import com.ventas.key.mis.productos.entity.Favorito;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.entity.Producto;
@@ -20,6 +22,7 @@ import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteRespons
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.repository.ICodigoBarrasRepository;
+import com.ventas.key.mis.productos.repository.IFavoritoRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
@@ -29,6 +32,7 @@ import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.IVarianteService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
@@ -40,6 +44,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -57,6 +64,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private final ImagenPort imagenPort;
     private final IPalabraClaveRepository iPalabraClaveRepository;
     private final ICodigoBarrasRepository iCodigoBarrasRepository;
+
+    @Autowired private IFavoritoRepository iFavoritoRepository;
+    @Autowired private EmailService emailService;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -117,7 +127,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // si otra variante ya había matcheado por código. Reusa los métodos ya probados del
         // filtro de admin/público (mismo patrón OR).
         PginaDto<List<VarianteResumenDto>> resultado = AuthenticationUtils.isAdminContext()
-                ? filtrarVariantesAdmin(termino, null, null, null, null, page, size)
+                ? filtrarVariantesAdmin(termino, null, null, null, null, null, null, page, size)
                 : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, page, size);
 
         if (resultado.getT().isEmpty()) {
@@ -140,6 +150,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return iVarianteRepository.findByProductoId(productoId).stream().map(v -> {
             VarianteDto dto = new VarianteDto();
             dto.setId(v.getId());
+            dto.setNombreProducto(v.getProducto().getNombre());
             dto.setTalla(v.getTalla());
             dto.setDescripcion(v.getDescripcion());
             dto.setColor(v.getColor());
@@ -535,12 +546,17 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         List<Variantes> resultado = new ArrayList<>();
         for (VarianteDetalle detalle : detalles) {
+            boolean esRestock = false;
             if (detalle.getId() != null) {
-                ajustarStock(detalle);
+                esRestock = ajustarStock(detalle);
             }
 
             Variantes saved = save(buildVariante(detalle));
             resultado.add(saved);
+
+            if (esRestock) {
+                notificarRestock(saved);
+            }
 
             if (!imageIds.isEmpty()) {
                 vincularImagenes(saved, imageIds);
@@ -628,7 +644,15 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
     }
 
-    private void ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
+    /** @return true si este ajuste hace que la variante pase de sin stock a con stock (0 -> N). */
+    private boolean ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
+        // El front manda el stock final ya calculado (actual + agregar - quitar) -- guard acá
+        // por si llega negativo de todos modos: validarStockContraProducto() suma stocks
+        // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
+        // negativo aislado no lo detecta (reduce la suma en vez de superarla).
+        if (detalle.getStock() < 0) {
+            throw new ExceptionDataNotFound("El stock de la variante no puede quedar negativo");
+        }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
         int diff = detalle.getStock() - actual.getStock();
@@ -638,6 +662,42 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             producto.setStock(producto.getStock() + diff);
             iProductosRepository.save(producto);
         }
+        return actual.getStock() == 0 && detalle.getStock() > 0;
+    }
+
+    /**
+     * Avisa por correo a quienes tienen esta variante en Favoritos de que volvió a haber stock.
+     * No hay bandera de "ya avisado" en BD -- se apoya en que ajustarStock() solo devuelve true en
+     * la transición real 0->N, así que una variante que ya tiene stock no vuelve a dispararlo
+     * hasta que se agote y se reabastezca de nuevo. Nunca debe tumbar el guardado de la variante
+     * si el envío falla.
+     */
+    private void notificarRestock(Variantes variante) {
+        try {
+            List<Favorito> favoritos = iFavoritoRepository.findAllByVariante_Id(variante.getId());
+            if (favoritos.isEmpty()) return;
+            String nombreProducto = variante.getProducto() != null ? variante.getProducto().getNombre() : "un producto";
+            String detalleVariante = descripcionVariante(variante);
+            for (Favorito favorito : favoritos) {
+                Cliente cliente = favorito.getCliente();
+                if (cliente == null || !Boolean.TRUE.equals(cliente.getRecibirCorreos())) continue;
+                String correo = cliente.getCorreoElectronico();
+                if (correo == null || correo.isBlank()) continue;
+                emailService.enviarAlertaStock(correo, cliente.getNombrePersona(), nombreProducto, detalleVariante);
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo notificar restock de variante id={}: {}", variante.getId(), e.getMessage());
+        }
+    }
+
+    private String descripcionVariante(Variantes v) {
+        StringBuilder sb = new StringBuilder();
+        if (v.getTalla() != null && !v.getTalla().isBlank()) sb.append("Talla ").append(v.getTalla());
+        if (v.getColor() != null && !v.getColor().isBlank()) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(v.getColor());
+        }
+        return sb.toString();
     }
 
     private Variantes buildVariante(VarianteDetalle detalle) {
@@ -738,6 +798,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setStock(v.getStock());
         dto.setMarca(v.getMarca());
         dto.setContenidoNeto(v.getContenidoNeto());
+        dto.setFechaCreacion(v.getFechaCreacion());
         dto.setPrecio(v.getProducto().getPrecioVenta());
         String codBarras = Optional.ofNullable(v.getProducto())
                 .map(Producto::getCodigoBarras)
@@ -786,10 +847,15 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Cacheable(value = "variantesProductoCache",
             key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size")
     public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
-            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, int pagina, int size) {
+            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
+            LocalDate fechaHasta, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
-        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, codigoGenerado, pageable);
+        // Mismo criterio que ProductosServiceImpl.filtrarProductosAdmin: dia calendario expandido
+        // al rango completo (00:00:00 - 23:59:59.999999999) para que incluya todo ese dia.
+        LocalDateTime desde = fechaDesde != null ? fechaDesde.atStartOfDay() : null;
+        LocalDateTime hasta = fechaHasta != null ? fechaHasta.atTime(LocalTime.MAX) : null;
+        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, codigoGenerado, desde, hasta, pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());

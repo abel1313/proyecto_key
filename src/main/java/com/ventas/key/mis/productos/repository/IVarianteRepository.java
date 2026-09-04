@@ -55,6 +55,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     Page<Variantes> findByStockGreaterThanAndProducto_Habilitado(int stock, char habilitado, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndProducto_CodigoBarras_CodigoBarrasContaining(int stock, char habilitado, String codigoBarras, Pageable pageable);
 
+    // Para el digest diario de StockBajoScheduler -- excluye deshabilitadas y el catalogo interno
+    // (variantes "sombra" de flores eternas, que nunca son vendibles por si solas).
+    @Query("SELECT v FROM Variantes v JOIN FETCH v.producto p " +
+           "WHERE v.stock <= :umbral AND v.habilitado = '1' AND p.esCatalogoInterno = false " +
+           "ORDER BY v.stock ASC")
+    List<Variantes> findConStockBajo(@Param("umbral") int umbral);
+
     Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
 
     @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")
@@ -148,6 +155,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
+          AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
         """,
         countQuery = """
@@ -170,6 +179,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:codigoGenerado IS NULL
                OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
                OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
+          AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
         """)
     Page<Variantes> buscarVariantesAdmin(@Param("nombreOCodigo") String nombreOCodigo,
@@ -177,6 +188,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                           @Param("conImagenes") Boolean conImagenes,
                                           @Param("habilitado") Boolean habilitado,
                                           @Param("codigoGenerado") Boolean codigoGenerado,
+                                          @Param("fechaDesde") java.time.LocalDateTime fechaDesde,
+                                          @Param("fechaHasta") java.time.LocalDateTime fechaHasta,
                                           Pageable pageable);
 
     // Catalogo publico con filtros: mismas restricciones de visibilidad que findConStockYImagenPublico

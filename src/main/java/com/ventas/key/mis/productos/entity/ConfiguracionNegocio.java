@@ -43,4 +43,10 @@ public class ConfiguracionNegocio extends BaseId {
 
     @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
+
+    /** Umbral de "stock bajo" para el digest diario (StockBajoScheduler). Null = usa UMBRAL_DEFAULT. */
+    @Column(name = "umbral_stock_bajo")
+    private Integer umbralStockBajo;
+
+    public static final int UMBRAL_DEFAULT_STOCK_BAJO = 5;
 }

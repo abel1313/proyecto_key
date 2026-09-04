@@ -28,4 +28,9 @@ public class CalcularPrecioRequestDto {
     // urgente del calendario. Determina si se cobra CantidadFlorValida.cargoUrgente (modelo
     // nuevo de config-entrega) y si el pedido requiere anticipo.
     private Boolean urgente;
+    // Punto exacto marcado en el mapa (opcional) -- solo hace falta cuando la zona elegida tiene
+    // anillos de cobro por distancia configurados (ver DISENO_ZONAS_POR_ANILLO.md). Sin anillos
+    // en esa zona, estos 2 campos se ignoran y el envio sigue siendo el costo fijo de siempre.
+    private Double latitud;
+    private Double longitud;
 }

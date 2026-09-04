@@ -1,8 +1,10 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
+import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,17 +30,40 @@ public class UsuarioVerificacionService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final IUsuarioRepository usuarioRepository;
+    private final IClienteRepository clienteRepository;
     private final EmailService emailService;
     private final ClienteServiceImpl clienteService;
 
     @Transactional
     public void enviarCodigoVerificacion(String usernameOEmail) {
+        enviarCodigoVerificacion(usernameOEmail, true);
+    }
+
+    /**
+     * @param forzarNuevo false = reutiliza el código vigente si todavía no expiró, en vez de
+     *                    generar y mandar otro (evita invalidar en silencio uno que el usuario
+     *                    todavía no alcanzó a usar cuando el envío lo dispara la propia
+     *                    aplicacion -- cargar la pantalla, un login fallido por correo sin
+     *                    verificar, el modal de verificacion del admin -- en vez de un click
+     *                    explicito de "reenviar". Mismo patron que ya usa
+     *                    {@link #solicitarCambioCorreo(Usuario, String)} para el cambio de
+     *                    correo. true = siempre manda uno nuevo (boton explicito de reenviar).
+     */
+    @Transactional
+    public void enviarCodigoVerificacion(String usernameOEmail, boolean forzarNuevo) {
         Usuario usuario = buscarPorUsernameOEmail(usernameOEmail);
         if (usuario.getEmail() == null || usuario.getEmail().isBlank()) {
             throw new RuntimeException("El usuario no tiene correo registrado");
         }
         if (Boolean.TRUE.equals(usuario.getCorreoVerificado())) {
             throw new RuntimeException("El correo ya esta verificado");
+        }
+        boolean yaVigente = !forzarNuevo
+                && usuario.getCodigoVerificacion() != null
+                && usuario.getCodigoVerificacionExpira() != null
+                && LocalDateTime.now().isBefore(usuario.getCodigoVerificacionExpira());
+        if (yaVigente) {
+            return;
         }
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
         usuario.setCodigoVerificacion(codigo);
@@ -176,6 +201,17 @@ public class UsuarioVerificacionService {
         usuario.setCodigoVerificacionExpira(null);
         usuario.setIntentosCodigoVerificacion(0);
         usuarioRepository.save(usuario);
+
+        // Antes este flujo (cambio de correo del Usuario, ej. admin editando "Actualizar
+        // usuario") dejaba el Cliente vinculado con el correo VIEJO -- el otro sentido
+        // (ClienteServiceImpl.verificarCorreo, cambio desde "Mi perfil") sí sincronizaba hacia
+        // Usuario.email, pero este no sincronizaba hacia Cliente.correoElectronico. Resultado:
+        // dependiendo de POR DONDE se cambiara el correo, quedaba consistente o no.
+        if (usuario.getCliente() != null) {
+            Cliente cliente = usuario.getCliente();
+            cliente.setCorreoElectronico(usuario.getEmail());
+            clienteRepository.save(cliente);
+        }
     }
 
     /** Variante self-service: identifica al usuario por el username del JWT (Authentication.getName()). */

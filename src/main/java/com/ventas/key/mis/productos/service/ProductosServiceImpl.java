@@ -17,6 +17,7 @@ import com.ventas.key.mis.productos.models.*;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.repository.ILostesProductosRepository;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
+import com.ventas.key.mis.productos.repository.IImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -30,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -38,6 +40,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -87,6 +93,7 @@ public class ProductosServiceImpl extends
     private final IVarianteRepository varianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductoImagenRepository iProductoImagenRepository;
+    private final IImagenRepository iImagenRepository;
     private final IPalabraClaveRepository iPalabraClaveRepository;
 
     private final ImagenProductoClienteVPS imagenProductoClienteVPS;
@@ -104,6 +111,7 @@ public class ProductosServiceImpl extends
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
             final IProductoImagenRepository iProductoImagenRepository,
+            final IImagenRepository iImagenRepository,
             final ImagenPort imagenPort,
             final IPalabraClaveRepository iPalabraClaveRepository
     ) {
@@ -117,6 +125,7 @@ public class ProductosServiceImpl extends
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.varianteRepository = iVarianteRepository;
         this.iProductoImagenRepository = iProductoImagenRepository;
+        this.iImagenRepository = iImagenRepository;
         this.imagenPort = imagenPort;
         this.iPalabraClaveRepository = iPalabraClaveRepository;
     }
@@ -220,6 +229,7 @@ public class ProductosServiceImpl extends
         productoAdmin.setMarca(p.getMarca());
         productoAdmin.setContenido(p.getContenido());
         productoAdmin.setHabilitado(p.getHabilitado());
+        productoAdmin.setFechaCreacion(p.getFechaCreacion());
 
         return productoAdmin;
     }
@@ -240,8 +250,8 @@ public class ProductosServiceImpl extends
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
         Page<Producto> resultado = isAdmin
-                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, pageable)
-                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, pageable);
+                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, null, null, pageable)
+                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, null, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
@@ -329,8 +339,17 @@ public class ProductosServiceImpl extends
     }
 
 
+    // @CacheEvict va aquí (clase concreta), no en la interfaz: con proxying CGLIB (default de
+    // Spring Boot, spring.aop.proxy-target-class=true) las anotaciones de caché puestas solo en
+    // el método de la interfaz no se aplican -- el guardado corría igual, pero
+    // obtenerProductosCache/buscarNombreOrCodigoBarrasCache/findByIdCache nunca se invalidaban,
+    // así que tras guardar/actualizar un producto (ej. sumar stock) el listado y el detalle
+    // seguían mostrando el valor viejo hasta que expirara el TTL de Redis o alguien limpiara la
+    // caché a mano (AdminController DELETE /cache). Bug reportado 2026-08-28: "tengo 10, agrego
+    // 10, y me sigue mostrando 10".
     @Override
     @Transactional
+    @CacheEvict(value = {"obtenerProductosCache","buscarNombreOrCodigoBarrasCache","findByIdCache","buscarImagenIdCache","detalleImagen","detalle"}, allEntries = true)
     public Producto saveProductoLote(ProductoDetalle productoDetalle) {
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto resultado = guardarProducto(productoDetalle);
@@ -447,8 +466,11 @@ public class ProductosServiceImpl extends
                     // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
                     List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                     List<ProductoImagen> relaciones = mapperRelacionProductoImagen(lstImg, savedProducto);
-                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
-                    relacionProductoImagen(relaciones);
+                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ, y con
+                    // el id real que devuelve el micro se guarda la relación local (ver
+                    // guardarRelacionLocal()) -- la que usa el listado/búsqueda de productos.
+                    List<ImagenDto> microImagenes = relacionProductoImagen(relaciones);
+                    guardarRelacionLocal(microImagenes, savedProducto);
                     log.info("Se guardaron {} imagenes para el producto nuevo {}", lstImg.size(), savedProducto.getId());
                 }
 
@@ -464,22 +486,29 @@ public class ProductosServiceImpl extends
                 // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
                 List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
                 List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
-                // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ
-                relacionProductoImagen(mapperRelacionProductoImagen);
+                // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ, y con el
+                // id real que devuelve el micro se guarda la relación local -- ver comentario
+                // largo en relacionProductoImagen().
+                List<ImagenDto> microImagenes = relacionProductoImagen(mapperRelacionProductoImagen);
+                guardarRelacionLocal(microImagenes, prodExistenteNoOpt);
 
                 List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
-                if (!variantes.isEmpty()) {
+                if (!variantes.isEmpty() && !microImagenes.isEmpty()) {
+                    // Mismas imágenes ya subidas, con el id real del micro -- antes se usaba
+                    // `lstImg` (el id local generado antes de subir, distinto al que el micro
+                    // asignó), así que las miniaturas de estas variantes en tienda/buscar tenían
+                    // el mismo problema que el listado de productos (ver relacionProductoImagen()).
                     List<VarianteImagen> varianteImagenes = new ArrayList<>();
                     for (Variantes variante : variantes) {
-                        for (Imagen imagen : lstImg) {
+                        for (ImagenDto microImagen : microImagenes) {
                             VarianteImagen vi = new VarianteImagen();
                             vi.setVariante(variante);
-                            vi.setImagen(imagen);
+                            vi.setImagen(iImagenRepository.getReferenceById(microImagen.getId()));
                             varianteImagenes.add(vi);
                         }
                     }
                     iVarianteImagenRepository.saveAll(varianteImagenes);
-                    log.info("Se asignaron {} imágenes a {} variantes del producto {}", lstImg.size(), variantes.size(), prodExistenteNoOpt.getId());
+                    log.info("Se asignaron {} imágenes a {} variantes del producto {}", microImagenes.size(), variantes.size(), prodExistenteNoOpt.getId());
                 }
             }
 
@@ -503,6 +532,13 @@ public class ProductosServiceImpl extends
                 nuevoStock = prodExistenteNoOpt.getStock() + productoDetalle.getActualizarStock();
             } else if (productoDetalle.getEliminarStock() > 0) {
                 nuevoStock = prodExistenteNoOpt.getStock() - productoDetalle.getEliminarStock();
+                // "Eliminar stock" no validaba contra el stock real -- se podía mandar un valor
+                // mayor al disponible y el producto quedaba guardado con stock negativo (bug
+                // reportado 2026-08-28: "con la validación que no puede quedar -1").
+                if (nuevoStock < 0) {
+                    throw new ExceptionErrorInesperado("No se puede eliminar " + productoDetalle.getEliminarStock()
+                            + " unidades: solo hay " + prodExistenteNoOpt.getStock() + " en stock");
+                }
             } else {
                 nuevoStock = productoDetalle.getStock();
             }
@@ -538,10 +574,22 @@ public class ProductosServiceImpl extends
         }).toList();
     }
 
-    // [FLUJO 4] Sube archivos al micro de imágenes y guarda la relación producto-imagen en su BD.
-    // Si el micro no está disponible se loguea el error pero el producto se guarda igual.
-    private void relacionProductoImagen(List<ProductoImagen> productoImagens) throws IOException {
-        if (productoImagens.isEmpty()) return;
+    // [FLUJO 4] Sube archivos al micro de imágenes y publica la relación producto-imagen a
+    // RabbitMQ para que el MICRO guarde su propia copia de esa relación (ver comentario en
+    // RabbitMQConfig: "la cola y el binding los declara el consumidor (micro_imagenes)").
+    // Devuelve las imágenes tal como las devolvió el micro -- con SU id, no el id local que se
+    // le generó a `productoImagens` antes de subir (mappImagenes() inventa un id local al vuelo,
+    // independiente del que el micro asigna al recibir el archivo; son dos ids distintos por
+    // diseño). El caller usa este id real para guardar la relación local (ver
+    // guardarRelacionLocal()) -- sin esto, `producto_imagen_copy` quedaba con el id local
+    // equivocado (o simplemente nunca se guardaba), y el listado/búsqueda armaba una URL de
+    // miniatura para un id que el micro nunca conoció -- aunque el detalle sí mostraba la imagen
+    // porque ese sí llama al micro directo por productoId, sin pasar por esta tabla local.
+    // Reportado en QA 2026-09-02: producto con imagen guardada correctamente (se ve en el
+    // detalle) pero sin imagen en listado/búsqueda.
+    // Si el micro no está disponible se loguea el error pero el producto se guarda igual (lista vacía).
+    private List<ImagenDto> relacionProductoImagen(List<ProductoImagen> productoImagens) throws IOException {
+        if (productoImagens.isEmpty()) return List.of();
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         for (ProductoImagen p : productoImagens) {
@@ -560,7 +608,7 @@ public class ProductosServiceImpl extends
             List<ImagenDto> microImagenes = imagenPort.save(builder.build());
             if (microImagenes == null || microImagenes.isEmpty()) {
                 log.warn("El micro de imágenes devolvió lista vacía — imágenes no sincronizadas");
-                return;
+                return List.of();
             }
             log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
 
@@ -578,6 +626,7 @@ public class ProductosServiceImpl extends
 
             imagenProductoClienteVPS.saveAll(relaciones);
             log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
+            return microImagenes;
         } catch (Exception e) {
             if (e instanceof WebClientResponseException wcre) {
                 log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {} — body respuesta: {}",
@@ -585,7 +634,27 @@ public class ProductosServiceImpl extends
             } else {
                 log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
             }
+            return List.of();
         }
+    }
+
+    // Persiste producto_imagen_copy (BD local) usando el id REAL que asignó el micro -- ver
+    // comentario largo en relacionProductoImagen(). Sin esto, el listado/búsqueda de productos
+    // no tiene de dónde sacar el imagenId para armar la miniatura.
+    private void guardarRelacionLocal(List<ImagenDto> microImagenes, Producto producto) {
+        if (microImagenes.isEmpty()) return;
+        List<ProductoImagen> relacionesLocales = java.util.stream.IntStream
+                .range(0, microImagenes.size())
+                .mapToObj(i -> {
+                    ProductoImagen pi = new ProductoImagen();
+                    pi.setProducto(producto);
+                    pi.setImagen(iImagenRepository.getReferenceById(microImagenes.get(i).getId()));
+                    pi.setPrincipal(i == 0);
+                    return pi;
+                }).toList();
+        iProductoImagenRepository.saveAll(relacionesLocales);
+        log.info("Relaciones producto-imagen guardadas localmente para productoId={}: {}",
+                producto.getId(), microImagenes.stream().map(ImagenDto::getId).toList());
     }
 
 
@@ -672,13 +741,19 @@ public class ProductosServiceImpl extends
     // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
     // clientes normales exigen stock>0 + habilitado + con imagen.
     @Cacheable(value = "obtenerProductosCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #page + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #page + ':' + #size")
     public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(String nombreOCodigo, Boolean conStock,
-            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, int size, int page) {
+            Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
+            LocalDate fechaHasta, int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
+        // fechaDesde/fechaHasta llegan como dia calendario (sin hora) -- se expanden al rango
+        // completo de ese dia para que "buscar el 22/08" incluya todo desde las 00:00:00 hasta
+        // las 23:59:59.999999999, no solo el instante exacto de medianoche.
+        LocalDateTime desde = fechaDesde != null ? fechaDesde.atStartOfDay() : null;
+        LocalDateTime hasta = fechaHasta != null ? fechaHasta.atTime(LocalTime.MAX) : null;
         Page<Producto> productosPaginados = iProductosRepository.buscarProductosAdmin(
-                texto, conStock, conImagenes, habilitado, codigoGenerado, pageable);
+                texto, conStock, conImagenes, habilitado, codigoGenerado, desde, hasta, pageable);
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
@@ -742,6 +817,21 @@ public class ProductosServiceImpl extends
         } catch (Exception e) {
             dto.setImagenPresenteEnMicroservicio(false);
             dto.setDetalleExternoLista("error al consultar microservicio: " + e.getMessage());
+        }
+
+        // La miniatura del listado es un recurso DISTINTO al que se probó arriba -- ver
+        // getPrimerasImagenes()/mapperByRol(). Se prueba por separado porque puede fallar
+        // aunque la imagen completa (arriba) sí exista.
+        Long imagenIdListado = getPrimerasImagenes(List.of(productoId)).get(productoId);
+        if (imagenIdListado == null) {
+            dto.setMiniaturaPresenteEnMicroservicio(false);
+            dto.setDetalleMiniatura("sin imagenId — este producto no tiene ninguna imagen registrada en producto_imagen (BD local)");
+        } else {
+            boolean miniaturaOk = imagenProductoClienteVPS.verificarMiniatura(imagenIdListado);
+            dto.setMiniaturaPresenteEnMicroservicio(miniaturaOk);
+            dto.setDetalleMiniatura(miniaturaOk
+                    ? "miniatura presente (imagenId=" + imagenIdListado + ")"
+                    : "miniatura NO disponible en el microservicio (imagenId=" + imagenIdListado + ") -- esto es lo que hace que el listado/búsqueda se vea sin imagen");
         }
 
         return dto;

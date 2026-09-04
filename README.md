@@ -1293,6 +1293,92 @@ Los workflows de CI/CD usan `-n default` y `-n qa` explícitamente en el script 
 
 humo 2
 
+---
+
+# Debug local contra QA (perfil `local-qa`) — sesión 2026-09-04
+
+## Objetivo
+
+Correr el backend en tu máquina (IntelliJ, para poder poner breakpoints) pero usando los
+datos **reales** de QA: misma BD, mismo micro de imágenes, mismo correo. Solo Redis y
+RabbitMQ corren locales (en Docker), porque en QA viven **dentro** del clúster de k8s con
+IPs internas (`10.43.x.x`) no alcanzables desde afuera.
+
+## Cómo levantarlo
+
+1. **Redis y RabbitMQ locales (Docker)**, una sola vez (después solo `docker start`):
+   ```bash
+   docker run -d --name redis-local -p 6379:6379 redis:7-alpine
+   docker run -d --name rabbitmq-local -p 5672:5672 -p 15672:15672 \
+     -e RABBITMQ_DEFAULT_USER=admin -e RABBITMQ_DEFAULT_PASS=admin \
+     rabbitmq:3-management
+   ```
+
+2. **Copiar `.env.example` a `.env`** en la raíz del proyecto y rellenar los valores marcados
+   como REQUERIDO (`SPRING_DATASOURCE_PASSWORD`, `TOKEN_JWT`, `OPENAI_API_KEY`,
+   `ACCESS_TOKE_MERCADO_PAGO`, `DEVICE_ID`) — se sacan con:
+   ```bash
+   kubectl exec -it <pod-actual-de-qa> -n qa -- env | grep -E "^(SPRING_DATASOURCE_PASSWORD|TOKEN_JWT|OPENAI_API_KEY|MAIL_PASSWORD|ACCESS_TOKE_MERCADO_PAGO|DEVICE_ID)="
+   ```
+   `.env` está en `.gitignore`, nunca se sube — ahí van los valores reales.
+
+3. **Correr con `SPRING_PROFILES_ACTIVE=qa,local-qa`.** `application-local-qa.yml` importa el
+   `.env` automáticamente (`spring.config.import: optional:file:.env[.properties]`, mismo
+   mecanismo que ya usaba `application-dev.yml`) — no hace falta ningún plugin de IDE, con que
+   el `.env` esté en la raíz del proyecto alcanza. Solo asegúrate que el working directory del
+   Run Configuration de IntelliJ sea la raíz del proyecto.
+
+4. Queda arriba en `http://localhost:9010/mis-productos` (puerto tomado de `SERVER_PORT` en el
+   `.env`, Spring lo reconoce como alias de `server.port` sin configuración extra).
+
+## Front local apuntando a este backend
+
+`producto_venta_online/src/environments/environment.ts` (el que usa `ng serve` por defecto)
+quedó apuntando a `http://localhost:9010/mis-productos` y a las imágenes directo de QA
+(`https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos`). Para probar el front
+contra QA real sin backend local: `ng serve -c qa` (usa `environment.qa.ts`, sin tocar).
+
+## Hallazgo: por qué llegaba un correo de aviso de pedido a una cuenta "rara"
+
+Al investigar por qué el aviso de "pedido nuevo" llegaba también a
+`abel.tiburcio.130594@gmail.com` además de a los admins:
+
+- `PedidoServiceImpl.notificarPedidoCreado()` manda el aviso a **dos fuentes combinadas**
+  (`Set<String> destinatarios`, se deduplica solo si el string es idéntico, comparación
+  sensible a mayúsculas):
+  1. La property `chat.admin-email` (env var `CHAT_ADMIN_EMAIL`) — un correo fijo de respaldo.
+  2. El `Usuario.email` de cada cuenta con `ROLE_ADMIN`.
+- `CHAT_ADMIN_EMAIL` se agregó como respaldo porque, al momento de escribir el aviso, **ningún
+  admin tenía `Usuario.email` cargado** (bug de sync distinto, ver abajo) — sin el fallback, el
+  aviso no le llegaba a nadie.
+- El valor `abel.tiburcio.130594@gmail.com` se puso a mano en el deployment de k8s de QA con
+  `kubectl set env` (documentado en `CHAT_DESPLIEGUE_QA.md`), no es un bug de código.
+- Con el bug de sync ya arreglado (ver siguiente sección), el admin ya tiene `Usuario.email`
+  cargado → el aviso llega **duplicado** (al fallback fijo y al correo real del admin).
+- **Corrección pendiente** (decisión de negocio, no de código): actualizar
+  `CHAT_ADMIN_EMAIL` en el deployment de QA al mismo valor que `Usuario.email` del admin (o
+  quitarlo del todo, ya no es necesario como fallback):
+  ```bash
+  kubectl set env deployment/proyecto-key-deployment -n qa \
+    CHAT_ADMIN_EMAIL="<correo-real-del-admin>"
+  # o para quitarlo:
+  kubectl set env deployment/proyecto-key-deployment -n qa CHAT_ADMIN_EMAIL-
+  ```
+
+## Fix: `Usuario.email` no se sincronizaba cuando un ADMIN cambiaba su propio correo
+
+`ClienteControllerImpl.save()` tiene dos caminos para cambio de correo:
+- Cliente normal → correo queda pendiente, requiere código de verificación.
+- Admin cambiando su propio correo (`isAdminContext()`) → se aplica directo, sin código
+  (diseño intencional, "mejora 15 punto 12").
+
+El camino de admin aplicaba el cambio en `Cliente.correoElectronico` pero **nunca sincronizaba
+`Usuario.email`** — por eso "Mi perfil"/"Mis datos" mostraban el correo actualizado (leen
+`Cliente`) pero la tabla de usuarios seguía con `email = NULL` (lee `Usuario`). Se arregló para
+que ambos caminos (código de verificación y aplicación directa de admin) sincronicen
+`Usuario.email`.
+
+
 
 
 

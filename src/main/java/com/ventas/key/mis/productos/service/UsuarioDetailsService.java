@@ -31,4 +31,8 @@ public class UsuarioDetailsService implements UserDetailsService {
         return Optional.ofNullable(usuarioRepository.findById(id)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado")));
     }
+
+    public Usuario guardar(Usuario usuario) {
+        return usuarioRepository.save(usuario);
+    }
 }

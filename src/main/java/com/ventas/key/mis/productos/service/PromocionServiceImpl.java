@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
+import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Promocion;
 import com.ventas.key.mis.productos.entity.PromocionDetalle;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -13,15 +14,18 @@ import com.ventas.key.mis.productos.models.promociones.PromocionDetalleResponseD
 import com.ventas.key.mis.productos.models.promociones.PromocionDetalleRequestDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionRequestDto;
 import com.ventas.key.mis.productos.models.promociones.PromocionResponseDto;
+import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IPromocionRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +35,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class PromocionServiceImpl {
 
     private final IPromocionRepository iPromocionRepository;
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
+    private final IClienteRepository iClienteRepository;
+    private final EmailService emailService;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -44,12 +51,23 @@ public class PromocionServiceImpl {
     @Value("${api.imagenes}")
     private String endpointImagenes;
 
+    // Tamano de lote y pausa entre lotes al mandar el correo de una promocion a los clientes con
+    // el checkbox activado (2026-09-03) -- pedido explicito: "enviar de 10 en 10" para no
+    // disparar todos los correos de golpe (riesgo de que el SMTP de OVH marque la cuenta como
+    // spam por rafaga, mismo motivo por el que el envio corre en su propio hilo, ver AsyncConfig).
+    private static final int TAMANO_LOTE_CORREO_PROMOCION = 10;
+    private static final long PAUSA_ENTRE_LOTES_MS = 3000;
+
     public PromocionServiceImpl(IPromocionRepository iPromocionRepository,
                                  IVarianteRepository iVarianteRepository,
-                                 IVarianteImagenRepository iVarianteImagenRepository) {
+                                 IVarianteImagenRepository iVarianteImagenRepository,
+                                 IClienteRepository iClienteRepository,
+                                 EmailService emailService) {
         this.iPromocionRepository = iPromocionRepository;
         this.iVarianteRepository = iVarianteRepository;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
+        this.iClienteRepository = iClienteRepository;
+        this.emailService = emailService;
     }
 
     @PostConstruct
@@ -161,15 +179,107 @@ public class PromocionServiceImpl {
         }
     }
 
+    /** Cuantos clientes recibirian el correo ahora mismo -- para mostrarle al admin antes/al disparar el envio. */
+    @Transactional(readOnly = true)
+    public long contarElegiblesParaCorreoPromocion() {
+        return iClienteRepository.contarElegiblesParaCorreoPromociones();
+    }
+
+    // Valida sincronicamente ANTES de disparar el envio async -- enviarCorreoPromocionAsync ya
+    // vuelve a validar (por si la promocion se desactiva/vence en el rato que tarda el envio),
+    // pero @Async corre en otro hilo: si se dejara solo esa validacion, una promocion invalida o
+    // vencida le devolveria 200 "envio iniciado" al admin y el error quedaria solo en el log.
+    // Pedido 2026-09-03: no se puede mandar el correo de una promocion que ya no esta vigente.
+    @Transactional(readOnly = true)
+    public void validarPromocionVigenteParaCorreo(Integer id) {
+        Promocion promo = iPromocionRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Promocion no encontrada: " + id));
+        if (!esVigente(promo)) {
+            throw new RuntimeException("La promocion '" + promo.getDescripcion()
+                    + "' no esta vigente (inactiva o vencida) -- no se puede enviar el correo.");
+        }
+    }
+
+    private boolean esVigente(Promocion promo) {
+        return Boolean.TRUE.equals(promo.getActivo())
+                && promo.getFechaVencimiento() != null
+                && promo.getFechaVencimiento().isAfter(LocalDateTime.now());
+    }
+
+    /**
+     * Dispara el envio del correo de una promocion a todos los clientes con el checkbox de
+     * promociones activado, en lotes de {@value #TAMANO_LOTE_CORREO_PROMOCION} con una pausa
+     * entre lotes -- corre en su propio hilo (ver "correoMasivoExecutor" en AsyncConfig) para no
+     * bloquear la respuesta HTTP del admin mientras se manda a, potencialmente, cientos de
+     * clientes. No lanza excepcion hacia afuera (es @Async, nadie esperaria la excepcion) --
+     * cualquier error se loguea y el metodo simplemente se detiene ahi.
+     */
+    @Async("correoMasivoExecutor")
+    public void enviarCorreoPromocionAsync(Integer promocionId) {
+        try {
+            // findByIdConDetalle (no findById) -- hace falta el primer detalle para sacarle la
+            // imagen a la variante y que el correo no se vea "muy sencillo" (pedido 2026-09-03).
+            Promocion promo = iPromocionRepository.findByIdConDetalle(promocionId)
+                    .orElseThrow(() -> new RuntimeException("Promocion no encontrada: " + promocionId));
+            if (!esVigente(promo)) {
+                log.warn("Correo de promocion {} cancelado: ya no esta vigente (inactiva o vencida)", promocionId);
+                return;
+            }
+            String imagenUrl = promo.getDetalles() != null && !promo.getDetalles().isEmpty()
+                    ? obtenerImagenUrl(promo.getDetalles().get(0).getVariante().getId())
+                    : null;
+
+            int pagina = 0;
+            int enviados = 0;
+            int fallidos = 0;
+            Page<Cliente> lote;
+            do {
+                lote = iClienteRepository.findElegiblesParaCorreoPromociones(
+                        PageRequest.of(pagina, TAMANO_LOTE_CORREO_PROMOCION));
+                for (Cliente cliente : lote.getContent()) {
+                    boolean ok = emailService.enviarPromocion(
+                            cliente.getCorreoElectronico(), cliente.getNombrePersona(), promo.getDescripcion(), imagenUrl);
+                    if (ok) enviados++; else fallidos++;
+                }
+                pagina++;
+                if (lote.hasNext()) {
+                    Thread.sleep(PAUSA_ENTRE_LOTES_MS);
+                }
+            } while (lote.hasNext());
+
+            log.info("Correo de promocion {} ('{}'): {} enviado(s), {} fallido(s)",
+                    promocionId, promo.getDescripcion(), enviados, fallidos);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Envio de correo de promocion {} interrumpido", promocionId);
+        } catch (Exception e) {
+            log.error("Error enviando correo masivo de promocion {}: {}", promocionId, e.getMessage(), e);
+        }
+    }
+
+    // Pedido 2026-09-03: "se supone que si hago una promocion es porque hay existencias" -- antes
+    // no se validaba nada de stock al crear/editar, asi que se podia armar un combo que ya
+    // calculaba 0 instancias disponibles (calcularInstanciasDisponibles) y el admin no se
+    // enteraba hasta que lo veia "Sin disponibilidad" en el catalogo publico. Ahora se exige que
+    // alcance para AL MENOS 1 combo completo en el momento de guardar.
     private List<PromocionDetalle> construirDetalles(PromocionRequestDto dto, Promocion promo) {
         List<PromocionDetalle> detalles = new ArrayList<>();
         for (PromocionDetalleRequestDto d : dto.getDetalles()) {
             Variantes variante = iVarianteRepository.findById(d.getVarianteId())
                     .orElseThrow(() -> new RuntimeException("La variante " + d.getVarianteId() + " no existe"));
+            int cantidadRequerida = d.getCantidad() != null ? d.getCantidad() : 1;
+            int stockActual = variante.getStock();
+            if (stockActual < cantidadRequerida) {
+                throw new RuntimeException("No hay existencias suficientes de "
+                        + variante.getProducto().getNombre()
+                        + (variante.getTalla() != null ? " (talla " + variante.getTalla() + ")" : "")
+                        + " para armar ni un combo -- stock actual: " + stockActual
+                        + ", necesarios por combo: " + cantidadRequerida);
+            }
             PromocionDetalle detalle = new PromocionDetalle();
             detalle.setPromocion(promo);
             detalle.setVariante(variante);
-            detalle.setCantidad(d.getCantidad() != null ? d.getCantidad() : 1);
+            detalle.setCantidad(cantidadRequerida);
             detalle.setPrecioEnPromocion(d.getPrecioEnPromocion());
             detalles.add(detalle);
         }
@@ -246,6 +356,11 @@ public class PromocionServiceImpl {
                 variante.getTalla(),
                 variante.getColor(),
                 detalle.getCantidad(),
+                // Faltaba: sin esto, la pantalla de admin (GET /v1/promociones/admin) siempre
+                // mostraba "precio normal" y el ahorro en $0.00 para promociones ya guardadas
+                // (encontrado 2026-08-27, auditoria de correctitud) -- mismo dato que ya trae
+                // PromocionDetalleActivaDto para la pantalla publica.
+                variante.getProducto().getPrecioVenta(),
                 detalle.getPrecioEnPromocion(),
                 obtenerImagenUrl(variante.getId()),
                 variante.getStock());

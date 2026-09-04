@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 @Setter
@@ -19,4 +20,9 @@ public class UserDto {
     private String rol;
     private Set<String> permisosExtra;
     private boolean enabled;
+    // Solo lectura -- se acepta una vez en el registro, nunca se edita desde aqui. Para que el
+    // admin pueda ver el estado de cualquier usuario en "Actualizar usuario" (pedido en QA
+    // 2026-09-02, seguimiento del checkbox de privacidad agregado el mismo dia).
+    private Boolean aceptoPrivacidad;
+    private LocalDateTime fechaAceptoPrivacidad;
 }

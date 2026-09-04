@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.dto.negocio.AlertaStockUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
@@ -40,6 +41,8 @@ public class NegocioService {
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.isAbierto() ? null : config.getWhatsappUrl())
                 .facebookUrl(config.isAbierto() ? null : config.getFacebookUrl())
+                .instagramUrl(config.isAbierto() ? null : config.getInstagramUrl())
+                .tiktokUrl(config.isAbierto() ? null : config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
                 .build();
@@ -68,7 +71,20 @@ public class NegocioService {
                 .tiktokUrl(config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
+                .umbralStockBajo(config.getUmbralStockBajo() != null
+                        ? config.getUmbralStockBajo() : ConfiguracionNegocio.UMBRAL_DEFAULT_STOCK_BAJO)
                 .build();
+    }
+
+    @Transactional
+    public NegocioConfigDto actualizarUmbralStockBajo(AlertaStockUpdateDto dto) {
+        ConfiguracionNegocio config = obtenerConfig();
+        if (dto.getUmbralStockBajo() != null && dto.getUmbralStockBajo() > 0) {
+            config.setUmbralStockBajo(dto.getUmbralStockBajo());
+        }
+        config.setActualizadoEn(LocalDateTime.now());
+        repo.save(config);
+        return getConfig();
     }
 
     @Transactional
@@ -127,13 +143,27 @@ public class NegocioService {
                 ? config.getHoraCierre().toLocalTime()
                 : LocalTime.of(21, 0);
 
-        if (LocalTime.now().isAfter(horaLimite)) {
-            config.setAbierto(false);
-            config.setCerradoDesde(LocalDateTime.now());
-            config.setActualizadoEn(LocalDateTime.now());
-            repo.save(config);
-            log.warn("Negocio cerrado automáticamente por hora límite {}", horaLimite);
+        if (!LocalTime.now().isAfter(horaLimite)) return;
+
+        // ⚠️ Antes esto cerraba el negocio cada vez que corría (cada minuto, sin excepción) en
+        // cuanto la hora del día pasaba horaLimite, sin importar qué tan reciente fuera un
+        // abrir() manual. Resultado: si el admin abría el negocio después de la hora de cierre
+        // (ej. un evento especial a las 10pm con horaCierre en 9pm), el scheduler lo revertía a
+        // cerrado en un máximo de 60 segundos, una y otra vez, hasta medianoche -- imposible
+        // mantenerlo abierto. Si abiertoDesde es POSTERIOR a la hora límite de HOY, fue un abrir()
+        // deliberado después de la hora de cierre -- se respeta y no se revierte. Solo se
+        // auto-cierra el caso para el que existe este scheduler: quedó abierto desde antes de la
+        // hora límite y nadie lo cerró a mano.
+        LocalDateTime limiteHoy = LocalDateTime.of(LocalDate.now(), horaLimite);
+        if (config.getAbiertoDesde() != null && config.getAbiertoDesde().isAfter(limiteHoy)) {
+            return;
         }
+
+        config.setAbierto(false);
+        config.setCerradoDesde(LocalDateTime.now());
+        config.setActualizadoEn(LocalDateTime.now());
+        repo.save(config);
+        log.warn("Negocio cerrado automáticamente por hora límite {}", horaLimite);
     }
 
     private ConfiguracionNegocio obtenerConfig() {

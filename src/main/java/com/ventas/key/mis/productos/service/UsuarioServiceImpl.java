@@ -1,8 +1,11 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.entity.AccionSubmenu;
 import com.ventas.key.mis.productos.entity.Permiso;
 import com.ventas.key.mis.productos.entity.Roles;
+import com.ventas.key.mis.productos.entity.Submenu;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.entity.UsuarioSubmenu;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
@@ -10,12 +13,18 @@ import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
 import com.ventas.key.mis.productos.models.ActualizarMiPerfilRequestDto;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
+import com.ventas.key.mis.productos.models.MiPerfilResponseDto;
+import com.ventas.key.mis.productos.models.PermisosEfectivosDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.BaseRepository;
 import com.ventas.key.mis.productos.repository.IPermisoRepository;
 import com.ventas.key.mis.productos.repository.IRolRepository;
+import com.ventas.key.mis.productos.repository.ISubmenuRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
+import com.ventas.key.mis.productos.repository.IUsuarioSubmenuRepository;
 import com.ventas.key.mis.productos.service.api.IUsuarioService;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import java.time.LocalDateTime;
@@ -37,6 +46,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     private final IUsuarioRepository usuarioRepository;
     private final IRolRepository rolRepository;
     private final IPermisoRepository permisoRepository;
+    private final ISubmenuRepository submenuRepository;
+    private final IUsuarioSubmenuRepository usuarioSubmenuRepository;
     private final UsuarioVerificacionService usuarioVerificacionService;
     private final SesionRefreshService sesionRefreshService;
 
@@ -45,6 +56,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
                               PasswordEncoder passwordEncoder,
                               IRolRepository rolRepository,
                               IPermisoRepository permisoRepository,
+                              ISubmenuRepository submenuRepository,
+                              IUsuarioSubmenuRepository usuarioSubmenuRepository,
                               UsuarioVerificacionService usuarioVerificacionService,
                               SesionRefreshService sesionRefreshService) {
         super(repoGenerico, error);
@@ -52,19 +65,32 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         this.passwordEncoder = passwordEncoder;
         this.rolRepository = rolRepository;
         this.permisoRepository = permisoRepository;
+        this.submenuRepository = submenuRepository;
+        this.usuarioSubmenuRepository = usuarioSubmenuRepository;
         this.usuarioVerificacionService = usuarioVerificacionService;
         this.sesionRefreshService = sesionRefreshService;
     }
 
     @Override
     public PginaDto<List<UserDto>> findAllPage(int pagina, int size, String buscar) {
+        return findAllPage(pagina, size, buscar, true);
+    }
+
+    // activos=false -> lista los desactivados (soft-delete), para poder reactivarlos.
+    public PginaDto<List<UserDto>> findAllPage(int pagina, int size, String buscar, boolean activos) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         Page<UserDto> dataPaginacion;
 
         if (buscar.isEmpty()) {
-            dataPaginacion = usuarioRepository.findByEnabledTrue(pageable).map(this::toUserDto);
+            dataPaginacion = (activos
+                    ? usuarioRepository.findByEnabledTrue(pageable)
+                    : usuarioRepository.findByEnabledFalse(pageable)
+            ).map(this::toUserDto);
         } else {
-            dataPaginacion = usuarioRepository.findAllPage(buscar, pageable).map(this::toUserDto);
+            dataPaginacion = (activos
+                    ? usuarioRepository.findAllPage(buscar, pageable)
+                    : usuarioRepository.findAllPageInactivos(buscar, pageable)
+            ).map(this::toUserDto);
         }
 
         PginaDto<List<UserDto>> pginaDto = new PginaDto<>();
@@ -85,6 +111,8 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         dto.setPermisosExtra(u.getPermisosExtra().stream()
                 .map(Permiso::getNombrePermiso)
                 .collect(Collectors.toSet()));
+        dto.setAceptoPrivacidad(u.getAceptoPrivacidad());
+        dto.setFechaAceptoPrivacidad(u.getFechaAceptoPrivacidad());
         return dto;
     }
 
@@ -114,6 +142,35 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         Usuario existe = usuarioRepository.findByUsername(usernameActual)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
         existe.setUsername(request.getUsername());
+        usuarioRepository.save(existe);
+    }
+
+    /** Self-service: lo que el propio usuario puede ver de su cuenta (pedido en QA 2026-09-02,
+     *  para que el cliente pueda confirmar si aceptó el aviso de privacidad y cuándo). */
+    @Override
+    public MiPerfilResponseDto obtenerMiPerfil(String username) {
+        Usuario u = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        return new MiPerfilResponseDto(u.getUsername(), u.getEmail(), u.getAceptoPrivacidad(), u.getFechaAceptoPrivacidad());
+    }
+
+    /**
+     * Self-service: acepta el aviso de privacidad ahora mismo -- pensado para cuentas que nunca
+     * pasaron por el registro publico (el unico lugar donde antes se podia aceptar), como un
+     * admin, o cualquier cuenta vieja creada antes de este control (pedido 2026-09-04: "como
+     * admin no lo acepte, entonces como lo aceptaria ahora?"). Idempotente: si ya lo habia
+     * aceptado, no pisa la fecha original.
+     */
+    @Override
+    @Transactional
+    public void aceptarPrivacidad(String username) {
+        Usuario existe = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        if (Boolean.TRUE.equals(existe.getAceptoPrivacidad())) {
+            return;
+        }
+        existe.setAceptoPrivacidad(true);
+        existe.setFechaAceptoPrivacidad(LocalDateTime.now());
         usuarioRepository.save(existe);
     }
 
@@ -179,6 +236,16 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
         usuarioRepository.save(existe);
     }
 
+    // Contraparte de eliminarUsuario -- reactiva a alguien a quien se le hizo soft-delete
+    // (por accidente o porque volvió a hacer falta), sin tener que tocar la base a mano.
+    @Transactional
+    public UserDto activarUsuario(int id) {
+        Usuario existe = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("El usuario no existe"));
+        existe.setEnabled(true);
+        return toUserDto(usuarioRepository.save(existe));
+    }
+
     @Override
     public Integer existeClientePorIdUsuario(Integer idUsuario) {
         return usuarioRepository.existsUsuarioByClienteId(idUsuario);
@@ -218,5 +285,107 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
 
     public List<Permiso> listarPermisos() {
         return permisoRepository.findAll();
+    }
+
+    // ── Excepciones de pantalla por usuario (usuario_submenu) ───────────────────
+    // Ver PLAN_PERMISOS_PANTALLAS.md seccion 3 -- concedido=true suma una pantalla que el rol no
+    // da, concedido=false quita una que el rol si daria, sin tocar el rol para nadie mas.
+
+    @Transactional
+    public UsuarioSubmenu agregarSubmenuUsuario(Integer usuarioId, Integer submenuId, boolean concedido) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        Submenu submenu = submenuRepository.findById(submenuId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Submenu no encontrado"));
+        UsuarioSubmenu excepcion = usuarioSubmenuRepository.findByUsuarioIdAndSubmenuId(usuarioId, submenuId)
+                .orElseGet(() -> {
+                    UsuarioSubmenu nueva = new UsuarioSubmenu();
+                    nueva.setUsuario(usuario);
+                    nueva.setSubmenu(submenu);
+                    return nueva;
+                });
+        excepcion.setConcedido(concedido);
+        return usuarioSubmenuRepository.save(excepcion);
+    }
+
+    @Transactional
+    public void quitarSubmenuUsuario(Integer usuarioId, Integer submenuId) {
+        usuarioSubmenuRepository.findByUsuarioIdAndSubmenuId(usuarioId, submenuId)
+                .ifPresent(usuarioSubmenuRepository::delete);
+    }
+
+    public List<UsuarioSubmenu> listarExcepcionesSubmenu(Integer usuarioId) {
+        return usuarioSubmenuRepository.findByUsuarioId(usuarioId);
+    }
+
+    public Set<Submenu> submenusEfectivos(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        Set<Submenu> efectivos = new HashSet<>(usuario.getRoles() != null
+                ? usuario.getRoles().getSubmenus() : Set.of());
+        List<UsuarioSubmenu> excepciones = usuarioSubmenuRepository.findByUsuarioId(usuarioId);
+        excepciones.stream().filter(UsuarioSubmenu::getConcedido).forEach(e -> efectivos.add(e.getSubmenu()));
+        excepciones.stream().filter(e -> !e.getConcedido())
+                .forEach(e -> efectivos.removeIf(s -> s.getId().equals(e.getSubmenu().getId())));
+        return efectivos;
+    }
+
+    // Fase 2 de permisos de accion (2026-08-27): de las pantallas efectivas de arriba, cuales
+    // ademas dan ESCRIBIR (crear/editar/borrar). A diferencia de submenusEfectivos(), esto SOLO
+    // sale del rol -- las excepciones por usuario (usuario_submenu) siguen siendo nada mas de
+    // visibilidad, no tienen su propio nivel de accion todavia (no hay front para eso aun).
+    public Set<Submenu> submenusEscritura(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuario.getRoles() != null ? usuario.getRoles().getSubmenusEscritura() : Set.of();
+    }
+
+    // Fase 3 de permisos (2026-08-27, piloto en Modelos): acciones puntuales dentro de una
+    // pantalla (ej. "eliminar", "habilitar" en Modelos). Mismo alcance que submenusEscritura --
+    // solo del rol, sin excepciones por usuario individual todavia.
+    public Set<AccionSubmenu> accionesEfectivas(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return usuario.getRoles() != null ? usuario.getRoles().getAcciones() : Set.of();
+    }
+
+    /**
+     * Version por id: solo para un caller que NO tenga ya el Usuario en memoria. Hace su propio
+     * fetch -- si ya tienes el Usuario (caso normal: JwtAuthenticationFilter y
+     * AuthController.login/refresh lo reciben de loadUserByUsername/authManager.authenticate,
+     * que YA cargaron Usuario+Roles+sus 4 colecciones EAGER), usa
+     * {@link #permisosEfectivos(Usuario)} para no volver a pedirlo.
+     */
+    public PermisosEfectivosDto permisosEfectivos(Integer usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
+        return permisosEfectivos(usuario);
+    }
+
+    /**
+     * Junta pantallas + pantallasEscritura + acciones a partir de un Usuario YA CARGADO, sin
+     * volver a pedirlo a la BD -- solo hace falta 1 query extra (las excepciones de
+     * usuario_submenu, que no viven en el grafo EAGER de Usuario/Roles).
+     *
+     * <p><b>Encontrado 2026-08-27 (lentitud reportada en login y en cualquier pantalla que
+     * mandara el token, empeoro notablemente al agregar Fase 3):</b> primero se detecto que
+     * JwtAuthenticationFilter y AuthController.login/refresh llamaban a submenusEfectivos +
+     * submenusEscritura + accionesEfectivas por separado (3 fetches redundantes). Se corrigio a
+     * un solo permisosEfectivos(usuarioId) -- pero ese metodo TAMBIEN volvia a pedir el Usuario
+     * por su cuenta, duplicando el fetch que loadUserByUsername/authManager.authenticate() YA
+     * habian hecho segundos antes en el mismo request (Usuario.roles es EAGER y Roles tiene 4
+     * colecciones @ManyToMany EAGER -- cargarlo 2 veces seguidas costaba el doble de lo
+     * necesario). Esta version reusa el objeto que el caller ya tiene en memoria.
+     */
+    public PermisosEfectivosDto permisosEfectivos(Usuario usuario) {
+        Set<Submenu> pantallas = new HashSet<>(usuario.getRoles() != null
+                ? usuario.getRoles().getSubmenus() : Set.of());
+        List<UsuarioSubmenu> excepciones = usuarioSubmenuRepository.findByUsuarioId(usuario.getId());
+        excepciones.stream().filter(UsuarioSubmenu::getConcedido).forEach(e -> pantallas.add(e.getSubmenu()));
+        excepciones.stream().filter(e -> !e.getConcedido())
+                .forEach(e -> pantallas.removeIf(s -> s.getId().equals(e.getSubmenu().getId())));
+        Set<Submenu> pantallasEscritura = usuario.getRoles() != null ? usuario.getRoles().getSubmenusEscritura() : Set.of();
+        Set<AccionSubmenu> acciones = usuario.getRoles() != null ? usuario.getRoles().getAcciones() : Set.of();
+        return new PermisosEfectivosDto(pantallas, pantallasEscritura, acciones);
     }
 }

@@ -55,6 +55,20 @@ public class Pedido extends BaseId{
     @Column(name = "direccion_entrega", length = 300)
     private String direccionEntrega;
 
+    // Punto exacto de la entrega (distinto de LugarEntrega, que es la zona/pueblo) -- lo elige
+    // el cliente/admin en un mapa (Leaflet+OpenStreetMap del lado del front). Null si nunca se
+    // capturo -- direccionEntrega en texto libre sigue siendo el dato principal, esto es un
+    // complemento opcional para poder trazar la ruta exacta al entregar.
+    @Column(name = "latitud")
+    private Double latitud;
+
+    @Column(name = "longitud")
+    private Double longitud;
+
+    // Referencia libre que un mapa no dice (ej. "porton verde, junto a la tienda").
+    @Column(name = "referencias", length = 255)
+    private String referencias;
+
     @ManyToOne
     @JoinColumn(name = "lugar_entrega_id")
     private LugarEntrega lugarEntrega;

@@ -23,6 +23,7 @@ import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IAbonoRepository;
 import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
+import com.ventas.key.mis.productos.repository.IColorFlorRepository;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
@@ -51,9 +52,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -79,12 +82,22 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final ILugarEntregaRepository iLugarEntregaRepository;
     private final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository;
     private final IAccesorioRamoRepository iAccesorioRamoRepository;
+    private final IColorFlorRepository iColorFlorRepository;
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private EmailService emailService;
+    @Autowired private RestockNotificacionService restockNotificacionService;
+
+    // Correo fijo del ambiente (mismo que ya usa el chat/Arma tu ramo para escalar sin depender
+    // de que cada cuenta ADMIN tenga su propio correo cargado en su perfil) -- pedido 2026-09-04:
+    // el aviso de "nuevo pedido" no llegaba a contacto@/admin@ porque antes solo se mandaba a las
+    // cuentas ADMIN con Usuario.email lleno, y ninguna lo tenia. Ahora se manda a AMBOS: este
+    // correo fijo (garantizado) y, ademas, a cualquier ADMIN que si tenga su propio correo cargado.
+    @org.springframework.beans.factory.annotation.Value("${chat.admin-email:}")
+    private String correoAdminAmbiente;
 
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
                              final IClienteRepository iClienteRepository,
@@ -100,7 +113,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                              final PromocionServiceImpl promocionService,
                              final ILugarEntregaRepository iLugarEntregaRepository,
                              final IRamoPedidoDetalleRepository iRamoPedidoDetalleRepository,
-                             final IAccesorioRamoRepository iAccesorioRamoRepository) {
+                             final IAccesorioRamoRepository iAccesorioRamoRepository,
+                             final IColorFlorRepository iColorFlorRepository) {
         super(iPedidoRepository, error);
         this.iProductoRepository = iProductoRepository;
         this.iClienteRepository = iClienteRepository;
@@ -117,6 +131,24 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iLugarEntregaRepository = iLugarEntregaRepository;
         this.iRamoPedidoDetalleRepository = iRamoPedidoDetalleRepository;
         this.iAccesorioRamoRepository = iAccesorioRamoRepository;
+        this.iColorFlorRepository = iColorFlorRepository;
+    }
+
+    // Bug encontrado 2026-08-28: ColorFlor.stock (lo que ve el cliente en "Arma tu ramo" al
+    // repartir flores entre colores) es una copia separada del stock real, que vive en la
+    // variante "sombra" de ese color (ver ProductoSombraServiceImpl). Cada vez que un pedido
+    // mueve el stock de esa variante (venta, cancelación, edición de detalle) hay que empujar el
+    // mismo valor a ColorFlor.stock -- si no, con cada ramo vendido la variante baja pero
+    // ColorFlor.stock se queda pegado en el número viejo, hasta que el configurador ofrece más
+    // flores de las que en realidad quedan y el pedido explota al guardar con "Stock
+    // insuficiente" (síntoma reportado: el configurador decía 100 disponibles, la variante ya
+    // tenía 20). No hace falta clamp a 0: la variante nunca queda negativa (los checks de arriba
+    // ya lo garantizan), así que tampoco ColorFlor.stock.
+    private void sincronizarStockColorFlor(Variantes variante) {
+        iColorFlorRepository.findByVarianteId(variante.getId()).ifPresent(color -> {
+            color.setStock(variante.getStock());
+            iColorFlorRepository.save(color);
+        });
     }
 
     // lugarEntregaId es opcional (null = no se captura el lugar de entrega en ese pedido)
@@ -124,6 +156,25 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (lugarEntregaId == null) return null;
         return iLugarEntregaRepository.findById(lugarEntregaId)
                 .orElseThrow(() -> new RuntimeException("Lugar de entrega no encontrado: " + lugarEntregaId));
+    }
+
+    // 2026-09-04: la fecha de recogida solo la elige el cliente cuando va a "recoger en tienda"
+    // (LugarEntrega.esRecogerEnTienda) -- sin lugar elegido tambien cuenta como recoger en tienda
+    // (comportamiento historico, antes de que existiera este catalogo con la distincion). Para una
+    // zona de entrega real (Tejupilco, Zacazonapan, etc.) la fecha se deja en null a proposito: la
+    // coordina el admin despues a mano (PUT /{id}/entrega), el scheduler de auto-cancelacion por
+    // TIMEOUT nunca la toca porque solo busca pedidos con fechaRecogida no nula.
+    private LocalDate resolverFechaRecogida(LugarEntrega lugarEntrega, LocalDate fechaElegida) {
+        boolean esRecogerEnTienda = lugarEntrega == null || Boolean.TRUE.equals(lugarEntrega.getEsRecogerEnTienda());
+        if (!esRecogerEnTienda) return null;
+
+        LocalDate hoy = LocalDate.now();
+        LocalDate maxFecha = hoy.plusDays(3);
+        if (fechaElegida == null) return maxFecha;
+        if (fechaElegida.isBefore(hoy) || fechaElegida.isAfter(maxFecha)) {
+            throw new RuntimeException("La fecha para recoger en tienda debe ser entre hoy y los próximos 3 días");
+        }
+        return fechaElegida;
     }
 
     @Transactional
@@ -142,11 +193,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setEstadoPedido(requestG.getEstadoPedido());
         pedido.setFechaPedido(requestG.getFechaPedido());
         pedido.setFechaHoraRegistro(LocalDateTime.now());
-        pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
         pedido.setNombreReceptor(requestG.getNombreReceptor());
         pedido.setDireccionEntrega(requestG.getDireccionEntrega());
-        pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
+        pedido.setLatitud(requestG.getLatitud());
+        pedido.setLongitud(requestG.getLongitud());
+        pedido.setReferencias(requestG.getReferencias());
+        LugarEntrega lugarEntrega = resolveLugarEntrega(requestG.getLugarEntregaId());
+        pedido.setLugarEntrega(lugarEntrega);
+        pedido.setFechaRecogida(resolverFechaRecogida(lugarEntrega, requestG.getFechaRecogida()));
         pedido.setUrlFacebook(requestG.getUrlFacebook());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
         pedido.setTipoPedido(tipoPedido);
@@ -171,6 +226,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 }
                 variante.setStock(variante.getStock() - mpa.getCantidad());
                 iVarianteRepository.save(variante);
+                sincronizarStockColorFlor(variante);
 
                 prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
                         .orElseThrow(() -> new RuntimeException("Producto no encontrado para variante: " + mpa.getVarianteId()));
@@ -217,7 +273,72 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido saved = this.iPedidoRepository.save(pedido);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        notificarPedidoCreado(saved);
         return saved;
+    }
+
+    /**
+     * Al generar un pedido (2026-09-03): confirmación SIEMPRE al cliente (comprobante, no
+     * transaccional -- no depende de recibirCorreos, ver EmailService.enviarConfirmacionPedido) y
+     * aviso a los admins SOLO si quien generó el pedido fue el propio cliente (si lo generó un
+     * admin, ya lo sabe). Nunca debe tumbar la transacción de creación del pedido si el correo falla.
+     */
+    private void notificarPedidoCreado(Pedido pedido) {
+        // Trazabilidad completa (pedido 2026-09-04, para aislar de una vez un correo que aparecia
+        // en el log sin explicacion clara junto al aviso de pedido) -- info, no debug, para que
+        // quede en el log de siempre sin tener que cambiar el nivel de logging del pod.
+        Cliente clienteLog = pedido.getCliente();
+        log.info("notificarPedidoCreado INICIO pedidoId={} clienteId={} clienteCorreo={} generadoPorAdmin={}",
+                pedido.getId(),
+                clienteLog != null ? clienteLog.getId() : null,
+                clienteLog != null ? clienteLog.getCorreoElectronico() : null,
+                AuthenticationUtils.isAdminContext());
+
+        try {
+            Cliente cliente = pedido.getCliente();
+            if (cliente != null && cliente.getCorreoElectronico() != null && !cliente.getCorreoElectronico().isBlank()) {
+                emailService.enviarConfirmacionPedido(
+                        cliente.getCorreoElectronico(), cliente.getNombrePersona(), pedido.getId(), pedido.getTotalPedido());
+                log.info("notificarPedidoCreado: confirmacion al cliente mandada a {}", cliente.getCorreoElectronico());
+            } else {
+                log.info("notificarPedidoCreado: cliente sin correo, no se manda confirmacion");
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo enviar confirmacion de pedido id={}: {}", pedido.getId(), e.getMessage(), e);
+        }
+
+        if (AuthenticationUtils.isAdminContext()) {
+            log.info("notificarPedidoCreado FIN pedidoId={}: lo genero un admin, no se avisa a nadie mas", pedido.getId());
+            return;
+        }
+
+        try {
+            String nombreCliente = pedido.getCliente() != null ? pedido.getCliente().getNombrePersona() : "Cliente";
+            Set<String> destinatarios = new LinkedHashSet<>();
+            log.info("notificarPedidoCreado: correoAdminAmbiente (chat.admin-email) = '{}'", correoAdminAmbiente);
+            if (correoAdminAmbiente != null && !correoAdminAmbiente.isBlank()) {
+                destinatarios.add(correoAdminAmbiente);
+            }
+            List<Usuario> admins = iUsuarioRepository.findByRoles_NombreRolAndEnabledTrue("ROLE_ADMIN");
+            log.info("notificarPedidoCreado: {} cuenta(s) ROLE_ADMIN encontrada(s): {}",
+                    admins.size(),
+                    admins.stream()
+                            .map(a -> a.getId() + ":" + a.getUsername() + ":" + a.getEmail())
+                            .reduce((a, b) -> a + ", " + b).orElse("(ninguna)"));
+            for (Usuario admin : admins) {
+                if (admin.getEmail() != null && !admin.getEmail().isBlank()) {
+                    destinatarios.add(admin.getEmail());
+                }
+            }
+            log.info("notificarPedidoCreado: destinatarios finales del aviso = {}", destinatarios);
+            for (String destino : destinatarios) {
+                emailService.enviarAvisoNuevoPedido(destino, pedido.getId(), nombreCliente, pedido.getTotalPedido());
+                log.info("notificarPedidoCreado: aviso de pedido mandado a {}", destino);
+            }
+            log.info("notificarPedidoCreado FIN pedidoId={}: {} aviso(s) mandado(s)", pedido.getId(), destinatarios.size());
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a los admins del pedido nuevo id={}: {}", pedido.getId(), e.getMessage(), e);
+        }
     }
 
     // El precio/subtotal que manda el cliente en una linea normal (sin promocionId) debe
@@ -331,6 +452,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         pedido.setEstadoPedido("Entregado");
         this.iPedidoRepository.save(pedido);
+        notificarSeguimientoPedido(pedido);
         this.vImpl.save(venta);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -339,16 +461,29 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Override
     public PageableDto<List<PedidoGenerico>> obtenerPedido(int id, int size, int pageSize) {
+        // `id` es un cliente_id -- sin este chequeo cualquier usuario autenticado podia mandar el
+        // id de OTRO cliente por la URL y ver su historial completo de pedidos (nombre, correo,
+        // telefono y detalle de cada compra), pura IDOR (encontrado 2026-08-27). ADMIN si puede
+        // consultar el de cualquiera; un cliente solo el suyo, sin importar que id venga en la URL.
+        int idEfectivo = AuthenticationUtils.isAdminContext() ? id : idClientePropio();
         Pageable pageable = PageRequest.of(pageSize, size);
-        Page<String> jsonList = iPedidoRepository.findPedidoPorId2(id, pageable);
+        Page<String> jsonList = iPedidoRepository.findPedidoPorId2(idEfectivo, pageable);
         return getListPageableDto(jsonList);
     }
 
     @Override
     public PageableDto<List<PedidoGenerico>> obtenerPedidoPorId(int idPedido, int idCliente,int size, int pageSize) {
+        // Mismo chequeo que obtenerPedido() -- idCliente tambien es atacable por URL.
+        int idClienteEfectivo = AuthenticationUtils.isAdminContext() ? idCliente : idClientePropio();
         Pageable pageable = PageRequest.of(pageSize, size);
-        Page<String> jsonList = iPedidoRepository.pediodPorId(idPedido, idCliente,pageable);
+        Page<String> jsonList = iPedidoRepository.pediodPorId(idPedido, idClienteEfectivo,pageable);
         return getListPageableDto(jsonList);
+    }
+
+    /** Cliente del usuario autenticado, o -1 (ningun cliente tiene ese id) si no tiene uno ligado. */
+    private int idClientePropio() {
+        Cliente cliente = AuthenticationUtils.currentUsuario().getCliente();
+        return cliente != null ? cliente.getId() : -1;
     }
 
     @Override
@@ -417,8 +552,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 if (detalle.getVariante() != null) {
                     Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
                             .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                    int stockAntes = variante.getStock();
                     variante.setStock(variante.getStock() + detalle.getCantidad());
                     iVarianteRepository.save(variante);
+                    sincronizarStockColorFlor(variante);
+                    restockNotificacionService.notificarSiRestock(variante, stockAntes);
                 }
             });
         }
@@ -427,6 +565,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setMotivoCancelacion(motivo);
         pedido.setFechaCancelacion(LocalDate.now());
         iPedidoRepository.save(pedido);
+        notificarSeguimientoPedido(pedido);
 
         if (esDevolucion) {
             iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
@@ -468,6 +607,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
                 variante.setStock(variante.getStock() + detalle.getCantidad());
                 iVarianteRepository.save(variante);
+                sincronizarStockColorFlor(variante);
             }
             iDetallePedidoRepository.delete(detalle);
             pedido.getDetalles().remove(detalle);
@@ -479,6 +619,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
                 variante.setStock(variante.getStock() + cantidad);
                 iVarianteRepository.save(variante);
+                sincronizarStockColorFlor(variante);
             }
             detalle.setCantidad(detalle.getCantidad() - cantidad);
             detalle.setSubTotal(detalle.getPrecioUnitario() * detalle.getCantidad());
@@ -500,6 +641,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + id));
 
+        // El detalle de un pedido solo lo puede ver su dueno o ADMIN -- mismo patron que
+        // editarDatosEntrega() (encontrado junto con la misma IDOR en obtenerPedido/obtenerPedidoPorId).
+        if (!AuthenticationUtils.isAdminContext()) {
+            Cliente clienteActual = AuthenticationUtils.currentUsuario().getCliente();
+            if (clienteActual == null || pedido.getCliente() == null
+                    || !pedido.getCliente().getId().equals(clienteActual.getId())) {
+                throw new RuntimeException("No puedes ver el detalle de un pedido que no es tuyo");
+            }
+        }
+
         double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
         double totalPedido = pedido.getTotalPedido() != null ? pedido.getTotalPedido() : 0.0;
 
@@ -520,6 +671,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
         resp.setNombreReceptor(pedido.getNombreReceptor());
         resp.setDireccionEntrega(pedido.getDireccionEntrega());
+        resp.setLatitud(pedido.getLatitud());
+        resp.setLongitud(pedido.getLongitud());
+        resp.setReferencias(pedido.getReferencias());
         resp.setUrlFacebook(pedido.getUrlFacebook());
         if (pedido.getLugarEntrega() != null) {
             resp.setLugarEntregaId(pedido.getLugarEntrega().getId());
@@ -633,6 +787,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (requestG.getDireccionEntrega() != null) {
             pedido.setDireccionEntrega(requestG.getDireccionEntrega());
         }
+        if (requestG.getLatitud() != null) {
+            pedido.setLatitud(requestG.getLatitud());
+        }
+        if (requestG.getLongitud() != null) {
+            pedido.setLongitud(requestG.getLongitud());
+        }
+        if (requestG.getReferencias() != null) {
+            pedido.setReferencias(requestG.getReferencias());
+        }
         if (requestG.getLugarEntregaId() != null) {
             pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
         }
@@ -659,6 +822,24 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         String asunto = "Comprobante de tu pedido #" + id + " — Novedades Jade";
         return emailService.enviarTicket(requestG.getCorreo(), asunto, requestG.getTicketHtml());
+    }
+
+    /**
+     * Correo de seguimiento ante un cambio de estado del pedido (confirmado/entregado o
+     * cancelado). NO transaccional -- respeta Cliente.recibirCorreos, a diferencia del ticket de
+     * compra (notificarPedido) que el cliente dispara explícitamente con un checkbox propio.
+     * Nunca debe tumbar la transacción que confirma/cancela el pedido si el envío falla.
+     */
+    private void notificarSeguimientoPedido(Pedido pedido) {
+        try {
+            Cliente cliente = pedido.getCliente();
+            if (cliente == null || !Boolean.TRUE.equals(cliente.getRecibirCorreos())) return;
+            String correo = cliente.getCorreoElectronico();
+            if (correo == null || correo.isBlank()) return;
+            emailService.enviarSeguimientoPedido(correo, cliente.getNombrePersona(), pedido.getId(), pedido.getEstadoPedido());
+        } catch (Exception e) {
+            log.warn("No se pudo notificar seguimiento del pedido id={}: {}", pedido.getId(), e.getMessage());
+        }
     }
 
     private PageableDto<List<PedidoGenerico>> getListPageableDto(Page<String> jsonList) {
