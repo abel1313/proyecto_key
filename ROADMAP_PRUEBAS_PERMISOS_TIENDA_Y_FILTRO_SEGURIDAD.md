@@ -69,6 +69,32 @@ en un tramo contiguo:
 
 ---
 
+## Tarea A (cont. 3) — Descripción propia para "Editar" (2026-09-04)
+
+"Editar" era el único checkbox del sistema sin botón ℹ️ propio (Ver y cada acción ya lo
+tenían). Caso real que lo disparó: "Editar" en Modelos no correspondía a nada visible en esa
+pantalla — es un permiso compartido por OR con Agregar modelo y Agregar producto.
+
+### 1. Script — `migration_submenu_descripcion_escritura.sql` ✅ ejecutado en QA y prod
+Agrega `submenu.descripcion_escritura` y la llena para los 3 grupos donde el permiso de
+escritura de verdad se comparte entre pantallas hermanas: Modelos + Agregar modelo + Agregar
+producto, las 3 de Rifas, y Facebook + Hashtags. El resto de las pantallas cae en un texto
+genérico en el front (no hace falta llenarlo a mano en cada una).
+
+### 2. Probar en Gestión de roles
+- [ ] Junto a "✏️ Editar" de CUALQUIER pantalla debe aparecer un botón ℹ️ nuevo (antes no
+      estaba).
+- [ ] En Modelos, Agregar modelo o Agregar producto → el popup debe explicar que el permiso se
+      comparte entre las 3.
+- [ ] En Rifas (cualquiera de las 3) y en Facebook/Hashtags → mismo tipo de aviso de grupo
+      compartido.
+- [ ] En cualquier otra pantalla (ej. Usuarios) → el popup debe mostrar el texto genérico
+      ("Deja crear/editar/borrar en esta pantalla…"), no quedar vacío.
+- [ ] En "Menús y submenús", al editar una pantalla → debe aparecer el campo de texto nuevo
+      para cargar esta descripción a mano en pantallas futuras.
+
+---
+
 ## Tarea A — Permisos finos en `tienda/buscar` (habilitar / compartir imagen)
 
 Ya ejecutaste `migration_accion_tienda_habilitar_compartir.sql` en QA y prod ✅ — falta la
