@@ -28,6 +28,11 @@ la fecha real del merge** — ahora mismo cambia todos los días con cada commit
 que armarla hoy quedaría desactualizada. Lo que sí es estable y vale la pena dejar listo desde
 ya son las secciones 1 y 2 de abajo.
 
+**Aclaración 2026-09-04:** las migraciones de la sección 1.c (más abajo) se ejecutaron en QA y
+prod **directamente, adelantadas al código** — el código de `feature/permisos-finos` sigue sin
+fusionar a `dev`/`qa`/`main`, esto es solo para que el documento quede al día con lo que ya
+existe en la base de datos. No se tocó ninguna rama de git.
+
 **Ramas de esta sesión (`feature/permisos-finos`, `feature/filtro-seguridad`) NO son parte de
 esta promoción** — siguen en pruebas aparte, ver `ROADMAP_PRUEBAS_PERMISOS_TIENDA_Y_FILTRO_SEGURIDAD.md`.
 No se mezclan a `qa` hasta que las apruebes.
@@ -88,6 +93,22 @@ de Meta):
 - `migration_publicacion_social.sql` / `migration_publicacion_social_programada.sql` / `migration_publicacion_social_variante_opcional.sql`
 - `migration_negocio_instagram_tiktok.sql`
 - `migration_tiktok_token.sql`
+
+### 1.c — ✅ Ya ejecutadas en QA y prod, adelantadas al código (rama `feature/permisos-finos`)
+
+Estas NO vienen de `qa` — son de una rama propia (`feature/permisos-finos`, ver
+`ROADMAP_PRUEBAS_PERMISOS_TIENDA_Y_FILTRO_SEGURIDAD.md`) que todavía no se fusionó a `dev`. El
+usuario las fue corriendo en QA y prod a medida que se armaban, antes de que el código llegue.
+Cuando esa rama se fusione a `dev`→`qa`→`main`, estos scripts YA están aplicados — no hay que
+volver a correrlos, solo confirmar con la verificación de cada uno si hiciera falta.
+
+| # | Script | Qué hace | Verificación |
+|---|---|---|---|
+| 1 | `migration_accion_tienda_habilitar_compartir.sql` | Siembra las acciones `habilitar`/`compartir-imagen` para `tienda/buscar` | `SELECT clave FROM accion_submenu a JOIN submenu s ON s.id=a.submenu_id WHERE s.ruta='tienda/buscar' AND a.clave IN ('habilitar','compartir-imagen');` → 2 filas |
+| 2 | `migration_descripcion_acciones_modelos.sql` | Llena `descripcion` de las 5 acciones originales de Modelos | ya cubierta en 1.a #8 |
+| 3 | `migration_accion_modelos_etiquetas_y_escaner.sql` | Renombra etiquetas de Modelos con ícono real + agrega la acción `escanear-codigo` | `SELECT etiqueta FROM accion_submenu a JOIN submenu s ON s.id=a.submenu_id WHERE s.ruta='productos/buscar' AND a.clave='escanear-codigo';` → 1 fila |
+| 4 | `migration_accion_submenu_categoria.sql` | Agrega `accion_submenu.categoria` + renumera `orden` (agrupa Filtros/Tarjeta/Buscador en Modelos y Tienda) | `SELECT DISTINCT categoria FROM accion_submenu WHERE categoria IS NOT NULL;` → varias filas, no vacío |
+| 5 | `migration_submenu_descripcion_escritura.sql` | Agrega `submenu.descripcion_escritura` + la llena para los grupos compartidos (Modelos/Agregar modelo/Agregar producto, Rifas, Facebook/Hashtags) | `SELECT ruta FROM submenu WHERE descripcion_escritura IS NOT NULL;` → varias filas |
 
 ---
 
