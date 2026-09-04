@@ -66,17 +66,17 @@ Base: diff de archivos `migration_*.sql` entre el commit del último merge qa→
 | 15 | `migration_lugar_entrega_anillo.sql` | Crea tabla `lugar_entrega_anillo` (cobro por distancia) | `SHOW TABLES LIKE 'lugar_entrega_anillo';` | ⬜ | lugar_entrega_anillo en ambos
 | 16 | `migration_lugar_entrega_centroide.sql` | Agrega `latitud`/`longitud` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'latitud';` | ⬜ | existe en ambos
 | 17 | `migration_lugar_entrega_recoger_en_tienda.sql` | Agrega `es_recoger_en_tienda` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'es_recoger_en_tienda';` | ⬜ |existen
-| 18 | `migration_lugar_entrega_dia_entrega_semanal.sql` | Agrega `dia_entrega_semanal` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'dia_entrega_semanal';` | ⬜ |
-| 19 | `migration_pedido_ubicacion_entrega.sql` | Agrega `latitud`/`longitud`/`referencias` a `pedidos` | `SHOW COLUMNS FROM pedidos LIKE 'referencias';` | ⬜ |
-| 20 | `migration_fecha_creacion_producto_variante.sql` | Agrega `fecha_creacion` a `producto` y `variantes` | `SHOW COLUMNS FROM variantes LIKE 'fecha_creacion';` | ⬜ |
-| 21 | `migration_umbral_stock_bajo.sql` | Agrega columna a `configuracion_negocio` (umbral de stock bajo) | `SHOW COLUMNS FROM configuracion_negocio LIKE 'umbral%';` | ⬜ |
-| 22 | `migration_hashtags_default.sql` | Crea tabla `hashtags_default` | `SHOW TABLES LIKE 'hashtags_default';` | ⬜ |
-| 23 | `migration_logo.sql` | Crea tabla `logo` | `SHOW TABLES LIKE 'logo';` | ⬜ |
-| 24 | `migration_direcciones_autoincrement.sql` | `direcciones.id` pasa a AUTO_INCREMENT | `SHOW COLUMNS FROM direcciones LIKE 'id';` → columna `Extra` debe decir `auto_increment` | ⬜ |
-| 25 | `migration_privacidad_preferencias_correo.sql` | Agrega `acepto_privacidad`/`fecha_acepto_privacidad` (usuario) y `recibir_correos` (clientes) | `SHOW COLUMNS FROM usuario_modificacion LIKE 'acepto_privacidad'; SHOW COLUMNS FROM clientes LIKE 'recibir_correos';` | ⬜ |
-| 26 | `migration_recibir_promociones.sql` | Agrega `recibir_promociones` a `clientes` | `SHOW COLUMNS FROM clientes LIKE 'recibir_promociones';` | ⬜ |
-| 27 | `migration_ramo_armado_variante_sombra.sql` | Agrega `variante_id` a `ramo_armado` | `SHOW COLUMNS FROM ramo_armado LIKE 'variante_id';` | ⬜ |
-| 28 | `migration_fix_stock_color_flor.sql` | Fix de datos (sincroniza `color_flor.stock` con su variante sombra) — NO agrega columnas | `SELECT COUNT(*) FROM color_flor cf JOIN variantes v ON v.id=cf.variante_id WHERE cf.stock<>v.stock;` → debe dar 0 después de correrlo | ⬜ |
+| 18 | `migration_lugar_entrega_dia_entrega_semanal.sql` | Agrega `dia_entrega_semanal` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'dia_entrega_semanal';` | ⬜ | existe
+| 19 | `migration_pedido_ubicacion_entrega.sql` | Agrega `latitud`/`longitud`/`referencias` a `pedidos` | `SHOW COLUMNS FROM pedidos LIKE 'referencias';` | ⬜ |existe
+| 20 | `migration_fecha_creacion_producto_variante.sql` | Agrega `fecha_creacion` a `producto` y `variantes` | `SHOW COLUMNS FROM variantes LIKE 'fecha_creacion';` | ⬜ |existe
+| 21 | `migration_umbral_stock_bajo.sql` | Agrega columna a `configuracion_negocio` (umbral de stock bajo) | `SHOW COLUMNS FROM configuracion_negocio LIKE 'umbral%';` | ⬜ | existe
+| 22 | `migration_hashtags_default.sql` | Crea tabla `hashtags_default` | `SHOW TABLES LIKE 'hashtags_default';` | ⬜ |existe
+| 23 | `migration_logo.sql` | Crea tabla `logo` | `SHOW TABLES LIKE 'logo';` | ⬜ |existe
+| 24 | `migration_direcciones_autoincrement.sql` | `direcciones.id` pasa a AUTO_INCREMENT | `SHOW COLUMNS FROM direcciones LIKE 'id';` → columna `Extra` debe decir `auto_increment` | ⬜ | lo tiene
+| 25 | `migration_privacidad_preferencias_correo.sql` | Agrega `acepto_privacidad`/`fecha_acepto_privacidad` (usuario) y `recibir_correos` (clientes) | `SHOW COLUMNS FROM usuario_modificacion LIKE 'acepto_privacidad'; SHOW COLUMNS FROM clientes LIKE 'recibir_correos';` | ⬜ |existe
+| 26 | `migration_recibir_promociones.sql` | Agrega `recibir_promociones` a `clientes` | `SHOW COLUMNS FROM clientes LIKE 'recibir_promociones';` | ⬜ |existe
+| 27 | `migration_ramo_armado_variante_sombra.sql` | Agrega `variante_id` a `ramo_armado` | `SHOW COLUMNS FROM ramo_armado LIKE 'variante_id';` | ⬜ | existe
+| 28 | `migration_fix_stock_color_flor.sql` | Fix de datos (sincroniza `color_flor.stock` con su variante sombra) — NO agrega columnas | `SELECT COUNT(*) FROM color_flor cf JOIN variantes v ON v.id=cf.variante_id WHERE cf.stock<>v.stock;` → debe dar 0 después de correrlo | ⬜ | existe 0
 
 📝 *Nota: #10, #11, #12, #13, #14 (todas `tema_variable_*`) conviene correrlas EN ORDEN por
 fecha si no se corrieron ya — algunas dependen de que la anterior ya haya corrido. Revisar la
@@ -93,7 +93,7 @@ de Meta):
 - `migration_publicacion_social.sql` / `migration_publicacion_social_programada.sql` / `migration_publicacion_social_variante_opcional.sql`
 - `migration_negocio_instagram_tiktok.sql`
 - `migration_tiktok_token.sql`
-
+estos script no se que son o porque los pusiste
 ### 1.c — ✅ Ya ejecutadas en QA y prod, adelantadas al código (rama `feature/permisos-finos`)
 
 Estas NO vienen de `qa` — son de una rama propia (`feature/permisos-finos`, ver
@@ -104,11 +104,11 @@ volver a correrlos, solo confirmar con la verificación de cada uno si hiciera f
 
 | # | Script | Qué hace | Verificación |
 |---|---|---|---|
-| 1 | `migration_accion_tienda_habilitar_compartir.sql` | Siembra las acciones `habilitar`/`compartir-imagen` para `tienda/buscar` | `SELECT clave FROM accion_submenu a JOIN submenu s ON s.id=a.submenu_id WHERE s.ruta='tienda/buscar' AND a.clave IN ('habilitar','compartir-imagen');` → 2 filas |
+| 1 | `migration_accion_tienda_habilitar_compartir.sql` | Siembra las acciones `habilitar`/`compartir-imagen` para `tienda/buscar` | `SELECT clave FROM accion_submenu a JOIN submenu s ON s.id=a.submenu_id WHERE s.ruta='tienda/buscar' AND a.clave IN ('habilitar','compartir-imagen');` → 2 filas | hay 2 filas
 | 2 | `migration_descripcion_acciones_modelos.sql` | Llena `descripcion` de las 5 acciones originales de Modelos | ya cubierta en 1.a #8 |
-| 3 | `migration_accion_modelos_etiquetas_y_escaner.sql` | Renombra etiquetas de Modelos con ícono real + agrega la acción `escanear-codigo` | `SELECT etiqueta FROM accion_submenu a JOIN submenu s ON s.id=a.submenu_id WHERE s.ruta='productos/buscar' AND a.clave='escanear-codigo';` → 1 fila |
-| 4 | `migration_accion_submenu_categoria.sql` | Agrega `accion_submenu.categoria` + renumera `orden` (agrupa Filtros/Tarjeta/Buscador en Modelos y Tienda) | `SELECT DISTINCT categoria FROM accion_submenu WHERE categoria IS NOT NULL;` → varias filas, no vacío |
-| 5 | `migration_submenu_descripcion_escritura.sql` | Agrega `submenu.descripcion_escritura` + la llena para los grupos compartidos (Modelos/Agregar modelo/Agregar producto, Rifas, Facebook/Hashtags) | `SELECT ruta FROM submenu WHERE descripcion_escritura IS NOT NULL;` → varias filas |
+| 3 | `migration_accion_modelos_etiquetas_y_escaner.sql` | Renombra etiquetas de Modelos con ícono real + agrega la acción `escanear-codigo` | `SELECT etiqueta FROM accion_submenu a JOIN submenu s ON s.id=a.submenu_id WHERE s.ruta='productos/buscar' AND a.clave='escanear-codigo';` → 1 fila |existe
+| 4 | `migration_accion_submenu_categoria.sql` | Agrega `accion_submenu.categoria` + renumera `orden` (agrupa Filtros/Tarjeta/Buscador en Modelos y Tienda) | `SELECT DISTINCT categoria FROM accion_submenu WHERE categoria IS NOT NULL;` → varias filas, no vacío | existen
+| 5 | `migration_submenu_descripcion_escritura.sql` | Agrega `submenu.descripcion_escritura` + la llena para los grupos compartidos (Modelos/Agregar modelo/Agregar producto, Rifas, Facebook/Hashtags) | `SELECT ruta FROM submenu WHERE descripcion_escritura IS NOT NULL;` → varias filas | existen
 
 ---
 
@@ -125,6 +125,12 @@ que te arme el comando exacto si hace falta):
 | # | Qué revisar | Comando sugerido | Estado |
 |---|---|---|---|
 | 1 | RabbitMQ configurado en `default` (recordatorio de `CLAUDE.md`: "main no tiene RabbitMQ configurado") — ¿sigue siendo así o ya se armó? | `kubectl get pods -n default \| grep -i rabbit` | ⬜ |
+ubuntu@vps-da9a48f5:~$ kubectl get pods -n default \| grep -i rabbit
+error: unknown shorthand flag: 'i' in -i
+See 'kubectl get --help' for usage.
+ubuntu@vps-da9a48f5:~$
+
+
 | 2 | Redis en `default` — activo y con la misma config que `qa` | `kubectl get pods -n default \| grep -i redis` | ⬜ |
 | 3 | `TOKEN_JWT` en `default` — variable/secret presente | `kubectl get secret -n default -o yaml \| grep -i token` (sin imprimir el valor en ningún lado) | ⬜ |
 | 4 | ConfigMap/env de `default` vs `qa` — diffear para ver qué le falta a prod de lo que ya tiene qa | `kubectl get configmap -n default -o yaml > /tmp/cm-default.yaml && kubectl get configmap -n qa -o yaml > /tmp/cm-qa.yaml && diff /tmp/cm-default.yaml /tmp/cm-qa.yaml` | ⬜ |
