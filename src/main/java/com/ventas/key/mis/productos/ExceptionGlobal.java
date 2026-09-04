@@ -7,8 +7,10 @@ import com.ventas.key.mis.productos.exeption.ExceptionStockInsuficiente;
 import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -80,6 +82,20 @@ public class ExceptionGlobal {
     public ResponseEntity<ResponseGeneric<Void>> archivoMuyGrande(MaxUploadSizeExceededException ex) {
         log.warn("Archivo demasiado grande: {}", ex.getMessage());
         return build(HttpStatus.BAD_REQUEST, "El archivo excede el tamaño maximo permitido");
+    }
+
+    // Fallo de infraestructura al hacer commit de la transaccion (ej. violacion de unique
+    // constraint que no se valido antes de guardar, timeout de conexion, etc.) -- Spring lo
+    // envuelve en TransactionSystemException, que ES una RuntimeException, asi que sin este
+    // handler especifico caia en el de abajo y el mensaje crudo de JPA/Hibernate (tipo "could
+    // not commit JPA transaction; nested exception is...") se le mostraba tal cual al usuario
+    // en vez de quedarse en el log (encontrado 2026-09-04, hotfix urgente en prod).
+    // DataAccessException cubre el resto de fallos de Spring Data/JPA que no pasan por commit
+    // (ej. una query que falla directo).
+    @ExceptionHandler({TransactionSystemException.class, DataAccessException.class})
+    public ResponseEntity<ResponseGeneric<Void>> errorBaseDatos(Exception ex) {
+        log.error("Error de base de datos / transaccion no controlado", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo guardar el cambio. Intenta de nuevo en unos minutos.");
     }
 
     // Gran parte de las validaciones de negocio (stock insuficiente, precio invalido, promocion

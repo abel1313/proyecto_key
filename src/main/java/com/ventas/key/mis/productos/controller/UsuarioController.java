@@ -80,29 +80,27 @@ public class UsuarioController extends AbstractController<
     // ── Cambio de correo de OTRO usuario (admin) — verificar antes de guardar ──
     // El email real no cambia hasta confirmar-cambio-correo con el codigo correcto.
 
+    // Sin try/catch a proposito -- las excepciones de negocio (correo requerido, codigo
+    // invalido/expirado, etc.) ya las traduce ExceptionGlobal a un mensaje claro con el status
+    // correcto. Antes este catch generico devolvia e.getMessage() para CUALQUIER excepcion,
+    // incluidas las de infraestructura (JPA/Hibernate al fallar el commit), mostrando texto
+    // crudo tipo "could not commit JPA transaction" al usuario (encontrado 2026-09-04, hotfix
+    // urgente en prod -- ver tambien ExceptionGlobal.errorBaseDatos).
     @PostMapping("/{id}/solicitar-cambio-correo")
     public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(@PathVariable Integer id,
                                                     @Valid @RequestBody SolicitarCambioCorreoRequest request) {
-        try {
-            boolean enviado = usu.solicitarCambioCorreo(id, request.getCorreoNuevo());
-            String mensaje = enviado
-                    ? "Codigo enviado al correo nuevo"
-                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
-            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        boolean enviado = usu.solicitarCambioCorreo(id, request.getCorreoNuevo());
+        String mensaje = enviado
+                ? "Codigo enviado al correo nuevo"
+                : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+        return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
     }
 
     @PostMapping("/{id}/confirmar-cambio-correo")
     public ResponseEntity<ResponseGeneric<String>> confirmarCambioCorreo(@PathVariable Integer id,
                                                     @Valid @RequestBody ConfirmarCambioCorreoRequest request) {
-        try {
-            usu.confirmarCambioCorreo(id, request.getCodigo());
-            return ResponseEntity.ok(new ResponseGeneric<>("Correo actualizado correctamente"));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        usu.confirmarCambioCorreo(id, request.getCodigo());
+        return ResponseEntity.ok(new ResponseGeneric<>("Correo actualizado correctamente"));
     }
 
     @GetMapping("/{id}/cambio-correo-pendiente")
