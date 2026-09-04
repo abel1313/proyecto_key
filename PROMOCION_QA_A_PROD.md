@@ -175,7 +175,7 @@ limpios, en un bloque de código aparte de la tabla para que no pase de nuevo.
 | 2 | Redis en `default` | ✅ `redis-...-fmmqj` Running |
 | 3 | `TOKEN_JWT` en `default` | ✅ presente (`token-jwt: bW...`, no hace falta ver más) |
 | 4 | ConfigMap/env de `default` vs `qa` | ✅ diff corrido — solo difieren metadatos de k8s (`creationTimestamp`/`namespace`/`resourceVersion`/`uid`), el contenido real es igual. Ojo: esto probablemente significa que los ConfigMaps no son donde vive la config sensible de esta app (esa se inyecta con `kubectl set env` directo al Deployment, según `k8s/DEPLOY_COMMANDS.md`) — no es una comparación tan reveladora como pensé |
-| 5 | `application-docker.yml` del pod | ⬜ **no se llegó a correr** — lo que se pegó fue `kubectl get pods -n qa` (otro comando, no el de este ítem). Falta correr el de abajo cuando puedas |
+| 5 | `application-docker.yml` del pod | ✅ corrido con `jar xf` (el `cat` directo no funcionaba, el jar no viene "explotado") — el contenido del pod coincide exactamente con el archivo del repo, sin drift |
 | 6 | Espacio en disco / memoria libres | ⚠️ **memoria ajustada**: 7.6Gi total, solo 179Mi libres "real" (aunque 1.8Gi "available" contando cache reciclable — eso es lo que más importa en Linux). Disco: 83% usado (13G libres de 72G). No es crítico hoy, pero antes de un rollout con varios pods nuevos a la vez conviene tenerlo presente — si se pone justo, un rollout puede hacer que k8s mate pods por OOM |
 | 7 | Docker Hub | ⬜ falta revisar |
 
