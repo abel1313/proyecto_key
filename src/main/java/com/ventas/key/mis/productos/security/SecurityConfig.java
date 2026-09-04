@@ -24,6 +24,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.ventas.key.mis.productos.filter.InputSanitizationFilter;
 import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 
 @Configuration
@@ -33,6 +34,9 @@ public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtFilter;
+
+    @Autowired
+    private InputSanitizationFilter inputSanitizationFilter;
 
     /**
      * Origenes CORS permitidos, por perfil (hallazgo 10 de SEGURIDAD_AUTH.md). Antes la lista
@@ -449,6 +453,14 @@ public class SecurityConfig {
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                // Filtro global de saneamiento (2026-09-04, rama feature/filtro-seguridad): va ANTES
+                // que jwtFilter para revisar TODA peticion -- publica o autenticada -- antes de que
+                // se procese el token siquiera. Ver InputSanitizationFilter. IMPORTANTE: esta linea
+                // tiene que ir DESPUES del addFilterBefore de jwtFilter de arriba -- Spring Security
+                // recien registra el orden de JwtAuthenticationFilter.class en ESE llamado; usarlo
+                // como ancla antes de que exista ese registro tira
+                // "The Filter class ... does not have a registered order" (visto al correr los tests).
+                .addFilterBefore(inputSanitizationFilter, JwtAuthenticationFilter.class)
                 .build();
     }
 
