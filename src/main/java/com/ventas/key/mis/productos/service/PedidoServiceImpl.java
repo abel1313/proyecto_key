@@ -52,9 +52,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -87,6 +89,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private EmailService emailService;
+
+    // Correo fijo del ambiente (mismo que ya usa el chat/Arma tu ramo para escalar sin depender
+    // de que cada cuenta ADMIN tenga su propio correo cargado en su perfil) -- pedido 2026-09-04:
+    // el aviso de "nuevo pedido" no llegaba a contacto@/admin@ porque antes solo se mandaba a las
+    // cuentas ADMIN con Usuario.email lleno, y ninguna lo tenia. Ahora se manda a AMBOS: este
+    // correo fijo (garantizado) y, ademas, a cualquier ADMIN que si tenga su propio correo cargado.
+    @org.springframework.beans.factory.annotation.Value("${chat.admin-email:}")
+    private String correoAdminAmbiente;
 
     public PedidoServiceImpl(final IPedidoRepository iPedidoRepository, ErrorGenerico error,
                              final IClienteRepository iClienteRepository,
@@ -267,10 +277,18 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         try {
             String nombreCliente = pedido.getCliente() != null ? pedido.getCliente().getNombrePersona() : "Cliente";
+            Set<String> destinatarios = new LinkedHashSet<>();
+            if (correoAdminAmbiente != null && !correoAdminAmbiente.isBlank()) {
+                destinatarios.add(correoAdminAmbiente);
+            }
             List<Usuario> admins = iUsuarioRepository.findByRoles_NombreRolAndEnabledTrue("ROLE_ADMIN");
             for (Usuario admin : admins) {
-                if (admin.getEmail() == null || admin.getEmail().isBlank()) continue;
-                emailService.enviarAvisoNuevoPedido(admin.getEmail(), pedido.getId(), nombreCliente, pedido.getTotalPedido());
+                if (admin.getEmail() != null && !admin.getEmail().isBlank()) {
+                    destinatarios.add(admin.getEmail());
+                }
+            }
+            for (String destino : destinatarios) {
+                emailService.enviarAvisoNuevoPedido(destino, pedido.getId(), nombreCliente, pedido.getTotalPedido());
             }
         } catch (Exception e) {
             log.warn("No se pudo avisar a los admins del pedido nuevo id={}: {}", pedido.getId(), e.getMessage());
