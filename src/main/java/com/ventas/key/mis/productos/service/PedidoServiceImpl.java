@@ -158,6 +158,25 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 .orElseThrow(() -> new RuntimeException("Lugar de entrega no encontrado: " + lugarEntregaId));
     }
 
+    // 2026-09-04: la fecha de recogida solo la elige el cliente cuando va a "recoger en tienda"
+    // (LugarEntrega.esRecogerEnTienda) -- sin lugar elegido tambien cuenta como recoger en tienda
+    // (comportamiento historico, antes de que existiera este catalogo con la distincion). Para una
+    // zona de entrega real (Tejupilco, Zacazonapan, etc.) la fecha se deja en null a proposito: la
+    // coordina el admin despues a mano (PUT /{id}/entrega), el scheduler de auto-cancelacion por
+    // TIMEOUT nunca la toca porque solo busca pedidos con fechaRecogida no nula.
+    private LocalDate resolverFechaRecogida(LugarEntrega lugarEntrega, LocalDate fechaElegida) {
+        boolean esRecogerEnTienda = lugarEntrega == null || Boolean.TRUE.equals(lugarEntrega.getEsRecogerEnTienda());
+        if (!esRecogerEnTienda) return null;
+
+        LocalDate hoy = LocalDate.now();
+        LocalDate maxFecha = hoy.plusDays(3);
+        if (fechaElegida == null) return maxFecha;
+        if (fechaElegida.isBefore(hoy) || fechaElegida.isAfter(maxFecha)) {
+            throw new RuntimeException("La fecha para recoger en tienda debe ser entre hoy y los próximos 3 días");
+        }
+        return fechaElegida;
+    }
+
     @Transactional
     public Pedido savePedido(@RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
 
@@ -174,14 +193,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setEstadoPedido(requestG.getEstadoPedido());
         pedido.setFechaPedido(requestG.getFechaPedido());
         pedido.setFechaHoraRegistro(LocalDateTime.now());
-        pedido.setFechaRecogida(requestG.getFechaRecogida());
         pedido.setObservaciones(requestG.getObservaciones());
         pedido.setNombreReceptor(requestG.getNombreReceptor());
         pedido.setDireccionEntrega(requestG.getDireccionEntrega());
         pedido.setLatitud(requestG.getLatitud());
         pedido.setLongitud(requestG.getLongitud());
         pedido.setReferencias(requestG.getReferencias());
-        pedido.setLugarEntrega(resolveLugarEntrega(requestG.getLugarEntregaId()));
+        LugarEntrega lugarEntrega = resolveLugarEntrega(requestG.getLugarEntregaId());
+        pedido.setLugarEntrega(lugarEntrega);
+        pedido.setFechaRecogida(resolverFechaRecogida(lugarEntrega, requestG.getFechaRecogida()));
         pedido.setUrlFacebook(requestG.getUrlFacebook());
         String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
         pedido.setTipoPedido(tipoPedido);
