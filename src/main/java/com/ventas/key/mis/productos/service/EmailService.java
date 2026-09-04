@@ -342,6 +342,32 @@ public class EmailService {
     }
 
     /**
+     * Avisa al cliente el día/hora/lugar del viaje de entrega de SU zona (2026-09-04,
+     * EntregaZonaServiceImpl.programarEntrega) -- se manda a todos los clientes con un pedido
+     * pendiente de esa zona en la semana, de un jalón, cuando el admin programa el viaje.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarProgramacionEntregaZona(String destinatario, String nombreCliente, Integer pedidoId,
+                                                  String nombreZona, java.time.LocalDate fecha, String hora,
+                                                  String puntoEncuentro) {
+        String fechaStr = fecha.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d 'de' MMMM",
+                new java.util.Locale("es", "MX")));
+        String asunto = "Entrega en " + nombreZona + " — " + fechaStr + " — Novedades Jade";
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+                + "<p style=\"margin:0 0 12px;\">Ya tenemos fecha para llevar tu pedido "
+                + "<strong>#" + pedidoId + "</strong> a <strong>" + nombreZona + "</strong>:</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
+                + "font-size:18px;font-weight:700;padding:12px 22px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">" + fechaStr + ", " + hora + "</span>"
+                + "<div style=\"margin-top:10px;color:#1f2937;font-size:15px;\">📍 " + puntoEncuentro + "</div>"
+                + "</div>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Te esperamos ahí ese día para "
+                + "entregarte tu pedido.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
      * Digest diario para el admin (StockBajoScheduler) con las variantes en o por debajo del
      * umbral configurado. {@code lineas} ya viene formateada por StockBajoService (nombre de
      * producto + talla/color + stock) para que EmailService no dependa de la entidad Variantes.

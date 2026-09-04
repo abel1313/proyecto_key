@@ -272,6 +272,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
+                        // "Entregas por zona" (2026-09-04): solo el admin arma el viaje semanal y
+                        // le avisa a los clientes -- el cliente en el checkout solo elige la zona,
+                        // nunca ve ni toca esto.
+                        .requestMatchers("/v1/entregas-zona/**").hasRole("ADMIN")
+
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/abonos/**").hasAnyAuthority(pantalla("abonos"))
                         .requestMatchers("/v1/abonos/**").hasAnyAuthority(pantallaEscribir("abonos"))
