@@ -49,23 +49,23 @@ Base: diff de archivos `migration_*.sql` entre el commit del último merge qa→
 
 | # | Script | Qué hace | Verificación en prod (`inventario_key`) | Estado |
 |---|---|---|---|---|
-| 1 | `migration_menu_submenu.sql` | Crea tablas `menu` y `submenu` (catálogo de pantallas) | `SHOW TABLES LIKE 'submenu';` → debe existir | ⬜ |
-| 2 | `migration_rol_submenu_usuario_submenu.sql` | Crea `rol_submenu` y `usuario_submenu` | `SHOW TABLES LIKE 'rol_submenu';` | ⬜ |
-| 3 | `migration_permiso_escritura.sql` | Crea `rol_submenu_escritura` (permiso Editar separado de Ver) | `SHOW TABLES LIKE 'rol_submenu_escritura';` | ⬜ |
-| 4 | `migration_accion_submenu.sql` | Crea `accion_submenu` y `rol_accion` + siembra las 6 acciones originales de Modelos | `SHOW TABLES LIKE 'accion_submenu';` | ⬜ |
-| 5 | `migration_fix_submenu_gestion_menu.sql` | Agrega las filas de "Menús y submenús"/"Gestión de roles" al catálogo (si no, nadie puede entrar a asignar permisos) | `SELECT ruta FROM submenu WHERE ruta IN ('gestion-menu','gestion-menu/roles');` → debe traer 2 filas | ⬜ |
-| 6 | `migration_filtros_granulares.sql` | Agrega columna `descripcion` a `accion_submenu` + separa "filtros-admin" en 9 checkboxes (Modelos y Tienda) | `SELECT COUNT(*) FROM accion_submenu WHERE clave LIKE 'filtro-%';` → 18 (9 x 2 pantallas) | ⬜ |
-| 7 | `migration_descripcion_submenu.sql` | Agrega columna `descripcion` a `submenu` | `SHOW COLUMNS FROM submenu LIKE 'descripcion';` | ⬜ |
-| 8 | `migration_descripcion_acciones_modelos.sql` | Llena `descripcion` de las 5 acciones originales de Modelos | `SELECT clave FROM accion_submenu WHERE submenu_id = (SELECT id FROM submenu WHERE ruta='productos/buscar') AND descripcion IS NULL;` → 0 filas | ⬜ |
-| 9 | `migration_tema_variable.sql` | Crea tabla `tema_variable` (catálogo de Personalización) | `SHOW TABLES LIKE 'tema_variable';` | ⬜ |
-| 10 | `migration_tema_variable_card_header_footer_v2.sql` | Agrega tokens `card-header-bg`/`card-footer-bg` | `SELECT clave FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 2 filas | ⬜ |
-| 11 | `migration_tema_variable_card_header_text.sql` | Agrega token `card-header-text` | `SELECT 1 FROM tema_variable WHERE clave='card-header-text';` | ⬜ |
-| 12 | `migration_tema_variable_limpiar_card_header_footer.sql` | Borra 2 tokens viejos que no controlaban nada real (correr ANTES de la v2 de arriba si se aplican juntas, revisar orden) | `SELECT 1 FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 0 filas (antes de correr la v2) | ⬜ |
-| 13 | `migration_tema_variable_pk_semanticos.sql` | Agrega 12 tokens `--pk-success/-warning/-danger/-info` (+ variantes) | `SELECT COUNT(*) FROM tema_variable WHERE clave LIKE '--pk-%';` → 12 | ⬜ |
-| 14 | `migration_tema_variable_placeholder.sql` | Agrega token `input-placeholder` | `SELECT 1 FROM tema_variable WHERE clave='input-placeholder';` | ⬜ |
-| 15 | `migration_lugar_entrega_anillo.sql` | Crea tabla `lugar_entrega_anillo` (cobro por distancia) | `SHOW TABLES LIKE 'lugar_entrega_anillo';` | ⬜ |
-| 16 | `migration_lugar_entrega_centroide.sql` | Agrega `latitud`/`longitud` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'latitud';` | ⬜ |
-| 17 | `migration_lugar_entrega_recoger_en_tienda.sql` | Agrega `es_recoger_en_tienda` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'es_recoger_en_tienda';` | ⬜ |
+| 1 | `migration_menu_submenu.sql` | Crea tablas `menu` y `submenu` (catálogo de pantallas) | `SHOW TABLES LIKE 'submenu';` → debe existir | ⬜ | existe
+| 2 | `migration_rol_submenu_usuario_submenu.sql` | Crea `rol_submenu` y `usuario_submenu` | `SHOW TABLES LIKE 'rol_submenu';` | ⬜ |existe
+| 3 | `migration_permiso_escritura.sql` | Crea `rol_submenu_escritura` (permiso Editar separado de Ver) | `SHOW TABLES LIKE 'rol_submenu_escritura';` | ⬜ |existe
+| 4 | `migration_accion_submenu.sql` | Crea `accion_submenu` y `rol_accion` + siembra las 6 acciones originales de Modelos | `SHOW TABLES LIKE 'accion_submenu';` | ⬜ | existe
+| 5 | `migration_fix_submenu_gestion_menu.sql` | Agrega las filas de "Menús y submenús"/"Gestión de roles" al catálogo (si no, nadie puede entrar a asignar permisos) | `SELECT ruta FROM submenu WHERE ruta IN ('gestion-menu','gestion-menu/roles');` → debe traer 2 filas | ⬜ | existen 2 filas
+| 6 | `migration_filtros_granulares.sql` | Agrega columna `descripcion` a `accion_submenu` + separa "filtros-admin" en 9 checkboxes (Modelos y Tienda) | `SELECT COUNT(*) FROM accion_submenu WHERE clave LIKE 'filtro-%';` → 18 (9 x 2 pantallas) | ⬜ | existen 18
+| 7 | `migration_descripcion_submenu.sql` | Agrega columna `descripcion` a `submenu` | `SHOW COLUMNS FROM submenu LIKE 'descripcion';` | ⬜ | existen
+| 8 | `migration_descripcion_acciones_modelos.sql` | Llena `descripcion` de las 5 acciones originales de Modelos | `SELECT clave FROM accion_submenu WHERE submenu_id = (SELECT id FROM submenu WHERE ruta='productos/buscar') AND descripcion IS NULL;` → 0 filas | ⬜ | esta vacia
+| 9 | `migration_tema_variable.sql` | Crea tabla `tema_variable` (catálogo de Personalización) | `SHOW TABLES LIKE 'tema_variable';` | ⬜ | existe
+| 10 | `migration_tema_variable_card_header_footer_v2.sql` | Agrega tokens `card-header-bg`/`card-footer-bg` | `SELECT clave FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 2 filas | ⬜ | existen 2
+| 11 | `migration_tema_variable_card_header_text.sql` | Agrega token `card-header-text` | `SELECT 1 FROM tema_variable WHERE clave='card-header-text';` | ⬜ | existen
+| 12 | `migration_tema_variable_limpiar_card_header_footer.sql` | Borra 2 tokens viejos que no controlaban nada real (correr ANTES de la v2 de arriba si se aplican juntas, revisar orden) | `SELECT 1 FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 0 filas (antes de correr la v2) | ⬜ |existen
+| 13 | `migration_tema_variable_pk_semanticos.sql` | Agrega 12 tokens `--pk-success/-warning/-danger/-info` (+ variantes) | `SELECT COUNT(*) FROM tema_variable WHERE clave LIKE '--pk-%';` → 12 | ⬜ | existen 0 en ambos
+| 14 | `migration_tema_variable_placeholder.sql` | Agrega token `input-placeholder` | `SELECT 1 FROM tema_variable WHERE clave='input-placeholder';` | ⬜ | existen 1 en ambos
+| 15 | `migration_lugar_entrega_anillo.sql` | Crea tabla `lugar_entrega_anillo` (cobro por distancia) | `SHOW TABLES LIKE 'lugar_entrega_anillo';` | ⬜ | lugar_entrega_anillo en ambos
+| 16 | `migration_lugar_entrega_centroide.sql` | Agrega `latitud`/`longitud` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'latitud';` | ⬜ | existe en ambos
+| 17 | `migration_lugar_entrega_recoger_en_tienda.sql` | Agrega `es_recoger_en_tienda` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'es_recoger_en_tienda';` | ⬜ |existen
 | 18 | `migration_lugar_entrega_dia_entrega_semanal.sql` | Agrega `dia_entrega_semanal` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'dia_entrega_semanal';` | ⬜ |
 | 19 | `migration_pedido_ubicacion_entrega.sql` | Agrega `latitud`/`longitud`/`referencias` a `pedidos` | `SHOW COLUMNS FROM pedidos LIKE 'referencias';` | ⬜ |
 | 20 | `migration_fecha_creacion_producto_variante.sql` | Agrega `fecha_creacion` a `producto` y `variantes` | `SHOW COLUMNS FROM variantes LIKE 'fecha_creacion';` | ⬜ |
