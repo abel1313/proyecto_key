@@ -47,4 +47,11 @@ public class LugarEntrega extends BaseId {
     // responsabilidad de quien administra el catalogo).
     @Column(name = "es_recoger_en_tienda")
     private Boolean esRecogerEnTienda;
+
+    // 2026-09-04: dia de la semana en que el dueno hace el viaje de entrega a esta zona (recurrente
+    // -- se configura una vez, aplica cada semana), 1=lunes .. 7=domingo (java.time.DayOfWeek).
+    // NULL = zona sin dia fijo configurado todavia (o "recoger en tienda", que no aplica). Usado
+    // por EntregaZonaServiceImpl para sugerir la fecha al programar la entrega de la semana.
+    @Column(name = "dia_entrega_semanal")
+    private Integer diaEntregaSemanal;
 }
