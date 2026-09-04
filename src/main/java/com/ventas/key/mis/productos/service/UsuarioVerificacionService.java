@@ -153,6 +153,14 @@ public class UsuarioVerificacionService {
         if (correoNuevo.equalsIgnoreCase(usuario.getEmail())) {
             throw new RuntimeException("Ese ya es el correo actual");
         }
+        // Sin este chequeo, dos cuentas podian terminar con el mismo email (nunca se validaba
+        // que el correo nuevo no perteneciera ya a otro usuario) -- encontrado 2026-09-04 junto
+        // con el hotfix de mensajes de error crudos de JPA.
+        usuarioRepository.findFirstByEmailIgnoreCase(correoNuevo).ifPresent(otro -> {
+            if (!otro.getId().equals(usuario.getId())) {
+                throw new RuntimeException("Ese correo ya está en uso por otra cuenta");
+            }
+        });
         boolean yaVigente = correoNuevo.equalsIgnoreCase(usuario.getCorreoPendiente())
                 && usuario.getCodigoVerificacionExpira() != null
                 && LocalDateTime.now().isBefore(usuario.getCodigoVerificacionExpira());

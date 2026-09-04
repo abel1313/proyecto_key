@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.entity.UsuarioSubmenu;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.mapper.UserDto;
 import com.ventas.key.mis.productos.mapper.UserUpdate;
@@ -124,6 +125,14 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     public UserUpdate updateUserDto(UserUpdate usuarioDto, int id) {
         Usuario existe = usuarioRepository.findById(id)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        // Validar ANTES de guardar: username tiene constraint unique en BD -- sin este chequeo,
+        // el duplicado recien se detectaba al hacer commit de la transaccion, con un mensaje
+        // crudo de JPA/Hibernate que se le mostraba tal cual al usuario (encontrado 2026-09-04,
+        // hotfix urgente en prod).
+        if (!existe.getUsername().equalsIgnoreCase(usuarioDto.getUsername())
+                && usuarioRepository.existsByUsername(usuarioDto.getUsername())) {
+            throw new ExceptionDuplicado("Ese nombre de usuario ya está en uso");
+        }
         existe.setUsername(usuarioDto.getUsername());
         existe.setEnabled(usuarioDto.isEnabled());
         usuarioRepository.save(existe);
@@ -141,6 +150,11 @@ public class UsuarioServiceImpl extends CrudAbstractServiceImpl<Usuario, List<Us
     public void actualizarMiPerfil(String usernameActual, ActualizarMiPerfilRequestDto request) {
         Usuario existe = usuarioRepository.findByUsername(usernameActual)
                 .orElseThrow(() -> new ExceptionErrorInesperado("Usuario no encontrado"));
+        // Mismo chequeo que updateUserDto -- username es unique en BD, validar antes de guardar.
+        if (!existe.getUsername().equalsIgnoreCase(request.getUsername())
+                && usuarioRepository.existsByUsername(request.getUsername())) {
+            throw new ExceptionDuplicado("Ese nombre de usuario ya está en uso");
+        }
         existe.setUsername(request.getUsername());
         usuarioRepository.save(existe);
     }
