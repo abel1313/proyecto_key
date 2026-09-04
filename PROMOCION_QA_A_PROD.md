@@ -61,7 +61,7 @@ Base: diff de archivos `migration_*.sql` entre el commit del último merge qa→
 | 10 | `migration_tema_variable_card_header_footer_v2.sql` | Agrega tokens `card-header-bg`/`card-footer-bg` | `SELECT clave FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 2 filas | ✅ existen 2 |
 | 11 | `migration_tema_variable_card_header_text.sql` | Agrega token `card-header-text` | `SELECT 1 FROM tema_variable WHERE clave='card-header-text';` | ✅ existe |
 | 12 | `migration_tema_variable_limpiar_card_header_footer.sql` | Borra 2 tokens viejos que no controlaban nada real (correr ANTES de la v2 de arriba si se aplican juntas, revisar orden) | `SELECT 1 FROM tema_variable WHERE clave IN ('card-header-bg','card-footer-bg');` → 0 filas (antes de correr la v2) | ✅ ya no existen (correcto, se borraron) |
-| 13 | `migration_tema_variable_pk_semanticos.sql` | Agrega 12 tokens `pk-success/-warning/-danger/-info` (+ variantes) | ⚠️ mi consulta original tenía un error (`LIKE '--pk-%'`, pero la clave real NO lleva `--`) — la correcta es `SELECT COUNT(*) FROM tema_variable WHERE grupo='Estados';` → 12 | ❓ el "0" reportado puede haber sido por mi consulta mal escrita, no porque falte correrlo — re-revisar con la consulta corregida antes de correr nada |
+| 13 | `migration_tema_variable_pk_semanticos.sql` | Agrega 12 tokens `pk-success/-warning/-danger/-info` (+ variantes) | ⚠️ mi consulta original tenía un error (`LIKE '--pk-%'`, pero la clave real NO lleva `--`) — la correcta es `SELECT COUNT(*) FROM tema_variable WHERE grupo='Estados';` → 12 | ❓ el "0" reportado puede haber sido por mi consulta mal escrita, no porque falte correrlo — re-revisar con la consulta corregida antes de correr nada | hay 12
 | 14 | `migration_tema_variable_placeholder.sql` | Agrega token `input-placeholder` | `SELECT 1 FROM tema_variable WHERE clave='input-placeholder';` | ✅ existe (1 en ambos) |
 | 15 | `migration_lugar_entrega_anillo.sql` | Crea tabla `lugar_entrega_anillo` (cobro por distancia) | `SHOW TABLES LIKE 'lugar_entrega_anillo';` | ✅ existe en ambos |
 | 16 | `migration_lugar_entrega_centroide.sql` | Agrega `latitud`/`longitud` a `lugares_entrega` | `SHOW COLUMNS FROM lugares_entrega LIKE 'latitud';` | ✅ existe en ambos |
@@ -184,23 +184,70 @@ Comandos (copiar tal cual, sin backslash antes del `|`):
 ```bash
 # 1. RabbitMQ en default
 kubectl get pods -n default | grep -i rabbit
+ubuntu@vps-da9a48f5:~$ kubectl get pods -n default | grep -i rabbit
+rabbitmq-0                                       1/1     Running   3 (57d ago)   86d
+ubuntu@vps-da9a48f5:~$ 
 
 # 2. Redis en default
 kubectl get pods -n default | grep -i redis
+ubuntu@vps-da9a48f5:~$ kubectl get pods -n default | grep -i redis
+redis-5ffb94bb5b-fmmqj                           1/1     Running   4 (57d ago)   137d
+ubuntu@vps-da9a48f5:~$ 
 
 # 3. TOKEN_JWT presente (sin imprimir el valor)
 kubectl get secret -n default -o yaml | grep -i token
-
+ubuntu@vps-da9a48f5:~$ kubectl get secret -n default -o yaml | grep -i token
+    token-jwt: bW
+    
 # 4. Diff de configmaps default vs qa
 kubectl get configmap -n default -o yaml > /tmp/cm-default.yaml
+
+ubuntu@vps-da9a48f5:~$ kubectl get configmap -n default -o yaml > /tmp/cm-default.yaml
+ubuntu@vps-da9a48f5:~$ 
+
+
 kubectl get configmap -n qa -o yaml > /tmp/cm-qa.yaml
+ubuntu@vps-da9a48f5:~$ kubectl get configmap -n qa -o yaml > /tmp/cm-qa.yaml
+ubuntu@vps-da9a48f5:~$ 
+
 diff /tmp/cm-default.yaml /tmp/cm-qa.yaml
+ubuntu@vps-da9a48f5:~$ diff /tmp/cm-default.yaml /tmp/cm-qa.yaml
+23c23
+<     creationTimestamp: "2026-04-17T20:34:15Z"
+---
+>     creationTimestamp: "2026-04-25T20:08:53Z"
+25,27c25,27
+<     namespace: default
+<     resourceVersion: "351"
+<     uid: bff8fa17-fc0e-40e6-859a-398710394c2a
+---
+>     namespace: qa
+>     resourceVersion: "292528"
+>     uid: a4e3535c-4f1a-4633-a491-6dccb57ec4a3
+ubuntu@vps-da9a48f5:~$ 
 
 # 5. application-docker.yml del pod (ver sección 5 sobre el nombre del perfil)
 kubectl exec -n default <pod> -- cat /app/BOOT-INF/classes/application-docker.yml
 
+ubuntu@vps-da9a48f5:~$ kubectl get pods -n qa
+NAME                                             READY   STATUS    RESTARTS      AGE
+imagenes-deployment-77f76db54c-clzz7             1/1     Running   0             45h
+proyecto-key-deployment-79bb5487c9-f7ckw         1/1     Running   0             13h
+proyecto-key-front-deployment-7c8777dc68-gk57p   1/1     Running   0             13h
+rabbitmq-0                                       1/1     Running   3 (57d ago)   107d
+redis-5ffb94bb5b-m89m5                           1/1     Running   4 (57d ago)   131d
+ubuntu@vps-da9a48f5:~$ 
+
 # 6. Disco y memoria libres
 free -h && df -h /
+
+ubuntu@vps-da9a48f5:~$ free -h && df -h /
+               total        used        free      shared  buff/cache   available
+Mem:           7.6Gi       5.8Gi       179Mi        72Mi       2.0Gi       1.8Gi
+Swap:             0B          0B          0B
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        72G   60G   13G  83% /
+ubuntu@vps-da9a48f5:~$ 
 
 # 7. Docker Hub -- revisar la última corrida de producto-actions.yml en GitHub Actions
 ```
