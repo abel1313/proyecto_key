@@ -263,35 +263,60 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      * admin, ya lo sabe). Nunca debe tumbar la transacción de creación del pedido si el correo falla.
      */
     private void notificarPedidoCreado(Pedido pedido) {
+        // Trazabilidad completa (pedido 2026-09-04, para aislar de una vez un correo que aparecia
+        // en el log sin explicacion clara junto al aviso de pedido) -- info, no debug, para que
+        // quede en el log de siempre sin tener que cambiar el nivel de logging del pod.
+        Cliente clienteLog = pedido.getCliente();
+        log.info("notificarPedidoCreado INICIO pedidoId={} clienteId={} clienteCorreo={} generadoPorAdmin={}",
+                pedido.getId(),
+                clienteLog != null ? clienteLog.getId() : null,
+                clienteLog != null ? clienteLog.getCorreoElectronico() : null,
+                AuthenticationUtils.isAdminContext());
+
         try {
             Cliente cliente = pedido.getCliente();
             if (cliente != null && cliente.getCorreoElectronico() != null && !cliente.getCorreoElectronico().isBlank()) {
                 emailService.enviarConfirmacionPedido(
                         cliente.getCorreoElectronico(), cliente.getNombrePersona(), pedido.getId(), pedido.getTotalPedido());
+                log.info("notificarPedidoCreado: confirmacion al cliente mandada a {}", cliente.getCorreoElectronico());
+            } else {
+                log.info("notificarPedidoCreado: cliente sin correo, no se manda confirmacion");
             }
         } catch (Exception e) {
-            log.warn("No se pudo enviar confirmacion de pedido id={}: {}", pedido.getId(), e.getMessage());
+            log.warn("No se pudo enviar confirmacion de pedido id={}: {}", pedido.getId(), e.getMessage(), e);
         }
 
-        if (AuthenticationUtils.isAdminContext()) return;
+        if (AuthenticationUtils.isAdminContext()) {
+            log.info("notificarPedidoCreado FIN pedidoId={}: lo genero un admin, no se avisa a nadie mas", pedido.getId());
+            return;
+        }
 
         try {
             String nombreCliente = pedido.getCliente() != null ? pedido.getCliente().getNombrePersona() : "Cliente";
             Set<String> destinatarios = new LinkedHashSet<>();
+            log.info("notificarPedidoCreado: correoAdminAmbiente (chat.admin-email) = '{}'", correoAdminAmbiente);
             if (correoAdminAmbiente != null && !correoAdminAmbiente.isBlank()) {
                 destinatarios.add(correoAdminAmbiente);
             }
             List<Usuario> admins = iUsuarioRepository.findByRoles_NombreRolAndEnabledTrue("ROLE_ADMIN");
+            log.info("notificarPedidoCreado: {} cuenta(s) ROLE_ADMIN encontrada(s): {}",
+                    admins.size(),
+                    admins.stream()
+                            .map(a -> a.getId() + ":" + a.getUsername() + ":" + a.getEmail())
+                            .reduce((a, b) -> a + ", " + b).orElse("(ninguna)"));
             for (Usuario admin : admins) {
                 if (admin.getEmail() != null && !admin.getEmail().isBlank()) {
                     destinatarios.add(admin.getEmail());
                 }
             }
+            log.info("notificarPedidoCreado: destinatarios finales del aviso = {}", destinatarios);
             for (String destino : destinatarios) {
                 emailService.enviarAvisoNuevoPedido(destino, pedido.getId(), nombreCliente, pedido.getTotalPedido());
+                log.info("notificarPedidoCreado: aviso de pedido mandado a {}", destino);
             }
+            log.info("notificarPedidoCreado FIN pedidoId={}: {} aviso(s) mandado(s)", pedido.getId(), destinatarios.size());
         } catch (Exception e) {
-            log.warn("No se pudo avisar a los admins del pedido nuevo id={}: {}", pedido.getId(), e.getMessage());
+            log.warn("No se pudo avisar a los admins del pedido nuevo id={}: {}", pedido.getId(), e.getMessage(), e);
         }
     }
 
