@@ -217,6 +217,13 @@ public class SecurityConfig {
                         // tarjeta de producto en Modelos, antes capturado por el catch-all de abajo.
                         .requestMatchers(HttpMethod.POST, "/tienda/v1/inicializarDesdeProducto")
                                 .hasAnyAuthority(accion("productos/buscar", "crear-variantes"))
+                        // Fase 3 de permisos, extendida a "tienda/buscar" (2026-09-04): habilitar
+                        // /deshabilitar variante (individual y en lote) desde la vitrina Tienda --
+                        // antes caia en el catch-all de pantallaEscribir de abajo, que ni siquiera
+                        // incluye "tienda/buscar" en su lista, asi que un rol no-ADMIN con esa
+                        // pantalla nunca podia usar este boton pese a tenerla asignada.
+                        .requestMatchers(HttpMethod.PUT, "/tienda/v1/*/habilitar", "/tienda/v1/admin/habilitar-lote")
+                                .hasAnyAuthority(accion("tienda/buscar", "habilitar"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
