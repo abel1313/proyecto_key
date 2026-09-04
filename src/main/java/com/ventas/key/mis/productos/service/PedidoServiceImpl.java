@@ -89,6 +89,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private EmailService emailService;
+    @Autowired private RestockNotificacionService restockNotificacionService;
 
     // Correo fijo del ambiente (mismo que ya usa el chat/Arma tu ramo para escalar sin depender
     // de que cada cuenta ADMIN tenga su propio correo cargado en su perfil) -- pedido 2026-09-04:
@@ -531,9 +532,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 if (detalle.getVariante() != null) {
                     Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
                             .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                    int stockAntes = variante.getStock();
                     variante.setStock(variante.getStock() + detalle.getCantidad());
                     iVarianteRepository.save(variante);
                     sincronizarStockColorFlor(variante);
+                    restockNotificacionService.notificarSiRestock(variante, stockAntes);
                 }
             });
         }

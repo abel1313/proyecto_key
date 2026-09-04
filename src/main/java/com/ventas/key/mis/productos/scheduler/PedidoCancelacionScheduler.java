@@ -1,16 +1,12 @@
 package com.ventas.key.mis.productos.scheduler;
 
 import com.ventas.key.mis.productos.entity.Pedido;
-import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
-import com.ventas.key.mis.productos.repository.IProductosRepository;
-import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -20,49 +16,44 @@ import java.util.List;
 public class PedidoCancelacionScheduler {
 
     private final IPedidoRepository iPedidoRepository;
-    private final IProductosRepository iProductosRepository;
-    private final IVarianteRepository iVarianteRepository;
+    private final IPedidoService pedidoService;
 
     @Value("${pedidos.dias-limite-recogida:2}")
     private int diasLimite;
 
-    public PedidoCancelacionScheduler(IPedidoRepository iPedidoRepository,
-                                      IProductosRepository iProductosRepository,
-                                      IVarianteRepository iVarianteRepository) {
+    public PedidoCancelacionScheduler(IPedidoRepository iPedidoRepository, IPedidoService pedidoService) {
         this.iPedidoRepository = iPedidoRepository;
-        this.iProductosRepository = iProductosRepository;
-        this.iVarianteRepository = iVarianteRepository;
+        this.pedidoService = pedidoService;
     }
 
+    // 2026-09-04: antes este scheduler duplicaba a mano la devolucion de stock (sin avisar a
+    // favoritos ni mandar ningun correo al cliente) -- ahora delega en
+    // IPedidoService.deletePedidoById(), el mismo camino que usa la cancelacion manual, para que
+    // la cancelacion automatica por no recoger a tiempo tenga exactamente el mismo comportamiento:
+    // devuelve stock, avisa a quien tiene la variante en Favoritos si cruza de 0 a N, y manda el
+    // correo de seguimiento al cliente (respetando Cliente.recibirCorreos, igual que el resto de
+    // avisos de seguimiento). Motivo "TIMEOUT" a proposito -- IPedidoRepository.calcularScore ya
+    // cuenta TIMEOUT/NO_SE_PRESENTO en contra del cliente para el score de rifa: si apartó algo y
+    // no lo recogió en el plazo, cuenta como incumplimiento (decision del dueño, 2026-09-04).
     @Scheduled(cron = "0 0 8 * * *")
-    @Transactional
     public void cancelarPedidosVencidos() {
         LocalDate fechaLimite = LocalDate.now().minusDays(diasLimite);
         List<Pedido> vencidos = iPedidoRepository
                 .findByEstadoPedidoAndFechaRecogidaIsNotNullAndFechaRecogidaLessThanEqual("Pendiente", fechaLimite);
 
+        int cancelados = 0;
         for (Pedido pedido : vencidos) {
-            pedido.getDetalles().forEach(detalle -> {
-                Producto prod = iProductosRepository.findById(detalle.getProducto().getId()).orElse(null);
-                if (prod != null) {
-                    prod.setStock(prod.getStock() + detalle.getCantidad());
-                    iProductosRepository.save(prod);
-                }
-                if (detalle.getVariante() != null) {
-                    Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId()).orElse(null);
-                    if (variante != null) {
-                        variante.setStock(variante.getStock() + detalle.getCantidad());
-                        iVarianteRepository.save(variante);
-                    }
-                }
-            });
-            pedido.setEstadoPedido("cancelado");
-            iPedidoRepository.save(pedido);
-            log.info("Pedido {} cancelado automáticamente. Fecha recogida: {}", pedido.getId(), pedido.getFechaRecogida());
+            try {
+                pedidoService.deletePedidoById(pedido.getId(), "TIMEOUT");
+                cancelados++;
+                log.info("Pedido {} cancelado automáticamente. Fecha recogida: {}", pedido.getId(), pedido.getFechaRecogida());
+            } catch (Exception e) {
+                log.warn("No se pudo cancelar automáticamente el pedido {}: {}", pedido.getId(), e.getMessage(), e);
+            }
         }
 
-        if (!vencidos.isEmpty()) {
-            log.info("Se cancelaron {} pedidos vencidos", vencidos.size());
+        if (cancelados > 0) {
+            log.info("Se cancelaron {} pedidos vencidos", cancelados);
         }
     }
 }
