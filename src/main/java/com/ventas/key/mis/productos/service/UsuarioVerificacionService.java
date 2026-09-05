@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.models.CambioCorreoPendienteResponseDto;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 /**
  * Verificacion de correo del Usuario (login) al registrarse — mejora 15, PLAN_MEJORAS.md.
@@ -188,7 +190,11 @@ public class UsuarioVerificacionService {
      * y solo si el codigo es correcto. En cualquier otro caso (codigo invalido, expirado, o
      * nunca se llama) el email real se queda como estaba.
      */
-    @Transactional(noRollbackFor = ExceptionCodigoInvalido.class)
+    // noRollbackFor incluye ExceptionDuplicado ademas de ExceptionCodigoInvalido: cuando el
+    // correo pendiente ya quedo en conflicto, el metodo limpia ese estado (setCorreoPendiente a
+    // null, etc.) y guarda ANTES de lanzar la excepcion -- sin esto en la lista, el rollback
+    // automatico de RuntimeException deshacia esa limpieza y la cuenta quedaba atascada igual.
+    @Transactional(noRollbackFor = {ExceptionCodigoInvalido.class, ExceptionDuplicado.class})
     public void confirmarCambioCorreo(Usuario usuario, String codigo) {
         if (usuario.getCorreoPendiente() == null) {
             throw new RuntimeException("No hay un cambio de correo pendiente");
@@ -201,6 +207,20 @@ public class UsuarioVerificacionService {
         if (!usuario.getCodigoVerificacion().equals(codigo)) {
             registrarIntentoFallido(usuario);
             throw new ExceptionCodigoInvalido("Codigo de verificacion invalido");
+        }
+        // Mismo chequeo que solicitarCambioCorreo, pero repetido aqui porque un correoPendiente
+        // ya pudo quedar guardado en conflicto ANTES de ese fix (o alguien mas tomo ese correo
+        // mientras el codigo seguia vigente) -- sin esto, confirmar revienta el commit igual.
+        // Se limpia el pendiente para no dejar la cuenta atascada mostrando un cambio que nunca
+        // va a poder confirmarse.
+        Optional<Usuario> otro = usuarioRepository.findFirstByEmailIgnoreCase(usuario.getCorreoPendiente());
+        if (otro.isPresent() && !otro.get().getId().equals(usuario.getId())) {
+            usuario.setCorreoPendiente(null);
+            usuario.setCodigoVerificacion(null);
+            usuario.setCodigoVerificacionExpira(null);
+            usuario.setIntentosCodigoVerificacion(0);
+            usuarioRepository.save(usuario);
+            throw new ExceptionDuplicado("Ese correo ya está en uso por otra cuenta, solicita el cambio con uno distinto");
         }
         usuario.setEmail(usuario.getCorreoPendiente());
         usuario.setCorreoVerificado(true);
@@ -233,7 +253,7 @@ public class UsuarioVerificacionService {
      * Lleva el mismo noRollbackFor porque, al ser una llamada interna, la anotacion de la variante
      * que recibe el Usuario no la aplica el proxy — la que manda es la de este punto de entrada.
      */
-    @Transactional(noRollbackFor = ExceptionCodigoInvalido.class)
+    @Transactional(noRollbackFor = {ExceptionCodigoInvalido.class, ExceptionDuplicado.class})
     public void confirmarCambioCorreo(String usernameActual, String codigo) {
         confirmarCambioCorreo(buscarPorUsernameOEmail(usernameActual), codigo);
     }
