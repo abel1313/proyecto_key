@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
@@ -136,6 +137,14 @@ implements IClienteService {
         if (correoNuevo.equalsIgnoreCase(cliente.getCorreoElectronico())) {
             throw new RuntimeException("Ese ya es el correo actual");
         }
+        // Sin este chequeo, dos clientes podian terminar con el mismo correo -- el duplicado
+        // recien se detectaba al confirmar, con un fallo de commit de JPA (hotfix 2026-09-05,
+        // mismo patron que UsuarioVerificacionService.solicitarCambioCorreo).
+        iClienteRepository.findFirstByCorreoElectronicoIgnoreCase(correoNuevo).ifPresent(otro -> {
+            if (!otro.getId().equals(cliente.getId())) {
+                throw new ExceptionDuplicado("Ese correo ya está en uso por otra cuenta");
+            }
+        });
         boolean yaVigente = correoNuevo.equalsIgnoreCase(cliente.getCorreoPendiente())
                 && cliente.getCodigoVerificacionExpira() != null
                 && LocalDateTime.now().isBefore(cliente.getCodigoVerificacionExpira());
@@ -184,6 +193,22 @@ implements IClienteService {
         if (cliente.getCodigoVerificacionExpira() == null
                 || LocalDateTime.now().isAfter(cliente.getCodigoVerificacionExpira())) {
             throw new RuntimeException("El codigo de verificacion expiro, solicita uno nuevo");
+        }
+        // Mismo chequeo que solicitarCambioCorreo, repetido aqui porque el correo pendiente ya
+        // pudo quedar en conflicto ANTES de ese fix, o alguien mas tomo ese correo mientras el
+        // codigo seguia vigente -- sin esto, confirmar revienta el commit igual (hotfix
+        // 2026-09-05). Se limpia el pendiente para no dejar la cuenta atascada.
+        if (hayCorreoPendiente) {
+            iClienteRepository.findFirstByCorreoElectronicoIgnoreCase(cliente.getCorreoPendiente())
+                    .filter(otro -> !otro.getId().equals(cliente.getId()))
+                    .ifPresent(otro -> {
+                        cliente.setCorreoPendiente(null);
+                        cliente.setCodigoVerificacion(null);
+                        cliente.setCodigoVerificacionExpira(null);
+                        iClienteRepository.save(cliente);
+                        throw new ExceptionDuplicado(
+                                "Ese correo ya está en uso por otra cuenta, solicita el cambio con uno distinto");
+                    });
         }
         // Mejora 15: si habia un correo nuevo pendiente, se promueve ahora y se sincroniza con
         // Usuario.email — hasta este momento correoElectronico seguia siendo el anterior.
