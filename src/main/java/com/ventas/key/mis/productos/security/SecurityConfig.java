@@ -285,10 +285,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
-                        // "Entregas por zona" (2026-09-04): solo el admin arma el viaje semanal y
-                        // le avisa a los clientes -- el cliente en el checkout solo elige la zona,
-                        // nunca ve ni toca esto.
-                        .requestMatchers("/v1/entregas-zona/**").hasRole("ADMIN")
+                        // "Entregas por zona" (2026-09-04, permisos finos agregados 2026-09-05):
+                        // el cliente en el checkout solo elige la zona, nunca ve ni toca esto. Ver
+                        // pendientes (View) vs programar/avisar por correo (Escritura) -- ver
+                        // migration_submenu_entregas_zona.sql.
+                        .requestMatchers(HttpMethod.GET, "/v1/entregas-zona/**").hasAnyAuthority(pantalla("entregas-zona"))
+                        .requestMatchers("/v1/entregas-zona/**").hasAnyAuthority(pantallaEscribir("entregas-zona"))
 
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/abonos/**").hasAnyAuthority(pantalla("abonos"))
@@ -318,6 +320,11 @@ public class SecurityConfig {
                         // calcular-costo (anillos) lo llama el checkout ANTES de que el cliente tenga
                         // sesion necesariamente (visitante anonimo cotizando) -- ver DISENO_ZONAS_POR_ANILLO.md.
                         .requestMatchers(HttpMethod.POST, "/v1/lugares-entrega/*/calcular-costo").permitAll()
+                        // "eliminar" es su propia accion puntual (2026-09-05, mismo criterio que
+                        // palabras-clave) -- alta/edicion/anillos siguen bajo el Editar general de
+                        // la pantalla. Ver migration_accion_lugares_entrega_eliminar.sql.
+                        .requestMatchers(HttpMethod.DELETE, "/v1/lugares-entrega/delete")
+                                .hasAnyAuthority(accion("lugares-entrega", "eliminar"))
                         .requestMatchers("/v1/lugares-entrega/**").hasAnyAuthority(pantallaEscribir("lugares-entrega"))
 
                         // ── Promociones (catalogo publico -- mismo criterio que la cinta de
