@@ -267,7 +267,7 @@ bloques contiguos. 100% frontend (carrito es local, sin llamada al back) — sin
 visitante SIN sesión los sigue viendo siempre; el permiso solo aplica a cuentas con sesión, dado
 por defecto a `ROLE_ADMIN`.
 
-- [ ] Ejecutar `migration_accion_tienda_carrito.sql` en QA y prod.
+- [x] Ejecutar `migration_accion_tienda_carrito.sql` en QA y prod. ✅ confirmado por el dueño.
 - [ ] Visitante sin sesión (incógnito): los 3 botones + el ícono del encabezado deben seguir
       apareciendo, sin cambios.
 - [ ] Cuenta con sesión y SIN alguna de las 3 acciones nuevas: el botón correspondiente no debe
@@ -276,6 +276,51 @@ por defecto a `ROLE_ADMIN`.
 - [ ] Confirmar en Gestión de roles que "Tarjeta de variante" sigue agrupada correctamente (5
       acciones: Agregar/Quitar/Ver carrito, Habilitar, Compartir imagen) y que "Buscador"
       (Escanear código) también se ve bien tras el renumerado.
+
+---
+
+## Menú "Envíos" (Zonas de entrega + Entregas por zona) — auditoría 2026-09-05
+
+Pedido del dueño: "revisa bien todas las opciones porque tiene algunas". El menú "Envíos" tiene 2
+pantallas — `lugares-entrega` (Zonas de entrega) y `entregas-zona` (Entregas por zona) — ninguna
+de las 2 tenía permisos finos: la primera tenía todo su CRUD bajo un único Editar sin distinción,
+y la segunda ni siquiera tenía pantalla propia en el sistema de permisos.
+
+### 1. Script — `migration_accion_lugares_entrega_eliminar.sql` (pendiente de ejecutar)
+"Zonas de entrega" tenía alta/edición/mapa de centro/anillos de cobro por distancia Y eliminar
+todo bajo el mismo permiso de Escritura. Separa "Eliminar" en su propia acción puntual (mismo
+patrón que Categorías/palabras-clave) — el resto (form completo + editor de anillos) se queda
+bajo Escritura porque es un único flujo de "editar la zona", no tiene sentido partirlo más.
+Preserva comportamiento: se la da a todo rol que ya tuviera Escritura ahí.
+
+- [ ] Ejecutar en QA y prod.
+- [ ] Rol con Escritura pero SIN la acción "Eliminar zona de entrega": el botón 🗑️ no debe
+      aparecer, y `DELETE /v1/lugares-entrega/delete` debe responder 403.
+- [ ] Rol SIN Escritura: no debe ver el formulario de alta/edición, ni el botón ✏️ Editar, ni el
+      editor de anillos (aunque tenga la acción "Eliminar" — sigue viendo el 🗑️).
+- [ ] Dándole Escritura: form + ✏️ Editar + anillos vuelven a aparecer y funcionan.
+
+### 2. Script — `migration_submenu_entregas_zona.sql` (pendiente de ejecutar)
+"Entregas por zona" se agregó el 2026-09-04 sin pasar por el sistema de permisos: sin fila en
+`submenu`, sin `PantallaGuard` en el front (el link del navbar aparecía "de prestado" si el rol
+tenía `lugares-entrega`, sin relación con el permiso real). El back sí exigía ROLE_ADMIN de
+verdad, así que la seguridad real siempre estuvo cubierta — esto le da su propia pantalla en
+Gestión de roles, coherente con lo que el back ya exigía.
+
+Crea la fila en `submenu` (mismo grupo/menu_id que `lugares-entrega`, para que sigan apareciendo
+juntos bajo "Envíos"), y da View + Escritura a `ROLE_ADMIN` (el único rol que hoy puede usarla de
+verdad). El botón "✉️ Avisar a N cliente(s)" es la única acción de escritura de la pantalla — no
+hay nada más que separar ahí (ver pedidos pendientes es el View general).
+
+- [ ] Ejecutar en QA y prod.
+- [ ] Rol SIN la pantalla "entregas-zona": el link "📦 Entregas por zona" no debe aparecer en el
+      navbar (aunque tenga "lugares-entrega" — ya no comparten visibilidad), y navegar directo a
+      `/entregas-zona` debe redirigir (PantallaGuard).
+- [ ] Rol CON la pantalla pero SIN Escritura: debe ver la zona/pendientes, pero NO el formulario
+      de fecha/hora/punto de encuentro ni el botón "✉️ Avisar".
+- [ ] Dándole Escritura: el formulario y el botón aparecen y programan/avisan correctamente.
+- [ ] Confirmar que "Zonas de entrega" y "Entregas por zona" aparecen juntas en el mismo grupo en
+      Gestión de roles.
 
 ---
 
