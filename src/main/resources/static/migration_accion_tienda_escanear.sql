@@ -17,7 +17,7 @@
 INSERT INTO accion_submenu (submenu_id, clave, etiqueta, descripcion, categoria, orden)
 SELECT s.id, 'escanear-codigo', 'Escanear código de barras (📷)',
        'Botón 📷 del buscador (a la derecha del campo de texto) y botón 📷 "Escanear código de barras" que aparece arriba del buscador en vista móvil, en Tienda. Abre la cámara para leer el código de barras y buscar automáticamente por él. NO afecta a visitantes sin cuenta -- ellos siempre lo ven; esta acción solo aplica a cuentas con sesión.',
-       'Buscador', 2
+       'Buscador', 12
 FROM submenu s
 WHERE s.ruta = 'tienda/buscar'
   AND NOT EXISTS (

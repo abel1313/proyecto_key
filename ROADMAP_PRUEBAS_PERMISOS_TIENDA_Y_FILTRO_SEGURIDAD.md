@@ -190,6 +190,70 @@ Esperado: **400**
 
 ---
 
+## Tarea A (cont. 4) — Auditoría completa de Tienda + grupo de menú propio (2026-09-05)
+
+Pedido explícito del dueño: "todo lo que tiene la pantalla tiene que tener opción para
+seleccionar dividido" — se revisó `tienda/buscar` botón por botón contra Modelos, sin dar nada
+por sentado.
+
+### 1. Script — `migration_menu_tienda.sql` ✅ ejecutado en QA y prod
+`tienda/buscar` (submenu.id=38) tenía `menu_id` NULL — en Gestión de roles caía en "Sin grupo"
+junto con Home/Clientes/Favoritos/Chat/QR/Login, difícil de encontrar pese a que en el sidebar
+público aparece como su propio ícono de primer nivel. Crea el grupo "Tienda" (orden=0, antes de
+"Catálogo") y reasigna esa pantalla ahí. No cambia que la pantalla siga siendo pública.
+
+- [ ] Confirmar en Gestión de roles que "Tienda" ahora aparece como su propio grupo (no en "Sin
+      grupo"), antes de "Catálogo".
+
+### 2. Script — `migration_accion_palabras_clave_eliminar.sql` ✅ ejecutado en QA y prod
+Categorías (palabras-clave) tenía 2 botones por fila (✏️ Editar, 🗑️ Eliminar) sin ningún
+permiso puntual — "Editar" ya lo cubre el checkbox genérico de Escritura de esa pantalla, pero
+"Eliminar" no se podía dar/quitar por separado. Crea la acción `eliminar` para `palabras-clave`
+y se la da automáticamente a todo rol que ya tuviera Escritura ahí (preserva comportamiento).
+
+- [ ] Con un rol sin la acción "Eliminar categoría": el botón 🗑️ no debe aparecer en Categorías,
+      y `DELETE /v1/palabras-clave/delete` debe responder 403.
+- [ ] Dándosela: el botón vuelve a aparecer y funciona.
+
+### 3. Script — `migration_accion_tienda_escanear.sql` ✅ ejecutado en QA y prod
+El escáner de código de barras (📷, 2 botones) en Tienda era incondicional para cualquier cuenta
+logueada — mismo patrón que ya se hizo en Modelos. Crea la acción `escanear-codigo` para
+`tienda/buscar`, dada por defecto solo a `ROLE_ADMIN`.
+
+**Diferencia clave con Modelos:** Tienda es la vitrina pública — un visitante SIN cuenta sigue
+viendo el escáner siempre (el front no lo condiciona a nadie anónimo). El permiso solo aplica a
+cuentas CON sesión.
+
+- [ ] Visitante sin sesión (incógnito): el escáner debe seguir apareciendo, sin cambios.
+- [ ] Cuenta con sesión y SIN la acción "Escanear código de barras": los 2 botones de cámara
+      (arriba en móvil, y junto al buscador) no deben aparecer.
+- [ ] Dándosela: ambos vuelven a aparecer y funcionan.
+
+### 4. Fix — `puedeActualizarVariante` checaba Ver en vez de Editar
+Bug encontrado en la misma auditoría: el botón "Editar" de Tienda usaba `tienePantalla` (permiso
+de Ver "Agregar producto") en vez de `tieneEscritura` (permiso de Editar) — un rol con Ver pero
+sin Editar en "Agregar producto" veía el botón en Tienda y se topaba con un 403 al guardar. Es
+un fix de código puro, sin script — ya viaja en el mismo commit del punto 3 del front.
+
+- [ ] Con un rol con Ver pero SIN Editar en "Agregar producto": el botón "Editar" de Tienda NO
+      debe aparecer (antes sí aparecía y fallaba al guardar).
+- [ ] Dándole también Editar en "Agregar producto": el botón aparece y guarda sin 403.
+
+### 5. Auditoría completa de la pantalla (checklist de referencia)
+Todo lo demás de `tienda/buscar` ya estaba correctamente separado o correctamente sin permiso
+(no es una acción de admin):
+
+| Elemento | Permiso | ¿Ya estaba bien? |
+|---|---|---|
+| 8 checkboxes de filtro + fecha | `puedeFiltroXxx` (uno por cada uno) | Sí |
+| Checkbox de selección + barra en lote | `puedeHabilitar` | Sí |
+| Badge/atenuado "Deshabilitado" | `esVistaAdmin` | Sí |
+| Botón Habilitar/Deshabilitar (individual) | `puedeHabilitar` | Sí |
+| Botón Compartir imagen | `puedeCompartirImagen` | Sí |
+| Agregar/Quitar/Carrito, ❤️ favoritos, filtros públicos (talla/color/marca/precio), paginación | — (funciones del cliente, no de admin) | Sí |
+
+---
+
 ## Antes de fusionar cualquiera de las 2 a `dev`
 - Aprobar cada rama por separado (no fusionar ambas juntas).
 - Seguir el flujo normal de `CLAUDE.md`: `dev → qa → main`, nunca al revés.
