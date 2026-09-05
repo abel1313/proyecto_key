@@ -11,6 +11,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 @Service
@@ -62,14 +63,18 @@ public class EmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(remitente);
+            // Nombre de marca en vez de la direccion pelona -- estos correos son solo de aviso
+            // (codigo de verificacion, estado de pedido, promociones), no se espera respuesta.
+            // Sin Reply-To a proposito: no hay a donde redirigir una respuesta, el buzon de envio
+            // no se revisa (pedido explicito del dueño 2026-09-05).
+            helper.setFrom(remitente, "Novedades Jade");
             helper.setTo(destinatario);
             helper.setSubject(asunto);
             helper.setText(envolverPlantilla(htmlContent), true);
             mailSender.send(message);
             log.info("Correo enviado a: {}", destinatario);
             return true;
-        } catch (MessagingException | MailException e) {
+        } catch (MessagingException | MailException | UnsupportedEncodingException e) {
             // MailException (ej. MailSendException por timeout/conexion SMTP con OVH) es RuntimeException
             // sin relacion con MessagingException - si no se captura aqui, se escapa del metodo pese a
             // que el contrato de la clase (ver javadocs) es "nunca lanza excepcion", y en los callers
