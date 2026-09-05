@@ -240,8 +240,6 @@ un fix de código puro, sin script — ya viaja en el mismo commit del punto 3 d
 - [ ] Dándole también Editar en "Agregar producto": el botón aparece y guarda sin 403.
 
 ### 5. Auditoría completa de la pantalla (checklist de referencia)
-Todo lo demás de `tienda/buscar` ya estaba correctamente separado o correctamente sin permiso
-(no es una acción de admin):
 
 | Elemento | Permiso | ¿Ya estaba bien? |
 |---|---|---|
@@ -250,7 +248,34 @@ Todo lo demás de `tienda/buscar` ya estaba correctamente separado o correctamen
 | Badge/atenuado "Deshabilitado" | `esVistaAdmin` | Sí |
 | Botón Habilitar/Deshabilitar (individual) | `puedeHabilitar` | Sí |
 | Botón Compartir imagen | `puedeCompartirImagen` | Sí |
-| Agregar/Quitar/Carrito, ❤️ favoritos, filtros públicos (talla/color/marca/precio), paginación | — (funciones del cliente, no de admin) | Sí |
+| 4 filtros públicos (Talla/Color/Marca/Precio) | `puedeFiltroTalla/Color/Marca/Precio` | Sí |
+| Escáner de código de barras (📷 x2) | `puedeEscanear` | Sí |
+| ❤️ favoritos, paginación | — (no aplica, sin acción configurable) | Sí |
+| Agregar/Quitar/Carrito (➕➖🛒, tarjeta + encabezado) | ~~sin permiso~~ → `puedeAgregarCarrito`/`puedeQuitarCarrito`/`puedeVerCarrito` | **No — corregido en punto 6** |
+
+### 6. Script — `migration_accion_tienda_carrito.sql` (pendiente de ejecutar)
+Último hallazgo de la auditoría (2026-09-05, reportado por el dueño con captura de la tarjeta):
+los 3 botones de carrito de cada tarjeta (➕ Agregar, ➖ Quitar, 🛒 Carrito) y el ícono 🛒 del
+encabezado eran los únicos elementos de la pantalla sin ningún permiso — se habían dejado afuera
+por error al asumir que, al ser función de cliente, no necesitaban acción propia. El dueño ya
+había pedido "TODO lo que tiene la pantalla" sin excepciones, así que se corrige.
+
+Crea `agregar-carrito`, `quitar-carrito`, `ver-carrito` (categoría "Tarjeta de variante", orden
+14-16) y renumera `habilitar`→17, `compartir-imagen`→18, `escanear-codigo`→19 para mantener los
+bloques contiguos. 100% frontend (carrito es local, sin llamada al back) — sin cambios en
+`SecurityConfig`, mismo criterio que `compartir-imagen`. Igual que escáner/filtros públicos: un
+visitante SIN sesión los sigue viendo siempre; el permiso solo aplica a cuentas con sesión, dado
+por defecto a `ROLE_ADMIN`.
+
+- [ ] Ejecutar `migration_accion_tienda_carrito.sql` en QA y prod.
+- [ ] Visitante sin sesión (incógnito): los 3 botones + el ícono del encabezado deben seguir
+      apareciendo, sin cambios.
+- [ ] Cuenta con sesión y SIN alguna de las 3 acciones nuevas: el botón correspondiente no debe
+      aparecer en la tarjeta (el ícono del encabezado se rige por "Ver carrito").
+- [ ] Dándolas: vuelven a aparecer y funcionan.
+- [ ] Confirmar en Gestión de roles que "Tarjeta de variante" sigue agrupada correctamente (5
+      acciones: Agregar/Quitar/Ver carrito, Habilitar, Compartir imagen) y que "Buscador"
+      (Escanear código) también se ve bien tras el renumerado.
 
 ---
 
