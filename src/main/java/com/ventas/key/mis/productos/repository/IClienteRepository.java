@@ -13,6 +13,11 @@ import java.util.Optional;
 @Repository
 public interface IClienteRepository extends BaseRepository<Cliente,Integer> {
 
+    // Usado por ClienteServiceImpl.solicitarCambioCorreo/verificarCorreo para validar que el
+    // correo nuevo no pertenezca ya a otro cliente ANTES de guardarlo -- mismo criterio que
+    // IUsuarioRepository.findFirstByEmailIgnoreCase (hotfix 2026-09-05, ver ExceptionGlobal).
+    Optional<Cliente> findFirstByCorreoElectronicoIgnoreCase(String correoElectronico);
+
     // Filtra por c.id (el id de Cliente de verdad) -- el nombre del metodo, el @Operation de
     // ClienteControllerImpl.findByIdCliente() y su chequeo de dueno (esDueno comparando contra
     // actual.getCliente().getId()) siempre asumieron esto. Antes filtraba por c.usuario.id, lo
