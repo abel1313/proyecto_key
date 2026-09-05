@@ -152,10 +152,10 @@ implements IClienteService {
             return false;
         }
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
-        cliente.setCorreoPendiente(correoNuevo);
-        cliente.setCodigoVerificacion(codigo);
-        cliente.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
-        iClienteRepository.save(cliente);
+        LocalDateTime expira = LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS);
+        // UPDATE directo (no cliente.setX + save()) a proposito -- ver comentario en
+        // IClienteRepository.actualizarCorreoPendienteConCodigo (hotfix 2026-09-05).
+        iClienteRepository.actualizarCorreoPendienteConCodigo(cliente.getId(), correoNuevo, codigo, expira);
         boolean correoEnviado = emailService.enviarCodigoVerificacion(correoNuevo, codigo);
         if (!correoEnviado) {
             throw new RuntimeException("No se pudo enviar el correo de verificacion, intenta de nuevo en unos minutos");
@@ -174,9 +174,10 @@ implements IClienteService {
             throw new RuntimeException("El cliente no tiene correo registrado");
         }
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
-        cliente.setCodigoVerificacion(codigo);
-        cliente.setCodigoVerificacionExpira(LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS));
-        iClienteRepository.save(cliente);
+        LocalDateTime expira = LocalDateTime.now().plusMinutes(CODIGO_EXPIRA_MINUTOS);
+        // UPDATE directo (no cliente.setX + save()) a proposito -- mismo caso que
+        // solicitarCambioCorreo (hotfix 2026-09-05).
+        iClienteRepository.actualizarCodigoVerificacion(cliente.getId(), codigo, expira);
         emailService.enviarCodigoVerificacion(destino, codigo);
     }
 
@@ -199,31 +200,32 @@ implements IClienteService {
         // codigo seguia vigente -- sin esto, confirmar revienta el commit igual (hotfix
         // 2026-09-05). Se limpia el pendiente para no dejar la cuenta atascada.
         if (hayCorreoPendiente) {
+            // UPDATE directo (no cliente.setX + save()) a proposito -- ver comentario en
+            // IClienteRepository.limpiarCorreoPendiente (hotfix 2026-09-05).
             iClienteRepository.findFirstByCorreoElectronicoIgnoreCase(cliente.getCorreoPendiente())
                     .filter(otro -> !otro.getId().equals(cliente.getId()))
                     .ifPresent(otro -> {
-                        cliente.setCorreoPendiente(null);
-                        cliente.setCodigoVerificacion(null);
-                        cliente.setCodigoVerificacionExpira(null);
-                        iClienteRepository.save(cliente);
+                        iClienteRepository.limpiarCorreoPendiente(cliente.getId());
                         throw new ExceptionDuplicado(
                                 "Ese correo ya está en uso por otra cuenta, solicita el cambio con uno distinto");
                     });
         }
         // Mejora 15: si habia un correo nuevo pendiente, se promueve ahora y se sincroniza con
         // Usuario.email — hasta este momento correoElectronico seguia siendo el anterior.
+        // UPDATE directo (no cliente.setX + save()) a proposito -- ver comentario en
+        // IClienteRepository.confirmarCorreoConCambioPendiente/confirmarCorreoSinCambioPendiente
+        // (hotfix 2026-09-05). El save() de Usuario NO se toca: Usuario no tiene Bean Validation
+        // en sus campos, no corre el mismo riesgo que Cliente.numeroTelefonico.
         if (hayCorreoPendiente) {
-            cliente.setCorreoElectronico(cliente.getCorreoPendiente());
-            cliente.setCorreoPendiente(null);
+            String correoNuevo = cliente.getCorreoPendiente();
+            iClienteRepository.confirmarCorreoConCambioPendiente(cliente.getId(), correoNuevo);
             if (cliente.getUsuario() != null) {
-                cliente.getUsuario().setEmail(cliente.getCorreoElectronico());
+                cliente.getUsuario().setEmail(correoNuevo);
                 iUsuarioRepository.save(cliente.getUsuario());
             }
+        } else {
+            iClienteRepository.confirmarCorreoSinCambioPendiente(cliente.getId());
         }
-        cliente.setCorreoVerificado(true);
-        cliente.setCodigoVerificacion(null);
-        cliente.setCodigoVerificacionExpira(null);
-        iClienteRepository.save(cliente);
     }
 
     /** Solo para pruebas/soporte — regresa el correo del cliente a "no verificado". */

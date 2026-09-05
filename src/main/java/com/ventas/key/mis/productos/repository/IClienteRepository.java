@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -52,6 +53,61 @@ public interface IClienteRepository extends BaseRepository<Cliente,Integer> {
           )) LIKE LOWER(CONCAT('%', :nombre, '%'))
     """)
     Page<ClienteBusquedaDto> buscarPorNombre(@Param("nombre") String nombre, Pageable pageable);
+
+    // UPDATE directo (no entity.save()) a proposito -- confirmarCambioCorreo/verificarCorreo
+    // NO deben disparar la validacion Bean Validation de la entidad COMPLETA (numeroTelefonico
+    // @NotBlank/@Pattern), que revienta el commit si el cliente tiene el telefono vacio o mal
+    // formado (dato viejo, de antes de esa validacion) aunque no se este tocando ese campo
+    // (encontrado 2026-09-05, hotfix urgente en prod -- ConstraintViolationException en
+    // numeroTelefonico al confirmar un cambio de correo que no lo toca para nada).
+    @Modifying
+    @Query("UPDATE Cliente c SET c.correoElectronico = :correo WHERE c.id = :id")
+    void actualizarCorreoElectronico(@Param("id") Integer id, @Param("correo") String correo);
+
+    @Modifying
+    @Query("""
+        UPDATE Cliente c SET c.correoElectronico = :correo, c.correoPendiente = null,
+               c.correoVerificado = true, c.codigoVerificacion = null, c.codigoVerificacionExpira = null
+        WHERE c.id = :id
+        """)
+    void confirmarCorreoConCambioPendiente(@Param("id") Integer id, @Param("correo") String correo);
+
+    @Modifying
+    @Query("""
+        UPDATE Cliente c SET c.correoVerificado = true, c.codigoVerificacion = null,
+               c.codigoVerificacionExpira = null
+        WHERE c.id = :id
+        """)
+    void confirmarCorreoSinCambioPendiente(@Param("id") Integer id);
+
+    // Mismos UPDATE directos que arriba, para los otros 2 puntos de ClienteServiceImpl que
+    // hacian entity.setX(...) + save() de la entidad completa (mismo riesgo de
+    // ConstraintViolationException en numeroTelefonico, hotfix 2026-09-05).
+    @Modifying
+    @Query("""
+        UPDATE Cliente c SET c.correoPendiente = :correoPendiente, c.codigoVerificacion = :codigo,
+               c.codigoVerificacionExpira = :expira
+        WHERE c.id = :id
+        """)
+    void actualizarCorreoPendienteConCodigo(@Param("id") Integer id,
+            @Param("correoPendiente") String correoPendiente, @Param("codigo") String codigo,
+            @Param("expira") java.time.LocalDateTime expira);
+
+    @Modifying
+    @Query("""
+        UPDATE Cliente c SET c.codigoVerificacion = :codigo, c.codigoVerificacionExpira = :expira
+        WHERE c.id = :id
+        """)
+    void actualizarCodigoVerificacion(@Param("id") Integer id, @Param("codigo") String codigo,
+            @Param("expira") java.time.LocalDateTime expira);
+
+    @Modifying
+    @Query("""
+        UPDATE Cliente c SET c.correoPendiente = null, c.codigoVerificacion = null,
+               c.codigoVerificacionExpira = null
+        WHERE c.id = :id
+        """)
+    void limpiarCorreoPendiente(@Param("id") Integer id);
 
     // Usado por PromocionServiceImpl.enviarCorreoPromocionAsync -- solo clientes que activaron
     // el checkbox de promociones Y ya tienen el correo verificado (no tiene caso mandarle una
