@@ -173,6 +173,12 @@ public class SecurityConfig {
 
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
+                        // Fase 3 de permisos (2026-09-05): "eliminar" separado del resto de
+                        // escritura (crear/editar, que se quedan en pantallaEscribir abajo) --
+                        // mismo criterio que ya se uso en Modelos/Tienda, para poder dar Editar
+                        // sin dar Eliminar en Categorías.
+                        .requestMatchers(HttpMethod.DELETE, "/v1/palabras-clave/delete")
+                                .hasAnyAuthority(accion("palabras-clave", "eliminar"))
                         .requestMatchers("/v1/palabras-clave/**").hasAnyAuthority(pantallaEscribir("palabras-clave"))
 
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
