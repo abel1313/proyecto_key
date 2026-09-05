@@ -235,10 +235,13 @@ public class UsuarioVerificacionService {
         // (ClienteServiceImpl.verificarCorreo, cambio desde "Mi perfil") sí sincronizaba hacia
         // Usuario.email, pero este no sincronizaba hacia Cliente.correoElectronico. Resultado:
         // dependiendo de POR DONDE se cambiara el correo, quedaba consistente o no.
+        //
+        // UPDATE directo (no cliente.setX + save()) a proposito: save() dispara Bean Validation
+        // de la entidad COMPLETA, y si el cliente tiene numeroTelefonico vacio/mal formado (dato
+        // viejo, de antes de esa validacion) revienta el commit aunque no se este tocando ese
+        // campo para nada (encontrado 2026-09-05, hotfix urgente en prod).
         if (usuario.getCliente() != null) {
-            Cliente cliente = usuario.getCliente();
-            cliente.setCorreoElectronico(usuario.getEmail());
-            clienteRepository.save(cliente);
+            clienteRepository.actualizarCorreoElectronico(usuario.getCliente().getId(), usuario.getEmail());
         }
     }
 
