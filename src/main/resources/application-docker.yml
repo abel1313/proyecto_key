@@ -43,14 +43,17 @@ spring:
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
   mail:
-    host: smtp.gmail.com
-    port: 587
+    # Antes usaba smtp.gmail.com con la cuenta gmail personal del dueno como remitente (encontrado
+    # 2026-09-06: el correo de verificacion llegaba con esa direccion, no con un correo del
+    # negocio). Se cambia al buzon real del negocio en hosting-mexico -- mismo servidor/protocolo
+    # que ya usa QA (application-qa.yml), solo cambia la cuenta (admin@ en vez de qa.boutique.bolsas@).
+    host: hapi.hosting-mexico.net
+    port: 465
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
-      mail.smtp.starttls.required: true
+      mail.smtp.ssl.enable: true
       mail.smtp.connectiontimeout: 5000
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
