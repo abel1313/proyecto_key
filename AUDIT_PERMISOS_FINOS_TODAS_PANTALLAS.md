@@ -62,20 +62,36 @@ Pantalla de solo consulta (buscar/filtrar/paginar pagos de Mercado Pago). Los fi
 estado) son parte del mismo flujo de búsqueda de un reporte admin-only, no hay caso de negocio
 para dárselos/quitárselos por separado. Se deja solo con Ver.
 
-### `pedidos/mis-pedidos` — ⚠️ PENDIENTE, requiere pase dedicado (no se tocó)
-Pantalla con más superficie de acciones de todo el catálogo: filtros (pagados/cancelados/normal/
-apartado-fiado/por lugar), ver detalle, info de entrega, **cobrar** (dinero), **enviar a
-terminal / cancelar terminal / confirmar cobro** (dinero), cancelar pedido, imprimir ticket,
-enviar correo. Hoy "Cobrar" y "Enviar correo" están gateados con un `isAdminUser` **hardcodeado**
-(no usa el sistema de permisos finos en absoluto) — el resto está completamente abierto a
-cualquiera con Ver en la pantalla.
+### `pedidos/mis-pedidos` — ✏️ cambiado (criterio confirmado por el usuario 2026-09-08)
+El usuario dio el criterio exacto: separar los 2 grupos de filtros por su propio nombre (mismo
+agrupamiento que ya existía en el HTML), cada botón de la tarjeta con su propia acción, y cada
+botón del detalle del pedido con la suya. 13 acciones nuevas, en 4 categorías:
 
-No lo toqué porque son acciones con dinero real (cobrar, cancelar pedido) — separar esto bien
-necesita que confirmes qué combinaciones tienen sentido de negocio (ej. ¿un rol puede ver
-pedidos y cancelarlos pero nunca cobrar? ¿"enviar a terminal" debe ser su propio permiso aparte
-de "cobrar"?) antes de que yo decida la granularidad, a diferencia de los casos de "escanear" o
-"filtro" de las otras pantallas donde la respuesta era obvia. Lo dejo marcado para retomar
-después del resto del audit, o antes si prefieres priorizarlo.
+- **Filtros — buscador de pedido**: `filtro-pagados`, `filtro-cancelados`
+- **Filtros — buscador por lugar**: `filtro-normal`, `filtro-apartado`, `filtro-fiado`
+- **Tarjeta de pedido**: `editar-entrega`, `cobrar`, `imprimir-ticket`, `enviar-correo`,
+  `cancelar-pedido`
+- **Detalle del pedido**: `editar-ramo`, `abonar`, `ajustar-cantidad`
+
+Se preservó el comportamiento actual con cuidado porque no todo estaba gateado igual:
+- `cobrar` y `enviar-correo` ya usaban `isAdminUser` (hardcodeado ROLE_ADMIN) tanto en la tarjeta
+  como en el detalle -- se les agregó `tieneAccion` ENCIMA de `isAdminUser` (no lo reemplaza), y
+  se dieron solo a ROLE_ADMIN en la migración.
+- `editar-entrega`, `imprimir-ticket` (en la tarjeta) y `cancelar-pedido` NO tenían ningún gate
+  -- las ve cualquiera con Ver, incluido un cliente viendo sus propios pedidos. Se les dio la
+  acción a TODO rol con Ver, para no romper la vista del cliente.
+- `imprimir-ticket` y `enviar-correo` en el DETALLE sí están dentro de un bloque `*ngIf="isAdmin"`
+  (inconsistente con la tarjeta, pero es el comportamiento actual) -- se respetó igual.
+- `abonar` ("Registrar abono") tampoco tenía ningún gate -- se le dio a TODO rol con Ver (un
+  cliente puede abonar su propio pedido a crédito).
+- `editar-ramo` y `ajustar-cantidad` ya eran ROLE_ADMIN-only (`isAdmin`) -- se quedaron así,
+  solo se les agregó `tieneAccion` encima.
+
+- Migración: `migration_accion_mis_pedidos.sql`
+- Front: `mis-pedidos.component.ts` (authService pasó de `private` a `public`) +
+  `mis-pedidos.component.html` (filtros y botones de tarjeta gateados); `detalle-pedido.component.ts`
+  (getters nuevos: `puedeImprimirTicketDetalle`, `puedeReenviarComprobante`, `puedeAbonar`, y
+  `puedeEditarRamo`/`puedeEditarLineas` con `tieneAccion` agregado) + `.html`.
 
 ## Grupo Ventas — ⚠️ PENDIENTE, requiere pase dedicado (no se tocó)
 Las 3 pantallas del grupo son manejo de dinero real, igual que `mis-pedidos`:
