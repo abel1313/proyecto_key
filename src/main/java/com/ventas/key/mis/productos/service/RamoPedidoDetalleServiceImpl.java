@@ -2,6 +2,8 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.AccesorioRamo;
 import com.ventas.key.mis.productos.entity.CantidadFlorValida;
+import com.ventas.key.mis.productos.entity.Cliente;
+import com.ventas.key.mis.productos.entity.ClienteSinRegistro;
 import com.ventas.key.mis.productos.entity.ColorFlor;
 import com.ventas.key.mis.productos.entity.DetallePedido;
 import com.ventas.key.mis.productos.entity.FraseListonPredefinida;
@@ -197,7 +199,27 @@ public class RamoPedidoDetalleServiceImpl {
             emailService.enviarTicket(adminEmail, asunto, html);
         }
 
+        // Confirmación al cliente de cuándo le llega su ramo -- pedido explícito del usuario
+        // 2026-09-08 ("ahí también se envía un correo para los ramos no?"). Antes solo se
+        // avisaba por correo si un admin CAMBIABA la fecha después (ver editarRamo), nunca en la
+        // compra inicial. No bloquea el guardado si el correo falla (enviarTicket ya lo traga).
+        if (guardado.getFechaHoraEntrega() != null && guardado.getCorreoContacto() != null) {
+            String nombreCliente = nombreContactoDe(pedido);
+            String lugar = Boolean.TRUE.equals(guardado.getRecogerEnLocal())
+                    ? "Recoges en tienda"
+                    : (guardado.getLugarEntrega() != null ? guardado.getLugarEntrega().getNombre() : null);
+            emailService.enviarConfirmacionRamo(guardado.getCorreoContacto(), nombreCliente, pedido.getId(),
+                    guardado.getFechaHoraEntrega(), lugar);
+        }
+
         return toResponseDto(guardado);
+    }
+
+    private String nombreContactoDe(Pedido pedido) {
+        Cliente c = pedido.getCliente();
+        if (c != null) return c.getNombrePersona();
+        ClienteSinRegistro csr = pedido.getClienteSinRegistro();
+        return csr != null ? csr.getNombrePersona() : "Cliente";
     }
 
     // El 50% de urgencia es un ENGANCHE que sale del total, no un cobro aparte -- por eso NO se

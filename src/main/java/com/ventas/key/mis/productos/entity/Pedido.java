@@ -43,6 +43,15 @@ public class Pedido extends BaseId{
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaRecogida;
 
+    // Hora y punto de encuentro del viaje semanal a una zona de entrega (ver EntregaZonaServiceImpl
+    // / pantalla "Entregas por zona", 2026-09-08) -- antes solo se mandaban en el correo de aviso y
+    // se perdian; el cliente no tenia forma de volver a consultarlos en su pedido despues.
+    @Column(name = "hora_recogida", length = 10)
+    private String horaRecogida;
+
+    @Column(name = "punto_encuentro", length = 255)
+    private String puntoEncuentro;
+
     @Column(columnDefinition = "TEXT")
     private String observaciones;
 

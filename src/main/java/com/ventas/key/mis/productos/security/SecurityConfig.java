@@ -234,9 +234,17 @@ public class SecurityConfig {
                         // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
                         // para guardar una foto y el usuario se topaba con un 403 "escondido".
+                        //
+                        // "tienda/buscar" agregado 2026-09-08: el boton ✏️ Editar de la tarjeta de
+                        // variante EN Tienda (buscar.component.ts, editarVariante()) pega a este
+                        // mismo endpoint -- antes su Editar dependia "prestado" del permiso de
+                        // tienda/venta (front) sin que el back siquiera lo aceptara para tienda/buscar,
+                        // asi que un rol con Editar en tienda/buscar pero no en tienda/venta se topaba
+                        // con un 403, y el checkbox de Editar de esa pantalla en Gestion de roles no
+                        // controlaba nada real (reportado por el usuario con capturas, 2026-09-08).
                         .requestMatchers("/tienda/**")
                                 .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta",
-                                        "flores/catalogos", "flores/ramos-admin"))
+                                        "tienda/buscar", "flores/catalogos", "flores/ramos-admin"))
 
                         // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
                         .requestMatchers(HttpMethod.GET, "/v1/carga-imagenes/**").hasAnyAuthority(pantalla("carga-imagenes"))
