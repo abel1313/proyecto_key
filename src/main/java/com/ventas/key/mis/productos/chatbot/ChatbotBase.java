@@ -288,6 +288,16 @@ public abstract class ChatbotBase {
     // usando los demas campos ya estructurados de cada variante (color, talla, marca, precio,
     // descripcion) -- esa parte sigue siendo criterio de la IA, no cambia.
     // categoria == null (no se detecto ninguna en el mensaje) -> catalogo completo, igual que antes.
+    //
+    // Formato COMPACTO vs COMPLETO (2026-09-08, pedido del dueño por costo de tokens): con
+    // categoria detectada el catalogo ya viene chico (una sola categoria) -- ahi se manda el
+    // detalle completo (color/talla/presentacion/descripcion) porque la IA lo necesita para
+    // afinar ("bolsas rojas", "bolsas grandes"). SIN categoria, el catalogo puede ser el completo
+    // (hasta MAX_VARIANTES_CONTEXTO_CHATBOT) -- ahi se manda solo nombre/marca/codigo de
+    // barras/precio/stock, sin descripcion ni color/talla/presentacion, para no gastar miles de
+    // tokens de mas en cada mensaje que no matcheo ninguna categoria. Alcanza para que la IA
+    // reconozca el producto por nombre (ej. "tienes perfumes?") y confirme precio/stock; el
+    // detalle fino solo hace falta una vez que ya se acoto a una categoria.
     protected String obtenerContextoVariantes(String categoria) {
         try {
             List<Variantes> variantes = (categoria != null)
@@ -302,6 +312,7 @@ public abstract class ChatbotBase {
                         : "No hay productos disponibles en este momento.";
             }
 
+            boolean detallado = categoria != null;
             StringBuilder sb = new StringBuilder();
             for (Variantes v : variantes) {
                 sb.append("- ").append(v.getProducto().getNombre());
@@ -314,14 +325,17 @@ public abstract class ChatbotBase {
                 if (v.getMarca() != null && !v.getMarca().isBlank()) {
                     sb.append(" (").append(v.getMarca()).append(")");
                 }
-                if (v.getTalla() != null && !v.getTalla().isBlank()) {
-                    sb.append(", talla: ").append(v.getTalla());
-                }
-                if (v.getColor() != null && !v.getColor().isBlank()) {
-                    sb.append(", color: ").append(v.getColor());
-                }
-                if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) {
-                    sb.append(", presentación: ").append(v.getPresentacion());
+
+                if (detallado) {
+                    if (v.getTalla() != null && !v.getTalla().isBlank()) {
+                        sb.append(", talla: ").append(v.getTalla());
+                    }
+                    if (v.getColor() != null && !v.getColor().isBlank()) {
+                        sb.append(", color: ").append(v.getColor());
+                    }
+                    if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) {
+                        sb.append(", presentación: ").append(v.getPresentacion());
+                    }
                 }
 
                 Double precioVenta = v.getProducto().getPrecioVenta();
@@ -331,7 +345,7 @@ public abstract class ChatbotBase {
 
                 sb.append(", stock: ").append(v.getStock()).append(" pzas");
 
-                if (v.getDescripcion() != null && !v.getDescripcion().isBlank()) {
+                if (detallado && v.getDescripcion() != null && !v.getDescripcion().isBlank()) {
                     sb.append(". ").append(v.getDescripcion());
                 }
                 sb.append("\n");
