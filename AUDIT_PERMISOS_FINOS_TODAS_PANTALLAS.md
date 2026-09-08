@@ -93,117 +93,94 @@ Se preservó el comportamiento actual con cuidado porque no todo estaba gateado 
   (getters nuevos: `puedeImprimirTicketDetalle`, `puedeReenviarComprobante`, `puedeAbonar`, y
   `puedeEditarRamo`/`puedeEditarLineas` con `tieneAccion` agregado) + `.html`.
 
-## Grupo Ventas — ⚠️ PENDIENTE, requiere pase dedicado (no se tocó)
-Las 3 pantallas del grupo son manejo de dinero real, igual que `mis-pedidos`:
-- `tienda/venta-directa` (POS presencial): cobrar, apartado/fiado, terminal (enviar/cancelar/
-  cerrar), agregar/quitar línea, promociones.
-- `abonos`: registrar abono, cancelar pedido (con y sin pago), transferir variante entre pedidos
-  cancelados.
-- `gastos/buscar`: agregar/editar/eliminar gasto (el único caso "mecánico" del grupo — eliminar
-  vs editar es la misma separación ya hecha en Categorías/Lugares de entrega, sin ambigüedad de
-  negocio).
+## Grupo Ventas — criterio confirmado por el usuario 2026-09-08
 
-Junto con `mis-pedidos`, esto forma un bloque de 4 pantallas de dinero que prefiero revisar
-contigo antes de separar acciones — a diferencia de "escanear código" o "filtro de catálogo",
-aquí una separación mal pensada (ej. dar "cobrar" sin "cancelar", o "terminal" sin "cobrar") sí
-puede generar un hueco operativo real. `gastos/buscar` es la excepción fácil (eliminar vs
-editar) y la puedo hacer sin preguntar si prefieres que avance con esa sola.
+**`tienda/venta-directa` y `abonos` — decisión: permiso completo, sin acciones puntuales.** "No
+hay muchas opciones ahí" -- si el rol tiene el permiso de la pantalla, entra y usa todo (Ver +
+Editar general, como estaba). No se toca nada.
 
-## Grupo Reportes — sin cambios
-`dashboard`: solo un botón de refrescar, nada que separar. `reportes`: pestañas de solo lectura
-(Diario/Mensual/Por cliente/Más vendidos/Promociones) — todas dentro del mismo visor de reportes,
-sin acciones destructivas ni de escritura. Se dejan bajo el Ver general.
+**`gastos/buscar` — ✏️ cambiado.** El usuario confirmó que aquí sí hay varios botones que separar
+(pestaña "Gastos" únicamente -- "Ventas" y "Reporte" son de solo consulta):
+- `agregar-gasto`, `editar-gasto`, `eliminar-gasto` — 3 acciones independientes.
+- Migración: `migration_accion_gastos.sql`
+- Front: `AuthService` agregado a `all.component.ts`; los 3 botones gateados con `tieneAccion`.
 
-## Grupo Rifas — ✏️ cambiado
-Las 3 pantallas administran UNA rifa activa a la vez (configurar, agregar variante/participante,
-importar, copiar de anterior, modo prueba) — eso se queda como un solo flujo bajo Editar general.
-Se separaron solo las acciones de borrado y las de ejecución/recuperación (mismo criterio que
-"eliminar" en Categorías/Lugares, y consecuentes por sí mismas, no solo consulta):
-- `rifas/agregar`: `eliminar` (quitar variante), `eliminar-concursante` (quitar concursante —
-  esta pantalla también da de alta concursantes, es otro tipo de dato, se separó aparte)
-- `rifas/mes`: `eliminar` (quitar concursante)
-- `rifas/buscar`: `ejecutar-rifa` (botón "Ir a ejecución"), `recuperar-rifa` (botón "Recuperar"
-  una rifa mensual cerrada)
-- Migración: `migration_accion_rifas.sql`
-- Front: `agregar-rifa`/`rifa-mes`/`buscar-rifa` .ts (se agregó `AuthService`) y .html (botones
-  gateados con `tieneAccion`)
+## Grupo Reportes — criterio confirmado por el usuario 2026-09-08
 
-## Grupo Flores eternas — ✏️ cambiado
-`flores/ramos` (Vitrina) y `flores/configurar` (Arma tu ramo) son públicas, de cara al cliente
-(ver ramo, pedir, WhatsApp) -- sin acciones admin, excluidas del audit.
-- `flores/catalogos`: acciones `habilitar` y `eliminar`, cubren las 5 pestañas (tipos/colores/
-  cantidades/accesorios/frases de listón) con una sola acción cada una -- mismo patrón repetido
-  en las 5, no 5 funcionalidades distintas.
-- `flores/entregas`: `eliminar` (botón "Quitar plazos", destructivo).
-- `flores/ramos-admin`: `habilitar` (activar/desactivar ramo armado; no hay botón de borrar ahí).
-- `flores/frases`: `aprobar` y `rechazar` separados (bandeja de moderación, 2 decisiones
-  independientes con sentido de negocio propio).
-- Migración: `migration_accion_flores.sql`
-- Front: se agregó `AuthService` a los 4 componentes; botones gateados con `tieneAccion`.
+**`dashboard` — decisión: permiso completo.** Si tiene el permiso, entra y lo ve, sin separar
+nada.
 
-## Grupo Marketing — ✏️ cambiado (parcial)
-`promociones` (pública), `admin/facebook` (un único flujo de armar+publicar un post) y
-`admin/hashtags` (edición simple por red, sin borrar/activar) quedan sin cambios.
-- `admin/promociones`: `habilitar` (activar/desactivar) y `enviar-correo` (correo masivo de la
-  promo) separados -- sentido de negocio claro (armar promos sin poder mandar correos masivos).
-- `admin/cinta`: `habilitar` y `eliminar` (reordenar con ↑↓ se queda en el flujo de edición
-  general, sin separar).
-- Migración: `migration_accion_marketing.sql`
-- Front: `AuthService` agregado a ambos componentes; botones gateados con `tieneAccion`.
+**`reportes` (Reportes de ventas) — ✏️ cambiado.** El usuario pidió que fuera configurable
+("hay varios botones"): cada una de las 5 pestañas es su propia acción, para poder dar por
+ejemplo "Diario" sin dar "Promociones":
+- `reporte-diario`, `reporte-mensual`, `reporte-cliente`, `reporte-mas-vendidos`,
+  `reporte-promociones`.
+- Migración: `migration_accion_reportes.sql`
+- Front: `AuthService` agregado a `reportes.component.ts`; las 5 pestañas gateadas con
+  `tieneAccion`.
 
-## Grupo Sistema — ✏️ cambiado (parcial) + ⚠️ 1 pendiente
+## Grupo Rifas — revertido a permiso completo (criterio confirmado por el usuario 2026-09-08)
+Decisión: "para todas sus opciones, solo si tiene el permiso de rifa va a poder entrar y verlas"
+-- sin acciones puntuales. Se había implementado una separación fina (eliminar/ejecutar/recuperar,
+migración `migration_accion_rifas.sql`) y se **revirtió por completo**: los 6 archivos de
+`agregar-rifa`/`rifa-mes`/`buscar-rifa` (.ts y .html) volvieron a su versión de antes de esa
+migración, y el archivo de migración se borró (nunca se había ejecutado en QA/prod).
 
-`admin/negocio`, `admin/chat`, `admin/presentacion`, `admin/diagnostico-imagenes` (solo lectura)
-y `admin/cache` son cada una un único flujo, sin acciones separables. Sin cambios.
+## Grupo Flores eternas — revertido a permiso completo (criterio confirmado por el usuario 2026-09-08)
+Decisión: "solo que tenga el permiso de cada opción del menú va a poder entrar y verlo" -- sin
+acciones puntuales, cada pantalla (catalogos/entregas/ramos-admin/frases) es todo-o-nada. Se
+**revirtió** la separación fina implementada antes (habilitar/eliminar/aprobar/rechazar,
+migración `migration_accion_flores.sql`): los 4 componentes volvieron a su versión previa y el
+archivo de migración se borró (nunca ejecutado).
 
-**⚠️ `usuarios/buscar` (Usuarios) — PENDIENTE, no se tocó.** Editar/Eliminar/Activar una cuenta
-de usuario hoy está completamente abierto a cualquiera con Ver ahí (sin `tieneAccion` ni
-`tieneEscritura`, ningún gating). Es sensible por el mismo motivo que las pantallas de dinero —
-"Editar" acá puede incluir cambiar el ROL de otro usuario (riesgo de auto-escalar privilegios si
-se separa mal), así que necesito tu criterio antes de decidir la granularidad, igual que con
-`mis-pedidos`/Ventas.
+## Grupo Marketing — revertido a permiso completo (criterio confirmado por el usuario 2026-09-08)
+Decisión: "lo mismo, si tiene permiso lo puede ver y modificar" -- sin acciones puntuales. Se
+**revirtió** la separación fina de `admin/promociones`/`admin/cinta` (habilitar/enviar-correo/
+eliminar, migración `migration_accion_marketing.sql`): ambos componentes volvieron a su versión
+previa y el archivo de migración se borró (nunca ejecutado).
 
-**Cambiado:**
-- `gestion-menu` (Menús y submenús): `eliminar-menu` y `eliminar-submenu` separados (2 tipos de
-  borrado distintos, riesgo estructural -- borrar un submenú puede romper el permiso de esa
-  pantalla en todo el sistema). El resto (crear/editar) se queda en Editar general.
-- `gestion-menu/roles` (Gestión de roles): `eliminar` (borrar un rol completo) separado. La
-  edición de permisos en sí (los checkboxes Ver/Editar/acciones) es el propósito mismo de la
-  pantalla, se queda bajo Editar general -- solo se separó el borrado de rol.
-- `personalizacion`: `eliminar` (borrar una variable de tema) separado.
-- `admin/reconciliacion-imagenes`: `limpiar-bd` separado del botón "Iniciar" (diagnóstico de solo
-  lectura) -- es el único botón marcado "danger" en la pantalla, borra registros de la BD.
-- Migración: `migration_accion_sistema.sql`
-- Front: `AuthService` agregado a los 4 componentes; botones gateados con `tieneAccion`.
+## Grupo Sistema — revertido a permiso completo, salvo 1 pendiente (criterio confirmado 2026-09-08)
+Decisión: "si tiene la opción lo va a poder ver y modificar -- modificar me refiero a que puede
+agregar cosas... lo que deja hacer esa opción" -- sin acciones puntuales. Se **revirtió** la
+separación fina de `gestion-menu` (eliminar-menu/eliminar-submenu), `gestion-menu/roles`
+(eliminar rol) y `personalizacion`/`admin/reconciliacion-imagenes` (eliminar/limpiar-bd) —
+migración `migration_accion_sistema.sql` borrada (nunca ejecutada), los 4 componentes vueltos a
+su versión previa.
 
-## Sin grupo (Clientes, Favoritos) — ✏️ cambiado
-`favoritos` es la lista personal del propio cliente (quitar de favoritos, carrito) -- no es
-pantalla admin, sin cambios.
-- `clientes/buscar`: `verificar-correo` separado (cubre los 2 botones -- marcar verificado y
-  resetear verificación -- son la misma acción de soporte, un solo permiso).
-- Migración: `migration_accion_clientes.sql`
-- Front: `AuthService` agregado a `clientes-buscar.component.ts`; botones gateados.
+**⚠️ `usuarios/buscar` (Usuarios) — sigue PENDIENTE, no se tocó.** Editar/Eliminar/Activar una
+cuenta de usuario hoy está completamente abierto a cualquiera con Ver ahí. "Editar" acá puede
+incluir cambiar el ROL de otro usuario (riesgo de auto-escalar privilegios) -- necesito tu
+criterio antes de decidir, igual que se hizo con `mis-pedidos`.
+
+## Sin grupo (Clientes, Favoritos) — ⚠️ pendiente de confirmar si se mantiene o se revierte
+`favoritos` sin cambios (lista personal del cliente). `clientes/buscar` sí quedó con acción
+puntual `verificar-correo` (migración `migration_accion_clientes.sql`, ya implementada) -- dado
+el patrón de las últimas decisiones (todo-o-nada salvo excepción explícita), confirmar si esto
+también se revierte o se queda así.
+
+## Grupo Catálogo — ⚠️ pendiente de confirmar si se mantiene o se revierte
+`productos/agregar` y `carga-imagenes` quedaron con la acción `escanear-codigo` (y
+`generar-codigo-barras` en carga-imagenes) separada del resto (migración
+`migration_accion_agregar_carga_imagenes_escaner.sql`, ya implementada) -- mismo caso que
+Clientes: confirmar si se mantiene o se revierte a permiso completo.
 
 ---
 
 ## Cierre del audit (2026-09-08)
 
-Las 45 pantallas del catálogo quedaron revisadas. Resumen:
-- **7 migraciones nuevas** (`migration_accion_agregar_carga_imagenes_escaner.sql`,
-  `migration_accion_rifas.sql`, `migration_accion_flores.sql`, `migration_accion_marketing.sql`,
-  `migration_accion_sistema.sql`, `migration_accion_clientes.sql`), todas con el mismo patrón:
-  crean la(s) acción(es) y se las dan a todo rol que hoy tiene Ver en esa pantalla (preserva el
-  comportamiento actual -- nadie pierde acceso al ejecutar la migración, pero un rol NUEVO que se
-  cree después ya no las trae por default).
-- **2 pantallas pendientes de tu criterio de negocio, sin implementar** (dinero y cuentas de
-  usuario -- ver secciones "Grupo Ventas" y "`usuarios/buscar`" arriba): `mis-pedidos` +
-  `venta-directa` + `abonos` + `gastos/buscar` (gastos/buscar es la excepción fácil, lista para
-  hacer si confirmas), y `usuarios/buscar`.
-- El resto de pantallas (~20) se revisaron y se decidió NO separar nada -- son un solo flujo
-  (formularios de creación, pantallas de un solo propósito) o pura consulta/reporte, documentado
-  caso por caso arriba con el porqué.
+Las 45 pantallas del catálogo quedaron revisadas. Estado final tras las decisiones del usuario:
+- **Con acciones puntuales (confirmado):** Modelos/Tienda/Envíos (de sesiones previas),
+  `pedidos/mis-pedidos` (criterio detallado del usuario), `gastos/buscar`, `reportes`.
+- **Pendiente de confirmar si se mantienen o se revierten a permiso completo:** `clientes/buscar`
+  (verificar-correo) y Catálogo (`productos/agregar`/`carga-imagenes`, escanear).
+- **Revertidas a permiso completo por decisión explícita del usuario:** Rifas, Flores eternas,
+  Marketing, Sistema (salvo `usuarios/buscar`, que sigue pendiente de criterio, no de reversión).
+- **Permiso completo desde el principio, confirmado:** `tienda/venta-directa`, `abonos`,
+  `dashboard`, y el resto de pantallas de un solo flujo o de puro reporte.
+- **Sigue pendiente de tu criterio de negocio, sin implementar:** `usuarios/buscar`
+  (editar/eliminar/activar cuenta -- riesgo de auto-escalar rol).
 
-**Antes de ejecutar en QA:** revisar cada migración nueva, correrlas una por una, y probar con
+**Antes de ejecutar en QA:** revisar cada migración vigente, correrlas una por una, y probar con
 Gestión de roles que las etiquetas/descripciones se vean bien y que quitar la acción a un rol de
 prueba realmente oculte el botón correspondiente.
 
