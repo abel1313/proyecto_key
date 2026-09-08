@@ -34,5 +34,15 @@ public class AccionSubmenu extends BaseId {
     @Column(length = 255)
     private String descripcion;
 
+    // Sub-encabezado para agrupar visualmente el checklist de Gestión de roles (2026-09-04,
+    // pedido del usuario: antes las acciones de una pantalla salian todas juntas en una sola
+    // lista -- confuso con 15+ casillas). Ej. "Filtros", "Tarjeta de modelo", "Buscador". Null =
+    // sin agrupar, cae en "Otras acciones" en el front. El AGRUPAMIENTO en pantalla lo decide
+    // esta columna, pero el ORDEN dentro y entre grupos sigue siendo `orden` -- las filas de una
+    // misma categoria deben quedar con `orden` consecutivo para que el front las muestre juntas
+    // (agrupa por bloques contiguos, no reordena).
+    @Column(length = 60)
+    private String categoria;
+
     private Integer orden;
 }

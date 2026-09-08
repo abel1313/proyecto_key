@@ -74,6 +74,8 @@ public class EntregaZonaServiceImpl {
         int enviados = 0;
         for (Pedido pedido : pendientes) {
             pedido.setFechaRecogida(request.getFecha());
+            pedido.setHoraRecogida(request.getHora());
+            pedido.setPuntoEncuentro(request.getPuntoEncuentro());
             iPedidoRepository.save(pedido);
 
             String correo = correoDe(pedido);

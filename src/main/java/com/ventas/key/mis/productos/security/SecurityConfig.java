@@ -173,6 +173,12 @@ public class SecurityConfig {
 
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
+                        // Fase 3 de permisos (2026-09-05): "eliminar" separado del resto de
+                        // escritura (crear/editar, que se quedan en pantallaEscribir abajo) --
+                        // mismo criterio que ya se uso en Modelos/Tienda, para poder dar Editar
+                        // sin dar Eliminar en Categorías.
+                        .requestMatchers(HttpMethod.DELETE, "/v1/palabras-clave/delete")
+                                .hasAnyAuthority(accion("palabras-clave", "eliminar"))
                         .requestMatchers("/v1/palabras-clave/**").hasAnyAuthority(pantallaEscribir("palabras-clave"))
 
                         // ── Productos (GETs públicos; escritura solo ADMIN) ────────────────
@@ -217,13 +223,28 @@ public class SecurityConfig {
                         // tarjeta de producto en Modelos, antes capturado por el catch-all de abajo.
                         .requestMatchers(HttpMethod.POST, "/tienda/v1/inicializarDesdeProducto")
                                 .hasAnyAuthority(accion("productos/buscar", "crear-variantes"))
+                        // Fase 3 de permisos, extendida a "tienda/buscar" (2026-09-04): habilitar
+                        // /deshabilitar variante (individual y en lote) desde la vitrina Tienda --
+                        // antes caia en el catch-all de pantallaEscribir de abajo, que ni siquiera
+                        // incluye "tienda/buscar" en su lista, asi que un rol no-ADMIN con esa
+                        // pantalla nunca podia usar este boton pese a tenerla asignada.
+                        .requestMatchers(HttpMethod.PUT, "/tienda/v1/*/habilitar", "/tienda/v1/admin/habilitar-lote")
+                                .hasAnyAuthority(accion("tienda/buscar", "habilitar"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
                         // para guardar una foto y el usuario se topaba con un 403 "escondido".
+                        //
+                        // "tienda/buscar" agregado 2026-09-08: el boton ✏️ Editar de la tarjeta de
+                        // variante EN Tienda (buscar.component.ts, editarVariante()) pega a este
+                        // mismo endpoint -- antes su Editar dependia "prestado" del permiso de
+                        // tienda/venta (front) sin que el back siquiera lo aceptara para tienda/buscar,
+                        // asi que un rol con Editar en tienda/buscar pero no en tienda/venta se topaba
+                        // con un 403, y el checkbox de Editar de esa pantalla en Gestion de roles no
+                        // controlaba nada real (reportado por el usuario con capturas, 2026-09-08).
                         .requestMatchers("/tienda/**")
                                 .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta",
-                                        "flores/catalogos", "flores/ramos-admin"))
+                                        "tienda/buscar", "flores/catalogos", "flores/ramos-admin"))
 
                         // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
                         .requestMatchers(HttpMethod.GET, "/v1/carga-imagenes/**").hasAnyAuthority(pantalla("carga-imagenes"))
@@ -272,10 +293,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
-                        // "Entregas por zona" (2026-09-04): solo el admin arma el viaje semanal y
-                        // le avisa a los clientes -- el cliente en el checkout solo elige la zona,
-                        // nunca ve ni toca esto.
-                        .requestMatchers("/v1/entregas-zona/**").hasRole("ADMIN")
+                        // "Entregas por zona" (2026-09-04, permisos finos agregados 2026-09-05):
+                        // el cliente en el checkout solo elige la zona, nunca ve ni toca esto. Ver
+                        // pendientes (View) vs programar/avisar por correo (Escritura) -- ver
+                        // migration_submenu_entregas_zona.sql.
+                        .requestMatchers(HttpMethod.GET, "/v1/entregas-zona/**").hasAnyAuthority(pantalla("entregas-zona"))
+                        .requestMatchers("/v1/entregas-zona/**").hasAnyAuthority(pantallaEscribir("entregas-zona"))
 
                         // ── Abonos (apartado / fiado) ────────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/abonos/**").hasAnyAuthority(pantalla("abonos"))
@@ -305,6 +328,11 @@ public class SecurityConfig {
                         // calcular-costo (anillos) lo llama el checkout ANTES de que el cliente tenga
                         // sesion necesariamente (visitante anonimo cotizando) -- ver DISENO_ZONAS_POR_ANILLO.md.
                         .requestMatchers(HttpMethod.POST, "/v1/lugares-entrega/*/calcular-costo").permitAll()
+                        // "eliminar" es su propia accion puntual (2026-09-05, mismo criterio que
+                        // palabras-clave) -- alta/edicion/anillos siguen bajo el Editar general de
+                        // la pantalla. Ver migration_accion_lugares_entrega_eliminar.sql.
+                        .requestMatchers(HttpMethod.DELETE, "/v1/lugares-entrega/delete")
+                                .hasAnyAuthority(accion("lugares-entrega", "eliminar"))
                         .requestMatchers("/v1/lugares-entrega/**").hasAnyAuthority(pantallaEscribir("lugares-entrega"))
 
                         // ── Promociones (catalogo publico -- mismo criterio que la cinta de
