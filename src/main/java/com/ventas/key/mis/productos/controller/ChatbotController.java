@@ -2,7 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
 import com.ventas.key.mis.productos.chatbot.ChatbotRequest;
-import com.ventas.key.mis.productos.chatbot.ChatbotService;
+import com.ventas.key.mis.productos.chatbot.ChatbotSitioWebService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ChatbotController {
 
-    private final ChatbotService chatbotService;
+    private final ChatbotSitioWebService chatbotService;
     private final ChatbotBlockService blockService;
 
     private static final Pattern PRECIO_PATTERN = Pattern.compile("\\$\\s?\\d");

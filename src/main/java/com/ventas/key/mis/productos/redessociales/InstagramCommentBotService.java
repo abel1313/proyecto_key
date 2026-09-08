@@ -1,7 +1,7 @@
 package com.ventas.key.mis.productos.redessociales;
 
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
-import com.ventas.key.mis.productos.chatbot.ChatbotService;
+import com.ventas.key.mis.productos.chatbot.ChatbotInstagramService;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.service.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class InstagramCommentBotService {
 
-    private final ChatbotService chatbotService;
+    private final ChatbotInstagramService chatbotService;
     private final ChatbotBlockService blockService;
     private final InstagramGraphClient instagramGraphClient;
     private final EmailService emailService;
@@ -77,7 +77,7 @@ public class InstagramCommentBotService {
 
         String respuesta;
         try {
-            respuesta = chatbotService.responderComentarioRedSocial(comentarioTexto, variante, esPrimeraVez).block();
+            respuesta = chatbotService.responderComentario(comentarioTexto, variante, esPrimeraVez).block();
         } catch (Exception e) {
             log.warn("Error consultando el chatbot para el comentario IG {}: {}", commentId, e.getMessage());
             return;
