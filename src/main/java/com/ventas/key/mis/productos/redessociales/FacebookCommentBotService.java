@@ -1,7 +1,7 @@
 package com.ventas.key.mis.productos.redessociales;
 
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
-import com.ventas.key.mis.productos.chatbot.ChatbotService;
+import com.ventas.key.mis.productos.chatbot.ChatbotFacebookService;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.service.EmailService;
 import lombok.RequiredArgsConstructor;
@@ -13,14 +13,14 @@ import java.time.LocalDateTime;
 
 // Orquesta el bot de comentarios de Facebook: recibe el evento ya parseado del webhook
 // (FacebookWebhookController), decide si contesta, escala por correo, o se calla -- y si contesta
-// reusa el mismo "cerebro" del chat del sitio (ChatbotService) -- misma logica de entender/
-// resolver, distinto canal de salida.
+// usa el "cerebro" del canal Facebook (ChatbotFacebookService) -- misma logica de entender/
+// resolver que el resto de canales, prompt propio de este canal si algun dia hace falta.
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class FacebookCommentBotService {
 
-    private final ChatbotService chatbotService;
+    private final ChatbotFacebookService chatbotService;
     private final ChatbotBlockService blockService;
     private final FacebookGraphClient facebookGraphClient;
     private final EmailService emailService;
@@ -83,7 +83,7 @@ public class FacebookCommentBotService {
         blockService.registrarMensaje(claveAbuso);
 
         // Primera vez de este autor -- nunca antes le contestamos -- el bot SIEMPRE saluda
-        // (salvo que la pregunta se tenga que escalar, ver ChatbotService).
+        // (salvo que la pregunta se tenga que escalar, ver ChatbotBase).
         boolean esPrimeraVez = autorId == null || !comentarioSocialRepository.existsByAutorId(autorId);
 
         Variantes variante = publicacionSocialRepository.findByPostIdFacebook(postId)
@@ -92,7 +92,7 @@ public class FacebookCommentBotService {
 
         String respuesta;
         try {
-            respuesta = chatbotService.responderComentarioRedSocial(comentarioTexto, variante, esPrimeraVez).block();
+            respuesta = chatbotService.responderComentario(comentarioTexto, variante, esPrimeraVez).block();
         } catch (Exception e) {
             log.warn("Error consultando el chatbot para el comentario {}: {}", commentId, e.getMessage());
             return;

@@ -1,7 +1,7 @@
 package com.ventas.key.mis.productos.redessociales;
 
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
-import com.ventas.key.mis.productos.chatbot.ChatbotService;
+import com.ventas.key.mis.productos.chatbot.ChatbotInstagramService;
 import com.ventas.key.mis.productos.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,9 +11,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
 // Mismo patron que InstagramCommentBotService, aplicado a mensajes directos (DM) en vez de
-// comentarios publicos -- mismo "cerebro" (ChatbotService), mismo control de abuso/limite de 20
-// msj/hora (ChatbotBlockService, la clave es autorId igual que en comentarios), misma logica de
-// saludo/escalar/pausar. Diferencias con el de comentarios:
+// comentarios publicos -- mismo "cerebro" (ChatbotInstagramService, mismo canal que los
+// comentarios de Instagram), mismo control de abuso/limite de 20 msj/hora (ChatbotBlockService,
+// la clave es autorId igual que en comentarios), misma logica de saludo/escalar/pausar.
+// Diferencias con el de comentarios:
 // - No hay "post" ni "variante" asociada -- un DM no esta ligado a una publicacion, se contesta
 //   sin ese contexto extra (varianteDelPost siempre null).
 // - La pausa por respuesta manual es por autor unicamente (MensajePausa), no por autor+post.
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class InstagramDirectMessageBotService {
 
-    private final ChatbotService chatbotService;
+    private final ChatbotInstagramService chatbotService;
     private final ChatbotBlockService blockService;
     private final InstagramGraphClient instagramGraphClient;
     private final EmailService emailService;
@@ -78,7 +79,7 @@ public class InstagramDirectMessageBotService {
 
         String respuesta;
         try {
-            respuesta = chatbotService.responderComentarioRedSocial(texto, null, esPrimeraVez).block();
+            respuesta = chatbotService.responderComentario(texto, null, esPrimeraVez).block();
         } catch (Exception e) {
             log.warn("Error consultando el chatbot para el mensaje directo IG {}: {}", mid, e.getMessage());
             return;
