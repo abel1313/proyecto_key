@@ -152,17 +152,23 @@ cuenta de usuario hoy está completamente abierto a cualquiera con Ver ahí. "Ed
 incluir cambiar el ROL de otro usuario (riesgo de auto-escalar privilegios) -- necesito tu
 criterio antes de decidir, igual que se hizo con `mis-pedidos`.
 
-## Sin grupo (Clientes, Favoritos) — ⚠️ pendiente de confirmar si se mantiene o se revierte
-`favoritos` sin cambios (lista personal del cliente). `clientes/buscar` sí quedó con acción
-puntual `verificar-correo` (migración `migration_accion_clientes.sql`, ya implementada) -- dado
-el patrón de las últimas decisiones (todo-o-nada salvo excepción explícita), confirmar si esto
-también se revierte o se queda así.
+## Sin grupo (Clientes, Favoritos) — ✅ confirmado, se queda configurable
+`favoritos` sin cambios (lista personal del cliente). `clientes/buscar` se queda con la acción
+puntual `verificar-correo` — el usuario confirmó 2026-09-08 que la quiere configurable. Ya
+implementada y ejecutada en QA/prod (`migration_accion_clientes.sql`), sin cambios pendientes.
 
-## Grupo Catálogo — ⚠️ pendiente de confirmar si se mantiene o se revierte
-`productos/agregar` y `carga-imagenes` quedaron con la acción `escanear-codigo` (y
-`generar-codigo-barras` en carga-imagenes) separada del resto (migración
-`migration_accion_agregar_carga_imagenes_escaner.sql`, ya implementada) -- mismo caso que
-Clientes: confirmar si se mantiene o se revierte a permiso completo.
+## Grupo Catálogo — ✅ confirmado, se queda configurable
+`productos/agregar` y `carga-imagenes` se quedan con la acción `escanear-codigo` (y
+`generar-codigo-barras` en carga-imagenes) — el usuario confirmó 2026-09-08 que la quiere
+configurable. Ya implementada y ejecutada en QA/prod
+(`migration_accion_agregar_carga_imagenes_escaner.sql`), sin cambios pendientes.
+
+Aparte, se investigó por qué el usuario no veía el link "➕ Agregar modelo" en el navbar: el
+código está intacto (`navbar.component.html`, condicionado a `tienePantalla('productos/agregar')`)
+-- es que el rol de prueba no tenía esa pantalla habilitada en Gestión de roles, no un problema de
+código. Se confirmó además (comentario en commit del 27-ago) que "editar" en Modelos siempre
+dependió del permiso de la pantalla "Agregar modelo" completa, nunca fue una acción puntual
+separada dentro de Modelos -- decisión de UX ya tomada por el usuario anteriormente.
 
 ---
 
@@ -170,9 +176,8 @@ Clientes: confirmar si se mantiene o se revierte a permiso completo.
 
 Las 45 pantallas del catálogo quedaron revisadas. Estado final tras las decisiones del usuario:
 - **Con acciones puntuales (confirmado):** Modelos/Tienda/Envíos (de sesiones previas),
-  `pedidos/mis-pedidos` (criterio detallado del usuario), `gastos/buscar`, `reportes`.
-- **Pendiente de confirmar si se mantienen o se revierten a permiso completo:** `clientes/buscar`
-  (verificar-correo) y Catálogo (`productos/agregar`/`carga-imagenes`, escanear).
+  `pedidos/mis-pedidos` (criterio detallado del usuario), `gastos/buscar`, `reportes`,
+  `clientes/buscar` (verificar-correo), Catálogo (`productos/agregar`/`carga-imagenes`, escanear).
 - **Revertidas a permiso completo por decisión explícita del usuario:** Rifas, Flores eternas,
   Marketing, Sistema (salvo `usuarios/buscar`, que sigue pendiente de criterio, no de reversión).
 - **Permiso completo desde el principio, confirmado:** `tienda/venta-directa`, `abonos`,
