@@ -148,7 +148,19 @@ public class ImagenPresentacionService {
         imagen.setActualizadoEn(LocalDateTime.now());
         ImagenPresentacionDto resultado = toDto(repo.save(imagen));
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        // Hotfix 2026-09-08: en prod RabbitMQ no esta configurado (ver CLAUDE.md) -- este
+        // convertAndSend tiraba una excepcion que @Transactional interpretaba como "hay que
+        // hacer rollback", revirtiendo el repo.save() de arriba (nombreArchivo volvia al valor
+        // viejo) pero SIN poder revertir el eliminarArchivoEnDisco() de mas arriba (borrado de
+        // disco, no transaccional) -- la fila quedaba apuntando a un archivo que ya no existe.
+        // Sintoma real: se reemplazaron las 3 imagenes de login en prod y las 3 quedaron rotas
+        // (204 sin contenido en GET .../imagen). El aviso a Rabbit es solo para invalidar cache
+        // de otras instancias -- best effort, nunca debe poder tumbar el guardado.
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de imagenes de presentacion (no bloquea el guardado): {}", e.getMessage());
+        }
         return resultado;
     }
 
