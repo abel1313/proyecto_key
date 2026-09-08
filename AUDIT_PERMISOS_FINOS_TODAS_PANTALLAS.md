@@ -186,6 +186,42 @@ prueba realmente oculte el botón correspondiente.
 
 ---
 
+## Ejecución en QA y prod (2026-09-08, confirmado por el usuario)
+
+El usuario ya ejecutó estas 8 migraciones en QA **y** en prod:
+
+```
+migration_accion_agregar_carga_imagenes_escaner.sql
+migration_accion_rifas.sql
+migration_accion_flores.sql
+migration_accion_marketing.sql
+migration_accion_sistema.sql
+migration_accion_clientes.sql
+migration_accion_mis_pedidos.sql
+migration_pedido_hora_punto_encuentro.sql
+```
+
+**⚠️ Ojo con las 4 de en medio.** `migration_accion_rifas.sql`, `migration_accion_flores.sql`,
+`migration_accion_marketing.sql` y `migration_accion_sistema.sql` se ejecutaron **antes** de que
+el usuario pidiera revertir esos 4 grupos a permiso completo. Resultado: las filas
+`accion_submenu` (y sus `rol_accion`) de Rifas/Flores eternas/Marketing/Sistema **siguen vivas en
+la BD de QA y prod**, pero el código del front ya no las lee (`tieneAccion` se quitó de esas
+pantallas al revertir). Van a aparecer como checkboxes en Gestión de roles que no controlan nada
+visible — mismo patrón que el hallazgo original de "Editar huérfano en Tienda" del inicio de este
+audit.
+
+**Decisión del usuario:** dejarlas tal cual en la BD por ahora, no borrarlas — quedan dadas de
+alta por si más adelante se retoma la separación fina de alguno de estos 4 grupos. Anotado aquí
+para no olvidar el porqué si alguien las encuentra después.
+
+**Las otras 4 sí quedaron consistentes** (migración ejecutada = código del front que las usa,
+sin huérfanos): `migration_accion_agregar_carga_imagenes_escaner.sql` (Catálogo — pendiente de
+decidir si se revierte, ver arriba), `migration_accion_clientes.sql` (pendiente de decidir
+igual), `migration_accion_mis_pedidos.sql` y `migration_pedido_hora_punto_encuentro.sql` (ambas
+con su código de front ya activo).
+
+---
+
 ## Antes de fusionar a `dev`
 - Ejecutar cada migración en QA primero, probar con el checklist correspondiente, luego prod.
 - Seguir el flujo normal de `CLAUDE.md`: `dev → qa → main`, nunca al revés.
