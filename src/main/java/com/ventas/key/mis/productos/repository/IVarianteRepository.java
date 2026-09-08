@@ -276,9 +276,14 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     }
 
     // --- búsqueda para chatbot: por nombre de producto, marca o palabra clave ---
+    // Encontrado 2026-09-06: a diferencia de findConStockYImagenPublico/findCatalogoPublico
+    // (mismo criterio de visibilidad de cliente en el resto del catálogo), a esta le faltaba el
+    // filtro "con imagen" -- el chatbot podía traer y mostrarle al cliente una tarjeta de un
+    // producto sin fotos.
     @Query(value = "SELECT v FROM Variantes v LEFT JOIN v.palabraClave pc " +
                    "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
                    "AND v.producto.esCatalogoInterno = false " +
+                   "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v) " +
                    "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
@@ -286,6 +291,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
            countQuery = "SELECT COUNT(v) FROM Variantes v LEFT JOIN v.palabraClave pc " +
                         "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
                         "AND v.producto.esCatalogoInterno = false " +
+                        "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v) " +
                         "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
