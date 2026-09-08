@@ -235,6 +235,20 @@ decidir si se revierte, ver arriba), `migration_accion_clientes.sql` (pendiente 
 igual), `migration_accion_mis_pedidos.sql` y `migration_pedido_hora_punto_encuentro.sql` (ambas
 con su código de front ya activo).
 
+**Ejecución adicional (2026-09-08, confirmado por el usuario):** ya se ejecutaron también en QA
+**y** en prod:
+
+```
+migration_submenu_tienda_buscar_descripcion_escritura.sql
+migration_accion_usuarios.sql
+```
+
+Ambas consistentes con su código de front, ya pusheado a `feature/permisos-finos`, `dev` y `qa`
+en este mismo momento — sin huérfanos. `migration_submenu_tienda_buscar_descripcion_escritura.sql`
+es la que deja explícito dónde aparece el efecto del checkbox "Editar" de Tienda (fix real, ver
+sección "Editar huérfano en Tienda — FIX REAL aplicado" más abajo). `migration_accion_usuarios.sql`
+da de alta `editar-usuario`/`eliminar-usuario`/`activar-usuario` para `usuarios/buscar`.
+
 ---
 
 ## ✅ Editar huérfano en Tienda — FIX REAL aplicado (2026-09-08)
@@ -265,11 +279,9 @@ endpoint real (`POST /tienda/v1/guardarConImagenes`) solo aceptaba
    pantalla de Tienda (Buscar)."* — antes esa pantalla no tenía descripción propia de escritura
    (heredaba conceptualmente la de `tienda/venta`, que no menciona la tarjeta de Tienda).
 
-**Pendiente de ejecutar:** `migration_submenu_tienda_buscar_descripcion_escritura.sql`, en QA y
-luego prod (aún no confirmado por el usuario). Backend compilado (`mvn -q -o compile` OK) y
-frontend compilado (`ng build --configuration=qa` OK), pero el commit/push del backend queda
-pendiente hasta que el usuario diga "sube" (regla del `CLAUDE.md` de este repo). Frontend ya
-pusheado a `feature/permisos-finos`.
+**✅ Ejecutado en QA y en prod (confirmado por el usuario 2026-09-08).** Backend compilado
+(`mvn -q -o compile` OK) y frontend compilado (`ng build --configuration=qa` OK). Código pusheado
+a `feature/permisos-finos`, `dev` y `qa`.
 
 ---
 
