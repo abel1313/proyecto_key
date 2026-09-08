@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -59,7 +60,16 @@ public class ImagenPresentacionService {
         dto.setDescripcion(img.getDescripcion());
         dto.setActivo(img.isActivo());
         dto.setActualizadoEn(img.getActualizadoEn());
-        dto.setUrlImagen("/presentacion/v1/imagenes/" + img.getId() + "/imagen");
+        // "?v=" con el timestamp de la última actualización (2026-09-08, encontrado: el admin
+        // reemplazaba la imagen de login/registro y, aunque el back guardaba bien el archivo
+        // nuevo y su propia caché de Redis se invalidaba, la URL de la imagen no cambiaba -- el
+        // navegador (y cualquier proxy/CDN de por medio) seguía sirviendo los bytes viejos
+        // cacheados para esa misma URL. Con esto la URL cambia cada vez que se actualiza la
+        // imagen, forzando a pedir los bytes de nuevo.
+        String v = img.getActualizadoEn() != null
+                ? "?v=" + img.getActualizadoEn().toEpochSecond(ZoneOffset.UTC)
+                : "";
+        dto.setUrlImagen("/presentacion/v1/imagenes/" + img.getId() + "/imagen" + v);
         return dto;
     }
 
