@@ -18518,3 +18518,36 @@ forma de pago); "Arma tu ramo" manda `latitud`/`longitud`/`referencias` al guard
 ramo pero el DTO del backend no los admite (Jackson los descarta en silencio, sin impacto porque
 esos datos ya se guardan por otro lado en `savePedido`) — si de verdad hace falta ese refuerzo,
 hay que agregar los campos al DTO, es decisión de producto, no un bug urgente.
+
+---
+
+## Fecha/hora de entrega visible en el pedido del cliente (2026-09-08)
+
+Pedido explícito del usuario: en "Mis pedidos" / detalle del pedido, el cliente debe poder ver
+cuándo y a qué hora le vamos a entregar, sin depender solo del correo que se le mandó una vez.
+
+**Request:** sin cambios — sigue siendo `GET /v1/pedidos/{id}/detalle` (mismo endpoint que ya
+usa `PedidosService.obtenerDetallePedido()`).
+
+**Response — `PedidoDetalleResponse` gana 3 campos nuevos** (todos opcionales, `@JsonInclude(NON_NULL)`
+como el resto del DTO):
+
+- `horaRecogida` (string, ej. `"12:00"`) y `puntoEncuentro` (string) — se llenan cuando la
+  pantalla "Entregas por zona" ya programó el viaje semanal a la zona de este pedido (antes solo
+  se mandaban en el correo de aviso a los clientes y se perdían — `fechaRecogida` sí se guardaba
+  desde antes, esto completa el dato).
+- `fechaHoraEntregaRamo` (string ISO datetime) — solo si el pedido es un ramo de flores eternas
+  (`esRamoFlores: true`). Es la fecha+hora exacta que el cliente eligió al armar el ramo
+  (`RamoPedidoDetalle.fechaHoraEntrega`, ya existía en BD pero nunca se exponía en este DTO).
+
+**Diferencia clave respecto a antes:** antes solo `fechaRecogida` (fecha sin hora) llegaba al
+front, y solo para pedidos de zona — un pedido de ramo no traía ningún dato de fecha/hora de
+entrega en este endpoint, aunque el back ya la tuviera calculada y guardada.
+
+**Nota:** para ramos, esto NO agrega un correo nuevo — el aviso por correo del cliente al elegir
+la fecha inicial sigue sin existir (solo hay correo si un admin la CAMBIA después, ver
+`RamoPedidoDetalleServiceImpl.editarRamo`). Esta migración es solo "mostrarlo en el pedido", no
+"avisar por correo" — si se quiere lo segundo, es un cambio aparte.
+
+Migración de BD ejecutada: `migration_pedido_hora_punto_encuentro.sql` (2 columnas nuevas en
+`pedidos`: `hora_recogida`, `punto_encuentro`).
