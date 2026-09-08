@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +41,14 @@ public class ImagenPresentacionService {
         return repo.findByTipoAndActivoOrderByOrden(tipo.toUpperCase(), true);
     }
 
-    @Cacheable(value = "presentacion-imagenes", key = "#tipo.toUpperCase()")
+    // Encontrado 2026-09-08 (hotfix urgente en prod): esta cache rompia el login/registro por
+    // completo con un 400 "Could not read JSON: Unexpected token (START_OBJECT), expected
+    // VALUE_STRING... type id" -- error de GenericJackson2JsonRedisSerializer al leer de vuelta
+    // el valor cacheado (activateDefaultTyping en CacheTtlConfig le agrega metadatos "@class" al
+    // guardar, y algo en la lectura no los reconstruye bien). Persistia incluso despues de borrar
+    // la cache manualmente. La tabla de imagenes de presentacion es minuscula (unas pocas filas
+    // para LOGIN/REGISTRO) -- cachearla en Redis no aporta nada que valga el riesgo de romper el
+    // login entero, asi que se quita el cache aqui en vez de perseguir el bug de serializacion.
     public List<ImagenPresentacionDto> getImagenesPorTipoV2(String tipo) {
         return repo.findByTipoAndActivoOrderByOrden(tipo.toUpperCase(), true)
                 .stream()
