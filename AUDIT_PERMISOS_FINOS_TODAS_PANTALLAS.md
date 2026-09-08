@@ -147,10 +147,21 @@ separación fina de `gestion-menu` (eliminar-menu/eliminar-submenu), `gestion-me
 migración `migration_accion_sistema.sql` borrada (nunca ejecutada), los 4 componentes vueltos a
 su versión previa.
 
-**⚠️ `usuarios/buscar` (Usuarios) — sigue PENDIENTE, no se tocó.** Editar/Eliminar/Activar una
-cuenta de usuario hoy está completamente abierto a cualquiera con Ver ahí. "Editar" acá puede
-incluir cambiar el ROL de otro usuario (riesgo de auto-escalar privilegios) -- necesito tu
-criterio antes de decidir, igual que se hizo con `mis-pedidos`.
+**✅ `usuarios/buscar` (Usuarios) — implementado 2026-09-08.** El usuario confirmó "igual
+configurable". Se separaron los 3 botones de la tarjeta (`all-usuarios.component.html`) en
+acciones puntuales: `editar-usuario` (botón Actualizar → lleva a `usuarios/update`, ahí se puede
+cambiar el ROL de otro usuario), `eliminar-usuario` (botón Eliminar), `activar-usuario` (botón
+Reactivar, solo visible viendo desactivados). Migración `migration_accion_usuarios.sql`, otorgada
+por defecto a todo rol con Ver hoy (preserva el comportamiento actual, que era completamente
+abierto). **Nota de riesgo que queda igual que antes** (no es nueva, ya existía): dar
+`editar-usuario` sigue dejando cambiar el rol de OTRO usuario desde `usuarios/update` sin límite
+de jerarquía (un admin con este permiso podría, por ejemplo, subir a otro usuario a
+ROLE_ADMIN) -- la separación fina no resuelve eso, solo permite no dar el botón en absoluto a
+quien no deba tocar cuentas. Si se quiere acotar la escalación de privilegios habría que tratarlo
+aparte (p. ej. reglas de qué roles puede asignar cada rol), no se implementó, no se pidió.
+Backend: `SecurityConfig` ya protegía todo lo no-GET de `/v1/usuarios/**` con
+`pantallaEscribir("usuarios/buscar")` (el Editar general de la pantalla) desde antes -- no se
+tocó, la separación es solo de front (mismo patrón que otras acciones de esta pantalla-tipo).
 
 ## Sin grupo (Clientes, Favoritos) — ✅ confirmado, se queda configurable
 `favoritos` sin cambios (lista personal del cliente). `clientes/buscar` se queda con la acción
@@ -177,13 +188,12 @@ separada dentro de Modelos -- decisión de UX ya tomada por el usuario anteriorm
 Las 45 pantallas del catálogo quedaron revisadas. Estado final tras las decisiones del usuario:
 - **Con acciones puntuales (confirmado):** Modelos/Tienda/Envíos (de sesiones previas),
   `pedidos/mis-pedidos` (criterio detallado del usuario), `gastos/buscar`, `reportes`,
-  `clientes/buscar` (verificar-correo), Catálogo (`productos/agregar`/`carga-imagenes`, escanear).
+  `clientes/buscar` (verificar-correo), Catálogo (`productos/agregar`/`carga-imagenes`, escanear),
+  `usuarios/buscar` (editar/eliminar/activar, confirmado y ya implementado 2026-09-08).
 - **Revertidas a permiso completo por decisión explícita del usuario:** Rifas, Flores eternas,
-  Marketing, Sistema (salvo `usuarios/buscar`, que sigue pendiente de criterio, no de reversión).
+  Marketing, Sistema (salvo `usuarios/buscar`, que ya no es excepción -- ver arriba).
 - **Permiso completo desde el principio, confirmado:** `tienda/venta-directa`, `abonos`,
   `dashboard`, y el resto de pantallas de un solo flujo o de puro reporte.
-- **Sigue pendiente de tu criterio de negocio, sin implementar:** `usuarios/buscar`
-  (editar/eliminar/activar cuenta -- riesgo de auto-escalar rol).
 
 **Antes de ejecutar en QA:** revisar cada migración vigente, correrlas una por una, y probar con
 Gestión de roles que las etiquetas/descripciones se vean bien y que quitar la acción a un rol de
@@ -224,6 +234,42 @@ sin huérfanos): `migration_accion_agregar_carga_imagenes_escaner.sql` (Catálog
 decidir si se revierte, ver arriba), `migration_accion_clientes.sql` (pendiente de decidir
 igual), `migration_accion_mis_pedidos.sql` y `migration_pedido_hora_punto_encuentro.sql` (ambas
 con su código de front ya activo).
+
+---
+
+## ✅ Editar huérfano en Tienda — FIX REAL aplicado (2026-09-08)
+
+El hallazgo original de este audit (checkbox "Editar" de Tienda en Gestión de roles marcado para
+un rol, pero el botón ✏️ Editar de la tarjeta de variante nunca aparecía para ese rol) se había
+quedado solo **diagnosticado**, no arreglado — `migration_submenu_descripcion_escritura.sql` puso
+la descripción explicando por qué (permiso compartido con `tienda/venta`), pero el código seguía
+igual. El usuario mandó 4 capturas (Gestión de roles con "Editar" marcado para ROLE_USUARIO en
+Tienda, la tarjeta de esa variante sin botón para el usuario "karla" con ese rol, la misma tarjeta
+CON botón para ROLE_ADMIN) y pidió el arreglo real, no solo la explicación.
+
+**Causa:** `buscar.component.ts` → `puedeActualizarVariante()` leía
+`authService.tieneEscritura('tienda/venta')` (el permiso de OTRA pantalla) en vez del propio de
+`tienda/buscar`. Y aunque se hubiera leído bien del lado del front, el backend
+(`SecurityConfig./tienda/**`) tampoco aceptaba `tienda/buscar` en su `pantallaEscribir(...)` — el
+endpoint real (`POST /tienda/v1/guardarConImagenes`) solo aceptaba
+`productos/buscar, productos/agregar, tienda/venta, flores/catalogos, flores/ramos-admin`.
+
+**Fix (3 cambios, `feature/permisos-finos` en ambos repos):**
+1. Backend `SecurityConfig.java` — se agregó `"tienda/buscar"` a la lista de `pantallaEscribir(...)`
+   del `.requestMatchers("/tienda/**")`.
+2. Frontend `buscar.component.ts` — `puedeActualizarVariante()` ahora lee
+   `tieneEscritura('tienda/buscar')` (su propia pantalla) en vez de `tienda/venta`.
+3. Migración `migration_submenu_tienda_buscar_descripcion_escritura.sql` — reemplaza la
+   descripción de escritura de `tienda/buscar` por una que dice explícitamente DÓNDE aparece el
+   efecto: *"Controla el botón ✏️ Editar que aparece en cada tarjeta de producto/variante, en la
+   pantalla de Tienda (Buscar)."* — antes esa pantalla no tenía descripción propia de escritura
+   (heredaba conceptualmente la de `tienda/venta`, que no menciona la tarjeta de Tienda).
+
+**Pendiente de ejecutar:** `migration_submenu_tienda_buscar_descripcion_escritura.sql`, en QA y
+luego prod (aún no confirmado por el usuario). Backend compilado (`mvn -q -o compile` OK) y
+frontend compilado (`ng build --configuration=qa` OK), pero el commit/push del backend queda
+pendiente hasta que el usuario diga "sube" (regla del `CLAUDE.md` de este repo). Frontend ya
+pusheado a `feature/permisos-finos`.
 
 ---
 
