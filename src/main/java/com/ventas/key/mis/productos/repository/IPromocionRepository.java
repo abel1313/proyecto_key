@@ -40,7 +40,7 @@ public interface IPromocionRepository extends BaseRepository<Promocion, Integer>
             COALESCE(SUM(x.venta_linea), 0)   AS ventaTotal,
             COALESCE(SUM(x.ganancia_linea), 0) AS gananciaTotal,
             MAX(x.fecha_venta)          AS ultimaVenta
-        FROM promocion p
+        FROM promociones p
         LEFT JOIN (
             SELECT
                 dv.promocion_id                         AS promocion_id,
