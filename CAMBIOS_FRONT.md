@@ -18544,10 +18544,12 @@ como el resto del DTO):
 front, y solo para pedidos de zona — un pedido de ramo no traía ningún dato de fecha/hora de
 entrega en este endpoint, aunque el back ya la tuviera calculada y guardada.
 
-**Nota:** para ramos, esto NO agrega un correo nuevo — el aviso por correo del cliente al elegir
-la fecha inicial sigue sin existir (solo hay correo si un admin la CAMBIA después, ver
-`RamoPedidoDetalleServiceImpl.editarRamo`). Esta migración es solo "mostrarlo en el pedido", no
-"avisar por correo" — si se quiere lo segundo, es un cambio aparte.
+**Actualización 2026-09-08 (mismo día):** se agregó también el correo de confirmación inicial
+para ramos que faltaba — `RamoPedidoDetalleServiceImpl.adjuntar()` ahora manda
+`EmailService.enviarConfirmacionRamo()` al cliente en cuanto arma su ramo (si tiene correo de
+contacto y ya se calculó `fechaHoraEntrega`), con la fecha/hora y el lugar ("Recoges en tienda" o
+el nombre de la zona). Antes solo existía el correo de "cambio de fecha" cuando un admin editaba
+el pedido después — la compra inicial nunca avisaba nada.
 
 Migración de BD ejecutada: `migration_pedido_hora_punto_encuentro.sql` (2 columnas nuevas en
 `pedidos`: `hora_recogida`, `punto_encuentro`).

@@ -368,6 +368,33 @@ public class EmailService {
     }
 
     /**
+     * Confirma al cliente la fecha/hora de entrega de su ramo recién armado (2026-09-08,
+     * RamoPedidoDetalleServiceImpl.adjuntar) -- antes solo se avisaba por correo si un ADMIN
+     * cambiaba la fecha después (ver {@code editarRamo}), nunca en la compra inicial.
+     * {@code lugar} es opcional: "Recoges en tienda", el nombre de la zona, o null si no aplica.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    public boolean enviarConfirmacionRamo(String destinatario, String nombreCliente, Integer pedidoId,
+                                           java.time.LocalDateTime fechaHoraEntrega, String lugar) {
+        String fechaStr = fechaHoraEntrega.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d 'de' MMMM",
+                new java.util.Locale("es", "MX")));
+        String horaStr = fechaHoraEntrega.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        String asunto = "Confirmación de entrega de tu ramo — " + fechaStr + " — Novedades Jade";
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+                + "<p style=\"margin:0 0 12px;\">Tu ramo del pedido <strong>#" + pedidoId + "</strong> "
+                + "quedó programado para:</p>"
+                + "<div style=\"text-align:center;margin:22px 0;\">"
+                + "<span style=\"display:inline-block;background-color:#FDF0F5;color:#C2185B;"
+                + "font-size:18px;font-weight:700;padding:12px 22px;border-radius:10px;"
+                + "font-family:Arial,Helvetica,sans-serif;\">" + fechaStr + ", " + horaStr + "</span>"
+                + (lugar != null ? "<div style=\"margin-top:10px;color:#1f2937;font-size:15px;\">📍 " + lugar + "</div>" : "")
+                + "</div>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Si necesitas cambiar la fecha, escríbenos y con "
+                + "gusto lo ajustamos.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
      * Digest diario para el admin (StockBajoScheduler) con las variantes en o por debajo del
      * umbral configurado. {@code lineas} ya viene formateada por StockBajoService (nombre de
      * producto + talla/color + stock) para que EmailService no dependa de la entidad Variantes.
