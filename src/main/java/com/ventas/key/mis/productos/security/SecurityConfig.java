@@ -429,11 +429,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
-                        ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar"))
+                        ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar", "rifas/boletos"))
                         .requestMatchers(
                                 "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
-                        ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar"))
+                        ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar", "rifas/boletos"))
 
                         // ── Carga de documentos (Excel) ───────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/documentos/**").hasAnyAuthority(pantalla("tienda/cargar-excel"))
