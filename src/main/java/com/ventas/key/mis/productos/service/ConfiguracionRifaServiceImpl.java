@@ -71,7 +71,8 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         return new ConfigurarRifaResumenDto(
                 rifa.getId(), rifa.getFechaHoraLimite(), rifa.getActiva(),
                 totalVariantes, variantesSorteadas,
-                rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba());
+                rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba(),
+                rifa.getFechaInicioBoletos(), rifa.getFechaFinBoletos());
     }
 
     public List<ConfigurarRifa> buscarActivasHoy() {

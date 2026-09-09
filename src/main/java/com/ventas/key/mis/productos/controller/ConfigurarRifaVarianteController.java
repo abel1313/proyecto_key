@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteDto;
+import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.service.ConfigurarRifaVarianteService;
@@ -52,6 +53,24 @@ public class ConfigurarRifaVarianteController {
             return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada y stock restaurado"));
         } catch (Exception e) {
             log.error("Error al eliminar variante de rifa: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    /**
+     * Edita un premio ya guardado (giro ganador, orden, producto...). Antes solo se podía
+     * cambiar la palabraClave, así que para corregir "¿en qué giro gana?" había que borrar
+     * el premio y volverlo a agregar.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ResponseGeneric<ConfigurarRifaVarianteDto>> editar(
+            @PathVariable Integer id,
+            @RequestBody ConfigurarRifaVarianteEditarRequest req) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(service.editar(id, req)));
+        } catch (Exception e) {
+            log.error("Error al editar premio {} de la rifa: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }

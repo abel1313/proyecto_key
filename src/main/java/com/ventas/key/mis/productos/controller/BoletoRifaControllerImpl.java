@@ -38,6 +38,18 @@ public class BoletoRifaControllerImpl {
         return ResponseEntity.ok(new ResponseGeneric<List<BoletoRifa>>(service.listarPorConcursante(concursanteId)));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ResponseGeneric<BoletoRifa>> editar(
+            @PathVariable Integer id, @RequestBody BoletoRifaRequest req) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(service.editar(id, req)));
+        } catch (Exception e) {
+            log.error("Error al editar boleto {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
         try {
