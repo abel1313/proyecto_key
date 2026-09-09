@@ -48,10 +48,14 @@ public class BoletoRifaServiceImpl {
         Concursante concursante = iConcursanteRepository.findById(req.getConcursanteId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Concursante no encontrado"));
 
-        // Único campo obligatorio: la URL desde la que se le da seguimiento a la persona.
-        // Sin ella el boleto no se puede verificar después.
+        // Sin la URL de seguimiento el boleto no se puede verificar después.
         if (req.getUrlPerfilRedSocial() == null || req.getUrlPerfilRedSocial().isBlank()) {
             throw new ExceptionErrorInesperado("La URL del perfil para dar seguimiento es obligatoria");
+        }
+        // La plataforma también es obligatoria: un boleto sin plataforma no dice de qué red
+        // vino la acción, que es justo lo que hay que revisar al validar la rifa.
+        if (req.getPlataforma() == null) {
+            throw new ExceptionErrorInesperado("La plataforma del boleto es obligatoria");
         }
 
         LocalDate fecha = req.getFecha() != null ? req.getFecha() : LocalDate.now();
@@ -105,6 +109,49 @@ public class BoletoRifaServiceImpl {
 
     public List<BoletoRifa> listarPorConcursante(Integer concursanteId) {
         return iBoletoRifaRepository.findByConcursanteId(concursanteId);
+    }
+
+    /**
+     * Corrige un boleto ya registrado (se puso mal la plataforma, la fecha o una URL) sin
+     * tener que eliminarlo y volverlo a capturar -- borrarlo descuenta el boleto del
+     * participante y vuelve a subirlo, lo que ensucia el conteo.
+     *
+     * No cambia de dueño el boleto ni toca su estado de descartado: eso lo decide el sorteo.
+     */
+    @Transactional
+    public BoletoRifa editar(Integer id, BoletoRifaRequest req) {
+        BoletoRifa boleto = iBoletoRifaRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Boleto no encontrado"));
+
+        if (req.getPlataforma() == null) {
+            throw new ExceptionErrorInesperado("La plataforma del boleto es obligatoria");
+        }
+        if (req.getUrlPerfilRedSocial() == null || req.getUrlPerfilRedSocial().isBlank()) {
+            throw new ExceptionErrorInesperado("La URL del perfil para dar seguimiento es obligatoria");
+        }
+
+        LocalDate fecha = req.getFecha() != null ? req.getFecha() : boleto.getFecha();
+        validarFechaEnRango(boleto.getConcursante().getConfigurarRifa(), fecha);
+
+        boleto.setPlataforma(req.getPlataforma());
+        boleto.setMotivo(req.getMotivo());
+        boleto.setFecha(fecha);
+        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial().trim());
+        boleto.setUrlSeguimiento(req.getUrlSeguimiento());
+
+        // Se vacía y se vuelve a llenar la MISMA lista en vez de asignar una nueva: el
+        // boleto ya está gestionado por Hibernate y reemplazar la instancia de un
+        // @ElementCollection le hace perder el rastro de la colección original.
+        boleto.getUrlsCompartido().clear();
+        if (req.getUrlsCompartido() != null) {
+            boleto.getUrlsCompartido().addAll(req.getUrlsCompartido().stream()
+                    .filter(u -> u != null && !u.isBlank())
+                    .collect(Collectors.toList()));
+        }
+
+        BoletoRifa guardado = iBoletoRifaRepository.save(boleto);
+        log.info("Boleto {} editado (plataforma={}, fecha={})", id, req.getPlataforma(), fecha);
+        return guardado;
     }
 
     @Transactional
