@@ -9427,6 +9427,76 @@ compartir de su lado (capturas, specs, lo que sea), puede ir aquí también.
    todavía no lo prendimos.** Confirmado en el código (`AuthController.java`, default `false`,
    no está seteado a `true` en ningún yml de ningún ambiente). Lo dejamos así hasta confirmar con
    el usuario cuándo conviene encenderlo — nada roto de su lado, es una decisión pendiente
+
+---
+
+## 📘 Aclaración — horario del negocio y endpoint nuevo de redes sociales (2026-08-21)
+
+### Horario: `GET /v1/negocio/estado` (público) nunca ha incluido `horaApertura`/`horaCierre`
+
+Se revisó por qué en la pantalla pública seguía viéndose un horario viejo después de guardar uno
+nuevo desde el admin. **No es un bug, es que ese dato nunca viajó ahí:**
+
+- `GET /v1/negocio/estado` (público, sin login) solo devuelve `abierto`, `whatsappUrl` y
+  `facebookUrl` — **nunca ha tenido `horaApertura`/`horaCierre` en el response.**
+- El horario configurado sí se guarda bien y sí se puede leer, pero solo vía
+  `GET /v1/negocio/config`, que es **ADMIN-only**. Ese endpoint no tiene caché — lee directo de
+  base de datos en cada llamada, así que si el admin guardó un horario nuevo con
+  `PUT /v1/negocio/horario`, `GET /v1/negocio/config` ya lo refleja de inmediato.
+- Confirmado con el usuario: la pantalla de horario es solo para el panel de admin, no se muestra
+  al público (el front ya avisa "abierto"/"cerrado" con `GET /v1/negocio/estado`), así que **no
+  se tocó nada de este endpoint** — no hacía falta.
+
+### Endpoint nuevo — redes sociales dinámicas (2026-08-21)
+
+Antes el back solo soportaba dos redes fijas como columnas (`whatsappUrl`, `facebookUrl` en
+`GET /v1/negocio/estado`, `/contactos` y `/config`). No existía ningún campo para Instagram,
+TikTok u otras redes — si el admin las configuraba en algún lado del front, el back no tenía
+dónde guardarlas ni cómo devolverlas.
+
+Se agregó una lista dinámica: el admin da de alta cualquier red social (nombre + url), sin límite
+fijo ni necesidad de tocar código para agregar una red nueva.
+
+**`GET /v1/negocio/redes-sociales/publico`** (público, 2026-08-21) — el front consume este para pintar
+los íconos/links de redes en la tienda.
+
+```
+GET /mis-productos/v1/negocio/redes-sociales/publico
+```
+
+Response (solo redes marcadas como activas):
+```json
+{
+  "data": [
+    { "nombre": "Instagram", "url": "https://instagram.com/novedadesjade" },
+    { "nombre": "TikTok", "url": "https://tiktok.com/@novedadesjade" }
+  ]
+}
+```
+- Si no hay ninguna red activa, `data` viene como lista vacía `[]` con `code: 200` (no es un error).
+- `whatsappUrl`/`facebookUrl` de `/contactos` y `/estado` **siguen existiendo tal cual, no se
+  quitaron** — este endpoint nuevo es aparte, para las redes adicionales. Si quieren unificar todo
+  en una sola lista (incluyendo WhatsApp y Facebook), avisen para evaluarlo.
+
+**Endpoints ADMIN nuevos (requieren rol ADMIN):**
+
+```
+GET    /v1/negocio/redes-sociales        → lista completa (activas e inactivas), para el panel de gestión
+POST   /v1/negocio/redes-sociales        → body: { "nombre": "Instagram", "url": "https://..." } (nace activa)
+PUT    /v1/negocio/redes-sociales/{id}   → body: { "nombre"?, "url"?, "activo"? } (campos opcionales, solo actualiza los que vengan)
+DELETE /v1/negocio/redes-sociales/{id}   → elimina la red social
+```
+
+- Response de los 4 endpoints ADMIN es la entidad completa (`id`, `nombre`, `url`, `activo`), salvo
+  `DELETE` que responde un mensaje de texto.
+- `404` si se intenta `PUT`/`DELETE` sobre un `id` que no existe.
+- `activo=false` la oculta del endpoint público sin borrarla — útil para desactivar temporalmente
+  una red sin perder la URL guardada.
+
+**⚠️ Requiere migración de base de datos antes de desplegar** — la tabla `red_social_negocio` no
+existe todavía en ningún ambiente (`ddl-auto: none`). Correr
+`src/main/resources/static/migration_red_social_negocio.sql` en QA/prod antes del deploy, o el
+panel de redes sociales tronará con error de tabla no encontrada.
    nuestra, no un olvido silencioso.
 
 ---
@@ -18720,6 +18790,40 @@ También acepta `palabraClave` y `ordenDesde`. Solo se aplica lo que venga disti
 La pantalla solo ofrecía "eliminar", así que corregir un nombre mal escrito significaba borrar al
 participante y perder sus boletos.
 
+### 5-bis. La hora de cierre ahora SÍ bloquea el registro de boletos — 2026-09-09
+
+El campo `fechaHoraLimite` en la configuración de la rifa solo se comparaba por fecha (ignoraba la hora).
+Una rifa del 1 al 9 que cierra a las 10:00 de la mañana en teoría dejaba de recibir boletos el 9 a las
+10:00, pero en práctica lo hacía a las 23:59 de ese día.
+
+**Cambio en el backend:** ahora la validación usa `LocalDateTime` en lugar de solo `LocalDate`, y se
+ejecuta cuando se registra cada boleto (`POST /v1/boletoRifa/registrar` o `PUT /v1/boletoRifa/{id}`).
+
+**Comportamiento nuevo:**
+- Si `fechaHoraLimite` es `null` → no hay límite de hora (solo hay límite de fecha).
+- Si `fechaHoraLimite` es `"2026-09-09T10:00"` → a las 10:00:01 del 9/9 se bloquean nuevos boletos.
+- **Response** si se intenta pasada la hora: **400** `"El registro de boletos cerró el 2026-09-09 a las 10:00"`.
+
+### 5-ter. `urlPerfilRedSocial` dejó de ser obligatoria — 2026-09-09
+
+Antes:
+- Obligatoria en `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}`.
+- El front la solicitaba al capturar el boleto (label "URL del perfil para dar seguimiento *").
+- Las URLs capturadas frecuentemente resultaban en 404 porque no existía el perfil real.
+
+Ahora:
+- **Totalmente opcional** — puede venir `null` o vacía; se acepta igual.
+- El front no la solicita más al capturar boletos.
+- Se quitaron los links "Perfil" de la pantalla (quedaron los de "Seguimiento" y "Publicación compartida").
+
+**Cambios en los endpoints:**
+```json
+// POST /v1/boletoRifa/registrar — ahora es válido
+{ "plataforma": "INSTAGRAM", "motivo": "Compartió el reel", "fecha": "2026-09-08" }
+
+// Antes habría sido rechazo 400: "Falta la URL del perfil para dar seguimiento."
+```
+
 ---
 
 ## ENTREGAS POR ZONA — filtro por rango de fechas — 2026-09-09
@@ -18779,6 +18883,118 @@ vista**. Si vienen `null` se usa la semana en curso, como antes.
 **Response:** `data` = número de correos enviados.
 
 ---
+
+## ENTREGAS POR ZONA — ubicación en mapa del punto de encuentro — 2026-09-09
+
+Hasta ahora el punto de encuentro del viaje semanal solo era **texto libre**
+(`"Centro de Zacazonapan, frente a la iglesia"`). Quien no conoce la zona no tiene cómo llegar
+con eso, y el botón "Cómo llegar" del pedido lo mandaba a **su propia casa** (ver el bug abajo).
+Ahora el admin puede marcar el punto exacto en un mapa al programar, y esas coordenadas viajan al
+pedido de cada cliente avisado.
+
+**Requiere migración:** `migration_punto_encuentro_mapa.sql` (dos columnas nuevas en `pedido`,
+ambas NULL, idempotente).
+
+### `POST /v1/entregas-zona/{lugarEntregaId}/programar` — dos campos nuevos, opcionales
+
+```json
+{ "fecha": "2026-09-11", "hora": "17:00", "puntoEncuentro": "Centro, frente a la iglesia",
+  "latitud": 19.0621, "longitud": -100.2517,
+  "desde": "2026-09-01", "hasta": "2026-09-09" }
+```
+
+`latitud`/`longitud` son el punto marcado en el mapa. **Son opcionales** — sin ellos todo se
+comporta igual que antes (`puntoEncuentro` en texto sigue siendo lo obligatorio). Cuando vienen:
+
+- Se copian a **todos** los pedidos avisados en esa programación.
+- El correo de aviso incluye además un botón **🧭 Cómo llegar** con la ruta a ese punto.
+
+**Response:** `data` = número de correos enviados (sin cambio).
+
+### `GET /v1/pedidos/{id}/detalle` — dos campos nuevos en el response
+
+```json
+{ "fechaRecogida": "2026-09-11", "horaRecogida": "17:00",
+  "puntoEncuentro": "Centro, frente a la iglesia",
+  "latitudEncuentro": 19.0621, "longitudEncuentro": -100.2517 }
+```
+
+⚠️ **`latitudEncuentro`/`longitudEncuentro` NO son lo mismo que `latitud`/`longitud`.**
+
+| Campo | Qué es | Quién lo captura |
+|---|---|---|
+| `latitud` / `longitud` | La casa **del cliente** | El cliente en el checkout (o el admin en "Editar entrega") |
+| `latitudEncuentro` / `longitudEncuentro` | El punto **al que el cliente tiene que ir** | El admin al programar el viaje en "Entregas por zona" |
+
+Ausentes (no `null` — el DTO usa `@JsonInclude(NON_NULL)`) si el viaje se programó sin marcar el
+mapa, o si el pedido no es de una zona con viaje semanal.
+
+### 🐛 Bug de comportamiento corregido en el front: "Cómo llegar" apuntaba al destino equivocado
+
+**Antes:** `linkComoLlegar` (detalle-pedido) usaba `latitud`/`longitud` como destino de la ruta.
+En un pedido de entrega a domicilio eso está bien, pero en una **entrega por zona** el cliente es
+quien se mueve — y esas coordenadas son las de su propia casa, así que el botón le trazaba una
+ruta para llegar a donde ya estaba.
+
+**Ahora**, el orden de prioridad del destino es:
+
+1. `latitudEncuentro`/`longitudEncuentro` si existen → ruta al punto de encuentro.
+2. Si no, `latitud`/`longitud` → ruta a la dirección del cliente (entrega a domicilio, igual que antes).
+3. Si no hay coordenadas, búsqueda por texto con `puntoEncuentro` + `direccionEntrega` +
+   `lugarEntregaNombre` (antes `puntoEncuentro` no entraba en esa búsqueda).
+
+El texto bajo el botón también cambia según el caso ("la ruta al punto donde te entregamos" vs.
+"la ruta trazada al punto exacto" vs. "la dirección escrita").
+
+### 🧪 Guía para QA — qué probar
+
+**Entregas por zona — admin:**
+1. Filtro por rango de fechas:
+   - Abre "Entregas por zona" → la semana en curso aparece por defecto en "Desde" y "Hasta"
+   - Haz clic en "Desde" → debería dejarme elegir **cualquier día en el pasado** (no tachados)
+   - Haz clic en "Hasta" → debería dejarme elegir cualquier día (no hay límite mínimo)
+   - Si elegís "Hasta" más temprano que "Desde", el "Desde" se auto-ajusta al día que elegiste
+   - Cambiar el rango NO borra la fecha elegida en "Fecha de entrega" (eso solo lo limpia cambiar de zona)
+
+2. Input de zona:
+   - Verifica que esté en su propio renglón completo (debajo de las dos fechas)
+   - Los nombres largos de zonas **deben caber** sin truncar
+
+3. Mapa del punto de encuentro:
+   - El mapa aparece en el formulario de programación, centrado en las coordenadas de la zona
+   - Clickea en un punto del mapa → el pin marca ahí, y en la confirmación dice "Les llega también el botón Cómo llegar..."
+   - Si NO clickeas en el mapa → dice "Sin ubicación en el mapa solo verán la referencia escrita..."
+   - El email que recibe el cliente tiene el botón **🧭 Cómo llegar** SOLO si se marcó un punto
+   - Después de enviar, el formulario se limpia (fecha, hora, punto, mapa)
+
+**Pedido del cliente — detalle-pedido:**
+1. Si el pedido es de una zona con viaje programado + punto de encuentro marcado en mapa:
+   - El botón "🧭 Cómo llegar" trazará la ruta **al punto de encuentro**, no a la casa del cliente
+   - El texto bajo el botón dice "Se abre en tu app de mapas con la ruta al punto donde te entregamos"
+   - La entrega dice "Llega el [fecha], en [punto de encuentro]"
+
+2. Si es de una zona pero sin punto de encuentro (solo texto):
+   - El botón "Cómo llegar" usa búsqueda de texto con el punto de encuentro escrito
+   - El texto dice "Se abre en tu app de mapas con la dirección escrita"
+
+3. Si es una entrega a domicilio (tiene latitud/longitud):
+   - El botón trazará la ruta a esa dirección exacta (como antes)
+   - El texto dice "Se abre en tu app de mapas con la ruta trazada al punto exacto"
+
+**Migration obligatoria antes de desplegar a prod:**
+```sql
+-- Correr esto una sola vez en inventario_key (base de datos de main)
+-- El SQL es idempotente, no falla si ya existe
+ALTER TABLE pedido ADD COLUMN IF NOT EXISTS latitud_encuentro DOUBLE NULL COMMENT 'Punto exacto del encuentro marcado en el mapa al programar el viaje';
+ALTER TABLE pedido ADD COLUMN IF NOT EXISTS longitud_encuentro DOUBLE NULL COMMENT 'Punto exacto del encuentro marcado en el mapa al programar el viaje';
+```
+
+**Checks finales antes de pasar a main:**
+- [ ] El calendario permite navegar a días anteriores sin estar tachados
+- [ ] El mapa se carga y permite clickear para marcar un punto
+- [ ] El pedido del cliente muestra el botón "Cómo llegar" apuntando al lugar correcto
+- [ ] El correo de aviso incluye el botón "Cómo llegar" cuando se marcó el mapa
+- [ ] La migración SQL se corrió y no hay errores al programar una entrega
 
 ## RIFA PÚBLICA — Control explícito de visibilidad (seguridad) — 2026-09-09
 
@@ -18901,3 +19117,178 @@ Acepta → la otra se despublica automáticamente y su link devuelve 404.
 6. Sortea el último premio → a partir de ahí el link da 404 (la rifa se marca inactiva sola).
 7. Desde el admin (con sesión) las rifas viejas se siguen viendo igual que antes — el filtro
    es solo para la vía pública.
+
+---
+
+## 🐛 Hotfix 2026-09-09 — Los borradores de Carga rápida se perdían y se colaban en productos/buscar
+
+### Qué pasaba (el "antes")
+
+Un producto creado en **📸 Carga rápida de imágenes** nace como *borrador*: código de barras
+placeholder `BRD-XXXXXXXXXXXX`, `codigoBarrasGenerado = true`, `habilitado = '0'`, sin nombre ni
+precio. Solo se puede terminar desde esa pantalla (`PUT /v1/carga-imagenes/{id}/completar`), que es
+la única que asigna el código real.
+
+Había dos fallas encadenadas:
+
+1. **El borrador desaparecía de Carga rápida.** La pantalla armaba su lista con
+   `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false`. Bastaba que se moviera
+   **cualquiera de esos dos flags** para que el borrador se cayera del filtro. Y se movían solos:
+   `POST /v1/productos/save` y `PUT /v1/productos/update` forzaban `habilitado = '1'` en **todo**
+   producto guardado, también en los existentes. Resultado: el borrador dejaba de salir en el único
+   lugar donde se podía completar, y quedaba inalcanzable.
+2. **El borrador sí salía en productos/buscar y tienda/buscar.** Ningún listado de admin los
+   excluía, así que aparecía en la búsqueda un producto sin nombre, en $0 y con código `BRD-…`. Al
+   intentar editarlo, el front lo bloqueaba con *"esta pantalla no es la indicada"* — visible pero
+   inservible desde ahí.
+
+La causa de fondo: **"es borrador" estaba definido en dos lugares distintos que se desincronizaban**
+— el back miraba el flag `codigoBarrasGenerado`, el front miraba si el código empieza con `BRD-`.
+
+### Qué cambia (el "después")
+
+**Un producto es borrador si `codigoBarrasGenerado = true` **O** su código de barras sigue empezando
+con `BRD-`.** Esa es ahora la única definición, y la aplica el back. Consecuencias:
+
+- Un borrador **nunca** aparece en listados de admin ni en el catálogo público mientras no se
+  complete — no importa cómo hayan quedado sus flags.
+- Un borrador **siempre** aparece en Carga rápida, aunque esté habilitado por error.
+
+### 🆕 `GET /v1/carga-imagenes/borradores` (ADMIN)
+
+Reemplaza al combo `admin/filtrar?codigoGenerado=true&habilitado=false` + `/estado` que hacía la
+pantalla de Carga rápida. **Una sola llamada**, sin parámetros, sin paginar.
+
+**Request:** `GET {api}/v1/carga-imagenes/borradores`
+
+**Response 200** — mismo shape que `/v1/carga-imagenes/estado`, envuelto en `ResponseGeneric`:
+
+```json
+{
+  "data": [
+    {
+      "productoId": 423,
+      "varianteId": 511,
+      "estadoImagen": "EXITOSO",
+      "imagenId": 8842,
+      "urlImagen": "https://.../v1/imagenes/file/8842",
+      "mensajeError": null
+    }
+  ]
+}
+```
+
+- `estadoImagen`: `PENDIENTE` | `EXITOSO` | `FALLIDO` (los tres vienen, no solo los fallidos).
+- Lista vacía (`"data": []`) cuando no hay borradores — no es 404.
+- **Diferencia clave vs. lo anterior:** no filtra por `habilitado`. Un borrador que quedó habilitado
+  por error igual sale aquí, que es lo que permite recuperarlo.
+- **Se autorrepara:** si encuentra un producto con código `BRD-` pero el flag `codigoBarrasGenerado`
+  en `false`, se lo vuelve a poner en `true` al listarlo. Los borradores que ya se habían perdido en
+  producción reaparecen solos la primera vez que se abre la pantalla, sin script de datos.
+
+### 🔄 `GET /v1/productos/admin/filtrar` — cambia el significado de `codigoGenerado` sin valor
+
+`codigoGenerado` sigue siendo tri-estado, pero **el caso "sin enviar" ya no es "cualquiera"**:
+
+| `codigoGenerado` | Antes | Ahora |
+|---|---|---|
+| `true` | solo `codigoBarrasGenerado = true` | solo borradores (flag **o** código `BRD-`) |
+| `false` | los que no tienen el flag | solo NO borradores |
+| *(sin enviar)* | **todos, borradores incluidos** | **solo NO borradores** |
+
+Mismo cambio en `GET /tienda/v1/admin/filtrar` (variantes), en
+`GET /v1/productos/obtenerProductos` y `GET /v1/productos/buscarNombreOrCodigoBarra` para admin, y
+en el listado de variantes de admin. **El front no tiene que tocar nada**: productos/buscar y
+tienda/buscar dejan de mostrar borradores por sí solas. El toggle *"código generado"* de
+productos/buscar sigue funcionando como estaba (manda `codigoGenerado=true`) por si se quieren ver
+a propósito.
+
+### 🔒 `PUT /v1/productos/{id}/habilitar` y `PUT /v1/productos/admin/habilitar-lote` — nuevo 400
+
+Habilitar un borrador ahora se rechaza. Todas las consultas del catálogo público filtran por
+`habilitado = '1'`, así que habilitarlo lo publicaba en la tienda sin nombre, sin precio y con el
+código `BRD-`.
+
+```
+400  No se puede habilitar el producto 423: es un borrador de Carga rápida de imágenes,
+     completalo ahí primero para que se le asigne el código de barras real
+```
+
+En lote, el mensaje lista los ids que son borradores y **no se habilita ninguno** del lote.
+El único camino válido sigue siendo `PUT /v1/carga-imagenes/{id}/completar` con el código real.
+
+### `POST /v1/productos/save` y `PUT /v1/productos/update` — ya no pisan `habilitado`
+
+`habilitado = '1'` solo se asigna al **crear** un producto nuevo. Al actualizar uno existente se
+respeta el valor que ya tenía en la base. Antes, guardar un producto deshabilitado desde
+productos/add lo volvía a habilitar sin avisar — no solo afectaba a los borradores.
+
+### 🧪 Guía para QA
+
+1. Sube una foto en **Carga rápida** → aparece la tarjeta *Producto #N* con *"Imagen lista"*.
+2. Ve a **productos/buscar** (sin filtros, con el filtro de fecha "hoy", y buscando por el código
+   `BRD-…`) → **no debe aparecer** en ninguno de los tres casos.
+3. Lo mismo en **tienda/buscar**, con y sin el filtro "deshabilitadas" → **no debe aparecer**.
+4. En productos/buscar activa el toggle **"código generado"** → ahí sí debe salir (es a propósito).
+5. Vuelve a **Carga rápida** → la tarjeta sigue ahí. Sal y entra otra vez → sigue ahí.
+6. Dale **"✏️ Completar datos"**, pon nombre, precios y el código de barras real, y marca habilitar
+   → ahora sí debe aparecer en productos/buscar, en tienda/buscar y en el catálogo público.
+7. **Recuperación de los que ya se habían perdido:** los borradores que hoy no salen en Carga
+   rápida deben volver a aparecer solos al entrar a la pantalla, sin tocar la base.
+
+---
+
+## 🐛 Hotfix 2026-09-09 — El premio de la rifa decía "Sin imagen" aunque la foto sí existiera
+
+### Qué pasaba
+
+En **Rifas → configuración**, al dar de alta un premio y abrir su detalle, salía *"📦 Sin imagen"* —
+pero la misma foto se veía perfectamente en la pantalla de **modelos** (tienda/buscar). Solo había
+una imagen cargada.
+
+Las dos pantallas traían la foto por caminos distintos:
+
+| Pantalla | Cómo obtiene la imagen |
+|---|---|
+| Modelos (tienda/buscar) | el back manda **`imagenUrl`** y **el navegador** la pide al micro de imágenes |
+| Detalle del premio | el back llama al micro **server-to-server**, y manda los bytes en **`imagenBase64`** |
+
+El front del premio miraba **solo `imagenBase64`**. Si la llamada server-to-server fallaba (micro
+sin responder, timeout, o un id que el micro ya no tiene), el back dejaba ese campo en `null` — solo
+un warning en el log — y el detalle mostraba "Sin imagen", aunque el navegador sí podía cargar esa
+misma foto sin problema.
+
+Además, la imagen se elegía distinto en cada lado: modelos usa **principal primero, luego id ASC**;
+el premio tomaba la primera fila que devolviera la base **sin ordenar**. Con más de una foto podían
+no coincidir, y podía tocarle una fila huérfana que el micro ya no tiene.
+
+### Qué cambia
+
+`VarianteResumenDto` (el DTO del premio) ahora trae **`imagenUrl` además de `imagenBase64`**, y la
+imagen se elige con el **mismo criterio que modelos** (principal primero, luego id ASC).
+
+```json
+{
+  "variante": {
+    "id": 511,
+    "nombreProducto": "Bolsa Coach",
+    "imagenUrl": "https://.../v1/imagenes/file/8842",
+    "imagenBase64": "/9j/4AAQSkZJRgABA..."
+  }
+}
+```
+
+- **`imagenUrl` es la fuente principal** — la resuelve el navegador, igual que en modelos.
+- **`imagenBase64` sigue viniendo como respaldo**, para no romper nada que ya lo use.
+- Aplica a los tres lugares que consumen este DTO: configuración de la rifa, **rifa del mes** y la
+  **ruleta pública** (los tres tenían el mismo problema, aunque solo se reportó el primero).
+
+**Regla para el front:** usar `imagenUrl` si viene; solo si está vacío, caer a `imagenBase64`.
+
+### 🧪 Guía para QA
+
+1. Da de alta un premio con un modelo que **sí** tenga foto → abre el detalle: debe verse la imagen.
+2. Compara con la foto que muestra ese mismo modelo en **tienda/buscar** → debe ser **la misma**.
+3. Con un modelo de **varias fotos**, marca una como principal → el premio debe mostrar esa.
+4. Un premio cuyo modelo **no** tenga foto debe seguir mostrando el placeholder 📦 "Sin imagen".
+5. Revisa también la **rifa del mes** y la **ruleta pública**: la miniatura del premio debe verse.

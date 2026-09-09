@@ -324,6 +324,61 @@ hay nada más que separar ahí (ver pedidos pendientes es el View general).
 
 ---
 
+## Hallazgo — checkbox "Editar" huérfano en Tienda / tienda/buscar (2026-09-08)
+
+Al revisar Gestión de roles → grupo Tienda, el checkbox genérico ✏️ **Editar** (el Ver/Editar
+estándar de toda pantalla, columna `descripcion_escritura` de `submenu` — no es una acción
+puntual de la tabla `accion_submenu`) no tiene efecto visible al activarlo/desactivarlo. No está
+roto: simplemente nadie lo lee, ni en back ni en front.
+
+- **Back:** ningún endpoint de `tienda/buscar` exige la authority `PANTALLA_tienda/buscar_ESCRIBIR`
+  — `pantallaEscribir("tienda/buscar", ...)` nunca aparece en `SecurityConfig.java`.
+- **Front:** el botón ✏️ de editar variante que sí aparece en la tarjeta (`buscar.component.ts`,
+  getter `puedeActualizarVariante`) está gateado por el permiso de **otra pantalla**,
+  `tienda/venta` — no por el de `tienda/buscar`. Queda "prestado" porque el guardado real pega a
+  `POST /tienda/v1/guardarConImagenes`, que tampoco valida `tienda/buscar`.
+
+### Evidencia en PROD (2026-09-08, `inventario_key`)
+```sql
+-- 1. submenu tienda/buscar: descripcion_escritura es NULL (usa el texto generico de fallback)
+SELECT id, nombre, ruta, descripcion, descripcion_escritura, orden
+FROM submenu WHERE ruta = 'tienda/buscar';
+--  id=38, descripcion_escritura=NULL
+
+-- 2. 18 acciones puntuales, todas bien documentadas (Filtros / Filtros públicos / Tarjeta de variante)
+--    ver detalle completo en el resultado de la query — no hay huecos ahí.
+
+-- 3. Ver tienda/buscar: ROLE_ADMIN, ROLE_USUARIO
+-- 4. Editar tienda/buscar (rol_submenu_escritura): SOLO ROLE_ADMIN -- pero no lo consume nadie
+-- 5. Acciones puntuales por rol: ROLE_ADMIN tiene las 18; ROLE_USUARIO tiene 8 (las de cliente:
+--    fecha, talla, color, marca, precio, agregar/quitar/ver carrito)
+-- 6. Editar tienda/venta (el que SI usa el boton ✏️ hoy): SOLO ROLE_ADMIN
+```
+Confirma la hipótesis: ROLE_ADMIN ve el botón ✏️ porque tiene "Editar" en `tienda/venta` — tiene
+"Editar" en `tienda/buscar` también, pero esa fila en `rol_submenu_escritura` es inerte, no la
+consume ningún código.
+
+### Fix propuesto (pendiente de confirmación del usuario, no implementado todavía)
+1. **Back** — agregar `"tienda/buscar"` a la validación `pantallaEscribir(...)` correspondiente en
+   `SecurityConfig.java` para que el endpoint de guardado lo exija de verdad.
+2. **Front** — cambiar `puedeActualizarVariante` en `buscar.component.ts` para que use
+   `tieneEscritura('tienda/buscar')` en vez de `'tienda/venta'`.
+3. Rellenar `descripcion_escritura` de `tienda/buscar` con un texto propio (ya no genérico) que
+   diga exactamente dónde aparece: "Controla el botón ✏️ Editar de la tarjeta de variante, en
+   Tienda."
+
+### Pruebas una vez implementado
+- [ ] Ejecutar en QA y luego prod.
+- [ ] Rol con Ver `tienda/buscar` pero SIN Editar `tienda/buscar`: el botón ✏️ de la tarjeta de
+      variante NO debe aparecer, aunque el rol SÍ tenga Editar en `tienda/venta`.
+- [ ] Dándole Editar en `tienda/buscar`: el botón ✏️ aparece y el guardado funciona.
+- [ ] Confirmar que el popup ℹ️ del checkbox "Editar" en Tienda ya no muestra el texto genérico,
+      sino el propio.
+- [ ] Revisar que `tienda/venta` (la pantalla que prestaba el permiso) no haya quedado con algo
+      que dependía de esto sin querer — probar su propio flujo de Editar por separado.
+
+---
+
 ## Antes de fusionar cualquiera de las 2 a `dev`
 - Aprobar cada rama por separado (no fusionar ambas juntas).
 - Seguir el flujo normal de `CLAUDE.md`: `dev → qa → main`, nunca al revés.
