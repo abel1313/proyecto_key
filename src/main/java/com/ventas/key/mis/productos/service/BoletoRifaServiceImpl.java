@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,11 +49,7 @@ public class BoletoRifaServiceImpl {
         Concursante concursante = iConcursanteRepository.findById(req.getConcursanteId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Concursante no encontrado"));
 
-        // Sin la URL de seguimiento el boleto no se puede verificar después.
-        if (req.getUrlPerfilRedSocial() == null || req.getUrlPerfilRedSocial().isBlank()) {
-            throw new ExceptionErrorInesperado("La URL del perfil para dar seguimiento es obligatoria");
-        }
-        // La plataforma también es obligatoria: un boleto sin plataforma no dice de qué red
+        // La plataforma es obligatoria: un boleto sin plataforma no dice de qué red
         // vino la acción, que es justo lo que hay que revisar al validar la rifa.
         if (req.getPlataforma() == null) {
             throw new ExceptionErrorInesperado("La plataforma del boleto es obligatoria");
@@ -66,7 +63,8 @@ public class BoletoRifaServiceImpl {
         boleto.setPlataforma(req.getPlataforma());
         boleto.setMotivo(req.getMotivo());
         boleto.setFecha(fecha);
-        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial().trim());
+        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial() != null
+                ? req.getUrlPerfilRedSocial().trim() : null);
         boleto.setUrlSeguimiento(req.getUrlSeguimiento());
         boleto.setUrlsCompartido(req.getUrlsCompartido() != null
                 ? req.getUrlsCompartido().stream()
@@ -95,6 +93,7 @@ public class BoletoRifaServiceImpl {
                 throw new ExceptionErrorInesperado(
                         "La fecha del boleto debe estar entre " + inicio + " y " + fin);
             }
+            validarRegistroAbierto(config);
             return;
         }
 
@@ -104,6 +103,21 @@ public class BoletoRifaServiceImpl {
                 : YearMonth.now();
         if (!YearMonth.from(fecha).equals(mesValido)) {
             throw new ExceptionErrorInesperado("La fecha del boleto debe ser del mes de la rifa (" + mesValido + ")");
+        }
+    }
+
+    /**
+     * El periodo cierra a la hora exacta de fechaHoraLimite, no al final del último día:
+     * una rifa del 1 al 9 que cierra a las 10:00 deja de recibir boletos el 9 a las 10:00,
+     * no el 9 a las 23:59. Antes solo se comparaban fechas, así que la hora configurada en
+     * la pantalla no tenía ningún efecto sobre el registro.
+     */
+    private void validarRegistroAbierto(ConfigurarRifa config) {
+        LocalDateTime limite = config.getFechaHoraLimite();
+        if (limite != null && LocalDateTime.now().isAfter(limite)) {
+            throw new ExceptionErrorInesperado(
+                    "El registro de boletos cerró el " + limite.toLocalDate()
+                            + " a las " + limite.toLocalTime());
         }
     }
 
@@ -126,9 +140,6 @@ public class BoletoRifaServiceImpl {
         if (req.getPlataforma() == null) {
             throw new ExceptionErrorInesperado("La plataforma del boleto es obligatoria");
         }
-        if (req.getUrlPerfilRedSocial() == null || req.getUrlPerfilRedSocial().isBlank()) {
-            throw new ExceptionErrorInesperado("La URL del perfil para dar seguimiento es obligatoria");
-        }
 
         LocalDate fecha = req.getFecha() != null ? req.getFecha() : boleto.getFecha();
         validarFechaEnRango(boleto.getConcursante().getConfigurarRifa(), fecha);
@@ -136,7 +147,8 @@ public class BoletoRifaServiceImpl {
         boleto.setPlataforma(req.getPlataforma());
         boleto.setMotivo(req.getMotivo());
         boleto.setFecha(fecha);
-        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial().trim());
+        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial() != null
+                ? req.getUrlPerfilRedSocial().trim() : null);
         boleto.setUrlSeguimiento(req.getUrlSeguimiento());
 
         // Se vacía y se vuelve a llenar la MISMA lista en vez de asignar una nueva: el

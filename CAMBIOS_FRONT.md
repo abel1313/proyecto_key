@@ -18738,6 +18738,33 @@ corregir una plataforma mal puesta obligaba a borrar y recapturar, moviendo el c
 **Response:** el `BoletoRifa` actualizado.
 **400** si falta `plataforma`, falta `urlPerfilRedSocial`, o la fecha cae fuera del periodo de la rifa.
 
+### 5-bis. ⚠️ La hora de cierre ahora SÍ bloquea el registro de boletos — 2026-09-09
+
+`fechaHoraLimite` ya se guardaba con la hora que se elige en "Cierra a las", pero al registrar
+un boleto solo se comparaban **fechas**: una rifa del 1 al 9 que cierra a las 10:00 seguía
+aceptando boletos el día 9 hasta las 23:59. La pantalla prometía algo que el back no aplicaba.
+
+**Ahora** `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}` responden **400** cuando
+el momento del registro ya pasó `fechaHoraLimite`:
+
+```
+El registro de boletos cerró el 2026-09-09 a las 10:00
+```
+
+Cierra **solo el último día** a esa hora: los días previos del rango se aceptan completos.
+Si la rifa no tiene `fechaHoraLimite`, no hay corte por hora (como antes).
+
+### 5-ter. ⚠️ `urlPerfilRedSocial` dejó de ser obligatoria — 2026-09-09
+
+Se quitó de la pantalla (el campo de captura y los enlaces "Perfil" de las tres tablas) porque
+lo capturado no siempre era una URL y el enlace llevaba a 404.
+
+- `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}` **ya no exigen** el campo:
+  antes respondían 400 `"La URL del perfil para dar seguimiento es obligatoria"`.
+- El campo **sigue existiendo** en el request y en el response — se acepta si viene y los
+  boletos viejos conservan su valor en BD. Solo dejó de ser obligatorio y de pintarse.
+- El único campo obligatorio del boleto queda **`plataforma`**.
+
 ### 6. ⚠️ `plataforma` ahora es OBLIGATORIA al registrar un boleto
 
 `POST /v1/boletoRifa/registrar` antes aceptaba `plataforma: null` y guardaba el boleto sin red
@@ -18746,7 +18773,8 @@ social. Ahora responde **400** con `"La plataforma del boleto es obligatoria"`.
 Valores válidos: `FACEBOOK` | `INSTAGRAM` | `TIKTOK` | `OTRO`.
 
 Los campos obligatorios del boleto quedan en dos: `plataforma` y `urlPerfilRedSocial`.
-`motivo`, `urlSeguimiento` y `urlsCompartido` siguen siendo opcionales.
+`motivo`, `urlSeguimiento`, `urlsCompartido` y `urlPerfilRedSocial` son opcionales
+(ver 5-ter: `urlPerfilRedSocial` era obligatoria y dejó de serlo el 2026-09-09).
 
 ### 7. Editar participante — ya existía, se documenta porque el front no lo estaba usando
 
