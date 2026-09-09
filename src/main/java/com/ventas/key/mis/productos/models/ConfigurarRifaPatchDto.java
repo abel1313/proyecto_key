@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -17,4 +18,8 @@ public class ConfigurarRifaPatchDto {
     private ConfigurarRifa.TipoRifa tipo;
 
     private String mesReferencia;
+
+    private LocalDate fechaInicioBoletos;
+
+    private LocalDate fechaFinBoletos;
 }

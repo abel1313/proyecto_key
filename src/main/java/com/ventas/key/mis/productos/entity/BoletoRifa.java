@@ -27,6 +27,10 @@ public class BoletoRifa extends BaseId {
     @JsonIgnoreProperties({"configurarRifa"})
     private Concursante concursante;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plataforma", length = 20)
+    private Plataforma plataforma;
+
     @Column(name = "motivo", length = 200)
     private String motivo;
 
@@ -44,4 +48,8 @@ public class BoletoRifa extends BaseId {
     @CollectionTable(name = "boleto_rifa_url_compartido", joinColumns = @JoinColumn(name = "boleto_rifa_id"))
     @Column(name = "url", length = 500)
     private List<String> urlsCompartido = new ArrayList<>();
+
+    public enum Plataforma {
+        FACEBOOK, INSTAGRAM, TIKTOK, OTRO
+    }
 }

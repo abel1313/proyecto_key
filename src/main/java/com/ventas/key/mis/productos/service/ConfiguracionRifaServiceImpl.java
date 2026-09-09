@@ -142,6 +142,12 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         if (patch.getMesReferencia() != null) {
             config.setMesReferencia(patch.getMesReferencia().isBlank() ? null : patch.getMesReferencia());
         }
+        if (patch.getFechaInicioBoletos() != null) {
+            config.setFechaInicioBoletos(patch.getFechaInicioBoletos());
+        }
+        if (patch.getFechaFinBoletos() != null) {
+            config.setFechaFinBoletos(patch.getFechaFinBoletos());
+        }
 
         return iRifaRepository.save(config);
     }
