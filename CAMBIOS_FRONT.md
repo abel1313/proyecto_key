@@ -18777,3 +18777,127 @@ vista**. Si vienen `null` se usa la semana en curso, como antes.
 `fecha` (la de entrega, la que va en el correo al cliente) es independiente del rango de búsqueda.
 
 **Response:** `data` = número de correos enviados.
+
+---
+
+## RIFA PÚBLICA — Control explícito de visibilidad (seguridad) — 2026-09-09
+
+**Problema resuelto:** El link público `/ruleta/{id}` era visible para cualquier rifa activa de tipo
+PLATAFORMAS simplemente adivinando el número en la URL. Esto permitía que visitantes sin sesión
+vieran rifas que el negocio quizá no quería mostrar aún (ej. rifas bloqueadas por migración de
+credenciales).
+
+**Solución:** Ahora el admin **publica explícitamente** cuál es la rifa que ve el público. Solo UNA
+a la vez; cualquier otro número devuelve 404 indistinguible de "no existe".
+
+### Requisitos de visibilidad en `/v1/boletos-rifa/publica/{id}`
+
+Todas estas condiciones deben cumplirse, de lo contrario → 404:
+
+1. **Tipo = PLATAFORMAS** — rifas de otros tipos nunca tienen página pública.
+2. **Publicada** (`publica = true`) — el admin la marcó explícitamente como pública.
+3. **Activa** (`activa = true`) — rifas ya terminadas no se abren.
+4. **Dentro del rango de boletos** — `hoy >= fechaInicioBoletos` (si existe ese rango).
+   - Pasado el `fechaFinBoletos` el link SÍ sigue abriendo (para ver el sorteo que ya pasó).
+
+Si alguna falla → **404 "Página no disponible"**, sin diferenciar entre "no existe" y "existe pero
+no está publicada". Desde la sesión del admin las rifas viejas se siguen viendo igual.
+
+### `PUT /v1/configurarRifa/{id}/publica` — Endpoint para publicar/despublicar (ADMIN)
+
+**Request:**
+
+```json
+{ "publica": true }
+```
+
+**Validaciones en el backend:**
+- `publica = true` RECHAZA si la rifa **no es PLATAFORMAS** o está **inactiva** → error 400 con
+  mensaje explicando por qué.
+- `publica = true` RECHAZA si `fechaInicioBoletos` está en el futuro → error 400.
+- `publica = true` con otra rifa ya publicada → **automáticamente despublica la anterior** (una sola
+  a la vez).
+
+**Response:** El DTO `ConfigurarRifaResumenDto` actualizado (incluye el nuevo campo `publica`).
+
+### Cambios en el DTO
+
+`ConfigurarRifaResumenDto` ahora incluye:
+
+```java
+private Boolean publica; // Si es la rifa que el link público sirve hoy (una sola a la vez)
+```
+
+Este campo ya viaja en los endpoints:
+- `GET /v1/configurarRifa/activas/resumen`
+- `GET /v1/configurarRifa/activas/hoy/resumen`
+- `GET /v1/configurarRifa/buscar` (con filtros)
+
+### Base de datos — Migración
+
+Ejecutar en ambas BDs (**`inventario_key_qa` e `inventario_key`**):
+
+```sql
+ALTER TABLE configurar_rifa
+ADD COLUMN publica TINYINT(1) NOT NULL DEFAULT 0;
+```
+
+**Idempotente** (usa `ADD COLUMN IF NOT EXISTS` internamente, no lo hace dos veces).
+
+⚠️ **Después de la migración, ninguna rifa está publicada** (default = 0), así que `/ruleta/{id}`
+devuelve 404 para todos los IDs hasta que el admin publique una.
+
+### UI Admin — Rifas → Boletos → paso Ruleta
+
+Aparece un **botón toggle** bajo el carrusel:
+
+- **Rifa no publicada:**
+  - 🔒 Botón azul "📢 Publicar esta rifa"
+  - Aviso: "🔒 Esta rifa **no** es visible desde afuera. Publícala para poder compartir su link;
+    solo puede haber una publicada a la vez."
+  - No hay botón de abrir el link público.
+
+- **Rifa publicada:**
+  - 🟢 Botón verde "🙈 Quitar de pública"
+  - Aviso: "✅ Esta es la rifa que ve la gente en el link público. Cualquier otro número en la URL da 404."
+  - Aparece el botón **"🔗 Abrir página pública"** (abre en pestaña nueva).
+
+**Diálogo al publicar cuando otra ya está publicada:**
+
+Si el admin elige Publicar esta rifa y hay otra ya publicada, sale:
+
+```
+⚠️ Ya hay otra rifa publicada
+La rifa #48 es la que se ve hoy en el link público. Si publicas esta, su link deja de abrir.
+
+[Cancelar]  [Sí, publicar esta]
+```
+
+Acepta → la otra se despublica automáticamente y su link devuelve 404.
+
+### 🧪 Guía para QA
+
+**Publicar la rifa (admin — Rifas → Boletos → paso Ruleta):**
+
+1. Corre la migración primero. Al entrar, la rifa debe decir
+   *"🔒 Esta rifa no es visible desde afuera"* y **no** debe aparecer el botón de abrir el link.
+2. Dale **"📢 Publicar esta rifa"** → el aviso cambia a verde y aparece **"🔗 Abrir página pública"**.
+3. Elige otra rifa y dale Publicar → debe avisar *"Ya hay otra rifa publicada"* con el número de
+   la anterior. Acepta → la anterior queda despublicada (verifica que su link ya dé 404).
+4. Dale **"🙈 Quitar de pública"** → el link desaparece y esa rifa vuelve a dar 404.
+5. Intenta publicar una rifa que **no** sea de PLATAFORMAS o que ya esté terminada → debe salir
+   el error explicando por qué, sin publicarla.
+
+**Seguridad del link:**
+
+1. Con el link de la rifa publicada abierto (ej. `/ruleta/48`), cambia el número a otro id que
+   exista pero **no esté publicado** (`/ruleta/47`) → **404 "Página no disponible"**, no la otra rifa.
+2. Prueba con un id que no exista (`/ruleta/99999`) → **el mismo 404**, sin diferencia visible.
+3. La barra de direcciones debe seguir mostrando el link que se escribió.
+4. Publica una rifa cuyo `fechaInicioBoletos` sea **de mañana en adelante** → su link debe dar
+   404 hasta que llegue ese día.
+5. Con una rifa publicada y ya pasada la fecha de boletos (sin sortear todavía) → el link **sí**
+   debe abrir, para que se vea el sorteo.
+6. Sortea el último premio → a partir de ahí el link da 404 (la rifa se marca inactiva sola).
+7. Desde el admin (con sesión) las rifas viejas se siguen viendo igual que antes — el filtro
+   es solo para la vía pública.

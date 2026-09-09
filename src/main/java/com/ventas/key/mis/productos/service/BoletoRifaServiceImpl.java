@@ -9,6 +9,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.models.BoletoRifaDto;
 import com.ventas.key.mis.productos.models.BoletoRifaRequest;
+import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.SorteoPlataformasDto;
 import com.ventas.key.mis.productos.models.SorteoPlataformasResultadoDto;
 import com.ventas.key.mis.productos.repository.IBoletoRifaRepository;
@@ -195,8 +196,10 @@ public class BoletoRifaServiceImpl {
     // girar mientras la rifa sea de práctica, pero la rifa real solo la gira el admin.
     @Transactional
     public SorteoPlataformasResultadoDto sortear(Integer rifaId, boolean soloPrueba) {
-        ConfigurarRifa config = iConfigurarRifaRepository.findById(rifaId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+        ConfigurarRifa config = soloPrueba
+                ? rifaPublicaOFalla(rifaId)
+                : iConfigurarRifaRepository.findById(rifaId)
+                        .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
 
         if (soloPrueba && !Boolean.TRUE.equals(config.getEsPrueba())) {
             throw new ExceptionErrorInesperado("La rifa real solo la puede girar el administrador");
@@ -291,8 +294,10 @@ public class BoletoRifaServiceImpl {
     // publico=true recorta lo que no debe salir de la pantalla del admin: las URLs de
     // evidencia de cada boleto y los datos de contacto que cuelgan de los ganadores.
     public SorteoPlataformasDto obtenerEstado(Integer rifaId, boolean publico) {
-        ConfigurarRifa config = iConfigurarRifaRepository.findById(rifaId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+        ConfigurarRifa config = publico
+                ? rifaPublicaOFalla(rifaId)
+                : iConfigurarRifaRepository.findById(rifaId)
+                        .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
 
         List<ConfigurarRifaVariante> variantes = iConfigurarRifaVarianteRepository
                 .findByConfigurarRifaIdOrderByOrdenAsc(rifaId);
@@ -338,8 +343,10 @@ public class BoletoRifaServiceImpl {
 
     @Transactional
     public void reiniciar(Integer rifaId, boolean soloPrueba) {
-        ConfigurarRifa config = iConfigurarRifaRepository.findById(rifaId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+        ConfigurarRifa config = soloPrueba
+                ? rifaPublicaOFalla(rifaId)
+                : iConfigurarRifaRepository.findById(rifaId)
+                        .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
 
         if (soloPrueba && !Boolean.TRUE.equals(config.getEsPrueba())) {
             throw new ExceptionErrorInesperado("La rifa real solo la puede reiniciar el administrador");
@@ -351,6 +358,54 @@ public class BoletoRifaServiceImpl {
         config.setActiva(true);
         iConfigurarRifaRepository.save(config);
         log.info("Rifa PLATAFORMAS {} reiniciada -- todos los boletos vuelven a estar en juego", rifaId);
+    }
+
+    /**
+     * La rifa que se puede abrir desde el link público, o 404.
+     *
+     * El link se comparte tal cual (/ruleta/48) y el id va en la URL, así que es adivinable:
+     * bastaba cambiar el 48 por 47 para entrar a la rifa de otro mes y ver sus participantes.
+     * Existir ya no alcanza -- tienen que cumplirse las cuatro:
+     *
+     *   1. Es de PLATAFORMAS: es el único tipo que tiene ruleta pública.
+     *   2. Está PUBLICADA: el negocio la marcó a mano como "esta es la que todos pueden ver".
+     *      Publicada hay una sola; publicar otra despublica esta.
+     *   3. Está ACTIVA: se apaga sola al sortearse el último premio, así que la página vive
+     *      mientras quede algo por sortear y muere cuando la rifa terminó.
+     *   4. Ya empezó: antes del primer día del rango de boletos no se muestra, para que un
+     *      link compartido de más no destape la rifa que todavía no se anuncia.
+     *
+     * Nota: NO se corta al pasar la fecha límite de boletos. El sorteo se hace después de que
+     * cierra el registro, y es justo cuando más gente entra a ver la ruleta.
+     *
+     * Cualquier caso que no cumpla responde igual que un id inexistente, para no ir
+     * confirmando qué rifas hay detrás de cada número.
+     */
+    private ConfigurarRifa rifaPublicaOFalla(Integer rifaId) {
+        return iConfigurarRifaRepository.findById(rifaId)
+                .filter(r -> ConfigurarRifa.TipoRifa.PLATAFORMAS.equals(r.getTipo()))
+                .filter(r -> Boolean.TRUE.equals(r.getPublica()))
+                .filter(r -> Boolean.TRUE.equals(r.getActiva()))
+                .filter(this::yaEmpezo)
+                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+    }
+
+    private boolean yaEmpezo(ConfigurarRifa rifa) {
+        LocalDate inicio = rifa.getFechaInicioBoletos();
+        return inicio == null || !LocalDate.now().isBefore(inicio);
+    }
+
+    /**
+     * Detalle del premio para el visitante sin sesión: la ficha y todas sus fotos.
+     * El premio se pide junto con su rifa para poder comprobar que le pertenece; si no,
+     * el id del premio sería otra lista para pasear igual que lo era el de la rifa.
+     */
+    public PremioPublicoDto detallePremioPublico(Integer rifaId, Integer premioId) {
+        rifaPublicaOFalla(rifaId);
+        ConfigurarRifaVariante premio = iConfigurarRifaVarianteRepository.findById(premioId)
+                .filter(p -> p.getConfigurarRifa().getId().equals(rifaId))
+                .orElseThrow(() -> new ExceptionDataNotFound("Premio no encontrado"));
+        return configurarRifaVarianteService.toPremioPublico(premio);
     }
 
     // Versión para la página pública: se ve quién es y qué hizo, pero NUNCA las URLs

@@ -35,6 +35,16 @@ public class ConfigurarRifa extends BaseId {
     @Column(name = "activa")
     private Boolean activa = true;
 
+    /**
+     * La rifa que el negocio comparte por link (/ruleta/{id}), y la única que se sirve por
+     * los endpoints /publico/**. Va aparte de `activa` a propósito: puede haber varias rifas
+     * activas a la vez (se está armando la del mes que entra mientras corre la de este mes),
+     * pero publicada hay una sola -- marcar una despublica la anterior. Sin esta bandera el
+     * id de la URL era adivinable y con el link de una rifa se entraba a cualquier otra.
+     */
+    @Column(name = "publica", nullable = false)
+    private Boolean publica = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", length = 20)
     private TipoRifa tipo;

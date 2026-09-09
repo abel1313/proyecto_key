@@ -72,7 +72,7 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
                 rifa.getId(), rifa.getFechaHoraLimite(), rifa.getActiva(),
                 totalVariantes, variantesSorteadas,
                 rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba(),
-                rifa.getFechaInicioBoletos(), rifa.getFechaFinBoletos());
+                rifa.getFechaInicioBoletos(), rifa.getFechaFinBoletos(), rifa.getPublica());
     }
 
     public List<ConfigurarRifa> buscarActivasHoy() {
@@ -124,6 +124,42 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
 
         config.setEsPrueba(esPrueba);
         return iRifaRepository.save(config);
+    }
+
+    /**
+     * Marca cuál es la rifa que se sirve por el link público, o la despublica.
+     *
+     * Publicada hay una sola: al marcar una se apaga la que estuviera antes. Así el negocio
+     * dice explícitamente "esta es la que todos pueden ver" en vez de que baste con existir,
+     * que era el problema -- el id va en la URL (/ruleta/48) y cambiando el número se entraba
+     * a cualquier otra rifa.
+     *
+     * Solo tiene sentido en PLATAFORMAS: es el único tipo con ruleta pública.
+     */
+    @Transactional
+    public ConfigurarRifa togglePublica(int id, boolean publica) {
+        ConfigurarRifa config = iRifaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
+
+        if (publica && !ConfigurarRifa.TipoRifa.PLATAFORMAS.equals(config.getTipo())) {
+            throw new RuntimeException("Solo las rifas de PLATAFORMAS tienen página pública");
+        }
+        if (publica && !Boolean.TRUE.equals(config.getActiva())) {
+            throw new RuntimeException("No se puede publicar una rifa que ya terminó o está inactiva");
+        }
+
+        if (publica) {
+            iRifaRepository.despublicarLasDemas(id);
+            // despublicarLasDemas limpia el contexto de persistencia (clearAutomatically),
+            // así que hay que releer la rifa antes de tocarla o el save no ve el cambio.
+            config = iRifaRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
+        }
+
+        config.setPublica(publica);
+        ConfigurarRifa guardada = iRifaRepository.save(config);
+        log.info("Rifa {} {} para la página pública", id, publica ? "PUBLICADA" : "despublicada");
+        return guardada;
     }
 
     @Transactional
