@@ -9,7 +9,13 @@ import lombok.Data;
 public class AuthRequest {
 
     @NotBlank(message = "El nombre de usuario es obligatorio")
-    @Size(min = 3, max = 100, message = "El nombre de usuario debe tener entre 3 y 100 caracteres")
+    // Sin minimo a proposito, mismo motivo que password abajo: exigir 3+ en el LOGIN no aporta
+    // seguridad y dejaba fuera para siempre a cualquier cuenta ya existente con username mas
+    // corto (ej. "sa", 2 caracteres) -- el 400 de validacion nunca llegaba ni a comparar la
+    // contrasena, asi que esa cuenta no podia entrar con ninguna contrasena, ni siquiera una
+    // recien reseteada (encontrado 2026-08-25). El minimo de longitud, si se quiere, va en el
+    // registro (donde se crea el username), no aqui.
+    @Size(max = 100, message = "El nombre de usuario no puede superar los 100 caracteres")
     private String userName;
 
     @NotBlank(message = "La contrasena es obligatoria")

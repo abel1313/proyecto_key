@@ -43,14 +43,17 @@ spring:
     username: ${RABBITMQ_USERNAME}
     password: ${RABBITMQ_PASSWORD}
   mail:
-    host: smtp.gmail.com
-    port: 587
+    # Antes usaba smtp.gmail.com con la cuenta gmail personal del dueno como remitente (encontrado
+    # 2026-09-06: el correo de verificacion llegaba con esa direccion, no con un correo del
+    # negocio). Se cambia al buzon real del negocio en hosting-mexico -- mismo servidor/protocolo
+    # que ya usa QA (application-qa.yml), solo cambia la cuenta (admin@ en vez de qa.boutique.bolsas@).
+    host: hapi.hosting-mexico.net
+    port: 465
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
-      mail.smtp.starttls.required: true
+      mail.smtp.ssl.enable: true
       mail.smtp.connectiontimeout: 5000
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
@@ -80,6 +83,15 @@ management:
 
 guardar-imagenes:
   ruta_imagenes: /app/imagenes
+
+# URL pública real de este backend -- la usa EmailService para armar el <img> del logo en el
+# encabezado de los correos (ver LOGOS_DEPLOY.md, feature de Logos). Se agrega el valor acá de
+# una vez aunque el resto de la feature (Logo/LogoService/LogoController) todavía no esté en esta
+# rama -- si la clave no la usa ningún @Value todavía, Spring simplemente la ignora, no rompe
+# nada. Cuando se promueva la feature completa a main no va a hacer falta tocar este archivo de
+# nuevo.
+app:
+  public-base-url: https://backend.novedades-jade.com.mx/mis-productos
 
 springdoc:
   swagger-ui:
@@ -126,8 +138,16 @@ whatsapp:
 facebook:
   page-id: ${FACEBOOK_PAGE_ID:}
   page-access-token: ${FACEBOOK_PAGE_ACCESS_TOKEN:}
+  app-secret: ${FACEBOOK_APP_SECRET:}
+  webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:}
   api-version: v21.0
 
+instagram:
+  account-id: ${INSTAGRAM_ACCOUNT_ID:}
+
+tiktok:
+  client-key: ${TIKTOK_CLIENT_KEY:}
+  client-secret: ${TIKTOK_CLIENT_SECRET:}
 
 
 

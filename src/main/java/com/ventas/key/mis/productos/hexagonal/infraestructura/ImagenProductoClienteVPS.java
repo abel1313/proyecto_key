@@ -108,4 +108,26 @@ public class ImagenProductoClienteVPS implements ImagenProductoPort {
                 .timeout(Duration.ofSeconds(5))
                 .block();
     }
+
+    /**
+     * Prueba EXACTAMENTE la URL que arma mapperByRol() para el listado/búsqueda
+     * (v1/imagenes/thumbnail/{imagenId}) -- distinta de buscarImagenProducto() de arriba, que es
+     * la que usa el detalle. Sin cachear a propósito (es diagnóstico, siempre se quiere el
+     * estado real en ese momento). No lanza -- el resultado (existe/no existe/error) se
+     * reporta, no se propaga como excepción.
+     */
+    public boolean verificarMiniatura(Long imagenId) {
+        try {
+            byte[] body = webClient.get()
+                    .uri("/v1/imagenes/thumbnail/{id}", imagenId)
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .timeout(Duration.ofSeconds(5))
+                    .block();
+            return body != null && body.length > 0;
+        } catch (Exception e) {
+            log.warn("Miniatura no disponible para imagenId={}: {}", imagenId, e.getMessage());
+            return false;
+        }
+    }
 }

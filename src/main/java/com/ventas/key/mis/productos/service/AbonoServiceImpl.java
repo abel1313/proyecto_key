@@ -42,6 +42,7 @@ public class AbonoServiceImpl implements IAbonoService {
     private final IProductosRepository productosRepository;
     private final EmailService emailService;
     private final WhatsappService whatsappService;
+    private final RestockNotificacionService restockNotificacionService;
 
     @Override
     @Transactional
@@ -258,8 +259,10 @@ public class AbonoServiceImpl implements IAbonoService {
         if (!esFiado || esDevolucion) {
             for (DetallePedido dp : pedido.getDetalles()) {
                 Variantes v = dp.getVariante();
+                int stockAntes = v.getStock();
                 v.setStock(v.getStock() + dp.getCantidad());
                 varianteRepository.save(v);
+                restockNotificacionService.notificarSiRestock(v, stockAntes);
                 Producto prod = dp.getProducto();
                 prod.setStock(prod.getStock() + dp.getCantidad());
                 productosRepository.save(prod);

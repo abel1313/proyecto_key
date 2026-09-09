@@ -245,6 +245,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
             pedido.setNombreReceptor(request.getNombreReceptor());
             pedido.setDireccionEntrega(request.getDireccionEntrega());
+            pedido.setLatitud(request.getLatitud());
+            pedido.setLongitud(request.getLongitud());
+            pedido.setReferencias(request.getReferencias());
             pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
             pedido.setUrlFacebook(request.getUrlFacebook());
             pedido.setFechaPedido(LocalDate.now());
@@ -276,6 +279,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
         pedido.setNombreReceptor(request.getNombreReceptor());
         pedido.setDireccionEntrega(request.getDireccionEntrega());
+        pedido.setLatitud(request.getLatitud());
+        pedido.setLongitud(request.getLongitud());
+        pedido.setReferencias(request.getReferencias());
         pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
         pedido.setUrlFacebook(request.getUrlFacebook());
         pedido.setFechaPedido(LocalDate.now());
@@ -314,7 +320,19 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             venta.setCorreoReclamo(clienteSinRegistro.getCorreoElectronico());
         }
 
-        boolean requiereTerminal = mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
+        // Efectivo nunca requiere terminal, sin importar el tarifaTerminal que tenga enlazado su
+        // mesesIntereses -- antes se decidia SOLO con "tarifaTerminal.getId() != 3", un id fijo
+        // que asumia que la fila "sin terminal" de tarifa_terminal siempre cae en el id 3. Eso
+        // depende del orden en que se sembro esa tabla en cada ambiente (no hay migracion que la
+        // siembre igual en dev/qa/prod) -- si en QA la fila "N/A" no quedo en el id 3, "Efectivo"
+        // terminaba pidiendo terminal de Mercado Pago igual (reportado en QA 2026-09-02: "elegi
+        // efectivo pero marca que por mercado"). formaPago ya es la etiqueta real que el admin le
+        // puso a esta forma de pago, no depende de ningun id de otra tabla.
+        boolean esEfectivo = pagosYMeses.getTipoPago() != null
+                && "efectivo".equalsIgnoreCase(
+                        pagosYMeses.getTipoPago().getFormaPago() == null ? null : pagosYMeses.getTipoPago().getFormaPago().trim());
+        boolean requiereTerminal = !esEfectivo
+                && mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
         Venta saved = iVentaRepository.save(venta);
         if (codigoReclamo != null) {
             emailService.enviarCodigoReclamoVenta(clienteSinRegistro.getCorreoElectronico(), codigoReclamo);

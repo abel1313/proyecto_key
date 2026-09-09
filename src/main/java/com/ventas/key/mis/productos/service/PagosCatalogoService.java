@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.DetallePago;
 import com.ventas.key.mis.productos.entity.IvaTerminal;
+import com.ventas.key.mis.productos.entity.MesesIntereses;
 import com.ventas.key.mis.productos.entity.PagosYMeses;
 import com.ventas.key.mis.productos.entity.TarifaTerminal;
 import com.ventas.key.mis.productos.entity.TipoPago;
@@ -72,10 +73,26 @@ public class PagosCatalogoService {
                 dto.setOpciones(opciones.stream()
                         .map(o -> new OpcionPagoDto.OpcionMesesDto(
                                 o.getId(),
-                                o.getMesesIntereses() != null ? o.getMesesIntereses().getDescripcion() : ""))
+                                o.getMesesIntereses() != null ? o.getMesesIntereses().getDescripcion() : "",
+                                parsearCuotas(o.getMesesIntereses())))
                         .collect(Collectors.toList()));
             }
             return dto;
         }).filter(dto -> dto != null).collect(Collectors.toList());
+    }
+
+    /**
+     * `MesesIntereses.meses` es el numero de cuotas guardado como texto (ej. "3", "6", "12").
+     * Sin esto, `OpcionMesesDto` nunca traia el numero de cuotas -- el front lo leia como
+     * `undefined`, caia a un `?? 1` propio, y el cobro con terminal SIEMPRE se mandaba a 1 pago
+     * sin importar el plan que el admin eligiera en el dialogo (encontrado 2026-08-27).
+     */
+    private Integer parsearCuotas(MesesIntereses mesesIntereses) {
+        if (mesesIntereses == null || mesesIntereses.getMeses() == null) return 1;
+        try {
+            return Integer.parseInt(mesesIntereses.getMeses().trim());
+        } catch (NumberFormatException e) {
+            return 1;
+        }
     }
 }

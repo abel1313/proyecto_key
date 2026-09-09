@@ -69,6 +69,14 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- Solo para @DataJpaTest (capa repository): BD en memoria, no toca la MySQL real de
+		     ningun ambiente. Ver src/test/resources/application.properties (perfil "test" propio,
+		     para no heredar los ${SPRING_DATASOURCE_URL} sin default que exige el perfil "dev"). -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

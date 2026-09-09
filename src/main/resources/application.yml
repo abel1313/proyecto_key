@@ -3,6 +3,16 @@ spring:
     active: dev
   cache:
     type: simple
+  jpa:
+    properties:
+      hibernate:
+        # Red de seguridad contra el N+1 de las asociaciones @ManyToOne/@OneToOne EAGER
+        # (Variantes.producto, Variantes.palabraClave, Producto.codigoBarras, VarianteImagen.imagen).
+        # Sin esto, una pagina de 20 variantes disparaba ~1 SELECT por variante y por asociacion
+        # (~80 queries por request). Con batch fetching Hibernate agrupa esos SELECT en
+        # "WHERE id IN (...)" de hasta 50 ids, asi que la misma pagina baja a ~4-6 queries.
+        # Aplica a TODOS los perfiles (este documento no tiene on-profile).
+        default_batch_fetch_size: 50
   servlet:
     multipart:
       # 200MB para poder subir video a Facebook a calidad completa (fotos no necesitan tanto,
@@ -10,81 +20,25 @@ spring:
       max-file-size: 200MB
       max-request-size: 200MB
 
+# URL pública real del backend (dominio + context-path), para armar links absolutos que se
+# consumen FUERA de la app (ej. <img src> del logo en el encabezado de los correos -- un cliente
+# de correo no puede resolver una ruta relativa). Vacío por default a propósito: cada ambiente
+# tiene su propio dominio y, como el resto de la config sensible al ambiente (DB_URL, TOKEN_JWT),
+# se define por variable de entorno, no hardcodeada acá -- ver EmailService.encabezadoMarca(),
+# que si esto queda vacío simplemente no muestra el logo (mismo fallback de ícono+texto de antes).
+app:
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
+
 server:
   port: 9091
   servlet:
     context-path: /mis-productos
-
----
-
-spring:
-  config:
-    activate:
-      on-profile: dev
-  datasource:
-    url: jdbc:mysql://167.88.164.132:3306/dummy_pruebas
-#    url: ${SPRING_DATASOURCE_URL}
-#    username: ${SPRING_DATASOURCE_USERNAME}
-    username: trece
-#    password: ${SPRING_DATASOURCE_PASSWORD}
-    password: Luvianos*13
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    show-sql: false
-    hibernate:
-      ddl-auto: none
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-#logging:
-#  level:
-#    org.hibernate.SQL: DEBUG
-#    org.hibernate.orm.jdbc.bind: TRACE
-
-logging:
-  level:
-    root: INFO
-    com.miempresa: DEBUG
-
-guardar-imagenes:
-  ruta_imagenes: D:\\Imagenes
----
-
-spring:
-  config:
-    activate:
-      on-profile: prod
-  datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    show-sql: false
-logging:
-  level:
-    org.hibernate.SQL: INFO
-    org.hibernate.orm.jdbc.bind: INFO
-
-
-clave-seguridad:
-  # Sin valor por defecto a proposito (fail-closed): si un ambiente no define TOKEN_JWT ni
-  # sobreescribe esta propiedad en su perfil, el micro no arranca. Antes aqui habia una clave real
-  # versionada en git, con la que cualquiera con acceso al repo podia firmar tokens de ADMIN.
-  clave: ${TOKEN_JWT}
-
-seguridad:
-  cors:
-    # Cada perfil sobreescribe esta lista. El base solo deja el front local, para que un ambiente
-    # mal configurado no herede por accidente los origenes de produccion.
-    origenes-permitidos: http://localhost:4200
-
-guardar-imagenes:
-  ruta_imagenes: D:\\Imagenes
-#springdoc:
-#  swagger-ui:
-#    enabled: true
-#    url: /openapi.yml
-#    path: /swagger-ui.html
-
+  tomcat:
+    # Sin esto, Tomcat usa su default de 2MB. Si algo rechaza el request antes de terminar de
+    # leer el body completo (401 por JWT vencido, error de validacion, etc.) mientras aun falta
+    # por leer mas de ese limite del multipart, Tomcat no puede "tragarse" el resto del body para
+    # responder limpio y corta la conexion en seco -- el navegador lo reporta como "error de red"
+    # generico en vez del error HTTP real (401/400/etc). Se iguala a max-request-size de arriba
+    # para que esto nunca pase con imagenes/videos dentro de ese limite.
+    max-swallow-size: 200MB
 

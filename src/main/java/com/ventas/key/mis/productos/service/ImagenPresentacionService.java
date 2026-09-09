@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneOffset;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,7 +41,14 @@ public class ImagenPresentacionService {
         return repo.findByTipoAndActivoOrderByOrden(tipo.toUpperCase(), true);
     }
 
-    @Cacheable(value = "presentacion-imagenes", key = "#tipo.toUpperCase()")
+    // Encontrado 2026-09-08 (hotfix urgente en prod): esta cache rompia el login/registro por
+    // completo con un 400 "Could not read JSON: Unexpected token (START_OBJECT), expected
+    // VALUE_STRING... type id" -- error de GenericJackson2JsonRedisSerializer al leer de vuelta
+    // el valor cacheado (activateDefaultTyping en CacheTtlConfig le agrega metadatos "@class" al
+    // guardar, y algo en la lectura no los reconstruye bien). Persistia incluso despues de borrar
+    // la cache manualmente. La tabla de imagenes de presentacion es minuscula (unas pocas filas
+    // para LOGIN/REGISTRO) -- cachearla en Redis no aporta nada que valga el riesgo de romper el
+    // login entero, asi que se quita el cache aqui en vez de perseguir el bug de serializacion.
     public List<ImagenPresentacionDto> getImagenesPorTipoV2(String tipo) {
         return repo.findByTipoAndActivoOrderByOrden(tipo.toUpperCase(), true)
                 .stream()
@@ -59,7 +66,16 @@ public class ImagenPresentacionService {
         dto.setDescripcion(img.getDescripcion());
         dto.setActivo(img.isActivo());
         dto.setActualizadoEn(img.getActualizadoEn());
-        dto.setUrlImagen("/presentacion/v1/imagenes/" + img.getId() + "/imagen");
+        // "?v=" con el timestamp de la última actualización (2026-09-08, encontrado: el admin
+        // reemplazaba la imagen de login/registro y, aunque el back guardaba bien el archivo
+        // nuevo y su propia caché de Redis se invalidaba, la URL de la imagen no cambiaba -- el
+        // navegador (y cualquier proxy/CDN de por medio) seguía sirviendo los bytes viejos
+        // cacheados para esa misma URL. Con esto la URL cambia cada vez que se actualiza la
+        // imagen, forzando a pedir los bytes de nuevo.
+        String v = img.getActualizadoEn() != null
+                ? "?v=" + img.getActualizadoEn().toEpochSecond(ZoneOffset.UTC)
+                : "";
+        dto.setUrlImagen("/presentacion/v1/imagenes/" + img.getId() + "/imagen" + v);
         return dto;
     }
 
@@ -132,7 +148,19 @@ public class ImagenPresentacionService {
         imagen.setActualizadoEn(LocalDateTime.now());
         ImagenPresentacionDto resultado = toDto(repo.save(imagen));
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        // Hotfix 2026-09-08: en prod RabbitMQ no esta configurado (ver CLAUDE.md) -- este
+        // convertAndSend tiraba una excepcion que @Transactional interpretaba como "hay que
+        // hacer rollback", revirtiendo el repo.save() de arriba (nombreArchivo volvia al valor
+        // viejo) pero SIN poder revertir el eliminarArchivoEnDisco() de mas arriba (borrado de
+        // disco, no transaccional) -- la fila quedaba apuntando a un archivo que ya no existe.
+        // Sintoma real: se reemplazaron las 3 imagenes de login en prod y las 3 quedaron rotas
+        // (204 sin contenido en GET .../imagen). El aviso a Rabbit es solo para invalidar cache
+        // de otras instancias -- best effort, nunca debe poder tumbar el guardado.
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de imagenes de presentacion (no bloquea el guardado): {}", e.getMessage());
+        }
         return resultado;
     }
 

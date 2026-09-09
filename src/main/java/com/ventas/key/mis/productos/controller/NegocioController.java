@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.dto.negocio.AlertaStockUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
@@ -105,5 +106,12 @@ public class NegocioController {
     public ResponseEntity<ResponseGeneric<String>> eliminarRedSocial(@PathVariable Integer id) {
         negocioService.eliminarRedSocial(id);
         return ResponseEntity.ok(new ResponseGeneric<>("Red social eliminada correctamente"));
+    }
+
+    /** Solo ADMIN — umbral de stock bajo para el aviso diario por correo (StockBajoScheduler) */
+    @PutMapping("/alertas-stock")
+    public ResponseEntity<ResponseGeneric<NegocioConfigDto>> actualizarUmbralStockBajo(
+            @RequestBody AlertaStockUpdateDto dto) {
+        return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarUmbralStockBajo(dto)));
     }
 }

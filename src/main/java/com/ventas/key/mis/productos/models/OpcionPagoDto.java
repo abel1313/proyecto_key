@@ -27,5 +27,6 @@ public class OpcionPagoDto {
     public static class OpcionMesesDto {
         private Integer pagosYMesesId;
         private String descripcion;
+        private Integer cuotas;
     }
 }

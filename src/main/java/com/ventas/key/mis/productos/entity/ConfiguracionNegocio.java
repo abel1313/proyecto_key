@@ -35,6 +35,18 @@ public class ConfiguracionNegocio extends BaseId {
     @Column(name = "facebook_url", length = 500)
     private String facebookUrl;
 
+    @Column(name = "instagram_url", length = 500)
+    private String instagramUrl;
+
+    @Column(name = "tiktok_url", length = 500)
+    private String tiktokUrl;
+
     @Column(name = "actualizado_en")
     private LocalDateTime actualizadoEn;
+
+    /** Umbral de "stock bajo" para el digest diario (StockBajoScheduler). Null = usa UMBRAL_DEFAULT. */
+    @Column(name = "umbral_stock_bajo")
+    private Integer umbralStockBajo;
+
+    public static final int UMBRAL_DEFAULT_STOCK_BAJO = 5;
 }

@@ -17,16 +17,11 @@ spring:
   config:
     activate:
       on-profile: dev
+    import: optional:file:.env[.properties]
   datasource:
-    url: jdbc:mysql://51.178.29.99:3306/inventario_key_qa
-#    url: jdbc:mysql://db-bolsas-key.cuf6ai4u4jfs.us-east-1.rds.amazonaws.com:3306/inventario_key
-#    url: ${SPRING_DATASOURCE_URL}
-#    username: ${SPRING_DATASOURCE_USERNAME}
-#    username: admin
-    username: user_ventas_qa
-#    password: ${SPRING_DATASOURCE_PASSWORD}
-#    password: tpM9EBgFzQ![<NTfvJu2g$6S9Ele
-    password: Luvianos *13
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 5
@@ -51,8 +46,8 @@ spring:
   mail:
     host: mail.novedades-jade.com.mx
     port: 587
-    username: ${MAIL_USERNAME:qa.boutique.bolsas@novedades-jade.com.mx}
-    password: ${MAIL_PASSWORD:NovedadesJade *13}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
@@ -65,7 +60,7 @@ clave-seguridad:
 
 seguridad:
   cors:
-    origenes-permitidos: http://localhost:4200,http://51.178.29.99:30001,https://venta-bolsas-online.netlify.app
+    origenes-permitidos: http://localhost:4200,http://51.178.29.99:30001,https://venta-bolsas-online.netlify.app,https://shop.novedades-jade.com.mx,https://front.novedades-jade.com.mx,https://novedades-jade.com.mx,https://www.novedades-jade.com.mx
 
 cookie:
   secure: false  # true en producción (requiere HTTPS)
@@ -83,7 +78,7 @@ api:
 logging:
   level:
     root: INFO
-    com.miempresa: DEBUG
+    com.ventas.key.mis.productos: DEBUG
 
 management:
   endpoints:
@@ -111,13 +106,13 @@ mercadopago:
   sandbox: false
 
 chat:
-  admin-email: ${CHAT_ADMIN_EMAIL:qa.boutique.bolsas@novedades-jade.com.mx}
+  admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
+  forzar-notificacion: true
 
 facebook:
   page-id: asdasd
   page-access-token: asdasd
   api-version: v21.0
-  forzar-notificacion: true
 
 whatsapp:
   # Proveedor activo: callmebot | twilio | ninguno

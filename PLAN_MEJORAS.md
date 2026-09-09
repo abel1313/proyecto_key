@@ -12,7 +12,7 @@
 | 1 | Ticket (impresión HTML) | ✅ No requiere back | ✅ Implementado 2026-07-01 — `generarHtmlTicket()` + botón 🖨️ en Swal (venta directa, abonos, cancelación) | — |
 | 2 | Envío por correo electrónico | ✅ Listo | ✅ Implementado 2026-07-01 — checkbox correo + campo `notificacion.enviarCorreo/correo/ticketHtml` en todos los requests que generan comprobante | 2026-07-01 |
 | 3 | Envío por WhatsApp | 🚫 EN PAUSA — ver decisión 2026-07-01 | 🚫 No implementar | 2026-07-01 |
-| 4 | Alertas stock bajo al admin | ⏳ Pendiente back | ⏳ Pendiente front | — |
+| 4 | Alertas stock bajo al admin | ✅ Implementado 2026-09-02 — digest diario 7am (`StockBajoScheduler`), umbral configurable en Sistema > Negocio & Contactos, default 5. Ver `INVESTIGACION_NUEVAS_FEATURES_2026-09-02.md` sección 0.5 | ✅ Implementado 2026-09-02 — sección "📦 Alertas de stock bajo" en config-negocio | 2026-09-02 |
 | 5 | Reportes de ventas (día/mes/cliente) | ✅ Listo | ✅ Implementado 2026-07-02 — módulo lazy `/reportes` con 4 tabs (diario, mensual, por cliente, más vendidos) + gráficas Chart.js | 2026-07-02 |
 | 6 | Dashboard con métricas | ✅ Listo (sin "clientes nuevos", ver nota) | ✅ Implementado 2026-07-02 — módulo lazy `/dashboard` con 9 cards + auto-refresh cada 5 min | 2026-07-02 |
 | 7 | Devoluciones | ⏳ Pendiente back | ⏳ Pendiente front | — |

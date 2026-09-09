@@ -3095,6 +3095,25 @@ código de barras registrado — si no, el campo no viene). Úsenlos para difere
 tarjetas que comparten nombre/marca/precio idénticos (ej. mostrar el código de barras chiquito
 debajo del nombre cuando `talla`/`color` vengan ambos `null`).
 
+**`bloqueado` / `segundosEspera` — contrato completo (nunca se había documentado, 2026-08-20):**
+estos 2 campos ya existían desde antes, pero ahora hay 3 escenarios distintos que los usan, todos
+con la misma forma de response (`respuesta` humano-legible + `bloqueado` + `segundosEspera`) — el
+front no necesita distinguir el motivo, solo mostrar `respuesta` y, si `segundosEspera > 0`,
+deshabilitar el input hasta que pase ese tiempo (o dejarlo intentar de nuevo, el back vuelve a
+rechazar igual si no ha pasado el tiempo):
+
+1. **Bloqueo por abuso (ya existía):** tras 3 mensajes que el bot no entiende, `bloqueado: true`
+   con `segundosEspera` de hasta 30 horas.
+2. **Cooldown entre mensajes incomprendidos (ya existía):** `bloqueado: false` con un
+   `segundosEspera` corto (45s) — es solo una pausa breve, no un bloqueo real.
+3. **🆕 Límite de 20 mensajes/hora (nuevo, 2026-08-20):** para que nadie agote la cuota de OpenAI
+   preguntando cosas válidas sin parar (con o sin sesión iniciada, aplica igual a todos). Al
+   llegar a 20 mensajes en la última hora, responde `bloqueado: true` con `segundosEspera` de
+   hasta 1 hora y el texto: *"Alcanzaste el límite de consultas por ahora. Podrás seguir
+   escribiendo en X minuto(s), o si es urgente contáctanos directamente. ¡Gracias por tu
+   paciencia!"*. Mismo mecanismo aplicado también en los bots de comentarios de Facebook e
+   Instagram (ahí no aplica al front, es interno).
+
 ---
 
 ### 2. GET /v1/chatbot/buscar — "Ver más" sin IA
@@ -8922,7 +8941,104 @@ para diagnosticarlo con precisión en vez de seguir adivinando.
 
 ---
 
-## 📘 Endpoint nuevo — Publicar variante en Facebook (2026-08-05, actualizado 2026-08-05)
+## ▶️ RETOMADO — el feature de Facebook vuelve a `dev`/`qa` (2026-08-17)
+
+Se pausó el 2026-08-05 (ver historial más abajo) mientras se resolvía la configuración de la app
+de Meta. Se retoma ahora: **los endpoints `POST /v1/redes-sociales/facebook/publicar` y
+`POST /v1/redes-sociales/facebook/publicar-video` vuelven a existir en `dev`/`qa`**, código
+restaurado tal cual desde la rama `backup/facebook-redes-sociales`, sin cambios de contrato — la
+documentación de abajo sigue vigente tal cual estaba.
+
+**Sigue pendiente del lado de Meta:** generar el Page Access Token de larga duración (el bloqueo
+que quedó pendiente en agosto) y cargar App ID/App Secret/ID de página/token en la config del
+back. Hasta que eso esté, el camino feliz sigue sin poder probarse en vivo — los endpoints
+existen mejor pero van a devolver 400 (credenciales no configuradas) hasta entonces.
+
+---
+
+## ✅ Ya se puede probar en QA — credenciales de Meta cargadas (2026-08-17, corregido el mismo día)
+
+El bloqueo de arriba ya se resolvió: el Page Access Token de larga duración (no expira) ya está
+cargado. **Corrección importante:** la página correcta del negocio es **"NovedadesJade"** (sin
+espacio, id `645820348605806`) — no "Novedades Jade" con espacio (`1275448475648441`), que se
+había configurado primero por error. La correcta es la que tiene vinculada la cuenta real de
+Instagram (`novedades_bolsas_jade`). Si alguno de los dos lados guardó el ID viejo en algún lado,
+hay que actualizarlo. **El camino feliz ya se puede probar de verdad en QA**, no solo el 400 de
+credenciales.
+
+**Para que ustedes puedan probarlo, falta su parte:** traer de vuelta la rama
+`backup/facebook-redes-sociales` de su repo (mismo nombre que la nuestra, a propósito) — el
+contrato de los endpoints no cambió nada, es la misma documentación de abajo.
+
+**Recordatorio de calidad — ya estaba así diseñado, no cambia:** tanto la foto (`imagenNueva`)
+como el video se publican **tal cual los suban, a máxima calidad, sin recomprimir ni
+redimensionar** de nuestro lado — por eso el límite de multipart quedó en 200MB. Si el video sale
+con menor calidad en Facebook, no es algo que estemos degradando nosotros antes de mandarlo — vale
+la pena revisar el archivo que suben tal cual.
+
+**Alcance de esta primera etapa: solo Facebook.** Instagram y TikTok siguen fuera por ahora — se
+empieza con Facebook para probar que todo el flujo (token, publicar foto/video, auditoría en
+`publicacion_social`) funciona de punta a punta antes de abrir más plataformas. Instagram comparte
+casi el mismo trámite de permisos de Meta cuando se necesite; TikTok es aparte.
+
+---
+
+## 🆕 BACK — adelantado el código de Instagram mientras ustedes restauran Facebook (2026-08-17)
+
+Mientras ustedes traen de vuelta su rama de Facebook, adelantamos del lado del back el primer
+endpoint de Instagram — para no quedarnos parados esperando.
+
+**Ya se resolvió el bloqueo de la cuenta** (ver la corrección de arriba): la cuenta de Instagram
+profesional `novedades_bolsas_jade` ya está vinculada, pero a la página "NovedadesJade"
+(`645820348605806`), no a la que se había configurado primero. Ya con eso corregido, `instagram.account-id`
+tiene el valor real (`17841444237033427`) y el endpoint ya se puede probar de verdad en QA.
+
+### 🆕 `POST /v1/redes-sociales/instagram/publicar` — solo ADMIN
+
+Primera versión, alcance recortado a propósito (mismo criterio que se usó con Facebook al
+principio):
+
+- **Solo imagen ya guardada en el catálogo** — a diferencia de Facebook, Instagram no acepta un
+  archivo subido directo: su API pide una **URL pública** de la imagen. Reusamos la URL que ya
+  sirve el microservicio de imágenes (la misma que usan para mostrar fotos en el catálogo), así
+  que no hace falta que suban nada nuevo por ahora — sin soporte para archivo ad-hoc como
+  `imagenNueva` en Facebook (se puede agregar después si hace falta).
+- **No se puede programar.** La Content Publishing API de Instagram siempre publica de inmediato,
+  a diferencia de Facebook que sí soporta `scheduledPublishTime` — no es una limitación nuestra,
+  es así del lado de Meta.
+- **Content-Type: `application/json`** (no multipart, porque no se manda ningún archivo).
+
+**Request:**
+```json
+POST /v1/redes-sociales/instagram/publicar
+Authorization: Bearer {accessToken}  (rol ADMIN)
+{
+  "varianteId": 42,
+  "descripcion": "Bolsa nueva temporada 🎒",
+  "imagenId": 501
+}
+```
+- `imagenId` opcional — si se omite, usa la imagen principal ya guardada de esa variante (igual
+  que Facebook).
+
+**Response 200:** mismo shape que ya usan para Facebook (`PublicacionSocialDto`) —
+`plataforma:"instagram"`, `tipoPublicacion:"foto"`. **Ojo:** el id que devuelve Instagram viaja en
+el mismo campo `postIdFacebook` que usa Facebook (no se agregó un campo nuevo para no tocar el
+contrato ya existente) — fíjense en `plataforma` para saber de cuál red es.
+
+**400 — casos posibles:**
+- `"Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o FACEBOOK_PAGE_ACCESS_TOKEN..."` —
+  el caso de hoy, hasta que se vincule la cuenta.
+- `"No existe la variante con id {id}"`.
+- `"La variante {id} no tiene ninguna imagen guardada"` — sin `imagenId` y sin imagen principal.
+- `"Instagram rechazo la imagen: ..."` / `"Instagram rechazo publicar el contenedor: ..."` — error
+  real de la Graph API (formato de imagen no soportado, cuenta sin permisos, etc.), con el mensaje
+  de Meta tal cual.
+
+**403:** si quien llama no es ADMIN.
+
+No hace falta migración — reusa la tabla `publicacion_social` que ya existía para Facebook
+(`plataforma` ya era una columna genérica).
 
 Primer paso de la integración con redes sociales: publicar la foto de una variante en la página
 de Facebook del negocio. Solo Facebook por ahora — Instagram y TikTok quedan para después (Instagram
@@ -8969,6 +9085,9 @@ imagenNueva:                  (opcional, part de tipo archivo)
 
 **Límite de tamaño:** el micro acepta hasta **25 MB** por archivo/request (`imagenNueva` incluida)
 — configurado así a propósito para no capar fotos de cámara a resolución completa.
+**⚠️ DESACTUALIZADO — ver la corrección más abajo (2026-08-18): el límite real hoy es 200 MB, no
+25 MB.** Se dejó este párrafo tal cual como estaba, no se borró, para no perder el rastro de por
+qué existía el límite original.
 
 **Response 200:**
 ```json
@@ -9379,3 +9498,9324 @@ existe todavía en ningún ambiente (`ddl-auto: none`). Correr
 `src/main/resources/static/migration_red_social_negocio.sql` en QA/prod antes del deploy, o el
 panel de redes sociales tronará con error de tabla no encontrada.
    nuestra, no un olvido silencioso.
+
+---
+
+## ✅ Front: Política de Privacidad lista + confirmaciones (2026-08-05)
+
+### 1. 🔓 Política de Privacidad — desbloqueado
+
+No existía ninguna página así en el sistema (lo verificamos), así que la creamos de cero. Ruta
+pública **`/privacidad`**, **sin guards a propósito**: Meta la abre con un bot anónimo, y si se
+topa con un redirect al login la da por inválida.
+
+**URL para pegar en Configuración → Básico de la app de Meta:**
+
+```
+https://qa.shop.novedades-jade.com.mx/privacidad     ← QA
+https://shop.novedades-jade.com.mx/privacidad        ← producción
+```
+
+⚠️ **Confírmennos cuál de los dos dominios usar** — Meta acepta uno solo. Si la app se va a
+dejar apuntando a producción, hay que esperar a promover; en QA ya queda disponible en cuanto
+se despliegue `dev` → `qa`. **Avísennos y lo promovemos**, es lo único que falta para que
+puedan seguir con el token.
+
+⚠️ **Falta confirmar el correo de contacto.** La página dice hoy
+`contacto@novedades-jade.com.mx`. Es a donde van a escribir los clientes que pidan acceder,
+corregir o eliminar sus datos, así que tiene que ser una cuenta que alguien lea de verdad. Si es
+otro, nos dicen y lo cambiamos en un minuto.
+
+El contenido está redactado sobre lo que el sistema realmente recaba (cuenta, contacto, pedidos,
+datos de entrega, chat), no es una plantilla genérica. Incluye una sección explícita de redes
+sociales aclarando que **solo se publican productos del catálogo y nunca datos de clientes** —
+justo lo que Meta revisa en estos casos.
+
+### 2. Sobre sus respuestas — todo confirmado, un solo cambio
+
+- **Zona horaria:** perfecto, ya lo mandábamos así (hora local del navegador, sin convertir).
+  Sin cambios.
+- **Omitir el part vacío:** confirmado que era lo correcto. Buen dato lo del 500 — se queda
+  como está.
+- **`debeCambiarPassword`:** gracias por revisarlo en el código. **Ya quitamos el fallback a
+  `passwordTemporal`**, ahora leemos solo `debeCambiarPassword`.
+- **`exigir-header-refresh`:** de acuerdo en dejarlo apagado. Nosotros ya mandamos el header,
+  así que del lado del front no hay prisa — solo pedimos que **cuando lo vayan a encender, sea
+  después de que esto llegue a producción**, no antes.
+
+### 3. Lo que necesitamos que nos pasen cuando tengan el token
+
+Para que la pantalla de publicar funcione, de su lado hacen falta 4 datos configurados:
+**App ID**, **App Secret**, **ID de la página** y un **Page Access Token de larga duración**
+(el que da el Graph API Explorer por defecto es de ~1 hora — si se usa ese, las publicaciones
+empiezan a fallar solas al rato sin razón aparente).
+
+Nosotros no necesitamos ninguno de esos valores en el front; solo avísennos cuando estén
+cargados para probar el camino feliz en QA.
+
+---
+
+## ✅ Front: alineado con la pausa de Facebook (2026-08-05)
+
+Recibido. Del lado del front había un problema que su aviso destapó: **la pantalla de publicar ya
+estaba mergeada a `qa` y su link visible** en el menú (🛠️ Sistema → "📘 Publicar en Facebook").
+Cualquier admin que entrara iba a chocar con el 404 sin entender por qué.
+
+**Ya lo ocultamos.** Comentamos únicamente el link del menú; la ruta `/admin/facebook`, el
+componente, el servicio y los modelos **se quedan intactos** en el código — igual que ustedes
+conservaron el suyo en `backup/facebook-redes-sociales`. Reactivarlo es descomentar una línea.
+
+**No hace falta que nos avisen dos veces cuando lo retomen:** con que nos digan que los endpoints
+volvieron a `dev`/`qa`, descomentamos y probamos el mismo día.
+
+### Dónde quedó la configuración de la app de Meta
+
+Por si sirve cuando se retome — la app **no** quedó a medias, quedó bloqueada en un solo punto:
+
+- App `novedadesJade`, ID `1017171384561253`, en modo **Publicada**.
+- Caso de uso **"Administrar todos los aspectos de tu página"** ya agregado, con
+  `pages_manage_posts` y `pages_read_engagement` en **"Listo para la prueba"**.
+- ✅ **La Política de Privacidad ya dejó de ser el bloqueo** — la publicamos (ver sección
+  anterior) y la URL ya está cargada en Configuración → Básica.
+- ⛔ **El bloqueo real es otro:** no se pudo generar el **Page Access Token**. El popup de
+  consentimiento de Facebook (`facebook.com/privacy/consent/?flow=user_cookie_choice_v2`) entra
+  en bucle infinito con `ERR_TOO_MANY_REDIRECTS`, en Brave **y** en Chrome. Ya se descartaron:
+  cookies de terceros (están permitidas globalmente) y cookies viejas (se borraron). La sospecha
+  que queda, sin confirmar, es alguna **extensión del navegador** rompiendo ese flujo.
+- ℹ️ El aviso *"Currently ineligible for submission — Ícono de la app (1024×1024)"* **no era el
+  bloqueo**: solo impide mandar la app a revisión de Meta, trámite que no hace falta para
+  publicar en la página propia siendo admin de la app.
+
+O sea: cuando se retome, **el único paso pendiente es generar el token de página**. Todo lo demás
+de la configuración de Meta ya está.
+
+### Lo que NO tocamos
+
+La página pública **`/privacidad`** se queda como está — sigue haciendo falta para la app de Meta
+cuando se reactive, y de todos modos conviene tenerla publicada.
+
+---
+
+## ✅ Front: el feature de Facebook también salió de `dev`/`qa` (2026-08-05)
+
+Corrección de nuestro mensaje anterior: primero solo ocultamos el link del menú, pero eso dejaba
+~1300 líneas de código muerto apuntando a endpoints que ya no existen. **Lo sacamos completo**,
+igual que ustedes.
+
+**Respaldado en la rama `backup/facebook-redes-sociales`** del repo del front — usamos **el mismo
+nombre que ustedes** en `proyecto_key`, a propósito, para que las dos ramas se encuentren juntas
+cuando se retome.
+
+Se eliminaron: el modelo, el servicio, el componente con su HTML/SCSS, la ruta `/admin/facebook`,
+su declaración en el módulo admin, el link del menú y la excepción del interceptor de carga.
+
+**La página pública `/privacidad` se queda** — no depende del feature, sigue haciendo falta para
+la app de Meta y de todos modos conviene tenerla publicada.
+
+### Para cuando se retome
+
+Con que nos avisen que los endpoints volvieron a `dev`/`qa`, hacemos merge de la rama de respaldo
+y probamos el mismo día. El contrato que documentaron sigue vigente tal cual — no hay que rehacer
+nada.
+
+Y recuerden lo de la sección anterior: del lado de la app de Meta **el único paso que faltaba era
+generar el Page Access Token** (bloqueado por el bucle de `ERR_TOO_MANY_REDIRECTS` en el popup de
+consentimiento). Todo lo demás de esa configuración ya está hecho.
+
+---
+
+## 🚀 Front: promovido a PRODUCCIÓN (2026-08-05)
+
+`qa` → `master` (commit `136ffa5`). Todo lo acumulado desde la última promoción ya está en prod.
+
+### ⚠️ Lo que les toca saber a ustedes
+
+**1. `X-Requested-With` ya está en PRODUCCIÓN.** Como pidieron, respetamos el orden: primero lo
+desplegamos nosotros, ahora les avisamos. **`POST /v1/auth/refresh` y `POST /v1/auth/logout` ya
+llegan con el header** desde el navegador, en qa y en prod. Pueden encender
+`seguridad.exigir-header-refresh: true` cuando quieran, sin riesgo de tirar sesiones.
+
+**2. El manejo del 401 masivo ya está listo del lado del front.** Cuando desplieguen su tanda de
+seguridad, el primer refresh de cada usuario va a dar 401 — el front ya lo maneja mandando al
+login sin mostrar ningún error. **Pero avísennos antes de desplegar**, para estar pendientes.
+
+**3. Verificamos el rename `/variantes` → `/tienda` contra el backend de PRODUCCIÓN antes de
+promover**, porque el front hace 25 llamadas con ese prefijo y un desfase habría tumbado el
+catálogo completo: `GET /tienda/1` responde **401** (existe y está protegido) ✅. Todo alineado.
+
+**4. La página `/privacidad` ya está en producción**, así que la URL que Meta tiene configurada
+(`https://shop.novedades-jade.com.mx/privacidad`) ahora sí resuelve de verdad. Antes solo existía
+en QA.
+
+**5. NO va el feature de Publicar en Facebook** — quedó fuera de dev/qa/prod, respaldado en la
+rama `backup/facebook-redes-sociales`, como acordamos.
+
+### Qué más entró (resumen)
+
+Paleta jade en ambos temas, rediseño del login, taxonomía de nombres (Tienda / Inventario /
+Modelos), los 6 puntos del checklist de seguridad de auth, catálogo de lugares de entrega, datos
+de entrega en pedidos, filtro Pagados/Cancelados, paginación real de admin en `mis-pedidos`,
+historial de abonos en el ticket, y la tanda de fixes de UI reportados en QA.
+
+También entró un fix de infraestructura: **`Cache-Control` en nginx** (index.html sin caché,
+assets hasheados con caché de un año). Eso explica retroactivamente los "ya subiste el cambio
+pero no se ve" que aparecieron varias veces en este documento — el servidor nunca le decía al
+navegador que dejara de confiar en su copia vieja.
+
+**Verificado antes de promover:** `ng build --configuration=production` sin errores.
+
+---
+
+## 🚀 Back: merge a `main` ya hecho (2026-08-05) — falta el deploy real al servidor
+
+`qa` → `main` de `proyecto_key` ya está mergeado y pusheado (commit `411ca0a`). **Todavía NO se
+desplegó al servidor de producción** — según lo que pidieron, avisamos antes de ese paso, no
+después. Cuando decidamos desplegar de verdad, se los confirmamos aparte para que estén pendientes
+del 401 masivo del primer refresh.
+
+Va todo lo que ya sabían que veníamos armando: los 16 hallazgos de `SEGURIDAD_AUTH.md` (incluido
+`X-Requested-With`, que confirman que ya tienen en prod — cuando desplieguen esto de nuestro lado
+vamos a encender `seguridad.exigir-header-refresh: true`), rendimiento de búsquedas, lugares de
+entrega, datos de entrega en pedidos, cancelación como devolución, y el resto de lo que ya está
+documentado arriba en este archivo. **Sin Facebook** — sigue fuera, respaldado en
+`backup/facebook-redes-sociales` como acordamos.
+
+Un detalle de CORS que salió al hacer el merge, por transparencia: `main` nunca había tenido un
+candado de orígenes permitidos activo en el perfil que de verdad corre en el contenedor
+(`application-docker.yml` ya lo tenía bien, con `shop.novedades-jade.com.mx` y los demás dominios
+reales — no hubo que tocar nada ahí). Quedó verificado antes de pushear.
+
+---
+
+## ✅ Front: verificado EN VIVO en producción — vía libre para su deploy (2026-08-05)
+
+Recibido lo del merge a `main`. Antes de que desplieguen, fuimos a comprobar **contra el sitio de
+producción real** que nuestro despliegue sí hubiera corrido — porque nuestro pipeline es conocido
+por no dispararse solo, y si ustedes encendieran `exigir-header-refresh` con un bundle viejo
+arriba, **todos los usuarios perderían la sesión a los 15 minutos**. No queríamos que eso
+dependiera de un supuesto.
+
+Descargamos el bundle que está sirviendo `shop.novedades-jade.com.mx` (`main.b7489b600cab8b68.js`,
+3.3 MB) y lo revisamos por dentro:
+
+| Qué buscamos | Resultado |
+|---|---|
+| `X-Requested-With` en el bundle | ✅ presente |
+| Ruta `/privacidad` | ✅ presente, y `GET /privacidad` responde **200** |
+| Prefijo `/tienda` | ✅ presente |
+| `Cache-Control` de `index.html` | ✅ `no-cache, no-store, must-revalidate` |
+| `Cache-Control` de los assets hasheados | ✅ `public, max-age=31536000, immutable` |
+
+**Conclusión: el despliegue del front sí corrió y el bundle nuevo es el que está en vivo.**
+
+### 🟢 Pueden desplegar y encender `seguridad.exigir-header-refresh: true`
+
+De nuestro lado no hay nada pendiente. Solo dos peticiones:
+
+1. **Avísennos el día/hora del deploy**, para estar pendientes del 401 masivo del primer refresh
+   (nuestro front ya lo maneja mandando al login sin error feo, pero queremos ver que se comporte
+   como esperamos con usuarios reales).
+2. **Enciendan el header en el mismo deploy o después, nunca antes.** Ya está en prod de nuestro
+   lado, así que el orden que pidieron se cumplió — pero mejor no adelantarlo por si acaso.
+
+Gracias por el detalle del CORS, anotado. Nos deja tranquilos saber que `application-docker.yml`
+ya tenía `shop.novedades-jade.com.mx` — es justo el origen desde el que va a pegar todo esto.
+
+---
+
+## 🐛 Back: 2 endpoints públicos caían con 400 en producción — ya corregidos y desplegados (2026-08-06)
+
+Tras el deploy del 2026-08-05, dos endpoints del catálogo público quedaron rotos en `main`
+(producción) por un mismo tipo de bug de mapeo JPA. Tomamos la sesión para auditar el resto del
+código en busca del mismo patrón — encontramos y arreglamos los dos únicos casos que existían.
+Ya está en `dev`/`qa`/`main`, pusheado y compilado sin errores.
+
+### [BUG-KEY-12] ✅ Fix: `GET /tienda/v1/filtros-disponibles` respondía 400
+**Fecha:** 2026-08-06
+**Archivo corregido:** `IVarianteRepository.java` (`findRangoPreciosPublico`)
+
+**Endpoint:**
+```
+GET /mis-productos/tienda/v1/filtros-disponibles
+```
+
+**Comportamiento ANTES del fix (roto):** siempre respondía `400` con
+`"class [Ljava.lang.Object; cannot be cast to class java.lang.Number"` — el endpoint de filtros
+del catálogo (tallas, colores, marcas, rango de precio) no funcionaba en absoluto.
+
+**Comportamiento DESPUÉS del fix (correcto):** `200` con el mismo contrato de siempre —
+`{ tallas: string[], colores: string[], marcas: string[], precioMin: number, precioMax: number }`.
+
+**El front no necesita cambiar nada** — mismo endpoint, mismo request, mismo response. Era un bug
+interno de mapeo (Spring Data anidaba mal el resultado de una query de agregación con una sola
+fila), no un cambio de contrato.
+
+---
+
+### [BUG-KEY-13] ✅ Fix: `GET /v1/resenas/variante/{varianteId}/resumen` respondía 400
+**Fecha:** 2026-08-06
+**Archivo corregido:** `IResenaRepository.java` (`resumenPorVariante`)
+
+**Endpoint:**
+```
+GET /mis-productos/v1/resenas/variante/{varianteId}/resumen
+```
+
+**Comportamiento ANTES del fix (roto):** siempre respondía `400` (mismo error de casteo que
+BUG-KEY-12) — el resumen de calificaciones (promedio + conteo por estrellas) de cualquier
+variante fallaba. Probablemente pasaba desapercibido porque el detalle de producto no lo muestra
+de forma prominente, pero cualquier pantalla que lo consuma estaba rota.
+
+**Comportamiento DESPUÉS del fix (correcto):** `200` con el mismo contrato de siempre —
+`{ varianteId: number, promedio: number, totalResenas: number, conteoPorEstrella: {1: n, 2: n, 3: n, 4: n, 5: n} }`.
+
+**El front no necesita cambiar nada** — mismo bug interno que el anterior, mismo tipo de fix.
+
+---
+
+## 🚀 Back: micro_imagenes — 5 commits que estaban solo en `qa` ya llegaron a producción (2026-08-06)
+
+Al investigar un 400 en `GET /v1/imagenes/thumbnail/{imagenId}` (`"No static resource"`)
+encontramos que el código de miniaturas nunca había llegado a `master` de `micro_imagenes` — se
+quedó en `qa` desde que se implementó. Hicimos el merge `qa → master` (commit `7de7f83`), que
+dispara el deploy automático (GitHub Actions). Va todo lo que estaba pendiente, no solo el fix del
+día:
+
+- **Miniaturas para listas:** `GET /mis-productos/v1/imagenes/thumbnail/{imagenId}` — ya responde
+  en producción. Es la que usan los `imagenUrl` de listados/búsqueda (ver sección de arriba); el
+  detalle de producto sigue usando `/v1/imagenes/file/{imagenId}` (imagen completa).
+- **Cache del navegador en `/v1/imagenes/file/{imagenId}`:** ahora trae `Cache-Control` (1 año,
+  inmutable) y `ETag`. No requiere cambios en el front, solo hace que la segunda carga de la misma
+  imagen sea instantánea.
+- Un fix interno de rendimiento (N+1 al verificar existencia de imágenes) y uno de seguridad
+  (credenciales AWS hardcodeadas que ya no se usaban, quitadas del yml). Ninguno de los dos cambia
+  contrato ni comportamiento visible para el front.
+
+**El front no necesita cambiar nada** en esta sección — son fixes de disponibilidad/rendimiento de
+endpoints que ya existían en el contrato.
+
+---
+
+## ❓ CONSULTA AL BACK — endpoint para la "cinta de promociones" que corre arriba de la pantalla (2026-08-10)
+
+### Qué es
+
+Se agregó una **cinta de texto que corre de derecha a izquierda** en la parte superior de la app
+(estilo noticiero: "BOLSAS ✦ BLUSAS ✦ PERFUMES 10 ML ✦ ENVÍOS A TODO MÉXICO ✦ …"). Ya está en
+`qa`, se ve en todas las pantallas menos las de autenticación (`/login`, `/usuarios/registrar`,
+`/verificar-correo`, `/olvide-password`, `/privacidad`).
+
+Hay además una pantalla de administración (`/admin/cinta`, solo ADMIN) donde el dueño escribe,
+reordena, oculta y borra esas frases.
+
+### ⚠️ Hoy NO tiene backend — vive en `localStorage`
+
+Se hizo así a propósito para poder afinar diseño y comportamiento antes de pedirles nada. **La
+consecuencia es que lo que el admin edita se guarda solo en SU navegador**: otro usuario, otra
+computadora o modo incógnito ven las frases de fábrica. Ya no queremos dejarlo así — es una cinta
+comercial, tiene que verla igual todo el mundo.
+
+### Lo que pedimos
+
+Es un catálogo chiquito, idéntico en forma a `lugares-entrega` o `palabras-clave`. Si les sirve
+reusar el **CRUD genérico** que ya tienen, por nosotros perfecto — solo con dos matices (puntos 1
+y 4 de abajo).
+
+**Entidad sugerida** (`cinta_promocion` o como prefieran nombrarla):
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | Long | PK |
+| `texto` | String (máx. 120) | Lo que se ve corriendo. Se muestra tal cual (el front lo pone en mayúsculas por CSS, no hace falta guardarlo en mayúsculas) |
+| `activo` | boolean | `false` = se conserva en la pantalla del admin pero no sale en la cinta |
+| `orden` | int | Posición en la cinta. La pantalla de admin tiene botones subir/bajar |
+
+> 🏷️ **Un favor con el nombre: llámenle "cinta", no "ticker".** En inglés el término para este
+> letrero corredizo es *ticker*, y así lo habíamos nombrado nosotros — pero se lee casi igual que
+> **"ticket"**, que en este sistema ya significa otra cosa muy distinta (el comprobante de venta
+> que se imprime y se manda por correo, `POST /v1/pedidos/{id}/notificar`). El dueño se confundió
+> con solo verlo en el menú, así que del lado del front ya lo renombramos todo a **cinta** antes
+> de que esto llegara a producción. Les pedimos lo mismo en tabla y endpoints para que no queden
+> dos nombres para la misma cosa.
+
+**Endpoints:**
+
+1. **`GET /v1/cinta/activos`** — ⚠️ **el único que NO es admin-only.** Lo llama la cinta, que se
+   pinta para cualquier usuario logueado (cliente incluido). Debe devolver **solo** los `activo =
+   true`, **ya ordenados** por `orden` ascendente. Si pueden, con `@Cacheable` — se pide en cada
+   carga de la app y el contenido cambia muy de vez en cuando.
+   ```json
+   { "data": [ { "id": 1, "texto": "Bolsas", "activo": true, "orden": 1 } ] }
+   ```
+2. **`GET /v1/cinta/getAll`** — ADMIN. Todas, activas y no activas, ordenadas por `orden`. Sin
+   paginar, o con `size` grande por default: son pocas frases y la pantalla las muestra todas
+   juntas para poder reordenarlas.
+3. **`POST /v1/cinta/save`** — ADMIN. Body `{ texto, activo, orden }`.
+4. **`PUT /v1/cinta/update/{id}`** — ADMIN. **Acá va el otro matiz:** reordenar cambia el `orden`
+   de dos filas a la vez (la que sube y la que baja). Si su `update` genérico ya acepta que le
+   manden solo los campos a tocar, nos alcanza con dos llamadas. Si prefieren, un
+   **`PUT /v1/cinta/orden`** con `[{id, orden}, ...]` de un jalón también nos sirve y nos evita
+   dejar el orden a medias si una de las dos llamadas falla. Ustedes decidan cuál les acomoda.
+5. **`DELETE /v1/cinta/delete`** — ADMIN. Nos da igual si el id va en el path o como body crudo
+   (como `lugares-entrega`); solo díganos cuál para no equivocarnos otra vez.
+
+**Datos iniciales que traeríamos como semilla** (hoy son los defaults del front): Bolsas, Blusas,
+Pantalones, Perfumes 10 ml, Envíos a todo México, Promos de temporada.
+
+### Del lado del front ya está listo para el cambio
+
+`CintaService` expone `items$` (todas) y `activos$` (las que corren). Ni la cinta ni la pantalla
+de admin conocen `localStorage` — cuando exista el endpoint, se reemplaza el cuerpo de los 5
+métodos públicos por llamadas HTTP y **no se toca ningún componente**.
+
+### Pregunta puntual
+
+¿Les late así, o prefieren otra forma? Lo único que de verdad nos importa que salga bien es el
+punto 1: que `GET /v1/cinta/activos` **no exija rol ADMIN**, porque si no, el cliente entra a la
+tienda y la cinta le sale vacía (o con un 403 en consola en cada carga).
+
+### 🔗 A dónde lleva cada frase al hacerle clic
+
+Las frases no deberían ser solo decorativas: "Blusas" tiene que llevar al catálogo de blusas.
+**Pero les pedimos que NO guarden la URL del front** (`"/tienda/buscar?..."`). Ya nos mordió una
+vez: cuando renombramos `/variantes` → `/tienda`, cualquier ruta guardada como texto en la base
+se habría roto en silencio, sin que nadie se entere hasta que un cliente cayera en un 404.
+
+En vez de eso, guarden **qué** mostrar y nosotros sabemos **dónde** vive. Dos campos más:
+
+| `destinoTipo` | `destinoValor` | El front lo manda a |
+|---|---|---|
+| `NINGUNO` (default) | `null` | no es clickeable, solo texto |
+| `PROMOCIONES` | `null` | `/promociones` (la pantalla de combos activos) |
+| `BUSQUEDA` | `"BLUSAS"` | el catálogo con ese texto en el buscador |
+| `PRODUCTO` | `"482"` | la ficha de esa variante |
+| `EXTERNO` | url completa | se abre en pestaña nueva (Facebook, WhatsApp) |
+
+**Nota sobre `BUSQUEDA`** — no necesitamos ningún endpoint nuevo para esto. El buscador del
+catálogo ya hace cascada **código de barras → palabra clave → nombre**, y las categorías del
+sistema (`palabraClave`) son justo "BLUSAS", "BOLSAS", etc. Así que mandar `"BLUSAS"` como texto
+de búsqueda cae en el paso de palabra clave y devuelve todo lo de esa categoría. Es exactamente
+lo mismo que si el cliente lo escribiera a mano. Por eso tampoco pedimos un tipo `CATEGORIA`
+aparte: terminaría en la misma llamada.
+
+### 💡 Opcional (ustedes dicen) — que las promociones vigentes se agreguen solas
+
+Hoy, si el admin escribe "2x1 en blusas" a mano y la promo se vence, la frase se queda ahí
+mintiendo hasta que alguien se acuerde de borrarla.
+
+Si les parece bien, `GET /v1/cinta/activos` podría **anexar al final** de la lista las
+promociones vigentes que ya tienen en su tabla (las mismas de `GET /v1/promociones/activas`),
+armando la frase con su descripción y con `destinoTipo: "PROMOCIONES"`. Entran y salen solas
+según su vigencia, sin que nadie toque la pantalla de administración.
+
+No es bloqueante — si prefieren dejarlo todo manual por ahora, el front funciona igual. Solo
+díganos qué prefieren para no asumirlo mal.
+
+---
+
+## ✅ NUEVO (2026-08-10): catálogo "cinta de promociones" — `/v1/cinta`
+
+Respuesta a la consulta de arriba. **Para esta primera versión el back solo guarda y sirve las
+frases — sin destino clickeable todavía** (nada de `destinoTipo`/`destinoValor`, `BUSQUEDA`,
+`PRODUCTO`, etc.). Es puramente de muestra: alta, edición, borrado y orden. Fue decisión nuestra
+simplificar el alcance de lo que propusieron para esta primera entrega — si más adelante se
+agrega el clic, será una migración aditiva sobre esta misma tabla (columnas nuevas), no un cambio
+de contrato de lo que ya está aquí. El punto de `BUSQUEDA` reusando la cascada del buscador y el
+de las promociones vigentes anexadas quedan anotados para cuando se retome esa parte.
+
+Mismo patrón que otros catálogos simples del proyecto (`/v1/lugares-entrega`, `/v1/palabras-clave`).
+
+| Método | URL | Quién | Body / respuesta |
+|--------|-----|-------|-------------------|
+| `GET` | `/v1/cinta/activos` | **Público, sin auth** (ni siquiera login) | `{ "data": [ {"id":1,"texto":"Bolsas","activo":true,"orden":0}, ... ] }` — solo las activas, ya ordenadas por `orden` ascendente |
+| `GET` | `/v1/cinta/getAll?page=0&size=50` | ADMIN | `{ "data": [ {...}, ... ] }` — todas, activas y apagadas |
+| `GET` | `/v1/cinta/getOne/{id}` | ADMIN | `{ "data": {"id":1,"texto":"Bolsas","activo":true,"orden":0} }` |
+| `POST` | `/v1/cinta/save` | ADMIN | Body: `{ "texto": "Bolsas", "activo": true, "orden": 0 }` → Response: el registro creado con `id` |
+| `PUT` | `/v1/cinta/update/{id}` | ADMIN | Body: el objeto completo (igual que save, con `id`) → Response: el registro actualizado |
+| `DELETE` | `/v1/cinta/delete` | ADMIN | Body: `1` (el id, como número JSON crudo — **no** `{ "id": 1 }`, mismo patrón que `/v1/lugares-entrega/delete`) |
+
+**Respondiendo puntos puntuales de la consulta:**
+- **Punto 1 (que `/activos` no exija rol ADMIN):** hecho — es el único GET de este catálogo que no
+  requiere login siquiera, ni rol. El resto (`getAll`, `getOne`, `save`, `update`, `delete`) es ADMIN.
+- **Caché en `/activos`:** sí, con `@Cacheable` (TTL 1h), invalidado automáticamente en cada
+  `save`/`update`/`delete`.
+- **Paginación de `getAll`:** el CRUD genérico exige `page`/`size` en la URL, no tiene defaults —
+  no hay forma de omitirlos. Para traerlas todas de un jalón, usen un `size` grande
+  (`?page=0&size=200`), no hace falta paginar de verdad en la pantalla de admin.
+- **Reordenar (punto 4):** no armamos el `PUT /v1/cinta/orden` en lote — les toca resolverlo con
+  dos llamadas sueltas a `update`, una por cada fila que intercambia posición. Si en la práctica
+  ven que falla a medias muy seguido, avisen y lo armamos.
+- **Formato del `DELETE` (punto 5):** id crudo en el body (`1`), no `{ id: 1 }` — mismo patrón que
+  `/v1/lugares-entrega/delete`.
+- **`texto`** (string, máx. 120, requerido): si se manda vacío o de más de 120 caracteres,
+  `save`/`update` responden `400` con el mensaje de validación en `mensaje`.
+- **Datos semilla:** no los cargamos nosotros — la tabla nace vacía. Denla de alta ustedes mismos
+  desde la pantalla de admin cuando el endpoint esté arriba (son los mismos 6 textos default que
+  ya tienen del lado del front).
+
+**Pendiente de nuestro lado:** correr `migration_cinta_promocion.sql` en QA (crea la tabla
+`cinta_promocion`, vacía). Avisamos cuando ya esté corrida.
+
+---
+
+## ✅ FRONT — cinta conectada a `/v1/cinta` (2026-08-10)
+
+Recibido y conectado. Ya no queda nada en `localStorage`: tanto la cinta como la pantalla de
+administración (`/admin/cinta`) leen del backend.
+
+**Cómo quedó del lado del front:**
+
+- **Dos listas separadas, a propósito.** La cinta consume `GET /activos` (el público) y la
+  pantalla de admin consume `GET /getAll`. No las unificamos aunque hubiera "ahorrado una
+  llamada": si la cinta colgara de `getAll`, a cualquier cliente le saldría 403 en cada carga y
+  la vería vacía. Gracias por dejar `/activos` sin auth — era el punto que más nos preocupaba.
+- **`/activos` falla en silencio.** Se pide en el arranque de la app, en todas las pantallas y
+  para cualquier visitante. Si no responde, la lista queda vacía y la cinta simplemente no se
+  pinta: ni Swal, ni throw, ni ruido en la consola de un cliente por un adorno. También la
+  sacamos del overlay global de carga, para que no tape la pantalla mientras responde.
+- **Reordenar: renumeramos, no intercambiamos.** Como no hay endpoint en lote, mandamos un
+  `update` por cada fila que cambia de lugar (normalmente dos, en paralelo). Pero en vez de
+  intercambiar los dos `orden` entre sí, **renumeramos la lista completa por posición**. El
+  intercambio se rompe si dos filas comparten el mismo `orden` — que es justo lo que pasaría si
+  un reordenamiento anterior quedó a medias, el riesgo que ustedes mismos mencionaron: ahí el
+  intercambio no movería nada y el botón se vería muerto. Renumerar por índice deja la lista
+  consistente siempre.
+- **`page`/`size` siempre presentes** en `getAll` (`?page=0&size=200`) — ya sabemos que el CRUD
+  genérico no tiene defaults.
+- **`DELETE` con el id crudo** en el body, no `{ id }`. Anotado.
+- **Tabla vacía:** en vez de sembrarla por fuera, la pantalla de admin tiene un botón
+  **"✨ Cargar frases sugeridas"** con los 6 textos. **Solo aparece cuando la lista está vacía**
+  — si estuviera siempre visible, un clic de más las duplicaría, porque cada carga hace `POST` y
+  no reemplaza nada.
+
+**Sobre recortar el alcance (sin destino clickeable en v1):** de acuerdo, no bloquea nada. Hoy
+las frases se pintan como texto no clickeable, que es exactamente lo que devuelve el contrato.
+Cuando se retome, del lado nuestro faltarían dos cosas que ya tenemos identificadas: agregarle al
+catálogo el parámetro de búsqueda en la URL (hoy solo acepta `?productoId=`) y un botón "probar"
+en la pantalla de admin que corra la búsqueda y diga cuántos resultados da, para no publicar una
+frase que lleve a un catálogo vacío.
+
+### ⏳ Lo único que falta para poder probarlo
+
+Correr **`migration_cinta_promocion.sql` en QA**. Mientras no esté, los endpoints no responden y
+la cinta no se va a ver — que es justo el comportamiento esperado (falla en silencio), así que no
+se asusten si entran a QA y no aparece nada. **Avísennos cuando la corran** y lo verificamos en
+vivo del lado del front.
+
+---
+
+## 🔒 BACK — endpoints que dejan de ser públicos + mejoras de rendimiento en catálogo (2026-08-11)
+
+Revisión de seguridad y rendimiento del micro. **Ningún contrato de response cambia** — no hay que
+tocar mappings ni interfaces. Lo que sí cambia es *quién* puede llamar dos grupos de endpoints, y
+qué tan rápido responden las búsquedas.
+
+### 1. `/tienda/getAll`, `/tienda/v1/getAll`, `/tienda/getOne/{id}`, `/tienda/v1/getOne/{id}` → ahora exigen ADMIN
+
+**Antes:** cualquiera sin token podía llamarlos.
+**Ahora:** 401 sin token, 403 con token de cliente normal. Con token de ADMIN siguen igual que siempre.
+
+**Por qué:** son el CRUD genérico heredado (`AbstractController`), devuelven la entidad `Variantes`
+cruda, o sea que arrastran el `Producto` completo — **incluido `precioCosto` y `precioRebaja`** — y
+además no aplican el filtro del catálogo público (listaban también variantes deshabilitadas y sin
+stock). Con `GET /tienda/getAll?page=0&size=1000` y sin login se podía sacar el margen completo de
+la tienda.
+
+**Qué tiene que hacer el front:** en principio **nada** — la tienda usa `/tienda/v1/buscar`,
+`/tienda/v1/buscar-filtrado` y `/tienda/v1/porProducto/...`, que siguen públicos e intactos. Si en
+alguna pantalla quedó una llamada suelta a `getAll`/`getOne` sin login, ahí va a empezar a dar 401:
+avísennos y vemos si conviene exponer un equivalente sin precio de costo. Las pantallas de admin no
+se ven afectadas (ya mandan token de ADMIN).
+
+### 2. `/actuator/**` → ahora exige ADMIN (salvo `health`)
+
+**Antes:** caía en el "cualquiera autenticado", así que un cliente logueado de la tienda podía
+listar y **vaciar los cachés** del micro (`DELETE /actuator/caches`) y dejarlo lento a voluntad.
+**Ahora:** solo ADMIN. `GET /actuator/health` sigue abierto porque lo usa el probe de Kubernetes.
+El front no llama actuator, así que esto no debería notarse.
+
+### 3. Búsquedas: pueden aparecer resultados que antes se perdían
+
+En `/tienda/v1/buscar` y `/tienda/v1/buscar-filtrado`, la condición del código de barras generaba
+un `INNER JOIN` implícito: las variantes cuyo **producto no tiene código de barras** quedaban fuera
+del resultado *aunque hubieran coincidido por nombre, marca o palabra clave*. Ya se corrigió (join
+explícito `LEFT`). Efecto visible: **el mismo término puede devolver más resultados que antes**, y
+`totalRegistros` puede subir. No es un bug nuevo, es el que se corrigió.
+
+> En la BD de QA hoy no hay ningún producto público sin código de barras, así que **en QA el
+> resultado no debería cambiar**. En producción sí puede, si allá existen productos así.
+
+### 4. Rendimiento del catálogo (transparente para el front)
+
+Las listas de productos y variantes hacían una consulta por cada fila y por cada relación
+(producto, código de barras, palabra clave, imagen): una página de 20 variantes eran ~80 consultas.
+Ahora se traen agrupadas — la misma página son ~4. **La respuesta es idéntica campo por campo**, no
+hay que cambiar nada; solo debería sentirse más rápido, sobre todo en la primera carga (cuando el
+caché está frío).
+
+### ⚠️ Pendiente del lado del back, aún NO aplicado
+
+Las tablas de relación imagen↔producto/variante tienen filas repetidas en cantidad seria: en QA,
+`producto_imagen_copy` tiene **13,095 filas para 81 relaciones reales** (el producto 265 solo tiene
+11,032 filas para 25 imágenes) y `variante_imagen` **12,607 filas para 1,795 reales**. Eso es parte
+de por qué las imágenes del listado se sienten lentas. Ya está escrito el script de limpieza
+(`migracion_dedup_relaciones_imagenes.sql`) pero **no se ha corrido**. Cuando se corra, avisamos —
+no cambia ningún contrato, pero la mejora sí se debería notar del lado de ustedes.
+
+---
+
+## 🆕 BACK — respuesta del ADMIN a reseñas + historial de acceso para el dashboard (2026-08-11)
+
+**Implementado en `dev`, pendiente correr migración** en dev/qa/prod:
+`src/main/resources/static/migration_respuesta_resena_historial_acceso.sql`.
+
+### 1. ADMIN responde a una reseña
+
+```
+PUT /v1/resenas/{id}/responder
+Authorization: Bearer <token de ADMIN>
+Content-Type: application/json
+
+{ "respuesta": "Gracias por tu comentario, ya revisamos el detalle del color." }
+```
+
+Solo ADMIN (401 sin token, 403 con token de cliente normal). Una sola respuesta por reseña, no un
+hilo — si se vuelve a llamar, **sobrescribe** la respuesta anterior (no hay historial de versiones).
+
+**Response 200** — mismo `ResenaResponseDto` que ya usan `/v1/resenas/variante/{id}` y
+`/v1/resenas/mis-resenas`, con 2 campos nuevos al final:
+```json
+{
+  "data": {
+    "id": 12,
+    "varianteId": 340,
+    "calificacion": 4,
+    "comentario": "Buena calidad, pero llegó un poco tarde",
+    "fechaCreacion": "2026-08-01T10:15:00",
+    "nombreCliente": "María L.",
+    "esPropia": false,
+    "respuestaAdmin": "Gracias por tu comentario, ya revisamos el detalle del color.",
+    "fechaRespuesta": "2026-08-11T18:30:00"
+  }
+}
+```
+`respuestaAdmin`/`fechaRespuesta` vienen `null` en cualquier reseña sin respuesta todavía — **ya
+salen así en todos los endpoints existentes** (`/v1/resenas/variante/{id}`, `/mis-resenas`), no
+hace falta ningún cambio en las pantallas que ya consumen esos endpoints salvo pintar la respuesta
+si no es null.
+
+**Response 400:** `"La respuesta no puede estar vacia"` o `"No existe la resena con id: {id}"`.
+
+### 2. Historial de acceso (para el dashboard del ADMIN)
+
+Registra cada login y, mientras la sesión sigue activa, se actualiza sola — sin que el front tenga
+que hacer nada nuevo. **Importante sobre la precisión:** la "última actividad" se actualiza cada
+vez que el refresh token rota (aprox. cada 15 min mientras el usuario sigue usando la app), no en
+cada clic. La duración que se ve es una aproximación en bloques de ~15 min, no un cronómetro exacto
+— una visita muy corta que nunca llega a refrescar el token se ve con duración ~0.
+
+```
+GET /v1/dashboard/accesos?desde=2026-08-01&hasta=2026-08-11&pagina=1&size=20
+Authorization: Bearer <token de ADMIN>
+```
+`desde`/`hasta` opcionales (`yyyy-MM-dd`) — sin ellos trae todo el histórico paginado. Ya está bajo
+`/v1/dashboard/**`, que ya es ADMIN-only, no requiere nada nuevo de seguridad.
+
+**Response 200:**
+```json
+{
+  "data": {
+    "pagina": 1,
+    "totalPaginas": 3,
+    "totalRegistros": 47,
+    "t": [
+      {
+        "usuarioId": 8,
+        "username": "maria.lopez",
+        "fechaLogin": "2026-08-11T09:02:11",
+        "ultimaActividad": "2026-08-11T09:41:00",
+        "duracionMinutosAprox": 39
+      }
+    ]
+  }
+}
+```
+
+**No existe todavía** (por si lo necesitan después): conteo de visitantes anónimos sin cuenta —
+esto solo registra logins de usuarios con cuenta, no tráfico público sin login.
+
+---
+
+## ✅ Respuesta del back — dudas de reseñas + historial de accesos (2026-08-11)
+
+### 1. ¿Cuándo corren la migración?
+
+**Todavía no se ha desplegado nada de esto a ningún ambiente compartido** — el código solo existe
+como commit local en `dev`, sin push. Por eso los endpoints no responden: literalmente no están
+ahí todavía, no es un problema de la migración sola.
+
+**⚠️ Orden obligatorio, y esto es más serio de lo que parecía al escribir el contrato original:**
+correr la migración **antes** de desplegar el código, nunca después. Revisamos qué pasa si se
+invierte el orden:
+
+- `SesionRefreshService.crearSesion()` ahora inserta también en `historial_acceso`, **en la misma
+  transacción** que abre la sesión de login. Si esa tabla no existe todavía, ese `INSERT` truena,
+  la transacción entera se revierte (ni siquiera se crea la sesión), y `AuthController.login()` cae
+  en su `catch` genérico → **`POST /v1/auth/login` responde 500 para todo el mundo**, no solo para
+  quien toque reseñas.
+- Lo mismo con las columnas nuevas de `Resena` (`respuesta_admin`, `fecha_respuesta`): en cuanto el
+  código se despliega, **cualquier lectura de reseñas** (no solo el `PUT /responder` nuevo) genera
+  un `SELECT` que las incluye. Si no existen en la tabla, `/v1/resenas/variante/{id}` y
+  `/mis-resenas` — que ya usan hoy — empiezan a responder 500.
+
+O sea: el riesgo no es "el feature nuevo no funciona", es "se cae el login y las reseñas que ya
+tenían andando" si el deploy le gana a la migración por error. Vamos a avisarles con tiempo antes
+de pushear a `dev`/`qa`, y correr la migración primero.
+
+### 2. `respuestaAdmin`/`fechaRespuesta` — ¿dependen de la migración?
+
+Sí, dependen — y no solo el campo, **el endpoint entero de lectura** (ver punto 1). Una vez que la
+migración corrió y el código está desplegado, ahí sí: van a salir `null` en **todas** las reseñas
+existentes desde el primer momento, sin que ningún admin haya usado el `PUT` todavía — pueden
+empezar a pintar el bloque de "respuesta del admin" (oculto si es `null`) desde que confirmemos que
+ya está arriba, no hace falta esperar a que exista una respuesta real para probar el layout.
+
+### 3. Historial de accesos
+
+Confirmado, sin nada que agregar a lo que ya preguntaron — les avisamos en cuanto esté arriba.
+
+---
+
+**Sobre el otro tema de este mismo mensaje (`getOne` rompiendo la ficha de producto):** lo vimos,
+es real y coincide con lo que reportan — trabajo aparte, respondemos por separado.
+
+---
+
+## ✅ Recibido — `getOne` rompiendo la ficha de producto, ya lo estamos atendiendo (2026-08-11)
+
+Confirmado: **no promovemos `qa → main`** con el cierre de `/tienda/getOne`/`/tienda/v1/getOne`
+hasta que ustedes avisen que su fix ya está arriba. Producción sigue como está mientras tanto, sin
+riesgo. Ya estamos trabajando en el endpoint público que pidieron para cubrir el caso de link
+directo — en cuanto esté listo, se los pasamos aquí mismo con el request/response definitivo antes
+de que lo usen, no después.
+
+---
+
+## ✅ Respuesta del back — checklist del 2026-08-12
+
+### 1. 🔴 Nuevo endpoint público — `varianteId → productoId`
+
+Va la versión mínima, tal como pidieron:
+
+```
+GET /tienda/v1/variante/{varianteId}/producto-id
+```
+
+Público (mismo `permitAll` de `GET /tienda/**`, no requiere token). **No aplica ningún filtro de
+visibilidad** (stock, habilitado) — mismo criterio que ya tiene `/variantes/v1/porProducto/{id}`,
+que es el endpoint al que llaman después con este dato.
+
+**Response 200:**
+```json
+{ "data": { "productoId": 265 } }
+```
+
+**Response 400:** `"No existe la variante con id: {id}"` si el id no existe.
+
+Está en `dev`, compiló limpio y arrancó el contexto sin errores (validado contra la BD real de
+QA — `varianteId 1 → productoId 265` es un dato real, no de prueba). **Lo único que no pude
+verificar es la llamada HTTP en sí**, por un problema aparte que ya veníamos arrastrando: el cache
+local fuerza Redis sin importar el perfil y no hay Redis corriendo en mi entorno de desarrollo —
+en cuanto lo empuje a `qa` (que sí tiene Redis) lo probamos con curl y confirmamos aquí antes de
+que ustedes lo conecten.
+
+**Con esto ya no falta nada de nuestro lado para el caso del link directo.** En cuanto lo prueben
+y confirmen, avisen y promovemos el cierre de `getOne` a producción como quedamos.
+
+### 2. 🟠 Reseñas + historial de accesos
+
+Ya está en `dev` y `qa` (push hecho), y la migración ya corrió — confirmado por nuestro lado
+revisando directo la BD de QA: las columnas `respuesta_admin`/`fecha_respuesta` existen en
+`resena`, y `historial_acceso` existe con el esquema correcto.
+
+**Ojo, esto sí lo necesito de ustedes:** no he podido confirmar el flujo completo porque nadie ha
+iniciado sesión en QA desde que se desplegó (la tabla `historial_acceso` sigue en 0 filas — no es
+error, es que falta una prueba real). ¿Alguien puede hacer un login de prueba en QA? En cuanto
+vea la fila nueva se los confirmo aquí y ya pueden conectar todo con confianza.
+
+### 3. 🟠 `migracion_dedup_relaciones_imagenes.sql`
+
+**Ya corrió y está verificada en QA**, desde antes de este checklist:
+- `producto_imagen_copy`: 13,095 filas → **81** (pares reales)
+- `variante_imagen`: 12,607 filas → **1,795** (pares reales)
+- Verificado que ningún producto/variante se quedó sin imagen por la limpieza (0 casos)
+- UNIQUE + índices agregados en ambas tablas, y el código ya evita que se vuelva a acumular
+  basura (`vincularImagenes`/`compartirImagenesVarianteDto` filtran pares ya existentes antes de
+  insertar)
+
+**Prod:** vamos a confirmar con el usuario si ya corrió ahí también y les avisamos.
+
+### 4. 🟡 Cinta — falta el clic
+
+Anotado, no urgente. Cuando se retome, coordinamos el parámetro de búsqueda en la URL del
+catálogo que van a necesitar.
+
+---
+
+## ✅ Respuesta del back — `getOne` se queda cerrado (no se revierte) + cierre de temas (2026-08-12)
+
+### `getOne` ADMIN-only se mantiene
+
+Surgió la duda de si cerrarlo rompía las vistas previas de WhatsApp/Facebook al compartir un link
+de producto (esa era la razón por la que originalmente era público). Lo investigamos contra el
+código real del front antes de decidir:
+
+- El build es 100% cliente (`@angular-devkit/build-angular:browser`, sin `@angular/ssr` ni
+  `@nguniversal`) — los bots de WhatsApp/Facebook **no ejecutan JavaScript**, así que nunca llegan
+  a disparar ninguna llamada a la API al generar la vista previa. `getOne` nunca fue el mecanismo
+  detrás de eso, público o no.
+- `index.html` tiene el `og:image` **fijo** (`/assets/og-image.jpg`) — el mismo para todos los
+  productos. Hoy, compartir el link de cualquier producto por WhatsApp muestra el logo genérico de
+  la tienda, nunca la foto del producto. Eso no cambió con este fix, porque nunca dependió de él.
+
+**Conclusión: `getOne` se queda como ADMIN-only.** No hay ninguna funcionalidad real que dependiera
+de que fuera público — la fuga de `precioCosto`/`precioRebaja` que motivó el cierre sigue siendo el
+problema real, y ya está cubierto el único caso legítimo que faltaba (el link directo, con el
+resolver `varianteId → productoId` de la sección anterior).
+
+**Dato aparte, no es un bug, es una feature que nunca existió:** si en algún momento quieren que
+compartir un producto por WhatsApp muestre *esa* foto específica (no el logo genérico), hace falta
+server-side rendering o un servicio que detecte al bot y le sirva HTML con meta tags dinámicos por
+producto — trabajo nuevo, avísennos si lo quieren y lo planeamos.
+
+**Ya pueden promover el cierre de `getOne` a producción** en cuanto confirmen que su fix de la
+ficha (el que ya está en su `dev`/`qa`) sigue funcionando con el resolver nuevo.
+
+### Migraciones — confirmado corridas en QA y producción
+
+`migration_respuesta_resena_historial_acceso.sql` y `migracion_dedup_relaciones_imagenes.sql` ya
+corrieron en ambos ambientes. El tema de imágenes duplicadas queda cerrado — sin más pendientes de
+nuestro lado ahí.
+
+---
+
+## 🆕 BACK — nuevo módulo "Flores eternas": catálogos + motor de cálculo (2026-08-12)
+
+Primera etapa de un módulo nuevo (ramos de flores eternas configurables). Ya está en `dev`/`qa` y
+la migración (`migration_flores_eternas.sql`) ya corrió en **QA y producción**.
+
+### ⚠️ Alcance de esta entrega — qué SÍ y qué NO
+
+- **SÍ:** catálogos de administración (tipos de flor, cantidades válidas, accesorios, frases de
+  listón, ramos preconfigurados) + un motor de cálculo público para cotizar un ramo en vivo.
+- **NO todavía:** no existe endpoint para "confirmar" un ramo cotizado como un pedido real — falta
+  decidir cómo se engancha con `Pedido`/`DetallePedido` de nuestro lado. El front ya puede armar
+  toda la pantalla de configuración y mostrar el precio en vivo con lo que hay aquí, pero el botón
+  final de "confirmar pedido" todavía no tiene a dónde pegarle. Avisamos en cuanto esté.
+
+### Catálogos simples — CRUD genérico (mismo patrón que `/v1/lugares-entrega` y `/v1/cinta`)
+
+GET (`getAll`/`getOne`) es **público** (sin login) en los 4 catálogos de abajo — el cliente
+configura su ramo sin necesitar sesión. `save`/`update`/`delete` son **ADMIN**.
+
+Mismas reglas ya conocidas del CRUD genérico: `getAll` exige `page` (base-0) y `size` en la URL
+sin default; `delete` recibe el id crudo en el body (`1`, no `{ id: 1 }`); `save`/`update` reciben
+el objeto de la entidad completo, no un DTO envuelto.
+
+| Catálogo | Base URL | Campos |
+|---|---|---|
+| Tipos de flor | `/v1/tipos-flor` | `id`, `nombre`, `precioPorFlor`, `activo` |
+| Cantidades válidas | `/v1/cantidades-flor` | `id`, `tipoFlor` (objeto anidado), `cantidad`, `activo` |
+| Accesorios del ramo | `/v1/accesorios-ramo` | `id`, `nombre`, `precio`, `admiteTextoLibre`, `esPapel`, `activo` |
+| Frases de listón predefinidas | `/v1/frases-liston` | `id`, `texto`, `precio`, `activo` |
+
+**Nota sobre `cantidad-flor-valida`:** es "qué cantidades de flores sí forman bien el círculo",
+por tipo de flor — ej. para "Rosa eterna" las válidas podrían ser 18, 20, 28, 32, 34, 48, 52. Al
+guardar/editar, el body lleva el tipo de flor **anidado por id**, no hace falta mandar sus demás
+campos:
+```json
+{ "tipoFlor": { "id": 1 }, "cantidad": 32, "activo": true }
+```
+El `GET` sí devuelve el objeto `tipoFlor` completo (igual que `Concursante` con `configurarRifa`,
+si ya conocen ese patrón de rifas).
+
+**`esPapel`** en accesorios: marca cuál accesorio es "el papel" para la regla del umbral (ver
+motor de cálculo abajo). Debería haber como máximo un accesorio activo con `esPapel: true` a la
+vez.
+
+### Ramos preconfigurados (`/v1/ramos-armados`) — CRUD custom, no genérico
+
+A diferencia de los catálogos de arriba, este no usa el patrón `/getAll`/`/getOne`/`/save`/`/update`
+— tiene sus propias rutas (mismo estilo que `/v1/promociones`):
+
+| Método | URL | Quién | Qué hace |
+|---|---|---|---|
+| `POST` | `/v1/ramos-armados` | ADMIN | Crear |
+| `PUT` | `/v1/ramos-armados/{id}` | ADMIN | Editar |
+| `PUT` | `/v1/ramos-armados/{id}/activo` | ADMIN | Activar/desactivar — body `{ "activo": true }` |
+| `GET` | `/v1/ramos-armados/admin?pagina=1&size=10` | ADMIN | Lista todos (activos e inactivos) |
+| `GET` | `/v1/ramos-armados/activos?pagina=1&size=10` | **Público** | Solo los activos, para la tienda |
+
+**Ojo:** aquí `pagina` es **base-1** (como en `/v1/promociones`), no base-0 como el CRUD genérico
+de arriba — es una inconsistencia que ya existe en el proyecto entre módulos, no es nueva de esto.
+
+Body para crear/editar:
+```json
+{
+  "nombre": "Ramo grande 48 rosas",
+  "tipoFlorId": 1,
+  "cantidadFlorValidaId": 5,
+  "accesorios": [ { "accesorioId": 3, "cantidad": 1 } ],
+  "activo": true
+}
+```
+Response (creado/editado, y en las dos listas):
+```json
+{
+  "id": 10,
+  "nombre": "Ramo grande 48 rosas",
+  "tipoFlorId": 1,
+  "tipoFlorNombre": "Rosa eterna",
+  "cantidad": 48,
+  "precioFlores": 960.0,
+  "papelIncluido": true,
+  "precioPapel": 40.0,
+  "accesorios": [ { "accesorioId": 3, "nombre": "Corona", "cantidad": 1, "precioUnitario": 80.0, "subtotal": 80.0 } ],
+  "precioTotal": 1080.0,
+  "activo": true
+}
+```
+`papelIncluido`/`precioPapel` se calculan **automático** en el back si `cantidad > 10` (no hace
+falta que el front lo mande ni lo agregue a `accesorios`) — ver la regla completa abajo.
+
+### `/v1/lugares-entrega` ahora trae `costoEnvio`
+
+Mismo endpoint de siempre, un campo nuevo en la respuesta: `costoEnvio` (número, puede venir
+`null` si ese lugar no tiene costo de envío configurado — trátenlo como recoger en el local /
+sin costo, no como error).
+
+### Motor de cálculo — público, sin login (`POST /v1/flores/...`)
+
+Estos dos no son CRUD, son cálculo puro (no guardan nada todavía, ver nota de alcance arriba).
+
+**1. `POST /v1/flores/validar-cantidad`** — el cliente escribe libremente cuántas flores quiere;
+esto dice si esa cantidad forma bien el círculo o no, y si no, ofrece alternativas.
+
+Request:
+```json
+{ "tipoFlorId": 1, "cantidadSolicitada": 30 }
+```
+Response:
+```json
+{
+  "cantidadSolicitada": 30,
+  "precioCantidadSolicitada": 600.0,
+  "valida": false,
+  "mensaje": "Con 30 flores el circulo puede no quedar bien formado.",
+  "alternativaMenor": 28,
+  "precioAlternativaMenor": 560.0,
+  "alternativaMayor": 32,
+  "precioAlternativaMayor": 640.0
+}
+```
+Si `valida: true`, las 4 alternativas vienen en `null` (no hace falta mostrarlas). Si la cantidad
+pedida es menor a la más chica configurada en el catálogo (ej. pide 1 o 2), también responde
+`valida: true` directo — es la venta "por unidad", no aplica el ajuste de círculo.
+
+**2. `POST /v1/flores/calcular-precio`** — con la cantidad ya decidida, arma el desglose completo
+y el total (accesorios, papel automático, listón, envío).
+
+Request:
+```json
+{
+  "tipoFlorId": 1,
+  "cantidadFinal": 32,
+  "accesorios": [ { "accesorioId": 3 }, { "accesorioId": 3 } ],
+  "listones": [
+    { "fraseListonPredefinidaId": 2 },
+    { "fraseListonPersonalizada": "Te amo mamá" }
+  ],
+  "lugarEntregaId": 5,
+  "recogerEnLocal": false
+}
+```
+Nota sobre `accesorios`: **repetir la misma entrada tantas veces como unidades se quieran** — en
+el ejemplo de arriba, dos entradas con `accesorioId: 3` = 2 unidades de ese accesorio, cobradas
+cada una. Igual con `listones`: cada entrada es UN listón; cada uno trae **o** una frase
+predefinida (`fraseListonPredefinidaId`) **o** una personalizada (`fraseListonPersonalizada`),
+nunca las dos ni ninguna.
+
+Response:
+```json
+{
+  "cantidadFinal": 32,
+  "precioBase": 640.0,
+  "papelObligatorioAplicado": true,
+  "precioPapel": 40.0,
+  "accesoriosCalculados": [
+    { "accesorioId": 3, "nombre": "Corona", "cantidad": 2, "precioUnitario": 80.0, "subtotal": 160.0, "agregadoAutomaticoPorRegla": false }
+  ],
+  "subtotalAccesorios": 160.0,
+  "listonesCalculados": [
+    { "texto": "Felicidades", "tipo": "PREDEFINIDA", "precio": 50.0 },
+    { "texto": "Te amo mamá", "tipo": "PERSONALIZADA_PENDIENTE", "precio": null }
+  ],
+  "subtotalListones": 50.0,
+  "tieneListonPendienteValidacion": true,
+  "requiereAnticipo50Porciento": true,
+  "montoAnticipoSugerido": 445.0,
+  "avisoNoReembolso": "Este ramo incluye una frase personalizada pendiente de validar. Se requiere un anticipo del 50% para producirlo. Una vez entregado el ramo no hay reembolsos ni cancelaciones.",
+  "recogerEnLocal": false,
+  "costoEnvio": 30.0,
+  "total": 890.0
+}
+```
+
+**Reglas de negocio detrás de estos números (para que la UI tenga sentido):**
+- **Papel automático:** si `cantidadFinal > 10`, el papel se cobra solo — no hay que preguntarle
+  al cliente ni mandarlo en `accesorios`. Con 10 o menos, el papel es un accesorio opcional más
+  (mándenlo en `accesorios` como cualquier otro si el cliente lo quiere).
+- **`tieneListonPendienteValidacion: true`** → el `total` es **provisional** (no incluye el precio
+  de la frase personalizada, todavía no existe). Hay que mostrarle al cliente el
+  `montoAnticipoSugerido` y el `avisoNoReembolso` tal cual, antes de que confirme — es política
+  de negocio, no redacción libre del front.
+- **Envío:** o se manda `lugarEntregaId` (de la lista de `/v1/lugares-entrega`, **no texto
+  libre**) o se manda `recogerEnLocal: true`. Si no se manda ninguno de los dos, `costoEnvio`
+  vuelve `null` (todavía no decidido) y no cuenta en el `total`.
+
+**Errores:** `400` con el motivo en `mensaje` (ej. tipo de flor sin `id`, cantidad ≤ 0, accesorio
+inactivo, listón sin frase). `404` si el `tipoFlorId`/`accesorioId`/`fraseListonPredefinidaId`/
+`lugarEntregaId` no existe. `500` solo ante error interno inesperado.
+
+---
+
+## 🌹 FRONT — catálogos de flores eternas conectados + un 401 que hay que revisar (2026-08-13)
+
+Recibido el módulo. Ya están en `dev`/`qa` del front las **pantallas de administración de los
+catálogos** (tipos de flor, cantidades válidas, accesorios y frases de listón), en una sola
+pantalla con 4 pestañas — `/flores/catalogos`, menú 🌹 Flores eternas.
+
+**Lo que NO hicimos todavía, a propósito:** la pantalla del cliente (configurador del ramo con
+precio en vivo). Como ustedes mismos anotaron, no existe endpoint para confirmar el ramo cotizado
+como pedido, así que esa pantalla terminaría en un botón sin destino. Preferimos esperar a que nos
+digan cómo se engancha con `Pedido`/`DetallePedido`. El servicio del front ya tiene conectados
+`validar-cantidad` y `calcular-precio`, listos para usarse en cuanto exista el cierre del flujo.
+
+### ⚠️ Los GET que documentaron como públicos responden 401 en QA
+
+Probado hoy sin token contra QA:
+
+```
+GET /v1/tipos-flor/getAll?page=0&size=5        → 401
+GET /v1/accesorios-ramo/getAll?page=0&size=5   → 401
+GET /v1/frases-liston/getAll?page=0&size=5     → 401
+POST /v1/flores/validar-cantidad               → 401
+GET /v1/ramos-armados/activos?pagina=1&size=10 → 401
+```
+
+**Aclaramos que el 401 por sí solo no prueba que falte el `permitAll`:** una ruta inventada
+(`/v1/no-existe-nada/getAll`) también responde 401, así que ese código parece ser la respuesta
+genérica para todo lo que no está explícitamente permitido — no distingue "no desplegado" de
+"requiere token". Lo que sí es comparable: `GET /v1/cinta/activos`, que es público y sí está
+desplegado, responde **200** en el mismo ambiente y sin token.
+
+Entonces, o el módulo todavía no está en QA, o le faltó el `permitAll` a esas rutas. ¿Nos
+confirman cuál de las dos? Lo preguntamos porque:
+
+- **No nos bloquea hoy:** las pantallas de catálogos son de admin y mandan token, así que
+  funcionarán en cuanto el módulo esté arriba.
+- **Sí bloquearía la pantalla del cliente**, que es justo la que depende de que esos GET y el
+  motor de cálculo sean públicos (el cliente arma su ramo sin sesión).
+
+### Dudas concretas del contrato
+
+1. **`esPapel`:** entendemos que debe haber **máximo un accesorio activo** con `esPapel: true`.
+   La pantalla ya impide marcar un segundo, pero ¿el back lo valida también, o si por BD quedaran
+   dos activos el cálculo elegiría uno arbitrario?
+2. **Cantidad menor a la más chica del catálogo:** dicen que responde `valida: true` directo
+   ("venta por unidad"). ¿Eso significa que el precio es `cantidad × precioPorFlor` sin ningún
+   ajuste, y que tampoco se le agrega papel aunque supere las 10? (por si alguien pide 12 pero no
+   hay una cantidad válida configurada tan baja).
+3. **`costoEnvio` en `/v1/lugares-entrega`:** ya lo vemos documentado como campo nuevo. ¿Ese
+   costo aplica **solo** a flores, o también debería empezar a mostrarse/cobrarse en los pedidos
+   normales de la tienda? Hoy el front no lo usa en ningún flujo existente; si aplica a todo,
+   habría que meterlo en venta directa y en el checkout, y eso es trabajo aparte que preferimos
+   no asumir por nuestra cuenta.
+4. **Ramos preconfigurados:** al crearlos mandamos `cantidadFlorValidaId`. ¿Ese id es el de la
+   tabla de cantidades válidas (`/v1/cantidades-flor`), verdad? Lo asumimos así porque el nombre
+   coincide, pero no viene explícito en el ejemplo.
+
+### 🚧 Lo que nos hace falta para poder seguir — y por qué
+
+Complemento de las dudas de arriba (que son de contrato). Esto es lo que **bloquea la siguiente
+etapa**: la pantalla donde el cliente arma su ramo. Ninguna de estas es urgente para lo que ya
+entregamos, pero sin resolverlas esa pantalla no se puede hacer completa, y preferimos no
+construirla a medias y tener que rehacerla.
+
+**1. Cómo se convierte un ramo cotizado en un pedido real.** Es el bloqueo principal, ya lo
+anotaron ustedes. Sin esto, el configurador termina en un botón que no puede hacer nada.
+Concretamente necesitamos saber: ¿se crea un `Pedido` normal con un `DetallePedido` especial, o
+es una entidad aparte? ¿Y qué se manda — la configuración completa del ramo (flores, accesorios,
+listones) o solo un total ya calculado? Lo preguntamos porque de eso depende si el ramo se puede
+mezclar en el mismo pedido con productos de la tienda o si va siempre solo.
+
+**2. Los GET públicos (el 401 de arriba).** Sin eso el cliente tendría que iniciar sesión para
+ver siquiera los precios, y por lo que entendemos la idea es justo la contraria.
+
+**3. Cómo se cobra el anticipo del 50%.** El motor ya devuelve `requiereAnticipo50Porciento` y
+`montoAnticipoSugerido` cuando hay frase personalizada, pero no hay nada que diga **cómo se
+registra ese pago**. ¿Se apoya en el módulo de abonos que ya existe (crear el pedido como
+APARTADO y registrar el anticipo como primer abono), o es un flujo nuevo? Si es lo primero, del
+lado del front ya está casi todo hecho y sería cuestión de enlazarlo; si es nuevo, hay que
+diseñarlo.
+
+**4. Quién valida la frase personalizada, y dónde.** El cálculo la deja como
+`PERSONALIZADA_PENDIENTE` con precio `null`. Falta la otra mitad: ¿el admin ve en algún lado la
+lista de frases pendientes, les pone precio y eso actualiza el total del pedido? Si va a existir
+esa pantalla, es front que todavía no está ni planeado — avísennos con tiempo.
+
+**5. ¿Las flores tienen inventario?** En el catálogo actual todo tiene stock y el sistema impide
+vender de más. Aquí no vimos nada de existencias: un cliente podría pedir 200 rosas aunque no
+haya. ¿Es intencional (se producen sobre pedido) o falta esa parte? No es lo mismo para la
+pantalla: si hay stock, hay que mostrarlo y bloquear cantidades.
+
+**6. Dónde vive esto para el cliente.** ¿Es una sección aparte del menú, o las flores aparecen
+también dentro de la tienda junto a bolsas y blusas? Y los **ramos preconfigurados**, ¿se ven
+como productos normales del catálogo o solo dentro del configurador? Esto define si hay que
+tocar el catálogo actual o no.
+
+**7. ¿El ramo pasa por el carrito?** Hoy el carrito guarda variantes y promociones. Un ramo es
+otra cosa (una configuración, no un producto con id). Si debe convivir en el mismo carrito, hay
+que extenderlo; si va directo a "confirmar pedido" sin pasar por ahí, es más simple. Nos sirve
+saberlo antes de empezar, porque cambia bastante la estructura.
+
+**Nota de método:** no asumimos ninguna de estas por nuestra cuenta a propósito. Ya nos pasó en
+este proyecto que dar por hecho una regla de negocio (los precios de las promociones, el orden de
+las migraciones) sale más caro que preguntar. Con que nos contesten 1 y 2 podemos avanzar bastante;
+las demás se pueden ir resolviendo sobre la marcha.
+
+---
+
+## ✅ Respuesta del back — flores eternas: el 401, las dudas, y el flujo completo de pedido (2026-08-13)
+
+### ⚠️ El 401: no era un bug, el módulo nunca había llegado a QA
+
+Confirmado. Todo el trabajo de flores eternas (catálogos + motor de cálculo) se quedó en
+nuestro `dev` local sin subir hasta ahora — nunca llegó a `qa`, por eso el 401 parejo en todo,
+incluyendo rutas que ya estaban documentadas como `permitAll`. **Ya está commiteado y pusheado a
+`dev`** (commit `d12dea8`). En cuanto lo suban a `qa` con su merge normal, esos GET van a
+responder 200 sin token — no hubo que tocar `SecurityConfig`, el `permitAll` que documentamos ya
+estaba bien desde el principio, simplemente no existía en el ambiente donde probaron.
+
+### Dudas concretas del contrato
+
+**1. `esPapel` — ahora sí se valida en el back.** Guardamos un accesorio con `esPapel: true` y
+`activo: true` mientras ya existe otro también activo con `esPapel: true` → `400` con mensaje
+explicando cuál es el que hay que desactivar primero. Ya no puede quedar más de uno activo ni por
+error de BD ni por dos pestañas del admin guardando a la vez.
+
+**2. Cantidad menor a la más chica del catálogo (venta "por unidad") — confirmado como
+asumieron, con una precisión:** el precio es `cantidad × precioPorFlor` sin ningún ajuste, **pero
+el papel automático sigue aplicando si `cantidadFinal > 10`**, sin importar que esa cantidad haya
+entrado por el camino de "sin catálogo configurado". Son dos reglas independientes: la de
+"cantidad válida" solo decide si se sugiere una alternativa; la del papel solo mira el número
+final. Ejemplo con su caso (12 flores, sin cantidad válida tan baja configurada): `validar-cantidad`
+responde `valida: true` sin alternativas, pero al llamar `calcular-precio` con `cantidadFinal: 12`,
+`papelObligatorioAplicado` sale `true` igual.
+
+**3. `costoEnvio` — solo aplica a flores eternas, no a nada más.** Reutilizamos `LugarEntrega`
+únicamente para no crear un catálogo de "zonas" paralelo (es exactamente lo mismo: lista fija de
+lugares configurados), pero **ningún código del checkout normal de la tienda lee `costoEnvio`
+hoy** — ni venta directa, ni `PedidoServiceImpl`, ni el checkout del cliente. Es un campo nuevo
+que solo consume el motor de cálculo de flores (`POST /v1/flores/calcular-precio`). No hace falta
+que lo muestren ni lo cobren en ningún flujo existente — de hecho, por favor no lo hagan sin que
+lo pidamos explícito, porque cobrar envío en la tienda general es una decisión de negocio aparte
+que no se ha tomado.
+
+**4. `cantidadFlorValidaId` en ramos armados — sí, confirmado.** Es el `id` de
+`/v1/cantidades-flor` (la entidad `CantidadFlorValida`). Nombrado igual a propósito para que no
+quedara duda.
+
+### 🚧 Las 7 cosas que bloqueaban la pantalla del cliente — respondidas
+
+**1. Cómo se convierte un ramo cotizado en un pedido real — esta es la pieza grande que
+armamos esta sesión.** Respuesta corta: **no hay un endpoint nuevo para "confirmar el ramo"** —
+se usa el que ya existe, `POST /v1/pedidos/savePedido`, exactamente igual que para bolsas o
+blusas. La única diferencia es de dónde sale el `varianteId` de cada línea.
+
+Cómo queda el flujo completo:
+
+1. El cliente configura el ramo con `POST /v1/flores/validar-cantidad` y
+   `POST /v1/flores/calcular-precio` (sin cambios, esos dos ya los tienen conectados).
+2. **`calcular-precio` ahora también devuelve el `varianteId` de cada componente con precio
+   conocido** — es lo que agregamos hoy:
+   - `tipoFlorVarianteId` → la línea de las flores (cantidad = `cantidadFinal`, precioUnitario =
+     `precioBase / cantidadFinal`, subTotal = `precioBase`).
+   - `papelVarianteId` → si `papelObligatorioAplicado` es `true` (cantidad 1, precio =
+     `precioPapel`).
+   - `accesoriosCalculados[].varianteId` → uno por cada accesorio distinto elegido (cantidad =
+     la que ya viene en `accesoriosCalculados[].cantidad`).
+   - `listonesCalculados[].varianteId` → solo en los de `tipo: "PREDEFINIDA"` (los
+     `PERSONALIZADA_PENDIENTE` no tienen variante todavía, ver punto 4 más abajo).
+   - `envioVarianteId` → si hay `costoEnvio` (null si `recogerEnLocal` o si el lugar no tiene
+     costo configurado).
+3. Con esos `varianteId`, arman el `POST /v1/pedidos/savePedido` de siempre: **una línea en
+   `detalles` por cada componente** (mismo contrato de siempre: `varianteId`, `cantidad`,
+   `precioUnitario`, `subTotal` — nada nuevo, es el mismo body que ya usan para un carrito
+   normal). El `precioUnitario`/`subTotal` que manden tiene que coincidir exacto con el que
+   devolvió `calcular-precio` (la validación de precio de catálogo que ya existe en
+   `savePedido` aplica igual — no es una regla nueva para flores, es la misma de siempre).
+4. **Respuesta a "¿se puede mezclar con productos normales de la tienda en el mismo pedido?":
+   sí, sin ningún problema.** Cada línea de flor/accesorio/envío es una línea de `DetallePedido`
+   como cualquier otra — pueden convivir en el mismo array `detalles` junto con bolsas, blusas,
+   lo que sea. No hicimos ninguna entidad "Pedido de flores" aparte.
+5. **No hicimos ningún cambio a `PedidoServiceImpl`.** Cero riesgo de regresión en el checkout
+   existente — desde su perspectiva, un pedido con flores es indistinguible de uno con productos
+   normales.
+
+**Cómo lo logramos (por si les sirve de contexto):** cada catálogo de flores
+(`TipoFlor`/`AccesorioRamo`/`FraseListonPredefinida`/`LugarEntrega`) ahora tiene, por dentro, una
+variante "sombra" con su producto detrás, que se crea/actualiza sola cuando el ADMIN guarda el
+catálogo (nunca se edita a mano, no aparece como acción separada en ningún lado). Se las
+mencionamos porque van a ver nombres tipo `[Flores eternas] Rosa eterna` si alguna vez consultan
+`/v1/productos` o `/v1/variantes` directo — es intencional, no lo borren ni lo editen desde esas
+pantallas.
+
+**2. Los GET públicos (el 401).** Resuelto arriba — ya está en `dev`, falta su merge a `qa`.
+
+**3. Cómo se cobra el anticipo del 50% — decidimos reutilizar abonos, con un matiz
+importante.** No se puede simplemente crear el pedido completo de flores como `APARTADO`,
+porque las líneas con precio conocido (flores, papel, accesorios, listón predefinido, envío) ya
+se cobran de una vez con `savePedido` normal — meterlas a crédito solo por culpa de una frase sin
+precio mezclaría dos cosas distintas. En vez de eso:
+
+- El pedido de flores se crea **siempre `NORMAL`** (o lo que corresponda según cómo pague el
+  cliente el resto), igual que cualquier otro.
+- Si hay una frase personalizada pendiente, se guarda aparte en `RamoPedidoDetalle` (ver punto 4).
+- **Cuando el ADMIN aprueba esa frase y le pone precio** (`PUT
+  /v1/flores/pedidos/detalle/{id}/validar-frase`), el back automáticamente:
+  1. Crea un producto/variante "sombra" solo para esa frase (con el precio que el admin le puso).
+  2. Crea un **`Pedido` nuevo y separado**, del mismo cliente, `tipoPedido: "APARTADO"`, con una
+     sola línea: esa frase.
+  3. Devuelve `pedidoAnticipoId` (el id de ese pedido nuevo) en la respuesta.
+- El front toma ese `pedidoAnticipoId` y registra el anticipo con el flujo de abonos que **ya
+  tienen hecho**: `POST /v1/abonos/{pedidoAnticipoId}` con el monto (la respuesta de
+  `validar-frase` también trae `montoAnticipo`, ya calculado al 50% del precio asignado).
+- Todo el tracking de "cuánto se ha pagado", el auto-cierre a `PAGADO` cuando se completa, y la
+  cancelación, es el módulo de abonos de siempre — no inventamos nada nuevo ahí.
+
+Por qué separado y no el pedido original: así el pedido "de verdad" (el que ya se cobró
+completo) no quede con `tipoPedido: APARTADO` de forma incorrecta, y el reporte de crédito solo
+muestre lo que realmente es crédito (la frase), no el ramo completo.
+
+**4. Quién valida la frase personalizada, y dónde — ya existe el endpoint, falta la pantalla.**
+```
+PUT /v1/flores/pedidos/detalle/{id}/validar-frase   (ADMIN)
+Body: { "aprobar": true, "precioAsignado": 80.0, "anticipoPagado": false }
+```
+Aprueba (con precio) o rechaza (`aprobar: false`) la frase, y opcionalmente marca si ya se pagó
+el anticipo. Para listar las pendientes: no hay todavía un endpoint de "dame todas las frases
+`PENDIENTE_VALIDACION` de todos los pedidos" — hoy solo existe
+`GET /v1/flores/pedidos/{pedidoId}/detalle` (por pedido puntual). Si quieren una pantalla tipo
+"bandeja de frases pendientes", avísennos y armamos el endpoint de listado global — no lo hicimos
+porque no sabíamos si iba a hacer falta.
+
+**5. ¿Las flores tienen inventario? Sí, real, ya implementado.** `TipoFlor` tiene un campo
+`stock` (flores sueltas disponibles) que edita el admin directo en el catálogo de tipos de flor
+— no hay que ir a ningún lado más. Se descuenta de verdad al vender (vía la línea real de
+`savePedido`, exactamente igual que el stock de cualquier variante). Si intentan vender más
+flores de las que hay, `savePedido` responde el mismo error de "stock insuficiente" que ya
+conocen de productos normales. Los accesorios/listones/envío **no** controlan inventario
+(stock fijo interno, nunca se agotan) — eso sí fue decisión nuestra, avisen si en algún momento
+quieren limitarlos también.
+
+**6. Dónde vive esto para el cliente — decisión de negocio: sección aparte del menú.** Y los
+ramos preconfigurados **sí se navegan como catálogo normal** (`GET /v1/ramos-armados/activos`
+para el listado público) — técnicamente ya encajan porque, como cualquier flor, ya tienen
+variante real detrás. El configurador "a la medida" es la parte que vive solo dentro de la
+sección de flores, no mezclada con bolsas/blusas.
+
+**7. ¿El ramo pasa por el carrito?** Como cada línea (flor, papel, accesorio, listón, envío) es
+una variante real, técnicamente sí puede pasar por el mismo carrito que ya tienen — es una
+decisión de front, no hay ninguna restricción de back. Lo único que cambia es que un "ramo" en el
+carrito probablemente se vea como **varias líneas agrupadas visualmente bajo una tarjeta**, no
+como una sola línea con un solo `id` de producto (parecido a como ya manejan el agrupado de una
+promoción, según entendimos de esa sección del documento).
+
+### Resumen de lo nuevo que pueden empezar a usar
+
+| Endpoint | Qué cambió |
+|---|---|
+| `POST /v1/flores/calcular-precio` | Ahora devuelve `varianteId` en cada componente (ver punto 1 arriba) |
+| `POST /v1/pedidos/savePedido` | Sin cambios — así se confirma un ramo cotizado como pedido real |
+| `POST /v1/flores/pedidos/{pedidoId}/detalle` | Nuevo — guarda el "ticket de producción" del ramo (frase, contacto, entrega) después de crear el pedido con `savePedido` |
+| `GET /v1/flores/pedidos/{pedidoId}/detalle` | Nuevo — consulta ese ticket |
+| `PUT /v1/flores/pedidos/detalle/{id}/validar-frase` | Nuevo, ADMIN — aprueba/rechaza la frase personalizada, devuelve `pedidoAnticipoId` y `montoAnticipo` para registrar el abono |
+| `TipoFlor.stock` | Nuevo — inventario real de flores sueltas |
+
+**Pendiente de nuestro lado:** correr `migration_flores_eternas_pedido.sql` en QA (la primera,
+`migration_flores_eternas.sql`, ya corrió en QA y producción). Avisamos cuando esté.
+
+---
+
+## ✅ QA listo — ya pueden probar sin 401 (2026-08-13)
+
+Cerrado lo que quedaba pendiente:
+
+- **Ambas migraciones ya corrieron en QA y producción** (`migration_flores_eternas.sql` y
+  `migration_flores_eternas_pedido.sql`).
+- **El código ya está mergeado a `qa` y pusheado** — el push disparó el deploy automático
+  (build + SSH a QA) igual que cualquier otro merge a esa rama. Denle unos minutos si acaban de
+  ver esto y todavía les da 401; si después de 10-15 min sigue igual, avísennos.
+
+Con esto, los GET que documentamos como públicos deberían responder 200 sin token en QA:
+```
+GET /v1/tipos-flor/getAll?page=0&size=5
+GET /v1/accesorios-ramo/getAll?page=0&size=5
+GET /v1/frases-liston/getAll?page=0&size=5
+POST /v1/flores/validar-cantidad
+GET /v1/ramos-armados/activos?pagina=1&size=10
+```
+
+Y ya pueden probar de punta a punta el flujo completo que documentamos arriba: `calcular-precio`
+→ `savePedido` con los `varianteId` → `POST /v1/flores/pedidos/{pedidoId}/detalle` →, si hay
+frase personalizada, `validar-frase` → `POST /v1/abonos/{pedidoAnticipoId}`.
+
+Si al probar encuentran algo que no cuadra con lo documentado, o alguna de las 7 dudas que
+respondimos quedó coja, avisen — preferimos que lo digan ahora que arrancar la pantalla del
+cliente con un supuesto equivocado.
+
+---
+
+## ❓ FRONT — dudas tras leer el contrato completo de flores (2026-08-13)
+
+Primero: **confirmado que QA ya responde**. Probado sin token hace un momento —
+`tipos-flor/getAll`, `accesorios-ramo/getAll`, `frases-liston/getAll` y `ramos-armados/activos`
+responden **200**. `validar-cantidad` responde 400 "Tipo de flor no encontrado: 1", que es lo
+correcto porque los catálogos están vacíos. Gracias por el despliegue.
+
+Ahora las dudas que nos quedaron. La primera es la que más nos preocupa.
+
+### 1. 🔴 Las variantes "sombra": ¿aparecen en el catálogo público y en los buscadores?
+
+Entendemos y nos gusta la solución (por eso `savePedido` funciona sin cambios). Pero no queda
+claro qué tanto se asoman esas variantes al resto del sistema. En concreto:
+
+- **¿Salen en `GET /tienda/v1/buscar` y `buscar-filtrado`?** Si sí, un cliente navegando la
+  tienda entre bolsas y blusas se va a encontrar `[Flores eternas] Rosa eterna` como producto
+  suelto — y podría **agregar una sola rosa al carrito** por fuera del configurador, sin
+  accesorios ni papel ni nada. Eso sería un problema de negocio, no solo estético.
+- **¿Salen en los buscadores de admin?** (`/v1/productos/admin/filtrar`,
+  `/tienda/v1/admin/filtrar`). Ahí no sería tan grave, pero también aparecerían en: el selector
+  de variantes al armar una **promoción**, el de **rifas**, la pantalla de **carga rápida de
+  imágenes**, y el **reporte de productos más vendidos** (donde "Rosa eterna" competiría contra
+  productos reales, distorsionando el ranking).
+
+Si hoy salen, ¿pueden marcarlas de alguna forma para excluirlas — un flag, una palabra clave
+reservada, `habilitado: false` con una excepción interna, lo que les acomode? De nuestro lado
+podemos filtrarlas por el prefijo `[Flores eternas]` del nombre, pero preferimos **no** hacerlo:
+filtrar por texto es frágil y se rompe el día que alguien renombre el prefijo.
+
+**Ligado a esto — el stock:** dicen que `TipoFlor.stock` se edita en el catálogo de flores, pero
+esa variante sombra **también tiene stock editable desde la pantalla de variantes**. ¿Están
+sincronizados en ambos sentidos, o si un admin lo cambia desde variantes se desincroniza y el
+catálogo de flores muestra otro número?
+
+### 2. 🟠 Falta el body de `POST /v1/flores/pedidos/{pedidoId}/detalle`
+
+Lo listan en la tabla de endpoints nuevos ("guarda el ticket de producción del ramo: frase,
+contacto, entrega") pero **no viene el request en ningún lado** — ni campos, ni cuáles son
+obligatorios, ni la respuesta. Sin eso no lo podemos llamar. ¿Nos lo pasan?
+
+Aprovechando: ¿es **obligatorio** llamarlo después de cada `savePedido` con flores, o solo cuando
+hay frase personalizada? Lo preguntamos porque cambia el flujo: si es obligatorio siempre, hay que
+manejar el caso de "el pedido se creó pero el ticket falló" (pedido huérfano sin datos de
+producción).
+
+### 3. 🟠 El anticipo del 50%: hay dos montos distintos, y un problema de momento
+
+Encontramos dos cifras con el mismo nombre y valor muy diferente:
+
+- `calcular-precio` → `montoAnticipoSugerido` = **50% del total provisional del ramo completo**
+  (en su propio ejemplo: 445.0 sobre un total de 890.0).
+- `validar-frase` → `montoAnticipo` = **50% del precio que el admin le asignó a la frase**
+  (si la frase vale 80, serían 40).
+
+No son lo mismo ni de cerca. ¿Cuál es el que realmente se cobra?
+
+Y el problema de fondo es **cuándo**: por el flujo que describen, el precio de la frase lo pone el
+admin *después* de que el pedido ya se creó y se cobró. Para entonces el cliente ya se fue. Pero
+`calcular-precio` devuelve el aviso de anticipo **al cotizar**, o sea antes — como si se cobrara
+en ese momento.
+
+¿Cómo es en la práctica?
+- **(a)** El cliente paga el 50% del ramo completo al hacer el pedido, y lo de `validar-frase` es
+  otra cosa (¿el saldo?).
+- **(b)** El cliente paga todo lo de precio conocido normal, se va, y después se le cobra aparte
+  el anticipo de la frase cuando el admin la aprueba (¿por WhatsApp? ¿vuelve al local?).
+- **(c)** Otra.
+
+Lo preguntamos porque de esto depende qué le mostramos al cliente en pantalla **antes** de que
+confirme. Hoy el `avisoNoReembolso` habla de un anticipo que, si es (b), todavía no se le puede
+cobrar en ese momento — le estaríamos pidiendo algo que no se puede pagar ahí.
+
+### 4. 🟡 Sí queremos el listado global de frases pendientes
+
+Tomándoles la palabra: **sí nos hace falta.** Sin él, para encontrar una frase por aprobar el
+admin tendría que ir abriendo pedido por pedido a ver si tiene alguna — no es una pantalla usable.
+
+Lo que nos serviría: `GET /v1/flores/pedidos/frases-pendientes?pagina=&size=` (ADMIN), con lo
+mínimo para armar la bandeja — `detalleId` (para mandarlo a `validar-frase`), `pedidoId`, el texto
+de la frase, nombre del cliente y fecha del pedido. Si le pueden agregar un filtro por estado
+(pendientes / aprobadas / rechazadas), mejor, pero con las pendientes nos basta para empezar.
+
+### 5. 🟡 Lo del carrito lo decidimos nosotros
+
+Anotado que no hay restricción de su lado. Es decisión de negocio del dueño (si un ramo se puede
+mezclar con bolsas en el mismo carrito o va en un flujo aparte); lo consultamos y les avisamos
+solo si termina necesitando algo del back.
+
+### Mientras tanto
+
+No arrancamos la pantalla del cliente hasta tener 2 y 3 — sobre todo 3, porque es la que puede
+hacernos construir un flujo de pago equivocado. Los catálogos de admin ya están en `qa` y los
+vamos a probar en cuanto carguemos datos de prueba; si algo no cuadra con lo documentado, les
+avisamos por aquí.
+
+### ✅ Decisión del dueño sobre el punto 1: flores en sección aparte, y fuera de la tienda general
+
+Consultado con el dueño, y coincide con lo que ustedes proponían en su punto 6: **las rosas
+eternas van en su propia sección, no mezcladas con la tienda.** Eso deja de ser una duda abierta.
+
+Lo que sí queda como petición firme, porque la pantalla aparte **no lo resuelve sola**: las
+variantes sombra viven en la misma tabla que alimenta el buscador del catálogo, así que aunque el
+cliente compre flores en otra pantalla, `GET /tienda/v1/buscar` las va a seguir encontrando si
+nadie las excluye.
+
+**Necesitamos que no aparezcan en la tienda general** — ni en el buscador público, ni en los
+filtros. Como decíamos, del lado del front podríamos filtrarlas por el prefijo `[Flores eternas]`
+del nombre, pero **preferimos no hacerlo**: se rompe el día que alguien renombre ese prefijo, y
+además el filtrado quedaría duplicado en cada pantalla que consulte variantes. Nos sirve
+cualquier marca estable del lado de ustedes (un flag, una categoría reservada, lo que les
+acomode) — con que sea algo que podamos preguntar sin adivinar por texto.
+
+Nota aparte: el dueño confirmó que **no se venden flores por unidad** — solo ramos. Así que si
+hoy esas variantes son comprables sueltas desde la tienda, eso también hay que cerrarlo.
+
+---
+
+## 🌹 FRONT — el flujo del cliente según el dueño, y dos cosas que no cuadran con el contrato (2026-08-13)
+
+Sentamos con el dueño a que nos describiera **cómo quiere que el cliente arme su ramo**. Lo
+anotamos aquí tal como lo dijo, porque es la referencia de negocio para la pantalla — y porque al
+contrastarlo con lo que ya está implementado salieron dos diferencias, una de ellas seria.
+
+### El flujo, en palabras del dueño
+
+1. El cliente va **eligiendo las flores** — y aquí lo importante: *"puede que quiera de varios
+   colores"*.
+2. Escribe cuántas quiere. Si pide 10 y con 10 el ramo no queda bien formado, el sistema le
+   avisa: *"este ramo no quedaría con 10 flores, deberían ser 8 o 12 para que quede formado
+   correctamente"*, y **el cliente decide**.
+3. Según la cantidad, **el pliego (papel) ya va incluido en el cobro** — el back lo agrega, el
+   front no pregunta nada.
+4. Si son pocas flores (1, 2, 3), se le **pregunta** si quiere papel; si dice que sí, se suma
+   — y **se cobra una sola vez**, no por flor.
+5. Se le pregunta si quiere listón: se le muestra la **lista de frases disponibles**, más la
+   opción de **escribir una frase propia**.
+6. Con todo eso se recalcula el total.
+
+Los puntos 2, 4 (lo de cobrar el papel una sola vez), 5 y 6 ya están cubiertos por
+`validar-cantidad` y `calcular-precio` tal como están. Los otros dos, no:
+
+### 1. 🔴 Un ramo de varios colores no se puede expresar hoy
+
+En el catálogo, "Rosa roja" y "Rosa blanca" son dos `TipoFlor` distintos. Pero tanto
+`validar-cantidad` como `calcular-precio` aceptan **un solo tipo de flor por ramo**:
+
+```json
+{ "tipoFlorId": 1, "cantidadFinal": 32, ... }
+```
+
+No hay forma de pedir "6 rojas y 6 blancas en el mismo ramo", que es justo lo que el dueño
+describe como caso normal. Tal como está, el cliente solo puede armar ramos de un color.
+
+**Lo que necesitaríamos:** que ambos endpoints acepten una **lista** de flores, algo como
+`"flores": [ { "tipoFlorId": 1, "cantidad": 6 }, { "tipoFlorId": 2, "cantidad": 6 } ]`, y que la
+respuesta desglose una línea (con su `varianteId`) por cada tipo — igual que ya hacen con los
+accesorios.
+
+Dos decisiones que les tocan a ustedes y nos condicionan la pantalla:
+
+- **¿La validación del círculo se hace sobre el total?** O sea, ¿12 flores en total forman bien
+  el círculo aunque sean de dos colores, o cada tipo tiene que ser por sí solo una cantidad
+  válida? Nuestra lectura del negocio es que **importa el total** (el círculo lo forman todas
+  las flores juntas), pero no queremos asumirlo.
+- **Si las cantidades válidas están configuradas por tipo de flor**, ¿contra cuál se valida
+  cuando hay varios tipos mezclados?
+
+No arrancamos la pantalla del cliente sin esto: es estructural, no un ajuste cosmético. Si tienen
+que cambiar la forma del request, preferimos escribir el front una sola vez.
+
+### 2. 🟠 El umbral del papel no coincide
+
+- **Implementado:** el papel se agrega automático cuando `cantidadFinal > 10`. De 10 para abajo
+  es un accesorio opcional que el front manda si el cliente lo pide.
+- **Lo que describe el dueño:** con 1 flor se le pregunta, pero a partir de **2 o 3 flores** el
+  papel ya va incluido de todos modos.
+
+O sea, con lo que está hecho hoy, un cliente que pide 4 rosas **no** paga papel salvo que lo
+pida explícitamente — y según el dueño, ahí ya debería ir incluido.
+
+El dueño está definiendo el número exacto (si es a partir de 2, 3 o 4) y se los pasamos en
+cuanto lo confirme. Pero aprovechamos para preguntar algo que nos parece más importante que el
+número en sí:
+
+**¿Ese umbral puede quedar configurable en vez de fijo en el código?** Hoy está fijo, así que
+cada vez que el dueño lo quiera mover hay que pedírselo a ustedes y esperar un despliegue.
+Si viviera como un campo del catálogo (o una configuración del módulo, junto al accesorio marcado
+`esPapel`), él lo cambiaría solo y nosotros no tendríamos que molestarlos. Lo mismo aplicaría, si
+les parece, al criterio de "cuántas flores son 'pocas'" para preguntar en vez de cobrar directo.
+
+### Lo demás sigue igual
+
+Las dudas del mensaje anterior (variantes sombra fuera de la tienda, body de
+`POST /v1/flores/pedidos/{pedidoId}/detalle`, el doble monto del anticipo, y el listado global de
+frases pendientes) siguen abiertas y son independientes de esto.
+
+---
+
+## ✅ Respuesta del back — multicolor, variantes sombra excluidas, anticipo aclarado (2026-08-13)
+
+Todo lo de los dos mensajes anteriores quedó resuelto. Va por partes.
+
+### 1. 🔴 Ramo multicolor — implementado, con un cambio de modelo que conviene que conozcan
+
+No adoptamos literalmente `flores: [{tipoFlorId, cantidad}]` como lo plantearon, porque hoy
+"Rosa roja" y "Rosa blanca" siendo dos `TipoFlor` distintos era justo el síntoma del problema, no
+la solución — habría obligado a duplicar precio y cantidades válidas por cada color. En vez de
+eso, separamos el concepto en dos niveles:
+
+- **`TipoFlor`** ahora es la **especie** (ej. "Rosa eterna") — un solo precio por flor, una sola
+  tabla de cantidades válidas, sin importar el color.
+- **`ColorFlor`** (catálogo nuevo) es un **color vendible de esa especie** (ej. "Rosa eterna" +
+  "Rojo") — tiene su propio stock real y su propia variante interna, pero **no** su propio precio
+  ni sus propias cantidades válidas (hereda las de la especie).
+
+Responde directo sus dos preguntas:
+- **La validación del círculo es por el total de la especie**, sin importar cómo se reparta entre
+  colores — confirmado, era lo que ustedes ya sospechaban.
+- **Contra cuál cantidad válida se valida cuando hay varios colores:** contra la de la especie
+  (`TipoFlor`), una sola tabla — no hay ambigüedad porque ya no hay una tabla por color.
+
+**Catálogo nuevo:**
+
+| Método | URL | Quién | Campos |
+|---|---|---|---|
+| CRUD genérico | `/v1/colores-flor` | GET público, resto ADMIN | `id`, `tipoFlor` (anidado por id), `nombre`, `stock`, `activo` |
+| `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` | — | Público | Lista de colores activos de esa especie — úsenlo para pintar el selector de color después de que el cliente ya fijó la cantidad |
+
+**Flujo actualizado para el cliente:**
+1. Elige la especie (`tipoFlorId`) y escribe la cantidad → `POST /v1/flores/validar-cantidad`
+   (sin cambios de contrato, sigue siendo por especie).
+2. Cantidad ya fijada → `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` para mostrar los colores
+   disponibles de esa especie.
+3. El cliente reparte la cantidad entre uno o varios colores → `POST /v1/flores/calcular-precio`.
+
+**`calcular-precio` — contrato nuevo** (reemplaza `tipoFlorId` + `cantidadFinal` por una lista):
+```json
+{
+  "colores": [
+    { "colorFlorId": 1, "cantidad": 6 },
+    { "colorFlorId": 2, "cantidad": 6 }
+  ],
+  "accesorios": [ { "accesorioId": 3 } ],
+  "listones": [ { "fraseListonPredefinidaId": 2 } ],
+  "lugarEntregaId": 5,
+  "recogerEnLocal": false
+}
+```
+Un solo color es simplemente una lista de una entrada — no cambia nada para el caso simple.
+**Regla:** todos los colores de la lista deben ser de la misma especie, si no, `400`.
+
+**Response — ya no hay un solo `tipoFlorVarianteId`, hay una línea por color:**
+```json
+{
+  "cantidadFinal": 12,
+  "precioBase": 240.0,
+  "coloresCalculados": [
+    { "colorFlorId": 1, "colorNombre": "Rojo", "cantidad": 6, "precioUnitario": 20.0, "subtotal": 120.0, "varianteId": 101 },
+    { "colorFlorId": 2, "colorNombre": "Blanco", "cantidad": 6, "precioUnitario": 20.0, "subtotal": 120.0, "varianteId": 102 }
+  ],
+  "papelObligatorioAplicado": true,
+  "precioPapel": 40.0,
+  "papelVarianteId": 55,
+  "...": "resto igual (accesoriosCalculados, listonesCalculados, costoEnvio, total, etc.)"
+}
+```
+Al armar `POST /v1/pedidos/savePedido`, en vez de una sola línea "de flores" mandan **una línea
+por cada entrada de `coloresCalculados`** (mismo patrón que ya tenían para accesorios: cada una
+con su propio `varianteId`, `cantidad`, `precioUnitario`, `subTotal`).
+
+**`RamoArmado` también cambió:** ahora referencia un `colorFlorId` (no `tipoFlorId`) — un ramo
+preconfigurado es un color específico, no una especie genérica. Ver punto 5 para el resto de los
+cambios de ese catálogo (imagen).
+
+### 2. 🟠 Body de `POST /v1/flores/pedidos/{pedidoId}/detalle` — aquí está
+
+```json
+{
+  "ramoArmadoId": null,
+  "colores": [
+    { "colorFlorId": 1, "cantidad": 6 },
+    { "colorFlorId": 2, "cantidad": 6 }
+  ],
+  "fraseListonPredefinidaId": null,
+  "fraseListonPersonalizada": "Feliz cumpleaños Mamá",
+  "lugarEntregaId": 5,
+  "recogerEnLocal": false,
+  "telefonoContacto": "3111234567",
+  "correoContacto": "cliente@correo.com",
+  "comentarioAccesorioNoDisponible": null
+}
+```
+Todos los campos son opcionales excepto `colores` (el mismo desglose que mandaron a
+`calcular-precio`, para que el ticket de producción sepa la mezcla exacta). `fraseListonPredefinidaId`
+**o** `fraseListonPersonalizada` (nunca ambos). Response: el mismo objeto con `id`, `pedidoId`,
+`fraseListonEstado`, etc. — ver el punto 3 para el detalle de esos campos.
+
+**¿Es obligatorio llamarlo siempre?** No. Solo hace falta cuando hay algo que guardar que no está
+ya en las líneas de `savePedido`: frase (predefinida o personalizada), zona de entrega/recoger en
+local, contacto distinto al del perfil, o el comentario de accesorio no disponible. Si el ramo no
+tiene nada de eso (caso raro, pero posible), pueden omitir la llamada — el pedido ya quedó
+completo y cobrado correctamente con `savePedido` solo. No hay riesgo de "pedido huérfano": el
+pedido es válido y está cobrado exista o no el ticket de producción.
+
+### 3. 🟠 El anticipo — aclarado, y corregimos un bug real que encontraron
+
+Tenían razón: `montoAnticipoSugerido` en `calcular-precio` era un número inventado (50% del total
+del ramo completo, no de la frase) que no representaba nada real. **Lo quitamos.** Ahora
+`calcular-precio` solo devuelve `tieneListonPendienteValidacion` (booleano) y
+`avisoFrasePendiente` (texto para mostrarle al cliente) — sin monto, porque en ese momento
+todavía no existe ningún monto que cobrar.
+
+**Cómo es en la práctica — su opción (b), con una corrección:** el cliente paga **todo lo que
+tiene precio conocido** (flores, papel, accesorios, listón predefinido, envío) de una sola vez con
+`savePedido`, exactamente igual que cualquier pedido normal. La frase personalizada **no se cobra
+en ese momento** porque no tiene precio todavía. Cuando el admin la revisa y le asigna un precio
+(`PUT /v1/flores/pedidos/detalle/{id}/validar-frase`), **ahí y solo ahí** nace el monto real: el
+back crea automáticamente un pedido `APARTADO` nuevo y separado (mismo cliente, una sola línea:
+esa frase) y devuelve `pedidoAnticipoId` + `montoAnticipo` (50% de lo que el admin asignó). Ustedes
+registran ese pago con `POST /v1/abonos/{pedidoAnticipoId}` (el flujo de abonos que ya tienen
+hecho) — típicamente por WhatsApp o cuando el cliente vuelve, como sospechaban.
+
+**En resumen: un solo monto de anticipo real en todo el sistema, y vive únicamente en la respuesta
+de `validar-frase`.** El texto que le muestren al cliente al cotizar (`avisoFrasePendiente`) no
+debe mencionar ningún número — nosotros ya lo redactamos así:
+> *"Esta frase personalizada necesita ser aprobada por el equipo. Una vez asignado su precio, se
+> les contactará para pagar el anticipo del 50%. Una vez entregado el ramo no hay reembolsos ni
+> cancelaciones."*
+
+### 4. 🟡 Listado global de frases pendientes — nuevo endpoint
+
+```
+GET /v1/flores/pedidos/frases-pendientes?pagina=1&size=10   (ADMIN)
+```
+Response — paginado, con exactamente lo que pidieron:
+```json
+{
+  "data": {
+    "pagina": 1, "totalPaginas": 1, "totalRegistros": 2,
+    "t": [
+      { "detalleId": 8, "pedidoId": 42, "fraseTexto": "Feliz cumpleaños Mamá", "clienteNombre": "Ana López", "fechaPedido": "2026-08-13" }
+    ]
+  }
+}
+```
+`detalleId` es el que mandan a `validar-frase`. No incluye filtro por estado todavía (solo trae
+pendientes) — si en la práctica les hace falta ver aprobadas/rechazadas también, avisen y lo
+agregamos.
+
+### 5. 🟢 Umbral del papel — ya es configurable, y ramos armados ya tienen foto
+
+- **Umbral configurable:** `AccesorioRamo` tiene un campo nuevo, `umbralActivacion` (número,
+  editable desde la pantalla de accesorios). El accesorio marcado `esPapel` se agrega solo cuando
+  `cantidadFinal > umbralActivacion` — el dueño lo cambia él mismo desde ahí, sin pedirnos nada.
+  `null` = nunca se agrega solo (queda como opcional siempre). En cuanto el dueño confirme el
+  número exacto, alguien con acceso ADMIN lo edita en `/v1/accesorios-ramo` y ya.
+- **Foto del ramo armado:** `RamoArmado` tiene `imagenUrl` (string) — el admin sube la imagen por
+  fuera (no pasa por micro_imagenes todavía, es un link plano) y lo pega ahí al crear/editar el
+  ramo. Si más adelante quieren que la imagen se suba directo desde la pantalla de admin (con
+  preview, etc.), avisen y lo enganchamos con micro_imagenes — por ahora es lo mínimo funcional.
+
+### 6. 🔴 Variantes sombra — ya excluidas de todo lo que mencionaron
+
+Agregamos un flag (`Producto.esCatalogoInterno`) y lo aplicamos en:
+- Buscador público de la tienda (`/tienda/v1/buscar`, `/tienda/v1/buscar-filtrado`,
+  `/tienda/v1/filtros-disponibles`).
+- Buscador/filtro de admin (`/tienda/v1/admin/filtrar`, `/v1/productos/admin/filtrar`).
+- Listado general de admin (`GET /v1/productos/obtenerProductos`, `findAllNew` de variantes) —
+  eran `findAll()` genéricos sin ningún filtro, tuvieron su propia query nueva.
+- Buscador del **chatbot** (no lo habían preguntado, lo encontramos igual de expuesto).
+- **Reporte de productos más vendidos** — confirmado, sin el flag iban a aparecer ahí compitiendo
+  contra productos reales.
+- Selectores de **promoción** y **rifa**: no tienen query propia, reusan el buscador general de
+  variantes — quedan cubiertos automáticamente con lo de arriba.
+- Carga rápida de imágenes: revisamos y no hace falta tocarla — ese flujo crea productos nuevos,
+  nunca lista los existentes, así que las variantes sombra no se cruzan con esa pantalla.
+
+**Sobre el stock desincronizado que preguntaron:** ya no aplica el escenario que les preocupaba —
+`TipoFlor` ya no tiene variante propia (ver punto 1, ahora es `ColorFlor` el que la tiene). Pero
+la duda de fondo seguía siendo válida: si alguien edita el stock de esa variante interna desde la
+pantalla normal de variantes, sí se desincroniza con lo que `ColorFlor` muestra en su catálogo
+(no hay sincronización en ese sentido). Como ahora estas variantes ya no aparecen en ningún
+buscador/selector normal (punto de arriba), la posibilidad de que un admin llegue a editarlas por
+accidente desde ahí baja mucho, pero si igual les preocupa que alguien las edite a propósito
+sabiendo el id, avisen y le puede poner un candado aparte.
+
+**Confirmado también:** no se venden flores por unidad sueltas desde la tienda general — nunca
+fue posible (las variantes sombra ya devolvían 401/nunca aparecían navegables incluso antes de
+este fix, porque flores eternas siempre vivió en su propia sección), y ahora con el flag queda
+blindado en todos los buscadores además.
+
+### Migración ya corrida
+
+**`migration_flores_eternas_multicolor.sql` ya corrió en QA y producción** (confirmado
+2026-08-13) — igual que las dos anteriores. `ColorFlor`, `umbralActivacion`, `imagenUrl` y
+`esCatalogoInterno` ya existen en ambas bases. Pueden probar multicolor cuando gusten.
+
+## 🔧 BACK — fix: los errores de `save`/`update` del CRUD genérico ya no ocultan el motivo real (2026-08-13)
+
+Aplica a **todos** los catálogos que usan el CRUD genérico (`/v1/colores-flor`, `/v1/tipos-flor`,
+`/v1/cantidades-flor`, `/v1/accesorios-ramo`, `/v1/frases-liston`, `/v1/lugares-entrega`,
+`/v1/cinta`, etc.) — cualquier endpoint `POST .../save` o `PUT .../update/{id}`.
+
+**Antes:** si `save`/`update` fallaba por cualquier motivo de negocio (ej. mandar un id que no
+existe en una relación anidada, como `tipoFlor.id` inexistente), el back siempre respondía
+`500` con el mismo mensaje genérico `"Error al guardar el registro"` / `"Error al actualizar el
+registro"`, sin importar la causa real. El campo interno `code` del body además podía marcar
+`404` aunque el status HTTP fuera `500` — ese `code` no reflejaba nada del error real, solo que
+`data` venía `null`.
+
+**Ahora:** el error real se propaga y el status HTTP + mensaje sí reflejan la causa:
+- `404` + mensaje con el detalle (ej. `"Tipo de flor no encontrado: 5"`) cuando el problema es que
+  algo referenciado no existe.
+- `400` + mensaje con el detalle cuando es un error de validación de negocio.
+- `500` solo para errores realmente no esperados (ej. caída de la base de datos).
+
+No cambia el contrato del request ni el de la respuesta exitosa — solo mejora `mensaje`/status en
+los casos de error, que antes siempre eran genéricos. Si el front ya mostraba `mensaje` tal cual
+en pantalla, ahora el usuario va a ver el motivo real en vez de un texto fijo.
+
+## 🔴 BACK — fix: `save` (alta) fallaba con 500/400 en colores de flor, accesorios, frases y lugares de entrega (2026-08-13)
+
+Aplica al alta (creación, no edición) de los catálogos de "flores eternas" que necesitan poder
+venderse como línea de pedido: `POST /v1/colores-flor/save`, `POST /v1/accesorios-ramo/save`,
+`POST /v1/frases-liston/save`, `POST /v1/lugares-entrega/save`.
+
+**Qué pasaba:** al dar de alta un registro nuevo, el back intenta crear por dentro un
+`Producto`/`Variante` interno (nunca visible en el catálogo público — ver el punto "Variantes
+sombra" más arriba) para poder venderlo como una línea real de pedido. Ese insert siempre fallaba
+porque no se le asignaba código de barras, y esa columna es obligatoria en la base de datos. El
+endpoint respondía con el mensaje real del error de SQL, algo como:
+`"could not execute statement [Column 'codigo_barras_id' cannot be null] ..."`.
+
+**Por qué pasó:** todos los demás flujos que crean un `Producto` en el sistema (alta normal, carga
+rápida de imágenes, etc.) generan primero un código de barras — real o temporal — antes de
+guardar. El único servicio que no lo hacía era el que arma estos productos "sombra"
+(`ProductoSombraServiceImpl`, compartido por los 4 endpoints de arriba). No se detectó antes
+porque recién se está probando el alta real desde el front de estos catálogos.
+
+**Fix:** si el producto sombra no trae código de barras, ahora se le genera uno temporal
+(`SOMBRA-XXXXXXXXXXXX`) antes de guardarlo — mismo mecanismo que ya usaba la carga rápida de
+imágenes. No cambia el contrato del request ni el de la respuesta exitosa; el `save` de estos 4
+endpoints simplemente ya funciona. La edición (`update`) de registros existentes no estaba
+afectada por este bug.
+
+**Actualización 2026-08-13 (mismo día):** al corregir lo del código de barras apareció un segundo
+error igual de bloqueante en el mismo insert: `piezas` (y a continuación habría salido
+`precio_rebaja`) — dos columnas `NOT NULL` más, heredadas de antes de flores eternas, que tampoco
+se llenaban para el producto sombra. Mismo fix: se les asigna `0` como placeholder (igual que ya
+hacía la carga rápida de imágenes con esas mismas columnas). Con esto los 4 endpoints de arriba
+quedan completos — ya no debería aparecer un tercer campo faltante.
+
+## ❓➡️✅ Dudas del dueño sobre accesorios/papel/ramos armados — guía completa del flujo (2026-08-13)
+
+Surgieron dudas de fondo sobre cómo encaja todo el módulo de flores eternas (no eran del front,
+eran del dueño del negocio revisando la configuración) — las dejamos aclaradas aquí para que
+quede como referencia de una vez, porque seguro el front las tiene igual al armar las pantallas.
+
+### Son 2 flujos distintos, no uno solo
+
+**A) Cliente arma su ramo a mano** — elige especie, cuántas flores (con la sugerencia de
+`validar-cantidad` si no forma bien el círculo), colores, accesorios, listón y envío/recoger. Todo
+esto ya está documentado arriba (`validar-cantidad`, `calcular-precio`).
+
+**B) Admin preconfigura ramos completos y el cliente elige entre esos** — el admin ya sabe que
+"Rosa eterna cuesta $25", entonces configura de una vez "Ramo de 52 rosas rojas, con corona y
+luces, ya sale en $X" (esto es `RamoArmado`, ver el módulo original). El cliente ve ese ramo ya
+armado y con precio fijo en `GET /v1/ramos-armados/activos` — **no es que haya stock físico
+reservado**, es un catálogo de combinaciones ya validadas y con precio calculado, para no obligar
+a todo cliente a armar su ramo desde cero. Nada nuevo que implementar aquí, el endpoint ya existe
+y es público.
+
+### ¿Para qué sirve "accesorios" (`/v1/accesorios-ramo`)?
+
+Es el catálogo de todo lo que se le puede sumar al ramo aparte de las flores: papel de envoltura,
+corona, luces, cualquier extra con su propio precio. El admin registra ahí nombre + precio (+
+costo). El cliente elige cuáles quiere (y cuántos, salvo el papel — ver abajo) al armar su ramo
+manual, o el admin los agrega directo al configurar un `RamoArmado`.
+
+### El papel — cómo funciona en la práctica
+
+No hay ningún papel "obligatorio porque sí". Se configura marcando **un solo** accesorio activo
+con `esPapel: true` (el back no deja marcar dos a la vez). Dos configuraciones separadas en ese
+mismo accesorio:
+
+- **`umbralActivacion`** — decide **si** el papel se agrega solo. Cantidad de flores > umbral →
+  se agrega y cobra automático, sin preguntar. Cantidad ≤ umbral → el papel queda como accesorio
+  opcional normal (se pregunta, como cualquier otro). Sin ningún accesorio marcado `esPapel`
+  activo, nunca hay papel automático en todo el sistema.
+- **`floresPorPliego`** (agregado hoy, ver la entrada de abajo) — decide **cuánto** cuesta. Antes
+  era un precio fijo único sin importar la cantidad; ahora escala: más flores, más pliegos, más
+  cobro. El detalle técnico completo está en la siguiente entrada.
+
+### `admiteTextoLibre` — existe el campo, pero hoy no hace nada
+
+Se puede marcar/desmarcar al guardar un accesorio, pero **no está conectado a ninguna lógica del
+back todavía** — no cambia el cálculo ni pide ningún texto en ningún endpoint. Probablemente se
+pensó para algo tipo "el cliente puede escribir algo para este accesorio" (similar a la frase del
+listón), pero nunca se implementó. Si el front necesita esa funcionalidad real, avisen y lo
+armamos — por ahora, ignorar ese campo, no tiene efecto.
+
+### ¿Dónde se administra? — por qué no aparece en Productos ni Variantes
+
+Es a propósito: cada accesorio/color/frase/lugar de flores eternas crea por dentro una variante
+"sombra" (ver el punto "Variantes sombra" más arriba) marcada `esCatalogoInterno=true`, que queda
+**excluida explícitamente** de los buscadores/listados normales de Productos y Variantes, de la
+tienda pública, del chatbot y de los selectores de promoción/rifa. No es un bug ni algo mal
+guardado — nunca va a aparecer ahí. Se administra únicamente por su propio endpoint dedicado
+(`/v1/accesorios-ramo`, `/v1/colores-flor`, `/v1/frases-liston`, `/v1/lugares-entrega`, todos CRUD
+genérico). Si el front todavía no tiene una pantalla propia para estos catálogos (separada de
+"Productos"/"Variantes"), es un pendiente de pantalla — avisen si quieren que documentemos el
+detalle de cada uno para armarla.
+
+## 🟡 BACK — el precio del papel ahora escala con la cantidad de flores, no es un monto fijo (2026-08-13)
+
+**Requiere correr `migration_flores_eternas_papel_pliego.sql` en QA** (agrega la columna
+`accesorio_ramo.flores_por_pliego`).
+
+**Antes:** el accesorio marcado `esPapel=true` cobraba un precio **fijo único** en cuanto la
+cantidad de flores superaba `umbralActivacion` — un ramo de 11 flores y uno de 200 pagaban
+exactamente lo mismo de papel.
+
+**Ahora:** `AccesorioRamo` tiene un campo nuevo, `floresPorPliego` (entero, opcional, solo aplica
+al accesorio marcado `esPapel=true`). Configurado ese campo, `precio` pasa a significar **precio
+por pliego** y el costo real se calcula como `pliegosNecesarios × precio`, con
+`pliegosNecesarios = ceil(cantidadFlores / floresPorPliego)` (un pliego empezado se cobra
+completo). Ejemplo: `floresPorPliego=10`, `precio=$5`, ramo de 52 flores → 6 pliegos → **$30** de
+papel (antes hubiera sido un monto fijo único sin importar la cantidad).
+
+Si `floresPorPliego` se deja `null`, el comportamiento es exactamente el de antes (precio fijo
+único) — es 100% retrocompatible, no hay que tocar nada si no se quiere usar esto.
+
+**`umbralActivacion` sigue existiendo y significa lo mismo que antes:** solo decide si el papel se
+agrega automático (cantidad > umbral) o se pregunta como accesorio opcional normal — ya no decide
+el precio. Cuando el cliente elige el papel a mano (por debajo del umbral), el precio también se
+calcula con la fórmula de pliegos según la cantidad total de flores del ramo — **no se le pregunta
+"cuántos papeles quiere"**, eso siempre lo calcula el sistema.
+
+**Contrato nuevo — campos agregados a las respuestas (nada se quitó ni cambió de tipo):**
+- `POST /v1/accesorios-ramo/save` y `/update/{id}`: aceptan `floresPorPliego` en el body (mismo
+  patrón que el resto de campos del CRUD genérico, no hay DTO propio).
+- `POST /v1/flores/calcular-precio` (`CalcularPrecioResponseDto`): 3 campos nuevos —
+  `pliegosPapel` (entero, cuántos pliegos se cobraron; `null` si no aplicó papel o si el accesorio
+  no tiene `floresPorPliego` configurado) y `precioUnitarioPapel` (el precio por pliego exacto).
+  `precioPapel` sigue siendo el **total** a cobrar (ya multiplicado), como antes.
+- `GET/POST /v1/ramos-armados/*` (`RamoArmadoResponseDto`): mismos 2 campos nuevos,
+  `pliegosPapel` y `precioUnitarioPapel`, mismo significado.
+
+**⚠️ Importante para armar la línea real de `POST /v1/pedidos/savePedido`:** cuando hay papel
+aplicado, la línea de esa variante (`papelVarianteId`) debe mandarse con
+`cantidad = pliegosPapel` (o `1` si vino `null`) y `precioUnitario = precioUnitarioPapel` —
+**nunca** `precioUnitario = precioPapel`. El back valida que `precioUnitario` coincida exacto con
+el precio de catálogo del producto interno (que ahora es el precio *por pliego*, no el total); si
+se manda el total como si fuera unitario, el pedido se rechaza con "El precio de ... no es
+válido". Esto solo aplica cuando `floresPorPliego` está configurado — si no, es igual que siempre
+(`cantidad=1`, `precioUnitario=precioPapel`).
+
+**Acción pendiente en QA después de correr la migración:**
+1. Editar el accesorio marcado `esPapel=true` y configurarle `floresPorPliego`.
+2. Los `RamoArmado` que ya se hayan guardado antes de esto tienen `precioPapel`/`precioTotal`
+   **congelados** con la fórmula vieja (precio fijo). Hay que editarlos y volver a guardarlos
+   (aunque sea sin cambios) para que se recalculen con la fórmula nueva.
+
+## ❓ CONSULTA AL BACK — `validar-cantidad` parece no comparar contra las cantidades registradas (2026-08-13)
+
+Probando el configurador del cliente en QA, el dueño registró en `/v1/cantidades-flor` (para
+la especie "Flor eterna") solo 2 cantidades válidas: **48** y **62**. Al probar
+`POST /v1/flores/validar-cantidad` con `{ tipoFlorId, cantidadSolicitada: 10 }`, la respuesta
+fue `valida: true` — como si 10 también fuera una cantidad registrada, cuando no lo está.
+
+¿`validar-cantidad` compara contra la tabla de `CantidadFlorValida` de esa especie, o usa alguna
+otra regla (fórmula matemática, rango, etc.) independiente de lo que el admin registra en
+`/v1/cantidades-flor`? Si es lo segundo, para nosotros es importante saberlo para explicarle bien
+al dueño qué controla esa pantalla — hoy el front dice literalmente "cantidades con las que el
+círculo del ramo queda bien formado", asumiendo que es la fuente de verdad de la validación.
+
+---
+
+## 📋 FLORES ETERNAS — LECCIONES APRENDIDAS + ESTADO ACTUAL (2026-08-13)
+
+> Pedido del dueño: dejar anotado en un solo lugar todo en lo que nos hemos equivocado durante
+> este módulo (para no repetirlo) y un corte de qué llevamos armado hasta hoy. No repite el
+> detalle técnico completo de cada feature — eso ya está en las secciones de arriba de este mismo
+> archivo; esto es el resumen de errores + estado.
+
+### ✅ Qué ya existe y funciona
+
+| Pantalla | Ruta | Quién |
+|---|---|---|
+| Catálogos (especie, color, cantidad, accesorios, listón) | `/flores/catalogos` | Admin |
+| Armar ramos preconfigurados (Flujo B) | `/flores/ramos-admin` | Admin |
+| Vitrina pública de ramos ya armados | `/flores/ramos` | Cualquiera |
+| Cliente arma su propio ramo (Flujo A) | `/flores/configurar` | Cualquiera (login solo al confirmar) |
+
+Todo agrupado en un solo lugar del menú (antes estaba repartido en 3 sitios distintos).
+Multicolor, precio del papel por pliego y el umbral configurable ya están conectados.
+
+### ⚠️ Errores/huecos que encontramos y ya corregimos
+
+1. **La vitrina siempre decía "no hay ramos"** — el front tenía los métodos del servicio
+   (`ramoCrear`, `ramosAdmin`, etc.) desde el principio, pero **nunca se construyó la pantalla**
+   que los llamara. No fue un bug de datos ni del back — simplemente faltaba media pantalla.
+   *Cómo lo detectamos: el dueño ya había cargado el catálogo base y aun así no aparecía nada.*
+
+2. **"Se cobra solo desde" y "Flores por pliego" se podían configurar en CUALQUIER accesorio**,
+   sin avisar que el back **solo les hace caso al accesorio marcado `esPapel`** (confirmado por
+   el back: *"El accesorio marcado esPapel se agrega solo cuando cantidadFinal > umbralActivacion"*
+   — ninguno más). Esto llevó al dueño a marcar "corona" como si fuera "el papel" —única forma
+   de lograr el auto-agregado— con un efecto colateral real: el sistema empieza a tratar a
+   "corona" como el envoltorio en el resumen del cliente, el ticket y los reportes.
+   **Fix:** esos 2 campos ahora solo aparecen si "Es el papel" está marcado.
+
+3. **El formulario de EDITAR un accesorio no tenía el checkbox "Es el papel"** — solo existía al
+   crearlo. Una vez marcado mal, no había forma de corregirlo sin borrar y volver a dar de alta
+   (perdiendo el precio/nombre ya cargado). **Fix:** se agregó el checkbox también a edición.
+
+4. **(Nuestro, de testing, no del producto)** Para probar pantallas nuevas sin depender de un
+   login real, usamos un truco de Playwright: inyectar una sesión falsa y navegar con
+   `router.navigateByUrl()` directo desde el navegador. En pantallas **sin guard** (públicas),
+   eso deja la navegación fuera de la "zona" de Angular y las llamadas HTTP de `ngOnInit` nunca
+   se disparan — aunque la pantalla se ve normal. Nos hizo perder tiempo pensando que el
+   configurador del cliente no cargaba nada, cuando el código estaba bien. Se resolvió probando
+   esas pantallas con una carga de página normal (`page.goto` directo) en vez del truco.
+
+### ❓ Pendiente / sin resolver todavía
+
+- **`validar-cantidad` y `colores-flor/por-tipo-flor` no reflejan lo que hay registrado** —
+  confirmado que NO es una especie duplicada (solo existe una "Flor eternal0" en Tipos de flor).
+  `validar-cantidad` sigue dando "válida" una cantidad (10) por debajo de todo lo registrado
+  (20+), y `colores-flor/por-tipo-flor` devuelve vacío aunque esa especie sí tiene 2 colores
+  dados de alta. Consulta con el detalle completo, ya subida, más arriba en este mismo archivo.
+- **El dato de "corona" en QA sigue marcado como papel** — se le explicó el problema al dueño,
+  no lo hemos corregido nosotros ni él ha confirmado si ya lo corrigió.
+- **Imagen para "Tipo de flor"** — el dueño pidió poder subirle una foto a cada especie (o un
+  ícono que abra un modal con la imagen), igual que ya existe para `RamoArmado.imagenUrl`. Hoy
+  `TipoFlor` no tiene ningún campo de imagen — haría falta que el back lo agregue primero.
+- **Umbral de auto-agregado solo para "el papel", no para cualquier accesorio** — quedó aclarado
+  que el diseño actual es a propósito así, y que el lugar correcto para "auto-agregar algo según
+  la cantidad de flores" es únicamente el papel. Si más adelante se necesita que OTRO accesorio
+  también se auto-agregue por cantidad (no solo el papel), es una función nueva que hay que
+  pedirle al back — no está construida.
+- **El checkout real del configurador del cliente (`/flores/configurar`) nunca se probó contra un
+  backend real** — se verificó toda la lógica de armado/cálculo con datos de prueba, pero falta
+  confirmar en vivo que `guardarPedidoVariante` + la verificación de correo + el registro del
+  detalle del ramo funcionan de punta a punta.
+
+---
+
+## ❓ CONSULTA AL BACK — colores y cantidades no aparecen bien en el configurador, aunque están registrados (2026-08-13)
+
+Actualización de la consulta de arriba sobre `validar-cantidad` — se descartó la hipótesis de
+"especie duplicada": en **Tipos de flor** solo existe **una** "Flor eternal0" (`$25.00 c/u`), no
+hay ninguna repetida. Con eso descartado, quedan 2 síntomas reproducibles y concretos:
+
+### 1. `validar-cantidad` sigue validando cantidades que no están registradas
+
+El dueño solo tiene registradas cantidades **de 20 en adelante** en `/v1/cantidades-flor` para
+"Flor eternal0". Al probar en `/flores/configurar` (el configurador del cliente):
+- Especie: "Flor eternal0"
+- Cantidad solicitada: **10**
+- Respuesta: `valida: true`, con el mensaje "10 flores — cantidad válida"
+
+Es decir, `POST /v1/flores/validar-cantidad` da por buena una cantidad que está **por debajo**
+de todas las registradas para esa especie.
+
+### 2. `coloresPorTipoFlor` no devuelve los colores que sí están registrados
+
+En el mismo intento, después de validar la cantidad, el Paso 3 del configurador
+("Reparte tus 10 flores entre colores") dice **"Esta especie todavía no tiene colores
+disponibles"** — pero en Catálogos → Colores sí aparecen 2 colores dados de alta para esa misma
+especie: "Flor eternal0 · Roja" (100 disponibles) y "Flor eternal0 · Verde" (100 disponibles).
+
+El front llama `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` con el `id` de la especie
+seleccionada en el paso 1 (el mismo que se usó para `validar-cantidad`) — y el back responde una
+lista vacía, aunque el catálogo de Colores muestre 2 registros para esa especie.
+
+### Lo que pedimos revisar
+
+¿Puede ser que ambos endpoints (`validar-cantidad` y `colores-flor/por-tipo-flor`) estén
+filtrando o comparando contra un campo que no es el que el dueño está llenando desde
+`/v1/colores-flor/save` y `/v1/cantidades-flor/save`? Por ejemplo, si guardan por
+`tipoFlor.id` pero comparan contra otro identificador, o si hay algún filtro de `activo`/caché
+de por medio. Del lado del front confirmamos que se manda el mismo `tipoFlorId` que aparece
+seleccionado en el dropdown de "¿Qué flor quieres?" — no hay forma de que el front esté
+mandando un id equivocado si solo existe una especie con ese nombre.
+
+---
+
+## ✅ Respuesta del back a las 2 consultas de arriba (2026-08-13)
+
+Probamos los dos casos directo contra QA, con la misma especie (`tipoFlorId: 1`, "Flor eternal0")
+y los mismos datos que describen (48 y 62 registrados).
+
+### 1. `colores-flor/por-tipo-flor/1` — no reproducimos, responde bien ahora mismo
+
+```
+GET /v1/colores-flor/por-tipo-flor/1
+```
+Responde los 2 colores tal cual están en Catálogos (`Roja`, `Verde`, cada uno con su
+`variante.id` y stock 100) — no vacío. No hay ningún filtro raro ni caché de por medio en este
+endpoint (`Cache-Control: no-cache, no-store` en la respuesta, y el servicio no usa `@Cacheable`).
+
+Lo más probable: probaron esto **antes** de que el fix de `piezas`/`precio_rebaja` (ver la entrada
+de arriba, desplegado a las 12:41) terminara de propagarse a QA, o justo mientras `save` todavía
+fallaba por esas columnas — si el guardado del color fallaba a medias en algún intento previo,
+podría haber quedado la sensación de "están en Catálogos pero no aquí" por estar viendo builds
+distintos en pestañas distintas. Ahora mismo, con lo que hay guardado, funciona. Si lo prueban de
+nuevo y **sigue** vacío, pásennos el `tipoFlorId` exacto que están mandando (con eco de la request
+completa) para comparar contra lo que hay en BD — no es un escenario que podamos seguir
+adivinando a ciegas.
+
+### 2. `validar-cantidad` con 10 — no es bug, es la regla de "venta por unidad" documentada desde el módulo original
+
+Confirmado, se reproduce, y es **exactamente el comportamiento diseñado**, no un descuido:
+
+```
+POST /v1/flores/validar-cantidad {"tipoFlorId":1,"cantidadSolicitada":10}
+→ valida:true, mensaje:"Cantidad aceptada tal cual, se cobra por unidad."
+
+POST /v1/flores/validar-cantidad {"tipoFlorId":1,"cantidadSolicitada":55}   (entre 48 y 62)
+→ valida:false, mensaje:"Con 55 flores el circulo puede no quedar bien formado.",
+  alternativaMenor:48, alternativaMayor:62
+
+POST /v1/flores/validar-cantidad {"tipoFlorId":1,"cantidadSolicitada":62}   (registrada)
+→ valida:true, mensaje:"Esta cantidad forma bien el circulo."
+```
+
+La regla real: **solo** las cantidades por **debajo de la más chica registrada** (aquí, menos de
+48) se aceptan automático como "venta por unidad" — pensado para vender 1 o 2 flores sueltas sin
+obligar a que exista una fila en `cantidades-flor` para cada número pequeño. Todo lo demás (entre
+medio o por encima) sí valida estricto contra la tabla, como se ve en el caso de 55 arriba.
+
+El `mensaje` que devuelve el back ya distingue los 3 casos (`"...se cobra por unidad"` vs
+`"...forma bien el circulo"` vs `"...puede no quedar bien formado"`) — si el front está mostrando
+un texto genérico tipo "cantidad válida" sin usar ese campo tal cual, ahí es donde se pierde la
+distinción que el dueño esperaba ver.
+
+**Pregunta para el dueño, porque esto sí es una decisión de negocio y no algo que decidamos
+nosotros:** ¿la venta "por unidad" para cantidades chicas (1, 2, 10 flores sueltas) es un caso que
+quieren mantener, o prefieren que **cualquier** cantidad no registrada en `cantidades-flor` se
+rechace y sugiera la alternativa más cercana (igual que ya pasa con 55)? Si es lo segundo, es un
+cambio de una línea en el back (quitar el caso especial de "menor a la más chica") — avisen y lo
+hacemos.
+
+### Sobre el resto de "Lecciones aprendidas"
+
+- **Puntos 1-4 (vitrina sin pantalla, checkbox de papel en edición, truco de Playwright):** son
+  hallazgos y fixes 100% del lado front, no requieren nada de nuestro lado — quedan solo como
+  registro.
+- **Imagen para `TipoFlor`:** pendiente real del back — hoy `TipoFlor` no tiene ningún campo de
+  imagen (a diferencia de `RamoArmado.imagenUrl`, que sí existe). Es un cambio chico si lo
+  necesitan ya (una columna + el campo en el DTO/entidad); avisen si lo priorizan y lo agregamos.
+- **"Corona" sigue marcada como `esPapel` en QA:** es un dato de configuración, no código — nadie
+  de nuestro lado la va a des-marcar sin que ustedes/el dueño lo confirmen, para no pisar una
+  prueba en curso. Se corrige con `PUT /v1/accesorios-ramo/update/{id}` (`esPapel: false` en
+  "Corona", `esPapel: true` en el accesorio que sí sea el papel real) en cuanto digan luz verde.
+- **Checkout real sin probar contra backend real:** no hay nada pendiente de nuestro lado para
+  habilitarlo — `savePedido` y el registro del detalle del ramo ya están activos en QA, es cuestión
+  de que ustedes corran la prueba de punta a punta cuando puedan.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — `colores-flor/por-tipo-flor` responde bien, revisar `lista` vs `data` (2026-08-13)
+
+**Qué hicimos:** nos reportaron que en el configurador seguía saliendo "Esta especie todavía no
+tiene colores disponibles" con 12 flores de "Flor eternal0" (aunque la cantidad sí validaba bien).
+Le pegamos directo al endpoint en QA con un token admin para ver qué devolvía realmente el back.
+
+**Qué tiene que revisar el front:**
+1. Abrir el código que llama `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` en el paso 3 del
+   configurador ("Reparte tus flores entre colores") y confirmar si lee `response.data` o
+   `response.lista`. **El arreglo de colores viene en `lista`, `data` siempre es `null` en este
+   endpoint.** Si el código lee `data`, ese es el bug — corregirlo a `lista`.
+2. Si ya leen `lista` y sigue fallando, probar en una pestaña de incógnito o con hard refresh —
+   podría ser caché del navegador/service worker sirviendo un build viejo (el back confirmó que el
+   endpoint no cachea nada, ver headers abajo).
+3. Avisar con el resultado apenas lo revisen, para no seguir adivinando a ciegas.
+
+Nos reportaron que en el configurador seguía saliendo "Esta especie todavía no tiene colores
+disponibles" con 12 flores de "Flor eternal0" (que sí valida cantidad correctamente). Volvimos a
+probar el endpoint en vivo contra QA, directo con el token admin, en este momento:
+
+```
+GET /mis-productos/v1/colores-flor/por-tipo-flor/1
+```
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": null,
+  "lista": [
+    { "id": 1, "nombre": "Roja", "stock": 100, "activo": true, "tipoFlor": { "id": 1, ... }, "variante": {...} },
+    { "id": 2, "nombre": "Verde", "stock": 100, "activo": true, "tipoFlor": { "id": 1, ... }, "variante": {...} }
+  ]
+}
+```
+
+Sigue respondiendo bien — los 2 colores están ahí, igual que la vez pasada. **Punto importante que
+no habíamos aclarado antes:** este endpoint devuelve el arreglo en el campo **`lista`**, no en
+`data` (`data` viene `null` a propósito — es el mismo `ResponseGeneric` de siempre, pero la
+variante de constructor que se usa para listas llena `lista`, no `data`). Si el código del front
+para este llamado específico lee `response.data` en vez de `response.lista`, va a leer `null` y
+mostrar "no hay colores disponibles" aunque el back sí los esté mandando — con el mismo patrón del
+bug que ya tuvimos en su momento con el refresh de JWT (`response.response.accessToken` vs
+`response.accessToken`).
+
+Si ya están leyendo `lista` y aun así sigue fallando, puede ser caché del navegador/service worker
+sirviendo un build viejo del front — no hay `@Cacheable` ni caché de servidor de por medio en este
+endpoint (headers `Cache-Control: no-cache, no-store`, confirmado). Avisen con el resultado de
+revisar `lista` vs `data` y seguimos desde ahí.
+
+---
+
+## ✅ FRONT — era `lista` vs `data`, confirmado y corregido + 🔴 el resolver truena en PROD (2026-08-14)
+
+### 1. Su diagnóstico era correcto — el bug era nuestro
+
+Confirmado con `curl` contra QA antes de tocar código:
+
+```
+GET /v1/colores-flor/por-tipo-flor/1  → { "data": null,  "lista": [Roja, Verde] }
+GET /v1/colores-flor/getAll           → { "data": [...], "lista": null }
+```
+
+`FloresService.coloresPorTipoFlor()` leía `r?.data`, así que siempre recibía vacío. Ya corregido
+(lee `lista ?? data`, los dos por si algún día lo normalizan). Va en `dev` (`c933556`) y `qa`
+(`c04b713`).
+
+**Auditamos los otros 6 endpoints del módulo** para no repetirlo: `tipos-flor/getAll`,
+`cantidades-flor/getAll`, `accesorios-ramo/getAll`, `frases-liston/getAll`,
+`ramos-armados/activos` y `validar-cantidad` → **todos devuelven en `data`, con `lista: null`**.
+`por-tipo-flor` es el único distinto. No pedimos que lo cambien (ya está corregido de nuestro
+lado), pero vale la pena que lo sepan por si arman endpoints nuevos: si el resto del módulo usa
+`data`, uno que use `lista` es fácil de pisar.
+
+### 2. Lo de `validar-cantidad` con 10 también era nuestro, no suyo
+
+Tenían razón: el back sí distinguía los tres casos en `mensaje`, pero **nuestro template mostraba
+un texto fijo** ("cantidad válida") e ignoraba ese campo. Por eso un *"se cobra por unidad"* se
+veía idéntico a un *"forma bien el círculo"*, y lo reportamos como bug de ustedes cuando no lo
+era. Ya se muestra su `mensaje` tal cual. Disculpen la vuelta.
+
+**Queda pendiente la decisión de negocio que plantearon** (¿se mantiene la venta por unidad para
+cantidades menores a la más chica registrada, o se rechaza todo lo no registrado?) — se la pasamos
+al dueño, les avisamos en cuanto responda.
+
+### 3. 🔴 `GET /tienda/v1/variante/{id}/producto-id` responde **500 en producción**
+
+Este es nuevo y es el que importa, porque **es el que destraba el cierre de `getOne`**.
+
+```
+QA    GET /tienda/v1/variante/1/producto-id   → 200  { "data": { "productoId": 265 } }   ✅
+PROD  GET /tienda/v1/variante/1/producto-id   → 500  { "mensaje": "Error interno del servidor" }
+PROD  GET /tienda/v1/variante/619/producto-id → 500  (mismo error con otro id)
+```
+
+No es "no existe esa variante" (eso sería 400 según su contrato) ni falta de permisos — es un 500
+con cualquier id que le mandemos. En QA el mismo endpoint funciona perfecto.
+
+**Por qué nos bloquea:** el plan acordado era → nosotros conectamos el resolver (✅ hecho, está en
+`qa`) → promovemos el front a producción → les avisamos → ustedes promueven el cierre de
+`getOne`. Pero si el resolver truena en prod, al promover ambas cosas el **link directo de
+WhatsApp/Facebook queda roto para los clientes**: sin resolver y sin `getOne`, la ficha no tiene
+de dónde sacar el `productoId`.
+
+Hoy no hay daño, porque en prod `getOne` sigue abierto y nuestro código cae a él como respaldo.
+Pero **no promuevan `getOne` hasta que el resolver responda 200 en producción** — y avísennos
+cuando lo arreglen para verificarlo y promover el front nosotros primero.
+
+### Estado del front
+
+| Rama | Commit | Qué trae |
+|---|---|---|
+| `dev` | `c933556` | fix de colores + mensaje de cantidad + módulo de flores completo |
+| `qa` | `c04b713` | lo mismo |
+| `master` (prod) | `e32359c` | **sin** el fix de la ficha — a propósito, esperando el punto 3 |
+
+---
+
+## ✅ Cambio de comportamiento — `validar-cantidad` ahora sugiere alternativa aunque la cantidad sea menor al mínimo registrado (2026-08-13)
+
+**No cambia el contrato** — sigue siendo `POST /v1/flores/validar-cantidad`, mismo request y
+mismo shape de response (`valida`, `mensaje`, `alternativaMenor`, `precioAlternativaMenor`,
+`alternativaMayor`, `precioAlternativaMayor`). Lo que cambia es el criterio de negocio para
+decidir cuándo `valida` sale `true` o `false`:
+
+- **Antes:** una cantidad por debajo de la más chica registrada se aceptaba en silencio
+  (`valida:true`, `"Cantidad aceptada tal cual, se cobra por unidad."`) — así probaron con 12
+  flores contra un mínimo registrado de 48.
+- **Ahora:** esa misma cantidad devuelve `valida:false` con
+  `"Con 12 flores el circulo puede no quedar bien formado."`, igual que ya pasaba con las
+  cantidades intermedias no registradas (ej. 55). Esta es la respuesta a la decisión de negocio
+  que quedó pendiente arriba ("¿se mantiene la venta por unidad para cantidades menores a la más
+  chica registrada?") — el dueño confirmó que NO, que siempre debe avisar y sugerir la alternativa.
+
+**Punto a verificar en el front:** en este caso nuevo, `alternativaMenor` viene `null` (no hay
+nada registrado más abajo) y solo llega `alternativaMayor` con dato. Antes, cuando `valida:false`,
+casi siempre llegaban ambas alternativas — confirmen que la pantalla no rompe ni muestra "null"
+cuando falta la alternativa menor.
+
+Ya está en `dev` y `qa` (`4b1b8e7` / merge `deff517`) — falta el redespliegue del servicio para que
+se refleje en el ambiente.
+
+---
+
+## ❓ CONSULTA AL BACK — los pliegos se deben configurar POR RAMO, no por fórmula (2026-08-14)
+
+El dueño revisó el configurador y pidió algo que hoy no se puede expresar. Va con la distinción
+clara, porque se parece a `floresPorPliego` pero **no es lo mismo**.
+
+### Lo que existe hoy
+
+`AccesorioRamo.floresPorPliego` — una **fórmula**: "un pliego alcanza para N flores", y el back
+calcula `ceil(cantidadFlores / floresPorPliego)`. Está implementado y el front ya lo muestra.
+
+### Lo que pide el dueño
+
+Que **él** diga cuántos pliegos lleva cada ramo, explícitamente, en vez de que salga de una
+división. Sus palabras: *"cuántos pliegos necesito para cada ramo, es decir para el de 48 flores,
+eso se debe configurar"*.
+
+El razonamiento de negocio: el papel que lleva un ramo no es proporcional al número de flores.
+Depende de cómo se arma, del tamaño del pliego que compran, de si el ramo va más abierto o más
+cerrado. Una regla de tres no le sirve — él sabe que el de 48 lleva 4 y el de 62 lleva 5, y eso
+no necesariamente sigue una proporción.
+
+Y lo separa explícitamente de lo otro: *"una cosa son los accesorios, que dice cuánto cuesta cada
+pliego, pero aparte el ramo tiene que tener un apartado que diga cuántos pliegos para este ramo"*.
+O sea:
+- **Accesorio "Papel"** → cuánto cuesta **un** pliego (ya existe, es `precio`).
+- **Cada ramo** → cuántos pliegos lleva (esto es lo que falta).
+
+### Dónde creemos que va, y por qué
+
+En **`CantidadFlorValida`** (`/v1/cantidades-flor`), un campo nuevo tipo `pliegos: number | null`.
+Es la entidad que define "un ramo de 48" en el configurador, así que es donde el dueño ya está
+dando de alta esas medidas. Hoy esa tabla solo tiene `id`, `tipoFlor`, `cantidad`, `activo`
+(verificado contra QA).
+
+Con eso, el cálculo del papel sería: `pliegos × precioDelAccesorioPapel`, sin dividir nada.
+
+**Si les acomoda mejor otro lugar, díganlo** — no queremos condicionarles el modelo. Lo que
+importa es que el número sea explícito y editable por el dueño, no derivado.
+
+### Tres cosas que hay que decidir para que quede completo
+
+1. **¿Qué pasa con las cantidades NO registradas?** Un ramo de 10 flores (venta por unidad, no
+   está en `cantidades-flor`) no tendría fila donde leer los pliegos. ¿Cae a la fórmula
+   `floresPorPliego` que ya existe, a 1 pliego, o a ninguno? Nos inclinamos por que **la fórmula
+   siga siendo el respaldo** cuando no hay número explícito — así lo que ya está hecho no se tira
+   y cubre justo el hueco.
+2. **Si ambos están configurados, ¿cuál gana?** Proponemos que **el número explícito del ramo
+   gane** sobre la fórmula: es el que el dueño puso a mano para ese caso puntual.
+3. **`RamoArmado`** ya referencia un `cantidadFlorValidaId`, así que heredaría el número solo,
+   ¿verdad? Lo damos por hecho, pero confírmenlo — si un ramo preconfigurado necesitara un número
+   distinto al de su cantidad, habría que ponérselo también a esa entidad.
+
+### Del lado del front
+
+En cuanto exista el campo lo agregamos a la pestaña **Cantidades** del catálogo (donde ya se dan
+de alta 48, 62, etc.) y lo mostramos en el desglose del configurador — el resumen ya tiene la
+línea de papel con "N pliego(s) × $X", así que ese pedazo no cambia.
+
+**Nota:** el otro pendiente sigue abierto y es del dueño, no de ustedes — el número del umbral
+(`umbralActivacion`, hoy en 20) y si se mantiene la venta por unidad. Se los pasamos en cuanto
+responda.
+
+### ⚠️ Precisión importante: el campo va a estar VACÍO un buen rato
+
+El dueño lo dijo textual: *"no sé cuántos ocupa un ramo, pero cuando lo sepa lo puedo
+configurar"*. O sea, no es un dato que vaya a llenar el día que lo entreguen — lo va a ir
+llenando conforme arme ramos reales y cuente los pliegos que gastó.
+
+Eso tiene dos consecuencias para el diseño:
+
+1. **El campo tiene que ser opcional de verdad** (`null` permitido), no requerido al guardar una
+   cantidad válida. Si al dar de alta "48 flores" les obliga a poner los pliegos, no va a poder
+   registrar sus cantidades hasta que sepa un dato que todavía no tiene.
+2. **El comportamiento con el campo vacío tiene que ser razonable y no romper nada** — que es el
+   estado en el que va a vivir el sistema durante las próximas semanas. Por eso insistimos en la
+   pregunta 1 de arriba: nuestra propuesta es que sin número explícito caiga a la fórmula
+   `floresPorPliego` (si está configurada) y, si tampoco está, al comportamiento actual (1 pliego
+   a precio fijo). Así nunca hay un estado en que el cálculo falle o cobre algo raro.
+
+Lo mismo aplica del lado del front: la casilla se muestra vacía, sin marcar error, y el
+configurador sigue cotizando normal — el dueño la llena cuando la tenga.
+
+### ❓ Antes de que lo construyan: ¿ya lo tienen y no lo estamos viendo?
+
+Preguntamos esto primero para no pedirles trabajo que quizá ya esté hecho.
+
+Lo que vemos nosotros es **solo la respuesta del API**, y ahí `CantidadFlorValida` llega con
+cuatro campos:
+
+```json
+{ "id": 1, "tipoFlor": { ... }, "cantidad": 48, "activo": true }
+```
+
+Pero eso no nos dice qué hay en la **entidad** ni en la **tabla**. Es perfectamente posible que:
+
+- La columna/campo ya exista (de cuando diseñaron el módulo) y solo no se esté serializando en el
+  DTO de respuesta — en cuyo caso esto es exponerlo, no crearlo.
+- Exista con otro nombre que no adivinamos (`numeroPliegos`, `pliegosRequeridos`, `cantidadPapel`…).
+- Esté resuelto en otro lado que no vemos desde afuera — por ejemplo dentro del cálculo del papel,
+  o en `RamoArmado`.
+
+**¿Nos confirman qué hay hoy en el código/BD?** Si ya existe algo, díganos cómo se llama y lo
+consumimos tal cual; si no existe, ahí sí va la petición de arriba. Cualquiera de las dos nos
+sirve — lo que no queremos es que lo construyan de cero si ya estaba.
+
+Misma pregunta, de paso, para el otro pendiente: ¿`AccesorioRamo.precio` en el caso del papel ya
+representa el **precio de un pliego**, o es un precio fijo del accesorio completo? Hoy está en
+`$5.00` con `floresPorPliego: null`, y de eso depende si el dueño tiene que corregir ese número o
+dejarlo como está cuando configure los pliegos.
+
+### 🙏 Aclaración de tono: lo de arriba son sugerencias, ustedes deciden
+
+Releyendo los tres mensajes anteriores, nos pasamos de proponer **cómo** resolverlo de su lado
+(dónde va el campo, cuál gana si hay dos, qué pasa como respaldo). Eso es su terreno, no el
+nuestro — ustedes conocen el modelo y las implicaciones que nosotros no vemos. Tómenlo como
+opciones sobre la mesa, no como un diseño a implementar.
+
+**La necesidad, en una frase:** el dueño tiene que poder decir, por cada tamaño de ramo, cuántos
+pliegos de papel lleva — y poder cambiarlo él mismo cuando lo vaya sabiendo.
+
+**Lo único que sí les pedimos como requisito**, porque viene del negocio y no de la técnica:
+
+1. Que el número lo pueda **configurar el dueño**, no que esté fijo en el código. Textual:
+   *"no sé cuántos ocupa un ramo, pero cuando lo sepa lo puedo configurar"*.
+2. Que sea **opcional**: hoy no tiene el dato y va a tardar en tenerlo, así que el sistema tiene
+   que funcionar con eso vacío.
+3. Que sea **un número que él pone**, no uno calculado — su punto es justo que el papel no es
+   proporcional a las flores.
+
+Cómo lo modelen para lograr eso —en qué entidad, con qué nombre, con qué respaldo cuando esté
+vacío— lo dejamos en sus manos. Solo díganos cómo queda el contrato y lo consumimos.
+
+Si en el camino ven que algo de lo que pide choca con cómo está armado el módulo, o que hay una
+forma más simple de darle lo mismo, dígannoslo con confianza — se lo planteamos al dueño. Ha
+pasado ya un par de veces en este proyecto que la propuesta de ustedes era mejor que la idea
+original (el modelo especie/color de multicolor, sin ir más lejos).
+
+---
+
+## ✅ Respuesta del back — campo `pliegos` en `CantidadFlorValida`, construido (2026-08-14)
+
+### ¿Ya existía? No — confirmado contra la entidad
+
+Revisamos `CantidadFlorValida.java` antes de tocar nada: tenía exactamente los 4 campos que ya
+veían en el response (`id`, `tipoFlor`, `cantidad`, `activo`), nada más, con ningún otro nombre
+escondido. Era genuinamente nuevo, así que construimos justo su propuesta.
+
+### Qué se hizo
+
+**`CantidadFlorValida`** tiene un campo nuevo:
+
+```json
+{ "id": 1, "tipoFlor": { "id": 1, "nombre": "Flor eternal0", ... }, "cantidad": 48, "activo": true, "pliegos": null }
+```
+
+- `pliegos: number | null` — exactamente donde lo propusieron. Se da de alta/edita con el mismo
+  CRUD genérico de siempre (`POST /v1/cantidades-flor/save`, `PUT /v1/cantidades-flor/update/{id}`)
+  — no hay endpoint nuevo, solo el campo extra en el mismo objeto.
+- **Opcional de verdad:** `null` permitido, no se valida como obligatorio al guardar. Pueden dar de
+  alta "48 flores" sin tocar este campo y va a funcionar igual que hoy.
+- **Prioridad implementada tal cual la propusieron:** si `pliegos` tiene valor, gana siempre sobre
+  la fórmula `floresPorPliego`, sin importar si esa también está configurada. Si `pliegos` es
+  `null`, cae a la fórmula (si el accesorio "papel" tiene `floresPorPliego`); si tampoco hay
+  fórmula, precio fijo único de siempre. Ninguna combinación rompe ni cobra distinto a lo que ya
+  pasaba antes de este cambio.
+- **`RamoArmado` lo hereda solo**, confirmado: como ya referencia `cantidadFlorValidaId`, el
+  cálculo de pliegos (`pliegosPapel` en el detalle del ramo) lee `pliegos` de esa misma
+  `CantidadFlorValida` en cada consulta — no hace falta duplicar el campo en `RamoArmado`.
+- Aplica también al configurador libre (`/v1/flores/calcular-precio`): si la cantidad final que
+  arma el cliente coincide exacto con una `CantidadFlorValida` que ya tiene `pliegos` configurado,
+  se usa ese número en vez de la fórmula — mismo criterio de prioridad, mismo resultado que
+  tendría un `RamoArmado` preconfigurado con esa cantidad.
+
+### Sobre `AccesorioRamo.precio` del papel — sí es precio por pliego
+
+Confirmado en código (`AccesorioRamoServiceImpl.calcularPrecioPapel`): en cuanto hay un número de
+pliegos disponible (por cualquiera de los dos caminos), el cálculo es `pliegos × precio` — o sea
+`precio` siempre se interpreta como "precio de UN pliego", nunca como precio fijo del accesorio
+completo. Ahora mismo el papel está en `$5.00` con `floresPorPliego: null` y ningún
+`CantidadFlorValida.pliegos` configurado todavía, así que ese `$5.00` está funcionando como precio
+fijo único (el caso de respaldo). El dueño debería revisar si ese número ya representa "lo que
+cuesta un pliego" o si lo puso pensando en un total fijo — nosotros no lo vamos a tocar sin que lo
+confirme, para no pisarle una prueba en curso.
+
+### Migración
+
+`migration_flores_eternas_pliegos_por_ramo.sql` — un solo `ALTER TABLE cantidad_flor_valida ADD
+COLUMN pliegos INT NULL`, sin acción manual después (nace vacío para todo lo ya registrado, que es
+justo el estado esperado mientras el dueño lo va llenando). Avisen cuando quieran que la corramos
+en QA/prod, igual que las anteriores.
+
+Está en `dev`, pendiente de merge a `qa` y del aviso para correr la migración.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — `pliegos` ya está en QA y producción (2026-08-14)
+
+**Qué hicimos:** el dueño ya corrió la migración en QA y producción. El campo `pliegos` de
+`CantidadFlorValida` está disponible en ambos ambientes desde ahora — no falta nada más de
+nuestro lado para que empiecen a consumirlo.
+
+**Qué tiene que revisar/hacer el front:**
+
+1. **Catálogo → pestaña "Cantidades":** agregar el input de `pliegos` (opcional, numérico) al
+   formulario donde ya dan de alta/editan cada cantidad (48, 62, etc.) — mismo endpoint de
+   siempre, `POST /v1/cantidades-flor/save` / `PUT /v1/cantidades-flor/update/{id}`, solo con el
+   campo nuevo en el body. Puede quedar vacío/`null` sin problema, no es obligatorio.
+2. **Listado de "Cantidades":** mostrar el valor de `pliegos` si ya está configurado (o algo tipo
+   "sin configurar" si viene `null`), para que el dueño vea de un vistazo qué cantidades ya tienen
+   el dato y cuáles no.
+3. **Configurador y `RamoArmado`:** **no requieren cambio** — el desglose que ya muestran
+   ("N pliego(s) × $X") sigue leyendo `pliegosPapel`/`precioPapel` de las mismas respuestas de
+   siempre (`calcular-precio`, `ramos-armados`); ahora esos números simplemente van a reflejar el
+   valor explícito en cuanto el dueño lo configure para esa cantidad, sin que ustedes tengan que
+   tocar nada ahí.
+4. Avisen si hay algún lugar más donde muestran `cantidad_flor_valida` que se nos haya escapado.
+
+---
+
+## ❓ CONSULTA AL BACK — pliegos por defecto fuera de rango + cómo cobrar la mano de obra (2026-08-14)
+
+El dueño terminó de explicar la regla del papel y salieron dos cosas: una chica que sí les toca, y
+una nueva que ni siquiera está modelada.
+
+### 1. Pliegos por defecto cuando la cantidad NO está configurada
+
+**La regla, en sus palabras:** las cantidades que él deja configuradas (con sus `pliegos`) ya
+llevan papel incluido y el cliente ni se entera. Pero si alguien pide una cantidad **por debajo de
+la más chica configurada**, ahí el papel no está previsto: se le pregunta si lo quiere, y si dice
+que no, *"el ramo va sin papel, solo las puras rosas enrolladas"*.
+
+Eso ya lo resolvimos del lado del front (el papel aparece solo cuando no va por default). Lo que
+falta es cuánto cobrar en ese caso:
+
+```
+POST /calcular-precio  → 19 flores + accesorio Papel (id 7)
+hoy responde:  "Papel x1 = $5"      (1 pliego, el respaldo actual)
+el dueño quiere: 2 pliegos = $10
+```
+
+**Su regla:** para cualquier cantidad no configurada, el papel se cobra como **2 pliegos**. No es
+un número calculado — es lo que él estima que se gasta en un ramo chico.
+
+¿Se puede configurar en vez de dejarlo fijo? Nos imaginamos que encaja junto a los otros campos
+del accesorio papel (donde ya viven `umbralActivacion` y `floresPorPliego`), pero **ustedes deciden
+cómo modelarlo** — solo que el dueño lo pueda cambiar sin pedir despliegue, como los otros.
+
+**Nota de comportamiento que confirmamos de paso:** la "venta por unidad" ya no existe. Antes, una
+cantidad menor a la más chica registrada respondía `valida: true` ("se cobra por unidad"); hoy
+1, 3 y 10 flores responden `valida: false` con el aviso de que el círculo puede no quedar bien.
+¿Fue un cambio a propósito? Lo preguntamos porque quedó como decisión pendiente del dueño y no
+recordamos que la haya respondido. No nos bloquea (el front ya deja continuar con la cantidad que
+el cliente elija), pero sí cambia lo que ve.
+
+### 2. 🆕 La mano de obra no está en el modelo
+
+El dueño preguntó cómo se cobra el trabajo de armar el ramo — y revisando el módulo, **no existe
+en ningún lado**. Hoy el total es: flores + papel + accesorios + listón + envío. El tiempo de
+armarlo no se cobra por ningún concepto.
+
+No les pedimos nada todavía porque primero el dueño tiene que decidir **cómo** quiere cobrarlo
+(monto fijo por ramo, por flor, un porcentaje, o simplemente subir el precio por flor y no
+modelarlo). En cuanto lo defina se los pasamos.
+
+Lo que sí les preguntamos desde ahora, por si condiciona el diseño: **¿ya existe algún concepto
+de "servicio" o "mano de obra"** en el sistema (en pedidos normales, no en flores) que convenga
+reutilizar en vez de inventar uno nuevo para este módulo?
+
+---
+
+# 📋 CIERRE DE JORNADA — Flores eternas: qué se rompió, qué se cambió y qué falta (2026-08-14)
+
+Resumen completo de la ronda, para que no haya que reconstruirlo leyendo veinte secciones sueltas.
+Va ordenado por: decisiones del dueño (lo que manda), errores encontrados, cambios de contrato, y
+lo que sigue abierto.
+
+---
+
+## 1. ✅ Decisiones del dueño (ya firmes, no volver a preguntarlas)
+
+| Tema | Decisión |
+|---|---|
+| Dónde vive | Sección aparte. **No** mezclado con la tienda de bolsas/blusas |
+| Flores sueltas | **No se venden.** Solo ramos |
+| Papel en rango | **Invisible** para el cliente. Va por default y se cobra por dentro |
+| Papel fuera de rango | **Sí se pregunta**, pero mostrando solo que *tiene costo*, nunca el monto |
+| Sin papel | Hay que decirle claro: *"el ramo va sin papel, solo las rosas enrolladas"* |
+| Pliegos | Los pone él a mano por cantidad. **No** una fórmula |
+| Mano de obra | **Todo junto en el precio.** No quiere desglose (ver punto 4.3) |
+
+## 2. 🐛 Errores que encontramos — y de quién eran
+
+**Casi todos eran nuestros.** Lo anotamos completo porque en el camino les reportamos como bugs
+suyos dos cosas que no lo eran, y nos parece justo dejarlo por escrito.
+
+### Nuestros (ya corregidos)
+
+| # | Qué pasaba | Causa |
+|---|---|---|
+| 1 | El configurador decía "esta especie no tiene colores" con colores dados de alta | Leíamos `data` y ese endpoint responde en `lista`. Su diagnóstico fue correcto |
+| 2 | Reportamos que `validar-cantidad` validaba mal un 10 | **No era bug suyo.** Su `mensaje` ya distinguía los 3 casos; nuestro template mostraba un texto fijo "cantidad válida" que borraba la distinción |
+| 3 | Quien pedía 22 terminaba llevándose 20 sin decidirlo | Convertimos su aviso (*"**puede** no quedar bien formado"*) en un bloqueo: solo dejábamos elegir alternativas. Ya hay botón "Seguir con N" |
+| 4 | Un ramo de 20 no llevaba papel con el umbral en 20 | Nuestra etiqueta decía *"se cobra solo desde"* (inclusivo) pero ustedes comparan `>`. El dueño puso 20 esperando que 20 entrara |
+| 5 | La casilla del papel decía $5 y el cobro real era $15 | `precio` es por pliego; no lo multiplicábamos por los pliegos del ramo |
+| 6 | El papel seguía visible para el cliente | Lo escondíamos solo cuando era automático, y encima le pusimos el desglose de pliegos |
+| 7 | Formularios con casillas "0" sin decir qué eran | Usábamos `placeholder` como etiqueta, y un campo numérico en 0 nunca lo muestra |
+
+### Suyos (ya corregidos por ustedes)
+
+| Qué | Cómo se cerró |
+|---|---|
+| 401 parejo en todo el módulo | No era `permitAll`: el módulo nunca se había subido a `qa` |
+| `montoAnticipoSugerido` era un número inventado (50% del ramo, no de la frase) | Lo quitaron. Ahora solo va `avisoFrasePendiente`, sin monto |
+| Variantes sombra expuestas en buscadores | Agregaron `esCatalogoInterno` y lo aplicaron en 6 lugares — incluidos chatbot y reporte de más vendidos, que nosotros no habíamos detectado |
+
+## 3. 🔄 Cambios de contrato de esta ronda (todos ya consumidos por el front)
+
+- **Multicolor:** `TipoFlor` es la especie, `ColorFlor` es lo vendible. `calcular-precio` recibe
+  `colores[]` y devuelve `coloresCalculados[]` con un `varianteId` por color.
+- **`CantidadFlorValida.pliegos`** — cuántos pliegos lleva cada tamaño de ramo. Opcional.
+- **`AccesorioRamo.umbralActivacion`** — desde cuántas flores el papel es obligatorio, configurable.
+- **`AccesorioRamo.floresPorPliego`** — la fórmula, que ahora es solo el respaldo.
+- **Anticipo:** el monto real nace únicamente en `validar-frase`, no al cotizar.
+
+## 4. ❓ Lo que sigue abierto
+
+### 4.1 🔴 `GET /tienda/v1/variante/{id}/producto-id` responde **500 en producción**
+
+Lo más urgente, y no es de flores. En QA responde 200; en prod truena con cualquier id. **Es el
+que bloquea que ustedes promuevan el cierre de `getOne`** — si lo promueven con esto roto, el link
+de producto compartido por WhatsApp deja de abrir para los clientes. Sigue sin respuesta desde que
+lo reportamos.
+
+### 4.2 🟠 Pliegos por defecto fuera de rango
+
+Para cantidades no configuradas, hoy cobran 1 pliego; el dueño quiere **2**. Que sea configurable,
+no fijo. (Detalle completo en la sección anterior.)
+
+### 4.3 🆕 Mano de obra — **decisión del dueño tomada, el diseño es suyo**
+
+Hoy no existe en el modelo: el total es flores + papel + accesorios + listón + envío. El trabajo de
+armar el ramo no se cobra por ningún lado.
+
+**El dueño ya decidió el QUÉ: "que vaya todo junto".** O sea, el cliente ve **un solo precio de
+ramo**, sin una línea de "mano de obra" desglosada — igual que el papel, que también se cobra por
+dentro. No quiere que el cliente sepa cuánto es material y cuánto es trabajo.
+
+**El CÓMO se lo dejamos a ustedes.** Las formas que se nos ocurren, sin ningún compromiso:
+- Un monto por tamaño de ramo (junto a `pliegos` en `CantidadFlorValida`) — es lo que más nos
+  cuadra, porque armar uno de 62 es más trabajo que uno de 20, y ya existe esa tabla.
+- Un monto fijo por ramo.
+- Un porcentaje sobre el precio de las flores.
+- No modelarlo y que el dueño lo meta en el precio por flor (cero desarrollo, pero pierde la
+  posibilidad de reportarlo aparte algún día).
+
+Lo único que sí les pedimos: que **el dueño lo pueda configurar sin despliegue**, como los pliegos
+y el umbral.
+
+Y la pregunta de antes sigue en pie: **¿ya existe algún concepto de "servicio"/"mano de obra"** en
+el sistema (fuera de flores) que convenga reutilizar?
+
+### 4.4 🟡 ¿La "venta por unidad" se quitó a propósito?
+
+Antes, una cantidad menor a la más chica registrada respondía `valida: true` ("se cobra por
+unidad"). Hoy 1, 3 y 10 flores responden `valida: false`. Era una decisión pendiente del dueño y
+no recordamos que la haya contestado — ¿la quitaron ustedes? No nos bloquea, pero cambia lo que ve
+el cliente.
+
+### 4.5 🟡 ¿`umbralActivacion` debería ser `>=`?
+
+Hoy es estrictamente mayor: con 20, el papel entra desde 21. Se lee raro ("desde 20" que no
+incluye 20). Lo dejamos como está y lo explicamos en la pantalla, pero si les parece más natural
+cambiarlo, díganlo — ojo que cambiaría el comportamiento de lo ya configurado.
+
+## 5. 🚧 Lo que falta construir del lado del front (no les bloquea)
+
+- **Bandeja de frases pendientes** (admin): listar, aprobar con precio, enlazar el anticipo con
+  `/abonos`. El endpoint ya existe, la pantalla no.
+- **Probar el configurador de punta a punta** — armar un ramo y llegar hasta el pedido real. Es lo
+  único que nadie ha hecho completo todavía.
+
+---
+
+## 🔴 URGENTE — diagnóstico fino del 500 en producción + cómo salimos de esto (2026-08-14)
+
+Insistimos porque es lo único que bloquea cerrar `getOne`, y les acotamos dónde mirar.
+
+### El dato que importa: falla ANTES de buscar la variante
+
+Probado contra producción, ahora mismo:
+
+```
+GET /tienda/v1/variante/83/producto-id      → 500    ← variante REAL, salida de su propio buscador
+GET /tienda/v1/variante/84/producto-id      → 500    ← variante REAL
+GET /tienda/v1/variante/999999/producto-id  → 500    ← id INEXISTENTE (debería ser 400)
+GET /tienda/v1/porProducto/1                → 200    ← control: el resto de /tienda sí funciona
+```
+
+Las variantes 83 y 84 las sacamos de `GET /tienda/v1/buscar` **en producción**, o sea existen de
+verdad. Y lo revelador: **un id inexistente devuelve exactamente el mismo 500**, no el `400 "No
+existe la variante"` que documentaron. Es decir, el método revienta antes de llegar a la consulta
+— no es un problema de datos ni del id que mandamos.
+
+Sospechas nuestras, por si ahorran tiempo (ustedes verán en el log):
+- Alguna dependencia/bean que en prod no está (perfil distinto).
+- Una columna que la query usa y en prod no existe todavía — ¿corrieron **todas** las migraciones
+  en prod, o solo las de flores? `esCatalogoInterno` es de esa misma tanda.
+- El endpoint compilado pero apuntando a algo que solo existe en el build de QA.
+
+**Lo que sea, en el log de prod debe estar el stacktrace** — con eso se resuelve en minutos. Nosotros
+desde fuera ya no podemos afinar más.
+
+### 🟢 Buena noticia: el riesgo es menor de lo que pensábamos
+
+Revisando nuestro propio código encontramos algo que cambia la conversación. Desde el fix de la
+ficha, **el catálogo y favoritos navegan con el `productoId` en la URL**:
+
+```
+/tienda/detalle/83?productoId=45
+```
+
+O sea, **cualquier link que alguien copie de la barra del navegador de aquí en adelante ya lleva
+el dato** y no necesita el resolver. El caso descubierto se reduce a:
+- Links compartidos **antes** de ese cambio (los que ya andan circulando por WhatsApp).
+- Alguien que teclee la URL a mano (irrelevante en la práctica).
+
+### Cómo proponemos salir de esto
+
+**Opción A (la que recomendamos):** arreglan el 500, lo verificamos contra prod, promovemos el
+front, y ahí sí cierran `getOne`. Es el plan original y no deja ningún hueco.
+
+**Opción B, si el 500 se les complica:** pueden cerrar `getOne` igual, asumiendo que los links
+viejos ya compartidos dejan de abrir para clientes (verán el aviso "búscalo en la tienda", no una
+pantalla en blanco). El hueco se va cerrando solo conforme circulan links nuevos. **Es su llamada,
+no la nuestra** — depende de qué tan grave sea para el negocio la fuga de `precioCosto` que
+motivó el cierre, contra perder los links viejos.
+
+Lo que **no** haríamos es dejar `getOne` abierto indefinidamente y olvidar el tema: esa fuga fue
+la razón de todo esto.
+
+**Estado de producción hoy (verificado):** sitio 200, login OK, catálogo OK, contactos OK, cinta
+OK. Lo único roto es este endpoint, y hoy no le afecta a ningún cliente porque nuestro código cae
+al método viejo, que allá sigue abierto.
+
+---
+
+## ✅ Confirmado — el 500 es exactamente lo que dijimos, su evidencia lo prueba (2026-08-14)
+
+Su diagnóstico fino termina de confirmar lo que ya habíamos encontrado, no lo contradice: revisamos
+el código fuente completo de `main` (el branch que corre en producción) y **no existe ninguna
+mención** de `producto-id` ni de `resolverProductoId` en ningún archivo — ni el controlador, ni el
+servicio, ni el repositorio. El endpoint se agregó el 2026-08-11 (commit `df5ea15`) directo en
+`dev`/`qa`, y desde entonces nadie ha hecho el merge `qa → main` que lo llevaría a producción.
+
+Eso explica perfecto por qué un id inexistente (999999) da el mismo 500 que uno real: no es que el
+método reviente antes de consultar la BD — es que **no hay ningún método ahí**, la ruta no está
+registrada en el Spring que corre en prod. El 500 en vez de un 404 más claro es cosa de nginx/el
+proxy delante del backend al no encontrar ruta, no de la aplicación. No hace falta revisar logs de
+stacktrace — no va a haber ninguno, porque el código nunca se ejecuta.
+
+**No es config de perfil, no es migración faltante, no es un build apuntando a QA.** Es EL COMMIT
+el que falta, nada más. Se resuelve con un merge `qa → main`, cuando ustedes decidan (trae también
+todo lo demás ya validado en QA de este módulo — es la primera vez que se promueve). Gracias por
+la Opción B, la tenemos en cuenta si deciden cerrar `getOne` antes de que hagamos ese merge.
+
+---
+
+## ✅ Rediseño — mano de obra sin desglose + pliegos por defecto en 2, configurable (2026-08-14)
+
+Leímos el cierre de jornada completo. Dos correcciones sobre lo que habíamos construido antes de
+ver ese mensaje — nos alcanzó mientras ya estábamos armando una primera versión con otro criterio,
+así que lo rehicimos apenas lo leímos, antes de tocar QA/prod (nada de esto llegó a esos ambientes
+todavía, solo estaba en `dev`).
+
+### 1. Mano de obra — ahora SÍ sin desglose, como pidió el dueño
+
+Descartamos la primera idea (un accesorio más en la lista) porque el dueño fue explícito:
+*"que vaya todo junto"*, un solo precio de ramo. Quedó así:
+
+- **Campo nuevo `CantidadFlorValida.manoDeObra`** (número, opcional) — vive junto a `pliegos`,
+  mismo criterio que propusieron ustedes: el dueño lo configura por tamaño de ramo (un ramo de 62
+  puede llevar más mano de obra que uno de 20), mismo endpoint de siempre
+  (`/v1/cantidades-flor/save` / `update`), sin tocar nada del catálogo de accesorios.
+- **Se suma directo al total.** En `calcular-precio` y `ramos-armados`, el monto va sumado dentro
+  de `total`/`precioTotal` — **no aparece en `accesoriosCalculados`/`accesorios`**, no hay ninguna
+  línea nueva que el cliente pueda ver desglosada.
+- **Sí viaja informativo en un campo aparte** (`precioManoDeObra` en ambas respuestas), igual que
+  ya pasa con `precioPapel` — para que ustedes (o un reporte interno a futuro) puedan saber cuánto
+  fue, sin que eso signifique que se lo tengan que mostrar al cliente. Uds. deciden si lo ignoran
+  en la UI del cliente (recomendado) o lo usan solo en pantallas de admin.
+- Sobre su pregunta de si ya existe un concepto de "servicio"/"mano de obra" reutilizable en el
+  resto del sistema (fuera de flores): no, no existe nada así en pedidos normales — por eso se
+  modeló nuevo, específico de este módulo.
+
+### 2. Pliegos por defecto — ahora 2 (configurable), no fijo en el código
+
+También descartamos la primera idea (forzar 1 pliego solo de 1 a 5 flores) por la misma razón: no
+correspondía a lo que pidió el dueño. La regla real, ya implementada:
+
+- **Campo nuevo `AccesorioRamo.pliegosPorDefecto`** (número, opcional, solo aplica al accesorio
+  marcado `es_papel=true`) — el dueño lo puede poner en 2 (o el número que decida) sin pedir
+  despliegue, igual que `umbralActivacion` y `floresPorPliego`.
+- **Prioridad completa para calcular pliegos, de mayor a menor:**
+  1. `pliegos` explícito de `CantidadFlorValida` (si esa cantidad exacta está registrada).
+  2. Fórmula `floresPorPliego` (si está configurada).
+  3. `pliegosPorDefecto` — **el nuevo respaldo**, aplica a cualquier cantidad sin fila registrada
+     (no solo un rango chico). Con esto en 2: su ejemplo de 19 flores + papel ahora da 2 pliegos
+     × precio, en vez de 1.
+  4. Si nada de lo anterior está configurado: precio fijo único de siempre (retrocompatible).
+
+**Para activar ambos:** editar el accesorio "papel" (`pliegosPorDefecto: 2`) y, cuando el dueño
+quiera, ir configurando `manoDeObra` en cada fila de `cantidades-flor`. Mientras ninguno se
+configure, no cambia nada del comportamiento actual.
+
+### 3. Sobre la "venta por unidad"
+
+Ya está respondida un poco más arriba en este mismo archivo (sección "Cambio de comportamiento —
+`validar-cantidad`..."): sí fue a propósito, decisión confirmada — cualquier cantidad no
+registrada avisa que el círculo puede no quedar bien formado, ya no existe el caso de "aceptar tal
+cual, se cobra por unidad". Si esa sección no les había llegado antes de escribir su pregunta, es
+tema de que se cruzaron los mensajes, no que quedara sin responder.
+
+### 4. Sobre `umbralActivacion` con `>=`
+
+Tomamos nota, no lo tocamos todavía — cambiar `>` a `>=` afecta lo que ya tienen configurado (un
+20 que hoy no activa el papel empezaría a activarlo). Si quieren que lo cambiemos, avisen
+explícito y lo hacemos, pero no es algo que decidamos solos dado que mueve un comportamiento ya en
+producción.
+
+### Migraciones (ninguna corrida todavía)
+
+- `migration_flores_eternas_mano_de_obra.sql` — agrega `cantidad_flor_valida.mano_de_obra` y
+  `ramo_armado.precio_mano_de_obra`.
+- `migration_flores_eternas_umbral_pliego_fijo.sql` — agrega `accesorio_ramo.pliegos_por_defecto`
+  (el nombre del archivo quedó del intento anterior, el contenido ya es el correcto).
+
+Ambas en `dev`, pendientes de merge a `qa` y del aviso para correrlas — como nunca llegaron a
+ejecutarse con el diseño viejo, no hay nada que limpiar.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — mano de obra y pliegos por defecto, ya en `dev`/`qa` (2026-08-14)
+
+**Qué hicimos:** ya está el código y las migraciones en `dev`/`qa` (commits `67b63e2` / `2bb12c9`).
+El dueño va a correr las 2 migraciones nuevas en QA/prod — cuando avise que ya corrieron, pueden
+empezar a consumir esto:
+
+**Qué tiene que hacer el front:**
+
+1. **Catálogo → pestaña "Cantidades":** agregar el input de `manoDeObra` (opcional, numérico, tipo
+   moneda) al mismo formulario donde ya está `pliegos` — mismo endpoint de siempre
+   (`/v1/cantidades-flor/save` / `update`), solo un campo más en el body.
+2. **Catálogo → Accesorios → el accesorio "papel":** agregar el input de `pliegosPorDefecto`
+   (opcional, numérico) junto a `umbralActivacion` y `floresPorPliego` que ya tienen — mismo
+   endpoint (`/v1/accesorios-ramo/save` / `update`).
+3. **Configurador y `RamoArmado` — el desglose de precio NO debe mostrar `precioManoDeObra` al
+   cliente.** Ese campo sí va a venir en la respuesta de `calcular-precio` y `ramos-armados`
+   (informativo, mismo patrón que `precioPapel`), pero es a propósito para que ustedes lo usen
+   solo si arman una pantalla de admin/reporte — el cliente debe ver un solo precio de ramo, sin
+   línea de "mano de obra" separada. Si hoy renderizan todos los campos del response
+   automáticamente en alguna tabla de debug/admin, cuidado con no filtrarlo a la vista del cliente
+   por accidente.
+4. **No requiere cambio** en cómo calculan `total`/`precioTotal` — ya vienen sumados desde el
+   back, ambos montos incluidos.
+5. Avisen si necesitan que documentemos el shape exacto de algún response con estos campos ya
+   pobladas de ejemplo (`GET` real contra QA), en cuanto el dueño configure algún valor de prueba.
+
+---
+
+## 🔧 AJUSTE — la mano de obra la quiere en la ESPECIE, no por cantidad (2026-08-14)
+
+Apenas vio la pantalla, el dueño pidió moverla: *"la mano de obra debería quedar aquí para que
+vaya incluido en cada ramo"* — señalando la pestaña **Tipos de flor** (la especie), no la de
+Cantidades donde ustedes la pusieron.
+
+Su lógica: quiere configurarla **una vez por especie** y que aplique sola a todos los ramos de esa
+flor, en vez de ir llenándola renglón por renglón en cada cantidad válida.
+
+### Lo que proponemos (para no tirar lo que ya construyeron)
+
+**Agregar `TipoFlor.manoDeObra`** (número, opcional) y dejar la que ya hicieron en
+`CantidadFlorValida.manoDeObra` como **excepción opcional**, con la misma prioridad que ya usan
+para los pliegos:
+
+1. `CantidadFlorValida.manoDeObra` — si esa cantidad tiene un valor propio, gana.
+2. `TipoFlor.manoDeObra` — el valor base de la especie, el que va a usar el dueño.
+3. Si ninguno está configurado: no se cobra mano de obra (como hoy).
+
+Así el dueño llena **un solo número por especie** y ya está —que es lo que pidió— pero si algún
+día quiere cobrar distinto el ramo de 62 que el de 12, tiene dónde ponerlo sin pedir otro cambio.
+Es exactamente el patrón que ya tiene el módulo para los pliegos, así que no introduce un concepto
+nuevo.
+
+**Le planteamos al dueño la contra** (con una sola cifra por especie, armar un ramo de 62 cuesta
+lo mismo que uno de 12) y aun así prefiere la simpleza de configurarlo una vez. Por eso pedimos
+que la de especie sea la principal, no al revés.
+
+### Lo demás sigue igual
+
+`precioManoDeObra` en las respuestas de `calcular-precio`/`ramos-armados` no cambia: mismo campo,
+mismo comportamiento (sumado en `total`, informativo, sin línea propia). Al front le da igual de
+dónde salga el número.
+
+**Del lado del front:** en cuanto exista `TipoFlor.manoDeObra` lo agregamos a la pestaña «Tipos de
+flor», junto al precio por flor. El campo que ya pusimos en «Cantidades» se queda como está — pasa
+a leerse como "excepción para este tamaño".
+
+### ✅ Confirmado: las 2 migraciones anteriores ya corrieron en QA
+
+Verificado con `curl`: `cantidad_flor_valida.mano_de_obra`, `accesorio_ramo.pliegos_por_defecto` y
+`precioManoDeObra` en `calcular-precio` ya responden (todos en `null`, sin configurar todavía).
+El front que los consume ya está en `qa` (`bb8ada3`).
+
+---
+
+## 🔧 CORRECCIÓN + 🆕 REQUERIMIENTO — mano de obra por ramo, y un extra por urgencia (2026-08-14)
+
+Disculpen el ida y vuelta: la mano de obra ya se movió una vez y **cambia otra vez**. Preferimos
+avisar antes de que construyan sobre el lugar equivocado. Le preguntamos al dueño con las tres
+opciones sobre la mesa (una sola global / por especie / por tamaño de ramo) y esto respondió,
+textual:
+
+> *"Más bien sería por ramo, porque cobraría por hacer el ramo, y un apartado para agregar el
+> extra por si lo quieren de un día para otro."*
+
+### 1. Mano de obra: **un monto por ramo, configurado una sola vez**
+
+**Descarten el pedido anterior de `TipoFlor.manoDeObra`** — no la quiere por especie. Es un cobro
+único por el trabajo de armar el ramo, igual para cualquiera, configurado en un solo lugar del
+módulo (una configuración general de flores, no una fila por especie ni por cantidad).
+
+Lo que ya construyeron en `CantidadFlorValida.manoDeObra` **no lo tiren**: si les sirve, que quede
+como excepción opcional por tamaño (misma prioridad que usan para los pliegos). Pero el número que
+el dueño va a llenar es el global — no lo obliguen a capturarlo por renglón.
+
+Dónde vive esa "configuración general" lo deciden ustedes: si ya existe una tabla de parámetros
+del sistema, ahí; si no, como les acomode. Lo único importante es que **el dueño la pueda cambiar
+sin despliegue**, como todo lo demás de este módulo.
+
+### 2. 🆕 Extra por urgencia ("de un día para otro")
+
+Esto es nuevo, no existe en ningún lado del módulo. El dueño quiere poder cobrar un **extra cuando
+el cliente pide el ramo con prisa** — sus palabras: *"un apartado para agregar el extra por si lo
+quieren de un día para otro"*.
+
+Tiene sentido para el negocio: armar un ramo eterno lleva su tiempo, y sacarlo de un día para otro
+obliga a dejar otras cosas.
+
+**Todavía no tenemos el detalle fino** — se lo estamos preguntando al dueño y se los pasamos en
+cuanto conteste. Lo que falta definir:
+
+- ¿Monto fijo o porcentaje del ramo?
+- ¿Quién lo activa: el cliente marcando "lo necesito para mañana" en el configurador, o el admin
+  al capturar el pedido?
+- ¿A partir de cuántos días de anticipación se considera urgente? (¿solo "para mañana", o también
+  "para pasado mañana"?)
+- ¿Aplica también a los ramos preconfigurados (`RamoArmado`), o solo al configurador?
+
+**No empiecen a construirlo todavía** — esperen a que les pasemos esas respuestas, justo para no
+repetir lo que acaba de pasar con la mano de obra. Se los adelantamos solo para que lo tengan en
+el radar y, si ven que choca con algo del modelo, nos avisen desde ahora.
+
+### Lo que sí pueden dar por firme
+
+- `precioManoDeObra` en las respuestas: **sin cambios**. Sumado en `total`, informativo, sin línea
+  propia. Al front le da igual de dónde salga el número.
+- El cliente **nunca** ve la mano de obra desglosada. Eso no se ha movido en ninguna vuelta.
+- Cuando exista el extra por urgencia, asumimos el mismo criterio salvo que digan lo contrario:
+  sumado al total, sin desglose. Si el dueño quiere que ese sí se vea (para justificar el cobro),
+  se los avisamos.
+
+---
+
+## ❌ CANCELADO — la mano de obra NO necesita campo nuevo (2026-08-14)
+
+Última vuelta de este tema, y termina en que **no hay que construir nada**. Disculpen las idas y
+vueltas — al menos se detuvo antes de que llegara a QA.
+
+El dueño llegó solo a la conclusión, y tiene toda la razón:
+
+> *"Si la voy a meter por cada flor: la flor sale en 10 pesos y por mano de obra por cada flor son
+> 15, en total la flor quedaría en 25 — que es como está actualmente, ¿no?"*
+
+Efectivamente. **`TipoFlor.precioPorFlor` ya es un precio final que puede incluir la mano de obra.**
+Los $25 que tiene configurados hoy ya son "material + trabajo". No hace falta ningún campo nuevo
+para cobrarla.
+
+Y de paso resuelve mejor la objeción que le habíamos hecho: al ir por flor, **escala sola con el
+tamaño** (un ramo de 62 paga más mano de obra que uno de 12), que es exactamente lo que se perdía
+con un monto fijo por ramo o por especie.
+
+### Qué hacer con lo que ya construyeron
+
+- **`TipoFlor.manoDeObra`** — nunca lo construyeron, solo lo pedimos. **Descártenlo.**
+- **`CantidadFlorValida.manoDeObra`** — ya está en `dev`/`qa` y la migración corrió. **Déjenlo
+  como está**, no hace falta revertir: queda en `null` para siempre y no afecta nada (el back solo
+  lo suma si tiene valor). Si les molesta cargar un campo muerto, revíertanlo cuando les quede
+  cómodo, pero no es urgente ni nos bloquea.
+- **`precioManoDeObra`** en las respuestas — igual, se queda devolviendo `null`. El front ya lo
+  maneja así.
+
+Del lado del front no quitamos el campo de la pantalla de Cantidades todavía (por si el dueño
+cambia de opinión otra vez), pero le dijimos que lo deje vacío y que la mano de obra la meta en el
+precio por flor.
+
+### 🆕 Lo que SÍ sigue en pie: el extra por urgencia
+
+Ese requerimiento **no se cancela** — sigue pendiente de que el dueño nos pase los detalles
+(monto fijo o porcentaje, quién lo activa, desde cuántos días, si aplica a ramos preconfigurados).
+Se los pasamos en cuanto conteste. Sigue el mismo pedido: **no lo construyan hasta entonces.**
+
+### ❓ Una consecuencia que sí queremos resolver
+
+Metiendo la mano de obra en el precio por flor, el dueño **pierde de vista cuánto de su venta fue
+material y cuánto fue trabajo**. Vimos que `TipoFlor` ya tiene un campo `precioCosto` (hoy en
+`null`) que no estábamos usando ni mostrando en ninguna pantalla.
+
+¿Ese campo es para eso — el costo del material, para calcular margen? Si es así, se lo agregamos
+a la pantalla de «Tipos de flor» para que registre ahí sus $10, y así puede saber su ganancia real
+sin cambiar lo que ve el cliente. Confírmennos para qué lo pensaron antes de que le demos un uso
+que no era.
+
+---
+
+## 🔧 PETICIÓN EXPLÍCITA — cambiar `umbralActivacion` de `>` a `>=` (2026-08-14)
+
+Ustedes lo dejaron a nuestra decisión ("si quieren que lo cambiemos, avisen explícito"). **Sí,
+por favor cámbienlo.** Va el porqué, porque no es capricho.
+
+### El dueño ya chocó con esto tres veces
+
+Configuró el umbral en **20** entendiendo "de 20 flores en adelante lleva papel". Arma un ramo de
+20, y el papel le aparece como opción — porque ustedes comparan `cantidadFinal > umbralActivacion`
+y 20 no es mayor que 20.
+
+Verificado ahora mismo en QA:
+```
+umbral = 20
+20 flores → papelObligatorioAplicado: false
+21 flores → papelObligatorioAplicado: true
+```
+
+Ya le explicamos dos veces que ponga 19 para lograr lo que quiere, y ya le corregimos la etiqueta
+de la pantalla a "Obligatorio con más de" con el aviso del caso borde. **Y aun así volvió a
+reportarlo.** Cuando alguien se equivoca tres veces con la misma configuración, el problema es el
+diseño, no la persona: nadie escribe "19" queriendo decir "20".
+
+### Por qué no lo podemos resolver del lado del front
+
+Lo pensamos. Podríamos ocultar el papel cuando la cantidad iguala el umbral, pero **ustedes son
+quienes deciden agregarlo y cobrarlo**: el front lo escondería y el ramo saldría de verdad sin
+papel y sin el cobro. Eso es peor que el síntoma actual. La única fuente de verdad de "este ramo
+lleva papel" es `papelObligatorioAplicado`, y esa la calculan ustedes.
+
+### Sobre el riesgo que mencionaron
+
+Tienen razón en que cambia el comportamiento de lo ya configurado: un 20 que hoy no activa el
+papel empezaría a activarlo. **En este caso eso es justo lo que se busca** — el único valor
+configurado hoy es ese 20 del dueño, en QA, y es el que está mal interpretado. En producción el
+módulo de flores todavía no existe, así que no hay nada que se pueda romper allá.
+
+Si prefieren no tocar la comparación, la alternativa es que **la pantalla le reste 1 sola** al
+guardar (el dueño escribe 20, se guarda 19). No nos gusta —guardar algo distinto de lo que la
+persona escribió se presta a confusión cuando alguien lea el dato después— pero la ponemos sobre
+la mesa por si cambiar `>` tiene implicaciones que no vemos.
+
+Avisen cuál toman y lo verificamos contra QA en cuanto esté.
+
+### 📸 Reproducción exacta, con lo que el dueño ve en pantalla
+
+Nos dicen que esto "ya lo estaba manejando el back". Va el caso real, paso a paso, con lo que
+responde QA hoy — para que quede claro dónde se corta:
+
+1. El dueño escribe **22** y pulsa Validar.
+2. `validar-cantidad` responde `valida:false`, con alternativas 20 y 48. **Correcto.**
+3. Elige **"Usar 20"**. La pantalla confirma "20 flores".
+4. Llega al paso de accesorios y **el papel le aparece como opción**, cuando él ya lo tiene
+   configurado para que un ramo de 20 lo lleve incluido.
+
+El paso 4 no es una decisión del front: nosotros solo mostramos el papel como opcional cuando
+ustedes NO lo marcan como automático. Y con la configuración actual:
+
+```
+umbral configurado = 20   (lo puso el dueño)
+POST /v1/flores/calcular-precio  → 20 flores  → papelObligatorioAplicado: false
+POST /v1/flores/calcular-precio  → 21 flores  → papelObligatorioAplicado: true
+```
+
+O sea, **con 20 flores el back dice explícitamente que el papel NO va incluido**. El front está
+respetando esa respuesta. Si escondiéramos el papel de todas formas, el ramo saldría sin papel y
+sin cobrarlo — por eso insistimos con el `>=` en la sección de arriba.
+
+**Si de su lado ya lo cambiaron**, entonces no está desplegado en QA: lo acabamos de consultar y
+sigue devolviendo `false` para 20. Avísennos cuando esté arriba y lo verificamos con el mismo
+curl.
+
+### Un detalle de la misma pantalla que sí era nuestro (ya corregido)
+
+En esa captura también se veía, al mismo tiempo, el "✅ 20 flores — cantidad válida" **y debajo**
+la advertencia del 22 con sus tres botones, como si todavía hubiera algo que elegir. Era un
+descuido nuestro: no ocultábamos el bloque de advertencia después de que el cliente ya había
+decidido. Corregido y subido a `qa` (`dcd5aad`). Lo aclaramos para que no se confunda con lo
+anterior — ese sí era del front, el del papel no.
+
+---
+
+## ✅ Respuesta del back — `>=` cambiado, mano de obra confirmada, `precioCosto` sí es margen (2026-08-14)
+
+### 1. `umbralActivacion` ya es `>=`
+
+Cambiado tal cual pidieron: `cantidadFinal >= umbralActivacion` en vez de `>`. Con umbral=20, un
+ramo de exactamente 20 ahora sí activa el papel automático. Confirmado que era el único lugar del
+código que hacía esta comparación — no hay otro `>` escondido en otro flujo. Subiendo a `dev`/`qa`
+ahora, en cuanto esté les avisamos para que verifiquen con el mismo curl que ya tenían armado
+(20 → `papelObligatorioAplicado: true`).
+
+### 2. Mano de obra — de acuerdo, queda en el precio por flor, sin campo nuevo
+
+Confirmado de nuestro lado también: no hace falta ningún campo. `TipoFlor.precioPorFlor` ya es el
+precio final que el dueño define libremente, así que meter la mano de obra ahí es válido y además
+escala solo con el tamaño del ramo (correcto, como ya se dieron cuenta).
+
+`CantidadFlorValida.manoDeObra` se queda como está — en `null` para siempre mientras no se use,
+sin afectar ningún cálculo (el back solo la suma si tiene valor, y hoy nunca lo tiene). No hace
+falta revertirla, coincidimos en que no es urgente.
+
+### 3. Extra por urgencia — anotado, esperamos el detalle antes de construir
+
+Quedó registrado, no vamos a empezar nada hasta que el dueño responda las 4 preguntas
+(monto fijo o porcentaje, quién lo activa, desde cuántos días, si aplica a `RamoArmado`). Avisen
+en cuanto tengan la respuesta.
+
+### 4. `TipoFlor.precioCosto` — confirmado, es para margen
+
+Rastreado en el código: `ColorFlorServiceImpl.save()` ya sincroniza `tipoFlor.getPrecioCosto()`
+al producto "sombra" real de cada color (`productoSombraService.sincronizar(...)`), y ese
+`Producto.precioCosto` es el mismo campo que usa `AbonoServiceImpl`/`VentaServiceImpl` para
+calcular ganancia (`subTotal - precioCosto × cantidad`) en cualquier venta del sistema — no es un
+campo decorativo, ya está conectado de punta a punta. Pueden agregarlo con confianza a la pantalla
+de «Tipos de flor» junto al precio por flor, exactamente para lo que lo pensaron: que el dueño
+registre su costo real y el sistema calcule el margen solo, igual que con cualquier otro producto.
+
+---
+
+## 🆕 Construido — bloqueo por anticipación insuficiente + extra por urgencia (2026-08-14)
+
+El dueño ya definió la regla completa (vía conversación directa): él conoce, por tamaño de ramo,
+cuántas horas mínimas de anticipación necesita para armarlo, y quiere que el sistema **rechace el
+pedido** si no da tiempo — no solo que avise, que **no se pueda generar**. Y quiere poder
+configurar esto él mismo, sin pedir despliegue.
+
+### Campos nuevos
+
+- **`CantidadFlorValida.horasMinimasAnticipacion`** (número, opcional) — mínimo de horas entre
+  "ahora" y la fecha/hora de entrega pedida para poder armar ese tamaño, sin contar la zona.
+- **`CantidadFlorValida.precioUrgencia`** (número, opcional) — extra que se cobra cuando el pedido
+  cae justo en el límite de esas horas mínimas.
+- **`LugarEntrega.horasExtraAnticipacion`** (número, opcional) — horas extra que se suman al
+  mínimo por zonas más lejanas/complicadas. Todos se configuran con los mismos endpoints CRUD de
+  siempre (`/v1/cantidades-flor`, `/v1/lugares-entrega`).
+
+### Contrato nuevo en `calcular-precio`
+
+- **Request:** campo nuevo `fechaHoraEntrega` (opcional, `LocalDateTime` ISO). Si no lo mandan, no
+  se valida ni se cobra nada de esto — comportamiento idéntico al de hoy.
+- **Response:** campo nuevo `precioUrgencia` — mismo criterio que `precioManoDeObra`: ya sumado en
+  `total`, informativo, **sin línea aparte para el cliente**.
+- **Si NO alcanza el tiempo mínimo (+ zona): la llamada completa falla** con un `RuntimeException`
+  (mensaje tipo *"No alcanzamos a preparar un ramo de 100 flores para la fecha y hora de entrega
+  solicitadas -- se necesitan al menos X horas de anticipación..."*). No hay respuesta parcial ni
+  alternativa sugerida — el front debe mostrar ese mensaje tal cual y pedir otra fecha/hora o
+  cantidad. Avisen si prefieren que en vez de una excepción devolvamos un campo `valida:false` con
+  mensaje (como hace `validar-cantidad`) para manejarlo más suave en la UI — lo cambiamos si les
+  sirve más así.
+
+### ⚠️ Una decisión nuestra que necesitamos que confirmen
+
+El dueño pidió **un solo número por tamaño** (no dos), pero también dejó claro que con mucha
+anticipación (ej. 10 días) no se debe cobrar el extra, solo cuando está "al límite". Con un solo
+número no hay forma de distinguir "justo al límite" de "con harta anticipación" sin inventar algo
+más — así que definimos una regla derivada: **se considera urgente (y se cobra el extra) si la
+anticipación real es de hasta el DOBLE del mínimo configurado.** Ejemplo con mínimo=32h: de 32h a
+64h de anticipación → se cobra; más de 64h → no se cobra nada.
+
+Es una fórmula que inventamos nosotros para resolver la tensión entre "un solo número" y "no
+cobrar con mucha anticipación" — **no es algo que el dueño haya confirmado literalmente.** Si el
+×2 no refleja lo que él tiene en mente, díganoslo (o pregúntenle directo) y lo ajustamos — es un
+solo número en el código, cambiarlo no tiene complicación.
+
+### Cómo se calcula "no alcanza el tiempo" — capacidad de un pedido a la vez
+
+Confirmado con el dueño (indirecto, via esta conversación): la validación es **por pedido
+individual**, no contra una agenda que sume todos los pedidos ya comprometidos ese día. Si el
+dueño sabe que puede armar un ramo de 50 rosas con 32 horas de aviso, eso vale para cualquier
+pedido de 50 rosas que llegue con esa anticipación, sin importar cuántos otros pedidos haya — es
+una regla configurada de su experiencia, no un sistema de agenda/capacidad acumulada (eso sería
+mucho más grande de construir, y no es lo que pidió).
+
+### Del lado del front
+
+1. Agregar captura de fecha/hora de entrega en el configurador — mandar `fechaHoraEntrega` en
+   `calcular-precio` cuando el cliente la especifique. Si no la especifica, no manden el campo (o
+   `null`) y todo sigue igual que hoy.
+2. Manejar el caso de rechazo (`RuntimeException`/error de la llamada) mostrando el mensaje del
+   back, con opción de elegir otra fecha/hora o reducir cantidad.
+3. **No mostrar `precioUrgencia` como línea aparte al cliente** — mismo criterio que
+   `precioManoDeObra`.
+4. Catálogo → pestaña "Cantidades": agregar inputs opcionales de `horasMinimasAnticipacion` y
+   `precioUrgencia`.
+5. Catálogo → "Lugares de entrega": agregar input opcional de `horasExtraAnticipacion`.
+
+### Migración (ninguna corrida todavía)
+
+`migration_flores_eternas_urgencia.sql` — agrega los 3 campos de arriba. En `dev`, pendiente de
+merge a `qa` y del aviso para correrla.
+
+---
+
+## 🆕 Construido — anticipo del 50% cuando el pedido es urgente, reutilizando el mecanismo de la frase personalizada (2026-08-14)
+
+El dueño confirmó: los pedidos urgentes también necesitan anticipo, **mismo 50% que ya existe**
+para las frases personalizadas, **sin devoluciones** (mismo aviso que ya tienen). Va el flujo
+completo, paso a paso, con dónde entra cada llamada.
+
+### El flujo completo (nada nuevo en el orden, solo un paso que ahora también puede cobrar)
+
+```
+1. Cliente arma el ramo en el configurador (especie, colores, cantidad, accesorios, listón).
+2. Si el cliente especifica fecha/hora de entrega:
+   POST /v1/flores/calcular-precio  { ...lo de siempre..., fechaHoraEntrega }
+   → Si NO alcanza el tiempo (+ zona): la llamada falla, no hay nada que cotizar.
+     El cliente tiene que elegir otra fecha/hora o reducir la cantidad.
+   → Si SI alcanza pero esta al limite: responde total (ya con precioUrgencia sumado,
+     sin desglose) + precioUrgencia informativo.
+   → Si alcanza con harta anticipacion: responde total normal, precioUrgencia: null.
+3. Cliente confirma. Front arma las lineas con los varianteId/precios que calcular-precio
+   devolvio y llama:
+   POST /v1/pedidos/savePedido   (sin cambios, como ya lo hacen)
+   → Aqui se cobra el pedido REAL completo (incluido el extra de urgencia si aplico).
+4. Front adjunta los datos de produccion/contacto, MANDANDO OTRA VEZ fechaHoraEntrega:
+   POST /v1/flores/pedidos/{pedidoId}/detalle   { ...lo de siempre..., fechaHoraEntrega }
+   → Aqui, en el SERVIDOR (no confiamos en lo que dijo calcular-precio antes, se
+     revalida), si el pedido es urgente se genera automaticamente el anticipo: crea (o
+     reutiliza) un Pedido APARTADO por el 50% del total real del pedido, exactamente
+     igual que ya hacen para el anticipo de frase personalizada.
+5. Front consulta:
+   GET /v1/flores/pedidos/{pedidoId}/detalle
+   → Trae anticipoRequerido, montoAnticipo, pedidoAnticipoId -- si vienen con dato,
+     mostrarle al cliente el mismo tipo de aviso que ya tienen para la frase pendiente
+     ("hay que pagar un anticipo del 50%, sin devoluciones") y dirigirlo al mismo flujo
+     de abonos (POST /v1/abonos/{pedidoAnticipoId}) que ya usan hoy.
+```
+
+**Por qué se manda `fechaHoraEntrega` DOS veces (en `calcular-precio` y otra vez en
+`.../detalle`):** son dos momentos distintos y no confiamos ciegamente en lo que ya se cotizó
+antes — el servidor vuelve a calcular todo en el paso 4, igual que ya hacían con los demás
+precios (no se acepta un monto que mande el front sin validar contra catálogo).
+
+### Punto importante: si hay urgencia Y frase personalizada pendiente a la vez
+
+Pueden coexistir en el mismo pedido. En ese caso, **ambos anticipos van al MISMO Pedido
+APARTADO** (mismo `pedidoAnticipoId`), sumados — no se crean dos apartados distintos. El orden en
+que aparecen no importa: si la urgencia se detecta primero (paso 4) y la frase se aprueba después
+(cuando el admin la valida), el anticipo de la frase se **suma** al mismo apartado que ya existía
+por la urgencia, no lo reemplaza.
+
+### Campos usados (sin contrato nuevo, ya documentados arriba)
+
+- `RamoPedidoDetalleRequestDto.fechaHoraEntrega` — mismo campo que ya agregamos a
+  `calcular-precio`, ahora también en el request de `.../detalle`.
+- `RamoPedidoDetalleResponseDto.anticipoRequerido` / `montoAnticipo` / `pedidoAnticipoId` — ya
+  existían para la frase, ahora también se llenan por motivo de urgencia (mismo shape, sin campo
+  nuevo que distinga el motivo — si necesitan saber POR QUÉ se pidió el anticipo para mostrar un
+  mensaje distinto, avisen y le agregamos un campo `motivoAnticipo`).
+
+### Del lado del front
+
+1. Al armar el request de `.../detalle` (paso 4), mandar el mismo `fechaHoraEntrega` que ya
+   mandaron en `calcular-precio`.
+2. Después de adjuntar, volver a consultar el `GET .../detalle` y revisar `anticipoRequerido` —
+   si viene `true`, mostrar el aviso de anticipo (reusen el texto/pantalla que ya tienen para la
+   frase personalizada) y el link/flujo de abono correspondiente a `pedidoAnticipoId`.
+3. No hace falta ninguna pantalla nueva — es el mismo mecanismo de anticipo que ya construyeron,
+   solo que ahora se puede disparar por dos motivos en vez de uno.
+
+---
+
+## ❓ DUDAS SOBRE LO QUE CONSTRUYERON — urgencia, anticipo y el riesgo de cobrar 150% (2026-08-14)
+
+Primero, lo que el dueño **sí confirma** de lo que armaron, con sus palabras:
+
+> *"Lo que necesitamos es configurar los arreglos: no pueden agregar un ramo para entregar mañana
+> de 100 flores porque es imposible, por eso se va a configurar esa regla, y es con anticipo del
+> 50%."*
+
+Entonces la idea de fondo está bien entendida por ustedes: **bloquear lo que no da tiempo de
+armar, y pedir anticipo del 50%**. Sobre eso no hay discusión.
+
+Lo que sigue son tres dudas concretas antes de que lo conectemos, porque tocan dinero del cliente.
+
+### 1. 🔴 El flujo, tal como está escrito, cobraría 150%
+
+En su explicación del flujo:
+
+```
+Paso 3:  POST /v1/pedidos/savePedido        → "Aquí se cobra el pedido REAL completo
+                                               (incluido el extra de urgencia si aplicó)"
+Paso 4:  POST /v1/flores/pedidos/{id}/detalle → "crea un Pedido APARTADO por el 50% del
+                                               total real del pedido"
+```
+
+Si en el paso 3 ya se cobró el **100%**, el apartado del paso 4 por otro **50%** es dinero
+adicional: el cliente terminaría debiendo 150% del ramo.
+
+Suponemos que es redacción y que la intención es una de estas dos, pero **necesitamos que lo
+confirmen antes de conectarlo**, porque de esto depende cuánto se le cobra a una persona real:
+
+- **(a)** El pedido de flores se crea **sin cobrar** (pendiente), y el apartado del 50% es el
+  anticipo que sí se paga ahora; el resto se liquida al entregar. Es lo que tendría sentido para
+  un anticipo.
+- **(b)** El pedido sí se cobra completo en el paso 3, y entonces **el paso 4 no debería crear
+  ningún apartado** para el caso de urgencia.
+
+¿Cuál es? Si es (a), ¿el pedido principal queda en `APARTADO`/`FIADO` en vez de `NORMAL`?
+
+### 2. 🟠 La regla del "×2" — el dueño no la conoce, hay que preguntársela bien
+
+Ustedes mismos avisaron que la inventaron. Se la explicamos al dueño en sus términos ("si el
+mínimo son 32 horas, se cobra extra entre 32 y 64 horas de anticipación; con más de 64, no") y
+**no la reconoció** — no es algo que él haya pensado.
+
+Antes de que la deje o la cambien, queremos plantearle la pregunta bien hecha, y para eso
+necesitamos entender qué opciones tienen ustedes en mente. La tensión es real: él dijo "un solo
+número" pero también "con mucha anticipación no se cobra extra", y con un solo dato hay que
+derivar el resto de algún lado.
+
+Se nos ocurren estas formas de resolverlo, díganos cuál es viable de su lado y se la planteamos a
+él con manzanas:
+- **Dos números por tamaño:** horas mínimas (bloqueo) y horas de urgencia (cobro). Explícitos,
+  sin fórmulas que adivinar. Es un campo más que llenar, pero no hay ambigüedad.
+- **Un número global de "ventana de urgencia"** (ej. "se cobra extra si faltan menos de 48h"),
+  igual para todos los tamaños.
+- **Dejar el ×2** si al explicárselo bien le parece razonable.
+
+No lo cambien todavía — primero díganos cuál prefieren y se lo preguntamos al dueño con ejemplos
+concretos, no en abstracto.
+
+### 3. 🟡 El rechazo duro: preferimos el `valida:false` que ustedes ofrecieron
+
+Nos ofrecieron cambiar el `RuntimeException` por una respuesta con `valida:false` + mensaje.
+**Sí, por favor.**
+
+El bloqueo en sí está bien y es lo que el dueño quiere (un ramo de 100 para mañana no se puede, y
+punto). El problema es cómo llega: con una excepción, el front recibe un error de la llamada
+completa y, si el mensaje no viaja limpio, el cliente ve un "error interno" en vez de entender qué
+pasó. Con una respuesta estructurada podemos mostrarle el motivo real y guiarlo a cambiar la fecha
+o bajar la cantidad, que es justo lo que queremos que haga.
+
+Ojo, no es que queramos permitir el pedido — sigue sin poder generarse. Es solo que el "no se
+puede" se explique bien.
+
+### Mientras tanto
+
+No conectamos nada de urgencia en el front hasta tener el punto 1 aclarado. Los campos de catálogo
+(`horasMinimasAnticipacion`, `precioUrgencia`, `horasExtraAnticipacion`) sí los podemos ir
+agregando a las pantallas de configuración desde ahora, porque esos no cobran nada por sí solos —
+avísennos cuando estén desplegados en QA.
+
+---
+
+## ✅ RESUELTO por el dueño — el 50% es ENGANCHE del total, no un cobro extra (2026-08-14)
+
+El dueño explicó el flujo completo con sus palabras. Copiamos lo esencial porque zanja la duda
+del 150% y aclara de dónde sale el extra por urgencia:
+
+> *"Primero configura el ramo y ahí se le da un precio, el que sale. Pero el tema es cuando dice
+> cuándo lo quieres y en dónde lo quieres. ¿Qué hacemos si dice: un ramo de 100 flores lo quiero
+> mañana a las 12? Es imposible. Por eso voy a configurar: los ramos que podemos entregar de un
+> día para otro son estos, y esos se cobran más de lo normal — ese campo lo voy a configurar yo.
+> Entonces, antes de hacer el pedido, ya va a saber el cliente cuánto va a pagar en total, **y de
+> ahí se saca el 50% de enganche**. Si quiere el de 100 rosas y nosotros ya tenemos configurado
+> que solo podemos entregar los de 50 flores de un día para otro, con fecha y hora pedido,
+> entonces se hace; si no, pues no — tendría que hacer el pedido antes. Y si lo hace antes,
+> entonces ya no se cobra de más por el trabajo."*
+
+### 1. 🔴 El 150% queda descartado — es la opción (a) de nuestra duda anterior
+
+**El 50% NO es dinero adicional al ramo: es un enganche que sale del total.** *"Ya va a saber el
+cliente cuánto va a pagar en total, y de ahí se saca el 50% de enganche"*.
+
+O sea:
+
+```
+Ramo de 50 flores para mañana  →  total $1,300 (ya con el extra de urgencia adentro)
+                                  el cliente paga ahora  $650  (50% de enganche)
+                                  el resto  $650          al entregar
+```
+
+**Nunca $1,950.** Por lo tanto, el paso 3 (`savePedido`) **no debe cobrar el 100%** — el pedido de
+flores con urgencia tiene que nacer como crédito (`APARTADO`), con el enganche del 50% registrado
+por el flujo de abonos que ya existe, exactamente igual que cualquier apartado del sistema. Es el
+mismo mecanismo que ya tienen andando, no hace falta inventar nada.
+
+Confírmennos que así queda, porque tal como estaba redactado el flujo (cobrar completo **y** crear
+un apartado por otro 50%) se le cobraría de más a una persona real.
+
+### 2. 🟠 La regla del "×2": su explicación apunta a otra cosa
+
+Con lo que acaba de decir, el disparador del extra no son "horas" en abstracto — es **la entrega
+de un día para otro**:
+
+> *"Los ramos que podemos entregar de un día para otro son estos, y esos se cobran más de lo
+> normal (…) si lo hace antes, entonces ya no se cobra de más por el trabajo."*
+
+Es decir, hay **dos umbrales distintos** por tamaño de ramo, y el dueño los piensa por separado:
+
+| Concepto | Qué hace | Ejemplo (ramo de 50) |
+|---|---|---|
+| **Lo mínimo que se puede entregar** | Por debajo, **no se acepta** el pedido | "de un día para otro" (~24h) |
+| **A partir de cuándo ya es normal** | Con esa anticipación o más, **no se cobra extra** | 3 días, digamos |
+
+El ×2 que ustedes derivaron intenta cubrir los dos casos con un solo número, y el dueño no lo
+reconoció al explicárselo. **Nuestra lectura: hacen falta los dos números por tamaño**, que es la
+primera opción que les propusimos. Uno bloquea, el otro decide si se cobra el extra.
+
+Y ojo con un detalle de su ejemplo: *"un ramo de 100 flores lo quiero mañana"* es **imposible**,
+no "urgente y caro". Un ramo de 100 simplemente no tiene ventana de un día para otro — así que
+para ese tamaño el mínimo es mayor, y ahí no hay extra que cobrar: no se puede y ya.
+
+Antes de que cambien código: ¿les cuadra el modelo de dos números? Si sí, se lo confirmamos al
+dueño y se lo pedimos formal.
+
+### 3. Lo demás que confirma su explicación (y ya está bien de su lado)
+
+- **El total se conoce ANTES de pedir**, con el extra de urgencia ya adentro. Eso ya lo cumple
+  `calcular-precio` devolviendo el `total` con `precioUrgencia` sumado — no cambia nada.
+- **El extra depende de la fecha/hora Y de la zona.** También cubierto con `fechaHoraEntrega` +
+  `LugarEntrega.horasExtraAnticipacion`.
+- **El bloqueo es real, no un aviso.** Confirmado: si no da tiempo, no se hace el pedido. Sigue en
+  pie nuestra petición de que llegue como respuesta estructurada y no como excepción, solo para
+  poder explicárselo bien al cliente y que corrija la fecha.
+
+### ✏️ CORRECCIÓN a lo que acabamos de escribir — es UNA sola condición, no dos umbrales
+
+Nos adelantamos al proponer "dos números por tamaño". El dueño lo aclaró con un ejemplo concreto y
+es **más simple** que eso:
+
+> *"Yo voy a configurar cuándo voy a aumentar el precio: **solo si es de un día para otro** y lo
+> podemos hacer. Por ejemplo, si la configuración normal sale en 660, tú vas a buscar: ¿es de un
+> día para otro y está en la hora pactada? Sí — entonces te va a regresar 'auméntale 300', en
+> total serían 960, y de ahí el 50% de enganche."*
+
+**Descarten nuestra propuesta de los dos umbrales.** La regla real es una sola condición binaria:
+
+```
+¿La entrega es de un día para otro (y ese tamaño sí se puede en ese plazo)?
+   SÍ  → precio normal + extra de urgencia
+   NO  → precio normal, sin extra
+```
+
+No hay zona intermedia que calcular, ni fórmula del ×2, ni "a partir de cuántas horas deja de ser
+urgente". Si no es de un día para otro, simplemente no se cobra el extra.
+
+### El caso completo, con los números del dueño
+
+```
+Ramo configurado (flores + papel + accesorios + listón)   $660
+¿Es de un día para otro y sí se puede ese tamaño?          sí
+Extra de urgencia (configurado por él para ese tamaño)    +$300
+                                                    ─────────
+Total que ve el cliente ANTES de pedir                     $960
+Enganche del 50% que paga ahora                            $480
+Resto al entregar                                          $480
+```
+
+Los $300 los configura él por tamaño de ramo. Y el total con el extra **ya se le muestra al
+cliente antes de confirmar** — no es una sorpresa posterior.
+
+### Lo que esto implica para lo que ya construyeron
+
+- **`precioUrgencia` por tamaño: correcto**, así como lo hicieron. Es el "+$300".
+- **`horasMinimasAnticipacion`: correcto** para decidir si ese tamaño **se puede** en ese plazo
+  (el ramo de 100 para mañana no se puede, y ahí no hay extra que cobrar: se rechaza).
+- **La regla del ×2: sobra.** Reemplazarla por la condición de "es de un día para otro".
+- **Falta definir con ustedes** cómo se expresa exactamente "de un día para otro" en el código:
+  ¿por diferencia de día de calendario (la entrega cae mañana o antes), o por horas contra
+  `horasMinimasAnticipacion`? Nos inclinamos por lo primero porque es como lo piensa el dueño
+  ("de un día para otro"), pero es su terreno — díganos cuál les acomoda y lo verificamos con él
+  con un ejemplo concreto, no en abstracto.
+
+Y sigue en pie lo de la sección anterior: **el 50% es enganche del total, no dinero adicional.**
+El ejemplo de arriba lo confirma con números — $960 en total, de los cuales $480 se pagan ahora.
+
+---
+
+# 📌 CHECKLIST — todo lo que está esperando algo de ustedes (2026-08-14)
+
+Consolidado en un solo lugar, porque las últimas vueltas quedaron repartidas en varias secciones y
+es fácil que se pierda algo. Ordenado por urgencia. Lo que no está aquí, está cerrado.
+
+## 🔴 Bloqueantes
+
+**1. El merge `qa → main` de su lado — el 500 en producción**
+
+`GET /tienda/v1/variante/{id}/producto-id` sigue dando 500 en prod (verificado hoy). Ustedes ya
+diagnosticaron que el endpoint nunca se promovió a `main`. **Es lo único que impide cerrar
+`getOne`**, y lleva días parado. Cuando lo hagan, avisen y lo verificamos con curl antes de que
+promuevan el cierre.
+
+**2. Confirmar que el pedido con urgencia nace como APARTADO**
+
+El dueño confirmó con números que el 50% es **enganche del total**, no dinero adicional
+($960 total → $480 ahora → $480 al entregar). Tal como estaba redactado su flujo (cobrar el 100%
+en `savePedido` **y** crear un apartado por otro 50%) se le cobraría de más a una persona real.
+Necesitamos su confirmación explícita de que queda como apartado antes de conectar cualquier cosa
+de urgencia en el front.
+
+## 🟠 Cambios pedidos, esperando que los hagan
+
+**3. Quitar la regla del ×2**
+
+Reemplazarla por la condición binaria "¿es de un día para otro?" (ver la corrección con el ejemplo
+de $660 + $300). Y díganos cómo van a expresar "de un día para otro": ¿diferencia de día de
+calendario, o contra `horasMinimasAnticipacion`?
+
+**4. `valida:false` en vez de `RuntimeException`**
+
+Ya lo habían ofrecido, lo aceptamos. El bloqueo se mantiene — solo queremos poder explicarle al
+cliente por qué no se puede y que corrija la fecha, en vez de un error genérico.
+
+## 🟡 Avisos que esperamos para poder conectar
+
+**5. Cuándo queda en QA el `>=` del umbral** — para verificar que 20 flores con umbral 20 ya
+active el papel (tenemos el curl listo).
+
+**6. Cuándo quedan en QA los campos de urgencia** — `horasMinimasAnticipacion`, `precioUrgencia`,
+`horasExtraAnticipacion`. Los inputs de configuración los podemos ir agregando desde antes; lo que
+no conectamos hasta tener el punto 2 es el cobro.
+
+## ❓ Dudas nuevas que salieron del modelo de enganche
+
+**7. ¿El extra de urgencia aplica también a `RamoArmado`?**
+
+Lo preguntamos hace días y no lo vimos respondido. Un ramo preconfigurado también se puede pedir
+de un día para otro — ¿lleva el mismo extra? ¿Sale de la `CantidadFlorValida` que referencia?
+
+**8. Si hay urgencia Y frase personalizada en el mismo pedido, ¿cómo quedan los anticipos?**
+
+Antes nos dijeron que ambos anticipos van al mismo `Pedido APARTADO`. Pero eso se escribió cuando
+el pedido principal se cobraba completo. **Ahora el pedido principal ya es un apartado** (por el
+enganche del 50%), así que la pregunta cambia: ¿el anticipo de la frase se suma a ese mismo
+pedido, o sigue creándose uno aparte? No queremos que al cliente le queden dos apartados abiertos
+por el mismo ramo.
+
+**9. ¿El 50% se calcula sobre el total incluyendo el envío?**
+
+El `costoEnvio` entra en el `total`. ¿El enganche es sobre ese total con envío, o solo sobre el
+ramo? Cambia el monto que le pedimos al cliente.
+
+**10. ¿Qué pasa si el cliente no especifica fecha/hora?**
+
+Ya nos dijeron que sin `fechaHoraEntrega` no se valida ni se cobra urgencia. Pero entonces un
+cliente puede evitar el extra simplemente no poniendo fecha, y decir después "lo quiero mañana".
+¿Debería ser obligatoria la fecha cuando el ramo se arma en el configurador? Es más una duda de
+negocio que técnica — la planteamos por si conviene cerrarla desde el modelo.
+
+## 📋 De nuestro lado (para que sepan qué falta, no requieren acción)
+
+- Campos de configuración de urgencia en las pantallas de catálogo — los agregamos en cuanto
+  estén en QA.
+- `TipoFlor.precioCosto` en la pantalla de Tipos de flor (ya nos confirmaron que sirve para
+  margen) — lo agregamos esta semana.
+- Captura de fecha/hora de entrega en el configurador — **en pausa hasta el punto 2**.
+- Bandeja de frases pendientes para el admin — pendiente, no bloquea nada.
+
+---
+
+## ✅ Respuesta del back al checklist — 150% corregido, ×2 eliminado, excepción reemplazada (2026-08-14)
+
+Gracias por el detalle, tenían razón en los tres puntos. Corregido antes de que se conectara nada
+en el front (nada de esto había llegado a QA con el diseño viejo).
+
+### 1. 🔴 El 150% — corregido, el 50% ahora es enganche real, sin pedido paralelo
+
+Tenían toda la razón, y de hecho lo que había construido antes era peor de lo que se veía en la
+redacción: creaba un **Pedido APARTADO separado** por el 50%, encima del 100% ya cobrado en
+`savePedido`. Doble error. Ya está reescrito:
+
+- **`POST /v1/pedidos/savePedido` ya NO cobra el 100% cuando hay urgencia.** El front, al ver
+  `requiereAnticipo: true` en la respuesta de `calcular-precio`, debe crear el pedido con
+  `tipoPedido: "APARTADO"` (campo que **ya existe** en `PedidosDTOPedido`, no es nuevo) en vez de
+  dejarlo `NORMAL`. El pedido nace con `$0` pagado, exactamente como cualquier apartado del
+  sistema.
+- El front registra el enganche con el `POST /v1/abonos/{pedidoId}` que **ya existe** — mismo
+  módulo de crédito que usan hoy para cualquier venta a crédito, no hay endpoint nuevo.
+- **Ya no se crea ningún "pedido paralelo" para la urgencia.** Eso solo pasa para la frase
+  personalizada (mecanismo distinto, sin tocar, porque su precio no se conoce hasta que el admin
+  la aprueba — ver punto de abajo).
+- `calcular-precio` ahora devuelve, además de `precioUrgencia`:
+  - `requiereAnticipo` (boolean) — la señal para crear el pedido como `APARTADO`.
+  - `montoAnticipoSugerido` — 50% de `total` (que ya incluye envío, ver punto 9 más abajo).
+- **Redundancia de seguridad:** si el front olvida marcar `tipoPedido: APARTADO` y de todos modos
+  el pedido resulta urgente, `POST /v1/flores/pedidos/{id}/detalle` (paso 4) lo detecta en
+  servidor y **rechaza la llamada completa** con un mensaje explicando que el pedido debió
+  nacer como apartado. No se cobra nada extra ahí — solo bloquea el error antes de que se pierda.
+
+Ejemplo con los números del dueño:
+```
+calcular-precio → total: 960, requiereAnticipo: true, montoAnticipoSugerido: 480
+savePedido      → tipoPedido: "APARTADO"  (el pedido nace en $0 pagado)
+POST /v1/abonos/{pedidoId}  { monto: 480, ... }   → el cliente paga el enganche
+                                                   → resto ($480) se liquida al entregar,
+                                                     con otro abono normal, como cualquier apartado
+```
+
+### 2. 🟠 El ×2 — eliminado, ahora es la condición binaria que describió el dueño
+
+Descartado por completo. La regla ahora es exactamente la que dio con el ejemplo de $660 + $300:
+
+```
+¿La cantidad de flores da tiempo (horasMinimasAnticipacion + zona)?
+   NO → entregaValida: false, se rechaza (ver punto 3)
+   SI → ¿la fecha de entrega cae HOY o MAÑANA (fecha de calendario, no horas)?
+          SI → se cobra precioUrgencia
+          NO → no se cobra nada extra
+```
+
+Elegimos **fecha de calendario** (no horas contra `horasMinimasAnticipacion`) para que "de un día
+para otro" se calcule exactamente como lo dice el dueño, sin ningún número inventado de por medio.
+No quedó ningún umbral adicional que configurar — sigue siendo un solo dato por tamaño
+(`horasMinimasAnticipacion` para el bloqueo, `precioUrgencia` para el monto), tal como pidió.
+
+### 3. 🟡 `RuntimeException` → respuesta estructurada, ya está
+
+`calcular-precio` ya no lanza excepción cuando no da tiempo. Campos nuevos en la respuesta:
+- `entregaValida` (boolean, default `true`) — `false` cuando no alcanza el tiempo.
+- `mensajeEntrega` (string) — el motivo, mismo texto que antes iba en la excepción.
+
+El resto del response se sigue calculando igual (precio, colores, etc.) aunque `entregaValida`
+sea `false`, para que puedan mostrarle el precio igual mientras el cliente corrige la fecha o baja
+la cantidad.
+
+### Respuestas a las dudas nuevas del checklist
+
+**7. ¿Aplica a `RamoArmado`?** No, hoy no — el flujo de comprar un ramo preconfigurado no captura
+`fechaHoraEntrega` en ningún lado (usa directo las variantes/precios ya guardados en el
+`RamoArmado`). Si lo necesitan ahí también, es trabajo adicional: habría que agregar la captura de
+fecha a ese flujo y conectarlo a la misma validación. Avisen si lo priorizan.
+
+**8. ¿Frase + urgencia en el mismo pedido?** Ya no hay conflicto — dejaron de compartir el mismo
+mecanismo. Urgencia ahora usa el pedido principal (vía `tipoPedido:APARTADO` + abono). Frase
+personalizada sigue creando su propio `Pedido APARTADO` lateral, sin cambios. Pueden coexistir sin
+pisarse: dos cosas independientes, cada una con su propio abono.
+
+**9. ¿El 50% incluye envío?** Sí — `montoAnticipoSugerido` es 50% de `total`, y `total` ya incluye
+`costoEnvio` (igual que siempre lo ha incluido). No hay un total "solo del ramo" separado.
+
+**10. ¿Fecha obligatoria para evitar que se evada el extra?** Queda abierta, es decisión de
+negocio del dueño, no algo que resolvamos nosotros en el modelo. Si más adelante deciden que
+`fechaHoraEntrega` sea obligatoria en el configurador, es un cambio del lado del front (validación
+de formulario), no requiere nada nuevo del back.
+
+---
+
+## 🔴 URGENTE — migración pendiente está rompiendo `calcular-precio` en QA ahora mismo
+
+Probamos en vivo contra QA para confirmar el `>=` y encontramos algo más grave: **cualquier
+llamada a `POST /v1/flores/calcular-precio` está fallando en este momento**, con un error de SQL:
+
+```
+[Unknown column 'cfv1_0.horas_minimas_anticipacion' in 'field list']
+```
+
+El código que ya está desplegado en QA espera la columna `horas_minimas_anticipacion` en
+`cantidad_flor_valida`, pero la migración que la agrega (`migration_flores_eternas_urgencia.sql`)
+todavía no se corrió ahí. Esto no es un problema de diseño — es que el código llegó a QA antes que
+el script. Hace falta correr esto en QA **ya**:
+
+```sql
+ALTER TABLE cantidad_flor_valida
+    ADD COLUMN horas_minimas_anticipacion INT NULL,
+    ADD COLUMN precio_urgencia DOUBLE NULL;
+
+ALTER TABLE lugares_entrega
+    ADD COLUMN horas_extra_anticipacion INT NULL;
+```
+
+De paso, no pudimos confirmar al 100% si `migration_flores_eternas_mano_de_obra.sql` (columnas
+`cantidad_flor_valida.mano_de_obra` y `ramo_armado.precio_mano_de_obra`) ya corrió o no —
+`pliegosPorDefecto` sí respondió bien (esa migración sí corrió), pero no tenemos forma de probar
+`mano_de_obra` desde afuera sin token admin. Si no están seguros, correr ese script también es
+seguro — un `ALTER TABLE ADD COLUMN` sobre una columna que ya existe simplemente da un error claro
+de "columna duplicada", no rompe nada.
+
+En cuanto confirmen que corrieron, lo volvemos a probar contra QA.
+
+---
+
+## 🔧 ACCIÓN PARA EL FRONT — migración corrida, falta el redespliegue de QA (2026-08-14)
+
+El dueño ya corrió la migración en QA y producción — confirmado, `calcular-precio` ya no da el
+error de SQL. **Pero el servicio de QA todavía no se volvió a desplegar con el código más
+reciente** (el fix del 150%, el quitar la fórmula ×2, y la respuesta estructurada
+`entregaValida`/`mensajeEntrega`). Lo confirmamos probando en vivo: la respuesta de
+`calcular-precio` en QA ahora mismo trae `precioUrgencia` (eso sí llegó) pero **no** trae
+`entregaValida`, `requiereAnticipo` ni `montoAnticipoSugerido` — señal clara de que corre un
+commit anterior al fix.
+
+**No conecten nada de esto todavía.** Mientras no se confirme el redespliegue, si prueban un caso
+urgente en QA van a ver el comportamiento viejo (la fórmula ×2, y si llegan a completar un pedido
+urgente, el bug del 150% sigue ahí en ese build). Les avisamos en cuanto esté el redespliegue
+confirmado y lo volvamos a probar con curl.
+
+### Resumen de todo lo que va a estar disponible cuando se confirme
+
+Para que tengan el panorama completo en un solo lugar, sin tener que reconstruirlo leyendo todo el
+hilo de arriba:
+
+**`POST /v1/flores/calcular-precio`** — campos nuevos en el response:
+- `entregaValida` (boolean) — `false` si no da tiempo con la fecha/hora pedida. El resto del
+  response se calcula igual, para poder mostrar precio mientras el cliente corrige la fecha.
+- `mensajeEntrega` (string) — el motivo, cuando `entregaValida:false`.
+- `precioUrgencia` (número o `null`) — ya sumado en `total`, sin línea aparte para el cliente.
+- `requiereAnticipo` (boolean) — `true` cuando aplica `precioUrgencia`. Señal para crear el
+  pedido como `APARTADO`.
+- `montoAnticipoSugerido` (número, solo si `requiereAnticipo:true`) — 50% de `total` (incluye
+  envío).
+- Request nuevo: `fechaHoraEntrega` (opcional, ISO `LocalDateTime`).
+
+**`POST /v1/pedidos/savePedido`** — sin cambios de contrato, solo un uso distinto: cuando
+`requiereAnticipo:true`, mandar `tipoPedido: "APARTADO"` en vez de omitirlo/`"NORMAL"`. Campo que
+ya existía.
+
+**`POST /v1/abonos/{pedidoId}`** — sin cambios, es el mecanismo de crédito que ya usan. Ahí se
+registra `montoAnticipoSugerido` como el primer abono.
+
+**`POST /v1/flores/pedidos/{pedidoId}/detalle`** — request nuevo: mismo `fechaHoraEntrega` otra
+vez (se revalida en servidor). Si el pedido llegó como `NORMAL` cuando debía ser `APARTADO`, esta
+llamada rechaza con un mensaje claro — no cobra nada extra, solo bloquea el error.
+
+**Catálogo:**
+- `CantidadFlorValida.horasMinimasAnticipacion` / `precioUrgencia` — por tamaño de ramo.
+- `AccesorioRamo.pliegosPorDefecto` — en el accesorio "papel".
+- `LugarEntrega.horasExtraAnticipacion` — por zona.
+
+Estos 3 campos de catálogo sí los pueden ir agregando a las pantallas desde ahora (no cobran nada
+por sí solos) — ya están en QA (migración corrida). Lo único en pausa es conectar el cobro/bloqueo
+real hasta el redespliegue.
+
+---
+
+## 🔴 PETICIÓN DEL DUEÑO — el RANGO de urgencia también tiene que ser configurable (2026-08-14)
+
+Le hicimos una auditoría de qué puede configurar él y qué está fijo en el código de ustedes. Al
+ver la lista, respondió que **quiere configurar las tres cosas que están fijas** — y sobre la más
+importante (cuándo se cobra el extra) lo explicó así:
+
+> *"Yo configuro para ramos de 50 flores: y está en la fecha que se pide más 1 día, entonces tiene
+> que estar entre estas horas, o se cobrará el cargo extra. Ya lo configuré, y no solo este —
+> es para otros ramos de más flores. Entonces el cliente configura su ramo y dice 'quiero que me
+> lo entreguen tal fecha', y ya vas: checas la fecha que pidió contra la fecha en que estamos,
+> validas si está en el rango, y si está en el rango entonces se cobra lo que hayamos
+> configurado."*
+
+### Qué cambia respecto a lo que construyeron
+
+Hoy `precioUrgencia` (el monto) sí es configurable por tamaño — eso está bien. **Lo que NO es
+configurable es la condición**: qué cuenta como "de un día para otro" lo decide el código de
+ustedes, y el dueño quiere decidirlo él, **por tamaño de ramo**.
+
+Su modelo, tal como lo describe:
+
+```
+Ramo de 50 flores  →  urgente si la entrega cae dentro de: fecha del pedido + 1 día
+                      y en el rango de horas [__ : __]
+                      → si cae ahí, se cobra +$300 (el precioUrgencia que ya existe)
+
+Ramo de 100 flores →  su propio rango, distinto (más días, porque tarda más)
+```
+
+O sea, además del monto necesita poder configurar **cuántos días** y **entre qué horas** cuenta
+como urgente, por cada tamaño.
+
+Nos falta entender bien la parte de las horas antes de pedirles una forma concreta —
+le vamos a preguntar si se refiere a (a) la hora de ENTREGA que pide el cliente, o (b) una hora
+límite para RECIBIR el pedido (tipo "si lo pides después de las 6pm ya no alcanza para mañana").
+Se los pasamos en cuanto lo aclare, para no pedirles un campo que después haya que mover.
+
+**Lo que sí les podemos adelantar:** el número de días tiene que ser un campo suyo, no una
+constante. Si de una vez lo pueden dejar así (`diasAnticipacionUrgencia` o como prefieran
+nombrarlo, por `CantidadFlorValida`), adelantan la mitad.
+
+### Las otras dos que también quiere controlar
+
+**1. El porcentaje del anticipo (hoy fijo en 50%).** Aplica igual al anticipo por urgencia y al de
+la frase personalizada. Es dinero y es lo primero que uno querría ajustar según cómo responda la
+gente. ¿Se puede volver configurable? Con que sea un solo valor global nos sirve — no hace falta
+uno por tamaño.
+
+**2. Los textos que ve el cliente** (`avisoFrasePendiente`, el aviso de "anticipo del 50%, sin
+devoluciones"). Hoy vienen redactados desde el back. El dueño quiere poder cambiar cómo están
+escritos sin pedir despliegue. Si les parece mucho, la alternativa es que nos los devuelvan como
+están y los movamos a una pantalla de configuración del front — pero entonces el porcentaje que
+se menciona en el texto y el que se cobra de verdad podrían desincronizarse, así que preferimos
+que vivan del mismo lado que el cálculo.
+
+### Por qué insistimos con esto ahora
+
+Están con el módulo en la mano. Cada uno de estos tres es un campo más ahora, o un
+"hay que volver a abrir el módulo" en un mes. El dueño ya demostró en esta misma ronda que va a
+querer mover estos números (movió el umbral del papel, los pliegos, y ahora esto) — no es una
+suposición nuestra.
+
+---
+
+## ✅ CONFIRMADO — QA redesplegado, `entregaValida`/`requiereAnticipo`/`montoAnticipoSugerido` ya responden (2026-08-14)
+
+Probado en vivo ahora mismo contra QA:
+
+```
+POST /v1/flores/calcular-precio  { "colores": [{"colorFlorId":1,"cantidad":20}] }
+→ 200, incluye: "entregaValida":true, "mensajeEntrega":null, "requiereAnticipo":false,
+  "montoAnticipoSugerido":null, "precioUrgencia":null
+```
+
+Ya está el build correcto corriendo (antes solo traía `precioUrgencia`, sin los otros 4 campos —
+esa era la señal de que faltaba el redespliegue). **Ya pueden conectar el flujo completo de
+urgencia** que quedó documentado arriba (`calcular-precio` con `fechaHoraEntrega` →
+`savePedido` con `tipoPedido:"APARTADO"` cuando `requiereAnticipo:true` → `POST /v1/abonos/{id}`
+con `montoAnticipoSugerido` → `.../detalle` con el mismo `fechaHoraEntrega`).
+
+No pudimos probar el caso de bloqueo ni el de urgencia real todavía porque **no hay ninguna
+`CantidadFlorValida` con `horasMinimasAnticipacion`/`precioUrgencia` configurada en QA** (el
+catálogo de cantidades está vacío). En cuanto el dueño registre al menos una, avisen y lo
+probamos de punta a punta con datos reales.
+
+### Sobre la petición nueva (rango configurable, % de anticipo, textos)
+
+La leímos. Va a requerir varios campos nuevos (`diasAnticipacionUrgencia` por tamaño como mínimo,
+más lo que resulte de la pregunta de las horas, más el % global, más los textos). Dijeron ustedes
+mismos que todavía le van a preguntar al dueño el detalle de las horas — no vamos a adivinar esa
+parte. En cuanto tengan esa respuesta, mándennos el paquete completo (rango de horas + los otros
+dos puntos) y lo diseñamos junto, en vez de ir campo por campo en rondas separadas.
+
+---
+
+## 🔴 REDISEÑO — la entrega funciona como LISTA BLANCA, no como validación (2026-08-14)
+
+⚠️ **Esto cambia el modelo que construyeron.** `horasMinimasAnticipacion` por tamaño no alcanza
+para expresar lo que el dueño necesita. Léanlo completo antes de tocar código — y por favor no
+construyan nada hasta que lo confirmemos entre los tres.
+
+### La regla de fondo, en una frase
+
+**El dueño da de alta las combinaciones que SÍ puede cumplir. Lo que no esté dado de alta, no se
+puede pedir — punto.** No es "validar si alcanza el tiempo": es buscar una configuración que
+coincida. Si no hay ninguna, el pedido se bloquea y se le dice al cliente que se comunique por
+WhatsApp o redes.
+
+Sus palabras:
+
+> *"Voy a configurar los que más se pueda. Si no encuentras esa configuración, entonces no se
+> puede hacer, aunque esté chiquito el ramo, porque tiene que estar esa configuración. Y si no se
+> puede, le dices que se comunique con el administrador y le dejas las redes sociales o el
+> WhatsApp."*
+
+Ejemplos suyos, tal cual:
+- **100 rosas para mañana** → no hay configuración que lo permita → **no se puede por ningún
+  motivo**.
+- **100 rosas en 3 días** → sí está configurado → se puede.
+- **Ramo de 12 para mañana** → si no está configurado, **tampoco se puede**, aunque sea chico.
+
+Esto último es lo que más se aleja de lo que hay hoy: **el tamaño chico no es automáticamente
+rápido**. Solo se puede lo que él dio de alta.
+
+### La pantalla nueva de administración
+
+Una pantalla aparte (no es la de Cantidades ni la de Ramos armados). Ahí el dueño arma cada
+combinación posible:
+
+| Campo | Ejemplo |
+|---|---|
+| Cantidad de flores | 48 |
+| Accesorios incluidos | los que aplican |
+| **Hora límite para pedir** | 12:00 |
+| **Plazo** | 1 día |
+| **Hora de entrega (a partir de)** | 18:00 |
+| **Cargo extra** | lo que él configure (puede ser 0) |
+
+Se lee así: *"si me lo piden antes de las 12, lo entrego al día siguiente a partir de las 6 pm"*.
+
+**Un mismo ramo lleva varias configuraciones.** Confirmado explícitamente. Ej. el de 100 rosas
+puede tener una a 3 días sin cargo y otra a 2 días con cargo. **Cada renglón trae su propio
+cargo**, y el que aplique define el precio.
+
+### Cómo se resuelve del lado del cliente
+
+El cliente arma su ramo, elige zona (que ya muestra su precio) y elige **fecha y hora de entrega**.
+Entonces:
+
+```
+1. Buscar una configuración que coincida con: cantidad + el plazo que pide.
+   ¿No hay ninguna?  → NO se puede pedir. Mostrar contacto del admin (WhatsApp/redes).
+2. ¿La hora de entrega que pide es alcanzable según esa configuración?
+   Ej: config dice "entrego a partir de las 18:00"; él la quiere a las 16:00 → NO se puede.
+3. ¿Pidió antes de la hora límite (12:00)?
+   Sí → aplica esa configuración, con su cargo (que puede ser 0).
+4. El pago tiene que quedar antes de la hora límite también. Si paga a tiempo, no se le
+   cobra el cargo de esa configuración.
+```
+
+Ejemplo completo del dueño: *"pide a las 11, lo quiere a las 6 o 7 pm — ahí está a tiempo — y
+además paga antes de las 12, que es la configuración: no se le cobra."*
+
+### ❓ Lo que sigue abierto (no construir hasta aclararlo)
+
+**a) El pago tardío.** Es la única parte que no terminamos de amarrar. Si aparta a las 11 pero
+paga hasta las 3 pm, ¿qué pasa? ¿Se le cobra el cargo, se le recorre la entrega, o se cancela? Se
+lo estamos preguntando.
+
+**b) ¿Qué pasa con el configurador libre?** Si el cliente arma 37 rosas y no hay configuración
+para 37, por la regla de arriba **no se podría pedir**. ¿Es lo que quiere el dueño (solo se
+venden los tamaños configurados) o el configurador libre debe seguir funcionando aparte? Se lo
+preguntamos también.
+
+**c) ¿Esta pantalla reemplaza a "Ramos armados"?** Se parecen mucho (ambas arman un ramo completo
+con sus accesorios). Puede que sea la misma con los campos de entrega agregados, en vez de una
+tercera pantalla.
+
+### Qué implica para lo ya construido
+
+- `CantidadFlorValida.horasMinimasAnticipacion` — **probablemente sobra**: el plazo pasa a vivir
+  en cada configuración de entrega, no en el tamaño.
+- `CantidadFlorValida.precioUrgencia` — **también**: el cargo pasa a ser por configuración.
+- `LugarEntrega.costoEnvio` / `horasExtraAnticipacion` — **se quedan**, eso no cambia.
+
+No los borren todavía; primero confirmemos el modelo. Solo avisamos para que no sigan invirtiendo
+en esos dos campos.
+
+### Del lado del front, ya detectado (no bloquea)
+
+En el configurador, el desplegable de zona muestra solo el nombre — **falta que muestre el
+precio** ("Tejupilco — $150"), para que el cliente sepa lo que le van a cobrar al elegirla, no
+hasta ver el total. Es cambio nuestro, el dato ya viene en `costoEnvio`. Anotado.
+
+### ✅ Respuesta a (a) — el pago tardío: se revalida AL PAGAR, y se recotiza como urgente
+
+El dueño lo aclaró:
+
+> *"Antes de cobrar se le menciona tu configuración y que tu pago tiene que quedar antes de la hora
+> que se configuró; si no, tendría que cobrar por ramo urgente el total de lo que se configuró. Y
+> digamos que no hace el pago y llegan las 12:00 — entonces, antes de pagar, valida la hora: si la
+> hora ya pasó, se rechaza y se manda un mensaje de que ya no es posible realizar el pedido con el
+> cobro normal, se cobrará tanto por hacerlo porque es urgente."*
+
+O sea:
+
+```
+1. ANTES de cobrar, se le avisa:  "tu pago tiene que quedar antes de las 12:00,
+                                   si no, se cobra el cargo por urgente"
+2. AL MOMENTO DE PAGAR, se vuelve a validar el reloj:
+   - Hora aún no pasa  → se cobra el precio normal
+   - Hora ya pasó      → se RECHAZA ese cobro y se le informa que ahora aplica el
+                         precio urgente (el cargo configurado)
+```
+
+No se cancela el pedido: **se recotiza**. El cliente decide si acepta el precio urgente.
+
+### ⚠️ Consecuencia técnica que queremos que revisen antes de construirla
+
+Esto significa que **la validación de la hora tiene que ocurrir también en el momento del pago**,
+no solo al cotizar y al crear el pedido. Y hoy el pago de un pedido a crédito se registra con
+`POST /v1/abonos/{pedidoId}` — que es el endpoint **genérico de abonos que usa todo el sistema**
+(apartados de ropa, fiados, todo).
+
+Nos preocupa que se le meta una regla específica de flores a ese endpoint: es de los que más
+flujos tocan, y un cambio ahí puede afectar cobros que hoy funcionan bien y no tienen nada que ver
+con ramos.
+
+Alternativas que se nos ocurren, **ustedes deciden cuál es más sana**:
+- Un endpoint aparte para el pago de pedidos de flores, que valide y luego delegue en el mismo
+  mecanismo de abonos.
+- La validación dentro de `abonos` pero **solo si el pedido es de flores** (con un guard claro que
+  no toque el resto de los casos).
+- Un endpoint de "revalidar antes de pagar" que el front llame justo antes de mandar el abono —
+  más llamadas, pero no toca nada existente.
+
+Nos inclinamos por la primera o la tercera, justamente por no meterle condicionales al cobro de
+todo el sistema. Pero es su terreno; díganos cuál prefieren.
+
+**Ojo con una cosa más:** si la validación queda solo en el front (mostrar el aviso y comparar la
+hora antes de mandar el abono), no sirve — el cliente puede dejar la pantalla abierta y pagar
+después, o alguien puede llamar el endpoint directo. **Tiene que validarse en el servidor.**
+
+### ✅ Respuesta a (b) — NO es lista blanca estricta: se busca el tamaño configurado más cercano
+
+Corregimos lo que escribimos arriba. El dueño aclaró que una cantidad sin configuración propia
+**sí se puede pedir** — hereda las reglas del tamaño configurado más cercano:
+
+> *"37 flores: tienes que ver el rango más cerca. Si el de 37 y el de 48 se piden con tiempo, se
+> tienen que manejar las mismas configuraciones. Por eso nos hace falta un campo que diga 'un ramo
+> lo hago en 3 o 4 días', según cuántas flores son. Si yo configuro el de 48 y pongo que en 3 días
+> lo acabo, y piden 37, entonces va a buscar el ramo más cercano —el de 48— y toma que en 3 días
+> se puede entregar como máximo, y una opción de urgente."*
+
+Entonces el modelo real es:
+
+```
+Él configura por tamaño:
+   Ramo de 48  →  normal:  3 días        (sin cargo)
+                  urgente: 1 día antes de las 12  (+ cargo configurado)
+
+Piden 37 flores  →  no hay config propia
+                 →  se busca el tamaño configurado más cercano (el de 48)
+                 →  se aplican SUS reglas: 3 días normal, o urgente con cargo
+```
+
+**Esto reemplaza lo que escribimos antes sobre "si no está configurado no se puede".** Solo aplica
+el bloqueo cuando de plano no hay ningún tamaño al cual recurrir (ver punto 2 de abajo).
+
+---
+
+## 🧭 Lo que creemos que falta definir — y por qué
+
+El dueño nos pidió anotar también lo que a nuestro juicio hace falta. Va con el porqué de cada uno,
+porque son casos que se van a dar en la vida real y hoy no tienen respuesta.
+
+### 1. "El más cercano" tiene dos lecturas, y una le puede costar dinero
+
+Si están configurados el de **24** y el de **48**, y alguien pide **30**:
+- **El más cercano en distancia** → 24 (|30−24| = 6, contra 18 del 48).
+- **El más cercano hacia arriba** → 48.
+
+**Recomendamos hacia arriba**, y no es un detalle menor: un ramo de 30 le da *más* trabajo que uno
+de 24, así que tomar las reglas del 24 lo compromete a un plazo más corto del que realmente
+necesita. Redondear hacia arriba peca de prudente; redondear al más cercano puede hacerlo quedar
+mal con un cliente. Si el dueño prefiere el más cercano en distancia, que lo diga explícito —
+pero que sea decisión, no accidente.
+
+### 2. ¿Y si piden MÁS que el tamaño más grande configurado?
+
+Si el máximo configurado es 100 y alguien pide 150, no hay "más cercano hacia arriba" al cual
+recurrir. **Ahí sí aplica el bloqueo** con el mensaje de contactar al admin por WhatsApp/redes,
+que el dueño ya había pedido. Lo señalamos porque es el único caso que queda sin cubrir con la
+regla nueva.
+
+### 3. Cada tamaño necesita DOS renglones, no uno
+
+De su explicación: *"toma que en 3 días se puede entregar como máximo, **y una opción de
+urgente**"*. Es decir, por cada tamaño configurado hacen falta al menos dos combinaciones:
+
+| | Plazo | Hora límite de pedido | Entrega a partir de | Cargo |
+|---|---|---|---|---|
+| Normal | 3 días | — | — | $0 |
+| Urgente | 1 día | 12:00 | 18:00 del día siguiente | + lo configurado |
+
+Y podrían ser más de dos (2 días con un cargo menor, por ejemplo). Por eso insistimos en que sea
+una tabla de configuraciones por tamaño, no un par de campos sueltos.
+
+### 4. El cliente tiene que ver bajo qué regla cayó su ramo
+
+Si pide 37 y el sistema le aplica las reglas del de 48, **hay que decírselo**. Si no, no entiende
+por qué su ramo de 37 tarda lo mismo que uno de 48, ni por qué le cobran urgencia. Proponemos un
+texto tipo: *"Tu ramo de 37 flores se prepara con los tiempos de uno de 48: 3 días."* Es front,
+lo hacemos nosotros — lo anotamos aquí solo para que sepan que ese dato (qué configuración se
+aplicó) nos tiene que llegar en la respuesta, no solo el precio final.
+
+### 5. El precio de la zona tiene que verse al elegirla
+
+Ya lo mencionamos: hoy el desplegable dice solo "Tejupilco" y el cliente se entera de los $150
+hasta ver el total. Cambio nuestro, el dato ya viene en `costoEnvio`.
+
+### 6. La validación del reloj tiene que vivir en el servidor
+
+Repetimos lo de la sección anterior porque es lo más fácil de que se cuele: si la hora se valida
+solo en la pantalla, el cliente deja la ventana abierta y paga tarde con el precio de antes.
+
+### 7. ¿Qué pasa con los tamaños que YA están dados de alta en `cantidades-flor`?
+
+Hoy el dueño tiene ahí 20, 48 y 62 (con sus pliegos). Esa tabla define "qué cantidades cierran
+bien el círculo". La nueva configuración de entrega es **otra cosa** (plazos y cargos), aunque
+también se organice por cantidad.
+
+¿Se juntan en la misma tabla o son dos catálogos separados? Nos inclinamos por que la
+configuración de entrega **cuelgue de las cantidades que ya existen** (una cantidad válida puede
+tener N configuraciones de entrega), para que el dueño no tenga que dar de alta el 48 en dos
+lugares distintos y arriesgarse a que queden desalineados. Pero es su modelo, ustedes deciden.
+
+### ✅ CONFIRMADO por el dueño — el redondeo es HACIA ARRIBA
+
+Sobre el punto 1 de arriba: *"Sí, que sea arriba el redondeo."*
+
+Queda decidido, no es interpretación nuestra:
+
+```
+Configurados: 24, 48, 100
+
+Piden 30   →  toma las reglas del 48   (no del 24, aunque 24 esté "más cerca" en distancia)
+Piden 37   →  toma las reglas del 48
+Piden 49   →  toma las reglas del 100
+Piden 150  →  no hay ninguno arriba    →  BLOQUEADO + contactar al admin
+```
+
+**La regla en una línea:** el tamaño configurado inmediato superior, o el exacto si existe. Nunca
+uno menor.
+
+El porqué, para que no se "optimice" después por error: un ramo de 30 le da más trabajo que uno de
+24, así que aplicarle los plazos del 24 lo comprometería a entregar más rápido de lo que
+realmente puede. El redondeo hacia arriba siempre juega a favor del taller.
+
+**Caso borde que queda cubierto con esto:** si piden una cantidad mayor a la del tamaño más grande
+configurado, no hay a qué recurrir y se bloquea (punto 2 de la sección anterior). Es el único
+escenario donde el pedido no se puede generar por falta de configuración.
+
+---
+
+## 🎯 PROPUESTA DEL DUEÑO — el calendario ofrece solo fechas válidas (mejor que rechazar) (2026-08-14)
+
+El dueño propuso un cambio de enfoque en la pantalla del cliente, y **nos parece mejor que todo lo
+anterior**. Vale la pena que lo lean antes de modelar nada, porque simplifica bastante:
+
+> *"Yo configuro los ramos: el de 48 y pongo que me tardo 3 días en hacerlo, y así con los demás,
+> pero los días cambian según el tamaño. Entonces, cuando alguien vaya a realizar un pedido,
+> cuando esté por elegir la fecha: si elige el de 48 y yo dije que en 3 días, le sale un calendario
+> y le dice 'entrega en 3 días' — por ejemplo hoy 14, solo dejaría elegir el día 17, a las horas
+> que yo ponga, por ejemplo a las 5. Igual tomaría el lugar, que ya se estaría cobrando. Y estaría
+> un botón de urgente donde, si lo selecciona, va a poder seleccionar la fecha que quiere entregar
+> — por ejemplo yo configuro urgente: lo puedo entregar en 2 días o mañana, según configure y según
+> dónde se entregue — pero ya sería con un cargo extra, mencionándoselo."*
+
+### Por qué nos parece mejor
+
+Todo lo que veníamos diseñando giraba en torno a **rechazar** lo que no se puede: validar,
+bloquear, mostrar un mensaje, recotizar. Con esto **el error no puede ocurrir**: el calendario
+solo habilita los días que el taller sí puede cumplir, y punto.
+
+Se cae, por innecesario:
+- El rechazo con `entregaValida:false` en el flujo normal (queda solo como red de seguridad del
+  servidor, por si alguien manda una fecha inválida por fuera de la pantalla).
+- La recotización "ya no aplica el precio normal" — no hay nada que recotizar si nunca pudo
+  elegir una fecha imposible.
+
+Y el cargo por urgencia deja de ser una sorpresa al final: es un **botón que el cliente activa a
+propósito**, sabiendo lo que cuesta.
+
+### Cómo quedaría, paso a paso
+
+```
+1. El cliente arma su ramo (48 rosas, accesorios, listón).
+2. Elige la ZONA de entrega  → ya ve su precio ("Tejupilco — $150").
+3. Se le abre el calendario:
+   - Habilitado: solo el día 17 en adelante (3 días, según lo configurado para el 48)
+   - Horas: solo las que el dueño configuró (ej. 17:00)
+   - Todo lo anterior: deshabilitado, no se puede ni clicar
+4. Botón "¿Lo necesitas antes?" (urgente):
+   - Al activarlo, el calendario habilita días más cercanos según la config de urgencia
+   - Se le muestra el cargo ANTES de que elija: "entrega en 1 día — +$300"
+5. Confirma con el precio total ya completo.
+```
+
+### ⚠️ Dos cosas que hay que resolver para que esto funcione
+
+**1. La hora de corte mueve el calendario, no solo la fecha.**
+
+Si hoy es 14 y son las 11:00, el plazo de 3 días cae el **17**. Pero si ya es la 1:00 pm y la hora
+límite era mediodía, el día de hoy ya no cuenta y el primer día hábil sería el **18**. El cálculo
+de "cuál es el primer día seleccionable" tiene que considerar la hora actual, no solo la fecha.
+Si esto lo resuelve el back devolviéndonos la primera fecha/hora válida, mejor — no queremos
+duplicar esa lógica en el front y que se desincronice.
+
+**2. La zona debe elegirse ANTES que la fecha.**
+
+El dueño dijo que el plazo también depende de *"dónde se entregue"*. Si el cliente elige primero
+la fecha y después la zona, la fecha que ya escogió puede dejar de ser válida (una zona lejana
+suma días). En la pantalla vamos a poner la zona antes del calendario, pero se los avisamos porque
+implica que **el cálculo de fechas válidas necesita la zona como parámetro**.
+
+### Lo que necesitaríamos del back para armarlo así
+
+En vez de "validar una fecha que el front propone", nos serviría lo contrario: **que el back nos
+diga qué fechas son válidas**. Algo como:
+
+```
+GET (o POST) /v1/flores/fechas-disponibles
+   { cantidad: 48, lugarEntregaId: 5, urgente: false }
+→ { primeraFechaValida: "2026-08-17T17:00",
+    horasDisponibles: ["17:00"],
+    cargoUrgencia: null }
+
+   ...con urgente: true
+→ { primeraFechaValida: "2026-08-15T17:00",
+    horasDisponibles: ["17:00"],
+    cargoUrgencia: 300.00 }
+```
+
+Con eso el front solo pinta el calendario y no reimplementa ninguna regla — que es justo lo que
+queremos evitar, porque son reglas que el dueño va a seguir moviendo.
+
+**Es una propuesta, no un pedido cerrado.** Si tienen una forma mejor de exponerlo, díganla — lo
+importante es que las reglas vivan de su lado y el front solo muestre.
+
+---
+
+## ✅ ACLARACIÓN — producción NO está caída (2026-08-14)
+
+Nos llegó el comentario de que producción llevaba días caída. Lo probamos en vivo, ahora mismo,
+directo:
+
+```
+GET https://shop.novedades-jade.com.mx/                                   → 200
+GET https://backend.novedades-jade.com.mx/mis-productos/v1/negocio/estado → 200
+GET https://backend.novedades-jade.com.mx/v1/productos/obtenerProductos   → 200, datos reales
+```
+
+El sitio, el backend y el catálogo responden bien. **Producción no está caída.**
+
+Lo único que sigue fallando ahí es lo que ya conocíamos y ya está documentado arriba:
+`GET /tienda/v1/variante/{id}/producto-id` → 500, porque ese endpoint nunca se promovió de
+`qa` a `main`. Es un endpoint puntual, no el sitio completo — y, según confirmaron ustedes mismos
+hace unos días, no le afecta a ningún cliente real porque su código cae al método viejo (`getOne`)
+que sigue funcionando.
+
+Si tienen algo distinto que sí esté fallando en producción, pásennos el endpoint/URL exacto y la
+respuesta que reciben, y lo probamos igual que esto — pero con lo que vemos desde aquí, el sitio
+está arriba y funcionando.
+
+**Sobre el rediseño de arriba (lista blanca / calendario de fechas válidas):** lo leímos completo.
+Es un cambio grande de modelo — no vamos a tocar código todavía, tal como pidieron. En cuanto el
+dueño confirme cuál de las dos propuestas prefiere (la de bloqueo/recotización o la del
+calendario con fechas ya filtradas), lo diseñamos y les avisamos antes de construir nada.
+
+### ✅ Confirmado de nuestro lado — y una aclaración: el calendario NO es una de dos propuestas
+
+Gracias por la verificación de producción; **coincide con la nuestra**, la hicimos por separado:
+sitio 200, login 400 (rechaza credenciales falsas, correcto), catálogo 200, contactos 200, cinta
+200. El único en 500 es el resolver, tal como está documentado. Producción está sana.
+
+**Pero hay que corregir una cosa:** escriben *"en cuanto el dueño confirme cuál de las dos
+propuestas prefiere (la de bloqueo/recotización o la del calendario)"*. No son dos propuestas
+entre las que hay que elegir — **el calendario lo propuso el dueño**, no nosotros, y ya está
+decidido.
+
+La secuencia real fue:
+1. Ustedes construyeron la validación con bloqueo/recotización.
+2. Al explicárselo al dueño, él propuso el calendario con fechas ya filtradas.
+3. Nosotros lo documentamos y le dijimos que nos parecía mejor, con el porqué.
+
+**Lo confirmado y firme:**
+- El cliente elige de un **calendario que solo habilita fechas que el taller puede cumplir**.
+- Botón de **urgente** que abre días más cercanos, mostrando el cargo **antes** de elegir.
+- Redondeo **hacia arriba** al tamaño configurado más cercano (37 → reglas del 48).
+- Si piden más que el tamaño más grande configurado → bloqueo + contactar al admin.
+- Validación del reloj **en el servidor** al momento del pago.
+
+El bloqueo/recotización que ya construyeron **no se tira**: queda como red de seguridad del
+servidor, por si llega una fecha inválida por fuera de la pantalla. Simplemente deja de ser el
+camino normal, porque con el calendario el cliente no puede elegir algo imposible.
+
+**Lo que necesitamos de ustedes para avanzar:** cómo lo van a modelar, y si les sirve exponer un
+endpoint que nos devuelva las fechas válidas (se los propusimos en la sección anterior) en vez de
+que el front reimplemente las reglas.
+
+### 📺 Ya está la pantalla de configuración para que la vean
+
+Adelantamos la pantalla de administración donde el dueño va a dar de alta esto — está en `qa`
+(`af332c7`), en 🌹 Flores eternas → 🚚 Entregas. **Todavía no guarda** (los endpoints no existen)
+y lo dice con un aviso; se hizo así para que el dueño la valide antes de que ustedes construyan
+la tabla, y para que tengan una referencia concreta de qué campos espera el front:
+
+```
+Ramo:  [ 48 flores ▾ ]
+
+ENTREGA NORMAL      días: [3]   entrego a las: [16:00]
+ENTREGA URGENTE     ☐ este ramo se puede apurar
+                    días: [1]   entrego a las: [18:00]
+                    pedir antes de: [12:00]   cargo: [$300]
+```
+
+El bloque urgente es opcional a propósito: hay tamaños que no se pueden apurar por ningún motivo
+(el de 100 para el día siguiente, ejemplo del propio dueño). Sin él, al cliente no se le muestra
+la opción.
+
+Los nombres de campo que usamos están en `src/app/flores/models/config-entrega.model.ts` — si les
+acomoda otro modelo, cámbienlo con confianza: el servicio del front está aislado en un solo
+archivo justo para eso.
+
+---
+
+# 📗 ESTADO COMPLETO DE FLORES ETERNAS — todo en un solo lugar (2026-08-14)
+
+Este documento ya lleva muchas secciones del módulo, varias con vueltas y correcciones sobre lo
+mismo. Esto es el estado consolidado: lo acordado, lo hecho, lo que falta y lo que sigue abierto.
+**Si algo de arriba contradice esto, vale esto.**
+
+---
+
+## 1. Decisiones del dueño — firmes, no volver a preguntarlas
+
+| Tema | Decisión |
+|---|---|
+| Dónde vive | Sección propia. **No** mezclado con la tienda de bolsas/blusas |
+| Flores sueltas | **No se venden.** Solo ramos |
+| Papel dentro del rango | **Invisible** para el cliente. Va por default, se cobra por dentro |
+| Papel fuera del rango | Se le pregunta, mostrando solo que *tiene costo*, **nunca el monto** |
+| Sin papel | Avisar: *"el ramo va sin papel, solo las rosas enrolladas"* |
+| Pliegos | Los pone él a mano por tamaño. **No** una fórmula |
+| Pliegos sin configurar | **2 por defecto**, configurable |
+| Mano de obra | **Dentro del precio por flor.** Sin campo propio, sin desglose |
+| Costo del material | En `TipoFlor.precioCosto`, solo para calcular margen |
+| Umbral del papel | **Inclusivo** (`>=`): con 20, un ramo de 20 sí lleva papel |
+| Anticipo urgente | **50% del total, es enganche — NO dinero extra** |
+| Fechas de entrega | **Calendario que solo ofrece lo que el taller puede cumplir** |
+| Cantidad sin configuración | Redondeo **hacia arriba** (37 → reglas del 48) |
+| Cantidad mayor al máximo | **Bloqueo** + contactar al admin por WhatsApp/redes |
+| Pago tardío | Se **recotiza** con cargo urgente, no se cancela |
+
+---
+
+## 2. Lo que YA funciona en QA
+
+**Catálogos completos:** tipos de flor (con precio y costo), colores por especie con su stock,
+cantidades válidas con pliegos, accesorios con las reglas del papel, frases de listón, lugares de
+entrega con costo de envío, y ramos preconfigurados.
+
+**Motor de cálculo:** multicolor (`colores[]` → `coloresCalculados[]` con su `varianteId`),
+papel automático por umbral, pliegos por tamaño, envío por zona.
+
+**Variantes sombra excluidas** de buscadores, filtros, chatbot y reporte de más vendidos.
+
+**Del lado del front:** las 5 pestañas de catálogo, el configurador del cliente, la vitrina de
+ramos armados y la pantalla de gestión de esos ramos. Todo en `qa` (`af332c7`).
+
+---
+
+## 3. Construido pero esperando algo
+
+| Qué | Espera |
+|---|---|
+| `entregaValida` / `requiereAnticipo` / `montoAnticipoSugerido` | Ya responden en QA, pero **el front no los conecta** hasta cerrar el modelo de entregas |
+| Pantalla 🚚 Entregas (front) | Los endpoints del back. Hoy carga y muestra aviso, **no guarda** |
+| `CantidadFlorValida.manoDeObra` | En desuso — quedó en `null` para siempre, no molesta |
+| `horasMinimasAnticipacion` / `precioUrgencia` | **Probablemente los reemplace** el modelo de entregas. No borrarlos aún |
+
+---
+
+## 4. Lo que falta — del back
+
+**🔴 1. El merge `qa → main`.** `GET /tienda/v1/variante/{id}/producto-id` sigue en 500 en
+producción porque nunca se promovió. Es lo único que impide cerrar `getOne`. Lleva días.
+
+**🔴 2. El modelo de configuración de entregas.** Por tamaño de ramo: días y hora de entrega
+normal, y (opcional) días, hora, hora límite de pedido y cargo del plazo urgente. Nuestra
+propuesta es que **cuelgue de `CantidadFlorValida`** en vez de una tabla nueva, para que el dueño
+no registre el mismo tamaño en dos lugares.
+
+**🟠 3. Endpoint de fechas válidas.** Que el back diga *qué fechas se pueden*, en vez de que el
+front proponga una y el back la valide. Así las reglas viven de un solo lado —y el dueño las va a
+seguir moviendo.
+
+**🟠 4. Validación del reloj al momento del pago**, en el servidor. Con el cuidado de **no meterle
+reglas de flores al módulo de abonos genérico**, que usa todo el sistema.
+
+---
+
+## 5. Lo que falta — del front
+
+1. **Conectar el calendario** — en pausa hasta el punto 2 y 3 de arriba.
+2. **Precio de la zona en el desplegable** — hoy dice "Tejupilco" y el cliente se entera de los
+   $150 hasta ver el total. Chico, no depende de nadie.
+3. **Dos campos que se sumen en Tipos de flor** — capturar $10 de flor + $15 de mano de obra en
+   vez de que el dueño haga la cuenta mental. No necesita nada del back: el costo ya se guarda y
+   la mano de obra sale de la resta.
+4. **Bandeja de frases pendientes** para el admin — el endpoint ya existe, la pantalla no.
+5. **Probar el configurador de punta a punta** — armar un ramo y llegar a un pedido real. Nadie lo
+   ha hecho completo todavía.
+
+---
+
+## 6. Dudas abiertas
+
+1. **¿El cargo por urgencia aplica a los ramos preconfigurados** (`RamoArmado`), o solo al
+   configurador a la medida?
+2. **Si un pedido lleva urgencia Y frase personalizada**, ¿los dos anticipos van al mismo apartado?
+   Se preguntó cuando el pedido principal se cobraba completo; ahora que **el pedido principal ya
+   es un apartado**, la respuesta puede ser otra. No queremos dos apartados abiertos por un ramo.
+3. **¿La fecha de entrega debería ser obligatoria** en el configurador? Hoy, sin fecha no se
+   valida ni se cobra urgencia — así que el cliente podría no ponerla y pedirla "para mañana"
+   después. Es duda de negocio, la planteamos por si conviene cerrarla desde el modelo.
+
+---
+
+## 7. Lección de esta ronda, para los dos equipos
+
+Hubo varias vueltas caras: la mano de obra se movió tres veces (por cantidad → por especie →
+adentro del precio, que era donde ya estaba), y la regla de urgencia otras tantas (fórmula ×2 →
+dos umbrales → una sola condición → calendario).
+
+Lo que las causó: **construir sobre una interpretación en vez de sobre un ejemplo del dueño.** Lo
+que las cortó, cada vez, fue pedirle un caso con números: *"$660 + $300 = $960, y de ahí el 50%"*
+zanjó en una frase una discusión de tres mensajes.
+
+Sugerencia para lo que viene: antes de construir una regla de negocio, pedir un ejemplo numérico
+concreto y pegarlo en este documento. Sale más barato que el rediseño.
+
+---
+
+## 📐 LO QUE EL FRONT NECESITA — endpoints concretos para cerrar entregas (2026-08-14)
+
+Aterrizamos lo que falta en request/response, para que no tengan que deducirlo del hilo. **Los
+nombres son propuesta, no imposición** — si les acomoda otra cosa, cámbienlo y avísennos: nuestro
+servicio está aislado en un solo archivo (`src/app/flores/service/config-entrega.service.ts`).
+
+Son tres cosas. La 1 es la que desbloquea la pantalla de admin; la 2, la del cliente; la 3 es la
+que evita un cobro mal hecho.
+
+---
+
+### 1. CRUD de la configuración de entregas — ADMIN
+
+Lo que el dueño da de alta por tamaño de ramo. Es lo que ya está pintado en la pantalla
+🚚 Entregas (en `qa`, sin poder guardar).
+
+```
+GET    /v1/config-entrega/getAll?page=0&size=200     (ADMIN)
+POST   /v1/config-entrega/save                       (ADMIN)
+PUT    /v1/config-entrega/update/{id}                (ADMIN)
+DELETE /v1/config-entrega/delete   body: 1           (ADMIN, id crudo como el resto)
+```
+
+**Objeto:**
+```json
+{
+  "id": 1,
+  "cantidadFlorValidaId": 7,
+  "cantidadFlores": 48,
+
+  "diasNormal": 3,
+  "horaEntregaNormal": "16:00",
+
+  "diasUrgente": 1,
+  "horaEntregaUrgente": "18:00",
+  "horaLimitePedido": "12:00",
+  "cargoUrgente": 300.00,
+
+  "activo": true
+}
+```
+
+- `cantidadFlorValidaId` — apunta al tamaño ya dado de alta en `/v1/cantidades-flor`. **No es un
+  número suelto**: la pantalla lo elige de un selector, para que no se dupliquen tamaños.
+- `cantidadFlores` — solo de lectura, para pintar la lista sin cruzar catálogos. Si les estorba,
+  lo quitamos y cruzamos nosotros.
+- **Todo el bloque urgente puede venir `null`.** Significa que ese tamaño **no se puede apurar**
+  (el de 100 para mañana, ejemplo del dueño) y al cliente no se le muestra el botón.
+
+**Recordatorio del modelo:** les propusimos que esto **cuelgue de `CantidadFlorValida`** en vez de
+ser tabla nueva — el 48 ya está ahí con sus pliegos. Si lo hacen así, estos endpoints no existen y
+los campos viajan en `/v1/cantidades-flor`; nos sirve igual, solo díganlo.
+
+---
+
+### 2. Fechas disponibles — PÚBLICO (lo que arma el calendario)
+
+**Es el que cambia el enfoque.** En vez de que el front proponga una fecha y ustedes la validen,
+ustedes dicen qué fechas se pueden y el front solo las pinta. Así las reglas viven de un solo
+lado, que es lo que el dueño va a seguir moviendo.
+
+```
+POST /v1/flores/fechas-disponibles     (público, igual que calcular-precio)
+```
+
+**Request:**
+```json
+{ "cantidad": 37, "lugarEntregaId": 5, "urgente": false }
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "primeraFechaValida": "2026-08-17T16:00:00",
+    "horasDisponibles": ["16:00"],
+    "cantidadAplicada": 48,
+    "cargoUrgencia": null,
+    "ofreceUrgente": true,
+    "mensaje": null
+  }
+}
+```
+
+Con `"urgente": true` respondería `primeraFechaValida` más cercana y `cargoUrgencia: 300.00`.
+
+**Por qué cada campo:**
+- `primeraFechaValida` — el front deshabilita todo lo anterior en el calendario. **Tiene que
+  considerar la hora actual, no solo la fecha**: si hoy es 14 a las 11:00 el plazo de 3 días cae
+  el 17, pero a la 1:00 pm el día de hoy ya no cuenta y sería el 18. No queremos duplicar ese
+  cálculo en el front y que se desincronice.
+- `cantidadAplicada` — **importante para la UX**: si el cliente pidió 37 y se le aplican las
+  reglas del 48, hay que decírselo (*"tu ramo de 37 se prepara con los tiempos de uno de 48"*).
+  Si no, no entiende por qué tarda lo mismo.
+- `ofreceUrgente` — si es `false`, el front ni siquiera muestra el botón de urgente.
+- `mensaje` — para el caso de bloqueo: piden más que el tamaño máximo configurado y no hay a qué
+  recurrir. Ahí `primeraFechaValida` vendría `null` y el front muestra el mensaje con el contacto
+  del admin.
+- **`lugarEntregaId` va en el request** porque el dueño dijo que el plazo también depende de la
+  zona. Por eso en la pantalla la zona se elige **antes** que la fecha.
+
+---
+
+### 3. Validar el reloj al momento del pago — la que evita cobrar mal
+
+La regla del dueño: el pago tiene que quedar antes de `horaLimitePedido`. Si se pasa, **el pedido
+se recotiza con el cargo urgente** (no se cancela).
+
+Esto obliga a validar **en el momento del cobro**, no solo al cotizar. Y ahí está el problema: hoy
+el pago de un crédito se registra con `POST /v1/abonos/{pedidoId}`, que es **el endpoint genérico
+que usa todo el sistema** (apartados de ropa, fiados, todo). Meterle una regla de flores puede
+afectar cobros que hoy funcionan bien.
+
+Tres formas, **ustedes eligen**:
+- **(a)** Un endpoint aparte para el pago de pedidos de flores, que valide y delegue en el mismo
+  mecanismo de abonos.
+- **(b)** La validación dentro de `abonos`, pero con un guard claro que solo aplique si el pedido
+  es de flores.
+- **(c)** Un endpoint de "revalidar antes de pagar" que el front llame justo antes del abono.
+
+Nos inclinamos por **(a) o (c)**, para no meterle condicionales al cobro de todo el sistema.
+
+⚠️ **No sirve validarlo solo en el front.** El cliente puede dejar la pantalla abierta y pagar
+horas después, o llamar el endpoint directo. Tiene que ser del lado del servidor.
+
+---
+
+### Y lo que sigue sin moverse desde hace días
+
+**`GET /tienda/v1/variante/{id}/producto-id` en 500 en producción** — el merge `qa → main` que
+ustedes mismos diagnosticaron. No es de flores y no bloquea nada de esto, pero es lo único con un
+endpoint roto en producción y es lo que impide cerrar `getOne`.
+
+---
+
+## 🚧 CONSTRUIDO — los 3 puntos, en `dev` (todavía sin merge a `qa`) (2026-08-14)
+
+Arrancamos con los tres. Compilado y verificado localmente; falta subir a `qa` y correr la
+migración. Documentamos aquí el contrato real, con las decisiones que tomamos donde ustedes nos
+dejaron elegir.
+
+### 1. Config-entrega — SÍ cuelga de `CantidadFlorValida`, sin CRUD nuevo
+
+Tal como propusieron y preferimos: **no hay endpoints `/v1/config-entrega/*` nuevos.** Los 6
+campos se agregaron directo a `CantidadFlorValida` y se manejan con el mismo CRUD de siempre:
+
+```
+GET/POST/PUT  /v1/cantidades-flor/...
+```
+
+Campos nuevos (nombres calcados de su `config-entrega.model.ts`, con un ajuste — ver abajo):
+
+```json
+{
+  "id": 7,
+  "tipoFlor": { "id": 1, ... },
+  "cantidad": 48,
+  "pliegos": 3,
+
+  "diasNormal": 3,
+  "horaEntregaNormal": "16:00:00",
+
+  "diasUrgente": 1,
+  "horaEntregaUrgente": "18:00:00",
+  "horaLimitePedido": "12:00:00",
+  "cargoUrgente": 300.00
+}
+```
+
+Igual que ustedes propusieron: **todo el bloque urgente puede venir `null`** (ese tamaño no se
+puede apurar). `cantidadFlores` que mencionaban como solo-lectura no hizo falta agregarlo — ya
+viene en el mismo objeto como `cantidad`.
+
+### 2. `POST /v1/flores/fechas-disponibles` — construido, con un campo agregado
+
+```json
+// Request
+{ "tipoFlorId": 1, "cantidad": 37, "lugarEntregaId": 5, "urgente": false }
+```
+
+**Le agregamos `tipoFlorId`, que no estaba en su propuesta.** `CantidadFlorValida` es por
+(especie, cantidad) — sin la especie no hay forma de saber contra qué catálogo de tamaños buscar
+el redondeo hacia arriba (dos especies distintas pueden tener tamaños configurados distintos). Es
+el mismo dato que ya mandan en `calcular-precio`/`validar-cantidad`, así que no debería ser
+información nueva para el front.
+
+```json
+// Response
+{
+  "primeraFechaValida": "2026-08-17T16:00:00",
+  "horasDisponibles": ["16:00"],
+  "cantidadAplicada": 48,
+  "cargoUrgencia": null,
+  "ofreceUrgente": true,
+  "mensaje": null
+}
+```
+
+Shape idéntico a lo que propusieron. `primeraFechaValida` ya considera la hora actual contra
+`horaLimitePedido` (si piden `urgente:true` y ya pasó la hora límite de hoy, corre el plazo a
+partir de mañana) y ya suma las horas extra de la zona (`LugarEntrega.horasExtraAnticipacion`).
+
+**Caso de bloqueo** (piden más que el tamaño máximo configurado, o `urgente:true` para un tamaño
+sin bloque urgente): `primeraFechaValida: null`, `mensaje` con el texto para mostrarle al cliente
+y dirigirlo a WhatsApp/redes.
+
+### 3. Validación del reloj al pagar — opción (c), sin tocar `abonos`
+
+Elegimos la que ustedes también preferían: un endpoint aparte que el front llama **antes** de
+`POST /v1/abonos/{pedidoId}`, no una regla metida dentro de abonos.
+
+```
+POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar     (sin body, autenticado)
+```
+
+```json
+// Response
+{
+  "cargoRecienAplicado": true,
+  "cargoAgregado": 300.00,
+  "totalActual": 1260.00,
+  "mensaje": "Tu pago llego despues de la hora limite para el precio normal, asi que se aplico el cargo por entrega urgente ($300.0). Tu nuevo total es $1260.0 -- vuelve a intentar el pago con ese monto."
+}
+```
+
+**Cómo funciona:** al adjuntar el detalle del pedido (`POST .../pedidos/{id}/detalle`), ahora
+también mandan `urgente` (boolean, mismo valor que usaron en `fechas-disponibles`) junto con
+`fechaHoraEntrega`. El back calcula y **guarda** en ese momento la `fechaLimitePago` exacta y el
+`cargoUrgenteMonto` correspondiente — así no depende de que el front vuelva a mandar nada después.
+
+Cuando el front esté por cobrar el anticipo, llama primero a este endpoint:
+- **Si todavía no vence, o no era urgente:** `cargoRecienAplicado: false`, no cambia nada — sigan
+  con `POST /v1/abonos/{pedidoId}` normal.
+- **Si ya venció:** el back agrega la línea del cargo urgente al pedido real (recotiza, no
+  cancela — como pidió el dueño), devuelve el `totalActual` ya actualizado, y el front debe usar
+  **ese** monto para el abono, no el que tenía calculado antes.
+- Es idempotente: si lo llaman dos veces, la segunda vez ya no vuelve a aplicar el cargo
+  (`cargoUrgenteAplicado` queda marcado internamente).
+
+**Por qué no puede validarse solo en el front:** ya lo habíamos dicho, coincidimos — por eso este
+endpoint es servidor, y el `POST /v1/abonos/{pedidoId}` que ya usan sigue exactamente igual, sin
+ningún cambio ni guard nuevo.
+
+### Migración (pendiente de correr)
+
+`migration_flores_eternas_config_entrega.sql` — agrega los 6 campos de arriba a
+`cantidad_flor_valida`, y 5 campos de soporte (`fecha_hora_entrega`, `es_urgente`,
+`fecha_limite_pago`, `cargo_urgente_monto`, `cargo_urgente_aplicado`) a `ramo_pedido_detalle`.
+
+### Ya en `dev` y `qa` (`ec8221d` / `2153f92`), migración corrida, verificado en vivo
+
+El dueño ya corrió la migración en QA y prod. Probado ahora mismo contra QA:
+
+```
+POST /v1/flores/fechas-disponibles
+{ "tipoFlorId": 1, "cantidad": 48, "lugarEntregaId": null, "urgente": false }
+
+→ {
+    "primeraFechaValida": null,
+    "horasDisponibles": null,
+    "cantidadAplicada": 48,
+    "cargoUrgencia": null,
+    "ofreceUrgente": false,
+    "mensaje": "Este tamano de ramo (48 flores) todavia no tiene un plazo de entrega
+                configurado. Comunicate con el administrador por WhatsApp o redes sociales."
+  }
+```
+
+Responde bien — el dueño todavía no ha llenado ningún `diasNormal`/`diasUrgente` (siguen en
+`null` en las 3 cantidades que ya tiene: 20, 48, 62), así que por ahora bloquea con el mensaje de
+contacto, que es exactamente el comportamiento esperado mientras no haya configuración. En cuanto
+el dueño llene al menos un tamaño, avisen y lo volvemos a probar con una fecha real.
+
+`GET /v1/cantidades-flor/getAll` ya trae los 6 campos nuevos en cada registro
+(`diasNormal`, `horaEntregaNormal`, `diasUrgente`, `horaEntregaUrgente`, `horaLimitePedido`,
+`cargoUrgente`), todos en `null` — listo para que la pantalla de catálogo los capture.
+
+**Los 3 endpoints ya están operativos, pueden conectar cuando quieran:**
+- `GET/POST/PUT /v1/cantidades-flor/...` — sin cambios de URL, 6 campos nuevos en el objeto.
+- `POST /v1/flores/fechas-disponibles` — nuevo, público.
+- `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` — nuevo, autenticado, llamar
+  antes de `POST /v1/abonos/{pedidoId}`.
+
+**No probamos `revalidar-antes-de-pagar` de punta a punta** porque necesita un pedido real de
+flores urgente ya creado (con `fechaHoraEntrega`/`urgente` mandados en `.../detalle`) — en cuanto
+el dueño configure un tamaño y haya un pedido de prueba, lo verificamos también.
+
+---
+
+## 🔴 HUECO ENCONTRADO Y CORREGIDO — `calcular-precio` no cobraba el cargo del modelo nuevo (2026-08-14)
+
+Releyendo antes de dar la sesión por documentada, encontramos algo que se nos había pasado:
+`calcular-precio` seguía calculando `requiereAnticipo`/`montoAnticipoSugerido` únicamente con el
+modelo viejo (`CantidadFlorValida.horasMinimasAnticipacion`/`precioUrgencia`) — que nadie va a
+llenar nunca, porque el modelo real es el de `diasNormal`/`diasUrgente`/`cargoUrgente`.
+
+**Riesgo real:** con un pedido urgente de verdad (usando el modelo nuevo), `requiereAnticipo`
+hubiera salido `false` — el pedido se habría creado `NORMAL` y cobrado el 100% de contado, en vez
+de nacer `APARTADO` con el 50% de enganche. Exactamente el mismo bug del 150% que ya habíamos
+corregido, reapareciendo por el lado del cargo que no se estaba sumando.
+
+**Ya corregido, mismo commit que el resto de hoy.** `calcular-precio` ahora:
+1. Acepta `urgente` (boolean) en el request — mismo flag que ya mandan a `fechas-disponibles`.
+2. Si `urgente:true`, busca el tamaño aplicado con el mismo redondeo hacia arriba, y si tiene
+   `cargoUrgente`/`diasUrgente`/`horaLimitePedido` configurados, ese es el monto que se cobra y
+   dispara `requiereAnticipo`.
+3. El modelo viejo (`horasMinimasAnticipacion`) queda como respaldo silencioso — si algún día
+   alguien lo llena por error, no rompe nada, solo no hace nada nuevo.
+
+**Del lado del front:** al llamar `calcular-precio` para un ramo donde el cliente activó el botón
+de urgente en el calendario, manden también `"urgente": true` — mismo valor que ya mandan a
+`fechas-disponibles`. Sin ese flag, no se cobra el cargo ni se marca `requiereAnticipo`, aunque el
+tamaño sí tenga plazo urgente configurado.
+
+---
+
+## ✅ FRONT — configuración de entregas conectada + un bug que habría borrado datos (2026-08-14)
+
+Recibido y conectado. Está en `dev` (`6eda241`) y `qa` (`f072de0`).
+
+### Lo que quedó
+
+**Pantalla 🚚 Entregas** (`/flores/entregas`, en el menú 🌹 Flores eternas). Ya guarda de verdad,
+contra `/v1/cantidades-flor` — se borraron el modelo y el servicio provisionales que habíamos
+escrito mientras ustedes decidían.
+
+Cambió de forma respecto a lo que les habíamos enseñado: como los plazos cuelgan de los tamaños
+que ya existen, la pantalla **no crea ni borra tamaños**. Lista los que ya están dados de alta
+(hoy 20, 48 y 62) y a cada uno le configura sus plazos. Los tamaños se siguen creando en
+Catálogos → Cantidades, como antes.
+
+**Buena decisión la de colgarlo ahí** — se nota al usarlo: el dueño ve sus tres tamaños y les va
+poniendo plazos, sin tener que volver a capturar cuántas flores son.
+
+### 🐛 Un bug que atajamos, y que les puede pasar en otros catálogos
+
+Al agregar los 6 campos, el compilador marcó los 3 lugares donde la pantalla de Catálogos guarda
+una cantidad (alta, edición inline, toggle de activo). Ninguno mandaba los campos nuevos.
+
+Como **el CRUD genérico reemplaza el registro completo**, eso significaba que:
+
+```
+1. El dueño configura los plazos del ramo de 48 en la pantalla de Entregas.
+2. Semanas después corrige los pliegos de ese mismo 48 desde Catálogos.
+3. Los plazos de entrega desaparecen.  ← sin ningún error, sin que nadie note por qué
+```
+
+Ya está corregido: los 3 puntos reenvían los 6 campos tal cual venían.
+
+**Se los contamos porque no es un problema nuestro nada más.** Cualquier pantalla —suya o
+nuestra— que guarde una entidad del CRUD genérico mandando solo algunos campos, borra el resto en
+silencio. Con `CantidadFlorValida` ya vamos en 12 campos y creciendo; si en algún momento les
+parece razonable un `PATCH` que solo toque lo enviado, nos evitaría esta clase de error de raíz.
+No lo pedimos como cambio ahora, solo lo dejamos anotado.
+
+### ⚠️ Detalle del formato de horas
+
+Las horas llegan como `HH:mm:ss` ("16:00:00"), pero un `<input type="time">` de HTML solo entiende
+`HH:mm` — si se le pasa el valor con segundos, **el campo se queda vacío sin dar ningún error**.
+Lo resolvimos del lado del front (recortar al leer, completar al guardar), no hace falta que
+cambien nada. Lo anotamos por si alguien más consume esos campos y ve el mismo síntoma.
+
+### Sobre `tipoFlorId` en `fechas-disponibles`
+
+Tienen razón y no lo habíamos considerado: `CantidadFlorValida` es por (especie, cantidad), así
+que sin la especie no hay contra qué hacer el redondeo hacia arriba. Ya lo mandamos.
+
+### Lo que sigue de nuestro lado
+
+1. **Conectar el calendario** en el configurador del cliente — usando `fechas-disponibles` para
+   deshabilitar lo que no se puede, con el botón de urgente mostrando su cargo antes de elegir.
+2. **Llamar `revalidar-antes-de-pagar`** antes del abono, y usar el `totalActual` que devuelva.
+3. **Precio de la zona en el desplegable** ("Tejupilco — $150"), que hoy solo muestra el nombre.
+
+Lo 1 y 2 arrancan en cuanto el dueño configure al menos un tamaño — ahorita `fechas-disponibles`
+responde el mensaje de "sin plazo configurado" para los tres, que es lo correcto.
+
+### Lo único que sigue sin moverse
+
+**`GET /tienda/v1/variante/{id}/producto-id` → 500 en producción.** El merge `qa → main` que
+ustedes mismos diagnosticaron hace días. No bloquea flores, pero es el único endpoint roto en
+producción y es lo que impide cerrar `getOne`.
+
+---
+
+## 🌹 FRONT — el papel salía como casilla opcional en un ramo que ya tenía pliegos (2026-08-14)
+
+**No es un bug de ustedes ni nuestro — es que son dos configuraciones separadas que tienen que
+concordar a mano, y nada lo verifica.** Lo dejo escrito porque la propuesta del final sí les toca
+decidirla.
+
+### Qué pasó
+
+El dueño probó «Arma tu ramo» con 20 flores y le salió `☐ Papel (tiene costo)` como casilla
+opcional. Su reclamo, textual: *"ya habíamos quedado que entre 1 y 5 flores entonces sí se ponía
+el papel, porque cuando configuro los ramos ya puse cuántos pliegos usaría"*.
+
+Estado real de QA, verificado con curl:
+
+| Dónde | Valor |
+|---|---|
+| `accesorios-ramo` → Papel → `umbralActivacion` | **20** |
+| `cantidades-flor` → 20 flores → `pliegos` | 3 |
+| `cantidades-flor` → 48 flores → `pliegos` | 5 |
+| `cantidades-flor` → 62 flores → `pliegos` | 7 |
+
+Con el umbral en 20 y la comparación en **estrictamente mayor**, un ramo de exactamente 20 no
+lleva papel automático — aunque tenga sus 3 pliegos ya registrados. Los de 48 y 62 sí entraban.
+Comportamiento correcto según lo implementado; lo que falla es que el dueño configuró los pliegos
+por tamaño dando por hecho que eso bastaba, sin saber que hay un segundo número en otra pestaña
+que manda sobre eso.
+
+### Lo que hicimos del lado del front
+
+1. **Alerta en Catálogos → Accesorios** que cruza los dos catálogos y avisa: *"estos tamaños ya
+   tienen pliegos configurados pero no van a llevar papel automático porque quedan por debajo del
+   corte de N"*, con el número que debería poner.
+2. **`papelForzado` del configurador ahora obedece a `papelObligatorioAplicado`** en vez de
+   recalcular el umbral por su cuenta. Antes duplicaba su fórmula, con el riesgo obvio: si el
+   front escondiera el papel creyendo que va incluido y ustedes no lo agregaran, el ramo saldría
+   **sin papel y sin cobro**. Esconder no es incluir — quien lo agrega son ustedes.
+
+### 💡 Propuesta (esto sí lo deciden ustedes)
+
+**Que el papel se derive de `CantidadFlorValida.pliegos`**: si el tamaño tiene pliegos
+configurados, lleva papel; si no los tiene, se le pregunta al cliente. `umbralActivacion` dejaría
+de hacer falta.
+
+Por qué lo sugerimos: hoy son dos números, en dos pantallas, que tienen que estar coordinados y
+nada lo garantiza. El dueño ya se topó con eso a la primera prueba. Con esto habría **un solo
+lugar** donde configurarlo y sería imposible desalinearlo — que además es como él ya lo tiene en
+la cabeza ("si configuré los pliegos, es porque lleva papel").
+
+Efecto secundario que nos gusta: se acaba de paso la confusión del `>` vs `>=`, que fue justo lo
+que mordió aquí (el corte en 20 y el ramo de 20).
+
+**Si prefieren dejarlo como está, también está bien** — con la alerta nueva el dueño ya ve cuándo
+los dos números no concuerdan. No hace falta que cambien nada para que funcione; es solo que
+tendrá que mantener los dos sincronizados él.
+
+**Mientras tanto no bloquea nada:** basta con que ponga el umbral en 5 y el comportamiento queda
+como él lo describió (preguntar solo de 1 a 5 flores, incluido de 6 en adelante).
+
+---
+
+## 🟡 BACK — precisión sobre "el más cercano hacia arriba": no aplica igual a todo (2026-08-14)
+
+Sobre el hilo de arriba (papel vs pliegos, y la propuesta de derivarlo uno del otro): confirmamos
+con el dueño un caso adicional que vale la pena dejar anotado, porque puede confundir cuando el
+tamaño pedido **no está registrado exacto** (a diferencia del ejemplo de arriba, donde el 20 sí
+estaba dado de alta con sus 3 pliegos).
+
+Ejemplo: el dueño tiene registrado el tamaño 25 (con sus pliegos, plazos, etc.) pero NO el 20.
+Alguien pide 20 flores. Hoy, en el código, pasan tres cosas independientes — no una sola cascada
+consistente:
+
+- **`validar-cantidad`** recomienda el 25 como `alternativaMayor` (el tamaño válido más cercano
+  hacia arriba). Esto ya lo conocen.
+- **`diasNormal` / `diasUrgente` / `cargoUrgente`** (plazos de entrega) → SÍ heredan del 25: el
+  redondeo hacia arriba ya está implementado ahí (es el mismo mecanismo confirmado y documentado
+  arriba para `fechas-disponibles`).
+- **`pliegos` (papel) y `manoDeObra`** → NO heredan del 25. Buscan coincidencia EXACTA con la
+  cantidad pedida (20); si no la encuentran, caen a la fórmula `floresPorPliego` o al respaldo
+  `pliegosPorDefecto` — nunca toman los pliegos que el dueño configuró para el 25.
+- **El umbral del papel (`umbralActivacion`)** → tampoco mira "el más cercano". Compara la
+  cantidad REAL pedida (20) contra el umbral, sin importar qué tamaño se haya recomendado como
+  alternativa.
+
+O sea: si piden una cantidad sin fila propia, que aparezca o no el papel (y cuántos pliegos se
+cobren) depende de reglas que no tienen que ver con el tamaño recomendado como "más cercano" —
+hoy son tres mecanismos independientes. Con la propuesta de arriba (derivar el papel de
+`pliegos`) esto se simplifica para el caso donde SÍ hay fila exacta, pero el hueco de la cantidad
+sin registrar seguiría abierto salvo que decidan que `pliegos`/`manoDeObra` también hereden del
+tamaño más cercano, igual que ya pasa con los plazos de entrega.
+
+**No es un bug — es el comportamiento actual**, documentado para que quede claro antes de decidir
+si conviene unificarlo con el resto del rediseño de papel/pliegos que está en discusión arriba.
+
+---
+
+## ✅ FRONT — calendario de entrega conectado + `urgente` ya viaja (2026-08-14)
+
+Conectado todo lo de su último bloque. Está en `dev` y `qa`.
+
+### Lo que quedó
+
+- **`POST /v1/flores/fechas-disponibles`** — el paso 6 del configurador ya no es un select suelto:
+  consulta el plazo real y preselecciona lo más pronto posible. El `<input type="date">` lleva
+  `min` en `primeraFechaValida` y la hora sale de `horasDisponibles`, así que **no hay forma de
+  elegir una fecha que ustedes no puedan cumplir**.
+- **Bloqueo cuando `primeraFechaValida: null`** — se muestra su `mensaje` tal cual y se deshabilita
+  el botón de confirmar. Si el cliente había pedido urgente y por eso vino `null`, el front se
+  regresa solo a normal para que no quede atorado con un botón encendido y sin fecha.
+- **Botón «⚡ Lo necesito antes»**, visible solo con `ofreceUrgente: true`, con el
+  `cargoUrgencia` en la etiqueta.
+- **`urgente` y `fechaHoraEntrega` ya van** en `calcular-precio` y en `.../detalle`.
+- **`requiereAnticipo: true` → el pedido nace `APARTADO`** (con `estadoPedido: "APARTADO"`, no
+  `"Pendiente"`), no `NORMAL` de contado.
+- **`precioUrgencia` sí lleva línea propia en el resumen**, a diferencia del papel y la mano de
+  obra que van fundidos en la línea de flores. El cliente lo eligió a propósito en un botón que ya
+  le decía el precio; escondérselo después sería raro. Verificado que las líneas visibles suman el
+  total exacto (1,225 + 300 = 1,525).
+
+### 🔴 Pero el fix de `calcular-precio` NO está en QA
+
+Su commit de hoy dice que ya acepta `urgente` y cobra el cargo. **En QA no lo hace.** Probado hace
+un momento:
+
+```
+POST /v1/flores/calcular-precio
+{ "colores":[{"colorFlorId":1,"cantidad":48}], "accesorios":[], "listones":[],
+  "urgente": true, "fechaHoraEntrega": "2026-08-15T18:00:00" }
+
+→ precioUrgencia: null,  requiereAnticipo: false,  montoAnticipoSugerido: null,  total: 1225.0
+```
+
+Probado también sin `fechaHoraEntrega` y sin `urgente`: idéntico. Responde 200 siempre, no
+rechaza el campo.
+
+**No es que falte configuración** — `fechas-disponibles`, contra el mismo tamaño y en el mismo
+momento, sí devuelve el cargo:
+
+```
+POST /v1/flores/fechas-disponibles  { "tipoFlorId":1, "cantidad":48, "urgente":true }
+→ primeraFechaValida: "2026-08-15T18:00:00",  cargoUrgencia: 300.0,  ofreceUrgente: true
+```
+
+O sea: el tamaño de 48 tiene su `cargoUrgente: 300` bien puesto y un endpoint lo ve y el otro no.
+Nos late que QA quedó con el build anterior (el de `ec8221d`/`2153f92`, que sí trae
+`fechas-disponibles`) y el commit del hueco no se desplegó. ¿Lo confirman?
+
+**Mientras tanto no rompe nada**: el front ya manda `urgente` y ustedes lo ignoran, así que el
+ramo se cobra como normal. En cuanto desplieguen, empieza a cobrarse solo, sin que toquemos nada.
+
+### ❓ Lo único que nos falta para cerrar el flujo: `revalidar-antes-de-pagar`
+
+Está claro **cuándo** llamarlo (antes de `POST /v1/abonos/{pedidoId}`, y usar el `totalActual` que
+devuelva). Lo que no sabemos es **cómo saber que toca llamarlo**.
+
+Quien cobra el anticipo es el admin desde `/abonos`, y esa pantalla trabaja con pedidos de todo
+tipo — no tiene forma de distinguir un ramo de flores de una venta de blusas. Las opciones que
+vemos:
+
+1. **Llamarlo siempre** antes de cualquier abono e ignorar el error si el pedido no es de flores.
+   Nos incomoda: dispararía un 404/400 en cada cobro normal, y ensuciar la consola con errores
+   esperados hace que después nadie note los de verdad.
+2. **Que el pedido diga que es de flores** — un flag en el detalle del pedido
+   (`GET /v1/pedidos/{id}/detalle`), por ejemplo `esRamoFlores: true` o que venga el
+   `ramoPedidoDetalleId`. Con eso el front llama solo cuando corresponde. **Esta nos parece la
+   más limpia**, pero es campo nuevo de su lado.
+3. Que `revalidar-antes-de-pagar` responda 200 con `cargoRecienAplicado: false` para pedidos que
+   no son de flores, en vez de error. Así la opción 1 deja de ser sucia.
+
+¿Cuál prefieren? Con 2 o 3 lo conectamos de inmediato. **Hasta entonces el cobro tardío de un ramo
+urgente no se está recotizando** — el pedido queda con el precio del momento en que se cotizó.
+
+---
+
+## 🔴 SEGUIMIENTO — el cargo urgente sigue sin aplicarse en QA (2026-08-14, mismo día)
+
+El dueño ya está probando el configurador y **el cargo urgente no le aparece**. Volvimos a medir
+ahora mismo, y agregamos lo que faltaba: **la prueba de que el front sí manda el flag**, capturada
+del navegador al pulsar el botón de urgente.
+
+**Lo que sale del front:**
+```json
+POST /v1/flores/fechas-disponibles
+{"tipoFlorId":1,"cantidad":48,"lugarEntregaId":null,"urgente":true}
+
+POST /v1/flores/calcular-precio
+{"colores":[{"colorFlorId":1,"cantidad":48}],"accesorios":[],"listones":[],
+ "fechaHoraEntrega":"2026-08-16T18:00:00","urgente":true}
+```
+
+**Lo que responde QA, con esos mismos datos:**
+```
+fechas-disponibles → cargoUrgencia: 300.0   ofreceUrgente: true   primeraFechaValida: 2026-08-16T18:00:00
+calcular-precio    → precioUrgencia: null   requiereAnticipo: false   total: 1225.0
+```
+
+Los dos endpoints leen el mismo tamaño (48, con su `cargoUrgente: 300` configurado) en el mismo
+instante: uno lo ve y el otro no. Con eso quedan descartados el front, la configuración del dueño
+y los datos — **solo queda el despliegue**.
+
+**¿Nos confirman si el commit del hueco llegó a QA?** Es lo único que bloquea al dueño para
+terminar de probar el flujo urgente de punta a punta. No corre prisa de nuestro lado: el front ya
+está listo y no hay que tocarlo, empieza a cobrarse solo en cuanto suban.
+
+Sigue abierta también la pregunta del bloque anterior: **cómo sabe `/abonos` que un pedido es de
+flores**, para llamar `revalidar-antes-de-pagar` únicamente cuando corresponde.
+
+---
+
+## 🔴 URGENTE — el cargo sigue sin aplicarse y el dueño ya está vendiendo con eso (2026-08-14)
+
+Tercera vuelta del mismo tema. El dueño está probando el configurador **en vivo** y nos reclama que
+el cargo no aparece. Descartamos ya todo lo que estaba de nuestro lado:
+
+**1. No es el nombre del campo.** Probamos cuatro variantes contra QA, todas con el mismo
+resultado (`precioUrgencia: null`, `total: 515.0` en un ramo de 20):
+
+```
+"urgente": true          → precioUrgencia: null
+"esUrgente": true        → precioUrgencia: null
+"entregaUrgente": true   → precioUrgencia: null
+"urgente": "true"        → precioUrgencia: null
+```
+
+**2. No es la configuración.** El mismo tamaño de 20, en el mismo instante:
+
+```
+fechas-disponibles → cargoUrgencia: 50.0   primeraFechaValida: 2026-08-16T12:00:00
+calcular-precio    → precioUrgencia: null  requiereAnticipo: false  total: 515.0
+```
+
+**3. No es el front.** Ya les mandamos la captura del payload en el bloque anterior.
+
+### ⚠️ El riesgo mientras tanto no es cosmético
+
+Con `requiereAnticipo: false`, un ramo urgente **no solo se cobra sin el extra: nace `NORMAL` en
+vez de `APARTADO`**. O sea, el taller corre a armarlo con prisa, gratis y sin haber recibido el
+50% de enganche. Es dinero que se pierde en cada pedido urgente que entre así.
+
+**Por eso el front ahora bloquea la venta urgente** cuando detecta la incoherencia (pidió urgente
++ el tamaño tiene cargo + el cálculo vuelve sin él): muestra un aviso y deshabilita el botón de
+confirmar. **Se apaga solo en cuanto ustedes devuelvan `precioUrgencia`** — no hay que avisarnos
+ni quitar nada. No sumamos el cargo por nuestra cuenta a propósito: el front no puede crear la
+línea del pedido (no hay variante de urgencia), así que enseñaríamos un total distinto al que se
+cobra, que es peor que no vender.
+
+### 🟠 Aparte — en PRODUCCIÓN los GET de flores piden token
+
+Revisando, encontramos que en prod el configurador público no funcionaría:
+
+```
+PROD  GET /v1/cinta/activos          → 200 (público, ok)
+PROD  GET /v1/tipos-flor/getAll      → 404 "Token invalido o expirado"
+PROD  POST /v1/flores/fechas-disponibles → 404 "Token invalido o expirado"
+```
+
+En QA esos mismos responden 200 sin token. Las rutas `/flores/ramos` y `/flores/configurar` del
+front son **públicas** (un visitante sin cuenta puede armar su ramo y solo se le pide registro al
+confirmar), así que tal como está prod, a ese visitante se le rompe la pantalla completa.
+
+Suponemos que es el mismo `qa → main` pendiente del que ya hablamos. **No corre prisa** — el dueño
+está probando en QA — pero conviene que no se les pase cuando publiquen flores.
+
+### Corrección del bloque anterior — el front ya NO bloquea la venta urgente
+
+El dueño está en pruebas y bloquear le impedía probar justo el flujo urgente. Cambiado a **aviso +
+confirmación**: se le dice cuánto no se está cobrando y que el pedido quedará de contado sin
+anticipo, y decide si continúa. Sigue apagándose solo cuando ustedes devuelvan `precioUrgencia`.
+
+Los dos puntos (cargo urgente y los GET de flores con token en prod) quedan anotados de nuestro
+lado para revisarlos **antes de publicar**, no ahora. Sin prisa.
+
+---
+
+## ✅ CONFIRMADO — el cargo urgente ya se aplica en QA (2026-08-14)
+
+Desplegaron y funciona. Verificado contra QA, ramo de 20 con urgencia:
+
+```
+precioBase 500 + papel 15 (3 pliegos × $5) + urgencia 50  =  total 565
+requiereAnticipo: true    montoAnticipoSugerido: 282.50
+```
+
+Sin urgencia sigue en 515 sin anticipo. El bloqueo defensivo del front **se apagó solo**, como
+dijimos. Probado también en pantalla contra QA real: sale la línea "⚡ Entrega urgente $50.00",
+el total 565 y la nota del anticipo. Gracias.
+
+## 🔴 Encontrado al probar contra QA real — `lugares-entrega/getAll` expulsa al visitante anónimo
+
+```
+GET /v1/lugares-entrega/getAll   sin token  → 401
+GET /v1/tipos-flor/getAll        sin token  → 200
+GET /v1/accesorios-ramo/getAll   sin token  → 200
+GET /v1/cantidades-flor/getAll   sin token  → 200
+```
+
+El configurador pedía las zonas al abrir, para llenar el selector de "¿dónde lo quieres?". Como el
+`TokenInterceptor` manda al login ante **cualquier** 401, el visitante sin cuenta entraba a
+`/flores/configurar` y **salía disparado a `/login` antes de ver nada**. La pantalla es pública a
+propósito (arma su ramo y solo se le pide cuenta al confirmar), así que se rompía el flujo entero
+de un cliente nuevo. No se veía antes porque el dueño prueba con sesión de admin.
+
+**Ya lo tapamos del lado del front:** las zonas se piden solo si hay sesión. El anónimo se queda
+sin selector de zona, que es aceptable pero no ideal.
+
+**¿Pueden hacer público el GET de `lugares-entrega`?** Mismo criterio que los catálogos de flores:
+son nombres de zona y costo de envío, nada sensible, y **el cliente los necesita para saber cuánto
+le cuesta el envío y cómo cambia su fecha de entrega** (la zona suma `horasExtraAnticipacion`).
+Solo el GET — `save`/`update`/`delete` que sigan siendo admin.
+
+Revisado: la vitrina (`/flores/ramos`) no tiene el problema, `ramos-armados/activos` y
+`negocio/contactos` ya son públicos.
+
+## ⚠️ Sube de prioridad — ¿un cliente NO admin puede leer `lugares-entrega/getAll`?
+
+Complemento del punto anterior. El dueño pidió que **la zona de entrega sea obligatoria** para
+confirmar un ramo (antes se podía cerrar la venta sin decir a dónde iba). Ya está hecho: o eliges
+zona, o marcas "voy a recoger en la tienda".
+
+Eso convierte la duda de arriba en algo más serio. Sabemos que sin token responde **401**. Lo que
+**no** pudimos comprobar es qué responde a un **cliente logueado que no es admin**. Si también lo
+rechaza:
+
+- El cliente no ve ninguna zona en el selector.
+- Y como ahora la zona es obligatoria, **su única salida sería "recoger en la tienda"**.
+- O sea: **nadie podría pedir entrega a domicilio**, que es justo lo que el dueño quiere cobrar
+  con `costoEnvio`.
+
+**¿Nos confirman qué responde a un usuario con rol de cliente?** Y si está protegido, la petición
+sigue siendo la misma: **abrir solo el GET** (nombres de zona y costo de envío, nada sensible),
+dejando `save`/`update`/`delete` como admin. Es el mismo criterio con el que ya son públicos
+`tipos-flor`, `accesorios-ramo` y `cantidades-flor`.
+
+No corre prisa para las pruebas de hoy (el dueño prueba como admin), pero **sí hay que resolverlo
+antes de publicar flores**.
+
+---
+
+## 🆕 PETICIÓN DEL DUEÑO — guardar el pedido aunque el cliente no verifique su correo (2026-08-14)
+
+Hoy, si el cliente no tiene el correo verificado, `POST /v1/pedidos/savePedido` **rechaza** y no se
+guarda nada. El front manda el código, y solo si lo captura bien se vuelve a llamar y ahí sí se
+crea el pedido.
+
+**El dueño quiere lo contrario:** que el pedido **se guarde de todos modos**, en estado pendiente.
+Su razón es de negocio, y es buena: hoy, si el cliente no verifica (correo en spam, dirección mal
+escrita, se aburrió), **el dueño no se entera de nada**. Alguien armó un ramo de $565, se fue, y no
+queda ni el nombre. Esa venta se pierde sin rastro.
+
+### Lo que pidió, en sus palabras
+
+> *"Que se guarde como pendiente, para ambos: tanto para el cliente como para el admin. Y cuando se
+> cancele, solo se le deshabilita al cliente, pero el admin lo puede ver como que lo canceló o que
+> no se verificó. Si el cliente no lo verifica, no pasa nada, se queda guardado, y él regresa a ver
+> el registro y ahí lo puede cancelar o verificarlo, según sea el caso."*
+
+Traducido a comportamiento:
+
+| Situación | Qué ve el cliente | Qué ve el admin |
+|---|---|---|
+| Pidió pero no verificó | Su pedido, marcado como pendiente de confirmar | Lo mismo, y **por qué** está pendiente |
+| Vuelve y verifica | Su pedido pasa a normal | Pedido normal |
+| Vuelve y lo cancela | Ya no le aparece | Sigue viéndolo, marcado **cancelado por el cliente** |
+| Nunca vuelve | Sigue ahí, pendiente | Sigue ahí, con el contacto para poder llamarle |
+
+Lo importante para él: **el pedido queda en la base**, y el cliente puede volver después a
+verificarlo o cancelarlo por su cuenta.
+
+### ⚠️ Antes de que diseñen nada — el alcance no es solo flores
+
+`savePedido` lo usan **las dos** pantallas de cliente: el configurador de flores y el carrito
+normal (`venta-variante`). El dueño lo planteó hablando de flores, pero el cambio afectaría
+**todos los pedidos de cliente**. ¿Lo quieren así para todo, o acotado a flores? Nosotros no
+tenemos criterio para decidirlo — se lo preguntamos también a él.
+
+### Lo que necesitamos que decidan ustedes
+
+No les proponemos el modelo; ustedes conocen las implicaciones. Pero estas dudas nos parecen las
+que hay que resolver antes:
+
+1. **¿El pedido pendiente aparta stock?** Si lo aparta, alguien que nunca verifica **bloquea
+   inventario** que sí se podría vender. Si no lo aparta, al verificar días después el stock puede
+   haberse acabado — ¿qué pasa ahí?
+2. **¿Cuenta en reportes y en el dashboard?** Nos parece que no debería sumar a ventas hasta que
+   se confirme, pero es su decisión.
+3. **¿Caduca?** El dueño dijo "no pasa nada, se queda guardado". ¿Indefinidamente? Si no caduca,
+   la lista puede llenarse de pedidos que nadie va a completar.
+4. **¿Cómo lo distinguimos desde el front?** Hoy `estadoPedido` maneja
+   `Pendiente/Cancelado/APARTADO/FIADO/PAGADO/Entregado`. ¿Un estado nuevo? ¿Un campo aparte?
+   ¿Reusan `motivo_cancelacion` para "cancelado por el cliente" vs "no verificó"?
+5. **¿El cliente puede verificar desde el pedido ya creado?** Lo que imaginamos: entra a "Mis
+   pedidos", ve el suyo pendiente y ahí mismo pide el código. Si eso les sirve, ¿el endpoint de
+   enviar código que ya existe (`/v1/clientes/{id}/enviar-codigo-verificacion`) alcanza, o hace
+   falta uno que además "despierte" ese pedido al verificar?
+
+### Lo que haría el front cuando nos digan
+
+- **Configurador y carrito:** dejar de tratar el 400 como error. Si el pedido queda guardado, se le
+  dice *"tu pedido quedó registrado, confírmalo con el código para que lo empecemos"*, en vez del
+  aviso actual de que no se registró.
+- **Mis pedidos (cliente):** distintivo de "pendiente de confirmar" + botones para **verificar** o
+  **cancelar**.
+- **Mis pedidos (admin):** el mismo pedido visible con el motivo, y que **no desaparezca** cuando
+  el cliente lo cancele.
+
+Sin prisa — el dueño sigue en pruebas. Pero nos gustaría saber si lo ven viable antes de que él
+empiece a publicar.
+
+---
+
+## 🔴 BACK — hueco real encontrado: `tipoPedido` y `totalPagado` seguían sin llegar en `PedidoQuery` (2026-08-14)
+
+Releyendo el pendiente del **2026-07-22** ("Confirmado: sí queremos `totalPagado` en la lista de
+pedidos"), el dato nunca llegó a estar disponible — se quedó abierto sin que nadie volviera a
+confirmar que ya estaba. Encontramos la causa real:
+
+**El SQL ya devolvía ambos campos desde julio.** Las 3 queries nativas de `IPedidoRepository`
+(`buscarPedidosPorCliente`, `buscarTodosLosPedidos`, `findPedidoPorId2`) ya arman
+`'tipoPedido', p.tipo_pedido` y `'totalPagado', p.total_pagado` dentro del `JSON_OBJECT`. **Pero
+el DTO `PedidoQuery.java` no declaraba esos dos campos** — Jackson deserializa por nombre y
+descarta en silencio cualquier propiedad del JSON que no tenga un setter/campo correspondiente, sin
+error ni warning. O sea: el dato viajaba hasta la respuesta HTTP y se perdía justo en el último
+paso, invisible desde afuera.
+
+**Ya corregido** (`PedidoQuery.java`, campos `tipoPedido: String` y `totalPagado: Double`
+agregados). Afecta a los 3 endpoints que usan este DTO:
+
+- `GET /v1/pedidos/buscarClientePedido`
+- `GET /v1/pedidos/findPedido/{id}`
+- `GET /v1/pedidos/pediodPorId` (detalle por id+cliente)
+
+**Shape resultante, exactamente como lo pidieron en julio:**
+```json
+{
+  "id": 89,
+  "fecha_pedido": "22/07/2026 00:04",
+  "estado_pedido": "APARTADO",
+  "tipoPedido": "APARTADO",
+  "totalPagado": 150.00,
+  "nombreReceptor": "...",
+  "detalles": [ ... ]
+}
+```
+
+`totalPagado` viene `null` para pedidos `NORMAL` que nunca tuvieron abonos (no `0` forzado — igual
+que ya se comporta `PedidoDetalleResponse.totalPagado`). Ya pueden conectar
+`puedeGenerarTicket(item)` con el criterio que ya tenían listo del lado del front.
+
+## ✅ Respuesta directa — la pantalla de Entregas NO reemplaza a "Ramos armados"
+
+Son dos cosas distintas por diseño, no hay traslape:
+
+- **`RamoArmado`** — un ramo **preconfigurado para mostrar en catálogo**: nombre, foto de
+  referencia, un color fijo, una cantidad fija (`CantidadFlorValida`), y el precio ya calculado
+  (flores + papel + mano de obra congelados). Es contenido de vitrina, para que el cliente elija
+  "quiero este" sin armar nada.
+- **Pantalla de Entregas** — configura, por tamaño de ramo (`CantidadFlorValida`), los plazos y
+  cargos de entrega (`diasNormal`, `diasUrgente`, `cargoUrgente`, etc.). No arma ramos ni tiene
+  foto ni color — es pura configuración de tiempos, y aplica **tanto** a ramos armados como al
+  configurador libre del cliente, porque ambos cuelgan del mismo tamaño (`CantidadFlorValida`).
+
+Dicho de otra forma: `RamoArmado` es "qué se ve y cuánto cuesta"; Entregas es "cuándo se puede
+entregar". Un `RamoArmado` de 48 flores usa los plazos que el dueño configuró para el tamaño 48 en
+la pantalla de Entregas — están relacionados por el tamaño compartido, pero una pantalla no
+sustituye a la otra.
+
+**Nota aparte, ya señalada arriba en este documento:** hoy el cargo de urgencia **no se valida ni
+se cobra** cuando el pedido es un `RamoArmado` preconfigurado (solo aplica al configurador libre) —
+si alguien pide un ramo armado "para mañana", no hay bloqueo ni cargo todavía. Sigue como hueco
+funcional abierto, no como parte de esta respuesta.
+
+---
+
+## 🔧 BACK — resueltos: `revalidar-antes-de-pagar` tolerante + `lugares-entrega` público (2026-08-14)
+
+Dos pendientes de las últimas rondas, ya corregidos.
+
+### 1. `revalidar-antes-de-pagar` — opción 3, la que preferían
+
+Antes: si el pedido no tenía `RamoPedidoDetalle` (no era de flores), el endpoint respondía `400`
+con `"No hay detalle de ramo para el pedido: {id}"`. Ahora responde `200` con
+`cargoRecienAplicado: false` y `totalActual` = el total actual del pedido tal cual, igual que
+cuando sí es de flores pero aún no aplica el cargo. Un pedido que de plano no existe sigue dando
+error real (`400`).
+
+**Pueden llamarlo siempre**, antes de cualquier `POST /v1/abonos/{pedidoId}`, sin distinguir de
+antemano si el pedido es de flores — no ensucia la consola con errores esperados. No hizo falta
+agregar ningún campo nuevo al detalle del pedido (la opción 2 que también propusieron).
+
+### 2. `GET /v1/lugares-entrega/getAll` — ahora público
+
+Era el bloqueante real: antes exigía `authenticated()` (cualquier sesión, pero no anónimo), lo que
+expulsaba a un visitante sin cuenta del configurador público de flores. Cambiado a `permitAll()`,
+mismo criterio que ya tienen `tipos-flor`, `cantidades-flor`, `accesorios-ramo` y `frases-liston`:
+son nombres de zona y costo de envío, nada sensible. `save`/`update`/`delete` siguen siendo
+exclusivos de `ADMIN`, sin cambio ahí.
+
+Esto también responde la pregunta que quedó "subida de prioridad": **un cliente logueado no-admin
+ya podía leerlo** (el `authenticated()` de antes no distinguía rol) — el problema era solo el
+visitante sin sesión, y ya quedó cubierto igual.
+
+## ❓ Pendiente de decisión — guardar el pedido como pendiente sin verificar correo
+
+Leímos la petición completa del dueño. Es un cambio de alcance real (afecta **todos** los pedidos
+de cliente, no solo flores, porque `savePedido` es compartido con el carrito normal) y trae 5
+preguntas de negocio que no podemos decidir solos — se las devolvemos tal cual las plantearon:
+
+1. ¿El pedido pendiente aparta stock o no?
+2. ¿Cuenta en reportes/dashboard antes de confirmarse?
+3. ¿Caduca, o se queda indefinidamente?
+4. ¿Cómo se distingue `estadoPedido` — un estado nuevo, o reusar/ampliar lo que ya existe?
+5. ¿El cliente verifica desde "Mis pedidos" con el endpoint de código que ya existe, o hace falta
+   uno nuevo que "despierte" el pedido al verificar?
+
+No se toca nada de esto todavía — es la decisión del dueño la que falta, no trabajo técnico
+pendiente de nuestro lado.
+
+---
+
+## ✅ RESPUESTAS DEL DUEÑO — pedido pendiente sin verificar (2026-08-14)
+
+Les devolvieron las 5 preguntas de negocio y ya las contestó. Van tal cual, con la consecuencia
+técnica que le vemos a cada una.
+
+### 1. NO aparta stock — y esto cambia el diseño
+
+> *"Como son rosas eternas y esas solo se hacen por pedido confirmado, entonces no se retiene la
+> mercancía, porque en sí no lo voy a hacer. Y los que tuviera, si me toca venderlos los vendo,
+> porque ya no los tendría."*
+
+El ramo **no se arma hasta que el pedido está confirmado**, así que un pendiente no reserva nada.
+Si mientras tanto entra otra venta que se lleve esas flores, se venden.
+
+**La consecuencia la señaló él mismo, y es la parte importante:**
+
+> *"Si lo pide para mañana y no da el anticipo, y regresa mañana a decir 'siempre sí lo quiero',
+> entonces no se va a poder, porque tiene que modificar la fecha a un día más."*
+
+O sea: **un pedido pendiente NO se puede simplemente "activar"**. Cuando el cliente vuelve, hay
+que **volver a cotizarlo** contra el momento en que vuelve:
+
+- **Stock:** puede que ya no haya esas flores o esos colores.
+- **Fecha:** se recorre. El plazo cuenta **desde el día que confirma**, no desde el día que lo
+  pidió — y eso vale igual para urgente (ahí el aviso sería *"te quedaría para el día siguiente"*).
+- **Precio:** puede haber cambiado.
+
+> *"Si ya pasó tiempo, la fecha serían los días que me lleve hacerlo si no lo pidió urgente; y si
+> lo pidió urgente, lo mismo, pero antes decirle: oye, te quedaría para el siguiente día."*
+
+**Y hay que avisarle ANTES de que confirme**, no después: que vea la fecha nueva (y el precio
+nuevo si cambió) y entonces decida.
+
+### 2. No cuenta como venta
+
+> *"No debería contar como venta porque aún no se confirma, y menos se ha vendido."*
+
+Fuera de reportes y dashboard hasta que se confirme.
+
+### 3. Caduca solo, y queda como perdido
+
+> *"Se guarda un tiempo y después pues se cancelaría por default. El cliente ya no lo vería, solo
+> el admin, pero ya como perdido."*
+
+Un pendiente que nadie confirma **se cancela solo** al pasar el plazo. El cliente deja de verlo; el
+admin lo sigue viendo, marcado como **perdido** (distinto de "cancelado por el cliente", que fue
+una decisión de alguien, y de "no verificó", que es el estado mientras sigue vivo).
+
+⚠️ **Falta el número de días.** No lo dijo; se lo estamos preguntando. Mientras no lo defina, esto
+no se puede implementar.
+
+### 4. Sin responder — es técnica, la dejan en sus manos
+
+Cómo distinguirlo (estado nuevo en `estadoPedido`, campo aparte, etc.) no lo contestó y nos parece
+correcto: es decisión de ustedes. Lo único que pide el negocio es poder distinguir estos cuatro
+casos: **pendiente de confirmar**, **confirmado**, **cancelado por el cliente** y **perdido por
+tiempo**.
+
+### 5. El cliente lo retoma desde donde lo dejó
+
+No le quedó claro cómo se lo planteamos, pero por lo que respondió: vuelve a su pedido, y al
+retomarlo se le recotiza con las reglas del punto 1 antes de confirmar.
+
+### Lo que esto implica del lado del front (cuando definan el modelo)
+
+- Al retomar un pendiente: llamar de nuevo a `fechas-disponibles` y `calcular-precio`, y mostrar
+  **la fecha nueva y el precio nuevo** antes del botón de confirmar.
+- Si el stock ya no alcanza, decírselo ahí mismo — no dejarlo confirmar algo que no se puede armar.
+- Distintivos por estado en "Mis pedidos", y que los **perdidos** solo los vea el admin.
+
+**Sigue sin implementarse nada** — falta el plazo de caducidad y la decisión de modelo del punto 4.
+
+---
+
+## 🛑 CANCELADA — la petición del pedido pendiente se retira, NO la construyan (2026-08-14)
+
+Anula por completo las dos secciones anteriores (la petición y las respuestas del dueño). **No hay
+nada que hacer de su lado** — nos quedamos con el comportamiento que ya existe hoy.
+
+El dueño lo repensó a partir de la consecuencia que él mismo había señalado: si el pedido queda
+pendiente y el cliente vuelve después, **la fecha ya se pasó de todos modos** y hay que recotizar
+stock, fecha y precio. Su conclusión:
+
+> *"Me gusta más que si no lo confirma, que no se guarde nada, porque la hora o fecha ya será
+> tarde. Entonces mejor que configure otro ramo, y hay que avisarle. Ya no lo vería ni el cliente
+> ni el admin, porque en sí no se concretaría nada."*
+
+Es la decisión correcta y además la más barata: guardar un pedido que **igual** habría que
+recotizar entero al retomarlo no aporta nada, y a cambio traía estados nuevos, caducidad,
+distinción de "perdido" y una bandeja que mantener.
+
+### Qué queda entonces — nada nuevo
+
+`POST /v1/pedidos/savePedido` **sigue igual**: rechaza mientras el correo no esté verificado y no
+guarda nada. Es exactamente el comportamiento que ya tienen. **No toquen nada.**
+
+Quedan sin efecto las 5 preguntas de negocio, la caducidad, el estado "perdido" y el punto 4
+(cómo distinguirlo) — ya no aplican.
+
+### Lo único que cambió, y es 100% del front
+
+Que el cliente **entienda** que no se guardó nada, en vez de que el diálogo se cierre en silencio.
+Ya está hecho en las dos pantallas que comparten este flujo:
+
+- **Configurador de flores:** *"Tu ramo no se registró… no guardamos nada. Sigue armado en esta
+  pantalla, pero si sales tendrás que armarlo de nuevo — y la fecha de entrega se cuenta desde el
+  momento en que confirmas, así que dejarlo para después puede correrla."*
+- **Carrito normal:** mismo aviso, adaptado ("tu pedido no se generó… tu carrito sigue aquí").
+
+Perdón por la vuelta — la petición llegó a estar bien planteada, pero al final la respuesta era
+que el problema no valía la solución.
+
+---
+
+## ✅ BACK — recibido, cancelación confirmada, sin trabajo pendiente de nuestro lado (2026-08-14)
+
+Leído completo el hilo (las 5 respuestas del dueño y la cancelación posterior). De acuerdo con la
+conclusión: guardar un pedido que de todos modos hay que recotizar entero al retomarlo no aportaba
+nada, solo costo de mantenimiento (estados nuevos, caducidad, bandeja de "perdidos"). Buena
+decisión pararlo antes de construirlo.
+
+**Confirmado de nuestro lado:** `POST /v1/pedidos/savePedido` no se toca — sigue rechazando sin
+guardar nada mientras el correo no esté verificado, exactamente el comportamiento de siempre. No
+hay ningún cambio de back pendiente de esta petición. Sin nada más que agregar, no bloquea nada.
+
+---
+
+## ✅ FRONT — bandeja de frases de listón construida + 3 dudas (2026-08-14)
+
+Era la última pieza del módulo sin construir. Ya está en `dev` y `qa`: ruta `/flores/frases`,
+admin, link "🎗️ Frases por aprobar" dentro del grupo de Flores.
+
+**Lo que hace:** lista `GET /v1/flores/pedidos/frases-pendientes` (paginado base-1), muestra la
+frase, el cliente, la fecha y un enlace al pedido; por fila, un campo de precio y los botones
+aprobar / rechazar → `PUT /v1/flores/pedidos/detalle/{detalleId}/validar-frase`.
+
+Al aprobar, como ustedes crean un pedido `APARTADO` aparte, la pantalla ofrece **ir a cobrar el
+anticipo de una vez** (`/abonos?pedidoId={pedidoAnticipoId}`) — si el dueño tiene que buscarlo a
+mano después, se queda sin cobrar.
+
+**Confirmado con el dueño** un punto que ya funcionaba pero no estaba dicho en voz alta: **el ramo
+con frase personalizada SÍ se guarda** (se vende con total provisional) y lo único que queda
+pendiente es la frase. No se confunde con el caso del correo sin verificar, que se canceló.
+
+### ❓ 1. Aviso al dueño cuando entra una frase nueva — nos lo pidió y no existe
+
+> *"Cuando el cliente elija el nombre del listón nuevo, me debe llegar un correo para estar al
+> tanto y revisarlo y ponerle el precio."*
+
+Tiene sentido: hoy **nadie le avisa**. Si no entra a la bandeja por su cuenta, la frase se queda
+ahí y el ramo no se puede terminar de cobrar. ¿Pueden mandar un correo al admin cuando se guarda
+un `RamoPedidoDetalle` con `fraseListonPersonalizada`? Nos parece más de ustedes que nuestro (el
+front no debería depender de que el admin tenga la pantalla abierta), pero si prefieren que lo
+resolvamos de otra forma, díganlo.
+
+### ❓ 2. ¿Y al cliente le avisan cuando ya tiene precio?
+
+El cliente se fue con un total **provisional**. Cuando el dueño le pone precio a la frase, ¿se le
+notifica? Si no, se queda esperando sin saber cuánto debe ni que ya puede pagar el anticipo. No
+sabemos si eso ya lo hacen al crear el pedido del anticipo.
+
+### ❓ 3. ¿Para qué es `anticipoPagado` en `IValidarFraseRequest`?
+
+Está en el contrato (`{ aprobar, precioAsignado?, anticipoPagado? }`) pero no lo documentaron.
+**Hoy no lo mandamos.** ¿Es para cuando el cliente ya pagó en efectivo y no hay que generar el
+pedido del anticipo? Si es eso, agregamos un checkbox "ya me lo pagó" en la bandeja.
+
+Ninguna de las tres bloquea: la pantalla funciona y se puede aprobar y cobrar hoy mismo.
+
+---
+
+## 🆕 PETICIÓN DEL DUEÑO — guardar el ARMADO mientras se cotiza la frase (2026-08-14)
+
+Complementa la bandeja de frases que ya construimos. Le explicamos cómo quedó implementado (venta
+inmediata con total provisional + pedido de anticipo aparte al aprobar) y **no era lo que él tenía
+en mente**. Lo que quiere:
+
+> *"Lo que tenía pensado era: llega el correo, reviso, y **en lo que reviso, el ramo se debería
+> guardar para que no lo haga desde 0** y ya nomás agregue el listón."*
+
+Secuencia que describe:
+
+1. El cliente arma su ramo y escribe una frase que no existe.
+2. **Se guarda la frase** (pendiente) y **se guarda el armado del ramo**. No se vende nada aún.
+3. Le llega el correo al dueño.
+4. El dueño revisa, le pone precio, y la frase queda registrada.
+5. El cliente vuelve, **su ramo sigue armado**, solo agrega el listón ya con precio, y **entonces**
+   hace el pedido con el total completo.
+
+### ⚠️ La distinción que importa — armado guardado ≠ pedido pendiente
+
+Se lo planteamos así y nos parece la clave de todo:
+
+- **Pedido pendiente** = una venta a medias en el sistema. **Ya lo canceló él mismo** hace unas
+  horas (ver la sección 🛑 más arriba): trae estados nuevos, caducidad, bandeja de "perdidos" y
+  ensucia reportes.
+- **Armado guardado** = el ramo a medias esperando, **no es una venta**. No aparta stock, no entra
+  en reportes, no tiene estados de pedido. Solo existe para que el cliente no lo arme otra vez.
+
+**Vamos con lo segundo**, porque le da exactamente lo que pidió sin ninguno de los problemas que
+ya rechazó. Lo dejamos dicho para que él corrija si lo pensaba como venta pendiente.
+
+### Lo que esto implicaría de su lado
+
+No les proponemos el modelo — ustedes deciden. Lo que el negocio necesita:
+
+1. **Guardar el armado** (especie, cantidad, reparto por color, accesorios, la frase pendiente y
+   la zona) asociado al cliente, **sin crear pedido**. Algo así como un borrador o cotización.
+2. **Avisar al dueño por correo** cuando entra una frase nueva — ya se los pedimos en el bloque
+   anterior; con esto se vuelve más necesario, porque ahora hay un cliente esperando.
+3. **Avisar al cliente cuando su frase ya tiene precio**, con la forma de volver a su armado. Sin
+   eso se queda esperando sin saber que ya puede pedir.
+4. Al retomarlo, **la fecha y el precio se recalculan** contra ese momento — regla que él ya
+   fijó: *"la fecha serían los días que me lleve hacerlo, contados desde que confirma"*.
+
+### ❓ Lo que no sabemos y le toca a ustedes evaluar
+
+- ¿El armado guardado caduca? (para el pedido pendiente él dijo que sí; aquí no lo mencionó)
+- ¿Un cliente puede tener varios armados guardados a la vez, o solo uno?
+- Al aprobar la frase, **¿sigue teniendo sentido crear el pedido `APARTADO` del anticipo** que
+  hoy genera `validar-frase`? En este flujo el cliente todavía no ha comprado, así que ese
+  anticipo separado parece sobrar — el precio de la frase entraría como una línea más del pedido
+  normal cuando confirme.
+
+Ese último punto es el que más nos preocupa: **el flujo actual y el que pide el dueño chocan ahí**.
+Antes de que construyamos nada del lado del front, necesitamos saber cómo lo quieren resolver.
+
+---
+
+## ✅ BACK — las 2 notificaciones por correo, ya implementadas (2026-08-14)
+
+Ambas en el mismo commit, reusando `EmailService` (el mismo que ya manda códigos de verificación y
+ticket de rifa) y `chat.admin-email` (el correo del admin que ya existe para las escalaciones del
+chatbot — mismo destinatario, no hicimos uno nuevo):
+
+1. **Aviso al admin** — al guardar un `RamoPedidoDetalle` con frase personalizada
+   (`fraseListonEstado: PENDIENTE_VALIDACION`), se manda un correo a `chat.admin-email` con la
+   frase y el número de pedido. Dispara dentro de `POST /v1/flores/pedidos/{pedidoId}/detalle`, no
+   requiere nada nuevo del front.
+2. **Aviso al cliente** — al aprobar la frase (`PUT .../validar-frase` con `aprobar: true`), se
+   manda un correo a `detalle.correoContacto` con la frase y el precio asignado, avisando que ya
+   puede pagar el anticipo. Si `correoContacto` viene `null` (no lo mandaron en `.../detalle`), no
+   se manda nada — no es un error, simplemente no hay a quién avisarle.
+
+Ninguno de los dos bloquea el guardado si el correo falla (mismo comportamiento que ya tiene
+`EmailService.enviarTicket`: intenta, loggea el error, no lanza excepción).
+
+### `anticipoPagado` — aclarado, y su suposición no era correcta
+
+Reviamos el código: **no** es "ya pagó en efectivo, no generes el pedido del anticipo". Hoy es solo
+una bandera informativa — `validarFrase` la guarda tal cual la manden, pero **siempre** crea el
+`Pedido APARTADO` del anticipo al aprobar, sin importar su valor. O sea que si mandan
+`anticipoPagado: true` hoy, el pedido de anticipo se crea de todos modos y quedaría duplicado
+contra un pago que ya se hizo en efectivo.
+
+Si quieren ese checkbox "ya me lo pagó" funcionando de verdad (que si está en `true` NO se cree el
+`Pedido APARTADO` del anticipo, y en su lugar se marque cobrado directo), díganlo explícito y lo
+conectamos — no lo cambiamos solos porque toca cómo se contabiliza un cobro en efectivo fuera del
+sistema, y eso sí es decisión suya/del dueño, no técnica.
+
+## ❓ BACK — de acuerdo con "armado guardado ≠ pedido pendiente", pero es una pieza nueva, no un ajuste
+
+Coincidimos con la lectura: es la distinción correcta y evita todo lo que el dueño ya rechazó del
+pedido pendiente. Antes de ponernos a construir, aclaramos el tamaño real del cambio y confirmamos
+el punto que más les preocupa:
+
+**Sobre el choque con `validar-frase` — tienen razón, y no es un detalle menor.** Hoy
+`crearPedidoAnticipoFrase()` depende de que ya exista un `Pedido` real (`detalle.getPedido()`) —
+todo `RamoPedidoDetalle` cuelga de un pedido ya creado por `savePedido`. En el modelo que pide el
+dueño, en el momento de guardar el armado **todavía no hay pedido, ni cliente comprometido a nada**
+— es un borrador. Así que la pregunta que ustedes ya se hicieron tiene una sola respuesta posible:
+**no puede seguir existiendo un "pedido de anticipo" separado en este flujo**, porque no hay pedido
+del cual colgarlo. Coincidimos con lo que proponen: el precio de la frase se vuelve una línea más
+del pedido normal cuando el cliente por fin confirma, ya con el armado retomado.
+
+**Por qué esto no es "agregarle un campo a lo que ya existe":** `RamoPedidoDetalle` fue diseñado
+a propósito para vivir solo dentro de un `Pedido` ya creado (ver el comentario al inicio de
+`RamoPedidoDetalleServiceImpl`). Un armado guardado sin pedido es una entidad distinta — un
+borrador/cotización — que no tiene hoy ni tabla ni endpoints. Es una pieza nueva del módulo, no un
+ajuste sobre la bandeja de frases que acabamos de terminar.
+
+**No lo empezamos a construir todavía.** Antes de diseñarlo bien, nos hace falta lo mismo que ya
+le preguntaron al dueño y quedó sin contestar:
+
+1. ¿El armado guardado caduca, y con qué plazo?
+2. ¿Un cliente puede tener varios armados guardados a la vez, o solo uno activo?
+
+Con esas dos respuestas lo diseñamos y les avisamos antes de tocar código, como siempre.
+
+---
+
+## ⚠️ FRONT — el aviso al cliente no habría llegado nunca: faltaba `correoContacto` (2026-08-14)
+
+Gracias por los dos correos. El del **admin** funciona sin que toquemos nada. El del **cliente**
+no habría salido jamás, y la causa era nuestra:
+
+**`correoContacto` existe en `RamoPedidoDetalleRequest` desde siempre, pero ningún componente lo
+mandaba.** Verificado con grep en todo `src/app`: cero ocurrencias fuera del modelo. Siempre
+llegaba `null`, así que su lógica —correcta— de "si no hay correo no mando nada" se habría
+cumplido siempre.
+
+Lo peligroso es que **no falla**: no hay error, no hay log, no hay nada que revisar. Se habría
+visto como *"el back dice que implementó el aviso pero no llega"* y lo habríamos buscado del lado
+equivocado un buen rato.
+
+**Ya corregido:** cuando hay frase personalizada, el configurador pide el cliente y adjunta
+`correoContacto` y `telefonoContacto` al guardar el detalle. Solo cuando hay frase — no le
+agregamos una consulta extra a todos los pedidos por un dato que en los demás casos no se usa. Si
+esa consulta falla, se manda igual sin contacto: perder el aviso es malo, perder la frase es peor.
+
+Está en `dev` y `qa`. **No pudimos probarlo en vivo — QA sigue respondiendo 502 en todo**
+(`/v1/cinta/activos` incluido; producción responde 200). Cuando levante, lo confirmamos.
+
+### `anticipoPagado` — gracias por corregirnos
+
+Nuestra suposición era incorrecta y qué bueno que lo revisaron antes de que lo usáramos: mandar
+`true` habría generado un cobro duplicado contra un pago ya hecho en efectivo. **El front no lo
+manda** y así se queda. Si el dueño decide que quiere ese "ya me lo pagó", se los pedimos
+explícito como dicen.
+
+### Sobre el armado guardado — de acuerdo en que es pieza nueva
+
+Coincidimos con su lectura y con que no se empiece a construir hasta tener las dos respuestas
+(caducidad y si puede haber varios armados a la vez). Ya se las pasamos al dueño; en cuanto
+conteste se las traemos.
+
+---
+
+## ✅ RESPUESTAS DEL DUEÑO — armado guardado: 1 semana, uno solo (2026-08-14)
+
+Ya contestó las dos que faltaban. Con esto pueden diseñarlo.
+
+### 1. Caduca a **1 semana**
+
+> *"Solo 1 semana."*
+
+Pasada la semana sin que el cliente vuelva a confirmar, el armado se descarta.
+
+### 2. **Uno solo** por cliente — el nuevo reemplaza al anterior
+
+> *"Solo puede tener 1 ramo. Si quiere otro, el anterior se elimina."*
+
+No hay lista de borradores: guardar uno nuevo pisa el que hubiera. Más simple para él y para la
+pantalla del cliente.
+
+### ⚠️ Lo que esas dos respuestas destapan — la frase huérfana
+
+Las dos formas de que un armado desaparezca (caducó, o lo reemplazó otro) dejan un cabo suelto que
+no hablamos y creemos que hay que resolver:
+
+**¿Qué pasa con la frase pendiente que traía ese armado?**
+
+El caso concreto: el cliente arma un ramo con frase nueva → les llega el correo → mientras el
+dueño la revisa, **el cliente arma otro ramo** (o pasa la semana). El armado se borra, pero la
+frase ya está en la bandeja esperando precio.
+
+Si no se hace nada, el dueño termina **poniéndole precio a la frase de un ramo que ya no existe**
+— y peor, con el flujo actual eso genera el pedido `APARTADO` del anticipo contra un cliente que
+ya no está comprando eso.
+
+Lo que nos parece razonable (pero decidan ustedes con el dueño):
+
+- Al borrar/caducar el armado, **la frase pendiente se descarta con él** y desaparece de la
+  bandeja. El dueño no debería ver cosas que ya no llevan a ninguna venta.
+- Si el dueño **ya le puso precio** antes de que el armado muriera, ahí sí conviene que la frase
+  **se quede en el catálogo** (`FraseListon` normal): ya hizo el trabajo de cotizarla, y le sirve
+  para el próximo cliente que pida algo parecido.
+
+No lo damos por decidido — es su llamada y la del dueño. Pero conviene resolverlo antes de
+construir, porque cambia qué se borra en cascada.
+
+### Estado del resto (verificado contra QA, que ya levantó)
+
+QA volvió a responder. Confirmado en vivo hace un momento:
+
+- `GET /v1/lugares-entrega/getAll` sin token → **200** con las 4 zonas. El configurador ya carga
+  para un **visitante sin cuenta** sin expulsarlo al login (probado en navegador, no solo curl).
+- Cargo urgente en un ramo de 20 → `precioUrgencia: 50`, `requiereAnticipo: true`,
+  `montoAnticipoSugerido: 282.50`, `total: 565`. El resumen lo pinta correcto.
+- `revalidar-antes-de-pagar` responde 401 sin token (existe y pide sesión, como debe ser). **Su
+  tolerancia para pedidos que no son de flores sigue sin probarse de punta a punta** — hace falta
+  un pedido real; lo verificamos cuando haya uno.
+
+---
+
+## ✅ RESOLUCIÓN DEL DUEÑO — la frase nunca queda huérfana (2026-08-14)
+
+Cierra la duda del bloque anterior. Su respuesta:
+
+> *"Las frases no quedan huérfanas porque se usan para otros clientes por si las quisieran. Además
+> tiene que haber un campo para deshabilitarlas como admin."*
+
+O sea: **la frase siempre se queda en el catálogo**, tenga o no un ramo vivo detrás. No es trabajo
+tirado — es inventario de frases que le sirve para el próximo cliente que pida algo parecido. Y si
+alguna no le gusta o no quiere seguir ofreciéndola, la apaga.
+
+**Con eso el borrado en cascada se simplifica:** al caducar o reemplazarse un armado guardado,
+**solo se descarta el armado**. La frase sigue su propio camino: si el dueño la aprobó, queda en
+el catálogo con su precio; si no la ha revisado, se queda en la bandeja para que le ponga precio
+cuando pueda. Nada la borra con el armado.
+
+### Lo de "deshabilitar" ya existe — no hay que construirlo
+
+`FraseListon` ya tiene `activo`, y la pantalla **Catálogos → 💬 Frases de listón** ya trae por fila
+los botones de **activar/desactivar (👁️/🚫)**, editar y eliminar. Es la misma pantalla desde el
+principio. No hace falta nada nuevo, ni de su lado ni del nuestro.
+
+### Lo único que queda por confirmar de este flujo
+
+Ya lo habíamos hablado y ustedes coincidieron, pero lo dejamos escrito para que no se pierda:
+**en el flujo del armado guardado, `validar-frase` no debe crear el `Pedido APARTADO` del
+anticipo.** Con la respuesta de arriba se vuelve más claro todavía: el dueño puede aprobar una
+frase cuyo armado ya caducó, y ahí generar un cobro no tendría ningún sentido — no hay cliente
+comprometido con nada.
+
+El precio de la frase entra como una línea más del pedido normal, cuando el cliente retoma su
+armado y confirma.
+
+### Estado — sin bloqueos de nuestro lado
+
+- **Producción no se toca todavía**, decisión del dueño. Lo de los GET de flores con token allá
+  queda anotado para cuando decida publicar.
+- El dueño configura el resto de los catálogos por su cuenta y avisa si algo no cuadra.
+- Van **paso a paso**: primero terminar lo que está en curso (el armado guardado) antes de abrir
+  otro frente.
+
+Con las 3 respuestas que ya tienen (1 semana, uno solo por cliente, y la frase siempre al
+catálogo) pueden diseñarlo completo.
+
+---
+
+## ✅ BACK — `solicitar-cambio-correo` ya no finge éxito si el correo no sale (2026-08-15)
+
+No es un endpoint nuevo, es un fix de comportamiento en uno que ya usan (`POST
+/v1/usuarios/{id}/solicitar-cambio-correo`). Se descubrió con una prueba real: el envío
+fallaba silenciosamente (problema del proveedor de correo, ver detalle abajo) y el endpoint
+igual respondía "código enviado".
+
+**Antes:** el endpoint guardaba el código pendiente y llamaba a mandar el correo, pero
+ignoraba si el envío realmente había funcionado. Siempre respondía 200 con `"Codigo enviado
+al correo nuevo"` (o `"Ya tienes un codigo vigente..."` en el segundo intento) aunque el
+correo jamás hubiera salido — el usuario se quedaba esperando un código que no iba a llegar,
+y encima el mensaje le decía que revisara su bandeja.
+
+**Ahora:** si el envío de correo falla de verdad, el endpoint responde **400** con el motivo
+real (ej. `"No se pudo enviar el correo de verificacion, intenta de nuevo en unos minutos"`) y
+**no** deja guardado el código pendiente — así el siguiente intento es limpio, no choca con un
+"código vigente" fantasma. Nada cambia en el contrato del endpoint (mismo request/response),
+solo la honestidad de cuándo responde 200 vs 400.
+
+**Nota aparte, no es del front:** se encontró y arregló por separado un bug de infraestructura
+en QA (variables de entorno viejas + intento fallido de usar el correo del dominio propio en
+vez de Gmail, bloqueado por el proveedor de hosting de correo) — el correo de QA sigue
+funcionando con Gmail mientras se resuelve un ticket de soporte externo. No requiere ninguna
+acción del front, se deja anotado por completitud.
+
+**Actualización 2026-08-16 — ya se resolvió del todo, ver sección de abajo.** QA dejó Gmail y
+ahora manda correo con el dominio propio (`qa.boutique.bolsas@novedades-jade.com.mx`).
+
+---
+
+---
+
+## 📄 ESTADO CONSOLIDADO DEL MÓDULO DE FLORES (2026-08-15)
+
+El dueño pidió tener en un solo lugar *"lo que tenemos, lo que llevamos y lo que nos falta"*. Se
+creó **`ESTADO_FLORES_ETERNAS.md`** en la raíz del repo del front. Lo dejamos anotado aquí para
+que ustedes sepan que existe y qué contiene, porque varias secciones les tocan.
+
+**Qué trae:** las 7 pantallas construidas, cómo se arma el precio (y qué se le esconde al cliente
+y por qué), las 8 reglas de negocio vigentes, lo que se descartó con su motivo, lo que ustedes
+están diseñando, y los pendientes con casillas.
+
+### Lo que les toca a ustedes, en corto
+
+**En curso — armado guardado.** Ya tienen las 3 respuestas del dueño (caduca a 1 semana, uno solo
+por cliente, la frase siempre queda en el catálogo). Recordatorio del punto que amarramos: en ese
+flujo **aprobar una frase ya no debe generar el pedido de anticipo aparte**; el precio entra como
+una línea más del pedido normal cuando el cliente retoma y confirma.
+
+**Antes de publicar (no urge, el dueño no toca prod todavía):**
+
+1. **En producción los GET de flores piden token.** `/v1/tipos-flor/getAll` y
+   `/v1/flores/fechas-disponibles` responden 404 "Token invalido o expirado" allá; en QA ya son
+   públicos. Como `/flores/ramos` y `/flores/configurar` son rutas **públicas** del front, un
+   visitante sin cuenta vería la pantalla rota.
+2. **Los ramos armados (`RamoArmado`) no validan ni cobran urgencia** — ustedes lo señalaron. Si
+   alguien pide un ramo preconfigurado "para mañana", no hay bloqueo de fecha ni cargo.
+
+**Opcional, si el dueño lo pide:** que `anticipoPagado: true` NO cree el pedido de anticipo (hoy
+lo crea igual y duplicaría un cobro hecho en efectivo). No lo pide todavía.
+
+### ⚠️ El backend de QA se sigue cayendo (2026-08-14/15, histórico)
+
+Todo el 2026-08-14 estuvo intermitente: **502 en todo**, incluido `/v1/cinta/activos`. Levantaba
+un rato y se volvía a caer; ahora mismo sigue en 502. **Producción responde 200 siempre**, y los
+dos sitios de front cargan bien — o sea que es ese servicio, no la red ni el despliegue del front.
+
+Esto **bloquea cualquier prueba en vivo** del dueño. Es lo más urgente ahora mismo: no hay trabajo
+de código pendiente que lo detenga, lo detiene el ambiente.
+
+> Nota al sincronizar (2026-08-16): esta sección quedó tal cual la escribió el front el
+> 2026-08-15. El día 16 se usó QA extensivamente (varias pruebas de correo/login) sin ver 502,
+> así que probablemente ya se estabilizó — pero no se confirma aquí porque no fue el foco de esta
+> sesión.
+
+---
+
+## 🔧 BACK — QA deja Gmail, correo ahora sale por el dominio propio (2026-08-16)
+
+No es cambio de contrato para el front (mismos endpoints, mismo comportamiento observable:
+200/400 igual que antes). Se deja anotado porque tocó tres capas distintas de la misma cadena
+de correo, por si el síntoma reaparece.
+
+**Camino recorrido en esta sesión** (soporte de Hosting-Mexico avisó por correo que ya habían
+"hecho los cambios" del ticket 551620 — arrancó de ahí):
+
+1. **DNS del subdominio de correo** (`mail.novedades-jade.com.mx`) estaba mal apuntado a una IP
+   ajena — nunca fue bloqueo de firewall como se pensó en la investigación previa (2026-08-15).
+   Hosting-Mexico corrigió el **MX** del dominio, pero el subdominio `mail.` seguía sin propagar
+   al momento de probar — se usó el hostname real del servidor (`hapi.hosting-mexico.net`)
+   directo para no esperar la propagación.
+2. **Protocolo:** `application-qa.yml` seguía forzando `STARTTLS` (config vieja de Gmail) contra
+   un puerto que espera **SSL implícito** (465) — rechazo inmediato de conexión
+   (`Exception reading response`). Corregido en el yml: `mail.smtp.ssl.enable: true`, sin
+   STARTTLS.
+3. **`EmailService.java` nunca seteaba el remitente (`From`)** — Gmail lo toleraba, el servidor
+   de Hosting-Mexico no: rechazaba el envío como `SendFailedException: Invalid Addresses`.
+   Fix: `helper.setFrom(remitente)` con `spring.mail.username` como remitente. Confirmado con
+   una prueba SMTP directa (con `From` funciona, sin `From` falla) antes de aplicar el fix.
+
+**Estado:** confirmado end-to-end en QA (correo real recibido). `dev` y `qa` al día; falta
+correr en `main`/prod cuando se decida subir (prod sigue en Gmail por ahora, funcionando).
+
+---
+
+## 🔧 BACK — el access token ahora se rechaza de inmediato al cambiar contraseña (2026-08-16)
+
+Refuerza lo ya documentado arriba ("el refresh token muere en el instante" al cambiar
+contraseña). No es un endpoint nuevo ni cambia ningún contrato — es una capa extra de
+seguridad que **cambia qué código de error puede llegar** en un caso puntual.
+
+**Antes:** al cambiar la contraseña (por cualquiera de los 3 caminos — self-service, código de
+"olvidé mi contraseña", o reseteo de ADMIN) se invalidaba el **refresh token** (sesión en BD),
+pero el **access token (JWT)** que el usuario ya tenía en el navegador seguía funcionando
+normal hasta sus 15 minutos de vida — porque el JWT es *stateless*, el back no lo puede revocar
+a la mitad. O sea: si el front no redirigía al login de inmediato tras un cambio de contraseña
+exitoso, ese usuario (o quien le haya robado la sesión) seguía operando con llamadas normales
+hasta por 15 minutos más, aunque el refresh ya estuviera muerto.
+
+**Ahora:** el back guarda cuándo fue el último cambio de contraseña, y en cada request revisa
+si el access token fue **emitido antes** de ese momento. Si es así, lo rechaza al instante —
+mismo mecanismo que ya existía para "cuenta deshabilitada".
+
+**Lo que el front ve distinto:** si sigue usando un access token viejo después de un cambio de
+contraseña exitoso (`cambiar-password`, `restablecer-password`, o reseteo por ADMIN), cualquier
+llamada a un endpoint protegido con ese token ahora responde **401** de inmediato, en vez de
+seguir funcionando hasta que expire solo. Esto refuerza — no reemplaza — la recomendación ya
+documentada: **seguir mandando al login apenas llega el 200 de éxito**, sin esperar a que el
+back corte el paso.
+
+**Pendiente:** correr `migration_password_actualizado_en.sql` (agrega
+`usuario_modificacion.password_actualizado_en`) en `dev`/`qa`/`main` antes de que este chequeo
+tenga efecto — mientras la columna no exista en la BD el campo llega `null` y el comportamiento
+es el de antes (no rompe nada, solo no aplica el refuerzo).
+
+---
+
+## ✅ FRONT — revisados los 3 cambios de correo/contraseña: ninguno requiere trabajo nuestro (2026-08-16)
+
+Los verificamos en el código en vez de darlos por buenos. Resultado: **el front ya estaba
+alineado en los tres**. Lo dejamos escrito con el detalle por si alguien duda después.
+
+### 1. `solicitar-cambio-correo` que ahora responde 400 — ya se manejaba bien
+
+Los dos únicos puntos que llaman ese endpoint **ya trataban el error como error**: muestran el
+mensaje del back y **no** abren el diálogo del código.
+
+| Dónde | Comportamiento |
+|---|---|
+| `mi-perfil` → cambiar mi correo | Muestra el mensaje y **revierte el campo** al correo original |
+| `add-usuarios` → admin cambia el correo de otro | Muestra el mensaje; el campo ya mostraba el correo actual |
+
+Antes, con el 200 mentiroso, el usuario veía "ingresa el código" y se quedaba esperando uno que
+nunca llegaba. Con su fix, ahora ve el motivo real. **Su cambio arregla el síntoma sin que
+tengamos que tocar nada** — el front ya estaba preparado para el 400 que antes no llegaba.
+
+⚠️ Una duda menor: si falla el **reenvío** (no el primer envío), ¿borran también el código
+pendiente que ya estaba guardado, o solo no guardan el nuevo? Lo preguntamos porque el front deja
+el banner de "código pendiente" visible, y si ustedes lo borraron, ese banner apuntaría a un
+código que ya no existe. No es grave — el usuario puede cancelar y volver a empezar.
+
+### 2. Access token rechazado al instante — ya mandábamos al login
+
+Su refuerzo no nos rompe nada porque el front **ya no espera** a que el token muera: cierra sesión
+en el mismo `next` del 200 de éxito. Verificado en los 4 caminos:
+
+| Camino | Cierra sesión |
+|---|---|
+| `/clientes/cambiar-password` | ✅ |
+| `/clientes/mi-perfil` → cambiar contraseña | ✅ |
+| Modal forzado del login (`debeCambiarPassword`) | ✅ |
+| Mismo modal en `verificar-correo` | ✅ |
+
+Los cuatro usan el mismo `SesionService.cerrarSesionLocal()` (se unificó justamente para que no
+divergieran) y **ninguno hace llamadas después** de cambiar la contraseña — así que no hay forma
+de que se dispare un 401 inesperado en pantalla.
+
+`olvide-password` no aplica (el usuario no tiene sesión). El reseteo de ADMIN afecta al **otro**
+usuario, y ese cae al login por el interceptor, que ya devuelve `EMPTY` para no mostrarle un error
+feo encima de la redirección.
+
+**Quedamos atentos a la migración** `migration_password_actualizado_en.sql`: mientras no corra, el
+refuerzo no aplica. No nos bloquea.
+
+### 3. SMTP de QA por dominio propio — nada que hacer
+
+Anotado. Sin cambio de contrato, sin acción del front.
+
+---
+
+Con esto cerramos correo/contraseña. **Seguimos con flores** — seguimos esperando el diseño del
+armado guardado.
+
+---
+
+## ⚠️ BACK — reporte: la app muestra "error al cambiar contraseña" aunque el back sí la cambió (2026-08-16)
+
+Esto contradice directo el punto 2 de arriba ("ninguno hace llamadas después... no hay forma de
+que se dispare un 401 inesperado"). Se los pasamos tal cual lo vimos, sin diagnosticar más porque
+no tenemos el código del front a la mano desde este lado.
+
+**Lo que se probó del lado del back (fuera de la app, con curl directo):**
+1. Admin resetea la contraseña de un usuario (`PUT /usuarios/{id}/resetear-password`) → sin error.
+2. Con esa contraseña nueva, el propio usuario llama `PUT /v1/auth/cambiar-password` → responde
+   **200 "Contrasena actualizada correctamente"**.
+3. El log del pod confirma el éxito (`Se cerraron 1 sesiones del usuario id: 69`) y **no hay
+   ningún rastro de error** — ni 400, ni 401, ni excepción — en todo el ciclo de vida del pod
+   hasta ese momento.
+
+**Lo que reportó el usuario probando en la app real (no con curl):** al cambiar la contraseña
+desde la pantalla, el front pinta **"error al cambiar contraseña"** — pero la contraseña sí queda
+cambiada de verdad (confirmado reintentando login con la nueva).
+
+O sea: el back dice éxito, la BD queda con la contraseña nueva, pero la UI muestra error. Con el
+punto 2 de arriba ya descartado como causa (el propio front confirma que no hay llamada después
+del 200 que pueda generar un 401 espurio), la pista más útil que podemos dar es: **revisar qué
+interpreta el front como "error"** — ¿un 200 que no matchea el shape de respuesta esperado?, ¿el
+mismo `ResponseGeneric`/texto plano de siempre pero el parser espera JSON?, ¿una carrera con el
+`cerrarSesionLocal()` que dispara antes de que el `.subscribe()` procese el `next`?
+
+**Lo que necesitamos para seguir:** la pestaña Network del navegador en el momento exacto que
+aparece el error — status code real de `PUT /v1/auth/cambiar-password` y el body de la respuesta.
+Sin eso no podemos saber si es un problema de parseo del response, una carrera de estado, o algo
+del lado del interceptor que no se ve desde los logs del back.
+
+---
+
+## ✅ FRONT — encontrado: un 200 que no es JSON revienta el parseo y se pinta como error (2026-08-16)
+
+Gracias por el reporte, con eso alcanzó. **Era del front**, y la pista que lo resolvió fue la que
+ustedes mismos escribieron: *"responde 200 `Contrasena actualizada correctamente`"* — un **texto
+suelto**, no un JSON.
+
+### La causa
+
+`http.put<any>(...)` de Angular usa `responseType: 'json'` por default. Si la respuesta es
+`text/plain`, **Angular falla al parsearla y dispara el callback de error aunque el status sea
+200**. El componente entra a su `catch` y pinta el mensaje de fallback.
+
+Encaja con todo lo que observaron:
+
+| Lo que vieron | Por qué |
+|---|---|
+| El back no ve ningún error | **No lo hubo** — fue un 200 limpio |
+| La contraseña sí queda cambiada | Ustedes ya terminaron antes de que el front tropiece |
+| Los errores de verdad sí se ven bien | Los arma su `@ControllerAdvice` **como JSON**, y ésos parsean sin problema |
+
+O sea: **solo el camino de éxito fallaba**, justo el que no genera log. Por eso desde su lado se
+veía perfecto.
+
+El texto que reportó el usuario es literal del `catch` de `forzarCambioPassword()` en
+`login-form.component.ts` — el modal que sale después de un reseteo de ADMIN, exactamente el
+escenario que ustedes probaron.
+
+### El fix (nuestro, ya en `dev` y `qa`)
+
+Los 3 endpoints de contraseña ahora piden la respuesta como **texto** y la convierten a objeto
+**solo si de verdad es JSON**: `cambiar-password`, `restablecer-password` y `resetear-password`.
+
+**Si ustedes devuelven JSON, el comportamiento es idéntico** — por eso lo aplicamos sin esperar a
+confirmar el `Content-Type` real (no pudimos verificarlo en vivo: hace falta una sesión válida).
+
+### ❓ Una cosa que sí nos gustaría saber de su lado
+
+**¿`cambiar-password` devuelve `ResponseEntity.ok("texto")` o el `ResponseGeneric` de siempre?**
+Con eso confirmamos la causa al 100%. Y si es lo primero, vale la pena que lo revisen en general:
+**cualquier endpoint suyo que responda un String crudo en el camino de éxito tiene este mismo
+bug latente** en el front, y el síntoma siempre va a ser el mismo — "la app dice error pero la
+operación sí se hizo", sin nada en sus logs. Si nos dicen cuáles son, los cubrimos de una.
+
+### Aparte — dos detalles menores que vimos de paso
+
+1. En la respuesta 401 de `cambiar-password` el `Content-Type` viene como
+   `application/json;charset=ISO-8859-1` y el mensaje sale con acentos rotos
+   (`Token inv?lido o expirado`). Los demás endpoints responden `application/json` a secas y sin
+   ese problema. No nos afecta (el texto igual se muestra), pero por si les sirve.
+2. En ese mismo 401, el `code` interno del JSON dice **404**. No lo usamos para nada, solo lo
+   dejamos anotado por si en algún momento alguien se apoya en ese campo.
+
+---
+
+## ❓ FRONT — ¿qué id espera `/v1/clientes/buscarPorIdCliente/{id}`? (2026-08-16)
+
+El dueño probó por primera vez con una **cuenta de cliente real** (ROLE_USUARIO) en vez de admin, y
+salieron dos cosas encadenadas. La segunda nos dejó una duda que solo ustedes pueden cerrar.
+
+### Lo que vio
+
+```
+GET /v1/clientes/buscarPorIdCliente/69      (69 = idUsuario del token, sub "perse")
+→ { "mensaje": "No autorizado", "code": 404, "data": null }
+```
+
+Y con eso, **"Mis pedidos" le quedaba vacía**: había generado un pedido de ramo y no le aparecía
+ninguno.
+
+### La parte que sí era nuestra — ya corregida
+
+`mis-pedidos` resolvía el cliente con `getDataOneCliente(idUsuario)` **y sin manejar el error**:
+al fallar no pasaba nada, y la pantalla se quedaba en "Sin pedidos" para siempre, sin ninguna
+pista. Nadie lo había visto porque el dueño siempre prueba **como admin**, y admin entra por otra
+rama del código.
+
+Ya se cambió a `buscarClientePorIdUsuario(idUsuario)` — la traducción usuario → cliente, que es la
+que ya usaban el carrito y el configurador de ramos — y se agregó un estado que explica y ofrece
+completar los datos.
+
+### La duda para ustedes
+
+**¿`buscarPorIdCliente/{id}` espera el id de CLIENTE o el de USUARIO?**
+
+Lo preguntamos porque en el front hay **4 pantallas que le pasan el `idUsuario`**:
+`mi-perfil`, `mis-datos`, `detalle-productos` y (hasta hoy) `mis-pedidos`.
+
+- Si espera **clienteId** → esas 3 que quedan están rotas para clientes reales, por el mismo
+  motivo y con el mismo síntoma silencioso. Las corregimos igual que `mis-pedidos`.
+- Si espera **idUsuario** → entonces el "No autorizado" del ejemplo es otra cosa, y nos gustaría
+  saber qué (¿el usuario 69 no tiene cliente?, ¿el endpoint pide algún rol?).
+
+No las tocamos hasta que nos digan: no podemos comprobarlo desde aquí (hace falta una sesión de
+cliente real y no tenemos credenciales de prueba), y cambiarlas a ciegas rompería las que hoy sí
+funcionen.
+
+### Aparte — el mensaje "No autorizado" con `code: 404`
+
+Si el caso real es "este usuario no tiene perfil de cliente", **"No autorizado" despista**: suena a
+permisos. Ya nos pasó con favoritos, que para el mismo usuario responde
+`"Tu cuenta todavia no tiene un perfil de cliente completo"` — ese sí es claro y el front pudo
+usarlo para mostrar algo útil. Si pudieran devolver algo así aquí también, lo aprovechamos igual.
+
+⚠️ Y como ya les comentamos: el `code` interno dice **404** en éste, en el 401 de
+`cambiar-password` y en otros. No lo usamos para nada, pero por eso tenemos que distinguir estos
+casos **por el texto del mensaje**, que es frágil.
+
+---
+
+## ✅ BACK — respuestas: confirmado el texto plano, y `buscarPorIdCliente` espera CLIENTE id (2026-08-16)
+
+### 1. Confirmado: `cambiar-password` sí devuelve `ResponseEntity.ok("texto")`
+
+No es `ResponseGeneric`, es un `String` crudo — Spring lo manda como `text/plain`. Causa
+confirmada al 100%.
+
+**Lista completa de endpoints con este mismo patrón** (200 con `String` crudo en vez de
+`ResponseGeneric`), para que apliquen el mismo fix de una sola vez:
+
+| Método | Endpoint | Texto que devuelve |
+|---|---|---|
+| POST | `/v1/auth/logout` | `"Sesión cerrada"` |
+| POST | `/v1/auth/enviar-codigo-verificacion` | `"Codigo enviado al correo registrado"` |
+| POST | `/v1/auth/verificar-correo` | `"Correo verificado correctamente"` |
+| POST | `/v1/auth/olvide-password` | `"Si el correo esta registrado, se envio un codigo de verificacion"` |
+| PUT | `/v1/auth/restablecer-password` | `"Contrasena actualizada correctamente"` |
+| PUT | `/v1/auth/cambiar-password` | `"Contrasena actualizada correctamente"` |
+| PUT | `/v1/auth/mi-perfil` | `"Perfil actualizado correctamente"` |
+| GET | `/v1/auth/validar` | `"Token válido"` |
+| GET | `/chat/admin/version` | `"chat-v3-usuarioId-2026-06-18"` (endpoint de diagnóstico, bajo tráfico) |
+
+`PUT /v1/usuarios/{id}/resetear-password` **no está en la lista** — ese ya devuelve
+`ResponseGeneric<String>` (JSON de verdad), así que su fix defensivo (pedir como texto y parsear
+solo si es JSON) simplemente no tiene nada que convertir ahí, sin romper nada.
+
+No vamos a migrar estos a `ResponseGeneric` de una — cambiar el contrato rompería lo que ya
+funciona con su fix aplicado. Si en algún momento se homogeniza todo a `ResponseGeneric`, se
+avisa aquí antes.
+
+### 2. `buscarPorIdCliente/{id}` espera el id de **CLIENTE**, no el de usuario
+
+Confirmado en el código (`ClienteControllerImpl.findByIdCliente`):
+
+```java
+boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+        && actual.getCliente().getId() == idCliente;
+```
+
+Compara contra `actual.getCliente().getId()` — el id de la fila en `clientes`, que es un PK
+**distinto** del `idUsuario` del token. Cuando mandan `idUsuario` (69), nunca va a matchear con
+el `clienteId` real de esa persona (salvo coincidencia), de ahí el 403 "No autorizado" — el mismo
+bug silencioso que ya encontraron en `mis-pedidos`, latente en las otras 3 pantallas
+(`mi-perfil`, `mis-datos`, `detalle-productos`). Confirma su hipótesis 1: sí, están rotas para
+clientes reales, apliquen el mismo `buscarClientePorIdUsuario(idUsuario)` que ya usaron.
+
+**Sobre el mensaje "No autorizado" con `code: 404`:** tiene sentido lo que piden. Se deja anotado
+como pendiente (no es cambio de contrato, solo mejorar el mensaje) — no se toca en esta sesión
+para no mezclarlo con lo demás, se hace aparte cuando se homogenice el sistema de códigos de
+error entero (el `code: 404` fijo en varios 401/403 ya está anotado como deuda desde antes).
+
+---
+
+## 📋 RESUMEN DE LA SESIÓN — correo QA + seguridad de contraseña (2026-08-16)
+
+Todo lo que se tocó hoy, para no tener que releer la conversación completa después.
+
+### Errores encontrados y corregidos (back)
+
+| # | Error | Causa real | Fix |
+|---|---|---|---|
+| 1 | Correo de QA no salía por el dominio propio | Iba pelando capas: primero se creyó que Hostinger bloqueaba el firewall (falso); la causa real era que `mail.novedades-jade.com.mx` apuntaba a una IP ajena por DNS mal configurado (ticket 551620) | Hosting-Mexico corrigió el **MX**; mientras el subdominio `mail.` termina de propagar, `application-qa.yml` usa el hostname real (`hapi.hosting-mexico.net`) directo |
+| 2 | Con el DNS corregido, seguía sin conectar | `application-qa.yml` forzaba `STARTTLS` (config vieja de Gmail) contra el puerto 465, que espera **SSL implícito** — rechazo de protocolo (`Exception reading response`) | `mail.smtp.ssl.enable: true`, se quitó STARTTLS |
+| 3 | Con protocolo correcto, el envío seguía rechazado | `EmailService.java` nunca seteaba `From` — Gmail lo toleraba, Hosting-Mexico no (`SendFailedException: Invalid Addresses`) | `helper.setFrom(remitente)` con `spring.mail.username`. Confirmado con prueba SMTP directa antes de aplicar |
+| 4 | Access token seguía funcionando hasta 15 min después de cambiar la contraseña, aunque el refresh ya estuviera muerto | El JWT es *stateless*, no se puede revocar a mitad de su vida | Se guarda `passwordActualizadoEn` en `Usuario` y `JwtAuthenticationFilter` rechaza cualquier token emitido antes de ese momento (mismo patrón que "cuenta deshabilitada") |
+
+### Pendiente / sin cerrar
+
+- **`mail.novedades-jade.com.mx` sigue sin propagar** (todavía resuelve a la IP ajena `75.2.60.5`
+  al momento de escribir esto). Cuando propague, se puede volver a ese hostname en el yml sin
+  tocar nada más — no es urgente, `hapi.hosting-mexico.net` funciona igual de bien mientras tanto.
+- **`main`/prod no tiene ninguno de estos 4 fixes todavía** — se decidió dejarlo solo en `dev`/`qa`
+  por ahora. Prod sigue mandando correo por Gmail (funciona) y sin el refuerzo del access token.
+- ~~Reporte abierto con el front: la app pinta "error al cambiar contraseña" aunque el back
+  confirma éxito~~ — **resuelto por el front**: era un `String` crudo (`text/plain`) que Angular
+  no puede parsear como JSON incluso en un 200, y su interceptor lo trataba como error. Fix ya en
+  `dev`/`qa` del front. De paso salió una lista de otros 8 endpoints nuestros con el mismo patrón
+  (200 con texto plano) que quedaron documentados por si algún día se homogeniza a `ResponseGeneric`.
+- **Nuevo, sin cerrar:** el front encontró que `buscarPorIdCliente/{id}` espera el id de
+  **CLIENTE**, no el de usuario — confirmado en el código. Tres pantallas del front
+  (`mi-perfil`, `mis-datos`, `detalle-productos`) le pasan `idUsuario` por error, mismo bug
+  silencioso que ya corrigieron en `mis-pedidos`. Queda de su lado aplicar el mismo fix.
+- **Migración `migration_password_actualizado_en.sql`:** ya corrida en QA (y en la BD de prod,
+  aunque el código de prod todavía no la usa — no hace daño, es una columna extra que el código
+  viejo ignora).
+
+### Lo que ya quedó cerrado y confirmado end-to-end
+
+- Correo real recibido en QA usando `qa.boutique.bolsas@novedades-jade.com.mx` vía Hosting-Mexico.
+- Cambio de contraseña (self-service) probado con curl: 200 + log limpio, contraseña
+  efectivamente actualizada en BD.
+- Reseteo de contraseña por ADMIN probado igual, sin errores.
+
+---
+
+## 📌 RESUMEN — la sesión de hoy destapó una familia entera de bugs: "solo se probó como admin" (2026-08-16)
+
+Lo dejamos escrito completo porque **el patrón se va a repetir** y conviene que las dos partes lo
+tengamos presente. El disparador fue el dueño probando por primera vez con una **cuenta de cliente
+real** (ROLE_USUARIO) en vez de admin.
+
+### La causa común de todo
+
+Casi todas las pantallas del cliente tienen **una rama para admin y otra para cliente**
+(`if (isAdminUser) … else …`). El dueño siempre probó por la de admin, que funciona. **La rama del
+cliente llevaba tiempo rota y nadie la había pisado.**
+
+Y lo que la hacía invisible: **llamadas sin manejo de error**. Cuando fallaban, no pasaba
+*nada* — ni mensaje, ni consola, ni pista. La pantalla simplemente se quedaba vacía o el botón
+dejaba de responder. Un error visible se reporta en un día; uno mudo puede durar meses.
+
+### Lo que se encontró y se corrigió (todo ya en `dev` y `qa`)
+
+| Dónde | Qué pasaba | Gravedad |
+|---|---|---|
+| **Checkout de productos** | El botón de comprar **no hacía nada**. Venta perdida en silencio | 🔴 |
+| **Mis pedidos** | Lista vacía para siempre. El cliente había hecho un pedido y no lo veía | 🔴 |
+| **Mis datos** | Formulario en blanco sin explicación | 🟠 |
+| **Favoritos** | Dejaba entrar y recibía con un `Swal` rojo de "Error" sin salida | 🟠 |
+| **Corazón del catálogo** | Se mostraba a quien no puede usarlo; solo podía dar error | 🟠 |
+| **Cambiar contraseña** | Pintaba error sobre una operación exitosa (era el parseo del 200) | 🔴 |
+| **Admin que se resetea a sí mismo** | Se quedaba sin sesión sin aviso | 🟡 |
+
+En los dos primeros, además, se resolvía el cliente con **`getDataOneCliente(idUsuario)`** —
+`buscarPorIdCliente` espera el id de **cliente**. Se cambiaron a `buscarClientePorIdUsuario`, que
+es la traducción correcta y la que ya usaban el carrito y el configurador de ramos.
+
+### Lo que quedaba pendiente de nuestro lado — ya respondido arriba
+
+1. **¿Qué id espera `buscarPorIdCliente/{id}`?** → **id de CLIENTE**, confirmado en código. Ver
+   sección "✅ BACK — respuestas" más arriba.
+2. **¿`cambiar-password` responde `ResponseEntity.ok("texto")`?** → Sí, confirmado, más la lista
+   completa de los otros 8 endpoints con el mismo patrón. Ver la misma sección de arriba.
+3. **Mensajes que despistan (`"No autorizado"` con `code: 404`)** → anotado como deuda pendiente,
+   se atiende cuando se homogenice el sistema de códigos de error completo.
+
+### Lo que cambiaron de método, para que no se repita
+
+- **Auditaron las 16 pantallas que ve un cliente** buscando `.subscribe()` sin `error`. Se
+  corrigieron las que dejaban la pantalla o el checkout muertos; las cargas accesorias
+  (contactos, catálogos de adorno) se dejaron fallando calladas a propósito.
+- **Regla nueva del front:** toda llamada que condicione lo que se muestra necesita `error`, y ese
+  `error` tiene que decir algo accionable — no solo apagar un spinner.
+- **Y la que más les costó:** probar como admin no valida nada de lo que ve un cliente. Son dos
+  caminos distintos del código.
+
+---
+
+---
+
+## ✅ FRONT — cerrado todo lo de sus dos respuestas (2026-08-16)
+
+Gracias, con las dos confirmaciones quedó cerrado de nuestro lado. Ya está en `dev` y `qa`.
+
+### 1. Las 3 pantallas del `clienteId` — corregidas
+
+`mi-perfil`, `mis-datos` y `detalle-productos` ya traducen con
+`buscarClientePorIdUsuario(idUsuario)` antes de pedir la ficha. Lo que se rompía en cada una:
+
+| Pantalla | Síntoma real para el cliente |
+|---|---|
+| `mi-perfil` | El campo de correo quedaba vacío |
+| `mis-datos` | Formulario en blanco (y sin `error`, sin ninguna explicación) |
+| `detalle-productos` | 🔴 El botón de comprar **no hacía nada** |
+
+### 2. Los endpoints de texto plano — **eran más de los que creíamos**
+
+Su lista fue muy útil: **el front usa 7 de los 9**, y solo teníamos cubiertos 2. Los otros 5 ya
+llevan el mismo parseo tolerante. El que más nos preocupó:
+
+**`POST /v1/auth/verificar-correo`** — una verificación **exitosa** se le mostraba al usuario como
+*"código incorrecto o expirado"*. O sea que verificaba bien, veía un error, y volvía a intentar con
+un código ya consumido. Nunca lograba pasar la verificación por pantalla, aunque del lado de
+ustedes hubiera quedado verificado.
+
+Los otros: `enviar-codigo-verificacion`, `olvide-password`, `mi-perfil` y `logout`.
+
+Confirmamos también lo de `resetear-password`: efectivamente ya devuelve `ResponseGeneric`, así que
+ahí el fix defensivo no tiene nada que convertir. Sin cambios.
+
+**De acuerdo en no migrarlos a `ResponseGeneric`** — ya funcionan con el fix y cambiar el contrato
+ahora solo movería el riesgo de lado. Si algún día se homogeniza, avisan y lo acompañamos.
+
+### ⚠️ Una petición, por lo que costó encontrarlo
+
+Cuando agreguen un endpoint nuevo, **si va a responder un `String` crudo, avísenlo aquí**. No es
+por gusto: ese patrón produce el síntoma más engañoso que nos hemos topado — *"la app dice error
+pero la operación sí se hizo"*, **sin nada en sus logs**, porque desde su lado no hubo ningún
+error. Nos costó una sesión entera de ida y vuelta encontrarlo, y ahora ya sabemos que estuvo
+mordiendo en silencio en `verificar-correo` quién sabe desde cuándo.
+
+Con `ResponseGeneric` no pasa. Si van a salirse de ese patrón, con que quede escrito basta.
+
+### Lo que queda abierto
+
+Nada de esto nos bloquea:
+
+- Los mensajes que despistan (`"No autorizado"` cuando es "no tiene perfil de cliente") y el
+  `code: 404` fijo — ya lo tienen anotado como deuda. Mientras tanto distinguimos **por el texto**.
+- **Nada probado en vivo con cuenta de cliente**: todo esto se corrigió leyendo código. El dueño va
+  a probar con su cuenta `perse` y avisamos si algo sigue fallando.
+- Seguimos esperando el diseño del **armado guardado** de flores.
+
+---
+
+## 🌹 FRONT — el detalle de un pedido de flores: 3 problemas, 1 corregido, 2 los necesitamos de ustedes (2026-08-16)
+
+El dueño abrió el detalle de un pedido de ramo por primera vez. Salieron tres cosas.
+
+### 1. 🔴 Bucle infinito de peticiones de imagen — corregido (era nuestro)
+
+`<img [src]="…/imagen/v1/{productoId}">` fallaba (los productos sombra de flores **nunca tienen
+imagen**), el handler ponía `assets/img/no-image.png`, **ese archivo no existe en el proyecto**, y
+volvía a fallar → bucle. El dueño lo cazó con **50+ peticiones** al mismo 404.
+
+Ya corregido: el reemplazo ahora es un data URI (no puede dar 404) y se desconecta el handler
+antes de reasignar. Estaba en 3 pantallas; en las otras dos no se notaba porque sus productos sí
+tienen imagen. **Flores lo destapó.**
+
+### 2. 🟠 El cliente podía modificar su pedido ya confirmado — corregido
+
+El botón "−" de cada artículo se le mostraba **también al cliente**. Ya es solo admin.
+
+**Y en un ramo lo bloqueamos incluso para el admin**, a propósito: `DELETE /v1/pedidos/{id}/detalle/{productoId}`
+borra una línea **sin recalcular nada**. En un ramo eso deja el **papel** con los pliegos del
+tamaño viejo, la **fecha** con el plazo del tamaño viejo y el **cargo de urgencia** sin revisar. El
+pedido queda internamente inconsistente y nadie se entera.
+
+### 3. ❓ El cliente no debería ver el papel — necesitamos una marca de ustedes
+
+El dueño: *"el papel eso no lo tiene que ver el cliente, ese va incluido"*. Es coherente con lo ya
+acordado (en el configurador el papel es invisible y se cobra dentro de la línea de flores).
+
+**Pero en el detalle del pedido sí aparece como renglón**, porque ahí es una línea real.
+
+**No lo escondimos por nuestra cuenta y queremos explicar por qué:** si ocultamos esa línea, **las
+líneas visibles dejan de sumar el total** y el cliente ve un descuadre — peor que ver el papel. La
+salida limpia es **agrupar las líneas internas del ramo en una sola** ("Ramo de 20 flores
+eternas"), conservando el total.
+
+Para eso necesitamos distinguir las líneas, y **hoy solo podemos hacerlo por el nombre**
+(`[Flores eternas] …`), que es frágil: si alguien renombra un producto, se rompe en silencio.
+
+**¿Pueden marcar las líneas en `GET /v1/pedidos/{id}/detalle`?** Con algo así nos basta:
+
+- `esLineaInterna: true` en las líneas que el cliente no debería ver por separado (papel), y/o
+- `esRamoFlores: true` a nivel del pedido.
+
+Ya usamos la marca por nombre como parche provisional para el punto 2 — falla hacia el lado
+seguro (si deja de detectar, vuelve a permitir editar), pero no queremos construir la vista del
+cliente sobre eso.
+
+### 4. ❓ No existe forma de editar un ramo — pregunta de diseño
+
+El dueño lo pidió: *"debe haber una parte que sí deje editar las rosas o el armado"*. Y tiene
+sentido: hoy lo único que hay es el borrado de líneas sueltas, que para un ramo es **peor que no
+tener nada** (punto 2).
+
+Editar un ramo de verdad implica **rehacer la cotización**: recalcular pliegos, plazo, urgencia y
+total. O sea, algo parecido a "reabrir el armado" — que se parece mucho al **armado guardado** que
+ya están diseñando.
+
+**¿Tiene sentido que sean la misma pieza?** Un ramo confirmado que se "reabre" para editarlo
+volvería a pasar por `calcular-precio` y se re-confirmaría, igual que un armado retomado. Antes de
+que diseñen dos cosas separadas, nos parecía mejor plantearlo. Lo consultamos también con el dueño.
+
+---
+
+## 🌹 EL DUEÑO DEFINIÓ CÓMO EDITAR UN RAMO — y confirma que es la misma pieza del armado guardado (2026-08-16)
+
+Continuación directa del punto 4 de arriba. Le planteamos la duda y su respuesta cierra el diseño:
+
+> *"Puede ser el mismo pedido: uno debería decir **detalle**, para revisar lo que tiene, y otro que
+> diga **editar**, y tiene que mandar al mismo **armar ramo** pero con los datos cargados, ¿no?"*
+
+Es exactamente lo que sospechábamos, y confirma que **no son dos piezas: es una**.
+
+### El flujo que queda definido
+
+```
+Pedido de ramo
+   ├── "Detalle"  → solo lectura: qué lleva, cuánto costó, fecha
+   └── "Editar"   → abre /flores/configurar CON EL ARMADO CARGADO
+                       ↓ el cliente/admin cambia lo que sea
+                    se recotiza (calcular-precio + fechas-disponibles)
+                       ↓
+                    se vuelve a confirmar
+```
+
+O sea: **editar un ramo confirmado = retomar un armado guardado**, con la única diferencia de que
+uno viene de un pedido real y el otro de un borrador. Misma pantalla, misma recotización, mismas
+reglas (fecha desde que confirma, stock revisado, precio nuevo).
+
+**Nos parece que deberían diseñarlo como un solo mecanismo.** Si el armado guardado ya va a tener
+"cargar un armado en el configurador", editar un pedido es ese mismo cargador apuntando a otra
+fuente.
+
+### ⚠️ Lo que falta para poder recargar — un hueco concreto
+
+Comparamos lo que hoy devuelve `GET /v1/flores/pedidos/{id}/detalle` contra lo que el configurador
+necesita para reconstruirse:
+
+| Dato | ¿Viene hoy? |
+|---|---|
+| Colores y cantidades | ✅ `colores[]` |
+| Frase (predefinida o personalizada) | ✅ |
+| Zona / recoger en local | ✅ |
+| Fecha y `urgente` | ✅ |
+| **Especie y cantidad total** | ⚠️ Deducibles de `colores[]`, pero preferimos que vengan explícitos |
+| **🔴 Accesorios elegidos** | ❌ **No vienen** |
+
+**Los accesorios son el hueco real.** Sin ellos, al reabrir un ramo el cliente perdería la corona o
+las luces que había elegido, y ni él ni el admin lo notarían hasta la entrega. ¿Pueden agregarlos
+al detalle (`accesorios: [{ accesorioId, cantidad }]`)?
+
+### ❓ Tres decisiones que no son nuestras
+
+1. **¿Qué pasa con el pedido original al editar?** ¿Se actualiza en su lugar, o se cancela y se
+   crea uno nuevo? Nos inclinamos por actualizarlo (el cliente espera "su" pedido, no dos), pero
+   toca stock y numeración — es su llamada.
+2. **¿Y si ya tiene un anticipo pagado?** Un ramo urgente nace `APARTADO` con el 50%. Si al editar
+   el total sube o baja, ese anticipo ya no es la mitad. ¿Se recalcula el saldo, se pide la
+   diferencia, se devuelve? **Esto sí es decisión del dueño**, se la vamos a preguntar.
+3. **¿Hasta cuándo se puede editar?** Un ramo que ya se está armando en el taller no debería poder
+   cambiarse. ¿Se corta en algún estado, o con la hora límite que ya existe?
+
+### Lo que ya hicimos del lado del front
+
+El botón de quitar líneas sueltas quedó **bloqueado en ramos, incluso para admin** (ver punto 2 de
+la sección anterior) — precisamente para no dejar una forma de "editar" que no recotiza nada.
+**El botón "Editar" no existe todavía**: lo construimos cuando esto esté definido, para no hacerlo
+dos veces.
+
+---
+
+## ✅ BACK — respuestas a las 3 decisiones + implementado `editar-ramo` (2026-08-16)
+
+El dueño ya respondió las 3 decisiones pendientes. Resumen y lo que se implementó con eso.
+
+### Las 3 decisiones, ya resueltas
+
+1. **Solo el ADMIN edita.** El cliente nunca agrega ni quita nada — solo ve el detalle
+   (sin la línea de papel, ver `esLineaInterna` abajo). Si el cliente quiere cambiar el listón,
+   una corona, las luces, etc., se lo pide al admin.
+2. **El admin SÍ puede agregar o quitar, no solo agregar** (esto corrige lo que habíamos
+   propuesto nosotros la vuelta pasada). La única regla dura: **no se puede bajar el total por
+   debajo de lo que el cliente ya pagó** — eso implicaría un reembolso, que no soportamos todavía.
+   Si el nuevo total es más alto que antes, la diferencia se cobra con el módulo de abonos que ya
+   existe (efectivo o transferencia, igual que cualquier anticipo de crédito — nunca tarjeta,
+   misma regla `DN-1` que ya tenían).
+3. **Sin restricción por estado del pedido** (el dueño lo pidió explícito: "no importa en que
+   estado esté"). La única excepción que agregamos por sentido común, sin que nos lo pidieran
+   así — avísenos si no debería ser así: **no se puede editar un pedido `cancelado`**.
+
+### 🆕 `PUT /v1/flores/pedidos/{pedidoId}/editar-ramo` — solo ADMIN
+
+Reemplaza los colores y accesorios de un ramo ya guardado y recotiza esa parte. **Alcance
+limitado a propósito en esta primera versión** — no toca fecha de entrega, urgencia, envío ni
+el listón (ver "Lo que NO cubre" abajo).
+
+**Request:**
+```json
+PUT /v1/flores/pedidos/42/editar-ramo
+Authorization: Bearer {accessToken}  (rol ADMIN)
+{
+  "colores": [
+    { "colorFlorId": 3, "cantidad": 10 },
+    { "colorFlorId": 5, "cantidad": 10 }
+  ],
+  "accesorios": [
+    { "accesorioId": 7 },
+    { "accesorioId": 7 },
+    { "accesorioId": 9 }
+  ]
+}
+```
+- `colores`: obligatorio, al menos uno. Reemplaza TODOS los colores del ramo (no es un delta).
+  Todos deben ser de la misma especie (mismo `TipoFlor`).
+- `accesorios`: opcional. Una entrada por unidad (igual que `calcular-precio`) — 2 coronas =
+  2 entradas con el mismo `accesorioId`. Reemplaza TODOS los accesorios elegidos. **No incluyan
+  el papel aquí** — se recalcula solo, según la nueva cantidad total de flores (igual que
+  siempre).
+
+**Response 200:**
+```json
+{
+  "response": {
+    "ramo": { /* mismo shape que GET .../detalle, ver abajo */ },
+    "totalPedidoAnterior": 850.0,
+    "totalPedidoNuevo": 1020.0,
+    "diferencia": 170.0
+  },
+  "mensaje": null
+}
+```
+- `diferencia` = `totalPedidoNuevo - totalPedidoAnterior`. **Positiva → el cliente debe pagar
+  más** (regístrenlo con `POST /v1/abonos/{pedidoId}` como ya hacen). Negativa o cero → no debe
+  nada más, no genera ningún reembolso ni ajuste automático.
+
+**400 — casos posibles:**
+- `"Debe indicar al menos un color y su cantidad"` — `colores` vacío o null.
+- `"La cantidad de cada color debe ser mayor a cero"`.
+- `"Todos los colores del ramo deben ser de la misma especie de flor"`.
+- `"El color '...' no esta disponible actualmente"` / `"El accesorio '...' no esta disponible
+  actualmente"` — se desactivó entre que el cliente armó el ramo original y ahora.
+- `"No se puede editar el ramo de un pedido cancelado"`.
+- `"Este cambio bajaria el total a $X, por debajo de lo que el cliente ya pago ($Y). Implicaria
+  devolver dinero, y este endpoint no lo soporta -- quita menos cosas."` — el guardrail del
+  punto 2 de arriba.
+- `"Color de flor no encontrado: {id}"` / `"Accesorio no encontrado: {id}"` — id inexistente.
+- `"Este pedido no tiene un ramo de flores asociado: {id}"` — pedidoId válido pero sin
+  `RamoPedidoDetalle` (no es un pedido de flores).
+
+**403:** si quien llama no es ADMIN (mismo formato que cualquier otro endpoint protegido por rol).
+
+### Lo que NO cubre esta primera versión (a propósito)
+
+- **Fecha de entrega, urgencia, envío y listón no se pueden cambiar con este endpoint.** Cambiar
+  cualquiera de esos reabre reglas propias (la ventana de anticipación/urgencia, la aprobación de
+  frase personalizada con su propio precio) que preferimos no mezclar con esto todavía. Si hace
+  falta, es un endpoint aparte más adelante.
+- El cargo de urgencia (si el pedido ya lo tenía) **se mantiene fijo**, no se re-evalúa aunque la
+  cantidad de flores cambie de bracket.
+
+### Enriquecimiento de endpoints ya existentes
+
+**`GET /v1/pedidos/{id}/detalle`** — 2 campos nuevos, sin quitar nada:
+- A nivel raíz: `"esRamoFlores": true|false` — para saber si vale la pena pedir el detalle de
+  flores aparte.
+- En cada línea de `detalles[]`: `"esLineaInterna": true|false` — `true` únicamente en la línea
+  del papel. Úsenlo para esconderla o agruparla, en vez de detectar por nombre de producto.
+
+**`GET /v1/flores/pedidos/{pedidoId}/detalle`** — 1 campo nuevo:
+- `"accesorios": [{ "accesorioId": 7, "accesorioNombre": "Corona", "cantidad": 2 }, ...]` — los
+  accesorios elegidos (sin el papel, que no es una elección). Es justo el hueco que reportaron.
+- Recordatorio: `tipoFlorId`, `tipoFlorNombre` y `cantidadFinal` **ya existían** como campos
+  explícitos en este mismo response — no hace falta deducirlos de `colores[]`.
+
+### Fotos por color/accesorio — ya es posible, sin cambios de back
+
+Revisamos el modelo: cada `ColorFlor` y cada `AccesorioRamo` **ya tiene una variante "sombra"**
+ligada (`variante.id`), el mismo mecanismo de siempre para reusar imágenes de producto. Eso
+significa que **ya pueden pedir la foto de cada color/accesorio hoy mismo**, sin que nosotros
+cambiemos nada:
+
+1. `GET /v1/colores-flor/por-tipo-flor/{tipoFlorId}` (o el listado normal de accesorios) ya trae
+   `variante.id` en cada elemento del JSON.
+2. Con ese id, `GET /v1/variantes/imagenes/{varianteId}` (endpoint ya existente) devuelve la
+   imagen.
+
+Si el payload de la lista de colores/accesorios les resulta muy pesado por traer el objeto
+`variante` completo anidado, avísennos y los recortamos a solo `varianteId` — no lo tocamos
+todavía para no romper nada que ya use el objeto completo.
+
+Lo de armar la vista con "10 flores de un color + 10 de otro" según lo que se va eligiendo es
+puramente de front (composición visual con las fotos ya disponibles) — no necesita nada nuevo
+de nuestro lado.
+
+### Pendiente — no implementado en esta sesión
+
+- **Auditoría de envío de correo** (si necesitan saber cuándo se reenvió un código): hoy solo
+  queda en logs de aplicación, no en BD. Si lo necesitan, es un cambio aparte — avisen.
+- Nada de esto requiere migración de base de datos — reutiliza tablas y columnas que ya existían.
+
+Ya está en `dev` y `qa`. No hace falta correr ninguna migración — reutiliza tablas existentes.
+
+---
+
+## ✅ FRONT — conectado lo suyo; y un choque en "Editar ramo" que hay que resolver antes (2026-08-16)
+
+Verificado en vivo antes de tocar nada: QA responde 200, `editar-ramo` da 401 sin token (existe),
+y los colores traen `variante.id`. Gracias, los tres campos nuevos resuelven justo lo que
+estábamos parcheando a mano.
+
+### Ya conectado y en `dev`/`qa`
+
+- **`esRamoFlores`** sustituye a nuestro parche de detectar el ramo por el nombre del producto.
+  Lo dejamos como respaldo solo para pedidos guardados antes de su cambio.
+- **`esLineaInterna`** → **el cliente ya no ve la línea del papel**. Era justo lo que no podíamos
+  hacer sin adivinar.
+
+⚠️ Detalle que agregamos por nuestra cuenta: esconder la línea deja **el total mayor que la suma
+de lo visible**. Para que no parezca un error de cuentas, aparece una nota: *"El total incluye la
+envoltura del ramo, que va siempre y no se cobra aparte."*
+
+### 🔴 El botón "Editar" NO lo construimos todavía — y queremos su opinión
+
+`editar-ramo` acepta **solo `colores` y `accesorios`**. Entendemos por qué (fecha/urgencia/listón
+reabren reglas propias), pero **choca con lo que pidió el dueño**:
+
+> *"que mande al mismo **armar ramo** pero con los datos cargados"*
+
+Si "Editar" abre el configurador completo, el admin puede cambiar la fecha o el listón, dar
+guardar, y **esos cambios se pierden en silencio**. Es exactamente el tipo de fallo mudo que
+llevamos toda la sesión cazando (el `String` crudo, el `clienteId`, el `.subscribe()` sin error),
+así que no queremos introducir uno nuevo a propósito.
+
+Dos salidas:
+
+1. **Modo edición recortado (no requiere nada de ustedes):** el configurador se abre con todo
+   cargado, pero **fecha, urgencia, envío y listón quedan en solo lectura**, con un aviso de que
+   para cambiar eso hay que hacerlo por otra vía. Solo se editan colores y accesorios.
+2. **Ampliar `editar-ramo`** para que acepte también fecha/urgencia/listón, recotizando con las
+   reglas que ya tienen.
+
+Nos inclinamos por la **1 para salir ya**, y la 2 más adelante si el dueño la pide. Pero como toca
+lo que él imaginó, se lo estamos preguntando a él también. **En cuanto haya respuesta lo
+construimos.**
+
+### Dos cosas que dejamos anotadas para después
+
+- **`accesorios[]` en el detalle del ramo** — era el hueco que impedía recargar un armado sin
+  perder la corona o las luces. Ya lo tienen resuelto; lo usaremos al construir "Editar".
+- **Fotos por color/accesorio vía `variante.id`** — confirmado que ya funciona sin cambios suyos.
+  Aún no lo construimos: primero cerramos "Editar", para no abrir dos frentes de flores a la vez.
+
+### Sobre recortar el payload de colores/accesorios
+
+Preguntaban si les estorba el objeto `variante` completo anidado. **Por ahora no** — son listas
+chicas (3 colores, 3 accesorios) y no se piden en bucle. Si algún día crecen, avisamos. No lo
+toquen por nosotros.
+
+---
+
+## ✅ BACK — el dueño definió el alcance: opción 2, `editar-ramo` ahora también cambia la fecha (2026-08-17)
+
+Resolviendo la duda del punto anterior: **"que mande al mismo armar ramo pero con los datos
+cargados"** significa que el admin sí debe poder recorrer la fecha de entrega desde esa misma
+pantalla — el caso real es que el cliente pida algo que tarda más de lo normal en armarse, el
+admin corre la fecha y le avisa. No se abre el envío ni el listón todavía — eso sigue fuera.
+
+### Qué cambió en `PUT /v1/flores/pedidos/{pedidoId}/editar-ramo`
+
+Dos campos nuevos en el request, **ambos opcionales**:
+
+```json
+PUT /v1/flores/pedidos/42/editar-ramo
+{
+  "colores": [ { "colorFlorId": 3, "cantidad": 10 } ],
+  "accesorios": [ { "accesorioId": 7 } ],
+  "fechaHoraEntrega": "2026-08-20T18:00:00",
+  "urgente": false
+}
+```
+
+- Si **omiten `fechaHoraEntrega`** (o mandan `null`): comportamiento idéntico a como estaba —
+  la fecha del pedido no se toca. Totalmente retrocompatible, no rompe nada de lo que ya tienen.
+- Si la **mandan**: reemplaza `fechaHoraEntrega`/`urgente` del ramo y recalcula la hora límite de
+  pago con cargo urgente (`fechaLimitePago`/`cargoUrgenteMonto`) para el tamaño de ramo que quede
+  después de la edición — mismo criterio que usa `fechas-disponibles`.
+- **Nosotros no volvemos a validar el calendario completo aquí** (días de anticipación, si el
+  tamaño ofrece urgente, etc.) — eso ya lo hace `fechas-disponibles`. Llámenlo primero para que el
+  admin elija una fecha válida, y manden el resultado tal cual a `editar-ramo`. Este endpoint solo
+  aplica la fecha que ya validaron y recalcula el cargo urgente asociado.
+- **Aviso automático al cliente:** si el ramo tiene `correoContacto` y la fecha cambió de verdad,
+  se le manda un correo avisando la nueva fecha/hora de entrega. Sin acción del front.
+
+**Nuevo 400:**
+- `"Este pedido ya tiene aplicado el cargo por entrega urgente de la fecha anterior -- no se puede
+  cambiar la fecha de entrega con este endpoint."` — pasa solo si el pago llegó tarde y
+  `revalidar-antes-de-pagar` ya le sumó el cargo urgente al pedido con la fecha vieja. Cambiar la
+  fecha ahí dejaría ese cargo ya cobrado sin relación con la nueva fecha, y este endpoint no
+  soporta ajustarlo ni reembolsarlo — es un caso que el admin tiene que resolver aparte (avísennos
+  si de verdad lo necesitan y lo diseñamos).
+
+### `GET .../detalle` y la respuesta de `editar-ramo` — 4 campos nuevos
+
+Se agregaron a `RamoPedidoDetalleResponseDto` (el mismo shape que ya usan en `ramo` de la
+respuesta de `editar-ramo` y en el detalle del ramo): `fechaHoraEntrega`, `esUrgente`,
+`fechaLimitePago`, `cargoUrgenteMonto`. Antes no venían explícitos en este objeto — si en algún
+lugar ya los estaban sacando de otro endpoint, no cambia nada; si no, ya los tienen aquí para
+reconstruir el configurador al editar.
+
+### Todavía pendiente, decisión aparte
+
+Sigue sin resolver **si el cliente puede cancelar su propio pedido** (el dueño confirmó que sí,
+antes de pagar el anticipo) — hoy `DELETE /v1/pedidos/delete/{id}` es solo ADMIN, no existe forma
+de que el cliente cancele el suyo. Es una pieza nueva, la vamos a diseñar aparte.
+
+---
+
+## 🆕 BACK — `DELETE /v1/flores/pedidos/{pedidoId}/cancelar` — el cliente cancela su propio pedido (2026-08-17)
+
+Resuelto con el dueño: **solo pedidos de flores** (no es un cambio general para todo `/v1/pedidos`),
+y **solo antes de que se registre cualquier pago** (`Pedido.totalPagado` en 0 — no específico del
+anticipo de flores, aplica igual a un pedido normal que nunca se pagó).
+
+**Request:**
+```
+DELETE /v1/flores/pedidos/42/cancelar
+Authorization: Bearer {accessToken}
+```
+Sin body. Requiere sesión (cliente o admin) — no es público.
+
+**Response 200:**
+```json
+{ "response": "Pedido cancelado correctamente", "mensaje": null }
+```
+Reutiliza la misma lógica de `DELETE /v1/pedidos/delete/{id}` (devuelve stock, marca
+`estadoPedido: "cancelado"`, evita caché) — es el mismo cancelado de siempre, solo con una puerta
+distinta para que lo dispare el propio cliente.
+
+**403:** `"No autorizado -- este pedido no es tuyo"` — el que llama no es ADMIN ni el cliente dueño
+del pedido (chequeo por `Usuario.cliente.id`, no por lo que mande el request).
+
+**400 — casos posibles:**
+- `"Ya se registro un pago para este pedido -- no puedes cancelarlo tu mismo, contacta al
+  administrador."` — `totalPagado > 0`. A partir de ahí solo el admin puede cancelar (endpoint
+  general, que sí maneja devoluciones).
+- `"Este pedido no tiene un ramo de flores asociado: {id}"` — pedidoId válido pero no es un pedido
+  de flores (este endpoint no aplica a pedidos normales).
+- `"No se puede cancelar un pedido en estado: cancelado"` — ya estaba cancelado.
+
+**El ADMIN también puede llamar este mismo endpoint** (no hace falta que use el genérico) — se
+salta el chequeo de dueño, pero las reglas de `totalPagado`/estado siguen aplicando igual.
+
+---
+
+## ✅ FRONT — implementado: editar ramo, cancelar del cliente, y un agujero de cobro que cerramos (2026-08-17)
+
+Ya está en `dev` y `qa` del front. Gracias por abrir la fecha en `editar-ramo` — era justo lo que
+faltaba para poder construirlo.
+
+### Editar ramo
+
+Vive en el **detalle del pedido**, no en la card de la lista: `GET /v1/pedidos/buscarClientePedido`
+no trae `esRamoFlores`, así que desde la lista no sabemos si mostrar el botón sin pedir el detalle
+de cada pedido. Abre `/flores/configurar?pedidoId=42` con todo precargado.
+
+Seguimos su recomendación: **`fechas-disponibles` primero**, y a `editar-ramo` solo va lo que ya
+se validó ahí. La fecha se manda **únicamente si cambió**; si no, se omite y ustedes la dejan
+intacta.
+
+**Un detalle de UX que resultó importante:** cuando el admin sube el tamaño del ramo, volvemos a
+preguntar el plazo y le avisamos *"con este cambio ya no alcanza para el 20 — lo más pronto es el
+23"*. Es lo que necesita para negociar por teléfono antes de aceptar el cambio. La fecha ya pactada
+**no se pisa** mientras siga siendo posible: cambiar un accesorio no debe mover la entrega.
+
+### Cancelar del cliente — conectado
+
+`DELETE /v1/flores/pedidos/{id}/cancelar` ya está en el botón "Cancelar" del cliente. Antes ese
+botón llamaba al endpoint de admin y le respondía **403 mudo**. Ahora se pide el detalle primero y
+se decide: ramo sin pagos → su endpoint; ya pagó o no es un ramo → se le dice que nos escriba, en
+vez de mandarlo a un error inevitable.
+
+### 🔴 Un agujero de cobro que encontramos de paso (ya cerrado, sin cambios de back)
+
+El modal **"📍 Entrega"** (`PUT /v1/pedidos/{id}/entrega`) **lo ve el cliente** y su campo de fecha
+es libre, sin validar nada. En un ramo eso permitía:
+
+1. Cotizar entrega el 22 → sin cargo → pagar $1,225.
+2. Ya pagado, abrir "Entrega" y mover la fecha al 19.
+3. El taller lo arma con prisa y **los $300 de urgencia nunca se cobran**. Nadie se entera.
+
+Lo cerramos en el front: en un pedido de ramo, **fecha y lugar quedan bloqueados** (para todos,
+admin incluido — ese campo no recalcula nada) y se remite a "Editar ramo", que sí recotiza. Los
+demás campos siguen editables, y en pedidos normales no cambia nada.
+
+**Si les parece, valdría la pena reforzarlo también del lado de ustedes** — hoy `PUT .../entrega`
+acepta cualquier fecha en un pedido con `RamoPedidoDetalle`, sin tocar `fechaLimitePago` ni el
+cargo urgente. Nosotros ya no la mandamos en ramos, pero el endpoint sigue abierto. Ustedes deciden
+si vale la pena.
+
+### ❓ Una duda menor sobre `editar-ramo`
+
+**¿Qué pasa con un color que se desactivó después de la venta?** Hoy, al precargar, un color que ya
+no está en `colores-flor/por-tipo-flor` desaparece de la lista y el admin ve que le faltan flores
+por repartir. Es un comportamiento aceptable (no puede volver a mandarlo, ustedes lo rechazan con
+*"El color '...' no esta disponible actualmente"*), pero **el admin no sabe qué color se cayó ni
+cuántas flores eran**. ¿Podrían dejar en el detalle del ramo el nombre del color aunque esté
+inactivo, para poder decirle *"las 10 rojas ya no hay, ¿con cuál las cambiamos?"*? No es urgente
+—pasa solo si desactivan un color con pedidos vivos— pero si es barato de su lado, ayuda.
+
+### ⚠️ QA sigue caído
+
+`https://qa.backend.novedades-jade.com.mx` responde **502 en todo**, incluido `/v1/cinta/activos`
+(que es público). Verificamos todo esto con el backend simulado; **falta probarlo contra el suyo**
+en cuanto lo levanten.
+
+---
+
+## ✅ BACK — QA ya tiene TODO cargado y correcto — Facebook e Instagram listos para probar de verdad (2026-08-18)
+
+Confirmado el 502 de arriba como resuelto. Cierre de la sesión de Facebook/Instagram — resumen de
+todo lo que cambió, para no tener que releer el hilo completo:
+
+### Qué se corrigió al final
+
+La página de Facebook que se había configurado primero (**"Novedades Jade"**, con espacio, id
+`1275448475648441`) **era la equivocada** — la cuenta administra 4 páginas y esa no es donde vive
+la presencia real del negocio. La correcta es **"NovedadesJade"** (sin espacio, id
+`645820348605806`), la que tiene vinculada la cuenta real de Instagram
+(`novedades_bolsas_jade`, IG business account id `17841444237033427`). Si en algún momento
+guardaron el ID viejo (`1275448475648441`) en cualquier parte de su código, hay que cambiarlo.
+
+### QA — verificado en vivo, las 3 variables están correctas
+
+```
+FACEBOOK_PAGE_ID=645820348605806
+FACEBOOK_PAGE_ACCESS_TOKEN=<token de larga duración, no expira>
+INSTAGRAM_ACCOUNT_ID=17841444237033427
+```
+
+**Ya no hay ningún bloqueo de credenciales.** `POST /v1/redes-sociales/facebook/publicar`,
+`POST /v1/redes-sociales/facebook/publicar-video` y `POST /v1/redes-sociales/instagram/publicar`
+están listos para probarse de punta a punta en QA, con la página/cuenta reales.
+
+### Checklist de lo que se tocó en esta ronda (todo con request/response/excepciones ya documentado arriba en este archivo, buscar por título)
+
+| Qué | Endpoint | Estado |
+|---|---|---|
+| Facebook restaurado (foto/video) | `POST /v1/redes-sociales/facebook/publicar[-video]` | ✅ Código + credenciales listas. Contrato sin cambios respecto a como estaba documentado antes de la pausa. |
+| Instagram nuevo | `POST /v1/redes-sociales/instagram/publicar` | ✅ Código + credenciales listas. **Ustedes todavía no construyeron la pantalla** — es lo único que falta para poder probarlo de su lado. |
+| Editar ramo con fecha | `PUT /v1/flores/pedidos/{id}/editar-ramo` | ✅ Ya lo conectaron (gracias). |
+| Cancelar del cliente | `DELETE /v1/flores/pedidos/{id}/cancelar` | ✅ Ya lo conectaron. |
+
+### Pendiente — no es nuestro, o sin decidir todavía
+
+- **Instagram, del lado de ustedes:** falta construir la pantalla — el contrato ya está documentado
+  completo arriba en este archivo (sección `POST /v1/redes-sociales/instagram/publicar`, 2026-08-17).
+
+---
+
+## ✅ BACK — cerrado el agujero de `PUT /v1/pedidos/{id}/entrega` + respuesta sobre colores desactivados (2026-08-18)
+
+### 1. `PUT /v1/pedidos/{id}/entrega` ya rechaza mover fecha/lugar en un ramo
+
+Reforzado del lado del back, igual que ya tenían bloqueado en su UI — ahora aunque alguien llame
+el endpoint directo (Postman, u otro cliente), no puede colarse.
+
+**Nuevo 400, solo si el pedido tiene un `RamoPedidoDetalle` asociado Y el request manda
+`fechaEntrega` o `lugarEntregaId`:**
+```
+"Este pedido es un ramo de flores -- la fecha de entrega y el lugar no se pueden cambiar desde
+aqui porque no recalculan el cargo de urgencia. Para mover la fecha usa
+PUT /v1/flores/pedidos/{id}/editar-ramo (el lugar todavia no se puede cambiar en un ramo por
+ningun endpoint)."
+```
+- El resto de los campos (`nombreReceptor`, `direccionEntrega`, `urlFacebook`, `observaciones`)
+  siguen editables sin restricción, igual que antes — solo se bloquean `fechaEntrega` y
+  `lugarEntregaId`.
+- En pedidos que **no** son de flores, este endpoint sigue funcionando exactamente igual que
+  siempre — cero cambios de comportamiento fuera de ramos.
+- Confirma lo que ya sospechaban: **`lugarEntregaId` de un ramo no se puede cambiar todavía por
+  ningún endpoint** (ni `editar-ramo` lo cubre) — si lo necesitan, avisen y se agrega en una
+  próxima ronda.
+
+### 2. Colores desactivados — no hacía falta ningún cambio, ya lo tienen
+
+Revisamos el código: `GET /v1/flores/pedidos/{pedidoId}/detalle` (y la respuesta de `editar-ramo`)
+**ya traen el nombre del color aunque esté desactivado** — el campo `colores[].colorNombre` se lee
+directo de la relación guardada en el pedido, no del catálogo activo. El problema que veían no es
+del back: es que en su UI seguramente cruzan el `colorFlorId` del detalle contra el catálogo
+`colores-flor/por-tipo-flor/{tipoFlorId}` (que sí filtra por `activo:true`) para armar el picker, y
+como el color inactivo no aparece ahí, se pierde el nombre. Para el caso de "las 10 rojas ya no
+hay", usen directamente `colores[].colorNombre` del detalle en vez de buscarlo en el catálogo —
+ya tienen el dato, no hace falta que lo pidan aparte.
+
+---
+
+## 🙏 PETICIÓN — Reels (Facebook + Instagram) y TikTok (2026-08-18)
+
+El dueño definió su objetivo real y no es la foto: **es el Reel**. Un mismo video vertical
+publicado en **Facebook, Instagram y TikTok**. La foto y el video de feed que ya tenemos le
+sirven, pero son el camino secundario.
+
+Ustedes ya lo habían anticipado — *"Si quieren Historia o Reel, avisen y se dimensiona aparte"*.
+Pues avisamos: **lo queremos**.
+
+### Lo que se pide, por prioridad
+
+| # | Qué | Nota |
+|---|---|---|
+| 1 | **Reel en Instagram** | Es la red donde más le importa al dueño |
+| 2 | **Reel en Facebook** | Mismo video, misma publicación |
+| 3 | **TikTok** (publicar video) | Sabemos que es otro ecosistema y otro trámite — va al final |
+
+No pedimos Historias por ahora.
+
+### Lo que el front ya tiene listo
+
+La pantalla ya está construida para esto, **no hace falta que esperen a nadie**:
+
+- El archivo se sube **una sola vez** y se manda a cada red marcada.
+- El texto es **uno solo** (es el mismo post) y los **hashtags van por red** — se concatenan
+  antes de mandar. Ustedes reciben la `descripcion` ya armada, como hoy.
+- TikTok ya aparece en la pantalla, **deshabilitado**, con el motivo "todavía no está conectado".
+  En cuanto exista el endpoint, se activa.
+- Las publicaciones se mandan **una tras otra** y mostramos el resultado **por red**, porque una
+  puede fallar y otra no (justo lo que pasa hoy con Instagram sin vincular).
+
+### Preguntas para dimensionarlo
+
+1. **¿El mismo archivo sirve para las 3?** Nosotros mandaríamos un solo video vertical (9:16).
+   ¿Hace falta que el front valide algo antes de subir — duración, proporción, peso — o ustedes
+   lo rechazan con un mensaje claro y con eso basta? Preferimos avisarle **antes** de que espere
+   una subida larga que va a terminar rechazada.
+2. **¿El endpoint sería el mismo de video con un parámetro** (`tipoPublicacion: reel`), **o uno
+   aparte**? Nos da igual, es para saber cómo armarlo.
+3. **¿La subida por partes cambia algo para nosotros?** Hoy mandamos el archivo en un solo
+   multipart y pintamos la barra con `reportProgress`. Si el flujo resumable requiere que el
+   front participe (pedir una sesión de subida, mandar los trozos), dígannos y lo armamos — pero
+   si lo pueden absorber ustedes y nosotros seguimos mandando el archivo igual, mejor.
+4. **TikTok:** ¿saben ya si su API necesita que el dueño haga un trámite tipo el de Meta (app,
+   revisión, permisos)? Es para irlo empezando en paralelo, porque en Meta ese trámite fue lo
+   que más tardó.
+
+### ⚠️ Un aviso sobre la música, por si alguien lo pregunta
+
+Le explicamos al dueño que **la música de la biblioteca de Instagram no se puede elegir por API**
+— un Reel publicado desde el sistema sale con el audio del archivo. Él va a pegar la música al
+editar el video. Lo anotamos aquí para que quede el porqué: si más adelante alguien reporta
+"los Reels no traen la música de Instagram", no es un bug nuestro ni de ustedes.
+
+⚠️ **Y un riesgo derivado:** si el video lleva música comercial pegada, Instagram puede silenciarlo
+por derechos de autor. No hay nada que podamos hacer desde el código; es al editar.
+
+---
+
+## ✅ BACK — respuestas + Reel de Instagram ya construido (2026-08-18)
+
+Empezamos por Instagram (es donde más le importa al dueño, según ustedes). Facebook Reel y TikTok
+quedan para una próxima ronda.
+
+### Respuestas a sus 4 preguntas
+
+1. **El mismo archivo sirve, vertical u horizontal — no validamos nada del lado del back.** Mismo
+   criterio que ya usamos con el video normal de Facebook: se manda tal cual a la Graph API, y si
+   el formato no es válido, Instagram lo rechaza con su propio mensaje, que les regresamos igual
+   que cualquier otro error de Meta.
+2. **Endpoint aparte**, no el mismo de foto/video con un parámetro — el mecanismo de subida es
+   distinto (ver punto 3), no tenía sentido forzarlo dentro del mismo contrato.
+3. **La subida por partes la absorbe el back por completo.** Ustedes siguen mandando el archivo
+   en un solo multipart, exactamente como ya hacen con el video de Facebook — nosotros hacemos
+   los 4 pasos de la subida reanudable de Instagram (crear contenedor, subir el video, esperar a
+   que Meta lo procese, publicar) sin que les cambie nada de su lado.
+4. **TikTok:** no tenemos referencia previa de este proyecto con su API — no sabemos todavía si su
+   trámite de app es tan largo como el de Meta. Se investiga cuando toque esa parte.
+
+### 🆕 `POST /v1/redes-sociales/instagram/publicar-reel` — solo ADMIN
+
+**Multipart**, igual que el video de Facebook (no JSON como la foto de Instagram, porque aquí sí
+se manda un archivo):
+
+```
+POST /v1/redes-sociales/instagram/publicar-reel
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}  (rol ADMIN)
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+
+- `video` es obligatorio en cada llamada — igual que el video de Facebook, no hay "reel principal
+  guardado de la variante", el catálogo no guarda video.
+- **Puede tardar** — a diferencia de la foto, Meta procesa el video después de subirlo antes de
+  poder publicarlo. El back espera hasta 3 minutos internamente antes de rendirse. Si tienen
+  spinner/loading en el botón, que aguante ese tiempo (mismo criterio que ya usan con el video de
+  Facebook, que también avisaron que tarda).
+
+**Response 200:** mismo shape que ya usan para Instagram (`PublicacionSocialDto`) —
+`plataforma:"instagram"`, `tipoPublicacion:"reel"` (para diferenciarlo de `"foto"`).
+
+**400 — casos posibles:**
+- `"Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o FACEBOOK_PAGE_ACCESS_TOKEN..."` —
+  no debería pasarles, ya está configurado en QA.
+- `"No existe la variante con id {id}"`.
+- `"Falta el archivo de video a publicar"`.
+- `"Instagram rechazo crear el contenedor del Reel: ..."` / `"...rechazo la subida del video...:
+  ..."` / `"...no pudo procesar el video del Reel (status: ERROR/EXPIRED)"` — error real de la
+  Graph API, con el detalle de Meta tal cual.
+- `"Instagram sigue procesando el video del Reel despues de 3 minutos -- intenta publicarlo de
+  nuevo en unos minutos"` — el video tardó más de lo que esperamos internamente. No se perdió
+  nada, pero no genera post; hay que reintentar.
+
+**403:** si quien llama no es ADMIN.
+
+No hace falta migración — reusa `publicacion_social` (mismo `plataforma`/`tipoPublicacion` que ya
+tenían las publicaciones de Instagram, solo cambia el valor).
+
+### ⚠️ Sin probar todavía en vivo
+
+Escrito siguiendo el contrato documentado de la Graph API de subida reanudable de Instagram, pero
+**nadie lo ha probado contra Meta real** — es la primera vez que este proyecto usa ese mecanismo.
+Si algún paso de los 4 responde distinto a lo esperado, el error de Meta va a venir tal cual en el
+mensaje del 400, avísennos con eso si algo falla raro.
+
+---
+
+## ✅ FRONT — al día con todo lo suyo + estado completo y qué falta (2026-08-18)
+
+Bajamos sus 4 commits. Todo lo que nos tocaba de ahí **ya está hecho y subido** a `dev` y `qa`.
+
+### 1. Lo del color desactivado — tenían razón, el bug era nuestro
+
+Gracias por revisarlo en vez de darnos por buena la petición. Efectivamente cruzábamos
+`colorFlorId` contra `colores-flor/por-tipo-flor/{id}` (que filtra activos) y por eso perdíamos
+justo el color caído. **Ya usamos `colores[].colorNombre` del detalle**, y el admin ahora ve
+*"Ya no hay 10 Blanca — esas flores hay que repartirlas entre los colores de abajo"*.
+
+Nos quedamos con la regla para no repetirlo: **para mostrar algo ya guardado en un pedido, usar lo
+que trae el pedido, no el catálogo.** El catálogo dice qué se puede vender hoy; el pedido dice qué
+se vendió. Vale igual para accesorios y frases.
+
+### 2. `PUT /entrega` reforzado — gracias
+
+Nuestro bloqueo de UI se queda como primera barrera (evita el viaje inútil), pero ya no es lo
+único. Anotado también que **`lugarEntregaId` de un ramo no se puede cambiar por ningún endpoint**
+— por eso lo mostramos bloqueado al editar. No lo pedimos por ahora; si el dueño lo necesita,
+avisamos.
+
+### 3. La pantalla de Instagram **sí está construida** — corrección a su checklist
+
+En su checklist pusieron *"ustedes todavía no construyeron la pantalla"*. Ya está: se subió el
+mismo día. Y con el ID correcto de página no tenemos nada que cambiar — **el front nunca manda el
+id de página ni el de cuenta**, esos viven solo en su configuración.
+
+**Facebook e Instagram están listos para probar de punta a punta desde la UI.**
+
+---
+
+## 📋 ESTADO COMPLETO — qué hay, qué falta y en qué orden
+
+Resumen de lo hablado con el dueño, para que ambos lados tengamos la misma foto.
+
+### Lo que ya funciona
+
+| | Foto | Video de feed | Reel | Programar |
+|---|---|---|---|---|
+| **Facebook** | ✅ | ✅ | ❌ | ✅ |
+| **Instagram** | ✅ | ❌ | ❌ | ❌ (su API no lo permite) |
+| **TikTok** | ❌ | ❌ | ❌ | — |
+
+La pantalla ya publica en **varias redes de una sola vez**: el archivo se sube una vez, el texto
+se escribe una vez, y los **hashtags van por red** (se concatenan antes de mandarles la
+`descripcion`). Si una red falla y otra no, se muestra el resultado **por red**.
+
+### 🎯 Lo que falta — en orden de prioridad del dueño
+
+1. **Reel en Instagram** ← su objetivo real, es donde más le importa
+2. **Reel en Facebook** — mismo video
+3. **TikTok** (publicar video)
+
+Ver la petición completa con las 4 preguntas de dimensionamiento en la sección
+"🙏 PETICIÓN — Reels (Facebook + Instagram) y TikTok" de más arriba. **La pantalla ya está lista
+para recibirlos**: TikTok incluso ya aparece deshabilitado con el motivo "todavía no está
+conectado", y se activa solo cuando exista el endpoint.
+
+### ⚠️ Dos límites que NO son de nadie aquí — que quede el porqué
+
+- **La música no se puede elegir por API.** Meta no expone su biblioteca de audio: un Reel
+  publicado desde el sistema sale con el audio del archivo. El dueño la va a pegar al editar. Si
+  alguien reporta después "los Reels no traen música de Instagram", **no es un bug** de ninguno de
+  los dos lados.
+- **Riesgo derivado:** música comercial pegada al archivo puede hacer que Instagram silencie el
+  Reel por derechos de autor. No hay nada que hacer desde el código.
+
+### ❓ Preguntas nuestras que siguen abiertas
+
+1. **El límite de tamaño aparece con dos valores** en este mismo archivo: **25 MB** en la sección
+   de agosto y **200 MB** en la nota de retomado. Hoy le avisamos **200** al admin. ¿Cuál es el
+   bueno, o son dos cosas distintas (foto vs. video)? Nos importa para avisarle **antes** de que
+   espere una subida larga que va a terminar rechazada.
+2. **¿Video/Reel en Instagram entra en sus planes?** Ya está en la petición de arriba, lo
+   repetimos aquí solo para que no se pierda entre todo lo demás.
+
+### Lo de flores, para cerrar el tema
+
+Todo lo suyo está conectado: `editar-ramo` (con fecha), `cancelar` del cliente, `esRamoFlores`,
+`esLineaInterna` y ahora `colorNombre`. **Lo único sin probar contra QA real** es el camino
+completo de editar un ramo y cobrar la diferencia — nos falta un pedido de verdad para eso.
+
+---
+
+## ✅ BACK — respuestas a sus 2 preguntas + Reel de Facebook construido (2026-08-18)
+
+### 1. El límite es 200 MB — el de 25 MB es historia vieja
+
+Tienen razón en la confusión, era nuestro doc desactualizado (ya lo marcamos arriba). **200 MB es
+el único límite real hoy**, y es global — no hay un límite distinto por endpoint, aplica igual a
+`imagenNueva` de foto, video de feed y Reel. El de 25 MB fue el original, antes de que se subiera
+para poder soportar video (ver la sección "Ya corrió y está verificada" de agosto). Avísenle 200 al
+admin con confianza.
+
+### 2. Video/Reel en Instagram — sí está en los planes, ya lo tienen documentado arriba
+
+Ya está construido (`POST /v1/redes-sociales/instagram/publicar-reel`, ver sección de hoy más
+arriba). Es lo único que confirmamos: llegó en el mismo mensaje que su pregunta.
+
+### 🆕 `POST /v1/redes-sociales/facebook/publicar-reel` — solo ADMIN
+
+Segundo en la lista de prioridades del dueño, ya construido. Mismo mecanismo de subida reanudable
+que Instagram, pero es el endpoint propio de Facebook (`/video_reels`, 3 pasos: iniciar, subir,
+finalizar) — internos distintos, misma idea.
+
+**Multipart**, igual que el Reel de Instagram y el video normal:
+```
+POST /v1/redes-sociales/facebook/publicar-reel
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}  (rol ADMIN)
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+
+- `video` obligatorio en cada llamada, igual que el video de feed — no hay Reel "principal" de la
+  variante.
+- **No soporta programar** — a diferencia del video normal de Facebook, que sí acepta
+  `scheduledPublishTime`. `/video_reels` no lo soportó en esta implementación; si lo necesitan,
+  avisen y se evalúa.
+- Sin validar duración/proporción/peso, mismo criterio que el resto — se manda tal cual.
+
+**Response 200:** mismo shape (`PublicacionSocialDto`) — `plataforma:"facebook"`,
+`tipoPublicacion:"reel"`.
+
+**400 — casos posibles:**
+- `"Facebook no está configurado: faltan FACEBOOK_PAGE_ID o FACEBOOK_PAGE_ACCESS_TOKEN"` — no
+  debería pasarles, ya configurado en QA.
+- `"No existe la variante con id {id}"` / `"Falta el archivo de video a publicar"`.
+- `"Facebook rechazó iniciar el Reel: ..."` / `"...rechazó la subida del video del Reel: ..."` /
+  `"...rechazó publicar el Reel: ..."` — error real de la Graph API, mensaje de Meta tal cual.
+- `"Facebook no devolvió video_id/upload_url al iniciar el Reel: ..."` /
+  `"Facebook no confirmó la subida..."` / `"...no confirmó la publicación..."` — Meta respondió
+  200 pero sin los campos esperados; caso raro, avísennos si lo ven.
+
+**403:** si quien llama no es ADMIN.
+
+**⚠️ Sin probar contra Meta real**, misma advertencia que el Reel de Instagram — primera vez que
+este proyecto usa `/video_reels`.
+
+No hace falta migración. **Con esto quedan construidos los 2 de la lista de prioridades — solo
+falta TikTok**, que sigue sin empezar (integración nueva desde cero, trámite de app propio).
+
+---
+
+## ✅ FRONT — Reel de Instagram conectado el mismo día (2026-08-18)
+
+Rapidísimos, gracias. Ya está en `dev` y `qa`.
+
+**Tercer botón "🎞️ Reel"** junto a Foto y Video. Al elegirlo, Facebook **se desmarca solo** con el
+motivo *"El Reel de Facebook todavía no está listo — por ahora solo Instagram"*, e Instagram queda
+como única red disponible. En cuanto entreguen el de Facebook, se activa cambiando una línea.
+
+**Sobre que tarda:** la pantalla lo avisa **antes** de subir, no después — *"Un Reel tarda:
+Instagram procesa el video después de recibirlo... si se pasa de 3 minutos te va a pedir
+reintentar (no se pierde nada, pero tampoco se publica)"*. La barra de progreso ya distinguía
+"subiendo" de "procesando" desde el video de Facebook, así que ese caso ya estaba cubierto.
+
+Gracias también por absorber la subida por partes — no nos cambió nada, seguimos mandando un solo
+multipart.
+
+### Anotado: ninguno de los dos lo ha probado contra Meta
+
+Ustedes lo dijeron y lo dejamos escrito de este lado también: es la primera vez que el proyecto
+usa la subida reanudable. Cuando el dueño haga la primera prueba real, si algo falla les pasamos
+**el mensaje de Meta tal cual** aparezca en pantalla — ya lo mostramos sin recortar.
+
+### Lo que sigue en la lista, sin prisa
+
+1. **Reel de Facebook** — el dueño quiere el mismo video en las dos.
+2. **TikTok** — entendido que primero hay que investigar su API. Si resulta que necesita un
+   trámite tipo el de Meta, conviene arrancarlo cuanto antes aunque el código venga después:
+   ese trámite fue lo que más tardó la vez pasada.
+
+### ❓ Sigue sin respuesta (no urge, pero no se pierda)
+
+**El límite de tamaño aparece con dos valores** en este archivo: **25 MB** en la sección de agosto
+y **200 MB** en la nota de retomado del 17. Hoy le avisamos **200** al admin. Con Reels esto pesa
+más que antes: un video vertical de buena calidad se acerca rápido a ese número, y preferimos
+avisarle **antes** de que espere una subida larga que va a terminar rechazada. ¿Cuál es el bueno?
+
+---
+
+## ✅ FRONT — Reel de Facebook conectado: el objetivo del dueño ya está completo (2026-08-18)
+
+Los dos Reels quedaron el mismo día. **Ya se cumple lo que el dueño pidió**: un solo video
+vertical publicado en Facebook e Instagram de una vez, con hashtags distintos en cada una y una
+sola subida.
+
+### Lo que tuvimos que ajustar por lo de programar
+
+Buen dato el de que `/video_reels` no acepta `scheduledPublishTime` — no lo habríamos adivinado,
+porque el video de feed de esa **misma red** sí lo acepta. Teníamos la condición atada a "es
+Facebook", y ahora también depende del tipo. El paso "Cuándo" desaparece solo cuando el tipo es
+Reel.
+
+Como quedó:
+
+| | Programar |
+|---|---|
+| Facebook · foto y video de feed | ✅ (y solo si va sola, para que no salgan en momentos distintos) |
+| Facebook · Reel | ❌ |
+| Instagram · todo | ❌ |
+
+### El límite: gracias por aclararlo
+
+**200 MB** anotado como el único bueno. Ya era lo que le avisábamos al admin, así que no hubo que
+cambiar nada — solo dejamos por escrito de este lado que el 25 MB es historia, para no volver a
+preguntarlo dentro de tres semanas.
+
+### Lo único que falta: TikTok
+
+Cuando lo tomen, la pantalla ya lo tiene contemplado — aparece deshabilitado con el motivo
+"todavía no está conectado", y se activa solo. **Nuestra sugerencia sigue siendo empezar por el
+trámite de la app** aunque el código venga después: con Meta eso fue lo que más tardó, y es lo
+único que no depende de ustedes ni de nosotros.
+
+### 📸 Cuando el dueño haga la primera prueba real
+
+Ninguno de los dos lados ha probado los Reels contra Meta. Quedamos así: si algo falla, le pasamos
+**el mensaje de Meta tal cual** sale en pantalla (ya lo mostramos completo, sin recortar) más qué
+red y si era foto, video o Reel. Con eso deberían poder ubicar en cuál de los pasos de la subida
+reanudable se cayó.
+
+---
+
+## 🙏 PETICIÓN — programar Reels: en Facebook SÍ se puede, lo verificamos en la doc de Meta (2026-08-18)
+
+El dueño insistió en esto y tenía razón: **en Meta Business Suite los Reels sí se programan**, así
+que valía la pena revisar si la API lo permite. Fuimos a la documentación oficial y **sí, para
+Facebook**. Se los pasamos con el detalle exacto para que no tengan que buscarlo.
+
+### ✅ Facebook Reels — la API sí lo soporta
+
+En el paso de **finish/publish** de `/video_reels` existen dos parámetros:
+
+| Parámetro | Valores |
+|---|---|
+| `video_state` | `DRAFT` · `SCHEDULED` · `PUBLISHED` |
+| `scheduled_publish_time` | Unix timestamp (entero) |
+
+Cita textual de la doc: *"the publish time must be greater than 10 minutes from the current time
+and **within 29 days** of the current date, and `video_state` must be set to `SCHEDULED`"*.
+
+⚠️ **Ojo con la ventana, es distinta a la del video de feed:** el video normal acepta hasta
+**6 meses**, pero el Reel solo **29 días**. Si reusan la validación del video normal, Meta va a
+rechazar cualquier fecha entre 30 días y 6 meses. Nosotros ya validamos en el front, así que
+díganos qué ventana dejan y la ajustamos — hoy tenemos 6 meses puesto para el video de feed.
+
+Fuente: https://developers.facebook.com/docs/video-api/guides/reels-publishing/
+
+### ❌ Instagram — no hay forma por API, confirmado
+
+Revisamos la Content Publishing API: **no existe ningún parámetro de programación**, y además
+*"el contenedor expira si no se publica dentro de las 24 horas"*. O sea que ni siquiera se puede
+crear el contenedor hoy y publicarlo en 3 días.
+
+Fuente: https://developers.facebook.com/docs/instagram-platform/content-publishing/
+
+**Cómo lo hace Meta Business Suite entonces:** guarda el borrador de su lado y llama a la API en
+el momento. O sea, el scheduler es de ellos, no de la API.
+
+**La única vía es la misma de su lado:** guardar la publicación con su fecha en
+`publicacion_social` (con un estado tipo `PROGRAMADA`) y un job que a esa hora haga el flujo
+normal.
+
+### 🎯 Decisión del dueño: lo quiere completo, las dos redes
+
+Se lo planteamos con estas dos opciones y **eligió que se programen todas juntas**, aunque para
+Instagram implique construir el scheduler. Textual: *"si quiero que se programen todo junto, como
+sea"*.
+
+Así que **sí lo estamos pidiendo**: programar Reel en Facebook **y** en Instagram, desde la misma
+pantalla y con una sola fecha.
+
+### ⚠️ Un punto de diseño que conviene decidir antes de escribir código
+
+Si se hace lo más obvio — Facebook con su programación nativa e Instagram con el job propio —
+**quedan dos mecanismos distintos para la misma publicación**, y eso puede desfasarlos:
+
+| | Quién publica a la hora | Si su servidor está caído a esa hora |
+|---|---|---|
+| Facebook nativo (`video_state: SCHEDULED`) | Meta | **Sale igual** — ya está del lado de ellos |
+| Instagram con job propio | Su job | **No sale** hasta que el job vuelva |
+
+O sea, el caso malo es real: el dueño programa los dos para el viernes 6pm, y sale solo el de
+Facebook. Justo lo contrario de lo que pidió.
+
+**Nuestra sugerencia (ustedes deciden, es su terreno):** usar **el job propio para las dos**, y no
+la programación nativa de Facebook. Ventajas:
+
+- Las dos salen por el mismo camino, a la misma hora, con la misma lógica de reintento.
+- **Sin el límite de 29 días** de Meta: se puede programar a la fecha que sea.
+- Una sola cosa que mantener y monitorear, no dos.
+
+La desventaja es clara y hay que ponerla sobre la mesa: **si el servidor está caído a esa hora, no
+sale ninguna** — con el nativo de Facebook al menos esa sí saldría. Si prefieren la nativa por eso,
+lo entendemos; solo díganos cuál eligen para que el front avise correctamente qué ventana de
+fechas se acepta.
+
+### Lo que pedimos concretamente
+
+1. **Programar Reel en Facebook** — nativo (`video_state` + `scheduled_publish_time`) o por job,
+   lo que decidan tras el punto de arriba.
+2. **Programar Reel en Instagram** — necesariamente por job, no hay otra.
+3. **Que nos confirmen la ventana de fechas** que aceptan (29 días si es nativo de Facebook, o lo
+   que definan si es por job) para ajustar el aviso al admin.
+
+### 📎 Lo que encontramos, para que lo revisen ustedes también
+
+No se lo pedimos de memoria — está verificado contra la documentación oficial. Los enlaces, por si
+quieren confirmarlo o encuentran algo que se nos escapó:
+
+- **Facebook Reels (sí se puede):**
+  https://developers.facebook.com/docs/video-api/guides/reels-publishing/
+  → `video_state` (`DRAFT`/`SCHEDULED`/`PUBLISHED`) y `scheduled_publish_time` (Unix timestamp) en
+  el paso de finish. Cita: *"the publish time must be greater than 10 minutes from the current
+  time and within 29 days of the current date, and `video_state` must be set to 'SCHEDULED'"*.
+- **Instagram Content Publishing (no se puede):**
+  https://developers.facebook.com/docs/instagram-platform/content-publishing/
+  → sin parámetro de programación, y *"el contenedor expira si no se publica dentro de 24 horas"*.
+- **Referencia del endpoint de Facebook:**
+  https://developers.facebook.com/docs/graph-api/reference/page/video_reels/
+
+Si al implementarlo ven que la doc dice otra cosa (a Meta le pasa), avísennos — lo tomamos como
+correcto lo que les responda la API real, no lo que dice el papel.
+
+### Del lado del front
+
+El paso "Cuándo" ya se oculta solo cuando el tipo es Reel. **En cuanto acepten la fecha, lo
+activamos** — es cambiar una condición; el selector, la validación de ventana y el aviso ya están
+hechos. Solo necesitamos que nos digan la ventana para ajustar el mensaje.
+
+---
+
+## 📌 FRONT — dónde va la pantalla de redes y qué falta (2026-08-18, cierre del día)
+
+Resumen de lo que llevamos, para que no haya que releer el hilo.
+
+### La pantalla quedó rediseñada — el dueño la describió y no era la que teníamos
+
+Nos la explicó él directamente y hubo que rehacerla. Su flujo, textual: *"tiene que haber un
+[área] para cargar el video y ese video es para las 3 redes... 3 pestañas... eso solo es para
+poner los hashtags porque ahí sí va a ser lo diferente, y un textarea para el texto que irá en las
+3 redes... un botón de mostrar... eso quedaría al final"*.
+
+Cómo está ahora:
+
+```
+2 · Qué vas a publicar    [Foto] [Video] [Reel]
+
+    ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+          Arrastra aquí tu video          ← una sola vez, va a todas
+    └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+
+    Texto del post  [ ... ]               ← uno solo, igual en las 3
+
+3 · Redes y hashtags
+    ✓ Facebook | ✓ Instagram | TikTok     ← pestañas
+
+    ☑ Publicar en Instagram
+    Hashtags para Instagram [ ... ]        ← lo único que cambia por red
+
+    [ Mostrar cómo va a quedar ]           ← vista previa, al final
+```
+
+**Lo que les llega a ustedes no cambia:** siguen recibiendo `descripcion` ya armada (texto +
+hashtags de esa red concatenados) y el archivo en un multipart, una llamada por red.
+
+### ✅ Confirmado por el dueño: el producto SIEMPRE va a estar
+
+Les preguntamos internamente si haría falta que `varianteId` fuera opcional (para un Reel del
+local, un saludo, una promo general). **El dueño confirmó que siempre va a publicar sobre un
+producto del catálogo**, así que **no hace falta ningún cambio de su lado** — el paso de elegir
+producto se queda obligatorio como está hoy. Lo anotamos para que quede cerrado y no vuelva a
+salir la duda.
+
+### Estado de las 3 redes
+
+| | Foto | Video de feed | Reel | Programar |
+|---|---|---|---|---|
+| **Facebook** | ✅ | ✅ | ✅ | foto/video ✅ · **Reel ⏳ pedido** |
+| **Instagram** | ✅ | — | ✅ | **⏳ pedido** (requiere job propio) |
+| **TikTok** | ❌ | ❌ | ❌ | — |
+
+### Lo que está en su cancha, por orden
+
+1. **Programar Reels en ambas redes** — pedido en la sección de arriba, con la doc de Meta
+   verificada y el punto de diseño del desfase (dos mecanismos distintos pueden hacer que salga
+   una y la otra no). **Es lo que más le importa al dueño ahora.**
+2. **TikTok** — sin empezar. Recordamos la sugerencia: **arrancar por el trámite de la app**
+   aunque el código venga después; con Meta eso fue lo que más tardó y es lo único que no depende
+   de código.
+
+### Sin probar contra Meta — ninguno de los dos lados
+
+Foto y video de feed ya se pueden probar con confianza. **Los Reels no**: es la primera vez que el
+proyecto usa la subida reanudable (`/video_reels` y la de Instagram). Cuando el dueño haga la
+primera prueba real les pasamos el mensaje de Meta tal cual salga en pantalla, más la red y el
+tipo, para que puedan ubicar en qué paso se cayó.
+
+### 🌹 Flores — sin pendientes de nuestro lado
+
+Todo lo suyo está conectado: `editar-ramo` con fecha, `cancelar` del cliente, `esRamoFlores`,
+`esLineaInterna` y `colorNombre`. Lo único que falta ahí es **probar el camino completo con un
+pedido real** (editar un ramo y cobrar la diferencia), que no depende de código.
+
+---
+
+## 🆕 BACK — TikTok construido, credenciales del trámite en curso (2026-08-18)
+
+Se avanzó en paralelo con el trámite de la app de TikTok (cuenta Business, app creada, dominio
+verificado, Sandbox configurado con target user). Se construyó el código del back siguiendo la
+documentación oficial de la Content Posting API v2 — **primera vez que este proyecto integra
+TikTok, sin verificar contra la API real todavía.**
+
+### Publicar en TikTok — solo video, sin foto (la API de TikTok no tiene "publicar foto")
+
+**`POST /v1/redes-sociales/tiktok/publicar`** — solo ADMIN, multipart (mismo patrón que el video
+de Facebook/Reel de Instagram):
+```
+POST /v1/redes-sociales/tiktok/publicar
+Content-Type: multipart/form-data
+Authorization: Bearer {accessToken}
+
+varianteId: 42
+descripcion: "Bolsa nueva temporada 🎒"
+video: (archivo)
+```
+Response 200: mismo `PublicacionSocialDto` — `plataforma:"tiktok"`, `tipoPublicacion:"video"`.
+
+**⚠️ Restricciones mientras la app no pase la auditoría de TikTok (todavía no se ha pedido):**
+- Solo funciona si la cuenta que publica es una de las agregadas como **Target User** en el
+  Sandbox del portal de TikTok — cualquier otra cuenta, rechazada.
+- El video sale **forzado a privado** (`SELF_ONLY`), sin importar nada que mandemos — restricción
+  de TikTok, no del código.
+- **Sin programar** — ni siquiera lo intentamos en esta versión, mismo criterio que Instagram.
+
+**400 posibles:** `"TikTok no está configurado..."`, `"No existe la variante..."`,
+`"Falta el archivo de video..."`, `"TikTok rechazó iniciar la publicación: ..."` /
+`"...rechazó la subida del video..."` / `"...no pudo publicar el video (fail_reason)..."` —
+mensaje de TikTok tal cual. `"TikTok no está autorizado todavía..."` — falta el paso de abajo.
+
+### Paso previo, una sola vez: autorizar la cuenta (no es un endpoint que el front use en su flujo normal)
+
+**`POST /v1/redes-sociales/tiktok/autorizar`** — `{ "code": "...", "redirectUri": "..." }`. Es el
+trámite manual de OAuth (nosotros lo hacemos una vez desde el navegador, no hace falta pantalla
+para esto). Guarda el primer `access_token`/`refresh_token` en una tabla nueva
+(`tiktok_token`, fila única) — de ahí en adelante el back se refresca solo antes de cada
+publicación (el token de TikTok dura ~24h, a diferencia del de Facebook que no expira).
+
+### Migración
+
+`migration_tiktok_token.sql` — crea la tabla `tiktok_token`. Ejecutada en QA y prod (2026-08-27).
+
+No hace falta nada nuevo del front todavía para TikTok — la pantalla ya lo tiene contemplado como
+deshabilitado según dijeron. Avisamos cuando esté probado en Sandbox para que lo activen.
+
+---
+
+## 📋 ESTADO — redes sociales, lo que llevamos y lo que falta (2026-08-18, cierre de sesión)
+
+### Facebook
+
+| | Estado |
+|---|---|
+| Foto | ✅ Construido, credenciales reales en QA, listo para probar de punta a punta |
+| Video de feed | ✅ Igual que foto, incluye programar (`scheduledPublishTime`, hasta 6 meses) |
+| Reel | ✅ Construido, credenciales listas. **Sin probar contra Meta real todavía** |
+| Programar Reel | ❌ Decidido que la API sí lo permite (nativo, máx 29 días) — **falta decidir si se usa el nativo de Facebook o un job propio para las dos redes juntas** (ver abajo) |
+
+### Instagram
+
+| | Estado |
+|---|---|
+| Foto | ✅ Construido, cuenta vinculada (`novedades_bolsas_jade`), credenciales listas |
+| Reel | ✅ Construido. **Sin probar contra Meta real todavía** |
+| Video de feed | ❌ No pedido, Instagram no lo tiene como concepto separado del Reel |
+| Programar (foto, Reel, cualquiera) | ❌ Imposible por API — límite real de Instagram, no nuestro. Si se quiere programar, es obligatorio un job propio |
+
+### TikTok
+
+| | Estado |
+|---|---|
+| Cuenta Business, app, dominio verificado, Sandbox con target user | ✅ Hecho |
+| Código (`/tiktok/publicar`, `/tiktok/autorizar`) | ✅ Construido, en `dev`/`qa` del back. **NO subido al repo del front** (regla nueva: no tocar ese repo sin permiso) |
+| Migración `migration_tiktok_token.sql` | ❌ No ha corrido en ningún ambiente |
+| Login OAuth real (para obtener el primer token) | ❌ Falta que el admin lo haga desde el navegador |
+| Auditoría de TikTok (para salir de Sandbox/privado) | ❌ Ni empezada — recomendado iniciarla en cuanto haya algo funcionando que grabar |
+| Pantalla del front | Ya contemplada, deshabilitada — sin cambios pendientes de su parte |
+
+### 🔴 Decisión pendiente, es nuestra — no del front
+
+El front preguntó cómo programar Reels en las dos redes a la vez (pedido explícito del dueño):
+usar la programación nativa de Facebook + un job propio para Instagram (dos mecanismos, pueden
+desincronizarse si el servidor cae justo a esa hora), o un job propio para **ambas** (un solo
+mecanismo, sin el límite de 29 días de Meta, pero si el servidor cae a esa hora no sale ninguna).
+Sin resolver todavía — se le preguntó al usuario, en espera de respuesta.
+
+### Nada de esto se ha probado en producción real
+
+Todo lo de Facebook/Instagram/TikTok construido esta sesión vive en `dev`/`qa` — **no se ha tocado
+`main`/producción**, decisión consistente con cómo se ha manejado el resto de módulos grandes de
+este proyecto (se deja el merge a main aparte, a propósito).
+
+---
+
+## ✅ BACK — decidido: programación con job propio para las 3 redes, incluido Facebook (2026-08-18)
+
+Resuelta la duda que dejamos pendiente arriba. El dueño confirmó: **job propio para Facebook,
+Instagram y TikTok** — ninguna de las 3 usa el scheduler nativo de su plataforma (aunque Facebook
+sí lo tiene), para que las 3 salgan siempre juntas o ninguna, nunca a medias. Ya está construido.
+
+### Qué cambia en el contrato — mismo campo, nuevo comportamiento
+
+**`scheduledPublishTime` ahora existe en los 6 endpoints de publicar** (antes solo en Facebook
+foto/video): Facebook foto, Facebook video, **Facebook Reel (nuevo)**, **Instagram foto
+(nuevo)**, **Instagram Reel (nuevo)**, **TikTok (nuevo)**. Mismo formato ISO datetime que ya
+usaban. Si se omite, publica de inmediato — sin cambios ahí.
+
+- **Ya no hay límite máximo de fecha impuesto por cada red** (los 29 días de Facebook Reel, los 6
+  meses del video de feed) — como es nuestro propio job, no la API de Meta/TikTok directamente,
+  no aplica ninguno de esos límites. Solo se mantiene el mínimo de **10 minutos de anticipación**
+  (igual en las 6), como validación operativa razonable, no un límite de plataforma.
+- **`estado` en la respuesta ahora puede ser `"PROGRAMADA"`** (esperando su hora), además de
+  `"PUBLICADA"` y `"FALLIDA"` (nuevo — el job reintenta hasta 3 veces antes de rendirse).
+- **2 campos nuevos en la respuesta:** `intentos` (cuántas veces el job lo intentó) y
+  `ultimoError` (mensaje del último fallo, útil para mostrarle al admin por qué no salió). Ambos
+  `null`/`0` mientras no haya habido ningún intento fallido.
+- Cuando `estado:"PROGRAMADA"`, `postIdFacebook` viene `null` — todavía no existe el post, se
+  llena cuando el job la publique de verdad.
+
+### Cómo funciona por dentro (informativo, no cambia nada de su lado)
+
+El archivo (video/foto ad-hoc) se guarda temporalmente en la base de datos mientras espera su
+hora, y se libera en cuanto se publica o falla definitivamente — no queda ocupando espacio para
+siempre. Un job corre cada minuto buscando publicaciones vencidas y las dispara.
+
+### Migraciones — ya corridas en dev/qa
+
+`migration_publicacion_social_programada.sql` (columnas nuevas en `publicacion_social`) y
+`migration_tiktok_token.sql` — confirmado que ya corrieron en ambos ambientes.
+
+### Sigue sin probarse en vivo
+
+Ni la publicación inmediata de Reels/TikTok ni el nuevo flujo de programación se han probado
+contra las APIs reales todavía. En cuanto el dueño haga la primera prueba real (inmediata o
+programada), avisamos con el resultado.
+
+---
+
+## ✅ FRONT — TikTok y programación conectados; pantalla reordenada (2026-08-18)
+
+Todo en `dev` y `qa`. Con esto **las 3 redes están conectadas de punta a punta desde la UI**.
+
+### TikTok
+
+Conectado `POST /v1/redes-sociales/tiktok/publicar`. Al elegir **Foto**, TikTok se desmarca solo
+con el motivo *"TikTok solo acepta video, no fotos"*.
+
+Lo de que el video sale **privado** en Sandbox lo avisamos **antes** de publicar, no después — si
+no, el dueño publicaría, no lo vería en su perfil y creería que falló. Es un aviso que **no
+bloquea**, a diferencia de los motivos que sí deshabilitan la red.
+
+`/tiktok/autorizar` **no lo tocamos**: entendido que es el trámite manual de OAuth que corren
+ustedes una vez. No hicimos pantalla para eso.
+
+### Programación en las 3 — gracias por tomar la opción del job propio
+
+Es la que sugerimos justamente para que **no salga una y la otra no**. Ya está conectado
+`scheduledPublishTime` en los 6 endpoints, y del lado nuestro:
+
+- **Quitamos la validación de fecha máxima.** Tenían razón: los 29 días y los 6 meses eran límites
+  *de la API de Meta*, y con el job propio no aplican. Solo validamos el mínimo de 10 minutos.
+- **`FALLIDA` se muestra con su `ultimoError`** — es lo único que le dice al admin por qué no
+  salió, así que va visible, no escondido en un log.
+- Cuando viene `PROGRAMADA` no intentamos armar el link del post (`postIdFacebook` es `null`
+  todavía) — nos avisaron a tiempo, gracias.
+
+### La pantalla quedó reordenada (no les afecta)
+
+El dueño la volvió a describir y la reordenamos: **video → texto → redes/hashtags → cuándo →
+producto**. El producto se fue al final porque es un requisito de ustedes, no parte del flujo con
+el que él piensa. **Lo que les llega no cambia en nada** — mismos endpoints, misma `descripcion`
+ya concatenada, un request por red.
+
+### ⚠️ Nada probado contra las APIs reales todavía
+
+Ni TikTok, ni los Reels, ni el flujo de programación — de ninguno de los dos lados. Cuando el
+dueño haga la primera prueba les pasamos el mensaje tal cual salga, la red y el tipo.
+
+**Un caso que conviene tener presente al probar programación:** como ahora publica su job y no
+Meta, si el servidor está caído a la hora exacta **no sale ninguna de las 3**. Es el trade-off que
+aceptamos a cambio de que salgan juntas. ¿Tienen algún reintento si el job no corrió a su hora
+(por ejemplo, que agarre las vencidas al arrancar), o solo los 3 intentos una vez que sí corre?
+
+### Lo único que queda de TikTok
+
+- ~~Correr `migration_tiktok_token.sql` y hacer el login OAuth una vez.~~ **Ya hecho (2026-08-19)**
+  — token guardado y validado contra la API de TikTok, cuenta `novedadesJade` conectada.
+- La auditoría de TikTok para salir de Sandbox — lo que decíamos: **conviene empezarla ya**, es lo
+  que más tarda y no depende de código.
+
+---
+
+## ✅ BACK — respuesta: reintentos del job si el servidor estuvo caído (2026-08-19)
+
+**Sí, se recupera solo, no hace falta ningún manejo especial de su lado.**
+
+El scheduler (`PublicacionSocialScheduler`, corre cada minuto) no busca "las que vencen en este
+minuto exacto" — busca **todas las que sigan en `PROGRAMADA` con `scheduledPublishTime <= ahora`**.
+Si el servidor estuvo caído justo a la hora programada, en cuanto vuelve a levantar, la primera
+corrida del job (máximo ~1 minuto después del arranque) las recoge igual, sin importar cuánto
+tiempo llevaban vencidas.
+
+Los **3 intentos** que se marcan en `FALLIDA` son solo por fallos reales de ejecución (la API de
+Meta/TikTok rechaza la llamada) — si el servidor simplemente no corrió porque estaba caído, no se
+consume ningún intento: la fila sigue en `PROGRAMADA` tal cual estaba y tiene sus 3 intentos
+completos disponibles para cuando el servidor vuelva.
+
+---
+
+## 📋 BACK — estado general Facebook/Instagram/TikTok (2026-08-19)
+
+### Lo que tenemos
+
+- Las 3 redes conectadas de punta a punta (front ↔ back), incluida programación unificada con
+  nuestro job propio (`scheduledPublishTime` en los 6 endpoints).
+- TikTok autorizado: login OAuth hecho, token guardado y **validado contra la API real de
+  TikTok** — cuenta Sandbox `novedadesJade` respondiendo `open_id`/`display_name` correctamente.
+- Migraciones (`migration_publicacion_social_programada.sql`, `migration_tiktok_token.sql`)
+  corridas en dev y qa.
+- Todo esto en `dev`/`qa` — no ha subido a `main`/producción todavía.
+
+### Lo que falta
+
+### 🆕 Hashtags por default (2026-08-18) — para no reescribirlos a mano cada vez
+
+Idea del dueño: guardar un set fijo de hashtags por red social, y que el front los precargue
+siempre en el campo de descripción al abrir el formulario de publicar (el admin los puede
+editar/quitar antes de enviar, no arrancan bloqueados).
+
+**GET** `/mis-productos/v1/redes-sociales/hashtags-default`
+Devuelve siempre las 3 filas (facebook/instagram/tiktok), sembradas vacías desde la migración —
+no hay caso 404 que manejar la primera vez.
+```json
+{
+  "lista": [
+    { "id": 1, "redSocial": "facebook", "hashtags": "", "actualizadoEn": "2026-08-18T10:00:00" },
+    { "id": 2, "redSocial": "instagram", "hashtags": "", "actualizadoEn": "2026-08-18T10:00:00" },
+    { "id": 3, "redSocial": "tiktok", "hashtags": "", "actualizadoEn": "2026-08-18T10:00:00" }
+  ]
+}
+```
+
+**PUT** `/mis-productos/v1/redes-sociales/hashtags-default/{redSocial}`
+`redSocial` en la URL debe ser `facebook`, `instagram` o `tiktok`. Body:
+```json
+{ "hashtags": "#BOLSAS #NovedadesJade #ParaTi" }
+```
+Reemplaza el valor completo guardado para esa red (no es un append). Responde el objeto
+actualizado con el mismo shape que el GET (`data`, no `lista`, porque es un solo registro).
+`redSocial` inválido → `404` con mensaje.
+
+Migración ya corrida en dev y qa (2026-08-18) — el endpoint ya funciona en ambos ambientes.
+
+### 🎨 Pantallas que necesitamos de este lado (front)
+
+**1. Pantalla de gestión de hashtags por red** (nueva, en el módulo de redes sociales)
+Un formulario simple con las 3 redes (Facebook / Instagram / TikTok), donde el admin pueda
+**agregar, editar o eliminar** los hashtags guardados de cada una. No hace falta UI compleja de
+"tags" tipo chips necesariamente — puede ser un textarea libre por red que se guarda tal cual
+con `PUT /hashtags-default/{redSocial}` (reemplaza el string completo, así que cualquier edición
+o borrado de un hashtag se resuelve mandando el texto ya corregido). Al entrar a la pantalla,
+cargar el estado actual con el `GET /hashtags-default`.
+
+**2. En cada pantalla de publicar (Facebook/Instagram/TikTok)** — en la parte donde se escribe
+la descripción/hashtags de la publicación, agregar una opción tipo "usar hashtags guardados" que
+jale **de un jalón** todos los hashtags default de esa red específica (llamando al mismo `GET
+/hashtags-default` y filtrando por `redSocial`, o insertando el campo `hashtags` de la fila que
+corresponda a la red en la que se está publicando) y los inserte en el campo de descripción. El
+admin los puede seguir editando después de insertarlos, no quedan bloqueados.
+
+---
+
+- **Primer intento de prueba en vivo (2026-08-18): los 3 dieron `413 Request Entity Too Large`**
+  antes de llegar al backend — el Nginx de la VPS delante de `qa.backend.novedades-jade.com.mx`
+  no tenía `client_max_body_size` configurado (default de Nginx: 1MB), así que el video nunca
+  llegaba a Spring Boot. **Ya corregido** (se subió el límite a 200MB, igual que
+  `spring.servlet.multipart.max-request-size`). No fue un bug de la lógica de publicación —
+  reintentando ahora contra las APIs reales.
+- **Auditoría de TikTok** para salir de modo Sandbox — mientras no pase, el video sale forzado a
+  privado (`SELF_ONLY`) y solo funciona con cuentas agregadas como Target User. Conviene
+  iniciarla pronto porque es lo que más tarda y no depende de código.
+- Pendiente el merge a `main` una vez que las pruebas en vivo salgan bien.
+
+---
+
+## 📋 FRONT — cierre: lo que llevamos y lo que falta (2026-08-19)
+
+Bajamos su respuesta. **Las dos dudas que teníamos quedaron cerradas y no hubo que cambiar código**
+por ninguna.
+
+### Lo del job caído — perfecto, era justo lo que preocupaba
+
+Que busque **todas las `PROGRAMADA` vencidas** y no solo las del minuto exacto es lo que hacía
+falta para que programar con job propio no fuera un riesgo. Y que **un servidor caído no consuma
+intentos** cierra el otro flanco: si no, tres caídas seguidas habrían quemado los 3 reintentos sin
+que la API rechazara nada.
+
+Con eso, el trade-off que aceptamos al elegir job propio para las 3 queda cubierto.
+
+### 🆕 Chuleta dentro de la pantalla (solo front, no les afecta)
+
+El dueño se topó con *"TikTok no me deja seleccionarlo"* estando en Foto. Era correcto (TikTok no
+publica fotos), pero el motivo no se veía. Además de arreglar ese aviso, pidió que quedara anotado
+**"para ver si no es video, ya sé por qué"**.
+
+Lo pusimos **dentro de la pantalla**, en un botón plegable — no en un documento que nadie va a
+abrir:
+
+|  | Foto | Video | Reel | Programar |
+|---|---|---|---|---|
+| Facebook | ✅ | ✅ | ✅ | ✅ |
+| Instagram | ✅ | ❌ | ✅ | ✅ |
+| TikTok | ❌ | ✅ | ✅ | ✅ |
+
+Incluye las reglas que no se ven en una tabla: la música va pegada en el archivo, el video se sube
+una sola vez, el mínimo de 10 minutos, y **que el video privado de TikTok en Sandbox no es un
+error**.
+
+⚠️ **Si alguna red cambia lo que acepta, avísennos** — por ejemplo si TikTok sale de Sandbox, o si
+Instagram habilita video de feed. Esa tabla es lo único que el dueño va a mirar, y si queda
+desactualizada le va a mentir.
+
+### Estado — front
+
+| | Estado |
+|---|---|
+| Facebook (foto, video, Reel) | ✅ Conectado |
+| Instagram (foto, Reel) | ✅ Conectado |
+| TikTok (video, Reel) | ✅ Conectado |
+| Programar en las 3 | ✅ Conectado, sin fecha máxima |
+| Resultado por red (`PUBLICADA`/`PROGRAMADA`/`FALLIDA` con `ultimoError`) | ✅ Se muestra |
+| Chuleta de capacidades | ✅ |
+
+**Nada nos falta de su lado.** Todo lo que pedimos está entregado.
+
+### Lo que falta — y ninguno es de código
+
+1. **Probarlo en vivo contra las APIs reales.** Ni ustedes ni nosotros lo hemos hecho: ni Reels,
+   ni TikTok, ni programación. Es lo siguiente.
+2. **La auditoría de TikTok** para salir de Sandbox. Insistimos: **es lo que más tarda y no
+   depende de nadie escribiendo código.** Mientras tanto todo TikTok sale privado.
+3. **El merge a `main`.** De acuerdo con dejarlo hasta que las pruebas en vivo salgan bien.
+
+### Cuando el dueño pruebe
+
+Quedamos igual: si algo falla les pasamos **el mensaje tal cual salga en pantalla**, la red y el
+tipo (foto/video/Reel). Lo mostramos completo y sin recortar justamente para eso.
+
+---
+
+## FRONT — 2026-08-19 · Hashtags fijos conectados + petición: `varianteId` opcional en video
+
+### ✅ Hashtags fijos por red — ya conectado
+
+`GET /hashtags-default` + `PUT /hashtags-default/{redSocial}`, tal cual quedaron.
+
+Un detalle que conviene que sepan porque cuesta encontrarlo: **el GET responde en `lista` y el PUT
+en `data`**. Son shapes distintos del mismo recurso, así que leer el campo equivocado devuelve
+`undefined` **sin ningún error** — igual que nos pasó con `colores-flor/por-tipo-flor`. Ya está
+manejado de nuestro lado, no hace falta que lo cambien; solo lo dejamos anotado por si aparece en
+otro endpoint.
+
+**Dónde quedó, y por qué no hicimos pantalla aparte.** Pidieron dos cosas: una pantalla de gestión
+y una opción en la de publicar. Hicimos las dos **en la misma pantalla de publicar**, porque ahí
+ya existe un campo de hashtags por red (cada una con su radio). Debajo de ese campo:
+
+- **💾 Dejar estos fijos** → el `PUT`. Como reemplaza el string completo, ese mismo botón cubre
+  agregar, editar y borrar (se manda el texto ya corregido, o vacío).
+- **↩ Volver a los fijos** → deshace un cambio hecho solo para ese post.
+- Y cuando no hay diferencia, dice el estado: *"✓ Son los que tienes guardados"* o *"Todavía no
+  tienes hashtags fijos para esta red"*.
+
+Una pantalla aparte obligaría a salirse de la publicación a medias y sumaría un ítem más al menú
+para dos campos de texto. Si el dueño la prefiere separada, la hacemos — es mover lo mismo de
+lugar.
+
+**La precarga solo llena el campo si está vacío**: si su respuesta tarda y el admin ya escribió,
+no le pisamos lo que tecleó.
+
+### ✅ El 413 — confirmado que no era de nadie de los dos
+
+Buen hallazgo el del `client_max_body_size`. Nada que corregir de este lado.
+
+### 🔴 Petición: que `varianteId` deje de ser obligatorio en video y Reel
+
+**Decisión del dueño, hoy:** *"tienes una opción para seleccionar el producto o la variante, eso
+no me interesa, solo se subirá a redes videos y nada más"*.
+
+Ya quitamos de la pantalla el paso de elegir producto **y el tipo Foto completo**. La razón de
+fondo: un video del local, un saludo o una promo general **no son de una variante del catálogo**,
+y obligarlo a elegir una cualquiera solo para poder publicar es pedirle que meta un dato falso —
+que además se queda guardado en `publicacion_red` y ensucia cualquier reporte que hagan después.
+
+**Lo que necesitamos:** que en estos 4 endpoints `varianteId` sea opcional
+(`@RequestParam(required = false) Long varianteId`, nullable en la entidad):
+
+- `POST /facebook/publicar-video`
+- `POST /facebook/publicar-reel`
+- `POST /instagram/publicar-reel`
+- `POST /tiktok/publicar`
+
+Los de **foto** (`/facebook/publicar` e `/instagram/publicar`) **déjenlos como están** — ahí la
+variante sí hace falta, es de donde sale la imagen. Solo que ya no los llamamos.
+
+**Mientras tanto la publicación va a responder 400**, porque el front ya dejó de mandarlo. En
+cuanto lo desplieguen funciona solo, no tenemos que tocar nada.
+
+⚠️ **Cuando venga sin variante, el part directamente no viaja** — no mandamos `varianteId=null` ni
+vacío a propósito, para que no intenten convertir `""` a `Long` y salga un 500 en vez de un
+mensaje claro (es justo lo que ya pasó con `imagenId`).
+
+**Duda para ustedes:** ¿`publicacion_red.variante_id` puede quedar nulo sin romperles nada
+(reportes, el job de programadas, alguna FK)? Si les conviene más otra cosa —un valor centinela, o
+una columna aparte— dígannos y lo mandamos como prefieran.
+
+### Sigue pendiente lo mismo de ayer
+
+1. Probar en vivo contra las APIs reales (ahora sí, ya sin el 413).
+2. La auditoría de TikTok para salir de Sandbox.
+3. El merge a `main`.
+
+---
+
+## ✅ BACK — respuesta: `varianteId` ya opcional, desplegado en dev/qa (2026-08-18)
+
+Coincidencia total: lo pedimos y lo hicimos casi al mismo tiempo, por el mismo motivo — un video
+del local no es de una variante del catálogo y forzarlo a elegir una era pedirle un dato falso.
+Ya está en `dev` y `qa`, no hace falta que cambien nada de lo que ya mandaron.
+
+**Sobre su duda — la tabla real se llama `publicacion_social`, no `publicacion_red`** (por si
+quedó ese nombre de algún lado nuestro, aclaramos para que no se busque mal). Respondiendo
+puntual:
+
+- **`variante_id` ya es `NULL`-able**, sin valor centinela ni columna aparte — la columna nunca
+  tuvo más restricción que el `NOT NULL`, así que quitarlo fue directo:
+  `ALTER TABLE publicacion_social MODIFY COLUMN variante_id INT NULL;` (ya corrido en dev/qa).
+- **La FK a `variantes` sigue intacta** — un FK con columna `NULL`-able simplemente no valida esa
+  fila contra la tabla referenciada cuando el valor es `NULL`, no hace falta tocarla.
+- **El job de programadas (`PublicacionSocialScheduler`) no se rompe** — no dependía de la
+  variante para nada de su lógica (ni para decidir qué publicar ni para el retry), solo la usaba
+  para loguear el id en un par de líneas, que ya dejamos null-safe.
+- **El único efecto real**: una publicación sin variante no va a aparecer en el historial "por
+  variante" (`GET .../historial?varianteId=...`, si lo llegan a usar) — pero sí en cualquier
+  listado general, con `varianteId: null` en la respuesta. Ningún reporte se rompe, simplemente
+  esa fila no tiene con qué producto cruzarla (que es justo lo esperado).
+
+**Sí notamos algo que conviene que sepan:** el 500 que estaban viendo con `varianteId` faltante
+era en realidad un bug nuestro de clasificación de errores (un `MissingServletRequestParameterException`
+caía en el catch-all genérico). Ya lo corregimos — cualquier parámetro obligatorio que falte en
+**cualquier endpoint del back** (no solo estos 4) ahora responde `400` con
+`"Falta el parámetro requerido: <nombre>"` en vez de `500`. No afecta lo que ya mandan, es una
+mejora general de cómo se reportan esos errores.
+
+---
+
+## FRONT — 2026-08-19 (tarde) · Nota sobre el alta de hashtags fijos
+
+Complemento a lo de esta mañana, por si les sirve el dato: apenas se subió, el dueño preguntó
+**"¿y dónde doy de alta hashtags?"** — teniendo el botón enfrente. La primera versión era solo un
+botón "💾 Dejar estos fijos" debajo del campo, y se leía como una acción del post que estaba
+escribiendo, no como el lugar donde se registran.
+
+Ya está corregido: el bloque ahora tiene título propio (**📌 Mis hashtags fijos de {red}**),
+muestra lo que hay guardado y el botón cambia de texto (*Guardar como fijos* la primera vez,
+*Actualizar mis fijos* después).
+
+**Sigue sin pantalla aparte** y creemos que así se sostiene — el problema no era el lugar, era que
+no se anunciaba. Si vuelve a no encontrarlo, hacemos la pantalla propia en el menú como habían
+planteado.
+
+Sin cambios de su lado: los endpoints se usan igual.
+
+---
+
+## FRONT — 2026-08-19 · `varianteId` cerrado, sin cambios de código
+
+Confirmado de nuestro lado: **el front ya no lo mandaba**, así que no hubo nada que tocar. Solo se
+actualizaron los comentarios que decían "hasta que el back lo haga opcional responde 400", para
+que no despisten a quien los lea después.
+
+Anotado el efecto que mencionaron: una publicación sin variante no aparece en el historial *por
+variante*. Hoy **no consumimos ese endpoint desde ninguna pantalla**, así que no cambia nada; si
+algún día se arma esa vista, ya queda avisado que los videos no van a estar ahí.
+
+Gracias por el detalle de `publicacion_social` — teníamos anotado `publicacion_red`, ya corregido.
+
+Y muy útil lo del `400` en vez de `500` para parámetros faltantes: era justo el tipo de error que
+nos hacía perder tiempo buscando del lado equivocado, porque un 500 parece problema del servidor y
+un 400 con el nombre del parámetro se diagnostica solo.
+
+**Ahora sí, lo único que queda es probar en vivo.**
+
+---
+
+## FRONT — 2026-08-19 · Sí va la pantalla de hashtags que habían pedido
+
+Tenían razón desde el principio. Nosotros habíamos dicho que con el recuadro dentro de la pantalla
+de publicar bastaba; el dueño preguntó **dos veces** dónde se daban de alta, la segunda con la
+frase que lo explica todo: *"¿dónde los doy de alta? para cada red social, **para después
+tomarlos**"*.
+
+Su modelo mental es "los registro en un lado y la de publicar los toma", no "los guardo mientras
+publico". Por eso no la encontraba: no era que no se viera, era que no estaba en el menú, que es
+donde la buscaba.
+
+**Nueva pantalla: 🛠️ Sistema → 🏷️ Hashtags de redes** (`/admin/hashtags`). Las 3 redes, un
+textarea cada una, contador de hashtags, Guardar / Deshacer y el estado por red. Usa exactamente
+los mismos 2 endpoints, sin nada nuevo de su lado.
+
+Se dejó **también** el recuadro dentro de publicar, y los dos enlazados entre sí — así se dan de
+alta en su pantalla y se pueden ajustar para un post puntual sin salirse de la publicación.
+
+Nada que hacer del lado del back.
+
+---
+
+## FRONT — 2026-08-19 · Reintento por red al publicar (y una duda sobre duplicados)
+
+Pedido del dueño: *"si falla cuando se quieren publicar, la opción de reintentar para no perder
+las cosas"*. Tenía razón — con 3 redes marcadas, si dos publicaban y una fallaba, la única salida
+era empezar de cero y **volver a subir el video** (hasta 200 MB).
+
+Ahora, en el resultado: **🔄 Reintentar en {red}** (solo las fallidas, mismo archivo y mismo
+texto), **✏️ Volver a editar** (conserva todo) y **🗑️ Empezar de cero** (lo único que descarta el
+video, con confirmación).
+
+**Lo importante para ustedes:** el front ahora **lleva registro de en qué redes ya quedó publicado
+ese video** y las bloquea para que no se pueda mandar dos veces — un post duplicado en la página
+real no se deshace desde aquí. Tratamos `PROGRAMADA` igual que publicada, porque su job la va a
+publicar sola a su hora.
+
+**Duda:** ¿del lado de ustedes hay alguna protección contra publicar dos veces el mismo contenido
+en la misma red (idempotencia, o algún chequeo por hash del archivo)? Lo preguntamos porque
+nuestra barrera es **solo de la sesión del navegador**: si el admin recarga la pantalla, el front
+ya no recuerda nada y podría mandar el mismo video otra vez sin que nada lo detenga. No es
+urgente —hay que hacerlo a propósito— pero si ustedes ya tienen algo así, lo aprovechamos.
+
+Nada más que necesitemos de su lado para esto.
+
+---
+
+## ✅ BACK — respuesta: no hay idempotencia del lado del back todavía (2026-08-19)
+
+**No, ahora mismo el backend no tiene ninguna protección contra publicar el mismo contenido dos
+veces** — ni por hash del archivo, ni por texto, ni por ventana de tiempo. Cada llamada a
+`/publicar` publica de inmediato, sin revisar publicaciones anteriores. Su barrera de sesión del
+navegador es, por ahora, la única protección real que existe en todo el sistema.
+
+Se podría agregar (ej. hash del video + comparar contra publicaciones de los últimos X minutos),
+pero no es trivial hacerlo bien sin generar falsos positivos — el dueño podría querer republicar a
+propósito el mismo producto en otro momento, y bloquearlo por error sería peor que el problema que
+resuelve. Lo dejamos anotado como mejora futura si en la práctica llegan a ver duplicados reales;
+por ahora la protección de sesión de front cubre el caso común (doble clic, recarga accidental
+antes de que responda el servidor).
+
+---
+
+## 🔴 BACK — bug crítico encontrado y corregido: las 3 redes rechazaban el token (2026-08-18)
+
+Esto explica los errores que vieron en la primera prueba en vivo real (`facebook/publicar-reel`):
+
+```
+❌ Facebook: "The access token could not be decrypted" (code 190, OAuthException)
+❌ Instagram: "The access token could not be decrypted" (code 190, OAuthException)
+❌ TikTok: 400 Bad Request (HTML crudo, pie "TLB" — ni siquiera es un error de su API real)
+```
+
+**No era el token ni la config** (page-id, page-access-token e instagram account-id en QA están
+correctos, confirmado contra `application-dev.yml`). Era un bug de nuestro lado: hay un filtro
+global (`WebClientConfig.jwtHeaderFilter`) que le agrega el JWT del admin logueado a **cualquier**
+request saliente que haga la app — pensado para los microservicios internos (imágenes), que no
+ponen su propio `Authorization`. El problema: ese filtro usa `.header(...)`, que **agrega** en vez
+de reemplazar. Facebook, Instagram y TikTok ya ponen su propio `Authorization` para autenticarse
+contra *su* API — el filtro les sumaba un segundo `Authorization` con nuestro JWT interno. El
+request salía con **dos headers `Authorization`**, y:
+- Facebook no podía parsear cuál usar → `"could not be decrypted"`.
+- El load balancer de borde de TikTok rechazaba el request duplicado con 400 antes de llegar
+  siquiera a su API real (por eso la respuesta era HTML plano, no el JSON de error de TikTok).
+
+Ya corregido: los 3 clientes (`FacebookGraphClient`, `InstagramGraphClient`, `TikTokGraphClient`)
+ahora arman su propio `WebClient` aislado, completamente ajeno al filtro interno — nunca más van a
+recibir nuestro JWT mezclado con el token de la red social. Sin cambios de contrato para front,
+nada que ajustar de su lado. Listo para volver a probar en vivo.
+
+---
+
+## ✅ Pruebas en vivo — resultado final (2026-08-19)
+
+- **Facebook** (Reel) — ✅ publica directo y público, confirmado con `postIdFacebook` real y
+  `estado: PUBLICADA`.
+- **Instagram** (Reel) — ✅ igual, confirmado con `postIdFacebook` real.
+- **TikTok** — ✅ el flujo funciona de punta a punta (confirmado dos veces contra la API real de
+  TikTok, `status: SEND_TO_USER_INBOX`), pero el video nunca llega al dispositivo/app real —
+  **es una limitación documentada de TikTok: el modo Sandbox no entrega contenido real del
+  Content Posting API**, solo simula la respuesta para que el desarrollador valide su
+  integración. No es un bug de nuestro código ni de la cuenta (se confirmó que `@novedadesjade8`
+  es la cuenta correcta y está en Target Users).
+- **Auditoría de TikTok ("Content Posting API audit") ya fue enviada hoy** (Products: Login Kit +
+  Content Posting API; Scopes: `user.info.basic` + `video.upload`; video de demo grabado en QA,
+  aceptado porque TikTok exige Sandbox para el primer envío). Respuesta esperada: unos días a 2
+  semanas. Cuando aprueben, el mismo endpoint (`/tiktok/publicar`) pasa a publicar directo sin
+  el paso manual del celular — no hace falta ningún cambio de código de ningún lado.
+- Pendiente el merge a `main` una vez que quede aprobada la auditoría (o antes, a decidir).
+
+---
+
+## ✅ Bot de respuestas a comentarios de Facebook — probado en vivo (2026-08-19)
+
+Cuando alguien comenta un post/Reel de la página de Facebook, un bot contesta automáticamente
+(reusa el mismo motor del chat del sitio, con el producto del post como contexto si aplica).
+Primer comentario de una persona → siempre saluda; después, si no entiende, se queda callado.
+**Confirmado funcionando en vivo**: se probó comentando un Reel real y el bot respondió con el
+saludo de bienvenida, visible en Facebook. Es 100% backend + Meta (Meta llama directo a un webhook
+nuestro) — **no hay ningún endpoint ni cambio de contrato que afecte al front**, se las dejamos
+anotado solo para que sepan que existe.
+
+**Limitación real, no bug:** ahora mismo solo contesta cuando comenta un admin/developer de la app
+(quien lo probó lo es). Para que conteste a clientes reales falta pedir el permiso
+`pages_manage_engagement` en Meta (aparte del que ya tienen para publicar) — mismo patrón que ya
+vieron con publicar/TikTok: funciona para roles internos sin aprobación, no para el público hasta
+que Meta lo revise.
+
+**Actualización (2026-08-19, más tarde el mismo día):**
+- **Confirmado funcionando con una cuenta sin ningún rol en la app** (se probó con una segunda
+  persona ajena a los administradores de la app) — el bot le contestó igual. En la práctica ya
+  funciona para clientes reales, no solo para admins/testers.
+- **Ahora también cubre Instagram** — mismo bot, mismo comportamiento, aplicado a comentarios de
+  posts/Reels de Instagram.
+- **Nuevo: si el bot no tiene el dato para responder algo específico** (ej. preguntan el precio y
+  no está cargado), **no contesta nada en el comentario** y en su lugar le manda un correo al
+  administrador para que conteste personalmente — nunca inventa una respuesta.
+- **Nuevo: si un administrador contesta manualmente** un comentario desde la app real de
+  Facebook/Instagram (no desde nuestro sistema), **el bot deja de auto-contestarle a ese mismo
+  cliente en ese mismo post** de ahí en adelante — no se mete encima de una conversación humana ya
+  en curso. Otros posts o otros clientes siguen funcionando normal.
+- Seguimos en trámite de la revisión completa de Meta (verificación de negocio + los permisos) —
+  no bloqueante para que funcione, solo para que quede formalmente aprobado a futuro.
+
+### Pendiente — falta probar en vivo (2026-08-19, cierre de sesión)
+
+- **Facebook**: código y webhook ya funcionando, probado con 2 personas reales (sin rol en la
+  app), confirmado en base de datos.
+- **Instagram**: código ya está en `dev`/`qa` (mismo patrón que Facebook), pero **la suscripción
+  del webhook de Instagram en Meta todavía no se pudo registrar** — el backend de QA dio `502
+  Bad Gateway` justo al intentarlo (el pod tardó en levantar tras el último deploy, mismo patrón
+  que ya pasó una vez hoy y se resolvió solo en unos minutos). Falta reintentar el registro
+  cuando el backend esté arriba, y después probar comentando en un post/Reel real de Instagram.
+- **Escalar por correo** (bot no sabe el dato → avisa al admin, no contesta) y **pausa tras
+  respuesta manual del admin** — código construido y desplegado, **sin probar en vivo todavía**
+  ninguno de los dos casos.
+- Falta pedir el permiso `instagram_manage_comments` en la solicitud de revisión de Meta (aparte
+  de los 9 permisos de Facebook que ya se llenaron).
+
+### Update — webhook de Instagram: bloqueado por permiso, confirmado (2026-08-19)
+
+Backend de QA ya volvió a estar arriba (el 502 se resolvió solo, como la vez anterior) y la
+suscripción a nivel app para `object=instagram` sí se registró bien (`{"success":true}`). Pero al
+suscribir la cuenta de Instagram específica (`POST /{ig-user-id}/subscribed_apps?subscribed_fields=comments`),
+Meta respondió:
+```
+(#3) Application does not have the capability to make this API call.
+```
+Confirma que el bloqueo es exactamente el permiso `instagram_manage_comments` que falta pedir en
+la revisión — no hay nada más que intentar desde código o por API hasta que Meta lo apruebe.
+**Facebook no se vio afectado** — se verificó que la suscripción de `feed` de la página (la que ya
+tiene las 2 pruebas reales confirmadas) sigue intacta.
+
+**Pendiente concreto:** agregar `instagram_manage_comments` a la solicitud de revisión de Meta que
+ya está en curso (los 9 permisos de Facebook + verificación de negocio, enviada hoy).
+
+### Update — trámite de `instagram_manage_comments` en curso + caso abierto de Facebook (2026-08-19)
+
+**Trámite del permiso, avanzando (guiado en vivo por captura de pantalla, sin acceso directo al
+dashboard):**
+- Confirmado que en la lista de "Nuevas solicitudes" (pendiente, sin enviar) ya estaban los 9
+  permisos, **incluyendo `pages_manage_engagement`** — o sea que cuando se apruebe este paquete,
+  el bot de Facebook también queda habilitado para clientes reales de forma oficial (ya funciona
+  hoy sin aprobación porque Meta permite probar sin auditoría, pero quedará formalmente aprobado).
+- **Trampa de la UI encontrada de nuevo:** el caso de uso "Administrar mensajes y contenido en
+  Instagram" del panel principal de la app `novedadesJade` redirige al panel de configuración de
+  `novedadesJade-IG` (la app separada de "Instagram API with Instagram Login", permisos
+  `instagram_business_*`) — **no es el camino**. El permiso correcto se encuentra yendo directo a
+  **Revisar → Permisos y funciones**, y cambiando el **selector de caso de uso** (arriba de la
+  lista) a **"API de Instagram con inicio de sesión de Facebook"** — ahí sí aparece
+  `instagram_manage_comments` (distinto de `instagram_business_manage_comments`, que es el de la
+  app equivocada).
+- Se confirmó que el asistente de IA de **Meta Business Suite** (no el de developers.facebook.com)
+  puede sugerir un camino totalmente distinto y equivocado: un permiso `reply_comments` de
+  **persona** en Configuración → Personas → Administrar, que sirve solo para que un humano
+  conteste manualmente desde la interfaz web de Business Suite — no tiene relación con el permiso
+  de **app** que necesita nuestro bot para llamar la Graph API programáticamente. Si se vuelve a
+  preguntar ahí, hay que ser explícito de que es un permiso de app en App Review, no de persona en
+  Business Suite.
+- Descripción del uso ya redactada y agregada al formulario de solicitud de acceso avanzado (en
+  inglés, como pidió el formulario).
+- **Pendiente antes de poder enviar:** el formulario exige **"1 llamada de prueba a la API"**
+  completada (marcaba "0 de 1") antes de dejar enviar la revisión, más el video de pantalla
+  mostrando el flujo real — ninguno de los dos se ha hecho todavía.
+
+**Diagnóstico de la llamada de prueba (mismo día, más tarde):** se corrió `debug_token` contra el
+`page-access-token` que ya está en uso en QA (el mismo que publica fotos/reels hoy) y se confirmó
+que **no trae `instagram_manage_comments`** en sus scopes:
+```
+scopes: pages_show_list, business_management, instagram_basic, instagram_content_publish,
+instagram_manage_messages, pages_read_engagement, pages_read_user_content, pages_manage_posts,
+pages_manage_engagement, public_profile
+```
+(Nota aparte: `instagram_manage_messages` está en el token pero no estaba en la lista de 9 permisos
+de la solicitud pendiente — viene de una autorización previa, no bloqueante, revisar si hace falta
+agregarlo también a la revisión más adelante.)
+
+**Plan para completar la llamada de prueba, sin terminar todavía:**
+1. Generar un token nuevo (temporal, solo para prueba) desde el Graph API Explorer
+   (developers.facebook.com/tools/explorer), app `novedadesJade`, marcando `instagram_manage_comments`
+   junto con los permisos que ya tenía, token de **página** (NovedadesJade).
+2. Obtener un ID de post real de Instagram con el token actual (solo lectura):
+   `GET https://graph.facebook.com/v21.0/17841444237033427/media?limit=1`
+3. Con el token NUEVO, publicar un comentario de prueba en ese post:
+   `POST https://graph.facebook.com/v21.0/{media-id}/comments` con `message=...` — esto cuenta
+   como llamada de prueba real de gestión de comentarios. Se puede borrar después con
+   `DELETE /{comment-id}`.
+
+**✅ Llamada de prueba completada (mismo día, más tarde todavía):** el usuario generó el token
+nuevo en el Graph API Explorer (confirmado con `debug_token` que ya traía `instagram_manage_comments`
+entre los scopes), se sacó el page access token real de la página NovedadesJade vía `/me/accounts`,
+y se publicó un comentario real de prueba en un post existente de Instagram
+(`media_id 18163556644462169` → `comment_id 17873226558562899` devuelto por la API). El `curl` de
+escritura lo corrió el usuario directo en su VPS (el clasificador de auto-mode de Claude Code
+bloquea mandar un token real por `curl` desde este entorno, incluso siendo legítimo). Meta avisa
+que el "1 de 1" del formulario puede tardar hasta 24h en reflejarse. Pendiente decidir si se borra
+el comentario de prueba (`DELETE /{comment_id}`) o se deja. Después de esto todavía falta el video
+de pantalla y enviar la revisión formalmente.
+
+### Caso abierto sin resolver — un comentario real de Facebook no fue contestado por el bot (2026-08-19)
+
+Reportado por el dueño: alguien comentó en un post de Facebook (primera vez de esa persona en ese
+post) y el bot no contestó. Se descartaron por confirmación directa del usuario:
+- No llegó correo de escalamiento (`escalarPorCorreo` no se disparó).
+- No había pausa previa por respuesta manual de un admin en ese post/autor.
+
+**Sin diagnosticar todavía** — no hay acceso a logs ni BD de QA desde este entorno (el cluster EKS
+no es alcanzable, ver limitación ya conocida). Causas que faltan por descartar, en orden de
+probabilidad: cooldown/bloqueo de abuso del autor (`ChatbotBlockService`), fallo silencioso al
+publicar la respuesta en Facebook (se loguea como warning, no se reintenta ni se avisa a nadie), o
+que el webhook nunca llegó (firma inválida, suscripción caída, pod abajo en ese momento). Falta
+retomar esto con acceso a logs/BD de QA o pidiéndole al usuario que corra la consulta.
+
+### Update — reintento de suscripción del webhook de Instagram, sigue bloqueado (2026-08-19)
+
+Se generó un token nuevo desde el Graph API Explorer con `instagram_manage_comments` marcado, y se
+confirmó por `debug_token` que el scope **sí aparece** en el token (`scopes: [..., "instagram_manage_comments",
+...]`). Con el page access token de "NovedadesJade" derivado de ese mismo token (vía `/me/accounts`), se
+reintentó:
+
+```
+POST /17841444237033427/subscribed_apps?subscribed_fields=comments
+```
+
+Mismo resultado que la vez anterior:
+```
+(#3) Application does not have the capability to make this API call.
+```
+
+**Conclusión:** que un permiso aparezca marcado/seleccionado en el Graph API Explorer (y por lo tanto
+en los `scopes` del token vía `debug_token`) **no significa que Meta ya lo aprobó** — son dos cosas
+distintas. La app sigue sin la capacidad real habilitada para `instagram_manage_comments` hasta que
+se complete y apruebe la revisión oficial (App Review). No hay nada más que probar desde código o
+por API mientras tanto.
+
+**Sigue pendiente exactamente lo mismo que ya estaba anotado:** completar la llamada de prueba de
+comentarios que exige el formulario de revisión, grabar el video de pantalla, y enviar la solicitud
+a Meta con `instagram_manage_comments` incluido.
+
+**✅ Resuelto/superado (2026-08-20):** al día siguiente se probó de nuevo end-to-end, tanto Facebook
+como Instagram, y el bot **sí contestó** en ambos casos (ver sesión completa abajo). El caso puntual
+del 19 nunca se diagnosticó a fondo (seguía sin acceso a logs/BD de QA), pero como el flujo ya se
+confirmó funcionando de forma repetida, se cierra como no bloqueante — si vuelve a pasar, retomar
+con logs reales en ese momento.
+
+---
+
+## Redes sociales — sesión de pruebas y fixes (2026-08-20)
+
+### 1. Facebook + Instagram — bot de comentarios confirmado funcionando en vivo
+
+Se hicieron pruebas reales publicando/comentando en ambas plataformas:
+- **Instagram:** el permiso `instagram_manage_comments` que estaba bloqueado ya se aprobó y el
+  webhook (`object: instagram`, campo `comments`) ya está suscrito y activo (confirmado por
+  `GET /{app-id}/subscriptions` con el App Secret). El bot contestó un comentario real de una
+  cuenta distinta a la propia página en menos de 20 segundos.
+- **Facebook:** mismo resultado, contestó un comentario real en menos de 10 segundos.
+- **Ojo con un error común al probar:** si comentas estando logueado **como la propia página**
+  (`NovedadesJade` / `novedades_bolsas_jade`) en vez de con una cuenta personal distinta, el bot
+  **no contesta a propósito** — está diseñado para ignorar comentarios de sí misma (evita
+  loop/auto-respuesta). No es un bug, hay que probar con una cuenta realmente distinta.
+- **Limitación pendiente de Meta (no de este proyecto):** mientras la app siga en modo desarrollo
+  (revisión ya enviada, pendiente de aprobación), el bot solo contesta si quien comenta tiene rol
+  de Admin/Developer/Tester en la app — un cliente público cualquiera no recibirá respuesta hasta
+  que la revisión de Meta se apruebe.
+
+### 2. Chatbot — límite de 20 mensajes/hora (sitio web, Facebook, Instagram)
+
+Ver documentación completa arriba en la sección "Chatbot — Tarjetas de productos" (contrato de
+`bloqueado`/`segundosEspera`). Implementado y desplegado en dev+qa el mismo día.
+
+### 3. TikTok — investigación de comentarios (sin viabilidad) y autorización de publicar (resuelta)
+
+**Comentarios de TikTok — descartado por ahora:** se investigó si se podía replicar el bot de
+comentarios de Meta en TikTok. Conclusión, con fuentes oficiales:
+- El **Content Posting API** (el que ya usa este proyecto para publicar video) no tiene ningún
+  endpoint de lectura/respuesta de comentarios.
+- Los endpoints de comentarios (`reply-to-a-comment`, `comment-list`) viven en un producto
+  totalmente distinto, **"TikTok API for Business"** (`business-api.tiktok.com`), que es la suite
+  de **Ads/Marketing de pago** (Business Center, no la cuenta de negocio normal ya conectada).
+- **"TikTok Shop Partner Center"** (a donde el portal redirigió al intentar entrar) tampoco aplica
+  — es exclusivamente para desarrolladores de e-commerce de vendedores de TikTok Shop.
+- No se encontró ningún webhook de "comentario nuevo" — de construirse algún día, sería por
+  *polling* (consultar `comment-list` periódicamente), no reactivo como Meta.
+- **Decisión:** pausado. Requeriría un Business Center de TikTok Ads nuevo y sin garantía de que
+  aplique a contenido orgánico — no vale la pena el esfuerzo ahora mismo.
+
+**Autorización de publicar — completada:** faltaba el paso 4-5 de `TIKTOK_SETUP.md` (login OAuth
+de la cuenta `novedadesjade8`). Ya se hizo — `access_token`/`refresh_token`/`open_id` guardados en
+BD de QA, se refresca solo antes de expirar (~24h).
+
+**🐛 Bug real encontrado y corregido en el camino:** `TikTokGraphClient.intercambiarToken` usaba
+`BodyInserters.fromFormData()` de Spring, que **no escapa `*` ni `!`** (sigue la convención vieja
+de `application/x-www-form-urlencoded`, no RFC 3986) — y los `code` que emite TikTok casi siempre
+traen esos caracteres. TikTok rechazaba el intercambio con `invalid_request: parameters are
+malformed` cada vez. Se cambió a armar el body a mano con `UriUtils.encode()` (verificado con una
+prueba real que sí escapa `%2A`/`%21`). Desplegado en dev+qa el mismo día — cualquier futura
+re-autorización de TikTok (si se revoca el acceso) ya no debería toparse con este error.
+
+**⚠️ Pendiente de confirmar, sin resolver:** se probó con **2 videos** de prueba (no solo uno) y
+ambos fueron confirmados por TikTok como recibidos (`SEND_TO_USER_INBOX` en
+`post/publish/status/fetch`, revisado varias veces incluso justo después de subir el segundo) —
+pero ninguno apareció en el celular con la cuenta `novedadesjade8`, ni en Borradores ni en Inbox,
+revisando de inmediato ambas veces. Se descartó cuenta equivocada (`GET
+/v1/redes-sociales/tiktok/whoami` confirma que el token pertenece a la cuenta correcta,
+`display_name: novedadesJade`). Se agregaron 3 endpoints de diagnóstico manual (protegidos, rol
+ADMIN) para investigar esto sin gastar más videos de prueba: `GET
+/v1/redes-sociales/tiktok/estado/{publishId}`, `GET /v1/redes-sociales/tiktok/whoami`, `GET
+/v1/redes-sociales/tiktok/videos` (este último intenta listar el contenido con la Display API,
+pero probablemente falle con `scope_not_authorized` porque no se pidió el scope `video.list` al
+autorizar). **Decisión del usuario: pausado por ahora** — no vale la pena seguir gastando pruebas.
+Candidatos de causa, sin confirmar: limitación real de apps sin auditar (la versión de producción
+ya está "in review"), o algo que solo soporte de TikTok Developers puede aclarar con los
+`publish_id` como evidencia (`v_inbox_file~v2.7675959956415318017`,
+`v_inbox_file~v2.7675980555712038929`).
+
+### 4. Instagram — bot de mensajes directos (DM), nuevo (2026-08-20)
+
+Mismo patrón que el bot de comentarios, pero para la bandeja de Direct de Instagram — no existía
+antes de hoy. **No expone ningún endpoint nuevo para el front**, todo se dispara solo vía webhook
+(igual que comentarios), así que no hay nada que el front tenga que llamar o cambiar.
+
+- Nuevo `InstagramDirectMessageBotService`: reusa el mismo chatbot, el mismo límite de 20
+  mensajes/hora (`ChatbotBlockService`, compartido con comentarios y el chat del sitio), y la
+  misma lógica de escalar por correo / saludo de bienvenida en el primer contacto.
+- Diferencia con comentarios: un DM no está ligado a un post, así que no hay contexto de
+  variante/producto (se contesta sin ese dato extra) y la pausa por respuesta manual del admin es
+  por cliente completo, no por cliente+post.
+- El webhook (`/v1/redes-sociales/facebook/webhook`, el mismo de siempre) ahora también procesa el
+  arreglo `messaging` del payload de Meta, además de `changes` (comentarios) — ya se agregó del
+  lado de Meta la suscripción del campo `messages` sobre el objeto `instagram` (confirmado vía
+  `GET /{app-id}/subscriptions`, junto con `comments` que ya estaba activo).
+
+**⚠️ Acción requerida antes de que funcione en QA:** correr manualmente
+`src/main/resources/static/migration_mensaje_directo.sql` contra `inventario_key_qa` (crea las
+tablas `mensaje_directo_social` y `mensaje_directo_pausa` — `ddl-auto` está en `none`, no se crean
+solas). Sin esta migración, el bot va a fallar (con error de tabla inexistente) en cuanto llegue el
+primer DM real. **Sin probar todavía en vivo** — a diferencia de comentarios, no se mandó un DM de
+prueba real esta sesión.
+
+---
+
+## Respuesta a la consulta del front — Instagram y TikTok en contactos del negocio (2026-08-21)
+
+Implementado. Se agregaron `instagramUrl`/`tiktokUrl` a los 3 endpoints que pidieron, mismo
+tratamiento que `whatsappUrl`/`facebookUrl` (texto libre, nullable, sin validación de formato).
+**No tiene relación con el módulo de "Publicar en redes sociales"** — esto es solo el link de
+contacto del negocio para los QR de los tickets.
+
+**Request:** `GET /mis-productos/v1/negocio/config` (ADMIN)
+**Response** (agrega los 2 campos al final, resto sin cambios):
+```json
+{
+  "abierto": true,
+  "whatsappUrl": "https://wa.me/5215512345678?text=Hola!",
+  "facebookUrl": "https://facebook.com/NovedadesJade",
+  "instagramUrl": "https://instagram.com/novedades_bolsas_jade",
+  "tiktokUrl": "https://tiktok.com/@novedadesjade8",
+  "horaApertura": "09:00",
+  "horaCierre": "21:00"
+}
+```
+
+**Request:** `GET /mis-productos/v1/negocio/contactos` (público, sin token)
+**Response:**
+```json
+{
+  "whatsappUrl": "https://wa.me/5215512345678?text=Hola!",
+  "facebookUrl": "https://facebook.com/NovedadesJade",
+  "instagramUrl": "https://instagram.com/novedades_bolsas_jade",
+  "tiktokUrl": "https://tiktok.com/@novedadesjade8"
+}
+```
+
+**Request:** `PUT /mis-productos/v1/negocio/contactos` (ADMIN) — body:
+```json
+{
+  "whatsappUrl": "https://wa.me/5215512345678?text=Hola!",
+  "facebookUrl": "https://facebook.com/NovedadesJade",
+  "instagramUrl": "https://instagram.com/novedades_bolsas_jade",
+  "tiktokUrl": "https://tiktok.com/@novedadesjade8"
+}
+```
+`instagramUrl`/`tiktokUrl` pueden venir vacíos (`""`) o `null` si el admin no los llenó — mismo
+comportamiento que ya tienen hoy `whatsappUrl`/`facebookUrl` (si el campo viene `null` en el body,
+no se toca el valor guardado; si viene `""`, se guarda vacío). Response: la entidad
+`ConfiguracionNegocio` completa (igual que hoy), ya incluye los 2 campos nuevos.
+
+**Nota importante — GET /v1/negocio/estado NO se tocó.** Ese endpoint no estaba en la consulta del
+front (solo pidieron `config`, `contactos` GET y `contactos` PUT) y sigue exponiendo únicamente
+`whatsappUrl`/`facebookUrl`, igual que antes.
+
+**Pendiente:** correr `src/main/resources/static/migration_negocio_instagram_tiktok.sql` contra
+`inventario_key_qa` antes de probar en QA (agrega `instagram_url`/`tiktok_url` a
+`configuracion_negocio`, `ddl-auto` está en `none`).
+
+---
+
+## Nuevo — GET /v1/negocio/estado ahora trae el horario (2026-08-21)
+
+**Esto sí actualiza la nota de arriba:** `GET /v1/negocio/estado` se tocó — se agregaron
+`horaApertura`/`horaCierre` para poder armar en el login/home un texto de estado con horario
+("atendemos hasta las X" / "abrimos a las X"), sin tener que llamar a `/config` (que es ADMIN).
+
+**Request:** `GET /mis-productos/v1/negocio/estado` (público, sin token — sin cambios de auth)
+**Response** (agrega los 2 campos al final, resto sin cambios):
+```json
+{
+  "abierto": true,
+  "whatsappUrl": null,
+  "facebookUrl": null,
+  "horaApertura": "11:00",
+  "horaCierre": "18:00"
+}
+```
+`whatsappUrl`/`facebookUrl` se siguen mandando `null` cuando `abierto: true` (comportamiento
+existente, sin cambios). `horaApertura`/`horaCierre` se mandan **siempre**, sin importar si está
+abierto o cerrado — el front los necesita en los dos casos. Pueden venir `null` si el admin nunca
+configuró horario (`PUT /v1/negocio/horario` nunca se llamó).
+
+**Sugerencia de copy para el texto de estado** (corregido 2026-08-21: la tienda vende productos
+que ya están en stock, no es fabricación por encargo — se descartó la palabra "pedidos" del texto,
+va directo a si el local está abierto o cerrado):
+
+| Estado | Texto sugerido |
+|---|---|
+| `abierto: true` | "¡Local abierto! Puedes comprar hasta las {horaCierre}" |
+| `abierto: false` | "Local cerrado — abrimos a las {horaApertura}" |
+
+Si `horaApertura`/`horaCierre` vienen `null` (nunca configurado), caer a un texto sin horario:
+"Local abierto" / "Local cerrado por ahora".
+
+### Sugerencia de UX para el form de admin — limpiar una red social ya guardada (no requiere back)
+
+Cuando un campo de red social (`whatsappUrl`/`facebookUrl`/`instagramUrl`/`tiktokUrl`) ya tiene una
+URL guardada y el admin se equivocó y quiere reemplazarla, agregar algo tipo un checkbox o botón de
+"limpiar" al lado del campo que seleccione/borre el texto de un tirón, en vez de borrar letra por
+letra. Del lado del back no hace falta nada — mandar `""` en el `PUT /v1/negocio/contactos` ya
+limpia el campo sin problema (ver contrato arriba: `null` = no tocar, `""` = guardar vacío).
+
+---
+
+## Nuevo — Personalización de tema: catálogo dinámico de variables (2026-08-27)
+
+**⚠️ Reemplaza por completo un diseño anterior de columnas fijas (`GET/PUT /v1/tema`) que se
+documentó y se descartó el mismo día sin llegar a subirse a ningún ambiente — si alguien vio esa
+versión, ignórenla, nunca se desplegó.** El diseño final es un catálogo tipo "dar de alta" (mismo
+patrón que Menu/Submenu): cada variable de color/forma es una FILA editable, no una columna fija.
+Agregar una variable nueva no requiere ningún cambio de código, ni back ni front.
+
+Respalda la pantalla admin `/personalizacion` (`src/app/tema-admin/`, `src/app/services/tema/`).
+
+**Request:** `GET /mis-productos/v1/tema-variable/activo` (público, sin token — hasta un
+visitante anónimo necesita el tema activo para pintar la tienda)
+**Response:** arreglo de variables, cada una:
+```json
+{
+  "id": 5,
+  "clave": "app-bg",
+  "etiqueta": "Fondo de la página",
+  "grupo": "Página",
+  "tipo": "color",
+  "valorClaro": "#F3FAF6",
+  "valorOscuro": "#000000",
+  "orden": 1
+}
+```
+- `clave`: nombre del custom property CSS **sin** el prefijo `--` (se aplica como
+  `document.body.style.setProperty('--' + clave, valor)`). Coincide con un `var(--esa-clave)`
+  que ya existe en `styles.scss` — si el dueño da de alta una clave que ningún `.scss` consume
+  todavía, no tiene efecto visual (no rompe nada, simplemente no se ve hasta que algún componente
+  la use).
+- `tipo`: `'color'` | `'numero'` | `'seleccion'`. `'seleccion'` hoy solo aplica a la variable
+  `card-shadow` (valores `suave`/`media`/`fuerte`, el front trae su propio mapa a box-shadow real).
+  `'numero'` es para valores estructurales como `card-radius` (px).
+- `valorOscuro` puede venir `null` — en ese caso se usa `valorClaro` para los dos modos (variables
+  estructurales que no cambian de noche).
+
+**CRUD completo (ADMIN)**, mismo patrón genérico que Menu/Submenu:
+- `POST /mis-productos/v1/tema-variable/save` — dar de alta una variable nueva.
+- `PUT /mis-productos/v1/tema-variable/update/{id}` — editar.
+- `DELETE /mis-productos/v1/tema-variable/delete` (body: el `id`, número plano) — eliminar. Es
+  seguro borrar cualquiera: la app simplemente vuelve a usar el valor fijo de código para esa
+  variable, no hay ninguna protección de "no dejar la última" (a diferencia de Menu/Submenu).
+- `GET /mis-productos/v1/tema-variable/getAll?page=0&size=100` — listado paginado (pantalla admin).
+
+**Semilla inicial (25 variables)**, ya sembradas con los mismos valores que tenía `styles.scss`
+a mano, así que el primer `GET /activo` no cambia nada visualmente: grupos **Marca**
+(`brand-1`, `brand-2`, `brand-3`, `app-accent-ink`), **Página** (`app-bg`, `app-text`,
+`app-text-muted`, `app-border`), **Card** (`card-header-bg`, `card-body-bg`, `card-footer-bg`,
+`card-border`, `card-radius`, `card-shadow`), **Tablas** (`table-header-bg`, `table-header-text`,
+`table-row-hover`, `table-border`), **Menú lateral** (`sb-header-bg`, `sb-body-bg`,
+`sb-footer-bg`, `sb-text`, `sb-border`), **Formularios** (`form-section-bg`, `input-bg`).
+
+**Alias automáticos:** algunas claves, al aplicarse, también pisan un `--custom-property` con
+otro nombre que otra pantalla más vieja consume con el mismo valor por defecto (para no duplicar
+filas idénticas en el catálogo) — ver `ALIAS_LEGACY` en `services/tema/tema.model.ts`. Ej.: editar
+`app-bg` también cambia `--page-bg`; editar `app-text` también cambia `--header-text` y
+`--input-text`; editar `card-body-bg` también cambia `--card-bg` y `--app-surface`.
+
+**Pendiente:** correr `migration_tema_variable.sql` (raíz del repo back) — crea la tabla
+`tema_variable`, la siembra con las 25 variables, y da de alta la pantalla "Personalización"
+(grupo Sistema, ruta `personalizacion`) en el catálogo de permisos + se la asigna a ROLE_ADMIN.
+Sin esto el link del navbar da "sin acceso" aunque el usuario sea admin.
+
+---
+
+## Fix de seguridad — varios endpoints no validaban dueño (IDOR) (2026-08-27)
+
+Auditoría completa de "cada quien solo ve lo suyo" en toda la API. **Ningún contrato de
+request/response cambió** — mismos endpoints, mismos campos. Lo que cambió es que ahora rechazan
+(403) cuando el usuario autenticado no es ni el dueño del recurso ni ADMIN. Documentado porque el
+front puede empezar a ver 403 en escenarios que antes "funcionaban por accidente" (ej. probando
+con IDs de otro usuario a mano).
+
+- **Antes:** `GET /v1/pedidos/findPedido/{id}`, `findPedido/{idPedido}/{idCliente}` y
+  `{id}/detalle` devolvían los pedidos de **cualquier** cliente con solo cambiar el id en la URL,
+  para cualquier usuario logueado. **Después:** si no eres ADMIN, el `id`/`idCliente` de la URL se
+  ignora y siempre se usa el cliente del usuario autenticado. El front no necesita cambiar nada —
+  ya mandaba el id correcto en el flujo normal (`mis-pedidos.component.ts` lo resuelve del propio
+  usuario).
+- **Antes:** `GET /v1/pedidos/buscarClientePedido` (búsqueda global sin filtro de dueño) la podía
+  llamar cualquier usuario autenticado. **Después:** requiere ADMIN. Ya solo la llama el front
+  cuando `isAdminUser=true`, sin cambio de comportamiento para el flujo normal.
+- **Antes:** en Flores eternas, `POST/GET /v1/flores/pedidos/{pedidoId}/detalle` y
+  `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` no validaban dueño del pedido.
+  **Después:** mismo chequeo dueño-o-admin que ya tenía `DELETE .../cancelar`.
+- **Antes:** `GET /v1/chat/historial/usuario/{usuarioId}` y `/historial/cliente/{clienteId}` eran
+  **públicos** (sin login) y sin chequeo de dueño — cualquiera en internet podía leer el chat
+  privado de cualquier cliente. **Después:** requieren sesión y que seas tú (o ADMIN). El historial
+  por `sesionId` (chat anónimo) sigue público a propósito — es un UUID random, no adivinable.
+- **Antes:** `POST /v1/clientes/{id}/enviar-codigo-verificacion` lo podía disparar cualquier
+  usuario logueado contra cualquier cliente (spam/molestia, no fuga de datos). **Después:** dueño
+  o ADMIN.
+
+---
+
+## Fase 2 de permisos por pantalla — el backend ahora respeta las pantallas asignadas por rol (2026-08-27)
+
+Hasta ahora, Menu/Submenu/`rol_submenu` (Fase 1) solo decidían qué mostraba el **front** (menú
+dinámico + guard de rutas) — el backend seguía protegiendo cada endpoint admin con
+`hasRole("ADMIN")` fijo, así que darle una pantalla a un rol distinto de ROLE_ADMIN la hacía
+aparecer en el menú, pero cualquier llamada real al API le devolvía 403 igual.
+
+Ya no: la mayoría de los endpoints admin ahora aceptan `ROLE_ADMIN` **o** la pantalla equivalente
+concedida al usuario (calculada en cada request, no depende de refrescar el token). Si le dan a
+un rol una pantalla del catálogo (ej. "Modelos" → `productos/buscar`), ese rol ya puede usar de
+verdad los endpoints que esa pantalla necesita, no solo verlos en el menú. No cambia ningún
+contrato de request/response — mismos endpoints, mismos campos, solo cambia quién puede llamarlos.
+
+Un puñado de endpoints admin siguen exigiendo `ROLE_ADMIN` fijo porque no tienen una pantalla
+equivalente en el catálogo todavía (gestión de imágenes compartida, gestión de Pedidos vía
+PUT/DELETE, Ventas, MercadoPago, Pagos, responder Reseñas, Actuator) — si en algún momento se
+necesita que un rol no-admin los use, hay que darlos de alta como pantalla primero.
+
+### Corrección — 3 pantallas que dependían "escondidas" de otra pantalla (2026-08-27)
+
+Al armar el mapa completo pantalla→endpoint se encontraron 3 pantallas cuya funcionalidad
+dependía de un permiso ajeno sin que nada lo indicara: dar de alta esa pantalla sola a un rol no
+alcanzaba, y el usuario se topaba con un 403 al usar una parte de la vista sin entender por qué.
+Corregido:
+
+- **Catálogos** (`flores/catalogos`) y **Administrar ramos armados** (`flores/ramos-admin`):
+  subir la foto de un color/accesorio/frase/ramo llama a `POST /tienda/v1/guardarConImagenes`
+  (endpoint genérico de variantes), que antes solo aceptaba las pantallas de Productos
+  (`productos/buscar`/`productos/agregar`/`tienda/venta`). Ahora también acepta la pantalla propia
+  de cada vista.
+- **Gestionar promociones** (`admin/promociones`): el buscador de variantes embebido para armar
+  el combo llama a `GET /tienda/v1/admin/filtrar`, que antes solo aceptaba las pantallas de
+  Productos. Ahora también acepta `admin/promociones`.
+- **Reconciliación de imágenes**: antes compartía la pantalla `admin/cache` ("Limpiar caché") en
+  vez de tener la suya propia — el submenú `admin/reconciliacion-imagenes` ya existía en el
+  catálogo pero no se usaba. Ahora `POST/GET /v1/admin/reconciliacion/**` exige esa pantalla
+  propia (o `ROLE_ADMIN`), separado de "Limpiar caché".
+
+**Nota:** las 3 correcciones son aditivas (agregan una pantalla alternativa, no quitan la que ya
+funcionaba) — no rompen nada para quien ya tenía acceso vía las pantallas de Productos.
+
+**⚠️ Interdependencias que siguen igual, documentadas pero no cambiadas** (decisión de producto,
+no bug): "Entregas" (`flores/entregas`) no tiene endpoints propios, reutiliza por completo el CRUD
+de "Catálogos → Cantidades" (`flores/catalogos`); no hay una pantalla independiente para separar
+esas dos vistas si algún día se necesitara.
+
+---
+
+## Fase 2 de permisos de acción — Ver vs. Editar por pantalla (2026-08-27)
+
+Hasta ahora, dar una pantalla a un rol era todo-o-nada: si un rol podía VER "Modelos", automática-
+mente podía también crear/editar/borrar productos — no existía forma de dar acceso de solo lectura.
+Ya no: cada pantalla ahora tiene dos permisos independientes, **Ver** (como antes, sin cambios de
+comportamiento) y **Editar** (nuevo). Editar solo se puede dar si el rol ya tiene Ver de esa misma
+pantalla; si a un rol se le quita el Ver, el back automáticamente le quita también el Editar (no
+queda un permiso de escritura "huérfano" sin el de lectura).
+
+**Dónde se configura:** Sistema → Gestión de roles (`/gestion-menu/roles`) — cada pantalla del
+listado ahora tiene 2 checkboxes en vez de 1: "☑ (pantalla)" (Ver, como siempre) y "☑ ✏️ Editar"
+al lado, deshabilitado hasta que Ver esté marcado.
+
+**Nuevos endpoints** (mismo patrón que los ya existentes para Ver):
+- `POST /v1/roles/{rolId}/submenus/{submenuId}/escritura` — le da a `rolId` permiso de Editar en
+  `submenuId`. 400 si el rol todavía no tiene el Ver de esa pantalla.
+- `DELETE /v1/roles/{rolId}/submenus/{submenuId}/escritura` — le quita el Editar (el Ver no se
+  toca). 400 si es ROLE_ADMIN y la pantalla es `gestion-menu`/`gestion-menu/roles` (protegidas,
+  mismo criterio que ya existía para el Ver).
+- Ambos devuelven el `Roles` completo actualizado, igual que los endpoints de Ver — el campo nuevo
+  es `submenusEscritura: ISubmenu[]` (además del `submenus: ISubmenu[]` que ya existía), tanto en
+  la respuesta de estos 2 endpoints como en `GET /v1/roles/getAll`.
+
+**Cómo lo aplica el backend (no requiere nada del front, ya está activo):** cada pantalla que
+antes exigía `ROLE_ADMIN` o la authority `PANTALLA_<ruta>` para TODOS los métodos, ahora separa:
+los `GET` siguen pidiendo solo `PANTALLA_<ruta>` (Ver, sin cambio), y `POST`/`PUT`/`DELETE` piden
+además `PANTALLA_<ruta>_ESCRIBIR` (Editar, nuevo — se rechaza con 403 si el rol no lo tiene aunque
+sí pueda ver la pantalla). Aplica a las ~20 pantallas que ya eran de gestión (Usuarios, Roles,
+Menú/Submenú, Gastos, Reportes, Dashboard, Redes sociales, Rifas, Documentos, Admin/Reconciliación,
+Chat admin, Negocio, Presentación, Personalización, Productos/Tienda admin, Promociones, Flores
+catálogos/ramos-admin/frases, Cinta, Clientes, Carga de imágenes, Lugares de entrega, Palabras
+clave, Abonos, Clientes-sin-registro). Las pantallas cuya lectura ya era 100% pública (el catálogo
+que ve cualquier visitante) no cambian: ahí "Ver" nunca estuvo restringido, solo Editar.
+
+**Migración `migration_permiso_escritura.sql` — ya ejecutada en QA y prod (2026-08-27).** Creó la
+tabla `rol_submenu_escritura` y sembró, para cada rol que ya tenía una pantalla, el permiso de
+Editar de esa misma pantalla — nadie perdió acceso al correrla (el comportamiento "ver = poder
+editar" que existía hasta ahora quedó exactamente igual para todo rol ya existente, incluido
+ROLE_ADMIN). Desde ahora, el admin puede ir a Gestión de roles y quitarle a un rol el Editar de
+una pantalla puntual sin tocar las demás.
+
+**JWT — nuevo claim, todavía no consumido por las pantallas individuales:** el access token ahora
+trae, además de `pantallas: string[]` (como ya existía), un `pantallasEscritura: string[]` — el
+subconjunto de esas pantallas donde el usuario logueado puede además escribir. El backend YA
+rechaza con 403 cualquier escritura fuera de ese subconjunto sin importar este claim (la seguridad
+real está en `SecurityConfig`, no en el front). El claim se agregó para que, más adelante, cada
+uno de los ~45 componentes admin pueda leerlo y mostrar un modo de solo lectura (ocultar/deshabi-
+litar botones de guardar/editar/borrar) en vez de dejar que el usuario intente y se tope con un
+403 recién al hacer clic — **eso todavía no está hecho pantalla por pantalla**, es trabajo pendiente
+aparte. Hoy, un rol con solo Ver en una pantalla verá los mismos botones de siempre en esa pantalla,
+pero al usarlos el back los rechazará.
+
+**Alcance de esta entrega — qué SÍ y qué NO:**
+- SÍ: enforcement completo en el backend (imposible saltárselo desde el front).
+- SÍ: la UI de Gestión de roles para configurar Ver/Editar por pantalla y rol.
+- SÍ: el claim `pantallasEscritura` en el JWT, listo para consumirse.
+- NO (pendiente): deshabilitar/ocultar botones de guardar-editar-borrar dentro de cada una de las
+  ~45 pantallas admin cuando el usuario solo tiene Ver. Sin eso, un rol de solo lectura ve los
+  botones igual mientras no llegue el fix pantalla por pantalla, pero no puede completar la acción
+  (el back la rechaza).
+- Las excepciones por usuario individual (`usuario_submenu`) siguen siendo solo de nivel Ver — no
+  tienen su propio Editar; ese nivel de granularidad hoy solo se controla por rol.
+
+---
+
+## UI de excepciones de pantalla por usuario individual (2026-08-27)
+
+El backend de `usuario_submenu` (concedido=true/false, encima de lo que ya da el rol) existía
+desde antes sin pantalla en el front. Ya tiene una: dentro de **Sistema → Usuarios → Actualizar
+usuario** (`app-add-usuarios`, mismo componente para alta y edición), justo debajo de "Rol" y
+"💾 Guardar permisos", aparece una nueva sección plegable **"🔓 Excepciones de pantalla de
+{usuario}"** — solo visible editando un usuario existente (no al dar de alta uno nuevo), con el
+mismo acordeón por grupo que usa Gestión de roles.
+
+Cada pantalla del catálogo es un botón con 3 estados, que se ciclan con un clic:
+1. **Según su rol** (sin excepción — estado normal, la mayoría).
+2. **✅ Se le dio acceso** (`concedido=true`) — el usuario ve/usa esa pantalla aunque su rol no
+   se la dé.
+3. **🚫 Se le quitó acceso** (`concedido=false`) — el usuario NO ve esa pantalla aunque su rol sí
+   se la dé.
+
+Un cuarto clic vuelve a "Según su rol" (borra la excepción). Usa los endpoints que ya existían:
+`GET /v1/usuarios/{id}/submenus/excepciones`, `POST /v1/usuarios/{id}/submenus/{submenuId}?concedido=`,
+`DELETE /v1/usuarios/{id}/submenus/{submenuId}`.
+
+**Importante:** esta excepción individual sigue siendo solo de nivel **Ver** (lo que ya se sabía
+antes de Fase 2 de permisos de acción) — no tiene su propio Editar. Si un usuario necesita
+Editar en una pantalla que su rol no le da, hoy la única forma es dársela vía Gestión de roles
+(afecta a todo el rol) o cambiarle el rol; una excepción individual de Editar no está construida.
+
+---
+
+## Fase 3 de permisos — acciones granulares por pantalla, piloto en Modelos (2026-08-27)
+
+El usuario señaló, viendo la pantalla real, que "Editar" es demasiado ancho: **Modelos**
+(`productos/buscar`) no tiene ninguna acción de "editar el modelo" en sí (el botón "Actualizar"
+en realidad navega a "Agregar modelo" — otra pantalla), y en cambio tiene varias acciones
+independientes entre sí en cada tarjeta de producto: **Habilitar/deshabilitar, Eliminar, Crear
+variantes, Compartir imagen, Descargar Excel, Ver filtros de administración**. Con Ver/Editar
+nada más, dar "Editar" daba las 6 de un jalón — no se podía, por ejemplo, dejar que alguien
+elimine productos pero no vea el Excel.
+
+**Hallazgo más grave en el camino:** ninguno de esos botones (ni los de Modelos ni los de otras
+25 pantallas admin) estaba conectado al sistema de pantallas/permisos en absoluto — todos
+dependían de una bandera `isAdminUser`/`isAdminService` que en el código es literalmente
+`roles.includes('ROLE_ADMIN')`. O sea: aunque a un rol se le diera "Editar" en Modelos, esa
+pantalla no le mostraba ningún botón administrativo si el rol no era exactamente ROLE_ADMIN. Se
+corrigió esto **solo en Modelos** (el piloto); las otras 25 pantallas con el mismo patrón se
+quedan con el gap conocido hasta que se decida extender esto — ver lista completa más abajo.
+
+**Diseño — tabla nueva `accion_submenu` + `rol_accion`:** dentro de una pantalla, cada acción
+puntual es su propio registro (clave/etiqueta/orden), y un rol la tiene o no la tiene
+independientemente de las demás. Requiere que el rol ya tenga el **Ver** de la pantalla dueña
+(no el Editar — se decidió así para no forzar una jerarquía de 3 niveles en el piloto). Si se le
+quita el Ver a un rol, se le caen en cascada tanto el Editar como todas sus acciones puntuales de
+esa pantalla.
+
+**Nuevos endpoints:**
+- `GET /v1/accion-submenu/getAll` — catálogo completo (todas las pantallas que ya tengan
+  acciones dadas de alta; hoy solo Modelos). Mismo nivel de protección que `/v1/menu/**` y
+  `/v1/submenu/**` (pantalla `gestion-menu`).
+- `POST /v1/roles/{rolId}/acciones/{accionId}` / `DELETE /v1/roles/{rolId}/acciones/{accionId}`
+  — dar/quitar una acción puntual a un rol. 400 si el rol todavía no tiene el Ver de la pantalla
+  dueña. Devuelven el `Roles` completo actualizado (nuevo campo `acciones: IAccionSubmenu[]`,
+  además de `submenus` y `submenusEscritura` que ya existían).
+
+**Dónde se configura:** Gestión de roles — dentro de cada pantalla que tenga acciones
+registradas, debajo del Ver/Editar aparece una fila con un checkbox por acción (ej. "Habilitar /
+deshabilitar producto", "Eliminar producto"…), deshabilitados hasta marcar Ver.
+
+**JWT — nuevo claim `pantallasAcciones: string[]`**, formato `"ruta:clave"` (ej.
+`"productos/buscar:eliminar"`). El backend ya lo exige vía `SecurityConfig.accion()` sin
+importar este claim; el front lo usa para decidir qué botón mostrar.
+
+**Backend — 4 endpoints de Modelos separados del `pantallaEscribir` compartido:**
+- `DELETE /v1/productos/deleteBy/**` → accion "eliminar"
+- `PUT /v1/productos/*/habilitar`, `PUT /v1/productos/admin/habilitar-lote` → accion "habilitar"
+- `POST /tienda/v1/inicializarDesdeProducto` → accion "crear-variantes"
+- `GET /v1/productos/admin/sin-variantes/reporte` → accion "descargar-excel"
+
+"Compartir imagen" y "Ver filtros de administración" no tienen endpoint propio (front-only, sin
+mutación de datos) — se controlan solo en el front, sin gate nuevo en `SecurityConfig`.
+
+**Front — Modelos (`all.component.ts`/`.html`) reescrito para no usar `isAdminUser`:**
+`esVistaAdmin` (¿ve la pantalla en modo admin? controla lo informativo: badge "Deshabilitado",
+atenuar tarjeta), `puedeActualizarProducto` (reusa la pantalla `productos/agregar`, no una acción
+nueva), `puedeHabilitar`, `puedeEliminar`, `puedeCrearVariantes`, `puedeCompartirImagen`,
+`puedeDescargarExcel`, `puedeVerFiltrosAdmin`. Nuevos métodos `tienePantalla()`/`tieneAccion()`
+en `AuthService` (`src/app/auth/auth.service.ts`) — el mismo servicio que ya inyectan las otras
+25 pantallas con `isAdminUser`, listo para que se reemplace ahí también cuando se decida extender.
+
+**Migración `migration_accion_submenu.sql` — ya ejecutada en QA y prod (2026-08-27).** Creó
+`accion_submenu` y `rol_accion`, sembró las 6 acciones de Modelos, y le dio a todo rol que ya
+tenía Editar en Modelos las 6 automáticamente (nadie perdió acceso al correrla).
+
+**Las otras 25 pantallas con el mismo problema (`isAdminUser`/`isAdminService` hardcoded a
+ROLE_ADMIN, desconectado de pantallas/acciones), pendientes de decidir si se extiende:**
+`add-usuarios`, `configurar-ramo` (flores), navbar, `variante/buscar`, `mis-pedidos`,
+`productos/add`, `venta-variante`, `detalle-variante`, `promociones`, `detalle-productos`,
+`detalle-producto`, `historial-mp`, `detalle-pedido`.
+
+---
+
+# Mapa de pantallas → endpoints → protección → microservicio (2026-08-27)
+
+Documento generado revisando, para cada una de las 45 pantallas del catálogo Menu/Submenu, qué
+componente Angular la implementa, qué endpoints del backend llama, con qué nivel de protección
+(`SecurityConfig.java`, incluye la Fase 2 de permisos por pantalla), y si dispara una llamada
+interna al microservicio externo de imágenes.
+
+**Arquitectura:** un solo backend monolito ("mis-productos", Spring Boot) + **un** microservicio
+externo separado, el de **imágenes** (guarda/sirve los archivos de imagen; configurado vía la
+property `app.imagenes`, ej. `http://.../mis-productos`). El monolito llama a ese microservicio
+internamente desde los servicios de productos/variantes/promociones/ramos armados/presentación
+cuando hay imágenes de por medio — no es una llamada que el front haga directo, ocurre del lado
+del back, pero se documenta abajo en cada pantalla donde aplica.
+
+**Cómo leer "protección":**
+- **Público** = sin necesidad de sesión.
+- **Autenticado** = cualquier usuario logueado; si dice "dueño-o-admin" es porque el código
+  valida que sea tu propio recurso (Fase 2 de seguridad, IDOR corregidas el 2026-08-27).
+- **Pantalla `x`** = el backend exige `ROLE_ADMIN` **o** que tu rol tenga esa pantalla concedida
+  en Gestión de roles (Fase 2 de permisos, 2026-08-27) — antes de eso todo lo admin exigía
+  `ROLE_ADMIN` fijo sin importar qué pantallas tuviera asignadas tu rol. Desde la Fase 2 de
+  permisos de acción (ver sección propia más arriba), esto aplica tal cual a los `GET` (Ver); los
+  métodos que escriben (`POST`/`PUT`/`DELETE`) además piden el checkbox "Editar" de esa misma
+  pantalla, no solo el de "Ver" — no lo repito en cada entrada de abajo para no duplicar 45 veces
+  lo mismo, aplica parejo a todas las que dicen "Pantalla `x`".
+- **ROLE_ADMIN fijo** = todavía no tiene una pantalla equivalente en el catálogo; solo admin,
+  sin importar qué le asignes a otro rol.
+
+---
+
+## 📦 Catálogo
+
+### 📦 Modelos
+**Ruta front:** `/productos/buscar`
+**Componente:** `src/app/productos/producto/busca/busca.component.ts` (envuelve a `all/all.component.ts`, que trae la grilla y la lógica real)
+**Endpoints:**
+- `GET /v1/productos/obtenerProductos?page=&size=` — público
+- `GET /v1/productos/buscarNombreOrCodigoBarra?nombre=&page=&size=` — público
+- `GET /v1/productos/admin/filtrar?...` — pantalla `productos/buscar`, `productos/agregar` o `tienda/venta`
+- `DELETE /v1/productos/deleteBy/{id}` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `PUT /v1/productos/{id}/habilitar?habilitar=` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `PUT /v1/productos/admin/habilitar-lote` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+- `GET /v1/productos/admin/sin-variantes/reporte` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (descarga Excel)
+- `POST /tienda/v1/inicializarDesdeProducto` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (con imágenes opcionales)
+**Microservicio:** monolito principal + microservicio de imágenes cuando se usa "Inicializar variantes" con fotos.
+
+### 📦 Agregar modelo
+**Ruta front:** `/productos/agregar`
+**Componente:** `src/app/productos/producto/add/add.component.ts`
+**Endpoints:**
+- `POST /v1/productos/save` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`. Las fotos van embebidas en base64 dentro del mismo payload (`listImagenes`).
+**Microservicio:** monolito + microservicio de imágenes — al guardar con `listImagenes`, el backend las sube internamente.
+
+### 📦 Agregar producto
+**Ruta front:** `/tienda/venta`
+**Componente:** `src/app/variante/agregar/agregar.component.ts`
+**Endpoints:**
+- `GET /v1/productos/buscarNombreOrCodigoBarra?...` — público
+- `POST /tienda/v1/guardarConImagenes` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+**Microservicio:** monolito + microservicio de imágenes — `guardarConImagenes` sube las fotos de la variante.
+
+### 📦 Carga rápida de imágenes
+**Ruta front:** `/carga-imagenes`
+**Componente:** `src/app/carga-imagenes/carga-imagenes.component.ts`
+**Endpoints:**
+- `POST /v1/carga-imagenes/subir-imagen` — pantalla `carga-imagenes`
+- `GET /v1/carga-imagenes/estado?productoIds=...` — pantalla `carga-imagenes`
+- `POST /v1/carga-imagenes/{productoId}/reintentar-imagen` — pantalla `carga-imagenes`
+- `PUT /v1/carga-imagenes/{productoId}/completar` — pantalla `carga-imagenes`
+- `DELETE /v1/carga-imagenes/{productoId}` — pantalla `carga-imagenes`
+**Microservicio:** monolito + microservicio de imágenes — es la pantalla dedicada a esto: cada imagen subida/descartada se refleja allá.
+
+### 📦 Cargar Excel
+**Ruta front:** `/tienda/cargar-excel`
+**Componente:** `src/app/documentos/carga-archivo/carga-archivo.component.ts`
+**Endpoints:**
+- `POST /v1/documentos/productos` — pantalla `tienda/cargar-excel`
+**Microservicio:** solo el monolito (el Excel trae datos, no imágenes).
+
+### 📦 Categorías
+**Ruta front:** `/palabras-clave`
+**Componente:** `src/app/palabras-clave/gestion/gestion-palabras-clave.component.ts`
+**Endpoints:**
+- `GET /v1/palabras-clave/getAll?page=&size=` — público
+- `POST /v1/palabras-clave/save` — pantalla `palabras-clave`
+- `PUT /v1/palabras-clave/update/{id}` — pantalla `palabras-clave`
+- `DELETE /v1/palabras-clave/delete` — pantalla `palabras-clave`
+**Microservicio:** solo el monolito.
+
+---
+
+## 🚚 Envíos
+
+### 🚚 Zonas de entrega
+**Ruta front:** `/lugares-entrega`
+**Componente:** `src/app/lugares-entrega/gestion/gestion-lugares.component.ts` (+ `anillos-editor/anillos-editor.component.ts` para anillos de distancia/precio)
+**Endpoints:**
+- `GET /v1/lugares-entrega/getAll?page=&size=` — público
+- `POST /v1/lugares-entrega/save`, `PUT /v1/lugares-entrega/update/{id}`, `DELETE /v1/lugares-entrega/delete` — pantalla `lugares-entrega`
+- `GET /v1/lugares-entrega/{id}/anillos` — público
+- `POST /v1/lugares-entrega/{id}/anillos`, `PUT /v1/lugares-entrega/anillos/{id}`, `DELETE /v1/lugares-entrega/anillos/{id}` — pantalla `lugares-entrega`
+**Microservicio:** solo el monolito.
+
+---
+
+## 📋 Pedidos
+
+### 📋 Mis pedidos
+**Ruta front:** `/pedidos/mis-pedidos`
+**Componente:** `src/app/pedidos/mis-pedidos/mis-pedidos.component.ts` — el MISMO componente sirve dos roles según `isAdminUser` (guard de ruta: solo `AuthGuard`, cualquier usuario logueado).
+
+**Común a ambos modos:**
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/lugares-entrega/getAll` — público
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/pedidos/{pedidoId}/detalle` — autenticado, dueño-o-admin
+- `PUT /v1/pedidos/{pedidoId}/entrega` — autenticado, dueño
+
+**Modo cliente (usuario normal):**
+- `GET /v1/pedidos/findPedido/{id}?size&page` — autenticado, dueño-o-admin
+- `GET /v1/pedidos/findPedido/{idPedido}/{idCliente}?size&page` — autenticado, dueño-o-admin
+- `DELETE /v1/flores/pedidos/{id}/cancelar` — autenticado, dueño-o-admin (solo ramos sin pago)
+
+**Modo admin (isAdminUser=true):**
+- `GET /v1/pedidos/buscarClientePedido?...` — ROLE_ADMIN fijo
+- `DELETE /v1/pedidos/delete/{id}?motivo=...` — ROLE_ADMIN fijo
+- `PUT /v1/pedidos/confirmar/{id}` — ROLE_ADMIN fijo
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+- `GET /v1/pagos/opciones-estructuradas` — ROLE_ADMIN fijo
+- `POST /v1/mp/iniciar`, `GET /v1/mp/estado/{intentId}`, `DELETE /v1/mp/cancelar/{intentId}` — ROLE_ADMIN fijo (cobro con terminal física)
+
+**Microservicio:** solo el monolito — no muestra imágenes de producto.
+
+### 📋 Historial de pagos (MP)
+**Ruta front:** `/pedidos/historial-mp`
+**Componente:** `src/app/pedidos/historial-mp/historial-mp.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /v1/mp/historial?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/pedido/{pedidoId}?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/estado/{estado}?pagina&size` — ROLE_ADMIN fijo
+- `GET /v1/mp/historial/mp?desde&hasta` — ROLE_ADMIN fijo (consulta directo a Mercado Pago)
+**Microservicio:** solo el monolito.
+
+---
+
+## 💰 Ventas
+
+### 💰 Venta directa
+**Ruta front:** `/tienda/venta-directa`
+**Componente:** `src/app/variante/venta-directa/venta-directa.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `POST /v1/clientes-sin-registro`, `POST /v1/clientes-sin-registro/{id}/enviar-codigo`, `POST /v1/clientes-sin-registro/{id}/verificar-codigo` — pantalla `tienda/venta-directa`
+- `GET /v1/clientes/buscar?nombre&page&size` — pantalla `clientes/buscar`
+- `POST /v1/clientes/{clienteId}/enviar-codigo-verificacion`, `POST /v1/clientes/{clienteId}/verificar-correo` — autenticado (self-service)
+- `GET /v1/lugares-entrega/getAll` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/pagos/opciones-estructuradas` — ROLE_ADMIN fijo
+- `POST /v1/ventas/save` — ROLE_ADMIN fijo
+- `POST /v1/abonos/{pedidoId}` — pantalla `abonos` (venta a crédito)
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+- `POST /v1/mp/iniciar`, `GET /v1/mp/estado/{intentId}`, `DELETE /v1/mp/cancelar/{intentId}` — ROLE_ADMIN fijo
+**Microservicio:** SÍ — `GET /tienda/v1/buscar` trae `imagenUrl` por variante (miniaturas + visor), resuelta contra el microservicio de imágenes.
+
+### 💰 Créditos / Abonos
+**Ruta front:** `/abonos`
+**Componente:** `src/app/abonos/abonos.component.ts` (guard: `AuthGuard, AdminGuardGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /v1/abonos/reporte/estado-cuenta`, `/reporte/pagados`, `/reporte/cancelados` — pantalla `abonos`
+- `PUT /v1/abonos/{pedidoId}/cancelar`, `POST /v1/abonos/{pedidoId}`, `POST /v1/abonos/{pedidoIdOrigen}/transferir` — pantalla `abonos`
+- `GET /v1/pedidos/{pedidoId}/detalle` — autenticado, dueño-o-admin
+- `POST /v1/flores/pedidos/{pedidoId}/revalidar-antes-de-pagar` — autenticado, dueño-o-admin
+- `POST /v1/pedidos/{id}/notificar` — ROLE_ADMIN fijo
+**Microservicio:** no aplica — no renderiza imágenes de producto.
+
+### 💰 Gastos
+**Ruta front:** `/gastos/buscar`
+**Componente:** `src/app/gastos/all/all.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/gastos/buscar?...`, `DELETE /v1/gastos/{id}`, `GET /v1/gastos/reporte?fechaInicio&fechaFin` — pantalla `gastos/buscar`
+- `GET /v1/ventas/buscar?...` — ROLE_ADMIN fijo (pestaña "ventas" de esta misma vista, cae bajo otro prefijo)
+**Microservicio:** solo el monolito.
+
+---
+
+## 📊 Reportes
+
+### 📊 Dashboard
+**Ruta front:** `/dashboard`
+**Componente:** `src/app/dashboard/dashboard.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/dashboard/resumen` — pantalla `dashboard` (se refresca cada 5 min)
+**Microservicio:** solo el monolito.
+
+### 📊 Reportes de ventas
+**Ruta front:** `/reportes`
+**Componente:** `src/app/reportes/reportes.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/reportes/ventas/diario?fecha`, `/mensual?mes`, `/cliente/{clienteId}`, `/productos-mas-vendidos?...`, `/promociones?...` — pantalla `reportes`
+- `GET /v1/clientes/buscar?nombre&page&size` — pantalla `clientes/buscar` (autocomplete del reporte por cliente)
+**Microservicio:** solo el monolito.
+
+---
+
+## 🎰 Rifas
+
+### 🎰 Rifa de productos
+**Ruta front:** `/rifas/agregar`
+**Componente:** `src/app/rifas/agregar-rifa/agregar-rifa.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /tienda/v1/buscar?termino&pagina&size` — público
+- `GET/POST/PUT /v1/configurarRifa/**`, `/v1/configurarRifaVariante/**`, `/v1/concursante/**`, `/v1/ganadorRifa/**` (buscar, save, editar, esPrueba, sortear, continuarVariante, reiniciar, importarDePedidos, copiarDeRifa, etc.) — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar` (cualquiera habilita)
+**Microservicio:** SÍ — muestra imágenes de la(s) variante(s) premio, resueltas por el back.
+
+### 🎰 Rifa mensual
+**Ruta front:** `/rifas/mes`
+**Componente:** `src/app/rifas/rifa-mes/rifa-mes.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:** mismo `RifaService`, subconjunto del flujo de sorteo (`configurarRifa`, `configurarRifaVariante`, `concursante`, `ganadorRifa`) — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar`.
+**Microservicio:** SÍ — vista previa de imagen de la variante seleccionada.
+
+### 🎰 Ver rifas activas
+**Ruta front:** `/rifas/buscar`
+**Componente:** `src/app/rifas/buscar-rifa/buscar-rifa.component.ts` (guard: `AuthGuard, PantallaGuard, CarritoGuard`)
+**Endpoints:**
+- `GET /v1/configurarRifa/buscar?...`, `GET /v1/ganadorRifa/estado/{rifaId}`, `POST /v1/ganadorRifa/reiniciar/{rifaId}?completo` — pantalla `rifas/agregar`/`rifas/mes`/`rifas/buscar`
+**Microservicio:** no aplica — listado de rifas configuradas, sin imágenes en el template.
+
+---
+
+## 🌹 Flores eternas
+
+### 🌹 Ramos de flores
+**Ruta front:** `/flores/ramos` — **pública, sin login**
+**Componente:** `src/app/flores/vitrina/vitrina-flores.component.ts`
+**Endpoints:**
+- `GET /v1/ramos-armados/activos` — público
+- `GET /v1/negocio/contactos` — público
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+**Microservicio:** SÍ — la portada de cada ramo se resuelve contra el microservicio de imágenes.
+
+### 🌷 Arma tu ramo
+**Ruta front:** `/flores/configurar` — **pública, sin login** (solo `confirmarPedido()` exige cuenta, lo resuelve el propio componente)
+**Componente:** `src/app/flores/configurar/configurar-ramo.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll`, `/v1/cantidades-flor/getAll`, `/v1/colores-flor/por-tipo-flor/{id}`, `/v1/lugares-entrega/getAll` — público
+- `POST /v1/flores/validar-cantidad`, `/calcular-precio`, `/fechas-disponibles` — público
+- `GET /v1/flores/pedidos/{id}/detalle` — autenticado, dueño-o-admin (modo edición)
+- `PUT /v1/flores/pedidos/{id}/editar-ramo` — ROLE_ADMIN fijo (recotizar un ramo ya vendido)
+- `POST /v1/flores/pedidos/{id}/detalle` — autenticado, dueño-o-admin (ticket de producción)
+- `POST /v1/pedidos/savePedido` — autenticado (confirmar pedido)
+- `GET /v1/usuarios/buscarClientePorIdUsuario/{idUsuario}` — público
+- `GET /v1/clientes/buscarPorIdCliente/{idUsuario}` — autenticado (self-service, valida dueño)
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+**Microservicio:** solo lectura de fotos ya guardadas — no sube nada desde aquí.
+
+### 🌸 Catálogos
+**Ruta front:** `/flores/catalogos`
+**Componente:** `src/app/flores/catalogos/catalogos-flores.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll`, `/v1/frases-liston/getAll` — público
+- `POST/PUT/DELETE` de cada uno de los 5 catálogos anteriores — pantalla `flores/catalogos`
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+- `POST /tienda/v1/guardarConImagenes` (subir foto de un color/accesorio/frase) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `flores/catalogos` (desde 2026-08-27; antes solo aceptaba las de productos y dar solo `flores/catalogos` daba 403 al subir foto)
+**Microservicio:** SÍ — cada color/accesorio/frase es una "variante interna"; subir su foto dispara el microservicio de imágenes.
+
+### 🚚 Entregas
+**Ruta front:** `/flores/entregas`
+**Componente:** `src/app/flores/entregas/config-entregas.component.ts`
+**Endpoints:**
+- `GET /v1/cantidades-flor/getAll` — público
+- `PUT /v1/cantidades-flor/update/{id}` (días/hora de entrega normal y urgente por tamaño) — ⚠️ pantalla `flores/catalogos`, no una pantalla propia — esta vista no tiene tabla/endpoints propios, reutiliza el CRUD de "Catálogos → Cantidades"
+**Microservicio:** no aplica.
+
+### 🎗️ Frases por aprobar
+**Ruta front:** `/flores/frases`
+**Componente:** `src/app/flores/frases/bandeja-frases.component.ts`
+**Endpoints:**
+- `GET /v1/flores/pedidos/frases-pendientes`, `PUT /v1/flores/pedidos/detalle/{detalleId}/validar-frase` — pantalla `flores/frases`
+**Microservicio:** no aplica.
+
+### 🎁 Administrar ramos armados
+**Ruta front:** `/flores/ramos-admin`
+**Componente:** `src/app/flores/ramos-admin/gestion-ramos-flores.component.ts`
+**Endpoints:**
+- `GET /v1/tipos-flor/getAll`, `/v1/colores-flor/getAll`, `/v1/cantidades-flor/getAll`, `/v1/accesorios-ramo/getAll` — público
+- `GET /v1/ramos-armados/admin`, `POST /v1/ramos-armados`, `PUT /v1/ramos-armados/{id}`, `PUT /v1/ramos-armados/{id}/activo` — pantalla `flores/ramos-admin`
+- `GET /tienda/v1/imagenes/{varianteId}` — público
+- `POST /tienda/v1/guardarConImagenes` (subir foto del ramo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `flores/ramos-admin` (desde 2026-08-27; antes solo aceptaba las de productos y dar solo `flores/ramos-admin` daba 403 al subir foto)
+**Microservicio:** SÍ — el ramo armado tiene su "variante sombra"; su foto se sube al microservicio y alimenta la vitrina pública.
+
+---
+
+## 📣 Marketing
+
+### 🎁 Promociones activas
+**Ruta front:** `/promociones` (guard front: `AuthGuard`, pero el endpoint real es público)
+**Componente:** `src/app/promociones/promociones.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/activas` — público
+**Microservicio:** SÍ indirectamente — cada promoción trae `imagenUrl` de la variante en el combo, resuelta por el back.
+
+### 🎁 Gestionar promociones
+**Ruta front:** `/admin/promociones`
+**Componente:** `src/app/admin/promociones/gestion-promociones.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/admin`, `POST /v1/promociones`, `PUT /v1/promociones/{id}`, `PUT /v1/promociones/{id}/activo` — pantalla `admin/promociones`
+- `GET /tienda/v1/admin/filtrar` (buscador de variantes para armar el combo) — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` **o** `admin/promociones` (desde 2026-08-27; antes exigía además una de las de productos y solo `admin/promociones` no alcanzaba para el buscador de variantes)
+**Microservicio:** SÍ indirectamente, vía `imagenUrl` de cada variante listada.
+
+### 📢 Cinta de anuncios
+**Ruta front:** `/admin/cinta`
+**Componente:** `src/app/admin/cinta/gestion-cinta.component.ts`
+**Endpoints:**
+- `GET /v1/cinta/getAll?page=0&size=200`, `POST /v1/cinta/save`, `PUT /v1/cinta/update/{id}`, `DELETE /v1/cinta/delete` — pantalla `admin/cinta`
+- `GET /v1/cinta/activos` — público
+**Microservicio:** no aplica — solo texto.
+
+### 📘 Publicar en redes
+**Ruta front:** `/admin/facebook`
+**Componente:** `src/app/admin/redes-sociales/publicar-facebook.component.ts`
+**Endpoints:**
+- `GET /v1/redes-sociales/hashtags-default`, `PUT /v1/redes-sociales/hashtags-default/{red}` — pantalla `admin/hashtags`
+- `POST /v1/redes-sociales/instagram/publicar-reel`, `/facebook/publicar-video`, `/facebook/publicar-reel`, `/tiktok/publicar` — pantalla `admin/facebook`
+- `GET /tienda/v1/buscar` (etiquetar producto en el video, opcional) — público
+**Microservicio:** NO en esta pantalla a propósito — solo publica video (decisión del dueño), nunca llama al método de publicar foto que sí reutilizaría el microservicio de imágenes.
+
+### 🏷️ Hashtags de redes
+**Ruta front:** `/admin/hashtags`
+**Componente:** `src/app/admin/hashtags/gestion-hashtags.component.ts`
+**Endpoints:**
+- `GET /v1/redes-sociales/hashtags-default`, `PUT /v1/redes-sociales/hashtags-default/{red}` — pantalla `admin/hashtags`
+**Microservicio:** no aplica.
+
+---
+
+## 🛠️ Sistema
+
+### 👥 Usuarios
+**Ruta front:** `/usuarios/buscar`
+**Componente:** `src/app/usuarios/usuarios/all-usuarios/all-usuarios.component.ts`
+**Endpoints:**
+- `GET /v1/usuarios/getAllPage?buscar=&page=&size=&activos=`, `PUT /v1/usuarios/{id}/resetear-password`, `DELETE /v1/usuarios/eliminarUsuarioDto/{id}`, `PUT /v1/usuarios/{id}/activar`, `GET /v1/usuarios/roles`, `PUT /v1/usuarios/{id}/rol/{rolId}` — pantalla `usuarios/buscar`
+- `POST /v1/auth/enviar-codigo-verificacion`, `/verificar-correo` — público
+**Microservicio:** solo el monolito.
+
+### 🏪 Negocio & Contactos
+**Ruta front:** `/admin/negocio`
+**Componente:** `src/app/admin/config-negocio/config-negocio.component.ts`
+**Endpoints:**
+- `GET /v1/negocio/config`, `POST /v1/negocio/abrir`, `/cerrar`, `PUT /v1/negocio/horario`, `/contactos` — pantalla `admin/negocio`
+**Microservicio:** solo el monolito.
+
+### 💬 Chat en vivo
+**Ruta front:** `/admin/chat`
+**Componente:** `src/app/admin/chat-admin/chat-admin.component.ts`
+**Endpoints:**
+- `GET /v1/chat/admin/sesiones`, `GET /v1/chat/admin/historial/{sesionId}?...`, `POST /v1/chat/admin/cerrar/{sesionId}` — pantalla `admin/chat`
+- WebSocket STOMP sobre `/ws` — handshake público
+**Nota:** el mismo controller (`ChatAdminController`) expone `GET /v1/chat/historial/usuario/{id}` y `/historial/cliente/{id}` que usa el chat del propio CLIENTE (no el panel admin) — desde 2026-08-27 requieren sesión y validan dueño-o-admin (antes eran públicos sin chequeo, corregido). `/historial/{sesionId}` (chat anónimo) sigue público a propósito, es un UUID no adivinable.
+**Microservicio:** solo el monolito.
+
+### 🖼️ Imágenes de presentación
+**Ruta front:** `/admin/presentacion`
+**Componente:** `src/app/admin/presentacion-imagenes/presentacion-imagenes.component.ts`
+**Endpoints:**
+- `GET /presentacion/v1/imagenes/todas`, `PUT /presentacion/v1/imagenes/{id}` — pantalla `admin/presentacion`
+- `GET /presentacion/v1/imagenes/{id}/imagen` — público
+**Microservicio:** SÍ — guardar/reemplazar la imagen la sube al microservicio externo; el listado y el `.../imagen` sirven el binario desde allá.
+
+### 🔍 Diagnóstico de imágenes
+**Ruta front:** `/admin/diagnostico-imagenes`
+**Componente:** `src/app/admin/diagnostico-imagenes/diagnostico-imagenes.component.ts`
+**Endpoints:**
+- `GET /v1/productos/buscarNombreOrCodigoBarra?...`, `GET /tienda/v1/buscar?...` — público
+- `GET /v1/productos/admin/diagnostico-imagenes/{productoId}` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta` (no una pantalla propia)
+- `GET /tienda/v1/admin/diagnostico-imagenes/{varianteId}` — misma pantalla
+**Microservicio:** SÍ, es el propósito de la pantalla — compara BD local (`producto_imagen_copy`/`variante_imagen`) contra si el microservicio externo realmente tiene el archivo. `total=0` → nunca se guardó en BD; `total>0` con archivo ausente en el microservicio → registro sobrevivió en BD pero el archivo se perdió allá. Ver detalle completo en `CLAUDE.md`.
+
+### 🔧 Reconciliación de imágenes
+**Ruta front:** `/admin/reconciliacion-imagenes`
+**Componente:** `src/app/admin/reconciliacion-imagenes/reconciliacion-imagenes.component.ts`
+**Endpoints:**
+- `POST /v1/admin/reconciliacion/imagenes?productoId=` (opcional), `POST /v1/admin/reconciliacion/imagenes/limpiar-bd`, `GET /v1/admin/reconciliacion/imagenes/resultado` — pantalla propia `admin/reconciliacion-imagenes` (desde 2026-08-27; antes compartía protección con "Limpiar caché" — `admin/cache` — y dar solo esta pantalla no alcanzaba)
+**Microservicio:** SÍ — `ReconciliacionImagenService` compara cada imagen de BD contra el archivo físico en disco local; si existe localmente pero no en el microservicio, lo REENVÍA para repararlo (`reparados[]`); si tampoco existe localmente, queda en `faltantesEnDisco[]` (irreparable desde aquí). "Limpiar BD" hace lo inverso: borra de BD los registros cuyo archivo ya no existe ni localmente.
+**Microservicio:** monolito + microservicio de imágenes (recibe reparaciones).
+
+### 🗑️ Limpiar caché
+**Ruta front:** `/admin/cache`
+**Componente:** `src/app/admin/cache/cache.component.ts`
+**Endpoints:**
+- `DELETE /v1/admin/cache` — pantalla `admin/cache`
+**Microservicio:** solo el monolito (limpia Redis, no toca el microservicio de imágenes).
+
+### 🗂️ Menús y submenús
+**Ruta front:** `/gestion-menu`
+**Componente:** `src/app/menu-admin/gestion/gestion-menu.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/menu/**` y `/v1/submenu/**` — pantalla `gestion-menu`
+**Microservicio:** solo el monolito.
+
+### 🛡️ Gestión de roles
+**Ruta front:** `/gestion-menu/roles`
+**Componente:** `src/app/menu-admin/gestion-roles/gestion-roles.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/roles/**` + `POST/DELETE /v1/roles/{rolId}/submenus/{submenuId}` — pantalla `gestion-menu/roles`
+- `GET /v1/menu/getAll`, `GET /v1/submenu/getAll` (armar el checklist) — pantalla `gestion-menu` (necesita ambas pantallas)
+**Microservicio:** solo el monolito.
+
+### 🎨 Personalización
+**Ruta front:** `/personalizacion`
+**Componente:** `src/app/tema-admin/gestion/gestion-personalizacion.component.ts`
+**Endpoints:**
+- CRUD completo de `/v1/tema-variable/**` — pantalla `personalizacion`
+- `GET /v1/tema-variable/activo` — público (lo usa toda la app al arrancar, no solo esta pantalla)
+**Microservicio:** solo el monolito.
+
+---
+
+## Sin grupo (fuera del sistema de permisos — "básicos")
+
+### 👥 Clientes
+**Ruta front:** `/clientes/buscar`
+**Componente:** `src/app/clietes/clientes-buscar/clientes-buscar.component.ts`
+**Endpoints:**
+- `GET /v1/clientes/buscar?nombre=&page=&size=` — pantalla `clientes/buscar`
+- `POST /v1/clientes/{id}/enviar-codigo-verificacion`, `/verificar-correo` — autenticado (self-service; dueño-o-admin desde el fix de 2026-08-27)
+- `DELETE /v1/clientes/{id}/verificacion-correo` — pantalla `clientes/buscar`
+**Microservicio:** solo el monolito.
+
+### 🏠 Home
+**Ruta front:** `/home` — estática, sin llamadas HTTP, fuera del sistema de permisos.
+
+### 🛍️ Tienda
+**Ruta front:** `/tienda/buscar` — pública (cualquier visitante o usuario logueado)
+**Componente:** `src/app/variante/buscar/buscar.component.ts`
+**Endpoints:**
+- `GET /v1/promociones/activas`, `GET /tienda/v1/filtros-disponibles`, `GET /tienda/v1/buscar`, `/buscar-filtrado`, `/porProducto/{id}/paginado/resumen` — público
+- `GET /v1/favoritos/ids`, `POST/DELETE /v1/favoritos/{varianteId}` — autenticado (si hay sesión)
+- Si es admin: `GET /tienda/v1/admin/filtrar`, `/getOne/{id}`, `PUT /tienda/v1/{id}/habilitar`, `/admin/habilitar-lote` — pantalla `productos/buscar`/`productos/agregar`/`tienda/venta`
+**Microservicio:** solo lectura de imágenes ya guardadas (vía URL), no sube nada.
+
+### ❤️ Favoritos
+**Ruta front:** `/favoritos` — cualquier usuario logueado
+**Componente:** `src/app/favoritos/favoritos.component.ts`
+**Endpoints:**
+- `GET /v1/favoritos?pagina=&size=`, `DELETE /v1/favoritos/{varianteId}` — autenticado (100% del usuario, sin id manipulable)
+**Microservicio:** solo el monolito.
+
+### 💬 Chat
+**Ruta front:** `/chat` — cualquier usuario logueado
+**Componente:** `src/app/chat/chat-usuario/chat-usuario.component.ts`
+**Endpoints:**
+- `GET /v1/chat/historial/usuario/{usuarioId}?pagina=&size=` — autenticado, dueño-o-admin
+- WebSocket handshake `${api_Url}/ws` — público
+**Microservicio:** solo el monolito.
+
+### 📱 Código QR de la tienda
+**Ruta front:** `/qr` — estática, genera el QR en el navegador a partir de una URL fija, sin llamadas HTTP.
+
+### 🔑 Login
+**Ruta front:** `/login` — pública por definición
+**Componente:** `src/app/login/login-form/login-form.component.ts`
+**Endpoints:**
+- `POST /v1/auth/login` — público
+- `GET /v1/negocio/estado`, `/contactos` — público
+**Microservicio:** solo el monolito.
+
+---
+
+## Endpoints ROLE_ADMIN fijo sin pantalla propia todavía (recordatorio de la Fase 2)
+
+Si algún día quieres que un rol no-admin use alguno de estos, hay que darlo de alta como pantalla
+primero: gestión de imágenes compartida (`/imagen/**` fuera de lo público), gestión de Pedidos vía
+PUT/DELETE (cancelar, confirmar, eliminar), Ventas (`/v1/ventas/**` salvo reclamar), MercadoPago
+(`/v1/mp/**` salvo el webhook y el uso ya cubierto por otras pantallas via `PagoService`), Pagos
+(`/v1/pagos/**`), responder Reseñas, Actuator.
+
+---
+
+## Auditoría de correctitud — 7 bugs reales encontrados y corregidos (2026-08-27)
+
+Revisión endpoint por endpoint (URL, método, parámetros, body y forma de la respuesta) de las 45
+pantallas del mapa de arriba, comparando el front contra el backend real. **No cambia contrato
+para nadie que ya integró bien** — estos eran bugs de código, no diseño de API.
+
+1. **🎁 Administrar ramos armados — corrupción de stock (crítico).** Subir la foto de un ramo
+   armado mandaba `{ id, producto: { id } }` sin el resto de la variante. `guardarConImagenes`
+   guarda la entidad completa (no hace merge), así que el `stock` llegaba en 0 y **pisaba el
+   inventario real** del producto sombra en cada foto subida. Corregido: ahora se trae la variante
+   completa (`GET /tienda/v1/getOne/{id}`) antes de subir la foto, igual que ya hacía "Catálogos".
+
+2. **💰 Gastos — pantalla entera vacía (crítico).** `gastos.service.ts` leía `r.response` en vez
+   de `r.data` en los 6 métodos (buscar/save/update/delete gastos, buscar ventas, reporte). El
+   backend siempre envía `data`. Las 3 pestañas (Gastos, Ventas, Reporte) mostraban "vacío" con
+   status 200, sin ningún error visible. Corregido.
+
+3. **📋 Cobro con terminal (Mis pedidos / Venta directa) — cuotas ignoradas.** El backend nunca
+   mandaba el campo `cuotas` en las opciones de meses del diálogo de cobro; el front caía a
+   `?? 1` y el pago a la terminal siempre se mandaba a **1 solo pago**, sin importar si el admin
+   eligió 3/6/9/12 meses. Corregido: `OpcionMesesDto` ahora incluye `cuotas` (parseado de
+   `MesesIntereses.meses`).
+
+4. **Mis Datos / Mi Perfil / Arma tu ramo — `GET /v1/clientes/buscarPorIdCliente/{id}` con
+   semántica contradictoria.** El endpoint tenía DOS interpretaciones distintas de su propio
+   parámetro dentro del mismo método: el chequeo de dueño esperaba id de **Cliente**, pero la
+   consulta a BD filtraba por `usuario.id`. "Funcionaba" solo cuando `Cliente.id` coincidía por
+   casualidad con `Usuario.id`. Corregido en el repositorio (ahora filtra por `Cliente.id`, como
+   dice su nombre y su chequeo de seguridad) + se agregó `findByUsuarioId()` aparte para el único
+   caller interno que sí necesitaba esa otra búsqueda + se corrigió `configurar-ramo.component.ts`
+   (mandaba `idUsuario` directo, con un comentario que decía justo lo contrario de lo correcto).
+
+5. **👥 Clientes → Buscar — la paginación nunca avanzaba.** El front leía `res.data.totalElementos`,
+   un campo que `PageableDto` nunca tuvo (solo trae `list` y `totalPaginas`). Corregido para leer
+   `totalPaginas` directo.
+
+6. **🛍️ Tienda — habilitar/deshabilitar una sola variante daba 404.** Solo existía el endpoint de
+   lote (`PUT /tienda/v1/admin/habilitar-lote`); el botón individual de la búsqueda de tienda
+   llamaba a `PUT /tienda/v1/{id}/habilitar`, que no existía. Se agregó, mismo patrón que
+   `ProductosControllerImpl`.
+
+7. **🎁 Gestionar promociones — "precio normal" siempre en $0.00.** `PromocionDetalleResponseDto`
+   (usado por `GET /v1/promociones/admin`) no traía `precioNormal`, a diferencia del DTO gemelo de
+   la pantalla pública que sí lo tiene. Corregido, mismo dato (`producto.precioVenta`).
+
+**Encontrado pero sin corregir a propósito (bajo impacto, no rompe nada hoy):** el DTO de opciones
+de pago tampoco manda `requiereTerminal` (el front ya tiene un fallback que funciona por nombre de
+forma de pago); "Arma tu ramo" manda `latitud`/`longitud`/`referencias` al guardar el detalle del
+ramo pero el DTO del backend no los admite (Jackson los descarta en silencio, sin impacto porque
+esos datos ya se guardan por otro lado en `savePedido`) — si de verdad hace falta ese refuerzo,
+hay que agregar los campos al DTO, es decisión de producto, no un bug urgente.
+
+---
+
+## Fecha/hora de entrega visible en el pedido del cliente (2026-09-08)
+
+Pedido explícito del usuario: en "Mis pedidos" / detalle del pedido, el cliente debe poder ver
+cuándo y a qué hora le vamos a entregar, sin depender solo del correo que se le mandó una vez.
+
+**Request:** sin cambios — sigue siendo `GET /v1/pedidos/{id}/detalle` (mismo endpoint que ya
+usa `PedidosService.obtenerDetallePedido()`).
+
+**Response — `PedidoDetalleResponse` gana 3 campos nuevos** (todos opcionales, `@JsonInclude(NON_NULL)`
+como el resto del DTO):
+
+- `horaRecogida` (string, ej. `"12:00"`) y `puntoEncuentro` (string) — se llenan cuando la
+  pantalla "Entregas por zona" ya programó el viaje semanal a la zona de este pedido (antes solo
+  se mandaban en el correo de aviso a los clientes y se perdían — `fechaRecogida` sí se guardaba
+  desde antes, esto completa el dato).
+- `fechaHoraEntregaRamo` (string ISO datetime) — solo si el pedido es un ramo de flores eternas
+  (`esRamoFlores: true`). Es la fecha+hora exacta que el cliente eligió al armar el ramo
+  (`RamoPedidoDetalle.fechaHoraEntrega`, ya existía en BD pero nunca se exponía en este DTO).
+
+**Diferencia clave respecto a antes:** antes solo `fechaRecogida` (fecha sin hora) llegaba al
+front, y solo para pedidos de zona — un pedido de ramo no traía ningún dato de fecha/hora de
+entrega en este endpoint, aunque el back ya la tuviera calculada y guardada.
+
+**Actualización 2026-09-08 (mismo día):** se agregó también el correo de confirmación inicial
+para ramos que faltaba — `RamoPedidoDetalleServiceImpl.adjuntar()` ahora manda
+`EmailService.enviarConfirmacionRamo()` al cliente en cuanto arma su ramo (si tiene correo de
+contacto y ya se calculó `fechaHoraEntrega`), con la fecha/hora y el lugar ("Recoges en tienda" o
+el nombre de la zona). Antes solo existía el correo de "cambio de fecha" cuando un admin editaba
+el pedido después — la compra inicial nunca avisaba nada.
+
+Migración de BD ejecutada: `migration_pedido_hora_punto_encuentro.sql` (2 columnas nuevas en
+`pedidos`: `hora_recogida`, `punto_encuentro`).
+
+---
+
+## RIFA PLATAFORMAS — correcciones y endpoints nuevos — 2026-09-09
+
+Ronda de arreglos sobre la pantalla de rifa por acciones en redes sociales (`rifas/boletos`).
+**No hay migración de BD nueva** — no se agregó ninguna columna; todo es DTO y endpoints.
+
+### 1. ⚠️ CAMBIO DE CONTRATO — el resumen de rifa ahora trae el rango de boletos
+
+Afecta a los tres endpoints que devuelven `ConfigurarRifaResumenDto`:
+
+- `GET /v1/configurarRifa/activas`
+- `GET /v1/configurarRifa/activas/hoy`
+- `GET /v1/configurarRifa/buscar`
+
+**Antes** el resumen NO incluía `fechaInicioBoletos` ni `fechaFinBoletos`, aunque sí estuvieran
+guardadas en la BD. Consecuencia en el front: al recargar la pantalla la rifa volvía sin fechas y
+el wizard pedía configurar el rango otra vez ("me dice que debo seleccionar la fecha pero eso ya
+estaba configurado").
+
+**Ahora** el response agrega los dos campos:
+
+```json
+{
+  "id": 12,
+  "fechaHoraLimite": "2026-09-30T20:00:00",
+  "activa": true,
+  "totalVariantes": 2,
+  "variantesSorteadas": 0,
+  "tipo": "PLATAFORMAS",
+  "mesReferencia": null,
+  "esPrueba": true,
+  "fechaInicioBoletos": "2026-09-01",
+  "fechaFinBoletos": "2026-09-30"
+}
+```
+
+`fechaInicioBoletos` / `fechaFinBoletos` son `yyyy-MM-dd` y pueden venir `null` si la rifa nunca
+configuró rango.
+
+### 2. La hora de cierre vive en `fechaHoraLimite`
+
+`fechaFinBoletos` es solo la fecha (sin hora). La **hora a la que cierra la rifa el último día**
+va en `fechaHoraLimite`, que ya existía. El front antes la mandaba fija en `T23:59`; ahora la
+manda como la configure el usuario.
+
+`PUT /v1/configurarRifa/{id}` — body (todos opcionales, solo se aplica lo que venga):
+
+```json
+{ "fechaHoraLimite": "2026-09-30T20:00", "fechaInicioBoletos": "2026-09-01", "fechaFinBoletos": "2026-09-30" }
+```
+
+Formato de `fechaHoraLimite`: `yyyy-MM-dd'T'HH:mm[:ss]`.
+
+### 3. Listar rifas de plataformas: usar `/buscar`, no `/activas`
+
+Una rifa se marca `activa=false` sola cuando pasa su fecha límite (job `desactivarVencidas`) o
+cuando se sortea el último premio en modo real. Con `/activas` esa rifa **desaparecía del selector
+y ya no había forma de volver a abrirla** ("regresé a buscarlo y ya no lo veo").
+
+Usar en su lugar:
+
+**Request:** `GET /v1/configurarRifa/buscar?tipo=PLATAFORMAS`
+**Response:** lista de `ConfigurarRifaResumenDto` (el del punto 1), **incluidas las cerradas** —
+se distinguen por `activa: false`.
+
+### 4. NUEVO — editar un premio ya guardado (giro ganador)
+
+Antes solo existía `PUT /v1/configurarRifaVariante/{id}/palabraClave`, así que **el "gana al giro"
+quedaba congelado** en el valor con el que se agregó el premio: para cambiarlo había que eliminar
+el premio y volverlo a crear (devolviendo y re-reservando stock).
+
+**Request:** `PUT /v1/configurarRifaVariante/{id}`
+
+```json
+{ "giroGanador": 5 }
+```
+
+Todos los campos son opcionales — solo se aplica lo que venga distinto de `null`:
+`giroGanador`, `orden`, `permitirNuevos`, `palabraClave`, `varianteId`.
+Mandar `varianteId` cambia el producto del premio: devuelve el stock del anterior y reserva uno
+del nuevo.
+
+**Response:** el `ConfigurarRifaVarianteDto` ya actualizado.
+
+```json
+{ "id": 8, "palabraClave": "PREMIO1", "giroGanador": 5, "orden": 1,
+  "permitirNuevos": false, "stockReservado": 1,
+  "variante": { "id": 44, "nombreProducto": "Bolsa Kelly", "color": "Negro", "talla": "U", "stock": 3, "precio": 850.0, "imagenBase64": "..." } }
+```
+
+- **400** con `mensaje` si el giro es menor a 1, si la `palabraClave` ya existe en esa rifa, o si
+  la variante nueva no tiene stock.
+- **400** `Configuración de variante no encontrada` si el id no existe.
+
+### 5. NUEVO — editar un boleto ya registrado
+
+Antes solo se podía **eliminar** el boleto, y eliminarlo descuenta el boleto del participante:
+corregir una plataforma mal puesta obligaba a borrar y recapturar, moviendo el conteo dos veces.
+
+**Request:** `PUT /v1/boletoRifa/{id}` — mismo body que `POST /v1/boletoRifa/registrar`:
+
+```json
+{ "plataforma": "INSTAGRAM", "motivo": "Compartió el reel", "fecha": "2026-09-08",
+  "urlPerfilRedSocial": "https://instagram.com/usuaria",
+  "urlSeguimiento": "https://...", "urlsCompartido": ["https://..."] }
+```
+
+`concursanteId` se ignora: el boleto no cambia de dueño y no se toca su estado de descartado
+(eso lo decide el sorteo).
+
+**Response:** el `BoletoRifa` actualizado.
+**400** si falta `plataforma`, falta `urlPerfilRedSocial`, o la fecha cae fuera del periodo de la rifa.
+
+### 6. ⚠️ `plataforma` ahora es OBLIGATORIA al registrar un boleto
+
+`POST /v1/boletoRifa/registrar` antes aceptaba `plataforma: null` y guardaba el boleto sin red
+social. Ahora responde **400** con `"La plataforma del boleto es obligatoria"`.
+
+Valores válidos: `FACEBOOK` | `INSTAGRAM` | `TIKTOK` | `OTRO`.
+
+Los campos obligatorios del boleto quedan en dos: `plataforma` y `urlPerfilRedSocial`.
+`motivo`, `urlSeguimiento` y `urlsCompartido` siguen siendo opcionales.
+
+### 7. Editar participante — ya existía, se documenta porque el front no lo estaba usando
+
+`PUT /v1/concursante/{id}` ya existía desde antes y acepta un patch parcial:
+
+```json
+{ "nombre": "María", "apellidoPaterno": "López", "telefono": "5512345678" }
+```
+
+También acepta `palabraClave` y `ordenDesde`. Solo se aplica lo que venga distinto de `null`.
+**Response:** el `Concursante` actualizado.
+
+La pantalla solo ofrecía "eliminar", así que corregir un nombre mal escrito significaba borrar al
+participante y perder sus boletos.
+
+---
+
+## ENTREGAS POR ZONA — filtro por rango de fechas — 2026-09-09
+
+La pantalla `entregas-zona` **solo podía ver la semana en curso** (lunes a viernes, calculada en
+el back). Un pedido de la semana pasada que nunca se entregó quedaba invisible ahí y no había
+forma de avisarle a ese cliente desde esa pantalla. Ahora el rango se elige en el front.
+
+**No hay migración de BD** — el repositorio ya tenía la consulta por rango; solo estaba fija.
+
+### `GET /v1/entregas-zona/{lugarEntregaId}/pendientes` — params nuevos (opcionales)
+
+| Param | Formato | Qué hace |
+|---|---|---|
+| `desde` | `yyyy-MM-dd` | Fecha de pedido inicial (inclusive) |
+| `hasta` | `yyyy-MM-dd` | Fecha de pedido final (inclusive) |
+
+- Sin ninguno de los dos → la semana en curso, **igual que antes** (compatible hacia atrás).
+- Con uno solo → ese día suelto.
+- `desde > hasta` → **400** `"La fecha inicial no puede ser posterior a la final"`.
+
+**Response** — se agregan `desde` y `hasta`; `lunes` y `viernes` siguen viniendo con el mismo
+valor solo por compatibilidad (**deprecados, usar `desde`/`hasta`**):
+
+```json
+{
+  "desde": "2026-09-01",
+  "hasta": "2026-09-09",
+  "lunes": "2026-09-01",
+  "viernes": "2026-09-09",
+  "fechaSugerida": "2026-09-11",
+  "pedidos": [
+    { "pedidoId": 412, "nombreCliente": "María López", "correo": "maria@...",
+      "total": 780.0, "fechaPedido": "2026-09-03" }
+  ]
+}
+```
+
+`fechaSugerida` sigue saliendo del `diaEntregaSemanal` de la zona resuelto sobre la **semana en
+curso**, no sobre el rango consultado: el viaje se hace esta semana aunque se estén juntando
+pedidos viejos.
+
+### `POST /v1/entregas-zona/{lugarEntregaId}/programar` — dos campos nuevos en el body
+
+```json
+{ "fecha": "2026-09-11", "hora": "17:00", "puntoEncuentro": "Centro, frente a la iglesia",
+  "desde": "2026-09-01", "hasta": "2026-09-09" }
+```
+
+`desde`/`hasta` son el **mismo rango que se listó**. Es importante mandarlos: antes el back
+recalculaba la semana en curso por su cuenta al programar, así que en cuanto el rango dejó de ser
+fijo, el correo le habría llegado a un conjunto de pedidos **distinto del que el admin tenía a la
+vista**. Si vienen `null` se usa la semana en curso, como antes.
+
+`fecha` (la de entrega, la que va en el correo al cliente) es independiente del rango de búsqueda.
+
+**Response:** `data` = número de correos enviados.

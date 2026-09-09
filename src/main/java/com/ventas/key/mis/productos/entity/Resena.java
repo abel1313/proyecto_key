@@ -38,4 +38,12 @@ public class Resena extends BaseId {
 
     @Column(name = "fecha_creacion", nullable = false)
     private LocalDateTime fechaCreacion;
+
+    // Respuesta publica del ADMIN a la resena del cliente. Una sola respuesta por resena
+    // (no un hilo) -- se puede reescribir, no se guarda historial de versiones anteriores.
+    @Column(name = "respuesta_admin", columnDefinition = "TEXT")
+    private String respuestaAdmin;
+
+    @Column(name = "fecha_respuesta")
+    private LocalDateTime fechaRespuesta;
 }

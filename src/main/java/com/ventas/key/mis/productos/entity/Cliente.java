@@ -85,6 +85,20 @@ public class Cliente extends BaseId{
       @Column(name = "datos_completos")
       private Boolean datosCompletos = Boolean.FALSE;
 
+      // Preferencia de correos no transaccionales (seguimiento de pedido, alerta de stock de
+      // favoritos). El ticket de compra y los codigos de verificacion/reset NO dependen de esto.
+      // Se actualiza SOLO via ClienteControllerImpl PUT /{id}/preferencias-correo -- el guardado
+      // generico (save/update) preserva siempre el valor existente (mismo criterio que
+      // codigoVerificacion/correoVerificado, ver el comentario en ClienteControllerImpl.save()).
+      @Column(name = "recibir_correos", nullable = false)
+      private Boolean recibirCorreos = Boolean.TRUE;
+
+      // Checkbox independiente de recibirCorreos (2026-09-03) -- correos de promociones. Se
+      // actualiza SOLO via ClienteControllerImpl PUT /{id}/preferencias-promociones, mismo
+      // criterio que recibirCorreos: el guardado generico preserva siempre el valor existente.
+      @Column(name = "recibir_promociones", nullable = false)
+      private Boolean recibirPromociones = Boolean.TRUE;
+
     @OneToOne
     @JoinColumn(name = "usuario_id")
     @JsonBackReference

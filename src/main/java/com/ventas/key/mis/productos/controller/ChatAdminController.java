@@ -1,11 +1,14 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.ChatMensaje;
+import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.chat.ChatHistorialPaginadoDto;
 import com.ventas.key.mis.productos.models.chat.SesionActivaDto;
 import com.ventas.key.mis.productos.service.api.IChatMensajeService;
 import com.ventas.key.mis.productos.service.api.IChatSesionService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -62,6 +65,15 @@ public class ChatAdminController {
             @PathVariable Integer usuarioId,
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "20") int size) {
+        // Sin este chequeo cualquier usuario logueado podia leer el chat privado de OTRO usuario
+        // solo cambiando el id en la URL -- ver nota en SecurityConfig, esta ruta ya no es publica
+        // pero seguia sin validar dueno (encontrado 2026-08-27).
+        if (!AuthenticationUtils.isAdminContext()) {
+            Usuario actual = AuthenticationUtils.currentUsuario();
+            if (!actual.getId().equals(usuarioId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+            }
+        }
         return ResponseEntity.ok(new ResponseGeneric<>(mensajeService.obtenerHistorialPorUsuarioId(usuarioId, pagina, size)));
     }
 
@@ -70,6 +82,15 @@ public class ChatAdminController {
             @PathVariable String clienteId,
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "20") int size) {
+        // Mismo chequeo que historialPorUsuarioId() -- ver esa nota.
+        if (!AuthenticationUtils.isAdminContext()) {
+            Usuario actual = AuthenticationUtils.currentUsuario();
+            boolean esDueno = actual.getCliente() != null
+                    && String.valueOf(actual.getCliente().getId()).equals(clienteId);
+            if (!esDueno) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+            }
+        }
         return ResponseEntity.ok(new ResponseGeneric<>(mensajeService.obtenerHistorialPorClienteId(clienteId, pagina, size)));
     }
 

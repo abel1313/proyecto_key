@@ -12,9 +12,11 @@ import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.models.variantes.IndependizarVarianteResponseDto;
+import com.ventas.key.mis.productos.models.variantes.ProductoIdDto;
 import com.ventas.key.mis.productos.models.variantes.VarianteDto;
 import com.ventas.key.mis.productos.service.VarianteServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
@@ -22,7 +24,10 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -76,6 +81,16 @@ public class VarianteController extends AbstractController<
     @GetMapping("/v1/porProducto/{productoId}")
     public ResponseEntity<ResponseGeneric<List<VarianteDto>>> getPorProducto(@PathVariable Integer productoId) {
         return ResponseEntity.ok(new ResponseGeneric<List<VarianteDto>>(sGenerico.buscarPorProducto(productoId)));
+    }
+
+    // Publico a proposito (cae en el permitAll de GET /tienda/** de SecurityConfig, no matchea
+    // los patrones getAll/getOne que se cerraron a ADMIN). Resuelve varianteId -> productoId para
+    // la ficha de producto cuando el cliente entra por un link directo/marcador y no trae el
+    // productoId a mano -- el resto de los datos los sigue sacando de /v1/porProducto/{productoId},
+    // que ya es publico.
+    @GetMapping("/v1/variante/{varianteId}/producto-id")
+    public ResponseEntity<ResponseGeneric<ProductoIdDto>> getProductoIdPorVariante(@PathVariable Integer varianteId) {
+        return ResponseEntity.ok(new ResponseGeneric<>(new ProductoIdDto(sGenerico.resolverProductoId(varianteId))));
     }
 
     @GetMapping("/v1/porProducto/{productoId}/paginado")
@@ -216,10 +231,32 @@ public class VarianteController extends AbstractController<
             @RequestParam(required = false) Boolean conImagenes,
             @RequestParam(required = false) Boolean habilitado,
             @RequestParam(required = false) Boolean codigoGenerado,
+            // Mismo filtro de fecha que ProductosControllerImpl.filtrarProductosAdmin -- ver
+            // comentario ahi para el motivo (codigo de barras al azar de la carga rapida).
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, pagina, size)));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, pagina, size)));
+    }
+
+    // Faltaba: el front (Tienda → Buscar) llama esto para el toggle individual de una sola
+    // variante desde hace rato -- solo existia el de lote, asi que ese boton daba 404 siempre
+    // (encontrado 2026-08-27, auditoria de correctitud). Mismo patron que
+    // ProductosControllerImpl.habilitarDeshabilitarProducto, reusando el metodo de lote con una
+    // lista de un solo id para no duplicar la logica de guardado/relectura.
+    @PutMapping("/v1/{id}/habilitar")
+    public ResponseEntity<Map<String, Object>> habilitarDeshabilitarVariante(
+            @PathVariable Integer id,
+            @RequestParam boolean habilitar) {
+        log.info("Cambiar estado habilitado de la variante id={} habilitar={}", id, habilitar);
+        sGenerico.habilitarDeshabilitarVariantesLote(List.of(id), habilitar);
+        return ResponseEntity.ok(Map.of(
+                "id", id,
+                "habilitado", habilitar,
+                "mensaje", habilitar ? "Variante habilitada correctamente" : "Variante deshabilitada correctamente"
+        ));
     }
 
     @PutMapping("/v1/admin/habilitar-lote")

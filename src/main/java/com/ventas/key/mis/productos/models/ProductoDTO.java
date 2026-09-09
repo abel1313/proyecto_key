@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Setter
 @Getter
 @AllArgsConstructor
@@ -28,6 +30,8 @@ public class ProductoDTO {
     private int idProducto;
     private char habilitado;
     private Imagen imagen;
+    // Solo se llena en la vista admin (constructor de ProductoAdmin) -- ver ProductoAdmin.java.
+    private LocalDateTime fechaCreacion;
 
 
     public ProductoDTO(ProductoAdmin productoAdmin) {
@@ -46,6 +50,7 @@ public class ProductoDTO {
         this.idProducto = productoAdmin.getIdProducto();
         this.habilitado = productoAdmin.getHabilitado();
         this.imagen = productoAdmin.getImagen();
+        this.fechaCreacion = productoAdmin.getFechaCreacion();
     }
 
     public ProductoDTO(ProductoUser productoUser) {

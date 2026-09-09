@@ -7,6 +7,7 @@ import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ConfigurarRifaPatchDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaResumenDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.repository.IBoletoRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IGanadorRifaRepository;
@@ -30,6 +31,7 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
     private final IGanadorRifaRepository iGanadorRifaRepository;
     private final GanadorRifaServiceImpl ganadorRifaService;
     private final IVarianteRepository iVarianteRepository;
+    private final IBoletoRifaRepository iBoletoRifaRepository;
 
     public ConfiguracionRifaServiceImpl(
             final IConfigurarRifaRepository iRifaRepository,
@@ -37,13 +39,15 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
             final IGanadorRifaRepository iGanadorRifaRepository,
             final GanadorRifaServiceImpl ganadorRifaService,
             final ErrorGenerico eGenerico,
-            final IVarianteRepository iVarianteRepository) {
+            final IVarianteRepository iVarianteRepository,
+            final IBoletoRifaRepository iBoletoRifaRepository) {
         super(iRifaRepository, eGenerico);
         this.iRifaRepository = iRifaRepository;
         this.iConfigurarRifaVarianteRepository = iConfigurarRifaVarianteRepository;
         this.iGanadorRifaRepository = iGanadorRifaRepository;
         this.ganadorRifaService = ganadorRifaService;
         this.iVarianteRepository = iVarianteRepository;
+        this.iBoletoRifaRepository = iBoletoRifaRepository;
     }
 
     public List<ConfigurarRifa> buscarActivas() {
@@ -67,7 +71,8 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         return new ConfigurarRifaResumenDto(
                 rifa.getId(), rifa.getFechaHoraLimite(), rifa.getActiva(),
                 totalVariantes, variantesSorteadas,
-                rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba());
+                rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba(),
+                rifa.getFechaInicioBoletos(), rifa.getFechaFinBoletos());
     }
 
     public List<ConfigurarRifa> buscarActivasHoy() {
@@ -108,6 +113,11 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         if (eraPrueba && !esPrueba) {
             // Pasar de prueba -> real: limpiar giros de la demo y reactivar la rifa
             ganadorRifaService.reiniciar(id, false);
+            // En PLATAFORMAS el descarte es por boleto, así que también hay que
+            // devolverlos todos a juego (reiniciar solo toca a los concursantes).
+            if (ConfigurarRifa.TipoRifa.PLATAFORMAS.equals(config.getTipo())) {
+                iBoletoRifaRepository.reactivarTodosPorRifa(id);
+            }
             config = iRifaRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
         }
@@ -141,6 +151,12 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         }
         if (patch.getMesReferencia() != null) {
             config.setMesReferencia(patch.getMesReferencia().isBlank() ? null : patch.getMesReferencia());
+        }
+        if (patch.getFechaInicioBoletos() != null) {
+            config.setFechaInicioBoletos(patch.getFechaInicioBoletos());
+        }
+        if (patch.getFechaFinBoletos() != null) {
+            config.setFechaFinBoletos(patch.getFechaFinBoletos());
         }
 
         return iRifaRepository.save(config);

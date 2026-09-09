@@ -4,10 +4,14 @@ import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Direccion;
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.models.PreferenciaCorreoRequest;
+import com.ventas.key.mis.productos.models.PreferenciaPromocionesRequest;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.SolicitarCambioCorreoRequest;
 import com.ventas.key.mis.productos.models.VerificarCorreoRequest;
 import com.ventas.key.mis.productos.service.ClienteServiceImpl;
 import com.ventas.key.mis.productos.service.UsuarioDetailsService;
@@ -43,6 +47,23 @@ public class ClienteControllerImpl extends AbstractController<
         ClienteServiceImpl> {
 
     private final UsuarioDetailsService usuarioDetailsService;
+
+    // save(Cliente, BindingResult) no lleva @Valid -- por eso las anotaciones de Cliente
+    // (@Email en correoElectronico, etc.) nunca se disparan aqui, y el front puede mandar
+    // cualquier texto como correo (encontrado 2026-09-04: se guardo "qa" como correo de un
+    // cliente sin que el back lo rechazara). No se agrega @Valid al parametro completo porque
+    // Cliente tiene otros campos @NotBlank/@NotNull (nombrePersona, apeidoPaterno,
+    // numeroTelefonico) que este mismo endpoint ya guarda parcialmente en flujos existentes
+    // (ej. el Cliente auto-creado al registrarse, que arranca con esos campos vacios a
+    // proposito -- ver ClienteServiceImpl.crearClienteDesdeRegistro) -- validar todo el objeto
+    // rompería esos casos. Se valida solo el formato del correo, y solo cuando de verdad se
+    // esta intentando cambiar (mismo punto donde ya se decide si aplica directo o queda
+    // pendiente de verificar, un poco mas abajo).
+    // (\.[\w-]+)+ (no solo un ".[a-zA-Z]{2,}" final) -- un dominio de 1 sola terminacion
+    // rechazaba en falso cualquier correo con TLD compuesto como "novedades-jade.com.mx"
+    // (encontrado 2026-09-04 al probarlo con un correo real del propio dominio del negocio).
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$");
 
     public ClienteControllerImpl(ClienteServiceImpl sGenerico, UsuarioDetailsService usuarioDetailsService) {
         super(sGenerico);
@@ -83,10 +104,20 @@ public class ClienteControllerImpl extends AbstractController<
         if (existente != null) {
             requestG.setCodigoVerificacion(existente.getCodigoVerificacion());
             requestG.setCodigoVerificacionExpira(existente.getCodigoVerificacionExpira());
+            // La preferencia de correos SOLO se cambia via PUT /{id}/preferencias-correo -- si el
+            // guardado generico la dejara pasar, cualquier form que no la incluya en su payload
+            // (ej. "Mis datos") la resetearia al default de la clase (true) en cada guardado.
+            requestG.setRecibirCorreos(existente.getRecibirCorreos());
+            // Mismo criterio para el checkbox de promociones -- SOLO se cambia via PUT
+            // /{id}/preferencias-promociones.
+            requestG.setRecibirPromociones(existente.getRecibirPromociones());
 
             String correoNuevo = requestG.getCorreoElectronico();
             String correoActual = existente.getCorreoElectronico();
             boolean cambioDeCorreo = correoNuevo != null && !correoNuevo.equalsIgnoreCase(correoActual);
+            if (cambioDeCorreo && !EMAIL_PATTERN.matcher(correoNuevo).matches()) {
+                throw new RuntimeException("El correo electronico no tiene un formato valido");
+            }
             if (cambioDeCorreo && !AuthenticationUtils.isAdminContext()) {
                 // Mejora 15: el correo nuevo NO se aplica de inmediato — queda pendiente de
                 // verificar. El correo actual (ya verificado) sigue siendo el vigente.
@@ -101,6 +132,16 @@ public class ClienteControllerImpl extends AbstractController<
                 // admin), sin dejar nada pendiente.
                 requestG.setCorreoVerificado(true);
                 requestG.setCorreoPendiente(null);
+                // Encontrado 2026-09-04: esta rama nunca sincronizaba hacia Usuario.email (la
+                // sincronizacion solo vivia en ClienteServiceImpl.verificarCorreo, el camino con
+                // codigo) -- un admin editando su propio correo por aqui dejaba su Cliente
+                // actualizado pero su Usuario.email en null para siempre, y cualquier cosa que
+                // dependiera de Usuario.email (ej. el aviso de "nuevo pedido" a los admins)
+                // nunca lo encontraba.
+                if (usr.get().getEmail() == null || !usr.get().getEmail().equalsIgnoreCase(correoNuevo)) {
+                    usr.get().setEmail(correoNuevo);
+                    usuarioDetailsService.guardar(usr.get());
+                }
             } else {
                 requestG.setCorreoPendiente(existente.getCorreoPendiente());
                 requestG.setCorreoVerificado(existente.getCorreoVerificado());
@@ -151,7 +192,7 @@ public class ClienteControllerImpl extends AbstractController<
         @ApiResponse(responseCode = "401", description = "No autenticado")
     })
     @GetMapping("buscarPorIdCliente/{idCliente}")
-    public ResponseEntity<ResponseGeneric<Optional<Cliente>>> findByIdCliente(
+    public ResponseEntity<ResponseGeneric<Cliente>> findByIdCliente(
             @Parameter(description = "ID del cliente") @PathVariable int idCliente) {
         Usuario actual = AuthenticationUtils.currentUsuario();
         boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
@@ -160,6 +201,21 @@ public class ClienteControllerImpl extends AbstractController<
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
         }
         return ResponseEntity.status(HttpStatus.OK).body(sGenerico.findClienteById(idCliente));
+    }
+
+    @Operation(summary = "Detalle completo de cliente para admin", description = "Igual que buscarPorIdCliente, pero incluye el usuarioId y username del usuario vinculado (Cliente.usuario no viaja en el JSON del endpoint normal) -- lo necesita la pantalla de ver/editar cliente para poder guardar despues.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Detalle encontrado"),
+        @ApiResponse(responseCode = "403", description = "No es ADMIN"),
+        @ApiResponse(responseCode = "401", description = "No autenticado")
+    })
+    @GetMapping("admin/detalle/{idCliente}")
+    public ResponseEntity<ResponseGeneric<Optional<ClienteAdminDetalleDto>>> obtenerDetalleAdmin(
+            @Parameter(description = "ID del cliente") @PathVariable int idCliente) {
+        if (!AuthenticationUtils.isAdminContext()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        return ResponseEntity.status(HttpStatus.OK).body(sGenerico.obtenerDetalleAdmin(idCliente));
     }
 
     @Operation(summary = "Buscar clientes por nombre (paginado)", description = "Retorna una pagina de clientes cuyo nombre contiene el texto buscado.")
@@ -181,6 +237,34 @@ public class ClienteControllerImpl extends AbstractController<
         }
     }
 
+    @Operation(summary = "Solicitar cambio de correo del cliente", description = "Manda un codigo de 6 digitos al correo NUEVO (no al actual). El correo real no cambia todavia -- solo se guarda como pendiente hasta confirmar el codigo con /verificar-correo. Pensado para dispararse solo (ej. al salir del campo de correo en 'Mis datos'), sin depender de guardar el resto del formulario.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Codigo enviado (o reutilizado uno ya vigente)"),
+        @ApiResponse(responseCode = "400", description = "Correo invalido, ya es el correo actual, o cliente no encontrado"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN")
+    })
+    @PostMapping("/{id}/solicitar-cambio-correo")
+    public ResponseEntity<ResponseGeneric<String>> solicitarCambioCorreo(
+            @PathVariable Integer id, @Valid @RequestBody SolicitarCambioCorreoRequest request) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        try {
+            boolean enviado = sGenerico.solicitarCambioCorreo(id, request.getCorreoNuevo());
+            String mensaje = enviado
+                    ? "Codigo enviado al correo nuevo"
+                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
+        } catch (Exception e) {
+            log.error("Error al solicitar cambio de correo de clienteId={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Enviar codigo de verificacion de correo", description = "Genera un codigo de 6 digitos (expira en 15 minutos) y lo envia al correo registrado del cliente.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Codigo enviado"),
@@ -188,11 +272,22 @@ public class ClienteControllerImpl extends AbstractController<
     })
     @PostMapping("/{id}/enviar-codigo-verificacion")
     public ResponseEntity<ResponseGeneric<String>> enviarCodigoVerificacion(@PathVariable Integer id) {
+        // Sin este chequeo cualquier usuario autenticado podia mandar el id de OTRO cliente y
+        // hacerle llegar codigos de verificacion sin que los pidiera -- no filtra datos (el
+        // codigo va al correo YA registrado del dueno), pero es spam/molestia y puede invalidar
+        // un codigo que el dueno real estaba a punto de usar (encontrado 2026-08-27 junto con la
+        // misma falla en Pedidos). Mismo patron esDueno que findByIdCliente(), arriba.
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
         try {
             sGenerico.enviarCodigoVerificacionCorreo(id);
             return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo registrado"));
         } catch (Exception e) {
-            log.error("Error al enviar codigo de verificacion a clienteId={}: {}", id, e.getMessage());
+            log.error("Error al enviar codigo de verificacion a clienteId={}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }
@@ -210,7 +305,7 @@ public class ClienteControllerImpl extends AbstractController<
             sGenerico.verificarCorreo(id, request.getCodigo());
             return ResponseEntity.ok(new ResponseGeneric<>("Correo verificado correctamente"));
         } catch (Exception e) {
-            log.error("Error al verificar correo de clienteId={}: {}", id, e.getMessage());
+            log.error("Error al verificar correo de clienteId={}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }
@@ -228,7 +323,59 @@ public class ClienteControllerImpl extends AbstractController<
             sGenerico.resetVerificacionCorreo(id);
             return ResponseEntity.ok(new ResponseGeneric<>("Verificacion de correo reseteada"));
         } catch (Exception e) {
-            log.error("Error al resetear verificacion de correo de clienteId={}: {}", id, e.getMessage());
+            log.error("Error al resetear verificacion de correo de clienteId={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Activar/desactivar correos no transaccionales", description = "Correo de seguimiento de pedido y alerta de stock de favoritos. No afecta el ticket de compra ni los codigos de verificacion/reset, que siguen enviandose siempre. Solo el dueno del registro o un ADMIN pueden cambiarla.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Preferencia actualizada"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado")
+    })
+    @PutMapping("/{id}/preferencias-correo")
+    public ResponseEntity<ResponseGeneric<String>> actualizarPreferenciaCorreo(
+            @PathVariable Integer id, @RequestBody PreferenciaCorreoRequest request) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        try {
+            return ResponseEntity.ok(sGenerico.actualizarPreferenciaCorreo(id, request.isRecibirCorreos()));
+        } catch (Exception e) {
+            // Pasar la excepcion completa (no solo e.getMessage()) -- si no, SLF4J nunca imprime
+            // el stacktrace ni la cadena de "Caused by", y un mensaje generico como "Could not
+            // commit JPA transaction" (2026-09-04, clienteId=23) se queda sin forma de saber la
+            // causa real.
+            log.error("Error al actualizar preferencia de correo de clienteId={}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    @Operation(summary = "Activar/desactivar correos de promociones", description = "Checkbox independiente del de preferencias-correo -- controla solo si el cliente recibe el correo cuando el admin envia una promocion nueva. Solo el dueno del registro o un ADMIN pueden cambiarla.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Preferencia actualizada"),
+        @ApiResponse(responseCode = "403", description = "No es el dueno del registro ni ADMIN"),
+        @ApiResponse(responseCode = "400", description = "Cliente no encontrado")
+    })
+    @PutMapping("/{id}/preferencias-promociones")
+    public ResponseEntity<ResponseGeneric<String>> actualizarPreferenciaPromociones(
+            @PathVariable Integer id, @RequestBody PreferenciaPromocionesRequest request) {
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
+        try {
+            return ResponseEntity.ok(sGenerico.actualizarPreferenciaPromociones(id, request.isRecibirPromociones()));
+        } catch (Exception e) {
+            log.error("Error al actualizar preferencia de promociones de clienteId={}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }

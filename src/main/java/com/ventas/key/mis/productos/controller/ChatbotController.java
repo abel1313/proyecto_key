@@ -2,7 +2,7 @@ package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
 import com.ventas.key.mis.productos.chatbot.ChatbotRequest;
-import com.ventas.key.mis.productos.chatbot.ChatbotService;
+import com.ventas.key.mis.productos.chatbot.ChatbotSitioWebService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ChatbotController {
 
-    private final ChatbotService chatbotService;
+    private final ChatbotSitioWebService chatbotService;
     private final ChatbotBlockService blockService;
 
     private static final Pattern PRECIO_PATTERN = Pattern.compile("\\$\\s?\\d");
@@ -74,6 +74,19 @@ public class ChatbotController {
             result.put("segundosEspera", segs);
             return Mono.just(ResponseEntity.ok(result));
         }
+
+        // --- Límite de 20 mensajes/hora -- evita agotar la cuota de OpenAI aunque las preguntas
+        // sean válidas y el bot sí las entienda. Se revisa antes de llamar a la IA a propósito.
+        if (blockService.limiteMensajesExcedido(ip)) {
+            long segs = blockService.segundosRestantesLimite(ip);
+            Map<String, Object> result = new HashMap<>();
+            result.put("respuesta", "Alcanzaste el límite de consultas por ahora. Podrás seguir escribiendo en "
+                    + formatearTiempo(segs) + ", o si es urgente contáctanos directamente. ¡Gracias por tu paciencia!");
+            result.put("bloqueado", true);
+            result.put("segundosEspera", segs);
+            return Mono.just(ResponseEntity.ok(result));
+        }
+        blockService.registrarMensaje(ip);
 
         return chatbotService.chat(request)
                 .flatMap(respuesta -> {

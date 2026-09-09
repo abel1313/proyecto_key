@@ -72,8 +72,11 @@ public class CacheTtlConfig {
         cacheConfigs.put("ivaCache", defaultConfig.entryTtl(Duration.ofHours(6)));
         cacheConfigs.put("opcionesPagoCache", defaultConfig.entryTtl(Duration.ofHours(6)));
         cacheConfigs.put("opcionesPorTipoCache", defaultConfig.entryTtl(Duration.ofHours(6)));
-        // Presentación (imágenes de login/registro)
-        cacheConfigs.put("presentacion-imagenes", defaultConfig.entryTtl(Duration.ofHours(6)));
+        // "presentacion-imagenes" (imagenes de login/registro) se quito de aca 2026-09-08 --
+        // ver ImagenPresentacionService.getImagenesPorTipoV2 para el porque (hotfix urgente,
+        // rompia el login con un 400 al leer el valor cacheado de vuelta).
+        // Cinta de promociones (letrero corrido, catalogo estatico chico)
+        cacheConfigs.put("cintaActivosCache", defaultConfig.entryTtl(Duration.ofHours(1)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

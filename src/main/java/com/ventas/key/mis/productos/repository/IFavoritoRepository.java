@@ -24,4 +24,7 @@ public interface IFavoritoRepository extends BaseRepository<Favorito, Integer> {
 
     @Query("SELECT f.variante.id FROM Favorito f WHERE f.cliente.id = :clienteId ORDER BY f.fechaAgregado DESC")
     List<Integer> findAllVarianteIdsByClienteId(@Param("clienteId") Integer clienteId);
+
+    // Quienes tienen esta variante en favoritos -- para avisarles cuando vuelve a haber stock.
+    List<Favorito> findAllByVariante_Id(Integer varianteId);
 }

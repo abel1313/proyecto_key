@@ -12,4 +12,7 @@ public class EditarEntregaPedidoRequest {
     private String urlFacebook;
     private LocalDate fechaEntrega;
     private String observaciones;
+    private Double latitud;
+    private Double longitud;
+    private String referencias;
 }

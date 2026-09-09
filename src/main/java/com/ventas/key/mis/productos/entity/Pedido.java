@@ -43,6 +43,15 @@ public class Pedido extends BaseId{
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaRecogida;
 
+    // Hora y punto de encuentro del viaje semanal a una zona de entrega (ver EntregaZonaServiceImpl
+    // / pantalla "Entregas por zona", 2026-09-08) -- antes solo se mandaban en el correo de aviso y
+    // se perdian; el cliente no tenia forma de volver a consultarlos en su pedido despues.
+    @Column(name = "hora_recogida", length = 10)
+    private String horaRecogida;
+
+    @Column(name = "punto_encuentro", length = 255)
+    private String puntoEncuentro;
+
     @Column(columnDefinition = "TEXT")
     private String observaciones;
 
@@ -54,6 +63,20 @@ public class Pedido extends BaseId{
 
     @Column(name = "direccion_entrega", length = 300)
     private String direccionEntrega;
+
+    // Punto exacto de la entrega (distinto de LugarEntrega, que es la zona/pueblo) -- lo elige
+    // el cliente/admin en un mapa (Leaflet+OpenStreetMap del lado del front). Null si nunca se
+    // capturo -- direccionEntrega en texto libre sigue siendo el dato principal, esto es un
+    // complemento opcional para poder trazar la ruta exacta al entregar.
+    @Column(name = "latitud")
+    private Double latitud;
+
+    @Column(name = "longitud")
+    private Double longitud;
+
+    // Referencia libre que un mapa no dice (ej. "porton verde, junto a la tienda").
+    @Column(name = "referencias", length = 255)
+    private String referencias;
 
     @ManyToOne
     @JoinColumn(name = "lugar_entrega_id")

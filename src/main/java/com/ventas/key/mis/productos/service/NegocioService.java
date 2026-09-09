@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.dto.negocio.AlertaStockUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
@@ -16,6 +17,7 @@ import com.ventas.key.mis.productos.repository.IRedSocialNegocioRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,11 +39,18 @@ public class NegocioService {
 
     public NegocioEstadoDto getEstado() {
         ConfiguracionNegocio config = obtenerConfig();
-        // Los links de contacto solo se exponen al frontend cuando el negocio está cerrado
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
+        // Los links de contacto solo se exponen al frontend cuando el negocio está cerrado.
+        // El horario si se expone siempre (abierto o cerrado) -- el front lo necesita en los
+        // dos casos para armar el texto de estado ("atendemos hasta las X" / "abrimos a las X").
         return NegocioEstadoDto.builder()
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.isAbierto() ? null : config.getWhatsappUrl())
                 .facebookUrl(config.isAbierto() ? null : config.getFacebookUrl())
+                .instagramUrl(config.isAbierto() ? null : config.getInstagramUrl())
+                .tiktokUrl(config.isAbierto() ? null : config.getTiktokUrl())
+                .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
+                .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
                 .build();
     }
 
@@ -52,6 +61,8 @@ public class NegocioService {
         return ContactosPublicosDto.builder()
                 .whatsappUrl(config.getWhatsappUrl())
                 .facebookUrl(config.getFacebookUrl())
+                .instagramUrl(config.getInstagramUrl())
+                .tiktokUrl(config.getTiktokUrl())
                 .build();
     }
 
@@ -62,9 +73,24 @@ public class NegocioService {
                 .abierto(config.isAbierto())
                 .whatsappUrl(config.getWhatsappUrl())
                 .facebookUrl(config.getFacebookUrl())
+                .instagramUrl(config.getInstagramUrl())
+                .tiktokUrl(config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
+                .umbralStockBajo(config.getUmbralStockBajo() != null
+                        ? config.getUmbralStockBajo() : ConfiguracionNegocio.UMBRAL_DEFAULT_STOCK_BAJO)
                 .build();
+    }
+
+    @Transactional
+    public NegocioConfigDto actualizarUmbralStockBajo(AlertaStockUpdateDto dto) {
+        ConfiguracionNegocio config = obtenerConfig();
+        if (dto.getUmbralStockBajo() != null && dto.getUmbralStockBajo() > 0) {
+            config.setUmbralStockBajo(dto.getUmbralStockBajo());
+        }
+        config.setActualizadoEn(LocalDateTime.now());
+        repo.save(config);
+        return getConfig();
     }
 
     @Transactional
@@ -108,6 +134,8 @@ public class NegocioService {
         ConfiguracionNegocio config = obtenerConfig();
         if (dto.getWhatsappUrl() != null) config.setWhatsappUrl(dto.getWhatsappUrl());
         if (dto.getFacebookUrl() != null) config.setFacebookUrl(dto.getFacebookUrl());
+        if (dto.getInstagramUrl() != null) config.setInstagramUrl(dto.getInstagramUrl());
+        if (dto.getTiktokUrl() != null) config.setTiktokUrl(dto.getTiktokUrl());
         config.setActualizadoEn(LocalDateTime.now());
         return repo.save(config);
     }
@@ -121,13 +149,27 @@ public class NegocioService {
                 ? config.getHoraCierre().toLocalTime()
                 : LocalTime.of(21, 0);
 
-        if (LocalTime.now().isAfter(horaLimite)) {
-            config.setAbierto(false);
-            config.setCerradoDesde(LocalDateTime.now());
-            config.setActualizadoEn(LocalDateTime.now());
-            repo.save(config);
-            log.warn("Negocio cerrado automáticamente por hora límite {}", horaLimite);
+        if (!LocalTime.now().isAfter(horaLimite)) return;
+
+        // ⚠️ Antes esto cerraba el negocio cada vez que corría (cada minuto, sin excepción) en
+        // cuanto la hora del día pasaba horaLimite, sin importar qué tan reciente fuera un
+        // abrir() manual. Resultado: si el admin abría el negocio después de la hora de cierre
+        // (ej. un evento especial a las 10pm con horaCierre en 9pm), el scheduler lo revertía a
+        // cerrado en un máximo de 60 segundos, una y otra vez, hasta medianoche -- imposible
+        // mantenerlo abierto. Si abiertoDesde es POSTERIOR a la hora límite de HOY, fue un abrir()
+        // deliberado después de la hora de cierre -- se respeta y no se revierte. Solo se
+        // auto-cierra el caso para el que existe este scheduler: quedó abierto desde antes de la
+        // hora límite y nadie lo cerró a mano.
+        LocalDateTime limiteHoy = LocalDateTime.of(LocalDate.now(), horaLimite);
+        if (config.getAbiertoDesde() != null && config.getAbiertoDesde().isAfter(limiteHoy)) {
+            return;
         }
+
+        config.setAbierto(false);
+        config.setCerradoDesde(LocalDateTime.now());
+        config.setActualizadoEn(LocalDateTime.now());
+        repo.save(config);
+        log.warn("Negocio cerrado automáticamente por hora límite {}", horaLimite);
     }
 
     /** Público — solo las redes activas, para que el front las pinte en la tienda. */
@@ -170,7 +212,13 @@ public class NegocioService {
     }
 
     private ConfiguracionNegocio obtenerConfig() {
-        List<ConfiguracionNegocio> configs = repo.findAll();
+        // Ordenado por id ASC a proposito: sin esto, MySQL no garantiza el orden de un
+        // findAll() sin ORDER BY, y "la primera fila" podia variar entre llamadas. Si alguna
+        // vez llega a haber mas de una fila (ej. una carrera entre 2 requests casi simultaneos
+        // la primera vez que se crea la config), eso hacia que se borrara la fila equivocada
+        // segun cual "ganara" en ser la primera -- con riesgo real de perder datos ya guardados.
+        // Con el orden fijo, siempre se conserva la fila mas antigua (menor id) de forma estable.
+        List<ConfiguracionNegocio> configs = repo.findAll(Sort.by(Sort.Direction.ASC, "id"));
         if (configs.isEmpty()) {
             return repo.save(new ConfiguracionNegocio());
         }

@@ -16,6 +16,16 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     List<Pedido> findByEstadoPedidoAndFechaRecogidaIsNotNullAndFechaRecogidaLessThanEqual(
             String estadoPedido, LocalDate fecha);
 
+    // "Entregas por zona" (2026-09-04): pedidos pendientes de una zona real (no "recoger en
+    // tienda") dentro de la semana de pedido -- excluye ramos de flores, que tienen su propio
+    // flujo de fecha/hora por pedido (RamoPedidoDetalle), no se agrupan por viaje semanal.
+    @Query("SELECT p FROM Pedido p WHERE p.lugarEntrega.id = :lugarEntregaId AND p.estadoPedido = 'Pendiente' " +
+           "AND p.fechaPedido BETWEEN :desde AND :hasta " +
+           "AND NOT EXISTS (SELECT 1 FROM RamoPedidoDetalle r WHERE r.pedido = p)")
+    List<Pedido> findPendientesDeZonaEnRango(@Param("lugarEntregaId") Integer lugarEntregaId,
+                                              @Param("desde") LocalDate desde,
+                                              @Param("hasta") LocalDate hasta);
+
     // APARTADO = el producto NO se entrega hasta pagarse completo (a diferencia de FIADO,
     // que ya se entregó y solo queda pendiente el cobro) — por eso "pendiente de entregar"
     // solo cuenta APARTADO activos, no FIADO.
