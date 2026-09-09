@@ -90,6 +90,40 @@ branch completo, hasta que la feature bloqueada se resuelva y vuelva a quedar to
 
 ---
 
+## Deployment automático — CI/CD en GitHub Actions
+
+### Workflows configurados
+
+| Rama | Workflow | Deploy a | Docker tags |
+|---|---|---|---|
+| `main` | `producto-actions.yml` | **Producción** (default) | `latest`, `v<run_number>` |
+| `qa` | `producto-actions-qa.yml` | **QA** | `qa` |
+
+### Cómo funciona el deployment
+
+1. **Push a rama → GitHub Actions se dispara automáticamente**
+   - Push a `main` → dispara `producto-actions.yml`
+   - Push a `qa` → dispara `producto-actions-qa.yml`
+
+2. **Cada workflow:**
+   - Checkout del código
+   - Build de imagen Docker
+   - Push a Docker Hub con etiquetas específicas
+   - Deploy automático via SSH + kubectl:
+     - Prod: `kubectl rollout restart deployment proyecto-key-deployment -n default`
+     - QA: `kubectl rollout restart deployment proyecto-key-deployment -n qa`
+
+3. **Resultado:** El container se reinicia con la imagen nueva en ~1-2 minutos después del push
+
+### Nota para hotfixes
+
+Cuando hagas un hotfix directo en `main` (ej. producción está rota):
+- El push a `main` dispara `producto-actions.yml` automáticamente
+- **No esperes a que bajemos a `dev`/`qa` después** — el deploy a prod es inmediato
+- Luego el hotfix se baja a `qa` y `dev` con los merges normales (`main → qa → dev`)
+
+---
+
 ## Regla — documentar migración de endpoints en CAMBIOS_FRONT.md
 
 `CAMBIOS_FRONT.md` es la **única fuente de verdad** para endpoints y cambios de contrato de cara

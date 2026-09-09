@@ -199,6 +199,35 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         return construirEstados(iProductosRepository.findByEstadoImagenOrderByIdDesc(EstadoCargaImagen.FALLIDO));
     }
 
+    @Override
+    @Transactional
+    public List<EstadoCargaProductoDto> listarBorradores() {
+        List<Producto> borradores = iProductosRepository.findBorradores();
+
+        // Autorreparacion: si el codigo sigue siendo el placeholder BRD- pero el flag quedo en
+        // false/null (drift historico, ver findBorradores), se vuelve a dejar consistente aqui.
+        // Sin esto el borrador seguia sin salir en ningun filtro por codigoGenerado.
+        List<Producto> aReparar = borradores.stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getCodigoBarrasGenerado()))
+                .toList();
+        if (!aReparar.isEmpty()) {
+            aReparar.forEach(p -> p.setCodigoBarrasGenerado(true));
+            iProductosRepository.saveAll(aReparar);
+            log.warn("Se reparo codigoBarrasGenerado=true en {} borradores con codigo BRD- ids={}",
+                    aReparar.size(), aReparar.stream().map(Producto::getId).toList());
+        }
+
+        return construirEstados(borradores);
+    }
+
+    // Un producto es borrador mientras conserve el codigo placeholder BRD- o el flag en true.
+    // Se miran los dos con OR: son dos marcas del mismo estado y pueden estar desincronizadas.
+    private static boolean esBorrador(Producto producto) {
+        if (Boolean.TRUE.equals(producto.getCodigoBarrasGenerado())) return true;
+        String codigo = producto.getCodigoBarras() != null ? producto.getCodigoBarras().getCodigoBarras() : null;
+        return codigo != null && codigo.toUpperCase().startsWith("BRD-");
+    }
+
     private List<EstadoCargaProductoDto> construirEstados(List<Producto> productos) {
         if (productos.isEmpty()) return List.of();
         List<Integer> productoIds = productos.stream().map(Producto::getId).toList();
@@ -241,12 +270,12 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         }
 
         if (req.getCodigoBarras() != null && !req.getCodigoBarras().isBlank()
-                && Boolean.TRUE.equals(producto.getCodigoBarrasGenerado())) {
+                && esBorrador(producto)) {
             reemplazarCodigoBarrasPlaceholder(producto, req.getCodigoBarras());
         }
 
         if (Boolean.TRUE.equals(req.getHabilitar())) {
-            if (Boolean.TRUE.equals(producto.getCodigoBarrasGenerado())) {
+            if (esBorrador(producto)) {
                 throw new ExceptionDataNotFound(
                         "No se puede habilitar el producto " + productoId
                                 + ": todavia tiene un codigo de barras autogenerado, asigna el codigo real primero");
@@ -272,7 +301,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         Producto producto = iProductosRepository.findById(productoId)
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto borrador con id: " + productoId));
 
-        if (!Boolean.TRUE.equals(producto.getCodigoBarrasGenerado())) {
+        if (!esBorrador(producto)) {
             throw new ExceptionDataNotFound(
                     "El producto " + productoId + " ya tiene codigo de barras real asignado, no se puede "
                             + "descartar como borrador (usa el borrado normal de productos si es lo que buscas)");

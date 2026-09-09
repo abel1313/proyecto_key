@@ -19,8 +19,10 @@ import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +41,14 @@ public class ConfigurarRifaVarianteService {
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final ImageneClienteDisco imageneClienteDisco;
+
+    @Value("${api.imagenes}")
+    private String endpointImagenes;
+
+    @PostConstruct
+    public void normalizarEndpoints() {
+        if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
+    }
 
     @Transactional
     public ConfigurarRifaVarianteDto agregar(ConfigurarRifaVarianteRequest req) {
@@ -234,11 +244,20 @@ public class ConfigurarRifaVarianteService {
                     .map(CodigoBarra::getCodigoBarras).orElse(""));
         }
 
-        // Imagen: tomar la primera imagen disponible
-        List<VarianteImagen> imagenes = iVarianteImagenRepository.findByVarianteId(v.getId());
-        if (!imagenes.isEmpty()) {
+        // Imagen: la MISMA que elige el listado de modelos -- principal primero y luego id ASC
+        // (findByVarianteId no ordena, asi que con mas de una foto el premio podia quedarse con
+        // una distinta a la que se ve en tienda/buscar, o con una fila huerfana que el micro ya
+        // no tiene).
+        List<Object[]> preferida = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(List.of(v.getId()));
+        if (!preferida.isEmpty()) {
+            Long imagenId = (Long) preferida.get(0)[1];
+            // La URL es la fuente principal, igual que en el listado de modelos: la resuelve el
+            // navegador contra el micro de imagenes. El base64 se sigue mandando como respaldo,
+            // pero ya no es lo unico: se armaba con una llamada server-to-server y, si esa
+            // fallaba (micro caido, timeout, id que el micro no tiene), el detalle del premio
+            // decia "Sin imagen" aunque la foto se viera perfectamente en la pantalla de modelos.
+            dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + imagenId);
             try {
-                Long imagenId = imagenes.get(0).getImagen().getId();
                 ImagenDto img = imageneClienteDisco.getOne(imagenId);
                 if (img != null && img.getImagen() != null) {
                     dto.setImagenBase64(Base64.getEncoder().encodeToString(img.getImagen()));

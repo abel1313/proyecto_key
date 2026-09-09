@@ -19117,3 +19117,178 @@ Acepta → la otra se despublica automáticamente y su link devuelve 404.
 6. Sortea el último premio → a partir de ahí el link da 404 (la rifa se marca inactiva sola).
 7. Desde el admin (con sesión) las rifas viejas se siguen viendo igual que antes — el filtro
    es solo para la vía pública.
+
+---
+
+## 🐛 Hotfix 2026-09-09 — Los borradores de Carga rápida se perdían y se colaban en productos/buscar
+
+### Qué pasaba (el "antes")
+
+Un producto creado en **📸 Carga rápida de imágenes** nace como *borrador*: código de barras
+placeholder `BRD-XXXXXXXXXXXX`, `codigoBarrasGenerado = true`, `habilitado = '0'`, sin nombre ni
+precio. Solo se puede terminar desde esa pantalla (`PUT /v1/carga-imagenes/{id}/completar`), que es
+la única que asigna el código real.
+
+Había dos fallas encadenadas:
+
+1. **El borrador desaparecía de Carga rápida.** La pantalla armaba su lista con
+   `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false`. Bastaba que se moviera
+   **cualquiera de esos dos flags** para que el borrador se cayera del filtro. Y se movían solos:
+   `POST /v1/productos/save` y `PUT /v1/productos/update` forzaban `habilitado = '1'` en **todo**
+   producto guardado, también en los existentes. Resultado: el borrador dejaba de salir en el único
+   lugar donde se podía completar, y quedaba inalcanzable.
+2. **El borrador sí salía en productos/buscar y tienda/buscar.** Ningún listado de admin los
+   excluía, así que aparecía en la búsqueda un producto sin nombre, en $0 y con código `BRD-…`. Al
+   intentar editarlo, el front lo bloqueaba con *"esta pantalla no es la indicada"* — visible pero
+   inservible desde ahí.
+
+La causa de fondo: **"es borrador" estaba definido en dos lugares distintos que se desincronizaban**
+— el back miraba el flag `codigoBarrasGenerado`, el front miraba si el código empieza con `BRD-`.
+
+### Qué cambia (el "después")
+
+**Un producto es borrador si `codigoBarrasGenerado = true` **O** su código de barras sigue empezando
+con `BRD-`.** Esa es ahora la única definición, y la aplica el back. Consecuencias:
+
+- Un borrador **nunca** aparece en listados de admin ni en el catálogo público mientras no se
+  complete — no importa cómo hayan quedado sus flags.
+- Un borrador **siempre** aparece en Carga rápida, aunque esté habilitado por error.
+
+### 🆕 `GET /v1/carga-imagenes/borradores` (ADMIN)
+
+Reemplaza al combo `admin/filtrar?codigoGenerado=true&habilitado=false` + `/estado` que hacía la
+pantalla de Carga rápida. **Una sola llamada**, sin parámetros, sin paginar.
+
+**Request:** `GET {api}/v1/carga-imagenes/borradores`
+
+**Response 200** — mismo shape que `/v1/carga-imagenes/estado`, envuelto en `ResponseGeneric`:
+
+```json
+{
+  "data": [
+    {
+      "productoId": 423,
+      "varianteId": 511,
+      "estadoImagen": "EXITOSO",
+      "imagenId": 8842,
+      "urlImagen": "https://.../v1/imagenes/file/8842",
+      "mensajeError": null
+    }
+  ]
+}
+```
+
+- `estadoImagen`: `PENDIENTE` | `EXITOSO` | `FALLIDO` (los tres vienen, no solo los fallidos).
+- Lista vacía (`"data": []`) cuando no hay borradores — no es 404.
+- **Diferencia clave vs. lo anterior:** no filtra por `habilitado`. Un borrador que quedó habilitado
+  por error igual sale aquí, que es lo que permite recuperarlo.
+- **Se autorrepara:** si encuentra un producto con código `BRD-` pero el flag `codigoBarrasGenerado`
+  en `false`, se lo vuelve a poner en `true` al listarlo. Los borradores que ya se habían perdido en
+  producción reaparecen solos la primera vez que se abre la pantalla, sin script de datos.
+
+### 🔄 `GET /v1/productos/admin/filtrar` — cambia el significado de `codigoGenerado` sin valor
+
+`codigoGenerado` sigue siendo tri-estado, pero **el caso "sin enviar" ya no es "cualquiera"**:
+
+| `codigoGenerado` | Antes | Ahora |
+|---|---|---|
+| `true` | solo `codigoBarrasGenerado = true` | solo borradores (flag **o** código `BRD-`) |
+| `false` | los que no tienen el flag | solo NO borradores |
+| *(sin enviar)* | **todos, borradores incluidos** | **solo NO borradores** |
+
+Mismo cambio en `GET /tienda/v1/admin/filtrar` (variantes), en
+`GET /v1/productos/obtenerProductos` y `GET /v1/productos/buscarNombreOrCodigoBarra` para admin, y
+en el listado de variantes de admin. **El front no tiene que tocar nada**: productos/buscar y
+tienda/buscar dejan de mostrar borradores por sí solas. El toggle *"código generado"* de
+productos/buscar sigue funcionando como estaba (manda `codigoGenerado=true`) por si se quieren ver
+a propósito.
+
+### 🔒 `PUT /v1/productos/{id}/habilitar` y `PUT /v1/productos/admin/habilitar-lote` — nuevo 400
+
+Habilitar un borrador ahora se rechaza. Todas las consultas del catálogo público filtran por
+`habilitado = '1'`, así que habilitarlo lo publicaba en la tienda sin nombre, sin precio y con el
+código `BRD-`.
+
+```
+400  No se puede habilitar el producto 423: es un borrador de Carga rápida de imágenes,
+     completalo ahí primero para que se le asigne el código de barras real
+```
+
+En lote, el mensaje lista los ids que son borradores y **no se habilita ninguno** del lote.
+El único camino válido sigue siendo `PUT /v1/carga-imagenes/{id}/completar` con el código real.
+
+### `POST /v1/productos/save` y `PUT /v1/productos/update` — ya no pisan `habilitado`
+
+`habilitado = '1'` solo se asigna al **crear** un producto nuevo. Al actualizar uno existente se
+respeta el valor que ya tenía en la base. Antes, guardar un producto deshabilitado desde
+productos/add lo volvía a habilitar sin avisar — no solo afectaba a los borradores.
+
+### 🧪 Guía para QA
+
+1. Sube una foto en **Carga rápida** → aparece la tarjeta *Producto #N* con *"Imagen lista"*.
+2. Ve a **productos/buscar** (sin filtros, con el filtro de fecha "hoy", y buscando por el código
+   `BRD-…`) → **no debe aparecer** en ninguno de los tres casos.
+3. Lo mismo en **tienda/buscar**, con y sin el filtro "deshabilitadas" → **no debe aparecer**.
+4. En productos/buscar activa el toggle **"código generado"** → ahí sí debe salir (es a propósito).
+5. Vuelve a **Carga rápida** → la tarjeta sigue ahí. Sal y entra otra vez → sigue ahí.
+6. Dale **"✏️ Completar datos"**, pon nombre, precios y el código de barras real, y marca habilitar
+   → ahora sí debe aparecer en productos/buscar, en tienda/buscar y en el catálogo público.
+7. **Recuperación de los que ya se habían perdido:** los borradores que hoy no salen en Carga
+   rápida deben volver a aparecer solos al entrar a la pantalla, sin tocar la base.
+
+---
+
+## 🐛 Hotfix 2026-09-09 — El premio de la rifa decía "Sin imagen" aunque la foto sí existiera
+
+### Qué pasaba
+
+En **Rifas → configuración**, al dar de alta un premio y abrir su detalle, salía *"📦 Sin imagen"* —
+pero la misma foto se veía perfectamente en la pantalla de **modelos** (tienda/buscar). Solo había
+una imagen cargada.
+
+Las dos pantallas traían la foto por caminos distintos:
+
+| Pantalla | Cómo obtiene la imagen |
+|---|---|
+| Modelos (tienda/buscar) | el back manda **`imagenUrl`** y **el navegador** la pide al micro de imágenes |
+| Detalle del premio | el back llama al micro **server-to-server**, y manda los bytes en **`imagenBase64`** |
+
+El front del premio miraba **solo `imagenBase64`**. Si la llamada server-to-server fallaba (micro
+sin responder, timeout, o un id que el micro ya no tiene), el back dejaba ese campo en `null` — solo
+un warning en el log — y el detalle mostraba "Sin imagen", aunque el navegador sí podía cargar esa
+misma foto sin problema.
+
+Además, la imagen se elegía distinto en cada lado: modelos usa **principal primero, luego id ASC**;
+el premio tomaba la primera fila que devolviera la base **sin ordenar**. Con más de una foto podían
+no coincidir, y podía tocarle una fila huérfana que el micro ya no tiene.
+
+### Qué cambia
+
+`VarianteResumenDto` (el DTO del premio) ahora trae **`imagenUrl` además de `imagenBase64`**, y la
+imagen se elige con el **mismo criterio que modelos** (principal primero, luego id ASC).
+
+```json
+{
+  "variante": {
+    "id": 511,
+    "nombreProducto": "Bolsa Coach",
+    "imagenUrl": "https://.../v1/imagenes/file/8842",
+    "imagenBase64": "/9j/4AAQSkZJRgABA..."
+  }
+}
+```
+
+- **`imagenUrl` es la fuente principal** — la resuelve el navegador, igual que en modelos.
+- **`imagenBase64` sigue viniendo como respaldo**, para no romper nada que ya lo use.
+- Aplica a los tres lugares que consumen este DTO: configuración de la rifa, **rifa del mes** y la
+  **ruleta pública** (los tres tenían el mismo problema, aunque solo se reportó el primero).
+
+**Regla para el front:** usar `imagenUrl` si viene; solo si está vacío, caer a `imagenBase64`.
+
+### 🧪 Guía para QA
+
+1. Da de alta un premio con un modelo que **sí** tenga foto → abre el detalle: debe verse la imagen.
+2. Compara con la foto que muestra ese mismo modelo en **tienda/buscar** → debe ser **la misma**.
+3. Con un modelo de **varias fotos**, marca una como principal → el premio debe mostrar esa.
+4. Un premio cuyo modelo **no** tenga foto debe seguir mostrando el placeholder 📦 "Sin imagen".
+5. Revisa también la **rifa del mes** y la **ruleta pública**: la miniatura del premio debe verse.
