@@ -50,6 +50,6 @@ public class ConfigurarRifa extends BaseId {
     private List<ConfigurarRifaVariante> variantes = new ArrayList<>();
 
     public enum TipoRifa {
-        MENSUAL, DIARIA
+        MENSUAL, DIARIA, PLATAFORMAS
     }
 }

@@ -37,6 +37,11 @@ public class BoletoRifa extends BaseId {
     @Column(name = "fecha", nullable = false)
     private LocalDate fecha;
 
+    // El sorteo de una rifa PLATAFORMAS descarta boletos, no personas: alguien con 5
+    // boletos que pierde un giro se queda con 4 en juego.
+    @Column(name = "descartado", nullable = false)
+    private boolean descartado = false;
+
     @Column(name = "url_perfil_red_social", length = 500)
     private String urlPerfilRedSocial;
 
