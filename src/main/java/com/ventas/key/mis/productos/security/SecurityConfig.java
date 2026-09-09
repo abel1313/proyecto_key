@@ -420,12 +420,18 @@ public class SecurityConfig {
                         .requestMatchers("/v1/redes-sociales/**").hasAnyAuthority(pantallaEscribir("admin/facebook", "admin/hashtags"))
 
                         // ── Rifas y concursantes ──────────────────────────────────────────
+                        // La ruleta de la rifa PLATAFORMAS tiene pagina publica (la comparte el
+                        // negocio para que los clientes vean el sorteo). Solo eso es abierto, y va
+                        // recortado desde el service: sin URLs de evidencia ni datos de contacto.
+                        // Girar/reiniciar por ahi solo funciona mientras la rifa sea de prueba
+                        // (lo valida BoletoRifaServiceImpl) -- la rifa real la mueve el admin.
+                        .requestMatchers("/v1/boletoRifa/publico/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
-                                "/v1/rifa/**", "/v1/ganadorRifa/**",
+                                "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
                         ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar"))
                         .requestMatchers(
-                                "/v1/rifa/**", "/v1/ganadorRifa/**",
+                                "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
                         ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar"))
 
