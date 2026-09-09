@@ -134,6 +134,7 @@ public class SecurityConfig {
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/contactos").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/negocio/redes-sociales/publico").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
@@ -166,6 +167,10 @@ public class SecurityConfig {
 
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/v1/mp/webhook").permitAll()
+
+                        // ── Webhook Facebook -- comentarios (llamada sin auth desde Meta,
+                        // validado por firma X-Hub-Signature-256 dentro del controlador) ──────
+                        .requestMatchers("/v1/redes-sociales/facebook/webhook").permitAll()
 
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
@@ -230,9 +235,17 @@ public class SecurityConfig {
                         // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
                         // para guardar una foto y el usuario se topaba con un 403 "escondido".
+                        //
+                        // "tienda/buscar" agregado 2026-09-08: el boton ✏️ Editar de la tarjeta de
+                        // variante EN Tienda (buscar.component.ts, editarVariante()) pega a este
+                        // mismo endpoint -- antes su Editar dependia "prestado" del permiso de
+                        // tienda/venta (front) sin que el back siquiera lo aceptara para tienda/buscar,
+                        // asi que un rol con Editar en tienda/buscar pero no en tienda/venta se topaba
+                        // con un 403, y el checkbox de Editar de esa pantalla en Gestion de roles no
+                        // controlaba nada real (reportado por el usuario con capturas, 2026-09-08).
                         .requestMatchers("/tienda/**")
                                 .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta",
-                                        "flores/catalogos", "flores/ramos-admin"))
+                                        "tienda/buscar", "flores/catalogos", "flores/ramos-admin"))
 
                         // ── Carga rápida de imágenes (crea producto+variante borrador) ─────
                         .requestMatchers(HttpMethod.GET, "/v1/carga-imagenes/**").hasAnyAuthority(pantalla("carga-imagenes"))
@@ -403,15 +416,25 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/dashboard/**").hasAnyAuthority(pantalla("dashboard"))
                         .requestMatchers("/v1/dashboard/**").hasAnyAuthority(pantallaEscribir("dashboard"))
 
+                        // ── Redes sociales (publicar variantes en Facebook) ───────────────
+                        .requestMatchers(HttpMethod.GET, "/v1/redes-sociales/**").hasAnyAuthority(pantalla("admin/facebook", "admin/hashtags"))
+                        .requestMatchers("/v1/redes-sociales/**").hasAnyAuthority(pantallaEscribir("admin/facebook", "admin/hashtags"))
+
                         // ── Rifas y concursantes ──────────────────────────────────────────
+                        // La ruleta de la rifa PLATAFORMAS tiene pagina publica (la comparte el
+                        // negocio para que los clientes vean el sorteo). Solo eso es abierto, y va
+                        // recortado desde el service: sin URLs de evidencia ni datos de contacto.
+                        // Girar/reiniciar por ahi solo funciona mientras la rifa sea de prueba
+                        // (lo valida BoletoRifaServiceImpl) -- la rifa real la mueve el admin.
+                        .requestMatchers("/v1/boletoRifa/publico/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
-                                "/v1/rifa/**", "/v1/ganadorRifa/**",
+                                "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
-                        ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar"))
+                        ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar", "rifas/boletos"))
                         .requestMatchers(
-                                "/v1/rifa/**", "/v1/ganadorRifa/**",
+                                "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
-                        ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar"))
+                        ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar", "rifas/boletos"))
 
                         // ── Carga de documentos (Excel) ───────────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/v1/documentos/**").hasAnyAuthority(pantalla("tienda/cargar-excel"))

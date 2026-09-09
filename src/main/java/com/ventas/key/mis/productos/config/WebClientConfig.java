@@ -10,6 +10,8 @@ import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+// cambio de humo 2026-08-18: forzar rebuild/redeploy de QA para confirmar que el fix del
+// Authorization duplicado (ver jwtHeaderFilter abajo) realmente llegue al pod.
 @Configuration
 public class WebClientConfig {
 
@@ -21,10 +23,12 @@ public class WebClientConfig {
 
     private ExchangeFilterFunction jwtHeaderFilter() {
         return ExchangeFilterFunction.ofRequestProcessor(request -> {
-            // Si el caller ya puso su propio Authorization (credenciales de una API externa, no
-            // las nuestras), NO lo tocamos. ClientRequest.Builder.header() agrega en vez de
-            // reemplazar, asi que sin este check el request salia con 2 headers Authorization y
-            // la API externa lo rechazaba.
+            // Si el caller ya puso su propio Authorization (FacebookGraphClient/InstagramGraphClient
+            // usan "OAuth <pageAccessToken>", TikTokGraphClient usa "Bearer <accessToken>" -- son
+            // credenciales de la API externa, no las nuestras), NO lo tocamos. ClientRequest.Builder
+            // .header() agrega en vez de reemplazar, asi que sin este check el request salia con 2
+            // headers Authorization y la API externa lo rechazaba (Facebook: "access token could not
+            // be decrypted"; TikTok: 400 en su load balancer de borde antes de llegar a su API).
             if (request.headers().containsKey(HttpHeaders.AUTHORIZATION)) {
                 return Mono.just(request);
             }

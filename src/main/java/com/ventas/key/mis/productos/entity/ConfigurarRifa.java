@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,8 +23,27 @@ public class ConfigurarRifa extends BaseId {
     @Column(name = "fecha_hora_limite", nullable = false)
     private LocalDateTime fechaHoraLimite;
 
+    // Ventana de fechas durante la cual se aceptan boletos por acciones en redes
+    // sociales (BoletoRifa) -- si no está configurada, se usa el mes actual como
+    // rango por defecto (ver BoletoRifaServiceImpl).
+    @Column(name = "fecha_inicio_boletos")
+    private LocalDate fechaInicioBoletos;
+
+    @Column(name = "fecha_fin_boletos")
+    private LocalDate fechaFinBoletos;
+
     @Column(name = "activa")
     private Boolean activa = true;
+
+    /**
+     * La rifa que el negocio comparte por link (/ruleta/{id}), y la única que se sirve por
+     * los endpoints /publico/**. Va aparte de `activa` a propósito: puede haber varias rifas
+     * activas a la vez (se está armando la del mes que entra mientras corre la de este mes),
+     * pero publicada hay una sola -- marcar una despublica la anterior. Sin esta bandera el
+     * id de la URL era adivinable y con el link de una rifa se entraba a cualquier otra.
+     */
+    @Column(name = "publica", nullable = false)
+    private Boolean publica = false;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", length = 20)
@@ -40,6 +60,6 @@ public class ConfigurarRifa extends BaseId {
     private List<ConfigurarRifaVariante> variantes = new ArrayList<>();
 
     public enum TipoRifa {
-        MENSUAL, DIARIA
+        MENSUAL, DIARIA, PLATAFORMAS
     }
 }

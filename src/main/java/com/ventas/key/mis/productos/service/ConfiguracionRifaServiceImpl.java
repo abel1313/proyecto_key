@@ -7,6 +7,7 @@ import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.models.ConfigurarRifaPatchDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaResumenDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.repository.IBoletoRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IGanadorRifaRepository;
@@ -30,6 +31,7 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
     private final IGanadorRifaRepository iGanadorRifaRepository;
     private final GanadorRifaServiceImpl ganadorRifaService;
     private final IVarianteRepository iVarianteRepository;
+    private final IBoletoRifaRepository iBoletoRifaRepository;
 
     public ConfiguracionRifaServiceImpl(
             final IConfigurarRifaRepository iRifaRepository,
@@ -37,13 +39,15 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
             final IGanadorRifaRepository iGanadorRifaRepository,
             final GanadorRifaServiceImpl ganadorRifaService,
             final ErrorGenerico eGenerico,
-            final IVarianteRepository iVarianteRepository) {
+            final IVarianteRepository iVarianteRepository,
+            final IBoletoRifaRepository iBoletoRifaRepository) {
         super(iRifaRepository, eGenerico);
         this.iRifaRepository = iRifaRepository;
         this.iConfigurarRifaVarianteRepository = iConfigurarRifaVarianteRepository;
         this.iGanadorRifaRepository = iGanadorRifaRepository;
         this.ganadorRifaService = ganadorRifaService;
         this.iVarianteRepository = iVarianteRepository;
+        this.iBoletoRifaRepository = iBoletoRifaRepository;
     }
 
     public List<ConfigurarRifa> buscarActivas() {
@@ -67,7 +71,8 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         return new ConfigurarRifaResumenDto(
                 rifa.getId(), rifa.getFechaHoraLimite(), rifa.getActiva(),
                 totalVariantes, variantesSorteadas,
-                rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba());
+                rifa.getTipo(), rifa.getMesReferencia(), rifa.getEsPrueba(),
+                rifa.getFechaInicioBoletos(), rifa.getFechaFinBoletos(), rifa.getPublica());
     }
 
     public List<ConfigurarRifa> buscarActivasHoy() {
@@ -108,12 +113,53 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         if (eraPrueba && !esPrueba) {
             // Pasar de prueba -> real: limpiar giros de la demo y reactivar la rifa
             ganadorRifaService.reiniciar(id, false);
+            // En PLATAFORMAS el descarte es por boleto, así que también hay que
+            // devolverlos todos a juego (reiniciar solo toca a los concursantes).
+            if (ConfigurarRifa.TipoRifa.PLATAFORMAS.equals(config.getTipo())) {
+                iBoletoRifaRepository.reactivarTodosPorRifa(id);
+            }
             config = iRifaRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
         }
 
         config.setEsPrueba(esPrueba);
         return iRifaRepository.save(config);
+    }
+
+    /**
+     * Marca cuál es la rifa que se sirve por el link público, o la despublica.
+     *
+     * Publicada hay una sola: al marcar una se apaga la que estuviera antes. Así el negocio
+     * dice explícitamente "esta es la que todos pueden ver" en vez de que baste con existir,
+     * que era el problema -- el id va en la URL (/ruleta/48) y cambiando el número se entraba
+     * a cualquier otra rifa.
+     *
+     * Solo tiene sentido en PLATAFORMAS: es el único tipo con ruleta pública.
+     */
+    @Transactional
+    public ConfigurarRifa togglePublica(int id, boolean publica) {
+        ConfigurarRifa config = iRifaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
+
+        if (publica && !ConfigurarRifa.TipoRifa.PLATAFORMAS.equals(config.getTipo())) {
+            throw new RuntimeException("Solo las rifas de PLATAFORMAS tienen página pública");
+        }
+        if (publica && !Boolean.TRUE.equals(config.getActiva())) {
+            throw new RuntimeException("No se puede publicar una rifa que ya terminó o está inactiva");
+        }
+
+        if (publica) {
+            iRifaRepository.despublicarLasDemas(id);
+            // despublicarLasDemas limpia el contexto de persistencia (clearAutomatically),
+            // así que hay que releer la rifa antes de tocarla o el save no ve el cambio.
+            config = iRifaRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Configuración de rifa no encontrada"));
+        }
+
+        config.setPublica(publica);
+        ConfigurarRifa guardada = iRifaRepository.save(config);
+        log.info("Rifa {} {} para la página pública", id, publica ? "PUBLICADA" : "despublicada");
+        return guardada;
     }
 
     @Transactional
@@ -141,6 +187,12 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
         }
         if (patch.getMesReferencia() != null) {
             config.setMesReferencia(patch.getMesReferencia().isBlank() ? null : patch.getMesReferencia());
+        }
+        if (patch.getFechaInicioBoletos() != null) {
+            config.setFechaInicioBoletos(patch.getFechaInicioBoletos());
+        }
+        if (patch.getFechaFinBoletos() != null) {
+            config.setFechaFinBoletos(patch.getFechaFinBoletos());
         }
 
         return iRifaRepository.save(config);

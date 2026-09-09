@@ -43,14 +43,19 @@ spring:
     username: ${SPRING_RABBITMQ_USERNAME}
     password: ${SPRING_RABBITMQ_PASSWORD}
   mail:
-    host: smtp.gmail.com
-    port: 587
+    # Causa real (2026-08-16, ticket 551620): mail.novedades-jade.com.mx estaba mal apuntado a
+    # una IP ajena (75.2.60.5), nunca fue bloqueo de firewall. Hosting-Mexico ya corrigio el MX
+    # (-> hapi.hosting-mexico.net, 63.143.40.210) pero el subdominio "mail." aun no propaga, asi
+    # que se usa el hostname real del servidor de forma temporal para poder probar ya mismo.
+    # Cuando mail.novedades-jade.com.mx resuelva a 63.143.40.210 (verificar con nslookup), se
+    # puede volver a ese hostname sin cambiar nada mas (puerto/SSL quedan igual).
+    host: hapi.hosting-mexico.net
+    port: 465
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
-      mail.smtp.starttls.required: true
+      mail.smtp.ssl.enable: true
       mail.smtp.connectiontimeout: 5000
       mail.smtp.timeout: 5000
       mail.smtp.writetimeout: 5000
@@ -126,4 +131,18 @@ whatsapp:
   proveedor: ${WHATSAPP_PROVEEDOR:callmebot}
   callmebot-apikey: ${WHATSAPP_APIKEY:}
   country-code: ${WHATSAPP_COUNTRY_CODE:52}
+
+facebook:
+  page-id: ${FACEBOOK_PAGE_ID:}
+  page-access-token: ${FACEBOOK_PAGE_ACCESS_TOKEN:}
+  app-secret: ${FACEBOOK_APP_SECRET:}
+  webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:}
+  api-version: v21.0
+
+instagram:
+  account-id: ${INSTAGRAM_ACCOUNT_ID:}
+
+tiktok:
+  client-key: ${TIKTOK_CLIENT_KEY:}
+  client-secret: ${TIKTOK_CLIENT_SECRET:}
 

@@ -666,6 +666,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 ? pedido.getFechaHoraRegistro()
                 : (pedido.getFechaPedido() != null ? pedido.getFechaPedido().atStartOfDay() : null));
         resp.setFechaRecogida(pedido.getFechaRecogida());
+        resp.setHoraRecogida(pedido.getHoraRecogida());
+        resp.setPuntoEncuentro(pedido.getPuntoEncuentro());
+        resp.setLatitudEncuentro(pedido.getLatitudEncuentro());
+        resp.setLongitudEncuentro(pedido.getLongitudEncuentro());
         resp.setObservaciones(pedido.getObservaciones());
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
@@ -706,8 +710,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         // esRamoFlores / esLineaInterna: para que el front pueda distinguir el pedido de flores y
         // esconder/agrupar la linea del papel sin depender del nombre del producto (fragil).
-        boolean esRamoFlores = !iRamoPedidoDetalleRepository.findByPedidoId(pedido.getId()).isEmpty();
+        var ramosDelPedido = iRamoPedidoDetalleRepository.findByPedidoId(pedido.getId());
+        boolean esRamoFlores = !ramosDelPedido.isEmpty();
         resp.setEsRamoFlores(esRamoFlores);
+        // fechaHoraEntregaRamo: antes se guardaba (ver RamoPedidoDetalle.fechaHoraEntrega) pero
+        // nunca se le mostraba al cliente en su propio pedido -- pedido explicito del usuario
+        // 2026-09-08 ("en pedidos se tiene que ver lo mismo cuando lo van a recibir").
+        if (esRamoFlores) {
+            resp.setFechaHoraEntregaRamo(ramosDelPedido.get(0).getFechaHoraEntrega());
+        }
         Integer varianteIdPapel = esRamoFlores
                 ? iAccesorioRamoRepository.findFirstByEsPapelTrueAndActivoTrue()
                         .map(a -> a.getVariante() != null ? a.getVariante().getId() : null)
