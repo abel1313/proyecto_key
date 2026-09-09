@@ -403,7 +403,6 @@ public class ProductosServiceImpl extends
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
-            producto.setHabilitado('1');
 
             log.info("Se va a guardar el codigo de barras {}",2);
             String nuevoCodigoBarrasStr = productoDetalle.getCodigoBarras().getCodigoBarras() == null
@@ -429,6 +428,14 @@ public class ProductosServiceImpl extends
                         .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr)
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
+            }
+
+            // Solo set habilitado='1' para productos nuevos. Si el producto ya existe (borrador o no),
+            // preservar su estado habilitado para no quebrar los borradores de carga-imagenes
+            // (codigoBarrasGenerado=true, habilitado=false) — esos no deben cambiar a habilitado='1'
+            // hasta que el usuario los complete via CargaImagenesService.completarProducto().
+            if (prodExistenteNoOpt == null) {
+                producto.setHabilitado('1');
             }
 
             // Si el producto ya existia y el codigo de barras cambio, se crea el codigo nuevo,
