@@ -52,6 +52,15 @@ public class Pedido extends BaseId{
     @Column(name = "punto_encuentro", length = 255)
     private String puntoEncuentro;
 
+    // Punto exacto del encuentro marcado en el mapa al programar el viaje (2026-09-09). Va
+    // aparte de latitud/longitud de abajo a proposito: esas son la casa del CLIENTE, estas son
+    // a donde el cliente tiene que ir. Null mientras el viaje no se programe con mapa.
+    @Column(name = "latitud_encuentro")
+    private Double latitudEncuentro;
+
+    @Column(name = "longitud_encuentro")
+    private Double longitudEncuentro;
+
     @Column(columnDefinition = "TEXT")
     private String observaciones;
 

@@ -105,13 +105,18 @@ public class EntregaZonaServiceImpl {
             pedido.setFechaRecogida(request.getFecha());
             pedido.setHoraRecogida(request.getHora());
             pedido.setPuntoEncuentro(request.getPuntoEncuentro());
+            // El punto del mapa se copia a cada pedido avisado: asi el cliente lo vuelve a
+            // consultar desde su propio pedido y no depende de tener el correo a la mano.
+            pedido.setLatitudEncuentro(request.getLatitud());
+            pedido.setLongitudEncuentro(request.getLongitud());
             iPedidoRepository.save(pedido);
 
             String correo = correoDe(pedido);
             if (correo == null || correo.isBlank()) continue;
             try {
                 boolean ok = emailService.enviarProgramacionEntregaZona(correo, nombreDe(pedido), pedido.getId(),
-                        lugar.getNombre(), request.getFecha(), request.getHora(), request.getPuntoEncuentro());
+                        lugar.getNombre(), request.getFecha(), request.getHora(), request.getPuntoEncuentro(),
+                        request.getLatitud(), request.getLongitud());
                 if (ok) enviados++;
             } catch (Exception e) {
                 log.warn("No se pudo avisar de la entrega de zona al pedido {}: {}", pedido.getId(), e.getMessage());

@@ -668,6 +668,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setFechaRecogida(pedido.getFechaRecogida());
         resp.setHoraRecogida(pedido.getHoraRecogida());
         resp.setPuntoEncuentro(pedido.getPuntoEncuentro());
+        resp.setLatitudEncuentro(pedido.getLatitudEncuentro());
+        resp.setLongitudEncuentro(pedido.getLongitudEncuentro());
         resp.setObservaciones(pedido.getObservaciones());
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
         resp.setFechaCancelacion(pedido.getFechaCancelacion());

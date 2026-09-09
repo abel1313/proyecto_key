@@ -13,6 +13,16 @@ public class ProgramarEntregaZonaRequest {
     private String puntoEncuentro;
 
     /**
+     * Punto exacto del encuentro marcado en el mapa. Opcional: `puntoEncuentro` en texto libre
+     * sigue siendo el dato obligatorio, esto lo complementa para que el cliente pueda trazar la
+     * ruta desde donde esté en vez de interpretar una referencia escrita ("frente a la iglesia").
+     *
+     * ⚠️ No confundir con `Pedido.latitud/longitud`, que es la casa del CLIENTE.
+     */
+    private Double latitud;
+    private Double longitud;
+
+    /**
      * Rango de FECHA DE PEDIDO que se estaba viendo en pantalla al programar.
      *
      * Va en el request a propósito: antes el back recalculaba la semana en curso por su cuenta,

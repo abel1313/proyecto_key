@@ -9427,6 +9427,76 @@ compartir de su lado (capturas, specs, lo que sea), puede ir aquí también.
    todavía no lo prendimos.** Confirmado en el código (`AuthController.java`, default `false`,
    no está seteado a `true` en ningún yml de ningún ambiente). Lo dejamos así hasta confirmar con
    el usuario cuándo conviene encenderlo — nada roto de su lado, es una decisión pendiente
+
+---
+
+## 📘 Aclaración — horario del negocio y endpoint nuevo de redes sociales (2026-08-21)
+
+### Horario: `GET /v1/negocio/estado` (público) nunca ha incluido `horaApertura`/`horaCierre`
+
+Se revisó por qué en la pantalla pública seguía viéndose un horario viejo después de guardar uno
+nuevo desde el admin. **No es un bug, es que ese dato nunca viajó ahí:**
+
+- `GET /v1/negocio/estado` (público, sin login) solo devuelve `abierto`, `whatsappUrl` y
+  `facebookUrl` — **nunca ha tenido `horaApertura`/`horaCierre` en el response.**
+- El horario configurado sí se guarda bien y sí se puede leer, pero solo vía
+  `GET /v1/negocio/config`, que es **ADMIN-only**. Ese endpoint no tiene caché — lee directo de
+  base de datos en cada llamada, así que si el admin guardó un horario nuevo con
+  `PUT /v1/negocio/horario`, `GET /v1/negocio/config` ya lo refleja de inmediato.
+- Confirmado con el usuario: la pantalla de horario es solo para el panel de admin, no se muestra
+  al público (el front ya avisa "abierto"/"cerrado" con `GET /v1/negocio/estado`), así que **no
+  se tocó nada de este endpoint** — no hacía falta.
+
+### Endpoint nuevo — redes sociales dinámicas (2026-08-21)
+
+Antes el back solo soportaba dos redes fijas como columnas (`whatsappUrl`, `facebookUrl` en
+`GET /v1/negocio/estado`, `/contactos` y `/config`). No existía ningún campo para Instagram,
+TikTok u otras redes — si el admin las configuraba en algún lado del front, el back no tenía
+dónde guardarlas ni cómo devolverlas.
+
+Se agregó una lista dinámica: el admin da de alta cualquier red social (nombre + url), sin límite
+fijo ni necesidad de tocar código para agregar una red nueva.
+
+**`GET /v1/negocio/redes-sociales/publico`** (público, 2026-08-21) — el front consume este para pintar
+los íconos/links de redes en la tienda.
+
+```
+GET /mis-productos/v1/negocio/redes-sociales/publico
+```
+
+Response (solo redes marcadas como activas):
+```json
+{
+  "data": [
+    { "nombre": "Instagram", "url": "https://instagram.com/novedadesjade" },
+    { "nombre": "TikTok", "url": "https://tiktok.com/@novedadesjade" }
+  ]
+}
+```
+- Si no hay ninguna red activa, `data` viene como lista vacía `[]` con `code: 200` (no es un error).
+- `whatsappUrl`/`facebookUrl` de `/contactos` y `/estado` **siguen existiendo tal cual, no se
+  quitaron** — este endpoint nuevo es aparte, para las redes adicionales. Si quieren unificar todo
+  en una sola lista (incluyendo WhatsApp y Facebook), avisen para evaluarlo.
+
+**Endpoints ADMIN nuevos (requieren rol ADMIN):**
+
+```
+GET    /v1/negocio/redes-sociales        → lista completa (activas e inactivas), para el panel de gestión
+POST   /v1/negocio/redes-sociales        → body: { "nombre": "Instagram", "url": "https://..." } (nace activa)
+PUT    /v1/negocio/redes-sociales/{id}   → body: { "nombre"?, "url"?, "activo"? } (campos opcionales, solo actualiza los que vengan)
+DELETE /v1/negocio/redes-sociales/{id}   → elimina la red social
+```
+
+- Response de los 4 endpoints ADMIN es la entidad completa (`id`, `nombre`, `url`, `activo`), salvo
+  `DELETE` que responde un mensaje de texto.
+- `404` si se intenta `PUT`/`DELETE` sobre un `id` que no existe.
+- `activo=false` la oculta del endpoint público sin borrarla — útil para desactivar temporalmente
+  una red sin perder la URL guardada.
+
+**⚠️ Requiere migración de base de datos antes de desplegar** — la tabla `red_social_negocio` no
+existe todavía en ningún ambiente (`ddl-auto: none`). Correr
+`src/main/resources/static/migration_red_social_negocio.sql` en QA/prod antes del deploy, o el
+panel de redes sociales tronará con error de tabla no encontrada.
    nuestra, no un olvido silencioso.
 
 ---
@@ -18692,6 +18762,40 @@ También acepta `palabraClave` y `ordenDesde`. Solo se aplica lo que venga disti
 La pantalla solo ofrecía "eliminar", así que corregir un nombre mal escrito significaba borrar al
 participante y perder sus boletos.
 
+### 5-bis. La hora de cierre ahora SÍ bloquea el registro de boletos — 2026-09-09
+
+El campo `fechaHoraLimite` en la configuración de la rifa solo se comparaba por fecha (ignoraba la hora).
+Una rifa del 1 al 9 que cierra a las 10:00 de la mañana en teoría dejaba de recibir boletos el 9 a las
+10:00, pero en práctica lo hacía a las 23:59 de ese día.
+
+**Cambio en el backend:** ahora la validación usa `LocalDateTime` en lugar de solo `LocalDate`, y se
+ejecuta cuando se registra cada boleto (`POST /v1/boletoRifa/registrar` o `PUT /v1/boletoRifa/{id}`).
+
+**Comportamiento nuevo:**
+- Si `fechaHoraLimite` es `null` → no hay límite de hora (solo hay límite de fecha).
+- Si `fechaHoraLimite` es `"2026-09-09T10:00"` → a las 10:00:01 del 9/9 se bloquean nuevos boletos.
+- **Response** si se intenta pasada la hora: **400** `"El registro de boletos cerró el 2026-09-09 a las 10:00"`.
+
+### 5-ter. `urlPerfilRedSocial` dejó de ser obligatoria — 2026-09-09
+
+Antes:
+- Obligatoria en `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}`.
+- El front la solicitaba al capturar el boleto (label "URL del perfil para dar seguimiento *").
+- Las URLs capturadas frecuentemente resultaban en 404 porque no existía el perfil real.
+
+Ahora:
+- **Totalmente opcional** — puede venir `null` o vacía; se acepta igual.
+- El front no la solicita más al capturar boletos.
+- Se quitaron los links "Perfil" de la pantalla (quedaron los de "Seguimiento" y "Publicación compartida").
+
+**Cambios en los endpoints:**
+```json
+// POST /v1/boletoRifa/registrar — ahora es válido
+{ "plataforma": "INSTAGRAM", "motivo": "Compartió el reel", "fecha": "2026-09-08" }
+
+// Antes habría sido rechazo 400: "Falta la URL del perfil para dar seguimiento."
+```
+
 ---
 
 ## ENTREGAS POR ZONA — filtro por rango de fechas — 2026-09-09
@@ -18749,3 +18853,117 @@ vista**. Si vienen `null` se usa la semana en curso, como antes.
 `fecha` (la de entrega, la que va en el correo al cliente) es independiente del rango de búsqueda.
 
 **Response:** `data` = número de correos enviados.
+
+---
+
+## ENTREGAS POR ZONA — ubicación en mapa del punto de encuentro — 2026-09-09
+
+Hasta ahora el punto de encuentro del viaje semanal solo era **texto libre**
+(`"Centro de Zacazonapan, frente a la iglesia"`). Quien no conoce la zona no tiene cómo llegar
+con eso, y el botón "Cómo llegar" del pedido lo mandaba a **su propia casa** (ver el bug abajo).
+Ahora el admin puede marcar el punto exacto en un mapa al programar, y esas coordenadas viajan al
+pedido de cada cliente avisado.
+
+**Requiere migración:** `migration_punto_encuentro_mapa.sql` (dos columnas nuevas en `pedido`,
+ambas NULL, idempotente).
+
+### `POST /v1/entregas-zona/{lugarEntregaId}/programar` — dos campos nuevos, opcionales
+
+```json
+{ "fecha": "2026-09-11", "hora": "17:00", "puntoEncuentro": "Centro, frente a la iglesia",
+  "latitud": 19.0621, "longitud": -100.2517,
+  "desde": "2026-09-01", "hasta": "2026-09-09" }
+```
+
+`latitud`/`longitud` son el punto marcado en el mapa. **Son opcionales** — sin ellos todo se
+comporta igual que antes (`puntoEncuentro` en texto sigue siendo lo obligatorio). Cuando vienen:
+
+- Se copian a **todos** los pedidos avisados en esa programación.
+- El correo de aviso incluye además un botón **🧭 Cómo llegar** con la ruta a ese punto.
+
+**Response:** `data` = número de correos enviados (sin cambio).
+
+### `GET /v1/pedidos/{id}/detalle` — dos campos nuevos en el response
+
+```json
+{ "fechaRecogida": "2026-09-11", "horaRecogida": "17:00",
+  "puntoEncuentro": "Centro, frente a la iglesia",
+  "latitudEncuentro": 19.0621, "longitudEncuentro": -100.2517 }
+```
+
+⚠️ **`latitudEncuentro`/`longitudEncuentro` NO son lo mismo que `latitud`/`longitud`.**
+
+| Campo | Qué es | Quién lo captura |
+|---|---|---|
+| `latitud` / `longitud` | La casa **del cliente** | El cliente en el checkout (o el admin en "Editar entrega") |
+| `latitudEncuentro` / `longitudEncuentro` | El punto **al que el cliente tiene que ir** | El admin al programar el viaje en "Entregas por zona" |
+
+Ausentes (no `null` — el DTO usa `@JsonInclude(NON_NULL)`) si el viaje se programó sin marcar el
+mapa, o si el pedido no es de una zona con viaje semanal.
+
+### 🐛 Bug de comportamiento corregido en el front: "Cómo llegar" apuntaba al destino equivocado
+
+**Antes:** `linkComoLlegar` (detalle-pedido) usaba `latitud`/`longitud` como destino de la ruta.
+En un pedido de entrega a domicilio eso está bien, pero en una **entrega por zona** el cliente es
+quien se mueve — y esas coordenadas son las de su propia casa, así que el botón le trazaba una
+ruta para llegar a donde ya estaba.
+
+**Ahora**, el orden de prioridad del destino es:
+
+1. `latitudEncuentro`/`longitudEncuentro` si existen → ruta al punto de encuentro.
+2. Si no, `latitud`/`longitud` → ruta a la dirección del cliente (entrega a domicilio, igual que antes).
+3. Si no hay coordenadas, búsqueda por texto con `puntoEncuentro` + `direccionEntrega` +
+   `lugarEntregaNombre` (antes `puntoEncuentro` no entraba en esa búsqueda).
+
+El texto bajo el botón también cambia según el caso ("la ruta al punto donde te entregamos" vs.
+"la ruta trazada al punto exacto" vs. "la dirección escrita").
+
+### 🧪 Guía para QA — qué probar
+
+**Entregas por zona — admin:**
+1. Filtro por rango de fechas:
+   - Abre "Entregas por zona" → la semana en curso aparece por defecto en "Desde" y "Hasta"
+   - Haz clic en "Desde" → debería dejarme elegir **cualquier día en el pasado** (no tachados)
+   - Haz clic en "Hasta" → debería dejarme elegir cualquier día (no hay límite mínimo)
+   - Si elegís "Hasta" más temprano que "Desde", el "Desde" se auto-ajusta al día que elegiste
+   - Cambiar el rango NO borra la fecha elegida en "Fecha de entrega" (eso solo lo limpia cambiar de zona)
+
+2. Input de zona:
+   - Verifica que esté en su propio renglón completo (debajo de las dos fechas)
+   - Los nombres largos de zonas **deben caber** sin truncar
+
+3. Mapa del punto de encuentro:
+   - El mapa aparece en el formulario de programación, centrado en las coordenadas de la zona
+   - Clickea en un punto del mapa → el pin marca ahí, y en la confirmación dice "Les llega también el botón Cómo llegar..."
+   - Si NO clickeas en el mapa → dice "Sin ubicación en el mapa solo verán la referencia escrita..."
+   - El email que recibe el cliente tiene el botón **🧭 Cómo llegar** SOLO si se marcó un punto
+   - Después de enviar, el formulario se limpia (fecha, hora, punto, mapa)
+
+**Pedido del cliente — detalle-pedido:**
+1. Si el pedido es de una zona con viaje programado + punto de encuentro marcado en mapa:
+   - El botón "🧭 Cómo llegar" trazará la ruta **al punto de encuentro**, no a la casa del cliente
+   - El texto bajo el botón dice "Se abre en tu app de mapas con la ruta al punto donde te entregamos"
+   - La entrega dice "Llega el [fecha], en [punto de encuentro]"
+
+2. Si es de una zona pero sin punto de encuentro (solo texto):
+   - El botón "Cómo llegar" usa búsqueda de texto con el punto de encuentro escrito
+   - El texto dice "Se abre en tu app de mapas con la dirección escrita"
+
+3. Si es una entrega a domicilio (tiene latitud/longitud):
+   - El botón trazará la ruta a esa dirección exacta (como antes)
+   - El texto dice "Se abre en tu app de mapas con la ruta trazada al punto exacto"
+
+**Migration obligatoria antes de desplegar a prod:**
+```sql
+-- Correr esto una sola vez en inventario_key (base de datos de main)
+-- El SQL es idempotente, no falla si ya existe
+ALTER TABLE pedido ADD COLUMN IF NOT EXISTS latitud_encuentro DOUBLE NULL COMMENT 'Punto exacto del encuentro marcado en el mapa al programar el viaje';
+ALTER TABLE pedido ADD COLUMN IF NOT EXISTS longitud_encuentro DOUBLE NULL COMMENT 'Punto exacto del encuentro marcado en el mapa al programar el viaje';
+```
+
+**Checks finales antes de pasar a main:**
+- [ ] El calendario permite navegar a días anteriores sin estar tachados
+- [ ] El mapa se carga y permite clickear para marcar un punto
+- [ ] El pedido del cliente muestra el botón "Cómo llegar" apuntando al lugar correcto
+- [ ] El correo de aviso incluye el botón "Cómo llegar" cuando se marcó el mapa
+- [ ] La migración SQL se corrió y no hay errores al programar una entrega

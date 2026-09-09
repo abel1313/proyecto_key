@@ -354,10 +354,26 @@ public class EmailService {
      */
     public boolean enviarProgramacionEntregaZona(String destinatario, String nombreCliente, Integer pedidoId,
                                                   String nombreZona, java.time.LocalDate fecha, String hora,
-                                                  String puntoEncuentro) {
+                                                  String puntoEncuentro, Double latitud, Double longitud) {
         String fechaStr = fecha.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d 'de' MMMM",
                 new java.util.Locale("es", "MX")));
         String asunto = "Entrega en " + nombreZona + " — " + fechaStr + " — Novedades Jade";
+
+        // El botón de ruta es SOLO un link a Google Maps -- no es una API, no cuesta ni necesita
+        // cuenta. Solo aparece si el admin marcó el punto en el mapa al programar el viaje; sin
+        // eso el cliente se queda con la referencia escrita, como antes.
+        String botonRuta = "";
+        if (latitud != null && longitud != null) {
+            String url = "https://www.google.com/maps/dir/?api=1&destination=" + latitud + "," + longitud;
+            botonRuta = "<div style=\"text-align:center;margin:0 0 22px;\">"
+                    + "<a href=\"" + url + "\" style=\"display:inline-block;background-color:#00875A;color:#ffffff;"
+                    + "text-decoration:none;font-size:15px;font-weight:700;padding:11px 20px;border-radius:10px;"
+                    + "font-family:Arial,Helvetica,sans-serif;\">🧭 Cómo llegar</a>"
+                    + "<div style=\"margin-top:6px;color:#6b7280;font-size:12px;\">Se abre en tu app de mapas "
+                    + "con la ruta hasta el punto de entrega.</div>"
+                    + "</div>";
+        }
+
         String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">Ya tenemos fecha para llevar tu pedido "
                 + "<strong>#" + pedidoId + "</strong> a <strong>" + nombreZona + "</strong>:</p>"
@@ -367,6 +383,7 @@ public class EmailService {
                 + "font-family:Arial,Helvetica,sans-serif;\">" + fechaStr + ", " + hora + "</span>"
                 + "<div style=\"margin-top:10px;color:#1f2937;font-size:15px;\">📍 " + puntoEncuentro + "</div>"
                 + "</div>"
+                + botonRuta
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Te esperamos ahí ese día para "
                 + "entregarte tu pedido.</p>";
         return enviarTicket(destinatario, asunto, html);
