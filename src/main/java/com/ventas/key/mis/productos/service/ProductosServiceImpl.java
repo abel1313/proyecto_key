@@ -772,10 +772,19 @@ public class ProductosServiceImpl extends
         return pginaDto;
     }
 
+    // Un borrador de la carga rapida NUNCA puede quedar habilitado: todas las consultas del
+    // catalogo publico filtran por habilitado='1', asi que habilitarlo aqui lo sacaria a la
+    // tienda sin nombre, sin precio y con el codigo placeholder BRD-. El unico camino valido
+    // para habilitarlo es PUT /v1/carga-imagenes/{id}/completar, que primero exige el codigo real.
     @Transactional
     public Producto habilitarDeshabilitarProducto(Integer id, boolean habilitar) {
         Producto producto = iProductosRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado con id: " + id));
+        if (habilitar && esBorradorCargaRapida(producto)) {
+            throw new ExceptionErrorInesperado("No se puede habilitar el producto " + id
+                    + ": es un borrador de Carga rapida de imagenes, completalo ahi primero para que"
+                    + " se le asigne el codigo de barras real");
+        }
         producto.setHabilitado(habilitar ? '1' : '0');
         Producto resultado = iProductosRepository.save(producto);
         cacheService.evictAll();
@@ -786,10 +795,25 @@ public class ProductosServiceImpl extends
     @Transactional
     public void habilitarDeshabilitarProductosLote(List<Integer> ids, boolean habilitar) {
         List<Producto> productos = iProductosRepository.findAllById(ids);
+        if (habilitar) {
+            List<Integer> borradores = productos.stream()
+                    .filter(ProductosServiceImpl::esBorradorCargaRapida).map(Producto::getId).toList();
+            if (!borradores.isEmpty()) {
+                throw new ExceptionErrorInesperado("No se pueden habilitar los productos " + borradores
+                        + ": son borradores de Carga rapida de imagenes, completalos ahi primero");
+            }
+        }
         productos.forEach(p -> p.setHabilitado(habilitar ? '1' : '0'));
         iProductosRepository.saveAll(productos);
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+    }
+
+    // Mismo criterio que IProductosRepository.findBorradores(): el flag O el codigo placeholder.
+    private static boolean esBorradorCargaRapida(Producto producto) {
+        if (Boolean.TRUE.equals(producto.getCodigoBarrasGenerado())) return true;
+        String codigo = producto.getCodigoBarras() != null ? producto.getCodigoBarras().getCodigoBarras() : null;
+        return codigo != null && codigo.toUpperCase().startsWith("BRD-");
     }
 
     public DiagnosticoImagenProductoDto diagnosticarImagenesProducto(Integer productoId) {
