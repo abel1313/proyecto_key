@@ -18762,6 +18762,40 @@ También acepta `palabraClave` y `ordenDesde`. Solo se aplica lo que venga disti
 La pantalla solo ofrecía "eliminar", así que corregir un nombre mal escrito significaba borrar al
 participante y perder sus boletos.
 
+### 5-bis. La hora de cierre ahora SÍ bloquea el registro de boletos — 2026-09-09
+
+El campo `fechaHoraLimite` en la configuración de la rifa solo se comparaba por fecha (ignoraba la hora).
+Una rifa del 1 al 9 que cierra a las 10:00 de la mañana en teoría dejaba de recibir boletos el 9 a las
+10:00, pero en práctica lo hacía a las 23:59 de ese día.
+
+**Cambio en el backend:** ahora la validación usa `LocalDateTime` en lugar de solo `LocalDate`, y se
+ejecuta cuando se registra cada boleto (`POST /v1/boletoRifa/registrar` o `PUT /v1/boletoRifa/{id}`).
+
+**Comportamiento nuevo:**
+- Si `fechaHoraLimite` es `null` → no hay límite de hora (solo hay límite de fecha).
+- Si `fechaHoraLimite` es `"2026-09-09T10:00"` → a las 10:00:01 del 9/9 se bloquean nuevos boletos.
+- **Response** si se intenta pasada la hora: **400** `"El registro de boletos cerró el 2026-09-09 a las 10:00"`.
+
+### 5-ter. `urlPerfilRedSocial` dejó de ser obligatoria — 2026-09-09
+
+Antes:
+- Obligatoria en `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}`.
+- El front la solicitaba al capturar el boleto (label "URL del perfil para dar seguimiento *").
+- Las URLs capturadas frecuentemente resultaban en 404 porque no existía el perfil real.
+
+Ahora:
+- **Totalmente opcional** — puede venir `null` o vacía; se acepta igual.
+- El front no la solicita más al capturar boletos.
+- Se quitaron los links "Perfil" de la pantalla (quedaron los de "Seguimiento" y "Publicación compartida").
+
+**Cambios en los endpoints:**
+```json
+// POST /v1/boletoRifa/registrar — ahora es válido
+{ "plataforma": "INSTAGRAM", "motivo": "Compartió el reel", "fecha": "2026-09-08" }
+
+// Antes habría sido rechazo 400: "Falta la URL del perfil para dar seguimiento."
+```
+
 ---
 
 ## ENTREGAS POR ZONA — filtro por rango de fechas — 2026-09-09
