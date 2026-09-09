@@ -13,6 +13,7 @@ import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
+import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
@@ -247,6 +248,42 @@ public class ConfigurarRifaVarianteService {
             }
         }
 
+        return dto;
+    }
+
+    /**
+     * El premio para la página pública: los campos que describen lo que se va a ganar y
+     * TODAS sus fotos, no solo la primera como {@link #toVarianteResumen}. Se llama al
+     * abrir el detalle, no al pintar la ruleta, porque el estado se recarga tras cada
+     * giro y mandar la galería completa en cada recarga multiplicaría el payload.
+     */
+    public PremioPublicoDto toPremioPublico(ConfigurarRifaVariante crv) {
+        Variantes v = crv.getVariante();
+
+        PremioPublicoDto dto = new PremioPublicoDto();
+        dto.setId(crv.getId());
+        dto.setDescripcion(v.getDescripcion());
+        dto.setTalla(v.getTalla());
+        dto.setColor(v.getColor());
+        dto.setMarca(v.getMarca());
+        dto.setPresentacion(v.getPresentacion());
+        dto.setContenidoNeto(v.getContenidoNeto());
+        if (v.getProducto() != null) {
+            dto.setNombreProducto(v.getProducto().getNombre());
+        }
+
+        for (VarianteImagen relacion : iVarianteImagenRepository.findByVarianteId(v.getId())) {
+            try {
+                ImagenDto img = imageneClienteDisco.getOne(relacion.getImagen().getId());
+                if (img == null || img.getImagen() == null) continue;
+                String tipo = img.getContentType() != null ? img.getContentType() : "image/jpeg";
+                dto.getImagenes().add("data:" + tipo + ";base64,"
+                        + Base64.getEncoder().encodeToString(img.getImagen()));
+            } catch (Exception e) {
+                // Una foto que el micro perdió no debe tumbar el detalle: se omite y ya.
+                log.warn("No se pudo leer una imagen del premio {}: {}", crv.getId(), e.getMessage());
+            }
+        }
         return dto;
     }
 }
