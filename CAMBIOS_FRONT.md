@@ -18853,3 +18853,67 @@ vista**. Si vienen `null` se usa la semana en curso, como antes.
 `fecha` (la de entrega, la que va en el correo al cliente) es independiente del rango de búsqueda.
 
 **Response:** `data` = número de correos enviados.
+
+---
+
+## ENTREGAS POR ZONA — ubicación en mapa del punto de encuentro — 2026-09-09
+
+Hasta ahora el punto de encuentro del viaje semanal solo era **texto libre**
+(`"Centro de Zacazonapan, frente a la iglesia"`). Quien no conoce la zona no tiene cómo llegar
+con eso, y el botón "Cómo llegar" del pedido lo mandaba a **su propia casa** (ver el bug abajo).
+Ahora el admin puede marcar el punto exacto en un mapa al programar, y esas coordenadas viajan al
+pedido de cada cliente avisado.
+
+**Requiere migración:** `migration_punto_encuentro_mapa.sql` (dos columnas nuevas en `pedido`,
+ambas NULL, idempotente).
+
+### `POST /v1/entregas-zona/{lugarEntregaId}/programar` — dos campos nuevos, opcionales
+
+```json
+{ "fecha": "2026-09-11", "hora": "17:00", "puntoEncuentro": "Centro, frente a la iglesia",
+  "latitud": 19.0621, "longitud": -100.2517,
+  "desde": "2026-09-01", "hasta": "2026-09-09" }
+```
+
+`latitud`/`longitud` son el punto marcado en el mapa. **Son opcionales** — sin ellos todo se
+comporta igual que antes (`puntoEncuentro` en texto sigue siendo lo obligatorio). Cuando vienen:
+
+- Se copian a **todos** los pedidos avisados en esa programación.
+- El correo de aviso incluye además un botón **🧭 Cómo llegar** con la ruta a ese punto.
+
+**Response:** `data` = número de correos enviados (sin cambio).
+
+### `GET /v1/pedidos/{id}/detalle` — dos campos nuevos en el response
+
+```json
+{ "fechaRecogida": "2026-09-11", "horaRecogida": "17:00",
+  "puntoEncuentro": "Centro, frente a la iglesia",
+  "latitudEncuentro": 19.0621, "longitudEncuentro": -100.2517 }
+```
+
+⚠️ **`latitudEncuentro`/`longitudEncuentro` NO son lo mismo que `latitud`/`longitud`.**
+
+| Campo | Qué es | Quién lo captura |
+|---|---|---|
+| `latitud` / `longitud` | La casa **del cliente** | El cliente en el checkout (o el admin en "Editar entrega") |
+| `latitudEncuentro` / `longitudEncuentro` | El punto **al que el cliente tiene que ir** | El admin al programar el viaje en "Entregas por zona" |
+
+Ausentes (no `null` — el DTO usa `@JsonInclude(NON_NULL)`) si el viaje se programó sin marcar el
+mapa, o si el pedido no es de una zona con viaje semanal.
+
+### 🐛 Bug de comportamiento corregido en el front: "Cómo llegar" apuntaba al destino equivocado
+
+**Antes:** `linkComoLlegar` (detalle-pedido) usaba `latitud`/`longitud` como destino de la ruta.
+En un pedido de entrega a domicilio eso está bien, pero en una **entrega por zona** el cliente es
+quien se mueve — y esas coordenadas son las de su propia casa, así que el botón le trazaba una
+ruta para llegar a donde ya estaba.
+
+**Ahora**, el orden de prioridad del destino es:
+
+1. `latitudEncuentro`/`longitudEncuentro` si existen → ruta al punto de encuentro.
+2. Si no, `latitud`/`longitud` → ruta a la dirección del cliente (entrega a domicilio, igual que antes).
+3. Si no hay coordenadas, búsqueda por texto con `puntoEncuentro` + `direccionEntrega` +
+   `lugarEntregaNombre` (antes `puntoEncuentro` no entraba en esa búsqueda).
+
+El texto bajo el botón también cambia según el caso ("la ruta al punto donde te entregamos" vs.
+"la ruta trazada al punto exacto" vs. "la dirección escrita").
