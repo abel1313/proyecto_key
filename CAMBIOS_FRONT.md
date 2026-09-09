@@ -18553,3 +18553,199 @@ el pedido después — la compra inicial nunca avisaba nada.
 
 Migración de BD ejecutada: `migration_pedido_hora_punto_encuentro.sql` (2 columnas nuevas en
 `pedidos`: `hora_recogida`, `punto_encuentro`).
+
+---
+
+## RIFA PLATAFORMAS — correcciones y endpoints nuevos — 2026-09-09
+
+Ronda de arreglos sobre la pantalla de rifa por acciones en redes sociales (`rifas/boletos`).
+**No hay migración de BD nueva** — no se agregó ninguna columna; todo es DTO y endpoints.
+
+### 1. ⚠️ CAMBIO DE CONTRATO — el resumen de rifa ahora trae el rango de boletos
+
+Afecta a los tres endpoints que devuelven `ConfigurarRifaResumenDto`:
+
+- `GET /v1/configurarRifa/activas`
+- `GET /v1/configurarRifa/activas/hoy`
+- `GET /v1/configurarRifa/buscar`
+
+**Antes** el resumen NO incluía `fechaInicioBoletos` ni `fechaFinBoletos`, aunque sí estuvieran
+guardadas en la BD. Consecuencia en el front: al recargar la pantalla la rifa volvía sin fechas y
+el wizard pedía configurar el rango otra vez ("me dice que debo seleccionar la fecha pero eso ya
+estaba configurado").
+
+**Ahora** el response agrega los dos campos:
+
+```json
+{
+  "id": 12,
+  "fechaHoraLimite": "2026-09-30T20:00:00",
+  "activa": true,
+  "totalVariantes": 2,
+  "variantesSorteadas": 0,
+  "tipo": "PLATAFORMAS",
+  "mesReferencia": null,
+  "esPrueba": true,
+  "fechaInicioBoletos": "2026-09-01",
+  "fechaFinBoletos": "2026-09-30"
+}
+```
+
+`fechaInicioBoletos` / `fechaFinBoletos` son `yyyy-MM-dd` y pueden venir `null` si la rifa nunca
+configuró rango.
+
+### 2. La hora de cierre vive en `fechaHoraLimite`
+
+`fechaFinBoletos` es solo la fecha (sin hora). La **hora a la que cierra la rifa el último día**
+va en `fechaHoraLimite`, que ya existía. El front antes la mandaba fija en `T23:59`; ahora la
+manda como la configure el usuario.
+
+`PUT /v1/configurarRifa/{id}` — body (todos opcionales, solo se aplica lo que venga):
+
+```json
+{ "fechaHoraLimite": "2026-09-30T20:00", "fechaInicioBoletos": "2026-09-01", "fechaFinBoletos": "2026-09-30" }
+```
+
+Formato de `fechaHoraLimite`: `yyyy-MM-dd'T'HH:mm[:ss]`.
+
+### 3. Listar rifas de plataformas: usar `/buscar`, no `/activas`
+
+Una rifa se marca `activa=false` sola cuando pasa su fecha límite (job `desactivarVencidas`) o
+cuando se sortea el último premio en modo real. Con `/activas` esa rifa **desaparecía del selector
+y ya no había forma de volver a abrirla** ("regresé a buscarlo y ya no lo veo").
+
+Usar en su lugar:
+
+**Request:** `GET /v1/configurarRifa/buscar?tipo=PLATAFORMAS`
+**Response:** lista de `ConfigurarRifaResumenDto` (el del punto 1), **incluidas las cerradas** —
+se distinguen por `activa: false`.
+
+### 4. NUEVO — editar un premio ya guardado (giro ganador)
+
+Antes solo existía `PUT /v1/configurarRifaVariante/{id}/palabraClave`, así que **el "gana al giro"
+quedaba congelado** en el valor con el que se agregó el premio: para cambiarlo había que eliminar
+el premio y volverlo a crear (devolviendo y re-reservando stock).
+
+**Request:** `PUT /v1/configurarRifaVariante/{id}`
+
+```json
+{ "giroGanador": 5 }
+```
+
+Todos los campos son opcionales — solo se aplica lo que venga distinto de `null`:
+`giroGanador`, `orden`, `permitirNuevos`, `palabraClave`, `varianteId`.
+Mandar `varianteId` cambia el producto del premio: devuelve el stock del anterior y reserva uno
+del nuevo.
+
+**Response:** el `ConfigurarRifaVarianteDto` ya actualizado.
+
+```json
+{ "id": 8, "palabraClave": "PREMIO1", "giroGanador": 5, "orden": 1,
+  "permitirNuevos": false, "stockReservado": 1,
+  "variante": { "id": 44, "nombreProducto": "Bolsa Kelly", "color": "Negro", "talla": "U", "stock": 3, "precio": 850.0, "imagenBase64": "..." } }
+```
+
+- **400** con `mensaje` si el giro es menor a 1, si la `palabraClave` ya existe en esa rifa, o si
+  la variante nueva no tiene stock.
+- **400** `Configuración de variante no encontrada` si el id no existe.
+
+### 5. NUEVO — editar un boleto ya registrado
+
+Antes solo se podía **eliminar** el boleto, y eliminarlo descuenta el boleto del participante:
+corregir una plataforma mal puesta obligaba a borrar y recapturar, moviendo el conteo dos veces.
+
+**Request:** `PUT /v1/boletoRifa/{id}` — mismo body que `POST /v1/boletoRifa/registrar`:
+
+```json
+{ "plataforma": "INSTAGRAM", "motivo": "Compartió el reel", "fecha": "2026-09-08",
+  "urlPerfilRedSocial": "https://instagram.com/usuaria",
+  "urlSeguimiento": "https://...", "urlsCompartido": ["https://..."] }
+```
+
+`concursanteId` se ignora: el boleto no cambia de dueño y no se toca su estado de descartado
+(eso lo decide el sorteo).
+
+**Response:** el `BoletoRifa` actualizado.
+**400** si falta `plataforma`, falta `urlPerfilRedSocial`, o la fecha cae fuera del periodo de la rifa.
+
+### 6. ⚠️ `plataforma` ahora es OBLIGATORIA al registrar un boleto
+
+`POST /v1/boletoRifa/registrar` antes aceptaba `plataforma: null` y guardaba el boleto sin red
+social. Ahora responde **400** con `"La plataforma del boleto es obligatoria"`.
+
+Valores válidos: `FACEBOOK` | `INSTAGRAM` | `TIKTOK` | `OTRO`.
+
+Los campos obligatorios del boleto quedan en dos: `plataforma` y `urlPerfilRedSocial`.
+`motivo`, `urlSeguimiento` y `urlsCompartido` siguen siendo opcionales.
+
+### 7. Editar participante — ya existía, se documenta porque el front no lo estaba usando
+
+`PUT /v1/concursante/{id}` ya existía desde antes y acepta un patch parcial:
+
+```json
+{ "nombre": "María", "apellidoPaterno": "López", "telefono": "5512345678" }
+```
+
+También acepta `palabraClave` y `ordenDesde`. Solo se aplica lo que venga distinto de `null`.
+**Response:** el `Concursante` actualizado.
+
+La pantalla solo ofrecía "eliminar", así que corregir un nombre mal escrito significaba borrar al
+participante y perder sus boletos.
+
+---
+
+## ENTREGAS POR ZONA — filtro por rango de fechas — 2026-09-09
+
+La pantalla `entregas-zona` **solo podía ver la semana en curso** (lunes a viernes, calculada en
+el back). Un pedido de la semana pasada que nunca se entregó quedaba invisible ahí y no había
+forma de avisarle a ese cliente desde esa pantalla. Ahora el rango se elige en el front.
+
+**No hay migración de BD** — el repositorio ya tenía la consulta por rango; solo estaba fija.
+
+### `GET /v1/entregas-zona/{lugarEntregaId}/pendientes` — params nuevos (opcionales)
+
+| Param | Formato | Qué hace |
+|---|---|---|
+| `desde` | `yyyy-MM-dd` | Fecha de pedido inicial (inclusive) |
+| `hasta` | `yyyy-MM-dd` | Fecha de pedido final (inclusive) |
+
+- Sin ninguno de los dos → la semana en curso, **igual que antes** (compatible hacia atrás).
+- Con uno solo → ese día suelto.
+- `desde > hasta` → **400** `"La fecha inicial no puede ser posterior a la final"`.
+
+**Response** — se agregan `desde` y `hasta`; `lunes` y `viernes` siguen viniendo con el mismo
+valor solo por compatibilidad (**deprecados, usar `desde`/`hasta`**):
+
+```json
+{
+  "desde": "2026-09-01",
+  "hasta": "2026-09-09",
+  "lunes": "2026-09-01",
+  "viernes": "2026-09-09",
+  "fechaSugerida": "2026-09-11",
+  "pedidos": [
+    { "pedidoId": 412, "nombreCliente": "María López", "correo": "maria@...",
+      "total": 780.0, "fechaPedido": "2026-09-03" }
+  ]
+}
+```
+
+`fechaSugerida` sigue saliendo del `diaEntregaSemanal` de la zona resuelto sobre la **semana en
+curso**, no sobre el rango consultado: el viaje se hace esta semana aunque se estén juntando
+pedidos viejos.
+
+### `POST /v1/entregas-zona/{lugarEntregaId}/programar` — dos campos nuevos en el body
+
+```json
+{ "fecha": "2026-09-11", "hora": "17:00", "puntoEncuentro": "Centro, frente a la iglesia",
+  "desde": "2026-09-01", "hasta": "2026-09-09" }
+```
+
+`desde`/`hasta` son el **mismo rango que se listó**. Es importante mandarlos: antes el back
+recalculaba la semana en curso por su cuenta al programar, así que en cuanto el rango dejó de ser
+fijo, el correo le habría llegado a un conjunto de pedidos **distinto del que el admin tenía a la
+vista**. Si vienen `null` se usa la semana en curso, como antes.
+
+`fecha` (la de entrega, la que va en el correo al cliente) es independiente del rango de búsqueda.
+
+**Response:** `data` = número de correos enviados.

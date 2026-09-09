@@ -40,23 +40,51 @@ public class EntregaZonaServiceImpl {
     private final EmailService emailService;
 
     public EntregaZonaSemanaResponse listarPendientesSemana(Integer lugarEntregaId) {
-        LugarEntrega lugar = obtenerZonaReal(lugarEntregaId);
+        return listarPendientes(lugarEntregaId, null, null);
+    }
 
-        LocalDate lunes = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate viernes = lunes.plusDays(4);
+    /**
+     * Pedidos pendientes de una zona cuya FECHA DE PEDIDO cae en el rango dado.
+     *
+     * Con desde/hasta en null se comporta como antes (la semana en curso, lunes a viernes), que
+     * es lo que hacía siempre: la pantalla no tenía forma de pedir otro rango, así que un pedido
+     * de la semana pasada que nunca se entregó quedaba invisible aquí.
+     */
+    public EntregaZonaSemanaResponse listarPendientes(Integer lugarEntregaId, LocalDate desde, LocalDate hasta) {
+        LugarEntrega lugar = obtenerZonaReal(lugarEntregaId);
+        LocalDate[] rango = resolverRango(desde, hasta);
 
         LocalDate fechaSugerida = null;
         if (lugar.getDiaEntregaSemanal() != null) {
             DayOfWeek diaConfigurado = DayOfWeek.of(lugar.getDiaEntregaSemanal());
-            fechaSugerida = lunes.with(TemporalAdjusters.nextOrSame(diaConfigurado));
+            // Se sugiere el día configurado de la semana en curso, no del rango consultado: el
+            // viaje se hace esta semana aunque se estén cobrando pedidos viejos.
+            LocalDate lunesActual = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            fechaSugerida = lunesActual.with(TemporalAdjusters.nextOrSame(diaConfigurado));
         }
 
-        List<Pedido> pendientes = iPedidoRepository.findPendientesDeZonaEnRango(lugarEntregaId, lunes, viernes);
+        List<Pedido> pendientes = iPedidoRepository.findPendientesDeZonaEnRango(lugarEntregaId, rango[0], rango[1]);
         List<EntregaZonaPendienteDto> dtos = pendientes.stream()
                 .map(p -> new EntregaZonaPendienteDto(p.getId(), nombreDe(p), correoDe(p), p.getTotalPedido(), p.getFechaPedido()))
                 .toList();
 
-        return new EntregaZonaSemanaResponse(lunes, viernes, fechaSugerida, dtos);
+        return new EntregaZonaSemanaResponse(rango[0], rango[1], fechaSugerida, dtos);
+    }
+
+    /** Rango pedido, o la semana en curso (lunes a viernes) si no vino ninguno. */
+    private LocalDate[] resolverRango(LocalDate desde, LocalDate hasta) {
+        if (desde == null && hasta == null) {
+            LocalDate lunes = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            return new LocalDate[]{ lunes, lunes.plusDays(4) };
+        }
+        // Con uno solo de los dos se toma ese día suelto, que es lo que espera quien filtra por
+        // una fecha puntual.
+        LocalDate ini = desde != null ? desde : hasta;
+        LocalDate fin = hasta != null ? hasta : desde;
+        if (ini.isAfter(fin)) {
+            throw new RuntimeException("La fecha inicial no puede ser posterior a la final");
+        }
+        return new LocalDate[]{ ini, fin };
     }
 
     @Transactional
@@ -67,9 +95,10 @@ public class EntregaZonaServiceImpl {
         }
         LugarEntrega lugar = obtenerZonaReal(lugarEntregaId);
 
-        LocalDate lunes = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate viernes = lunes.plusDays(4);
-        List<Pedido> pendientes = iPedidoRepository.findPendientesDeZonaEnRango(lugarEntregaId, lunes, viernes);
+        // Se usa EL MISMO rango que la pantalla listó, no la semana recalculada aquí: si no,
+        // el admin ve un conjunto de pedidos y el correo le llega a otro.
+        LocalDate[] rango = resolverRango(request.getDesde(), request.getHasta());
+        List<Pedido> pendientes = iPedidoRepository.findPendientesDeZonaEnRango(lugarEntregaId, rango[0], rango[1]);
 
         int enviados = 0;
         for (Pedido pedido : pendientes) {

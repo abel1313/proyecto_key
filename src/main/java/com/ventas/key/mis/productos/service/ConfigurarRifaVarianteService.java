@@ -11,6 +11,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteDto;
+import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
@@ -131,6 +132,60 @@ public class ConfigurarRifaVarianteService {
 
     public List<String> obtenerPalabrasClave(Integer rifaId) {
         return iConfigurarRifaVarianteRepository.findPalabrasClave(rifaId);
+    }
+
+    /**
+     * Edita un premio ya guardado sin tener que borrarlo y recrearlo. Se aplica solo lo que
+     * venga distinto de null. Cambiar el producto mueve la reserva de stock: devuelve la del
+     * anterior y descuenta una del nuevo, igual que hace {@link #actualizarExistente}.
+     */
+    @Transactional
+    public ConfigurarRifaVarianteDto editar(Integer id, ConfigurarRifaVarianteEditarRequest req) {
+        ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
+
+        if (req.getGiroGanador() != null) {
+            if (req.getGiroGanador() < 1) {
+                throw new ExceptionErrorInesperado("El giro ganador debe ser 1 o más");
+            }
+            crv.setGiroGanador(req.getGiroGanador());
+        }
+        if (req.getOrden() != null) {
+            crv.setOrden(req.getOrden());
+        }
+        if (req.getPermitirNuevos() != null) {
+            crv.setPermitirNuevos(req.getPermitirNuevos());
+        }
+        if (req.getPalabraClave() != null && !req.getPalabraClave().isBlank()) {
+            String nueva = req.getPalabraClave().toUpperCase().trim();
+            if (!nueva.equals(crv.getPalabraClave())
+                    && iConfigurarRifaVarianteRepository.existsByConfigurarRifaIdAndPalabraClave(
+                            crv.getConfigurarRifa().getId(), nueva)) {
+                throw new ExceptionErrorInesperado("La palabraClave ya existe en esta rifa");
+            }
+            crv.setPalabraClave(nueva);
+        }
+        if (req.getVarianteId() != null && !req.getVarianteId().equals(crv.getVariante().getId())) {
+            Variantes anterior = crv.getVariante();
+            anterior.setStock(anterior.getStock() + crv.getStockReservado());
+            iVarianteRepository.save(anterior);
+
+            Variantes nueva = iVarianteRepository.findById(req.getVarianteId())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada"));
+            if (nueva.getStock() < 1) {
+                throw new ExceptionErrorInesperado("La variante no tiene stock disponible");
+            }
+            nueva.setStock(nueva.getStock() - 1);
+            iVarianteRepository.save(nueva);
+
+            crv.setVariante(nueva);
+            crv.setStockReservado(1);
+        }
+
+        ConfigurarRifaVarianteDto dto = toDto(iConfigurarRifaVarianteRepository.save(crv));
+        log.info("Premio {} de la rifa {} editado (giroGanador={}, orden={})",
+                id, crv.getConfigurarRifa().getId(), crv.getGiroGanador(), crv.getOrden());
+        return dto;
     }
 
     @Transactional
