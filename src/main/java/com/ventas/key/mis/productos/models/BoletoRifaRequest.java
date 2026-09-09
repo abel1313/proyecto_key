@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.models;
 
+import com.ventas.key.mis.productos.entity.BoletoRifa;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,6 +11,7 @@ import java.util.List;
 @Setter
 public class BoletoRifaRequest {
     private Integer concursanteId;
+    private BoletoRifa.Plataforma plataforma;
     private String motivo;
     private LocalDate fecha;
     private String urlPerfilRedSocial;
