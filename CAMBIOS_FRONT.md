@@ -18917,3 +18917,53 @@ ruta para llegar a donde ya estaba.
 
 El texto bajo el botón también cambia según el caso ("la ruta al punto donde te entregamos" vs.
 "la ruta trazada al punto exacto" vs. "la dirección escrita").
+
+### 🧪 Guía para QA — qué probar
+
+**Entregas por zona — admin:**
+1. Filtro por rango de fechas:
+   - Abre "Entregas por zona" → la semana en curso aparece por defecto en "Desde" y "Hasta"
+   - Haz clic en "Desde" → debería dejarme elegir **cualquier día en el pasado** (no tachados)
+   - Haz clic en "Hasta" → debería dejarme elegir cualquier día (no hay límite mínimo)
+   - Si elegís "Hasta" más temprano que "Desde", el "Desde" se auto-ajusta al día que elegiste
+   - Cambiar el rango NO borra la fecha elegida en "Fecha de entrega" (eso solo lo limpia cambiar de zona)
+
+2. Input de zona:
+   - Verifica que esté en su propio renglón completo (debajo de las dos fechas)
+   - Los nombres largos de zonas **deben caber** sin truncar
+
+3. Mapa del punto de encuentro:
+   - El mapa aparece en el formulario de programación, centrado en las coordenadas de la zona
+   - Clickea en un punto del mapa → el pin marca ahí, y en la confirmación dice "Les llega también el botón Cómo llegar..."
+   - Si NO clickeas en el mapa → dice "Sin ubicación en el mapa solo verán la referencia escrita..."
+   - El email que recibe el cliente tiene el botón **🧭 Cómo llegar** SOLO si se marcó un punto
+   - Después de enviar, el formulario se limpia (fecha, hora, punto, mapa)
+
+**Pedido del cliente — detalle-pedido:**
+1. Si el pedido es de una zona con viaje programado + punto de encuentro marcado en mapa:
+   - El botón "🧭 Cómo llegar" trazará la ruta **al punto de encuentro**, no a la casa del cliente
+   - El texto bajo el botón dice "Se abre en tu app de mapas con la ruta al punto donde te entregamos"
+   - La entrega dice "Llega el [fecha], en [punto de encuentro]"
+
+2. Si es de una zona pero sin punto de encuentro (solo texto):
+   - El botón "Cómo llegar" usa búsqueda de texto con el punto de encuentro escrito
+   - El texto dice "Se abre en tu app de mapas con la dirección escrita"
+
+3. Si es una entrega a domicilio (tiene latitud/longitud):
+   - El botón trazará la ruta a esa dirección exacta (como antes)
+   - El texto dice "Se abre en tu app de mapas con la ruta trazada al punto exacto"
+
+**Migration obligatoria antes de desplegar a prod:**
+```sql
+-- Correr esto una sola vez en inventario_key (base de datos de main)
+-- El SQL es idempotente, no falla si ya existe
+ALTER TABLE pedido ADD COLUMN IF NOT EXISTS latitud_encuentro DOUBLE NULL COMMENT 'Punto exacto del encuentro marcado en el mapa al programar el viaje';
+ALTER TABLE pedido ADD COLUMN IF NOT EXISTS longitud_encuentro DOUBLE NULL COMMENT 'Punto exacto del encuentro marcado en el mapa al programar el viaje';
+```
+
+**Checks finales antes de pasar a main:**
+- [ ] El calendario permite navegar a días anteriores sin estar tachados
+- [ ] El mapa se carga y permite clickear para marcar un punto
+- [ ] El pedido del cliente muestra el botón "Cómo llegar" apuntando al lugar correcto
+- [ ] El correo de aviso incluye el botón "Cómo llegar" cuando se marcó el mapa
+- [ ] La migración SQL se corrió y no hay errores al programar una entrega
