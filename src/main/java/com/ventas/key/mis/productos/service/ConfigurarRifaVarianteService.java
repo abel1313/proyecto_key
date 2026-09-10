@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.CacheNames;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.entity.ConfigurarRifaVariante;
@@ -8,8 +9,6 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
@@ -18,12 +17,14 @@ import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -37,9 +38,26 @@ public class ConfigurarRifaVarianteService {
     private final IConfigurarRifaRepository iConfigurarRifaRepository;
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
-    private final ImageneClienteDisco imageneClienteDisco;
 
+    @Value("${api.imagenes}")
+    private String endpointImagenes;
+
+    @PostConstruct
+    public void normalizarEndpoints() {
+        if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
+    }
+
+    /**
+     * Reservar un premio mueve stock (lo descuenta al agregar, lo devuelve al eliminar/editar), asi
+     * que invalida los mismos caches que una venta. Sin esto la busqueda de premios
+     * (/tienda/v1/buscar-filtrado, que exige stock > 0) se quedaba con el resultado viejo hasta 1h:
+     * al quitar un premio la variante no reaparecia, y el unico flujo que refrescaba el cache era
+     * volver a subir la imagen (ImagenServiceImpl es el otro que lo desaloja).
+     */
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public ConfigurarRifaVarianteDto agregar(ConfigurarRifaVarianteRequest req) {
         ConfigurarRifa rifa = iConfigurarRifaRepository.findById(req.getConfigurarRifaId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
@@ -113,6 +131,9 @@ public class ConfigurarRifaVarianteService {
     }
 
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public void eliminar(Integer id) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
@@ -140,6 +161,9 @@ public class ConfigurarRifaVarianteService {
      * anterior y descuenta una del nuevo, igual que hace {@link #actualizarExistente}.
      */
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public ConfigurarRifaVarianteDto editar(Integer id, ConfigurarRifaVarianteEditarRequest req) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
@@ -233,18 +257,14 @@ public class ConfigurarRifaVarianteService {
                     .map(CodigoBarra::getCodigoBarras).orElse(""));
         }
 
-        // Imagen: tomar la primera imagen disponible
-        List<VarianteImagen> imagenes = iVarianteImagenRepository.findByVarianteId(v.getId());
-        if (!imagenes.isEmpty()) {
-            try {
-                Long imagenId = imagenes.get(0).getImagen().getId();
-                ImagenDto img = imageneClienteDisco.getOne(imagenId);
-                if (img != null && img.getImagen() != null) {
-                    dto.setImagenBase64(Base64.getEncoder().encodeToString(img.getImagen()));
-                }
-            } catch (Exception e) {
-                log.warn("No se pudo obtener imagen para variante {}: {}", v.getId(), e.getMessage());
-            }
+        // Solo la URL del micro, nunca el binario: antes esto bajaba la imagen server-to-server y la
+        // mandaba en base64 dentro del JSON, que pesa ~33% mas que el binario y ademas el navegador
+        // no lo puede cachear -- una lista de premios se comia el plan de datos del celular. De pilon
+        // esa llamada fallaba de vez en cuando (timeout, micro caido) y el premio salia sin foto
+        // aunque en modelos se viera bien. Mismo orden (principal primero) que el listado de busqueda.
+        List<Object[]> filas = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(List.of(v.getId()));
+        if (!filas.isEmpty()) {
+            dto.setImagenUrl(endpointImagenes + "v1/imagenes/thumbnail/" + (Long) filas.get(0)[1]);
         }
 
         return dto;
