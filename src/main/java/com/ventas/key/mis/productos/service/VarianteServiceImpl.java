@@ -448,12 +448,21 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
      * entidad dejaba getImagen() en null y la fila se descartaba entera, así que el carrusel
      * salía vacío mientras el listado —que lee esa misma FK por columna— sí pintaba la foto.
      * El archivo vive en el micro, que es quien manda: basta el id para armar la URL.
+     *
+     * <p><b>Devuelve ArrayList a proposito, no List.of() ni .toList().</b> El valor raiz de un
+     * @Cacheable va a Redis con GenericJackson2JsonRedisSerializer + activateDefaultTyping
+     * NON_FINAL (ver CacheTtlConfig): las listas inmutables son clases final, asi que NO llevan
+     * el type id y al leerlas de vuelta Jackson truena con "expected VALUE_STRING: need ...
+     * type id". El controller se come esa excepcion y responde [], o sea: la 1a llamada trae las
+     * fotos y la 2a el carrusel sale vacio hasta que se limpia la cache. Mismo bug que tumbo el
+     * login el 2026-09-08 (ver ImagenPresentacionService). Dentro de un objeto contenedor
+     * (PginaDto) una lista inmutable si funciona -- el problema es solo en la raiz.
      */
     @Cacheable(value = "variantesImagenesCache", key = "'v2:' + #varianteId")
     public List<ImagenUpdateDto> getImagenesPorVarianteV2(Integer varianteId) {
         List<Object[]> filas = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId);
         List<Long> ids = filas.stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
-        if (ids.isEmpty()) return List.of();
+        if (ids.isEmpty()) return new ArrayList<>();
 
         List<Long> existentesList;
         try {
@@ -485,7 +494,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                     dto.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + imagenId);
                     dto.setPrincipal((Boolean) f[1]);
                     return dto;
-                }).toList();
+                }).collect(Collectors.toCollection(ArrayList::new));
     }
 
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId + ':' + #pagina + ':' + #size")
@@ -537,14 +546,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     private List<ImagenUpdateDto> buildImagenUpdateDtos(List<VarianteImagen> relaciones) {
-        if (relaciones.isEmpty()) return List.of();
+        if (relaciones.isEmpty()) return new ArrayList<>();
         return relaciones.stream().map(vi -> {
             var img = vi.getImagen();
             ImagenUpdateDto dto = new ImagenUpdateDto(img.getId(), (byte[]) null, img.getExtension(), img.getNombreImagen());
             dto.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + img.getId());
             dto.setPrincipal(vi.getPrincipal());
             return dto;
-        }).toList();
+        }).collect(Collectors.toCollection(ArrayList::new));
     }
 
     @Transactional
