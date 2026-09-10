@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.CacheNames;
 import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.entity.ConfigurarRifaVariante;
@@ -8,13 +9,13 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
 import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
+import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -23,6 +24,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +52,17 @@ public class ConfigurarRifaVarianteService {
         if (!endpointImagenes.endsWith("/")) endpointImagenes = endpointImagenes + "/";
     }
 
+    /**
+     * Reservar un premio mueve stock (lo descuenta al agregar, lo devuelve al eliminar/editar), asi
+     * que invalida los mismos caches que una venta. Sin esto la busqueda de premios
+     * (/tienda/v1/buscar-filtrado, que exige stock > 0) se quedaba con el resultado viejo hasta 1h:
+     * al quitar un premio la variante no reaparecia, y el unico flujo que refrescaba el cache era
+     * volver a subir la imagen (ImagenServiceImpl es el otro que lo desaloja).
+     */
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public ConfigurarRifaVarianteDto agregar(ConfigurarRifaVarianteRequest req) {
         ConfigurarRifa rifa = iConfigurarRifaRepository.findById(req.getConfigurarRifaId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
@@ -124,6 +136,9 @@ public class ConfigurarRifaVarianteService {
     }
 
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public void eliminar(Integer id) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
@@ -151,6 +166,9 @@ public class ConfigurarRifaVarianteService {
      * anterior y descuenta una del nuevo, igual que hace {@link #actualizarExistente}.
      */
     @Transactional
+    @CacheEvict(value = {CacheNames.PRODUCTOS, CacheNames.PRODUCTOS_BUSQUEDA, CacheNames.PRODUCTO_DETALLE,
+            CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
+            allEntries = true)
     public ConfigurarRifaVarianteDto editar(Integer id, ConfigurarRifaVarianteEditarRequest req) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
@@ -244,27 +262,14 @@ public class ConfigurarRifaVarianteService {
                     .map(CodigoBarra::getCodigoBarras).orElse(""));
         }
 
-        // Imagen: la MISMA que elige el listado de modelos -- principal primero y luego id ASC
-        // (findByVarianteId no ordena, asi que con mas de una foto el premio podia quedarse con
-        // una distinta a la que se ve en tienda/buscar, o con una fila huerfana que el micro ya
-        // no tiene).
-        List<Object[]> preferida = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(List.of(v.getId()));
-        if (!preferida.isEmpty()) {
-            Long imagenId = (Long) preferida.get(0)[1];
-            // La URL es la fuente principal, igual que en el listado de modelos: la resuelve el
-            // navegador contra el micro de imagenes. El base64 se sigue mandando como respaldo,
-            // pero ya no es lo unico: se armaba con una llamada server-to-server y, si esa
-            // fallaba (micro caido, timeout, id que el micro no tiene), el detalle del premio
-            // decia "Sin imagen" aunque la foto se viera perfectamente en la pantalla de modelos.
-            dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + imagenId);
-            try {
-                ImagenDto img = imageneClienteDisco.getOne(imagenId);
-                if (img != null && img.getImagen() != null) {
-                    dto.setImagenBase64(Base64.getEncoder().encodeToString(img.getImagen()));
-                }
-            } catch (Exception e) {
-                log.warn("No se pudo obtener imagen para variante {}: {}", v.getId(), e.getMessage());
-            }
+        // Solo la URL del micro, nunca el binario: antes esto bajaba la imagen server-to-server y la
+        // mandaba en base64 dentro del JSON, que pesa ~33% mas que el binario y ademas el navegador
+        // no lo puede cachear -- una lista de premios se comia el plan de datos del celular. De pilon
+        // esa llamada fallaba de vez en cuando (timeout, micro caido) y el premio salia sin foto
+        // aunque en modelos se viera bien. Mismo orden (principal primero) que el listado de busqueda.
+        List<Object[]> filas = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(List.of(v.getId()));
+        if (!filas.isEmpty()) {
+            dto.setImagenUrl(endpointImagenes + "v1/imagenes/thumbnail/" + (Long) filas.get(0)[1]);
         }
 
         return dto;
