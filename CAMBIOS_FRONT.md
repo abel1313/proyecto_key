@@ -19292,3 +19292,99 @@ imagen se elige con el **mismo criterio que modelos** (principal primero, luego 
 3. Con un modelo de **varias fotos**, marca una como principal → el premio debe mostrar esa.
 4. Un premio cuyo modelo **no** tenga foto debe seguir mostrando el placeholder 📦 "Sin imagen".
 5. Revisa también la **rifa del mes** y la **ruleta pública**: la miniatura del premio debe verse.
+
+---
+
+## 🖼️ Rifas: se elimina el base64 — todas las imágenes del premio ahora son URLs (2026-09-10)
+
+Cierra lo que quedó a medias en la sección anterior. Ahí `imagenUrl` pasó a ser la fuente principal
+pero `imagenBase64` seguía viajando "como respaldo". Ese respaldo ya **no existe**: el back nunca
+manda binarios de imagen dentro del JSON en ningún endpoint de rifas.
+
+**Por qué:** el base64 pesa ~33% más que la imagen original, el navegador **no lo puede cachear**
+(viene incrustado en el JSON, no es un recurso con URL propia) y el back lo armaba con una llamada
+server-to-server al micro que, al fallar por timeout, dejaba el premio sin foto aunque la imagen
+estuviera perfecta. Un carrusel de cinco fotos se iba arriba de 1 MB de texto **en cada apertura**,
+y en celular eso es plan de datos del cliente.
+
+### 1. `VarianteResumenDto` — el campo `imagenBase64` ya no existe
+
+Afecta a la configuración de la rifa, **rifa del mes**, **buscar rifa** y la miniatura del premio en
+la **ruleta pública**.
+
+```jsonc
+{
+  "id": 4821,
+  "nombreProducto": "Bolsa Michelle",
+  "color": "Negro", "talla": "Única", "stock": 3,
+  "imagenUrl": "https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/v1/imagenes/file/8842"
+  // imagenBase64 -> ELIMINADO del contrato
+}
+```
+
+**Acción front:** leer solo `imagenUrl`. Si viene `null`/vacío, pintar el placeholder (📦) — ya no
+hay a qué caer. Cualquier código que todavía haga `?? imagenBase64` es código muerto.
+
+**Ojo con la ruta:** este DTO devuelve `/v1/imagenes/**file**/{id}`, **no** `/thumbnail/`. Se probó
+con `/thumbnail/` y el premio se quedaba sin foto. La miniatura queda para listados de catálogo
+(muchas filas, donde el ahorro de peso compensa); los premios de una rifa son pocos y se ven en
+grande. **El front no arma la URL** — viene completa en el response.
+
+### 2. Detalle del premio público — el carrusel ahora recibe URLs
+
+```
+GET /v1/boletoRifa/publico/premio/{configurarRifaId}/{premioId}
+```
+
+**Público (`permitAll`)** — un visitante **sin cuenta** lo puede llamar, igual que antes.
+
+```jsonc
+{
+  "response": {
+    "id": 91,
+    "nombreProducto": "Bolsa Michelle",
+    "descripcion": "Bolsa de mano", "talla": "Única",
+    "color": "Negro", "marca": "Jade", "presentacion": "Caja", "contenidoNeto": "1 pza",
+    "imagenes": [
+      "https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/v1/imagenes/file/8842",
+      "https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/v1/imagenes/file/8843"
+    ]
+  }
+}
+```
+
+**Diferencia clave:** `imagenes` sigue siendo un `string[]` en el mismo orden (**la principal
+primero**), pero cada elemento pasó de ser un data URI (`data:image/jpeg;base64,...`) a una **URL
+completa**. Como ya se usaban directo en `<img [src]>`, el front **no necesita cambiar el binding**.
+
+- `imagenes: []` → el premio no tiene fotos. Pintar el estado vacío, no un carrusel de cero.
+- El back pregunta al micro qué ids siguen existiendo antes de armar la lista; si el micro no
+  responde, manda todas igual (mejor una URL que quizá falle que un carrusel vacío).
+- **404** si la rifa o el premio no existen. **400** en error inesperado.
+
+### 3. Lo que NO cambió
+
+- `GET /tienda/v1/imagenes/{varianteId}` (carrusel del admin al dar clic al premio) ya mandaba
+  `base64: null` + `urlImagen`. Sigue igual — solo dejó de filtrarse por `base64` del lado del front.
+- La ruleta pública y sus endpoints de giro: sin cambios de contrato.
+
+### ⚠️ Cambio de comportamiento a validar en red
+
+Antes el visitante **no** hacía ninguna petición al micro de imágenes: el back se las mandaba
+embebidas. Ahora el navegador pide cada foto directo al micro. Es el mismo mecanismo que ya usa el
+catálogo público de la tienda para visitantes anónimos, así que debería estar resuelto — pero vale
+la pena confirmarlo en la página de rifa, que es la primera que lo usa.
+
+### 🧪 Guía para QA
+
+1. **Premio en la configuración de rifa** → debe verse la foto (F12 → Network: una petición a
+   `/v1/imagenes/file/{id}`, **no** un JSON gigante).
+2. **Clic en la foto del premio (admin)** → abre el carrusel con **todas** las fotos; flechas y
+   contador `1 / N` funcionando.
+3. **Rifa del mes** y **buscar rifa** → miniatura del premio visible.
+4. **Ruleta pública en ventana de incógnito (sin cuenta)** → miniatura visible, y al dar clic abre
+   el carrusel con flechas, puntos, contador y swipe en celular.
+5. **Segunda apertura del mismo carrusel** → las fotos deben aparecer al instante (cache del
+   navegador, 1 año). Con base64 volvía a descargar todo cada vez.
+6. Premio cuyo modelo **no** tenga foto → placeholder 📦 / "Sin fotos de este premio", nunca una
+   imagen rota.
