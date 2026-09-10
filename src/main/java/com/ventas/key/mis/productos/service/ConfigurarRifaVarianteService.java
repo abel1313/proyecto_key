@@ -13,7 +13,6 @@ import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
 import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -29,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,7 +39,6 @@ public class ConfigurarRifaVarianteService {
     private final IConfigurarRifaRepository iConfigurarRifaRepository;
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
-    private final ImageneClienteDisco imageneClienteDisco;
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
@@ -306,10 +303,18 @@ public class ConfigurarRifaVarianteService {
     /**
      * Las URLs del carrusel, en el mismo orden que ve el admin: la principal primero y luego por
      * id. Antes esto bajaba cada foto del micro y la mandaba en base64 dentro del JSON; un premio
-     * con cinco fotos se iba arriba de 1 MB de texto que el navegador ni siquiera puede cachear,
-     * y bastaba un timeout del micro para que el carrusel saliera vacío. Ahora solo se pregunta
-     * qué ids siguen existiendo -- una llamada, sin binarios -- y el navegador baja cada imagen
-     * por su cuenta contra el micro, con el cache de 1 año que ese endpoint ya manda.
+     * con cinco fotos se iba arriba de 1 MB de texto que el navegador ni siquiera puede cachear.
+     * Ahora solo se arman las URLs y el navegador baja cada imagen por su cuenta contra el micro,
+     * con el cache de 1 ano que ese endpoint ya manda.
+     *
+     * Esta pantalla es publica y NO habla con el micro de imagenes. Antes preguntaba primero
+     * "de estos ids, cuales tienes?" para no mandar URLs rotas, y esa llamada sincrona era lo
+     * unico de este endpoint que salia a la red: con el micro sin responder, el hilo se quedaba
+     * esperando ahi y el detalle del premio no contestaba nunca -- el visitante veia
+     * "Cargando el detalle..." para siempre. El filtro tampoco hacia falta: el propio navegador
+     * se salta la foto que no baja (el carrusel la descarta con (error) en el <img>), asi que se
+     * ganaba muy poco a cambio de que una pantalla publica dependiera de que el micro este vivo.
+     * El endpoint queda solo con lecturas a BD, igual que /publico/estado, que nunca se colgo.
      */
     private List<String> urlsImagenesDe(Integer varianteId, Integer premioId) {
         // Se lee la FK imagen_id por columna en vez de cargar la entidad Imagen: si la fila de
@@ -319,18 +324,10 @@ public class ConfigurarRifaVarianteService {
         // quien manda: con el id basta para armar la URL.
         List<Long> ids = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId)
                 .stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
-        if (ids.isEmpty()) return List.of();
-        List<Long> existentes;
-        try {
-            existentes = imageneClienteDisco.verificarExistentes(ids);
-        } catch (Exception e) {
-            log.warn("No se pudo verificar las imagenes del premio {}: {}", premioId, e.getMessage());
-            existentes = List.of();
+        if (ids.isEmpty()) {
+            log.info("Premio {} (variante {}) sin fotos en BD", premioId, varianteId);
+            return List.of();
         }
-
-        // Micro sin responder: se mandan todas igual. Una URL que quizá falle es mejor que un
-        // carrusel vacío -- el navegador se salta la rota y las buenas se siguen viendo.
-        List<Long> aMostrar = existentes.isEmpty() ? ids : ids.stream().filter(Set.copyOf(existentes)::contains).toList();
-        return aMostrar.stream().map(id -> endpointImagenes + "v1/imagenes/file/" + id).toList();
+        return ids.stream().map(id -> endpointImagenes + "v1/imagenes/file/" + id).toList();
     }
 }
