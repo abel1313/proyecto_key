@@ -5,7 +5,6 @@ import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.entity.ConfigurarRifaVariante;
 import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
@@ -15,7 +14,6 @@ import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
 import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
-import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -28,9 +26,10 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -267,9 +266,13 @@ public class ConfigurarRifaVarianteService {
         // no lo puede cachear -- una lista de premios se comia el plan de datos del celular. De pilon
         // esa llamada fallaba de vez en cuando (timeout, micro caido) y el premio salia sin foto
         // aunque en modelos se viera bien. Mismo orden (principal primero) que el listado de busqueda.
+        //
+        // Va a /file/ y no a /thumbnail/: los premios de una rifa son pocos (no es un listado
+        // masivo) y se ven en grande, y la miniatura dejaba al premio sin foto. /thumbnail/ queda
+        // para los listados de catalogo, que es donde el ahorro de peso si compensa.
         List<Object[]> filas = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(List.of(v.getId()));
         if (!filas.isEmpty()) {
-            dto.setImagenUrl(endpointImagenes + "v1/imagenes/thumbnail/" + (Long) filas.get(0)[1]);
+            dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + (Long) filas.get(0)[1]);
         }
 
         return dto;
@@ -296,18 +299,38 @@ public class ConfigurarRifaVarianteService {
             dto.setNombreProducto(v.getProducto().getNombre());
         }
 
-        for (VarianteImagen relacion : iVarianteImagenRepository.findByVarianteId(v.getId())) {
-            try {
-                ImagenDto img = imageneClienteDisco.getOne(relacion.getImagen().getId());
-                if (img == null || img.getImagen() == null) continue;
-                String tipo = img.getContentType() != null ? img.getContentType() : "image/jpeg";
-                dto.getImagenes().add("data:" + tipo + ";base64,"
-                        + Base64.getEncoder().encodeToString(img.getImagen()));
-            } catch (Exception e) {
-                // Una foto que el micro perdió no debe tumbar el detalle: se omite y ya.
-                log.warn("No se pudo leer una imagen del premio {}: {}", crv.getId(), e.getMessage());
-            }
-        }
+        dto.setImagenes(urlsImagenesDe(v.getId(), crv.getId()));
         return dto;
+    }
+
+    /**
+     * Las URLs del carrusel, en el mismo orden que ve el admin: la principal primero y luego por
+     * id. Antes esto bajaba cada foto del micro y la mandaba en base64 dentro del JSON; un premio
+     * con cinco fotos se iba arriba de 1 MB de texto que el navegador ni siquiera puede cachear,
+     * y bastaba un timeout del micro para que el carrusel saliera vacío. Ahora solo se pregunta
+     * qué ids siguen existiendo -- una llamada, sin binarios -- y el navegador baja cada imagen
+     * por su cuenta contra el micro, con el cache de 1 año que ese endpoint ya manda.
+     */
+    private List<String> urlsImagenesDe(Integer varianteId, Integer premioId) {
+        // Se lee la FK imagen_id por columna en vez de cargar la entidad Imagen: si la fila de
+        // variante_imagen sigue pero su registro en `imagen` ya no, cargarla como entidad dejaba
+        // getImagen() en null y habia que descartarla, o sea que el carrusel perdia justo las
+        // fotos huerfanas -- que el micro normalmente si tiene. El archivo vive alla, que es
+        // quien manda: con el id basta para armar la URL.
+        List<Long> ids = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId)
+                .stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) return List.of();
+        List<Long> existentes;
+        try {
+            existentes = imageneClienteDisco.verificarExistentes(ids);
+        } catch (Exception e) {
+            log.warn("No se pudo verificar las imagenes del premio {}: {}", premioId, e.getMessage());
+            existentes = List.of();
+        }
+
+        // Micro sin responder: se mandan todas igual. Una URL que quizá falle es mejor que un
+        // carrusel vacío -- el navegador se salta la rota y las buenas se siguen viendo.
+        List<Long> aMostrar = existentes.isEmpty() ? ids : ids.stream().filter(Set.copyOf(existentes)::contains).toList();
+        return aMostrar.stream().map(id -> endpointImagenes + "v1/imagenes/file/" + id).toList();
     }
 }
