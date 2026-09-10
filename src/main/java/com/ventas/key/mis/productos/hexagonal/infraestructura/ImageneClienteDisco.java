@@ -10,13 +10,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import io.netty.channel.ChannelOption;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
 import java.util.List;
@@ -35,12 +38,35 @@ public class ImageneClienteDisco implements ImagenPort {
         this.builder = builder;
         this.rabbitTemplate = rabbitTemplate;
     }
+    /** Conectar al micro no deberia tardar mas que esto: o esta arriba, o no esta. */
+    private static final int CONNECT_TIMEOUT_MS = 5_000;
+
+    /**
+     * Techo duro por request. Subir imagenes manda archivos, asi que se toma el mas largo de los
+     * timeouts de Reactor que usan los metodos de abajo (30 s en save) y se deja ese como limite.
+     */
+    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(35);
+
     @PostConstruct
     public void init() {
         ExchangeStrategies strategies = ExchangeStrategies.builder()
                 .codecs(config -> config.defaultCodecs().maxInMemorySize(40 * 1024 * 1024))
                 .build();
-        this.webClient = builder.baseUrl(endpointImg).exchangeStrategies(strategies).build();
+
+        // Los .timeout(...) de Reactor de cada metodo NO alcanzan solos: si el micro acepta el
+        // socket y despues no contesta nunca, sin timeout a nivel HTTP el hilo del servlet que
+        // hizo .block() se queda esperando para siempre, y como Tomcat tiene un pool finito de
+        // hilos, unas cuantas peticiones asi dejan colgada toda la aplicacion -- no solo la
+        // pantalla que pidio la imagen. Esto le pone piso a eso.
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
+                .responseTimeout(RESPONSE_TIMEOUT);
+
+        this.webClient = builder
+                .baseUrl(endpointImg)
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .exchangeStrategies(strategies)
+                .build();
         log.info(" endpoint imagenes ImageneClienteDisco {}", endpointImg);
     }
 
@@ -103,9 +129,15 @@ public class ImageneClienteDisco implements ImagenPort {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Long>>() {})
+                // El .timeout() va ANTES del .onErrorReturn(): al reves, la TimeoutException se
+                // levantaba despues del fallback y salia como excepcion en vez de degradar a
+                // lista vacia, que es justo lo que este metodo promete a quien lo llama.
+                // Un 204 del micro deja el Mono vacio y .block() devolveria null, de ahi el
+                // defaultIfEmpty: esto nunca devuelve null ni lanza.
+                .timeout(Duration.ofSeconds(5))
                 .doOnError(e -> log.warn("Error verificando imágenes ids=[{}]: {}", ids, e.getMessage()))
                 .onErrorReturn(List.of())
-                .timeout(Duration.ofSeconds(5))
+                .defaultIfEmpty(List.of())
                 .block();
     }
 
