@@ -440,12 +440,21 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return validas;
     }
 
+    /**
+     * Las imágenes del detalle/carrusel de una variante.
+     *
+     * <p>Lee (imagen_id, principal) por columna en vez de cargar la entidad Imagen: si el
+     * registro local de `imagen` ya no está pero la fila de variante_imagen sí, cargarla como
+     * entidad dejaba getImagen() en null y la fila se descartaba entera, así que el carrusel
+     * salía vacío mientras el listado —que lee esa misma FK por columna— sí pintaba la foto.
+     * El archivo vive en el micro, que es quien manda: basta el id para armar la URL.
+     */
     @Cacheable(value = "variantesImagenesCache", key = "'v2:' + #varianteId")
     public List<ImagenUpdateDto> getImagenesPorVarianteV2(Integer varianteId) {
-        List<VarianteImagen> relaciones = filtrarRelacionesConImagen(
-                iVarianteImagenRepository.findByVarianteId(varianteId), varianteId);
-        if (relaciones.isEmpty()) return List.of();
-        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
+        List<Object[]> filas = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId);
+        List<Long> ids = filas.stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) return List.of();
+
         List<Long> existentesList;
         try {
             existentesList = imageneClienteDisco.verificarExistentes(ids);
@@ -453,16 +462,30 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             log.warn("Error verificando existencia en micro para varianteId={}: {}", varianteId, e.getMessage());
             existentesList = List.of();
         }
-        // Si la verificación devuelve vacío (micro no disponible o archivo perdido),
-        // usar BD local como fallback para que el detalle sea consistente con el listado.
+        // Micro sin responder: se mandan todas igual. Una URL que quizá falle es mejor que un
+        // carrusel vacío — el navegador se salta la rota y las buenas se siguen viendo.
         if (existentesList.isEmpty()) {
-            log.warn("verificarExistentes vacío para varianteId={}, usando BD local como fallback", varianteId);
-            return buildImagenUpdateDtos(relaciones);
+            log.warn("verificarExistentes vacío para varianteId={}, se mandan todas las URLs", varianteId);
         }
-        Set<Long> existentes = new HashSet<>(existentesList);
-        return buildImagenUpdateDtos(relaciones.stream()
-                .filter(vi -> existentes.contains(vi.getImagen().getId()))
-                .toList());
+        Set<Long> aMostrar = existentesList.isEmpty() ? Set.copyOf(ids) : Set.copyOf(existentesList);
+
+        // extension/nombre solo existen si la Imagen local sigue ahí; el carrusel pinta con la
+        // URL, así que una huérfana viaja con esos campos en null en vez de perderse.
+        Map<Long, Imagen> locales = iImagenRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Imagen::getId, i -> i, (a, b) -> a));
+
+        return filas.stream()
+                .filter(f -> f[0] != null && aMostrar.contains((Long) f[0]))
+                .map(f -> {
+                    Long imagenId = (Long) f[0];
+                    Imagen local = locales.get(imagenId);
+                    ImagenUpdateDto dto = new ImagenUpdateDto(imagenId, (byte[]) null,
+                            local != null ? local.getExtension() : null,
+                            local != null ? local.getNombreImagen() : null);
+                    dto.setUrlImagen(endpointImagenes + "v1/imagenes/file/" + imagenId);
+                    dto.setPrincipal((Boolean) f[1]);
+                    return dto;
+                }).toList();
     }
 
     @Cacheable(value = "variantesImagenesCache", key = "#varianteId + ':' + #pagina + ':' + #size")

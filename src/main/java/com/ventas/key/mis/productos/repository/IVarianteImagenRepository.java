@@ -65,6 +65,19 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
             + "ORDER BY CASE WHEN vi.principal = true THEN 0 ELSE 1 END ASC, vi.id ASC")
     List<Object[]> findIdsPrimeraImagenByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);
 
+    /**
+     * (imagenId, principal) de una variante leyendo la columna imagen_id, sin materializar la
+     * entidad Imagen. Mismo orden que {@link #findByVarianteIdIn} (principal primero, luego id).
+     *
+     * <p>Existe porque una fila cuyo imagen_id ya no tiene registro en la tabla `imagen` local
+     * desaparece por completo al cargarla como entidad (getImagen() queda null y hay que
+     * descartarla), mientras que el listado —que lee esta misma FK por columna— sí arma la URL
+     * y la foto se ve. El detalle quedaba vacío con la lista llena.
+     */
+    @Query("SELECT vi.imagen.id, vi.principal FROM VarianteImagen vi WHERE vi.variante.id = :varianteId "
+            + "ORDER BY CASE WHEN vi.principal = true THEN 0 ELSE 1 END ASC, vi.id ASC")
+    List<Object[]> findImagenIdsConPrincipalByVarianteId(@Param("varianteId") Integer varianteId);
+
     @Query("SELECT vi FROM VarianteImagen vi WHERE vi.variante.id = :varianteId")
     List<VarianteImagen> findAllByVarianteId(@Param("varianteId") Integer varianteId);
 
