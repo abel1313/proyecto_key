@@ -18,7 +18,7 @@ public class VarianteResumenDto {
     private int stock;
     private String marca;
     private String contenidoNeto;
-    private String imagenBase64;
+    /** URL al micro de imagenes -- el navegador la resuelve y la cachea. Nunca el binario. */
     private String imagenUrl;
     private double precio;
     private String codigoBarras;

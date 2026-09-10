@@ -27,6 +27,11 @@ public class PremioPublicoDto {
     private String presentacion;
     private String contenidoNeto;
 
-    /** Data URIs listas para <img [src]>, en el orden en que están guardadas. */
+    /**
+     * URLs al micro de imágenes listas para {@code <img [src]>}, la principal primero.
+     * Son URLs y no data URIs a propósito: el binario en base64 pesa ~33% más y el navegador
+     * no lo puede cachear, así que un carrusel de cinco fotos se comía el plan de datos del
+     * celular en cada apertura.
+     */
     private List<String> imagenes = new ArrayList<>();
 }
