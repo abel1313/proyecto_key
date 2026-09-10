@@ -129,9 +129,15 @@ public class ImageneClienteDisco implements ImagenPort {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<Long>>() {})
+                // El .timeout() va ANTES del .onErrorReturn(): al reves, la TimeoutException se
+                // levantaba despues del fallback y salia como excepcion en vez de degradar a
+                // lista vacia, que es justo lo que este metodo promete a quien lo llama.
+                // Un 204 del micro deja el Mono vacio y .block() devolveria null, de ahi el
+                // defaultIfEmpty: esto nunca devuelve null ni lanza.
+                .timeout(Duration.ofSeconds(5))
                 .doOnError(e -> log.warn("Error verificando imágenes ids=[{}]: {}", ids, e.getMessage()))
                 .onErrorReturn(List.of())
-                .timeout(Duration.ofSeconds(5))
+                .defaultIfEmpty(List.of())
                 .block();
     }
 
