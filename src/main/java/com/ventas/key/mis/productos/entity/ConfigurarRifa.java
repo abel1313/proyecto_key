@@ -55,6 +55,9 @@ public class ConfigurarRifa extends BaseId {
     @Column(name = "es_prueba", nullable = false)
     private Boolean esPrueba = false;
 
+    @Column(name = "descripcion", columnDefinition = "TEXT")
+    private String descripcion;
+
     @OneToMany(mappedBy = "configurarRifa", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orden ASC")
     private List<ConfigurarRifaVariante> variantes = new ArrayList<>();
