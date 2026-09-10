@@ -567,7 +567,9 @@ public class ProductosServiceImpl extends
         }
     }
 
-    @Cacheable(value = "findByIdCache", key = "#id")
+    // Sin @Cacheable a proposito: un Optional como valor raiz de cache se guarda en Redis como
+    // {"empty":true,"present":false} -- sin type id y sin el contenido -- y truena al leerlo de
+    // vuelta, o sea que la 2a llamada al detalle reventaba. Ver RedisSerializacionImagenTest.
     public Optional<ProductoResumen> getResumen(int id){
         return Optional.of(this.iProductosRepository.findProductoConImagenes(id));
     }

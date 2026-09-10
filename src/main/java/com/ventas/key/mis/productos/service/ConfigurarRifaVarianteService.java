@@ -5,7 +5,6 @@ import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.entity.ConfigurarRifaVariante;
 import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
@@ -28,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -312,14 +312,14 @@ public class ConfigurarRifaVarianteService {
      * por su cuenta contra el micro, con el cache de 1 año que ese endpoint ya manda.
      */
     private List<String> urlsImagenesDe(Integer varianteId, Integer premioId) {
-        // Una relación huérfana (imagen_id que ya no existe) revienta con NPE al pedir el id.
-        List<VarianteImagen> relaciones = iVarianteImagenRepository
-                .findByVarianteIdIn(List.of(varianteId)).stream()
-                .filter(vi -> vi.getImagen() != null)
-                .toList();
-        if (relaciones.isEmpty()) return List.of();
-
-        List<Long> ids = relaciones.stream().map(vi -> vi.getImagen().getId()).toList();
+        // Se lee la FK imagen_id por columna en vez de cargar la entidad Imagen: si la fila de
+        // variante_imagen sigue pero su registro en `imagen` ya no, cargarla como entidad dejaba
+        // getImagen() en null y habia que descartarla, o sea que el carrusel perdia justo las
+        // fotos huerfanas -- que el micro normalmente si tiene. El archivo vive alla, que es
+        // quien manda: con el id basta para armar la URL.
+        List<Long> ids = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId)
+                .stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) return List.of();
         List<Long> existentes;
         try {
             existentes = imageneClienteDisco.verificarExistentes(ids);
