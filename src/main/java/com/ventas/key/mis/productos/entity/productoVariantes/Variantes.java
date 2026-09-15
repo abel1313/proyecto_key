@@ -11,6 +11,19 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Variantes = lo que el usuario final ve como "PRODUCTO" en la app.
+ *
+ * Es la unidad vendible: tiene talla, color, marca, stock, precio y codigo de barras. El cliente
+ * final solo navega variantes -- nunca ve un {@link com.ventas.key.mis.productos.entity.Producto},
+ * que se le muestra como "MODELO".
+ *
+ * Regla de oro: el Modelo agrupa, el Producto se vende. Asi que un ticket que dice "el producto
+ * no tiene stock" o "no encuentro el producto en el buscador" habla de esta clase, no de Producto.
+ *
+ * Los nombres de la API no cambian por esto (sigue siendo /variantes/v1/..., varianteId, etc.):
+ * la traduccion vive solo en la capa de presentacion del front. Ver TAXONOMIA_NOMBRES_BACK.md.
+ */
 @Entity
 @Table(name = "variantes")
 @Setter
