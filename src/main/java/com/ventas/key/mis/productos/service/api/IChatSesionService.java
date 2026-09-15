@@ -9,6 +9,8 @@ public interface IChatSesionService {
 
     String conectar(String ip, String nombreUsuario, Integer usuarioId);
 
+    String asegurarSesionBot(String sesionId, String ip);
+
     void cerrarSesion(String sesionId);
 
     void actualizarActividad(String sesionId);
