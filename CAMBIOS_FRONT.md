@@ -19388,3 +19388,44 @@ la pena confirmarlo en la página de rifa, que es la primera que lo usa.
    navegador, 1 año). Con base64 volvía a descargar todo cada vez.
 6. Premio cuyo modelo **no** tenga foto → placeholder 📦 / "Sin fotos de este premio", nunca una
    imagen rota.
+
+---
+
+## ✅ Fix (2026-09-15): fechas se mandaban con el día siguiente después de las 6 pm
+
+**100% front, ya en `dev`.** No cambia ningún endpoint ni contrato — cambia el **valor** que el
+front manda en los campos de fecha, que hasta ahora podía ir corrido un día.
+
+**Causa:** el front armaba las fechas `yyyy-MM-dd` con `new Date().toISOString().slice(0, 10)`
+(o `.split('T')[0]`). `toISOString()` convierte a **UTC antes de recortar**, y México está en
+UTC-6: a partir de las 6 de la tarde hora local, ese string ya era **el día siguiente**.
+
+**Qué se veía mal (todo a partir de las ~6 pm):**
+
+| Pantalla | Síntoma |
+|---|---|
+| Gastos (agregar / buscar) | El gasto se guardaba con la fecha de mañana; el filtro "hoy" no lo encontraba |
+| Reportes | El filtro de día y el de mes arrancaban en el período equivocado |
+| Venta directa / Abonos | `fechaPago` del abono se registraba con fecha de mañana |
+| Tienda — checkout (`venta-variante`) | `fechaPedido` de mañana, y la fecha **mínima** de recogida saltaba un día (el cliente no podía elegir hoy) |
+| Flores eternas — configurar ramo | `fechaPedido` de mañana |
+| Detalle de pedido | El "hoy" interno de la pantalla iba corrido |
+
+**Fix:** se centralizó el cálculo en `src/app/shared/fecha.util.ts`, que arma el `yyyy-MM-dd` /
+`yyyy-MM` desde los getters **locales** de `Date` (`getFullYear`/`getMonth`/`getDate`), nunca
+desde UTC. Todas las pantallas de arriba ahora lo usan.
+
+Rifas (`agregar-rifa`, `buscar-rifa`) y Entregas por zona (`entregas-zona`) **ya tenían** este
+arreglo, pero cada una con su propia copia del helper — se reemplazaron por el util compartido.
+Su comportamiento no cambia.
+
+**Lo que NO se tocó:** los `toISOString()` que mandan un **instante** completo con zona horaria
+(`fechaAceptoPrivacidad` en Mi perfil, `fechaInicio`/`ultimaActividad` del chat). Ahí UTC es lo
+correcto — el bug era solo al recortar un instante UTC para usarlo como fecha de calendario.
+
+**Acción para el back:** ninguna. Mismos endpoints, mismos campos, mismo formato `yyyy-MM-dd`.
+Solo que ahora el valor corresponde al día real del usuario. Si en QA/prod hay registros viejos
+guardados con la fecha corrida (gastos o abonos creados de noche antes de este fix), esos datos
+quedaron con el día de más — no se migran solos.
+
+**Verificado:** `tsc --noEmit` sin errores nuevos y `ng build --configuration=production` OK.
