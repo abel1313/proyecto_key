@@ -45,6 +45,38 @@ public class ChatSesionServiceImpl implements IChatSesionService {
         return sesionId;
     }
 
+    // Estado propio para las conversaciones del chatbot. No es "ACTIVA" a proposito: asi el
+    // scheduler de inactividad y la lista de sesiones activas (las que esperan a un humano) no
+    // las tocan, pero siguen saliendo en la lista de sesiones recientes del admin, que no filtra
+    // por estado -- que es justo lo que se pidio: poder leerlas desde chat directo.
+    public static final String ESTADO_BOT = "BOT";
+
+    @Override
+    @Transactional
+    public String asegurarSesionBot(String sesionId, String ip) {
+        if (sesionId != null && !sesionId.isBlank()) {
+            Optional<ChatSesion> existente = repository.findBySesionId(sesionId);
+            if (existente.isPresent()) {
+                ChatSesion sesion = existente.get();
+                sesion.setUltimaActividad(LocalDateTime.now());
+                repository.save(sesion);
+                return sesion.getSesionId();
+            }
+        }
+        LocalDateTime ahora = LocalDateTime.now();
+        String nuevo = UUID.randomUUID().toString();
+        repository.save(ChatSesion.builder()
+                .sesionId(nuevo)
+                .identificador(ip != null ? ip : "desconocido")
+                .nombreUsuario("Visitante (chatbot)")
+                .estado(ESTADO_BOT)
+                .fechaInicio(ahora)
+                .ultimaActividad(ahora)
+                .build());
+        log.info("Nueva sesión de chatbot: {}", nuevo);
+        return nuevo;
+    }
+
     @Override
     @Transactional
     public void cerrarSesion(String sesionId) {
