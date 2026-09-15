@@ -26,9 +26,36 @@ public class ChatSesionServiceImpl implements IChatSesionService {
         this.messagingTemplate = messagingTemplate;
     }
 
+    // Un usuario = UNA conversacion. Antes cada reconexion creaba una sesion nueva, asi que el mismo
+    // cliente salia como varias conversaciones distintas en el panel y su historial quedaba partido
+    // en pedazos (reportado 2026-09-15: "si mando un mensaje y despues otro rato mando otro, se ven
+    // 2 conversaciones"). Ahora se reusa la conversacion que ya tenia y todo queda en un solo hilo.
     @Override
     @Transactional
     public String conectar(String ip, String nombreUsuario, Integer usuarioId) {
+        LocalDateTime ahoraReuso = LocalDateTime.now();
+        if (usuarioId != null) {
+            Optional<ChatSesion> previa = repository
+                    .findTop1ByUsuarioIdAndEstadoNotOrderByUltimaActividadDesc(usuarioId, ESTADO_BOT);
+            if (previa.isPresent()) {
+                ChatSesion vigente = previa.get();
+                if (!"ACTIVA".equals(vigente.getEstado())) {
+                    // Volver despues del silencio es una conversacion nueva dentro del mismo hilo:
+                    // se reabre y retoma el bot.
+                    vigente.setEstado("ACTIVA");
+                    vigente.setModo(MODO_BOT);
+                }
+                if (nombreUsuario != null && !nombreUsuario.isBlank()) {
+                    vigente.setNombreUsuario(nombreUsuario);
+                }
+                if (ip != null) vigente.setIdentificador(ip);
+                vigente.setUltimaActividad(ahoraReuso);
+                repository.save(vigente);
+                log.info("Chat: se reusa la conversación {} del usuario {}", vigente.getSesionId(), usuarioId);
+                return vigente.getSesionId();
+            }
+        }
+
         String sesionId = UUID.randomUUID().toString();
         LocalDateTime ahora = LocalDateTime.now();
         ChatSesion sesion = ChatSesion.builder()
@@ -37,6 +64,7 @@ public class ChatSesionServiceImpl implements IChatSesionService {
                 .identificador(ip != null ? ip : "desconocido")
                 .nombreUsuario(nombreUsuario != null && !nombreUsuario.isBlank() ? nombreUsuario : "Visitante")
                 .estado("ACTIVA")
+                .modo(MODO_BOT)
                 .fechaInicio(ahora)
                 .ultimaActividad(ahora)
                 .build();
@@ -50,6 +78,7 @@ public class ChatSesionServiceImpl implements IChatSesionService {
     // las tocan, pero siguen saliendo en la lista de sesiones recientes del admin, que no filtra
     // por estado -- que es justo lo que se pidio: poder leerlas desde chat directo.
     public static final String ESTADO_BOT = "BOT";
+
 
     @Override
     @Transactional
@@ -105,16 +134,64 @@ public class ChatSesionServiceImpl implements IChatSesionService {
         return repository.findByEstado("ACTIVA");
     }
 
+    // Hasta donde atras se listan las conversaciones en el panel del admin. Eran 24 horas, que con
+    // una conversacion por usuario dejaba fuera a cualquiera que no hubiera escrito ese dia -- y lo
+    // que se pidio es poder volver a revisar la conversacion despues.
+    private static final int DIAS_LISTADO_ADMIN = 30;
+
     @Override
     public List<ChatSesion> obtenerSesionesRecientes() {
         return repository.findByUltimaActividadAfterOrderByUltimaActividadDesc(
-            LocalDateTime.now().minusHours(24)
+            LocalDateTime.now().minusDays(DIAS_LISTADO_ADMIN)
         );
     }
 
     @Override
     public Optional<ChatSesion> buscarSesionActiva(String sesionId) {
         return repository.findBySesionIdAndEstado(sesionId, "ACTIVA");
+    }
+
+    // El scheduler cierra la sesion a los 5 minutos de silencio. Si el cliente vuelve a escribir en
+    // esa pestana, la sesion ya esta CERRADA y el mensaje se perdia sin que nadie se enterara. Aqui
+    // se vuelve a abrir en lugar de descartar: el historial es el mismo y el admin lo recibe igual.
+    // Las sesiones del chatbot (estado BOT) se quedan fuera: no son del chat en vivo.
+    @Override
+    @Transactional
+    public Optional<ChatSesion> reactivarSesion(String sesionId) {
+        if (sesionId == null || sesionId.isBlank()) return Optional.empty();
+        return repository.findBySesionId(sesionId)
+                .filter(sesion -> !ESTADO_BOT.equals(sesion.getEstado()))
+                .map(sesion -> {
+                    if (!"ACTIVA".equals(sesion.getEstado())) {
+                        // Volver despues del silencio es una conversacion nueva: retoma el bot.
+                        // Es el "si el cliente deja de contestar, vuelve el bot" -- no hace falta
+                        // otro temporizador, el cierre por inactividad ya marca ese corte.
+                        log.info("Sesión {} reabierta: el cliente volvió a escribir, retoma el bot", sesionId);
+                        sesion.setEstado("ACTIVA");
+                        sesion.setModo(MODO_BOT);
+                    }
+                    sesion.setUltimaActividad(LocalDateTime.now());
+                    return repository.save(sesion);
+                });
+    }
+
+    @Override
+    public String modoDe(String sesionId) {
+        return repository.findBySesionId(sesionId)
+                .map(ChatSesion::getModo)
+                .filter(m -> m != null && !m.isBlank())
+                .orElse(MODO_BOT);
+    }
+
+    @Override
+    @Transactional
+    public void cambiarModo(String sesionId, String modo) {
+        repository.findBySesionId(sesionId).ifPresent(sesion -> {
+            if (modo.equals(sesion.getModo())) return;
+            sesion.setModo(modo);
+            repository.save(sesion);
+            log.info("Sesión {} pasa a modo {}", sesionId, modo);
+        });
     }
 
     @Override

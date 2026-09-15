@@ -30,7 +30,7 @@
 | **1** | Botón "➕ Agregar gasto" | 👑 Admin | Ya corriste el SQL — falta confirmar que se ve |
 | **2** | Decidir qué pasa si no recogen el pedido | 👑 Admin | Es tu decisión: A, B o C |
 | **3** | Conversaciones del chatbot | 👑 Admin + 👻 Visitante | **Nuevo** — recién programado, sin probar |
-| **4** | La hora del chat | 👑 Admin | **Te toca a ti**: necesito un dato tuyo (abajo) |
+| **4** | Chat en vivo: no llegaba el mensaje, ahora contesta el bot, y una sola conversación por usuario | 👑 Admin + 🙋 Cliente | **Nuevo** — el SQL ya lo corriste, falta probarlo |
 | **5** | Fechas (bug UTC) | 👑 Admin + 🙋 Cliente | Solo se puede probar **después de las 6 pm** |
 | **6** | Tres arreglos ya subidos a QA | 👑 Admin + 👻 Visitante | Desplegados, falta que los veas |
 | **7** | Repaso visual modo noche | 👑 Admin | Nadie lo ha recorrido |
@@ -39,6 +39,9 @@
 
 **Ya contestado, no hay que probar nada:** tu duda de los permisos en *Usuario update* → sección
 **"Respuestas a tus preguntas"** al final. No es bug.
+
+**Ya validado por ti hoy:** la hora del chat. Dijiste *"la hora del chat ya lo veo bien"* — se cae
+del pendiente, no hay nada que arreglar ahí.
 
 ---
 
@@ -177,31 +180,166 @@ de lo que contesta una persona.
 
 ---
 
-# ⏰ 4 — LA HORA DEL CHAT: NECESITO UN DATO TUYO
+# 💬 4 — CHAT EN VIVO: YA LLEGA EL MENSAJE Y AHORA CONTESTA EL BOT *(nuevo, sin probar)*
 
-Me dijiste: *"ahí es donde te digo que la hora estaba mal, no sé si ya lo solucionaste... ahí te
-expliqué cómo lo quería pero ahí no me dijiste si sí así lo harías"*.
+Aquí van dos cosas distintas: **un bug que estaba tirando mensajes** y **la feature del bot** que
+me pediste (era la P4 de "para después", ya quedó programada).
 
-**Revisé la cadena completa y no encontré de dónde saldría una hora mal:**
+## 🐛 Parte 1 — Por qué no te llegaba el mensaje
 
-| Eslabón | Qué hace | ¿Correcto? |
+Me dijiste: *"lo envío como cliente, y me voy como admin pero no llega el mensaje"*. Lo encontré:
+eran **tres fallas encadenadas**, cualquiera de las tres alcanzaba para perder el mensaje.
+
+| # | Qué pasaba | Dónde estaba |
 |---|---|---|
-| El servidor | Guarda la hora de México (`TZ=America/Mexico_City`) | ✅ Verificado |
-| Lo que manda al front | La hora tal cual, sin zona pegada | ✅ |
-| Lo que muestra el navegador | La misma hora, sin recalcular | ✅ |
+| 1 | Si la sesión ya había expirado (5 min de silencio), el navegador abría una sesión nueva pero **el mensaje que acababas de escribir lo tiraba**. No lo reenviaba nunca | `chat-live.service.ts` |
+| 2 | El servidor exigía que la sesión estuviera `ACTIVA`. Si estaba `CERRADA`, **descartaba el mensaje en silencio** — ni te avisaba ni lo guardaba | `ChatWebSocketController` |
+| 3 | Los mensajes que llegaban **con el panel del admin cerrado** no dejaban ninguna señal: el aviso de WebSocket no se guarda en ningún lado, y al abrir el panel la conversación se veía igual que una ya atendida (globito en 0) | `chat-admin.service.ts` |
 
-**Por eso no lo puedo arreglar a ciegas** — si toco algo sin saber qué viste, lo más probable es
-que lo rompa al revés (lo mueva 6 horas para el otro lado).
+**Lo que se arregló:**
+- El navegador ahora **guarda el mensaje en cola** y lo manda en cuanto la sesión nueva está lista.
+- El servidor **reabre** la sesión cerrada en vez de descartar; y si de verdad ya no existe, le avisa
+  al navegador para que abra otra y reenvíe, en lugar de quedarse callado.
+- El panel del admin ahora **calcula el globito desde la base**: cuenta los mensajes del cliente que
+  nadie contestó, así que los que llegaron con el panel cerrado se ven en cuanto entras.
 
-👤 **Lo que necesito de ti:** 👑 Admin
-1. Entra a Menú → **Sistema** → **Chat** y abre cualquier conversación.
-2. Dime: **qué hora decía el mensaje** y **qué hora era en realidad** cuando se mandó.
-   Con una captura basta.
-3. **Repíteme cómo lo querías.** Eso quedó en una conversación anterior que ya no tengo, y no
-   quiero adivinar. Si me dices cómo lo quieres, te digo de una si se puede y lo hago.
+## 🤖 Parte 2 — El bot ahora atiende el chat en vivo
 
-> La prueba **3.1** de arriba también sirve para esto: cuando escribas en el bot, apunta la hora
-> real y compárala con la que muestra el admin. Si sale distinta, ahí está el dato que me falta.
+Como quedamos: **contesta el prompt del chatbot**, y sólo se te escala cuando hace falta.
+
+| Cuándo | Qué pasa |
+|---|---|
+| El cliente escribe | El bot espera **6 segundos** y contesta. Los 6 segundos son para que si tú estás en el panel, alcances a contestar tú primero |
+| **Tú escribes** | La conversación pasa a ser tuya y **el bot se calla**. No tienes que apretar nada: con que mandes un mensaje, ya |
+| El cliente pide una persona | El prompt lo detecta *(«quiero hablar con alguien», «hay alguien real», un reclamo que no puede resolver)*, le avisa al cliente y **te llega el correo** |
+| Se agota el límite del bot (20 mensajes/hora) | **No se bloquea al cliente** como en el chatbot público: se escala, te llega el correo y el cliente sigue atendido por ti |
+| El bot falla (crédito de OpenAI agotado, llave vencida, servicio caído) | Te llega un correo aparte *("el asistente no pudo responder")* con el detalle técnico, y la conversación queda esperándote. Ese aviso sale máximo 1 vez cada 30 min por conversación, para no llenarte el correo |
+| La conversación es tuya y no contestas | Al **minuto**, el bot entra para que el cliente no se quede esperando |
+| El cliente se calla 5 min | La sesión se cierra sola (como siempre). Si vuelve después, es conversación nueva y **retoma el bot** |
+
+> **Nota:** en esta pantalla el bot **no manda fotos de producto** (el chat en vivo no dibuja
+> tarjetas con imagen). Si le piden fotos, da nombre y precio por texto y ofrece pasarlo contigo.
+> El widget público del chatbot **no se tocó**, sigue igual con sus tarjetas y sus bloqueos.
+
+## 👤 Parte 3 — Una sola conversación por usuario
+
+Me dijiste: *"si mando un mensaje y después otro rato mando otro, se ven 2 conversaciones y debería
+ser solo 1 conversación del mismo usuario"*. Tenías razón.
+
+**Qué pasaba:** cada vez que el navegador se reconectaba (después de los 5 minutos de silencio),
+el servidor creaba una **sesión nueva** en la base. El mismo cliente salía como 2, 3 o 5
+conversaciones distintas en tu panel, con su historial partido en pedazos.
+
+**Qué se hizo:** ahora el servidor **reusa la conversación que ya tenía ese usuario** en vez de
+abrir otra. Un usuario = un solo hilo, con todo su historial junto.
+
+| Antes | Ahora |
+|---|---|
+| Cada reconexión = una conversación nueva en tu lista | Siempre la misma conversación del usuario |
+| El historial quedaba partido entre varias | Todo el historial en un solo hilo |
+| El listado sólo mostraba las últimas **24 horas** | Muestra los últimos **30 días**, para que puedas volver a revisarla |
+
+> **Detalle técnico que valía la pena cuidar:** al reusar el mismo canal, el navegador se quedaba
+> suscrito dos veces y cada mensaje tuyo se habría pintado **duplicado** en la pantalla del cliente.
+> Se suelta la suscripción anterior antes de volver a suscribirse, así que eso no pasa.
+
+### ⚠️ Las conversaciones que YA quedaron duplicadas
+
+El arreglo evita que se generen **nuevas**, pero las que ya se partieron siguen ahí como
+conversaciones aparte. Dejé un script **opcional** para juntarlas:
+
+**`migration_chat_consolidar_conversacion_por_usuario.sql`**
+
+- Junta, por usuario, todos sus mensajes en una sola conversación.
+- **No se pierde ningún mensaje** (se reapuntan), pero **sí borra** las filas sobrantes de
+  `chat_sesion`. Saca respaldo antes y córrelo primero en QA.
+- El paso 1 del script sólo **muestra** qué se va a juntar, sin cambiar nada — córrelo para ver
+  cuántas hay antes de decidir.
+- **Si no lo corres no pasa nada grave:** los duplicados viejos se quedan como conversaciones
+  aparte y con el tiempo dejan de aparecer.
+
+---
+
+## ✅ El SQL ya está corrido
+
+`migration_chat_modo_bot_humano.sql` (la columna `modo`, que guarda quién está atendiendo cada
+conversación) **ya la corriste en QA y en prod** el 2026-09-15. No hay que volver a correrla.
+
+---
+
+## Prueba 4.1 — Que el mensaje llegue (el bug)
+
+👤 **Con qué cuenta:** 🙋 Cliente **y** 👑 Admin (necesitas las dos, en dos ventanas)
+📍 **Dónde:** Cliente: el chat del sitio. Admin: Menú → **Sistema** → **Chat directo**
+🔢 **Qué hacer:**
+1. Como 🙋 **Cliente**, abre el chat y manda un mensaje.
+2. **Sin abrir el panel del admin**, espera unos 6 minutos (para que la sesión se cierre sola).
+3. Manda **otro** mensaje como cliente.
+4. *Ahora* entra como 👑 **Admin** a Chat directo.
+
+✅ **Qué debe pasar:**
+- [ ] La conversación aparece en la lista con **globito de no leídos** (antes salía sin nada)
+- [ ] Al abrirla, **están los dos mensajes** — el de antes y el de después de los 6 minutos
+- [ ] Ninguno se perdió
+
+## Prueba 4.2 — Que el bot conteste solo
+
+👤 **Con qué cuenta:** 🙋 Cliente
+📍 **Dónde:** El chat del sitio
+🔢 **Qué hacer:**
+1. **No entres como admin** (que nadie esté en el panel).
+2. Como 🙋 Cliente, pregunta algo de la tienda: *"¿tienen bolsas?"*, *"¿a dónde entregan?"*
+
+✅ **Qué debe pasar:**
+- [ ] A los ~6 segundos contesta el bot, con burbuja de **borde punteado y avatar 🤖**
+- [ ] La respuesta tiene sentido y usa el catálogo real (no inventa precios)
+- [ ] **No te llegó correo** — el bot lo atendió, no hacía falta molestarte
+- [ ] Como 👑 Admin, en Chat directo ves esa conversación **con la respuesta del bot marcada 🤖**
+
+## Prueba 4.3 — Que el cliente pida una persona
+
+👤 **Con qué cuenta:** 🙋 Cliente, y luego 👑 Admin
+🔢 **Qué hacer:**
+1. Como 🙋 Cliente, en el chat escribe: **"quiero hablar con una persona"**.
+
+✅ **Qué debe pasar:**
+- [ ] El bot contesta una línea diciendo que ya le avisó a una persona
+- [ ] **Te llega un correo** con asunto *"Chat: … necesita atención (el cliente pidió una persona)"*
+- [ ] Como 👑 Admin entras a Chat directo y le contestas → el cliente lo recibe
+- [ ] **De ahí en adelante el bot ya no contesta** en esa conversación mientras sigas escribiendo tú
+
+## Prueba 4.4 — Que el bot se calle cuando tú entras
+
+👤 **Con qué cuenta:** 👑 Admin **y** 🙋 Cliente al mismo tiempo
+🔢 **Qué hacer:**
+1. Deja abierto **Chat directo** como 👑 Admin.
+2. Como 🙋 Cliente manda un mensaje.
+3. **Contéstale tú en menos de 6 segundos.**
+
+✅ **Qué debe pasar:**
+- [ ] El cliente recibe **sólo tu respuesta**
+- [ ] El bot **no** contesta encima (no salen dos respuestas)
+
+> Si te tardas más de 6 segundos, el bot contesta primero — es a propósito, para que el cliente no
+> espere. Tú puedes seguir escribiendo después y de ahí en adelante la conversación es tuya.
+
+## Prueba 4.5 — Que sea UNA sola conversación por usuario
+
+👤 **Con qué cuenta:** 🙋 Cliente **y** 👑 Admin
+🔢 **Qué hacer:**
+1. Como 🙋 Cliente manda un mensaje.
+2. Espera **más de 5 minutos** sin escribir (para que la sesión se cierre sola).
+3. Manda **otro** mensaje.
+4. Entra como 👑 Admin a **Chat directo**.
+
+✅ **Qué debe pasar:**
+- [ ] Ese cliente aparece **una sola vez** en la lista (antes salía dos veces)
+- [ ] Al abrirla están **los dos mensajes en el mismo hilo**, en orden
+- [ ] Contéstale y confirma que el cliente **recibe tu respuesta una sola vez** (no duplicada)
+- [ ] Sal del panel, vuelve a entrar: **la conversación sigue ahí** con todo el historial
+
+> Si ves duplicados de **antes** de este arreglo, son los viejos — se limpian con el script
+> opcional `migration_chat_consolidar_conversacion_por_usuario.sql` (ver arriba).
 
 ---
 
@@ -446,7 +584,6 @@ la migración lleva días corriendo bien en QA y en prod. Déjalo ahí como resp
 | **P1** | **Filtros que no se pierdan** — que al recargar o salir del sistema los filtros de búsqueda del admin sigan puestos | **Lo pediste hoy.** Pendiente de definir: ¿los quieres guardados por usuario en la base (te siguen aunque cambies de computadora) o solo en el navegador (más simple, pero se pierden al cambiar de equipo)? Dime cuál y lo hago |
 | **P2** | **Revisar que TODAS las cards estén homologadas** — no solo la de Usuario update | **Lo pediste hoy.** Pendiente de auditar |
 | **P3** | **Generador de QR con varios destinos** | Pediste que fuera casi al final |
-| **P4** | **Traspaso chatbot ↔ humano** — el bot atiende, el cliente pide humano, te llega correo, el bot se calla mientras contestas, si el cliente no responde vuelve el bot, y si se acaba el crédito del bot te avisa | **No existe**, es una feature completa. Hay que diseñarla aparte. **Nota:** ahora que el bot ya guarda sus conversaciones, esto quedó más cerca |
 | **P5** | **Pantalla para leer chats viejos** — los datos ya están en la base, falta el buscador/historial | Solo falta la pantalla |
 | **P6** | **Script de concursantes de prueba** | Dijiste que casi al final |
 | **P7** | **¿Filtrar Entregas por zona por fecha de entrega?** — hoy filtra por la fecha en que se creó el pedido | Querías probarlo primero |
