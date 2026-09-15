@@ -92,4 +92,9 @@ public class ChatMensajeServiceImpl implements IChatMensajeService {
     public Optional<ChatMensaje> ultimoMensaje(String sesionId) {
         return repository.findTop1BySesionIdOrderByTimestampDesc(sesionId);
     }
+
+    @Override
+    public long contarSinResponder(String sesionId) {
+        return repository.contarSinResponder(sesionId);
+    }
 }

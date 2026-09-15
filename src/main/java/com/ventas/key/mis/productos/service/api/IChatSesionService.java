@@ -7,6 +7,11 @@ import java.util.Optional;
 
 public interface IChatSesionService {
 
+    // Quien atiende una conversacion del chat en vivo. Viven aqui, no en la implementacion, para
+    // que los llame por nombre cualquiera que decida sobre el modo (ver ChatVivoBotService).
+    String MODO_BOT = "BOT";
+    String MODO_HUMANO = "HUMANO";
+
     String conectar(String ip, String nombreUsuario, Integer usuarioId);
 
     String asegurarSesionBot(String sesionId, String ip);
@@ -20,6 +25,12 @@ public interface IChatSesionService {
     List<ChatSesion> obtenerSesionesRecientes();
 
     Optional<ChatSesion> buscarSesionActiva(String sesionId);
+
+    Optional<ChatSesion> reactivarSesion(String sesionId);
+
+    String modoDe(String sesionId);
+
+    void cambiarModo(String sesionId, String modo);
 
     boolean existeSesion(String sesionId);
 

@@ -45,6 +45,7 @@ public class ChatAdminController {
                             .fechaInicio(s.getFechaInicio().format(FMT))
                             .ultimaActividad(s.getUltimaActividad().format(FMT))
                             .ultimoMensaje(ultimo)
+                            .sinResponder(mensajeService.contarSinResponder(s.getSesionId()))
                             .build();
                 })
                 .toList();
