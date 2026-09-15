@@ -1,5 +1,6 @@
 # ROADMAP DE VALIDACIÓN — Ubicación del local + Fix de fechas UTC + Presets día/noche
-**Fecha:** 2026-09-15 | **Todo está en `dev`** (back y front). Nada se ha subido a `qa` todavía.
+**Fecha:** 2026-09-15 | ✅ **Ya está todo desplegado en QA** (back y front) y la migración corrida.
+Listo para empezar a probar.
 
 ---
 
@@ -7,15 +8,15 @@
 
 | Repo | `dev` | `qa` | `main` / `master` |
 |---|---|---|---|
-| **proyecto_key** (back) | `7539768` ✅ al día | `5a4fa81` — 2 commits atrás | `e8fb1bd` — 6 atrás |
-| **producto_venta_online** (front) | `58c77ed` ✅ al día | `54fe432` — 2 commits atrás | `4a8ecd6` — 6 atrás |
+| **proyecto_key** (back) | `1d62263` | `16b1630` ✅ **al día con dev** | `e8fb1bd` — 9 commits atrás |
+| **producto_venta_online** (front) | `58c77ed` | `25c3d6f` ✅ **al día con dev** | `4a8ecd6` — 11 commits atrás |
 
-**Lo que falta subir de `dev` a `qa`:**
+Lo que se subió a QA el 2026-09-15:
 
 | Repo | Commit | Qué trae |
 |---|---|---|
 | back | `f87d479` | Taxonomía anotada en las entidades (solo comentarios) |
-| back | `7539768` | Ubicación del local — **trae migración SQL** |
+| back | `7539768` | Ubicación del local — **con su migración SQL** |
 | front | `bb325a8` | Fix de fechas corridas un día |
 | front | `58c77ed` | Mapa del local en login y registro |
 
@@ -40,12 +41,10 @@
 
 # 🎯 A — UBICACIÓN DEL LOCAL
 
-> **Antes de nada:** correr la migración (ver la sección de SQL al final). Sin ella el back sí
-> levanta, pero los endpoints de negocio truenan y ni el login ni esta pantalla muestran la
-> ubicación.
+> ✅ **La migración ya está corrida en QA y en prod (2026-09-15).** Se puede probar directo.
 
 ### Test A1 — La sección aparece y el buscador funciona
-**Dónde:** Menú → **Administración** → **Configuración del negocio** → sección **📍 Ubicación del local**
+**Dónde:** Menú → **Sistema** → **Negocio & Contactos** → sección **📍 Ubicación del local**
 
 1. Entrar a la pantalla. Debe aparecer la sección nueva **entre** "Contactos" y "Alertas de stock bajo".
 2. El botón **Guardar ubicación** debe estar gris, y abajo un texto diciendo qué falta.
@@ -105,7 +104,7 @@
 - ✅ Mismo bloque, mismo aspecto que en el login
 
 ### Test A6 — ⚠️ El caso que más fácil se rompe: "Actualizar usuario"
-**Dónde:** entrar como **admin** → Menú → **Usuarios** → botón **Actualizar** de cualquier usuario
+**Dónde:** entrar como **admin** → Menú → **Sistema** → **Usuarios** → botón **Actualizar** de cualquier usuario
 
 1. **Validar:** en esa pantalla el mapa **NO debe aparecer por ningún lado**.
 
@@ -154,7 +153,7 @@ Listo la ubicacion en ligin y en registrar ya quedo
 > **Antes del fix:** a esa hora todo se guardaba con la fecha de **mañana**.
 
 ### Test B1 — Gastos
-**Dónde:** Menú → **Gastos** → **Agregar gasto**
+**Dónde:** Menú → **Ventas** → **Gastos** → **Agregar gasto**
 
 1. Con la hora puesta después de las 6 pm, agregar un gasto.
 2. **Validar:** el campo de fecha propone **HOY**, no mañana.
@@ -217,7 +216,7 @@ Esto de las fechas hay que dejarlo pendiente porque no me deja validar la fecha 
 
 # 🎯 C — PRESETS DÍA / NOCHE INDEPENDIENTES
 
-**Dónde:** Menú → **Administración** → **Personalización** → sección de diseños predefinidos
+**Dónde:** Menú → **Sistema** → **Personalización** → sección de diseños predefinidos
 
 ### Test C1 — Elegir distinto para cada modo
 1. **Validar:** arriba se ve qué está activo ahora: **☀️ Día: [nombre]** y **🌙 Noche: [nombre]**.
@@ -314,33 +313,35 @@ Ya se esta mostrndo la imegen y el texto o descripcion, solo que hace falta pone
 
 # ✅ ORDEN PARA DESPLEGAR
 
-1. **Correr la migración en la BD de QA** (`inventario_key_qa`) — ver la sección de abajo.
-2. Subir back y front de `dev` a `qa`:
-   ```bash
-   # en cada repo
-   git checkout qa && git pull origin qa
-   git merge dev --no-ff -m "Merge dev → qa: ubicación del local + fix de fechas UTC"
-   git push origin qa
-   ```
-   El push a `qa` dispara el deploy automático (~1-2 min).
-3. Capturar la ubicación del local en Configuración del negocio (Test A3).
+1. ~~Correr la migración en la BD de QA~~ ✅ hecho el 2026-09-15 (y también en prod).
+2. ~~Subir back y front de `dev` a `qa`~~ ✅ hecho el 2026-09-15 (el push disparó el deploy
+   automático de los dos).
+3. **← AQUÍ VAMOS:** capturar la ubicación del local en Configuración del negocio (Test A3).
 4. Correr **todos** los tests de arriba.
 5. Solo cuando QA esté limpio, promover a producción — **con `cherry-pick`, no con merge**, mientras
-   redes sociales siga bloqueado.
+   redes sociales siga bloqueado. Recordar que en prod **la migración ya está corrida**.
 
 ---
 
 # 🗄️ SQL QUE HAY QUE CORRER
 
-## Pendiente: **1 migración**
+## ✅ Ya no queda ninguna pendiente
 
 | # | Archivo | Ambiente | Estado |
 |---|---|---|---|
-| 1 | `migration_negocio_ubicacion.sql` | QA (`inventario_key_qa`) y luego prod (`inventario_key`) | ❌ **Sin correr** |
+| 1 | `migration_negocio_ubicacion.sql` | QA (`inventario_key_qa`) **y** prod (`inventario_key`) | ✅ **Ejecutada el 2026-09-15** (confirmado por el usuario) |
 
-> Todo lo demás (permisos finos, acciones de pantallas, rifas, flores, abonos…) ya se ejecutó en QA
-> y en prod el 2026-09-08. Se verificó contra git: entre `main` y `dev` **no hay ninguna otra
-> migración nueva**.
+> Todo lo demás (permisos finos, acciones de pantallas, rifas, flores, abonos…) ya se había
+> ejecutado en QA y en prod el 2026-09-08. Se verificó contra git: entre `main` y `dev` **no hay
+> ninguna otra migración nueva**.
+
+### 📌 Ojo: prod tiene las columnas pero todavía NO el código
+
+La migración se corrió también en producción, donde `main` sigue 7 commits atrás y no tiene nada de
+la ubicación del local. **Eso no rompe nada** y está bien así: las 3 columnas son nullable, ningún
+código de prod las toca, y el día que se promueva la feature la base ya está lista. Solo hay que
+recordar, cuando toque, que **la migración ahí ya está hecha — no volver a correrla** (un segundo
+`ALTER TABLE ... ADD COLUMN` sobre columnas que ya existen falla).
 
 ### ⚠️ Qué pasa si se despliega el back sin correrla
 
@@ -400,3 +401,131 @@ ALTER TABLE configuracion_negocio
 ```
 
 Solo se pierde la ubicación capturada; no toca ningún otro dato de la tabla.
+
+---
+
+# 🔧 RESUELTO EL 2026-09-15 (segunda vuelta, tras tus comentarios)
+
+## 1. ✅ Entregas por zona: el pedido no aparecía
+
+**Causa real:** la consulta exigía `estadoPedido = 'Pendiente'`, y **Venta directa nunca guarda ese
+estado**. Los de contado nacen `'Entregado'` y los de crédito con su propio tipo
+(`'APARTADO'`/`'FIADO'`). O sea: **ningún** pedido levantado por ti podía salir en esa pantalla,
+sin importar la zona ni la fecha.
+
+`'Pendiente'` solo lo pone el checkout de la tienda (el cliente pidiendo desde su cuenta).
+
+**Fix:** la consulta ahora acepta `IN ('Pendiente', 'APARTADO')` — porque en tu negocio
+**APARTADO significa "esto se lo entrego después"**, que es justo lo que arma el viaje de zona.
+
+Se quedan fuera a propósito `'Entregado'` (ya se entregó o se pagó y se llevó en el momento) y
+`'cancelado'`. El cambio **solo amplía lo que ve esa pantalla**: no toca ventas, reportes,
+dashboard ni el auto-cancelador (ese usa su propio método con `'Pendiente'` literal).
+
+- Archivo: `IPedidoRepository.findPendientesDeZonaEnRango`
+- **A probar:** levanta un pedido en Venta directa con zona + APARTADO, y confirma que ahora sí sale
+  en Entregas por zona y que le llega el correo al programar el viaje.
+
+## 2. ✅ Usuarios update no tenía card
+
+La forma de tarjeta estaba escrita como `.split-form:not(.split-form--full) .form-inner`, y
+"Actualizar usuario" **sí** lleva `--full`. Resultado: el panel ya venía pintado de `--card-bg` y el
+formulario flotaba plano encima, sin borde ni sombra.
+
+**Fix:** `--full` ahora tiene su propia tarjeta. A diferencia de Login y Registrar (públicas y
+congeladas fuera de Personalización), esta es una pantalla de adentro, así que usa **los mismos
+tokens de tarjeta que el resto del admin** y cambia con el tema que elijas. También se le subió el
+ancho a 460px para que el padding de la tarjeta no apriete el formulario, que en esa pantalla es el
+más largo de todos.
+
+- Archivo: `add-usuarios.component.scss`
+
+## 3. ✅ Ruleta pública: solo salía el nombre del premio
+
+El estado público **ya traía** `descripcion`, `talla`, `color`, `marca`, `presentacion` y
+`contenidoNeto`, pero la pantalla solo leía `nombreProducto` e `imagenUrl`. Nadie pintaba el resto.
+
+**Fix:** debajo del nombre ahora sale la descripción, y como respaldo unas etiquetas con
+talla/color/marca/presentación/contenido. Así, aunque el premio **no tenga descripción escrita**,
+el visitante ya no ve solo el nombre pelón.
+
+- Archivos: `ruleta-publica.component.{ts,html,scss}`
+- **Ojo:** la descripción sale de la del **producto/variante**. Si quieres que diga algo específico
+  para la rifa, hay que escribirla en la variante.
+
+## 4. ✅ Log del chat que mentía
+
+El log decía *"sesiones cerradas por inactividad (>30 min)"* pero el corte **siempre fue de 5
+minutos**. Se sacó a una constante y el log ahora dice el número real.
+
+---
+
+# ❓ RESPUESTAS A TUS PREGUNTAS
+
+## "¿Por qué Mi perfil y Chat se dejaron en UTC a propósito?"
+
+Porque ahí la fecha **no es una fecha de calendario, es un instante** — el momento exacto en que
+pasó algo:
+
+| Campo | Qué guarda |
+|---|---|
+| `fechaAceptoPrivacidad` (Mi perfil) | El instante en que el cliente aceptó el aviso |
+| `fechaInicio` / `ultimaActividad` (Chat) | Cuándo arrancó la conversación y el último mensaje |
+
+Para un instante, UTC es lo **correcto**: es un punto en la línea del tiempo, sin ambigüedad, y el
+navegador lo convierte a la hora local de quien lo lee. Si alguien abre el sistema desde otro huso,
+sigue viendo la hora bien.
+
+El bug era otra cosa: **recortar** un instante UTC (`.slice(0,10)`) para usarlo como si fuera una
+fecha de calendario. Ahí sí se corría el día. Un gasto del día 15 es del 15 aunque lo captures a las
+11 de la noche; el momento en que aceptaste el aviso de privacidad no es "un día", es un reloj.
+
+Por eso se arregló lo primero y no lo segundo.
+
+## "El chat en vivo, ¿dónde se guarda? ¿Solo se mantiene ese día?"
+
+**Se guarda permanentemente en la base de datos, y nada lo borra.** Ya está todo ahí, no hay que
+construir nada para conservarlo:
+
+| Tabla | Qué guarda |
+|---|---|
+| `chat_sesion` | Una fila por conversación: quién, desde qué IP, cuándo empezó, última actividad, estado |
+| `chat_mensaje` | Una fila por mensaje: de qué sesión, quién lo mandó, el texto completo y la hora |
+
+Revisé las 9 tareas programadas del sistema: **ninguna toca el chat**. La única tarea de chat
+(`ChatSesionScheduler`, cada 5 minutos) solo marca como `CERRADA` la sesión que lleva 5 minutos sin
+actividad — **cambia el estado, no borra los mensajes**.
+
+O sea: el historial completo de todas las conversaciones ya existe desde siempre. Lo que falta no
+es guardarlo, es una **pantalla para leerlo** (hoy `obtenerSesionesRecientes()` solo trae las
+últimas 24 horas, aunque en la base esté todo).
+
+---
+
+# 📌 ANOTADO PARA DESPUÉS (no se tocó nada todavía)
+
+## P1 — Generador de QR con varios destinos
+Pedido tuyo: poder generar un QR con los datos que necesites (Facebook, Instagram, URL…), que cada
+QR se guarde **identificado** para saber qué trae, poder elegir uno ya hecho, y agregar más.
+Queda para **cuando terminemos los tests**, tal como pediste.
+
+## P2 — Traspaso chatbot ↔ humano
+Pedido tuyo, y **hoy no existe**: el chat actual es solo ACTIVA/CERRADA con mensajes de usuario y
+admin. El flujo que describes (el bot atiende → el cliente pide humano → correo al admin → mientras
+tú contestas el bot se calla → si el cliente no responde en X tiempo vuelve el bot → si se acaba el
+crédito del bot, correo al admin) es **una feature nueva completa**, con estados, temporizadores y
+control de consumo. Hay que diseñarla aparte.
+
+## P3 — Pantalla para leer conversaciones viejas
+Sale de la respuesta de arriba: los datos ya están todos, pero solo se pueden consultar las últimas
+24 horas. Falta el buscador/historial.
+
+## P4 — Script de concursantes de prueba
+Pedido tuyo: dejar clientes registrados ya cargados para no andar creando usuarios en cada prueba.
+Dijiste que casi hasta el final.
+
+## P5 — Decisión pendiente: fecha del filtro de Entregas por zona
+El filtro usa la fecha en que se **creó** el pedido (`fechaPedido`), no la de entrega (que se guarda
+en `fechaRecogida`). Con el fix del punto 1 tu pedido ya debería salir (se creó hoy, cae en el rango
+de esta semana). Si aun así te acomoda más filtrar por fecha de entrega, se cambia — **avísame
+después de probarlo**, para no cambiar dos cosas a la vez y no saber cuál fue.
