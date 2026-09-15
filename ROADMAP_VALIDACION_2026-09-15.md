@@ -142,6 +142,7 @@ Lo que se subió a QA el 2026-09-15:
 - ✅ Dirección larga se recorta, no rompe
 
 ---
+Listo la ubicacion en ligin y en registrar ya quedo
 
 # 🎯 B — FECHAS CORRIDAS UN DÍA (BUG UTC)
 
@@ -195,17 +196,19 @@ Lo que se subió a QA el 2026-09-15:
 **Dónde:** **Flores eternas** → **Configurar ramo** → completar un pedido
 
 - ✅ `fechaPedido` = hoy
-
+Esto de las fechas hay que dejarlo pendiente porque no me deja validar la fecha ahorita hasta las 6 pm
 ### Test B6 — Que NO se haya roto lo que ya estaba bien
-1. **Rifas** → Buscar rifa: el filtro de día debe seguir arrancando en hoy y la rifa de hoy debe salir.
-2. **Rifas** → Agregar rifa: las rifas DIARIA de hoy deben seguir apareciendo como "anteriores".
+1. **Rifas** → Buscar rifa: el filtro de día debe seguir arrancando en hoy y la rifa de hoy debe salir. ya lo valide ok
+2. **Rifas** → Agregar rifa: las rifas DIARIA de hoy deben seguir apareciendo como "anteriores". ya lo valide ok
 3. **Entregas por zona:** los presets de rango (semana en curso / últimos N días) deben dar las
    mismas fechas que antes.
+4. aqui, hice un pedido como admin a un cliente, pero solo puse su nombre el lugar de entrega y la fecha, pero al buscar en zona no aparece el pedido para enviar el correo para que sepan la fehca en la que iremos
+5. 
 4. **Mi perfil** y **Chat:** sin cambios (ahí la hora es un instante completo, se dejó en UTC a
-   propósito).
+   propósito). Esto porque se dejo a proposito?
 
 - ✅ Rifas y Entregas por zona se comportan igual que antes
-
+ esta esta fallando ya te dije porque arriba
 > **Nota sobre datos viejos:** los gastos y abonos que se hayan guardado de noche **antes** de este
 > fix quedaron con el día de más. No se migran solos — si hay pocos, se corrigen a mano.
 
@@ -221,7 +224,7 @@ Lo que se subió a QA el 2026-09-15:
 3. **Validar:** solo cambia el de día; el de noche se queda como estaba.
 4. En **otro** preset distinto, tocar **🌙 Usar de noche**.
 5. **Validar:** ahora día y noche tienen presets **distintos** y así lo dice el encabezado.
-
+ya lo veo que se pueden elegir idependientes, ya lo valide
 - ✅ Se pueden tener dos presets distintos a la vez
 - ✅ Elegir uno no pisa el otro
 
@@ -244,7 +247,7 @@ Lo que se subió a QA el 2026-09-15:
 
 - ✅ Todo el sistema cambia
 - ✅ Login y registro NO cambian
-
+validado el login y el registrar sigue igual
 ---
 
 # 🎯 D — TOKENIZACIÓN MODO NOCHE (repaso visual)
@@ -276,7 +279,9 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 1. Abrir una rifa con **varios premios con imagen**.
 2. **Validar:** el carrusel muestra todas las imágenes, no sale vacío.
 3. Debe funcionar el avance y el responsive en celular.
-
+Aqui solo estoy revisanod la rifa de boles, las otras rifas las voy a validar despues, y ademas vamos a vlaidar las otras rifas
+4. peo necesito el script de concursantes ya listas para no estar agregando usuarios a cada rato, entonces quiero ya tener clientes registrado para pruebas peor eso casi hasta el final
+ya valide la rifa de los boletos ya esta lista en cel y en pc, solo falta confirmar en prod que es donde ya hay mas boletos
 > Contexto: el detalle descartaba imágenes huérfanas y dejaba el carrusel vacío. El fix ya está,
 > falta confirmarlo con datos reales.
 
@@ -291,7 +296,8 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 
 - ✅ Agregar se refleja sin recargar
 - ✅ Eliminar se refleja sin recargar
-
+Ya se ve el carrusel, solo falta vlaidar con mas fotos peor con 1 ya esta funcionando
+- 
 ### Test E3 — Ruleta pública sin login (#65)
 1. Abrir la URL de la ruleta pública **en una ventana de incógnito** (sin sesión).
 2. **Validar:** carga sin pedir login, se ven los premios con imagen y la ruleta gira.
@@ -300,7 +306,9 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 - ✅ Carga sin sesión
 - ✅ Los premios traen imagen
 - ✅ Gira y se ve bien en celular
-
+Ya se esta mostrndo la imegen y el texto o descripcion, solo que hace falta poner una descripcion para que se vea porque ahi solo sale el nombre
+- del producto o premio y nada mas
+- 
 ---
 
 # ✅ ORDEN PARA DESPLEGAR
