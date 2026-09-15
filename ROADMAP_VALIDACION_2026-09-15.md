@@ -44,7 +44,7 @@ Lo que se subió a QA el 2026-09-15:
 > ✅ **La migración ya está corrida en QA y en prod (2026-09-15).** Se puede probar directo.
 
 ### Test A1 — La sección aparece y el buscador funciona
-**Dónde:** Menú → **Administración** → **Configuración del negocio** → sección **📍 Ubicación del local**
+**Dónde:** Menú → **Sistema** → **Negocio & Contactos** → sección **📍 Ubicación del local**
 
 1. Entrar a la pantalla. Debe aparecer la sección nueva **entre** "Contactos" y "Alertas de stock bajo".
 2. El botón **Guardar ubicación** debe estar gris, y abajo un texto diciendo qué falta.
@@ -104,7 +104,7 @@ Lo que se subió a QA el 2026-09-15:
 - ✅ Mismo bloque, mismo aspecto que en el login
 
 ### Test A6 — ⚠️ El caso que más fácil se rompe: "Actualizar usuario"
-**Dónde:** entrar como **admin** → Menú → **Usuarios** → botón **Actualizar** de cualquier usuario
+**Dónde:** entrar como **admin** → Menú → **Sistema** → **Usuarios** → botón **Actualizar** de cualquier usuario
 
 1. **Validar:** en esa pantalla el mapa **NO debe aparecer por ningún lado**.
 
@@ -153,7 +153,7 @@ Listo la ubicacion en ligin y en registrar ya quedo
 > **Antes del fix:** a esa hora todo se guardaba con la fecha de **mañana**.
 
 ### Test B1 — Gastos
-**Dónde:** Menú → **Gastos** → **Agregar gasto**
+**Dónde:** Menú → **Ventas** → **Gastos** → **Agregar gasto**
 
 1. Con la hora puesta después de las 6 pm, agregar un gasto.
 2. **Validar:** el campo de fecha propone **HOY**, no mañana.
@@ -216,7 +216,7 @@ Esto de las fechas hay que dejarlo pendiente porque no me deja validar la fecha 
 
 # 🎯 C — PRESETS DÍA / NOCHE INDEPENDIENTES
 
-**Dónde:** Menú → **Administración** → **Personalización** → sección de diseños predefinidos
+**Dónde:** Menú → **Sistema** → **Personalización** → sección de diseños predefinidos
 
 ### Test C1 — Elegir distinto para cada modo
 1. **Validar:** arriba se ve qué está activo ahora: **☀️ Día: [nombre]** y **🌙 Noche: [nombre]**.
