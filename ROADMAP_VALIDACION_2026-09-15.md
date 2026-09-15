@@ -154,7 +154,7 @@ Listo la ubicacion en ligin y en registrar ya quedo
 
 ### Test B1 — Gastos
 **Dónde:** Menú → **Ventas** → **Gastos** → **Agregar gasto**
-
+Aqui no esta la opcion de agregar gastos, solo esta , dia rango fecha y buscar 
 1. Con la hora puesta después de las 6 pm, agregar un gasto.
 2. **Validar:** el campo de fecha propone **HOY**, no mañana.
 3. Guardar, ir a **Gastos → Buscar** y filtrar por "hoy".
@@ -171,6 +171,8 @@ Listo la ubicacion en ligin y en registrar ya quedo
 
 - ✅ Filtro de día = hoy
 - ✅ Filtro de mes = mes actual
+- Ya lo veo completo
+- 
 
 ### Test B3 — Abonos y Venta directa
 **Dónde:** Menú → **Ventas** → **Venta directa** (a crédito) y Menú → **Abonos**
@@ -180,7 +182,17 @@ Listo la ubicacion en ligin y en registrar ya quedo
 3. **Validar:** la fecha del abono dice **hoy**, no mañana.
 
 - ✅ `fechaPago` del abono = hoy
-
+Ya veo las correcciones y si aparecen los pedidos que no aparecian antes, ahora tengo una duda para que la aclares
+- Mira si agrego por ejemplo, en venta directa se pone una direccion para entregar, despues yo elijo la fecha de entrega
+- tiene la que yo voy a entregar y en la card dle pedido tiene otra fecha pero no dice que fecha es y lo mismo para las demas
+- entonces necesito que se explique esas fechas en las pantallas tanto las que voy a agregar como en los permisos que tiene
+- un icono que s lo seleciconas te sale un modal con la explicacion, es decir si en una fecha o en un lugar donde se entrege
+- aparezca par que es ese y donde va aparecer porque en pedido existe una opcion que dice donde entrega y tiene una fecha
+- pero esa fecha no veo o esa info no se de donde llegue o en que momento la llene y ademas ahi se puede modificar por el cliente me parece hay que validar eso
+- no se si entiendas con esto que te menciono con saber donde o que es eso por ejemplo para la fecha o donde aparezca fechas o aparezca
+- input como donde se agregue lugares y saber a bueno esta es por esto o esto o esto y va aparecer ene ste lugar o es te o este
+- y asdi con todo loq ue conocemos como ves?
+- 
 ### Test B4 — Checkout de Tienda (el más visible para el cliente)
 **Dónde:** Tienda → agregar algo al carrito → **checkout**, eligiendo **"recoger en tienda"**
 
@@ -191,6 +203,14 @@ Listo la ubicacion en ligin y en registrar ya quedo
 
 - ✅ Se puede elegir hoy como fecha de recogida
 - ✅ `fechaPedido` = hoy
+aqui estoy perdido, hay que mostrar las pruebas que tengo que hacer y para que seria la prueba y varias pruebas por ejemplo
+- en venta directa hay varias opciones y pues no sabia cual elegir, y ademas no dices si es como admin o como usuario normal
+- es decir no se si este haciendo bien las pruebas
+- y explicacion para que es cada prueba que es lo que busca esa prueba
+porque hace falta validar que los pedidos regresen a tiempo es decir hago la prueba que es de hoy el pedido pero si no lo recoge
+- entonces pues regresar el stock y ademas lo que falta y lo mismo como hago los pedidos
+- 
+- du
 
 ### Test B5 — Flores eternas
 **Dónde:** **Flores eternas** → **Configurar ramo** → completar un pedido
