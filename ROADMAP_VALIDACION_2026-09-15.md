@@ -40,8 +40,9 @@
 
 # 🎯 A — UBICACIÓN DEL LOCAL
 
-> **Antes de nada:** correr la migración (ver la sección de SQL al final). Sin ella el back **no
-> arranca**.
+> **Antes de nada:** correr la migración (ver la sección de SQL al final). Sin ella el back sí
+> levanta, pero los endpoints de negocio truenan y ni el login ni esta pantalla muestran la
+> ubicación.
 
 ### Test A1 — La sección aparece y el buscador funciona
 **Dónde:** Menú → **Administración** → **Configuración del negocio** → sección **📍 Ubicación del local**
@@ -333,10 +334,21 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 > y en prod el 2026-09-08. Se verificó contra git: entre `main` y `dev` **no hay ninguna otra
 > migración nueva**.
 
-### ⚠️ Correrla ANTES de desplegar el back
+### ⚠️ Qué pasa si se despliega el back sin correrla
 
-El back arranca con JPA validando contra la tabla: si las columnas no existen, **truena al
-levantar**.
+Los tres ambientes usan `ddl-auto: none`, así que Hibernate **no** toca el esquema ni lo valida al
+arrancar: **el back levanta sin problema**. Lo que truena es en caliente, cuando algo consulta esas
+columnas:
+
+| Endpoint | Efecto |
+|---|---|
+| `GET /v1/negocio/contactos` (público) | Error SQL → el **login y el registro** no muestran ni el mapa ni los iconos de redes |
+| `GET /v1/negocio/config` | Error SQL → **Configuración del negocio** no carga |
+| `PUT /v1/negocio/ubicacion` | Error SQL → no se puede guardar la ubicación |
+
+No hace falta reiniciar nada para arreglarlo: en cuanto corre el `ALTER TABLE`, los endpoints
+responden bien de inmediato. Aun así, **lo limpio es correrla antes** del deploy para no dejar QA
+a medias ni un minuto.
 
 ### El SQL
 
