@@ -280,7 +280,9 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 1. Abrir una rifa con **varios premios con imagen**.
 2. **Validar:** el carrusel muestra todas las imágenes, no sale vacío.
 3. Debe funcionar el avance y el responsive en celular.
-
+Aqui solo estoy revisanod la rifa de boles, las otras rifas las voy a validar despues, y ademas vamos a vlaidar las otras rifas
+4. peo necesito el script de concursantes ya listas para no estar agregando usuarios a cada rato, entonces quiero ya tener clientes registrado para pruebas peor eso casi hasta el final
+ya valide la rifa de los boletos ya esta lista en cel y en pc, solo falta confirmar en prod que es donde ya hay mas boletos
 > Contexto: el detalle descartaba imágenes huérfanas y dejaba el carrusel vacío. El fix ya está,
 > falta confirmarlo con datos reales.
 
@@ -295,7 +297,8 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 
 - ✅ Agregar se refleja sin recargar
 - ✅ Eliminar se refleja sin recargar
-
+Ya se ve el carrusel, solo falta vlaidar con mas fotos peor con 1 ya esta funcionando
+- 
 ### Test E3 — Ruleta pública sin login (#65)
 1. Abrir la URL de la ruleta pública **en una ventana de incógnito** (sin sesión).
 2. **Validar:** carga sin pedir login, se ven los premios con imagen y la ruleta gira.
@@ -304,7 +307,9 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 - ✅ Carga sin sesión
 - ✅ Los premios traen imagen
 - ✅ Gira y se ve bien en celular
-
+Ya se esta mostrndo la imegen y el texto o descripcion, solo que hace falta poner una descripcion para que se vea porque ahi solo sale el nombre
+- del producto o premio y nada mas
+- 
 ---
 
 # ✅ ORDEN PARA DESPLEGAR
