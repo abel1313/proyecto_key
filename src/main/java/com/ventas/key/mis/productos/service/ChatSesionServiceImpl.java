@@ -90,10 +90,17 @@ public class ChatSesionServiceImpl implements IChatSesionService {
         return repository.findBySesionId(sesionId).isPresent();
     }
 
+    // Minutos sin actividad tras los que una sesion se marca CERRADA. El log decia "(>30 min)"
+    // pero el corte siempre fue de 5 -- se corrigio el 2026-09-15 para que lo que se ve en los
+    // logs sea lo que de verdad pasa.
+    private static final int MINUTOS_INACTIVIDAD = 5;
+
     @Override
     @Transactional
     public void cerrarSesionesInactivas() {
-        LocalDateTime limite = LocalDateTime.now().minusMinutes(5);
+        // Cerrar NO borra nada: la sesion pasa a CERRADA y sus mensajes siguen en chat_mensaje.
+        // El historial completo se conserva, no hay ninguna tarea que lo purgue.
+        LocalDateTime limite = LocalDateTime.now().minusMinutes(MINUTOS_INACTIVIDAD);
         List<ChatSesion> inactivas = repository.findByEstadoAndUltimaActividadBefore("ACTIVA", limite);
         for (ChatSesion sesion : inactivas) {
             sesion.setEstado("CERRADA");
@@ -104,7 +111,7 @@ public class ChatSesionServiceImpl implements IChatSesionService {
             );
         }
         if (!inactivas.isEmpty()) {
-            log.info("{} sesiones cerradas por inactividad (>30 min)", inactivas.size());
+            log.info("{} sesiones cerradas por inactividad (>{} min)", inactivas.size(), MINUTOS_INACTIVIDAD);
         }
     }
 }

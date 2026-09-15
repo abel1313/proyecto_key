@@ -401,3 +401,131 @@ ALTER TABLE configuracion_negocio
 ```
 
 Solo se pierde la ubicación capturada; no toca ningún otro dato de la tabla.
+
+---
+
+# 🔧 RESUELTO EL 2026-09-15 (segunda vuelta, tras tus comentarios)
+
+## 1. ✅ Entregas por zona: el pedido no aparecía
+
+**Causa real:** la consulta exigía `estadoPedido = 'Pendiente'`, y **Venta directa nunca guarda ese
+estado**. Los de contado nacen `'Entregado'` y los de crédito con su propio tipo
+(`'APARTADO'`/`'FIADO'`). O sea: **ningún** pedido levantado por ti podía salir en esa pantalla,
+sin importar la zona ni la fecha.
+
+`'Pendiente'` solo lo pone el checkout de la tienda (el cliente pidiendo desde su cuenta).
+
+**Fix:** la consulta ahora acepta `IN ('Pendiente', 'APARTADO')` — porque en tu negocio
+**APARTADO significa "esto se lo entrego después"**, que es justo lo que arma el viaje de zona.
+
+Se quedan fuera a propósito `'Entregado'` (ya se entregó o se pagó y se llevó en el momento) y
+`'cancelado'`. El cambio **solo amplía lo que ve esa pantalla**: no toca ventas, reportes,
+dashboard ni el auto-cancelador (ese usa su propio método con `'Pendiente'` literal).
+
+- Archivo: `IPedidoRepository.findPendientesDeZonaEnRango`
+- **A probar:** levanta un pedido en Venta directa con zona + APARTADO, y confirma que ahora sí sale
+  en Entregas por zona y que le llega el correo al programar el viaje.
+
+## 2. ✅ Usuarios update no tenía card
+
+La forma de tarjeta estaba escrita como `.split-form:not(.split-form--full) .form-inner`, y
+"Actualizar usuario" **sí** lleva `--full`. Resultado: el panel ya venía pintado de `--card-bg` y el
+formulario flotaba plano encima, sin borde ni sombra.
+
+**Fix:** `--full` ahora tiene su propia tarjeta. A diferencia de Login y Registrar (públicas y
+congeladas fuera de Personalización), esta es una pantalla de adentro, así que usa **los mismos
+tokens de tarjeta que el resto del admin** y cambia con el tema que elijas. También se le subió el
+ancho a 460px para que el padding de la tarjeta no apriete el formulario, que en esa pantalla es el
+más largo de todos.
+
+- Archivo: `add-usuarios.component.scss`
+
+## 3. ✅ Ruleta pública: solo salía el nombre del premio
+
+El estado público **ya traía** `descripcion`, `talla`, `color`, `marca`, `presentacion` y
+`contenidoNeto`, pero la pantalla solo leía `nombreProducto` e `imagenUrl`. Nadie pintaba el resto.
+
+**Fix:** debajo del nombre ahora sale la descripción, y como respaldo unas etiquetas con
+talla/color/marca/presentación/contenido. Así, aunque el premio **no tenga descripción escrita**,
+el visitante ya no ve solo el nombre pelón.
+
+- Archivos: `ruleta-publica.component.{ts,html,scss}`
+- **Ojo:** la descripción sale de la del **producto/variante**. Si quieres que diga algo específico
+  para la rifa, hay que escribirla en la variante.
+
+## 4. ✅ Log del chat que mentía
+
+El log decía *"sesiones cerradas por inactividad (>30 min)"* pero el corte **siempre fue de 5
+minutos**. Se sacó a una constante y el log ahora dice el número real.
+
+---
+
+# ❓ RESPUESTAS A TUS PREGUNTAS
+
+## "¿Por qué Mi perfil y Chat se dejaron en UTC a propósito?"
+
+Porque ahí la fecha **no es una fecha de calendario, es un instante** — el momento exacto en que
+pasó algo:
+
+| Campo | Qué guarda |
+|---|---|
+| `fechaAceptoPrivacidad` (Mi perfil) | El instante en que el cliente aceptó el aviso |
+| `fechaInicio` / `ultimaActividad` (Chat) | Cuándo arrancó la conversación y el último mensaje |
+
+Para un instante, UTC es lo **correcto**: es un punto en la línea del tiempo, sin ambigüedad, y el
+navegador lo convierte a la hora local de quien lo lee. Si alguien abre el sistema desde otro huso,
+sigue viendo la hora bien.
+
+El bug era otra cosa: **recortar** un instante UTC (`.slice(0,10)`) para usarlo como si fuera una
+fecha de calendario. Ahí sí se corría el día. Un gasto del día 15 es del 15 aunque lo captures a las
+11 de la noche; el momento en que aceptaste el aviso de privacidad no es "un día", es un reloj.
+
+Por eso se arregló lo primero y no lo segundo.
+
+## "El chat en vivo, ¿dónde se guarda? ¿Solo se mantiene ese día?"
+
+**Se guarda permanentemente en la base de datos, y nada lo borra.** Ya está todo ahí, no hay que
+construir nada para conservarlo:
+
+| Tabla | Qué guarda |
+|---|---|
+| `chat_sesion` | Una fila por conversación: quién, desde qué IP, cuándo empezó, última actividad, estado |
+| `chat_mensaje` | Una fila por mensaje: de qué sesión, quién lo mandó, el texto completo y la hora |
+
+Revisé las 9 tareas programadas del sistema: **ninguna toca el chat**. La única tarea de chat
+(`ChatSesionScheduler`, cada 5 minutos) solo marca como `CERRADA` la sesión que lleva 5 minutos sin
+actividad — **cambia el estado, no borra los mensajes**.
+
+O sea: el historial completo de todas las conversaciones ya existe desde siempre. Lo que falta no
+es guardarlo, es una **pantalla para leerlo** (hoy `obtenerSesionesRecientes()` solo trae las
+últimas 24 horas, aunque en la base esté todo).
+
+---
+
+# 📌 ANOTADO PARA DESPUÉS (no se tocó nada todavía)
+
+## P1 — Generador de QR con varios destinos
+Pedido tuyo: poder generar un QR con los datos que necesites (Facebook, Instagram, URL…), que cada
+QR se guarde **identificado** para saber qué trae, poder elegir uno ya hecho, y agregar más.
+Queda para **cuando terminemos los tests**, tal como pediste.
+
+## P2 — Traspaso chatbot ↔ humano
+Pedido tuyo, y **hoy no existe**: el chat actual es solo ACTIVA/CERRADA con mensajes de usuario y
+admin. El flujo que describes (el bot atiende → el cliente pide humano → correo al admin → mientras
+tú contestas el bot se calla → si el cliente no responde en X tiempo vuelve el bot → si se acaba el
+crédito del bot, correo al admin) es **una feature nueva completa**, con estados, temporizadores y
+control de consumo. Hay que diseñarla aparte.
+
+## P3 — Pantalla para leer conversaciones viejas
+Sale de la respuesta de arriba: los datos ya están todos, pero solo se pueden consultar las últimas
+24 horas. Falta el buscador/historial.
+
+## P4 — Script de concursantes de prueba
+Pedido tuyo: dejar clientes registrados ya cargados para no andar creando usuarios en cada prueba.
+Dijiste que casi hasta el final.
+
+## P5 — Decisión pendiente: fecha del filtro de Entregas por zona
+El filtro usa la fecha en que se **creó** el pedido (`fechaPedido`), no la de entrega (que se guarda
+en `fechaRecogida`). Con el fix del punto 1 tu pedido ya debería salir (se creó hoy, cae en el rango
+de esta semana). Si aun así te acomoda más filtrar por fecha de entrega, se cambia — **avísame
+después de probarlo**, para no cambiar dos cosas a la vez y no saber cuál fue.
