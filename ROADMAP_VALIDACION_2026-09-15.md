@@ -1,5 +1,6 @@
 # ROADMAP DE VALIDACIÓN — Ubicación del local + Fix de fechas UTC + Presets día/noche
-**Fecha:** 2026-09-15 | **Todo está en `dev`** (back y front). Nada se ha subido a `qa` todavía.
+**Fecha:** 2026-09-15 | ✅ **Ya está todo desplegado en QA** (back y front) y la migración corrida.
+Listo para empezar a probar.
 
 ---
 
@@ -7,15 +8,15 @@
 
 | Repo | `dev` | `qa` | `main` / `master` |
 |---|---|---|---|
-| **proyecto_key** (back) | `7539768` ✅ al día | `5a4fa81` — 2 commits atrás | `e8fb1bd` — 6 atrás |
-| **producto_venta_online** (front) | `58c77ed` ✅ al día | `54fe432` — 2 commits atrás | `4a8ecd6` — 6 atrás |
+| **proyecto_key** (back) | `1d62263` | `16b1630` ✅ **al día con dev** | `e8fb1bd` — 9 commits atrás |
+| **producto_venta_online** (front) | `58c77ed` | `25c3d6f` ✅ **al día con dev** | `4a8ecd6` — 11 commits atrás |
 
-**Lo que falta subir de `dev` a `qa`:**
+Lo que se subió a QA el 2026-09-15:
 
 | Repo | Commit | Qué trae |
 |---|---|---|
 | back | `f87d479` | Taxonomía anotada en las entidades (solo comentarios) |
-| back | `7539768` | Ubicación del local — **trae migración SQL** |
+| back | `7539768` | Ubicación del local — **con su migración SQL** |
 | front | `bb325a8` | Fix de fechas corridas un día |
 | front | `58c77ed` | Mapa del local en login y registro |
 
@@ -40,9 +41,7 @@
 
 # 🎯 A — UBICACIÓN DEL LOCAL
 
-> **Antes de nada:** correr la migración (ver la sección de SQL al final). Sin ella el back sí
-> levanta, pero los endpoints de negocio truenan y ni el login ni esta pantalla muestran la
-> ubicación.
+> ✅ **La migración ya está corrida en QA y en prod (2026-09-15).** Se puede probar directo.
 
 ### Test A1 — La sección aparece y el buscador funciona
 **Dónde:** Menú → **Administración** → **Configuración del negocio** → sección **📍 Ubicación del local**
@@ -306,33 +305,35 @@ contraste. **Poner el sistema en modo noche** y recorrer:
 
 # ✅ ORDEN PARA DESPLEGAR
 
-1. **Correr la migración en la BD de QA** (`inventario_key_qa`) — ver la sección de abajo.
-2. Subir back y front de `dev` a `qa`:
-   ```bash
-   # en cada repo
-   git checkout qa && git pull origin qa
-   git merge dev --no-ff -m "Merge dev → qa: ubicación del local + fix de fechas UTC"
-   git push origin qa
-   ```
-   El push a `qa` dispara el deploy automático (~1-2 min).
-3. Capturar la ubicación del local en Configuración del negocio (Test A3).
+1. ~~Correr la migración en la BD de QA~~ ✅ hecho el 2026-09-15 (y también en prod).
+2. ~~Subir back y front de `dev` a `qa`~~ ✅ hecho el 2026-09-15 (el push disparó el deploy
+   automático de los dos).
+3. **← AQUÍ VAMOS:** capturar la ubicación del local en Configuración del negocio (Test A3).
 4. Correr **todos** los tests de arriba.
 5. Solo cuando QA esté limpio, promover a producción — **con `cherry-pick`, no con merge**, mientras
-   redes sociales siga bloqueado.
+   redes sociales siga bloqueado. Recordar que en prod **la migración ya está corrida**.
 
 ---
 
 # 🗄️ SQL QUE HAY QUE CORRER
 
-## Pendiente: **1 migración**
+## ✅ Ya no queda ninguna pendiente
 
 | # | Archivo | Ambiente | Estado |
 |---|---|---|---|
-| 1 | `migration_negocio_ubicacion.sql` | QA (`inventario_key_qa`) y luego prod (`inventario_key`) | ❌ **Sin correr** |
+| 1 | `migration_negocio_ubicacion.sql` | QA (`inventario_key_qa`) **y** prod (`inventario_key`) | ✅ **Ejecutada el 2026-09-15** (confirmado por el usuario) |
 
-> Todo lo demás (permisos finos, acciones de pantallas, rifas, flores, abonos…) ya se ejecutó en QA
-> y en prod el 2026-09-08. Se verificó contra git: entre `main` y `dev` **no hay ninguna otra
-> migración nueva**.
+> Todo lo demás (permisos finos, acciones de pantallas, rifas, flores, abonos…) ya se había
+> ejecutado en QA y en prod el 2026-09-08. Se verificó contra git: entre `main` y `dev` **no hay
+> ninguna otra migración nueva**.
+
+### 📌 Ojo: prod tiene las columnas pero todavía NO el código
+
+La migración se corrió también en producción, donde `main` sigue 7 commits atrás y no tiene nada de
+la ubicación del local. **Eso no rompe nada** y está bien así: las 3 columnas son nullable, ningún
+código de prod las toca, y el día que se promueva la feature la base ya está lista. Solo hay que
+recordar, cuando toque, que **la migración ahí ya está hecha — no volver a correrla** (un segundo
+`ALTER TABLE ... ADD COLUMN` sobre columnas que ya existen falla).
 
 ### ⚠️ Qué pasa si se despliega el back sin correrla
 
