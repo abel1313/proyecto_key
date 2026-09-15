@@ -2,16 +2,12 @@ package com.ventas.key.mis.productos.dto.negocio;
 
 import lombok.*;
 
+/** Lo que manda Configuracion del negocio al guardar la ubicacion del local. */
 @Getter
 @Setter
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class ContactosPublicosDto {
-    private String whatsappUrl;
-    private String facebookUrl;
-    private String instagramUrl;
-    private String tiktokUrl;
+public class UbicacionUpdateDto {
     private String direccion;
     private Double latitud;
     private Double longitud;

@@ -19429,3 +19429,78 @@ guardados con la fecha corrida (gastos o abonos creados de noche antes de este f
 quedaron con el día de más — no se migran solos.
 
 **Verificado:** `tsc --noEmit` sin errores nuevos y `ng build --configuration=production` OK.
+
+---
+
+## ✅ Nuevo (2026-09-15): ubicación del local en login y registro
+
+El login y el registro ahora muestran una miniatura del mapa con el local marcado y un botón
+**"Cómo llegar"** que abre Google Maps trazando la ruta desde donde esté el cliente. Se ve **sin
+iniciar sesión** (ambas son pantallas públicas). El dueño captura la ubicación una sola vez en
+*Administración › Configuración del negocio*.
+
+### ⚠️ Migración que hay que correr antes
+
+`src/main/resources/static/migration_negocio_ubicacion.sql` — agrega `direccion`, `latitud` y
+`longitud` a `configuracion_negocio`. **Sin ella el back truena al arrancar.** Quedan en NULL: en
+ese estado login y registro no pintan nada (no se inventa un punto por defecto).
+
+### Campos nuevos en dos endpoints que el front ya consume
+
+**`GET /mis-productos/v1/negocio/contactos`** (público, sin token — es el que usa el login)
+
+```json
+{
+  "data": {
+    "whatsappUrl": "...", "facebookUrl": "...", "instagramUrl": "...", "tiktokUrl": "...",
+    "direccion": "Av. Hidalgo 24, Centro",
+    "latitud": 19.432608,
+    "longitud": -99.133209
+  }
+}
+```
+
+**`GET /mis-productos/v1/negocio/config`** (solo ADMIN) devuelve los mismos 3 campos, además de lo
+que ya traía.
+
+**Diferencia clave:** antes ninguno de los dos traía ubicación. Los 3 campos pueden venir `null`
+(mientras no se capture); el front debe tratar "sin ubicación" como caso normal, no como error.
+`latitud`/`longitud` son números, no strings.
+
+### Endpoint nuevo
+
+**`PUT /mis-productos/v1/negocio/ubicacion`** — solo ADMIN (mismo permiso de escritura de
+`admin/negocio` que ya cubría `/v1/negocio/**`).
+
+Request:
+```json
+{ "direccion": "Av. Hidalgo 24, Centro", "latitud": 19.432608, "longitud": -99.133209 }
+```
+
+Response: el `NegocioConfigDto` completo ya actualizado (el mismo shape de `GET /config`).
+
+**Ojo con el null:** a diferencia de `PUT /contactos` (donde `null` significa "no lo toques"),
+aquí `null` significa **"bórralo"**. Mandar los 3 en `null` quita la ubicación y el mapa deja de
+salir en login y registro. Es a propósito — es como está implementado el botón "Quitar".
+
+**Códigos:** 200 con el config actualizado · 401/403 si no es admin · 500 si falla el guardado.
+
+### Del lado del front (ya hecho, informativo)
+
+- Componente nuevo `app-ubicacion-local` (en `SharedModule`), usado por `login-form` y por
+  `add-usuarios`. En `add-usuarios` va gateado con `esActualizar` para que **no** aparezca cuando
+  un admin entra a esa misma pantalla a actualizar a otro usuario.
+- La miniatura **no usa Leaflet** a propósito: pide las teselas de OpenStreetMap como `<img>`
+  sueltas y dibuja el pin encima. Login y registro son lo primero que carga cualquiera y el
+  bundle inicial ya está por encima del presupuesto. Verificado en el build: Leaflet sigue
+  aislado en su propio chunk (`407.js`, 148 KB) y ni el chunk del login ni el del registro lo
+  cargan; el bundle inicial creció 0.17 KB.
+- El mapa de verdad (con buscador de direcciones y "usar mi ubicación") vive solo en
+  Configuración del negocio, reusando el `app-selector-ubicacion` que ya existía para el punto de
+  encuentro de las entregas.
+- "Cómo llegar" es un link normal a `https://www.google.com/maps/dir/?api=1&destination=LAT,LNG`:
+  no necesita API key ni cuenta de Google. El permiso de ubicación se lo pide Google al cliente.
+
+**Verificado:** back compila (`mvn -o compile`), front compila (`tsc --noEmit` y
+`ng build --configuration=production`), y el cálculo de teselas se contrastó contra la fórmula de
+referencia de OpenStreetMap (diferencia 0.000000 px, el pin cae exactamente en el centro).
