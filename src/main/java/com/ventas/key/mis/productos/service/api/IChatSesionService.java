@@ -26,6 +26,9 @@ public interface IChatSesionService {
 
     Optional<ChatSesion> buscarSesionActiva(String sesionId);
 
+    // Sin filtrar por estado, para leer la conversacion tal como esta (incluidas las CERRADAS).
+    Optional<ChatSesion> buscarSesion(String sesionId);
+
     Optional<ChatSesion> reactivarSesion(String sesionId);
 
     String modoDe(String sesionId);

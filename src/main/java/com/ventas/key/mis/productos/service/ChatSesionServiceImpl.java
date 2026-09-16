@@ -151,6 +151,11 @@ public class ChatSesionServiceImpl implements IChatSesionService {
         return repository.findBySesionIdAndEstado(sesionId, "ACTIVA");
     }
 
+    @Override
+    public Optional<ChatSesion> buscarSesion(String sesionId) {
+        return repository.findBySesionId(sesionId);
+    }
+
     // El scheduler cierra la sesion a los 5 minutos de silencio. Si el cliente vuelve a escribir en
     // esa pestana, la sesion ya esta CERRADA y el mensaje se perdia sin que nadie se enterara. Aqui
     // se vuelve a abrir en lugar de descartar: el historial es el mismo y el admin lo recibe igual.
