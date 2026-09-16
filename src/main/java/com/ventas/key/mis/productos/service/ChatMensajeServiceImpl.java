@@ -90,7 +90,7 @@ public class ChatMensajeServiceImpl implements IChatMensajeService {
 
     @Override
     public Optional<ChatMensaje> ultimoMensaje(String sesionId) {
-        return repository.findTop1BySesionIdOrderByTimestampDesc(sesionId);
+        return repository.findTop1BySesionIdOrderByIdDesc(sesionId);
     }
 
     @Override
