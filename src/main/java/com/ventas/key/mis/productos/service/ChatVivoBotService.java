@@ -74,11 +74,32 @@ public class ChatVivoBotService {
      * y regresa, para no dejar esperando al WebSocket.
      */
     public void atender(String sesionId, Integer usuarioId, String nombreUsuario, Long mensajeId, String contenido) {
-        String modo = sesionService.modoDe(sesionId);
-        // Guardarle el turno al dueño sólo tiene sentido si el dueño está de verdad en el panel. Si
-        // no está conectado, esperarlo es dejar al cliente en silencio por nada: contesta el bot ya.
-        boolean duenoEnElPanel = notificacionService.isAdminConectado();
-        boolean esperaDelDueno = IChatSesionService.MODO_HUMANO.equals(modo) && duenoEnElPanel;
+        // Leer el modo y el estado del dueño ya toca la base: si truena aquí, la excepción subía al
+        // hilo del WebSocket y el temporizador NUNCA se programaba — el cliente se quedaba sin
+        // respuesta y sin aviso. Es el mismo agujero que se tapó dentro de responder(), pero esta
+        // mitad había quedado fuera. Ante la duda se sigue con los valores por defecto (modo BOT,
+        // espera corta) en vez de no atender al cliente.
+        String modo = IChatSesionService.MODO_BOT;
+        boolean duenoEnElPanel = false;
+        try {
+            modo = sesionService.modoDe(sesionId);
+            // Guardarle el turno al dueño sólo tiene sentido si el dueño está de verdad en el panel.
+            // Si no está conectado, esperarlo es dejar al cliente en silencio por nada.
+            duenoEnElPanel = notificacionService.isAdminConectado();
+        } catch (Exception e) {
+            log.error("Chat en vivo: no se pudo leer el estado de la sesión {}, se atiende como modo "
+                    + "BOT para no dejar al cliente esperando", sesionId, e);
+        }
+
+        boolean sesionEnModoHumano = IChatSesionService.MODO_HUMANO.equals(modo);
+        // Dos cosas distintas que antes estaban pegadas en una sola bandera:
+        //  - cuánto se espera  -> sólo se espera al dueño si está en el panel;
+        //  - si al contestar hay que devolverle el turno al bot -> pasa SIEMPRE que la sesión venía
+        //    en HUMANO, esté el dueño o no.
+        // Pegarlas dejaba la sesión clavada en HUMANO cuando el dueño no estaba conectado: el bot
+        // contestaba, pero el modo nunca volvía a BOT, y a partir de ahí cada mensaje siguiente
+        // esperaba el turno largo del dueño otra vez.
+        boolean esperaDelDueno = sesionEnModoHumano && duenoEnElPanel;
         Duration espera = esperaDelDueno ? ESPERA_MODO_HUMANO : ESPERA_MODO_BOT;
         log.info("Chat en vivo: sesión {} en modo {} (dueño en el panel: {}) — el bot contesta en {}s "
                 + "si nadie más lo hace", sesionId, modo, duenoEnElPanel, espera.toSeconds());
@@ -88,10 +109,13 @@ public class ChatVivoBotService {
         // de Netty, que son pocos y se usan para todo lo demas.
         Mono.delay(espera)
                 .publishOn(Schedulers.boundedElastic())
-                .flatMap(tick -> responder(sesionId, usuarioId, nombreUsuario, mensajeId, contenido, esperaDelDueno))
+                .flatMap(tick -> responder(sesionId, usuarioId, nombreUsuario, mensajeId, contenido,
+                        sesionEnModoHumano))
                 .subscribe(
                     ignorado -> { },
-                    error -> log.error("Chat en vivo: falló el bot en la sesión {}", sesionId, error)
+                    // Red de seguridad final: si algo se escapó de todos los try/catch de adentro,
+                    // el cliente igual recibe aviso en vez de quedarse mirando la pantalla.
+                    error -> rescatar(sesionId, nombreUsuario, contenido, error)
                 );
     }
 
@@ -109,8 +133,13 @@ public class ChatVivoBotService {
         d.put("estado", sesionOpt.map(ChatSesion::getEstado).orElse(null));
 
         String modo = sesionService.modoDe(sesionId);
-        boolean esperaDelDueno = IChatSesionService.MODO_HUMANO.equals(modo);
+        // El turno largo del dueño sólo aplica si además está conectado al panel — igual que en
+        // atender(). Sin la segunda condición el diagnóstico reportaba 25s donde la espera real
+        // eran 6s, que es justo lo que se quiere dejar de adivinar.
+        boolean duenoEnElPanel = notificacionService.isAdminConectado();
+        boolean esperaDelDueno = IChatSesionService.MODO_HUMANO.equals(modo) && duenoEnElPanel;
         d.put("modo", modo);
+        d.put("duenoEnElPanel", duenoEnElPanel);
         d.put("esperaAntesDeContestarSegundos",
                 (esperaDelDueno ? ESPERA_MODO_HUMANO : ESPERA_MODO_BOT).toSeconds());
 
@@ -132,7 +161,9 @@ public class ChatVivoBotService {
             if (esDelCliente) {
                 d.put("porQue", "el último mensaje es del cliente: el bot lo contesta en "
                         + (esperaDelDueno ? ESPERA_MODO_HUMANO : ESPERA_MODO_BOT).toSeconds() + "s"
-                        + (esperaDelDueno ? " si el dueño no entra antes (la conversación está en modo HUMANO)" : ""));
+                        + (esperaDelDueno
+                            ? " si el dueño no entra antes (la conversación está en modo HUMANO y el dueño está en el panel)"
+                            : ""));
             } else if (REMITENTE_ADMIN.equals(u.getRemitente())) {
                 d.put("porQue", "contestó el dueño de último: el bot se queda callado hasta que el cliente escriba otra vez");
             } else {
@@ -158,7 +189,7 @@ public class ChatVivoBotService {
     }
 
     private Mono<Void> responder(String sesionId, Integer usuarioId, String nombreUsuario, Long mensajeId,
-                                String contenido, boolean cubriendoAlDueno) {
+                                String contenido, boolean sesionVeniaEnModoHumano) {
         // Todo el cuerpo va en try/catch a proposito. Antes solo se atrapaban los errores DENTRO del
         // Mono de OpenAI; cualquier falla ANTES de armarlo (leer el historial, las palabras clave, el
         // catalogo, construir el prompt) salia por el handler de error del subscribe y el cliente se
@@ -186,7 +217,8 @@ public class ChatVivoBotService {
                     // La respuesta de OpenAI llega en un hilo de Netty; guardar en la base y mandar
                     // correo desde ahi lo bloquearia.
                     .publishOn(Schedulers.boundedElastic())
-                    .doOnNext(respuesta -> procesarRespuesta(sesionId, nombreUsuario, contenido, respuesta, cubriendoAlDueno))
+                    .doOnNext(respuesta -> procesarRespuesta(sesionId, nombreUsuario, contenido, respuesta,
+                            sesionVeniaEnModoHumano))
                     .onErrorResume(error -> {
                         rescatar(sesionId, nombreUsuario, contenido, error);
                         return Mono.empty();
@@ -215,7 +247,7 @@ public class ChatVivoBotService {
     }
 
     private void procesarRespuesta(String sesionId, String nombreUsuario, String pregunta, String cruda,
-                                   boolean cubriendoAlDueno) {
+                                   boolean sesionVeniaEnModoHumano) {
         boolean pideHumano = cruda != null && cruda.contains(ChatbotChatVivoService.MARCA_HUMANO);
         String texto = limpiarMarcadores(cruda);
 
@@ -233,12 +265,13 @@ public class ChatVivoBotService {
             return;
         }
 
-        if (cubriendoAlDueno) {
-            // El minuto de gracia del dueño se paga UNA vez. Si no entró, la conversación vuelve a
-            // ser del bot: sin esto la sesión se quedaba en HUMANO y cada mensaje siguiente tenía
-            // que esperar otro minuto completo antes de que el bot contestara.
+        if (sesionVeniaEnModoHumano) {
+            // El turno del dueño se paga UNA vez. Si al final contestó el bot, la conversación vuelve
+            // a ser suya: sin esto la sesión se quedaba clavada en HUMANO y cada mensaje siguiente
+            // volvía a esperar el turno largo del dueño antes de que el bot contestara.
             sesionService.cambiarModo(sesionId, IChatSesionService.MODO_BOT);
-            log.info("Chat en vivo: el dueño no entró en la sesión {}, el bot retoma la conversación", sesionId);
+            log.info("Chat en vivo: contestó el bot en la sesión {} (venía en modo HUMANO), "
+                    + "la conversación vuelve a modo BOT", sesionId);
         }
     }
 

@@ -86,6 +86,39 @@ class ChatVivoBotServiceTest {
     }
 
     @Test
+    void siContestaElBotLaSesionVuelveAModoBotAunqueElDuenoNoEstuvieraEnElPanel() throws Exception {
+        // Regresion: al separar "cuanto se espera" de "de quien es el turno" se habia quedado pegado
+        // el reseteo del modo a la condicion de que el dueno estuviera en el panel. Resultado: con el
+        // dueno desconectado el bot contestaba pero la sesion se quedaba clavada en HUMANO, y a
+        // partir de ahi cada mensaje volvia a esperar el turno largo del dueno.
+        when(sesionService.modoDe(SESION)).thenReturn(IChatSesionService.MODO_HUMANO);
+        when(notificacionService.isAdminConectado()).thenReturn(false);
+        when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
+        when(bot.responder(anyString(), anyList())).thenReturn(Mono.just("¡Hola!"));
+
+        service.atender(SESION, 7, "Abel", 10L, "hola");
+        Thread.sleep(8000);
+
+        verify(sesionService).cambiarModo(SESION, IChatSesionService.MODO_BOT);
+    }
+
+    @Test
+    void siNoSePuedeLeerLaSesionElBotAtiendeIgual() throws Exception {
+        // modoDe() e isAdminConectado() tocan la base. Antes corrian fuera de todo try/catch: si
+        // tronaban, el temporizador nunca se programaba y el cliente se quedaba sin respuesta y sin
+        // aviso — el mismo agujero que ya se habia tapado dentro de responder().
+        when(sesionService.modoDe(SESION)).thenThrow(new RuntimeException("base caida"));
+        when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
+        when(bot.responder(anyString(), anyList())).thenReturn(Mono.just("¡Hola!"));
+
+        service.atender(SESION, 7, "Abel", 10L, "hola");
+        Thread.sleep(8000);
+
+        verify(messagingTemplate, atLeastOnce())
+                .convertAndSend(eq("/topic/chat.usuario." + SESION), any(Object.class));
+    }
+
+    @Test
     void siElBotTruenaAntesDeLlamarAOpenAiElClienteNoSeQuedaSinNada() throws Exception {
         when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
         // Falla SINCRONA al armar el prompt (leer catalogo, palabras clave, etc.)

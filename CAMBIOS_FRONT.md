@@ -19590,3 +19590,90 @@ en `null`, para poder distinguir "sesión que no existe" de "sesión que sí exi
 contesta".
 
 **Verificado:** back compila (`mvn -o compile`) y los 3 tests de `ChatVivoBotServiceTest` pasan.
+
+---
+
+## 🤖 Chat en vivo: el bot seguía sin contestar — segunda vuelta (2026-09-16)
+
+Después del fix anterior el cliente **seguía sin ver respuesta**. El deploy de QA sí había subido
+(run 428, verde). O sea que el problema era de código, no de despliegue. Se encontraron dos cosas
+más en el back, y queda **un punto que depende del front** (abajo, es el importante).
+
+### ⚠️ Lo que el front tiene que revisar: el remitente `BOT`
+
+Hasta ahora el chat en vivo sólo tenía **dos** remitentes: `USUARIO` y `ADMIN`. Con el bot existe
+un **tercero: `BOT`**, y esto **nunca se había documentado**.
+
+Cuando contesta el asistente, el back publica en `/topic/chat.usuario.{sesionId}` esto:
+
+```json
+{
+  "tipo": "MENSAJE",
+  "remitente": "BOT",
+  "contenido": "¡Hola! ¿En qué te ayudo?",
+  "timestamp": "2026-09-16T03:42:07"
+}
+```
+
+Y el mismo mensaje se publica en `/topic/chat.admin` con `remitente: "BOT"` + `sesionId`.
+
+**Si la pantalla del cliente decide cómo pintar el globo con algo del estilo
+`remitente === 'ADMIN' ? ... : ...` o filtra por remitentes conocidos, el mensaje del bot no se
+pinta y el chat se ve "muerto" aunque el back haya contestado bien.** El historial por REST
+(`GET /v1/chat/admin/historial/...`) devuelve esos mensajes con el mismo `remitente: "BOT"`.
+
+Cómo saber en 10 segundos si es esto: manda un mensaje como cliente, espera, y abre
+**Sistema → Chat directo** en el panel del admin. Si ahí **sí** está la respuesta del asistente, el
+back funciona y lo que falta es pintar `BOT` en la pantalla del cliente.
+
+Sugerencia de trato en el front: `BOT` se pinta del **mismo lado que `ADMIN`** (es el negocio
+contestando), idealmente con una etiqueta tipo "Asistente" para distinguirlo de una persona.
+
+### Causa 3 — la conversación se quedaba clavada en modo HUMANO (regresión del fix anterior)
+
+En el cambio anterior se separó mal una condición. El reseteo del modo a `BOT` quedó pegado a "el
+dueño está en el panel", cuando debía depender sólo de "la sesión venía en HUMANO". Con el dueño
+desconectado pasaba esto:
+
+1. El bot contestaba (bien), pero la sesión **se quedaba en modo `HUMANO` para siempre**.
+2. A partir de ahí, cada mensaje siguiente volvía a esperar el turno largo del dueño (25s) en
+   cuanto el dueño abriera el panel — y como probar el chat normalmente se hace **con el panel del
+   admin abierto en otra pestaña**, eran 25 segundos de silencio en cada mensaje.
+
+**Fix:** ahora son dos cosas distintas y separadas:
+- **cuánto se espera** → sólo se espera al dueño si está de verdad en el panel;
+- **a quién le toca después** → si al final contestó el bot, la conversación vuelve a modo `BOT`,
+  esté el dueño conectado o no.
+
+Cubierto con test de regresión (`siContestaElBotLaSesionVuelveAModoBotAunqueElDuenoNoEstuvieraEnElPanel`):
+con la lógica anterior ese test falla.
+
+### Causa 4 — la mitad de la decisión seguía sin protección
+
+El fix anterior protegió el cuerpo de `responder()`, pero **leer el modo de la sesión y si el dueño
+está conectado quedó fuera** del try/catch. Las dos cosas tocan la base: si tronaban, la excepción
+subía por el hilo del WebSocket y **el temporizador nunca se programaba** — el cliente otra vez sin
+respuesta, sin aviso y sin escalado. Es el mismo agujero de la Causa 1, en la mitad que había
+quedado afuera.
+
+**Fix:** si no se puede leer el estado de la sesión, se atiende igual con los valores por defecto
+(modo `BOT`, espera corta) en vez de no atender. Y el manejador de error final del temporizador
+ahora también escala y avisa al cliente, en vez de sólo escribir en el log.
+
+Cubierto con test (`siNoSePuedeLeerLaSesionElBotAtiendeIgual`).
+
+### Cambio en el endpoint de diagnóstico
+
+`GET /v1/chat/admin/diagnostico-bot/{sesionId}` gana un campo y corrige otro:
+
+| Campo | Cambio |
+|---|---|
+| `duenoEnElPanel` | **Nuevo.** `true` = el dueño tiene el panel abierto, así que al bot le toca esperar su turno |
+| `esperaAntesDeContestarSegundos` | **Corregido.** Antes decía siempre 25s en modo HUMANO aunque el dueño no estuviera conectado y la espera real fueran 6s |
+
+Para el caso de arriba, este endpoint también sirve: si después de mandar un mensaje el diagnóstico
+dice `ultimoMensaje.remitente: "BOT"`, el bot **sí** contestó y lo que falta es pintarlo en el
+front.
+
+**Verificado:** back compila (`mvn -o compile`) y los **5** tests de `ChatVivoBotServiceTest` pasan.
+Los 2 tests nuevos se corrieron primero contra la lógica anterior para confirmar que fallaban.
