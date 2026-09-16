@@ -19504,3 +19504,89 @@ salir en login y registro. Es a propósito — es como está implementado el bot
 **Verificado:** back compila (`mvn -o compile`), front compila (`tsc --noEmit` y
 `ng build --configuration=production`), y el cálculo de teselas se contrastó contra la fórmula de
 referencia de OpenStreetMap (diferencia 0.000000 px, el pin cae exactamente en el centro).
+
+---
+
+## 🤖 Chat en vivo: el bot no contestaba y no se veía por qué (2026-09-16)
+
+### Lo que pasaba
+
+El cliente escribía en **Chat directo**, el mensaje llegaba bien al panel del admin, y el prompt
+del chatbot **nunca contestaba** — sin aviso, sin error, sin nada en pantalla. Pasó varias veces.
+
+Hay **dos causas distintas** y las dos están arregladas.
+
+### Causa 1 — cualquier falla del bot dejaba al cliente en blanco (el bug de fondo)
+
+`ChatVivoBotService` sólo atrapaba los errores **de la llamada a OpenAI**. Todo lo que pasa
+**antes** de llamar a OpenAI (leer el historial, leer las palabras clave, armar el catálogo de
+productos, construir el prompt) quedaba fuera: si algo de eso tronaba, la excepción se iba por el
+manejador de error del `subscribe` y ahí se moría. Resultado: **ni respuesta del bot, ni aviso al
+cliente, ni escalado a una persona, ni correo** — sólo una línea en el log del servidor que nadie
+ve. Eso es exactamente lo que se veía: un chat "muerto" sin explicación.
+
+**Fix:** ahora todo el cuerpo va protegido. Pase lo que pase, el cliente recibe un mensaje
+("Tuve un problema para responderte. Ya le avisé a una persona del negocio…") y la conversación
+pasa a modo HUMANO con su correo al dueño. Además el aviso al cliente sale **primero** y el cambio
+de modo y el correo van después, cada uno protegido: si el correo truena, el cliente ya recibió su
+mensaje igual.
+
+Cubierto con test (`ChatVivoBotServiceTest`): se simula una falla síncrona al armar el prompt y se
+verifica que al cliente **sí** le llega algo. Antes de este fix, ese test fallaba.
+
+### Causa 2 — la espera de 1 minuto era real, no era una falla
+
+Cuando el dueño contesta un mensaje, la conversación pasa a modo **HUMANO** y el bot le cede el
+turno. En modo HUMANO el bot esperaba **1 minuto completo** antes de cubrir. Para el cliente eso es
+un minuto de silencio absoluto: parece que el chat no funciona. Dos cambios:
+
+- La espera en modo HUMANO baja de **1 minuto a 25 segundos**.
+- **El turno del dueño sólo se le guarda si el dueño está de verdad en el panel.** Si no está
+  conectado (el back ya lo sabe, por `/app/chat.admin.conectado`), esperarlo no tiene sentido:
+  el bot contesta con la espera corta de 6 segundos.
+
+En modo BOT no cambia nada: sigue en 6 segundos.
+
+### Endpoint nuevo — diagnóstico del bot (ADMIN)
+
+Para no volver a depender de los logs del servidor. Mismo criterio que los diagnósticos de
+imágenes que ya existen.
+
+**Request:** `GET /v1/chat/admin/diagnostico-bot/{sesionId}` — requiere `ROLE_ADMIN`.
+
+**Response:**
+```json
+{
+  "data": {
+    "sesionId": "a1b2c3…",
+    "existeSesion": true,
+    "estado": "ACTIVA",
+    "modo": "HUMANO",
+    "esperaAntesDeContestarSegundos": 25,
+    "ultimoMensaje": { "id": 412, "remitente": "USUARIO", "timestamp": "2026-09-16T01:42:07" },
+    "elBotDebeContestar": true,
+    "porQue": "el último mensaje es del cliente: el bot lo contesta en 25s si el dueño no entra antes (la conversación está en modo HUMANO)",
+    "limiteDeMensajesExcedido": false,
+    "segundosParaQueSeReinicieElLimite": 0,
+    "pruebaOpenAi": "ok — OpenAI contestó"
+  }
+}
+```
+
+Cómo leerlo:
+
+| Campo | Qué dice |
+|---|---|
+| `modo` | `BOT` = contesta el asistente. `HUMANO` = el dueño tomó la conversación |
+| `elBotDebeContestar` + `porQue` | En español, por qué el bot contesta o no en este momento |
+| `limiteDeMensajesExcedido` | `true` = se agotó el tope de mensajes por hora; el bot ya no contesta y escala |
+| `pruebaOpenAi` | **Llama a OpenAI en vivo.** `ok` = la llave y el crédito están bien. `FALLA: …` trae el error exacto (llave mala, sin crédito, sin red) |
+
+`pruebaOpenAi` consume un mensaje de la cuota de OpenAI cada vez que se llama — es un botón de
+diagnóstico, no algo para dejar refrescando.
+
+**500** si la conversación no existe no aplica: responde igual con `existeSesion: false` y el resto
+en `null`, para poder distinguir "sesión que no existe" de "sesión que sí existe pero el bot no
+contesta".
+
+**Verificado:** back compila (`mvn -o compile`) y los 3 tests de `ChatVivoBotServiceTest` pasan.
