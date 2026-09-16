@@ -71,20 +71,23 @@ public class ChatVivoBotService {
     public void atender(String sesionId, Integer usuarioId, String nombreUsuario, Long mensajeId, String contenido) {
         boolean esperaDelDueno = IChatSesionService.MODO_HUMANO.equals(sesionService.modoDe(sesionId));
         Duration espera = esperaDelDueno ? ESPERA_MODO_HUMANO : ESPERA_MODO_BOT;
+        log.info("Chat en vivo: sesión {} en modo {} — el bot contesta en {}s si nadie más lo hace",
+                sesionId, esperaDelDueno ? "HUMANO" : "BOT", espera.toSeconds());
 
         // publishOn y no subscribeOn: lo de adentro lee y escribe en la base y manda correo, o sea
         // que bloquea. Tiene que correr en boundedElastic y no en el hilo del temporizador ni en el
         // de Netty, que son pocos y se usan para todo lo demas.
         Mono.delay(espera)
                 .publishOn(Schedulers.boundedElastic())
-                .flatMap(tick -> responder(sesionId, usuarioId, nombreUsuario, mensajeId, contenido))
+                .flatMap(tick -> responder(sesionId, usuarioId, nombreUsuario, mensajeId, contenido, esperaDelDueno))
                 .subscribe(
                     ignorado -> { },
                     error -> log.error("Chat en vivo: falló el bot en la sesión {}: {}", sesionId, error.getMessage())
                 );
     }
 
-    private Mono<Void> responder(String sesionId, Integer usuarioId, String nombreUsuario, Long mensajeId, String contenido) {
+    private Mono<Void> responder(String sesionId, Integer usuarioId, String nombreUsuario, Long mensajeId,
+                                String contenido, boolean cubriendoAlDueno) {
         if (!sigueEsperandoRespuesta(sesionId, mensajeId)) return Mono.empty();
 
         // El límite protege el crédito de OpenAI. A diferencia del widget público, aquí NO se
@@ -102,7 +105,7 @@ public class ChatVivoBotService {
                 // La respuesta de OpenAI llega en un hilo de Netty; guardar en la base y mandar
                 // correo desde ahi lo bloquearia.
                 .publishOn(Schedulers.boundedElastic())
-                .doOnNext(respuesta -> procesarRespuesta(sesionId, nombreUsuario, contenido, respuesta))
+                .doOnNext(respuesta -> procesarRespuesta(sesionId, nombreUsuario, contenido, respuesta, cubriendoAlDueno))
                 .onErrorResume(error -> {
                     log.error("Chat en vivo: OpenAI falló en la sesión {}: {}", sesionId, error.getMessage());
                     notificacionService.notificarFallaDelBot(sesionId, nombreUsuario, error.getMessage());
@@ -112,7 +115,8 @@ public class ChatVivoBotService {
                 .then();
     }
 
-    private void procesarRespuesta(String sesionId, String nombreUsuario, String pregunta, String cruda) {
+    private void procesarRespuesta(String sesionId, String nombreUsuario, String pregunta, String cruda,
+                                   boolean cubriendoAlDueno) {
         boolean pideHumano = cruda != null && cruda.contains(ChatbotChatVivoService.MARCA_HUMANO);
         String texto = limpiarMarcadores(cruda);
 
@@ -127,6 +131,15 @@ public class ChatVivoBotService {
             sesionService.cambiarModo(sesionId, IChatSesionService.MODO_HUMANO);
             notificacionService.notificarEscalado(sesionId, nombreUsuario, "el cliente pidió una persona", pregunta);
             log.info("Chat en vivo: sesión {} escalada porque el cliente pidió una persona", sesionId);
+            return;
+        }
+
+        if (cubriendoAlDueno) {
+            // El minuto de gracia del dueño se paga UNA vez. Si no entró, la conversación vuelve a
+            // ser del bot: sin esto la sesión se quedaba en HUMANO y cada mensaje siguiente tenía
+            // que esperar otro minuto completo antes de que el bot contestara.
+            sesionService.cambiarModo(sesionId, IChatSesionService.MODO_BOT);
+            log.info("Chat en vivo: el dueño no entró en la sesión {}, el bot retoma la conversación", sesionId);
         }
     }
 
@@ -172,7 +185,10 @@ public class ChatVivoBotService {
      */
     private boolean sigueEsperandoRespuesta(String sesionId, Long mensajeId) {
         Optional<ChatMensaje> ultimo = mensajeService.ultimoMensaje(sesionId);
-        if (ultimo.isEmpty()) return false;
+        if (ultimo.isEmpty()) {
+            log.warn("Chat en vivo: la sesión {} no tiene mensajes, no hay qué contestar", sesionId);
+            return false;
+        }
         ChatMensaje u = ultimo.get();
 
         if (REMITENTE_ADMIN.equals(u.getRemitente())) {
@@ -180,8 +196,18 @@ public class ChatVivoBotService {
             log.info("Chat en vivo: el dueño contestó primero en la sesión {}, el bot se queda callado", sesionId);
             return false;
         }
-        if (!REMITENTE_USUARIO.equals(u.getRemitente())) return false;
-        return u.getId() != null && u.getId().equals(mensajeId);
+        if (!REMITENTE_USUARIO.equals(u.getRemitente())) {
+            log.info("Chat en vivo: en la sesión {} el último mensaje ya es del {}, el bot no contesta de nuevo",
+                    sesionId, u.getRemitente());
+            return false;
+        }
+        boolean sigueSiendoElUltimo = u.getId() != null && u.getId().equals(mensajeId);
+        if (!sigueSiendoElUltimo) {
+            // Normal cuando el cliente escribió otra vez: lo atiende la llamada de ESE mensaje.
+            log.info("Chat en vivo: en la sesión {} el cliente ya escribió otro mensaje ({} en vez de {}), "
+                    + "lo contesta esa llamada", sesionId, u.getId(), mensajeId);
+        }
+        return sigueSiendoElUltimo;
     }
 
     /**
