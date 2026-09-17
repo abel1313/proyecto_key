@@ -296,13 +296,15 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 
 | Migración | dev / qa | prod | Fecha |
 |---|---|---|---|
-| `migration_submenu_ayuda_contextual.sql` | ⚠️ corrió pero insertó 0 filas | ⚠️ corrió pero insertó 0 filas | 2026-09-17 |
+| `migration_submenu_ayuda_contextual.sql` | ⚠️ corrida, 0 filas (sin efecto) | ⚠️ corrida, 0 filas (sin efecto) | 2026-09-17 |
 | `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
 INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada.
+
+**Confirmado el 2026-09-17:** se corrió en qa y en prod, y quedó sin efecto en ambas. Volver a correrla hoy tampoco cambia nada ni duplica: su `NOT EXISTS` sobre `ruta = 'ayuda-contextual'` ya encuentra la fila que insertó la versión `_fix`. Se deja anotada en vez de borrarla porque es el rastro de por qué el permiso no aparecía.
 
 **⚠️ No surtió efecto — usar `migration_submenu_ayuda_contextual_fix.sql` en su lugar.** El
 INSERT original colgaba de una fila ancla (`WHERE gr.ruta = 'gestion-menu/roles'`): como en esta
