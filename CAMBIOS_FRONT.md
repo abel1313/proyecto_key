@@ -19863,3 +19863,66 @@ de 1000 se vuelve un bug de verdad. Lo primero ahí es el `ORDER BY`, no filtrar
 Y una nota sobre filtrar por las palabras del mensaje cuando no hay categoría: **empeoraría los
 typos.** Un `LIKE '%sorth%'` no matchea nada, y mandarle catálogo vacío al modelo lo hace negar con
 total seguridad — hoy, con el catálogo entero, al menos puede salvar el error de dedo.
+
+---
+
+## 🤖 Chat en vivo: el bot ofrecía fotos que esa pantalla no puede mostrar (2026-09-17)
+
+### Lo que veía el cliente
+
+```
+Cliente: Hola, tendras sort?
+Bot:     ¡Hola! Sí, tenemos varios modelos de shorts. Por ejemplo, el "Jeans Short
+         Especial" a $250 MXN. 😊 ¿Quieres ver una foto?
+Cliente: sí
+Bot:     (nada, o un texto tipo "¡Aquí la tienes! 📸" sin imagen abajo)
+```
+
+El chat en vivo pinta el mensaje del bot **como texto y nada más**: no dibuja tarjetas de producto ni
+imágenes. El widget público del sitio sí las dibuja, y el prompt era compartido entre los dos, así
+que el bot prometía en el chat en vivo una foto que ese canal no puede entregar.
+
+### Por qué el primer arreglo no sirvió (importa para no repetirlo)
+
+El primer intento quitó **sólo la línea** del prompt que manda preguntar por la foto. No alcanzó:
+abajo seguían intactos los ejemplos calcados —
+
+```
+* "tienes cod1230981?" → "¡Sí! Tenemos la Mochila para mostrar a $300 MXN 😊 ¿Quieres ver una foto?"
+```
+
+— y una **REGLA CRÍTICA** que ordena mostrar imágenes siempre ("NUNCA respondas que no hay imágenes
+… siempre puedes mostrarlas con `##BUSCAR##`"). El modelo copia el ejemplo antes que obedecer una
+prohibición abstracta: la respuesta del "Jeans Short Especial" es el ejemplo de la Mochila calcado,
+con otro producto. **Una instrucción negativa no le gana a un ejemplo concreto que sigue presente.**
+
+### Qué se cambió
+
+| Cambio | Por qué |
+|---|---|
+| La sección de tarjetas del prompt se extrajo a un método propio (`seccionMostrarProductos()`) | Es lo único que cambia de raíz entre canales; así un canal sin tarjetas la reemplaza completa en vez de parcharla línea por línea |
+| El chat en vivo la sobreescribe entera: ejemplos, REGLA CRÍTICA y `##BUSCAR##` ya no aparecen en su prompt | Es el fix. Sus ejemplos ahora empujan al lado contrario (responder por texto, no prometer fotos) |
+| La frase "¿Quieres ver una foto?" no está en el prompt del chat en vivo **en ninguna forma**, ni siquiera con un "NUNCA" delante | Citarla para prohibirla la deja disponible para que el modelo la reproduzca. Ya falló dos veces por confiar en instrucciones negativas |
+| El bot menciona **varios** productos cuando hay varios que sirven, no sólo uno | Duda que salió en la revisión: con varios shorts en stock contestaba con uno solo |
+
+**El widget público del sitio no cambia**: ahí las tarjetas con imagen siguen igual, el bot sigue
+preguntando "¿Quieres ver una foto?" y sigue usando `##BUSCAR##`.
+
+### Qué cambia para el front
+
+**Nada de contrato**: mismos endpoints, mismo WebSocket, mismo formato de mensaje. Lo que cambia es
+el **texto** que escribe el bot en el chat en vivo:
+
+- Ya no ofrece ni promete fotos ni imágenes.
+- Si el cliente pide una foto, contesta que por ahí no se pueden ver y ofrece dos salidas: verla en
+  la tienda en línea, o pasarlo con una persona (`##HUMANO##`, que ya existía).
+- Sigue respondiendo nombre, presentación y precio por texto.
+
+Si en algún momento se decide que el chat en vivo **sí** muestre imágenes, no es un cambio de prompt:
+hay que dibujar las tarjetas en esa pantalla. Hoy `ChatVivoBotService` borra la marca `##BUSCAR[...]##`
+antes de enviar el mensaje, así que si el modelo la emitiera el cliente no la ve — pero tampoco ve la
+foto, y queda el texto colgado que es justo lo que se reportó.
+
+Tests: `ChatbotPromptFotosTest` (4). Miran el **prompt final armado**, no una línea suelta — incluido
+uno al revés que verifica que el widget del sitio **sí** conserva sus tarjetas, para que apagarlas en
+un canal no las apague en el otro.
