@@ -125,6 +125,85 @@ branch completo, hasta que la feature bloqueada se resuelva y vuelva a quedar to
 
 ---
 
+## Estrategia de versionado — URLs y Spring Boot
+
+### Regla de versionado en `proyecto_key`
+
+**PATRÓN A SEGUIR:** El versionado se hace mediante prefijos URL (`/v1/`, `/v2/`, etc.). El `/v1/` SIEMPRE va en el `@RequestMapping` a nivel de **clase**, nunca en decoradores de métodos.
+
+#### Cómo crear un nuevo controller
+
+```java
+// ✅ CORRECTO
+@RestController
+@RequestMapping("/v1/mi-recurso")  // ← /v1/ aquí, a nivel de clase
+public class MiRecursoController {
+    
+    @GetMapping("/buscar")  // ← sin /v1/, solo la ruta del método
+    public ResponseEntity<?> buscar() { ... }
+    
+    @PostMapping("/save")
+    public ResponseEntity<?> save() { ... }
+}
+// Resultado: GET /v1/mi-recurso/buscar, POST /v1/mi-recurso/save
+```
+
+```java
+// ❌ INCORRECTO
+@RestController
+@RequestMapping("/mi-recurso")  // ← /v1/ falta aquí
+public class MiRecursoController {
+    
+    @GetMapping("/v1/buscar")  // ← nunca aquí
+    public ResponseEntity<?> buscar() { ... }
+}
+// Resultado: GET /mi-recurso/v1/buscar  (ruta confusa)
+```
+
+### ¿Por qué `/v1/` en la clase y no en el método?
+
+- **Claridad:** la versión es responsabilidad del recurso completo, no de cada operación.
+- **Consistencia:** todos los endpoints del recurso quedan bajo la misma versión.
+- **Mantenibilidad:** si mañana sube a `/v2/`, cambias UN decorador (@RequestMapping), no todos los métodos.
+- **Routing correcto:** Spring construye la URL concatenando: `/v1/mi-recurso` + `/buscar` = `/v1/mi-recurso/buscar`.
+
+### Opciones de versionado en Spring Boot
+
+Spring Boot no impone una estrategia única. Las más comunes son:
+
+| Opción | Implementación | Ejemplo | Ventajas | Desventajas |
+|---|---|---|---|---|
+| **URL-based (la que usamos)** | `/v1/`, `/v2/` en @RequestMapping | GET `/v1/productos` | Obvio, fácil de versionar por recurso, cacheable | URLs largas, más rutas para mantener |
+| **Header-based** | Accept header o custom header | `Accept: application/vnd.company.v1+json` | URLs limpias, clientes explícitos | Menos obvio, más complejo en cliente |
+| **Query parameter** | ?version=1 en la URL | GET `/productos?version=1` | Opcional, flexible | Confuso si se mezcla con otros params |
+| **Subdomain** | api.v1.dominio.com vs api.v2.dominio.com | Requiere DNS | URLs limpias por versión | Infraestructura DNS más compleja |
+
+**Nuestra elección (URL-based)** es la más simple, más estándar en la industria y más fácil de probar en clientes (curl, Postman, navegador). Si en el futuro necesitas cambiar, la migración es sencilla (cambiar decoradores y documentación).
+
+### Referencia de conversión
+
+Cuando hayas heredado código con `/v1/` en métodos, el patrón de conversión es:
+
+```java
+// Antes (migración v1 completada)
+@RequestMapping("/imagen")
+public class ImageneController {
+    @GetMapping("/v1/{id}")
+    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) { ... }
+}
+
+// Después
+@RequestMapping("/v1/imagenes")
+public class ImageneController {
+    @GetMapping("/{id}")
+    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) { ... }
+}
+```
+
+Controllers ya corregidos (2026-09-17): `ImageneController`, `ImagenPresentacionController`, `VarianteController`.
+
+---
+
 ## Deployment automático — CI/CD en GitHub Actions
 
 ### Workflows configurados
