@@ -9,6 +9,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.models.BoletoRifaDto;
 import com.ventas.key.mis.productos.models.BoletoRifaRequest;
+import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.SorteoPlataformasDto;
 import com.ventas.key.mis.productos.models.SorteoPlataformasResultadoDto;
 import com.ventas.key.mis.productos.repository.IBoletoRifaRepository;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,11 +50,7 @@ public class BoletoRifaServiceImpl {
         Concursante concursante = iConcursanteRepository.findById(req.getConcursanteId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Concursante no encontrado"));
 
-        // Sin la URL de seguimiento el boleto no se puede verificar después.
-        if (req.getUrlPerfilRedSocial() == null || req.getUrlPerfilRedSocial().isBlank()) {
-            throw new ExceptionErrorInesperado("La URL del perfil para dar seguimiento es obligatoria");
-        }
-        // La plataforma también es obligatoria: un boleto sin plataforma no dice de qué red
+        // La plataforma es obligatoria: un boleto sin plataforma no dice de qué red
         // vino la acción, que es justo lo que hay que revisar al validar la rifa.
         if (req.getPlataforma() == null) {
             throw new ExceptionErrorInesperado("La plataforma del boleto es obligatoria");
@@ -66,7 +64,8 @@ public class BoletoRifaServiceImpl {
         boleto.setPlataforma(req.getPlataforma());
         boleto.setMotivo(req.getMotivo());
         boleto.setFecha(fecha);
-        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial().trim());
+        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial() != null
+                ? req.getUrlPerfilRedSocial().trim() : null);
         boleto.setUrlSeguimiento(req.getUrlSeguimiento());
         boleto.setUrlsCompartido(req.getUrlsCompartido() != null
                 ? req.getUrlsCompartido().stream()
@@ -95,6 +94,7 @@ public class BoletoRifaServiceImpl {
                 throw new ExceptionErrorInesperado(
                         "La fecha del boleto debe estar entre " + inicio + " y " + fin);
             }
+            validarRegistroAbierto(config);
             return;
         }
 
@@ -104,6 +104,21 @@ public class BoletoRifaServiceImpl {
                 : YearMonth.now();
         if (!YearMonth.from(fecha).equals(mesValido)) {
             throw new ExceptionErrorInesperado("La fecha del boleto debe ser del mes de la rifa (" + mesValido + ")");
+        }
+    }
+
+    /**
+     * El periodo cierra a la hora exacta de fechaHoraLimite, no al final del último día:
+     * una rifa del 1 al 9 que cierra a las 10:00 deja de recibir boletos el 9 a las 10:00,
+     * no el 9 a las 23:59. Antes solo se comparaban fechas, así que la hora configurada en
+     * la pantalla no tenía ningún efecto sobre el registro.
+     */
+    private void validarRegistroAbierto(ConfigurarRifa config) {
+        LocalDateTime limite = config.getFechaHoraLimite();
+        if (limite != null && LocalDateTime.now().isAfter(limite)) {
+            throw new ExceptionErrorInesperado(
+                    "El registro de boletos cerró el " + limite.toLocalDate()
+                            + " a las " + limite.toLocalTime());
         }
     }
 
@@ -126,9 +141,6 @@ public class BoletoRifaServiceImpl {
         if (req.getPlataforma() == null) {
             throw new ExceptionErrorInesperado("La plataforma del boleto es obligatoria");
         }
-        if (req.getUrlPerfilRedSocial() == null || req.getUrlPerfilRedSocial().isBlank()) {
-            throw new ExceptionErrorInesperado("La URL del perfil para dar seguimiento es obligatoria");
-        }
 
         LocalDate fecha = req.getFecha() != null ? req.getFecha() : boleto.getFecha();
         validarFechaEnRango(boleto.getConcursante().getConfigurarRifa(), fecha);
@@ -136,7 +148,8 @@ public class BoletoRifaServiceImpl {
         boleto.setPlataforma(req.getPlataforma());
         boleto.setMotivo(req.getMotivo());
         boleto.setFecha(fecha);
-        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial().trim());
+        boleto.setUrlPerfilRedSocial(req.getUrlPerfilRedSocial() != null
+                ? req.getUrlPerfilRedSocial().trim() : null);
         boleto.setUrlSeguimiento(req.getUrlSeguimiento());
 
         // Se vacía y se vuelve a llenar la MISMA lista en vez de asignar una nueva: el
@@ -183,8 +196,10 @@ public class BoletoRifaServiceImpl {
     // girar mientras la rifa sea de práctica, pero la rifa real solo la gira el admin.
     @Transactional
     public SorteoPlataformasResultadoDto sortear(Integer rifaId, boolean soloPrueba) {
-        ConfigurarRifa config = iConfigurarRifaRepository.findById(rifaId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+        ConfigurarRifa config = soloPrueba
+                ? rifaPublicaOFalla(rifaId)
+                : iConfigurarRifaRepository.findById(rifaId)
+                        .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
 
         if (soloPrueba && !Boolean.TRUE.equals(config.getEsPrueba())) {
             throw new ExceptionErrorInesperado("La rifa real solo la puede girar el administrador");
@@ -279,8 +294,10 @@ public class BoletoRifaServiceImpl {
     // publico=true recorta lo que no debe salir de la pantalla del admin: las URLs de
     // evidencia de cada boleto y los datos de contacto que cuelgan de los ganadores.
     public SorteoPlataformasDto obtenerEstado(Integer rifaId, boolean publico) {
-        ConfigurarRifa config = iConfigurarRifaRepository.findById(rifaId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+        ConfigurarRifa config = publico
+                ? rifaPublicaOFalla(rifaId)
+                : iConfigurarRifaRepository.findById(rifaId)
+                        .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
 
         List<ConfigurarRifaVariante> variantes = iConfigurarRifaVarianteRepository
                 .findByConfigurarRifaIdOrderByOrdenAsc(rifaId);
@@ -326,8 +343,10 @@ public class BoletoRifaServiceImpl {
 
     @Transactional
     public void reiniciar(Integer rifaId, boolean soloPrueba) {
-        ConfigurarRifa config = iConfigurarRifaRepository.findById(rifaId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+        ConfigurarRifa config = soloPrueba
+                ? rifaPublicaOFalla(rifaId)
+                : iConfigurarRifaRepository.findById(rifaId)
+                        .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
 
         if (soloPrueba && !Boolean.TRUE.equals(config.getEsPrueba())) {
             throw new ExceptionErrorInesperado("La rifa real solo la puede reiniciar el administrador");
@@ -339,6 +358,54 @@ public class BoletoRifaServiceImpl {
         config.setActiva(true);
         iConfigurarRifaRepository.save(config);
         log.info("Rifa PLATAFORMAS {} reiniciada -- todos los boletos vuelven a estar en juego", rifaId);
+    }
+
+    /**
+     * La rifa que se puede abrir desde el link público, o 404.
+     *
+     * El link se comparte tal cual (/ruleta/48) y el id va en la URL, así que es adivinable:
+     * bastaba cambiar el 48 por 47 para entrar a la rifa de otro mes y ver sus participantes.
+     * Existir ya no alcanza -- tienen que cumplirse las cuatro:
+     *
+     *   1. Es de PLATAFORMAS: es el único tipo que tiene ruleta pública.
+     *   2. Está PUBLICADA: el negocio la marcó a mano como "esta es la que todos pueden ver".
+     *      Publicada hay una sola; publicar otra despublica esta.
+     *   3. Está ACTIVA: se apaga sola al sortearse el último premio, así que la página vive
+     *      mientras quede algo por sortear y muere cuando la rifa terminó.
+     *   4. Ya empezó: antes del primer día del rango de boletos no se muestra, para que un
+     *      link compartido de más no destape la rifa que todavía no se anuncia.
+     *
+     * Nota: NO se corta al pasar la fecha límite de boletos. El sorteo se hace después de que
+     * cierra el registro, y es justo cuando más gente entra a ver la ruleta.
+     *
+     * Cualquier caso que no cumpla responde igual que un id inexistente, para no ir
+     * confirmando qué rifas hay detrás de cada número.
+     */
+    private ConfigurarRifa rifaPublicaOFalla(Integer rifaId) {
+        return iConfigurarRifaRepository.findById(rifaId)
+                .filter(r -> ConfigurarRifa.TipoRifa.PLATAFORMAS.equals(r.getTipo()))
+                .filter(r -> Boolean.TRUE.equals(r.getPublica()))
+                .filter(r -> Boolean.TRUE.equals(r.getActiva()))
+                .filter(this::yaEmpezo)
+                .orElseThrow(() -> new ExceptionDataNotFound("Rifa no encontrada"));
+    }
+
+    private boolean yaEmpezo(ConfigurarRifa rifa) {
+        LocalDate inicio = rifa.getFechaInicioBoletos();
+        return inicio == null || !LocalDate.now().isBefore(inicio);
+    }
+
+    /**
+     * Detalle del premio para el visitante sin sesión: la ficha y todas sus fotos.
+     * El premio se pide junto con su rifa para poder comprobar que le pertenece; si no,
+     * el id del premio sería otra lista para pasear igual que lo era el de la rifa.
+     */
+    public PremioPublicoDto detallePremioPublico(Integer rifaId, Integer premioId) {
+        rifaPublicaOFalla(rifaId);
+        ConfigurarRifaVariante premio = iConfigurarRifaVarianteRepository.findById(premioId)
+                .filter(p -> p.getConfigurarRifa().getId().equals(rifaId))
+                .orElseThrow(() -> new ExceptionDataNotFound("Premio no encontrado"));
+        return configurarRifaVarianteService.toPremioPublico(premio);
     }
 
     // Versión para la página pública: se ve quién es y qué hizo, pero NUNCA las URLs

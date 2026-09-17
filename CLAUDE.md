@@ -90,6 +90,40 @@ branch completo, hasta que la feature bloqueada se resuelva y vuelva a quedar to
 
 ---
 
+## Deployment automático — CI/CD en GitHub Actions
+
+### Workflows configurados
+
+| Rama | Workflow | Deploy a | Docker tags |
+|---|---|---|---|
+| `main` | `producto-actions.yml` | **Producción** (default) | `latest`, `v<run_number>` |
+| `qa` | `producto-actions-qa.yml` | **QA** | `qa` |
+
+### Cómo funciona el deployment
+
+1. **Push a rama → GitHub Actions se dispara automáticamente**
+   - Push a `main` → dispara `producto-actions.yml`
+   - Push a `qa` → dispara `producto-actions-qa.yml`
+
+2. **Cada workflow:**
+   - Checkout del código
+   - Build de imagen Docker
+   - Push a Docker Hub con etiquetas específicas
+   - Deploy automático via SSH + kubectl:
+     - Prod: `kubectl rollout restart deployment proyecto-key-deployment -n default`
+     - QA: `kubectl rollout restart deployment proyecto-key-deployment -n qa`
+
+3. **Resultado:** El container se reinicia con la imagen nueva en ~1-2 minutos después del push
+
+### Nota para hotfixes
+
+Cuando hagas un hotfix directo en `main` (ej. producción está rota):
+- El push a `main` dispara `producto-actions.yml` automáticamente
+- **No esperes a que bajemos a `dev`/`qa` después** — el deploy a prod es inmediato
+- Luego el hotfix se baja a `qa` y `dev` con los merges normales (`main → qa → dev`)
+
+---
+
 ## Regla — documentar migración de endpoints en CAMBIOS_FRONT.md
 
 `CAMBIOS_FRONT.md` es la **única fuente de verdad** para endpoints y cambios de contrato de cara
@@ -162,6 +196,47 @@ diferencias — la restricción es sobre escribir/modificar/pushear, no sobre co
 
 ---
 
+## Decisión — el chat en vivo se queda SIN imágenes (2026-09-17)
+
+**Decidido a propósito: el chat en vivo (Chat directo) manda solo texto. No se implementan
+adjuntos ni fotos.** Si en una sesión futura sale el tema, no hay que volver a investigarlo: la
+decisión ya está tomada y esto es el contexto.
+
+**Estado del código hoy** — no es que esté a medias, el canal para la foto no existe:
+- `ChatMensaje.contenido` es una sola columna TEXT. No hay tipo de mensaje, ni adjunto, ni id de imagen.
+- `ChatAdminResponderRequest` es `{ sesionId, contenido }`.
+- El WebSocket (`/chat.admin.responder`) publica un String.
+
+Por eso `ChatbotChatVivoService` sobreescribe `seccionMostrarProductos()` para que el bot **nunca**
+ofrezca fotos: esa pantalla no las puede dibujar, y cuando el prompt las ofrecía el cliente decía
+"sí" y se quedaba esperando una imagen que no llega.
+
+**Lo que se hace en su lugar:** el admin pega el link del producto en el chat como texto, y el
+cliente lo abre en la tienda. El bot ya dirige para allá ("lo puedes ver en la tienda en línea") o
+ofrece pasar la conversación a una persona. Cero desarrollo y el cliente descarga desde la tienda,
+que ya sirve miniaturas.
+
+**Si algún día se retoma, tres cosas que ya se investigaron:**
+1. **URL, nunca base64.** El micro de imágenes ya expone `v1/imagenes/file/{id}` y
+   `v1/imagenes/thumbnail/{id}`. Incrustar base64 en el mensaje infla 33%, el navegador no lo
+   cachea nunca y `chat_mensaje.contenido` se llena de blobs que se rebajan en cada carga del
+   historial. Ya se limpió ese patrón en las rifas.
+2. **Redimensionar es obligatorio, no opcional.** `max-file-size` está en 200MB
+   (`application.yml`), así que nada impide mandarle al cliente una foto de 8 MB sin darse cuenta
+   — y los datos móviles los paga él. Referencia: foto cruda 2–5 MB, redimensionada ~1000px
+   100–300 KB, miniatura 20–50 KB.
+3. **El limpiador nocturno las borraría.** `ReconciliacionImagenService.limpiarDiscoDia()` corre a
+   las 4 AM y elimina todo archivo de `ruta_imagenes` que no esté registrado en `imagen`,
+   `imagen_presentacion` o `logo`. Una tabla nueva de imágenes de chat hay que agregarla a esa
+   lista o las fotos desaparecen cada noche (es el bug que ya pasó con las imágenes de
+   presentación).
+
+Alcance completo estimado: migración de `chat_mensaje`, endpoint de subida para el admin, campo
+nuevo en el payload del WebSocket, redimensionado, alta en el limpiador nocturno, más la pantalla
+del admin y la burbuja del cliente en el repo del front.
+
+---
+
 Micro servicio que permite compras de bolsas, pantalones faldas de mujer
 1.- controlador AbstractController permite generar un CRUD generico
 2.- AdminController permite eliminar la cache de redis
@@ -212,3 +287,20 @@ Micro servicio que permite compras de bolsas, pantalones faldas de mujer
           totalImagenesLocalDB=0 → nunca se guardo la imagen en BD
           idsSinDatosEnMicroservicio no vacio → BD tiene el registro pero el archivo se perdio en el microservicio
           consistente=true → todo correcto, revisar cache
+---
+
+## Migraciones ya corridas — registro
+
+Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
+a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
+
+| Migración | dev / qa | prod | Fecha |
+|---|---|---|---|
+| `migration_submenu_ayuda_contextual.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+
+`migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
+decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
+INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada — pero igual no hace falta.
+
+Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
+`inventario_key`. Correrla en "qa" cubre dev y qa a la vez.

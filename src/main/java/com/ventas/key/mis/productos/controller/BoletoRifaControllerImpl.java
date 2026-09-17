@@ -1,7 +1,9 @@
 package com.ventas.key.mis.productos.controller;
 
 import com.ventas.key.mis.productos.entity.BoletoRifa;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.models.BoletoRifaRequest;
+import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.SorteoPlataformasDto;
 import com.ventas.key.mis.productos.models.SorteoPlataformasResultadoDto;
@@ -108,8 +110,26 @@ public class BoletoRifaControllerImpl {
     public ResponseEntity<ResponseGeneric<SorteoPlataformasDto>> estadoPublico(@PathVariable Integer configurarRifaId) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(service.obtenerEstado(configurarRifaId, true)));
+        } catch (ExceptionDataNotFound e) {
+            return noEncontrada(configurarRifaId, e);
         } catch (Exception e) {
             log.error("Error al obtener estado público de la rifa {}: {}", configurarRifaId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
+    /** Ficha del premio con todas sus fotos, para el detalle que abre el visitante. */
+    @GetMapping("/publico/premio/{configurarRifaId}/{premioId}")
+    public ResponseEntity<ResponseGeneric<PremioPublicoDto>> premioPublico(
+            @PathVariable Integer configurarRifaId, @PathVariable Integer premioId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(
+                    service.detallePremioPublico(configurarRifaId, premioId)));
+        } catch (ExceptionDataNotFound e) {
+            return noEncontrada(configurarRifaId, e);
+        } catch (Exception e) {
+            log.error("Error al obtener el premio {} de la rifa {}: {}", premioId, configurarRifaId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }
@@ -119,6 +139,8 @@ public class BoletoRifaControllerImpl {
     public ResponseEntity<ResponseGeneric<SorteoPlataformasResultadoDto>> sortearPublico(@PathVariable Integer configurarRifaId) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(service.sortear(configurarRifaId, true)));
+        } catch (ExceptionDataNotFound e) {
+            return noEncontrada(configurarRifaId, e);
         } catch (Exception e) {
             log.error("Error al sortear (público) la rifa {}: {}", configurarRifaId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -131,10 +153,21 @@ public class BoletoRifaControllerImpl {
         try {
             service.reiniciar(configurarRifaId, true);
             return ResponseEntity.ok(new ResponseGeneric<>("Rifa reiniciada"));
+        } catch (ExceptionDataNotFound e) {
+            return noEncontrada(configurarRifaId, e);
         } catch (Exception e) {
             log.error("Error al reiniciar (público) la rifa {}: {}", configurarRifaId, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, e.getMessage()));
         }
+    }
+
+    // El link público lleva el id en la URL y se puede tantear cambiando el número, así
+    // que la rifa que no está publicada responde 404 igual que una que no existe: el
+    // visitante no puede distinguir una de otra ni ir descubriendo qué rifas hay.
+    private <T> ResponseEntity<ResponseGeneric<T>> noEncontrada(Integer rifaId, ExceptionDataNotFound e) {
+        log.warn("Acceso público a rifa no publicada o inexistente {}: {}", rifaId, e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ResponseGeneric<>(null, "Rifa no encontrada"));
     }
 }

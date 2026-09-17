@@ -25,6 +25,13 @@ public interface ICargaImagenService {
 
     List<EstadoCargaProductoDto> listarFallidas();
 
+    // TODOS los borradores vivos (PENDIENTE + EXITOSO + FALLIDO), sin importar habilitado.
+    // Es lo que pinta la pantalla de Carga rapida: antes lo armaba el front con
+    // GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false + GET /estado, y
+    // bastaba que a un borrador se le tocara `habilitado` o `codigoBarrasGenerado` desde
+    // cualquier otra pantalla para que se cayera de ese filtro y quedara inalcanzable.
+    List<EstadoCargaProductoDto> listarBorradores();
+
     Producto completarProducto(Integer productoId, CompletarProductoDto request);
 
     // Descarta por completo un borrador que nunca se va a completar (foto de prueba, borrosa,

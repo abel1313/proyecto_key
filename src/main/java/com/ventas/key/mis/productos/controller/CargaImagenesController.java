@@ -69,6 +69,14 @@ public class CargaImagenesController {
         return ResponseEntity.ok(new ResponseGeneric<List<EstadoCargaProductoDto>>(cargaImagenService.consultarEstado(productoIds)));
     }
 
+    // Listado que pinta la pantalla de Carga rapida al entrar. Sustituye al combo
+    // GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false + GET /estado:
+    // aquel dependia de dos flags que otras pantallas podian tocar, y el borrador desaparecia.
+    @GetMapping("borradores")
+    public ResponseEntity<ResponseGeneric<List<EstadoCargaProductoDto>>> listarBorradores() {
+        return ResponseEntity.ok(new ResponseGeneric<List<EstadoCargaProductoDto>>(cargaImagenService.listarBorradores()));
+    }
+
     @GetMapping("fallidas")
     public ResponseEntity<ResponseGeneric<List<EstadoCargaProductoDto>>> listarFallidas() {
         return ResponseEntity.ok(new ResponseGeneric<List<EstadoCargaProductoDto>>(cargaImagenService.listarFallidas()));

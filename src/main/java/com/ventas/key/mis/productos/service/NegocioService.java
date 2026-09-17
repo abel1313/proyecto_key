@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.dto.negocio.ContactosPublicosDto;
 import com.ventas.key.mis.productos.dto.negocio.ContactosUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.HorarioUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioConfigDto;
+import com.ventas.key.mis.productos.dto.negocio.UbicacionUpdateDto;
 import com.ventas.key.mis.productos.dto.negocio.NegocioEstadoDto;
 import com.ventas.key.mis.productos.dto.negocio.RedSocialCreateDto;
 import com.ventas.key.mis.productos.dto.negocio.RedSocialDto;
@@ -63,6 +64,9 @@ public class NegocioService {
                 .facebookUrl(config.getFacebookUrl())
                 .instagramUrl(config.getInstagramUrl())
                 .tiktokUrl(config.getTiktokUrl())
+                .direccion(config.getDireccion())
+                .latitud(config.getLatitud())
+                .longitud(config.getLongitud())
                 .build();
     }
 
@@ -79,6 +83,9 @@ public class NegocioService {
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
                 .umbralStockBajo(config.getUmbralStockBajo() != null
                         ? config.getUmbralStockBajo() : ConfiguracionNegocio.UMBRAL_DEFAULT_STOCK_BAJO)
+                .direccion(config.getDireccion())
+                .latitud(config.getLatitud())
+                .longitud(config.getLongitud())
                 .build();
     }
 
@@ -138,6 +145,21 @@ public class NegocioService {
         if (dto.getTiktokUrl() != null) config.setTiktokUrl(dto.getTiktokUrl());
         config.setActualizadoEn(LocalDateTime.now());
         return repo.save(config);
+    }
+
+    // Las 3 se guardan juntas y se permite limpiarlas (mandar null en las tres borra la ubicacion
+    // y login/registro dejan de mostrar el mapa). Por eso NO se usa el "if (!= null)" de
+    // actualizarContactos: ahi null significa "no lo toques", aqui significa "borralo".
+    @Transactional
+    public NegocioConfigDto actualizarUbicacion(UbicacionUpdateDto dto) {
+        ConfiguracionNegocio config = obtenerConfig();
+        String direccion = dto.getDireccion() != null ? dto.getDireccion().trim() : null;
+        config.setDireccion(direccion != null && !direccion.isEmpty() ? direccion : null);
+        config.setLatitud(dto.getLatitud());
+        config.setLongitud(dto.getLongitud());
+        config.setActualizadoEn(LocalDateTime.now());
+        repo.save(config);
+        return getConfig();
     }
 
     @Transactional

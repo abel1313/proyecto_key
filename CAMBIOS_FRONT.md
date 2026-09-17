@@ -18738,6 +18738,33 @@ corregir una plataforma mal puesta obligaba a borrar y recapturar, moviendo el c
 **Response:** el `BoletoRifa` actualizado.
 **400** si falta `plataforma`, falta `urlPerfilRedSocial`, o la fecha cae fuera del periodo de la rifa.
 
+### 5-bis. ⚠️ La hora de cierre ahora SÍ bloquea el registro de boletos — 2026-09-09
+
+`fechaHoraLimite` ya se guardaba con la hora que se elige en "Cierra a las", pero al registrar
+un boleto solo se comparaban **fechas**: una rifa del 1 al 9 que cierra a las 10:00 seguía
+aceptando boletos el día 9 hasta las 23:59. La pantalla prometía algo que el back no aplicaba.
+
+**Ahora** `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}` responden **400** cuando
+el momento del registro ya pasó `fechaHoraLimite`:
+
+```
+El registro de boletos cerró el 2026-09-09 a las 10:00
+```
+
+Cierra **solo el último día** a esa hora: los días previos del rango se aceptan completos.
+Si la rifa no tiene `fechaHoraLimite`, no hay corte por hora (como antes).
+
+### 5-ter. ⚠️ `urlPerfilRedSocial` dejó de ser obligatoria — 2026-09-09
+
+Se quitó de la pantalla (el campo de captura y los enlaces "Perfil" de las tres tablas) porque
+lo capturado no siempre era una URL y el enlace llevaba a 404.
+
+- `POST /v1/boletoRifa/registrar` y `PUT /v1/boletoRifa/{id}` **ya no exigen** el campo:
+  antes respondían 400 `"La URL del perfil para dar seguimiento es obligatoria"`.
+- El campo **sigue existiendo** en el request y en el response — se acepta si viene y los
+  boletos viejos conservan su valor en BD. Solo dejó de ser obligatorio y de pintarse.
+- El único campo obligatorio del boleto queda **`plataforma`**.
+
 ### 6. ⚠️ `plataforma` ahora es OBLIGATORIA al registrar un boleto
 
 `POST /v1/boletoRifa/registrar` antes aceptaba `plataforma: null` y guardaba el boleto sin red
@@ -18746,7 +18773,8 @@ social. Ahora responde **400** con `"La plataforma del boleto es obligatoria"`.
 Valores válidos: `FACEBOOK` | `INSTAGRAM` | `TIKTOK` | `OTRO`.
 
 Los campos obligatorios del boleto quedan en dos: `plataforma` y `urlPerfilRedSocial`.
-`motivo`, `urlSeguimiento` y `urlsCompartido` siguen siendo opcionales.
+`motivo`, `urlSeguimiento`, `urlsCompartido` y `urlPerfilRedSocial` son opcionales
+(ver 5-ter: `urlPerfilRedSocial` era obligatoria y dejó de serlo el 2026-09-09).
 
 ### 7. Editar participante — ya existía, se documenta porque el front no lo estaba usando
 
@@ -18967,3 +18995,934 @@ ALTER TABLE pedido ADD COLUMN IF NOT EXISTS longitud_encuentro DOUBLE NULL COMME
 - [ ] El pedido del cliente muestra el botón "Cómo llegar" apuntando al lugar correcto
 - [ ] El correo de aviso incluye el botón "Cómo llegar" cuando se marcó el mapa
 - [ ] La migración SQL se corrió y no hay errores al programar una entrega
+
+## RIFA PÚBLICA — Control explícito de visibilidad (seguridad) — 2026-09-09
+
+**Problema resuelto:** El link público `/ruleta/{id}` era visible para cualquier rifa activa de tipo
+PLATAFORMAS simplemente adivinando el número en la URL. Esto permitía que visitantes sin sesión
+vieran rifas que el negocio quizá no quería mostrar aún (ej. rifas bloqueadas por migración de
+credenciales).
+
+**Solución:** Ahora el admin **publica explícitamente** cuál es la rifa que ve el público. Solo UNA
+a la vez; cualquier otro número devuelve 404 indistinguible de "no existe".
+
+### Requisitos de visibilidad en `/v1/boletos-rifa/publica/{id}`
+
+Todas estas condiciones deben cumplirse, de lo contrario → 404:
+
+1. **Tipo = PLATAFORMAS** — rifas de otros tipos nunca tienen página pública.
+2. **Publicada** (`publica = true`) — el admin la marcó explícitamente como pública.
+3. **Activa** (`activa = true`) — rifas ya terminadas no se abren.
+4. **Dentro del rango de boletos** — `hoy >= fechaInicioBoletos` (si existe ese rango).
+   - Pasado el `fechaFinBoletos` el link SÍ sigue abriendo (para ver el sorteo que ya pasó).
+
+Si alguna falla → **404 "Página no disponible"**, sin diferenciar entre "no existe" y "existe pero
+no está publicada". Desde la sesión del admin las rifas viejas se siguen viendo igual.
+
+### `PUT /v1/configurarRifa/{id}/publica` — Endpoint para publicar/despublicar (ADMIN)
+
+**Request:**
+
+```json
+{ "publica": true }
+```
+
+**Validaciones en el backend:**
+- `publica = true` RECHAZA si la rifa **no es PLATAFORMAS** o está **inactiva** → error 400 con
+  mensaje explicando por qué.
+- `publica = true` RECHAZA si `fechaInicioBoletos` está en el futuro → error 400.
+- `publica = true` con otra rifa ya publicada → **automáticamente despublica la anterior** (una sola
+  a la vez).
+
+**Response:** El DTO `ConfigurarRifaResumenDto` actualizado (incluye el nuevo campo `publica`).
+
+### Cambios en el DTO
+
+`ConfigurarRifaResumenDto` ahora incluye:
+
+```java
+private Boolean publica; // Si es la rifa que el link público sirve hoy (una sola a la vez)
+```
+
+Este campo ya viaja en los endpoints:
+- `GET /v1/configurarRifa/activas/resumen`
+- `GET /v1/configurarRifa/activas/hoy/resumen`
+- `GET /v1/configurarRifa/buscar` (con filtros)
+
+### Base de datos — Migración
+
+Ejecutar en ambas BDs (**`inventario_key_qa` e `inventario_key`**):
+
+```sql
+ALTER TABLE configurar_rifa
+ADD COLUMN publica TINYINT(1) NOT NULL DEFAULT 0;
+```
+
+**Idempotente** (usa `ADD COLUMN IF NOT EXISTS` internamente, no lo hace dos veces).
+
+⚠️ **Después de la migración, ninguna rifa está publicada** (default = 0), así que `/ruleta/{id}`
+devuelve 404 para todos los IDs hasta que el admin publique una.
+
+### UI Admin — Rifas → Boletos → paso Ruleta
+
+Aparece un **botón toggle** bajo el carrusel:
+
+- **Rifa no publicada:**
+  - 🔒 Botón azul "📢 Publicar esta rifa"
+  - Aviso: "🔒 Esta rifa **no** es visible desde afuera. Publícala para poder compartir su link;
+    solo puede haber una publicada a la vez."
+  - No hay botón de abrir el link público.
+
+- **Rifa publicada:**
+  - 🟢 Botón verde "🙈 Quitar de pública"
+  - Aviso: "✅ Esta es la rifa que ve la gente en el link público. Cualquier otro número en la URL da 404."
+  - Aparece el botón **"🔗 Abrir página pública"** (abre en pestaña nueva).
+
+**Diálogo al publicar cuando otra ya está publicada:**
+
+Si el admin elige Publicar esta rifa y hay otra ya publicada, sale:
+
+```
+⚠️ Ya hay otra rifa publicada
+La rifa #48 es la que se ve hoy en el link público. Si publicas esta, su link deja de abrir.
+
+[Cancelar]  [Sí, publicar esta]
+```
+
+Acepta → la otra se despublica automáticamente y su link devuelve 404.
+
+### 🧪 Guía para QA
+
+**Publicar la rifa (admin — Rifas → Boletos → paso Ruleta):**
+
+1. Corre la migración primero. Al entrar, la rifa debe decir
+   *"🔒 Esta rifa no es visible desde afuera"* y **no** debe aparecer el botón de abrir el link.
+2. Dale **"📢 Publicar esta rifa"** → el aviso cambia a verde y aparece **"🔗 Abrir página pública"**.
+3. Elige otra rifa y dale Publicar → debe avisar *"Ya hay otra rifa publicada"* con el número de
+   la anterior. Acepta → la anterior queda despublicada (verifica que su link ya dé 404).
+4. Dale **"🙈 Quitar de pública"** → el link desaparece y esa rifa vuelve a dar 404.
+5. Intenta publicar una rifa que **no** sea de PLATAFORMAS o que ya esté terminada → debe salir
+   el error explicando por qué, sin publicarla.
+
+**Seguridad del link:**
+
+1. Con el link de la rifa publicada abierto (ej. `/ruleta/48`), cambia el número a otro id que
+   exista pero **no esté publicado** (`/ruleta/47`) → **404 "Página no disponible"**, no la otra rifa.
+2. Prueba con un id que no exista (`/ruleta/99999`) → **el mismo 404**, sin diferencia visible.
+3. La barra de direcciones debe seguir mostrando el link que se escribió.
+4. Publica una rifa cuyo `fechaInicioBoletos` sea **de mañana en adelante** → su link debe dar
+   404 hasta que llegue ese día.
+5. Con una rifa publicada y ya pasada la fecha de boletos (sin sortear todavía) → el link **sí**
+   debe abrir, para que se vea el sorteo.
+6. Sortea el último premio → a partir de ahí el link da 404 (la rifa se marca inactiva sola).
+7. Desde el admin (con sesión) las rifas viejas se siguen viendo igual que antes — el filtro
+   es solo para la vía pública.
+
+---
+
+## 🐛 Hotfix 2026-09-09 — Los borradores de Carga rápida se perdían y se colaban en productos/buscar
+
+### Qué pasaba (el "antes")
+
+Un producto creado en **📸 Carga rápida de imágenes** nace como *borrador*: código de barras
+placeholder `BRD-XXXXXXXXXXXX`, `codigoBarrasGenerado = true`, `habilitado = '0'`, sin nombre ni
+precio. Solo se puede terminar desde esa pantalla (`PUT /v1/carga-imagenes/{id}/completar`), que es
+la única que asigna el código real.
+
+Había dos fallas encadenadas:
+
+1. **El borrador desaparecía de Carga rápida.** La pantalla armaba su lista con
+   `GET /v1/productos/admin/filtrar?codigoGenerado=true&habilitado=false`. Bastaba que se moviera
+   **cualquiera de esos dos flags** para que el borrador se cayera del filtro. Y se movían solos:
+   `POST /v1/productos/save` y `PUT /v1/productos/update` forzaban `habilitado = '1'` en **todo**
+   producto guardado, también en los existentes. Resultado: el borrador dejaba de salir en el único
+   lugar donde se podía completar, y quedaba inalcanzable.
+2. **El borrador sí salía en productos/buscar y tienda/buscar.** Ningún listado de admin los
+   excluía, así que aparecía en la búsqueda un producto sin nombre, en $0 y con código `BRD-…`. Al
+   intentar editarlo, el front lo bloqueaba con *"esta pantalla no es la indicada"* — visible pero
+   inservible desde ahí.
+
+La causa de fondo: **"es borrador" estaba definido en dos lugares distintos que se desincronizaban**
+— el back miraba el flag `codigoBarrasGenerado`, el front miraba si el código empieza con `BRD-`.
+
+### Qué cambia (el "después")
+
+**Un producto es borrador si `codigoBarrasGenerado = true` **O** su código de barras sigue empezando
+con `BRD-`.** Esa es ahora la única definición, y la aplica el back. Consecuencias:
+
+- Un borrador **nunca** aparece en listados de admin ni en el catálogo público mientras no se
+  complete — no importa cómo hayan quedado sus flags.
+- Un borrador **siempre** aparece en Carga rápida, aunque esté habilitado por error.
+
+### 🆕 `GET /v1/carga-imagenes/borradores` (ADMIN)
+
+Reemplaza al combo `admin/filtrar?codigoGenerado=true&habilitado=false` + `/estado` que hacía la
+pantalla de Carga rápida. **Una sola llamada**, sin parámetros, sin paginar.
+
+**Request:** `GET {api}/v1/carga-imagenes/borradores`
+
+**Response 200** — mismo shape que `/v1/carga-imagenes/estado`, envuelto en `ResponseGeneric`:
+
+```json
+{
+  "data": [
+    {
+      "productoId": 423,
+      "varianteId": 511,
+      "estadoImagen": "EXITOSO",
+      "imagenId": 8842,
+      "urlImagen": "https://.../v1/imagenes/file/8842",
+      "mensajeError": null
+    }
+  ]
+}
+```
+
+- `estadoImagen`: `PENDIENTE` | `EXITOSO` | `FALLIDO` (los tres vienen, no solo los fallidos).
+- Lista vacía (`"data": []`) cuando no hay borradores — no es 404.
+- **Diferencia clave vs. lo anterior:** no filtra por `habilitado`. Un borrador que quedó habilitado
+  por error igual sale aquí, que es lo que permite recuperarlo.
+- **Se autorrepara:** si encuentra un producto con código `BRD-` pero el flag `codigoBarrasGenerado`
+  en `false`, se lo vuelve a poner en `true` al listarlo. Los borradores que ya se habían perdido en
+  producción reaparecen solos la primera vez que se abre la pantalla, sin script de datos.
+
+### 🔄 `GET /v1/productos/admin/filtrar` — cambia el significado de `codigoGenerado` sin valor
+
+`codigoGenerado` sigue siendo tri-estado, pero **el caso "sin enviar" ya no es "cualquiera"**:
+
+| `codigoGenerado` | Antes | Ahora |
+|---|---|---|
+| `true` | solo `codigoBarrasGenerado = true` | solo borradores (flag **o** código `BRD-`) |
+| `false` | los que no tienen el flag | solo NO borradores |
+| *(sin enviar)* | **todos, borradores incluidos** | **solo NO borradores** |
+
+Mismo cambio en `GET /tienda/v1/admin/filtrar` (variantes), en
+`GET /v1/productos/obtenerProductos` y `GET /v1/productos/buscarNombreOrCodigoBarra` para admin, y
+en el listado de variantes de admin. **El front no tiene que tocar nada**: productos/buscar y
+tienda/buscar dejan de mostrar borradores por sí solas. El toggle *"código generado"* de
+productos/buscar sigue funcionando como estaba (manda `codigoGenerado=true`) por si se quieren ver
+a propósito.
+
+### 🔒 `PUT /v1/productos/{id}/habilitar` y `PUT /v1/productos/admin/habilitar-lote` — nuevo 400
+
+Habilitar un borrador ahora se rechaza. Todas las consultas del catálogo público filtran por
+`habilitado = '1'`, así que habilitarlo lo publicaba en la tienda sin nombre, sin precio y con el
+código `BRD-`.
+
+```
+400  No se puede habilitar el producto 423: es un borrador de Carga rápida de imágenes,
+     completalo ahí primero para que se le asigne el código de barras real
+```
+
+En lote, el mensaje lista los ids que son borradores y **no se habilita ninguno** del lote.
+El único camino válido sigue siendo `PUT /v1/carga-imagenes/{id}/completar` con el código real.
+
+### `POST /v1/productos/save` y `PUT /v1/productos/update` — ya no pisan `habilitado`
+
+`habilitado = '1'` solo se asigna al **crear** un producto nuevo. Al actualizar uno existente se
+respeta el valor que ya tenía en la base. Antes, guardar un producto deshabilitado desde
+productos/add lo volvía a habilitar sin avisar — no solo afectaba a los borradores.
+
+### 🧪 Guía para QA
+
+1. Sube una foto en **Carga rápida** → aparece la tarjeta *Producto #N* con *"Imagen lista"*.
+2. Ve a **productos/buscar** (sin filtros, con el filtro de fecha "hoy", y buscando por el código
+   `BRD-…`) → **no debe aparecer** en ninguno de los tres casos.
+3. Lo mismo en **tienda/buscar**, con y sin el filtro "deshabilitadas" → **no debe aparecer**.
+4. En productos/buscar activa el toggle **"código generado"** → ahí sí debe salir (es a propósito).
+5. Vuelve a **Carga rápida** → la tarjeta sigue ahí. Sal y entra otra vez → sigue ahí.
+6. Dale **"✏️ Completar datos"**, pon nombre, precios y el código de barras real, y marca habilitar
+   → ahora sí debe aparecer en productos/buscar, en tienda/buscar y en el catálogo público.
+7. **Recuperación de los que ya se habían perdido:** los borradores que hoy no salen en Carga
+   rápida deben volver a aparecer solos al entrar a la pantalla, sin tocar la base.
+
+---
+
+## 🐛 Hotfix 2026-09-09 — El premio de la rifa decía "Sin imagen" aunque la foto sí existiera
+
+### Qué pasaba
+
+En **Rifas → configuración**, al dar de alta un premio y abrir su detalle, salía *"📦 Sin imagen"* —
+pero la misma foto se veía perfectamente en la pantalla de **modelos** (tienda/buscar). Solo había
+una imagen cargada.
+
+Las dos pantallas traían la foto por caminos distintos:
+
+| Pantalla | Cómo obtiene la imagen |
+|---|---|
+| Modelos (tienda/buscar) | el back manda **`imagenUrl`** y **el navegador** la pide al micro de imágenes |
+| Detalle del premio | el back llama al micro **server-to-server**, y manda los bytes en **`imagenBase64`** |
+
+El front del premio miraba **solo `imagenBase64`**. Si la llamada server-to-server fallaba (micro
+sin responder, timeout, o un id que el micro ya no tiene), el back dejaba ese campo en `null` — solo
+un warning en el log — y el detalle mostraba "Sin imagen", aunque el navegador sí podía cargar esa
+misma foto sin problema.
+
+Además, la imagen se elegía distinto en cada lado: modelos usa **principal primero, luego id ASC**;
+el premio tomaba la primera fila que devolviera la base **sin ordenar**. Con más de una foto podían
+no coincidir, y podía tocarle una fila huérfana que el micro ya no tiene.
+
+### Qué cambia
+
+`VarianteResumenDto` (el DTO del premio) ahora trae **`imagenUrl` además de `imagenBase64`**, y la
+imagen se elige con el **mismo criterio que modelos** (principal primero, luego id ASC).
+
+```json
+{
+  "variante": {
+    "id": 511,
+    "nombreProducto": "Bolsa Coach",
+    "imagenUrl": "https://.../v1/imagenes/file/8842",
+    "imagenBase64": "/9j/4AAQSkZJRgABA..."
+  }
+}
+```
+
+- **`imagenUrl` es la fuente principal** — la resuelve el navegador, igual que en modelos.
+- **`imagenBase64` sigue viniendo como respaldo**, para no romper nada que ya lo use.
+- Aplica a los tres lugares que consumen este DTO: configuración de la rifa, **rifa del mes** y la
+  **ruleta pública** (los tres tenían el mismo problema, aunque solo se reportó el primero).
+
+**Regla para el front:** usar `imagenUrl` si viene; solo si está vacío, caer a `imagenBase64`.
+
+### 🧪 Guía para QA
+
+1. Da de alta un premio con un modelo que **sí** tenga foto → abre el detalle: debe verse la imagen.
+2. Compara con la foto que muestra ese mismo modelo en **tienda/buscar** → debe ser **la misma**.
+3. Con un modelo de **varias fotos**, marca una como principal → el premio debe mostrar esa.
+4. Un premio cuyo modelo **no** tenga foto debe seguir mostrando el placeholder 📦 "Sin imagen".
+5. Revisa también la **rifa del mes** y la **ruleta pública**: la miniatura del premio debe verse.
+
+---
+
+## 🖼️ Rifas: se elimina el base64 — todas las imágenes del premio ahora son URLs (2026-09-10)
+
+Cierra lo que quedó a medias en la sección anterior. Ahí `imagenUrl` pasó a ser la fuente principal
+pero `imagenBase64` seguía viajando "como respaldo". Ese respaldo ya **no existe**: el back nunca
+manda binarios de imagen dentro del JSON en ningún endpoint de rifas.
+
+**Por qué:** el base64 pesa ~33% más que la imagen original, el navegador **no lo puede cachear**
+(viene incrustado en el JSON, no es un recurso con URL propia) y el back lo armaba con una llamada
+server-to-server al micro que, al fallar por timeout, dejaba el premio sin foto aunque la imagen
+estuviera perfecta. Un carrusel de cinco fotos se iba arriba de 1 MB de texto **en cada apertura**,
+y en celular eso es plan de datos del cliente.
+
+### 1. `VarianteResumenDto` — el campo `imagenBase64` ya no existe
+
+Afecta a la configuración de la rifa, **rifa del mes**, **buscar rifa** y la miniatura del premio en
+la **ruleta pública**.
+
+```jsonc
+{
+  "id": 4821,
+  "nombreProducto": "Bolsa Michelle",
+  "color": "Negro", "talla": "Única", "stock": 3,
+  "imagenUrl": "https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/v1/imagenes/file/8842"
+  // imagenBase64 -> ELIMINADO del contrato
+}
+```
+
+**Acción front:** leer solo `imagenUrl`. Si viene `null`/vacío, pintar el placeholder (📦) — ya no
+hay a qué caer. Cualquier código que todavía haga `?? imagenBase64` es código muerto.
+
+**Ojo con la ruta:** este DTO devuelve `/v1/imagenes/**file**/{id}`, **no** `/thumbnail/`. Se probó
+con `/thumbnail/` y el premio se quedaba sin foto. La miniatura queda para listados de catálogo
+(muchas filas, donde el ahorro de peso compensa); los premios de una rifa son pocos y se ven en
+grande. **El front no arma la URL** — viene completa en el response.
+
+### 2. Detalle del premio público — el carrusel ahora recibe URLs
+
+```
+GET /v1/boletoRifa/publico/premio/{configurarRifaId}/{premioId}
+```
+
+**Público (`permitAll`)** — un visitante **sin cuenta** lo puede llamar, igual que antes.
+
+```jsonc
+{
+  "response": {
+    "id": 91,
+    "nombreProducto": "Bolsa Michelle",
+    "descripcion": "Bolsa de mano", "talla": "Única",
+    "color": "Negro", "marca": "Jade", "presentacion": "Caja", "contenidoNeto": "1 pza",
+    "imagenes": [
+      "https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/v1/imagenes/file/8842",
+      "https://qa.backend-imagenes.novedades-jade.com.mx/mis-productos/v1/imagenes/file/8843"
+    ]
+  }
+}
+```
+
+**Diferencia clave:** `imagenes` sigue siendo un `string[]` en el mismo orden (**la principal
+primero**), pero cada elemento pasó de ser un data URI (`data:image/jpeg;base64,...`) a una **URL
+completa**. Como ya se usaban directo en `<img [src]>`, el front **no necesita cambiar el binding**.
+
+- `imagenes: []` → el premio no tiene fotos. Pintar el estado vacío, no un carrusel de cero.
+- El back pregunta al micro qué ids siguen existiendo antes de armar la lista; si el micro no
+  responde, manda todas igual (mejor una URL que quizá falle que un carrusel vacío).
+- **404** si la rifa o el premio no existen. **400** en error inesperado.
+
+### 3. Lo que NO cambió
+
+- `GET /tienda/v1/imagenes/{varianteId}` (carrusel del admin al dar clic al premio) ya mandaba
+  `base64: null` + `urlImagen`. Sigue igual — solo dejó de filtrarse por `base64` del lado del front.
+- La ruleta pública y sus endpoints de giro: sin cambios de contrato.
+
+### ⚠️ Cambio de comportamiento a validar en red
+
+Antes el visitante **no** hacía ninguna petición al micro de imágenes: el back se las mandaba
+embebidas. Ahora el navegador pide cada foto directo al micro. Es el mismo mecanismo que ya usa el
+catálogo público de la tienda para visitantes anónimos, así que debería estar resuelto — pero vale
+la pena confirmarlo en la página de rifa, que es la primera que lo usa.
+
+### 🧪 Guía para QA
+
+1. **Premio en la configuración de rifa** → debe verse la foto (F12 → Network: una petición a
+   `/v1/imagenes/file/{id}`, **no** un JSON gigante).
+2. **Clic en la foto del premio (admin)** → abre el carrusel con **todas** las fotos; flechas y
+   contador `1 / N` funcionando.
+3. **Rifa del mes** y **buscar rifa** → miniatura del premio visible.
+4. **Ruleta pública en ventana de incógnito (sin cuenta)** → miniatura visible, y al dar clic abre
+   el carrusel con flechas, puntos, contador y swipe en celular.
+5. **Segunda apertura del mismo carrusel** → las fotos deben aparecer al instante (cache del
+   navegador, 1 año). Con base64 volvía a descargar todo cada vez.
+6. Premio cuyo modelo **no** tenga foto → placeholder 📦 / "Sin fotos de este premio", nunca una
+   imagen rota.
+
+---
+
+## ✅ Fix (2026-09-15): fechas se mandaban con el día siguiente después de las 6 pm
+
+**100% front, ya en `dev`.** No cambia ningún endpoint ni contrato — cambia el **valor** que el
+front manda en los campos de fecha, que hasta ahora podía ir corrido un día.
+
+**Causa:** el front armaba las fechas `yyyy-MM-dd` con `new Date().toISOString().slice(0, 10)`
+(o `.split('T')[0]`). `toISOString()` convierte a **UTC antes de recortar**, y México está en
+UTC-6: a partir de las 6 de la tarde hora local, ese string ya era **el día siguiente**.
+
+**Qué se veía mal (todo a partir de las ~6 pm):**
+
+| Pantalla | Síntoma |
+|---|---|
+| Gastos (agregar / buscar) | El gasto se guardaba con la fecha de mañana; el filtro "hoy" no lo encontraba |
+| Reportes | El filtro de día y el de mes arrancaban en el período equivocado |
+| Venta directa / Abonos | `fechaPago` del abono se registraba con fecha de mañana |
+| Tienda — checkout (`venta-variante`) | `fechaPedido` de mañana, y la fecha **mínima** de recogida saltaba un día (el cliente no podía elegir hoy) |
+| Flores eternas — configurar ramo | `fechaPedido` de mañana |
+| Detalle de pedido | El "hoy" interno de la pantalla iba corrido |
+
+**Fix:** se centralizó el cálculo en `src/app/shared/fecha.util.ts`, que arma el `yyyy-MM-dd` /
+`yyyy-MM` desde los getters **locales** de `Date` (`getFullYear`/`getMonth`/`getDate`), nunca
+desde UTC. Todas las pantallas de arriba ahora lo usan.
+
+Rifas (`agregar-rifa`, `buscar-rifa`) y Entregas por zona (`entregas-zona`) **ya tenían** este
+arreglo, pero cada una con su propia copia del helper — se reemplazaron por el util compartido.
+Su comportamiento no cambia.
+
+**Lo que NO se tocó:** los `toISOString()` que mandan un **instante** completo con zona horaria
+(`fechaAceptoPrivacidad` en Mi perfil, `fechaInicio`/`ultimaActividad` del chat). Ahí UTC es lo
+correcto — el bug era solo al recortar un instante UTC para usarlo como fecha de calendario.
+
+**Acción para el back:** ninguna. Mismos endpoints, mismos campos, mismo formato `yyyy-MM-dd`.
+Solo que ahora el valor corresponde al día real del usuario. Si en QA/prod hay registros viejos
+guardados con la fecha corrida (gastos o abonos creados de noche antes de este fix), esos datos
+quedaron con el día de más — no se migran solos.
+
+**Verificado:** `tsc --noEmit` sin errores nuevos y `ng build --configuration=production` OK.
+
+---
+
+## ✅ Nuevo (2026-09-15): ubicación del local en login y registro
+
+El login y el registro ahora muestran una miniatura del mapa con el local marcado y un botón
+**"Cómo llegar"** que abre Google Maps trazando la ruta desde donde esté el cliente. Se ve **sin
+iniciar sesión** (ambas son pantallas públicas). El dueño captura la ubicación una sola vez en
+*Administración › Configuración del negocio*.
+
+### ⚠️ Migración que hay que correr antes
+
+`src/main/resources/static/migration_negocio_ubicacion.sql` — agrega `direccion`, `latitud` y
+`longitud` a `configuracion_negocio`. **Sin ella el back truena al arrancar.** Quedan en NULL: en
+ese estado login y registro no pintan nada (no se inventa un punto por defecto).
+
+### Campos nuevos en dos endpoints que el front ya consume
+
+**`GET /mis-productos/v1/negocio/contactos`** (público, sin token — es el que usa el login)
+
+```json
+{
+  "data": {
+    "whatsappUrl": "...", "facebookUrl": "...", "instagramUrl": "...", "tiktokUrl": "...",
+    "direccion": "Av. Hidalgo 24, Centro",
+    "latitud": 19.432608,
+    "longitud": -99.133209
+  }
+}
+```
+
+**`GET /mis-productos/v1/negocio/config`** (solo ADMIN) devuelve los mismos 3 campos, además de lo
+que ya traía.
+
+**Diferencia clave:** antes ninguno de los dos traía ubicación. Los 3 campos pueden venir `null`
+(mientras no se capture); el front debe tratar "sin ubicación" como caso normal, no como error.
+`latitud`/`longitud` son números, no strings.
+
+### Endpoint nuevo
+
+**`PUT /mis-productos/v1/negocio/ubicacion`** — solo ADMIN (mismo permiso de escritura de
+`admin/negocio` que ya cubría `/v1/negocio/**`).
+
+Request:
+```json
+{ "direccion": "Av. Hidalgo 24, Centro", "latitud": 19.432608, "longitud": -99.133209 }
+```
+
+Response: el `NegocioConfigDto` completo ya actualizado (el mismo shape de `GET /config`).
+
+**Ojo con el null:** a diferencia de `PUT /contactos` (donde `null` significa "no lo toques"),
+aquí `null` significa **"bórralo"**. Mandar los 3 en `null` quita la ubicación y el mapa deja de
+salir en login y registro. Es a propósito — es como está implementado el botón "Quitar".
+
+**Códigos:** 200 con el config actualizado · 401/403 si no es admin · 500 si falla el guardado.
+
+### Del lado del front (ya hecho, informativo)
+
+- Componente nuevo `app-ubicacion-local` (en `SharedModule`), usado por `login-form` y por
+  `add-usuarios`. En `add-usuarios` va gateado con `esActualizar` para que **no** aparezca cuando
+  un admin entra a esa misma pantalla a actualizar a otro usuario.
+- La miniatura **no usa Leaflet** a propósito: pide las teselas de OpenStreetMap como `<img>`
+  sueltas y dibuja el pin encima. Login y registro son lo primero que carga cualquiera y el
+  bundle inicial ya está por encima del presupuesto. Verificado en el build: Leaflet sigue
+  aislado en su propio chunk (`407.js`, 148 KB) y ni el chunk del login ni el del registro lo
+  cargan; el bundle inicial creció 0.17 KB.
+- El mapa de verdad (con buscador de direcciones y "usar mi ubicación") vive solo en
+  Configuración del negocio, reusando el `app-selector-ubicacion` que ya existía para el punto de
+  encuentro de las entregas.
+- "Cómo llegar" es un link normal a `https://www.google.com/maps/dir/?api=1&destination=LAT,LNG`:
+  no necesita API key ni cuenta de Google. El permiso de ubicación se lo pide Google al cliente.
+
+**Verificado:** back compila (`mvn -o compile`), front compila (`tsc --noEmit` y
+`ng build --configuration=production`), y el cálculo de teselas se contrastó contra la fórmula de
+referencia de OpenStreetMap (diferencia 0.000000 px, el pin cae exactamente en el centro).
+
+---
+
+## 🤖 Chat en vivo: el bot no contestaba y no se veía por qué (2026-09-16)
+
+### Lo que pasaba
+
+El cliente escribía en **Chat directo**, el mensaje llegaba bien al panel del admin, y el prompt
+del chatbot **nunca contestaba** — sin aviso, sin error, sin nada en pantalla. Pasó varias veces.
+
+Hay **dos causas distintas** y las dos están arregladas.
+
+### Causa 1 — cualquier falla del bot dejaba al cliente en blanco (el bug de fondo)
+
+`ChatVivoBotService` sólo atrapaba los errores **de la llamada a OpenAI**. Todo lo que pasa
+**antes** de llamar a OpenAI (leer el historial, leer las palabras clave, armar el catálogo de
+productos, construir el prompt) quedaba fuera: si algo de eso tronaba, la excepción se iba por el
+manejador de error del `subscribe` y ahí se moría. Resultado: **ni respuesta del bot, ni aviso al
+cliente, ni escalado a una persona, ni correo** — sólo una línea en el log del servidor que nadie
+ve. Eso es exactamente lo que se veía: un chat "muerto" sin explicación.
+
+**Fix:** ahora todo el cuerpo va protegido. Pase lo que pase, el cliente recibe un mensaje
+("Tuve un problema para responderte. Ya le avisé a una persona del negocio…") y la conversación
+pasa a modo HUMANO con su correo al dueño. Además el aviso al cliente sale **primero** y el cambio
+de modo y el correo van después, cada uno protegido: si el correo truena, el cliente ya recibió su
+mensaje igual.
+
+Cubierto con test (`ChatVivoBotServiceTest`): se simula una falla síncrona al armar el prompt y se
+verifica que al cliente **sí** le llega algo. Antes de este fix, ese test fallaba.
+
+### Causa 2 — la espera de 1 minuto era real, no era una falla
+
+Cuando el dueño contesta un mensaje, la conversación pasa a modo **HUMANO** y el bot le cede el
+turno. En modo HUMANO el bot esperaba **1 minuto completo** antes de cubrir. Para el cliente eso es
+un minuto de silencio absoluto: parece que el chat no funciona. Dos cambios:
+
+- La espera en modo HUMANO baja de **1 minuto a 25 segundos**.
+- **El turno del dueño sólo se le guarda si el dueño está de verdad en el panel.** Si no está
+  conectado (el back ya lo sabe, por `/app/chat.admin.conectado`), esperarlo no tiene sentido:
+  el bot contesta con la espera corta de 6 segundos.
+
+En modo BOT no cambia nada: sigue en 6 segundos.
+
+### Endpoint nuevo — diagnóstico del bot (ADMIN)
+
+Para no volver a depender de los logs del servidor. Mismo criterio que los diagnósticos de
+imágenes que ya existen.
+
+**Request:** `GET /v1/chat/admin/diagnostico-bot/{sesionId}` — requiere `ROLE_ADMIN`.
+
+**Response:**
+```json
+{
+  "data": {
+    "sesionId": "a1b2c3…",
+    "existeSesion": true,
+    "estado": "ACTIVA",
+    "modo": "HUMANO",
+    "esperaAntesDeContestarSegundos": 25,
+    "ultimoMensaje": { "id": 412, "remitente": "USUARIO", "timestamp": "2026-09-16T01:42:07" },
+    "elBotDebeContestar": true,
+    "porQue": "el último mensaje es del cliente: el bot lo contesta en 25s si el dueño no entra antes (la conversación está en modo HUMANO)",
+    "limiteDeMensajesExcedido": false,
+    "segundosParaQueSeReinicieElLimite": 0,
+    "pruebaOpenAi": "ok — OpenAI contestó"
+  }
+}
+```
+
+Cómo leerlo:
+
+| Campo | Qué dice |
+|---|---|
+| `modo` | `BOT` = contesta el asistente. `HUMANO` = el dueño tomó la conversación |
+| `elBotDebeContestar` + `porQue` | En español, por qué el bot contesta o no en este momento |
+| `limiteDeMensajesExcedido` | `true` = se agotó el tope de mensajes por hora; el bot ya no contesta y escala |
+| `pruebaOpenAi` | **Llama a OpenAI en vivo.** `ok` = la llave y el crédito están bien. `FALLA: …` trae el error exacto (llave mala, sin crédito, sin red) |
+
+`pruebaOpenAi` consume un mensaje de la cuota de OpenAI cada vez que se llama — es un botón de
+diagnóstico, no algo para dejar refrescando.
+
+**500** si la conversación no existe no aplica: responde igual con `existeSesion: false` y el resto
+en `null`, para poder distinguir "sesión que no existe" de "sesión que sí existe pero el bot no
+contesta".
+
+**Verificado:** back compila (`mvn -o compile`) y los 3 tests de `ChatVivoBotServiceTest` pasan.
+
+---
+
+## 🤖 Chat en vivo: el bot seguía sin contestar — segunda vuelta (2026-09-16)
+
+Después del fix anterior el cliente **seguía sin ver respuesta**. El deploy de QA sí había subido
+(run 428, verde). O sea que el problema era de código, no de despliegue. Se encontraron dos cosas
+más en el back, y queda **un punto que depende del front** (abajo, es el importante).
+
+### ⚠️ Lo que el front tiene que revisar: el remitente `BOT`
+
+Hasta ahora el chat en vivo sólo tenía **dos** remitentes: `USUARIO` y `ADMIN`. Con el bot existe
+un **tercero: `BOT`**, y esto **nunca se había documentado**.
+
+Cuando contesta el asistente, el back publica en `/topic/chat.usuario.{sesionId}` esto:
+
+```json
+{
+  "tipo": "MENSAJE",
+  "remitente": "BOT",
+  "contenido": "¡Hola! ¿En qué te ayudo?",
+  "timestamp": "2026-09-16T03:42:07"
+}
+```
+
+Y el mismo mensaje se publica en `/topic/chat.admin` con `remitente: "BOT"` + `sesionId`.
+
+**Si la pantalla del cliente decide cómo pintar el globo con algo del estilo
+`remitente === 'ADMIN' ? ... : ...` o filtra por remitentes conocidos, el mensaje del bot no se
+pinta y el chat se ve "muerto" aunque el back haya contestado bien.** El historial por REST
+(`GET /v1/chat/admin/historial/...`) devuelve esos mensajes con el mismo `remitente: "BOT"`.
+
+Cómo saber en 10 segundos si es esto: manda un mensaje como cliente, espera, y abre
+**Sistema → Chat directo** en el panel del admin. Si ahí **sí** está la respuesta del asistente, el
+back funciona y lo que falta es pintar `BOT` en la pantalla del cliente.
+
+Sugerencia de trato en el front: `BOT` se pinta del **mismo lado que `ADMIN`** (es el negocio
+contestando), idealmente con una etiqueta tipo "Asistente" para distinguirlo de una persona.
+
+### Causa 3 — la conversación se quedaba clavada en modo HUMANO (regresión del fix anterior)
+
+En el cambio anterior se separó mal una condición. El reseteo del modo a `BOT` quedó pegado a "el
+dueño está en el panel", cuando debía depender sólo de "la sesión venía en HUMANO". Con el dueño
+desconectado pasaba esto:
+
+1. El bot contestaba (bien), pero la sesión **se quedaba en modo `HUMANO` para siempre**.
+2. A partir de ahí, cada mensaje siguiente volvía a esperar el turno largo del dueño (25s) en
+   cuanto el dueño abriera el panel — y como probar el chat normalmente se hace **con el panel del
+   admin abierto en otra pestaña**, eran 25 segundos de silencio en cada mensaje.
+
+**Fix:** ahora son dos cosas distintas y separadas:
+- **cuánto se espera** → sólo se espera al dueño si está de verdad en el panel;
+- **a quién le toca después** → si al final contestó el bot, la conversación vuelve a modo `BOT`,
+  esté el dueño conectado o no.
+
+Cubierto con test de regresión (`siContestaElBotLaSesionVuelveAModoBotAunqueElDuenoNoEstuvieraEnElPanel`):
+con la lógica anterior ese test falla.
+
+### Causa 4 — la mitad de la decisión seguía sin protección
+
+El fix anterior protegió el cuerpo de `responder()`, pero **leer el modo de la sesión y si el dueño
+está conectado quedó fuera** del try/catch. Las dos cosas tocan la base: si tronaban, la excepción
+subía por el hilo del WebSocket y **el temporizador nunca se programaba** — el cliente otra vez sin
+respuesta, sin aviso y sin escalado. Es el mismo agujero de la Causa 1, en la mitad que había
+quedado afuera.
+
+**Fix:** si no se puede leer el estado de la sesión, se atiende igual con los valores por defecto
+(modo `BOT`, espera corta) en vez de no atender. Y el manejador de error final del temporizador
+ahora también escala y avisa al cliente, en vez de sólo escribir en el log.
+
+Cubierto con test (`siNoSePuedeLeerLaSesionElBotAtiendeIgual`).
+
+### Cambio en el endpoint de diagnóstico
+
+`GET /v1/chat/admin/diagnostico-bot/{sesionId}` gana un campo y corrige otro:
+
+| Campo | Cambio |
+|---|---|
+| `duenoEnElPanel` | **Nuevo.** `true` = el dueño tiene el panel abierto, así que al bot le toca esperar su turno |
+| `esperaAntesDeContestarSegundos` | **Corregido.** Antes decía siempre 25s en modo HUMANO aunque el dueño no estuviera conectado y la espera real fueran 6s |
+
+Para el caso de arriba, este endpoint también sirve: si después de mandar un mensaje el diagnóstico
+dice `ultimoMensaje.remitente: "BOT"`, el bot **sí** contestó y lo que falta es pintarlo en el
+front.
+
+**Verificado:** back compila (`mvn -o compile`) y los **5** tests de `ChatVivoBotServiceTest` pasan.
+Los 2 tests nuevos se corrieron primero contra la lógica anterior para confirmar que fallaban.
+
+---
+
+## Chat en vivo — tercera vuelta (2026-09-16, tarde): el bot se moría en silencio con respuesta vacía
+
+Después de subir las causas 1 a 4 se volvió a probar en QA y **el bot seguía sin contestar**. Esta
+vez el log del servidor dio la pista exacta. Se veía todo el camino hasta el final:
+
+```
+[WS] /chat.mensaje recibido — contenido=hola
+Chat en vivo: sesión ... en modo BOT (dueño en el panel: false) — el bot contesta en 6s
+Chat en vivo: sesión ... — el bot va a contestar (historial de 9 mensajes)
+Hibernate: select ... palabra_clave / variantes / producto   ← armando el catálogo
+                                                              ← y aquí se corta TODO
+```
+
+Y después de eso, **nada**: ni un `insert into chat_mensaje`, ni una línea de error. Eso es lo que
+lo delata — si el bot hubiera fallado habría un error en el log y un aviso al cliente; si hubiera
+contestado habría un insert. No había ninguno de los dos.
+
+### La causa
+
+La llamada a OpenAI puede terminar **vacía** (sin valor y sin error) — pasa cuando OpenAI responde
+con cuerpo vacío. Un flujo vacío **no es un error**: no entra al camino de la respuesta ni al
+camino del error. El programa simplemente daba por terminado el trabajo como si todo hubiera salido
+bien, y el cliente se quedaba:
+
+- sin respuesta del asistente,
+- sin el aviso de "te paso con una persona",
+- sin correo al dueño,
+- y **sin una sola línea en el log** que dijera que algo pasó.
+
+Era el último camino por el que el chat se podía ver "muerto" sin explicación.
+
+**Fix:** una respuesta vacía ahora se trata como falla. Se le avisa al cliente con el mismo texto
+de siempre (`"Tuve un problema para responderte. Ya le avisé a una persona del negocio..."`), la
+conversación pasa a modo `HUMANO` y sale el correo al dueño. Cubierto con test de regresión
+(`siOpenAiContestaVacioElClienteNoSeQuedaSinNada`).
+
+### Además: el log ya no tiene puntos ciegos
+
+El camino bueno **no dejaba ningún rastro**: un chat que sí contestó y uno que se murió callado se
+veían idénticos en el log (los dos terminaban en las consultas del catálogo). Se agregaron dos
+marcas para que la próxima vez el log diga solo quién falló:
+
+| Línea nueva en el log | Qué significa si es la última que aparece |
+|---|---|
+| `prompt armado (categoría=..., N mensajes al modelo), llamando a OpenAI` | El catálogo se armó bien. Si no hay nada después, el problema es **la salida a internet / OpenAI** |
+| `OpenAI contestó en la sesión ... (N caracteres), publicando la respuesta` | OpenAI **sí** contestó. Si el cliente no lo ve, el problema es **pintar el remitente `BOT` en el front** (ver sección anterior) |
+
+Si el log se corta **antes** de `prompt armado`, entonces se atoró armando el catálogo (consultas a
+la base), no en OpenAI.
+
+**Nada de esto cambia el contrato del front.** Los endpoints, los campos y el remitente `BOT` siguen
+exactamente igual que en la sección anterior. Lo único que cambia de cara al cliente es que un fallo
+de OpenAI ahora **siempre** termina en un mensaje visible en el chat, nunca en silencio.
+
+**Verificado:** back compila (`mvn -o compile`) y los **6** tests de `ChatVivoBotServiceTest` pasan.
+
+---
+
+## Chat en vivo — LA CAUSA REAL (2026-09-17): la base rechazaba el remitente `BOT`
+
+Las tres vueltas anteriores taparon agujeros reales, pero **ninguna era la causa**. Con las marcas
+nuevas en el log, la corrida en QA por fin mostró el camino completo:
+
+```
+Chat en vivo: prompt armado (categoría=null, 12 mensajes al modelo), llamando a OpenAI
+Chat en vivo: OpenAI contestó en la sesión dd178055... (41 caracteres), publicando la respuesta
+Hibernate: insert into chat_mensaje (contenido,remitente,sesion_id,timestamp) values (?,?,?,?)
+SQL Error: 3819 — Check constraint 'chk_remitente' is violated.
+Chat en vivo: el bot no pudo contestar en la sesión dd178055... — se escala a una persona
+```
+
+OpenAI **sí contestaba**, en 6 segundos, con 41 caracteres. El bot nunca fue el problema.
+
+### La causa
+
+La tabla `chat_mensaje` se creó con una restricción que sólo aceptaba dos remitentes:
+
+```sql
+CONSTRAINT chk_remitente CHECK (remitente IN ('USUARIO', 'ADMIN'))
+```
+
+Era correcto cuando en el chat sólo escribían el cliente y el dueño. Al meter el bot (P4) se agregó
+la columna `modo` a `chat_sesion` pero **a nadie se le actualizó esta restricción**, así que la base
+venía rechazando **todos** los mensajes del bot desde el primer día. El bot nunca logró guardar uno.
+
+Y lo que lo volvía invisible: el rescate que debía avisarle al cliente **guarda por el mismo
+camino**, así que también tronaba. El cliente se quedaba sin respuesta **y** sin aviso.
+
+### Esto también rompía el widget público (bug aparte, misma causa)
+
+`POST /chatbot/mensaje` guarda la conversación en las mismas tablas para que el dueño la lea en
+chat directo. La pregunta del cliente (`USUARIO`) entraba bien, la respuesta del bot (`BOT`) se
+rechazaba, y el error se lo tragaba un `log.warn`. **Resultado:** en chat directo las conversaciones
+del widget se veían mancas — sólo las preguntas del cliente, sin ninguna respuesta.
+
+Con el fix esas conversaciones quedan completas. El front del panel no cambia: ya sabía pintar
+`remitente: "BOT"`, simplemente nunca le llegaban.
+
+### ⚠️ Acción requerida en la base — el deploy solo no arregla nada
+
+El proyecto corre con `ddl-auto: none`: hay que correr el SQL **a mano** en cada base.
+
+```
+migration_chat_remitente_bot.sql
+```
+
+| Base | Rama | Estado |
+|---|---|---|
+| `inventario_key_qa` | `dev` / `qa` | ✅ **corrida 2026-09-17** — verificado: `remitente in ('USUARIO','ADMIN','BOT')` |
+| `inventario_key` | `main` | ⬜ pendiente (cuando se promueva) |
+
+`dev` y `qa` comparten la misma base (`inventario_key_qa`), así que es **una sola corrida** para las
+dos ramas, no dos.
+
+No mueve ni borra datos: sólo cambia qué valores acepta la columna. Los mensajes ya guardados no se
+tocan. **Mientras no se corra, el bot sigue sin contestar aunque el código esté al día.**
+
+### Además: que no se pueda guardar ya no deja al cliente en blanco
+
+Guardar el mensaje y mandárselo al cliente eran una sola operación: si el guardado fallaba se
+llevaba el mensaje entero. Ahora son dos pasos — si la base rechaza el insert, se escribe el error
+en el log y **el mensaje se le manda al cliente igual**. Pierde el historial, no la conversación.
+
+Cubierto con test (`siLaBaseRechazaElMensajeDelBotElClienteIgualLoRecibe`).
+
+### Cómo leer el log a partir de ahora
+
+| Última línea que aparece | Dónde está el problema |
+|---|---|
+| `prompt armado ... llamando a OpenAI` | La salida a internet / OpenAI |
+| `OpenAI contestó ... publicando la respuesta` | OpenAI contestó bien — el problema es guardar o pintar |
+| `no se pudo guardar la respuesta del bot ...` | La base. El cliente **sí** vio el mensaje, pero no quedó en el historial |
+| `Check constraint 'chk_remitente' is violated` | **Falta correr `migration_chat_remitente_bot.sql`** en esa base |
+
+**Nada de esto cambia el contrato del front.** Endpoints, campos y el remitente `BOT` siguen igual.
+Lo que cambia es que ahora los mensajes del bot **llegan y se guardan**.
+
+**Verificado:** los **7** tests de `ChatVivoBotServiceTest` pasan. El test nuevo se corrió contra la
+lógica anterior para confirmar que fallaba.
+
+---
+
+## Chatbot — "no tenemos shorts" con shorts en stock (2026-09-17)
+
+**Sin impacto en el contrato del front.** Endpoints, campos y respuestas siguen igual; lo que cambia
+es la calidad de lo que contesta el bot. Se documenta porque es comportamiento visible para el
+cliente.
+
+El cliente preguntó "¿Tendrás sorth? o faldas?" y el bot contestó que no había ninguno de los dos,
+con shorts en stock y visibles en la tienda.
+
+### Qué NO era (se descartó con datos)
+
+- **No era truncamiento del catálogo.** La consulta sin categoría corta en 1000 variantes y no tiene
+  `ORDER BY`, así que se sospechó que el short se caía del corte. La tienda tiene **513** variantes
+  con stock y habilitadas, así que el catálogo completo entraba y el short sí estaba ahí.
+- **No era que faltara el nombre.** "short" está cargado en el nombre del producto, que siempre va en
+  el catálogo.
+
+### Qué era
+
+El error de dedo. El modelo tenía la línea del short enfrente y no conectó "sorth" con "short".
+Nada en el prompt le decía que interpretara la intención antes de negar.
+
+### Qué se cambió
+
+| Cambio | Por qué |
+|---|---|
+| Regla nueva en el prompt: interpretar errores de dedo ("sorth" = short), buscar el tipo de prenda en la presentación y no sólo en el nombre, y no cerrar con un "no tenemos" seco | Es el fix del caso reportado |
+| `presentación` ahora va también en el catálogo compacto (antes sólo en el detallado) | Defecto aparte que se encontró en el camino: un producto cuyo nombre es el del modelo ("Surprise SU8183") y cuyo tipo vive sólo en la presentación quedaba como una línea que no decía QUE ES. Talla y color siguen sólo en el detallado para no pagar tokens de más |
+
+Tests: `ChatbotCatalogoContextoTest` (2, el primero corrido contra la lógica anterior para confirmar
+que fallaba).
+
+### Deuda pendiente (no urgente)
+
+La consulta del catálogo sin categoría (`findByStockGreaterThanAndProductoHabilitado`) corta en 1000
+**sin `ORDER BY`**: cuál variante se cae del corte es arbitrario. Con 513 no molesta, pero al pasar
+de 1000 se vuelve un bug de verdad. Lo primero ahí es el `ORDER BY`, no filtrar.
+
+Y una nota sobre filtrar por las palabras del mensaje cuando no hay categoría: **empeoraría los
+typos.** Un `LIKE '%sorth%'` no matchea nada, y mandarle catálogo vacío al modelo lo hace negar con
+total seguridad — hoy, con el catálogo entero, al menos puede salvar el error de dedo.
+
+---
+
+## 🤖 Chat en vivo: el bot ofrecía fotos que esa pantalla no puede mostrar (2026-09-17)
+
+### Lo que veía el cliente
+
+```
+Cliente: Hola, tendras sort?
+Bot:     ¡Hola! Sí, tenemos varios modelos de shorts. Por ejemplo, el "Jeans Short
+         Especial" a $250 MXN. 😊 ¿Quieres ver una foto?
+Cliente: sí
+Bot:     (nada, o un texto tipo "¡Aquí la tienes! 📸" sin imagen abajo)
+```
+
+El chat en vivo pinta el mensaje del bot **como texto y nada más**: no dibuja tarjetas de producto ni
+imágenes. El widget público del sitio sí las dibuja, y el prompt era compartido entre los dos, así
+que el bot prometía en el chat en vivo una foto que ese canal no puede entregar.
+
+### Por qué el primer arreglo no sirvió (importa para no repetirlo)
+
+El primer intento quitó **sólo la línea** del prompt que manda preguntar por la foto. No alcanzó:
+abajo seguían intactos los ejemplos calcados —
+
+```
+* "tienes cod1230981?" → "¡Sí! Tenemos la Mochila para mostrar a $300 MXN 😊 ¿Quieres ver una foto?"
+```
+
+— y una **REGLA CRÍTICA** que ordena mostrar imágenes siempre ("NUNCA respondas que no hay imágenes
+… siempre puedes mostrarlas con `##BUSCAR##`"). El modelo copia el ejemplo antes que obedecer una
+prohibición abstracta: la respuesta del "Jeans Short Especial" es el ejemplo de la Mochila calcado,
+con otro producto. **Una instrucción negativa no le gana a un ejemplo concreto que sigue presente.**
+
+### Qué se cambió
+
+| Cambio | Por qué |
+|---|---|
+| La sección de tarjetas del prompt se extrajo a un método propio (`seccionMostrarProductos()`) | Es lo único que cambia de raíz entre canales; así un canal sin tarjetas la reemplaza completa en vez de parcharla línea por línea |
+| El chat en vivo la sobreescribe entera: ejemplos, REGLA CRÍTICA y `##BUSCAR##` ya no aparecen en su prompt | Es el fix. Sus ejemplos ahora empujan al lado contrario (responder por texto, no prometer fotos) |
+| La frase "¿Quieres ver una foto?" no está en el prompt del chat en vivo **en ninguna forma**, ni siquiera con un "NUNCA" delante | Citarla para prohibirla la deja disponible para que el modelo la reproduzca. Ya falló dos veces por confiar en instrucciones negativas |
+| El bot menciona **varios** productos cuando hay varios que sirven, no sólo uno | Duda que salió en la revisión: con varios shorts en stock contestaba con uno solo |
+
+**El widget público del sitio no cambia**: ahí las tarjetas con imagen siguen igual, el bot sigue
+preguntando "¿Quieres ver una foto?" y sigue usando `##BUSCAR##`.
+
+### Qué cambia para el front
+
+**Nada de contrato**: mismos endpoints, mismo WebSocket, mismo formato de mensaje. Lo que cambia es
+el **texto** que escribe el bot en el chat en vivo:
+
+- Ya no ofrece ni promete fotos ni imágenes.
+- Si el cliente pide una foto, contesta que por ahí no se pueden ver y ofrece dos salidas: verla en
+  la tienda en línea, o pasarlo con una persona (`##HUMANO##`, que ya existía).
+- Sigue respondiendo nombre, presentación y precio por texto.
+
+Si en algún momento se decide que el chat en vivo **sí** muestre imágenes, no es un cambio de prompt:
+hay que dibujar las tarjetas en esa pantalla. Hoy `ChatVivoBotService` borra la marca `##BUSCAR[...]##`
+antes de enviar el mensaje, así que si el modelo la emitiera el cliente no la ve — pero tampoco ve la
+foto, y queda el texto colgado que es justo lo que se reportó.
+
+Tests: `ChatbotPromptFotosTest` (4). Miran el **prompt final armado**, no una línea suelta — incluido
+uno al revés que verifica que el widget del sitio **sí** conserva sus tarjetas, para que apagarlas en
+un canal no las apague en el otro.

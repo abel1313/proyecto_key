@@ -20,7 +20,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,13 +45,21 @@ public class LogoService {
     @Value("${guardar-imagenes.ruta_imagenes}")
     private String rutaImagenes;
 
+    // ArrayList y no .toList(): una lista inmutable como valor raiz de @Cacheable no lleva type
+    // id al serializarse a Redis y truena al leerse de vuelta (ver getImagenesPorVarianteV2).
     @Cacheable("logosCache")
     public List<LogoDto> listar() {
-        return repo.findAllByOrderByCreadoEnDesc().stream().map(this::toDto).toList();
+        return repo.findAllByOrderByCreadoEnDesc().stream().map(this::toDto)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    /** Público -- el que hoy está activo, si hay alguno (usado por EmailService y por el front). */
-    @Cacheable("logoActivoCache")
+    /**
+     * Público -- el que hoy está activo, si hay alguno (usado por EmailService y por el front).
+     *
+     * <p>Sin @Cacheable a proposito: un Optional como valor raiz de cache se guarda en Redis como
+     * {@code {"empty":true,"present":false}} -- sin el type id y sin el contenido -- y al leerlo
+     * de vuelta truena. Es una sola fila por query, la cache no aportaba nada que valiera eso.
+     */
     public Optional<LogoDto> obtenerActivo() {
         return repo.findByActivoTrue().map(this::toDto);
     }

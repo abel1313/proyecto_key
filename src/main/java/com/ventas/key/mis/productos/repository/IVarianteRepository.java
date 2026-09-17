@@ -25,8 +25,17 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // Listado general de admin (getAll/findAllNew) sin ningun filtro de negocio -- ve todo
     // (deshabilitados, sin stock, sin imagen) salvo las variantes "sombra" de flores eternas,
     // que nunca deben aparecer como si fueran un producto navegable mas.
-    @Query(value = "SELECT v FROM Variantes v WHERE v.producto.esCatalogoInterno = false",
-           countQuery = "SELECT COUNT(v) FROM Variantes v WHERE v.producto.esCatalogoInterno = false")
+    // Excluye tambien las variantes de un BORRADOR de la carga rapida de imagenes: hasta que el
+    // producto no tenga su codigo de barras real, solo debe verse en esa pantalla (ver
+    // IProductosRepository.findBorradores).
+    @Query(value = "SELECT v FROM Variantes v JOIN v.producto p LEFT JOIN p.codigoBarras cb " +
+           "WHERE p.esCatalogoInterno = false " +
+           "AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE) " +
+           "AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')",
+           countQuery = "SELECT COUNT(v) FROM Variantes v JOIN v.producto p LEFT JOIN p.codigoBarras cb " +
+           "WHERE p.esCatalogoInterno = false " +
+           "AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE) " +
+           "AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')")
     Page<Variantes> findVisibleParaAdmin(Pageable pageable);
 
     // Resolver minimo para la ficha de producto publica: cuando el cliente entra por un link
@@ -78,6 +87,28 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // --- búsqueda por palabra clave ---
     Page<Variantes> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(int stock, char habilitado, String nombre, Pageable pageable);
+
+    // Igual que el de arriba, pero la categoria tambien cuenta cuando esta puesta en el MODELO
+    // (Producto.palabraClave) y no en la variante. La pantalla "Agregar modelo" captura la
+    // categoria del producto y "Agregar producto" la de la variante: con el filtro que solo miraba
+    // la variante, un producto categorizado unicamente en el modelo quedaba fuera del catalogo que
+    // se le manda al chatbot -- el bot contestaba que no habia nada de esa categoria teniendolo en
+    // stock. La categoria de la variante sigue mandando cuando existe; la del modelo solo entra
+    // como respaldo (vpc IS NULL).
+    @Query("""
+            SELECT v FROM Variantes v
+              JOIN v.producto p
+              LEFT JOIN v.palabraClave vpc
+              LEFT JOIN p.palabraClave ppc
+            WHERE v.stock > :stock
+              AND p.habilitado = :habilitado
+              AND ( LOWER(vpc.nombre) = LOWER(:nombre)
+                 OR (vpc IS NULL AND LOWER(ppc.nombre) = LOWER(:nombre)) )
+            """)
+    List<Variantes> buscarParaChatbotPorCategoria(@Param("stock") int stock,
+                                                  @Param("habilitado") char habilitado,
+                                                  @Param("nombre") String nombre,
+                                                  Pageable pageable);
 
     // --- listado público: stock + habilitado (producto Y variante) + con imagen (cliente normal) ---
     // JOIN FETCH del grafo que el DTO de resumen siempre lee (producto, su codigo de barras y la
@@ -152,9 +183,12 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:habilitado IS NULL
                OR (:habilitado = TRUE AND v.habilitado = '1' AND p.habilitado = '1')
                OR (:habilitado = FALSE AND (v.habilitado <> '1' OR p.habilitado <> '1')))
-          AND (:codigoGenerado IS NULL
-               OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
-               OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND ((:codigoGenerado = TRUE
+                AND (p.codigoBarrasGenerado = TRUE
+                     OR (cb.codigoBarras IS NOT NULL AND UPPER(cb.codigoBarras) LIKE 'BRD-%')))
+               OR ((:codigoGenerado IS NULL OR :codigoGenerado = FALSE)
+                   AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)
+                   AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
@@ -176,9 +210,12 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:habilitado IS NULL
                OR (:habilitado = TRUE AND v.habilitado = '1' AND p.habilitado = '1')
                OR (:habilitado = FALSE AND (v.habilitado <> '1' OR p.habilitado <> '1')))
-          AND (:codigoGenerado IS NULL
-               OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
-               OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND ((:codigoGenerado = TRUE
+                AND (p.codigoBarrasGenerado = TRUE
+                     OR (cb.codigoBarras IS NOT NULL AND UPPER(cb.codigoBarras) LIKE 'BRD-%')))
+               OR ((:codigoGenerado IS NULL OR :codigoGenerado = FALSE)
+                   AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)
+                   AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false

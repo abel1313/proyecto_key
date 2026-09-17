@@ -42,9 +42,32 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
     // Listado general de admin (getAll) sin ningun filtro de negocio -- ve todo salvo las
     // variantes/productos "sombra" de flores eternas, que nunca deben aparecer como si fueran
     // un producto navegable mas (ver ProductoSombraServiceImpl).
-    @Query(value = "SELECT p FROM Producto p WHERE p.esCatalogoInterno = false",
-           countQuery = "SELECT COUNT(p) FROM Producto p WHERE p.esCatalogoInterno = false")
+    // Ademas de las "sombra", excluye los BORRADORES de la carga rapida de imagenes: mientras el
+    // producto no tenga su codigo de barras real, solo debe verse en la pantalla de Carga rapida
+    // (ver findBorradores). Si se filtran aqui, no se propagan a productos/buscar ni a tienda.
+    @Query(value = "SELECT p FROM Producto p LEFT JOIN p.codigoBarras cb " +
+           "WHERE p.esCatalogoInterno = false " +
+           "AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE) " +
+           "AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')",
+           countQuery = "SELECT COUNT(p) FROM Producto p LEFT JOIN p.codigoBarras cb " +
+           "WHERE p.esCatalogoInterno = false " +
+           "AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE) " +
+           "AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')")
     Page<Producto> findVisibleParaAdmin(Pageable pageable);
+
+    // Fuente unica de verdad de "es borrador de carga rapida": el flag codigo_barras_generado O
+    // un codigo que sigue siendo el placeholder BRD-XXXXXXXXXXXX. Se usan los DOS con OR a
+    // proposito -- antes la pantalla de Carga rapida listaba por el flag y el front bloqueaba la
+    // edicion por el prefijo del codigo; en cuanto los dos criterios se separaban (flag en false
+    // con el codigo todavia BRD-), el borrador desaparecia de Carga rapida pero seguia saliendo
+    // en productos/buscar, sin forma de completarlo desde ningun lado. NO filtra por habilitado:
+    // un borrador es borrador aunque alguien lo haya habilitado por error.
+    @Query("SELECT p FROM Producto p LEFT JOIN p.codigoBarras cb " +
+           "WHERE p.esCatalogoInterno = false " +
+           "AND (p.codigoBarrasGenerado = TRUE " +
+           "     OR (cb.codigoBarras IS NOT NULL AND UPPER(cb.codigoBarras) LIKE 'BRD-%')) " +
+           "ORDER BY p.id DESC")
+    List<Producto> findBorradores();
 
     @Query("SELECT p FROM Producto p WHERE p.stock > 0 AND p.habilitado = '1' " +
            "AND LOWER(p.codigoBarras.codigoBarras) = LOWER(:codigoBarras) " +
@@ -82,9 +105,12 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
                OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)))
           AND (:habilitado IS NULL OR (:habilitado = TRUE AND p.habilitado = '1') OR (:habilitado = FALSE AND p.habilitado <> '1'))
-          AND (:codigoGenerado IS NULL
-               OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
-               OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND ((:codigoGenerado = TRUE
+                AND (p.codigoBarrasGenerado = TRUE
+                     OR (cb.codigoBarras IS NOT NULL AND UPPER(cb.codigoBarras) LIKE 'BRD-%')))
+               OR ((:codigoGenerado IS NULL OR :codigoGenerado = FALSE)
+                   AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)
+                   AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
@@ -102,9 +128,12 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                OR (:conImagenes = TRUE AND EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p))
                OR (:conImagenes = FALSE AND NOT EXISTS (SELECT 1 FROM ProductoImagen pi WHERE pi.producto = p)))
           AND (:habilitado IS NULL OR (:habilitado = TRUE AND p.habilitado = '1') OR (:habilitado = FALSE AND p.habilitado <> '1'))
-          AND (:codigoGenerado IS NULL
-               OR (:codigoGenerado = TRUE AND p.codigoBarrasGenerado = TRUE)
-               OR (:codigoGenerado = FALSE AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)))
+          AND ((:codigoGenerado = TRUE
+                AND (p.codigoBarrasGenerado = TRUE
+                     OR (cb.codigoBarras IS NOT NULL AND UPPER(cb.codigoBarras) LIKE 'BRD-%')))
+               OR ((:codigoGenerado IS NULL OR :codigoGenerado = FALSE)
+                   AND (p.codigoBarrasGenerado IS NULL OR p.codigoBarrasGenerado = FALSE)
+                   AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false

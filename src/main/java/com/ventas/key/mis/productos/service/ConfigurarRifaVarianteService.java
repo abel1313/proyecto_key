@@ -5,13 +5,13 @@ import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.entity.ConfigurarRifaVariante;
 import com.ventas.key.mis.productos.entity.Producto;
-import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteDto;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteEditarRequest;
 import com.ventas.key.mis.productos.models.ConfigurarRifaVarianteRequest;
+import com.ventas.key.mis.productos.models.PremioPublicoDto;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaRepository;
 import com.ventas.key.mis.productos.repository.IConfigurarRifaVarianteRepository;
@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -262,11 +263,71 @@ public class ConfigurarRifaVarianteService {
         // no lo puede cachear -- una lista de premios se comia el plan de datos del celular. De pilon
         // esa llamada fallaba de vez en cuando (timeout, micro caido) y el premio salia sin foto
         // aunque en modelos se viera bien. Mismo orden (principal primero) que el listado de busqueda.
+        //
+        // Va a /file/ y no a /thumbnail/: los premios de una rifa son pocos (no es un listado
+        // masivo) y se ven en grande, y la miniatura dejaba al premio sin foto. /thumbnail/ queda
+        // para los listados de catalogo, que es donde el ahorro de peso si compensa.
         List<Object[]> filas = iVarianteImagenRepository.findIdsPrimeraImagenByVarianteIdIn(List.of(v.getId()));
         if (!filas.isEmpty()) {
-            dto.setImagenUrl(endpointImagenes + "v1/imagenes/thumbnail/" + (Long) filas.get(0)[1]);
+            dto.setImagenUrl(endpointImagenes + "v1/imagenes/file/" + (Long) filas.get(0)[1]);
         }
 
         return dto;
+    }
+
+    /**
+     * El premio para la página pública: los campos que describen lo que se va a ganar y
+     * TODAS sus fotos, no solo la primera como {@link #toVarianteResumen}. Se llama al
+     * abrir el detalle, no al pintar la ruleta, porque el estado se recarga tras cada
+     * giro y mandar la galería completa en cada recarga multiplicaría el payload.
+     */
+    public PremioPublicoDto toPremioPublico(ConfigurarRifaVariante crv) {
+        Variantes v = crv.getVariante();
+
+        PremioPublicoDto dto = new PremioPublicoDto();
+        dto.setId(crv.getId());
+        dto.setDescripcion(v.getDescripcion());
+        dto.setTalla(v.getTalla());
+        dto.setColor(v.getColor());
+        dto.setMarca(v.getMarca());
+        dto.setPresentacion(v.getPresentacion());
+        dto.setContenidoNeto(v.getContenidoNeto());
+        if (v.getProducto() != null) {
+            dto.setNombreProducto(v.getProducto().getNombre());
+        }
+
+        dto.setImagenes(urlsImagenesDe(v.getId(), crv.getId()));
+        return dto;
+    }
+
+    /**
+     * Las URLs del carrusel, en el mismo orden que ve el admin: la principal primero y luego por
+     * id. Antes esto bajaba cada foto del micro y la mandaba en base64 dentro del JSON; un premio
+     * con cinco fotos se iba arriba de 1 MB de texto que el navegador ni siquiera puede cachear.
+     * Ahora solo se arman las URLs y el navegador baja cada imagen por su cuenta contra el micro,
+     * con el cache de 1 ano que ese endpoint ya manda.
+     *
+     * Esta pantalla es publica y NO habla con el micro de imagenes. Antes preguntaba primero
+     * "de estos ids, cuales tienes?" para no mandar URLs rotas, y esa llamada sincrona era lo
+     * unico de este endpoint que salia a la red: con el micro sin responder, el hilo se quedaba
+     * esperando ahi y el detalle del premio no contestaba nunca -- el visitante veia
+     * "Cargando el detalle..." para siempre. El filtro tampoco hacia falta: el propio navegador
+     * se salta la foto que no baja (el carrusel la descarta con (error) en el <img>), asi que se
+     * ganaba muy poco a cambio de que una pantalla publica dependiera de que el micro este vivo.
+     * El endpoint queda solo con lecturas a BD, igual que /publico/estado, que nunca se colgo.
+     */
+    private List<String> urlsImagenesDe(Integer varianteId, Integer premioId) {
+        // Se lee la FK imagen_id por columna en vez de cargar la entidad Imagen: si la fila de
+        // variante_imagen sigue pero su registro en `imagen` ya no, cargarla como entidad dejaba
+        // getImagen() en null y habia que descartarla, o sea que el carrusel perdia justo las
+        // fotos huerfanas -- que el micro normalmente si tiene. El archivo vive alla, que es
+        // quien manda: con el id basta para armar la URL.
+        List<Long> ids = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId)
+                .stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) {
+            log.info("Premio {} (variante {}) sin fotos en BD", premioId, varianteId);
+            return List.of();
+        }
+        return ids.stream().map(id -> endpointImagenes + "v1/imagenes/file/" + id).toList();
     }
 }

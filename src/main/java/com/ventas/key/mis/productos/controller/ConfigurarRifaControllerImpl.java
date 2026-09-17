@@ -70,6 +70,24 @@ public class ConfigurarRifaControllerImpl extends AbstractController<
         }
     }
 
+    /**
+     * Decide cuál es la rifa que sirve el link público (/ruleta/{id}). Solo una a la vez:
+     * publicar una despublica la anterior.
+     */
+    @PutMapping("/{id}/publica")
+    public ResponseEntity<ResponseGeneric<ConfigurarRifa>> togglePublica(
+            @PathVariable Integer id,
+            @RequestBody Map<String, Boolean> body) {
+        try {
+            boolean publica = Boolean.TRUE.equals(body.get("publica"));
+            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.togglePublica(id, publica)));
+        } catch (Exception e) {
+            log.error("Error al cambiar publica de la rifa {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ResponseGeneric<>(null, e.getMessage()));
+        }
+    }
+
     @PutMapping("/{id}/esPrueba")
     public ResponseEntity<ResponseGeneric<ConfigurarRifa>> toggleEsPrueba(
             @PathVariable Integer id,

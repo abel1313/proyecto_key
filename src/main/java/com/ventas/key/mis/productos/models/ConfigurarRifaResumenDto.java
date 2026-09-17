@@ -29,4 +29,7 @@ public class ConfigurarRifaResumenDto {
     // pedía configurar el rango otra vez aunque ya estuviera guardado en la BD.
     private LocalDate fechaInicioBoletos;
     private LocalDate fechaFinBoletos;
+
+    /** Si es la rifa que el link público sirve hoy. Solo una a la vez. */
+    private Boolean publica;
 }

@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.entity.ChatMensaje;
 import com.ventas.key.mis.productos.entity.ChatSesion;
 import com.ventas.key.mis.productos.models.chat.*;
+import com.ventas.key.mis.productos.service.ChatVivoBotService;
 import com.ventas.key.mis.productos.service.api.IChatMensajeService;
 import com.ventas.key.mis.productos.service.api.IChatNotificacionService;
 import com.ventas.key.mis.productos.service.api.IChatSesionService;
@@ -23,6 +24,7 @@ public class ChatWebSocketController {
     private final IChatSesionService sesionService;
     private final IChatMensajeService mensajeService;
     private final IChatNotificacionService notificacionService;
+    private final ChatVivoBotService botService;
     private final SimpMessagingTemplate messagingTemplate;
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -30,10 +32,12 @@ public class ChatWebSocketController {
     public ChatWebSocketController(IChatSesionService sesionService,
                                    IChatMensajeService mensajeService,
                                    IChatNotificacionService notificacionService,
+                                   ChatVivoBotService botService,
                                    SimpMessagingTemplate messagingTemplate) {
         this.sesionService = sesionService;
         this.mensajeService = mensajeService;
         this.notificacionService = notificacionService;
+        this.botService = botService;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -78,25 +82,39 @@ public class ChatWebSocketController {
     @MessageMapping("/chat.mensaje")
     public void mensaje(@Payload ChatMensajeRequest request) {
         log.info("[WS] /chat.mensaje recibido — sesionId={}, contenido={}", request.getSesionId(), request.getContenido());
-        Optional<ChatSesion> sesionOpt = sesionService.buscarSesionActiva(request.getSesionId());
+        // Reabre la sesion si el scheduler ya la habia cerrado por silencio. Antes se exigia estado
+        // ACTIVA y el mensaje se descartaba sin avisarle a nadie: el cliente lo veia enviado y al
+        // admin nunca le llegaba.
+        Optional<ChatSesion> sesionOpt = sesionService.reactivarSesion(request.getSesionId());
         if (sesionOpt.isEmpty()) {
-            log.warn("[WS] Sesión inactiva o inexistente: {} — mensaje descartado", request.getSesionId());
+            // La sesion ya no existe en la base. Se le avisa al cliente para que abra una nueva y
+            // reenvie lo que escribio, en vez de dejarlo creyendo que se mando.
+            log.warn("[WS] Sesión inexistente: {} — se pide reconectar al cliente", request.getSesionId());
+            messagingTemplate.convertAndSend("/topic/chat.usuario." + request.getSesionId(),
+                ChatEventoUsuario.builder().tipo("SESION_CERRADA").build());
             return;
         }
-        sesionService.actualizarActividad(request.getSesionId());
         ChatMensaje saved = mensajeService.guardar(request.getSesionId(), "USUARIO", request.getContenido());
+
+        String nombreUsuario = sesionOpt.get().getNombreUsuario();
 
         log.info("[WS] Publicando MENSAJE en /topic/chat.admin — sesionId={}", request.getSesionId());
         messagingTemplate.convertAndSend("/topic/chat.admin",
             ChatEventoAdmin.builder()
                 .tipo("MENSAJE")
                 .sesionId(request.getSesionId())
-                .nombreUsuario(sesionOpt.get().getNombreUsuario())
+                .nombreUsuario(nombreUsuario)
+                .remitente("USUARIO")
                 .contenido(request.getContenido())
                 .timestamp(saved.getTimestamp().format(FMT))
                 .build()
         );
-        notificacionService.notificarMensaje(request.getSesionId(), sesionOpt.get().getNombreUsuario(), request.getContenido());
+
+        // Ya no se manda correo en cada primer mensaje: ahora contesta el bot y el correo sale
+        // solo cuando la conversacion se escala a una persona (el cliente la pide, se agota el
+        // limite del bot, o el bot falla). Eso lo decide ChatVivoBotService.
+        botService.atender(request.getSesionId(), sesionOpt.get().getUsuarioId(), nombreUsuario,
+                saved.getId(), request.getContenido());
     }
 
     /**
@@ -108,6 +126,9 @@ public class ChatWebSocketController {
     public void adminResponder(@Payload ChatAdminResponderRequest request) {
         log.info("[WS] /chat.admin.responder recibido — sesionId={}, contenido={}", request.getSesionId(), request.getContenido());
         sesionService.actualizarActividad(request.getSesionId());
+        // En cuanto el dueno escribe, la conversacion pasa a ser suya y el bot se calla. Es la
+        // senal de "ya la tomo yo" que pidio el dueno, sin tener que apretar nada aparte.
+        sesionService.cambiarModo(request.getSesionId(), IChatSesionService.MODO_HUMANO);
         ChatMensaje saved = mensajeService.guardar(request.getSesionId(), "ADMIN", request.getContenido());
 
         String topicUsuario = "/topic/chat.usuario." + request.getSesionId();
