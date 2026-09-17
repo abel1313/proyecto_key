@@ -297,7 +297,8 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | Migración | dev / qa | prod | Fecha |
 |---|---|---|---|
 | `migration_submenu_ayuda_contextual.sql` | ⚠️ corrió pero insertó 0 filas | ⚠️ corrió pero insertó 0 filas | 2026-09-17 |
-| `migration_submenu_ayuda_contextual_fix.sql` | ⬜ pendiente | ⬜ pendiente | — |
+| `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+| `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
