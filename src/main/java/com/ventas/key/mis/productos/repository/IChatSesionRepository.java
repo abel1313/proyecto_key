@@ -20,4 +20,8 @@ public interface IChatSesionRepository extends JpaRepository<ChatSesion, Long> {
     List<ChatSesion> findByUltimaActividadAfterOrderByUltimaActividadDesc(LocalDateTime desde);
 
     List<ChatSesion> findByUsuarioIdOrderByUltimaActividadDesc(Integer usuarioId);
+
+    // La conversacion vigente de un usuario. Se excluye el estado del chatbot publico (BOT) para no
+    // mezclar el widget anonimo con el chat en vivo del cliente logueado.
+    Optional<ChatSesion> findTop1ByUsuarioIdAndEstadoNotOrderByUltimaActividadDesc(Integer usuarioId, String estado);
 }

@@ -61,6 +61,15 @@ public abstract class ChatbotBase {
                 Responde siempre en español, de manera amable, breve y clara.
                 No inventes precios ni productos que no estén en el catálogo.
 
+                ANTES DE DECIR QUE NO HAY ALGO:
+                - En el catálogo el nombre suele ser el del MODELO (ej. "Surprise SU8183") y lo que
+                  ES la prenda viene en la presentación (ej. "short chico"). Busca el tipo de prenda
+                  en la presentación, no sólo en el nombre.
+                - El cliente escribe rápido y con errores ("sorth" = short, "pantalo" = pantalón,
+                  "blusaa" = blusa). Interpreta la intención antes de negar.
+                - Si de verdad no lo ves, dilo sin cerrar la puerta: ofrece algo parecido que sí esté
+                  en el catálogo. Negar algo que sí hay pierde una venta.
+
                 POLÍTICAS DE LA TIENDA:
                 - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
                 - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
@@ -231,11 +240,8 @@ public abstract class ChatbotBase {
     }
 
     // Categoria (palabra_clave) mencionada en el mensaje del cliente -- ej. "tienes bolsas?"
-    // matchea la categoria "bolsa". Se detecta a partir del ULTIMO mensaje del cliente
-    // unicamente (no revisa historial): si un mensaje siguiente ya no repite el nombre de la
-    // categoria (ej. "las quiero grandes" despues de "tienes bolsas?"), ese turno vuelve a
-    // mandar el catalogo completo -- el historial de la conversacion sigue ahi para que el
-    // modelo no pierda el hilo, pero el catalogo puntual de ESE turno no queda acotado.
+    // matchea la categoria "bolsa". Ver detectarCategoriaEnConversacion() para el caso de un
+    // turno de seguimiento que ya no repite el nombre de la categoria.
     protected String detectarCategoriaEnMensaje(String mensaje) {
         if (mensaje == null || mensaje.isBlank()) return null;
         List<PalabraClave> categorias = palabraClaveRepository.findAll();
@@ -249,6 +255,22 @@ public abstract class ChatbotBase {
                     return categoria.getNombre();
                 }
             }
+        }
+        return null;
+    }
+
+    // Categoria del turno actual y, si ese turno no nombra ninguna, la del ultimo mensaje del
+    // cliente que si lo hizo. Un seguimiento como "y de que colores?" despues de "tienes bolsas?"
+    // no contiene ninguna palabra de categoria: sin esto el turno caia al catalogo completo, que
+    // se manda en formato compacto (sin color/talla/descripcion), y el bot terminaba contestando
+    // que no podia decir los colores de unas bolsas que si los tienen cargados.
+    protected String detectarCategoriaEnConversacion(String mensaje, List<String> mensajesPreviosDelCliente) {
+        String categoria = detectarCategoriaEnMensaje(mensaje);
+        if (categoria != null || mensajesPreviosDelCliente == null) return categoria;
+
+        for (int i = mensajesPreviosDelCliente.size() - 1; i >= 0; i--) {
+            String previa = detectarCategoriaEnMensaje(mensajesPreviosDelCliente.get(i));
+            if (previa != null) return previa;
         }
         return null;
     }
@@ -301,8 +323,8 @@ public abstract class ChatbotBase {
     protected String obtenerContextoVariantes(String categoria) {
         try {
             List<Variantes> variantes = (categoria != null)
-                    ? varianteRepository.findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(
-                            0, '1', categoria, PageRequest.of(0, MAX_VARIANTES_CONTEXTO_CHATBOT)).getContent()
+                    ? varianteRepository.buscarParaChatbotPorCategoria(
+                            0, '1', categoria, PageRequest.of(0, MAX_VARIANTES_CONTEXTO_CHATBOT))
                     : varianteRepository.findByStockGreaterThanAndProductoHabilitado(
                             0, '1', PageRequest.of(0, MAX_VARIANTES_CONTEXTO_CHATBOT)).getContent();
 
@@ -326,15 +348,22 @@ public abstract class ChatbotBase {
                     sb.append(" (").append(v.getMarca()).append(")");
                 }
 
+                // La presentación va SIEMPRE, tambien en compacto. Es donde suele estar QUE ES la
+                // cosa cuando el nombre del modelo no lo dice: un short con nombre de modelo
+                // ("Surprise SU8183") y presentación "short chico" quedaba en el catalogo compacto
+                // como una linea sin la palabra "short" en ninguna parte, asi que el bot contestaba
+                // "no tenemos shorts" con shorts en stock (reportado 2026-09-17). Es el campo mas
+                // corto que identifica al producto, asi que cuesta poco mandarlo siempre.
+                if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) {
+                    sb.append(", presentación: ").append(v.getPresentacion());
+                }
+
                 if (detallado) {
                     if (v.getTalla() != null && !v.getTalla().isBlank()) {
                         sb.append(", talla: ").append(v.getTalla());
                     }
                     if (v.getColor() != null && !v.getColor().isBlank()) {
                         sb.append(", color: ").append(v.getColor());
-                    }
-                    if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) {
-                        sb.append(", presentación: ").append(v.getPresentacion());
                     }
                 }
 
@@ -345,8 +374,17 @@ public abstract class ChatbotBase {
 
                 sb.append(", stock: ").append(v.getStock()).append(" pzas");
 
-                if (detallado && v.getDescripcion() != null && !v.getDescripcion().isBlank()) {
-                    sb.append(". ").append(v.getDescripcion());
+                if (detallado) {
+                    // La descripcion se captura en la variante ("Agregar producto") O en el modelo
+                    // ("Agregar modelo"). Leer solo la de la variante dejaba fuera del contexto lo
+                    // escrito en el modelo -- el bot no encontraba un producto por un detalle que si
+                    // estaba redactado ahi (ej. "bolsa de correa larga").
+                    String descripcion = (v.getDescripcion() != null && !v.getDescripcion().isBlank())
+                            ? v.getDescripcion()
+                            : v.getProducto().getDescripcion();
+                    if (descripcion != null && !descripcion.isBlank()) {
+                        sb.append(". ").append(descripcion);
+                    }
                 }
                 sb.append("\n");
             }

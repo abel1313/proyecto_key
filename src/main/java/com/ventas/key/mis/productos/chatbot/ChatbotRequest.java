@@ -15,6 +15,10 @@ public class ChatbotRequest {
 
     private List<MensajeHistorial> historial;
 
+    // Lo manda el navegador para hilar los mensajes de una misma conversacion. Viene vacio en el
+    // primer mensaje: el back crea la sesion y devuelve el id para que el front lo reuse.
+    private String sesionId;
+
     @Data
     public static class MensajeHistorial {
         private String rol;      // "user" o "assistant"

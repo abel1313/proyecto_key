@@ -4,6 +4,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
+/**
+ * PalabraClave = lo que el usuario final ve como "CATEGORIA" en la app.
+ *
+ * Los nombres de la API no cambian por esto. Ver TAXONOMIA_NOMBRES_BACK.md.
+ */
 @Entity
 @Table(name = "palabra_clave")
 @Setter

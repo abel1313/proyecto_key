@@ -19,4 +19,6 @@ public interface IChatMensajeService {
     ChatHistorialPaginadoDto obtenerHistorialPorUsuarioId(Integer usuarioId, int pagina, int size);
 
     Optional<ChatMensaje> ultimoMensaje(String sesionId);
+
+    long contarSinResponder(String sesionId);
 }

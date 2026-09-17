@@ -46,7 +46,7 @@ public class ChatbotSitioWebService extends ChatbotBase {
     }
 
     private List<Map<String, String>> construirMensajes(ChatbotRequest request) {
-        String categoria = detectarCategoriaEnMensaje(request.getMensaje());
+        String categoria = detectarCategoriaEnConversacion(request.getMensaje(), mensajesPreviosDelCliente(request));
         String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria);
 
         List<Map<String, String>> mensajes = new ArrayList<>();
@@ -61,5 +61,13 @@ public class ChatbotSitioWebService extends ChatbotBase {
         }
 
         return mensajes;
+    }
+
+    private List<String> mensajesPreviosDelCliente(ChatbotRequest request) {
+        if (request.getHistorial() == null) return List.of();
+        return request.getHistorial().stream()
+                .filter(h -> "user".equals(h.getRol()))
+                .map(ChatbotRequest.MensajeHistorial::getContenido)
+                .toList();
     }
 }

@@ -32,5 +32,19 @@ public interface IChatMensajeRepository extends JpaRepository<ChatMensaje, Long>
     )
     Page<ChatMensaje> findByUsuarioIdOrderByTimestampDesc(@org.springframework.data.repository.query.Param("usuarioId") Integer usuarioId, Pageable pageable);
 
-    Optional<ChatMensaje> findTop1BySesionIdOrderByTimestampDesc(String sesionId);
+    // Ordena por id, NO por timestamp: la columna es DATETIME (segundos), asi que varios mensajes
+    // del mismo segundo empatan y MySQL devuelve uno arbitrario. El id es autoincremental, o sea el
+    // orden real de llegada. Con timestamp, el bot que comprueba "sigo siendo el ultimo mensaje?"
+    // podia recibir un mensaje distinto al suyo y quedarse callado sin contestarle al cliente.
+    Optional<ChatMensaje> findTop1BySesionIdOrderByIdDesc(String sesionId);
+
+    // Mensajes del cliente que nadie contesto todavia: los que no tienen ninguna respuesta
+    // (ADMIN o BOT) despues. Es lo que alimenta el globito de no-leidos del panel del admin,
+    // que antes arrancaba siempre en 0 y escondia los mensajes que llegaron con el panel cerrado.
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT COUNT(m) FROM ChatMensaje m WHERE m.sesionId = :sesionId AND m.remitente = 'USUARIO' " +
+        "AND (SELECT COUNT(r) FROM ChatMensaje r WHERE r.sesionId = :sesionId " +
+        "     AND r.remitente <> 'USUARIO' AND r.timestamp > m.timestamp) = 0"
+    )
+    long contarSinResponder(@org.springframework.data.repository.query.Param("sesionId") String sesionId);
 }
