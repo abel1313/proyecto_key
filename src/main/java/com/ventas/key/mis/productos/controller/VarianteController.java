@@ -32,7 +32,7 @@ import java.util.Optional;
 
 @Slf4j
 @RestController
-@RequestMapping("tienda")
+@RequestMapping("/v1/variantes")
 public class VarianteController extends AbstractController<
                                         Variantes,
                                         Optional<Variantes>,
@@ -48,24 +48,24 @@ public class VarianteController extends AbstractController<
     // Antes de esto, GET /tienda/getAll (heredado de AbstractController) no llevaba /v1/
     // porque esta clase no tiene el prefijo en su @RequestMapping. GET /tienda/getAll
     // sigue vivo por compatibilidad, pero el front debe migrar a este.
-    @GetMapping("/v1/getAll")
+    @GetMapping("/getAll")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> findAllV2(
             @RequestParam int page, @RequestParam int size) {
         return super.findAll(page, size);
     }
 
-    @GetMapping("/v1/getOne/{tipoDato}")
+    @GetMapping("/getOne/{tipoDato}")
     public ResponseEntity<ResponseGeneric<Optional<Variantes>>> findByV2(@PathVariable Integer tipoDato) {
         return super.findBy(tipoDato);
     }
 
-    @PostMapping("/v1/save")
+    @PostMapping("/save")
     public ResponseEntity<ResponseGeneric<Variantes>> saveV2(
             @Validated @RequestBody Variantes requestG, BindingResult result) {
         return super.save(requestG, result);
     }
 
-    @PutMapping("/v1/update/{tipoDato}")
+    @PutMapping("/update/{tipoDato}")
     public ResponseEntity<ResponseGeneric<Variantes>> updateV2(
             @PathVariable Integer tipoDato,
             @Validated @RequestBody Variantes requestG,
@@ -73,12 +73,12 @@ public class VarianteController extends AbstractController<
         return super.update(tipoDato, requestG, result);
     }
 
-    @DeleteMapping("/v1/delete")
+    @DeleteMapping("/delete")
     public ResponseEntity<ResponseGeneric<Variantes>> deleteV2(@RequestBody Integer requestG) {
         return super.delete(requestG);
     }
 
-    @GetMapping("/v1/porProducto/{productoId}")
+    @GetMapping("/porProducto/{productoId}")
     public ResponseEntity<ResponseGeneric<List<VarianteDto>>> getPorProducto(@PathVariable Integer productoId) {
         return ResponseEntity.ok(new ResponseGeneric<List<VarianteDto>>(sGenerico.buscarPorProducto(productoId)));
     }
@@ -88,12 +88,12 @@ public class VarianteController extends AbstractController<
     // la ficha de producto cuando el cliente entra por un link directo/marcador y no trae el
     // productoId a mano -- el resto de los datos los sigue sacando de /v1/porProducto/{productoId},
     // que ya es publico.
-    @GetMapping("/v1/variante/{varianteId}/producto-id")
+    @GetMapping("/variante/{varianteId}/producto-id")
     public ResponseEntity<ResponseGeneric<ProductoIdDto>> getProductoIdPorVariante(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<>(new ProductoIdDto(sGenerico.resolverProductoId(varianteId))));
     }
 
-    @GetMapping("/v1/porProducto/{productoId}/paginado")
+    @GetMapping("/porProducto/{productoId}/paginado")
     public ResponseEntity<ResponseGeneric<PginaDto<List<Variantes>>>> getPorProductoPaginado(
             @PathVariable Integer productoId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -101,7 +101,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginado(productoId, pagina, size)));
     }
 
-    @GetMapping("/v1/buscar")
+    @GetMapping("/buscar")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscar(
             @RequestParam(required = false) String termino,
             @RequestParam(defaultValue = "1") int pagina,
@@ -113,7 +113,7 @@ public class VarianteController extends AbstractController<
     // Catalogo publico con filtros combinables. A diferencia de /v1/buscar (que hace cascada
     // codigo -> palabra clave -> nombre y truena si no hay resultados), este endpoint combina
     // termino + precio/talla/color/marca con AND y simplemente devuelve lista vacia si no matchea.
-    @GetMapping("/v1/buscar-filtrado")
+    @GetMapping("/buscar-filtrado")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscarFiltrado(
             @RequestParam(required = false) String termino,
             @RequestParam(required = false) Double precioMin,
@@ -128,12 +128,12 @@ public class VarianteController extends AbstractController<
                 termino, precioMin, precioMax, talla, color, marca, pagina, size)));
     }
 
-    @GetMapping("/v1/filtros-disponibles")
+    @GetMapping("/filtros-disponibles")
     public ResponseEntity<ResponseGeneric<FiltrosDisponiblesDto>> filtrosDisponibles() {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrosDisponiblesPublico()));
     }
 
-    @PostMapping("/v1/guardarConImagenes")
+    @PostMapping("/guardarConImagenes")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> guardarConImagenes(@RequestBody List<VarianteDetalle> detalles) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
@@ -153,7 +153,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVariante(varianteId)));
     }
 
-    @GetMapping("/v1/imagenes/{varianteId}")
+    @GetMapping("/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenesV2(@PathVariable Integer varianteId) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
@@ -164,7 +164,7 @@ public class VarianteController extends AbstractController<
         }
     }
 
-    @GetMapping("/v1/imagenes/{varianteId}/paginado")
+    @GetMapping("/imagenes/{varianteId}/paginado")
     public ResponseEntity<ResponseGeneric<PginaDto<List<ImagenUpdateDto>>>> getImagenesPaginado(
             @PathVariable Integer varianteId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -172,7 +172,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getImagenesPorVariantePaginado(varianteId, pagina, size)));
     }
 
-    @GetMapping("/v1/porProducto/{productoId}/paginado/resumen")
+    @GetMapping("/porProducto/{productoId}/paginado/resumen")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> getPorProductoPaginadoResumen(
             @PathVariable Integer productoId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -188,7 +188,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @DeleteMapping("/v1/imagenes")
+    @DeleteMapping("/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeVariantesV2(@RequestBody List<Integer> varianteIds) {
         sGenerico.eliminarImagenesDeVariantes(varianteIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
@@ -204,7 +204,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @DeleteMapping("/v1/{varianteId}/imagenes")
+    @DeleteMapping("/{varianteId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificasV2(
             @PathVariable Integer varianteId,
             @RequestBody List<Long> imagenIds) {
@@ -212,7 +212,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes eliminadas correctamente"));
     }
 
-    @GetMapping("/v1/admin/sin-stock")
+    @GetMapping("/admin/sin-stock")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> getVariantesSinStockDeshabilitadas(
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
@@ -224,7 +224,7 @@ public class VarianteController extends AbstractController<
     // via Boolean nullable: null = cualquiera, true/false = con/sin. codigoGenerado filtra por el
     // codigo de barras autogenerado de la carga rapida (producto padre); habilitado usa el estado
     // efectivo variante+producto.
-    @GetMapping("/v1/admin/filtrar")
+    @GetMapping("/admin/filtrar")
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> filtrarVariantesAdmin(
             @RequestParam(required = false) String nombreOCodigo,
             @RequestParam(required = false) Boolean conStock,
@@ -246,7 +246,7 @@ public class VarianteController extends AbstractController<
     // (encontrado 2026-08-27, auditoria de correctitud). Mismo patron que
     // ProductosControllerImpl.habilitarDeshabilitarProducto, reusando el metodo de lote con una
     // lista de un solo id para no duplicar la logica de guardado/relectura.
-    @PutMapping("/v1/{id}/habilitar")
+    @PutMapping("/{id}/habilitar")
     public ResponseEntity<Map<String, Object>> habilitarDeshabilitarVariante(
             @PathVariable Integer id,
             @RequestParam boolean habilitar) {
@@ -259,7 +259,7 @@ public class VarianteController extends AbstractController<
         ));
     }
 
-    @PutMapping("/v1/admin/habilitar-lote")
+    @PutMapping("/admin/habilitar-lote")
     public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarVariantesLote(
             @Validated @RequestBody HabilitarLoteRequest request) {
         try {
@@ -275,28 +275,28 @@ public class VarianteController extends AbstractController<
         }
     }
 
-    @GetMapping("/v1/admin/diagnostico-imagenes/{varianteId}")
+    @GetMapping("/admin/diagnostico-imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<DiagnosticoImagenVarianteDto>> diagnosticarImagenesVariante(
             @PathVariable Integer varianteId) {
         log.info("Diagnóstico de imágenes para variante id={}", varianteId);
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.diagnosticarImagenesVariante(varianteId)));
     }
 
-    @PutMapping("/v1/imagenes/{varianteImagenId}/principal")
+    @PutMapping("/imagenes/{varianteImagenId}/principal")
     public ResponseEntity<ResponseGeneric<String>> marcarImagenPrincipal(@PathVariable Integer varianteImagenId) {
         log.info("Marcar imagen principal varianteImagenId={}", varianteImagenId);
         sGenerico.marcarImagenPrincipalVariante(varianteImagenId);
         return ResponseEntity.ok(new ResponseGeneric<>("Imagen marcada como principal correctamente"));
     }
 
-    @PostMapping("/v1/inicializarDesdeProducto")
+    @PostMapping("/inicializarDesdeProducto")
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
     }
 
-    @PostMapping("/v1/{varianteId}/independizar")
+    @PostMapping("/{varianteId}/independizar")
     public ResponseEntity<ResponseGeneric<IndependizarVarianteResponseDto>> independizarVariante(
             @PathVariable Integer varianteId,
             @RequestBody IndependizarVarianteRequestDto request) {
