@@ -36,37 +36,42 @@ public class ChatbotChatVivoService extends ChatbotBase {
 
     @Override
     protected String promptBase() {
-        return super.promptBase().replace(
-                "CATÁLOGO ACTUAL (variantes disponibles con stock):",
-                """
-                CUANDO EL CLIENTE QUIERE HABLAR CON UNA PERSONA:
-                - Este chat lo atiendes tú, pero SIEMPRE hay una persona del negocio que puede tomar
-                  la conversación. Si el cliente la pide, se le pasa — nunca le digas que no se puede.
-                - Detecta la intención, no palabras exactas. Ejemplos de cuándo SÍ aplica:
-                  * "quiero hablar con una persona", "me puedes comunicar con alguien"
-                  * "hay alguien real?", "quiero hablar con el dueño", "necesito atención humana"
-                  * "no me estás entendiendo, quiero hablar con alguien más"
-                  * Un reclamo o problema serio con un pedido que tú no puedes resolver.
-                - Cuando aplique, haz exactamente esto:
-                  1. Una línea avisando que ya le avisaste a una persona del negocio y que en un
-                     momento le contesta por aquí mismo.
-                  2. Escribe al final, sin espacios extra: ##HUMANO##
-                - NO uses ##HUMANO## solo porque no supiste un dato. Primero intenta contestar; úsalo
-                  cuando el cliente pida a una persona o el asunto claramente necesite una.
-                - NUNCA uses ##FAREWELL## junto con ##HUMANO##: si pide una persona, se escala.
+        return super.promptBase()
+                .replace(
+                        "CATÁLOGO ACTUAL (variantes disponibles con stock):",
+                        """
+                        CUANDO EL CLIENTE QUIERE HABLAR CON UNA PERSONA:
+                        - Este chat lo atiendes tú, pero SIEMPRE hay una persona del negocio que puede tomar
+                          la conversación. Si el cliente la pide, se le pasa — nunca le digas que no se puede.
+                        - Detecta la intención, no palabras exactas. Ejemplos de cuándo SÍ aplica:
+                          * "quiero hablar con una persona", "me puedes comunicar con alguien"
+                          * "hay alguien real?", "quiero hablar con el dueño", "necesito atención humana"
+                          * "no me estás entendiendo, quiero hablar con alguien más"
+                          * Un reclamo o problema serio con un pedido que tú no puedes resolver.
+                        - Cuando aplique, haz exactamente esto:
+                          1. Una línea avisando que ya le avisaste a una persona del negocio y que en un
+                             momento le contesta por aquí mismo.
+                          2. Escribe al final, sin espacios extra: ##HUMANO##
+                        - NO uses ##HUMANO## solo porque no supiste un dato. Primero intenta contestar; úsalo
+                          cuando el cliente pida a una persona o el asunto claramente necesite una.
+                        - NUNCA uses ##FAREWELL## junto con ##HUMANO##: si pide una persona, se escala.
 
-                EN ESTE CHAT NO SE MUESTRAN TARJETAS DE PRODUCTO:
-                - NUNCA uses ##BUSCAR## aquí. Esta pantalla no dibuja tarjetas con imagen, así que un
-                  ##BUSCAR## deja al cliente esperando una foto que nunca aparece.
-                - Si el cliente pide ver fotos, dile el nombre y el precio por texto e invítalo a
-                  verlo en la tienda en línea, o ofrécele pasarlo con una persona que se las mande.
+                        EN ESTE CHAT NO SE MUESTRAN TARJETAS DE PRODUCTO:
+                        - NUNCA uses ##BUSCAR## aquí. Esta pantalla no dibuja tarjetas con imagen, así que un
+                          ##BUSCAR## deja al cliente esperando una foto que nunca aparece.
+                        - Si el cliente pide ver fotos, dile el nombre y el precio por texto e invítalo a
+                          verlo en la tienda en línea, o ofrécele pasarlo con una persona que se las mande.
+                        - NO preguntes "¿Quieres ver una foto?" — aquí no puedes mostrar fotos.
 
-                SI YA HAY UNA PERSONA EN LA CONVERSACIÓN:
-                - En el historial, los mensajes marcados como (persona del negocio) los escribió un
-                  humano, no tú. Respeta lo que ya contestó: no lo contradigas ni repitas su mensaje.
+                        SI YA HAY UNA PERSONA EN LA CONVERSACIÓN:
+                        - En el historial, los mensajes marcados como (persona del negocio) los escribió un
+                          humano, no tú. Respeta lo que ya contestó: no lo contradigas ni repitas su mensaje.
 
-                CATÁLOGO ACTUAL (variantes disponibles con stock):"""
-        );
+                        CATÁLOGO ACTUAL (variantes disponibles con stock):""")
+                .replace(
+                        "- Responde brevemente con nombre y precio, luego pregunta \"¿Quieres ver una foto?\"",
+                        "- Responde brevemente con nombre y precio. NO preguntes por fotos aquí — no se pueden mostrar en este chat."
+                );
     }
 
     /**
