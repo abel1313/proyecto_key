@@ -1,6 +1,9 @@
 package com.ventas.key.mis.productos.security;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -88,10 +91,13 @@ public class SecurityConfig {
      * un endpoint puntual sin aflojar el catch-all que lo cubria.
      */
     private static String[] unir(String[] a, String[] b) {
-        String[] union = new String[a.length + b.length];
-        System.arraycopy(a, 0, union, 0, a.length);
-        System.arraycopy(b, 0, union, a.length, b.length);
-        return union;
+        // Deduplica: hasAnyAuthority() arma un Set.of() por dentro y este revienta el arranque
+        // entero con "duplicate element: ROLE_ADMIN" si le llega repetida. Los dos grupos que se
+        // unen aqui siempre traen ROLE_ADMIN, asi que concatenar a secas siempre lo duplicaba.
+        Set<String> union = new LinkedHashSet<>();
+        Collections.addAll(union, a);
+        Collections.addAll(union, b);
+        return union.toArray(new String[0]);
     }
 
     /**
