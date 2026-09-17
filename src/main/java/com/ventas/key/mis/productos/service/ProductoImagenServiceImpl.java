@@ -71,7 +71,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
         imagenDtoList.forEach(dto -> {
-            dto.setUrlImagen(contextPath + "/imagen/file/" + dto.getId());
+            dto.setUrlImagen(contextPath + "/v1/imagenes/v3/file/" + dto.getId());
             dto.setBase64(null);
         });
         ProductoImagenDto productoImagenDto = new ProductoImagenDto();
@@ -80,13 +80,13 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         return productoImagenDto;
     }
 
-    // RabbitMQ: NO aplica — lectura síncrona. URLs apuntan al micro vía /imagen/v1/file/
+    // RabbitMQ: NO aplica — lectura síncrona. URLs apuntan al micro vía /v1/imagenes/file/
     @Override
     @Cacheable(value = "detalleImagen-v2", key = "#productoId")
     public ProductoImagenDto findByImagenesPorIdProductoV2(Integer productoId) {
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
         imagenDtoList.forEach(dto -> {
-            dto.setUrlImagen(contextPath + "/imagen/v1/file/" + dto.getId());
+            dto.setUrlImagen(contextPath + "/v1/imagenes/file/" + dto.getId());
             dto.setBase64(null);
         });
         ProductoImagenDto productoImagenDto = new ProductoImagenDto();

@@ -155,14 +155,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/contactos").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/redes-sociales/publico").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/presentacion/imagenes").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/presentacion/imagenes/*/imagen").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/presentacion/v1/imagenes/*/imagen").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/presentacion/imagenes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/presentacion/imagenes/*/imagen").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes/*/imagen").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/**").hasAnyAuthority(pantalla("admin/negocio"))
                         .requestMatchers("/v1/negocio/**").hasAnyAuthority(pantallaEscribir("admin/negocio"))
-                        .requestMatchers(HttpMethod.GET, "/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))
-                        .requestMatchers("/presentacion/**").hasAnyAuthority(pantallaEscribir("admin/presentacion"))
+                        .requestMatchers(HttpMethod.GET, "/v1/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))
+                        .requestMatchers("/v1/presentacion/**").hasAnyAuthority(pantallaEscribir("admin/presentacion"))
 
                         // ── Personalización de tema -- catálogo dinámico de variables (GET
                         //    /activo público: hasta un visitante anónimo necesita el tema activo
@@ -240,7 +240,7 @@ public class SecurityConfig {
                         // variantes embebido -- sin admin/promociones aca, ese permiso solo
                         // alcanzaba para el CRUD propio de promociones pero no para buscar la
                         // variante a promocionar.
-                        .requestMatchers(HttpMethod.GET, "/tienda/admin/**", "/tienda/v1/admin/**")
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
                         // El CRUD generico heredado de AbstractController devuelve la entidad
@@ -248,25 +248,24 @@ public class SecurityConfig {
                         // precio_rebaja, y sin el filtro de catalogo publico (listaba tambien
                         // variantes deshabilitadas y sin stock). Estaba cayendo en el permitAll de
                         // abajo, asi que cualquiera sin token podia sacar el margen de la tienda
-                        // con /tienda/getAll?page=0&size=1000. El front no los usa (usa
-                        // /tienda/v1/buscar y /tienda/v1/buscar-filtrado), asi que pasan a ADMIN.
-                        .requestMatchers(HttpMethod.GET, "/tienda/getAll", "/tienda/v1/getAll",
-                                "/tienda/getOne/**", "/tienda/v1/getOne/**")
+                        // con /v1/variantes/getAll?page=0&size=1000. El front no los usa (usa
+                        // /v1/variantes/buscar y /v1/variantes/buscar-filtrado), asi que pasan a ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/getAll", "/v1/variantes/getOne/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
-                        .requestMatchers(HttpMethod.GET, "/tienda/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/**").permitAll()
                         // Fase 3 de permisos (piloto en Modelos): "Crear variantes" (🧩) de la
                         // tarjeta de producto en Modelos, antes capturado por el catch-all de abajo.
-                        .requestMatchers(HttpMethod.POST, "/tienda/v1/inicializarDesdeProducto")
+                        .requestMatchers(HttpMethod.POST, "/v1/variantes/inicializarDesdeProducto")
                                 .hasAnyAuthority(accion("productos/buscar", "crear-variantes"))
                         // Fase 3 de permisos, extendida a "tienda/buscar" (2026-09-04): habilitar
                         // /deshabilitar variante (individual y en lote) desde la vitrina Tienda --
                         // antes caia en el catch-all de pantallaEscribir de abajo, que ni siquiera
                         // incluye "tienda/buscar" en su lista, asi que un rol no-ADMIN con esa
                         // pantalla nunca podia usar este boton pese a tenerla asignada.
-                        .requestMatchers(HttpMethod.PUT, "/tienda/v1/*/habilitar", "/tienda/v1/admin/habilitar-lote")
+                        .requestMatchers(HttpMethod.PUT, "/v1/variantes/*/habilitar", "/v1/variantes/admin/habilitar-lote")
                                 .hasAnyAuthority(accion("tienda/buscar", "habilitar"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
-                        // variantes via /tienda/v1/guardarConImagenes (mismo endpoint generico de
+                        // variantes via /v1/variantes/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
                         // para guardar una foto y el usuario se topaba con un 403 "escondido".
                         //
@@ -277,7 +276,7 @@ public class SecurityConfig {
                         // asi que un rol con Editar en tienda/buscar pero no en tienda/venta se topaba
                         // con un 403, y el checkbox de Editar de esa pantalla en Gestion de roles no
                         // controlaba nada real (reportado por el usuario con capturas, 2026-09-08).
-                        .requestMatchers("/tienda/**")
+                        .requestMatchers("/v1/variantes/**")
                                 .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta",
                                         "tienda/buscar", "flores/catalogos", "flores/ramos-admin"))
 
@@ -286,9 +285,9 @@ public class SecurityConfig {
                         .requestMatchers("/v1/carga-imagenes/**").hasAnyAuthority(pantallaEscribir("carga-imagenes"))
 
                         // ── Imágenes (GETs públicos excepto caché; escritura solo ADMIN) ────
-                        .requestMatchers(HttpMethod.GET, "/imagen/cache/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/imagen/**").permitAll()
-                        .requestMatchers("/imagen/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/imagenes/cache/**", "/v1/imagenes/v3/cache/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/imagenes/**").permitAll()
+                        .requestMatchers("/v1/imagenes/**").hasRole("ADMIN")
 
                         // ── Usuarios (gestion de cuentas/roles/permisos: solo ADMIN) ──────
                         .requestMatchers("/v1/usuarios/buscarClientePorIdUsuario/**").permitAll()

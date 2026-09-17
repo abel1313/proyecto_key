@@ -75,7 +75,7 @@ public class ImagenPresentacionService {
         String v = img.getActualizadoEn() != null
                 ? "?v=" + img.getActualizadoEn().toEpochSecond(ZoneOffset.UTC)
                 : "";
-        dto.setUrlImagen("/presentacion/v1/imagenes/" + img.getId() + "/imagen" + v);
+        dto.setUrlImagen("/v1/presentacion/imagenes/" + img.getId() + "/imagen" + v);
         return dto;
     }
 
