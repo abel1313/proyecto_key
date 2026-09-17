@@ -498,7 +498,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_submenu_ayuda_contextual.sql` | ⚠️ corrida, 0 filas (sin efecto) | ⚠️ corrida, 0 filas (sin efecto) | 2026-09-17 |
 | `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
-| `migration_accion_tienda_eliminar.sql` | ⬜ pendiente | ⬜ pendiente | — |
+| `migration_accion_tienda_eliminar.sql` | ⬜ **PENDIENTE** — corre en DB `inventario_key_qa` (cubre dev+qa) | ⬜ pendiente | 2026-09-17 (merge hecho) |
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
