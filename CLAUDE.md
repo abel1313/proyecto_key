@@ -1,4 +1,39 @@
 
+# 🖥️ PROYECTO: BACKEND (proyecto_key)
+
+**Repositorio:** https://github.com/abel1313/proyecto_key
+
+Este es el **backend/API** del sistema. Expone endpoints REST que el frontend (`producto_venta_online`) consume.
+
+## Endpoints principales por módulo
+
+### Productos y Variantes
+- `GET /v1/productos/obtenerProductos` - listado paginado de productos
+- `GET /v1/productos/buscarNombreOrCodigoBarra` - búsqueda por nombre o código
+- `POST /v1/productos/save` - crear producto
+- `PUT /v1/productos/update` - actualizar producto
+- `GET /v1/variantes/buscar` - búsqueda de variantes con imagen
+- `GET /v1/variantes/porProducto/{id}` - variantes de un producto
+
+### Clientes y Auth
+- `POST /auth/login` - acceso con usuario/contraseña
+- `POST /auth/refresh` - renovar token JWT
+- `POST /auth/logout` - cerrar sesión
+- `GET /v1/clientes/search` - búsqueda de clientes
+- `POST /v1/clientes/save` - crear cliente
+
+### Imágenes
+- Se consume el microservicio `micro_imagenes` internamente
+- `GET /v1/imagenes/file/{id}` - descargar imagen completa
+- `GET /v1/imagenes/thumbnail/{id}` - miniatura de imagen
+
+### Chat y Gestión
+- `POST /chatbot/mensaje` - enviar mensaje al chatbot
+- `GET /admin/configuracion-negocio` - config del negocio
+- `POST /admin/gestion-roles` - permisos de roles
+
+---
+
 # Instrucciones de comportamiento
 
 - No pidas confirmación antes de hacer cambios en el código
