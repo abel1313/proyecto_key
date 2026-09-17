@@ -138,6 +138,27 @@ class ChatVivoBotServiceTest {
     }
 
     @Test
+    void siLaBaseRechazaElMensajeDelBotElClienteIgualLoRecibe() throws Exception {
+        // Lo que paso en QA (2026-09-16): chk_remitente en chat_mensaje solo aceptaba
+        // ('USUARIO','ADMIN'), asi que el insert del bot tronaba con "Check constraint
+        // 'chk_remitente' is violated". OpenAI contestaba bien, pero el guardado se llevaba el
+        // mensaje entero — y el rescate tampoco podia avisarle al cliente porque guarda por el
+        // mismo camino. Resultado: el cliente en blanco. La causa se arreglo en la base
+        // (migration_chat_remitente_bot.sql); esto cubre que un fallo al guardar no vuelva a
+        // dejar al cliente sin ver nada.
+        when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
+        when(bot.responder(anyString(), anyList())).thenReturn(Mono.just("¡Hola! ¿En qué te ayudo?"));
+        when(mensajeService.guardar(eq(SESION), eq("BOT"), anyString()))
+                .thenThrow(new RuntimeException("Check constraint 'chk_remitente' is violated"));
+
+        service.atender(SESION, 7, "Abel", 10L, "hola");
+        Thread.sleep(8000);
+
+        verify(messagingTemplate, atLeastOnce())
+                .convertAndSend(eq("/topic/chat.usuario." + SESION), any(Object.class));
+    }
+
+    @Test
     void siElBotTruenaAntesDeLlamarAOpenAiElClienteNoSeQuedaSinNada() throws Exception {
         when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
         // Falla SINCRONA al armar el prompt (leer catalogo, palabras clave, etc.)

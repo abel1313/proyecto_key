@@ -19735,3 +19735,84 @@ exactamente igual que en la sección anterior. Lo único que cambia de cara al c
 de OpenAI ahora **siempre** termina en un mensaje visible en el chat, nunca en silencio.
 
 **Verificado:** back compila (`mvn -o compile`) y los **6** tests de `ChatVivoBotServiceTest` pasan.
+
+---
+
+## Chat en vivo — LA CAUSA REAL (2026-09-17): la base rechazaba el remitente `BOT`
+
+Las tres vueltas anteriores taparon agujeros reales, pero **ninguna era la causa**. Con las marcas
+nuevas en el log, la corrida en QA por fin mostró el camino completo:
+
+```
+Chat en vivo: prompt armado (categoría=null, 12 mensajes al modelo), llamando a OpenAI
+Chat en vivo: OpenAI contestó en la sesión dd178055... (41 caracteres), publicando la respuesta
+Hibernate: insert into chat_mensaje (contenido,remitente,sesion_id,timestamp) values (?,?,?,?)
+SQL Error: 3819 — Check constraint 'chk_remitente' is violated.
+Chat en vivo: el bot no pudo contestar en la sesión dd178055... — se escala a una persona
+```
+
+OpenAI **sí contestaba**, en 6 segundos, con 41 caracteres. El bot nunca fue el problema.
+
+### La causa
+
+La tabla `chat_mensaje` se creó con una restricción que sólo aceptaba dos remitentes:
+
+```sql
+CONSTRAINT chk_remitente CHECK (remitente IN ('USUARIO', 'ADMIN'))
+```
+
+Era correcto cuando en el chat sólo escribían el cliente y el dueño. Al meter el bot (P4) se agregó
+la columna `modo` a `chat_sesion` pero **a nadie se le actualizó esta restricción**, así que la base
+venía rechazando **todos** los mensajes del bot desde el primer día. El bot nunca logró guardar uno.
+
+Y lo que lo volvía invisible: el rescate que debía avisarle al cliente **guarda por el mismo
+camino**, así que también tronaba. El cliente se quedaba sin respuesta **y** sin aviso.
+
+### Esto también rompía el widget público (bug aparte, misma causa)
+
+`POST /chatbot/mensaje` guarda la conversación en las mismas tablas para que el dueño la lea en
+chat directo. La pregunta del cliente (`USUARIO`) entraba bien, la respuesta del bot (`BOT`) se
+rechazaba, y el error se lo tragaba un `log.warn`. **Resultado:** en chat directo las conversaciones
+del widget se veían mancas — sólo las preguntas del cliente, sin ninguna respuesta.
+
+Con el fix esas conversaciones quedan completas. El front del panel no cambia: ya sabía pintar
+`remitente: "BOT"`, simplemente nunca le llegaban.
+
+### ⚠️ Acción requerida en la base — el deploy solo no arregla nada
+
+El proyecto corre con `ddl-auto: none`: hay que correr el SQL **a mano** en cada base.
+
+```
+migration_chat_remitente_bot.sql
+```
+
+| Base | Rama | Estado |
+|---|---|---|
+| `inventario_key_qa` | `dev` / `qa` | ⬜ pendiente de correr |
+| `inventario_key` | `main` | ⬜ pendiente (cuando se promueva) |
+
+No mueve ni borra datos: sólo cambia qué valores acepta la columna. Los mensajes ya guardados no se
+tocan. **Mientras no se corra, el bot sigue sin contestar aunque el código esté al día.**
+
+### Además: que no se pueda guardar ya no deja al cliente en blanco
+
+Guardar el mensaje y mandárselo al cliente eran una sola operación: si el guardado fallaba se
+llevaba el mensaje entero. Ahora son dos pasos — si la base rechaza el insert, se escribe el error
+en el log y **el mensaje se le manda al cliente igual**. Pierde el historial, no la conversación.
+
+Cubierto con test (`siLaBaseRechazaElMensajeDelBotElClienteIgualLoRecibe`).
+
+### Cómo leer el log a partir de ahora
+
+| Última línea que aparece | Dónde está el problema |
+|---|---|
+| `prompt armado ... llamando a OpenAI` | La salida a internet / OpenAI |
+| `OpenAI contestó ... publicando la respuesta` | OpenAI contestó bien — el problema es guardar o pintar |
+| `no se pudo guardar la respuesta del bot ...` | La base. El cliente **sí** vio el mensaje, pero no quedó en el historial |
+| `Check constraint 'chk_remitente' is violated` | **Falta correr `migration_chat_remitente_bot.sql`** en esa base |
+
+**Nada de esto cambia el contrato del front.** Endpoints, campos y el remitente `BOT` siguen igual.
+Lo que cambia es que ahora los mensajes del bot **llegan y se guardan**.
+
+**Verificado:** los **7** tests de `ChatVivoBotServiceTest` pasan. El test nuevo se corrió contra la
+lógica anterior para confirmar que fallaba.
