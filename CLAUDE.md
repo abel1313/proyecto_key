@@ -287,3 +287,20 @@ Micro servicio que permite compras de bolsas, pantalones faldas de mujer
           totalImagenesLocalDB=0 → nunca se guardo la imagen en BD
           idsSinDatosEnMicroservicio no vacio → BD tiene el registro pero el archivo se perdio en el microservicio
           consistente=true → todo correcto, revisar cache
+---
+
+## Migraciones ya corridas — registro
+
+Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
+a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
+
+| Migración | dev / qa | prod | Fecha |
+|---|---|---|---|
+| `migration_submenu_ayuda_contextual.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+
+`migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
+decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
+INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada — pero igual no hace falta.
+
+Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
+`inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
