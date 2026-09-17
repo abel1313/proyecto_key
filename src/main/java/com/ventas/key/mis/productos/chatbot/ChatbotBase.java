@@ -79,6 +79,38 @@ public abstract class ChatbotBase {
                 - Respuestas cortas y directas, sin rodeos.
                 - Puedes usar 1 o 2 emojis por mensaje para ser más expresivo, sin exagerar.
 
+                """
+                + seccionMostrarProductos()
+                + """
+                MANEJO DE MENSAJES NO COMPRENSIBLES O FUERA DE CONTEXTO:
+                - USA ##FAREWELL## ÚNICAMENTE si el mensaje es basura, incomprensible,
+                  o no tiene NINGUNA relación con la tienda (productos, precios, envíos, pagos, pedidos).
+                - Ejemplos de cuándo SÍ usar ##FAREWELL##:
+                  * "asdjklasdjl", "jajajaja", "¿qué hora es?", "¿cómo está el clima?", insultos, spam.
+                - Ejemplos de cuándo NO usar ##FAREWELL##:
+                  * Cualquier pregunta de tienda, aunque la respuesta sea "no tenemos eso".
+                - Cuando SÍ aplique ##FAREWELL##, haz exactamente esto:
+                  1. Indica brevemente que no pudiste entender su mensaje.
+                  2. Menciona que puede contactarnos por Facebook o WhatsApp.
+                  3. Despedida corta y amable (máximo 2 líneas).
+                  4. Escribe al final, sin espacios extra: ##FAREWELL##
+
+                CATÁLOGO ACTUAL (variantes disponibles con stock):
+                """;
+    }
+
+    /**
+     * Cómo se le muestran los productos al cliente. Vive aparte del resto del prompt porque es
+     * lo ÚNICO que cambia de raíz entre canales: el widget del sitio y las redes dibujan tarjetas
+     * con imagen (##BUSCAR##), el chat en vivo es solo texto. Antes esto estaba embebido en
+     * promptBase() y el chat en vivo intentaba desactivarlo con un .replace() de la línea que
+     * pregunta por la foto -- no alcanzaba: abajo quedaban los ejemplos calcados ("... 😊
+     * ¿Quieres ver una foto?") y la REGLA CRÍTICA que ordena mostrar imágenes siempre. El modelo
+     * copiaba el ejemplo y prometía fotos que esa pantalla no puede dibujar (reportado
+     * 2026-09-17). Un canal sin tarjetas sobreescribe este método completo.
+     */
+    protected String seccionMostrarProductos() {
+        return """
                 MOSTRAR PRODUCTOS EN TARJETAS — DOS CASOS:
 
                 CASO 1 — El bot encuentra o confirma un producto:
@@ -116,20 +148,6 @@ public abstract class ChatbotBase {
                 puedes mostrarlas — siempre puedes mostrarlas con ##BUSCAR##.
                 NUNCA uses ##BUSCAR## sin que el cliente haya pedido ver el producto o confirmado que sí quiere verlo.
 
-                MANEJO DE MENSAJES NO COMPRENSIBLES O FUERA DE CONTEXTO:
-                - USA ##FAREWELL## ÚNICAMENTE si el mensaje es basura, incomprensible,
-                  o no tiene NINGUNA relación con la tienda (productos, precios, envíos, pagos, pedidos).
-                - Ejemplos de cuándo SÍ usar ##FAREWELL##:
-                  * "asdjklasdjl", "jajajaja", "¿qué hora es?", "¿cómo está el clima?", insultos, spam.
-                - Ejemplos de cuándo NO usar ##FAREWELL##:
-                  * Cualquier pregunta de tienda, aunque la respuesta sea "no tenemos eso".
-                - Cuando SÍ aplique ##FAREWELL##, haz exactamente esto:
-                  1. Indica brevemente que no pudiste entender su mensaje.
-                  2. Menciona que puede contactarnos por Facebook o WhatsApp.
-                  3. Despedida corta y amable (máximo 2 líneas).
-                  4. Escribe al final, sin espacios extra: ##FAREWELL##
-
-                CATÁLOGO ACTUAL (variantes disponibles con stock):
                 """;
     }
 

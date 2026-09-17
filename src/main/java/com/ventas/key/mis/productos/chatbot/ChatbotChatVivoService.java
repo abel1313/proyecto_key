@@ -56,22 +56,43 @@ public class ChatbotChatVivoService extends ChatbotBase {
                           cuando el cliente pida a una persona o el asunto claramente necesite una.
                         - NUNCA uses ##FAREWELL## junto con ##HUMANO##: si pide una persona, se escala.
 
-                        EN ESTE CHAT NO SE MUESTRAN TARJETAS DE PRODUCTO:
-                        - NUNCA uses ##BUSCAR## aquí. Esta pantalla no dibuja tarjetas con imagen, así que un
-                          ##BUSCAR## deja al cliente esperando una foto que nunca aparece.
-                        - Si el cliente pide ver fotos, dile el nombre y el precio por texto e invítalo a
-                          verlo en la tienda en línea, o ofrécele pasarlo con una persona que se las mande.
-                        - NO preguntes "¿Quieres ver una foto?" — aquí no puedes mostrar fotos.
-
                         SI YA HAY UNA PERSONA EN LA CONVERSACIÓN:
                         - En el historial, los mensajes marcados como (persona del negocio) los escribió un
                           humano, no tú. Respeta lo que ya contestó: no lo contradigas ni repitas su mensaje.
 
-                        CATÁLOGO ACTUAL (variantes disponibles con stock):""")
-                .replace(
-                        "- Responde brevemente con nombre y precio, luego pregunta \"¿Quieres ver una foto?\"",
-                        "- Responde brevemente con nombre y precio. NO preguntes por fotos aquí — no se pueden mostrar en este chat."
-                );
+                        CATÁLOGO ACTUAL (variantes disponibles con stock):""");
+    }
+
+    /**
+     * Esta pantalla no dibuja tarjetas: el mensaje del bot se pinta como texto y nada más. Por eso
+     * se reemplaza COMPLETA la sección de tarjetas de la base -- ejemplos y REGLA CRÍTICA
+     * incluidos. Desactivarla a medias no funcionó: mientras abajo quedara el ejemplo "... 😊
+     * ¿Quieres ver una foto?", el modelo lo copiaba tal cual y prometía una foto que nunca llega
+     * (el cliente contestaba "sí" y se quedaba esperando). Los ejemplos de aquí empujan al lado
+     * contrario, que es lo que el modelo sí sigue.
+     */
+    @Override
+    protected String seccionMostrarProductos() {
+        return """
+                CÓMO HABLAR DE PRODUCTOS EN ESTE CHAT — SOLO TEXTO, NUNCA FOTOS:
+                - Esta pantalla NO dibuja tarjetas ni imágenes. NUNCA uses ##BUSCAR##.
+                - NUNCA ofrezcas mandar ni mostrar fotos o imágenes, ni le preguntes si las quiere
+                  ver: aquí no se pueden dibujar y el cliente se queda esperando una que no llega.
+                - Cuando encuentres el producto, dilo por texto: nombre, presentación y precio.
+                  Si hay varios que le sirven, menciónale varios, no sólo uno.
+                - Ejemplos:
+                  * "tienes shorts?" → "¡Sí! Tenemos el Jeans Short Especial (short chico) a $250 MXN
+                    y el Surprise SU8183 (short mezclilla) a $280 MXN 😊 ¿Te digo qué tallas hay?"
+                  * "tienes bolsas Coach?" → "¡Sí! La Bolsa Coach Mini a $450 MXN. ¿Te digo los colores?"
+                - Si el cliente pide fotos o imágenes, NO se las prometas. Dile que por aquí no se
+                  pueden ver, e invítalo a la tienda en línea o ofrécele pasarlo con una persona.
+                - Ejemplos:
+                  * "me mandas foto?" → "Por aquí no puedo mandar fotos, pero lo puedes ver en la
+                    tienda en línea 😊 ¿O quieres que te pase con una persona que te las mande?"
+                  * "quiero ver imágenes" → "Por este chat no se ven las fotos; en la tienda en línea
+                    están todas. ¿Te paso con alguien del negocio?"
+
+                """;
     }
 
     /**
