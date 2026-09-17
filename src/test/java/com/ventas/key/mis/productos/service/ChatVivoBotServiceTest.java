@@ -119,6 +119,25 @@ class ChatVivoBotServiceTest {
     }
 
     @Test
+    void siOpenAiContestaVacioElClienteNoSeQuedaSinNada() throws Exception {
+        // El agujero que quedaba: un Mono VACIO no es un error, asi que no entraba ni a doOnNext ni a
+        // onErrorResume — el flujo se completaba como si todo hubiera salido bien y el cliente se
+        // quedaba sin respuesta, sin aviso y sin una sola linea en el log. Es lo que se vio en QA
+        // (2026-09-16): el log llegaba al catalogo y ahi se cortaba, sin insert en chat_mensaje y sin
+        // error. Pasa cuando OpenAI contesta con cuerpo vacio (bodyToMono no emite nada).
+        when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
+        when(bot.responder(anyString(), anyList())).thenReturn(Mono.empty());
+
+        service.atender(SESION, 7, "Abel", 10L, "hola");
+        Thread.sleep(8000);
+
+        // Se le avisa al cliente y la conversacion pasa a una persona.
+        verify(messagingTemplate, atLeastOnce())
+                .convertAndSend(eq("/topic/chat.usuario." + SESION), any(Object.class));
+        verify(sesionService).cambiarModo(SESION, IChatSesionService.MODO_HUMANO);
+    }
+
+    @Test
     void siElBotTruenaAntesDeLlamarAOpenAiElClienteNoSeQuedaSinNada() throws Exception {
         when(mensajeService.ultimoMensaje(SESION)).thenReturn(Optional.of(msg(10L, "USUARIO", "hola")));
         // Falla SINCRONA al armar el prompt (leer catalogo, palabras clave, etc.)

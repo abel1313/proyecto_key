@@ -219,6 +219,14 @@ public class ChatVivoBotService {
                     .publishOn(Schedulers.boundedElastic())
                     .doOnNext(respuesta -> procesarRespuesta(sesionId, nombreUsuario, contenido, respuesta,
                             sesionVeniaEnModoHumano))
+                    // Un Mono VACIO no es un error: no entra a doOnNext ni a onErrorResume, el flujo se
+                    // completa como si todo hubiera salido bien y el cliente se queda sin respuesta, sin
+                    // aviso y sin UNA SOLA linea en el log. Es el ultimo agujero por el que el chat se
+                    // veia "muerto" sin explicacion (QA 2026-09-16: el log llegaba hasta el catalogo y
+                    // ahi se cortaba, sin insert en chat_mensaje y sin error). Pasa cuando OpenAI
+                    // contesta con cuerpo vacio: bodyToMono no emite nada. Se trata como falla.
+                    .switchIfEmpty(Mono.<String>fromRunnable(() -> rescatar(sesionId, nombreUsuario, contenido,
+                            new IllegalStateException("OpenAI no devolvio contenido (respuesta vacia)"))))
                     .onErrorResume(error -> {
                         rescatar(sesionId, nombreUsuario, contenido, error);
                         return Mono.empty();
@@ -248,6 +256,12 @@ public class ChatVivoBotService {
 
     private void procesarRespuesta(String sesionId, String nombreUsuario, String pregunta, String cruda,
                                    boolean sesionVeniaEnModoHumano) {
+        // El camino feliz no dejaba rastro en el log: un chat que SI contestó y uno que se murió
+        // callado se veían idénticos (los dos terminaban en las consultas del catálogo). Sin esta
+        // línea no se puede saber si OpenAI contestó sin ir a buscar el insert en la base.
+        log.info("Chat en vivo: OpenAI contestó en la sesión {} ({} caracteres), publicando la respuesta",
+                sesionId, cruda == null ? 0 : cruda.length());
+
         boolean pideHumano = cruda != null && cruda.contains(ChatbotChatVivoService.MARCA_HUMANO);
         String texto = limpiarMarcadores(cruda);
 
