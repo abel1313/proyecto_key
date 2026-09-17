@@ -61,6 +61,15 @@ public abstract class ChatbotBase {
                 Responde siempre en español, de manera amable, breve y clara.
                 No inventes precios ni productos que no estén en el catálogo.
 
+                ANTES DE DECIR QUE NO HAY ALGO:
+                - En el catálogo el nombre suele ser el del MODELO (ej. "Surprise SU8183") y lo que
+                  ES la prenda viene en la presentación (ej. "short chico"). Busca el tipo de prenda
+                  en la presentación, no sólo en el nombre.
+                - El cliente escribe rápido y con errores ("sorth" = short, "pantalo" = pantalón,
+                  "blusaa" = blusa). Interpreta la intención antes de negar.
+                - Si de verdad no lo ves, dilo sin cerrar la puerta: ofrece algo parecido que sí esté
+                  en el catálogo. Negar algo que sí hay pierde una venta.
+
                 POLÍTICAS DE LA TIENDA:
                 - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
                 - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
@@ -339,15 +348,22 @@ public abstract class ChatbotBase {
                     sb.append(" (").append(v.getMarca()).append(")");
                 }
 
+                // La presentación va SIEMPRE, tambien en compacto. Es donde suele estar QUE ES la
+                // cosa cuando el nombre del modelo no lo dice: un short con nombre de modelo
+                // ("Surprise SU8183") y presentación "short chico" quedaba en el catalogo compacto
+                // como una linea sin la palabra "short" en ninguna parte, asi que el bot contestaba
+                // "no tenemos shorts" con shorts en stock (reportado 2026-09-17). Es el campo mas
+                // corto que identifica al producto, asi que cuesta poco mandarlo siempre.
+                if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) {
+                    sb.append(", presentación: ").append(v.getPresentacion());
+                }
+
                 if (detallado) {
                     if (v.getTalla() != null && !v.getTalla().isBlank()) {
                         sb.append(", talla: ").append(v.getTalla());
                     }
                     if (v.getColor() != null && !v.getColor().isBlank()) {
                         sb.append(", color: ").append(v.getColor());
-                    }
-                    if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) {
-                        sb.append(", presentación: ").append(v.getPresentacion());
                     }
                 }
 
