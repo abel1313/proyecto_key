@@ -11,7 +11,4 @@ public class ChatEventoAdmin {
     private String nombreUsuario;
     private String contenido;
     private String timestamp;
-    // Quien escribio: USUARIO o BOT. El panel del admin lo necesita para no pintar como si fuera
-    // del cliente lo que contesto el asistente.
-    private String remitente;
 }

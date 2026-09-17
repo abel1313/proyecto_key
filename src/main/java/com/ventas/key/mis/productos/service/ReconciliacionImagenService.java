@@ -8,9 +8,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteVPS;
 import com.ventas.key.mis.productos.models.ReconciliacionResultadoDto;
-import com.ventas.key.mis.productos.repository.IImagenPresentacionRepository;
 import com.ventas.key.mis.productos.repository.IImagenRepository;
-import com.ventas.key.mis.productos.repository.ILogoRepository;
 import com.ventas.key.mis.productos.repository.IProductoImagenRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
@@ -32,7 +30,6 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -44,17 +41,11 @@ public class ReconciliacionImagenService {
     @Value("${guardar-imagenes.ruta_imagenes}")
     private String rutaImagenes;
 
-    // Margen que la limpieza le da a un archivo recien escrito para que su fila llegue a la BD
-    // (subida en curso). Es un campo y no una constante para poder ajustarlo desde las pruebas.
-    private long ventanaGraciaSegundos = 3600;
-
     private final IProductosRepository iProductosRepository;
     private final IVarianteRepository iVarianteRepository;
     private final IProductoImagenRepository iProductoImagenRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IImagenRepository iImagenRepository;
-    private final IImagenPresentacionRepository iImagenPresentacionRepository;
-    private final ILogoRepository iLogoRepository;
     private final ImagenProductoClienteVPS imagenProductoClienteVPS;
 
     private volatile ReconciliacionResultadoDto ultimoResultado;
@@ -176,14 +167,7 @@ public class ReconciliacionImagenService {
     public void limpiarDiscoDia() {
         ReconciliacionResultadoDto resultado = new ReconciliacionResultadoDto();
 
-        // TODO lo que viva en este directorio tiene que estar aqui, no solo la tabla `imagen`:
-        // imagen_presentacion (login/registro) y logo escriben en la MISMA ruta
-        // (guardar-imagenes.ruta_imagenes, ver ImagenPresentacionService y LogoService). Cuando
-        // esta lista solo traia los nombres de `imagen`, esos archivos se consideraban huerfanos y
-        // se borraban cada noche -- habia que volver a subir las imagenes de presentacion a diario.
-        Set<String> nombresValidos = new HashSet<>(iImagenRepository.findAllBase64());
-        nombresValidos.addAll(iImagenPresentacionRepository.findAllNombresArchivo());
-        nombresValidos.addAll(iLogoRepository.findAllNombresArchivo());
+        Set<String> nombresValidos = Set.copyOf(iImagenRepository.findAllBase64());
 
         File directorio = new File(rutaImagenes);
         File[] archivos = directorio.listFiles();
@@ -193,7 +177,7 @@ public class ReconciliacionImagenService {
             return;
         }
 
-        Instant limiteGracia = Instant.now().minusSeconds(ventanaGraciaSegundos);
+        Instant unaHoraAtras = Instant.now().minusSeconds(3600);
         int eliminados = 0;
         long bytes = 0;
 
@@ -201,7 +185,7 @@ public class ReconciliacionImagenService {
             if (!archivo.isFile()) continue;
             try {
                 BasicFileAttributes attr = Files.readAttributes(archivo.toPath(), BasicFileAttributes.class);
-                if (attr.creationTime().toInstant().isAfter(limiteGracia)) continue;
+                if (attr.creationTime().toInstant().isAfter(unaHoraAtras)) continue;
 
                 if (!nombresValidos.contains(archivo.getName())) {
                     bytes += archivo.length();

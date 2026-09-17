@@ -189,16 +189,12 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         return microImagenes.get(0);
     }
 
-    // Transaccional porque construirEstados() lee producto.palabraClave, que es LAZY:
-    // fuera de transaccion el proxy revienta con LazyInitializationException.
     @Override
-    @Transactional(readOnly = true)
     public List<EstadoCargaProductoDto> consultarEstado(List<Integer> productoIds) {
         return construirEstados(iProductosRepository.findAllById(productoIds));
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<EstadoCargaProductoDto> listarFallidas() {
         return construirEstados(iProductosRepository.findByEstadoImagenOrderByIdDesc(EstadoCargaImagen.FALLIDO));
     }
@@ -248,37 +244,10 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
             ProductoImagen pi = imagenPorProducto.get(p.getId());
             Long imagenId = pi != null ? pi.getImagen().getId() : null;
             String urlImagen = imagenId != null ? endpointImagenes + "v1/imagenes/file/" + imagenId : null;
-            EstadoCargaProductoDto dto = new EstadoCargaProductoDto(
+            return new EstadoCargaProductoDto(
                     p.getId(), varianteIdPorProducto.get(p.getId()), p.getEstadoImagen(),
                     imagenId, urlImagen, p.getMensajeErrorImagen());
-
-            // Lo ya capturado viaja de vuelta para que la pantalla de Carga rapida repinte el
-            // formulario del borrador. Sin esto, "Guardar avance" si persistia pero al reabrir
-            // la tarjeta salia todo en blanco.
-            dto.setNombre(p.getNombre());
-            dto.setPrecioCosto(p.getPrecioCosto());
-            dto.setPiezas(p.getPiezas());
-            dto.setColor(p.getColor());
-            dto.setPrecioVenta(p.getPrecioVenta());
-            dto.setPrecioRebaja(p.getPrecioRebaja());
-            dto.setDescripcion(p.getDescripcion());
-            dto.setMarca(p.getMarca());
-            dto.setContenido(p.getContenido());
-            if (p.getPalabraClave() != null) {
-                dto.setPalabraClaveId(p.getPalabraClave().getId());
-                dto.setPalabraClaveNombre(p.getPalabraClave().getNombre());
-            }
-            dto.setCodigoBarras(codigoBarrasReal(p));
-            return dto;
         }).toList();
-    }
-
-    // El codigo que el usuario capturo, o null si todavia es el placeholder autogenerado:
-    // el front deja el campo vacio en ese caso para que se capture el real.
-    private static String codigoBarrasReal(Producto producto) {
-        String codigo = producto.getCodigoBarras() != null ? producto.getCodigoBarras().getCodigoBarras() : null;
-        if (codigo == null || codigo.toUpperCase().startsWith("BRD-")) return null;
-        return codigo;
     }
 
     @Override

@@ -12,7 +12,4 @@ public class ContactosPublicosDto {
     private String facebookUrl;
     private String instagramUrl;
     private String tiktokUrl;
-    private String direccion;
-    private Double latitud;
-    private Double longitud;
 }

@@ -9,7 +9,6 @@ import com.ventas.key.mis.productos.dto.negocio.NegocioEstadoDto;
 import com.ventas.key.mis.productos.dto.negocio.RedSocialCreateDto;
 import com.ventas.key.mis.productos.dto.negocio.RedSocialDto;
 import com.ventas.key.mis.productos.dto.negocio.RedSocialUpdateDto;
-import com.ventas.key.mis.productos.dto.negocio.UbicacionUpdateDto;
 import com.ventas.key.mis.productos.entity.ConfiguracionNegocio;
 import com.ventas.key.mis.productos.entity.RedSocialNegocio;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -74,14 +73,6 @@ public class NegocioController {
     public ResponseEntity<ResponseGeneric<ConfiguracionNegocio>> actualizarContactos(
             @RequestBody ContactosUpdateDto dto) {
         return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarContactos(dto)));
-    }
-
-    /** Solo ADMIN — guardar la dirección y el punto exacto del local (lo que ve el cliente
-     *  en login y registro). Las 3 en null borran la ubicación. */
-    @PutMapping("/ubicacion")
-    public ResponseEntity<ResponseGeneric<NegocioConfigDto>> actualizarUbicacion(
-            @RequestBody UbicacionUpdateDto dto) {
-        return ResponseEntity.ok(new ResponseGeneric<>(negocioService.actualizarUbicacion(dto)));
     }
 
     /** Público — lista de redes sociales activas (nombre + url) para pintar en el front */

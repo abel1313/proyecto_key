@@ -3,8 +3,6 @@ package com.ventas.key.mis.productos.controller;
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
 import com.ventas.key.mis.productos.chatbot.ChatbotRequest;
 import com.ventas.key.mis.productos.chatbot.ChatbotSitioWebService;
-import com.ventas.key.mis.productos.service.api.IChatMensajeService;
-import com.ventas.key.mis.productos.service.api.IChatSesionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -31,12 +29,6 @@ public class ChatbotController {
 
     private final ChatbotSitioWebService chatbotService;
     private final ChatbotBlockService blockService;
-    private final IChatSesionService sesionService;
-    private final IChatMensajeService mensajeService;
-
-    // Tercer remitente, ademas de USUARIO y ADMIN del chat en vivo: distingue lo que contesto el
-    // bot de lo que contesto una persona, dentro del mismo historial.
-    private static final String REMITENTE_BOT = "BOT";
 
     private static final Pattern PRECIO_PATTERN = Pattern.compile("\\$\\s?\\d");
     private static final Pattern MENCIONA_FOTO_PATTERN =
@@ -158,14 +150,6 @@ public class ChatbotController {
                         result.put("busquedaOffset", busqueda.get("busquedaOffset"));
                     }
 
-                    // Se guarda lo que el cliente realmente vio, no el texto crudo del modelo: la
-                    // respuesta ya viene sin los marcadores ##BUSCAR##/##FAREWELL## y con el aviso
-                    // de bloqueo si lo hubo. Nunca tumba la respuesta -- si falla el guardado, el
-                    // cliente igual recibe su contestacion.
-                    result.put("sesionId", persistirConversacion(
-                            request.getSesionId(), ip, request.getMensaje(),
-                            String.valueOf(result.get("respuesta"))));
-
                     return ResponseEntity.<Map<String, Object>>ok(result);
                 })
                 .onErrorResume(e -> {
@@ -194,21 +178,6 @@ public class ChatbotController {
             @RequestParam String q,
             @RequestParam(defaultValue = "0") int offset) {
         return ResponseEntity.ok(chatbotService.buscarProductos(q, offset));
-    }
-
-    // Guarda el ida y vuelta del chatbot en las mismas tablas del chat en vivo (chat_sesion /
-    // chat_mensaje) para que el dueno pueda leer esas conversaciones desde chat directo, que antes
-    // no se podia: el chatbot no escribia en ninguna tabla y todo moria en el navegador.
-    private String persistirConversacion(String sesionIdEntrante, String ip, String pregunta, String respuesta) {
-        try {
-            String sesionId = sesionService.asegurarSesionBot(sesionIdEntrante, ip);
-            mensajeService.guardar(sesionId, "USUARIO", pregunta);
-            mensajeService.guardar(sesionId, REMITENTE_BOT, respuesta);
-            return sesionId;
-        } catch (Exception e) {
-            log.warn("No se pudo guardar la conversación del chatbot (IP {}): {}", ip, e.getMessage());
-            return sesionIdEntrante;
-        }
     }
 
     private String obtenerIp(HttpServletRequest request) {

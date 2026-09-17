@@ -4,7 +4,6 @@
 **De:** Front
 **Para:** Back
 **Acción requerida:** ❌ **NINGUNA de código.** Solo anotar/documentar. Ver "Qué te pido" abajo.
-**Estado:** ✅ **CERRADO (2026-09-15)** — las anotaciones pedidas ya están puestas. Ver "Cómo quedó" al final.
 
 ---
 
@@ -141,21 +140,3 @@ extra.
 
 Si algo de la traducción de nombres no te cuadra o ves un caso donde se rompe (por ejemplo, un
 endpoint cuyo nombre le llegue al usuario tal cual), avísale al front antes de cambiar nada.
-
----
-
-## ✅ Cómo quedó (2026-09-15)
-
-Lo único que este documento pedía —anotar las entidades— ya está hecho. Javadoc puesto en las
-tres clases, con la regla de oro ("el Modelo agrupa, el Producto se vende"), la traducción de
-qué entidad es cuál para el usuario, y el recordatorio de que los nombres de la API **no**
-cambian:
-
-| Entidad | Archivo | Se le muestra al usuario como |
-|---|---|---|
-| `Variantes` | `entity/productoVariantes/Variantes.java` | **Producto** (unidad vendible: stock, precio, código de barras) |
-| `Producto` | `entity/Producto.java` | **Modelo** (solo agrupa: nombre, precios base, categoría) |
-| `PalabraClave` | `entity/PalabraClave.java` | **Categoría** |
-
-No se tocó ningún contrato, ruta ni campo JSON — sigue todo igual que antes, tal como pedía la
-sección "Lo primero: NO cambies nada".

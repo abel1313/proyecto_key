@@ -19,9 +19,7 @@ CREATE TABLE IF NOT EXISTS chat_mensaje (
     contenido   TEXT        NOT NULL,
     timestamp   DATETIME    NOT NULL,
     CONSTRAINT fk_chat_mensaje_sesion FOREIGN KEY (sesion_id) REFERENCES chat_sesion(sesion_id),
-    -- 'BOT' es obligatorio: lo escribe el asistente del chat en vivo y el del widget
-    -- publico. Si falta, el bot no puede guardar nada (ver migration_chat_remitente_bot.sql).
-    CONSTRAINT chk_remitente CHECK (remitente IN ('USUARIO', 'ADMIN', 'BOT'))
+    CONSTRAINT chk_remitente CHECK (remitente IN ('USUARIO', 'ADMIN'))
 );
 
 CREATE INDEX idx_chat_sesion_estado ON chat_sesion(estado);

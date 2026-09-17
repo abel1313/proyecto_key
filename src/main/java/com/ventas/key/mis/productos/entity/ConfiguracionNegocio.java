@@ -48,18 +48,5 @@ public class ConfiguracionNegocio extends BaseId {
     @Column(name = "umbral_stock_bajo")
     private Integer umbralStockBajo;
 
-    /** Direccion del local tal como se le muestra al cliente en login y registro. */
-    @Column(name = "direccion", length = 255)
-    private String direccion;
-
-    // Punto exacto del local. Se captura desde Configuracion del negocio con el mismo selector de
-    // mapa del punto de encuentro de las entregas. Con estos dos el front arma el link de "Como
-    // llegar" a Google Maps; mientras alguno sea null, login y registro no muestran nada.
-    @Column(name = "latitud")
-    private Double latitud;
-
-    @Column(name = "longitud")
-    private Double longitud;
-
     public static final int UMBRAL_DEFAULT_STOCK_BAJO = 5;
 }

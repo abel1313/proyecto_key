@@ -6,7 +6,6 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.chat.ChatHistorialPaginadoDto;
 import com.ventas.key.mis.productos.models.chat.SesionActivaDto;
-import com.ventas.key.mis.productos.service.ChatVivoBotService;
 import com.ventas.key.mis.productos.service.api.IChatMensajeService;
 import com.ventas.key.mis.productos.service.api.IChatSesionService;
 import org.springframework.http.HttpStatus;
@@ -16,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/v1/chat")
@@ -24,15 +22,12 @@ public class ChatAdminController {
 
     private final IChatSesionService sesionService;
     private final IChatMensajeService mensajeService;
-    private final ChatVivoBotService botService;
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
-    public ChatAdminController(IChatSesionService sesionService, IChatMensajeService mensajeService,
-                               ChatVivoBotService botService) {
+    public ChatAdminController(IChatSesionService sesionService, IChatMensajeService mensajeService) {
         this.sesionService = sesionService;
         this.mensajeService = mensajeService;
-        this.botService = botService;
     }
 
     @GetMapping("/admin/sesiones")
@@ -50,7 +45,6 @@ public class ChatAdminController {
                             .fechaInicio(s.getFechaInicio().format(FMT))
                             .ultimaActividad(s.getUltimaActividad().format(FMT))
                             .ultimoMensaje(ultimo)
-                            .sinResponder(mensajeService.contarSinResponder(s.getSesionId()))
                             .build();
                 })
                 .toList();
@@ -116,16 +110,6 @@ public class ChatAdminController {
     public ResponseEntity<Void> cerrarSesion(@PathVariable String sesionId) {
         sesionService.cerrarSesion(sesionId);
         return ResponseEntity.noContent().build();
-    }
-
-    // ADMIN: por que el bot no contesto en una conversacion del chat en vivo. Igual que los
-    // diagnosticos de imagenes, sirve para no tener que pedir los logs del servidor: dice el modo,
-    // quien escribio de ultimo, si se agoto el limite, y prueba la llamada a OpenAI en vivo -- si la
-    // llave o el credito estan mal, aqui sale el error exacto.
-    @GetMapping("/admin/diagnostico-bot/{sesionId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ResponseGeneric<Map<String, Object>>> diagnosticoBot(@PathVariable String sesionId) {
-        return ResponseEntity.ok(new ResponseGeneric<>(botService.diagnostico(sesionId)));
     }
 
     @GetMapping("/version")

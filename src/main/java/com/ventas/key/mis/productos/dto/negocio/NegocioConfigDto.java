@@ -16,7 +16,4 @@ public class NegocioConfigDto {
     private String horaApertura; // "HH:mm"
     private String horaCierre;   // "HH:mm"
     private Integer umbralStockBajo;
-    private String direccion;
-    private Double latitud;
-    private Double longitud;
 }

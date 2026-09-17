@@ -33,11 +33,6 @@ public class ChatSesion {
     @Column(name = "estado", nullable = false, length = 10)
     private String estado;
 
-    // Quien atiende la conversacion: BOT (contesta el prompt del chatbot) o HUMANO (el admin la
-    // tomo y el bot se calla). Es aparte de `estado`, que solo dice si sigue abierta o ya cerro.
-    @Column(name = "modo", length = 10)
-    private String modo;
-
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @Column(name = "fecha_inicio", nullable = false)
     private LocalDateTime fechaInicio;
