@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import lombok.extern.slf4j.Slf4j;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.entity.CintaPromocion;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class CintaPromocionServiceImpl extends CrudAbstractServiceImpl<
         CintaPromocion,
@@ -44,7 +46,11 @@ public class CintaPromocionServiceImpl extends CrudAbstractServiceImpl<
     public CintaPromocion save(CintaPromocion req) {
         CintaPromocion resultado = super.save(req);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         return resultado;
     }
 
@@ -57,7 +63,11 @@ public class CintaPromocionServiceImpl extends CrudAbstractServiceImpl<
                 .orElseThrow(() -> new ExceptionDataNotFound("Frase de cinta no encontrada: " + id));
         iCintaPromocionRepository.delete(cinta);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         return cinta;
     }
 }

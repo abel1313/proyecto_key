@@ -41,6 +41,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.ventas.key.mis.productos.Utils.NombreArchivoImagen;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -300,7 +301,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         for (MultipartFile file : imagenes) {
             try {
                 byte[] bytes = file.getBytes();
-                String nombre = file.getOriginalFilename() != null ? file.getOriginalFilename() : "imagen";
+                String nombre = NombreArchivoImagen.normalizar(file.getOriginalFilename(), bytes);
                 ByteArrayResource recurso = new ByteArrayResource(bytes) {
                     @Override
                     public String getFilename() { return nombre; }
@@ -612,7 +613,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         LinkedMultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
         for (ImagenDTO dto : todas) {
             byte[] bytes = dto.getBase64();
-            String nombre = dto.getNombreImagen();
+            String nombre = NombreArchivoImagen.normalizar(dto.getNombreImagen(), bytes);
             ByteArrayResource recurso = new ByteArrayResource(bytes) {
                 @Override
                 public String getFilename() { return nombre; }
@@ -1017,6 +1018,31 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setConsistente(dto.getIdsSinDatosEnMicroservicio().isEmpty());
 
         return dto;
+    }
+
+    /**
+     * Baja de una variante. Es borrado logico a proposito: hay 13 tablas que apuntan a
+     * variante (detalle_pedido, detalle_venta_variante, resena, favorito, promocion_detalle,
+     * configurar_rifa_variante...), asi que un DELETE real dejaria el historial de ventas y
+     * pedidos apuntando a una fila que ya no existe. Mismo criterio que
+     * ProductosServiceImpl.deleteByIdProducto(), que tambien deja el producto en habilitado=0.
+     *
+     * El stock del producto padre NO se toca aqui, igual que en el borrado de producto.
+     *
+     * Las imagenes si se borran de verdad (y del micro si quedan huerfanas): con la variante
+     * deshabilitada ya no se muestran en ningun lado y solo ocupan disco.
+     */
+    @Transactional
+    public void deleteByIdVariante(Integer id) {
+        Variantes variante = iVarianteRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con el id: " + id));
+
+        eliminarImagenesDeVariantes(List.of(id));
+
+        variante.setHabilitado('0');
+        iVarianteRepository.save(variante);
+        log.info("Variante id={} dada de baja (habilitado=0) y sus imagenes eliminadas", id);
+        evictAllCaches();
     }
 
     @Transactional

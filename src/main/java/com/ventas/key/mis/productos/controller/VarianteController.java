@@ -45,38 +45,9 @@ public class VarianteController extends AbstractController<
         super(sGenerico);
     }
 
-    // Antes de esto, GET /tienda/getAll (heredado de AbstractController) no llevaba /v1/
-    // porque esta clase no tiene el prefijo en su @RequestMapping. GET /tienda/getAll
-    // sigue vivo por compatibilidad, pero el front debe migrar a este.
-    @GetMapping("/getAll")
-    public ResponseEntity<ResponseGeneric<List<Variantes>>> findAllV2(
-            @RequestParam int page, @RequestParam int size) {
-        return super.findAll(page, size);
-    }
-
-    @GetMapping("/getOne/{tipoDato}")
-    public ResponseEntity<ResponseGeneric<Optional<Variantes>>> findByV2(@PathVariable Integer tipoDato) {
-        return super.findBy(tipoDato);
-    }
-
-    @PostMapping("/save")
-    public ResponseEntity<ResponseGeneric<Variantes>> saveV2(
-            @Validated @RequestBody Variantes requestG, BindingResult result) {
-        return super.save(requestG, result);
-    }
-
-    @PutMapping("/update/{tipoDato}")
-    public ResponseEntity<ResponseGeneric<Variantes>> updateV2(
-            @PathVariable Integer tipoDato,
-            @Validated @RequestBody Variantes requestG,
-            BindingResult result) throws Exception {
-        return super.update(tipoDato, requestG, result);
-    }
-
-    @DeleteMapping("/delete")
-    public ResponseEntity<ResponseGeneric<Variantes>> deleteV2(@RequestBody Integer requestG) {
-        return super.delete(requestG);
-    }
+    // getAll, getOne, save, update y delete NO se declaran aqui: los publica AbstractController
+    // y ya salen bajo /v1/variantes por el @RequestMapping de esta clase. Declararlos otra vez
+    // arranca en "Ambiguous mapping" y la app no levanta.
 
     @GetMapping("/porProducto/{productoId}")
     public ResponseEntity<ResponseGeneric<List<VarianteDto>>> getPorProducto(@PathVariable Integer productoId) {
@@ -294,6 +265,16 @@ public class VarianteController extends AbstractController<
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
+    }
+
+    // El delete generico que hereda de AbstractController es un stub que no hace nada y devuelve
+    // null (ver CrudAbstractServiceImpl.delete), asi que el front no tenia con que dar de baja
+    // una variante. Este es el equivalente a /v1/productos/deleteBy/{id}.
+    @DeleteMapping("/deleteBy/{id}")
+    public ResponseEntity<ResponseGeneric<String>> eliminarVarianteById(@PathVariable Integer id) {
+        log.info("Dar de baja la variante id={}", id);
+        sGenerico.deleteByIdVariante(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada correctamente"));
     }
 
     @PostMapping("/{varianteId}/independizar")

@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.NombreArchivoImagen;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -46,7 +47,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -308,7 +308,11 @@ public class ProductosServiceImpl extends
 
         });
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
     }
 
     private List<ProductoDTO> listaProductos(List<Producto> lista) {
@@ -354,7 +358,11 @@ public class ProductosServiceImpl extends
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto resultado = guardarProducto(productoDetalle);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
         return resultado;
     }
 
@@ -604,13 +612,12 @@ public class ProductosServiceImpl extends
         for (ProductoImagen p : productoImagens) {
             Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
             byte[] imagenBytes = Files.readAllBytes(path);
-            final String nombre = p.getImagen().getNombreImagen();
+            final String nombre = NombreArchivoImagen.normalizar(p.getImagen().getNombreImagen(), imagenBytes);
             ByteArrayResource recurso = new ByteArrayResource(imagenBytes) {
                 @Override
                 public String getFilename() { return nombre; }
             };
-            builder.part("files", recurso)
-                    .header("Content-Disposition", "form-data; name=files; filename=" + nombre);
+            builder.part("files", recurso);
         }
 
         try {
@@ -637,12 +644,9 @@ public class ProductosServiceImpl extends
             log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
             return microImagenes;
         } catch (Exception e) {
-            if (e instanceof WebClientResponseException wcre) {
-                log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {} — body respuesta: {}",
-                        e.getMessage(), wcre.getResponseBodyAsString(), e);
-            } else {
-                log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
-            }
+            // El mensaje ya viene con el motivo que dio el micro -- ImageneClienteDisco.save()
+            // desempaqueta su body antes de propagar.
+            log.error("Error al sincronizar imágenes con micro_imagenes — producto guardado pero imágenes no disponibles en micro: {}", e.getMessage(), e);
             return List.of();
         }
     }
@@ -790,7 +794,11 @@ public class ProductosServiceImpl extends
         producto.setHabilitado(habilitar ? '1' : '0');
         Producto resultado = iProductosRepository.save(producto);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
         return resultado;
     }
 
@@ -808,7 +816,11 @@ public class ProductosServiceImpl extends
         productos.forEach(p -> p.setHabilitado(habilitar ? '1' : '0'));
         iProductosRepository.saveAll(productos);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
     }
 
     // Mismo criterio que IProductosRepository.findBorradores(): el flag O el codigo placeholder.

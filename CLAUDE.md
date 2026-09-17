@@ -403,6 +403,91 @@ Micro servicio que permite compras de bolsas, pantalones faldas de mujer
           consistente=true → todo correcto, revisar cache
 ---
 
+## Reglas de comportamiento del catálogo y los buscadores
+
+Descubierto en la validación de QA del 2026-09-17. Anotado para no volver a investigarlo.
+
+### El nombre del archivo tiene que coincidir con los bytes al subir al micro
+
+`micro_imagenes` valida cada subida con `ValidadorImagenSubida`: compara los **magic bytes** del
+archivo contra la extensión del nombre y contra el Content-Type declarado. Si no coinciden,
+responde **400** y no guarda nada.
+
+El front recorta las fotos en un canvas, que **siempre saca JPEG**, pero conserva el nombre
+original que eligió el usuario. Una foto `logo.png` llega con bytes JPEG y nombre `.png`, y el
+micro la rechaza. Por eso todo lo que sube al micro pasa primero por
+`Utils/NombreArchivoImagen.normalizar(nombre, bytes)`, que renombra según los bytes reales
+(detección idéntica a la del micro). Son 3 puntos: `VarianteServiceImpl.subirImagenes()`,
+`VarianteServiceImpl.subirImagenesMultipart()` y `ProductosServiceImpl.relacionProductoImagen()`.
+
+Renombrar arregla las dos validaciones de un tiro, porque Spring deduce el Content-Type de la
+parte a partir de la extensión del filename al escribir el multipart.
+
+**Si se agrega otro punto que suba al micro, tiene que llamar a `normalizar()`.**
+
+### Un 400 del micro tiene que llegar con su mensaje
+
+`ImageneClienteDisco.save()` desempaqueta el `message` del `MensajeError` del micro y lo propaga
+como `ExceptionErrorInesperado` (→ 400 con ese texto). Antes el admin veía solo
+`"400 Bad Request from POST .../v1/imagenes"` y el motivo real se perdía.
+
+### El catálogo público exige 4 condiciones — un producto sin imagen NO aparece
+
+`IVarianteRepository.buscarVariantesPublicoFiltrado` filtra por:
+
+```sql
+WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false
+  AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
+```
+
+Las 4 se cumplen o el modelo no se ve en la tienda. **No hay que darlo de alta dos veces:** si se
+creó en el admin y no aparece en `tienda/buscar`, es que le falta stock, habilitado o imagen.
+Un fallo al subir la imagen se manifiesta como "el producto no aparece en la tienda" y como
+"aparece en el listado pero sin miniatura" (`producto_imagen_copy` nunca se escribe, así que el
+listado no tiene `imagenId`).
+
+### Eliminar = baja lógica, nunca DELETE de la fila
+
+Hay **13 tablas** que apuntan a `variante` (`detalle_pedido`, `detalle_venta_variante`, `resena`,
+`favorito`, `promocion_detalle`, `configurar_rifa_variante`, `ramo_armado`, `lugar_entrega`...).
+Borrar la fila dejaría el historial de ventas y pedidos apuntando a algo que no existe.
+
+Tanto `ProductosServiceImpl.deleteByIdProducto()` como
+`VarianteServiceImpl.deleteByIdVariante()` dejan `habilitado = 0` y borran solo las imágenes.
+El stock del producto padre no se toca. En la interfaz el texto dice **"dar de baja"**, no
+"eliminar", y no promete que sea irreversible: se puede volver a habilitar, lo único que no
+vuelve son las fotos.
+
+**`AbstractController.delete` (`DELETE /<recurso>/delete`) es un stub vacío** —
+`CrudAbstractServiceImpl.delete()` no hace nada y devuelve `null`. No cablear nada nuevo ahí;
+cada recurso necesita su propio `deleteBy/{id}`. Ya existen para productos y variantes.
+
+### Los buscadores de texto exigen 3 caracteres, y vacío recarga todo
+
+Regla: **menos de 3 caracteres no sale al back** (con 1 o 2 el `LIKE '%x%'` barre casi todo el
+catálogo y el resultado no le sirve a nadie). **Vacío SÍ dispara** y significa "quitar el filtro
+y traer todo de nuevo". No aplica a buscadores por número (número de pedido), donde 1 dígito es
+válido.
+
+En el front la constante es `Constants.MIN_CARACTERES_BUSQUEDA`. Dos trampas que ya se pagaron:
+- Un `filter(t => t.length >= 3)` antes del `debounceTime` **también descarta el vacío**, así que
+  limpiar el input no recarga nada y queda en pantalla el resultado anterior. El caso vacío se
+  atiende aparte, antes del subject.
+- Si el guard se salta cuando hay filtros activos, el término corto se cuela por el parámetro del
+  filtro. El término que viaja al back se calcula una sola vez y ya filtrado por el mínimo.
+
+### `catchError` va DENTRO del `switchMap`, no en el `subscribe`
+
+El back contesta **404/400 cuando una búsqueda no encuentra nada**. Si ese error llega al
+`subscribe`, RxJS **termina la suscripción para siempre** y el buscador queda muerto hasta
+recargar la pantalla — un handler `error:` en el `subscribe` apaga el spinner pero no la revive.
+El `catchError` tiene que ir en el observable interno del `switchMap`.
+
+Pasó en `tienda/venta` y estaba igual en `tienda/update`, Reportes y el autocomplete de palabras
+clave. **Cualquier buscador nuevo con `switchMap` tiene que llevarlo.**
+
+---
+
 ## Migraciones ya corridas — registro
 
 Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
@@ -413,6 +498,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_submenu_ayuda_contextual.sql` | ⚠️ corrida, 0 filas (sin efecto) | ⚠️ corrida, 0 filas (sin efecto) | 2026-09-17 |
 | `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+| `migration_accion_tienda_eliminar.sql` | ⬜ pendiente | ⬜ pendiente | — |
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
