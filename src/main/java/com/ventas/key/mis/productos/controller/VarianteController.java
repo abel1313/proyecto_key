@@ -267,6 +267,16 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
     }
 
+    // El delete generico que hereda de AbstractController es un stub que no hace nada y devuelve
+    // null (ver CrudAbstractServiceImpl.delete), asi que el front no tenia con que dar de baja
+    // una variante. Este es el equivalente a /v1/productos/deleteBy/{id}.
+    @DeleteMapping("/deleteBy/{id}")
+    public ResponseEntity<ResponseGeneric<String>> eliminarVarianteById(@PathVariable Integer id) {
+        log.info("Dar de baja la variante id={}", id);
+        sGenerico.deleteByIdVariante(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada correctamente"));
+    }
+
     @PostMapping("/{varianteId}/independizar")
     public ResponseEntity<ResponseGeneric<IndependizarVarianteResponseDto>> independizarVariante(
             @PathVariable Integer varianteId,
