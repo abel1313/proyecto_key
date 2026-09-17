@@ -24,21 +24,21 @@ Se normalizó el versionado de URLs en **ambos** backends (proyecto-key 9091 y m
 
 | Antes (front lo usa) | Ahora | Estado |
 |---|---|---|
-| `imagen/v2/{productoId}` | `imagen/v1/{productoId}` | ✅ `imagenes.service.ts` |
-| `imagen/v2/{productoId}/detalle` | `imagen/v1/{productoId}/detalle` | ✅ `producto.service.ts` |
-| `imagen/v2/file/{imagenId}` | `imagen/v1/file/{imagenId}` |
-| `imagen/v2/{idProducto}/imagenes` | `imagen/v1/{idProducto}/imagenes` |
-| `imagen/v2/{idImagen}` (DELETE) | `imagen/v1/{idImagen}` (DELETE) |
-| `imagen/v2/{productoId}/imagenes` (DELETE) | `imagen/v1/{productoId}/imagenes` (DELETE) |
-| `imagen/v2/producto` (DELETE) | `imagen/v1/producto` (DELETE) |
-| `imagen/v2/cache/limpiar` | `imagen/v1/cache/limpiar` |
-| `presentacion/v2/imagenes` | `presentacion/v1/imagenes` |
-| `presentacion/v2/imagenes/{id}/imagen` | `presentacion/v1/imagenes/{id}/imagen` |
-| `presentacion/v2/imagenes/todas` | `presentacion/v1/imagenes/todas` |
-| `presentacion/v2/imagenes/{id}` (PUT) | `presentacion/v1/imagenes/{id}` (PUT) |
-| `variantes/v2/imagenes/{varianteId}` | `variantes/v1/imagenes/{varianteId}` |
-| `variantes/v2/imagenes` (DELETE) | `variantes/v1/imagenes` (DELETE) |
-| `variantes/v2/{varianteId}/imagenes` (DELETE) | `variantes/v1/{varianteId}/imagenes` (DELETE) |
+| `imagen/v2/{productoId}` | `/v1/imagenes/{productoId}` | ✅ `imagenes.service.ts` |
+| `imagen/v2/{productoId}/detalle` | `/v1/imagenes/{productoId}/detalle` | ✅ `producto.service.ts` |
+| `imagen/v2/file/{imagenId}` | `/v1/imagenes/file/{imagenId}` |
+| `imagen/v2/{idProducto}/imagenes` | `/v1/imagenes/{idProducto}/imagenes` |
+| `imagen/v2/{idImagen}` (DELETE) | `/v1/imagenes/{idImagen}` (DELETE) |
+| `imagen/v2/{productoId}/imagenes` (DELETE) | `/v1/imagenes/{productoId}/imagenes` (DELETE) |
+| `imagen/v2/producto` (DELETE) | `/v1/imagenes/producto` (DELETE) |
+| `imagen/v2/cache/limpiar` | `/v1/imagenes/cache/limpiar` |
+| `presentacion/v2/imagenes` | `/v1/presentacion/imagenes` |
+| `presentacion/v2/imagenes/{id}/imagen` | `/v1/presentacion/imagenes/{id}/imagen` |
+| `presentacion/v2/imagenes/todas` | `/v1/presentacion/imagenes/todas` |
+| `presentacion/v2/imagenes/{id}` (PUT) | `/v1/presentacion/imagenes/{id}` (PUT) |
+| `variantes/v2/imagenes/{varianteId}` | `/v1/variantes/imagenes/{varianteId}` |
+| `variantes/v2/imagenes` (DELETE) | `/v1/variantes/imagenes` (DELETE) |
+| `variantes/v2/{varianteId}/imagenes` (DELETE) | `/v1/variantes/{varianteId}/imagenes` (DELETE) |
 
 > Las rutas viejas sin versión (`imagen/{id}`, `presentacion/imagenes`, `variantes/imagenes/{varianteId}`, etc.) ahora viven bajo `/v3/` y están `@Deprecated` — el front **no** debe usarlas.
 
@@ -219,7 +219,7 @@ PUT  /productos/update
 **Endpoints afectados:**
 ```
 PUT /presentacion/imagenes/{id}
-PUT /presentacion/v1/imagenes/{id}
+PUT //v1/presentacion/imagenes/{id}
 ```
 **Dónde verlo:** Menú → **Presentación** o **Inicio/Banner** → editar una imagen → guardar.
 
@@ -269,7 +269,7 @@ Cuando se guarda un producto con imágenes, internamente se publica a RabbitMQ l
 **Endpoints que mejoran (los que consultan imágenes al micro):**
 ```
 GET /imagen/{id}
-GET /imagen/v1/{productoId}
+GET //v1/imagenes/{productoId}
 GET /variantes/buscar
 GET /variantes/imagenes/{varianteId}
 GET /productos/findById/{id}
@@ -290,7 +290,7 @@ GET /productos/findById/{id}
 **Endpoints afectados:**
 ```
 GET /imagen/{id}/detalle?page=1&size=10
-GET /imagen/v1/{productoId}/detalle?page=1&size=10
+GET //v1/imagenes/{productoId}/detalle?page=1&size=10
 ```
 **Dónde verlo:** Menú → **Productos** → detalle de producto → galería de imágenes paginada.
 
@@ -368,7 +368,7 @@ Front → proyecto-key ImageneController.getDetalle()
 
 ---
 
-#### Version nueva — `GET /imagen/v1/{productoId}/detalle` ✅ Usar esta — **proyecto-key (9091)** — se queda aquí
+#### Version nueva — `GET //v1/imagenes/{productoId}/detalle` ✅ Usar esta — **proyecto-key (9091)** — se queda aquí
 
 > Este endpoint **no puede moverse al micro** porque mezcla datos del producto (nombre, precio, stock) con bytes de imagen.
 
@@ -379,7 +379,7 @@ Front → proyecto-key ImageneController.getDetalle()
 | **Query params** | `page` (int), `size` (int) — mismos que antes |
 | **Response 200** | Misma estructura: `PageableDto` → lista de `{ idProducto, idImagen, name, price, inventoryStatus, extencion, image (bytes) }` |
 | **RabbitMQ** | No aplica — lectura síncrona |
-| **Acción front** | Cambiar URL de `/imagen/{id}/detalle` a `/imagen/v1/{id}/detalle` |
+| **Acción front** | Cambiar URL de `/imagen/{id}/detalle` a `//v1/imagenes/{id}/detalle` |
 
 **Diferencia clave con la versión anterior:**
 - `name`, `price`, `inventoryStatus`, `extencion` → siguen saliendo de la **BD local de proyecto-key** (el micro no tiene datos del producto)
@@ -547,9 +547,9 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 > No puede moverse al micro porque necesita verificar `variante_imagen` que es tabla de proyecto-key.
 
-| | `DELETE /imagen/v3/{productoId}/imagenes` ❌ Deprecated | `DELETE /imagen/v1/{productoId}/imagenes` ✅ Usar esta |
+| | `DELETE /imagen/v3/{productoId}/imagenes` ❌ Deprecated | `DELETE //v1/imagenes/{productoId}/imagenes` ✅ Usar esta |
 |---|---|---|
-| **URL completa** | `http://localhost:9091/mis-productos/imagen/v3/{id}/imagenes` | `http://localhost:9091/mis-productos/imagen/v1/{id}/imagenes` |
+| **URL completa** | `http://localhost:9091/mis-productos/imagen/v3/{id}/imagenes` | `http://localhost:9091/mis-productos//v1/imagenes/{id}/imagenes` |
 | **Body** | `[imagenId1, imagenId2, ...]` (Long[]) | mismo |
 | **Response** | HTTP 200 `{ message }` | HTTP 200 `{ message }` — mismo |
 
@@ -559,9 +559,9 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 > Misma razón que el punto 6.
 
-| | `DELETE /imagen/v3/producto` ❌ Deprecated | `DELETE /imagen/v1/producto` ✅ Usar esta |
+| | `DELETE /imagen/v3/producto` ❌ Deprecated | `DELETE //v1/imagenes/producto` ✅ Usar esta |
 |---|---|---|
-| **URL completa** | `http://localhost:9091/mis-productos/imagen/v3/producto` | `http://localhost:9091/mis-productos/imagen/v1/producto` |
+| **URL completa** | `http://localhost:9091/mis-productos/imagen/v3/producto` | `http://localhost:9091/mis-productos//v1/imagenes/producto` |
 | **Body** | `[productoId1, productoId2, ...]` (Integer[]) | mismo |
 | **Response** | HTTP 200 `{ message }` | HTTP 200 `{ message }` — mismo |
 
@@ -569,13 +569,13 @@ Front → DELETE /mis-productos/producto-imagen/{imagenId}   ← micro_imagenes 
 
 ### 8. Limpiar caché de imágenes
 
-| | `GET /imagen/v3/cache/imagen/limpiar` ❌ Deprecated | `GET /imagen/v1/cache/limpiar` ✅ Usar esta |
+| | `GET /imagen/v3/cache/imagen/limpiar` ❌ Deprecated | `GET //v1/imagenes/cache/limpiar` ✅ Usar esta |
 |---|---|---|
 | **Controlador** | `ImageneController` — `limpiarTodaLaCacheDeImagenes()` | `ImageneController` — `limpiarCacheImagenesV2()` |
 | **Response** | void | HTTP 204 No Content |
 | **Diferencia** | Solo evicta caché `imagenes` | Evicta `imagenes`, `detalleImagen`, `detalle`, `detalle-v2`, `buscarImagenIdCache` |
 | **RabbitMQ** | No aplica | TODO: publicar evento para invalidar caché en todos los nodos |
-| **Acción front** | Sin cambio | Cambiar URL a `/imagen/v1/cache/limpiar` |
+| **Acción front** | Sin cambio | Cambiar URL a `//v1/imagenes/cache/limpiar` |
 
 ---
 
@@ -632,7 +632,7 @@ Front → getImagenes()
 
 ---
 
-#### Versión nueva — `GET /presentacion/v1/imagenes?tipo=LOGIN` ✅ Usar esta
+#### Versión nueva — `GET //v1/presentacion/imagenes?tipo=LOGIN` ✅ Usar esta
 
 | | |
 |---|---|
@@ -641,12 +641,12 @@ Front → getImagenes()
 | **Response 200** | `ResponseGeneric<List<ImagenPresentacionDto>>` — DTO con `urlImagen` calculada |
 | **Response sin datos** | HTTP 200 con `data: []` (lista vacía) |
 | **Cache** | `@Cacheable("presentacion-imagenes")` por `tipo` |
-| **RabbitMQ** | **NO aplica** — lectura síncrona. TODO: cuando se implemente `PUT /presentacion/v1/imagenes/{id}`, publicar evento `cache.evict.presentacion` en `exchange.imagenes` para invalidar caché en todos los nodos |
-| **Acción front** | Cambiar URL a `/presentacion/v1/imagenes?tipo=...` y usar `urlImagen` del DTO para cargar la imagen |
+| **RabbitMQ** | **NO aplica** — lectura síncrona. TODO: cuando se implemente `PUT //v1/presentacion/imagenes/{id}`, publicar evento `cache.evict.presentacion` en `exchange.imagenes` para invalidar caché en todos los nodos |
+| **Acción front** | Cambiar URL a `//v1/presentacion/imagenes?tipo=...` y usar `urlImagen` del DTO para cargar la imagen |
 
 **Request:**
 ```
-GET /mis-productos/presentacion/v1/imagenes?tipo=LOGIN
+GET /mis-productos//v1/presentacion/imagenes?tipo=LOGIN
 ```
 
 **Response 200:**
@@ -664,7 +664,7 @@ GET /mis-productos/presentacion/v1/imagenes?tipo=LOGIN
       "descripcion": "Banner principal de login",
       "activo": true,
       "actualizadoEn": "2026-05-21T10:00:00",
-      "urlImagen": "/presentacion/v1/imagenes/1/imagen"
+      "urlImagen": "//v1/presentacion/imagenes/1/imagen"
     }
   ],
   "lista": null
@@ -673,7 +673,7 @@ GET /mis-productos/presentacion/v1/imagenes?tipo=LOGIN
 
 **Diferencia clave con la versión anterior:**
 - Ya **no expone** `nombreArchivo` (ruta de disco interno)
-- Agrega `urlImagen` → apunta a `GET /presentacion/v1/imagenes/{id}/imagen` (bytes desde el micro)
+- Agrega `urlImagen` → apunta a `GET //v1/presentacion/imagenes/{id}/imagen` (bytes desde el micro)
 - La respuesta se cachea — menor carga en BD en producción
 
 **Flujo interno:**
@@ -716,16 +716,16 @@ Body: <bytes binarios — usar directamente como src de <img> o blob>
 
 ---
 
-#### Versión nueva — `GET /presentacion/v1/imagenes/{id}/imagen` ✅ Usar esta
+#### Versión nueva — `GET //v1/presentacion/imagenes/{id}/imagen` ✅ Usar esta
 
 | | |
 |---|---|
 | **Path param** | `id` (Integer) — mismo que antes |
-| **Acción front** | Si ya usas `GET /presentacion/v1/imagenes?tipo=...`, el campo `urlImagen` de cada item ya apunta a esta URL — sin cambio adicional. Solo actualizar si tenías la URL hardcodeada. |
+| **Acción front** | Si ya usas `GET //v1/presentacion/imagenes?tipo=...`, el campo `urlImagen` de cada item ya apunta a esta URL — sin cambio adicional. Solo actualizar si tenías la URL hardcodeada. |
 
 **Request:**
 ```
-GET /mis-productos/presentacion/v1/imagenes/1/imagen
+GET /mis-productos//v1/presentacion/imagenes/1/imagen
 ```
 
 **Response 200:**
@@ -773,11 +773,11 @@ Authorization: Bearer <token>
 
 ---
 
-#### Versión nueva — `GET /presentacion/v1/imagenes/todas` ✅ Usar esta
+#### Versión nueva — `GET //v1/presentacion/imagenes/todas` ✅ Usar esta
 
 **Request:**
 ```
-GET /mis-productos/presentacion/v1/imagenes/todas
+GET /mis-productos//v1/presentacion/imagenes/todas
 Authorization: Bearer <token>
 ```
 
@@ -794,7 +794,7 @@ Authorization: Bearer <token>
       "descripcion": "Banner principal",
       "activo": true,
       "actualizadoEn": "2026-05-21T10:00:00",
-      "urlImagen": "/presentacion/v1/imagenes/1/imagen"
+      "urlImagen": "//v1/presentacion/imagenes/1/imagen"
     }
   ]
 }
@@ -844,12 +844,12 @@ Content-Type: application/json
 
 ---
 
-#### Versión nueva — `PUT /presentacion/v1/imagenes/{id}` ✅ Usar esta
+#### Versión nueva — `PUT //v1/presentacion/imagenes/{id}` ✅ Usar esta
 
 **Request:** igual que v1 — mismo body, mismo token ADMIN.
 
 ```
-PUT /mis-productos/presentacion/v1/imagenes/1
+PUT /mis-productos//v1/presentacion/imagenes/1
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -874,14 +874,14 @@ Content-Type: application/json
     "descripcion": "Banner principal",
     "activo": true,
     "actualizadoEn": "2026-05-21T10:00:00",
-    "urlImagen": "/presentacion/v1/imagenes/1/imagen"
+    "urlImagen": "//v1/presentacion/imagenes/1/imagen"
   }
 }
 ```
 
 **Diferencia clave:**
 - Ya no devuelve `nombreArchivo` (ruta interna del servidor)
-- **Invalida automáticamente el caché** `presentacion-imagenes` — el próximo `GET /presentacion/v1/imagenes?tipo=...` devuelve datos frescos
+- **Invalida automáticamente el caché** `presentacion-imagenes` — el próximo `GET //v1/presentacion/imagenes?tipo=...` devuelve datos frescos
 - RabbitMQ: TODO para invalidar caché en multi-nodo (por ahora se invalida solo el nodo que recibe el PUT)
 
 ---
@@ -914,11 +914,11 @@ GET /mis-productos/variantes/v3/imagenes/5
 
 ---
 
-#### Versión nueva — `GET /variantes/v1/imagenes/{varianteId}` ✅ Usar esta
+#### Versión nueva — `GET //v1/variantes/imagenes/{varianteId}` ✅ Usar esta
 
 **Request:**
 ```
-GET /mis-productos/variantes/v1/imagenes/5
+GET /mis-productos//v1/variantes/imagenes/5
 ```
 
 **Response 200:**
@@ -944,7 +944,7 @@ GET /mis-productos/variantes/v1/imagenes/5
 
 ### 14. Eliminar todas las imágenes de varias variantes (ADMIN)
 
-| | `DELETE /variantes/v3/imagenes` ❌ Deprecated | `DELETE /variantes/v1/imagenes` ✅ Usar esta |
+| | `DELETE /variantes/v3/imagenes` ❌ Deprecated | `DELETE //v1/variantes/imagenes` ✅ Usar esta |
 |---|---|---|
 | **Auth** | Bearer token ADMIN | igual |
 | **Body** | `[varianteId1, varianteId2, ...]` (Integer[]) | igual |
@@ -953,7 +953,7 @@ GET /mis-productos/variantes/v1/imagenes/5
 
 **Request:**
 ```
-DELETE /mis-productos/variantes/v1/imagenes
+DELETE /mis-productos//v1/variantes/imagenes
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -969,7 +969,7 @@ Content-Type: application/json
 
 ### 15. Eliminar imágenes específicas de una variante (ADMIN)
 
-| | `DELETE /variantes/v3/{varianteId}/imagenes` ❌ Deprecated | `DELETE /variantes/v1/{varianteId}/imagenes` ✅ Usar esta |
+| | `DELETE /variantes/v3/{varianteId}/imagenes` ❌ Deprecated | `DELETE //v1/variantes/{varianteId}/imagenes` ✅ Usar esta |
 |---|---|---|
 | **Auth** | Bearer token ADMIN | igual |
 | **Path param** | `varianteId` (Integer) | igual |
@@ -979,7 +979,7 @@ Content-Type: application/json
 
 **Request:**
 ```
-DELETE /mis-productos/variantes/v1/5/imagenes
+DELETE /mis-productos//v1/variantes/5/imagenes
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1154,11 +1154,11 @@ Content-Type: application/json
 
 ---
 
-#### Versión nueva — `DELETE /imagen/v1/{productoId}/imagenes` ✅ Usar esta (proyecto-key 9091)
+#### Versión nueva — `DELETE //v1/imagenes/{productoId}/imagenes` ✅ Usar esta (proyecto-key 9091)
 
 **Request:**
 ```
-DELETE http://localhost:9091/mis-productos/imagen/v1/265/imagenes
+DELETE http://localhost:9091/mis-productos//v1/imagenes/265/imagenes
 Authorization: Bearer <token>
 Content-Type: application/json
 
@@ -1245,7 +1245,7 @@ Content-Type: application/json
 |---|---|---|---|
 | Listar imágenes del producto | GET | `http://localhost:9096/mis-productos/v1/producto-imagen/listar/{productoId}?pagina=1&size=8` | — |
 | Ver bytes de una imagen | GET | usar `urlImagen` del response de `listar` directamente en `<img [src]>` | — |
-| Eliminar imágenes seleccionadas (batch) | DELETE | `http://localhost:9091/mis-productos/imagen/v1/{productoId}/imagenes` | `["imagenId1", "imagenId2"]` |
+| Eliminar imágenes seleccionadas (batch) | DELETE | `http://localhost:9091/mis-productos//v1/imagenes/{productoId}/imagenes` | `["imagenId1", "imagenId2"]` |
 
 ---
 
@@ -1253,7 +1253,7 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar imágenes por tipo | GET | `http://localhost:9091/mis-productos/presentacion/v1/imagenes?tipo=LOGIN` | — |
+| Listar imágenes por tipo | GET | `http://localhost:9091/mis-productos//v1/presentacion/imagenes?tipo=LOGIN` | — |
 | Ver bytes de una imagen | GET | usar `urlImagen` del response directamente en `<img [src]>` | — |
 
 ---
@@ -1262,8 +1262,8 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar todas (activas e inactivas) | GET | `http://localhost:9091/mis-productos/presentacion/v1/imagenes/todas` | Bearer token ADMIN |
-| Actualizar imagen/descripción | PUT | `http://localhost:9091/mis-productos/presentacion/v1/imagenes/{id}` | `{ base64, extension, nombreImagen, descripcion, activo }` |
+| Listar todas (activas e inactivas) | GET | `http://localhost:9091/mis-productos//v1/presentacion/imagenes/todas` | Bearer token ADMIN |
+| Actualizar imagen/descripción | PUT | `http://localhost:9091/mis-productos//v1/presentacion/imagenes/{id}` | `{ base64, extension, nombreImagen, descripcion, activo }` |
 
 ---
 
@@ -1271,8 +1271,8 @@ Content-Type: application/json
 
 | Acción | Método | URL | Body / Params |
 |---|---|---|---|
-| Listar imágenes de variante | GET | `http://localhost:9091/mis-productos/variantes/v1/imagenes/{varianteId}` | — |
-| Eliminar imágenes específicas | DELETE | `http://localhost:9091/mis-productos/variantes/v1/{varianteId}/imagenes` | `[imagenId1, imagenId2]` |
+| Listar imágenes de variante | GET | `http://localhost:9091/mis-productos//v1/variantes/imagenes/{varianteId}` | — |
+| Eliminar imágenes específicas | DELETE | `http://localhost:9091/mis-productos//v1/variantes/{varianteId}/imagenes` | `[imagenId1, imagenId2]` |
 | Marcar imagen como principal | PUT | `http://localhost:9091/mis-productos/variantes/imagenes/{imagenId}/principal` | — |
 
 ---
@@ -1429,7 +1429,7 @@ http://localhost:9096/mis-productos/v1/imagenes/file/7305237692097776164
 
 ### Lo que NO cambia
 
-- Endpoints de detalle de imágenes de variante: `GET /variantes/v1/imagenes/{varianteId}` — sin cambios (renombrado de `v2` a `v1`, ver sección "MIGRACIÓN DE VERSIONES DE URL")
+- Endpoints de detalle de imágenes de variante: `GET //v1/variantes/imagenes/{varianteId}` — sin cambios (renombrado de `v2` a `v1`, ver sección "MIGRACIÓN DE VERSIONES DE URL")
 - Endpoints de imágenes de producto en detalle: `GET /producto-imagen/listar/{productoId}` — sin cambios
 - Endpoints de eliminación y marcado de principal — sin cambios
 - Estructura general del response (`data.t`, `data.pagina`, etc.) — sin cambios
@@ -1458,9 +1458,9 @@ Ahora: cualquier escritura hace dos cosas:
 
 | Método | URL | Comportamiento visible para el front |
 |--------|-----|--------------------------------------|
-| `DELETE` | `/imagen/v1/{imagenId}` | Sin cambio — sigue eliminando la imagen y respondiendo 200 |
-| `PUT` | `/presentacion/v1/imagenes/{id}` | Sin cambio — sigue actualizando y devolviendo `ImagenPresentacionDto` |
-| `GET` | `/imagen/v1/cache/limpiar` | Sin cambio en response — ahora también notifica a los demás nodos vía Rabbit |
+| `DELETE` | `//v1/imagenes/{imagenId}` | Sin cambio — sigue eliminando la imagen y respondiendo 200 |
+| `PUT` | `//v1/presentacion/imagenes/{id}` | Sin cambio — sigue actualizando y devolviendo `ImagenPresentacionDto` |
+| `GET` | `//v1/imagenes/cache/limpiar` | Sin cambio en response — ahora también notifica a los demás nodos vía Rabbit |
 
 #### Productos
 
@@ -3148,14 +3148,14 @@ Cada producto tiene `varianteId`. Usar el endpoint ya existente (⚠️ corregid
 tenía el `/v1/` en la posición equivocada):
 
 ```
-GET /mis-productos/variantes/v1/imagenes/{varianteId}
+GET /mis-productos//v1/variantes/imagenes/{varianteId}
 ```
 
 **⚠️ Corrección 2026-07-02:** NO tomar el primer elemento del array a secas — tomar el elemento
 con **`"principal": true`**. Si ninguno viene marcado como principal, ahí sí usar el primero como
 fallback. Si el array está vacío, mostrar imagen placeholder.
 ```js
-const imagenes = await fetch(`/mis-productos/variantes/v1/imagenes/${varianteId}`).then(r => r.json());
+const imagenes = await fetch(`/mis-productos//v1/variantes/imagenes/${varianteId}`).then(r => r.json());
 const imagen = imagenes.data.find(img => img.principal) || imagenes.data[0];
 ```
 
@@ -3976,7 +3976,7 @@ mostrar "cosas diferentes" — no hay 4 productos diferentes, hay 1 producto rep
 tabla `variantes`.
 
 **Extra:** las 4 variantes también dan error 500 al pedir su imagen
-(`GET /variantes/v1/imagenes/{varianteId}`) — probablemente ninguna tiene una imagen real cargada.
+(`GET //v1/variantes/imagenes/{varianteId}`) — probablemente ninguna tiene una imagen real cargada.
 
 ### Qué lo puede solucionar
 
@@ -3995,7 +3995,7 @@ decisión del negocio, no se tocó nada todavía):
 Mientras se investigaba esto se encontraron 2 errores en la doc que el front ya tenía, que también
 podían afectar que la imagen mostrada fuera la incorrecta:
 - La URL tenía el `/v1/` mal puesto: era `/v1/variantes/imagenes/{varianteId}`, la correcta es
-  `/variantes/v1/imagenes/{varianteId}`.
+  `//v1/variantes/imagenes/{varianteId}`.
 - Decía "tomar el primer elemento" del array de imágenes — debe ser el elemento con
   `"principal": true` (el primero como fallback solo si ninguno viene marcado).
 
@@ -4088,7 +4088,7 @@ productos sin foto todavía. No requiere ningún cambio en el front, es automát
 token.
 
 Afecta a: `GET /v1/productos/obtenerProductos`, `GET /v1/productos/buscarNombreOrCodigoBarra`,
-`GET /variantes/v1/buscar`, `GET /variantes/v1/getAll`.
+`GET //v1/variantes/buscar`, `GET //v1/variantes/getAll`.
 
 **Nota:** para ADMIN no cambia nada — sigue viendo todo el catálogo sin este filtro.
 
@@ -4104,10 +4104,10 @@ GET /mis-productos/v1/productos/admin/filtrar?filtro=CON_STOCK&size=10&page=1
 GET /mis-productos/v1/productos/admin/filtrar?filtro=CON_IMAGENES&size=10&page=1
 GET /mis-productos/v1/productos/admin/filtrar?filtro=CON_STOCK_Y_IMAGENES&size=10&page=1
 
-GET /mis-productos/variantes/v1/admin/filtrar?filtro=SIN_STOCK&pagina=1&size=10
-GET /mis-productos/variantes/v1/admin/filtrar?filtro=CON_STOCK&pagina=1&size=10
-GET /mis-productos/variantes/v1/admin/filtrar?filtro=CON_IMAGENES&pagina=1&size=10
-GET /mis-productos/variantes/v1/admin/filtrar?filtro=CON_STOCK_Y_IMAGENES&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?filtro=SIN_STOCK&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?filtro=CON_STOCK&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?filtro=CON_IMAGENES&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?filtro=CON_STOCK_Y_IMAGENES&pagina=1&size=10
 ```
 
 `filtro` es un enum de texto — valores válidos: `SIN_STOCK`, `CON_STOCK`, `CON_IMAGENES`,
@@ -4272,7 +4272,7 @@ manda un solo request con todos los IDs.
 
 ```
 PUT /v1/productos/admin/habilitar-lote
-PUT /variantes/v1/admin/habilitar-lote
+PUT //v1/variantes/admin/habilitar-lote
 Body: { "ids": [12, 15, 20], "habilitar": false }
 ```
 
@@ -4737,8 +4737,8 @@ y talla). El cliente normal nunca ve este campo.
 
 La pantalla `gestion-promociones.component.ts` cambió el endpoint para buscar variantes al armar
 un combo:
-- **Antes:** `GET /variantes/v1/buscar?termino=...` (público, con cascada en el back)
-- **Ahora:** `GET /variantes/v1/admin/filtrar?nombreOCodigo=...&conStock=true` (admin, OR en un
+- **Antes:** `GET //v1/variantes/buscar?termino=...` (público, con cascada en el back)
+- **Ahora:** `GET //v1/variantes/admin/filtrar?nombreOCodigo=...&conStock=true` (admin, OR en un
   solo query)
 
 **Por qué:** el endpoint admin combina búsqueda de texto (nombre/código) con filtro de stock en
@@ -4829,7 +4829,7 @@ interpretar distinto en la respuesta; es una investigación de un bug de concurr
 
 ---
 
-## ⚠️ Diagnóstico temporal en `PUT /variantes/v1/admin/habilitar-lote` (2026-07-06)
+## ⚠️ Diagnóstico temporal en `PUT //v1/variantes/admin/habilitar-lote` (2026-07-06)
 
 **Bug reportado:** al deshabilitar/habilitar variantes en lote, el endpoint responde 200 con el
 mensaje de éxito, pero en la base de datos las variantes no cambian de estado. Sospecha: el
@@ -4874,7 +4874,7 @@ texto extra al final. Si solo se muestra el mensaje en un toast/snackbar sin com
 no requiere ningún cambio del front — solo van a ver un texto más largo temporalmente.
 
 **Pendiente:** con este diagnóstico en logs/respuesta, confirmar si los ids que manda el front para
-esta pantalla (`variantes/v1/admin/habilitar-lote`) realmente corresponden a `variante.id` o si por
+esta pantalla (`/v1/variantes/admin/habilitar-lote`) realmente corresponden a `variante.id` o si por
 error de la pantalla se están mandando otros ids (ej. `producto.id`). Una vez confirmada la causa,
 se quita este diagnóstico y se aplica el fix definitivo (que puede ser en front, si el bug es que
 se arma mal el arreglo de ids antes de llamar al endpoint).
@@ -4902,16 +4902,16 @@ quitar — el `data` vuelve a ser el string corto de antes.
 
 Con el diagnóstico de arriba se confirmó en QA que `habilitar-lote` **sí actualiza la BD**
 correctamente (`habilitadoTrasGuardar` salía con el valor correcto). El problema real era otro: los
-endpoints de búsqueda/listado de variantes para admin (`GET /variantes/v1/buscar`,
-`GET /variantes/v1/porProducto/{productoId}`, el filtro admin, "sin stock deshabilitadas", etc.)
+endpoints de búsqueda/listado de variantes para admin (`GET //v1/variantes/buscar`,
+`GET //v1/variantes/porProducto/{productoId}`, el filtro admin, "sin stock deshabilitadas", etc.)
 **nunca incluían el campo `habilitado` en su respuesta** — a diferencia de productos, donde ese
 campo sí viaja. Por eso, aunque la variante ya estaba deshabilitada en la BD, cualquier pantalla
 que la buscara/listara no tenía forma de saberlo y seguía mostrándola como habilitada.
 
 **Cambio de contrato — nuevo campo `habilitado` (char, `'1'`/`'0'`) agregado a:**
-- El objeto de cada variante en `GET /variantes/v1/buscar` (búsqueda por nombre/código/palabra
+- El objeto de cada variante en `GET //v1/variantes/buscar` (búsqueda por nombre/código/palabra
   clave, resumen paginado) — clase `VarianteResumenDto`.
-- El objeto de cada variante en `GET /variantes/v1/porProducto/{productoId}` (listado simple, no
+- El objeto de cada variante en `GET //v1/variantes/porProducto/{productoId}` (listado simple, no
   paginado) — clase `VarianteDto`.
 
 Mismo formato que ya usa `Producto.habilitado`: `'1'` = habilitada, `'0'` = deshabilitada. El front
@@ -4985,7 +4985,7 @@ registros (a diferencia de `VarianteController`, que sí tenía default). Ahora 
 `page` por defecto `1` y `size` por defecto `10`, igual que variantes. **No rompe nada** — si ya
 mandabas esos params, sigue funcionando igual.
 
-**2. `GET /productos/admin/filtrar` y `GET /variantes/v1/admin/filtrar` — filtro combinado
+**2. `GET /productos/admin/filtrar` y `GET //v1/variantes/admin/filtrar` — filtro combinado
 (rompe contrato, hay que actualizar el front).**
 
 Antes: un solo parámetro `filtro` (enum `SIN_STOCK` / `CON_STOCK` / `CON_IMAGENES` /
@@ -5009,7 +5009,7 @@ GET /productos/admin/filtrar?nombreOCodigo=pantalon&conStock=true&habilitado=tru
 
 Ejemplo: solo deshabilitados, sin ningún otro filtro:
 ```
-GET /variantes/v1/admin/filtrar?habilitado=false&pagina=1&size=10
+GET //v1/variantes/admin/filtrar?habilitado=false&pagina=1&size=10
 ```
 
 **Reglas de uso:**
@@ -5052,11 +5052,11 @@ compone — ver contrato en `PROMOCIONES.md`, sección 7).
 
 ---
 
-## ✅ Fix (2026-07-21): `GET /variantes/v1/admin/filtrar?habilitado=...` ahora considera también el habilitado del producto padre
+## ✅ Fix (2026-07-21): `GET //v1/variantes/admin/filtrar?habilitado=...` ahora considera también el habilitado del producto padre
 
 **Reportado:** un producto deshabilitado (p. ej. un borrador de carga rápida, buscándolo por su
 código) no aparecía en
-`GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&habilitado=false&pagina=1&size=10`.
+`GET /mis-productos//v1/variantes/admin/filtrar?nombreOCodigo=369&habilitado=false&pagina=1&size=10`.
 
 **Antes (qué fallaba):** el filtro `habilitado` solo miraba el flag de la **variante**
 (`v.habilitado`). Los borradores de carga rápida nacen con el **producto** deshabilitado (`'0'`)
@@ -5096,7 +5096,7 @@ que todavía no se les asigna el código real vía `/completar`):
 **Request:**
 ```
 GET /mis-productos/productos/admin/filtrar?codigoGenerado=true&page=1&size=10
-GET /mis-productos/variantes/v1/admin/filtrar?codigoGenerado=true&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?codigoGenerado=true&pagina=1&size=10
 ```
 
 | Parámetro | Tipo | Significado |
@@ -5115,13 +5115,13 @@ El backend ya lo maneja — el front no tiene que tratar el `NULL` como caso apa
 ```
 # solo texto, sin codigoGenerado → devuelve TODOS los que matcheen "369"
 # (autogenerados, código real y NULL — no se filtra por esa dimensión)
-GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?nombreOCodigo=369&pagina=1&size=10
 
 # texto + solo los de código autogenerado
-GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&codigoGenerado=true&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?nombreOCodigo=369&codigoGenerado=true&pagina=1&size=10
 
 # texto + solo los de código real — los NULL caen de este lado (cuentan como código real)
-GET /mis-productos/variantes/v1/admin/filtrar?nombreOCodigo=369&codigoGenerado=false&pagina=1&size=10
+GET /mis-productos//v1/variantes/admin/filtrar?nombreOCodigo=369&codigoGenerado=false&pagina=1&size=10
 ```
 - **El response no cambia** — mismos DTOs de siempre. Los DTOs de listado no incluyen el flag
   `codigoBarrasGenerado`; si el front lo llega a necesitar como badge en un listado mixto (sin
@@ -5217,7 +5217,7 @@ medianoche (`00:00`) como fallback, no lo interpretes como que la compra fue a e
 - `fechaHoraRegistro`: ISO `LocalDateTime` (fecha+hora completa) — úsalo en vez de `fechaPedido`
   para mostrar/formatear la hora de la compra en ticket y detalle.
 - `detalles[].productoId`: id real del producto (ya resuelto por el back incluso en líneas de
-  promoción/variante) — úsalo para armar la URL de imagen: `GET /imagen/v1/{productoId}`.
+  promoción/variante) — úsalo para armar la URL de imagen: `GET //v1/imagenes/{productoId}`.
   Antes este campo no existía en `detalles[]`, solo `varianteId`.
 
 **2. `GET /v1/pedidos/findPedido/{id}`, `findPedido/{idPedido}/{idCliente}`, `buscarClientePedido`**
@@ -5238,9 +5238,9 @@ crea un pedido + `getDetallePedido()`), `VentaServiceImpl.java`, `AbonoServiceIm
 
 ---
 
-## ✅ Fix (2026-07-07): `POST /variantes/v1/inicializarDesdeProducto` — el checkbox "misma imagen para todas" no funcionaba
+## ✅ Fix (2026-07-07): `POST //v1/variantes/inicializarDesdeProducto` — el checkbox "misma imagen para todas" no funcionaba
 
-**Endpoint:** `POST /variantes/v1/inicializarDesdeProducto` (botón "Variantes" en la card de
+**Endpoint:** `POST //v1/variantes/inicializarDesdeProducto` (botón "Variantes" en la card de
 `/productos/buscar` admin).
 
 **Bug reportado:** con `imagenParaTodas: true`, tanto sin subir archivos como subiendo un archivo
@@ -5523,7 +5523,7 @@ info (talla, color, imagen, stock) — la operación crea un producto nuevo a pa
 propio código de barras.
 
 ```
-POST /variantes/v1/{varianteId}/independizar
+POST //v1/variantes/{varianteId}/independizar
 Authorization: Bearer <token admin>
 Content-Type: application/json
 ```
@@ -5687,10 +5687,10 @@ nuevas sobre columnas que ya existen.
 ### 1. Catálogo filtrado
 
 ```
-GET /variantes/v1/buscar-filtrado?termino=&precioMin=&precioMax=&talla=&color=&marca=&pagina=1&size=10
+GET //v1/variantes/buscar-filtrado?termino=&precioMin=&precioMax=&talla=&color=&marca=&pagina=1&size=10
 ```
 
-Pública (no requiere login), igual que `/variantes/v1/buscar`. **Todos los parámetros son
+Pública (no requiere login), igual que `//v1/variantes/buscar`. **Todos los parámetros son
 opcionales** — mandar solo los que el usuario haya elegido, el resto se omite o se manda vacío:
 
 | Parámetro | Tipo | Notas |
@@ -5704,7 +5704,7 @@ opcionales** — mandar solo los que el usuario haya elegido, el resto se omite 
 
 Todos los filtros se combinan con **AND** (ej. `talla=M&color=Azul` → solo variantes M Y azules).
 
-**Diferencia importante con `/variantes/v1/buscar` (el buscador de texto que ya existe):**
+**Diferencia importante con `//v1/variantes/buscar` (el buscador de texto que ya existe):**
 `/buscar` hace una cascada (busca por código → si no hay nada por palabra clave → si no hay nada
 por nombre) y **lanza error 404 si no encuentra nada**. `/buscar-filtrado` es un único query con
 todos los filtros combinados y **devuelve lista vacía `"t": []`** si no hay resultados — no hay que
@@ -5712,7 +5712,7 @@ capturar un error para el caso "sin resultados", solo revisar si `t` viene vací
 al otro: `/buscar` sigue igual para el buscador de texto simple; `/buscar-filtrado` es para cuando
 el usuario además aplica filtros.
 
-**Response 200** — mismo shape que `/variantes/v1/buscar` (no cambia nada de `VarianteResumenDto`):
+**Response 200** — mismo shape que `//v1/variantes/buscar` (no cambia nada de `VarianteResumenDto`):
 ```json
 {
   "data": {
@@ -5732,12 +5732,12 @@ el usuario además aplica filtros.
 
 **Mismas reglas de visibilidad que el resto del catálogo público:** solo variantes con
 `stock > 0`, producto habilitado, variante habilitada y con al menos una imagen — igual que
-`/variantes/v1/buscar` para clientes no-admin.
+`//v1/variantes/buscar` para clientes no-admin.
 
 ### 2. Valores disponibles para armar los filtros (dropdowns/slider)
 
 ```
-GET /variantes/v1/filtros-disponibles
+GET //v1/variantes/filtros-disponibles
 ```
 
 Pública, sin parámetros. Devuelve los valores que **realmente existen** en el catálogo visible
@@ -5813,7 +5813,7 @@ GET /v1/favoritos?pagina=1&size=10
 Authorization: Bearer <token>
 ```
 
-**Response 200** — mismo `VarianteResumenDto` que ya usa `/variantes/v1/buscar`, ordenado por fecha
+**Response 200** — mismo `VarianteResumenDto` que ya usa `//v1/variantes/buscar`, ordenado por fecha
 en que se agregó (más reciente primero):
 ```json
 {
@@ -6012,7 +6012,7 @@ probar, y subir de `dev` a `qa`.
 
 **Síntoma reportado:** buscar `glpd` en el buscador de productos no traía nada, aunque existe el
 producto "Mochila Prada" con código de barras `GLPD-066`. En variantes pasaba lo mismo con el
-buscador normal (`/variantes/v1/buscar`, usado también dentro del buscador de variantes de
+buscador normal (`//v1/variantes/buscar`, usado también dentro del buscador de variantes de
 "Gestión Promociones") — pero el filtro admin "con stock" **sí** encontraba las variantes, aunque
 según el reporte "la promoción decía que no había productos" cuando en realidad el stock existía
 (1 de cada variante).
@@ -6027,11 +6027,11 @@ está en el nombre "Mochila Prada", tampoco aparecía por ahí — de ahí que p
 completa no funcionaba, cuando en realidad solo fallaba el primer paso (código) sin caer
 correctamente a nada más.
 
-**Por qué el filtro "con stock" (`/variantes/v1/admin/filtrar` y el equivalente de productos) sí
+**Por qué el filtro "con stock" (`//v1/variantes/admin/filtrar` y el equivalente de productos) sí
 funcionaba:** esos endpoints usan una query distinta (`buscarVariantesAdmin` / `buscarProductosAdmin`)
 que **siempre** fue `LIKE` — nunca tuvieron el bug. Por eso la variante con stock=1 sí aparecía ahí
 pero no en el buscador normal ni en el buscador de "Gestión Promociones" (que reutiliza
-`/variantes/v1/buscar`): dos implementaciones de "buscar" con comportamiento distinto para el mismo
+`//v1/variantes/buscar`): dos implementaciones de "buscar" con comportamiento distinto para el mismo
 caso de uso.
 
 **Fix aplicado:** el paso 1 (código de barras) de ambos buscadores ahora usa `LIKE
@@ -8103,7 +8103,7 @@ nombres de clases CSS (`--fiado`) y variables (`esFiado`).
 ## ✅ Front: URL de la tienda cambió de /variantes a /tienda (2026-07-24)
 
 100% front, sin acción del back — es solo la ruta del router de Angular, **no** toca las
-llamadas al back (`/variantes/v1/...` sigue exactamente igual, ese es su path del backend, no
+llamadas al back (`//v1/variantes/...` sigue exactamente igual, ese es su path del backend, no
 del front). Lo anotamos solo para que sepan que si ven links viejos a `/variantes/buscar` en
 capturas o docs anteriores, ahora es `/tienda/buscar`.
 
@@ -8123,13 +8123,13 @@ imágenes, independizar, etc.) empezaría a dar 404.
 Antes:  GET  /variantes/1                          → traer la variante con id 1
 Ahora:  GET  /tienda/1                              → misma función, mismo id, prefijo nuevo
 
-Antes:  GET  /variantes/v1/buscar?termino=blusa
+Antes:  GET  //v1/variantes/buscar?termino=blusa
 Ahora:  GET  /tienda/v1/buscar?termino=blusa
 
 Antes:  POST /variantes/save
 Ahora:  POST /tienda/save
 
-Antes:  GET  /variantes/v1/imagenes/{varianteId}
+Antes:  GET  //v1/variantes/imagenes/{varianteId}
 Ahora:  GET  /tienda/v1/imagenes/{varianteId}
 
 Antes:  POST /variantes/1/independizar
@@ -8137,7 +8137,7 @@ Ahora:  POST /tienda/1/independizar
 ```
 
 **Regla exacta:** es un cambio de **prefijo únicamente** — todo lo que hoy empieza con
-`/variantes` (sea `/variantes/1`, `/variantes/v1/buscar`, `/variantes/admin/...`, etc.) pasa a
+`/variantes` (sea `/variantes/1`, `//v1/variantes/buscar`, `/variantes/admin/...`, etc.) pasa a
 empezar con `/tienda`, conservando exactamente el resto de la ruta, los query params y el shape
 de request/response tal cual están hoy. No es un rename de campos ni de nada más — solo el
 primer segmento de la URL.
@@ -10212,7 +10212,7 @@ GET /tienda/v1/variante/{varianteId}/producto-id
 ```
 
 Público (mismo `permitAll` de `GET /tienda/**`, no requiere token). **No aplica ningún filtro de
-visibilidad** (stock, habilitado) — mismo criterio que ya tiene `/variantes/v1/porProducto/{id}`,
+visibilidad** (stock, habilitado) — mismo criterio que ya tiene `//v1/variantes/porProducto/{id}`,
 que es el endpoint al que llaman después con este dato.
 
 **Response 200:**
@@ -15679,7 +15679,7 @@ El dueño abrió el detalle de un pedido de ramo por primera vez. Salieron tres 
 
 ### 1. 🔴 Bucle infinito de peticiones de imagen — corregido (era nuestro)
 
-`<img [src]="…/imagen/v1/{productoId}">` fallaba (los productos sombra de flores **nunca tienen
+`<img [src]="…//v1/imagenes/{productoId}">` fallaba (los productos sombra de flores **nunca tienen
 imagen**), el handler ponía `assets/img/no-image.png`, **ese archivo no existe en el proyecto**, y
 volvía a fallar → bucle. El dueño lo cazó con **50+ peticiones** al mismo 404.
 
@@ -18423,8 +18423,8 @@ del back, pero se documenta abajo en cada pantalla donde aplica.
 **Ruta front:** `/admin/presentacion`
 **Componente:** `src/app/admin/presentacion-imagenes/presentacion-imagenes.component.ts`
 **Endpoints:**
-- `GET /presentacion/v1/imagenes/todas`, `PUT /presentacion/v1/imagenes/{id}` — pantalla `admin/presentacion`
-- `GET /presentacion/v1/imagenes/{id}/imagen` — público
+- `GET //v1/presentacion/imagenes/todas`, `PUT //v1/presentacion/imagenes/{id}` — pantalla `admin/presentacion`
+- `GET //v1/presentacion/imagenes/{id}/imagen` — público
 **Microservicio:** SÍ — guardar/reemplazar la imagen la sube al microservicio externo; el listado y el `.../imagen` sirven el binario desde allá.
 
 ### 🔍 Diagnóstico de imágenes
