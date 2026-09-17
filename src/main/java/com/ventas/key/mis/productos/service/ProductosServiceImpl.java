@@ -308,7 +308,11 @@ public class ProductosServiceImpl extends
 
         });
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
     }
 
     private List<ProductoDTO> listaProductos(List<Producto> lista) {
@@ -354,7 +358,11 @@ public class ProductosServiceImpl extends
         log.info("Estamos en el inicio del guardado del producto {}",1);
         Producto resultado = guardarProducto(productoDetalle);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
         return resultado;
     }
 
@@ -790,7 +798,11 @@ public class ProductosServiceImpl extends
         producto.setHabilitado(habilitar ? '1' : '0');
         Producto resultado = iProductosRepository.save(producto);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
         return resultado;
     }
 
@@ -808,7 +820,11 @@ public class ProductosServiceImpl extends
         productos.forEach(p -> p.setHabilitado(habilitar ? '1' : '0'));
         iProductosRepository.saveAll(productos);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache de productos (no bloquea el guardado): {}", e.getMessage());
+        }
     }
 
     // Mismo criterio que IProductosRepository.findBorradores(): el flag O el codigo placeholder.

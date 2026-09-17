@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import lombok.extern.slf4j.Slf4j;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class LugarEntregaServiceImpl extends CrudAbstractServiceImpl<
         LugarEntrega,
@@ -54,7 +56,11 @@ public class LugarEntregaServiceImpl extends CrudAbstractServiceImpl<
         }
         LugarEntrega resultado = super.save(req);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         return resultado;
     }
 
@@ -68,7 +74,11 @@ public class LugarEntregaServiceImpl extends CrudAbstractServiceImpl<
                 .orElseThrow(() -> new ExceptionDataNotFound("Lugar de entrega no encontrado: " + id));
         iLugarEntregaRepository.delete(lugar);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         return lugar;
     }
 }
