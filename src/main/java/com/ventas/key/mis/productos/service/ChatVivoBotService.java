@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -308,8 +309,20 @@ public class ChatVivoBotService {
     }
 
     private void publicarDelBot(String sesionId, String nombreUsuario, String texto) {
-        ChatMensaje guardado = mensajeService.guardar(sesionId, REMITENTE_BOT, texto);
-        String timestamp = guardado.getTimestamp().format(FMT);
+        // Guardar el mensaje y mandárselo al cliente son dos cosas distintas, y la que el cliente
+        // ve es la segunda. Cuando la base rechazaba el remitente 'BOT' (chk_remitente sin 'BOT',
+        // 2026-09-16) esta línea tronaba y se llevaba todo: el cliente no veía la respuesta, y el
+        // rescate que debía avisarle tampoco podía — guarda por aquí mismo. Que no se pueda
+        // guardar es un problema del historial, no razón para dejar al cliente en blanco.
+        LocalDateTime momento = LocalDateTime.now();
+        try {
+            momento = mensajeService.guardar(sesionId, REMITENTE_BOT, texto).getTimestamp();
+        } catch (Exception e) {
+            log.error("Chat en vivo: no se pudo guardar la respuesta del bot en la sesión {} ({}). "
+                    + "Se le manda al cliente igual, pero no va a quedar en el historial",
+                    sesionId, e.getMessage());
+        }
+        String timestamp = momento.format(FMT);
 
         messagingTemplate.convertAndSend("/topic/chat.usuario." + sesionId,
             ChatEventoUsuario.builder()
