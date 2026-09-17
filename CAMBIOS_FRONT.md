@@ -19788,8 +19788,11 @@ migration_chat_remitente_bot.sql
 
 | Base | Rama | Estado |
 |---|---|---|
-| `inventario_key_qa` | `dev` / `qa` | ⬜ pendiente de correr |
+| `inventario_key_qa` | `dev` / `qa` | ✅ **corrida 2026-09-17** — verificado: `remitente in ('USUARIO','ADMIN','BOT')` |
 | `inventario_key` | `main` | ⬜ pendiente (cuando se promueva) |
+
+`dev` y `qa` comparten la misma base (`inventario_key_qa`), así que es **una sola corrida** para las
+dos ramas, no dos.
 
 No mueve ni borra datos: sólo cambia qué valores acepta la columna. Los mensajes ya guardados no se
 tocan. **Mientras no se corra, el bot sigue sin contestar aunque el código esté al día.**
