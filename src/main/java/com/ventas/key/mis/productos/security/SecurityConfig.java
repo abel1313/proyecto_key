@@ -270,6 +270,11 @@ public class SecurityConfig {
                         // pantalla nunca podia usar este boton pese a tenerla asignada.
                         .requestMatchers(HttpMethod.PUT, "/v1/variantes/*/habilitar", "/v1/variantes/admin/habilitar-lote")
                                 .hasAnyAuthority(accion("tienda/buscar", "habilitar"))
+                        // Baja logica del modelo (habilitado=0 + borra sus imagenes). Accion
+                        // propia como el "eliminar" de Modelos: se puede dar sin dar "habilitar".
+                        // Ver migration_accion_tienda_eliminar.sql.
+                        .requestMatchers(HttpMethod.DELETE, "/v1/variantes/deleteBy/**")
+                                .hasAnyAuthority(accion("tienda/buscar", "eliminar"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /v1/variantes/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba

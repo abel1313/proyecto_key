@@ -1,6 +1,9 @@
 package com.ventas.key.mis.productos.hexagonal.infraestructura;
 
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.hexagonal.dominio.Imagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
@@ -18,6 +21,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
@@ -73,20 +77,45 @@ public class ImageneClienteDisco implements ImagenPort {
 
     @Override
     public List<ImagenDto> save(MultiValueMap<String, ?> multipartData) {
-        return webClient.post()
-                .uri("/v1/imagenes")
-                .contentType(MediaType.MULTIPART_FORM_DATA)
-                .body(BodyInserters.fromMultipartData(multipartData))
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {
-                }).flatMap(flat-> Mono.just(flat.stream().map(mpa->{
-                    ImagenDto imagenDto = new ImagenDto();
-                    imagenDto.setId(mpa.getId());
-                    imagenDto.setNombreImagen(mpa.getNombreImagen());
-                    imagenDto.setContentType(mpa.getContentType());
-                    imagenDto.setImagen(mpa.getImagen());
-                    return imagenDto;
-                }).toList())).timeout(Duration.ofSeconds(30)).block();
+        try {
+            return webClient.post()
+                    .uri("/v1/imagenes")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(BodyInserters.fromMultipartData(multipartData))
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<List<Imagen>>() {
+                    }).flatMap(flat-> Mono.just(flat.stream().map(mpa->{
+                        ImagenDto imagenDto = new ImagenDto();
+                        imagenDto.setId(mpa.getId());
+                        imagenDto.setNombreImagen(mpa.getNombreImagen());
+                        imagenDto.setContentType(mpa.getContentType());
+                        imagenDto.setImagen(mpa.getImagen());
+                        return imagenDto;
+                    }).toList())).timeout(Duration.ofSeconds(30)).block();
+        } catch (WebClientResponseException e) {
+            // Sin esto el admin veia "400 Bad Request from POST .../v1/imagenes" y nada mas: el
+            // motivo real lo manda el micro en el body (su validador de subida explica si la
+            // extension no coincide con los bytes, si pesa de mas, etc.) y se perdia aqui.
+            String detalle = mensajeDelMicro(e.getResponseBodyAsString());
+            log.error("El micro de imagenes rechazo la subida ({}): {}", e.getStatusCode(), detalle);
+            throw new ExceptionErrorInesperado(detalle);
+        }
+    }
+
+    /** Saca el campo message del MensajeError del micro; si no se puede, devuelve el body crudo. */
+    private String mensajeDelMicro(String body) {
+        if (body == null || body.isBlank()) {
+            return "El servicio de imagenes rechazo la subida y no dio detalle.";
+        }
+        try {
+            JsonNode mensaje = new ObjectMapper().readTree(body).get("message");
+            if (mensaje != null && !mensaje.asText().isBlank()) {
+                return mensaje.asText();
+            }
+        } catch (Exception ignored) {
+            // body que no es el JSON esperado: se devuelve tal cual, es mejor que nada
+        }
+        return body;
     }
 
     @Override
