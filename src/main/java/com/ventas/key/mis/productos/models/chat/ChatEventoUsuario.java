@@ -7,7 +7,7 @@ import lombok.Data;
 @Builder
 public class ChatEventoUsuario {
     private String tipo;       // MENSAJE | SESION_CERRADA
-    private String remitente;  // ADMIN
+    private String remitente;  // ADMIN | BOT
     private String contenido;
     private String timestamp;
 }

@@ -8,6 +8,9 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,6 +52,44 @@ public class ChatNotificacionServiceImpl implements IChatNotificacionService {
             "Tienes un nuevo mensaje en el chat.\n\nNombre: " + nombreUsuario
                 + "\nMensaje: " + contenido
                 + "\n\nEntra al panel admin para responder."
+        );
+    }
+
+    // El escalado NO se deduplica por sesion a proposito: se avisa cada vez que la conversacion
+    // pasa de BOT a HUMANO. El cambio de modo ya es de una sola via (cambiarModo no hace nada si
+    // el modo es el mismo), asi que un escalado = un correo, y si el cliente vuelve horas despues
+    // y escala otra vez, ese segundo aviso tambien llega.
+    @Override
+    public void notificarEscalado(String sesionId, String nombreUsuario, String motivo, String ultimoMensaje) {
+        enviarEmail(
+            "Chat: " + nombreUsuario + " necesita atención (" + motivo + ")",
+            "El asistente dejó de atender esta conversación y ahora te toca a ti.\n\n"
+                + "Cliente: " + nombreUsuario + "\n"
+                + "Motivo: " + motivo + "\n"
+                + "Último mensaje: " + (ultimoMensaje != null ? ultimoMensaje : "(sin texto)") + "\n\n"
+                + "Entra a Sistema → Chat directo para responderle."
+        );
+    }
+
+    // Una falla de OpenAI puede repetirse en cada mensaje mientras dure. Se avisa una vez cada
+    // 30 minutos por conversacion para no llenar el correo del dueno con el mismo problema.
+    private static final Duration ESPERA_AVISO_FALLA = Duration.ofMinutes(30);
+    private final Map<String, Instant> ultimoAvisoFalla = new ConcurrentHashMap<>();
+
+    @Override
+    public void notificarFallaDelBot(String sesionId, String nombreUsuario, String detalle) {
+        Instant ahora = Instant.now();
+        Instant previo = ultimoAvisoFalla.get(sesionId);
+        if (previo != null && previo.plus(ESPERA_AVISO_FALLA).isAfter(ahora)) return;
+        ultimoAvisoFalla.put(sesionId, ahora);
+
+        enviarEmail(
+            "Chat: el asistente no pudo responder",
+            "El asistente falló al contestar en el chat y la conversación quedó esperándote.\n\n"
+                + "Cliente: " + nombreUsuario + "\n"
+                + "Detalle técnico: " + detalle + "\n\n"
+                + "Revisa el crédito y la llave de OpenAI. Mientras no se resuelva, los chats\n"
+                + "los tienes que atender tú desde Sistema → Chat directo."
         );
     }
 

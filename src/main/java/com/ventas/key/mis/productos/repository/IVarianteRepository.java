@@ -88,6 +88,28 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     Page<Variantes> findByPalabraClave_NombreIgnoreCase(String nombre, Pageable pageable);
     Page<Variantes> findByStockGreaterThanAndProducto_HabilitadoAndPalabraClave_NombreIgnoreCase(int stock, char habilitado, String nombre, Pageable pageable);
 
+    // Igual que el de arriba, pero la categoria tambien cuenta cuando esta puesta en el MODELO
+    // (Producto.palabraClave) y no en la variante. La pantalla "Agregar modelo" captura la
+    // categoria del producto y "Agregar producto" la de la variante: con el filtro que solo miraba
+    // la variante, un producto categorizado unicamente en el modelo quedaba fuera del catalogo que
+    // se le manda al chatbot -- el bot contestaba que no habia nada de esa categoria teniendolo en
+    // stock. La categoria de la variante sigue mandando cuando existe; la del modelo solo entra
+    // como respaldo (vpc IS NULL).
+    @Query("""
+            SELECT v FROM Variantes v
+              JOIN v.producto p
+              LEFT JOIN v.palabraClave vpc
+              LEFT JOIN p.palabraClave ppc
+            WHERE v.stock > :stock
+              AND p.habilitado = :habilitado
+              AND ( LOWER(vpc.nombre) = LOWER(:nombre)
+                 OR (vpc IS NULL AND LOWER(ppc.nombre) = LOWER(:nombre)) )
+            """)
+    List<Variantes> buscarParaChatbotPorCategoria(@Param("stock") int stock,
+                                                  @Param("habilitado") char habilitado,
+                                                  @Param("nombre") String nombre,
+                                                  Pageable pageable);
+
     // --- listado público: stock + habilitado (producto Y variante) + con imagen (cliente normal) ---
     // JOIN FETCH del grafo que el DTO de resumen siempre lee (producto, su codigo de barras y la
     // palabra clave): sin el, cada variante de la pagina disparaba un SELECT extra por asociacion

@@ -19,7 +19,20 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     // "Entregas por zona" (2026-09-04): pedidos pendientes de una zona real (no "recoger en
     // tienda") dentro de la semana de pedido -- excluye ramos de flores, que tienen su propio
     // flujo de fecha/hora por pedido (RamoPedidoDetalle), no se agrupan por viaje semanal.
-    @Query("SELECT p FROM Pedido p WHERE p.lugarEntrega.id = :lugarEntregaId AND p.estadoPedido = 'Pendiente' " +
+    //
+    // 2026-09-15: se agrego APARTADO. Antes solo listaba 'Pendiente' y el dueno reporto que los
+    // pedidos que el levanta NUNCA salian aqui. El motivo: 'Pendiente' lo pone el checkout de la
+    // tienda (el cliente pidiendo desde su cuenta), pero cuando el dueno toma un pedido en el EN
+    // VIVO lo captura por Venta directa anotando nombre, zona y fecha, y lo marca APARTADO --
+    // porque en este negocio APARTADO significa "esto se lo entrego despues", que es justo lo que
+    // arma el viaje de zona. Venta directa nunca guarda 'Pendiente' (los de credito quedan con su
+    // propio tipo y los de contado en 'Entregado'), asi que el filtro los dejaba fuera a todos.
+    //
+    // Se dejan FUERA a proposito 'Entregado' (ya se entrego o se pago y se llevo en el momento) y
+    // 'cancelado'. Esta consulta solo AMPLIA lo que ve la pantalla: no toca ventas, reportes,
+    // dashboard ni el auto-cancelador (ese usa su propio metodo con 'Pendiente' literal).
+    @Query("SELECT p FROM Pedido p WHERE p.lugarEntrega.id = :lugarEntregaId " +
+           "AND p.estadoPedido IN ('Pendiente', 'APARTADO') " +
            "AND p.fechaPedido BETWEEN :desde AND :hasta " +
            "AND NOT EXISTS (SELECT 1 FROM RamoPedidoDetalle r WHERE r.pedido = p)")
     List<Pedido> findPendientesDeZonaEnRango(@Param("lugarEntregaId") Integer lugarEntregaId,
