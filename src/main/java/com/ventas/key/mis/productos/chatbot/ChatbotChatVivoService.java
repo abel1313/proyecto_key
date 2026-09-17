@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.chatbot;
 import com.ventas.key.mis.productos.entity.ChatMensaje;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -17,6 +18,7 @@ import java.util.Map;
 // ##HUMANO## cuando el cliente pide hablar con alguien de verdad. El widget publico se queda
 // exactamente como estaba; ningun cambio de aqui lo toca.
 @Service
+@Slf4j
 public class ChatbotChatVivoService extends ChatbotBase {
 
     // Lo escribe el modelo cuando el cliente pide hablar con una persona. El orquestador lo
@@ -80,6 +82,11 @@ public class ChatbotChatVivoService extends ChatbotBase {
         mensajes.addAll(historialParaModelo(historial));
         mensajes.add(Map.of("role", "user", "content", mensaje));
 
+        // Entre "el bot va a contestar" y la respuesta no había ninguna marca, y en medio va lo más
+        // lento y lo más frágil: armar el catálogo (varias consultas) y salir a internet. Sin esta
+        // línea el log no distingue "se atoró armando el prompt" de "OpenAI no contestó".
+        log.info("Chat en vivo: prompt armado (categoría={}, {} mensajes al modelo), llamando a OpenAI",
+                categoria, mensajes.size());
         return llamarOpenAI(mensajes);
     }
 

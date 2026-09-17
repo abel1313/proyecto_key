@@ -19677,3 +19677,61 @@ front.
 
 **Verificado:** back compila (`mvn -o compile`) y los **5** tests de `ChatVivoBotServiceTest` pasan.
 Los 2 tests nuevos se corrieron primero contra la lógica anterior para confirmar que fallaban.
+
+---
+
+## Chat en vivo — tercera vuelta (2026-09-16, tarde): el bot se moría en silencio con respuesta vacía
+
+Después de subir las causas 1 a 4 se volvió a probar en QA y **el bot seguía sin contestar**. Esta
+vez el log del servidor dio la pista exacta. Se veía todo el camino hasta el final:
+
+```
+[WS] /chat.mensaje recibido — contenido=hola
+Chat en vivo: sesión ... en modo BOT (dueño en el panel: false) — el bot contesta en 6s
+Chat en vivo: sesión ... — el bot va a contestar (historial de 9 mensajes)
+Hibernate: select ... palabra_clave / variantes / producto   ← armando el catálogo
+                                                              ← y aquí se corta TODO
+```
+
+Y después de eso, **nada**: ni un `insert into chat_mensaje`, ni una línea de error. Eso es lo que
+lo delata — si el bot hubiera fallado habría un error en el log y un aviso al cliente; si hubiera
+contestado habría un insert. No había ninguno de los dos.
+
+### La causa
+
+La llamada a OpenAI puede terminar **vacía** (sin valor y sin error) — pasa cuando OpenAI responde
+con cuerpo vacío. Un flujo vacío **no es un error**: no entra al camino de la respuesta ni al
+camino del error. El programa simplemente daba por terminado el trabajo como si todo hubiera salido
+bien, y el cliente se quedaba:
+
+- sin respuesta del asistente,
+- sin el aviso de "te paso con una persona",
+- sin correo al dueño,
+- y **sin una sola línea en el log** que dijera que algo pasó.
+
+Era el último camino por el que el chat se podía ver "muerto" sin explicación.
+
+**Fix:** una respuesta vacía ahora se trata como falla. Se le avisa al cliente con el mismo texto
+de siempre (`"Tuve un problema para responderte. Ya le avisé a una persona del negocio..."`), la
+conversación pasa a modo `HUMANO` y sale el correo al dueño. Cubierto con test de regresión
+(`siOpenAiContestaVacioElClienteNoSeQuedaSinNada`).
+
+### Además: el log ya no tiene puntos ciegos
+
+El camino bueno **no dejaba ningún rastro**: un chat que sí contestó y uno que se murió callado se
+veían idénticos en el log (los dos terminaban en las consultas del catálogo). Se agregaron dos
+marcas para que la próxima vez el log diga solo quién falló:
+
+| Línea nueva en el log | Qué significa si es la última que aparece |
+|---|---|
+| `prompt armado (categoría=..., N mensajes al modelo), llamando a OpenAI` | El catálogo se armó bien. Si no hay nada después, el problema es **la salida a internet / OpenAI** |
+| `OpenAI contestó en la sesión ... (N caracteres), publicando la respuesta` | OpenAI **sí** contestó. Si el cliente no lo ve, el problema es **pintar el remitente `BOT` en el front** (ver sección anterior) |
+
+Si el log se corta **antes** de `prompt armado`, entonces se atoró armando el catálogo (consultas a
+la base), no en OpenAI.
+
+**Nada de esto cambia el contrato del front.** Los endpoints, los campos y el remitente `BOT` siguen
+exactamente igual que en la sección anterior. Lo único que cambia de cara al cliente es que un fallo
+de OpenAI ahora **siempre** termina en un mensaje visible en el chat, nunca en silencio.
+
+**Verificado:** back compila (`mvn -o compile`) y los **6** tests de `ChatVivoBotServiceTest` pasan.
