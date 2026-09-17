@@ -19819,3 +19819,47 @@ Lo que cambia es que ahora los mensajes del bot **llegan y se guardan**.
 
 **Verificado:** los **7** tests de `ChatVivoBotServiceTest` pasan. El test nuevo se corrió contra la
 lógica anterior para confirmar que fallaba.
+
+---
+
+## Chatbot — "no tenemos shorts" con shorts en stock (2026-09-17)
+
+**Sin impacto en el contrato del front.** Endpoints, campos y respuestas siguen igual; lo que cambia
+es la calidad de lo que contesta el bot. Se documenta porque es comportamiento visible para el
+cliente.
+
+El cliente preguntó "¿Tendrás sorth? o faldas?" y el bot contestó que no había ninguno de los dos,
+con shorts en stock y visibles en la tienda.
+
+### Qué NO era (se descartó con datos)
+
+- **No era truncamiento del catálogo.** La consulta sin categoría corta en 1000 variantes y no tiene
+  `ORDER BY`, así que se sospechó que el short se caía del corte. La tienda tiene **513** variantes
+  con stock y habilitadas, así que el catálogo completo entraba y el short sí estaba ahí.
+- **No era que faltara el nombre.** "short" está cargado en el nombre del producto, que siempre va en
+  el catálogo.
+
+### Qué era
+
+El error de dedo. El modelo tenía la línea del short enfrente y no conectó "sorth" con "short".
+Nada en el prompt le decía que interpretara la intención antes de negar.
+
+### Qué se cambió
+
+| Cambio | Por qué |
+|---|---|
+| Regla nueva en el prompt: interpretar errores de dedo ("sorth" = short), buscar el tipo de prenda en la presentación y no sólo en el nombre, y no cerrar con un "no tenemos" seco | Es el fix del caso reportado |
+| `presentación` ahora va también en el catálogo compacto (antes sólo en el detallado) | Defecto aparte que se encontró en el camino: un producto cuyo nombre es el del modelo ("Surprise SU8183") y cuyo tipo vive sólo en la presentación quedaba como una línea que no decía QUE ES. Talla y color siguen sólo en el detallado para no pagar tokens de más |
+
+Tests: `ChatbotCatalogoContextoTest` (2, el primero corrido contra la lógica anterior para confirmar
+que fallaba).
+
+### Deuda pendiente (no urgente)
+
+La consulta del catálogo sin categoría (`findByStockGreaterThanAndProductoHabilitado`) corta en 1000
+**sin `ORDER BY`**: cuál variante se cae del corte es arbitrario. Con 513 no molesta, pero al pasar
+de 1000 se vuelve un bug de verdad. Lo primero ahí es el `ORDER BY`, no filtrar.
+
+Y una nota sobre filtrar por las palabras del mensaje cuando no hay categoría: **empeoraría los
+typos.** Un `LIKE '%sorth%'` no matchea nada, y mandarle catálogo vacío al modelo lo hace negar con
+total seguridad — hoy, con el catálogo entero, al menos puede salvar el error de dedo.
