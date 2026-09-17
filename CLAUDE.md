@@ -296,11 +296,24 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 
 | Migración | dev / qa | prod | Fecha |
 |---|---|---|---|
-| `migration_submenu_ayuda_contextual.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+| `migration_submenu_ayuda_contextual.sql` | ⚠️ corrió pero insertó 0 filas | ⚠️ corrió pero insertó 0 filas | 2026-09-17 |
+| `migration_submenu_ayuda_contextual_fix.sql` | ⬜ pendiente | ⬜ pendiente | — |
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
-INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada — pero igual no hace falta.
+INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada.
+
+**⚠️ No surtió efecto — usar `migration_submenu_ayuda_contextual_fix.sql` en su lugar.** El
+INSERT original colgaba de una fila ancla (`WHERE gr.ruta = 'gestion-menu/roles'`): como en esta
+base no existe esa fila, el `INSERT ... SELECT` insertó **0 filas sin marcar error**, así que se
+dio por corrida y el permiso nunca apareció en Gestión de roles. La versión `_fix` no depende de
+ninguna fila ancla (inserta siempre una vez, y si no hay grupo "Sistema" la deja sin grupo) y
+trae consultas de diagnóstico y de verificación comentadas al principio y al final.
+
+**Lección para las próximas migraciones:** un `INSERT ... SELECT ... FROM tabla WHERE <ancla>`
+falla en silencio si el ancla no existe. Cuando la fila a insertar sea obligatoria, usar
+`FROM (SELECT 1) AS dummy` y dejar la condición solo en el `NOT EXISTS` de idempotencia, y
+cerrar siempre con un `SELECT` de verificación que deba devolver al menos una fila.
 
 Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
 `inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
