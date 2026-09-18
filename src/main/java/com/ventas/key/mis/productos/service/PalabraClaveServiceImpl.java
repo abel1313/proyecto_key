@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import lombok.extern.slf4j.Slf4j;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class PalabraClaveServiceImpl extends CrudAbstractServiceImpl<
         PalabraClave,
@@ -49,7 +51,11 @@ public class PalabraClaveServiceImpl extends CrudAbstractServiceImpl<
     public PalabraClave save(PalabraClave req) {
         PalabraClave resultado = super.save(req);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         return resultado;
     }
 }

@@ -71,7 +71,7 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
     public ProductoImagenDto findByImagenesPorIdProducto(Integer productoId) {
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
         imagenDtoList.forEach(dto -> {
-            dto.setUrlImagen(contextPath + "/imagen/file/" + dto.getId());
+            dto.setUrlImagen(contextPath + "/v1/imagenes/v3/file/" + dto.getId());
             dto.setBase64(null);
         });
         ProductoImagenDto productoImagenDto = new ProductoImagenDto();
@@ -80,13 +80,13 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
         return productoImagenDto;
     }
 
-    // RabbitMQ: NO aplica — lectura síncrona. URLs apuntan al micro vía /imagen/v1/file/
+    // RabbitMQ: NO aplica — lectura síncrona. URLs apuntan al micro vía /v1/imagenes/file/
     @Override
     @Cacheable(value = "detalleImagen-v2", key = "#productoId")
     public ProductoImagenDto findByImagenesPorIdProductoV2(Integer productoId) {
         List<ImagenUpdateDto> imagenDtoList = this.iProductoImagenRepository.getImagenByProductoId(productoId);
         imagenDtoList.forEach(dto -> {
-            dto.setUrlImagen(contextPath + "/imagen/v1/file/" + dto.getId());
+            dto.setUrlImagen(contextPath + "/v1/imagenes/file/" + dto.getId());
             dto.setBase64(null);
         });
         ProductoImagenDto productoImagenDto = new ProductoImagenDto();
@@ -110,7 +110,11 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
 
         // Evict siempre: la relación producto_imagen ya se borró aunque las imágenes sean compartidas
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
 
         if (huerfanas.isEmpty()) return;
         log.info("Ir a eliminar las imagenes de la tabla imagenes copy  {}", imagenIds);
@@ -155,6 +159,10 @@ public class ProductoImagenServiceImpl extends CrudAbstractServiceImpl<
             log.warn("No se pudieron eliminar imágenes del microservicio ids={}: {}", huerfanas, e.getMessage());
         }
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
     }
 }

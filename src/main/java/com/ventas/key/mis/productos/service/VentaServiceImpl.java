@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -33,6 +34,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+@Slf4j
 @Service
 public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>, Optional<Venta>, Integer, PginaDto<List<Venta>>> {
 
@@ -259,7 +261,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setDetalles(detallesPedido);
             Pedido savedPedido = iPedidoRepository.save(pedido);
             cacheService.evictAll();
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+            try {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+            } catch (Exception e) {
+                log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+            }
             VentaDirectaResponse respCredito = new VentaDirectaResponse(
                     null, null, false, totalPedidoCalc, null, null, null, savedPedido.getId(),
                     null, null, null);
@@ -338,7 +344,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             emailService.enviarCodigoReclamoVenta(clienteSinRegistro.getCorreoElectronico(), codigoReclamo);
         }
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         VentaDirectaResponse respVenta = new VentaDirectaResponse(
                 saved.getId(),
                 pagosYMeses.getTipoPago().getFormaPago(),

@@ -46,5 +46,17 @@ public class Submenu extends BaseId {
     @Column(length = 255)
     private String descripcionEscritura;
 
+    // ¿Esta pantalla tiene algo que editar? (2026-09-17) Gestion de roles pintaba el checkbox
+    // "✏️ Editar" en TODAS las pantallas por igual, sin preguntar si habia algo que editar. En
+    // pantallas que solo crean (Agregar modelo) o cuyas escrituras ya viven en acciones puntuales,
+    // ese checkbox no corresponde a nada visible y solo confunde: el usuario lo marca sin saber
+    // que habilita. En false, el front no lo pinta.
+    //
+    // OJO: apagarlo aqui NO afloja el back. Si SecurityConfig sigue pidiendo pantallaEscribir para
+    // esa ruta, quitarle el checkbox deja al rol sin forma de concederlo. Solo se pone en false
+    // cuando el back ya no lo exige (ej. productos/agregar, cuyo alta pasa a ir con la pantalla).
+    @Column(name = "tiene_escritura", nullable = false)
+    private boolean tieneEscritura = true;
+
     private Integer orden;
 }

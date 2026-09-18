@@ -82,7 +82,11 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         // termine con exito (que es el otro punto donde se limpia cache) — y si la subida
         // falla, no aparece nunca hasta que expire la cache.
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
 
         return new EstadoCargaProductoDto(producto.getId(), variante.getId(), EstadoCargaImagen.PENDIENTE, null, null, null);
     }
@@ -155,7 +159,11 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
             iProductosRepository.save(producto);
 
             cacheService.evictAll();
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+            try {
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+            } catch (Exception e) {
+                log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+            }
 
             log.info("Carga rapida OK productoId={} varianteId={} imagenId={}", productoId, varianteId, imagenSubida.getId());
         } catch (Exception e) {
@@ -322,7 +330,11 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
 
         Producto guardado = iProductosRepository.save(producto);
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         return guardado;
     }
 
@@ -368,7 +380,11 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         }
 
         cacheService.evictAll();
-        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
         log.info("Se descarto el borrador productoId={} (variantes={}, imagenes={})", productoId, varianteIds.size(), imagenIds.size());
     }
 

@@ -24,7 +24,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/imagen")
+@RequestMapping("/v1/imagenes")
 @Slf4j
 public class ImageneController {
 
@@ -51,7 +51,7 @@ public class ImageneController {
                 .body(imagen.getImagen());
     }
 
-    @GetMapping("/v1/{productoId}")
+    @GetMapping("/{productoId}")
     @Cacheable(value = "imagenes", key = "#productoId")
     public ResponseEntity<byte[]> getImagenV2(@PathVariable Integer productoId) throws Exception {
         com.ventas.key.mis.productos.hexagonal.dominio.Imagen imagen = imagenProductoPort.buscarImagenProducto(productoId);
@@ -80,7 +80,7 @@ public class ImageneController {
     }
 
     // RabbitMQ: NO aplica — lectura síncrona paginada. Los bytes se obtienen del micro de imágenes vía HTTP.
-    @GetMapping("/v1/{productoId}/detalle")
+    @GetMapping("/{productoId}/detalle")
     public ResponseEntity<PageableDto> getDetalleV2(@PathVariable Integer productoId,
                                                     @RequestParam int size,
                                                     @RequestParam int page) {
@@ -99,7 +99,7 @@ public class ImageneController {
     }
 
     // RabbitMQ: NO aplica — lectura síncrona por ID de imagen.
-    @GetMapping("/v1/file/{imagenId}")
+    @GetMapping("/file/{imagenId}")
     public ResponseEntity<byte[]> getImagenByImagenIdV2(@PathVariable Long imagenId) {
         ImagenDto imagenDto = imagenPort.getOne(imagenId);
         if (imagenDto == null || imagenDto.getImagen() == null) {
@@ -122,7 +122,7 @@ public class ImageneController {
     }
 
     // RabbitMQ: NO aplica — lectura síncrona.
-    @GetMapping("/v1/{idProducto}/imagenes")
+    @GetMapping("/{idProducto}/imagenes")
     public ResponseEntity<ProductoImagenDto> getImagenesPorProductoIdV2(@PathVariable Integer idProducto){
         return ResponseEntity.ok(this.iProductoImagenService.findByImagenesPorIdProductoV2(idProducto));
     }
@@ -136,7 +136,7 @@ public class ImageneController {
     }
 
     // TODO: RabbitMQ — candidato para publicar evento "imagen.eliminada" en vez de HTTP síncrono al micro
-    @DeleteMapping("/v1/{idImagen}")
+    @DeleteMapping("/{idImagen}")
     public ResponseEntity<ResponseGeneric<String>> deleteByIdV2(@PathVariable Long idImagen) {
         this.iImagenService.deleteByIdV2(idImagen);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ResponseGeneric<>("Se elimino correctamente"));
@@ -153,7 +153,7 @@ public class ImageneController {
     }
 
     // RabbitMQ: NO aplica — misma lógica que v1, ya llama al micro internamente
-    @DeleteMapping("/v1/{productoId}/imagenes")
+    @DeleteMapping("/{productoId}/imagenes")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesEspecificasV2(
             @PathVariable Integer productoId,
             @RequestBody List<Long> imagenIds) {
@@ -170,7 +170,7 @@ public class ImageneController {
     }
 
     // RabbitMQ: NO aplica — misma lógica que v1, ya llama al micro internamente
-    @DeleteMapping("/v1/producto")
+    @DeleteMapping("/producto")
     public ResponseEntity<ResponseGeneric<String>> eliminarImagenesDeProductosV2(@RequestBody List<Integer> productoIds) {
         this.iProductoImagenService.eliminarImagenesDeProductos(productoIds);
         return ResponseEntity.ok(new ResponseGeneric<>("Imágenes de producto eliminadas correctamente"));
@@ -190,7 +190,7 @@ public class ImageneController {
     public void limpiarTodaLaCacheDeImagenes() {
     }
 
-    @GetMapping("/v1/cache/limpiar")
+    @GetMapping("/cache/limpiar")
     public ResponseEntity<Void> limpiarCacheImagenesV2() {
         cacheService.evictAll();
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");

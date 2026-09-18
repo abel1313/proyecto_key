@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/presentacion")
+@RequestMapping("/v1/presentacion")
 @RequiredArgsConstructor
 public class ImagenPresentacionController {
 
@@ -32,7 +32,7 @@ public class ImagenPresentacionController {
 
     // RabbitMQ: NO aplica — lectura síncrona.
     // Cache "presentacion-imagenes" se invalida vía Rabbit cuando se implemente PUT /presentacion/v1/imagenes/{id}.
-    @GetMapping("/v1/imagenes")
+    @GetMapping("/imagenes")
     public ResponseEntity<ResponseGeneric<List<ImagenPresentacionDto>>> getImagenesV2(
             @RequestParam String tipo) {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenPresentacionDto>>(service.getImagenesPorTipoV2(tipo)));
@@ -56,7 +56,7 @@ public class ImagenPresentacionController {
      * Por ahora lee del disco local (mismo que v3). Cuando se migre PUT /presentacion/v1/imagenes/{id}
      * al micro, este endpoint pasará a obtener los bytes de micro_imagenes.
      */
-    @GetMapping("/v1/imagenes/{id}/imagen")
+    @GetMapping("/imagenes/{id}/imagen")
     public ResponseEntity<byte[]> getImagenV2(@PathVariable Integer id) {
         try {
             byte[] bytes = service.getImagenBytes(id);
@@ -79,7 +79,7 @@ public class ImagenPresentacionController {
     }
 
     /** Solo ADMIN — ver todas (activas e inactivas) con urlImagen calculada */
-    @GetMapping("/v1/imagenes/todas")
+    @GetMapping("/imagenes/todas")
     public ResponseEntity<ResponseGeneric<List<ImagenPresentacionDto>>> getTodasV2() {
         return ResponseEntity.ok(new ResponseGeneric<List<ImagenPresentacionDto>>(service.getTodasV2()));
     }
@@ -97,7 +97,7 @@ public class ImagenPresentacionController {
     }
 
     /** Solo ADMIN — actualizar imagen y metadatos; invalida caché presentacion-imagenes */
-    @PutMapping("/v1/imagenes/{id}")
+    @PutMapping("/imagenes/{id}")
     public ResponseEntity<ResponseGeneric<ImagenPresentacionDto>> actualizarV2(
             @PathVariable Integer id,
             @RequestBody ImagenPresentacionUpdateDto dto) {

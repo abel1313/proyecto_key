@@ -1,4 +1,39 @@
 
+# 🖥️ PROYECTO: BACKEND (proyecto_key)
+
+**Repositorio:** https://github.com/abel1313/proyecto_key
+
+Este es el **backend/API** del sistema. Expone endpoints REST que el frontend (`producto_venta_online`) consume.
+
+## Endpoints principales por módulo
+
+### Productos y Variantes
+- `GET /v1/productos/obtenerProductos` - listado paginado de productos
+- `GET /v1/productos/buscarNombreOrCodigoBarra` - búsqueda por nombre o código
+- `POST /v1/productos/save` - crear producto
+- `PUT /v1/productos/update` - actualizar producto
+- `GET /v1/variantes/buscar` - búsqueda de variantes con imagen
+- `GET /v1/variantes/porProducto/{id}` - variantes de un producto
+
+### Clientes y Auth
+- `POST /auth/login` - acceso con usuario/contraseña
+- `POST /auth/refresh` - renovar token JWT
+- `POST /auth/logout` - cerrar sesión
+- `GET /v1/clientes/search` - búsqueda de clientes
+- `POST /v1/clientes/save` - crear cliente
+
+### Imágenes
+- Se consume el microservicio `micro_imagenes` internamente
+- `GET /v1/imagenes/file/{id}` - descargar imagen completa
+- `GET /v1/imagenes/thumbnail/{id}` - miniatura de imagen
+
+### Chat y Gestión
+- `POST /chatbot/mensaje` - enviar mensaje al chatbot
+- `GET /admin/configuracion-negocio` - config del negocio
+- `POST /admin/gestion-roles` - permisos de roles
+
+---
+
 # Instrucciones de comportamiento
 
 - No pidas confirmación antes de hacer cambios en el código
@@ -87,6 +122,85 @@ branch completo, hasta que la feature bloqueada se resuelva y vuelva a quedar to
 | `main` / `master` | `inventario_key` (sin sufijo) |
 
 `dev` y `qa` apuntan a la misma BD (`inventario_key_qa`). `main` apunta a la BD de producción (`inventario_key`).
+
+---
+
+## Estrategia de versionado — URLs y Spring Boot
+
+### Regla de versionado en `proyecto_key`
+
+**PATRÓN A SEGUIR:** El versionado se hace mediante prefijos URL (`/v1/`, `/v2/`, etc.). El `/v1/` SIEMPRE va en el `@RequestMapping` a nivel de **clase**, nunca en decoradores de métodos.
+
+#### Cómo crear un nuevo controller
+
+```java
+// ✅ CORRECTO
+@RestController
+@RequestMapping("/v1/mi-recurso")  // ← /v1/ aquí, a nivel de clase
+public class MiRecursoController {
+    
+    @GetMapping("/buscar")  // ← sin /v1/, solo la ruta del método
+    public ResponseEntity<?> buscar() { ... }
+    
+    @PostMapping("/save")
+    public ResponseEntity<?> save() { ... }
+}
+// Resultado: GET /v1/mi-recurso/buscar, POST /v1/mi-recurso/save
+```
+
+```java
+// ❌ INCORRECTO
+@RestController
+@RequestMapping("/mi-recurso")  // ← /v1/ falta aquí
+public class MiRecursoController {
+    
+    @GetMapping("/v1/buscar")  // ← nunca aquí
+    public ResponseEntity<?> buscar() { ... }
+}
+// Resultado: GET /mi-recurso/v1/buscar  (ruta confusa)
+```
+
+### ¿Por qué `/v1/` en la clase y no en el método?
+
+- **Claridad:** la versión es responsabilidad del recurso completo, no de cada operación.
+- **Consistencia:** todos los endpoints del recurso quedan bajo la misma versión.
+- **Mantenibilidad:** si mañana sube a `/v2/`, cambias UN decorador (@RequestMapping), no todos los métodos.
+- **Routing correcto:** Spring construye la URL concatenando: `/v1/mi-recurso` + `/buscar` = `/v1/mi-recurso/buscar`.
+
+### Opciones de versionado en Spring Boot
+
+Spring Boot no impone una estrategia única. Las más comunes son:
+
+| Opción | Implementación | Ejemplo | Ventajas | Desventajas |
+|---|---|---|---|---|
+| **URL-based (la que usamos)** | `/v1/`, `/v2/` en @RequestMapping | GET `/v1/productos` | Obvio, fácil de versionar por recurso, cacheable | URLs largas, más rutas para mantener |
+| **Header-based** | Accept header o custom header | `Accept: application/vnd.company.v1+json` | URLs limpias, clientes explícitos | Menos obvio, más complejo en cliente |
+| **Query parameter** | ?version=1 en la URL | GET `/productos?version=1` | Opcional, flexible | Confuso si se mezcla con otros params |
+| **Subdomain** | api.v1.dominio.com vs api.v2.dominio.com | Requiere DNS | URLs limpias por versión | Infraestructura DNS más compleja |
+
+**Nuestra elección (URL-based)** es la más simple, más estándar en la industria y más fácil de probar en clientes (curl, Postman, navegador). Si en el futuro necesitas cambiar, la migración es sencilla (cambiar decoradores y documentación).
+
+### Referencia de conversión
+
+Cuando hayas heredado código con `/v1/` en métodos, el patrón de conversión es:
+
+```java
+// Antes (migración v1 completada)
+@RequestMapping("/imagen")
+public class ImageneController {
+    @GetMapping("/v1/{id}")
+    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) { ... }
+}
+
+// Después
+@RequestMapping("/v1/imagenes")
+public class ImageneController {
+    @GetMapping("/{id}")
+    public ResponseEntity<byte[]> getImagen(@PathVariable Integer id) { ... }
+}
+```
+
+Controllers ya corregidos (2026-09-17): `ImageneController`, `ImagenPresentacionController`, `VarianteController`.
 
 ---
 
@@ -289,6 +403,91 @@ Micro servicio que permite compras de bolsas, pantalones faldas de mujer
           consistente=true → todo correcto, revisar cache
 ---
 
+## Reglas de comportamiento del catálogo y los buscadores
+
+Descubierto en la validación de QA del 2026-09-17. Anotado para no volver a investigarlo.
+
+### El nombre del archivo tiene que coincidir con los bytes al subir al micro
+
+`micro_imagenes` valida cada subida con `ValidadorImagenSubida`: compara los **magic bytes** del
+archivo contra la extensión del nombre y contra el Content-Type declarado. Si no coinciden,
+responde **400** y no guarda nada.
+
+El front recorta las fotos en un canvas, que **siempre saca JPEG**, pero conserva el nombre
+original que eligió el usuario. Una foto `logo.png` llega con bytes JPEG y nombre `.png`, y el
+micro la rechaza. Por eso todo lo que sube al micro pasa primero por
+`Utils/NombreArchivoImagen.normalizar(nombre, bytes)`, que renombra según los bytes reales
+(detección idéntica a la del micro). Son 3 puntos: `VarianteServiceImpl.subirImagenes()`,
+`VarianteServiceImpl.subirImagenesMultipart()` y `ProductosServiceImpl.relacionProductoImagen()`.
+
+Renombrar arregla las dos validaciones de un tiro, porque Spring deduce el Content-Type de la
+parte a partir de la extensión del filename al escribir el multipart.
+
+**Si se agrega otro punto que suba al micro, tiene que llamar a `normalizar()`.**
+
+### Un 400 del micro tiene que llegar con su mensaje
+
+`ImageneClienteDisco.save()` desempaqueta el `message` del `MensajeError` del micro y lo propaga
+como `ExceptionErrorInesperado` (→ 400 con ese texto). Antes el admin veía solo
+`"400 Bad Request from POST .../v1/imagenes"` y el motivo real se perdía.
+
+### El catálogo público exige 4 condiciones — un producto sin imagen NO aparece
+
+`IVarianteRepository.buscarVariantesPublicoFiltrado` filtra por:
+
+```sql
+WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false
+  AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
+```
+
+Las 4 se cumplen o el modelo no se ve en la tienda. **No hay que darlo de alta dos veces:** si se
+creó en el admin y no aparece en `tienda/buscar`, es que le falta stock, habilitado o imagen.
+Un fallo al subir la imagen se manifiesta como "el producto no aparece en la tienda" y como
+"aparece en el listado pero sin miniatura" (`producto_imagen_copy` nunca se escribe, así que el
+listado no tiene `imagenId`).
+
+### Eliminar = baja lógica, nunca DELETE de la fila
+
+Hay **13 tablas** que apuntan a `variante` (`detalle_pedido`, `detalle_venta_variante`, `resena`,
+`favorito`, `promocion_detalle`, `configurar_rifa_variante`, `ramo_armado`, `lugar_entrega`...).
+Borrar la fila dejaría el historial de ventas y pedidos apuntando a algo que no existe.
+
+Tanto `ProductosServiceImpl.deleteByIdProducto()` como
+`VarianteServiceImpl.deleteByIdVariante()` dejan `habilitado = 0` y borran solo las imágenes.
+El stock del producto padre no se toca. En la interfaz el texto dice **"dar de baja"**, no
+"eliminar", y no promete que sea irreversible: se puede volver a habilitar, lo único que no
+vuelve son las fotos.
+
+**`AbstractController.delete` (`DELETE /<recurso>/delete`) es un stub vacío** —
+`CrudAbstractServiceImpl.delete()` no hace nada y devuelve `null`. No cablear nada nuevo ahí;
+cada recurso necesita su propio `deleteBy/{id}`. Ya existen para productos y variantes.
+
+### Los buscadores de texto exigen 3 caracteres, y vacío recarga todo
+
+Regla: **menos de 3 caracteres no sale al back** (con 1 o 2 el `LIKE '%x%'` barre casi todo el
+catálogo y el resultado no le sirve a nadie). **Vacío SÍ dispara** y significa "quitar el filtro
+y traer todo de nuevo". No aplica a buscadores por número (número de pedido), donde 1 dígito es
+válido.
+
+En el front la constante es `Constants.MIN_CARACTERES_BUSQUEDA`. Dos trampas que ya se pagaron:
+- Un `filter(t => t.length >= 3)` antes del `debounceTime` **también descarta el vacío**, así que
+  limpiar el input no recarga nada y queda en pantalla el resultado anterior. El caso vacío se
+  atiende aparte, antes del subject.
+- Si el guard se salta cuando hay filtros activos, el término corto se cuela por el parámetro del
+  filtro. El término que viaja al back se calcula una sola vez y ya filtrado por el mínimo.
+
+### `catchError` va DENTRO del `switchMap`, no en el `subscribe`
+
+El back contesta **404/400 cuando una búsqueda no encuentra nada**. Si ese error llega al
+`subscribe`, RxJS **termina la suscripción para siempre** y el buscador queda muerto hasta
+recargar la pantalla — un handler `error:` en el `subscribe` apaga el spinner pero no la revive.
+El `catchError` tiene que ir en el observable interno del `switchMap`.
+
+Pasó en `tienda/venta` y estaba igual en `tienda/update`, Reportes y el autocomplete de palabras
+clave. **Cualquier buscador nuevo con `switchMap` tiene que llevarlo.**
+
+---
+
 ## Migraciones ya corridas — registro
 
 Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
@@ -296,11 +495,28 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 
 | Migración | dev / qa | prod | Fecha |
 |---|---|---|---|
-| `migration_submenu_ayuda_contextual.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+| `migration_submenu_ayuda_contextual.sql` | ⚠️ corrida, 0 filas (sin efecto) | ⚠️ corrida, 0 filas (sin efecto) | 2026-09-17 |
+| `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+| `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
+| `migration_accion_tienda_eliminar.sql` | ⬜ **PENDIENTE** — corre en DB `inventario_key_qa` (cubre dev+qa) | ⬜ pendiente | 2026-09-17 (merge hecho) |
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus
-INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada — pero igual no hace falta.
+INSERT llevan `NOT EXISTS`), así que volver a correrla no duplica nada.
+
+**Confirmado el 2026-09-17:** se corrió en qa y en prod, y quedó sin efecto en ambas. Volver a correrla hoy tampoco cambia nada ni duplica: su `NOT EXISTS` sobre `ruta = 'ayuda-contextual'` ya encuentra la fila que insertó la versión `_fix`. Se deja anotada en vez de borrarla porque es el rastro de por qué el permiso no aparecía.
+
+**⚠️ No surtió efecto — usar `migration_submenu_ayuda_contextual_fix.sql` en su lugar.** El
+INSERT original colgaba de una fila ancla (`WHERE gr.ruta = 'gestion-menu/roles'`): como en esta
+base no existe esa fila, el `INSERT ... SELECT` insertó **0 filas sin marcar error**, así que se
+dio por corrida y el permiso nunca apareció en Gestión de roles. La versión `_fix` no depende de
+ninguna fila ancla (inserta siempre una vez, y si no hay grupo "Sistema" la deja sin grupo) y
+trae consultas de diagnóstico y de verificación comentadas al principio y al final.
+
+**Lección para las próximas migraciones:** un `INSERT ... SELECT ... FROM tabla WHERE <ancla>`
+falla en silencio si el ancla no existe. Cuando la fila a insertar sea obligatoria, usar
+`FROM (SELECT 1) AS dummy` y dejar la condición solo en el `NOT EXISTS` de idempotencia, y
+cerrar siempre con un `SELECT` de verificación que deba devolver al menos una fila.
 
 Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
 `inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
