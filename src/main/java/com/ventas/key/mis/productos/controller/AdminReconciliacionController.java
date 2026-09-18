@@ -58,6 +58,26 @@ public class AdminReconciliacionController {
     }
 
     /**
+     * Dispara a mano la MISMA limpieza que corre sola a las 4 AM: borra del disco los ARCHIVOS
+     * huerfanos (los que no estan registrados en `imagen`, `imagen_presentacion` ni `logo`).
+     * No borra productos ni variantes: un producto sin imagen no se elimina, solo deja de salir
+     * en el catalogo publico.
+     *
+     * Ojo al probarla: los archivos creados en la ultima hora se respetan a proposito (ventana de
+     * gracia para una subida en curso), asi que un archivo recien subido no se borra todavia.
+     * Corre en segundo plano; usa GET /resultado para ver archivosEliminadosDisco y bytesLiberados.
+     */
+    @PostMapping("/limpiar-disco")
+    public ResponseEntity<ResponseGeneric<String>> limpiarDisco() {
+        if (reconciliacionImagenService.isEnProceso()) {
+            return ResponseEntity.ok(new ResponseGeneric<>("Ya hay un proceso en curso. Consulta GET /resultado."));
+        }
+        log.info("Limpieza de disco iniciada por admin");
+        reconciliacionImagenService.limpiarDiscoDia();
+        return ResponseEntity.ok(new ResponseGeneric<>("Limpieza de disco iniciada. Consulta GET /resultado para ver cuando termina."));
+    }
+
+    /**
      * Devuelve el resultado de la ultima ejecucion.
      * enProceso=true significa que aun esta corriendo.
      * enProceso=false significa que ya termino.

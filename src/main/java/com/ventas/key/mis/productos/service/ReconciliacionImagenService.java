@@ -173,7 +173,23 @@ public class ReconciliacionImagenService {
         }
     }
 
+    /**
+     * Borra del disco los ARCHIVOS que ya no le pertenecen a nadie: todo archivo de
+     * `ruta_imagenes` cuyo nombre no este registrado en `imagen`, `imagen_presentacion` ni `logo`.
+     * Nunca toca productos ni variantes -- un producto sin imagen no se borra, solo deja de
+     * aparecer en el catalogo publico (lo filtra el EXISTS de buscarVariantesPublicoFiltrado).
+     */
+    @Async
     public void limpiarDiscoDia() {
+        enProceso = true;
+        try {
+            ejecutarLimpiezaDisco();
+        } finally {
+            enProceso = false;
+        }
+    }
+
+    private void ejecutarLimpiezaDisco() {
         ReconciliacionResultadoDto resultado = new ReconciliacionResultadoDto();
 
         // TODO lo que viva en este directorio tiene que estar aqui, no solo la tabla `imagen`:

@@ -19926,3 +19926,57 @@ foto, y queda el texto colgado que es justo lo que se reportó.
 Tests: `ChatbotPromptFotosTest` (4). Miran el **prompt final armado**, no una línea suelta — incluido
 uno al revés que verifica que el widget del sitio **sí** conserva sus tarjetas, para que apagarlas en
 un canal no las apague en el otro.
+
+---
+
+## Limpieza de imágenes huérfanas — endpoint nuevo para dispararla a mano
+**Fecha:** 2026-09-18
+
+### Qué se aclara (venía mal entendido en el checklist de QA)
+
+La limpieza **borra ARCHIVOS de imagen que ya no le pertenecen a nadie**. Va en una sola dirección:
+
+- ✅ **Sí borra:** un archivo que está en la carpeta `ruta_imagenes` y cuyo nombre **no** está
+  registrado en `imagen`, `imagen_presentacion` ni `logo`.
+- ❌ **No borra:** productos, modelos (variantes) ni ninguna otra fila de negocio. **Un producto
+  sin imagen no se elimina nunca.** Lo único que le pasa es que deja de aparecer en el catálogo
+  público, porque `buscarVariantesPublicoFiltrado` lo filtra con un `EXISTS` sobre
+  `VarianteImagen` — es un filtro de consulta, no un borrado.
+
+La dirección contraria también existe y **tampoco** borra productos ni variantes: `limpiar-bd`
+elimina las **filas de imagen** (`producto_imagen_copy`, `variante_imagen`, `imagen`) cuyo archivo
+ya no está en disco. Las dos limpiezas se ocupan solo de imágenes.
+
+### Endpoint nuevo
+
+Antes esta limpieza **solo corría sola a las 4 AM** y no había forma de dispararla — no se podía
+probar sin esperar al día siguiente. Ahora:
+
+**Request**
+```
+POST /v1/admin/reconciliacion/imagenes/limpiar-disco
+```
+Sin body. Requiere la pantalla `admin/reconciliacion-imagenes` (misma protección que los otros dos).
+
+**Response 200**
+```json
+{ "response": "Limpieza de disco iniciada. Consulta GET /resultado para ver cuando termina." }
+```
+Si ya hay una reconciliación o limpieza corriendo responde 200 con
+`"Ya hay un proceso en curso. Consulta GET /resultado."` y no hace nada.
+
+Corre en segundo plano. Para ver cómo terminó:
+```
+GET /v1/admin/reconciliacion/imagenes/resultado
+```
+Campos que llena esta limpieza: `archivosEliminadosDisco`, `bytesLiberados`, `enProceso`.
+
+**Ventana de gracia de 1 hora (a propósito):** los archivos creados en la última hora se respetan,
+por si hay una subida en curso a la que todavía no le llegó su fila a la BD. Al probar, esto
+significa que **una imagen recién subida no se borra todavía** aunque ya sea huérfana. No es un bug.
+
+### Pantalla del front
+
+`/admin/reconciliacion-imagenes` — se agregó la sección **3. Limpiar disco** (botón 🧹) y
+"Ver resultado" pasó de ser la sección 3 a la **4**. Es el mismo patrón que "Limpiar BD": se
+dispara, responde de inmediato, y el resultado se consulta con el botón de "Ver resultado".
