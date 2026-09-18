@@ -274,39 +274,38 @@ public class ProductosServiceImpl extends
     @Transactional
     @Override
     public void deleteByIdProducto(Integer id) throws ExceptionErrorInesperado {
-        log.info("Buscar producto con el ID {}",id);
-        Optional<Producto> existeProducto = iProductosRepository.findById(id);
+        Producto producto = iProductosRepository.findById(id)
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con el id: " + id));
 
-        if (existeProducto.isEmpty()) {
-            throw new ExceptionDataNotFound("No existe el producto con el id: " + id);
+        List<Integer> productoIds = List.of(producto.getId());
+
+        // La misma imagen cuelga a la vez del producto (producto_imagen_copy) y de sus variantes
+        // (variante_imagen), porque al guardar el producto con fotos estas se replican en las
+        // variantes que ya tenia. Hay que juntar los dos lados y borrar ambas relaciones antes de
+        // tocar la tabla imagen: borrando solo variante_imagen, la FK de producto_imagen_copy
+        // seguia apuntando a la fila y el DELETE moria en un 500 sin motivo visible.
+        List<Long> imagenIds = new ArrayList<>(iProductoImagenRepository.findImagenIdsByProductoIdIn(productoIds));
+        imagenIds.addAll(iVarianteImagenRepository.findImagenIdsByProductoIdIn(productoIds));
+
+        iVarianteImagenRepository.deleteByProductoIdIn(productoIds);
+        iProductoImagenRepository.deleteByProductoIdIn(productoIds);
+
+        if (!imagenIds.isEmpty()) {
+            List<Long> huerfanas = iImagenRepository.findOrphanIds(imagenIds);
+            if (!huerfanas.isEmpty()) {
+                iImagenRepository.deleteByIdIn(huerfanas);
+                try {
+                    imagenPort.delete(huerfanas);
+                } catch (Exception e) {
+                    log.warn("No se pudieron eliminar imagenes del microservicio ids={}: {}", huerfanas, e.getMessage());
+                }
+            }
         }
-        existeProducto.ifPresent(producto -> {
-            log.info("Existe el producto {}", producto);
-            log.info("Buscar Variante con el ID de producto  {}", producto.getId());
-            List<Variantes> existenVariantes = varianteRepository.findByProductoId(producto.getId());
-            log.info("Lista de variantes existentes {}", existenVariantes);
-            List<Integer> variablesIds = existenVariantes.stream().map(Variantes::getId).toList();
-            log.info("Ids de las variables {}",variablesIds);
-            List<VarianteImagen> existenVariblesConImagenes = iVarianteImagenRepository.findByVarianteIdIn(variablesIds);
-            log.info("Lista de variables con imagen {}", existenVariblesConImagenes);
-            List<Imagen> listImagenes = existenVariblesConImagenes.stream().map(VarianteImagen::getImagen).toList();
-            log.info("Lista de imagenes {}",listImagenes);
-            List<String> listNombreImageneEliminarDisco = new ArrayList<>();
-            List<Long> listaIdsImagenesEliminarBase = new ArrayList<>();
 
-            listImagenes.forEach(imagen -> {
-                listNombreImageneEliminarDisco.add(imagen.getBase64());
-                listaIdsImagenesEliminarBase.add(imagen.getId());
-            });
-            log.info("Lista de nombres para eliminar en el disco {} Lista de imagenes a eliminar en la base {}", listNombreImageneEliminarDisco ,  listaIdsImagenesEliminarBase);
-            imagenPort.deleteInagenesDisco(listNombreImageneEliminarDisco);
-            iVarianteImagenRepository.deleteByVarianteIdIn(variablesIds);
-            iImagenService.deleteByIds(listaIdsImagenesEliminarBase);
-            producto.setHabilitado((char) 0);
-            iProductosRepository.save(producto);
-            log.info("Se elimino el producto con las variantes y relaciones con imagenes");
+        producto.setHabilitado('0');
+        iProductosRepository.save(producto);
+        log.info("Producto id={} dado de baja (habilitado=0) y sus imagenes eliminadas", id);
 
-        });
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
