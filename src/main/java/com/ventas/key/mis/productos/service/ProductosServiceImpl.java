@@ -8,7 +8,6 @@ import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
-import com.ventas.key.mis.productos.hexagonal.dominio.mapper.RequestProductoImagen;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.dto.ImagenDto;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImagenProductoClienteVPS;
@@ -24,7 +23,6 @@ import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.service.api.ICodigoBarrasService;
-import com.ventas.key.mis.productos.service.api.IImagenService;
 import com.ventas.key.mis.productos.service.api.IProductoService;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import lombok.SneakyThrows;
@@ -54,18 +52,13 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -73,9 +66,6 @@ import java.util.stream.Collectors;
 public class ProductosServiceImpl extends
         CrudAbstractServiceImpl<Producto, List<Producto>, Optional<Producto>, Integer, PginaDto<List<Producto>>>
         implements IProductoService {
-
-    @Value("${guardar-imagenes.ruta_imagenes}")
-    private String rutaImagenes;
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
@@ -89,7 +79,6 @@ public class ProductosServiceImpl extends
     private final ILostesProductosRepository iLoteProducto;
     private final ICodigoBarrasService iBarrasService;
     private final ErrorGenerico error;
-    private final IImagenService iImagenService;
     private final IVarianteRepository varianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductoImagenRepository iProductoImagenRepository;
@@ -106,7 +95,6 @@ public class ProductosServiceImpl extends
             final ErrorGenerico error,
             final ILostesProductosRepository iLoteProducto,
             final ICodigoBarrasService iBarrasService,
-            final IImagenService iImagenService,
             final ImagenProductoClienteVPS imagenProductoClienteVPS,
             final IVarianteRepository iVarianteRepository,
             final IVarianteImagenRepository iVarianteImagenRepository,
@@ -120,7 +108,6 @@ public class ProductosServiceImpl extends
         this.error = error;
         this.iLoteProducto = iLoteProducto;
         this.iBarrasService = iBarrasService;
-        this.iImagenService = iImagenService;
         this.imagenProductoClienteVPS = imagenProductoClienteVPS;
         this.iVarianteImagenRepository = iVarianteImagenRepository;
         this.varianteRepository = iVarianteRepository;
@@ -477,15 +464,12 @@ public class ProductosServiceImpl extends
                 log.info("Se guardo el producto nuevo {}", savedProducto);
 
                 if (!productoDetalle.getListImagenes().isEmpty()) {
-                    // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
-                    List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                    List<ProductoImagen> relaciones = mapperRelacionProductoImagen(lstImg, savedProducto);
-                    // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ, y con
-                    // el id real que devuelve el micro se guarda la relación local (ver
-                    // guardarRelacionLocal()) -- la que usa el listado/búsqueda de productos.
-                    List<ImagenDto> microImagenes = relacionProductoImagen(relaciones);
+                    // [FLUJO 3] Los bytes van directo al micro; él asigna el id y escribe el archivo.
+                    List<ImagenDto> microImagenes = subirImagenesAlMicro(productoDetalle.getListImagenes());
+                    // [FLUJO 4] Con ese id real se guarda la relación en producto_imagen_copy --
+                    // la que usa el listado/búsqueda de productos.
                     guardarRelacionLocal(microImagenes, savedProducto);
-                    log.info("Se guardaron {} imagenes para el producto nuevo {}", lstImg.size(), savedProducto.getId());
+                    log.info("Se guardaron {} imagenes para el producto nuevo {}", microImagenes.size(), savedProducto.getId());
                 }
 
                 if (productoDetalle.getImagenPrincipalId() != null) {
@@ -497,13 +481,9 @@ public class ProductosServiceImpl extends
 
             // [FLUJO 2B] PRODUCTO EXISTENTE: ya existe en BD → se actualiza
             if (!productoDetalle.getListImagenes().isEmpty()){
-                // [FLUJO 3] Genera IDs UUID, guarda archivos en disco y registra en imagenes_copy (BD local)
-                List<Imagen> lstImg = this.iImagenService.saveAll(mappImagenes(productoDetalle.getListImagenes()));
-                List<ProductoImagen> mapperRelacionProductoImagen = mapperRelacionProductoImagen(lstImg, prodExistenteNoOpt);
-                // [FLUJO 4] → pasa a relacionProductoImagen() para publicar a RabbitMQ, y con el
-                // id real que devuelve el micro se guarda la relación local -- ver comentario
-                // largo en relacionProductoImagen().
-                List<ImagenDto> microImagenes = relacionProductoImagen(mapperRelacionProductoImagen);
+                // [FLUJO 3] Los bytes van directo al micro; él asigna el id y escribe el archivo.
+                List<ImagenDto> microImagenes = subirImagenesAlMicro(productoDetalle.getListImagenes());
+                // [FLUJO 4] Con ese id real se guarda la relación en producto_imagen_copy.
                 guardarRelacionLocal(microImagenes, prodExistenteNoOpt);
 
                 List<Variantes> variantes = varianteRepository.findByProductoId(prodExistenteNoOpt.getId());
@@ -511,7 +491,7 @@ public class ProductosServiceImpl extends
                     // Mismas imágenes ya subidas, con el id real del micro -- antes se usaba
                     // `lstImg` (el id local generado antes de subir, distinto al que el micro
                     // asignó), así que las miniaturas de estas variantes en tienda/buscar tenían
-                    // el mismo problema que el listado de productos (ver relacionProductoImagen()).
+                    // el mismo problema que el listado de productos.
                     List<VarianteImagen> varianteImagenes = new ArrayList<>();
                     for (Variantes variante : variantes) {
                         for (ImagenDto microImagen : microImagenes) {
@@ -580,38 +560,25 @@ public class ProductosServiceImpl extends
     public Optional<ProductoResumen> getResumen(int id){
         return Optional.of(this.iProductosRepository.findProductoConImagenes(id));
     }
-    private List<ProductoImagen> mapperRelacionProductoImagen(List<Imagen> lstImg,
-                                                              Producto prd){
-        return lstImg.stream().map(mpa->{
-            ProductoImagen p = new ProductoImagen();
-            p.setImagen(mpa!= null? mpa : new Imagen());
-            p.setProducto(prd);
-            return p;
-        }).toList();
-    }
-
-    // [FLUJO 4] Sube archivos al micro de imágenes y publica la relación producto-imagen a
-    // RabbitMQ para que el MICRO guarde su propia copia de esa relación (ver comentario en
-    // RabbitMQConfig: "la cola y el binding los declara el consumidor (micro_imagenes)").
-    // Devuelve las imágenes tal como las devolvió el micro -- con SU id, no el id local que se
-    // le generó a `productoImagens` antes de subir (mappImagenes() inventa un id local al vuelo,
-    // independiente del que el micro asigna al recibir el archivo; son dos ids distintos por
-    // diseño). El caller usa este id real para guardar la relación local (ver
-    // guardarRelacionLocal()) -- sin esto, `producto_imagen_copy` quedaba con el id local
-    // equivocado (o simplemente nunca se guardaba), y el listado/búsqueda armaba una URL de
-    // miniatura para un id que el micro nunca conoció -- aunque el detalle sí mostraba la imagen
-    // porque ese sí llama al micro directo por productoId, sin pasar por esta tabla local.
-    // Reportado en QA 2026-09-02: producto con imagen guardada correctamente (se ve en el
-    // detalle) pero sin imagen en listado/búsqueda.
-    // Si el micro no está disponible se loguea el error pero el producto se guarda igual (lista vacía).
-    private List<ImagenDto> relacionProductoImagen(List<ProductoImagen> productoImagens) throws IOException {
-        if (productoImagens.isEmpty()) return List.of();
+    // Sube al micro de imagenes los bytes que vinieron en la peticion y devuelve las imagenes
+    // con el id que ESE micro les asigno -- el unico id real. El caller lo usa para guardar la
+    // relacion en producto_imagen_copy (ver guardarRelacionLocal()).
+    //
+    // Hasta el 2026-09-18 estos bytes se leian del disco (Files.readAllBytes) porque
+    // mappImagenes() escribia antes el archivo con un UUID propio y un id inventado en
+    // imagenes_copy. Eso dejaba la MISMA foto dos veces en /app/imagenes -- mismo md5, distinto
+    // UUID -- y una fila huerfana que el limpiador nocturno daba por buena porque si estaba en
+    // imagenes_copy. El alta de productos (VarianteServiceImpl.subirImagenes()) siempre lo hizo
+    // asi: bytes de memoria -> micro -> id.
+    //
+    // Si el micro no esta disponible se loguea el error pero el producto se guarda igual (lista vacia).
+    private List<ImagenDto> subirImagenesAlMicro(List<ImagenDTO> imagenes) {
+        if (imagenes.isEmpty()) return List.of();
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
-        for (ProductoImagen p : productoImagens) {
-            Path path = Paths.get(rutaImagenes, p.getImagen().getBase64());
-            byte[] imagenBytes = Files.readAllBytes(path);
-            final String nombre = NombreArchivoImagen.normalizar(p.getImagen().getNombreImagen(), imagenBytes);
+        for (ImagenDTO dto : imagenes) {
+            byte[] imagenBytes = dto.getBase64();
+            final String nombre = NombreArchivoImagen.normalizar(dto.getNombreImagen(), imagenBytes);
             ByteArrayResource recurso = new ByteArrayResource(imagenBytes) {
                 @Override
                 public String getFilename() { return nombre; }
@@ -626,21 +593,6 @@ public class ProductosServiceImpl extends
                 return List.of();
             }
             log.info("Imágenes subidas al micro, IDs: {}", microImagenes.stream().map(ImagenDto::getId).toList());
-
-            Integer productoId = productoImagens.get(0).getProducto().getId();
-            List<ImagenDto> microList = microImagenes;
-            List<RequestProductoImagen> relaciones = java.util.stream.IntStream
-                    .range(0, microList.size())
-                    .mapToObj(i -> {
-                        RequestProductoImagen r = new RequestProductoImagen();
-                        r.setProductoId(productoId);
-                        r.setImagenId(microList.get(i).getId());
-                        r.setPrincipal(i == 0);
-                        return r;
-                    }).toList();
-
-            imagenProductoClienteVPS.saveAll(relaciones);
-            log.info("Relaciones producto-imagen guardadas en micro para productoId={}", productoId);
             return microImagenes;
         } catch (Exception e) {
             // El mensaje ya viene con el motivo que dio el micro -- ImageneClienteDisco.save()
@@ -651,7 +603,7 @@ public class ProductosServiceImpl extends
     }
 
     // Persiste producto_imagen_copy (BD local) usando el id REAL que asignó el micro -- ver
-    // comentario largo en relacionProductoImagen(). Sin esto, el listado/búsqueda de productos
+    // comentario de subirImagenesAlMicro(). Sin esto, el listado/búsqueda de productos
     // no tiene de dónde sacar el imagenId para armar la miniatura.
     private void guardarRelacionLocal(List<ImagenDto> microImagenes, Producto producto) {
         if (microImagenes.isEmpty()) return;
@@ -669,31 +621,6 @@ public class ProductosServiceImpl extends
                 producto.getId(), microImagenes.stream().map(ImagenDto::getId).toList());
     }
 
-
-    private List<Imagen> mappImagenes( List<ImagenDTO> list){
-        return list.stream().map(mpa->{
-            Imagen imagen = new Imagen();
-            byte[] decodedBytes = mpa.getBase64();
-            String urlImagen = UUID.randomUUID() + "_" + mpa.getNombreImagen();
-            Path path = Paths.get(rutaImagenes, urlImagen);
-            try {
-                File directorio = new File(rutaImagenes);
-                if (!directorio.exists()) {
-                    directorio.mkdirs();
-                }
-                Files.write(path, decodedBytes);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            UUID _uuid = UUID.randomUUID();
-            Long idImagen = Math.abs(_uuid.getMostSignificantBits() ^ _uuid.getLeastSignificantBits());
-            imagen.setId(idImagen);
-            imagen.setBase64(urlImagen);
-            imagen.setNombreImagen(mpa.getNombreImagen());
-            imagen.setExtension(mpa.getExtension());
-            return imagen;
-        }).toList();
-    }
 
     private void aplicarPrincipalProducto(Integer productoId, Long imagenId) {
         iProductoImagenRepository.desmarcarTodosPrincipal(productoId);
