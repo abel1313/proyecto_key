@@ -1,7 +1,7 @@
 # Cada foto de "Agregar modelo" se guarda dos veces en el disco
 
 **Fecha:** 2026-09-18
-**Estado:** diagnosticado, sin corregir todavía
+**Estado:** ✅ corregido en el código (2026-09-18) — falta limpiar los duplicados viejos del disco y la BD
 **Dónde pasa:** menú **📦 Catálogo → ➕ Agregar modelo** (ruta `productos/agregar`)
 **Dónde NO pasa:** menú **📦 Catálogo → 🧩 Agregar producto** (ruta `tienda/venta`) — ver la última sección
 
@@ -146,27 +146,129 @@ directo al micro** — no hay ni un `Files.write` en toda la clase. Del micro so
 
 ---
 
-## Lo que hay que arreglar
+## Lo que se arregló (2026-09-18)
 
-En `ProductosServiceImpl`, hacer que el alta de modelos funcione como ya funciona el alta de
-productos:
+`ProductosServiceImpl` ahora sube las fotos igual que ya lo hacía el alta de productos: **los
+bytes que llegan en la petición van directo al micro, sin pasar por el disco local**.
 
-1. **Quitar el `Files.write` y el id inventado de `mappImagenes()`** (`:684` y `:691-693`), y
-   subir los bytes de memoria al micro, igual que `subirImagenesMultipart()`.
-   Con eso desaparecen el archivo duplicado y la fila huérfana de `imagenes_copy`.
+| Antes | Ahora |
+|---|---|
+| `mappImagenes()` escribía el archivo en `/app/imagenes` con un UUID propio | ese método ya no existe |
+| `mappImagenes()` inventaba un id (`Math.abs(msb ^ lsb)`) y lo insertaba en `imagenes_copy` | el id lo asigna el micro, y es el único que existe |
+| `relacionProductoImagen()` releía el archivo con `Files.readAllBytes` | `subirImagenesAlMicro()` manda el `byte[]` del `ImagenDTO` |
+| la relación se insertaba **dos veces** en `producto_imagen_copy`: por Rabbit (`imagenProductoClienteVPS.saveAll`) y en local (`guardarRelacionLocal`) | solo `guardarRelacionLocal()` |
 
-2. **Quitar la doble inserción en `producto_imagen_copy`.** Las dos apps mapean esa **misma
-   tabla**: `relacionProductoImagen():642` la escribe a través del micro
-   (`imagenProductoClienteVPS.saveAll`) y `guardarRelacionLocal():671` la escribe otra vez en
-   local, con el mismo id. Hay que dejar solo una de las dos.
+Se eliminó también el campo `rutaImagenes` y la dependencia `IImagenService` de esta clase: esta
+clase ya no toca el disco ni escribe en `imagenes_copy`.
 
-   Esa duplicación es la razón de que existan `POST /v1/producto-imagen/admin/limpiar-duplicados`
-   y `eliminarRelacionesDuplicadasVariante()` en el micro: se construyó un limpiador para un
-   duplicado que genera el propio código.
+**Por qué se quedó `guardarRelacionLocal()` y no la publicación a Rabbit:** es síncrona (la fila
+queda antes de responder, no "cuando llegue el mensaje"), es la única que setea `principal`, y no
+depende de que el ambiente tenga RabbitMQ — `main` no lo tiene configurado.
 
-3. **Datos viejos:** hay que limpiar los archivos y las filas de `imagenes_copy` que ya quedaron
-   duplicados de todos los modelos dados de alta hasta hoy. Esto va después de los dos puntos de
-   arriba, para no volver a generarlos mientras se limpia.
+**Una foto → un archivo → un id → una fila.**
+
+## Lo que falta: limpiar lo viejo
+
+El arreglo evita duplicados **nuevos**. Lo que ya está guardado sigue ahí — y son **dos
+duplicados distintos**, que se limpian de formas distintas:
+
+| | Duplicado A — archivo + fila en `imagenes_copy` | Duplicado B — fila en `producto_imagen_copy` |
+|---|---|---|
+| Qué se repite | el archivo en `/app/imagenes` y su fila en `imagenes_copy` | la pareja `(producto_id, imagen_id)` |
+| Quién lo generaba | `mappImagenes()` (escribía el archivo + insertaba con id inventado) | `imagenProductoClienteVPS.saveAll()` (Rabbit) **y** `guardarRelacionLocal()`, las dos a la misma tabla |
+| ¿Está ligado a un producto? | **No.** El id inventado nunca llegó a `producto_imagen_copy` — `mapperRelacionProductoImagen()` armaba los objetos en memoria pero nunca los guardaba; solo servían para que `relacionProductoImagen()` leyera el `base_64` y encontrara el archivo en disco. | **Sí.** Las dos filas apuntan al id real del micro. |
+| ¿Sale en el carrusel? | No | **Sí, la misma foto dos veces** |
+| ¿La encuentra la consulta de huérfanas? | Sí | **No** |
+| Cómo se limpia | borrar la fila huérfana; el limpiador nocturno barre el archivo | `DELETE` conservando `MIN(id)` por pareja |
+
+El carrusel de **Actualizar producto** y de **Detalle de producto** sale de
+`ProductoImagenService.listarImagenesProducto()` → `listarConDetalle()`:
+
+```sql
+FROM producto_imagen_copy pic
+JOIN imagenes_copy ic ON pic.imagen_id = ic.id
+WHERE pic.producto_id = :productoId
+```
+
+Una entrada por **fila de la relación**. Por eso el duplicado B se ve, y el A no.
+
+### Consulta que responde las dos cosas de un tiro
+
+```sql
+SELECT pic.producto_id,
+       ic.nombre_imagen,
+       COUNT(*)                      AS filas,
+       COUNT(DISTINCT pic.imagen_id) AS ids_distintos,
+       GROUP_CONCAT(DISTINCT pic.imagen_id) AS imagen_ids
+FROM producto_imagen_copy pic
+JOIN imagenes_copy ic ON ic.id = pic.imagen_id
+GROUP BY pic.producto_id, ic.nombre_imagen
+HAVING COUNT(*) > 1
+ORDER BY filas DESC;
+```
+
+- `ids_distintos = 1` → **duplicado B**: la misma imagen ligada dos veces. Se limpia con el
+  endpoint que ya existe en el micro (abajo).
+- `ids_distintos > 1` → dos filas de `imagenes_copy` **distintas**, con la misma foto, ambas
+  ligadas al producto. Este es el caso que la consulta de huérfanas no ve. Pasa con datos
+  anteriores al fix del 2026-09-02, cuando `producto_imagen_copy` llegó a guardarse con el id
+  local (ver el comentario que había en `relacionProductoImagen()`). Aquí hay que **elegir cuál
+  conservar**: la que el micro conoce, o sea la que responde 200 en
+  `GET /v1/imagenes/file/{id}`.
+
+### Limpieza B — relación repetida
+
+Ya existe el limpiador, construido justo para este duplicado:
+
+```
+POST /v1/producto-imagen/admin/limpiar-duplicados
+```
+
+Conserva el `MIN(id)` de cada pareja `(producto_id, imagen_id)`. El equivalente a mano:
+
+```sql
+DELETE FROM producto_imagen_copy
+WHERE id NOT IN (
+    SELECT * FROM (SELECT MIN(id) FROM producto_imagen_copy GROUP BY producto_id, imagen_id) AS mantener
+);
+```
+
+### Limpieza A — archivo y fila huérfana
+
+```sql
+SELECT i.id, i.base_64, i.nombre_imagen
+FROM imagenes_copy i
+WHERE NOT EXISTS (SELECT 1 FROM producto_imagen_copy pi WHERE pi.imagen_id = i.id)
+  AND NOT EXISTS (SELECT 1 FROM variante_imagen      vi WHERE vi.imagen_id = i.id)
+ORDER BY i.id;
+```
+
+Lo que devuelva es seguro de borrar: por definición no lo referencia nadie. Al borrar la fila, el
+archivo queda sin registro y `ReconciliacionImagenService.limpiarDiscoDia()` (4 AM) lo barre solo.
+
+### Cuánto hay duplicado en disco
+
+En el VPS el volumen es un `hostPath`: `/home/ubuntu/imagenes/qa/Imagenes` (qa) — el mismo
+directorio que los dos pods montan en `/app/imagenes`.
+
+```bash
+cd /home/ubuntu/imagenes/qa/Imagenes
+find . -maxdepth 1 -type f -exec md5sum {} + | awk '{print $1}' | sort > /tmp/h.txt
+echo "archivos totales : $(wc -l < /tmp/h.txt)"
+echo "fotos distintas  : $(sort -u /tmp/h.txt | wc -l)"
+echo "copias de mas    : $(( $(wc -l < /tmp/h.txt) - $(sort -u /tmp/h.txt | wc -l) ))"
+```
+
+### Orden
+
+1. Respaldo del directorio y de las dos tablas.
+2. Correr la consulta de arriba y separar los casos `ids_distintos = 1` de los `> 1`.
+3. Limpieza B (el endpoint) → el carrusel deja de mostrar repetidas.
+4. Los casos `ids_distintos > 1`: verificar cuál id responde en `/v1/imagenes/file/{id}`, dejar
+   esa fila en `producto_imagen_copy` y borrar la otra.
+5. Limpieza A → borrar huérfanas de `imagenes_copy`; el limpiador nocturno se lleva los archivos.
+
+Va **después** de desplegar este arreglo, para no limpiar mientras se siguen generando.
 
 ### Tablas, para tener el mapa claro
 
