@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Favorito;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.PalabraClave;
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloDeAlta;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -574,6 +575,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public List<Variantes> guardarConImagenes(List<VarianteDetalle> detalles) throws ExceptionDataNotFound {
+        // Antes de nada: sacar los articulos que no describen nada (R1 del dominio `articulo`).
+        // La pantalla de alta tiene el formulario base y la seccion de varias tallas, y son
+        // independientes; si alguien llena el base, agrega 2 tallas y despues vacia el base, el
+        // base seguia viajando y se guardaban 3 articulos -- el tercero sin talla, sin color y
+        // sin nada. Es el "dice que voy a guardar 3 cuando agregue 2" (reportado 2026-09-22).
+        detalles = soloLosQueDescribenAlgo(detalles);
+        if (detalles.isEmpty()) {
+            throw new ExceptionDataNotFound(
+                    "No hay ningun articulo que guardar: todos llegaron vacios. Hay que llenar al "
+                            + "menos la talla, el color u otro dato, o ponerle stock");
+        }
+
         validarStockContraProducto(detalles);
         List<Long> imageIds = subirImagenes(detalles);
 
@@ -765,6 +778,37 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return sb.toString();
     }
 
+    /**
+     * Descarta los articulos vacios del alta, preguntandole al dominio (R1).
+     *
+     * <p>Aqui solo vive la traduccion del DTO al modelo; la regla de que cuenta como articulo esta
+     * en {@link ArticuloDeAlta}, para poder leerla sola y porque va a seguir valiendo cuando
+     * `variante` pase a llamarse `articulo`.
+     */
+    private List<VarianteDetalle> soloLosQueDescribenAlgo(List<VarianteDetalle> detalles) {
+        if (detalles == null || detalles.isEmpty()) {
+            return List.of();
+        }
+        List<VarianteDetalle> reales = detalles.stream()
+                .filter(d -> aArticuloDeAlta(d).describeAlgo())
+                .toList();
+
+        int descartados = detalles.size() - reales.size();
+        if (descartados > 0) {
+            log.info("Alta de articulos: se descartaron {} de {} por venir vacios (sin datos "
+                    + "propios, sin imagenes y sin stock)", descartados, detalles.size());
+        }
+        return reales;
+    }
+
+    private static ArticuloDeAlta aArticuloDeAlta(VarianteDetalle d) {
+        boolean traeImagenes = d.getListImagenes() != null && !d.getListImagenes().isEmpty();
+        return new ArticuloDeAlta(
+                d.getId(), d.getTalla(), d.getColor(), d.getMarca(), d.getDescripcion(),
+                d.getPresentacion(), d.getContenidoNeto(), d.getStock(), traeImagenes,
+                d.getPalabraClaveId());
+    }
+
     private Variantes buildVariante(VarianteDetalle detalle) {
         Variantes v = new Variantes();
         if (detalle.getId() != null) v.setId(detalle.getId());
@@ -776,8 +820,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         v.setDescripcion(detalle.getDescripcion());
         v.setPresentacion(detalle.getPresentacion());
         v.setContenidoNeto(detalle.getContenidoNeto());
-        if (detalle.getPalabraClaveId() != null) {
-            v.setPalabraClave(iPalabraClaveRepository.getReferenceById(detalle.getPalabraClaveId()));
+        // La categoria se hereda del modelo cuando el articulo no trae la suya (R2 del dominio
+        // `articulo`): "si esta llena que la tome para todos los que agregue". El que si trae la
+        // suya la conserva -- heredar solo lo que falta deja separar uno sin elegirla en cada uno.
+        Producto modelo = iProductosRepository.getReferenceById(detalle.getProductoId());
+        Integer categoria = aArticuloDeAlta(detalle)
+                .categoriaEfectiva(modelo.getPalabraClave() != null ? modelo.getPalabraClave().getId() : null);
+        if (categoria != null) {
+            v.setPalabraClave(iPalabraClaveRepository.getReferenceById(categoria));
         }
         return v;
     }
@@ -865,6 +915,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setContenidoNeto(v.getContenidoNeto());
         dto.setFechaCreacion(v.getFechaCreacion());
         dto.setPrecio(v.getProducto().getPrecioVenta());
+        // La rebaja solo para el admin: es el precio que el puede decidir aplicar, no un precio
+        // de lista. Publicarla en el catalogo la convertiria en el precio de todos (R6).
+        if (AuthenticationUtils.isAdminContext()) {
+            dto.setPrecioRebaja(v.getProducto().getPrecioRebaja());
+        }
         String codBarras = Optional.ofNullable(v.getProducto())
                 .map(Producto::getCodigoBarras)
                 .map(CodigoBarra::getCodigoBarras)
