@@ -1311,3 +1311,119 @@ sesión y entrar de nuevo (o esperar al refresh) antes de decir que no funcionó
 lista. El ajuste de inventario descuadrado necesita una decisión producto por producto (ver
 `hexagonal/stock/README.md`) y ya causó un incidente en producción el 2026-09-22 por correrse
 antes de validarlo. No se corre "por las dudas".
+
+---
+
+## ✅ NUEVA RONDA — Pruebas automatizadas + manuales de stock (2026-09-22)
+
+### Pruebas automatizadas (backend)
+
+**Clase:** `VarianteStockDevolucionTest.java`  
+**Ubicación:** `src/test/java/com/ventas/key/mis/productos/service/`  
+**Ejecución:** `mvn test -Dtest=VarianteStockDevolucionTest` (4 tests)
+
+#### Test 1: `deleteByIdVariante_dejaLaVarianteEnCeroSinSubirElStockBase`
+- **Caso:** Producto stock=10, variante stock=2. DELETE /variantes/{id}
+- **Validación:** Variante → 0, Producto → 10 (sin cambios)
+- **Resultado esperado:** ✅ pasa
+
+#### Test 2: `habilitarDeshabilitarVariantesLote_alDeshabilitar_dejaLasVariantesEnCeroSinTocarElBase`
+- **Caso:** Producto 10, variantes A=2 y B=3. PUT /variantes/admin/habilitar-lote?habilitar=false
+- **Validación:** A→0, B→0, Producto→10 (sin cambios)
+- **Resultado esperado:** ✅ pasa
+
+#### Test 3: `habilitarDeshabilitarVariantesLote_alHabilitar_noTocaElStock`
+- **Caso:** Variante deshabilitada con stock=0. PUT /variantes/admin/habilitar-lote?habilitar=true
+- **Validación:** Pasa a habilitado='1' pero **stock sigue 0** (no auto-restaura)
+- **Resultado esperado:** ✅ pasa
+
+#### Test 4: `guardarConImagenes_alEditarUnaVariante_noSubeElStockBaseDelProducto`
+- **Caso:** Producto 10, variante 2→5. POST /variantes/guardarConImagenes
+- **Validación:** Producto→10 (sin cambios), Variante→5, disponible→5
+- **Resultado esperado:** ✅ pasa
+
+### Pruebas manuales (frontend + UI validation)
+
+**Precondición:** Admin logueado en QA. Todos usan base `inventario_key_qa`.
+
+#### PRUEBA 7 — Agregar variante con stock disponible limitado
+
+1. Admin → Productos → Elegir producto con stock ≥ 5
+2. Agregar variante → Observar barra: `Disponible: X / Usando: 0 / Restante: X`
+3. Llenar Stock = 6 → Barra: `Disponible: 10 / Usando: 6 / Restante: 4`
+4. Cambiar a 11 → **Rojo** (`Restante: -1`), botón DESHABILITADO
+5. Volver a 9 → Se quita rojo, botón HABILITADO
+6. Guardar → OK sin error
+
+**Verificación:** `SELECT stock FROM producto WHERE id=?` → Debe ser **idéntico al de antes** (no subió)
+
+---
+
+#### PRUEBA 8 — Actualizar variante (el stock propio no cuenta como "usado")
+
+1. Admin → Productos → Abrir variante existente (ej. stock=9)
+2. Actualizar variante → Barra muestra `Disponible: 1 / Usando ahora: 0 / Restante: 1`
+   - Disponible = 10 − (stock de OTRAS variantes) = 10 − 9 = 1
+3. Cambiar stock de 9 → 10 → Barra: `Disponible: 1 / Usando: 10 / Restante: -9` (rojo)
+4. Cambiar a 7 → `Disponible: 1 / Usando: 7 / Restante: -6` (sigue rojo porque otra variante usa 3)
+5. Cambiar a 1 → `Disponible: 1 / Usando: 1 / Restante: 0` (se quita rojo)
+6. Guardar → OK
+
+**Verificación:** BD → Variante1=1, Variante2=3, Producto=10 (sin cambios)
+
+---
+
+#### PRUEBA 9 — Deshabilitar variante con 0 stock muestra advertencia
+
+1. Tienda → Buscar → Encontrar variante habilitada con **stock = 0**
+2. Abre acciones → Deshabilitar
+3. Aparece SweetAlert: *"Esta variante tiene stock 0. Al deshabilitarla no se recupera nada..."*
+4. Aceptar → Variante deshabilitada, `habilitado = 0`
+
+**Verificación:** Tienda/buscar → No aparece ya. BD: `habilitado = 0`.
+
+---
+
+#### PRUEBA 10 — Deshabilitar en lote (con stock mixto)
+
+1. Tienda → Buscar → Seleccionar 2+ variantes (una con stock > 0, otra con 0)
+2. Menú lote → Deshabilitar
+3. **Comportamiento:**
+   - Si hay stock 0 → aviso sin bloquear
+   - Si todas > 0 → desactiva sin aviso
+4. Confirmar → Todas a `habilitado = 0` y `stock = 0`
+
+**Verificación:** No aparecen en tienda/buscar.
+
+---
+
+#### PRUEBA 11 — Habilitar variante deshabilitada (con 0 stock)
+
+1. Admin → Productos → Buscar variante con `habilitado = 0` y `stock = 0`
+2. Abre → Botón Habilitar
+3. Aparece SweetAlert: *"Esta variante tiene stock 0. Después de habilitarla hay que asignarle stock..."*
+4. Aceptar → `habilitado = 1`, **stock sigue en 0**
+
+**Verificación:** Aparece en tienda/buscar. BD: no recuperó stock automáticamente.
+
+---
+
+#### PRUEBA 12 — Editar stock existente NO infla el base
+
+1. Producto: 10 stock. Variante A: 5 stock.
+2. Actualizar A → cambiar de 5 → 8
+3. Guardar
+4. Consultar: `GET /v1/productos/findById/{id}` → `stock: 10` (NO subió a 13)
+
+**Verificación:** ✅ sin error.
+
+---
+
+#### PRUEBA 13 — Deshabilitar y recuperar disponible
+
+1. Producto: 10. Variante A: 3. Variante B: 4. Disponible: 3.
+2. Deshabilita A → A→stock:0, A→habilitado:0
+3. Disponible ahora: 6 (10 − 4)
+4. Consulta: `GET /v1/variantes/porProducto/{id}` → A aparece con `habilitado = 0`
+
+**Verificación:** ✅ Disponible se recuperó.
