@@ -87,6 +87,21 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
     @Query("SELECT vi.imagen.id FROM VarianteImagen vi WHERE vi.variante.id IN :varianteIds")
     List<Long> findImagenIdsByVarianteIdIn(@Param("varianteIds") List<Integer> varianteIds);
 
+    /**
+     * Pares (varianteId, imagenId) para resolver la foto de varias variantes en una sola consulta.
+     *
+     * <p>A diferencia de {@link #findImagenIdsByVarianteIdIn}, que devuelve los ids sueltos sin
+     * decir de quien es cada uno, esta conserva la variante -- hace falta para armar el mapa del
+     * listado de pedidos sin una consulta por renglon.
+     *
+     * <p>Ordena la principal primero: quien arma el mapa se queda con la primera de cada variante
+     * y asi le toca la que el admin marco como principal, no una cualquiera.
+     */
+    @Query("SELECT vi.variante.id, vi.imagen.id FROM VarianteImagen vi "
+           + "WHERE vi.variante.id IN :varianteIds "
+           + "ORDER BY CASE WHEN vi.principal = TRUE THEN 0 ELSE 1 END, vi.imagen.id ASC")
+    List<Object[]> findVarianteIdConImagenIdIn(@Param("varianteIds") List<Integer> varianteIds);
+
     @Query("SELECT vi.imagen.id FROM VarianteImagen vi WHERE vi.variante.producto.id IN :productoIds")
     List<Long> findImagenIdsByProductoIdIn(@Param("productoIds") List<Integer> productoIds);
 
