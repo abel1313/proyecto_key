@@ -260,8 +260,6 @@ primera línea de la validación. La pantalla se quedaba sin opciones.
 ✅ El pedido se crea como apartado, con la forma de pago que elegiste.
 
 ❌ Si sale *"Las promociones solo se pueden comprar de contado…"*, el deploy no llegó.
-❌ Si sale *"…no se pueden dar a credito"*, elegiste FIADO — ese sigue bloqueado a propósito
-(ver abajo).
 
 ### Verificá
 
@@ -282,16 +280,22 @@ SELECT id, nombre, stock FROM producto WHERE id = <PRODUCTO_ID>;
 ```
 Debe haber bajado. Esa fue tu decisión: se reserva al apartar, no al liquidar.
 
-### FIADO sigue bloqueado — a propósito
+### Los tres tipos se pueden
 
 | Tipo | La mercadería | ¿Con promoción? |
 |---|---|---|
 | NORMAL | se paga y se lleva | ✅ |
-| APARTADO | **se queda en el negocio** | ✅ nuevo |
-| FIADO | se la lleva y paga después | ❌ |
+| APARTADO | se queda en el negocio hasta pagarse | ✅ |
+| FIADO | se la lleva y paga después | ✅ |
 
-El criterio: apartar no tiene riesgo porque vos tenés el producto. Fiar sí — das el
-descuento *y* el crédito. **Si querés que fiado también se pueda, avisá: es una línea.**
+**Probá los tres.** La validación ya no mira la forma de cobro — eso lo decide quien está
+atendiendo, caso por caso. Bloquearlo obligaba a cancelar el pedido y rehacerlo sin
+promoción, y terminaba quedando registrado algo distinto de lo que pasó.
+
+Lo que **sí** sigue validándose (probalo con curl cambiando el precio):
+- que la promoción esté vigente y activa
+- que el precio de cada línea sea el de la promoción
+- que las variantes sean las del combo, todas y sin sobrantes
 
 ### El precio queda congelado
 Si apartás hoy con una promoción que vence mañana y liquidás la semana que viene, pagás el
@@ -483,7 +487,7 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P7** Subtotal falsificado → el back lo recalcula (no queda en $1)
 - [ ] **P7b** Precio unitario falsificado → rechazado
 - [ ] **P8** Apartar una promoción → se crea (efectivo y tarjeta)
-- [ ] **P8b** Fiar una promoción → rechazado
+- [ ] **P8b** Los tres tipos (contado, apartado, fiado) → se pueden
 - [ ] **P9a** `/v1/stock/producto/{id}` coincide con la base
 - [ ] **P9a2** Dar de baja una variante → sube el disponible
 - [ ] **P9b** Reporte de descuadres lista los productos rotos

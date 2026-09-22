@@ -133,27 +133,23 @@ public class PromocionServiceImpl {
     }
 
     // Usado por PedidoServiceImpl/VentaServiceImpl al confirmar un pedido/venta que trae
-    // lineas con promocionId — valida que la promocion siga vigente, que las lineas mandadas
-    // coincidan exactamente con lo definido en promocion_detalle y que el pedido sea de contado.
+    // lineas con promocionId — valida que la promocion siga vigente y que las lineas mandadas
+    // coincidan exactamente con lo definido en promocion_detalle (variantes, precios y
+    // cantidades). La forma de cobro ya no se valida aqui: ver el comentario del metodo.
     @Transactional(readOnly = true)
-    public void validarLineasPromocion(Integer promocionId, List<LineaPromocionCheck> lineas, String tipoPedido) {
-        // Una promocion se puede pagar de contado (NORMAL) o apartar (APARTADO): en el apartado
-        // la mercancia no sale del negocio hasta estar pagada, asi que el precio promocional no
-        // corre riesgo. FIADO si queda bloqueado -- ahi el producto se entrega y se cobra
-        // despues, y regalar el descuento ademas del credito es otra decision.
+    public void validarLineasPromocion(Integer promocionId, List<LineaPromocionCheck> lineas) {
+        // Una promocion se puede cerrar de cualquier forma: contado, apartado o fiado. Hasta el
+        // 2026-09-22 esto exigia NORMAL y reventaba con cualquier otro valor en su primera linea,
+        // asi que la pantalla no dejaba mas salida que el pago en efectivo.
         //
-        // Antes esto exigia NORMAL y nada mas, asi que una promocion solo podia cerrarse de
-        // contado: por eso la pantalla "saltaba directo a efectivo" (reportado 2026-09-22).
+        // No se filtra por tipo a proposito: el negocio decide caso por caso a quien le fia, y el
+        // sistema no tiene con que juzgarlo mejor que la persona que esta atendiendo. Bloquearlo
+        // obligaba a cancelar el pedido y rehacerlo sin promocion, que es mas trabajo y termina
+        // registrando algo distinto de lo que realmente paso.
         //
         // El precio queda congelado solo: se guarda en detalle_pedidos.precio_unitario al crear
-        // el pedido, y al liquidar el apartado nadie revalida la promocion. Un apartado abierto
-        // conserva el precio del dia en que se aparto aunque la promocion venza.
-        if (tipoPedido != null
-                && !"NORMAL".equalsIgnoreCase(tipoPedido)
-                && !"APARTADO".equalsIgnoreCase(tipoPedido)) {
-            throw new RuntimeException(
-                    "Las promociones se pueden pagar de contado o apartar, pero no se pueden dar a credito");
-        }
+        // el pedido, y ni el cobro de abonos ni la entrega revalidan la promocion. Un pedido
+        // abierto conserva el precio del dia en que se hizo aunque la promocion venza.
 
         Promocion promo = iPromocionRepository.findByIdConDetalle(promocionId)
                 .orElseThrow(() -> new RuntimeException("La promocion ya no esta disponible"));
