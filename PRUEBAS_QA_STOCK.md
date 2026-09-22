@@ -846,6 +846,246 @@ es lo que realmente pagó y tiene derecho a verlo en su comprobante.
 
 ---
 
+# PRUEBA 16 — Boletos de rifa agrupados por perfil 🎟️
+
+Lo que cambia: hoy cada participación obliga a recargar nombre, plataforma y perfil, y después
+se ven como filas sueltas — "Facebook · juan · like" y aparte "Facebook · juan · compartió",
+cuando es **la misma persona en la misma red**. Ahora la cabecera se carga una vez y se le suman
+participaciones; **cada URL de lo que hizo el cliente es un boleto**.
+
+### Antes de probar: correr la migración
+
+```bash
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_rifa_boletos_agrupados.sql
+```
+
+Y **volver a entrar** — los permisos viajan en el JWT.
+
+---
+
+### 🔴 16a — La prueba que más importa: que nadie pierda chances
+
+Esta va **primero** porque es la que puede romper una rifa de verdad. El sorteo elige **filas**
+al azar (`BoletoRifaServiceImpl.sortear`), así que si el formato nuevo juntara las 3
+participaciones de Juan en una sola fila, Juan pasaría de 3 chances a 1.
+
+Cargá un perfil con 3 participaciones:
+
+```bash
+curl -X POST "$API/v1/rifas/3/boletos-agrupados" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
+    "concursanteId": 7,
+    "plataforma": "FACEBOOK",
+    "urlPerfil": "facebook.com/juan.perez",
+    "participaciones": [
+      {"urlParticipacion": "facebook.com/post/1", "motivo": "dio like"},
+      {"urlParticipacion": "facebook.com/post/2", "motivo": "compartio"},
+      {"urlParticipacion": "facebook.com/post/3", "motivo": "comento"}
+    ]
+  }'
+```
+
+**Contá las filas en la base — tienen que ser 3, no 1:**
+
+```sql
+SELECT COUNT(*) AS filas
+FROM boletos_rifa
+WHERE concursante_id = 7 AND url_perfil_red_social LIKE '%juan.perez%';
+```
+
+| Resultado | Qué significa |
+|---|---|
+| `filas = 3` | ✅ correcto — Juan tiene 3 chances en el sorteo |
+| `filas = 1` | 🔴 **PARAR** — se agruparon en una sola fila y Juan perdió 2 chances |
+
+Y que el response diga lo mismo: `totalBoletos: 3`, con 3 elementos en `participaciones`.
+
+---
+
+### 16b — Se ve agrupado, no en filas sueltas
+
+```bash
+curl "$API/v1/rifas/3/boletos-agrupados" -H "Authorization: Bearer $TOKEN"
+```
+
+**Un solo renglón** para Juan, con sus 3 participaciones adentro y `totalBoletos: 3`. Si salen
+3 renglones de "Juan", el agrupamiento no está funcionando.
+
+---
+
+### 16b2 — Lo último cargado sale arriba (el problema del scroll)
+
+Cargá un perfil nuevo con una rifa que ya tenga varios grupos y volvé a pedir el listado.
+
+**El grupo recién cargado tiene que salir primero**, no al final. Antes salía por orden de
+inserción, que es justo lo que obligaba a bajar hasta abajo y volver a subir.
+
+Los grupos que quedaron sin participaciones (16h) van al final: no hay nada que revisar ahí.
+
+Cada grupo trae `ultimaParticipacion` por si el front quiere reordenar de otra forma.
+
+> El **colapsar** los renglones es del front — el back ya manda un renglón por perfil (en vez de
+> uno por participación), con `totalBoletos` visible sin abrir y las participaciones adentro de
+> la misma respuesta, así que expandir no pide nada más.
+
+---
+
+### 16c — Sumar una participación sin recargar la cabecera
+
+```bash
+curl -X POST "$API/v1/rifas/3/boletos-agrupados/participaciones?plataforma=FACEBOOK&urlPerfil=facebook.com/juan.perez" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"urlParticipacion": "facebook.com/post/4", "motivo": "compartio de nuevo"}'
+```
+
+No se manda ni nombre ni concursanteId: sale del grupo. Queda en `totalBoletos: 4`.
+
+---
+
+### 16d — La URL repetida y los dos modos 🔑
+
+El punto que pediste. Intentá cargar una URL que **ya está**:
+
+```bash
+curl -X POST "$API/v1/rifas/3/boletos-agrupados/participaciones?plataforma=FACEBOOK&urlPerfil=facebook.com/juan.perez" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"urlParticipacion": "facebook.com/post/1", "motivo": "otra vez"}'
+```
+
+**Esperado: HTTP 409**, y el mensaje dice **de quién** es la que ya estaba:
+
+```
+La url 'facebook.com/post/1' ya esta cargada como boleto de 'Juan Perez'.
+Si de verdad se repite, hay que volver a cargarla con modo 'REPETIDA_PERMITIDA'
+```
+
+Ahora la misma, pero declarando que de verdad se repite:
+
+```bash
+curl -X POST "$API/v1/rifas/3/boletos-agrupados/participaciones?plataforma=FACEBOOK&urlPerfil=facebook.com/juan.perez" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"urlParticipacion": "facebook.com/post/1", "motivo": "otra vez", "modo": "REPETIDA_PERMITIDA"}'
+```
+
+**Esperado: 200.** Se carga y suma un boleto.
+
+> **Se llena una o la otra, nunca las dos.** Una participación lleva UNA url: o se manda en modo
+> `UNICA` (el back la rechaza si ya existe) o en modo `REPETIDA_PERMITIDA` (la acepta igual).
+> Mandar las dos no la convierte en dos boletos — sigue siendo uno.
+
+Si no se manda `modo`, se asume **`UNICA`**: el default protege el sorteo.
+
+---
+
+### 16e — Dos URLs iguales dentro del mismo alta
+
+```bash
+curl -X POST "$API/v1/rifas/3/boletos-agrupados" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{
+    "concursanteId": 8, "plataforma": "INSTAGRAM", "urlPerfil": "instagram.com/ana",
+    "participaciones": [
+      {"urlParticipacion": "instagram.com/p/1"},
+      {"urlParticipacion": "https://instagram.com/p/1/"}
+    ]
+  }'
+```
+
+**409.** Son la misma URL escrita distinto (`https://` y la barra final no la hacen otra).
+
+**Y lo importante: no quedó ninguna cargada.** Es todo o nada — media carga sería peor, porque
+el admin no sabría cuáles entraron:
+
+```sql
+SELECT COUNT(*) FROM boletos_rifa WHERE concursante_id = 8;   -- tiene que dar 0
+```
+
+---
+
+### 16f — El mismo perfil escrito de seis formas es UNA sola persona
+
+Cargá participaciones usando el perfil escrito distinto cada vez:
+`facebook.com/juan.perez`, `https://facebook.com/juan.perez`, `www.facebook.com/juan.perez/`,
+`FACEBOOK.COM/Juan.Perez`, con espacios al principio…
+
+Todas tienen que caer en **el mismo renglón**. Si abren renglones nuevos, la pantalla vuelve a
+las filas sueltas y el rediseño no sirvió de nada.
+
+---
+
+### 16g — Facebook e Instagram del mismo cliente son dos grupos
+
+Cargá a Juan también en Instagram. En el listado salen **dos renglones** (uno por red), cada uno
+con su total. Es la regla R2 tal cual: la clave es (plataforma + perfil).
+
+---
+
+### 16h — Quitar una participación
+
+```bash
+curl -X DELETE "$API/v1/rifas/3/boletos-agrupados/participaciones/<boletoId>" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+El `boletoId` sale del listado de 16b. Baja el `totalBoletos` en 1 y la fila desaparece de
+`boletos_rifa`.
+
+**Quitar la última no es un error:** el grupo queda con `totalBoletos: 0` y se devuelve igual.
+El cliente sigue en la rifa por sus otras redes.
+
+---
+
+### 16i — Un perfil sin ninguna URL no se guarda
+
+```bash
+curl -X POST "$API/v1/rifas/3/boletos-agrupados" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"concursanteId": 9, "plataforma": "TIKTOK", "urlPerfil": "tiktok.com/@ana", "participaciones": []}'
+```
+
+**400.** Un perfil sin participaciones es una cabecera vacía, no un boleto — la misma idea que
+el artículo vacío de la Prueba 14.
+
+---
+
+### 16j — Los boletos viejos siguen funcionando
+
+Esto es lo que verifica que **no se migró nada** (decisión D1). Una rifa con boletos cargados
+**antes** de este cambio:
+
+1. `GET /v1/rifas/{id}/boletos-agrupados` los muestra agrupados igual (ya eran una fila por
+   participación, así que entran solos).
+2. La pantalla vieja (`/v1/boletoRifa/...`) los sigue mostrando como siempre.
+3. **Girar la rifa da el mismo resultado que antes**: el sorteo no se tocó.
+
+---
+
+### 16k — Los permisos
+
+| Quién | Qué pasa |
+|---|---|
+| Sin la migración corrida | **403** en los tres endpoints de escritura, admin incluido |
+| Rol con Ver en `rifas/boletos` pero sin las acciones | ve el listado (`GET`), **403** al cargar o quitar |
+| `ROLE_ADMIN` después de la migración **y de volver a entrar** | los tres funcionan |
+
+Que estén dadas de alta:
+
+```sql
+SELECT a.clave, a.etiqueta, GROUP_CONCAT(r.nombre_rol) AS roles
+FROM accion_submenu a
+JOIN submenu s ON s.id = a.submenu_id
+LEFT JOIN rol_accion ra ON ra.accion_submenu_id = a.id
+LEFT JOIN roles r ON r.id = ra.rol_id
+WHERE s.ruta = 'rifas/boletos'
+  AND a.clave IN ('cargar-boletos-agrupado', 'agregar-participacion', 'quitar-participacion')
+GROUP BY a.id, a.clave, a.etiqueta;
+```
+
+**3 filas, todas con `ROLE_ADMIN`.** Si sale 0, revisá que la ruta del submenú sea de verdad
+`rifas/boletos` — un `INSERT ... SELECT` sobre una ruta que no existe inserta 0 filas **sin
+marcar error**.
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -916,6 +1156,18 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P14d2** Una con categoría propia → conserva la suya
 - [ ] **P15a** Admin → la card trae `precio` y `precioRebaja`
 - [ ] **P15b** 🔒 Cliente → `precioRebaja` NO viaja
+- [ ] **P16a** 🔴 3 participaciones → **3 filas** en `boletos_rifa`, no 1 (nadie pierde chances)
+- [ ] **P16b** El listado sale agrupado: 1 renglón por perfil, no 3
+- [ ] **P16b2** El grupo recién cargado sale **arriba**, no al final de la lista
+- [ ] **P16c** Sumar participación sin recargar nombre ni perfil
+- [ ] **P16d** URL repetida → **409**, y con `REPETIDA_PERMITIDA` → 200
+- [ ] **P16e** Dos URLs iguales en el mismo alta → 409 y **no quedó ninguna** cargada
+- [ ] **P16f** El perfil escrito de 6 formas cae en **un solo** renglón
+- [ ] **P16g** Facebook e Instagram del mismo cliente → 2 renglones
+- [ ] **P16h** Quitar la última participación → grupo vacío, sin error
+- [ ] **P16i** Perfil sin ninguna URL → 400
+- [ ] **P16j** 🔴 Rifa vieja: se ve igual y **girar da el mismo resultado que antes**
+- [ ] **P16k** 3 permisos de rifa dados de alta y funcionando
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -937,6 +1189,7 @@ Para que no lo busques en estas pruebas:
 | ~~Búsqueda por código exacto primero~~ | ✅ **hecho** — Prueba 10 |
 | ~~`mis-pedidos` con código, nombre y foto~~ | ✅ **hecho** — Prueba 11 |
 | Buscador blanco en modo día | P4 — front |
+| Rifa: colapsar concursantes y cargar por participación | back ✅ hecho (Prueba 16) — falta el front |
 | Renombrar `variante` → `artículo` | P4 |
 
 **Y lo más importante:** este fix corrige la *lógica*, pero **no arregla los datos que ya
@@ -964,7 +1217,7 @@ El commit de documentación (`hexagonal/`) **no se promueve** — se queda en `d
 # 📜 Scripts que hay que ejecutar — en este orden
 
 Ninguno de estos corre solo. **Sin ellos los botones nuevos responden 403 a todo el mundo**, así
-que van antes de empezar a probar. Los tres son idempotentes (`NOT EXISTS` en cada INSERT):
+que van antes de empezar a probar. Los cuatro son idempotentes (`NOT EXISTS` en cada INSERT):
 volver a correrlos no duplica nada.
 
 Todos viven en `src/main/resources/static/`.
@@ -974,6 +1227,7 @@ Todos viven en `src/main/resources/static/`.
 | 1 | `migration_accion_tienda_eliminar.sql` | acción `eliminar` en `tienda/buscar` | pendiente de antes (ver el registro en `CLAUDE.md`) |
 | 2 | `migration_accion_pedido_cambiar_tipo.sql` | `cambiar-tipo` | no se puede cambiar la forma de cobro (Prueba 12) |
 | 3 | `migration_accion_pedido_articulos.sql` | `agregar-articulo`, `cambiar-articulo`, `quitar-promocion` | no se pueden editar los artículos (Prueba 13) |
+| 4 | `migration_accion_rifa_boletos_agrupados.sql` | `cargar-boletos-agrupado`, `agregar-participacion`, `quitar-participacion` | no se pueden cargar boletos agrupados (Prueba 16) |
 
 ### En QA (cubre dev y qa — las dos apuntan a la misma base)
 
@@ -982,6 +1236,7 @@ cd <raíz del repo>
 mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_tienda_eliminar.sql
 mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_cambiar_tipo.sql
 mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_articulos.sql
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_rifa_boletos_agrupados.sql
 ```
 
 ### En producción — solo cuando QA apruebe
@@ -991,9 +1246,10 @@ Misma lista, cambiando la base a `inventario_key` (sin sufijo):
 ```bash
 mysql -h <HOST> -u <USER> -p inventario_key < src/main/resources/static/migration_accion_pedido_cambiar_tipo.sql
 mysql -h <HOST> -u <USER> -p inventario_key < src/main/resources/static/migration_accion_pedido_articulos.sql
+mysql -h <HOST> -u <USER> -p inventario_key < src/main/resources/static/migration_accion_rifa_boletos_agrupados.sql
 ```
 
-### Verificación — las 4 acciones nuevas juntas
+### Verificación — las 7 acciones nuevas juntas
 
 ```sql
 SELECT a.clave, a.etiqueta, a.categoria, a.orden,
@@ -1002,13 +1258,15 @@ FROM accion_submenu a
 JOIN submenu s     ON s.id = a.submenu_id
 LEFT JOIN rol_accion ra ON ra.accion_submenu_id = a.id
 LEFT JOIN roles r       ON r.id = ra.rol_id
-WHERE s.ruta = 'pedidos/mis-pedidos'
-  AND a.clave IN ('cambiar-tipo', 'agregar-articulo', 'cambiar-articulo', 'quitar-promocion')
+WHERE (s.ruta = 'pedidos/mis-pedidos'
+       AND a.clave IN ('cambiar-tipo', 'agregar-articulo', 'cambiar-articulo', 'quitar-promocion'))
+   OR (s.ruta = 'rifas/boletos'
+       AND a.clave IN ('cargar-boletos-agrupado', 'agregar-participacion', 'quitar-participacion'))
 GROUP BY a.id, a.clave, a.etiqueta, a.categoria, a.orden
-ORDER BY a.orden;
+ORDER BY s.ruta, a.orden;
 ```
 
-Tienen que salir **4 filas**, todas con `ROLE_ADMIN`. Si alguna sale con
+Tienen que salir **7 filas** (4 de pedidos + 3 de rifas), todas con `ROLE_ADMIN`. Si alguna sale con
 `roles_que_la_tienen = NULL`, la acción existe pero nadie la tiene: el botón no le aparece ni al
 admin.
 

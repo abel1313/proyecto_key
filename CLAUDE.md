@@ -501,10 +501,12 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_accion_tienda_eliminar.sql` | ⬜ **PENDIENTE** — corre en DB `inventario_key_qa` (cubre dev+qa) | ⬜ pendiente | 2026-09-17 (merge hecho) |
 | `migration_accion_pedido_cambiar_tipo.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ pendiente | 2026-09-22 (creada) |
 | `migration_accion_pedido_articulos.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ pendiente | 2026-09-22 (creada) |
+| `migration_accion_rifa_boletos_agrupados.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ pendiente | 2026-09-22 (creada) |
 
-**Las dos de 2026-09-22** dan de alta los permisos de los botones nuevos del detalle de pedido
-(`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`). Sin correrlas, esos
-endpoints responden **403 a todo el mundo, incluido el admin**. La lista completa con los comandos
+**Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
+pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
+boletos de rifa agrupados (`cargar-boletos-agrupado`/`agregar-participacion`/`quitar-participacion`).
+Sin correrlas, esos endpoints responden **403 a todo el mundo, incluido el admin**. La lista completa con los comandos
 y la consulta de verificación está al final de `PRUEBAS_QA_STOCK.md`, sección
 **"Scripts que hay que ejecutar"**.
 
