@@ -34,6 +34,7 @@ import com.ventas.key.mis.productos.repository.IPromocionRepository;
 import com.ventas.key.mis.productos.repository.IRamoPedidoDetalleRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
@@ -55,6 +56,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -86,6 +88,18 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
+    @Autowired private IVarianteImagenRepository iVarianteImagenRepository;
+
+    // Base del micro de imagenes, para armar la url de la miniatura de cada linea del pedido.
+    @org.springframework.beans.factory.annotation.Value("${api.imagenes}")
+    private String endpointImagenes;
+
+    @jakarta.annotation.PostConstruct
+    public void normalizarEndpointImagenes() {
+        if (endpointImagenes != null && !endpointImagenes.endsWith("/")) {
+            endpointImagenes = endpointImagenes + "/";
+        }
+    }
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private EmailService emailService;
@@ -746,6 +760,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         .orElse(null)
                 : null;
 
+        // Una sola consulta para las fotos de todas las lineas, en vez de una por renglon: un
+        // pedido de diez articulos haria diez viajes a la base solo para las miniaturas.
+        Map<Integer, Long> imagenPorVariante = resolverImagenesDe(pedido);
+
         List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
             DetalleItemResponse item = new DetalleItemResponse();
             item.setId(dp.getId());
@@ -755,6 +773,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             if (dp.getProducto() != null) {
                 item.setProductoId(dp.getProducto().getId());
                 item.setProductoNombre(dp.getProducto().getNombre());
+                if (dp.getProducto().getCodigoBarras() != null) {
+                    item.setCodigoBarras(dp.getProducto().getCodigoBarras().getCodigoBarras());
+                }
             }
             if (dp.getVariante() != null) {
                 item.setVarianteId(dp.getVariante().getId());
@@ -762,6 +783,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 item.setColor(dp.getVariante().getColor());
                 item.setDescripcion(dp.getVariante().getDescripcion());
                 item.setEsLineaInterna(varianteIdPapel != null && varianteIdPapel.equals(dp.getVariante().getId()));
+
+                Long imagenId = imagenPorVariante.get(dp.getVariante().getId());
+                if (imagenId != null) {
+                    item.setImagenId(imagenId);
+                    item.setUrlImagen(endpointImagenes + "v1/imagenes/thumbnail/" + imagenId);
+                }
             }
             if (dp.getPromocion() != null) {
                 item.setPromocionId(dp.getPromocion().getId());
@@ -772,6 +799,36 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         resp.setDetalles(detalles);
         return resp;
+    }
+
+    /**
+     * Foto de cada variante del pedido, en una sola consulta.
+     *
+     * <p>Se queda con la primera que devuelve la consulta, que ya viene ordenada con la principal
+     * adelante. Las variantes sin foto simplemente no entran al mapa.
+     *
+     * <p>Best effort: si el listado de imagenes falla, el pedido se muestra igual sin fotos. Un
+     * cliente que no puede ver su pedido porque el micro de imagenes esta caido seria peor que
+     * uno que lo ve sin miniaturas.
+     */
+    private Map<Integer, Long> resolverImagenesDe(Pedido pedido) {
+        List<Integer> varianteIds = pedido.getDetalles().stream()
+                .map(dp -> dp.getVariante() != null ? dp.getVariante().getId() : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (varianteIds.isEmpty()) return Map.of();
+
+        try {
+            Map<Integer, Long> porVariante = new LinkedHashMap<>();
+            for (Object[] fila : iVarianteImagenRepository.findVarianteIdConImagenIdIn(varianteIds)) {
+                porVariante.putIfAbsent((Integer) fila[0], (Long) fila[1]);
+            }
+            return porVariante;
+        } catch (RuntimeException e) {
+            log.warn("No se pudieron resolver las imagenes del pedido {}: {}", pedido.getId(), e.getMessage());
+            return Map.of();
+        }
     }
 
     // Edicion de solo los datos de entrega (quien recibe, direccion, fecha de entrega,

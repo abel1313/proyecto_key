@@ -377,6 +377,81 @@ curl "https://<host-qa>/mis-productos/v1/stock/producto/1"    # sin token
 
 ---
 
+# PRUEBA 10 — Buscar por código de barras 🔍
+
+### Tu caso: `H1336` buscando `1336`
+
+El `LIKE '%1336%'` **sí** encontraba el `H1336`. El problema era que salía mezclado entre
+todas las filas que contienen ese texto, sin orden, y podía caer en la página 2 — por eso
+parecía que no existía.
+
+### Pasos
+1. **tienda/update** (o **tienda/venta**, o **productos/buscar**)
+2. Buscá el **código completo**: `H1336`
+3. Buscá solo el **pedazo**: `1336`
+
+### Resultado esperado
+
+| Búsqueda | Qué tiene que salir |
+|---|---|
+| `H1336` (completo) | **primero de la lista** |
+| `1336` (pedazo) | entre los primeros — antes que los que apenas contienen "1336" |
+
+El orden es: código exacto → nombre exacto → los que **empiezan** con el término → los que
+solo lo contienen.
+
+### Y que el buscador vacío no cambió
+Vaciá el buscador: debe volver a traer todo en el orden de siempre (por id, más nuevo
+primero).
+
+---
+
+# PRUEBA 11 — Mis pedidos con código, nombre y foto 🖼️
+
+### Pasos
+1. Entrá como **cliente** (no admin)
+2. **pedidos/mis-pedidos**
+3. Abrí el detalle de un pedido
+
+### Resultado esperado
+
+Cada renglón trae ahora, además de lo que ya traía:
+- **código de barras** del producto
+- **miniatura** de la foto
+
+Verificá el response con las DevTools (pestaña Red):
+```json
+{
+  "productoNombre": "Great Jeans",
+  "codigoBarras": "H1336",
+  "imagenId": 4904627400389007798,
+  "urlImagen": ".../v1/imagenes/thumbnail/4904627400389007798",
+  "talla": "M", "color": "Azul", "cantidad": 2
+}
+```
+
+### Tres cosas a mirar
+
+**① Es miniatura, no la foto completa.** La url dice `/thumbnail/`, no `/file/`. En un
+pedido de 10 artículos la diferencia son megas de datos móviles del cliente.
+
+**② Un producto sin foto no rompe nada.** Buscá un pedido con un artículo sin imagen: el
+renglón sale igual, solo sin los campos `imagenId` y `urlImagen`.
+
+**③ Si el micro de imágenes está caído, el pedido se ve igual** (sin fotos). Se puede
+forzar:
+```bash
+kubectl scale deployment imagenes-deployment -n qa --replicas=0
+# abrir mis-pedidos: tiene que cargar, sin miniaturas
+kubectl scale deployment imagenes-deployment -n qa --replicas=1
+```
+
+### Si el admin marcó una imagen como principal
+Esa es la que tiene que salir, no una cualquiera.
+
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -413,6 +488,10 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P9a2** Dar de baja una variante → sube el disponible
 - [ ] **P9b** Reporte de descuadres lista los productos rotos
 - [ ] **P9c** Sin token → 401/403
+- [ ] **P10** Código completo → primer resultado
+- [ ] **P10b** Buscador vacío → trae todo como antes
+- [ ] **P11** Mis pedidos muestra código y miniatura
+- [ ] **P11b** Artículo sin foto → el renglón sale igual
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -426,9 +505,9 @@ Para que no lo busques en estas pruebas:
 | Campo "stock disponible" **en pantalla** | back ✅ hecho (Prueba 9) — falta el front |
 | ~~Precios validados en el back~~ | ✅ **hecho** — ver Prueba 7 |
 | ~~Promociones con apartado y tarjeta~~ | ✅ **hecho** — ver Prueba 8 |
-| Búsqueda por código exacto primero | P3 |
+| ~~Búsqueda por código exacto primero~~ | ✅ **hecho** — Prueba 10 |
 | Contador de tallas que dice 3 con 2 | P3 — front |
-| `mis-pedidos` con código, nombre y foto | P3 |
+| ~~`mis-pedidos` con código, nombre y foto~~ | ✅ **hecho** — Prueba 11 |
 | Buscador blanco en modo día | P4 — front |
 | Renombrar `variante` → `artículo` | P4 |
 
