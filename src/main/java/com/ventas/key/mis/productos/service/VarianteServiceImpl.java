@@ -661,12 +661,35 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                     .map(VarianteDetalle::getId)
                     .collect(Collectors.toSet());
 
+            // Solo las variantes HABILITADAS retienen stock. Una dada de baja ya no existe para
+            // el negocio y su stock vuelve a estar disponible -- antes se sumaban todas, asi que
+            // dar de baja una variante no liberaba nada y el disponible bajaba para siempre. En
+            // produccion eso dejaba productos en "Disponible: 0" con variantes muertas reteniendo
+            // todo, y la unica salida era inflar el stock del producto a mano (2026-09-22).
             int stockYaAsignado = iVarianteRepository.findByProductoId(productoId).stream()
+                    .filter(v -> v.getHabilitado() == '1')
                     .filter(v -> !idsActualizando.contains(v.getId()))
                     .mapToInt(Variantes::getStock)
                     .sum();
 
-            int stockSolicitado = variantesRequest.stream().mapToInt(VarianteDetalle::getStock).sum();
+            Map<Integer, Integer> stockActualPorVariante = idsActualizando.isEmpty()
+                    ? Map.of()
+                    : iVarianteRepository.findAllById(idsActualizando).stream()
+                            .collect(Collectors.toMap(Variantes::getId, Variantes::getStock));
+
+            // Lo que hay que pedirle al producto es el AUMENTO, no el total. Una variante que ya
+            // tenia 3 y sigue con 3 no consume nada nuevo: antes se sumaba su total, asi que
+            // renombrar una variante fallaba por falta de stock aunque el stock no cambiara.
+            int stockSolicitado = variantesRequest.stream()
+                    .mapToInt(v -> v.getId() == null
+                            ? v.getStock()
+                            : v.getStock() - stockActualPorVariante.getOrDefault(v.getId(), 0))
+                    .sum();
+
+            if (stockSolicitado <= 0) {
+                continue;   // no pide nada nuevo (o libera): no hay nada que validar
+            }
+
             int stockDisponible = producto.getStock() - stockYaAsignado;
 
             if (stockSolicitado > stockDisponible) {
@@ -692,7 +715,16 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         if (diff != 0) {
             Producto producto = iProductosRepository.findById(detalle.getProductoId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + detalle.getProductoId()));
-            producto.setStock(producto.getStock() + diff);
+            int nuevoStockProducto = producto.getStock() + diff;
+            // El stock de un producto no puede quedar negativo: no existe media docena negativa
+            // en bodega. Sin este guard se llego a productos en -7 (id 328 en produccion), y
+            // cualquier validacion posterior se comporta raro contra un numero asi.
+            if (nuevoStockProducto < 0) {
+                throw new ExceptionDataNotFound(
+                        String.format("El stock del producto '%s' quedaria en %d. Revisa el stock del producto antes de este cambio.",
+                                producto.getNombre(), nuevoStockProducto));
+            }
+            producto.setStock(nuevoStockProducto);
             iProductosRepository.save(producto);
         }
         return actual.getStock() == 0 && detalle.getStock() > 0;
