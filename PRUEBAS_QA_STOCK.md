@@ -301,6 +301,82 @@ nadie revalida la promoción.
 
 ---
 
+# PRUEBA 9 — Stock disponible y reporte de descuadres 📊
+
+Dos endpoints nuevos. El front todavía no los consume (ese repo no está en la sesión), así
+que por ahora se prueban con curl — pero el reporte de descuadres **te sirve ya**.
+
+## 9a — Cuánto queda libre
+
+```bash
+curl -H "Authorization: Bearer <token>" \
+  "https://<host-qa>/mis-productos/v1/stock/producto/<PRODUCTO_ID>"
+```
+
+Respuesta:
+```json
+{
+  "productoId": 279, "nombreProducto": "Great Jeans",
+  "stockTotal": 10, "enVariantes": 4, "variantesActivas": 2,
+  "enVariantesDeBaja": 0, "disponible": 6, "descuadrado": false,
+  "mensaje": "10 en total, 4 repartidos en 2 modelos, quedan 6 disponibles."
+}
+```
+
+### Contrastá contra la base
+```sql
+SELECT p.stock AS total,
+       COALESCE(SUM(CASE WHEN v.habilitado = '1' THEN v.stock ELSE 0 END),0) AS en_variantes,
+       COALESCE(SUM(CASE WHEN v.habilitado <> '1' THEN v.stock ELSE 0 END),0) AS en_de_baja
+FROM producto p LEFT JOIN variantes v ON v.producto_id = p.id
+WHERE p.id = <PRODUCTO_ID> GROUP BY p.stock;
+```
+Tienen que coincidir. Y `disponible` = `total − en_variantes` (el de las dadas de baja **no**
+descuenta).
+
+### La prueba que más importa
+1. Anotá el `disponible` de un producto
+2. **Dale de baja** a una variante con stock
+3. Volvé a pedir el endpoint
+
+✅ El `disponible` tiene que haber **subido** por el stock de esa variante, y el número
+aparece ahora en `enVariantesDeBaja`.
+
+## 9b — Reporte de descuadres 🔍 el que te sirve ya
+
+```bash
+curl -H "Authorization: Bearer <token>" \
+  "https://<host-qa>/mis-productos/v1/stock/admin/descuadrados"
+```
+
+Lista los productos donde **las variantes piden más stock del que el producto declara**.
+Cada uno trae el mensaje explicando el problema:
+
+```json
+[{ "productoId": 269, "nombreProducto": "Jeans Short Especal",
+   "stockTotal": 12, "enVariantes": 18, "disponible": -6, "descuadrado": true,
+   "mensaje": "Este producto esta descuadrado: tiene 12 en total pero sus 6 modelos suman 18." }]
+```
+
+**Para qué sirve:** es la lista que hay que resolver antes de migrar al modelo de stock que
+elegiste. Por cada producto de esa lista hay que decidir cuál número es el verdadero:
+- ¿manda el stock del producto? → hay que recortar variantes
+- ¿mandan las variantes? → hay que subir el producto
+- ¿ninguno? → recuento físico
+
+Esa decisión es de negocio, no se puede automatizar. **Corré esto en producción también**
+(el endpoint es de solo lectura, no modifica nada) para ver el tamaño real del problema.
+
+## 9c — Que no sea público ✋
+
+```bash
+curl "https://<host-qa>/mis-productos/v1/stock/producto/1"    # sin token
+```
+❌ Debe dar **401/403**. Expone el inventario del negocio, no es dato de cliente.
+
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -333,6 +409,10 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P7b** Precio unitario falsificado → rechazado
 - [ ] **P8** Apartar una promoción → se crea (efectivo y tarjeta)
 - [ ] **P8b** Fiar una promoción → rechazado
+- [ ] **P9a** `/v1/stock/producto/{id}` coincide con la base
+- [ ] **P9a2** Dar de baja una variante → sube el disponible
+- [ ] **P9b** Reporte de descuadres lista los productos rotos
+- [ ] **P9c** Sin token → 401/403
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -343,7 +423,7 @@ Para que no lo busques en estas pruebas:
 
 | Pendiente | Prioridad |
 |---|---|
-| Campo "stock disponible" en pantalla | P2 — **necesita el repo del front**, que no está en la sesión actual |
+| Campo "stock disponible" **en pantalla** | back ✅ hecho (Prueba 9) — falta el front |
 | ~~Precios validados en el back~~ | ✅ **hecho** — ver Prueba 7 |
 | ~~Promociones con apartado y tarjeta~~ | ✅ **hecho** — ver Prueba 8 |
 | Búsqueda por código exacto primero | P3 |
