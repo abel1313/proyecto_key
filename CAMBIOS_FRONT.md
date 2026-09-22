@@ -20753,3 +20753,74 @@ El fix aplica de aquí en adelante. Para los que ya están cargados hay un backf
 `src/main/resources/static/backfill_variantes_carga_rapida.sql` — copia del producto a la variante
 solo las columnas que estén vacías, **no toca stock**, y trae consultas de diagnóstico antes y de
 verificación después. Está anotado como PENDIENTE en el registro de migraciones de `CLAUDE.md`.
+
+---
+
+## 📦 Stock de artículos: el stock base del producto es el techo y ya no se infla (2026-09-22)
+
+**Estado:** en `dev` y `qa`. **No está en prod.** (El 2026-09-22 a las 19:58 un commit del front con
+esta pantalla se subió directo a `master` por error y se revirtió el mismo día: en prod no quedó.)
+
+No cambia ninguna URL ni el formato de request/response. Cambian los números que devuelve el back
+y cuándo responde 400.
+
+### La regla
+
+- `producto.stock` es el **stock base**: el total físico. Solo se mueve desde la **pantalla del
+  producto** (llegó mercancía) o al vender.
+- Los artículos **reparten** ese total: `suma(stock de artículos habilitados) ≤ stock base`.
+- **Disponible** = `stock base − suma(stock de artículos HABILITADOS)`. Es el número de
+  `GET /v1/stock/producto/{productoId}` → `disponible`.
+- A un artículo se le puede **sumar como máximo el disponible**. Su propio stock actual ya está
+  repartido: no cuenta como libre.
+
+Ejemplo: base 10, artículo A con 2 → disponible 8. A se edita a 5 → base sigue **10**, disponible
+**5**. A se da de baja → base sigue **10**, A queda en **0**, disponible **10**.
+
+### Bug 1 que se corrige — editar un artículo inflaba el stock base
+
+- **Antes:** subirle stock a un artículo le sumaba lo mismo al producto. Base 2 con todos los
+  artículos agotados: sumarle 2 a uno dejaba el producto en **4** y el disponible seguía en 2, así
+  que se podía volver a repartir stock que no existía.
+- **Ahora:** editar un artículo no toca `producto.stock`. Si una pantalla mostraba el stock del
+  producto después de guardar un artículo, ese número ya no crece solo.
+
+### Bug 2 que se corrige — el stock propio del artículo contaba como libre
+
+- **Antes:** base 10 con A=5 y B=5 (todo repartido): subir A a 7 **pasaba**, y quedaban 12 repartidos
+  sobre un base de 10. La inflación del bug 1 lo tapaba, porque subía el base a 12.
+- **Ahora:** responde **400** `Stock insuficiente para el producto '<nombre>' (id=<id>). Disponible: 0, Solicitado: 2`.
+
+`Solicitado` es **lo que se le suma** al artículo (el aumento), no su total. Bajarle stock a un
+artículo, o guardarlo sin cambiar el stock (renombrarlo, cambiarle el color), nunca falla por stock,
+aunque el modelo esté descuadrado.
+
+### Deshabilitar y dar de baja
+
+`PUT /v1/variantes/{id}/habilitar?habilitar=false`, `PUT /v1/variantes/admin/habilitar-lote` con
+`habilitar: false` y `DELETE /v1/variantes/deleteBy/{id}`:
+
+- **Antes:** el artículo quedaba en `habilitado = 0` conservando su stock.
+- **Ahora:** queda en `habilitado = 0` **y `stock = 0`**. Ese stock vuelve al disponible y el base
+  del producto no cambia.
+
+**Al habilitar de nuevo, el artículo entra con stock 0**: no recupera el viejo. Hay que asignárselo
+editándolo, y si el producto ya no tiene disponible, primero subirle el base al producto. Con stock 0
+no aparece en la tienda (el catálogo pide `stock > 0`).
+
+### Pantallas del front (en `dev`/`qa`)
+
+- **Alta de artículos:** `Quedan X disponibles de Y`, y aviso en rojo si lo que se reparte pasa de lo
+  disponible. No bloquea el guardado: el back valida.
+- **tienda/update (editar artículo):** el mismo `Quedan X disponibles de Y`, más `Este artículo tiene N
+  y va a quedar en M`, y aviso si lo que se le suma pasa de lo disponible. No bloquea el guardado.
+- Si la consulta del disponible falla, las dos pantallas lo dicen en vez de esconder el indicador.
+- **tienda/buscar:** al deshabilitar, el artículo se ve en 0 de inmediato. Al habilitar uno con stock
+  0 (individual o en lote) aparece un aviso con la opción de habilitarlo igual.
+- **Error al guardar un artículo:** si el back no manda motivo (sin respuesta, caída, error que no es
+  JSON), se muestra el código HTTP y se pide revisar si el cambio sí se guardó antes de reintentar.
+
+### Pendiente anotado (no implementado)
+
+No hay forma de registrar una **merma** (mercancía perdida o dañada) con su motivo. Hoy se resta a mano
+del stock base en la pantalla del producto.

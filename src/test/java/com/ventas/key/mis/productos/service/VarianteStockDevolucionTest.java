@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -164,5 +167,70 @@ class VarianteStockDevolucionTest {
 
         assertEquals(10, producto.getStock(), "editar el stock de una variante no crea stock nuevo en el producto");
         verify(iProductosRepository, never()).save(any());
+    }
+
+    private VarianteDetalle edicion(int varianteId, int stockNuevo) {
+        VarianteDetalle d = new VarianteDetalle();
+        d.setId(varianteId);
+        d.setProductoId(100);
+        d.setStock(stockNuevo);
+        return d;
+    }
+
+    /** Caso reportado en QA: base 2 y todos los articulos agotados -> se le pueden sumar 2 a uno. */
+    @Test
+    void guardarConImagenes_sumarLoDisponibleAUnArticuloAgotado_pasaYNoTocaElBase() throws Exception {
+        Producto producto = producto(100, 2);
+        Variantes a = variante(1, producto, 0, '1');
+        Variantes b = variante(2, producto, 0, '1');
+
+        when(iProductosRepository.findById(100)).thenReturn(Optional.of(producto));
+        when(iVarianteRepository.findByProductoId(100)).thenReturn(List.of(a, b));
+        when(iVarianteRepository.findAllById(any())).thenReturn(List.of(a));
+        when(iVarianteRepository.findById(1)).thenReturn(Optional.of(a));
+        when(iProductosRepository.getReferenceById(100)).thenReturn(producto);
+        when(iVarianteRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.guardarConImagenes(List.of(edicion(1, 2)));
+
+        assertEquals(2, producto.getStock(), "el base no sube: antes quedaba en 4");
+        verify(iProductosRepository, never()).save(any());
+    }
+
+    /** El stock que ya tiene el articulo editado no cuenta como libre: base 10, A=5, B=5 -> A a 7 no cabe. */
+    @Test
+    void guardarConImagenes_elStockPropioNoCuentaComoDisponible() {
+        Producto producto = producto(100, 10);
+        Variantes a = variante(1, producto, 5, '1');
+        Variantes b = variante(2, producto, 5, '1');
+
+        when(iProductosRepository.findById(100)).thenReturn(Optional.of(producto));
+        when(iVarianteRepository.findByProductoId(100)).thenReturn(List.of(a, b));
+        when(iVarianteRepository.findAllById(any())).thenReturn(List.of(a));
+
+        ExceptionDataNotFound e = assertThrows(ExceptionDataNotFound.class,
+                () -> service.guardarConImagenes(List.of(edicion(1, 7))));
+
+        assertTrue(e.getMessage().contains("Disponible: 0, Solicitado: 2"), e.getMessage());
+        verify(iVarianteRepository, never()).save(any());
+    }
+
+    /** Sin aumento no hay nada que validar: renombrar un articulo de un modelo descuadrado sigue pasando. */
+    @Test
+    void guardarConImagenes_sinAumento_pasaAunqueElModeloEsteDescuadrado() throws Exception {
+        Producto producto = producto(100, 12);
+        Variantes a = variante(1, producto, 10, '1');
+        Variantes b = variante(2, producto, 8, '1');
+
+        when(iProductosRepository.findById(100)).thenReturn(Optional.of(producto));
+        when(iVarianteRepository.findByProductoId(100)).thenReturn(List.of(a, b));
+        when(iVarianteRepository.findAllById(any())).thenReturn(List.of(a));
+        when(iVarianteRepository.findById(1)).thenReturn(Optional.of(a));
+        when(iProductosRepository.getReferenceById(100)).thenReturn(producto);
+        when(iVarianteRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.guardarConImagenes(List.of(edicion(1, 10)));
+
+        assertEquals(12, producto.getStock());
     }
 }

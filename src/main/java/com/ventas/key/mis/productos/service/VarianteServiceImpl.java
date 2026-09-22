@@ -679,9 +679,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             // dar de baja una variante no liberaba nada y el disponible bajaba para siempre. En
             // produccion eso dejaba productos en "Disponible: 0" con variantes muertas reteniendo
             // todo, y la unica salida era inflar el stock del producto a mano (2026-09-22).
+            // Incluye a las que se estan editando, con su stock ACTUAL: lo que se valida abajo es el
+            // aumento, y el aumento solo puede salir de lo que nadie tiene asignado. Excluirlas
+            // contaba su stock actual como libre y dejaba pasar base 10 con A=5 y B=5 -> A a 7.
             int stockYaAsignado = iVarianteRepository.findByProductoId(productoId).stream()
                     .filter(v -> v.getHabilitado() == '1')
-                    .filter(v -> !idsActualizando.contains(v.getId()))
                     .mapToInt(Variantes::getStock)
                     .sum();
 
