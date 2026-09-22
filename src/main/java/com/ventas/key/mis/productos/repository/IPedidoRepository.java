@@ -194,15 +194,22 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     """, nativeQuery = true)
     Page<String> pediodPorId(@Param("idPedido") int idPedido,@Param("idCliente") int idCliente, Pageable pegable);
 
+    // El COALESCE pone al cliente SIN REGISTRO primero. Una venta de mostrador guarda dos
+    // clientes en el pedido: cliente_id con la cuenta del admin que atendio (el pedido necesita
+    // una) y cliente_sin_registro_id con la persona real que compro. Con el orden al reves, el
+    // nombre del admin nunca era null y ganaba siempre: la card mostraba al admin como
+    // comprador de todas las ventas de mostrador (2026-09-22). nombre_receptor entra como
+    // ultimo recurso antes de caer en la cuenta del admin, para los pedidos viejos que se
+    // cargaron sin cliente sin registro.
     @Query(value = """
     SELECT
       JSON_OBJECT(
         'cliente', JSON_OBJECT(
-          'id',                COALESCE(c.id, csr.id),
-          'nombreCliente',     COALESCE(c.nombre_persona, csr.nombre_persona),
-          'correoElectronico', COALESCE(c.correo_electronico, csr.correo_electronico),
-          'numeroTelefonico',  COALESCE(c.numero_telefonico, csr.numero_telefonico),
-          'sinRegistro',       c.id IS NULL
+          'id',                COALESCE(csr.id, c.id),
+          'nombreCliente',     COALESCE(csr.nombre_persona, NULLIF(TRIM(p.nombre_receptor), ''), c.nombre_persona),
+          'correoElectronico', COALESCE(csr.correo_electronico, c.correo_electronico),
+          'numeroTelefonico',  COALESCE(csr.numero_telefonico, c.numero_telefonico),
+          'sinRegistro',       csr.id IS NOT NULL
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
@@ -254,13 +261,19 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
 
     // Elegibilidad de rifa por mes: cualquiera que haya comprado ese mes entra,
     // sin importar si tiene correo o telefono registrado.
+    //
+    // El COALESCE pone al cliente SIN REGISTRO primero, no al registrado. Una venta de
+    // mostrador guarda dos: cliente_id con la cuenta del admin que atendio (el pedido necesita
+    // una) y cliente_sin_registro_id con la persona real. Al reves, el nombre del admin nunca
+    // era null y ganaba siempre, asi que el admin entraba al sorteo por cada venta que hacia y
+    // el cliente que compro quedaba afuera (2026-09-22).
     @Query(value = """
         SELECT DISTINCT
-            COALESCE(c.id, csr.id)                                           AS clientePedidoId,
-            COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
-            COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
-            COALESCE(c.correo_electronico, csr.correo_electronico)           AS correo,
-            c.id IS NULL                                                     AS sinRegistro
+            COALESCE(csr.id, c.id)                                           AS clientePedidoId,
+            COALESCE(csr.nombre_persona, c.nombre_persona)                   AS nombre,
+            COALESCE(csr.numero_telefonico, c.numero_telefonico)             AS telefono,
+            COALESCE(csr.correo_electronico, c.correo_electronico)           AS correo,
+            csr.id IS NOT NULL                                               AS sinRegistro
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
         LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
@@ -279,11 +292,11 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
 
     @Query(value = """
         SELECT DISTINCT
-            COALESCE(c.id, csr.id)                                           AS clientePedidoId,
-            COALESCE(c.nombre_persona, csr.nombre_persona)                   AS nombre,
-            COALESCE(c.numero_telefonico, csr.numero_telefonico)             AS telefono,
-            COALESCE(c.correo_electronico, csr.correo_electronico)           AS correo,
-            c.id IS NULL                                                     AS sinRegistro
+            COALESCE(csr.id, c.id)                                           AS clientePedidoId,
+            COALESCE(csr.nombre_persona, c.nombre_persona)                   AS nombre,
+            COALESCE(csr.numero_telefonico, c.numero_telefonico)             AS telefono,
+            COALESCE(csr.correo_electronico, c.correo_electronico)           AS correo,
+            csr.id IS NOT NULL                                               AS sinRegistro
         FROM pedidos p
         LEFT  JOIN clientes c              ON c.id   = p.cliente_id
         LEFT  JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
@@ -298,11 +311,11 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     SELECT
       JSON_OBJECT(
         'cliente', JSON_OBJECT(
-          'id',                COALESCE(c.id, csr.id),
-          'nombreCliente',     COALESCE(c.nombre_persona, csr.nombre_persona),
-          'correoElectronico', COALESCE(c.correo_electronico, csr.correo_electronico),
-          'numeroTelefonico',  COALESCE(c.numero_telefonico, csr.numero_telefonico),
-          'sinRegistro',       c.id IS NULL
+          'id',                COALESCE(csr.id, c.id),
+          'nombreCliente',     COALESCE(csr.nombre_persona, NULLIF(TRIM(p.nombre_receptor), ''), c.nombre_persona),
+          'correoElectronico', COALESCE(csr.correo_electronico, c.correo_electronico),
+          'numeroTelefonico',  COALESCE(csr.numero_telefonico, c.numero_telefonico),
+          'sinRegistro',       csr.id IS NOT NULL
         ),
         'pedido', JSON_OBJECT(
           'id', p.id,
