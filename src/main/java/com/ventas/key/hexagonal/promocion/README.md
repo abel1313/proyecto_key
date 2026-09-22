@@ -70,3 +70,48 @@ Por R2 el precio queda congelado. Pero si el cliente nunca liquida y se cancela,
 Hoy `VentaServiceImpl` :195 exige que las líneas sin `promocionId` vayan a precio de
 catálogo, así que la mezcla ya está contemplada en venta. Confirmar que en pedido sea
 igual.
+
+---
+
+## Causa exacta encontrada (2026-09-22)
+
+No es que la promoción "pase directo a efectivo". **El back la rechaza explícitamente.**
+
+`PromocionServiceImpl.validarLineasPromocion()` línea 140, lo primero que hace:
+
+```java
+if (tipoPedido != null && !"NORMAL".equalsIgnoreCase(tipoPedido)) {
+    throw new RuntimeException(
+        "Las promociones solo se pueden comprar de contado, no se pueden apartar ni dar a credito");
+}
+```
+
+Cualquier `tipoPedido` que no sea `NORMAL` (o sea: APARTADO, CREDITO) revienta ahí mismo,
+antes de mirar nada más. Por eso la única salida que queda es contado.
+
+**Lo que hay que hacer** es quitar esa restricción, pero no sola: al habilitar el apartado
+hay que definir qué pasa con el stock y con la vigencia (las Dudas 1 y 2 de arriba). El
+usuario ya decidió lo del stock: **se descuenta al apartar**, y vuelve si se cancela.
+
+Nota: el código ya descuenta stock al crear el pedido, así que esa parte ya se comporta
+como se quiere. Lo que falta es el permiso, la vigencia congelada (R2) y la devolución al
+cancelar.
+
+---
+
+## Hallazgo relacionado: el subtotal no se validaba (corregido)
+
+Al revisar esta validación salió un agujero de dinero: `validarLineasPromocion` revisa
+vigencia, precio unitario y cantidad, pero **el subtotal nunca viajaba**:
+
+```java
+new LineaPromocionCheck(dp.getVariante().getId(), dp.getCantidad(), dp.getPrecioUnitario())
+//                                                  el subTotal no esta aca
+```
+
+Y como el total del pedido se arma sumando subtotales, un request con el precio unitario
+correcto y `subTotal: 1` dejaba el pedido entero en $1.
+
+**Corregido el 2026-09-22:** el subtotal ya no se lee del request, se calcula como
+`precioUnitario × cantidad` en `VentaServiceImpl` y `PedidoServiceImpl`. El precio unitario
+sigue validándose como antes.

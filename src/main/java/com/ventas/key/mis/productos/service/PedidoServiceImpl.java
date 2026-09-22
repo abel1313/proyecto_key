@@ -253,7 +253,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());
             dta.setPrecioUnitario(mpa.getPrecioUnitario());
-            dta.setSubTotal(mpa.getSubTotal());
+            // El subtotal se CALCULA, no se lee del request. El precio unitario si viene del
+            // front, pero pasa por validarPrecioCatalogo (linea sin promocion) o por
+            // validarLineasDePromocion (linea con promocion). El subtotal no lo validaba nadie:
+            // con promocionId el request podia traer el precio correcto y un subTotal de 1, y
+            // como totalPedido se arma sumando subtotales, el pedido entero quedaba en 1.
+            dta.setSubTotal(mpa.getPrecioUnitario() * mpa.getCantidad());
             dta.setPedido(pedido);
             dta.setProducto(prod);
             dta.setVariante(variante);
