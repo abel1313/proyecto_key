@@ -246,6 +246,15 @@ public class SecurityConfig {
                         // variantes embebido -- sin admin/promociones aca, ese permiso solo
                         // alcanzaba para el CRUD propio de promociones pero no para buscar la
                         // variante a promocionar.
+                        // Stock disponible: cuanto queda libre para armar modelos. Nunca publico --
+                        // expone el inventario real del negocio, que no es asunto del cliente.
+                        // El reporte de descuadres va aparte porque es diagnostico de datos rotos.
+                        .requestMatchers(HttpMethod.GET, "/v1/stock/admin/**")
+                                .hasAnyAuthority(pantalla("productos/buscar"))
+                        .requestMatchers(HttpMethod.GET, "/v1/stock/**")
+                                .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
+                                        "tienda/update"))
+
                         .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
