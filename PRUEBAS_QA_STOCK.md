@@ -115,6 +115,10 @@ Anotá: `disponible_antes = stock_producto − en_activas`
 1. En **tienda/update**, elegí una variante con stock (digamos 3)
 2. Dale **"dar de baja"**
 3. Ahora intentá **crear una variante nueva** con ese mismo stock (3)
+ya se creo correctamente, otra cosa que quiero aclarar, aqui tienda/venta, tenemos campos a llenar, 
+4. que seria buscar modelo, oner talla stock etc, pero aparte tiene, tallas numericas y por letra la duda es aqui ya corregiste la creacion, es deicr antes si llenaba los datos
+5. y despues llenaba talals 5 tallas y los datos de afuera me salia que habia llenado 6 o al reves solo llenaba las tallas y me salia de mas 1 sin que llenara los datos anteriores
+6. y otra cosa ya esta tomando las categotias del producto base?
 
 ### Resultado esperado
 ✅ La variante nueva **se crea sin error**. Antes esto fallaba porque la variante dada de
@@ -155,7 +159,7 @@ Esto **tiene que fallar**. Si pasa, el fix quedó demasiado permisivo.
 ### Pasos
 1. Mirá cuánto disponible tiene el producto (query de arriba)
 2. Intentá crear una variante con **más stock del disponible**
-
+ya quedo, no deja crear variantes con mas stock ni al agregar stock a la variante aumenta al stock base, eso ya se soluciono
 ### Resultado esperado
 ❌ Error: *"Stock insuficiente para el producto '…' (id=…). Disponible: X, Solicitado: Y"*
 
@@ -189,7 +193,7 @@ Debe dar **0**.
 Difícil de forzar a propósito, así que se prueba por ausencia de síntoma.
 
 ### Pasos
-1. Entrá a **clientes/mis-datos** (la pantalla que se te quedaba cargando)
+1. Entrá a **clientes/mis-datos** (la pantalla que se te quedaba cargando) sigue igual se queda cargando con el spiner y de ahi no pasa
 2. Navegá por pantallas que traen imágenes: **tienda/venta**, **tienda/update**,
    **productos/all**
 
@@ -283,6 +287,9 @@ primera línea de la validación. La pantalla se quedaba sin opciones.
 3. En tipo de pedido elegí **APARTADO**
 4. Elegí forma de pago: probá **efectivo** y repetí con **tarjeta**
 5. Guardar
+
+ienda/venta-directa ya veo que agregue la promocion pero solo se aceptan venta o pagar en efectivo con tarjeta trasferencia pero no por apartado? que es elq ue quedamos no?
+y en esta uri aparece una parte en blanco pero no sale ninguna letra solo una bolsa de dinero no se ve nada
 
 ### Resultado esperado
 
