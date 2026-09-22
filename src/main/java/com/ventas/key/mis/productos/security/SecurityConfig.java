@@ -498,6 +498,19 @@ public class SecurityConfig {
                         // Girar/reiniciar por ahi solo funciona mientras la rifa sea de prueba
                         // (lo valida BoletoRifaServiceImpl) -- la rifa real la mueve el admin.
                         .requestMatchers("/v1/boletoRifa/publico/**").permitAll()
+
+                        // Boletos agrupados por perfil (formato nuevo). Van ANTES del bloque de
+                        // abajo porque son acciones puntuales configurables por rol, no el
+                        // permiso general de la pantalla: cargar y quitar boletos mueve las
+                        // probabilidades del sorteo. Ver migration_accion_rifa_boletos_agrupados.sql
+                        .requestMatchers(HttpMethod.GET,    "/v1/rifas/*/boletos-agrupados")
+                                .hasAnyAuthority(pantalla("rifas/boletos"))
+                        .requestMatchers(HttpMethod.POST,   "/v1/rifas/*/boletos-agrupados")
+                                .hasAnyAuthority(accion("rifas/boletos", "cargar-boletos-agrupado"))
+                        .requestMatchers(HttpMethod.POST,   "/v1/rifas/*/boletos-agrupados/participaciones")
+                                .hasAnyAuthority(accion("rifas/boletos", "agregar-participacion"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/rifas/*/boletos-agrupados/participaciones/*")
+                                .hasAnyAuthority(accion("rifas/boletos", "quitar-participacion"))
                         .requestMatchers(HttpMethod.GET,
                                 "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
