@@ -34,11 +34,17 @@ GROUP BY p.id, p.nombre, p.stock
 HAVING en_variantes_activas > 0 OR en_variantes_de_baja > 0
 ORDER BY p.id
 LIMIT 30;
+
+hay que usar subconsultas o CTE o Windowas functionas y anotarlo para entenderlo porque estoy aprendiendo eso
+
 ```
 
 Elegí **un producto con al menos 2 variantes activas** y anotá su `id`. Lo vas a usar en
 todas las pruebas de abajo. En los pasos aparece como `<PRODUCTO_ID>`.
-
+hay que inicar a cambiar los nombres de variante a articulo en lo que se terminan de migrar todo
+ID 266
+CODIGO SU2287
+SU2287
 ---
 
 # PRUEBA 1 — Cambiar el nombre sin tocar el stock 🔴 la más importante
@@ -52,6 +58,29 @@ Es el caso exacto que te bloqueó en producción.
 4. Cambiale **solo el nombre / la descripción**. No toques el campo de stock.
 5. Guardar
 
+TE DOY ESTE EJEMPLO
+$250.00
+10 unidades
+Nombre
+Jeans Short Brillo
+Código
+SU2287
+Marca
+sin marca
+Descripción
+Bolsa
+antes solo habia 2 stock
+productos/buscar
+pero en articulos o antes variantes tenia varias variantes pero des habilitades, entonces cuando agrego stock a 1 variante, se supone que tenia solo 2 en stock del producto
+pero agregue las 2 stock y parece que esta aumentado el stock del producto base, cuando no es asi, lo que deberia hacer es primero
+Hay 2 stock en producto base, lo que en articulo ahorita variantes es quiero dar de alta o agregar una variante o agregar stock, primeor voy a validar
+a producto base y valido cuantos stock hay en este caso hay 2 stock y quiero agregar 1 stock en la variante si se puede hacaer
+se agrega 1 stock o se agrega o actualiza la info correspondiente y si quiere agregar una nueva variante que va a hacer es agregar ;la variante con el stock que no pase de 2 en este caso
+o si ya hubiera una variable con 1 stock el disponible solo es 1 stock, y por ejemplo si doy de baja 1 variante entonces si regresa en automatico al productop base
+pero si solo las des habilito depende de como lo ahiga echo si solo lo des habilite y en producto base solo hay 1 pero si quisiera agregar una variante nueva
+y solo hay 1 base entonces va ay busca primero hay variabes des habilitades y ademas si hay stock entoncews si se puede crear la variante,
+actualmente lo que esta haciendo es creo una variante y al stock del producto base se le agrega esa variante y si voy a editar esa variable sigue igua;l
+actualize el stock y si se actualizo el stock y eso esta mas
 ### Resultado esperado
 ✅ **Guarda sin error.**
 
