@@ -202,7 +202,13 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             iRepository.save(prod);
 
             double precioCosto = prod.getPrecioCosto();
-            double subTotal    = item.getSubTotal();
+            // El subtotal se CALCULA, no se lee del request. El precio unitario si viene del
+            // front, pero pasa por validarPrecioCatalogo (linea sin promocion) o por
+            // validarLineasDePromocion (linea con promocion) antes de que la transaccion
+            // confirme. El subtotal, en cambio, no lo validaba nadie: con promocionId el
+            // request podia traer el precio unitario correcto y un subTotal de 1, y como el
+            // total de la venta se arma sumando subtotales, la venta entera quedaba en 1.
+            double subTotal    = item.getPrecioVenta() * item.getCantidad();
             double costoTotal  = precioCosto * item.getCantidad();
             double comision    = subTotal * (tasaTarifa + tasaIva);
             double ganancia    = subTotal - costoTotal - comision;

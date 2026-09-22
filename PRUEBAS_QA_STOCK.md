@@ -179,6 +179,65 @@ kubectl scale deployment imagenes-deployment -n qa --replicas=1
 
 ---
 
+# PRUEBA 7 — El subtotal ya no se puede falsificar 💰
+
+**Esta es de dinero.** Se prueba con curl o Postman, no desde la pantalla: el front manda
+los números bien, el punto es qué pasa si alguien los manda mal a propósito.
+
+### El agujero que había
+
+`validarLineasPromocion` revisaba vigencia, precio unitario y cantidad — pero **no el
+subtotal**. Y el total del pedido se arma sumando subtotales. Entonces con una promoción
+se podía mandar el precio unitario correcto y un subtotal de 1, y el pedido quedaba en $1.
+
+### Cómo probarlo
+
+Armá un pedido normal desde la pantalla, capturá el request con las DevTools (pestaña
+Red), y reenvialo con el `subTotal` cambiado a `1`:
+
+```bash
+curl -X POST "https://<host-qa>/mis-productos/v1/pedidos/save" \
+  -H "Authorization: Bearer <tu-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "cliente": { "id": <CLIENTE_ID> },
+        "detalles": [{
+          "producto": { "id": <PRODUCTO_ID> },
+          "varianteId": <VARIANTE_ID>,
+          "cantidad": 2,
+          "precioUnitario": 350.0,
+          "subTotal": 1.0
+        }]
+      }'
+```
+
+### Resultado esperado
+
+✅ El pedido se crea **con el subtotal correcto (700), no con 1**. El back ignora el
+`subTotal` del request y lo calcula como `precioUnitario × cantidad`.
+
+Verificá en la base:
+```sql
+SELECT dp.id, dp.cantidad, dp.precio_unitario, dp.sub_total, p.total_pedido
+FROM detalle_pedidos dp
+JOIN pedidos p ON p.id = dp.pedido_id
+ORDER BY dp.id DESC LIMIT 5;
+```
+`sub_total` debe ser `precio_unitario × cantidad`. Si aparece un 1, el fix no llegó.
+
+### Probá también con el precio unitario
+
+```bash
+# mismo request pero con "precioUnitario": 1.0
+```
+❌ Debe fallar: *"El precio de … no es válido"*. Esa validación ya existía y se mantiene.
+
+### Lo mismo para venta directa
+Repetí ambos casos contra `POST /v1/ventas/directa`. El fix se aplicó en los dos flujos.
+
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -207,6 +266,8 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P4** Pedir de más → falla con el número correcto
 - [ ] **P5** Stock negativo → rechazado
 - [ ] **P6** Ninguna pantalla se cuelga
+- [ ] **P7** Subtotal falsificado → el back lo recalcula (no queda en $1)
+- [ ] **P7b** Precio unitario falsificado → rechazado
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -218,7 +279,7 @@ Para que no lo busques en estas pruebas:
 | Pendiente | Prioridad |
 |---|---|
 | Campo "stock disponible" en pantalla | P2 — **necesita el repo del front**, que no está en la sesión actual |
-| Precios validados en el back | P1 — siguiente en la lista |
+| ~~Precios validados en el back~~ | ✅ **hecho** — ver Prueba 7 |
 | Promociones con apartado y tarjeta | P2 |
 | Búsqueda por código exacto primero | P3 |
 | Contador de tallas que dice 3 con 2 | P3 — front |
