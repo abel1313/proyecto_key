@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
+import com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
@@ -125,6 +126,26 @@ public class PedidoController extends AbstractController<
             @PathVariable int id, @RequestBody EditarEntregaPedidoRequest requestG) {
         try {
             PedidoDetalleResponse response = iPedidoService.editarDatosEntrega(id, requestG);
+            return ResponseEntity.ok(new ResponseGeneric<>(response));
+        } catch (Exception e) {
+            ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    /**
+     * Cambiar la forma de cobro de un pedido ya creado, cobrando lo que falte en el mismo paso.
+     *
+     * <p>Requiere el permiso "cambiar-tipo" de la pantalla de pedidos (ver SecurityConfig y
+     * migration_accion_pedido_cambiar_tipo.sql): mueve dinero y cambia como se registro una
+     * venta, no es una edicion cualquiera.
+     */
+    @PutMapping("/{id}/tipo")
+    public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> cambiarTipo(
+            @PathVariable int id, @RequestBody CambiarTipoPedidoRequest requestG) {
+        try {
+            PedidoDetalleResponse response = iPedidoService.cambiarTipoPedido(id, requestG);
             return ResponseEntity.ok(new ResponseGeneric<>(response));
         } catch (Exception e) {
             ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);

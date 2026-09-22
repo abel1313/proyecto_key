@@ -344,6 +344,24 @@ public class SecurityConfig {
                         // con 403 en cualquier intento real de un cliente (encontrado 2026-08-25,
                         // curl real de un ROLE_USUARIO contra PUT /v1/pedidos/99/entrega).
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/entrega").authenticated()
+                        // Cambiar la forma de cobro de un pedido ya creado (2026-09-22). Va como
+                        // accion puntual y no en el hasRole("ADMIN") de abajo porque es una
+                        // accion de dinero que el negocio quiere poder delegar a quien cobra en
+                        // mostrador sin darle el resto de la gestion de pedidos. accion() ya deja
+                        // pasar a ROLE_ADMIN, asi que el admin no pierde nada.
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/tipo")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-tipo"))
+                        // Editar los articulos de un pedido ya creado (2026-09-22, dominio
+                        // hexagonal pedidoarticulo). Tres acciones separadas a proposito: se
+                        // puede querer que alguien agregue articulos sin poder desarmar una
+                        // promocion, que es una decision de dinero mas grande. Van ANTES de los
+                        // catch-all de abajo, que si no se los comen.
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/articulos")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "agregar-articulo"))
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/articulos/*")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-articulo"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/promociones/*")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "quitar-promocion"))
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 

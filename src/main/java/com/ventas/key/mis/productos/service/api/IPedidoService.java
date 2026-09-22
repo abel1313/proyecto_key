@@ -31,6 +31,10 @@ public interface IPedidoService extends ICrud<
     PageableDto<List<PedidoGenerico>> buscarClientePorPedido(String buscar, Integer lugarEntregaId, List<String> tipoPedido, List<String> estadoPedido, int size, int pageSize);
     void deletePedidoById(int id, String motivo);
     void eliminarDetallePedido(int pedidoId, int productoId, int cantidad);
+
+    /** Cambia la forma de cobro de un pedido ya creado, cobrando lo que falte en el mismo paso. */
+    com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse cambiarTipoPedido(
+            int pedidoId, com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest request);
     PedidoDetalleResponse getDetallePedido(int id);
     boolean notificarPedido(int id, NotificarPedidoRequest requestG);
     PedidoDetalleResponse editarDatosEntrega(int id, EditarEntregaPedidoRequest requestG);
