@@ -544,11 +544,11 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_submenu_ayuda_contextual.sql` | ⚠️ corrida, 0 filas (sin efecto) | ⚠️ corrida, 0 filas (sin efecto) | 2026-09-17 |
 | `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
-| `migration_accion_tienda_eliminar.sql` | ⬜ **PENDIENTE** — corre en DB `inventario_key_qa` (cubre dev+qa) | ⬜ pendiente | 2026-09-17 (merge hecho) |
-| `migration_accion_pedido_cambiar_tipo.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ pendiente | 2026-09-22 (creada) |
-| `migration_accion_pedido_articulos.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ pendiente | 2026-09-22 (creada) |
-| `migration_accion_rifa_boletos_agrupados.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ pendiente | 2026-09-22 (creada) |
-| `backfill_variantes_carga_rapida.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ **PENDIENTE** — `inventario_key` | 2026-09-22 (hotfix) |
+| `migration_accion_tienda_eliminar.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `migration_accion_pedido_cambiar_tipo.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `migration_accion_pedido_articulos.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `migration_accion_rifa_boletos_agrupados.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `backfill_variantes_carga_rapida.sql` | ✅ corrida | ✅ corrida | 2026-09-22 (hotfix) |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
