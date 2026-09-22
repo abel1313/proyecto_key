@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.NombreArchivoImagen;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.dto.CompletarProductoDto;
 import com.ventas.key.mis.productos.dto.EstadoCargaProductoDto;
@@ -182,13 +183,16 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
     }
 
     private ImagenDto subirImagenAMicro(byte[] bytes, String nombreArchivo) {
-        String nombre = nombreArchivo != null ? nombreArchivo : "imagen";
+        // La foto llega tal cual del celular, y muchas traen un nombre que no coincide con su
+        // formato real (".png" que por dentro es JPEG). El micro compara nombre contra bytes y
+        // la rechazaba con 400; la carga rapida era el unico punto que no pasaba por aqui.
+        String nombre = NombreArchivoImagen.normalizar(nombreArchivo, bytes);
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         ByteArrayResource recurso = new ByteArrayResource(bytes) {
             @Override
             public String getFilename() { return nombre; }
         };
-        builder.part("files", recurso).header("Content-Disposition", "form-data; name=files; filename=" + nombre);
+        builder.part("files", recurso);
 
         List<ImagenDto> microImagenes = imageneClienteDisco.save(builder.build());
         if (microImagenes == null || microImagenes.isEmpty()) {
