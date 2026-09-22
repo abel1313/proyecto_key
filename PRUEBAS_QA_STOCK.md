@@ -456,6 +456,127 @@ Esa es la que tiene que salir, no una cualquiera.
 
 ---
 
+# PRUEBA 12 — Cambiar la forma de cobro de un pedido ya creado 🔁
+
+**El caso que la origina:** se apartó un pedido, al ir a entregarlo el cliente decidió pagarlo
+completo. No había forma de cambiarlo, así que quedó registrado como apartado. La otra salida era
+cancelar y rehacer el pedido entero — que devuelve y vuelve a descontar el stock.
+
+### Antes de probar: correr la migración del permiso
+
+```bash
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_cambiar_tipo.sql
+```
+
+Verificar que quedó:
+```sql
+SELECT r.nombre_rol, a.clave, a.etiqueta
+FROM rol_accion ra
+JOIN roles r ON r.id = ra.rol_id
+JOIN accion_submenu a ON a.id = ra.accion_submenu_id
+JOIN submenu s ON s.id = a.submenu_id
+WHERE s.ruta = 'pedidos/mis-pedidos' AND a.clave = 'cambiar-tipo';
+```
+Tiene que salir **una fila: `ROLE_ADMIN` / `cambiar-tipo`**. Si sale vacío, el endpoint va a
+responder 403 a todo el mundo y el resto de esta prueba no corre.
+
+### 12a — Apartado que se termina de pagar (el caso real)
+
+Buscar un pedido **APARTADO con saldo pendiente**:
+```sql
+SELECT id, tipo_pedido, total_pedido, total_pagado,
+       total_pedido - COALESCE(total_pagado, 0) AS falta
+FROM pedido
+WHERE tipo_pedido = 'APARTADO' AND estado_pedido NOT IN ('Entregado', 'cancelado')
+  AND total_pedido - COALESCE(total_pagado, 0) > 0
+LIMIT 5;
+```
+
+Cobrar el saldo y pasarlo a contado, dejando escrito qué pasó:
+```bash
+curl -X PUT "$HOST/v1/pedidos/<PEDIDO_ID>/tipo" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"tipoPedido":"NORMAL","monto":<FALTA>,"metodoPago":"EFECTIVO",
+       "montoDado":<FALTA>,"nota":"Pagó el resto al entregarlo","usuarioId":<TU_USUARIO>}'
+```
+
+Tiene que responder **200** con el detalle del pedido ya en `NORMAL`. Y en la base:
+```sql
+SELECT tipo_pedido, total_pagado, total_pedido FROM pedido WHERE id = <PEDIDO_ID>;
+-- tipo_pedido = NORMAL  y  total_pagado = total_pedido
+
+SELECT monto, metodo_pago, nota FROM abono WHERE pedido_id = <PEDIDO_ID> ORDER BY id DESC LIMIT 1;
+-- nota = "Cambio de APARTADO a NORMAL: Pagó el resto al entregarlo"
+```
+
+**Lo importante de la nota:** el prefijo `Cambio de X a Y:` lo pone el back solo. Sin él, dentro
+de un mes ese abono se ve igual que cualquier otro y nadie sabe por qué ese pedido cambió de forma
+de cobro.
+
+### 12b — Pasar a contado sin cobrar el saldo → tiene que fallar
+
+Mismo pedido apartado con saldo, pero sin mandar `monto`:
+```bash
+curl -X PUT "$HOST/v1/pedidos/<PEDIDO_ID>/tipo" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"tipoPedido":"NORMAL","usuarioId":<TU_USUARIO>}'
+```
+Tiene que fallar con **"Para pasar el pedido a contado hay que cobrar el saldo completo. Falta
+$X y en este cambio se cobran $0.00"**. Un `NORMAL` con saldo pendiente es exactamente lo que
+`NORMAL` dice que no existe: el pedido desaparecería de la lista de lo que falta cobrar.
+
+Cobrando **de menos** (`monto` menor al saldo) tiene que fallar igual, **y no debe quedar abono**:
+```sql
+SELECT COUNT(*) FROM abono WHERE pedido_id = <PEDIDO_ID>;  -- el mismo número que antes
+```
+
+### 12c — Apartado ↔ fiado, sin cobrar nada
+
+```bash
+curl -X PUT "$HOST/v1/pedidos/<PEDIDO_ID>/tipo" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"tipoPedido":"FIADO","usuarioId":<TU_USUARIO>}'
+```
+200, `tipo_pedido = FIADO`, y **ningún abono nuevo** — solo se movió la forma de cobro.
+
+### 12d — Lo que no se puede cambiar
+
+Los cuatro tienen que fallar, cada uno con su mensaje:
+
+| Caso | Mensaje esperado |
+|---|---|
+| Pedido ya **entregado** | "ya se entregó: no se puede cambiar su forma de cobro" |
+| Pedido **cancelado** | "está cancelado" |
+| Al **mismo tipo** que ya tiene | "ya es de tipo APARTADO" |
+| Tipo inventado (`"CREDITO"`) | "Tipo de pedido inválido... NORMAL, APARTADO y FIADO" |
+
+Y sobre un pedido **NORMAL** (ya pagado) mandando `monto`:
+"es de tipo NORMAL y no tiene saldo que cobrar" — no hay nada que abonar ahí.
+
+### 12e — El permiso (lo que lo hace "configurado")
+
+Con un usuario **sin** la acción `cambiar-tipo` (cualquier rol que no sea ADMIN):
+```bash
+curl -X PUT "$HOST/v1/pedidos/<PEDIDO_ID>/tipo" \
+  -H "Authorization: Bearer $TOKEN_USUARIO" -H "Content-Type: application/json" \
+  -d '{"tipoPedido":"FIADO","usuarioId":<SU_USUARIO>}'
+```
+→ **403**.
+
+Ahora, desde **Gestión de roles**, marcarle a ese rol la casilla
+**"Cambiar forma de cobro del pedido (🔁)"** (sale bajo *Detalle del pedido*), volver a
+loguearse para que el token traiga la autoridad nueva, y repetir el curl → **200**.
+
+Eso es lo que significa que el botón está configurado: se le puede dar a quien cobra en mostrador
+sin darle el resto de la gestión de pedidos, y se quita igual, sin tocar código.
+
+**Ojo con el token:** los permisos viajan dentro del JWT. Después de cambiar un rol hay que
+volver a entrar (o esperar al refresh) — si no, el token viejo sigue sin la autoridad y parece
+que el permiso no sirvió.
+
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -496,6 +617,12 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P10b** Buscador vacío → trae todo como antes
 - [ ] **P11** Mis pedidos muestra código y miniatura
 - [ ] **P11b** Artículo sin foto → el renglón sale igual
+- [ ] **P12** Migración del permiso corrida → la fila `cambiar-tipo` existe
+- [ ] **P12a** Apartado + cobro del saldo → queda NORMAL, con el abono y su nota
+- [ ] **P12b** Pasar a contado sin cobrar (o cobrando de menos) → rechazado, sin abono
+- [ ] **P12c** Apartado → fiado sin cobrar → cambia, sin abono
+- [ ] **P12d** Entregado / cancelado / mismo tipo / tipo inventado → rechazados
+- [ ] **P12e** Sin el permiso → 403; con el permiso dado en Gestión de roles → 200
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -507,6 +634,7 @@ Para que no lo busques en estas pruebas:
 | Pendiente | Prioridad |
 |---|---|
 | Campo "stock disponible" **en pantalla** | back ✅ hecho (Prueba 9) — falta el front |
+| Modal para cambiar la forma de cobro | back ✅ hecho (Prueba 12) — falta el front |
 | ~~Precios validados en el back~~ | ✅ **hecho** — ver Prueba 7 |
 | ~~Promociones con apartado y tarjeta~~ | ✅ **hecho** — ver Prueba 8 |
 | ~~Búsqueda por código exacto primero~~ | ✅ **hecho** — Prueba 10 |

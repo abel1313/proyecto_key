@@ -19980,3 +19980,127 @@ significa que **una imagen recién subida no se borra todavía** aunque ya sea h
 `/admin/reconciliacion-imagenes` — se agregó la sección **3. Limpiar disco** (botón 🧹) y
 "Ver resultado" pasó de ser la sección 3 a la **4**. Es el mismo patrón que "Limpiar BD": se
 dispara, responde de inmediato, y el resultado se consulta con el botón de "Ver resultado".
+
+---
+
+# Cambiar la forma de cobro de un pedido ya creado (2026-09-22)
+
+**El caso real que lo pide:** se apartó un pedido, al ir a entregarlo el cliente decidió pagarlo
+completo. No había forma de cambiarlo, así que quedó registrado como apartado. La única
+alternativa era cancelar y rehacer el pedido entero — que además devuelve y vuelve a descontar
+el stock.
+
+Ahora el pedido se puede mover entre **NORMAL** (contado), **APARTADO** e **FIADO** (ir pagando)
+y, si el cliente paga en ese momento, el mismo request registra el abono.
+
+## Request
+
+```
+PUT /mis-productos/v1/pedidos/{pedidoId}/tipo
+Content-Type: application/json
+```
+
+```json
+{
+  "tipoPedido": "NORMAL",
+  "monto": 700.0,
+  "metodoPago": "EFECTIVO",
+  "montoDado": 1000.0,
+  "nota": "Pagó el resto al entregarlo",
+  "usuarioId": 12
+}
+```
+
+| Campo | Obligatorio | Qué es |
+|---|---|---|
+| `tipoPedido` | **sí** | A qué pasa: `NORMAL`, `APARTADO` o `FIADO`. No distingue mayúsculas. |
+| `monto` | no | Lo que se cobra **en este momento**. Null o 0 = solo se cambia el tipo, sin cobrar. |
+| `metodoPago` | no | `EFECTIVO` (default) o `TRANSFERENCIA`. **`TARJETA` no aplica en crédito** — mismo criterio que el abono normal. |
+| `montoDado` | no | Solo para `EFECTIVO`, para calcular el cambio. |
+| `nota` | no | **Texto libre: qué pasó.** Ver abajo. |
+| `usuarioId` | sí si hay `monto` | Quién lo hizo (va al abono). |
+
+### La nota es el punto del modal
+
+`nota` es texto libre y es lo único que queda para entender mañana por qué ese pedido cambió de
+forma de cobro. El back le antepone solo el cambio:
+
+- con nota → `"Cambio de APARTADO a NORMAL: Pagó el resto al entregarlo"`
+- sin nota (o en blanco) → `"Cambio de APARTADO a NORMAL"`
+
+O sea: **el front no tiene que armar ese prefijo**, solo mandar lo que escribió el usuario. Si
+manda el prefijo también, va a salir duplicado.
+
+Cuando viene `monto`, esto **genera un abono** con esa nota — se ve en el historial de abonos del
+pedido como cualquier otro, pero identificado.
+
+## Response 200
+
+Envelope `ResponseGeneric` de siempre (`mensaje` / `code` / `data`). En `data` va el **detalle
+completo del pedido ya actualizado** — el mismo shape que devuelve el detalle de pedido, así que
+la pantalla puede repintarse con esto sin volver a pedir nada. Los campos que cambian con esta
+operación:
+
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "pedidoId": 501,
+    "tipoPedido": "NORMAL",
+    "totalPedido": 1000.0,
+    "totalPagado": 1000.0,
+    "estadoPedido": "Pendiente"
+  }
+}
+```
+
+## Qué mostrar en el modal
+
+El saldo que se debe sale del pedido que ya tiene el front:
+`totalPedido - totalPagado`.
+
+- Pasar a **NORMAL** exige que el pedido quede liquidado: o ya estaba pagado, o el `monto` de
+  este request cubre el saldo. Conviene que el modal **precargue `monto` con el saldo** cuando se
+  elige NORMAL.
+- Pasar a **APARTADO** o **FIADO** no exige cobrar nada: `monto` puede ir vacío.
+
+## Errores
+
+Todos salen como **HTTP 400** con el texto en `mensaje` y `data: null`:
+
+```json
+{ "mensaje": "El pedido 501 ya es de tipo APARTADO", "code": 404, "data": null }
+```
+
+⚠️ **Ojo:** el `code` del body dice `404` aunque el HTTP sea `400` — lo pone el constructor de
+`ResponseGeneric` cuando `data` es null, es así en todos los endpoints de este controller. **Hay
+que guiarse por el status HTTP y por `mensaje`, no por ese `code`.**
+
+| Cuándo | `mensaje` |
+|---|---|
+| Falta saldo para pasar a contado | `Para pasar el pedido a contado hay que cobrar el saldo completo. Falta $700.00 y en este cambio se cobran $400.00` |
+| Tipo que no existe | `Tipo de pedido invalido: CREDITO. Los validos son NORMAL, APARTADO y FIADO` |
+| Pedido ya entregado | `El pedido 501 ya se entrego: no se puede cambiar su forma de cobro` |
+| Pedido cancelado | `El pedido 501 esta cancelado` |
+| Mismo tipo que ya tiene | `El pedido 501 ya es de tipo APARTADO` |
+| Manda `monto` sobre un pedido de contado | `El pedido 501 es de tipo NORMAL y no tiene saldo que cobrar` |
+| Sin el permiso | **403** de Spring Security, sin pasar por el controller (body distinto) |
+
+El mensaje de saldo trae los dos números ya formateados — se puede mostrar tal cual.
+
+## El botón va configurado (permiso fino)
+
+No es un botón de admin hardcodeado: es una acción puntual de la pantalla, para poder dársela a
+quien cobra en mostrador **sin** darle el resto de la gestión de pedidos.
+
+- Pantalla: `pedidos/mis-pedidos`
+- Clave de la acción: **`cambiar-tipo`**
+- Etiqueta en Gestión de roles: *"Cambiar forma de cobro del pedido (🔁)"*, bajo la categoría
+  *Detalle del pedido*
+- Migración: `migration_accion_pedido_cambiar_tipo.sql` — de arranque **solo `ROLE_ADMIN`** la
+  tiene. A diferencia de Entrega/Ticket/Cancelar/Abonar, **no** se le da a todo rol con Ver en la
+  pantalla: un cliente mirando sus propios pedidos no puede convertir su apartado en fiado.
+
+En el front, el botón se muestra con el mismo `tieneAccion('cambiar-tipo')` que ya usan los demás
+botones de esa pantalla.

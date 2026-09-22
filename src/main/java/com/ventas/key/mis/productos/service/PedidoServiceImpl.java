@@ -13,7 +13,9 @@ import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
+import com.ventas.key.mis.productos.models.abonos.AbonoRequest;
 import com.ventas.key.mis.productos.models.pedidos.AbonoDetalleItem;
+import com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
 import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
@@ -102,6 +104,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
+    @Autowired private com.ventas.key.mis.productos.service.api.IAbonoService iAbonoService;
     @Autowired private EmailService emailService;
     @Autowired private RestockNotificacionService restockNotificacionService;
 
@@ -650,6 +653,21 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
 
+        // Una promocion es un combo: o esta completa, o no esta (R4 del dominio pedidoarticulo).
+        // Hasta el 2026-09-22 este boton dejaba sacar una linea suelta de una promocion, y el
+        // resto del combo se quedaba al precio promocional -- cobrando un descuento por una
+        // condicion que ya no se cumplia, y en silencio.
+        if (detalle.getPromocion() != null) {
+            throw new RuntimeException(String.format(
+                    "'%s' es parte de la promocion '%s' y no se puede quitar solo: el precio de "
+                            + "promocion existe porque se llevan todas las piezas juntas. Hay que quitar "
+                            + "la promocion completa (DELETE /v1/pedidos/%d/promociones/%d)",
+                    detalle.getProducto().getNombre(),
+                    detalle.getPromocion().getDescripcion(),
+                    pedidoId,
+                    detalle.getPromocion().getId()));
+        }
+
         Producto prod = iProductoRepository.findByIdWithLock(productoId)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
 
@@ -852,6 +870,101 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             log.warn("No se pudieron resolver las imagenes del pedido {}: {}", pedido.getId(), e.getMessage());
             return Map.of();
         }
+    }
+
+    private static final Set<String> TIPOS_CREDITO_PEDIDO = Set.of("APARTADO", "FIADO");
+
+    /**
+     * Cambia la forma de cobro de un pedido ya creado, cobrando lo que falte en el mismo paso.
+     *
+     * <p>Caso que lo origina (2026-09-22): se aparto un pedido, al ir a entregarlo el cliente
+     * decidio pagarlo completo, y no habia forma de cambiarlo -- quedo registrado como apartado
+     * porque la unica alternativa era cancelar y rehacer el pedido entero, devolviendo y
+     * volviendo a descontar todo el stock.
+     *
+     * <p><b>El cobro se hace ANTES de cambiar el tipo</b>, y no al reves: registrarAbono() exige
+     * que el pedido sea de credito, asi que si primero se pasara a NORMAL el abono quedaria
+     * rechazado y el pago no se registraria en ningun lado.
+     *
+     * <p>Se delega en registrarAbono() en vez de escribir el cobro aca: ahi ya viven la
+     * validacion del monto contra el saldo, el paso a PAGADO, la creacion de la venta al
+     * liquidar y el aviso al cliente. Duplicarlo seria tener dos caminos que cobran distinto.
+     */
+    @Transactional
+    public PedidoDetalleResponse cambiarTipoPedido(int pedidoId, CambiarTipoPedidoRequest request) {
+        Pedido pedido = iPedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+
+        String tipoNuevo = request.getTipoPedido() != null ? request.getTipoPedido().toUpperCase() : null;
+        if (tipoNuevo == null || !Set.of("NORMAL", "APARTADO", "FIADO").contains(tipoNuevo)) {
+            throw new RuntimeException("Tipo de pedido invalido: " + request.getTipoPedido()
+                    + ". Los validos son NORMAL, APARTADO y FIADO");
+        }
+        if ("Entregado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("El pedido " + pedidoId + " ya se entrego: no se puede cambiar su forma de cobro");
+        }
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("El pedido " + pedidoId + " esta cancelado");
+        }
+        if (tipoNuevo.equals(pedido.getTipoPedido())) {
+            throw new RuntimeException("El pedido " + pedidoId + " ya es de tipo " + tipoNuevo);
+        }
+
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        double saldoPendiente = pedido.getTotalPedido() - totalPagado;
+
+        // Pasar a contado significa que se termino de pagar: o ya estaba liquidado, o el cobro
+        // que viene en este request lo liquida. Sin esta validacion quedarian pedidos NORMAL con
+        // saldo pendiente, que es justamente lo que NORMAL dice que no existe.
+        if ("NORMAL".equals(tipoNuevo)) {
+            double cobroAhora = request.traeCobro() ? request.getMonto() : 0.0;
+            if (saldoPendiente - cobroAhora > 0.01) {
+                throw new RuntimeException(String.format(
+                        "Para pasar el pedido a contado hay que cobrar el saldo completo. Falta $%.2f y en este cambio se cobran $%.2f",
+                        saldoPendiente, cobroAhora));
+            }
+        }
+
+        if (request.traeCobro()) {
+            if (!TIPOS_CREDITO_PEDIDO.contains(pedido.getTipoPedido())) {
+                throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + pedido.getTipoPedido()
+                        + " y no tiene saldo que cobrar");
+            }
+            AbonoRequest abono = new AbonoRequest();
+            abono.setMonto(request.getMonto());
+            abono.setMetodoPago(request.getMetodoPago());
+            abono.setMontoDado(request.getMontoDado());
+            abono.setUsuarioId(request.getUsuarioId());
+            abono.setNota(notaDelCambio(pedido.getTipoPedido(), tipoNuevo, request.getNota()));
+            iAbonoService.registrarAbono(pedidoId, abono);
+
+            // registrarAbono ya guardo el pedido (total pagado, estado, fecha de recogida): hay
+            // que releerlo para no pisar esos cambios con la copia vieja que quedo en memoria.
+            pedido = iPedidoRepository.findById(pedidoId).orElseThrow();
+        }
+
+        String tipoAnterior = pedido.getTipoPedido();
+        pedido.setTipoPedido(tipoNuevo);
+        iPedidoRepository.save(pedido);
+        log.info("Pedido {} cambio de {} a {} — cobro en el cambio: {}",
+                pedidoId, tipoAnterior, tipoNuevo, request.traeCobro() ? request.getMonto() : 0.0);
+
+        cacheService.evictAll();
+        return getDetallePedido(pedidoId);
+    }
+
+    /**
+     * La nota del abono deja escrito el cambio ademas de lo que haya puesto quien lo hizo.
+     *
+     * <p>Sin el prefijo automatico, un abono de un cambio de forma de cobro se ve igual que
+     * cualquier otro en el historial, y dentro de un mes nadie sabe por que ese pedido paso de
+     * apartado a contado.
+     */
+    private String notaDelCambio(String tipoAnterior, String tipoNuevo, String notaDelUsuario) {
+        String cambio = String.format("Cambio de %s a %s", tipoAnterior, tipoNuevo);
+        return (notaDelUsuario == null || notaDelUsuario.isBlank())
+                ? cambio
+                : cambio + ": " + notaDelUsuario;
     }
 
     // Edicion de solo los datos de entrega (quien recibe, direccion, fecha de entrega,
