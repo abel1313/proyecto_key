@@ -195,7 +195,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request
             // podia traer cualquier precio.
             if (item.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, item.getPrecioVenta(), item.getCantidad(), item.getSubTotal());
+                validarPrecioCatalogo(prod, item.getPrecioVenta());
             }
 
             prod.setStock(prod.getStock() - item.getCantidad());
@@ -374,14 +374,37 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     // El precio/subtotal que manda el request en una linea normal (sin promocionId) debe
     // coincidir con el precio real del producto — evita que la venta directa acepte un precio
     // arbitrario fuera de una promocion. Tolerancia de 1 centavo por redondeo de Double.
-    private void validarPrecioCatalogo(Producto prod, Double precioVenta, Integer cantidad, Double subTotal) {
-        double precioCatalogo = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
-        if (precioVenta == null || Math.abs(precioVenta - precioCatalogo) > 0.01) {
-            throw new RuntimeException("El precio de " + prod.getNombre() + " no es valido");
+    /**
+     * Una linea sin promocion se cobra a uno de los dos precios del catalogo: el normal o el de
+     * rebaja. Nada mas.
+     *
+     * <p>Hasta el 2026-09-22 solo se aceptaba el normal, asi que para venderle mas barato a
+     * alguien habia que armarle una promocion -- mas trabajo, y quedaba registrada una promocion
+     * que nunca existio. El campo {@code precio_rebaja} ya existia: se capturaba y se mostraba en
+     * el admin, pero no habia forma de cobrarlo.
+     *
+     * <p>Sigue sin poder mandarse un precio arbitrario: los dos valores salen del catalogo, asi
+     * que el front elige entre ellos pero no inventa ninguno. El subtotal tampoco se valida
+     * porque ya no se usa el del request -- se calcula (ver mas arriba).
+     */
+    private void validarPrecioCatalogo(Producto prod, Double precioUnitario) {
+        if (precioUnitario == null) {
+            throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
-        double subTotalEsperado = precioCatalogo * cantidad;
-        if (subTotal == null || Math.abs(subTotal - subTotalEsperado) > 0.01) {
-            throw new RuntimeException("El subtotal de " + prod.getNombre() + " no es valido");
+        double normal = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
+        double rebaja = prod.getPrecioRebaja() != null ? prod.getPrecioRebaja() : 0.0;
+
+        boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
+        // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
+        boolean esRebaja = rebaja > 0 && Math.abs(precioUnitario - rebaja) <= 0.01;
+
+        if (!esNormal && !esRebaja) {
+            String validos = rebaja > 0
+                    ? String.format("%.2f (normal) o %.2f (rebaja)", normal, rebaja)
+                    : String.format("%.2f", normal);
+            throw new RuntimeException(String.format(
+                    "El precio de %s no es valido: llego %.2f y los precios de catalogo son %s",
+                    prod.getNombre(), precioUnitario, validos));
         }
     }
 

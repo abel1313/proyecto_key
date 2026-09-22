@@ -115,3 +115,64 @@ correcto y `subTotal: 1` dejaba el pedido entero en $1.
 **Corregido el 2026-09-22:** el subtotal ya no se lee del request, se calcula como
 `precioUnitario × cantidad` en `VentaServiceImpl` y `PedidoServiceImpl`. El precio unitario
 sigue validándose como antes.
+
+---
+
+## Reglas acordadas 2026-09-22 — editar un pedido ya creado
+
+### R5 — Una promocion es un combo: o entra completa, o no entra
+
+Al cambiar un producto que pertenece a una promocion, se busca primero **dentro de esa
+promocion**. Si hay un reemplazo ahi, se cambia y la promocion sigue intacta.
+
+Si no lo hay, se le avisa y se le ofrecen dos salidas, **las dos validas**:
+
+| Opcion | Que pasa |
+|---|---|
+| **(a) Quitar la promocion** | salen **todas** las lineas de esa promocion (su stock vuelve), entra el producto nuevo a precio normal. Las lineas ajenas a la promocion no se tocan |
+| **(b) Conservarla y agregar** | no se quita nada, se suma una linea nueva a precio normal |
+
+**Por que (a) saca el combo entero y no solo la linea que se cambiaba:** el precio
+promocional existe porque se llevan esas piezas juntas. Dejar dos de tres al precio del
+combo seria cobrar un descuento por una condicion que ya no se cumple. `validarLineasPromocion`
+ya exige el combo completo al crear el pedido; esto mantiene la misma regla al editarlo.
+
+**Ejemplo del negocio (2026-09-22):** pedido con pantalon de dama (en promocion), perfume y
+cartera. El cliente quiere el pantalon de hombre. Si la promocion no tiene pantalon de
+hombre, el admin elige: cambiar la promocion completa por el de hombre (y quedarse con
+perfume y cartera), o dejar la promocion y llevar tambien el de hombre.
+
+### R6 — El tercer precio se usa, y el cliente ve lo que pago
+
+`producto` tiene tres precios: `precio_costo` (nunca se vende a eso), `precio_venta` (el
+normal) y `precio_rebaja` (el descuento del admin). Hasta el 2026-09-22 el tercero se
+guardaba y se mostraba en el admin, pero **nunca se cobraba**: para bajar un precio habia que
+armar una promocion, que es mas trabajo y deja registrado algo que no es.
+
+La venta puede cobrar `precio_venta` **o** `precio_rebaja`. Nada mas: siguen siendo los dos
+precios del catalogo, asi que el front no puede inventar un monto y el blindaje del subtotal
+(ver VentaServiceImpl) queda intacto.
+
+**Que ve el cliente:**
+
+| Donde | Precio |
+|---|---|
+| Catalogo / tienda | `precio_venta` — la rebaja nunca se publica |
+| **Su pedido** | lo que realmente pago, aunque sea el rebajado |
+
+La rebaja es secreta como precio de lista, no como precio cobrado: una vez aplicada en una
+venta, es el precio de ese cliente y tiene derecho a verlo en su comprobante.
+
+### R7 — Todo boton nuevo necesita su permiso
+
+Cambiar el tipo de un pedido, cambiar un producto ya vendido y cobrar a un precio distinto
+son acciones que no puede hacer cualquiera. Cada una necesita **cuatro piezas**, no solo el
+endpoint:
+
+1. su accion en `accion_submenu`
+2. una migracion SQL que la da de alta (ver `migration_accion_tienda_eliminar.sql`)
+3. el matcher en `SecurityConfig` con `accion("<pantalla>", "<accion>")`
+4. el endpoint
+
+Sin las tres primeras el boton queda visible para todos o para nadie. Mismo patron que
+`eliminar` y `habilitar` en `productos/buscar`.
