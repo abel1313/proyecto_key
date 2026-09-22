@@ -20388,3 +20388,317 @@ a verlo en su comprobante.
 Cuando `precioRebaja` viene con valor, la card puede ofrecer los dos precios. El que se elija va en
 `precioUnitario` al crear la venta/pedido o al agregar el artículo — el back acepta **solo esos
 dos**, cualquier otro monto lo rechaza con el mensaje que dice cuáles valen.
+
+---
+
+## 🎟️ Boletos de rifa agrupados por perfil (2026-09-22)
+
+Reemplaza la carga de a una participación por vez. **La cabecera (cliente, plataforma, perfil del
+cliente en esa red) se carga UNA sola vez** y después se le suman participaciones. Cada URL de
+algo que el cliente hizo **es un boleto**.
+
+```
+Cliente:    Juan Perez
+Plataforma: FACEBOOK
+Perfil:     facebook.com/juan.perez        ← se carga UNA vez
+   ├── facebook.com/post/1   (dio like)    → 1 boleto
+   ├── facebook.com/post/2   (compartió)   → 1 boleto
+   └── facebook.com/post/3   (comentó)     → 1 boleto
+                                              totalBoletos: 3
+```
+
+La pantalla se dibuja **agrupada**: un renglón por (plataforma + perfil), colapsable, con sus
+participaciones adentro. No más filas sueltas de "Facebook · juan · like" y aparte
+"Facebook · juan · compartió".
+
+> **Lo viejo sigue funcionando.** Los endpoints `/v1/boletoRifa/...` no cambiaron y los boletos
+> ya cargados no se migraron. Los dos formatos leen las mismas filas; lo único que cambia es
+> cómo se presentan.
+
+### 1. Ver el listado agrupado
+
+```
+GET /v1/rifas/{rifaId}/boletos-agrupados
+```
+
+```jsonc
+{
+  "mensaje": "...", "code": 200, "lista": null,
+  "data": [
+    {
+      "concursanteId": 7,
+      "nombreConcursante": "Juan Perez",
+      "plataforma": "FACEBOOK",
+      "urlPerfil": "facebook.com/juan.perez",
+      "totalBoletos": 3,
+      "ultimaParticipacion": "2026-09-22",
+      "participaciones": [
+        { "boletoId": 41, "urlParticipacion": "facebook.com/post/1", "motivo": "dio like",   "fecha": "2026-09-22" },
+        { "boletoId": 42, "urlParticipacion": "facebook.com/post/2", "motivo": "compartio",  "fecha": "2026-09-22" },
+        { "boletoId": 43, "urlParticipacion": "facebook.com/post/3", "motivo": "comento",    "fecha": "2026-09-22" }
+      ]
+    }
+  ]
+}
+```
+
+`totalBoletos` es la cantidad de participaciones — **mostralo en la cabecera del grupo colapsado**,
+que es el dato que se quiere ver sin abrir.
+
+`boletoId` es lo que hay que mandar para **quitar** esa participación.
+
+`plataforma`: `FACEBOOK` · `INSTAGRAM` · `TIKTOK` · `OTRO`.
+
+#### 📜 El orden y el problema del scroll
+
+**La lista viene con lo último cargado arriba** (ordenada por `ultimaParticipacion` descendente;
+los grupos que quedaron sin participaciones van al final). Antes salía por orden de inserción, o
+sea que el grupo que acabás de cargar quedaba **al final de la lista** — había que bajar hasta
+abajo para verlo y volver a subir para cargar el siguiente.
+
+`ultimaParticipacion` viaja en el response, así que si preferís otro orden (alfabético, por
+cantidad de boletos) lo podés reordenar en el front sin pedir nada más.
+
+**Lo que falta de tu lado para cerrar el problema del scroll:**
+
+1. **Los renglones arrancan colapsados** — se ve `nombreConcursante`, `plataforma`, `urlPerfil` y
+   `totalBoletos`; las participaciones aparecen al desplegar. Expandir **no pide nada al back**:
+   ya vienen todas en esta misma respuesta.
+2. **El formulario de alta fijo** (arriba de la lista o en un panel que no scrollee), para que no
+   haya que recorrer la lista entera para llegar a él.
+
+Con eso, 20 concursantes con 3 participaciones cada uno pasan de 60 renglones a 20 colapsados.
+
+### 2. Alta de un perfil con todas sus participaciones
+
+```
+POST /v1/rifas/{rifaId}/boletos-agrupados
+```
+
+```jsonc
+{
+  "concursanteId": 7,
+  "plataforma": "FACEBOOK",
+  "urlPerfil": "facebook.com/juan.perez",
+  "participaciones": [
+    { "urlParticipacion": "facebook.com/post/1", "motivo": "dio like" },
+    { "urlParticipacion": "facebook.com/post/2", "motivo": "compartio", "modo": "UNICA" },
+    { "urlParticipacion": "facebook.com/post/3", "motivo": "comento",   "modo": "REPETIDA_PERMITIDA" }
+  ]
+}
+```
+
+Devuelve el grupo ya armado (mismo shape que un elemento de `data` arriba).
+
+**Es todo o nada:** si una URL choca, no se carga ninguna. No hace falta reconciliar estados
+parciales.
+
+### 3. Sumar una participación a un grupo que ya existe
+
+```
+POST /v1/rifas/{rifaId}/boletos-agrupados/participaciones?plataforma=FACEBOOK&urlPerfil=facebook.com/juan.perez
+```
+
+```jsonc
+{ "urlParticipacion": "facebook.com/post/4", "motivo": "compartio de nuevo", "modo": "UNICA" }
+```
+
+No se manda `concursanteId` ni el nombre: salen del grupo. Es el botón "+" adentro del renglón
+colapsado.
+
+### 4. Quitar una participación
+
+```
+DELETE /v1/rifas/{rifaId}/boletos-agrupados/participaciones/{boletoId}
+```
+
+Devuelve el grupo actualizado. **Puede volver con `totalBoletos: 0` y `participaciones: []`** —
+eso no es un error: el perfil quedó sin participaciones y el cliente sigue en la rifa por sus
+otras redes. Dibujá el renglón vacío, no lo trates como fallo.
+
+### 🔑 El campo `modo` — los dos modos de carga
+
+Cada participación lleva **una sola URL**, y `modo` dice cómo se valida:
+
+| `modo` | Qué hace el back |
+|---|---|
+| `"UNICA"` (default si no se manda) | Rechaza la URL con **409** si ya existe en esa rifa |
+| `"REPETIDA_PERMITIDA"` | La acepta aunque ya exista |
+
+**Se manda una o la otra, nunca las dos.** Una participación es un boleto; mandar las dos no lo
+convierte en dos.
+
+**Flujo sugerido en pantalla:** el campo de URL se manda siempre como `UNICA`. Si vuelve **409**,
+mostrás el mensaje del back (que dice de quién es la URL que ya estaba) con dos botones:
+*"Cancelar"* y *"Cargarla igual"*. El segundo reenvía **el mismo request** con
+`"modo": "REPETIDA_PERMITIDA"`.
+
+### Errores
+
+| Status | Cuándo | Qué hacer |
+|---|---|---|
+| **409** | URL repetida en modo `UNICA` | Ofrecer "cargarla igual" → reenviar con `REPETIDA_PERMITIDA` |
+| **400** | Perfil sin ninguna URL de participación | Mostrar el mensaje: falta al menos una URL |
+| **404** | El grupo (plataforma + perfil) no existe en esa rifa | Refrescar el listado |
+| **403** | Falta el permiso | La migración no corrió, o hay que volver a entrar |
+
+⚠️ Igual que en los endpoints de pedidos: **usar el status HTTP, no el `code` del body.** En los
+errores el `code` del envelope viene en `404` por cómo se arma `ResponseGeneric`, sin importar el
+status real.
+
+### El perfil se normaliza al agrupar
+
+`facebook.com/juan`, `https://facebook.com/juan`, `www.facebook.com/juan/` y
+`FACEBOOK.COM/Juan` son **el mismo perfil** y caen en el mismo renglón. El back guarda y devuelve
+la URL tal como se escribió, pero compara normalizada (ignora esquema, `www.`, barra final,
+mayúsculas y espacios). El front no tiene que normalizar nada antes de mandar.
+
+### Permisos
+
+| Acción | Endpoint |
+|---|---|
+| Ver la pantalla `rifas/boletos` | `GET .../boletos-agrupados` |
+| `cargar-boletos-agrupado` | `POST .../boletos-agrupados` |
+| `agregar-participacion` | `POST .../participaciones` |
+| `quitar-participacion` | `DELETE .../participaciones/{boletoId}` |
+
+Las tres se dan de alta con `migration_accion_rifa_boletos_agrupados.sql` y de arranque solo las
+tiene `ROLE_ADMIN`. **Después de correrla hay que volver a entrar** — los permisos viajan dentro
+del JWT.
+
+### Lo que NO cambia
+
+**El sorteo.** Sigue eligiendo una fila al azar y cada participación es su propia fila, así que
+las probabilidades de todos quedan exactamente iguales que antes. El agrupamiento es de
+presentación: no junta boletos ni los convierte en uno.
+
+---
+
+## 📊 Stock disponible de un producto (documentado tarde — el back ya estaba)
+
+⚠️ **Esto ya funcionaba antes de hoy y nunca se documentó acá.** Estaba anotado como "back hecho,
+falta el front" en el checklist de QA, pero el front nunca recibió el contrato — así que no se
+podía hacer. Queda documentado ahora.
+
+**El problema que resuelve:** al dar de alta modelos (artículos) de un producto, no hay forma de
+ver **cuánto stock queda sin repartir**. El admin escribe cantidades a ciegas, se pasa del total
+del producto, y así aparecen los descuadres (el producto 269: 12 en total, sus modelos suman 18).
+
+### 1. Cuánto queda libre de un producto
+
+```
+GET /v1/stock/producto/{productoId}
+```
+
+```jsonc
+{
+  "productoId": 269,
+  "nombreProducto": "Blusa manga larga",
+  "stockTotal": 12,          // lo que tiene el producto
+  "enVariantes": 8,          // lo ya repartido en modelos activos
+  "variantesActivas": 3,
+  "enVariantesDeBaja": 2,    // lo que está en modelos dados de baja (NO cuenta como repartido)
+  "disponible": 4,           // ← el número a mostrar
+  "descuadrado": false,
+  "mensaje": "12 en total, 8 repartidos en 3 modelos, quedan 4 disponibles."
+}
+```
+
+**`disponible` viene calculado, no lo recalcules en pantalla.** Si la pantalla repitiera la
+resta, el día que cambie la regla habría dos versiones distintas del mismo número.
+
+**`mensaje` viene armado para mostrarse tal cual.** Cambia solo según el caso:
+
+| Caso | Texto |
+|---|---|
+| Normal | `"12 en total, 8 repartidos en 3 modelos, quedan 4 disponibles."` |
+| Todo repartido | `"Los 12 en total ya están repartidos en 3 modelos: no queda disponible."` |
+| Descuadrado | `"Este producto está descuadrado: tiene 12 en total pero sus 3 modelos suman 18."` |
+
+### Dónde ponerlo en pantalla
+
+En el **alta y edición de artículos** (donde están talla/color/stock), como contador vivo arriba
+del formulario:
+
+```
+Quedan 4 disponibles de 12
+```
+
+Refrescalo al abrir la pantalla y después de guardar. Si `descuadrado` viene en `true`, mostralo
+en rojo con el `mensaje` — ese producto ya tiene datos rotos y hay que avisarlo, no esconderlo.
+
+Con `disponible: 0` el campo de stock no se bloquea (el back sigue validando), pero conviene
+avisar antes de que el usuario escriba.
+
+### 2. Reporte de descuadres (solo admin)
+
+```
+GET /v1/stock/admin/descuadrados
+```
+
+Devuelve una **lista** del mismo objeto, solo con los productos donde los modelos suman más que
+el producto. Es diagnóstico de datos rotos: sirve para una pantalla de mantenimiento, no para el
+flujo normal.
+
+### Permisos
+
+| Endpoint | Quién |
+|---|---|
+| `GET /v1/stock/producto/{id}` | Ver en `productos/buscar`, `productos/agregar`, `tienda/venta` o `tienda/update` |
+| `GET /v1/stock/admin/descuadrados` | Ver en `productos/buscar` |
+
+**No es público.** Expone el inventario real del negocio, que no es asunto del cliente. No hace
+falta migración: cuelga del permiso de pantalla que ya existe.
+
+---
+---
+
+# 🧭 ÍNDICE — todo lo que le toca al front (al 2026-09-22)
+
+Este documento tiene 20.000+ líneas en orden cronológico, así que lo pendiente queda desparramado.
+**Esta es la lista completa, en un solo lugar.** Cada fila apunta a su sección, que trae el
+contrato exacto: request, response, errores y permisos.
+
+El back de todo lo de abajo **ya está hecho, probado y en `qa`**. No hay nada esperando backend.
+
+| # | Qué hay que hacer | Sección de este doc | Endpoints |
+|---|---|---|---|
+| 1 | **Modal para cambiar la forma de cobro** de un pedido ya creado (Normal / Apartado / Ir pagando), con campo de descripción libre del abono | *Request · Response 200 · Qué mostrar en el modal* | `PUT /v1/pedidos/{id}/tipo` |
+| 2 | **Editar artículos del pedido**: agregar, cambiar, quitar promoción | *1. Agregar un artículo · 2. Cambiar · 3. Quitar promoción* | `POST/PUT/DELETE /v1/pedidos/{id}/articulos...` |
+| 3 | **El diálogo del 409 del combo** — dos botones, no un error | *🎁 El caso de la promoción — respuesta 409* | (misma) |
+| 4 | **El botón `−` sobre una promoción** ahora se rechaza: hay que ofrecer "quitar la promoción completa" | *⚠️ Cambio de comportamiento: el botón `−`* | `DELETE .../promociones/{id}` |
+| 5 | **No mandar el formulario base vacío** en el alta de artículos (era el contador que decía 3 con 2) | *1. El contador que decía 3 con 2* | `POST /v1/variantes/guardarConImagenes` |
+| 6 | **La categoría del modelo baja a todos** los artículos que no traigan la suya | *2. La categoría se hereda del modelo* | (misma) |
+| 7 | **`precioRebaja` en la card de tienda** — solo llega si sos admin | *🔒 Solo viaja para el admin · Cómo usarlo en la card* | `GET /v1/variantes/buscar` |
+| 8 | **Contador de stock disponible** en el alta/edición de artículos ("Quedan 4 disponibles de 12") | *📊 Stock disponible de un producto* | `GET /v1/stock/producto/{id}` |
+| 9 | **Rifa: colapsar los concursantes** y el alta agrupada por perfil | *🎟️ Boletos de rifa agrupados por perfil* | `GET/POST/DELETE /v1/rifas/{id}/boletos-agrupados...` |
+| 10 | **Rifa: el 409 de URL repetida** con el botón "cargarla igual" (`modo: REPETIDA_PERMITIDA`) | *🔑 El campo `modo`* | (misma) |
+| 11 | **Buscador blanco en modo día** — puro front, no toca backend | — | — |
+
+### Lo que NO necesita nada del front
+
+Estos se resolvieron enteros en el back y la pantalla no cambia:
+
+- Precios validados en el back (ya no se puede falsificar el subtotal ni el precio unitario)
+- Promociones con apartado, fiado y tarjeta
+- Búsqueda por código de barras exacto primero (`H1336` buscando `1336`)
+- `mis-pedidos` con código, nombre y foto
+- El sorteo de la rifa: **no cambió**, las probabilidades son las mismas de antes
+
+### Los 4 botones nuevos no aparecen hasta correr las migraciones
+
+Los botones de las filas 1, 2, 3, 4, 9 y 10 están detrás de permisos configurables. **Sin correr
+las migraciones responden 403 a todo el mundo, incluido el admin**, y después hay que
+**volver a entrar** (los permisos viajan dentro del JWT).
+
+La lista de scripts está al final de `PRUEBAS_QA_STOCK.md`, sección
+*"📜 Scripts que hay que ejecutar"*.
+
+Si un botón da 403 y la migración ya corrió: cerrar sesión y entrar de nuevo antes de reportarlo.
+
+### Una trampa que vale para TODOS los endpoints nuevos
+
+⚠️ **Usar el status HTTP, no el `code` del body.** El envelope es
+`{ mensaje, code, data, lista }`, y en los errores el `code` viene en `404` sin importar el status
+real, por cómo se arma `ResponseGeneric`. Si el front mira el `code`, va a tratar un 409 (que es
+una pregunta, no un error) como un "no encontrado".
