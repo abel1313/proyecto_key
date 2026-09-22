@@ -284,7 +284,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detallePedido.add(dta);
         }
 
-        validarLineasDePromocion(detallePedido, tipoPedido);
+        validarLineasDePromocion(detallePedido);
 
         pedido.setDetalles(detallePedido);
         double totalPedido = detallePedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
@@ -380,7 +380,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     // Agrupa las lineas del pedido que traen promocionId y valida cada combo contra
     // PromocionServiceImpl (vigencia, precios, y que el pedido sea de contado).
-    private void validarLineasDePromocion(List<DetallePedido> detallePedido, String tipoPedido) {
+    private void validarLineasDePromocion(List<DetallePedido> detallePedido) {
         Map<Integer, List<PromocionServiceImpl.LineaPromocionCheck>> lineasPorPromocion = new LinkedHashMap<>();
         for (DetallePedido d : detallePedido) {
             if (d.getPromocion() != null) {
@@ -390,7 +390,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             }
         }
         for (var entry : lineasPorPromocion.entrySet()) {
-            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue(), tipoPedido);
+            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue());
         }
     }
 

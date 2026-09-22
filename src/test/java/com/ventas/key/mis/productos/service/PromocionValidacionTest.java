@@ -21,12 +21,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Una promocion se puede pagar de contado o apartar, pero no fiar.
+ * Una promocion se puede cerrar de cualquier forma: contado, apartado o fiado.
  *
  * <p>Hasta el 2026-09-22 solo se aceptaba NORMAL, asi que la pantalla no dejaba otra salida que
- * el pago en efectivo: cualquier otro tipo reventaba en la primera linea de la validacion.
+ * el pago en efectivo: cualquier otro tipo reventaba en la primera linea de la validacion. La
+ * forma de cobro la decide el negocio caso por caso, no esta validacion.
  */
-class PromocionTipoPedidoTest {
+class PromocionValidacionTest {
 
     private IPromocionRepository promocionRepo;
     private PromocionServiceImpl service;
@@ -66,59 +67,60 @@ class PromocionTipoPedidoTest {
         return promo;
     }
 
-    private void validarCon(String tipoPedido) {
+    private void validar() {
         service.validarLineasPromocion(
                 PROMOCION_ID,
-                List.of(new PromocionServiceImpl.LineaPromocionCheck(VARIANTE_ID, 1, PRECIO_PROMO)),
-                tipoPedido);
+                List.of(new PromocionServiceImpl.LineaPromocionCheck(VARIANTE_ID, 1, PRECIO_PROMO)));
     }
 
     @Test
-    @DisplayName("de contado se puede, como siempre")
-    void contadoSePuede() {
-        assertThatCode(() -> validarCon("NORMAL")).doesNotThrowAnyException();
+    @DisplayName("una promocion vigente se puede cerrar, sea contado, apartado o fiado")
+    void vigenteSePuedeCerrar() {
+        // La validacion ya no mira la forma de cobro: el mismo llamado sirve para los tres.
+        assertThatCode(this::validar).doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("apartar una promocion ahora se puede: la mercancia no sale hasta pagarse")
-    void apartarSePuede() {
-        assertThatCode(() -> validarCon("APARTADO")).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("sin tipo de pedido se trata como contado")
-    void sinTipoSePuede() {
-        assertThatCode(() -> validarCon(null)).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("fiar una promocion sigue prohibido: el producto sale sin estar pagado")
-    void fiarSigueProhibido() {
-        assertThatThrownBy(() -> validarCon("FIADO"))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("credito");
-    }
-
-    @Test
-    @DisplayName("una promocion vencida no se puede apartar")
-    void vencidaNoSeAparta() {
+    @DisplayName("una promocion vencida no se puede usar")
+    void vencidaNoSePuede() {
         Promocion vencida = promocionVigente();
         vencida.setFechaVencimiento(LocalDateTime.now().minusDays(1));
         when(promocionRepo.findByIdConDetalle(PROMOCION_ID)).thenReturn(Optional.of(vencida));
 
-        assertThatThrownBy(() -> validarCon("APARTADO"))
+        assertThatThrownBy(this::validar)
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("ya no esta disponible");
     }
 
     @Test
-    @DisplayName("apartar no afloja la validacion del precio")
-    void apartarNoAflojaElPrecio() {
+    @DisplayName("una promocion desactivada a mano tampoco se puede usar")
+    void desactivadaNoSePuede() {
+        Promocion apagada = promocionVigente();
+        apagada.setActivo(false);
+        when(promocionRepo.findByIdConDetalle(PROMOCION_ID)).thenReturn(Optional.of(apagada));
+
+        assertThatThrownBy(this::validar)
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("ya no esta disponible");
+    }
+
+    @Test
+    @DisplayName("abrir la forma de cobro no aflojo la validacion del precio")
+    void elPrecioSigueValidandose() {
         assertThatThrownBy(() -> service.validarLineasPromocion(
                 PROMOCION_ID,
-                List.of(new PromocionServiceImpl.LineaPromocionCheck(VARIANTE_ID, 1, 1.0)),
-                "APARTADO"))
+                List.of(new PromocionServiceImpl.LineaPromocionCheck(VARIANTE_ID, 1, 1.0))))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("no coincide");
+    }
+
+    @Test
+    @DisplayName("una variante que no es del combo se rechaza")
+    void varianteAjenaSeRechaza() {
+        assertThatThrownBy(() -> service.validarLineasPromocion(
+                PROMOCION_ID,
+                List.of(new PromocionServiceImpl.LineaPromocionCheck(999, 1, PRECIO_PROMO))))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("no pertenece");
     }
 }
