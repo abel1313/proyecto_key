@@ -16,6 +16,7 @@ import com.ventas.key.mis.productos.models.UsuarioDto;
 import com.ventas.key.mis.productos.models.abonos.AbonoRequest;
 import com.ventas.key.mis.productos.models.pedidos.AbonoDetalleItem;
 import com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest;
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
 import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
@@ -235,26 +236,19 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
             if (mpa.getVarianteId() != null) {
                 variante = iVarianteRepository.findByIdWithLock(mpa.getVarianteId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + mpa.getVarianteId()));
+                        .orElseThrow(() -> new RuntimeException("Artículo no encontrado: " + mpa.getVarianteId()));
+                prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado para el artículo: " + mpa.getVarianteId()));
+                articuloAVender(prod, variante).exigirQueSePuedaVender(mpa.getCantidad());
 
-                if (variante.getStock() < mpa.getCantidad()) {
-                    throw new RuntimeException("Stock insuficiente en variante id " + mpa.getVarianteId()
-                            + ". Disponible: " + variante.getStock() + ", solicitado: " + mpa.getCantidad());
-                }
                 variante.setStock(variante.getStock() - mpa.getCantidad());
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);
-
-                prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
-                        .orElseThrow(() -> new RuntimeException("Producto no encontrado para variante: " + mpa.getVarianteId()));
             } else {
                 prod = this.iProductoRepository.findByIdWithLock(mpa.getProducto().getId())
                         .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId()));
-            }
-
-            if (prod.getStock() < mpa.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
-                        + ". Disponible: " + prod.getStock() + ", solicitado: " + mpa.getCantidad());
+                ArticuloAVender.soloModelo(prod.getNombre(), prod.getHabilitado() == '1', stockDe(prod))
+                        .exigirQueSePuedaVender(mpa.getCantidad());
             }
 
             // Lineas sin promocionId deben pagar el precio de catalogo — el precio con descuento
@@ -565,6 +559,17 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         return getListPageableDto(jsonList);
     }
 
+
+    private static ArticuloAVender articuloAVender(Producto prod, Variantes variante) {
+        return ArticuloAVender.deArticulo(
+                ArticuloAVender.nombreVisible(prod.getNombre(), variante.getTalla(), variante.getColor()),
+                prod.getHabilitado() == '1', stockDe(prod),
+                variante.getHabilitado() == '1', variante.getStock());
+    }
+
+    private static int stockDe(Producto prod) {
+        return prod.getStock() != null ? prod.getStock() : 0;
+    }
 
     @Transactional
     @Override

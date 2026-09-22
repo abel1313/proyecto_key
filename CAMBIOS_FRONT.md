@@ -20824,3 +20824,37 @@ no aparece en la tienda (el catálogo pide `stock > 0`).
 
 No hay forma de registrar una **merma** (mercancía perdida o dañada) con su motivo. Hoy se resta a mano
 del stock base en la pantalla del producto.
+
+---
+
+## 🚫 Vender algo deshabilitado ya no pasa: el back revisa producto y artículo (2026-09-22)
+
+**Estado:** solo en `dev` (sin commit todavía). No cambia ninguna URL ni el formato de request/response.
+
+**Antes:** al vender, el back solo revisaba stock. No revisaba si el producto o el artículo estaban
+habilitados. Un artículo que se quedó en el carrito del cliente (el carrito vive en el navegador)
+después de deshabilitar su producto se vendía igual. Lo mismo desde venta directa: el buscador del
+admin muestra todo, incluido lo deshabilitado, y la venta pasaba.
+
+**Después:** estos endpoints revisan, en este orden: producto habilitado → stock del producto →
+artículo habilitado → stock del artículo. Si algo falla responden **400** y no descuentan nada.
+
+| Endpoint | Qué es |
+|---|---|
+| `POST /v1/pedidos/savePedido` | pedido del cliente o del admin (también el de flores eternas) |
+| `POST /v1/ventas/save` | venta directa en mostrador |
+| `POST /v1/abonos/{pedidoIdOrigen}/transferir` | pasar el saldo de un apartado cancelado a otro artículo |
+| `POST /v1/pedidos/{pedidoId}/articulos` · `PUT /v1/pedidos/{pedidoId}/articulos/{detalleId}` | agregar o cambiar un artículo de un pedido |
+
+**Mensajes que llegan en el 400** (el front solo tiene que mostrarlos):
+- `'Blusa talla M azul' ya no está a la venta: el producto está deshabilitado o dado de baja. Quítalo del carrito para continuar.`
+- `'Blusa talla M azul' ya no está a la venta: el artículo está deshabilitado o dado de baja. Quítalo del carrito para continuar.`
+- `No hay suficiente stock de 'Blusa talla M azul'. Disponible: 1, solicitado: 2`
+
+Antes el mensaje de stock decía `Stock insuficiente en variante id 123...`; si el front buscaba ese
+texto para algo, ya no lo va a encontrar.
+
+**Deshabilitar un producto no toca sus artículos:** no se ponen en 0 ni se deshabilitan. Con el
+producto apagado no se vende ninguno; al volver a habilitarlo quedan como estaban. Los apartados
+y pedidos pendientes que ya tenían ese artículo **no se cancelan solos** (su stock ya se descontó
+al crearlos): si la pieza sigue en la tienda se entregan normal.

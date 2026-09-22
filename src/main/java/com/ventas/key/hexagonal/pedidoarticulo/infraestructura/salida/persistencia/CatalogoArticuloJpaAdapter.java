@@ -45,6 +45,7 @@ public class CatalogoArticuloJpaAdapter implements CatalogoArticuloPort {
                 v.getId(),
                 producto.getId(),
                 nombreDe(producto, v),
+                producto.getHabilitado() == '1',
                 v.getHabilitado() == '1',
                 v.getStock(),
                 producto.getStock() != null ? producto.getStock() : 0,

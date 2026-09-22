@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -175,21 +176,18 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             }
 
             Variantes variante = iVarianteRepository.findByIdWithLock(item.getVarianteId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
+                    .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado: " + item.getVarianteId()));
 
             Producto prod = variante.getProducto();
 
-            if (variante.getStock() < item.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente en variante id " + item.getVarianteId()
-                        + ". Disponible: " + variante.getStock() + ", solicitado: " + item.getCantidad());
-            }
+            ArticuloAVender.deArticulo(
+                    ArticuloAVender.nombreVisible(prod.getNombre(), variante.getTalla(), variante.getColor()),
+                    prod.getHabilitado() == '1', prod.getStock() != null ? prod.getStock() : 0,
+                    variante.getHabilitado() == '1', variante.getStock())
+                    .exigirQueSePuedaVender(item.getCantidad());
+
             variante.setStock(variante.getStock() - item.getCantidad());
             iVarianteRepository.save(variante);
-
-            if (prod.getStock() < item.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
-                        + ". Disponible: " + prod.getStock() + ", solicitado: " + item.getCantidad());
-            }
 
             // Lineas sin promocionId deben cobrarse al precio de catalogo — un descuento en
             // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request

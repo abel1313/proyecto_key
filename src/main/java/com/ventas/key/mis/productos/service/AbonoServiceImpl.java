@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.Utils.CacheNames;
 import com.ventas.key.mis.productos.entity.*;
@@ -349,11 +350,13 @@ public class AbonoServiceImpl implements IAbonoService {
         }
 
         Variantes variante = varianteRepository.findByIdWithLock(request.getNuevaVarianteId())
-                .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + request.getNuevaVarianteId()));
-
-        if (variante.getStock() < request.getCantidad()) {
-            throw new RuntimeException("Stock insuficiente. Disponible: " + variante.getStock());
-        }
+                .orElseThrow(() -> new RuntimeException("Artículo no encontrado: " + request.getNuevaVarianteId()));
+        Producto modelo = variante.getProducto();
+        ArticuloAVender.deArticulo(
+                ArticuloAVender.nombreVisible(modelo.getNombre(), variante.getTalla(), variante.getColor()),
+                modelo.getHabilitado() == '1', modelo.getStock() != null ? modelo.getStock() : 0,
+                variante.getHabilitado() == '1', variante.getStock())
+                .exigirQueSePuedaVender(request.getCantidad());
 
         double totalNuevo = request.getPrecioUnitario() * request.getCantidad();
 
