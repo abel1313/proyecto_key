@@ -137,9 +137,22 @@ public class PromocionServiceImpl {
     // coincidan exactamente con lo definido en promocion_detalle y que el pedido sea de contado.
     @Transactional(readOnly = true)
     public void validarLineasPromocion(Integer promocionId, List<LineaPromocionCheck> lineas, String tipoPedido) {
-        if (tipoPedido != null && !"NORMAL".equalsIgnoreCase(tipoPedido)) {
+        // Una promocion se puede pagar de contado (NORMAL) o apartar (APARTADO): en el apartado
+        // la mercancia no sale del negocio hasta estar pagada, asi que el precio promocional no
+        // corre riesgo. FIADO si queda bloqueado -- ahi el producto se entrega y se cobra
+        // despues, y regalar el descuento ademas del credito es otra decision.
+        //
+        // Antes esto exigia NORMAL y nada mas, asi que una promocion solo podia cerrarse de
+        // contado: por eso la pantalla "saltaba directo a efectivo" (reportado 2026-09-22).
+        //
+        // El precio queda congelado solo: se guarda en detalle_pedidos.precio_unitario al crear
+        // el pedido, y al liquidar el apartado nadie revalida la promocion. Un apartado abierto
+        // conserva el precio del dia en que se aparto aunque la promocion venza.
+        if (tipoPedido != null
+                && !"NORMAL".equalsIgnoreCase(tipoPedido)
+                && !"APARTADO".equalsIgnoreCase(tipoPedido)) {
             throw new RuntimeException(
-                    "Las promociones solo se pueden comprar de contado, no se pueden apartar ni dar a credito");
+                    "Las promociones se pueden pagar de contado o apartar, pero no se pueden dar a credito");
         }
 
         Promocion promo = iPromocionRepository.findByIdConDetalle(promocionId)

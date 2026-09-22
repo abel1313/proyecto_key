@@ -238,6 +238,69 @@ Repetí ambos casos contra `POST /v1/ventas/directa`. El fix se aplicó en los d
 
 ---
 
+# PRUEBA 8 — Apartar una promoción 🎁
+
+### El problema que tenías
+
+> *"Cuando genero una promoción pasa directo a pago en efectivo."*
+
+No era que pasara directo: el back **rechazaba** cualquier cosa que no fuera contado, en la
+primera línea de la validación. La pantalla se quedaba sin opciones.
+
+### Pasos
+
+1. Andá a **tienda/venta** (o donde armes el pedido con promoción)
+2. Elegí una promoción vigente y armá el combo completo (todas las variantes que pide)
+3. En tipo de pedido elegí **APARTADO**
+4. Elegí forma de pago: probá **efectivo** y repetí con **tarjeta**
+5. Guardar
+
+### Resultado esperado
+
+✅ El pedido se crea como apartado, con la forma de pago que elegiste.
+
+❌ Si sale *"Las promociones solo se pueden comprar de contado…"*, el deploy no llegó.
+❌ Si sale *"…no se pueden dar a credito"*, elegiste FIADO — ese sigue bloqueado a propósito
+(ver abajo).
+
+### Verificá
+
+```sql
+SELECT p.id, p.tipo_pedido, p.estado_pedido, p.total_pedido,
+       dp.precio_unitario, dp.promocion_id
+FROM pedidos p
+JOIN detalle_pedidos dp ON dp.pedido_id = p.id
+WHERE dp.promocion_id IS NOT NULL
+ORDER BY p.id DESC LIMIT 5;
+```
+- `tipo_pedido` = `APARTADO`
+- `precio_unitario` = el precio promocional, no el de catálogo
+
+### Y que el stock se descontó al apartar
+```sql
+SELECT id, nombre, stock FROM producto WHERE id = <PRODUCTO_ID>;
+```
+Debe haber bajado. Esa fue tu decisión: se reserva al apartar, no al liquidar.
+
+### FIADO sigue bloqueado — a propósito
+
+| Tipo | La mercadería | ¿Con promoción? |
+|---|---|---|
+| NORMAL | se paga y se lleva | ✅ |
+| APARTADO | **se queda en el negocio** | ✅ nuevo |
+| FIADO | se la lleva y paga después | ❌ |
+
+El criterio: apartar no tiene riesgo porque vos tenés el producto. Fiar sí — das el
+descuento *y* el crédito. **Si querés que fiado también se pueda, avisá: es una línea.**
+
+### El precio queda congelado
+Si apartás hoy con una promoción que vence mañana y liquidás la semana que viene, pagás el
+precio de hoy. El precio se guarda en `detalle_pedidos` al crear el pedido y al liquidar
+nadie revalida la promoción.
+
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -268,6 +331,8 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P6** Ninguna pantalla se cuelga
 - [ ] **P7** Subtotal falsificado → el back lo recalcula (no queda en $1)
 - [ ] **P7b** Precio unitario falsificado → rechazado
+- [ ] **P8** Apartar una promoción → se crea (efectivo y tarjeta)
+- [ ] **P8b** Fiar una promoción → rechazado
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -280,7 +345,7 @@ Para que no lo busques en estas pruebas:
 |---|---|
 | Campo "stock disponible" en pantalla | P2 — **necesita el repo del front**, que no está en la sesión actual |
 | ~~Precios validados en el back~~ | ✅ **hecho** — ver Prueba 7 |
-| Promociones con apartado y tarjeta | P2 |
+| ~~Promociones con apartado y tarjeta~~ | ✅ **hecho** — ver Prueba 8 |
 | Búsqueda por código exacto primero | P3 |
 | Contador de tallas que dice 3 con 2 | P3 — front |
 | `mis-pedidos` con código, nombre y foto | P3 |
