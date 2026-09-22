@@ -70,6 +70,30 @@ Código de barras, nombre, precios y categoría **vienen del modelo**. La pantal
 pide por artículo, y el back no los acepta por artículo: si los aceptara, dos artículos del mismo
 modelo podrían terminar con precios distintos sin que nadie lo decidiera.
 
+### R4 — Al vender: primero el producto, después el artículo (2026-09-22)
+
+Toda venta (pedido, venta directa, transferencia de saldo de un apartado, agregar o cambiar un
+artículo en un pedido) revisa, en este orden:
+
+1. el **producto** está habilitado,
+2. el **producto** tiene stock para la cantidad,
+3. el **artículo** está habilitado,
+4. el **artículo** tiene stock para la cantidad.
+
+**El back no confía en el front.** El carrito se guarda en el navegador y puede traer un artículo
+que se deshabilitó después de agregarlo; el buscador de venta directa del admin muestra todo,
+incluido lo deshabilitado. Antes de este cambio ninguno de esos caminos revisaba `habilitado`.
+
+**Deshabilitar el producto no toca sus artículos.** No se ponen en 0 ni se deshabilitan: con el
+producto apagado ninguno se puede vender, y al volver a habilitarlo quedan como estaban. La regla
+"artículo deshabilitado = stock 0" existe para liberar ese stock a sus hermanos; con todo el
+producto apagado no hay a quién dárselo.
+
+**Lo ya apartado no se toca.** Un apartado o pedido pendiente ya descontó su stock al crearse;
+deshabilitar el producto no lo cancela. Si la pieza sigue en la tienda, se entrega normal.
+
+Vive en `ArticuloAVender` para que los cuatro caminos digan lo mismo y en el mismo orden.
+
 ---
 
 ## Por qué vive aquí y no en `VarianteServiceImpl`

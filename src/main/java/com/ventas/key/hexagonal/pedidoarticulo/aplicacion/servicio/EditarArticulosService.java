@@ -237,9 +237,13 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     private ArticuloDisponible articuloVendible(Integer varianteId) {
         ArticuloDisponible articulo = catalogo.leerParaEditar(varianteId)
                 .orElseThrow(() -> ArticuloNoEncontradoException.enCatalogo(varianteId));
+        if (!articulo.modeloHabilitado()) {
+            throw new EdicionPedidoException("'" + articulo.nombre()
+                    + "' ya no está a la venta: el producto está deshabilitado o dado de baja");
+        }
         if (!articulo.habilitado()) {
-            throw new EdicionPedidoException(
-                    "El articulo '" + articulo.nombre() + "' esta dado de baja y no se puede vender");
+            throw new EdicionPedidoException("'" + articulo.nombre()
+                    + "' ya no está a la venta: el artículo está deshabilitado o dado de baja");
         }
         return articulo;
     }

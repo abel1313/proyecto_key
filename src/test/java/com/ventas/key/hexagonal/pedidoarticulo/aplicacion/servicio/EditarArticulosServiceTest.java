@@ -100,7 +100,7 @@ class EditarArticulosServiceTest {
     /** Un articulo del catalogo con stock de sobra. */
     private ArticuloDisponible enCatalogo(int varianteId, double normal, Double rebaja, int hay) {
         ArticuloDisponible a = new ArticuloDisponible(varianteId, 99, "Articulo " + varianteId,
-                true, hay, hay, new PrecioCatalogo("Articulo " + varianteId, normal, rebaja));
+                true, true, hay, hay, new PrecioCatalogo("Articulo " + varianteId, normal, rebaja));
         when(catalogo.leerParaEditar(varianteId)).thenReturn(Optional.of(a));
         return a;
     }
@@ -207,12 +207,27 @@ class EditarArticulosServiceTest {
     void articuloDeBajaNo() {
         conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
         when(catalogo.leerParaEditar(PANTALON_HOMBRE)).thenReturn(Optional.of(
-                new ArticuloDisponible(PANTALON_HOMBRE, 99, "Pantalon hombre", false, 10, 10,
+                new ArticuloDisponible(PANTALON_HOMBRE, 99, "Pantalon hombre", true, false, 10, 10,
                         new PrecioCatalogo("Pantalon hombre", 400.0, null))));
 
         assertThatThrownBy(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, null)))
                 .isInstanceOf(EdicionPedidoException.class)
                 .hasMessageContaining("dado de baja");
+    }
+
+    @Test
+    @DisplayName("un articulo cuyo producto esta deshabilitado no se puede agregar, aunque el articulo este habilitado")
+    void productoDeshabilitadoNo() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        when(catalogo.leerParaEditar(PANTALON_HOMBRE)).thenReturn(Optional.of(
+                new ArticuloDisponible(PANTALON_HOMBRE, 99, "Pantalon hombre", false, true, 10, 10,
+                        new PrecioCatalogo("Pantalon hombre", 400.0, null))));
+
+        assertThatThrownBy(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, null)))
+                .isInstanceOf(EdicionPedidoException.class)
+                .hasMessageContaining("el producto está deshabilitado");
+
+        verify(stock, never()).descontar(anyInt(), anyInt());
     }
 
     @Test

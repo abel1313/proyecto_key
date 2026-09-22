@@ -12,6 +12,7 @@ package com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo;
  * @param varianteId     el articulo
  * @param productoId     su modelo
  * @param nombre         para los mensajes
+ * @param modeloHabilitado  si el producto padre esta deshabilitado, ninguno de sus articulos se vende
  * @param habilitado     una variante dada de baja no se puede vender
  * @param stockVariante  piezas de esta talla/color
  * @param stockProducto  piezas del modelo
@@ -21,6 +22,7 @@ public record ArticuloDisponible(
         Integer varianteId,
         Integer productoId,
         String nombre,
+        boolean modeloHabilitado,
         boolean habilitado,
         int stockVariante,
         int stockProducto,
