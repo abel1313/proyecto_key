@@ -248,7 +248,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));
 
         int stockEnVariantes = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
-                .stream().mapToInt(Variantes::getStock).sum();
+                .stream().filter(v -> v.getHabilitado() == '1').mapToInt(Variantes::getStock).sum();
 
         int stockDisponible = producto.getStock() - stockEnVariantes;
         if (stockDisponible < requestVarianteDto.getCantidadVariantes()) {
@@ -594,7 +594,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         for (VarianteDetalle detalle : detalles) {
             boolean esRestock = false;
             if (detalle.getId() != null) {
-                esRestock = ajustarStock(detalle);
+                esRestock = esRestock(detalle);
             }
 
             Variantes saved = save(buildVariante(detalle));
@@ -713,8 +713,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
     }
 
-    /** @return true si este ajuste hace que la variante pase de sin stock a con stock (0 -> N). */
-    private boolean ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
+    /**
+     * Mover stock de una variante NO toca el stock base del producto: el base es el total fisico
+     * y las variantes solo se reparten lo que hay. Subirle 3 a una variante consume 3 del
+     * disponible (base - suma de variantes habilitadas), no crea 3 unidades nuevas. Para eso
+     * esta la pantalla del producto: si llega mercancia, se sube ahi el stock base y recien
+     * entonces hay mas disponible que repartir.
+     *
+     * <p>Antes este metodo hacia producto.stock += (nuevo - viejo), asi que editar una variante
+     * inflaba el total: base 10 con una variante en 2, editarla a 5 dejaba el producto en 13 y el
+     * disponible seguia en 8 -- se podia repartir indefinidamente stock que no existia.
+     *
+     * @return true si este ajuste hace que la variante pase de sin stock a con stock (0 -> N).
+     */
+    private boolean esRestock(VarianteDetalle detalle) throws ExceptionDataNotFound {
         // El front manda el stock final ya calculado (actual + agregar - quitar) -- guard acá
         // por si llega negativo de todos modos: validarStockContraProducto() suma stocks
         // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
@@ -724,28 +736,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
-        int diff = detalle.getStock() - actual.getStock();
-        if (diff != 0) {
-            Producto producto = iProductosRepository.findById(detalle.getProductoId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + detalle.getProductoId()));
-            int nuevoStockProducto = producto.getStock() + diff;
-            // El stock de un producto no puede quedar negativo: no existe media docena negativa
-            // en bodega. Sin este guard se llego a productos en -7 (id 328 en produccion), y
-            // cualquier validacion posterior se comporta raro contra un numero asi.
-            if (nuevoStockProducto < 0) {
-                throw new ExceptionDataNotFound(
-                        String.format("El stock del producto '%s' quedaria en %d. Revisa el stock del producto antes de este cambio.",
-                                producto.getNombre(), nuevoStockProducto));
-            }
-            producto.setStock(nuevoStockProducto);
-            iProductosRepository.save(producto);
-        }
         return actual.getStock() == 0 && detalle.getStock() > 0;
     }
 
     /**
      * Avisa por correo a quienes tienen esta variante en Favoritos de que volvió a haber stock.
-     * No hay bandera de "ya avisado" en BD -- se apoya en que ajustarStock() solo devuelve true en
+     * No hay bandera de "ya avisado" en BD -- se apoya en que esRestock() solo devuelve true en
      * la transición real 0->N, así que una variante que ya tiene stock no vuelve a dispararlo
      * hasta que se agote y se reabastezca de nuevo. Nunca debe tumbar el guardado de la variante
      * si el envío falla.
@@ -1036,6 +1032,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Variantes> variantes = iVarianteRepository.findAllById(ids);
         Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
 
+        // Al deshabilitar, la variante se deja en 0 y con eso su stock vuelve a estar disponible
+        // para repartir (el disponible es base - suma de habilitadas; el stock base del producto
+        // no se toca). Al habilitar de nuevo NO se le devuelve stock solo -- si quedo en 0 hay que
+        // asignarle de nuevo, a proposito: evita que reactivar algo viejo se coma stock que ya se
+        // repartio en otras variantes mientras tanto.
+        if (!habilitar) {
+            variantes.forEach(v -> v.setStock(0));
+        }
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
         iVarianteRepository.flush();
@@ -1114,7 +1118,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
      * pedidos apuntando a una fila que ya no existe. Mismo criterio que
      * ProductosServiceImpl.deleteByIdProducto(), que tambien deja el producto en habilitado=0.
      *
-     * El stock del producto padre NO se toca aqui, igual que en el borrado de producto.
+     * La variante se deja en stock 0, y con eso su stock vuelve a estar disponible para repartir
+     * en otras variantes -- el stock base del producto NO se toca: nunca bajo al asignarlo a esta
+     * variante, asi que tampoco tiene que subir al soltarlo. Lo disponible se calcula siempre como
+     * base menos la suma de las variantes HABILITADAS (ver validarStockContraProducto).
+     *
+     * Ejemplo: base 10 con una variante en 2 -> disponible 8. Al dar de baja esa variante el base
+     * sigue en 10 y el disponible vuelve a 10. Si despues se vuelve a habilitar, entra con 0: hay
+     * que asignarle stock de nuevo, no lo recupera solo.
      *
      * Las imagenes si se borran de verdad (y del micro si quedan huerfanas): con la variante
      * deshabilitada ya no se muestran en ningun lado y solo ocupan disco.
@@ -1127,8 +1138,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         eliminarImagenesDeVariantes(List.of(id));
 
         variante.setHabilitado('0');
+        variante.setStock(0);
         iVarianteRepository.save(variante);
-        log.info("Variante id={} dada de baja (habilitado=0) y sus imagenes eliminadas", id);
+        log.info("Variante id={} dada de baja (habilitado=0, stock liberado al disponible del producto) "
+                + "y sus imagenes eliminadas", id);
         evictAllCaches();
     }
 
