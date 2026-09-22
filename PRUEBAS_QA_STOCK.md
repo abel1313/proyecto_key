@@ -1257,6 +1257,10 @@ Todos viven en `src/main/resources/static/`.
 | 2 | `migration_accion_pedido_cambiar_tipo.sql` | `cambiar-tipo` | no se puede cambiar la forma de cobro (Prueba 12) |
 | 3 | `migration_accion_pedido_articulos.sql` | `agregar-articulo`, `cambiar-articulo`, `quitar-promocion` | no se pueden editar los artículos (Prueba 13) |
 | 4 | `migration_accion_rifa_boletos_agrupados.sql` | `cargar-boletos-agrupado`, `agregar-participacion`, `quitar-participacion` | no se pueden cargar boletos agrupados (Prueba 16) |
+| 5 | `backfill_variantes_carga_rapida.sql` | no es un permiso: llena los artículos que la Carga rápida dejó vacíos antes del hotfix | los artículos viejos de Carga rápida siguen sin descripción/color/marca (Prueba 23) |
+
+El 5 no se corre de un jalón con `<`: trae consultas de diagnóstico antes y de verificación después.
+Abrirlo y correrlo por partes, guardando el resultado del diagnóstico. No toca stock.
 
 ### En QA (cubre dev y qa — las dos apuntan a la misma base)
 
@@ -1266,6 +1270,7 @@ mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migra
 mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_cambiar_tipo.sql
 mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_articulos.sql
 mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_rifa_boletos_agrupados.sql
+# el 5 (backfill), por partes desde el cliente de MySQL
 ```
 
 ### En producción — solo cuando QA apruebe
@@ -1314,116 +1319,151 @@ antes de validarlo. No se corre "por las dudas".
 
 ---
 
-## ✅ NUEVA RONDA — Pruebas automatizadas + manuales de stock (2026-09-22)
+## ✅ RONDA 2026-09-22 (noche) — Reglas de stock de artículos + hotfix de Carga rápida
+
+> **Esta sección reemplaza a la "NUEVA RONDA" anterior.** Aquella describía un front que se subió a
+> prod por error (y se revirtió), no el que hay en qa, y el back de esas reglas nunca se había subido:
+> 3 de sus 4 pruebas automáticas fallaban. Las pruebas van de la 17 en adelante para no chocar con
+> las 7 a 13 de arriba.
+
+### Antes de empezar
+
+1. Esperar a que QA termine de desplegarse (back `07453e3` o posterior, front `a0f047c` o posterior).
+2. **Revisar los productos con los que ya probaste hoy.** El back viejo subía el stock base del
+   producto cada vez que le sumabas stock a un artículo (base 2 → le sumas 2 a un artículo → base 4).
+   Si vas a repetir la prueba con ese producto, primero corrige su base a mano; si no, vas a ver
+   disponible de más:
+   ```sql
+   SELECT p.id, p.nombre, p.stock AS base,
+          SUM(CASE WHEN v.habilitado='1' THEN v.stock ELSE 0 END) AS en_articulos
+   FROM producto p JOIN codigo_barras cb ON cb.id = p.codigo_barras_id
+   LEFT JOIN variantes v ON v.producto_id = p.id
+   WHERE cb.codigo_barras = '<CÓDIGO>' GROUP BY p.id;
+   -- si el base quedó inflado:  UPDATE producto SET stock = <el real> WHERE id = <id>;
+   ```
+3. Volver a entrar al admin después de correr los scripts de permisos.
 
 ### Pruebas automatizadas (backend)
 
-**Clase:** `VarianteStockDevolucionTest.java`  
-**Ubicación:** `src/test/java/com/ventas/key/mis/productos/service/`  
-**Ejecución:** `mvn test -Dtest=VarianteStockDevolucionTest` (4 tests)
+`mvn test -Dtest=VarianteStockDevolucionTest` → **7 tests, todos pasan** (218 en toda la suite).
 
-#### Test 1: `deleteByIdVariante_dejaLaVarianteEnCeroSinSubirElStockBase`
-- **Caso:** Producto stock=10, variante stock=2. DELETE /variantes/{id}
-- **Validación:** Variante → 0, Producto → 10 (sin cambios)
-- **Resultado esperado:** ✅ pasa
-
-#### Test 2: `habilitarDeshabilitarVariantesLote_alDeshabilitar_dejaLasVariantesEnCeroSinTocarElBase`
-- **Caso:** Producto 10, variantes A=2 y B=3. PUT /variantes/admin/habilitar-lote?habilitar=false
-- **Validación:** A→0, B→0, Producto→10 (sin cambios)
-- **Resultado esperado:** ✅ pasa
-
-#### Test 3: `habilitarDeshabilitarVariantesLote_alHabilitar_noTocaElStock`
-- **Caso:** Variante deshabilitada con stock=0. PUT /variantes/admin/habilitar-lote?habilitar=true
-- **Validación:** Pasa a habilitado='1' pero **stock sigue 0** (no auto-restaura)
-- **Resultado esperado:** ✅ pasa
-
-#### Test 4: `guardarConImagenes_alEditarUnaVariante_noSubeElStockBaseDelProducto`
-- **Caso:** Producto 10, variante 2→5. POST /variantes/guardarConImagenes
-- **Validación:** Producto→10 (sin cambios), Variante→5, disponible→5
-- **Resultado esperado:** ✅ pasa
-
-### Pruebas manuales (frontend + UI validation)
-
-**Precondición:** Admin logueado en QA. Todos usan base `inventario_key_qa`.
-
-#### PRUEBA 7 — Agregar variante con stock disponible limitado
-
-1. Admin → Productos → Elegir producto con stock ≥ 5
-2. Agregar variante → Observar barra: `Disponible: X / Usando: 0 / Restante: X`
-3. Llenar Stock = 6 → Barra: `Disponible: 10 / Usando: 6 / Restante: 4`
-4. Cambiar a 11 → **Rojo** (`Restante: -1`), botón DESHABILITADO
-5. Volver a 9 → Se quita rojo, botón HABILITADO
-6. Guardar → OK sin error
-
-**Verificación:** `SELECT stock FROM producto WHERE id=?` → Debe ser **idéntico al de antes** (no subió)
+| Test | Qué asegura |
+|---|---|
+| `deleteByIdVariante_dejaLaVarianteEnCeroSinSubirElStockBase` | dar de baja deja el artículo en 0 y el base igual |
+| `habilitarDeshabilitarVariantesLote_alDeshabilitar_...` | deshabilitar (lote e individual) deja en 0 sin tocar el base |
+| `habilitarDeshabilitarVariantesLote_alHabilitar_noTocaElStock` | habilitar no devuelve stock |
+| `guardarConImagenes_alEditarUnaVariante_noSubeElStockBaseDelProducto` | base 10, artículo 2→5: base sigue 10 |
+| `guardarConImagenes_sumarLoDisponibleAUnArticuloAgotado_...` | tu caso: base 2, todos agotados, sumarle 2 a uno pasa y el base sigue 2 |
+| `guardarConImagenes_elStockPropioNoCuentaComoDisponible` | base 10, A=5, B=5: A a 7 responde 400 |
+| `guardarConImagenes_sinAumento_pasaAunqueElModeloEsteDescuadrado` | renombrar sin tocar stock nunca falla por stock |
 
 ---
 
-#### PRUEBA 8 — Actualizar variante (el stock propio no cuenta como "usado")
+# PRUEBA 17 — Sumarle stock a un artículo agotado 🔴 tu caso
 
-1. Admin → Productos → Abrir variante existente (ej. stock=9)
-2. Actualizar variante → Barra muestra `Disponible: 1 / Usando ahora: 0 / Restante: 1`
-   - Disponible = 10 − (stock de OTRAS variantes) = 10 − 9 = 1
-3. Cambiar stock de 9 → 10 → Barra: `Disponible: 1 / Usando: 10 / Restante: -9` (rojo)
-4. Cambiar a 7 → `Disponible: 1 / Usando: 7 / Restante: -6` (sigue rojo porque otra variante usa 3)
-5. Cambiar a 1 → `Disponible: 1 / Usando: 1 / Restante: 0` (se quita rojo)
-6. Guardar → OK
+**Preparación:** un producto con base **2** y todos sus artículos habilitados en **0**.
 
-**Verificación:** BD → Variante1=1, Variante2=3, Producto=10 (sin cambios)
+1. tienda/buscar → abrir uno de los artículos → **tienda/update**.
+2. Debajo del producto tiene que verse: **`Quedan 2 disponibles de 2`** y
+   `Este artículo tiene 0 y va a quedar en 0.`
+3. En **Actualizar stock** escribir `2` → cambia a `va a quedar en 2`, sin aviso rojo.
+4. Guardar → `¡Variante actualizada!`
 
----
+**Verificá:** el base **sigue en 2** (antes quedaba en 4) y el disponible bajó a 0:
+```sql
+SELECT stock FROM producto WHERE id = <id>;          -- 2
+```
+`GET /v1/stock/producto/<id>` → `disponible: 0`.
 
-#### PRUEBA 9 — Deshabilitar variante con 0 stock muestra advertencia
+### 17b — Ya no queda disponible
 
-1. Tienda → Buscar → Encontrar variante habilitada con **stock = 0**
-2. Abre acciones → Deshabilitar
-3. Aparece SweetAlert: *"Esta variante tiene stock 0. Al deshabilitarla no se recupera nada..."*
-4. Aceptar → Variante deshabilitada, `habilitado = 0`
+5. Abrir **otro** artículo del mismo producto → `Quedan 0 disponibles de 2`.
+6. En **Actualizar stock** escribir `1` → aviso rojo: *"Le estás sumando 1 y solo quedan 0. El guardado
+   va a fallar…"*. El botón **no** se bloquea.
+7. Guardar → error con el motivo:
+   *"Stock insuficiente para el producto '…' (id=…). Disponible: 0, Solicitado: 1"*.
 
-**Verificación:** Tienda/buscar → No aparece ya. BD: `habilitado = 0`.
+### 17c — El stock propio no cuenta como libre
 
----
+8. Volver al primer artículo (el que tiene 2) → `Quedan 0 disponibles de 2`.
+9. **Actualizar stock** `2` (quedaría en 4) → aviso rojo → guardar → *"Disponible: 0, Solicitado: 2"*.
+   Antes esto **pasaba** y dejaba 4 repartidos sobre un base de 2.
 
-#### PRUEBA 10 — Deshabilitar en lote (con stock mixto)
+### 17d — Bajar stock nunca falla
 
-1. Tienda → Buscar → Seleccionar 2+ variantes (una con stock > 0, otra con 0)
-2. Menú lote → Deshabilitar
-3. **Comportamiento:**
-   - Si hay stock 0 → aviso sin bloquear
-   - Si todas > 0 → desactiva sin aviso
-4. Confirmar → Todas a `habilitado = 0` y `stock = 0`
-
-**Verificación:** No aparecen en tienda/buscar.
+10. Mismo artículo → **Eliminar stock** `1` → guardar → OK. Disponible vuelve a 1, base sigue en 2.
 
 ---
 
-#### PRUEBA 11 — Habilitar variante deshabilitada (con 0 stock)
+# PRUEBA 18 — Alta de artículos con el contador
 
-1. Admin → Productos → Buscar variante con `habilitado = 0` y `stock = 0`
-2. Abre → Botón Habilitar
-3. Aparece SweetAlert: *"Esta variante tiene stock 0. Después de habilitarla hay que asignarle stock..."*
-4. Aceptar → `habilitado = 1`, **stock sigue en 0**
-
-**Verificación:** Aparece en tienda/buscar. BD: no recuperó stock automáticamente.
-
----
-
-#### PRUEBA 12 — Editar stock existente NO infla el base
-
-1. Producto: 10 stock. Variante A: 5 stock.
-2. Actualizar A → cambiar de 5 → 8
-3. Guardar
-4. Consultar: `GET /v1/productos/findById/{id}` → `stock: 10` (NO subió a 13)
-
-**Verificación:** ✅ sin error.
+1. Alta de artículos → elegir un producto con base 10 y artículos que sumen 4.
+2. Tiene que verse **`Quedan 6 disponibles de 10`**.
+3. Repartir 7 (entre el formulario y las tallas) → aviso: *"Estás repartiendo 7 y solo quedan 6. El
+   guardado va a fallar."* → guardar → error `Disponible: 6, Solicitado: 7`.
+4. Bajar a 6 → sin aviso → guardar OK. Disponible queda en 0 y el base sigue en 10.
 
 ---
 
-#### PRUEBA 13 — Deshabilitar y recuperar disponible
+# PRUEBA 19 — Deshabilitar libera el stock
 
-1. Producto: 10. Variante A: 3. Variante B: 4. Disponible: 3.
-2. Deshabilita A → A→stock:0, A→habilitado:0
-3. Disponible ahora: 6 (10 − 4)
-4. Consulta: `GET /v1/variantes/porProducto/{id}` → A aparece con `habilitado = 0`
+**Preparación:** base 10, artículo A con 3 y B con 4 → disponible 3.
 
-**Verificación:** ✅ Disponible se recuperó.
+1. tienda/buscar → en A, botón **🔒 Deshab.** → *Artículo deshabilitado*. **No** pide confirmación.
+2. En la misma lista, sin recargar, A se ve en **0** y con la etiqueta *Deshabilitado*.
+3. `GET /v1/stock/producto/<id>` → `disponible: 6`. Base sigue en 10.
+
+**Lo mismo en lote:** marcar varios → **🔒 Deshabilitar seleccionadas** → todos en 0.
+
+---
+
+# PRUEBA 20 — Habilitar un artículo sin stock avisa
+
+1. Con el filtro **No habilitadas** marcado, buscar A (quedó en 0).
+2. **🔓 Habilitar** → aviso *"Este artículo no tiene stock"*, con **Habilitar de todas formas** y
+   **Cancelar**.
+3. **Cancelar** → no cambia nada.
+4. **Habilitar de todas formas** → queda habilitado **con 0**: no recupera los 3.
+5. En la tienda pública **no aparece** (el catálogo solo muestra artículos con stock > 0). Aparece en
+   cuanto se le asigna stock desde tienda/update.
+
+**El caso que antes fallaba:** deshabilitar un artículo con stock y, **sin recargar**, volver a
+habilitarlo → el aviso **tiene** que salir (antes la lista seguía mostrando el stock viejo y se
+habilitaba sin avisar).
+
+**En lote:** seleccionar varios deshabilitados → **🔓 Habilitar seleccionadas** → *"N artículos no
+tienen stock"*.
+
+---
+
+# PRUEBA 21 — Dar de baja libera el stock
+
+1. Base 10, artículo A con 2 → disponible 8.
+2. tienda/buscar → dar de baja A → *Modelo dado de baja*.
+3. BD: A con `habilitado = 0` y `stock = 0`. Base sigue en 10. Disponible 10.
+
+---
+
+# PRUEBA 22 — El error dice el motivo
+
+1. Cualquier error del back al guardar en tienda/update se muestra tal cual (Pruebas 17b y 17c).
+2. **Sin respuesta del servidor:** DevTools → Network → *Offline* → guardar → *"No hubo respuesta del
+   servidor. Antes de reintentar, revisa en la búsqueda si el cambio sí se guardó."*
+3. Si en algún caso sale solo el código (*"error 500"*, *"error 504"*…), anotar la hora: con eso se
+   busca el motivo real en `kubectl logs deployment/proyecto-key-deployment -n qa`.
+
+---
+
+# PRUEBA 23 — Hotfix de Carga rápida: el artículo recibe los datos
+
+1. Carga rápida → subir una foto → **Completar información** con descripción, color, marca,
+   contenido y categoría → guardar.
+2. tienda/buscar → el artículo tiene esos mismos datos (antes salía vacío).
+3. BD:
+   ```sql
+   SELECT v.descripcion, v.color, v.marca, v.contenido_neto, v.palabra_clave_id
+   FROM variantes v WHERE v.producto_id = <id>;
+   ```
+4. Completar otra vez cambiando **solo** el color → el color se actualiza y los demás campos no se
+   borran.
+5. Correr el backfill (script 5) y revisar que su consulta de verificación baje a 0.
