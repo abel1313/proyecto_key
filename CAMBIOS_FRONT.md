@@ -20104,3 +20104,287 @@ quien cobra en mostrador **sin** darle el resto de la gestión de pedidos.
 
 En el front, el botón se muestra con el mismo `tieneAccion('cambiar-tipo')` que ya usan los demás
 botones de esa pantalla.
+
+---
+
+# Editar los artículos de un pedido ya creado (2026-09-22)
+
+**El caso:** hoy solo se puede **quitar** una línea (el botón `−`). Para agregar algo o cambiar una
+talla hay que cancelar el pedido entero y rehacerlo — que devuelve y vuelve a descontar el stock, y
+deja registrado algo distinto de lo que realmente pasó.
+
+Tres endpoints nuevos. Los tres devuelven **el pedido completo ya actualizado**, así que la
+pantalla se repinta con la respuesta sin volver a pedir el detalle.
+
+## 1. Agregar un artículo
+
+```
+POST /mis-productos/v1/pedidos/{pedidoId}/articulos
+```
+```json
+{ "varianteId": 88, "cantidad": 2, "precioUnitario": null }
+```
+
+| Campo | Obligatorio | Qué es |
+|---|---|---|
+| `varianteId` | **sí** | el artículo (lo que hoy se llama variante) |
+| `cantidad` | no | default 1; tiene que ser > 0 |
+| `precioUnitario` | no | **null = precio normal.** Solo se acepta el normal o el de rebaja |
+
+**No manda `subTotal`** — el back lo calcula. Recibirlo fue el agujero por el que un pedido entero
+podía quedar en $1.
+
+**Si ese artículo ya está en el pedido al mismo precio, suma cantidad a la línea existente** en vez
+de crear una segunda. Dos líneas de lo mismo son imposibles de explicar en un ticket.
+
+## 2. Cambiar un artículo por otro
+
+```
+PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}
+```
+```json
+{ "varianteId": 99, "cantidad": null, "precioUnitario": null, "modo": null }
+```
+
+`detalleId` sale del campo `detalleId` de cada línea en el response. `cantidad: null` conserva la
+que tenía la línea.
+
+## 3. Quitar una promoción completa
+
+```
+DELETE /mis-productos/v1/pedidos/{pedidoId}/promociones/{promocionId}
+```
+Sin body. Saca **todas** las líneas de esa promoción y devuelve su stock.
+
+## Response 200 (los tres)
+
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "pedidoId": 501,
+    "estadoPedido": "Pendiente",
+    "totalPedido": 1100.0,
+    "totalPagado": 300.0,
+    "saldo": 800.0,
+    "articulos": [
+      {
+        "detalleId": 3,
+        "varianteId": 88,
+        "productoId": 41,
+        "nombre": "Great Jeans talla M azul",
+        "cantidad": 2,
+        "precioUnitario": 400.0,
+        "subTotal": 800.0,
+        "promocionId": null,
+        "esDePromocion": false
+      }
+    ]
+  }
+}
+```
+
+⚠️ **`saldo` puede venir negativo** si el pedido ya tenía abonos y ahora vale menos. Eso es dinero
+a favor del cliente: hay que mostrarlo, no esconderlo ni tratarlo como 0. `totalPagado` **nunca** se
+toca al editar — una devolución es una decisión de negocio, no algo que el back haga solo.
+
+## 🎁 El caso de la promoción — respuesta **409**, que no es un error
+
+Si se intenta cambiar una línea que pertenece a una promoción por un artículo que **no está** en
+ese combo, el back **no decide solo**: responde **409 Conflict**, deja el pedido intacto y devuelve
+las dos salidas para que el modal pregunte.
+
+```json
+{
+  "requiereDecision": true,
+  "mensaje": "'Pantalón hombre' no forma parte de la promocion 'Combo pantalón + perfume'. Para llevarlo hay que quitar la promocion completa (2 articulo(s)) o conservarla y agregarlo aparte a precio normal",
+  "promocionId": 7,
+  "promocion": "Combo pantalón + perfume",
+  "articuloNuevo": "Pantalón hombre talla 32",
+  "importeDelCombo": 500.0,
+  "lineasDelCombo": [ { "detalleId": 1, "nombre": "...", "subTotal": 300.0, "...": "..." } ],
+  "opciones": [
+    { "modo": "QUITAR_PROMOCION",
+      "titulo": "Quitar la promocion completa",
+      "explicacion": "Salen las 2 linea(s) de la promocion 'Combo...' y entra 'Pantalón hombre' a precio normal. Lo demas del pedido no se toca" },
+    { "modo": "CONSERVAR_PROMOCION",
+      "titulo": "Conservarla y agregarlo aparte",
+      "explicacion": "La promocion queda como esta y 'Pantalón hombre' se suma como una linea nueva a precio normal" }
+  ]
+}
+```
+
+**El 409 es la señal, no un fallo.** El front lo distingue del 400 por el status o por
+`requiereDecision: true`; el modal se arma con `opciones[]` (título y explicación ya vienen
+escritos) y `lineasDelCombo` para listar qué se iría.
+
+Elegida la opción, se **repite el mismo PUT** con `modo` puesto:
+
+```json
+{ "varianteId": 99, "modo": "QUITAR_PROMOCION" }
+```
+
+| `modo` | Qué hace |
+|---|---|
+| `VALIDAR` (o null) | no cambia nada; devuelve el 409 con las opciones. Es el default |
+| `QUITAR_PROMOCION` | salen **todas** las líneas del combo, entra el artículo nuevo a precio normal. Lo ajeno a la promoción no se toca |
+| `CONSERVAR_PROMOCION` | la promoción queda intacta y el artículo nuevo se suma como línea nueva a precio normal |
+
+**Si el artículo nuevo SÍ está en la promoción**, no hay 409: se cambia directo, **al precio del
+combo**, y la promoción sigue entera.
+
+**Por qué (a) saca el combo entero y no solo la línea que se cambiaba:** el precio promocional
+existe porque se llevan esas piezas juntas. Dejar dos de tres al precio del combo sería cobrar un
+descuento por una condición que ya no se cumple.
+
+## ⚠️ Cambio de comportamiento: el botón `−` sobre una promoción
+
+`DELETE /v1/pedidos/{id}/detalle/{productoId}` **antes** dejaba sacar una línea suelta de una
+promoción; el resto del combo se quedaba al precio promocional, en silencio.
+
+**Ahora responde 400** cuando la línea pertenece a una promoción, y el mensaje dice con qué
+endpoint quitar el combo completo. Sobre una línea **sin** promoción funciona igual que siempre —
+este cambio no toca ese caso.
+
+El front debería ocultar el `−` en las líneas con `esDePromocion: true` y mostrar en su lugar
+"Quitar promoción".
+
+## Errores (400)
+
+Mismo envelope que el resto: `{ mensaje, code, data: null }`, HTTP **400** (el `code` del body dice
+`404`, hay que guiarse por el status y por `mensaje`).
+
+| Cuándo | `mensaje` |
+|---|---|
+| Precio que no es normal ni rebaja | `El precio $1.00 no es valido para 'X'. Se puede cobrar a $400.00 (normal) o $350.00 (rebaja)` |
+| Sin stock | `No hay stock suficiente de 'X'. Solicitado: 5. Disponible: 1 (articulo: 1, modelo: 8)` |
+| Pedido entregado / cancelado | `El pedido 501 ya se entrego: no se pueden editar sus articulos` |
+| Artículo dado de baja | `El articulo 'X' esta dado de baja y no se puede vender` |
+| Cantidad 0 o negativa | `La cantidad tiene que ser mayor a 0...` |
+| Cambiar al mismo artículo | `La linea 3 ya es de ese mismo articulo...` |
+| Quitar la última línea | `El pedido 501 quedaria sin articulos. Si ya no se quiere nada, hay que cancelar el pedido` |
+| Quitar el `−` de una promoción | `'X' es parte de la promocion 'Y' y no se puede quitar solo... DELETE /v1/pedidos/501/promociones/7` |
+| Sin permiso | **403** de Spring Security, sin pasar por el controller |
+
+Cuando algo se rechaza, **el stock no se movió**: las tres operaciones son todo o nada.
+
+## Los tres botones van configurados
+
+| Botón | Acción | Etiqueta en Gestión de roles |
+|---|---|---|
+| "+ Agregar artículo" | `agregar-articulo` | *Agregar articulo al pedido (+)* |
+| "Cambiar" en la línea | `cambiar-articulo` | *Cambiar un articulo del pedido...* |
+| "Quitar promoción" | `quitar-promocion` | *Quitar una promocion completa del pedido* |
+
+Pantalla `pedidos/mis-pedidos`, categoría *Detalle del pedido*. Migración:
+`migration_accion_pedido_articulos.sql`. De arranque **solo `ROLE_ADMIN`**.
+
+Son tres acciones separadas a propósito: se puede querer que quien atiende el mostrador agregue
+artículos **sin** poder desarmar una promoción, que es una decisión de dinero más grande.
+
+## El tercer precio (rebaja) ya se puede cobrar
+
+`producto` tiene tres precios: `precio_costo` (nunca se vende a eso), `precio_venta` (el normal) y
+`precio_rebaja`. Hasta ahora el tercero se guardaba y se mostraba en el admin pero **nunca se
+cobraba** — para bajar un precio había que armar una promoción.
+
+Ahora se puede cobrar, tanto al crear la venta como al editar el pedido, mandándolo en
+`precioUnitario`. Siguen siendo **solo esos dos**, así que el front no puede inventar un monto.
+
+**Qué ve el cliente:** en el catálogo y la tienda, siempre `precio_venta` — la rebaja no se
+publica. **En su pedido ve lo que realmente pagó**, aunque sea el rebajado: una vez aplicada en una
+venta es el precio de ese cliente y tiene derecho a verlo en su comprobante.
+
+---
+
+# Alta de artículos: el artículo vacío y la categoría heredada (2026-09-22)
+
+## El modelo y el artículo — cómo se relacionan
+
+El **modelo** (`producto`) identifica: nombre, precios, **código de barras** y categoría. El
+**artículo** (hoy `variante`) hereda todo eso y solo agrega **lo suyo**: talla, color, marca,
+presentación, contenido neto, descripción y stock.
+
+**El código de barras compartido entre todas las tallas no es un bug, es el diseño** — todas son
+el mismo producto. Lo que distingue a un artículo es lo que se le llena encima.
+
+## 1. El contador que decía 3 con 2 — corregido en el back
+
+**Antes:** la pantalla tiene el formulario base y la sección de varias tallas, independientes. Si
+se llenaba el base, se agregaban 2 tallas y después **se vaciaba el base**, el base seguía viajando:
+el back recibía 3 y **creaba 3**, y el tercero nacía sin talla, sin color y sin nada.
+
+**Ahora:** `POST /mis-productos/v1/variantes/guardarConImagenes` **descarta los artículos que no
+describen nada** antes de guardar.
+
+Un artículo se descarta solo si cumple **todo** esto a la vez:
+- es nuevo (`id` null),
+- no trae **ningún** dato propio (talla, color, marca, descripción, presentación, contenido neto —
+  en blanco o solo espacios cuenta como vacío),
+- no trae imágenes,
+- y su stock es 0 o menos.
+
+**Lo que NO se descarta** (a propósito, para no perder un alta real):
+
+| Caso | Se guarda |
+|---|---|
+| Artículo que **ya existe** (`id` con valor), aunque le vacíen todo | ✅ es una edición |
+| Sin talla ni color pero **con stock** | ✅ es el modelo de un solo artículo |
+| Sin texto pero **con imágenes** | ✅ |
+| Con **un solo** campo lleno (ej. solo color) | ✅ basta uno |
+
+Si **todos** llegan vacíos responde **400**: *"No hay ningún artículo que guardar: todos llegaron
+vacíos. Hay que llenar al menos la talla, el color u otro dato, o ponerle stock"*.
+
+**Para el front:** el response sigue trayendo los artículos realmente creados, así que el conteo a
+mostrar sale de ahí y no de lo que se envió. Lo ideal igual es **no mandar el formulario base
+vacío**, pero si se cuela, el back ya no lo guarda.
+
+## 2. La categoría se hereda del modelo
+
+Si un artículo **no trae** `palabraClaveId`, toma la del modelo. *"Si está llena, que la tome para
+todos los que agregue."*
+
+El que **sí** trae la suya la conserva — el modelo no la pisa. Así la mayoría salen con la del
+modelo y alguno se puede separar, sin tener que elegirla artículo por artículo.
+
+**Para el front:** ya no hace falta repetir `palabraClaveId` en cada talla; mandarlo en null
+alcanza. Si se manda, gana el del artículo.
+
+---
+
+# El precio de rebaja ya llega a la card de tienda (2026-09-22)
+
+`VarianteResumenDto` (lo que devuelven `/v1/variantes/buscar` y `/v1/variantes/buscar-filtrado`)
+llevaba **un solo precio**. Por eso, aunque el cobro ya aceptaba el precio de rebaja, la card no
+tenía con qué ofrecerlo.
+
+**Campo nuevo: `precioRebaja`**
+
+```json
+{
+  "id": 88,
+  "nombreProducto": "Great Jeans",
+  "talla": "M",
+  "precio": 400.0,
+  "precioRebaja": 350.0,
+  "codigoBarras": "7501234567890",
+  "stock": 5
+}
+```
+
+## 🔒 Solo viaja para el admin
+
+Para un **cliente** (o sin token) `precioRebaja` viene **null**. La rebaja no se publica en el
+catálogo: es un precio que el admin puede decidir aplicar en una venta, no un precio de lista.
+Publicarla lo convertiría en el precio de todos.
+
+**El cliente sí la ve después en su pedido**, porque ahí es lo que realmente pagó y tiene derecho
+a verlo en su comprobante.
+
+## Cómo usarlo en la card
+
+Cuando `precioRebaja` viene con valor, la card puede ofrecer los dos precios. El que se elija va en
+`precioUnitario` al crear la venta/pedido o al agregar el artículo — el back acepta **solo esos
+dos**, cualquier otro monto lo rechaza con el mensaje que dice cuáles valen.

@@ -577,6 +577,275 @@ que el permiso no sirvió.
 
 ---
 
+# PRUEBA 13 — Editar los artículos de un pedido ya creado 🛍️
+
+**El caso que la origina:** hoy solo se puede **quitar** una línea (el botón `−`). Para agregar
+algo o cambiar una talla hay que cancelar el pedido entero y rehacerlo — que devuelve y vuelve a
+descontar el stock, y deja registrado algo distinto de lo que realmente pasó.
+
+### Antes de probar: correr la migración
+
+```bash
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_articulos.sql
+```
+
+Tienen que salir **3 filas** (`agregar-articulo`, `cambiar-articulo`, `quitar-promocion`), todas
+para `ROLE_ADMIN` — la consulta de verificación está comentada al final del script.
+
+### 13a — Agregar un artículo
+
+```bash
+curl -X POST "$HOST/v1/pedidos/<PEDIDO_ID>/articulos" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"varianteId":<VARIANTE_ID>,"cantidad":2}'
+```
+
+Responde **200** con el pedido completo ya actualizado. Verificar en la base que el stock **bajó
+en los dos lados** (artículo y modelo) y que el total se recalculó:
+
+```sql
+SELECT v.id, v.stock AS stock_articulo, p.stock AS stock_modelo
+FROM variantes v JOIN producto p ON p.id = v.producto_id WHERE v.id = <VARIANTE_ID>;
+
+SELECT total_pedido, total_pagado FROM pedido WHERE id = <PEDIDO_ID>;
+```
+
+**13a2 — Agregar lo mismo dos veces:** repetir el mismo curl. Tiene que quedar **una sola línea
+con la cantidad sumada**, no dos líneas iguales:
+```sql
+SELECT id, variante_id, cantidad, precio_unitario, sub_total
+FROM detalle_pedidos WHERE pedido_id = <PEDIDO_ID> AND variante_id = <VARIANTE_ID>;
+-- una fila, no dos
+```
+
+### 13b — El precio no se puede inventar
+
+Sin `precioUnitario` se cobra el **precio normal**. Mandando el de **rebaja** se acepta. Mandando
+cualquier otro, se rechaza:
+
+```bash
+# este tiene que fallar
+curl -X POST "$HOST/v1/pedidos/<PEDIDO_ID>/articulos" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"varianteId":<VARIANTE_ID>,"cantidad":1,"precioUnitario":1}'
+```
+→ **400** `El precio $1.00 no es valido para 'X'. Se puede cobrar a $400.00 (normal) o $350.00 (rebaja)`
+
+Y lo importante: **el stock no se movió**. Volver a correr la consulta de stock de 13a.
+
+### 13c — Cambiar un artículo por otro (línea sin promoción)
+
+```bash
+curl -X PUT "$HOST/v1/pedidos/<PEDIDO_ID>/articulos/<DETALLE_ID>" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"varianteId":<VARIANTE_NUEVA>}'
+```
+
+El `<DETALLE_ID>` sale del response de 13a (campo `detalleId` de cada línea). Tiene que
+**devolver el stock del viejo y descontar el del nuevo**, en un solo paso.
+
+### 13d — El combo de promoción 🎁 (lo más importante)
+
+Armar un pedido con una promoción **y algo más fuera de ella** (ej. promoción de 2 artículos +
+una cartera suelta). Después intentar cambiar una línea de la promoción por algo que **no está**
+en el combo:
+
+```bash
+curl -X PUT "$HOST/v1/pedidos/<PEDIDO_ID>/articulos/<DETALLE_DE_LA_PROMO>" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"varianteId":<ALGO_FUERA_DE_LA_PROMO>}'
+```
+
+**Responde 409, no 400** — y eso es a propósito: no es un error, es una pregunta. El body trae
+las dos salidas para el modal:
+
+```json
+{
+  "requiereDecision": true,
+  "mensaje": "'Pantalón hombre' no forma parte de la promocion 'Combo...'",
+  "promocionId": 7,
+  "importeDelCombo": 500.0,
+  "lineasDelCombo": [ ... ],
+  "opciones": [
+    { "modo": "QUITAR_PROMOCION",    "titulo": "Quitar la promocion completa", "explicacion": "..." },
+    { "modo": "CONSERVAR_PROMOCION", "titulo": "Conservarla y agregarlo aparte", "explicacion": "..." }
+  ]
+}
+```
+
+**Verificar que el pedido quedó intacto** — este es el punto de la prueba:
+```sql
+SELECT id, variante_id, cantidad, promocion_id FROM detalle_pedidos WHERE pedido_id = <PEDIDO_ID>;
+-- las mismas líneas que antes del curl
+```
+
+**13d2 — Opción (a), quitar la promoción:** mismo curl con `"modo":"QUITAR_PROMOCION"`.
+Tienen que salir **todas** las líneas de la promoción (no solo la que se cambiaba), su stock
+tiene que volver, el artículo nuevo entra **a precio normal**, y **la cartera no se toca**:
+```sql
+SELECT id, variante_id, cantidad, precio_unitario, promocion_id
+FROM detalle_pedidos WHERE pedido_id = <PEDIDO_ID>;
+-- 0 filas con promocion_id = 7, la cartera sigue ahí, y la línea nueva a precio normal
+```
+
+**13d3 — Opción (b), conservarla:** en otro pedido igual, mandar
+`"modo":"CONSERVAR_PROMOCION"`. La promoción queda **entera** y se suma una línea nueva a precio
+normal. Nada se borra.
+
+**13d4 — Cambio DENTRO del combo:** cambiar una línea de la promoción por otro artículo **que sí
+está** en esa promoción. Tiene que cambiar directo (200, sin 409) y **al precio del combo**, no al
+de catálogo:
+```sql
+SELECT variante_id, precio_unitario, promocion_id FROM detalle_pedidos WHERE id = <DETALLE_ID>;
+-- promocion_id sigue puesto y precio_unitario es el de promocion_detalle
+```
+
+### 13e — Quitar una promoción completa
+
+```bash
+curl -X DELETE "$HOST/v1/pedidos/<PEDIDO_ID>/promociones/<PROMOCION_ID>" \
+  -H "Authorization: Bearer $TOKEN_ADMIN"
+```
+Salen todas sus líneas y vuelve su stock.
+
+**13e2 — No se puede vaciar el pedido:** en un pedido que **solo** tiene la promoción, el mismo
+curl tiene que fallar con *"quedaria sin articulos... hay que cancelar el pedido"*. Un pedido
+vacío no es un pedido.
+
+### 13f — El agujero que se cerró: el botón `−` sobre una promoción
+
+El botón de quitar (`DELETE /v1/pedidos/{id}/detalle/{productoId}`) **dejaba sacar una línea
+suelta de una promoción**, y el resto del combo se quedaba al precio promocional — cobrando un
+descuento por una condición que ya no se cumplía, en silencio.
+
+```bash
+curl -X DELETE "$HOST/v1/pedidos/<PEDIDO_ID>/detalle/<PRODUCTO_DE_LA_PROMO>" \
+  -H "Authorization: Bearer $TOKEN_ADMIN"
+```
+Ahora tiene que **fallar**, diciendo que hay que quitar la promoción completa y con qué endpoint.
+Sobre una línea **sin** promoción sigue funcionando igual que siempre.
+
+### 13g — Los permisos
+
+Con un usuario sin las acciones → **403** en los tres endpoints. Dándole solo
+**"Agregar artículo al pedido (+)"** desde Gestión de roles (y volviendo a entrar para refrescar
+el token): puede agregar, pero **sigue en 403** para cambiar y para quitar la promoción.
+
+Eso es el punto de que sean tres acciones y no una: desarmar un combo es una decisión de dinero
+más grande que sumar un artículo.
+
+### 13h — Un pedido cerrado no se edita
+
+Sobre un pedido **Entregado** o **cancelado**, los tres endpoints tienen que responder 400 con
+*"ya se entrego"* / *"esta cancelado"*.
+
+### 13i — Pedido con abonos
+
+En un pedido que ya tiene abonos, quitar artículos hasta que valga **menos de lo pagado**. El
+response tiene que traer `saldo` **negativo** — es dinero a favor del cliente y la pantalla tiene
+que mostrarlo. `total_pagado` **no se toca**:
+```sql
+SELECT total_pedido, total_pagado FROM pedido WHERE id = <PEDIDO_ID>;
+-- total_pagado igual que antes de la edición
+```
+
+
+---
+
+# PRUEBA 14 — El alta de artículos: el contador que dice 3 con 2 🔢
+
+**El caso:** la pantalla de alta tiene **dos partes independientes** — el formulario base (para dar
+de alta uno solo) y la sección de varias tallas. Si se llena el base, se agregan 2 tallas y después
+**se vacía el base**, el base seguía viajando: el back recibía 3 y creaba **3**, y el tercero nacía
+sin talla, sin color y sin nada.
+
+**No hace falta migración para esta prueba.**
+
+### 14a — El caso exacto reportado
+
+En el alta de un modelo: llenar el formulario base, agregar **2 tallas**, y después **borrar lo
+que se llenó en el base**. Guardar.
+
+Tienen que quedar **2 artículos, no 3**:
+```sql
+SELECT id, talla, color, marca, stock, palabra_clave_id
+FROM variantes WHERE producto_id = <PRODUCTO_ID> ORDER BY id DESC;
+```
+Ninguna fila con todo en null.
+
+### 14b — Un solo artículo, sin tallas (que NO se rompa)
+
+Dar de alta un modelo llenando **solo el formulario base**, sin agregar tallas. Tiene que crear
+**1 artículo**. Este es el caso que había que no romper al filtrar: *"si solo quiero agregar 1
+artículo, lleno los datos que están"*.
+
+**14b2 — Sin talla pero con stock:** un artículo sin talla ni color pero **con stock** se guarda
+igual — es el modelo que no tiene variantes reales.
+
+**14b3 — Sin datos pero con foto:** también se guarda.
+
+**14b4 — Todo vacío:** si **todos** los artículos llegan vacíos, responde
+*"No hay ningún artículo que guardar: todos llegaron vacíos..."* en vez de crear basura.
+
+### 14c — Editar un artículo existente borrándole los campos
+
+Sobre un artículo que **ya existe**, borrarle talla y color y guardar. **No se descarta** — vaciar
+los campos de algo guardado es una edición válida, no un descarte. Es la diferencia entre `id`
+null y `id` con valor.
+
+### 14d — La categoría se hereda del modelo
+
+En un modelo que **tiene categoría** (palabra clave), agregar varias tallas **sin elegirle
+categoría a ninguna**. Todas tienen que quedar con la del modelo:
+
+```sql
+SELECT v.id, v.talla, v.palabra_clave_id, p.palabra_clave_id AS categoria_del_modelo
+FROM variantes v JOIN producto p ON p.id = v.producto_id
+WHERE v.producto_id = <PRODUCTO_ID>;
+-- palabra_clave_id igual al del modelo en todas
+```
+
+**14d2 — La propia gana:** si a **una** de las tallas se le elige una categoría distinta, esa
+conserva la suya y las demás siguen heredando. El modelo no la pisa.
+
+---
+
+# PRUEBA 15 — El precio de rebaja en la card de tienda 🏷️
+
+El tercer precio (`precio_rebaja`) ya se podía **cobrar** (Pruebas 7 y 13b), pero la card nunca lo
+recibía, así que el front no tenía con qué ofrecerlo. Ahora `VarianteResumenDto` lo lleva.
+
+### 15a — Como admin, la card trae los dos precios
+
+```bash
+curl "$HOST/v1/variantes/buscar?termino=<ALGO>&pagina=1&size=5" \
+  -H "Authorization: Bearer $TOKEN_ADMIN"
+```
+Cada artículo tiene que traer `precio` **y** `precioRebaja` (en los modelos que tengan rebaja
+cargada).
+
+### 15b — Como cliente, la rebaja NO viaja 🔒
+
+El mismo curl **sin token** (o con un token de cliente):
+
+```bash
+curl "$HOST/v1/variantes/buscar-filtrado?termino=<ALGO>&pagina=1&size=5"
+```
+
+`precioRebaja` tiene que venir **null o ausente** en todos. La rebaja es el precio que el admin
+puede decidir aplicar, no un precio de lista: publicarla en el catálogo la convertiría en el precio
+de todos.
+
+**Esto es lo importante de esta prueba** — verificar que la respuesta pública no la filtre.
+
+### 15c — El cliente sí la ve en su pedido
+
+Si se le cobró a precio de rebaja, el cliente **sí** ve ese monto en el detalle de su pedido: ahí
+es lo que realmente pagó y tiene derecho a verlo en su comprobante.
+
+
+---
+
 # Al terminar: comparación final
 
 ```sql
@@ -623,6 +892,30 @@ SELECT COUNT(*) AS productos_negativos FROM producto WHERE stock < 0;
 - [ ] **P12c** Apartado → fiado sin cobrar → cambia, sin abono
 - [ ] **P12d** Entregado / cancelado / mismo tipo / tipo inventado → rechazados
 - [ ] **P12e** Sin el permiso → 403; con el permiso dado en Gestión de roles → 200
+- [ ] **P13** Migración de artículos corrida → las 3 acciones existen
+- [ ] **P13a** Agregar un artículo → baja stock en artículo y modelo, sube el total
+- [ ] **P13a2** Agregar lo mismo dos veces → una línea con la cantidad sumada
+- [ ] **P13b** Precio inventado → rechazado **y el stock no se movió**
+- [ ] **P13c** Cambiar artículo (sin promoción) → devuelve el viejo, descuenta el nuevo
+- [ ] **P13d** Cambio que rompe el combo → **409** con las 2 opciones y el pedido intacto
+- [ ] **P13d2** `QUITAR_PROMOCION` → sale el combo entero, lo ajeno no se toca
+- [ ] **P13d3** `CONSERVAR_PROMOCION` → no se borra nada, se suma aparte
+- [ ] **P13d4** Cambio dentro del combo → 200, al precio del combo, promoción intacta
+- [ ] **P13e** Quitar promoción completa → vuelve su stock
+- [ ] **P13e2** Vaciar el pedido → rechazado
+- [ ] **P13f** Botón `−` sobre una línea de promoción → ahora rechazado
+- [ ] **P13g** 3 permisos separados: solo "agregar" → agrega pero no cambia ni quita
+- [ ] **P13h** Pedido entregado/cancelado → los 3 endpoints rechazan
+- [ ] **P13i** Pedido con abonos → `saldo` negativo y `total_pagado` intacto
+- [ ] **P14a** Base vaciado + 2 tallas → guarda **2**, no 3
+- [ ] **P14b** Solo el formulario base → guarda 1 (no se rompió el caso simple)
+- [ ] **P14b2/b3** Sin talla pero con stock / con foto → se guardan
+- [ ] **P14b4** Todos vacíos → mensaje claro, no crea basura
+- [ ] **P14c** Editar un artículo existente vaciándole campos → NO se descarta
+- [ ] **P14d** Tallas sin categoría → heredan la del modelo
+- [ ] **P14d2** Una con categoría propia → conserva la suya
+- [ ] **P15a** Admin → la card trae `precio` y `precioRebaja`
+- [ ] **P15b** 🔒 Cliente → `precioRebaja` NO viaja
 - [ ] `SELECT COUNT(*) FROM producto WHERE stock < 0` → **0**
 
 ---
@@ -635,10 +928,13 @@ Para que no lo busques en estas pruebas:
 |---|---|
 | Campo "stock disponible" **en pantalla** | back ✅ hecho (Prueba 9) — falta el front |
 | Modal para cambiar la forma de cobro | back ✅ hecho (Prueba 12) — falta el front |
+| Agregar / cambiar artículo en un pedido | back ✅ hecho (Prueba 13) — falta el front |
+| Precio diferente (rebaja) al **cobrar** | back ✅ hecho (Pruebas 7 y 13b) |
+| Precio diferente (rebaja) en la **card de tienda** | back ✅ hecho (Prueba 15) — falta el front |
+| Contador de artículos que dice 3 con 2 | back ✅ hecho (Prueba 14) — el front ya no manda el vacío |
 | ~~Precios validados en el back~~ | ✅ **hecho** — ver Prueba 7 |
 | ~~Promociones con apartado y tarjeta~~ | ✅ **hecho** — ver Prueba 8 |
 | ~~Búsqueda por código exacto primero~~ | ✅ **hecho** — Prueba 10 |
-| Contador de tallas que dice 3 con 2 | P3 — front |
 | ~~`mis-pedidos` con código, nombre y foto~~ | ✅ **hecho** — Prueba 11 |
 | Buscador blanco en modo día | P4 — front |
 | Renombrar `variante` → `artículo` | P4 |
@@ -662,3 +958,69 @@ git push origin main           # dispara el deploy a producción
 ```
 
 El commit de documentación (`hexagonal/`) **no se promueve** — se queda en `dev`/`qa`.
+
+---
+
+# 📜 Scripts que hay que ejecutar — en este orden
+
+Ninguno de estos corre solo. **Sin ellos los botones nuevos responden 403 a todo el mundo**, así
+que van antes de empezar a probar. Los tres son idempotentes (`NOT EXISTS` en cada INSERT):
+volver a correrlos no duplica nada.
+
+Todos viven en `src/main/resources/static/`.
+
+| # | Script | Qué da de alta | Sin él |
+|---|---|---|---|
+| 1 | `migration_accion_tienda_eliminar.sql` | acción `eliminar` en `tienda/buscar` | pendiente de antes (ver el registro en `CLAUDE.md`) |
+| 2 | `migration_accion_pedido_cambiar_tipo.sql` | `cambiar-tipo` | no se puede cambiar la forma de cobro (Prueba 12) |
+| 3 | `migration_accion_pedido_articulos.sql` | `agregar-articulo`, `cambiar-articulo`, `quitar-promocion` | no se pueden editar los artículos (Prueba 13) |
+
+### En QA (cubre dev y qa — las dos apuntan a la misma base)
+
+```bash
+cd <raíz del repo>
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_tienda_eliminar.sql
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_cambiar_tipo.sql
+mysql -h <HOST> -u <USER> -p inventario_key_qa < src/main/resources/static/migration_accion_pedido_articulos.sql
+```
+
+### En producción — solo cuando QA apruebe
+
+Misma lista, cambiando la base a `inventario_key` (sin sufijo):
+
+```bash
+mysql -h <HOST> -u <USER> -p inventario_key < src/main/resources/static/migration_accion_pedido_cambiar_tipo.sql
+mysql -h <HOST> -u <USER> -p inventario_key < src/main/resources/static/migration_accion_pedido_articulos.sql
+```
+
+### Verificación — las 4 acciones nuevas juntas
+
+```sql
+SELECT a.clave, a.etiqueta, a.categoria, a.orden,
+       GROUP_CONCAT(r.nombre_rol) AS roles_que_la_tienen
+FROM accion_submenu a
+JOIN submenu s     ON s.id = a.submenu_id
+LEFT JOIN rol_accion ra ON ra.accion_submenu_id = a.id
+LEFT JOIN roles r       ON r.id = ra.rol_id
+WHERE s.ruta = 'pedidos/mis-pedidos'
+  AND a.clave IN ('cambiar-tipo', 'agregar-articulo', 'cambiar-articulo', 'quitar-promocion')
+GROUP BY a.id, a.clave, a.etiqueta, a.categoria, a.orden
+ORDER BY a.orden;
+```
+
+Tienen que salir **4 filas**, todas con `ROLE_ADMIN`. Si alguna sale con
+`roles_que_la_tienen = NULL`, la acción existe pero nadie la tiene: el botón no le aparece ni al
+admin.
+
+### ⚠️ Después de correr cualquiera de estos, hay que volver a entrar
+
+Los permisos viajan **dentro del JWT**. Un token emitido antes de la migración no trae la
+autoridad nueva, así que el botón sigue dando 403 aunque el script haya corrido bien. Cerrar
+sesión y entrar de nuevo (o esperar al refresh) antes de decir que no funcionó.
+
+### Lo que NO es un script de estos
+
+`migracion.sql` y los `UPDATE` de stock que aparecen en este documento **no** son parte de esta
+lista. El ajuste de inventario descuadrado necesita una decisión producto por producto (ver
+`hexagonal/stock/README.md`) y ya causó un incidente en producción el 2026-09-22 por correrse
+antes de validarlo. No se corre "por las dudas".
