@@ -19980,3 +19980,54 @@ significa que **una imagen recién subida no se borra todavía** aunque ya sea h
 `/admin/reconciliacion-imagenes` — se agregó la sección **3. Limpiar disco** (botón 🧹) y
 "Ver resultado" pasó de ser la sección 3 a la **4**. Es el mismo patrón que "Limpiar BD": se
 dispara, responde de inmediato, y el resultado se consulta con el botón de "Ver resultado".
+
+---
+
+## 🔥 Hotfix prod 2026-09-22 — Carga rápida: el artículo quedaba vacío aunque el producto tuviera los datos
+
+**Síntoma que se vio en producción:** se sube la foto en **Carga rápida**, se llena "Completar
+información" (descripción, color, marca, contenido, categoría) y se guarda. En **productos** la
+info se ve completa. En **el artículo (variante)** no aparece nada — que es justo lo que el cliente
+ve en la tienda y lo que devuelven `GET /v1/variantes/buscar` y `GET /v1/variantes/porProducto/{id}`.
+
+### Causa
+
+`PUT /v1/carga-imagenes/{productoId}/completar` escribía **solo en la tabla `producto`**. La
+variante que crea la carga rápida nace con únicamente `producto_id` + `stock = 1`; todo lo demás
+queda en `null` y nunca se volvía a tocar.
+
+El contrato del endpoint ya decía que cada campo no nulo sobreescribe el valor actual del
+"producto/variante" — la parte de la variante simplemente nunca se había implementado.
+
+### Qué cambia
+
+**Ninguna URL, ningún campo de request ni de response cambia.** El mismo `PUT .../completar` con el
+mismo body ahora además baja estos campos a las variantes del producto:
+
+| Campo del formulario | Columna en `variantes` |
+|---|---|
+| `descripcion` | `descripcion` |
+| `color` | `color` |
+| `marca` | `marca` |
+| `contenido` | `contenido_neto` |
+| `palabraClaveId` | `palabra_clave_id` |
+
+`nombre`, `precioVenta`, `precioCosto`, `precioRebaja` y `piezas` **no** se copian: la variante no
+tiene esas columnas, las hereda del producto (así era antes y sigue igual).
+
+Los campos que llegan `null` (los que el admin todavía no llenó) **no pisan** lo que la variante ya
+tenga, así que se puede seguir llamando `/completar` varias veces mientras se capturan los datos.
+
+### Para el front
+
+**No requiere cambios.** El payload que ya manda `carga-imagenes` es correcto. Lo único que cambia
+es que después de completar, al ir a **tienda/buscar** o al detalle del artículo, los datos ahora sí
+están. Si alguna pantalla mostraba el artículo vacío y se había compensado leyendo el producto, ya
+no hace falta.
+
+### Los artículos que ya se cargaron vacíos
+
+El fix aplica de aquí en adelante. Para los que ya están cargados hay un backfill:
+`src/main/resources/static/backfill_variantes_carga_rapida.sql` — copia del producto a la variante
+solo las columnas que estén vacías, **no toca stock**, y trae consultas de diagnóstico antes y de
+verificación después. Está anotado como PENDIENTE en el registro de migraciones de `CLAUDE.md`.

@@ -488,6 +488,52 @@ clave. **Cualquier buscador nuevo con `switchMap` tiene que llevarlo.**
 
 ---
 
+## Renombrado en curso: `variante` → `artículo` (2026-09-22)
+
+**El nombre real del negocio es "artículo", no "variante".** `variante` fue un nombre técnico que se
+filtró hasta la pantalla, y hoy el admin lee "variante" donde piensa "artículo". Se está renombrando,
+pero **no de golpe**: un rename masivo de `variantes` toca 13 tablas con FK, todos los endpoints
+`/v1/variantes/...` y medio front.
+
+### Cómo se hace
+
+**Oportunista, no como tarea aparte.** Cada vez que se toque un archivo por cualquier otra razón y
+ahí aparezca `variante`, se aprovecha y se renombra **lo que sea seguro renombrar en ese archivo**.
+No se abre un PR "de renombrado" ni se barre el repo entero.
+
+### Qué SÍ se renombra
+
+- Textos de pantalla en el front: labels, títulos, botones, mensajes de error, tooltips, breadcrumbs.
+- Mensajes que el back manda al usuario (`ExceptionErrorInesperado`, mensajes de validación).
+- Comentarios y nombres de variables locales cuando ya se está editando ese bloque.
+- Documentación nueva.
+
+### Qué NO se renombra todavía
+
+- **Nombres de tablas y columnas** (`variantes`, `variante_imagen`, `producto_id`…). Eso necesita
+  migración coordinada con los 13 FKs.
+- **Rutas de endpoints** (`/v1/variantes/buscar`, `/v1/variantes/porProducto/{id}`). Cambiarlas
+  rompe el front en producción; cuando toque, se hace como `/v2/articulos/...` con el `/v1/`
+  conviviendo, siguiendo la estrategia de versionado de arriba.
+- **Nombres de clases y DTOs** (`Variantes`, `VarianteDto`, `VarianteServiceImpl`) mientras las rutas
+  sigan diciendo `variantes` — que el código y la URL se llamen distinto confunde más de lo que ayuda.
+- **Campos de request/response** (`varianteId`, `variantes: []`). Son contrato con el front.
+
+### Dónde se hace — solo `dev` y `qa` por ahora
+
+El renombrado se acumula en `dev` y `qa`. **A `main` no sube renombrado suelto**: los hotfixes que
+van directo a prod llevan únicamente el arreglo, sin aprovechar para renombrar de paso — si no, cada
+hotfix arrastra ruido a producción y el cherry-pick se vuelve imposible de revisar.
+
+Cuando el renombrado esté completo y probado en QA, se promueve a `main` como un cambio propio.
+
+### Aplica igual en el front (`producto_venta_online`)
+
+Misma regla y mismo alcance: textos de pantalla sí, rutas de Angular y nombres de interfaces que
+espejean el contrato del back todavía no.
+
+---
+
 ## Migraciones ya corridas — registro
 
 Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
@@ -499,6 +545,15 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_accion_tienda_eliminar.sql` | ⬜ **PENDIENTE** — corre en DB `inventario_key_qa` (cubre dev+qa) | ⬜ pendiente | 2026-09-17 (merge hecho) |
+| `backfill_variantes_carga_rapida.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ **PENDIENTE** — `inventario_key` | 2026-09-22 (hotfix) |
+
+`backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
+del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas
+que estén vacías — descripción, color, marca, contenido neto y categoría — así que no pisa nada que
+se haya escrito a mano y correrla dos veces no hace daño. **No toca stock**, ni el del producto ni
+el de la variante: el descuadre de inventario es otro problema y se decide producto por producto.
+Correrla primero en `inventario_key_qa` (cubre dev y qa), validar con sus consultas de verificación,
+y recién entonces en prod.
 
 `migration_submenu_ayuda_contextual.sql` da de alta el permiso **Ayuda contextual**, el que
 decide qué roles ven el icono "?" que explica cada pantalla del admin. Es idempotente (todos sus

@@ -333,6 +333,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         }
 
         Producto guardado = iProductosRepository.save(producto);
+        sincronizarVariantes(guardado, req);
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -340,6 +341,27 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
             log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
         }
         return guardado;
+    }
+
+    // crearBorrador() deja la variante con solo producto+stock: sin descripcion, color, marca ni
+    // contenido. Completar los datos escribia unicamente en Producto, asi que la variante -- que es
+    // lo que el cliente ve en la tienda y lo que devuelven /v1/variantes/buscar y /porProducto --
+    // se quedaba vacia para siempre. Aqui se le bajan los campos que comparte con el producto.
+    private void sincronizarVariantes(Producto producto, CompletarProductoDto req) {
+        List<Variantes> variantes = iVarianteRepository.findByProductoId(producto.getId());
+        if (variantes.isEmpty()) return;
+
+        for (Variantes variante : variantes) {
+            if (req.getDescripcion() != null) variante.setDescripcion(req.getDescripcion());
+            if (req.getColor() != null) variante.setColor(req.getColor());
+            if (req.getMarca() != null) variante.setMarca(req.getMarca());
+            if (req.getContenido() != null) variante.setContenidoNeto(req.getContenido());
+            if (req.getPalabraClaveId() != null) {
+                variante.setPalabraClave(iPalabraClaveRepository.getReferenceById(req.getPalabraClaveId()));
+            }
+        }
+        iVarianteRepository.saveAll(variantes);
+        log.info("Carga rapida: se sincronizaron {} variantes del producto {}", variantes.size(), producto.getId());
     }
 
     @Override
