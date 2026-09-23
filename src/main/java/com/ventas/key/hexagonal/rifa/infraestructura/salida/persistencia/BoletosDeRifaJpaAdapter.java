@@ -52,16 +52,6 @@ public class BoletosDeRifaJpaAdapter implements BoletosDeRifaPort {
                 .findFirst();
     }
 
-    @Override
-    public Optional<DuenoDeLaUrl> buscarUrlEnLaRifa(Integer rifaId, String urlParticipacion) {
-        String buscada = PerfilEnRed.normalizar(urlParticipacion);
-        return iBoletoRifaRepository.findByRifaId(rifaId).stream()
-                .filter(b -> PerfilEnRed.normalizar(b.getUrlSeguimiento()).equals(buscada))
-                .findFirst()
-                .map(b -> new DuenoDeLaUrl(b.getId(), b.getConcursante().getId(),
-                        nombreDe(b.getConcursante())));
-    }
-
     /**
      * Una fila por participacion. La {@code @ElementCollection urlsCompartido} se deja
      * vacia a proposito en el formato nuevo: las URLs que viven ahi no suman boletos,
@@ -83,6 +73,14 @@ public class BoletosDeRifaJpaAdapter implements BoletosDeRifaPort {
 
         BoletoRifa guardada = iBoletoRifaRepository.save(fila);
         return aParticipacion(guardada);
+    }
+
+    @Override
+    public void actualizarParticipacion(Integer boletoId, String urlParticipacion, String motivo) {
+        BoletoRifa fila = iBoletoRifaRepository.findById(boletoId).orElseThrow();
+        fila.setUrlSeguimiento(urlParticipacion);
+        fila.setMotivo(motivo);
+        iBoletoRifaRepository.save(fila);
     }
 
     @Override
@@ -145,9 +143,19 @@ public class BoletosDeRifaJpaAdapter implements BoletosDeRifaPort {
                 + PerfilEnRed.normalizar(fila.getUrlPerfilRedSocial());
     }
 
+    /**
+     * Los boletos cargados con la pantalla vieja guardaban la publicacion en
+     * {@code urlsCompartido}, no en {@code urlSeguimiento}: sin esto salian "sin link".
+     */
     private Participacion aParticipacion(BoletoRifa fila) {
-        return new Participacion(fila.getId(), fila.getUrlSeguimiento(), fila.getMotivo(),
-                fila.getFecha());
+        String url = fila.getUrlSeguimiento();
+        if ((url == null || url.isBlank()) && fila.getUrlsCompartido() != null) {
+            url = fila.getUrlsCompartido().stream()
+                    .filter(u -> u != null && !u.isBlank())
+                    .findFirst()
+                    .orElse(url);
+        }
+        return new Participacion(fila.getId(), url, fila.getMotivo(), fila.getFecha());
     }
 
     private String nombreDe(Concursante c) {

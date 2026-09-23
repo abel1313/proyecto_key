@@ -1,13 +1,12 @@
 package com.ventas.key.hexagonal.rifa.dominio.excepcion;
 
 /**
- * La URL de participacion se cargo en modo {@code UNICA} y ya existia en esta rifa
- * (regla D2).
+ * La URL de participacion se cargo en modo {@code UNICA} y ese mismo perfil ya la tenia en
+ * esta rifa (regla D2).
  *
- * <p>No alcanza con decir "duplicada": el mensaje dice <b>de quien</b> es la que ya estaba,
- * porque lo primero que hace el admin es querer saber si se la esta robando a otro cliente
- * o si es suya de antes. Si de verdad se repite, se vuelve a cargar en modo
- * {@code REPETIDA_PERMITIDA}.</p>
+ * <p>Pasa cuando la persona participo dos veces en la misma publicacion (por ejemplo,
+ * compartio y ademas comento). Si es asi, se vuelve a cargar en modo
+ * {@code REPETIDA_PERMITIDA}; el front lo pregunta antes de reenviarla.</p>
  *
  * <p>[Hexagonal: Domain Exception] [Clean: Entity]</p>
  */
@@ -20,9 +19,10 @@ public class UrlParticipacionDuplicadaException extends CargaBoletosException {
     public UrlParticipacionDuplicadaException(String urlParticipacion, String nombreDelDueno,
             Integer boletoExistenteId) {
         super(String.format(
-                "La url '%s' ya esta cargada como boleto de '%s'. Si de verdad se repite, hay que "
-                        + "volver a cargarla con modo 'REPETIDA_PERMITIDA'",
-                urlParticipacion, nombreDelDueno));
+                "%s ya tiene cargada esta publicación con este mismo perfil (%s). Si participó "
+                        + "otra vez en ella (por ejemplo, compartió y además comentó), se puede "
+                        + "cargar como que se repite.",
+                nombreDelDueno, urlParticipacion));
         this.urlParticipacion = urlParticipacion;
         this.nombreDelDueno = nombreDelDueno;
         this.boletoExistenteId = boletoExistenteId;

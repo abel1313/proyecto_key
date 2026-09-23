@@ -524,6 +524,10 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("rifas/boletos", "cargar-boletos-agrupado"))
                         .requestMatchers(HttpMethod.POST,   "/v1/rifas/*/boletos-agrupados/participaciones")
                                 .hasAnyAuthority(accion("rifas/boletos", "agregar-participacion"))
+                        // Editar un boleto usa el mismo permiso que agregarlo: no cambia cuantos
+                        // boletos hay, y asi no hace falta una migracion nueva.
+                        .requestMatchers(HttpMethod.PUT,    "/v1/rifas/*/boletos-agrupados/participaciones/*")
+                                .hasAnyAuthority(accion("rifas/boletos", "agregar-participacion"))
                         .requestMatchers(HttpMethod.DELETE, "/v1/rifas/*/boletos-agrupados/participaciones/*")
                                 .hasAnyAuthority(accion("rifas/boletos", "quitar-participacion"))
                         .requestMatchers(HttpMethod.GET,
