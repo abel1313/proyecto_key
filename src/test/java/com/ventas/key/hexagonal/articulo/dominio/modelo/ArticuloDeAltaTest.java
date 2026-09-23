@@ -112,4 +112,26 @@ class ArticuloDeAltaTest {
     void sinCategoriaEnNingunLado() {
         assertThat(conTalla("M", 1).categoriaEfectiva(null)).isNull();
     }
+
+    // ─────────────────────── R3: los datos basicos se heredan ───────────────────────
+
+    @Test
+    @DisplayName("articulo nuevo sin marca toma la del modelo")
+    void heredaDatoBasico() {
+        assertThat(conTalla("M", 1).datoEfectivo(null, "Levis")).isEqualTo("Levis");
+        assertThat(conTalla("M", 1).datoEfectivo("  ", "Levis")).isEqualTo("Levis");
+    }
+
+    @Test
+    @DisplayName("el dato que trae el articulo gana sobre el del modelo")
+    void datoPropioGana() {
+        assertThat(conTalla("M", 1).datoEfectivo("Rojo", "Negro")).isEqualTo("Rojo");
+    }
+
+    @Test
+    @DisplayName("un articulo que ya existe no hereda: vaciarlo es una edicion")
+    void existenteNoHereda() {
+        ArticuloDeAlta existente = new ArticuloDeAlta(15, "M", null, null, null, null, null, 1, false, null);
+        assertThat(existente.datoEfectivo(null, "Levis")).isNull();
+    }
 }

@@ -549,6 +549,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_accion_pedido_articulos.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
 | `migration_accion_rifa_boletos_agrupados.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
 | `backfill_variantes_carga_rapida.sql` | ✅ corrida | ✅ corrida | 2026-09-22 (hotfix) |
+| `migration_accion_tienda_cambiar_precio.sql` | ⏳ pendiente | ⏳ pendiente | — |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de

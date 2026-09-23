@@ -811,18 +811,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Variantes v = new Variantes();
         if (detalle.getId() != null) v.setId(detalle.getId());
         v.setProducto(iProductosRepository.getReferenceById(detalle.getProductoId()));
-        v.setTalla(detalle.getTalla());
-        v.setColor(detalle.getColor());
-        v.setMarca(detalle.getMarca());
-        v.setStock(detalle.getStock());
-        v.setDescripcion(detalle.getDescripcion());
-        v.setPresentacion(detalle.getPresentacion());
-        v.setContenidoNeto(detalle.getContenidoNeto());
-        // La categoria se hereda del modelo cuando el articulo no trae la suya (R2 del dominio
-        // `articulo`): "si esta llena que la tome para todos los que agregue". El que si trae la
-        // suya la conserva -- heredar solo lo que falta deja separar uno sin elegirla en cada uno.
+        // Categoria y datos basicos se heredan del modelo cuando el articulo nuevo no trae los suyos
+        // (R2 y R3 del dominio `articulo`). Lo que si trae se conserva.
         Producto modelo = iProductosRepository.getReferenceById(detalle.getProductoId());
-        Integer categoria = aArticuloDeAlta(detalle)
+        ArticuloDeAlta alta = aArticuloDeAlta(detalle);
+        v.setTalla(detalle.getTalla());
+        v.setColor(alta.datoEfectivo(detalle.getColor(), modelo.getColor()));
+        v.setMarca(alta.datoEfectivo(detalle.getMarca(), modelo.getMarca()));
+        v.setStock(detalle.getStock());
+        v.setDescripcion(alta.datoEfectivo(detalle.getDescripcion(), modelo.getDescripcion()));
+        v.setPresentacion(detalle.getPresentacion());
+        v.setContenidoNeto(alta.datoEfectivo(detalle.getContenidoNeto(), modelo.getContenido()));
+        Integer categoria = alta
                 .categoriaEfectiva(modelo.getPalabraClave() != null ? modelo.getPalabraClave().getId() : null);
         if (categoria != null) {
             v.setPalabraClave(iPalabraClaveRepository.getReferenceById(categoria));

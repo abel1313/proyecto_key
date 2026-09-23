@@ -905,14 +905,22 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             throw new RuntimeException("Tipo de pedido invalido: " + request.getTipoPedido()
                     + ". Los validos son NORMAL, APARTADO y FIADO");
         }
-        if ("Entregado".equals(pedido.getEstadoPedido())) {
-            throw new RuntimeException("El pedido " + pedidoId + " ya se entrego: no se puede cambiar su forma de cobro");
+        boolean contadoYaEntregado = "Entregado".equals(pedido.getEstadoPedido());
+        if (contadoYaEntregado && (TIPOS_CREDITO_PEDIDO.contains(pedido.getTipoPedido())
+                || !TIPOS_CREDITO_PEDIDO.contains(tipoNuevo))) {
+            throw new RuntimeException("El pedido " + pedidoId + " ya se entrego y se cobro de contado: "
+                    + "solo se puede pasar a Apartado o Ir pagando");
         }
         if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("El pedido " + pedidoId + " esta cancelado");
         }
         if (tipoNuevo.equals(pedido.getTipoPedido())) {
             throw new RuntimeException("El pedido " + pedidoId + " ya es de tipo " + tipoNuevo);
+        }
+
+        String tipoOriginal = pedido.getTipoPedido();
+        if (contadoYaEntregado) {
+            reabrirContadoComoCredito(pedido, tipoNuevo, request.getNota());
         }
 
         double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
@@ -939,8 +947,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             abono.setMonto(request.getMonto());
             abono.setMetodoPago(request.getMetodoPago());
             abono.setMontoDado(request.getMontoDado());
-            abono.setUsuarioId(request.getUsuarioId());
-            abono.setNota(notaDelCambio(pedido.getTipoPedido(), tipoNuevo, request.getNota()));
+            // Si el abono liquida, registrarAbono crea la Venta y exige el usuario.
+            abono.setUsuarioId(request.getUsuarioId() != null ? request.getUsuarioId()
+                    : AuthenticationUtils.currentUsuarioOpt().map(Usuario::getId).orElse(null));
+            abono.setNota(notaDelCambio(tipoOriginal, tipoNuevo, request.getNota()));
             iAbonoService.registrarAbono(pedidoId, abono);
 
             // registrarAbono ya guardo el pedido (total pagado, estado, fecha de recogida): hay
@@ -948,14 +958,42 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             pedido = iPedidoRepository.findById(pedidoId).orElseThrow();
         }
 
-        String tipoAnterior = pedido.getTipoPedido();
         pedido.setTipoPedido(tipoNuevo);
         iPedidoRepository.save(pedido);
         log.info("Pedido {} cambio de {} a {} — cobro en el cambio: {}",
-                pedidoId, tipoAnterior, tipoNuevo, request.traeCobro() ? request.getMonto() : 0.0);
+                pedidoId, tipoOriginal, tipoNuevo, request.traeCobro() ? request.getMonto() : 0.0);
 
         cacheService.evictAll();
         return getDetallePedido(pedidoId);
+    }
+
+    /**
+     * Un pedido de contado que se cobro completo (y ya tiene su Venta) pasa a credito porque en
+     * realidad el cliente no pago todo: p. ej. una promocion que se registro como efectivo.
+     *
+     * <p>La Venta se BORRA, no se marca: cuando los abonos liquiden el pedido,
+     * registrarAbono() crea la Venta real. Si la vieja siguiera ahi, el ingreso y "mas vendidos"
+     * (que suma detalle_venta_variantes sin mirar el estado de la venta) contarian doble, y
+     * findByPedidoId() reventaria con dos resultados. El stock no se toca: ya salio.
+     */
+    private void reabrirContadoComoCredito(Pedido pedido, String tipoNuevo, String notaDelUsuario) {
+        iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
+            log.info("Pedido {}: se borra la venta de contado {} (total {}) al pasar a {}",
+                    pedido.getId(), venta.getId(), venta.getTotalVenta(), tipoNuevo);
+            iVentaRepository.delete(venta);
+        });
+
+        pedido.setTipoPedido(tipoNuevo);
+        pedido.setEstadoPedido(tipoNuevo);
+        pedido.setTotalPagado(0.0);
+
+        String registro = String.format("[%s] Se cobro como contado y se paso a %s%s",
+                LocalDate.now(), "FIADO".equals(tipoNuevo) ? "Ir pagando" : "Apartado",
+                notaDelUsuario == null || notaDelUsuario.isBlank() ? "" : ": " + notaDelUsuario);
+        String previas = pedido.getObservaciones();
+        pedido.setObservaciones(previas == null || previas.isBlank() ? registro : previas + "\n" + registro);
+
+        iPedidoRepository.saveAndFlush(pedido);
     }
 
     /**

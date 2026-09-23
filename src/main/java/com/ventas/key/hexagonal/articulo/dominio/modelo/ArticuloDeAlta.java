@@ -83,6 +83,19 @@ public record ArticuloDeAlta(
         return categoriaId != null ? categoriaId : categoriaDelModelo;
     }
 
+    /**
+     * Un dato basico (color, marca, descripcion, contenido) con el que se guarda (R3).
+     *
+     * <p>Igual que la categoria: si el articulo nuevo lo trae vacio toma el del modelo, y si lo
+     * trae lo conserva. Un articulo que ya existe no hereda: vaciarle un campo es una edicion.
+     */
+    public String datoEfectivo(String propio, String delModelo) {
+        if (yaExiste() || hayTexto(propio) || !hayTexto(delModelo)) {
+            return propio;
+        }
+        return delModelo;
+    }
+
     private static boolean hayTexto(String valor) {
         return valor != null && !valor.isBlank();
     }

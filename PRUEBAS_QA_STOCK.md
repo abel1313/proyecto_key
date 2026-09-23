@@ -1258,6 +1258,7 @@ Todos viven en `src/main/resources/static/`.
 | 3 | `migration_accion_pedido_articulos.sql` | `agregar-articulo`, `cambiar-articulo`, `quitar-promocion` | no se pueden editar los artículos (Prueba 13) |
 | 4 | `migration_accion_rifa_boletos_agrupados.sql` | `cargar-boletos-agrupado`, `agregar-participacion`, `quitar-participacion` | no se pueden cargar boletos agrupados (Prueba 16) |
 | 5 | `backfill_variantes_carga_rapida.sql` | no es un permiso: llena los artículos que la Carga rápida dejó vacíos antes del hotfix | los artículos viejos de Carga rápida siguen sin descripción/color/marca (Prueba 23) |
+| 6 | `migration_accion_tienda_cambiar_precio.sql` | acción `cambiar-precio` en `tienda/buscar` (botón 💲) | el botón de precio no aparece y `PUT /v1/precios/...` da 403 |
 
 El 5 no se corre de un jalón con `<`: trae consultas de diagnóstico antes y de verificación después.
 Abrirlo y correrlo por partes, guardando el resultado del diagnóstico. No toca stock.
