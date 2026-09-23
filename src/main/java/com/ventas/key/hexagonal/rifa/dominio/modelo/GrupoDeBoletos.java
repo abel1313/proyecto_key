@@ -61,6 +61,12 @@ public record GrupoDeBoletos(Integer concursanteId, String nombreConcursante, Pe
         return buscarPorUrl(url) != null;
     }
 
+    /** El mismo grupo sin ese boleto: para validar una edicion contra los demas. */
+    public GrupoDeBoletos sin(Integer boletoId) {
+        return new GrupoDeBoletos(concursanteId, nombreConcursante, perfil,
+                participaciones.stream().filter(p -> !java.util.Objects.equals(p.boletoId(), boletoId)).toList());
+    }
+
     public GrupoDeBoletos con(Participacion nueva) {
         List<Participacion> juntas = new ArrayList<>(participaciones);
         juntas.add(nueva);

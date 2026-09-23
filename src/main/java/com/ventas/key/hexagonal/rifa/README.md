@@ -97,8 +97,17 @@ Cada participacion lleva **una sola URL**, y al darla de alta se elige como se v
 
 | Modo | Que hace |
 |---|---|
-| `UNICA` | El back rechaza la URL si ya existe en esa rifa, y dice en que grupo esta |
+| `UNICA` | El back rechaza la URL si **ese mismo perfil** (misma red + mismo link del cliente) ya la tiene en esa rifa, y dice de quien es |
 | `REPETIDA_PERMITIDA` | Se acepta aunque ya exista |
+
+**Que cuenta como duplicado** (corregido 2026-09-23): red + perfil del cliente + URL de la
+publicacion. Otro participante con la misma publicacion **no** es duplicado: en un sorteo por
+publicacion todos pegan la misma URL. Antes se buscaba en toda la rifa y el segundo
+participante se rechazaba como "ya dado de alta".
+
+El mismo perfil en la misma publicacion es el caso "compartio y ademas comento": el back
+contesta 409, el front pregunta si es otra participacion y la reenvia como
+`REPETIDA_PERMITIDA`.
 
 Se llena **una o la otra, nunca las dos**: una participacion es un boleto, y llenar las dos
 no lo convierte en dos. El modo es por participacion, no una configuracion global: el caso

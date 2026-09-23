@@ -54,7 +54,6 @@ class GestionarBoletosServiceTest {
     @BeforeEach
     void setUp() {
         service = new GestionarBoletosService(boletos);
-        when(boletos.buscarUrlEnLaRifa(anyInt(), anyString())).thenReturn(Optional.empty());
         when(boletos.buscarGrupo(anyInt(), any())).thenReturn(Optional.of(grupoCon(1)));
     }
 
@@ -64,6 +63,15 @@ class GestionarBoletosServiceTest {
                         .mapToObj(i -> new Participacion(i, "facebook.com/post/" + i, "compartio",
                                 LocalDate.now()))
                         .toList());
+    }
+
+    private void yaCargado(GrupoDeBoletos... grupos) {
+        when(boletos.gruposDeLaRifa(RIFA_ID)).thenReturn(List.of(grupos));
+    }
+
+    private static GrupoDeBoletos pedroConElPost1() {
+        return new GrupoDeBoletos(42, "Pedro Lopez", new PerfilEnRed(Plataforma.FACEBOOK, "facebook.com/pedro"),
+                List.of(new Participacion(99, "facebook.com/post/1", "compartio", LocalDate.now())));
     }
 
     private NuevaParticipacion unica(String url) {
@@ -114,27 +122,60 @@ class GestionarBoletosServiceTest {
     // ── Regla D2: el modo de carga ────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("modo UNICA rechaza una url que ya esta cargada, y dice de quien es")
+    @DisplayName("modo UNICA rechaza la misma publicacion en el mismo perfil, y dice de quien es")
     void modoUnicaRechazaDuplicada() {
-        when(boletos.buscarUrlEnLaRifa(RIFA_ID, "facebook.com/post/1"))
-                .thenReturn(Optional.of(new BoletosDeRifaPort.DuenoDeLaUrl(99, 42, "Pedro Lopez")));
+        yaCargado(grupoCon(1));
 
         UrlParticipacionDuplicadaException e = catchThrowableOfType(
-                () -> service.cargar(carga(unica("facebook.com/post/1"))),
+                () -> service.cargar(carga(unica("https://www.facebook.com/post/1/"))),
                 UrlParticipacionDuplicadaException.class);
 
-        assertThat(e.getNombreDelDueno()).isEqualTo("Pedro Lopez");
-        assertThat(e.getBoletoExistenteId()).isEqualTo(99);
-        assertThat(e.getMessage()).contains("Pedro Lopez").contains("REPETIDA_PERMITIDA");
+        assertThat(e.getNombreDelDueno()).isEqualTo("Juan Perez");
+        assertThat(e.getBoletoExistenteId()).isEqualTo(1);
+        assertThat(e.getMessage()).contains("Juan Perez").contains("se repite");
+        verify(boletos, never()).crearParticipacion(any(), any(), any());
     }
 
     @Test
-    @DisplayName("modo REPETIDA_PERMITIDA la acepta aunque ya exista")
-    void modoRepetidaPermitidaLaDejaPasar() {
-        when(boletos.buscarUrlEnLaRifa(RIFA_ID, "facebook.com/post/1"))
-                .thenReturn(Optional.of(new BoletosDeRifaPort.DuenoDeLaUrl(99, 42, "Pedro Lopez")));
+    @DisplayName("otro participante con la misma publicacion SI entra: no es duplicado")
+    void otroParticipanteMismaPublicacion() {
+        yaCargado(pedroConElPost1());
 
-        service.cargar(carga(new NuevaParticipacion("facebook.com/post/1", "compartio",
+        service.cargar(carga(unica("facebook.com/post/1")));
+
+        verify(boletos).crearParticipacion(eq(CONCURSANTE_ID), any(), any());
+    }
+
+    @Test
+    @DisplayName("el mismo perfil en OTRA red no choca con la publicacion")
+    void mismoLinkEnOtraRed() {
+        yaCargado(new GrupoDeBoletos(CONCURSANTE_ID, "Juan Perez",
+                new PerfilEnRed(Plataforma.INSTAGRAM, "facebook.com/juan"),
+                List.of(new Participacion(5, "facebook.com/post/1", "compartio", LocalDate.now()))));
+
+        service.cargar(carga(unica("facebook.com/post/1")));
+
+        verify(boletos).crearParticipacion(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("agregar otra publicacion al perfil tambien rechaza la que ya tiene")
+    void agregarRechazaLaQueYaTiene() {
+        yaCargado(grupoCon(2));
+
+        assertThatThrownBy(() -> service.agregarParticipacion(RIFA_ID, Plataforma.FACEBOOK,
+                "facebook.com/juan", unica("facebook.com/post/2")))
+                .isInstanceOf(UrlParticipacionDuplicadaException.class);
+
+        verify(boletos, never()).crearParticipacion(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("modo REPETIDA_PERMITIDA la acepta aunque ya exista (compartio y ademas comento)")
+    void modoRepetidaPermitidaLaDejaPasar() {
+        yaCargado(grupoCon(1));
+
+        service.cargar(carga(new NuevaParticipacion("facebook.com/post/1", "comento",
                 ModoDeCarga.REPETIDA_PERMITIDA)));
 
         verify(boletos).crearParticipacion(any(), any(), any());
@@ -143,8 +184,7 @@ class GestionarBoletosServiceTest {
     @Test
     @DisplayName("sin modo se asume UNICA: el default protege el sorteo")
     void sinModoSeAsumeUnica() {
-        when(boletos.buscarUrlEnLaRifa(RIFA_ID, "facebook.com/post/1"))
-                .thenReturn(Optional.of(new BoletosDeRifaPort.DuenoDeLaUrl(99, 42, "Pedro Lopez")));
+        yaCargado(grupoCon(1));
 
         assertThatThrownBy(() -> service.cargar(
                 carga(new NuevaParticipacion("facebook.com/post/1", "compartio", null))))
@@ -166,11 +206,10 @@ class GestionarBoletosServiceTest {
     @Test
     @DisplayName("si la tercera url choca, no se carga NINGUNA")
     void todoONada() {
-        when(boletos.buscarUrlEnLaRifa(RIFA_ID, "facebook.com/post/3"))
-                .thenReturn(Optional.of(new BoletosDeRifaPort.DuenoDeLaUrl(99, 42, "Pedro Lopez")));
+        yaCargado(grupoCon(1));
 
-        assertThatThrownBy(() -> service.cargar(carga(unica("facebook.com/post/1"),
-                unica("facebook.com/post/2"), unica("facebook.com/post/3"))))
+        assertThatThrownBy(() -> service.cargar(carga(unica("facebook.com/post/7"),
+                unica("facebook.com/post/8"), unica("facebook.com/post/1"))))
                 .isInstanceOf(UrlParticipacionDuplicadaException.class);
 
         verify(boletos, never()).crearParticipacion(any(), any(), any());
@@ -223,6 +262,58 @@ class GestionarBoletosServiceTest {
                 .isInstanceOf(GrupoNoEncontradoException.class);
 
         verify(boletos, never()).crearParticipacion(any(), any(), any());
+    }
+
+    // ── Editar un boleto ──────────────────────────────────────────────────────────────────
+
+    private GrupoDeBoletos compartioYComento() {
+        return new GrupoDeBoletos(CONCURSANTE_ID, "Juan Perez", perfil, List.of(
+                new Participacion(1, "facebook.com/post/1", "compartio", LocalDate.now()),
+                new Participacion(2, "facebook.com/post/1", "comento", LocalDate.now()),
+                new Participacion(3, "facebook.com/post/2", "dio like", LocalDate.now())));
+    }
+
+    @Test
+    @DisplayName("corregir lo que hizo en un boleto que se repite no es un duplicado")
+    void editarSoloElMotivo() {
+        yaCargado(compartioYComento());
+
+        service.editarParticipacion(RIFA_ID, 2,
+                new NuevaParticipacion("facebook.com/post/1", " comento dos veces ", ModoDeCarga.UNICA));
+
+        verify(boletos).actualizarParticipacion(2, "facebook.com/post/1", "comento dos veces");
+    }
+
+    @Test
+    @DisplayName("cambiar la publicacion a una que el perfil ya tiene da 409 en modo UNICA")
+    void editarAUnaQueYaTiene() {
+        yaCargado(compartioYComento());
+
+        assertThatThrownBy(() -> service.editarParticipacion(RIFA_ID, 3,
+                new NuevaParticipacion("facebook.com/post/1", "dio like", ModoDeCarga.UNICA)))
+                .isInstanceOf(UrlParticipacionDuplicadaException.class);
+
+        verify(boletos, never()).actualizarParticipacion(anyInt(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("cambiar la publicacion con 'se repite' la acepta")
+    void editarAUnaQueYaTieneComoRepetida() {
+        yaCargado(compartioYComento());
+
+        service.editarParticipacion(RIFA_ID, 3,
+                new NuevaParticipacion("facebook.com/post/1", "dio like", ModoDeCarga.REPETIDA_PERMITIDA));
+
+        verify(boletos).actualizarParticipacion(3, "facebook.com/post/1", "dio like");
+    }
+
+    @Test
+    @DisplayName("editar un boleto que no es de esta rifa falla")
+    void editarBoletoAjeno() {
+        yaCargado(compartioYComento());
+
+        assertThatThrownBy(() -> service.editarParticipacion(RIFA_ID, 999, unica("facebook.com/post/9")))
+                .isInstanceOf(GrupoNoEncontradoException.class);
     }
 
     @Test

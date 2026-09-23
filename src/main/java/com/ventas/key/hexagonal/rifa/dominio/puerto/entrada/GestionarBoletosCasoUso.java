@@ -27,6 +27,12 @@ public interface GestionarBoletosCasoUso {
     GrupoDeBoletos agregarParticipacion(Integer rifaId, Plataforma plataforma, String urlPerfil,
             NuevaParticipacion participacion);
 
+    /**
+     * Corrige la URL o lo que hizo en una participacion ya cargada. Sigue siendo un boleto:
+     * no cambia el total. La URL nueva se valida con {@code modo} solo si cambio.
+     */
+    GrupoDeBoletos editarParticipacion(Integer rifaId, Integer boletoId, NuevaParticipacion cambios);
+
     /** Quita una participacion de un grupo. El grupo puede quedar vacio. */
     GrupoDeBoletos quitarParticipacion(Integer rifaId, Integer boletoId);
 

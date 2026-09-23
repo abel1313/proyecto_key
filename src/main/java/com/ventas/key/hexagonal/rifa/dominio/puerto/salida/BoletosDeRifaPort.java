@@ -24,23 +24,15 @@ public interface BoletosDeRifaPort {
     /** El grupo de ese perfil dentro de la rifa, si ya existe. */
     Optional<GrupoDeBoletos> buscarGrupo(Integer rifaId, PerfilEnRed perfil);
 
-    /**
-     * Busca esa URL de participacion en toda la rifa, sin importar de que perfil sea.
-     * Sirve para el modo {@code UNICA}, que rechaza la URL aunque el duplicado sea de otro
-     * cliente.
-     */
-    Optional<DuenoDeLaUrl> buscarUrlEnLaRifa(Integer rifaId, String urlParticipacion);
-
     /** Crea la fila del boleto y devuelve la participacion ya con su id. */
     Participacion crearParticipacion(Integer concursanteId, PerfilEnRed perfil, Participacion nueva);
+
+    /** Cambia la URL y lo que hizo en la fila de esa participacion; lo demas queda igual. */
+    void actualizarParticipacion(Integer boletoId, String urlParticipacion, String motivo);
 
     /** Borra la fila de esa participacion. */
     void borrarParticipacion(Integer boletoId);
 
     /** El nombre del concursante, para los mensajes de error. */
     Optional<String> nombreDelConcursante(Integer concursanteId);
-
-    /** Quien tiene ya cargada una URL: lo minimo para armar el mensaje del duplicado. */
-    record DuenoDeLaUrl(Integer boletoId, Integer concursanteId, String nombre) {
-    }
 }

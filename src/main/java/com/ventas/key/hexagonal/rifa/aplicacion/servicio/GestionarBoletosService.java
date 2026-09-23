@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Carga de boletos por participacion en redes, agrupada por perfil.
@@ -27,8 +26,8 @@ import java.util.Optional;
  * <ul>
  *   <li><b>D4</b> — una participacion es una <b>fila</b>, porque el sorteo elige filas al
  *       azar. El agrupamiento es de lectura; no se juntan participaciones en una fila.</li>
- *   <li><b>D2</b> — cada URL se valida segun su propio modo: {@code UNICA} la rechaza si ya
- *       existe en la rifa, {@code REPETIDA_PERMITIDA} la acepta igual.</li>
+ *   <li><b>D2</b> — cada URL se valida segun su propio modo: {@code UNICA} la rechaza si ese
+ *       mismo perfil ya la tiene en la rifa, {@code REPETIDA_PERMITIDA} la acepta igual.</li>
  * </ul>
  *
  * <p>[Hexagonal: Application Service] [Clean: Use Case Interactor]</p>
@@ -65,8 +64,9 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
         PerfilEnRed perfil = new PerfilEnRed(peticion.plataforma(), peticion.urlPerfil());
         rechazarDuplicadasEntreSi(pedidas);
 
+        List<GrupoDeBoletos> delPerfil = gruposDelPerfil(peticion.rifaId(), perfil);
         for (NuevaParticipacion nueva : pedidas) {
-            validarModo(peticion.rifaId(), nueva);
+            validarModo(delPerfil, nueva);
         }
 
         for (NuevaParticipacion nueva : pedidas) {
@@ -89,7 +89,7 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
         if (participacion == null || !tieneUrl(participacion)) {
             throw new CargaSinParticipacionesException();
         }
-        validarModo(rifaId, participacion);
+        validarModo(gruposDelPerfil(rifaId, perfil), participacion);
 
         boletos.crearParticipacion(grupo.concursanteId(), perfil,
                 Participacion.nueva(participacion.urlParticipacion(), participacion.motivo()));
@@ -103,14 +103,40 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
      * que el cliente sigue en la rifa por otras redes, o que se le quito todo lo que habia
      * cargado en esta.
      */
+    /**
+     * Solo se valida el duplicado si cambio la publicacion: corregir lo que hizo en un boleto
+     * que "se repite" no es un duplicado nuevo.
+     */
+    @Override
+    @Transactional
+    public GrupoDeBoletos editarParticipacion(Integer rifaId, Integer boletoId, NuevaParticipacion cambios) {
+        GrupoDeBoletos grupo = grupoDelBoleto(rifaId, boletoId);
+        if (cambios == null || !tieneUrl(cambios)) {
+            throw new CargaSinParticipacionesException();
+        }
+        Participacion actual = grupo.participaciones().stream()
+                .filter(p -> boletoId.equals(p.boletoId()))
+                .findFirst()
+                .orElseThrow();
+
+        boolean cambioLaPublicacion = !actual.claveUrl().equals(PerfilEnRed.normalizar(cambios.urlParticipacion()));
+        if (cambioLaPublicacion) {
+            List<GrupoDeBoletos> otros = gruposDelPerfil(rifaId, grupo.perfil()).stream()
+                    .map(g -> g.sin(boletoId))
+                    .toList();
+            validarModo(otros, cambios);
+        }
+
+        String motivo = cambios.motivo() == null || cambios.motivo().isBlank() ? null : cambios.motivo().trim();
+        boletos.actualizarParticipacion(boletoId, cambios.urlParticipacion().trim(), motivo);
+        log.info("Rifa {}: se edito el boleto {} del grupo {}", rifaId, boletoId, grupo.perfil().urlPerfil());
+        return grupoOFalla(rifaId, grupo.perfil());
+    }
+
     @Override
     @Transactional
     public GrupoDeBoletos quitarParticipacion(Integer rifaId, Integer boletoId) {
-        GrupoDeBoletos grupo = boletos.gruposDeLaRifa(rifaId).stream()
-                .filter(g -> g.participaciones().stream().anyMatch(p -> boletoId.equals(p.boletoId())))
-                .findFirst()
-                .orElseThrow(() -> new GrupoNoEncontradoException(String.format(
-                        "El boleto %d no existe en la rifa %d", boletoId, rifaId)));
+        GrupoDeBoletos grupo = grupoDelBoleto(rifaId, boletoId);
 
         boletos.borrarParticipacion(boletoId);
         log.info("Rifa {}: se quito el boleto {} del grupo {}", rifaId, boletoId,
@@ -122,19 +148,31 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
     }
 
     /**
-     * Regla D2. Solo el modo {@code UNICA} mira la base; {@code REPETIDA_PERMITIDA} pasa
+     * Regla D2. Solo el modo {@code UNICA} mira lo cargado; {@code REPETIDA_PERMITIDA} pasa
      * derecho a proposito.
+     *
+     * <p>Duplicado es la misma publicacion en el mismo perfil de la misma red. Otro
+     * participante con la misma publicacion no lo es: en un sorteo por publicacion todos
+     * pegan la misma url.</p>
      */
-    private void validarModo(Integer rifaId, NuevaParticipacion nueva) {
+    private void validarModo(List<GrupoDeBoletos> delPerfil, NuevaParticipacion nueva) {
         if (!ModoDeCarga.oPorDefecto(nueva.modo()).exigeQueNoExista()) {
             return;
         }
-        Optional<BoletosDeRifaPort.DuenoDeLaUrl> dueno =
-                boletos.buscarUrlEnLaRifa(rifaId, nueva.urlParticipacion());
-        if (dueno.isPresent()) {
-            throw new UrlParticipacionDuplicadaException(nueva.urlParticipacion(),
-                    dueno.get().nombre(), dueno.get().boletoId());
+        for (GrupoDeBoletos grupo : delPerfil) {
+            Participacion repetida = grupo.buscarPorUrl(nueva.urlParticipacion());
+            if (repetida != null) {
+                throw new UrlParticipacionDuplicadaException(nueva.urlParticipacion(),
+                        grupo.nombreConcursante(), repetida.boletoId());
+            }
         }
+    }
+
+    /** Puede haber mas de uno si el mismo perfil se cargo con dos concursantes distintos. */
+    private List<GrupoDeBoletos> gruposDelPerfil(Integer rifaId, PerfilEnRed perfil) {
+        return boletos.gruposDeLaRifa(rifaId).stream()
+                .filter(g -> g.perfil().mismoQue(perfil))
+                .toList();
     }
 
     /**
@@ -152,6 +190,14 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
             }
             vistas.add(clave);
         }
+    }
+
+    private GrupoDeBoletos grupoDelBoleto(Integer rifaId, Integer boletoId) {
+        return boletos.gruposDeLaRifa(rifaId).stream()
+                .filter(g -> g.participaciones().stream().anyMatch(p -> boletoId.equals(p.boletoId())))
+                .findFirst()
+                .orElseThrow(() -> new GrupoNoEncontradoException(String.format(
+                        "El boleto %d no existe en la rifa %d", boletoId, rifaId)));
     }
 
     private GrupoDeBoletos grupoOFalla(Integer rifaId, PerfilEnRed perfil) {
