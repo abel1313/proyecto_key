@@ -20907,8 +20907,8 @@ Mínimo 3 letras y 1.5 s de espera (antes 2 letras y 350 ms: buscaba casi por ca
 
 ## 🔗 Unir pedidos (2026-09-23)
 
-**Estado:** rama `feature/unir-pedidos` en los dos repos, creada desde `dev`. Todavía no está en
-`dev`, `qa` ni `main`. Requiere `migration_grupo_pedido.sql`.
+**Estado:** en `dev` y `qa` desde 2026-09-23 (desde la rama `feature/unir-pedidos`). Todavía no
+está en `main`. `migration_grupo_pedido.sql` ya se corrió en qa y en prod.
 
 **Qué es:** 2 o más pedidos se **agrupan** para cobrarlos y recogerlos juntos. No se fusionan:
 cada pedido conserva sus artículos, su cliente y sus abonos. El grupo muestra la suma y reparte
