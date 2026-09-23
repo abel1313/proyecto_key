@@ -21023,3 +21023,77 @@ Request opcional: `{ "motivo": "cada quien paga lo suyo" }`. Response `data` = *
   responde 500 y además `PUT /v1/pedidos/{id}/tipo` (que ya está en prod) también falla con 500,
   porque ahora revisa si el pedido está en un grupo.
 
+### Unidos se ven como uno (2026-09-23, después de la primera prueba en QA)
+
+En la prueba se vio que, ya unidos, **seguían saliendo todos los pedidos en la lista**, la card
+del titular mostraba **solo su propio total**, y el detalle solo tenía **sus propios artículos**.
+Se decidió que unidos **se vean como uno**. Por dentro siguen siendo pedidos separados (deshacer
+regresa todo exacto aunque ya haya abonos).
+
+#### Cambio en `GET /v1/pedidos/buscarClientePedido` (lista del admin)
+- **Antes:** salían todos los pedidos del grupo, cada uno con su card.
+- **Después:** de un grupo activo **solo sale el pedido titular**. Los demás se esconden, **salvo
+  que se busquen por su número exacto** (`buscar=102`): así se pueden abrir para editarlos.
+- Cada pedido que está en un grupo activo trae un campo nuevo `pedido.grupo` (`null` o ausente si
+  no está unido):
+```json
+"grupo": {
+  "grupoId": 30, "pedidoTitularId": 102, "esTitular": true, "titularNombre": "Ana López",
+  "tipoPedido": "NORMAL", "otrosPedidos": [101, 105],
+  "totalGrupo": 1450.0, "pagadoGrupo": 0.0, "saldoGrupo": 1450.0
+}
+```
+  - `esTitular`: si esta card es la del titular. En un pedido abierto por número viene `false`.
+  - `otrosPedidos`: los demás del grupo, sin este.
+  - `saldoGrupo`: lo que falta cobrar entre todos. En un grupo de contado es lo que cobra "Cobrar".
+- El front: la card del titular muestra "🔗 N pedidos", "Unido con #101, #105", **Total de los N
+  pedidos** y abajo "Este pedido: $X". Un pedido abierto por número dice "Unido al pedido #102 —
+  Paga y recoge Ana".
+
+#### Nuevo: `POST /v1/grupos-pedido/{grupoId}/cobrar-contado` — cobrar el grupo de una vez
+Para grupos **de contado** (`NORMAL`). Es el "Cobrar" de la card del titular: confirma **todos**
+los pedidos del grupo que falten, con la misma forma de pago, en una sola operación (si uno
+falla, ninguno queda cobrado). Cada pedido queda con su propia venta, igual que con
+`PUT /v1/pedidos/confirmar/{id}`.
+
+Request (la misma opción de pago que manda "Cobrar" en un pedido suelto):
+```json
+{ "pagosYMesesId": 3 }
+```
+Response `data`:
+```json
+{ "grupo": { "...": "Grupo actualizado" }, "pedidosCobrados": [101, 105] }
+```
+- Los pedidos que **ya estaban entregados se saltan** (no dan error): con tarjeta, el aviso de
+  Mercado Pago puede confirmar el titular antes de que llegue este cobro.
+- Con tarjeta: el front manda a la terminal `saldoGrupo` con el `pedidoId` del titular; al aprobarse
+  llama a este endpoint.
+- 400 si falta `pagosYMesesId`, si el grupo es a crédito (`"...es a credito: se cobra abonando al grupo..."`),
+  si ya se deshizo, o si ya no queda nada por cobrar.
+- Permiso: **ROLE_ADMIN**, igual que `PUT /v1/pedidos/confirmar/{id}`.
+- Grupo **a crédito**: "Cobrar" no cobra; abre el detalle, donde está "Abonar al grupo".
+
+#### Cambio en los montos del Grupo (`pagado` / `saldo`)
+- **Antes:** un pedido de contado ya entregado contaba como que debía todo (`totalPagado` queda en 0
+  al confirmar), así que el saldo del grupo nunca bajaba al cobrar.
+- **Después:** un pedido `Entregado` cuenta como cobrado: `pagado = total`, `saldo = 0`.
+
+#### Detalle del pedido (front)
+- El encabezado dice **"Total de los N pedidos: $Y"** y debajo "Este pedido: $X".
+- Debajo de los artículos del pedido salen los de los **demás pedidos del grupo**, cada bloque con
+  su número, su cliente y un botón "Abrir pedido #N" (solo lectura: para cambiar sus artículos se
+  abre ese pedido).
+
+#### Lo que se revisó y no era error
+- **"Me dejó unir aunque uno decía Ir pagando y el otro Abono":** la regla de misma forma de cobro sí
+  se valida. Los dos pedidos estaban de verdad en "Ir pagando" (FIADO). Lo que confundía era el
+  formulario "Cambiar forma de cobro": preseleccionaba otra opción y la vigente se veía apagada,
+  como bloqueada. Ahora arranca sin nada elegido y la vigente dice **"Así está ahora"**.
+- **La card no cambiaba al regresar del detalle:** la lista no se recargaba. Ahora se recarga al
+  regresar (cambiar forma de cobro, abonar o agregar artículos se ve en la card).
+- **"Fecha de entrega" en tienda → venta directa:** es el día en que el cliente recibe o recoge la
+  mercancía. Se guarda en el pedido (`fecha_recogida`) y sale en su detalle como **"Llega el:"**. Es
+  opcional y se puede poner o cambiar después con el botón **"Entrega"** de la card del pedido: es
+  el mismo campo. En una venta de contado sin fecha se guarda la de hoy. No cancela nada solo: la
+  cancelación automática por no recoger solo aplica a pedidos de la tienda en línea en `Pendiente`.
+

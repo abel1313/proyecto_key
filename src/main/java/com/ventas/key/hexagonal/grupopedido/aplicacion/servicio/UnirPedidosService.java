@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.grupopedido.aplicacion.servicio;
 
+import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.CobroDelGrupoInvalidoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoNoEncontradoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoPedidoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
@@ -11,6 +12,7 @@ import com.ventas.key.hexagonal.grupopedido.dominio.modelo.UnionDePedidos;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonoPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.BitacoraPedidoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.ConfirmarPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.GrupoPedidosPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.PedidosDelGrupoPort;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
     private final GrupoPedidosPort grupos;
     private final AbonoPedidoPort abonos;
     private final BitacoraPedidoPort bitacora;
+    private final ConfirmarPedidoPort confirmar;
 
     @Override
     @Transactional
@@ -92,6 +95,22 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
 
     @Override
     @Transactional
+    public ResultadoCobro cobrarDeContado(Integer grupoId, Integer pagosYMesesId, Integer usuarioId) {
+        if (pagosYMesesId == null) {
+            throw new CobroDelGrupoInvalidoException("Falta elegir la forma de pago");
+        }
+        List<Integer> porCobrar = consultar(grupoId).porCobrarDeContado();
+        for (Integer pedidoId : porCobrar) {
+            confirmar.confirmarDeContado(pedidoId, pagosYMesesId);
+            bitacora.anotar(pedidoId, String.format("[%s] Cobrado de contado junto con el grupo #%d",
+                    LocalDate.now(), grupoId));
+        }
+        log.info("Grupo {}: cobrados de contado los pedidos {}", grupoId, porCobrar);
+        return new ResultadoCobro(consultar(grupoId), porCobrar);
+    }
+
+    @Override
+    @Transactional
     public GrupoPedidos deshacer(Integer grupoId, String motivo, Integer usuarioId) {
         GrupoPedidos grupo = consultar(grupoId);
         if (!grupo.activo()) {
@@ -107,9 +126,7 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
     }
 
     private GrupoPedidos armar(RegistroGrupo registro) {
-        List<PedidoDelGrupo> encontrados = pedidos.buscar(registro.pedidoIds());
-        return new GrupoPedidos(registro.grupoId(), registro.pedidoTitularId(), registro.activo(),
-                registro.creado(), registro.nota(), encontrados);
+        return GrupoPedidos.de(registro, pedidos.buscar(registro.pedidoIds()));
     }
 
     private static String limpiar(String texto) {

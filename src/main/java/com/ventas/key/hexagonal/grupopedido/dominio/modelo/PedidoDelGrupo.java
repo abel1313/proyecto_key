@@ -35,7 +35,7 @@ public record PedidoDelGrupo(
 
     /** Se puede unir: no esta cancelado, ni entregado, ni liquidado (R2). */
     public boolean estaAbierto() {
-        return !estaCancelado() && !ENTREGADO.equals(estado) && !PAGADO.equals(estado);
+        return !estaCancelado() && !estaEntregado() && !PAGADO.equals(estado);
     }
 
     /** Por que no se puede unir, para decirselo a quien lo intento. */
@@ -43,7 +43,7 @@ public record PedidoDelGrupo(
         if (estaCancelado()) {
             return "esta cancelado";
         }
-        if (ENTREGADO.equals(estado)) {
+        if (estaEntregado()) {
             return "ya se entrego";
         }
         if (PAGADO.equals(estado)) {
@@ -52,9 +52,21 @@ public record PedidoDelGrupo(
         return "no esta abierto";
     }
 
+    public boolean estaEntregado() {
+        return ENTREGADO.equals(estado);
+    }
+
+    /**
+     * Un pedido de contado que ya se entrego queda cobrado aunque {@code totalPagado} siga en
+     * cero: confirmar crea la venta pero no llena ese campo.
+     */
+    public long cobradoCentavos() {
+        return estaEntregado() ? totalCentavos : pagadoCentavos;
+    }
+
     /** Un pedido cancelado ya no debe nada, aunque su total diga otra cosa (R8). */
     public long saldoCentavos() {
-        return estaCancelado() ? 0 : Math.max(0, totalCentavos - pagadoCentavos);
+        return estaCancelado() ? 0 : Math.max(0, totalCentavos - cobradoCentavos());
     }
 
     public boolean esDeCredito() {

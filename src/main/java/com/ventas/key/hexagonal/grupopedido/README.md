@@ -42,9 +42,12 @@ cada artículo y cada abono, y los abonos hechos después de unir no tendrían d
 | R8 | Un pedido cancelado dentro del grupo deja de sumar al saldo. |
 | R9 | Mientras un pedido está en un grupo activo **no se le cambia la forma de cobro** (rompería R3). Guardia en `PedidoServiceImpl.cambiarTipoPedido`. |
 | R10 | Unir y deshacer quedan escritos en las observaciones de cada pedido, con fecha. |
+| R11 | Un grupo **de contado** se cobra de una vez desde la card del titular: se confirman todos los pedidos abiertos, del más viejo al más nuevo, con la misma forma de pago, todo o nada. Los ya entregados se saltan. Un grupo a crédito no se cobra así: se abona (R6). |
+| R12 | **Unidos se ven como uno.** En la lista del admin solo sale el titular, con el total de todos; los demás se abren buscando su número exacto. En el detalle se ven los artículos de todos. |
+| R13 | Un pedido de contado `Entregado` cuenta como cobrado (`pagado = total`, `saldo = 0`), aunque `totalPagado` siga en 0. |
 
-Un grupo **de contado** sirve para ver la suma y saber quién recoge; cada pedido se sigue
-confirmando desde su detalle, como hoy.
+R11–R13 se agregaron después de la primera prueba en QA (2026-09-23): con los pedidos separados en
+la lista, la unión no se notaba.
 
 ## Dónde está cada cosa
 
@@ -52,4 +55,10 @@ confirmando desde su detalle, como hoy.
 - Las entidades `GrupoPedido` y `GrupoPedidoMiembro` viven en `mis/productos/entity` y no en
   `infraestructura/`, porque el escaneo de entidades JPA solo cubre `com.ventas.key.mis.productos`.
 - Endpoints: `/v1/grupos-pedido` (`GrupoPedidoController`). Contrato en `CAMBIOS_FRONT.md`.
+- La lista del admin: el filtro que esconde a los no titulares está en los dos queries nativos
+  de `IPedidoRepository` (`buscarPedidosPorCliente`, `buscarTodosLosPedidos`); el campo
+  `pedido.grupo` lo pone `PedidoServiceImpl.marcarGrupos` con `ConsultarGruposCasoUso`.
+- `ConsultarGruposCasoUso` va separado de `UnirPedidosCasoUso` a propósito: la lista
+  (`PedidoServiceImpl`) lo usa, y `UnirPedidosService` depende de `PedidoServiceImpl` para cobrar
+  (`ConfirmarPedidoAdapter`). Juntos cerrarían un ciclo de dependencias y Spring no arranca.
 - Permisos: `unir-pedidos` (nuevo) para unir, ver y deshacer; `abonar` (ya existía) para abonar.

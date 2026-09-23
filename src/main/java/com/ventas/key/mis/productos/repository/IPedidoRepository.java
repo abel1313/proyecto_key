@@ -201,6 +201,10 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     // comprador de todas las ventas de mostrador (2026-09-22). nombre_receptor entra como
     // ultimo recurso antes de caer en la cuenta del admin, para los pedidos viejos que se
     // cargaron sin cliente sin registro.
+    //
+    // Unir pedidos (2026-09-23): de un grupo activo solo sale el pedido titular, que en la card
+    // muestra el total de todos. Los demas se esconden, salvo que se busquen por su numero
+    // exacto, para poder abrirlos. Mismo filtro en buscarTodosLosPedidos.
     @Query(value = """
     SELECT
       JSON_OBJECT(
@@ -247,6 +251,10 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
       AND (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
       AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
       AND (:sinFiltroEstado = TRUE OR UPPER(p.estado_pedido) IN (:estadoPedido))
+      AND (NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro gm
+                       INNER JOIN grupo_pedido g ON g.id = gm.grupo_id
+                       WHERE gm.pedido_id = p.id AND g.activo = 1 AND g.pedido_titular_id <> p.id)
+           OR (:buscar REGEXP '^[0-9]+$' AND p.id = CAST(:buscar AS UNSIGNED)))
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)
@@ -347,6 +355,9 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     WHERE (:lugarEntregaId IS NULL OR p.lugar_entrega_id = :lugarEntregaId)
       AND (:sinFiltroTipo = TRUE OR p.tipo_pedido IN (:tipoPedido))
       AND (:sinFiltroEstado = TRUE OR UPPER(p.estado_pedido) IN (:estadoPedido))
+      AND NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro gm
+                      INNER JOIN grupo_pedido g ON g.id = gm.grupo_id
+                      WHERE gm.pedido_id = p.id AND g.activo = 1 AND g.pedido_titular_id <> p.id)
     GROUP BY p.id, p.fecha_pedido, p.estado_pedido, c.id, csr.id, le.id, le.nombre
     ORDER BY p.fecha_pedido DESC
     """, nativeQuery = true)

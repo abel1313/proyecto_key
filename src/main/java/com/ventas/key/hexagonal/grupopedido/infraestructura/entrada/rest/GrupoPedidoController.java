@@ -7,6 +7,8 @@ import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AbonoGrupoRequest;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AbonoGrupoResponse;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CobroContadoRequest;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CobroContadoResponse;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.DeshacerGrupoRequest;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.GrupoPedidosResponse;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.TipoPorPedidoResponse;
@@ -72,6 +74,14 @@ public class GrupoPedidoController {
                         request.getMontoDado() == null ? null : centavos(request.getMontoDado()),
                         request.getNota()),
                 usuarioActual())));
+    }
+
+    /** Confirma de una vez los pedidos de contado del grupo que falten (R11). */
+    @PostMapping("/{grupoId}/cobrar-contado")
+    public ResponseEntity<Object> cobrarDeContado(@PathVariable Integer grupoId,
+                                                  @RequestBody CobroContadoRequest request) {
+        return ejecutar(true, () -> CobroContadoResponse.de(
+                casoUso.cobrarDeContado(grupoId, request.getPagosYMesesId(), usuarioActual())));
     }
 
     @PostMapping("/{grupoId}/deshacer")

@@ -23,6 +23,12 @@ public interface UnirPedidosCasoUso {
 
     ResultadoAbono abonar(Integer grupoId, AbonoAlGrupo abono, Integer usuarioId);
 
+    /**
+     * Cobra de una vez todos los pedidos de contado del grupo que falten, con la misma forma de
+     * pago (R11). Todo o nada: si uno falla, ninguno queda cobrado.
+     */
+    ResultadoCobro cobrarDeContado(Integer grupoId, Integer pagosYMesesId, Integer usuarioId);
+
     /** Deshace el grupo. Cada pedido se queda con sus articulos y los abonos que le tocaron (R7). */
     GrupoPedidos deshacer(Integer grupoId, String motivo, Integer usuarioId);
 
@@ -32,5 +38,12 @@ public interface UnirPedidosCasoUso {
      * @param cambioCentavos lo que hay que regresarle al cliente
      */
     record ResultadoAbono(GrupoPedidos grupo, List<Reparto> repartos, long cambioCentavos) {
+    }
+
+    /**
+     * @param grupo           el grupo despues del cobro
+     * @param pedidosCobrados los que se confirmaron, del mas viejo al mas nuevo
+     */
+    record ResultadoCobro(GrupoPedidos grupo, List<Integer> pedidosCobrados) {
     }
 }

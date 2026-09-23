@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.grupopedido.dominio.modelo;
 
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.AbonoAlGrupoInvalidoException;
+import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.CobroDelGrupoInvalidoException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,12 +32,17 @@ public record GrupoPedidos(
         String nota,
         List<PedidoDelGrupo> pedidos) {
 
+    public static GrupoPedidos de(RegistroGrupo registro, List<PedidoDelGrupo> pedidos) {
+        return new GrupoPedidos(registro.grupoId(), registro.pedidoTitularId(), registro.activo(),
+                registro.creado(), registro.nota(), pedidos);
+    }
+
     public long totalCentavos() {
         return pedidos.stream().filter(p -> !p.estaCancelado()).mapToLong(PedidoDelGrupo::totalCentavos).sum();
     }
 
     public long pagadoCentavos() {
-        return pedidos.stream().filter(p -> !p.estaCancelado()).mapToLong(PedidoDelGrupo::pagadoCentavos).sum();
+        return pedidos.stream().filter(p -> !p.estaCancelado()).mapToLong(PedidoDelGrupo::cobradoCentavos).sum();
     }
 
     /** Lo que falta por pagar entre todos; los cancelados no cuentan (R8). */
@@ -57,6 +63,33 @@ public record GrupoPedidos(
                                 Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(PedidoDelGrupo::pedidoId))
                 .toList();
+    }
+
+    /**
+     * Los pedidos que se confirman al cobrar el grupo de contado de una vez (R11), del mas viejo al
+     * mas nuevo.
+     *
+     * <p>Los que ya estan entregados se saltan en vez de rechazar el cobro: con la terminal, el
+     * aviso de Mercado Pago puede confirmar el pedido titular antes de que llegue este cobro.
+     */
+    public List<Integer> porCobrarDeContado() {
+        if (!activo) {
+            throw new CobroDelGrupoInvalidoException("El grupo " + grupoId + " ya se deshizo: cobra cada pedido por separado");
+        }
+        List<PedidoDelGrupo> abiertos = pedidos.stream()
+                .filter(PedidoDelGrupo::estaAbierto)
+                .sorted(Comparator.comparing(PedidoDelGrupo::registro,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(PedidoDelGrupo::pedidoId))
+                .toList();
+        if (abiertos.stream().anyMatch(PedidoDelGrupo::esDeCredito)) {
+            throw new CobroDelGrupoInvalidoException("El grupo " + grupoId + " es a credito: se cobra abonando al grupo "
+                    + "desde el detalle del pedido");
+        }
+        if (abiertos.isEmpty()) {
+            throw new CobroDelGrupoInvalidoException("Los pedidos del grupo " + grupoId + " ya estan cobrados o cancelados");
+        }
+        return abiertos.stream().map(PedidoDelGrupo::pedidoId).toList();
     }
 
     /**

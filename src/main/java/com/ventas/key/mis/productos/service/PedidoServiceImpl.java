@@ -1,5 +1,8 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.GrupoPedidos;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.ConsultarGruposCasoUso;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.GrupoEnListaResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
@@ -107,6 +110,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private IGrupoPedidoMiembroRepository iGrupoPedidoMiembroRepository;
+    @Autowired private ConsultarGruposCasoUso consultarGrupos;
     @Autowired private com.ventas.key.mis.productos.service.api.IAbonoService iAbonoService;
     @Autowired private EmailService emailService;
     @Autowired private RestockNotificacionService restockNotificacionService;
@@ -558,7 +562,24 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }else{
             jsonList = iPedidoRepository.buscarPedidosPorCliente(buscar, lugarEntregaId, sinFiltroTipo, tiposParaQuery, sinFiltroEstado, estadosParaQuery, pageable);
         }
-        return getListPageableDto(jsonList);
+        PageableDto<List<PedidoGenerico>> pagina = getListPageableDto(jsonList);
+        marcarGrupos(pagina.getList());
+        return pagina;
+    }
+
+    /** A cada card le pone el grupo activo en el que esta, para que muestre el total de todos. */
+    private void marcarGrupos(List<PedidoGenerico> pedidos) {
+        if (pedidos == null || pedidos.isEmpty()) {
+            return;
+        }
+        List<Integer> ids = pedidos.stream().map(p -> p.getPedido().getId()).toList();
+        Map<Integer, GrupoPedidos> grupos = consultarGrupos.gruposActivosDe(ids);
+        for (PedidoGenerico p : pedidos) {
+            GrupoPedidos grupo = grupos.get(p.getPedido().getId());
+            if (grupo != null) {
+                p.getPedido().setGrupo(GrupoEnListaResponse.de(grupo, p.getPedido().getId()));
+            }
+        }
     }
 
 
