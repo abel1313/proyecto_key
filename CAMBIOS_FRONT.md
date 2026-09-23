@@ -20943,3 +20943,13 @@ Lo que trae se respeta. Sin cambio de contrato.
 
 ### 5. Autocompletado de categoría
 Mínimo 3 letras y 1.5 s de espera (antes 2 letras y 350 ms: buscaba casi por cada letra).
+
+### 6. Hotfix — las cards de Tienda ahora traen `productoId` (prod desde 2026-09-23, `main` 853b169)
+**Antes:** el botón 💲 no salía para nadie, ni para el admin con el permiso correcto. La card
+lo pinta solo si trae `productoId` (el precio se cambia al producto), y el back no lo mandaba.
+
+**Después:** cada elemento de la lista trae `productoId` (Integer, puede ser `null` si el
+artículo no tiene producto). Aplica a todo lo que responde `VarianteResumenDto`:
+`GET /v1/variantes/buscar`, `/v1/variantes/buscar-filtrado`,
+`/v1/variantes/porProducto/{productoId}/paginado/resumen`, `/v1/variantes/admin/sin-stock`,
+`/v1/variantes/admin/filtrar` y la lista de favoritos. Campo nuevo, nada se quitó; el front no cambia.
