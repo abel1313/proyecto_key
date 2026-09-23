@@ -551,6 +551,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `backfill_variantes_carga_rapida.sql` | ✅ corrida | ✅ corrida | 2026-09-22 (hotfix) |
 | `migration_accion_tienda_cambiar_precio.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
+| `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -561,6 +562,11 @@ y la consulta de verificación está al final de `PRUEBAS_QA_STOCK.md`, sección
 
 Recordar que después de correrlas hay que **volver a entrar**: los permisos viajan dentro del JWT y
 un token viejo no trae la autoridad nueva.
+
+`migration_mensaje_directo.sql` crea `mensaje_directo_social` y `mensaje_directo_pausa`, las del bot
+de mensajes directos de Instagram. Antes no existían en ninguna base, así que ese bot nunca contestó:
+las respuestas por DM que recibían los clientes eran las automáticas de Meta Business Suite. Si
+las dos quedan prendidas, el cliente recibe dos respuestas.
 
 `backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
 del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas
@@ -728,7 +734,7 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `chat_sesion` · `chat_mensaje`
 
 **Marketing y redes**
-`promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `tiktok_token` · `qr_destino`
+`promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `mensaje_directo_social` (entidad `MensajeDirectoSocial`) · `mensaje_directo_pausa` (entidad `MensajePausa`) · `tiktok_token` · `qr_destino`
 
 **Configuración y negocio**
 `configuracion_negocio` · `tema_variable` · `gastos_surtir` · `inversion`
