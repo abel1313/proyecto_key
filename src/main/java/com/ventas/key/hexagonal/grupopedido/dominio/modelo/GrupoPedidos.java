@@ -50,6 +50,11 @@ public record GrupoPedidos(
         return pedidos.stream().mapToLong(PedidoDelGrupo::saldoCentavos).sum();
     }
 
+    /** A credito (Apartado / Ir pagando): lleva abonos, y al separar se reparten. */
+    public boolean esDeCredito() {
+        return pedidos.stream().filter(p -> !p.estaCancelado()).anyMatch(PedidoDelGrupo::esDeCredito);
+    }
+
     public Optional<PedidoDelGrupo> titular() {
         return pedidos.stream().filter(p -> p.pedidoId().equals(pedidoTitularId)).findFirst();
     }

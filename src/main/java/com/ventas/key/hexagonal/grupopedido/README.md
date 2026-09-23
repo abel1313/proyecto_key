@@ -45,6 +45,21 @@ cada artículo y cada abono, y los abonos hechos después de unir no tendrían d
 | R11 | Un grupo **de contado** se cobra de una vez desde la card del titular: se confirman todos los pedidos abiertos, del más viejo al más nuevo, con la misma forma de pago, todo o nada. Los ya entregados se saltan. Un grupo a crédito no se cobra así: se abona (R6). |
 | R12 | **Unidos se ven como uno.** En la lista del admin solo sale el titular, con el total de todos; los demás se abren buscando su número exacto. En el detalle se ven los artículos de todos. |
 | R13 | Un pedido de contado `Entregado` cuenta como cobrado (`pagado = total`, `saldo = 0`), aunque `totalPagado` siga en 0. |
+| R14 | **Separar reparte lo que dio el cliente.** Al separar un grupo a crédito se escribe cuánto de lo abonado se queda cada pedido que sale. La suma tiene que ser exacta (ni más ni menos de lo que ha dado) y ningún pedido puede quedarse con más de lo que cuesta. Si no cuadra, no se separa. El dinero se mueve moviendo los abonos que ya existen (con su fecha y forma de pago), no registrando abonos nuevos: así el corte de ese día no cuenta el dinero dos veces. |
+| R15 | **Se puede separar solo uno.** Lo que no se lleva sigue siendo del grupo y se acomoda en los que quedan, del más viejo al más nuevo. Si quedan 2 o más, siguen unidos en un **grupo nuevo** ("Sigue del grupo #N"); si queda 1, también se separa. Si el que recogía se separa, hay que elegir quién recoge a los que quedan. |
+| R16 | **Quién recoge se cambia** cuando se quiera, entre los pedidos del grupo. |
+| R17 | Después de repartir, cada pedido queda según su dinero: si cubre su total queda **PAGADO** y se crea su venta; si ya no lo cubre (se le pasó dinero a otro) vuelve a Apartado / Ir pagando y se **borra** la venta que tenía (mismo criterio que reabrir un contado). |
+
+**Cambios a reglas anteriores (2026-09-23, v2):**
+- **R2:** un pedido a crédito **ya pagado sí se une** (su dinero pasa a ser del grupo). Uno cobrado de
+  contado (`Entregado`) no: primero se pasa a Apartado / Ir pagando con "Cambiar forma de cobro".
+- **R7:** "deshacer" ya no se puede si el cliente ya dio dinero en un grupo a crédito: se usa
+  **separar** para decir cuánto se queda cada pedido. En la pantalla ya no hay "Deshacer", solo "Separar".
+- Los artículos de los otros pedidos se cambian o quitan **desde el detalle del anfitrión**, y al
+  agregar se pregunta a qué pedido va. El cambio se guarda en el pedido dueño del artículo.
+
+El historial queda en las observaciones de cada pedido (unir, separar, con cuánto se quedó, cambio
+de quién recoge) y en la nota de cada abono movido (`Reparto al separar el grupo #N: del pedido #A al #B`).
 
 R11–R13 se agregaron después de la primera prueba en QA (2026-09-23): con los pedidos separados en
 la lista, la unión no se notaba.

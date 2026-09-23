@@ -13,6 +13,8 @@ public interface IAbonoRepository extends BaseRepository<AbonoPedido, Integer> {
 
     List<AbonoPedido> findByPedidoIdOrderByFechaPagoAsc(int pedidoId);
 
+    List<AbonoPedido> findByPedidoIdIn(java.util.Collection<Integer> pedidoIds);
+
     @Query("SELECT p FROM Pedido p WHERE p.tipoPedido IN ('APARTADO', 'FIADO') " +
            "AND p.estadoPedido NOT IN ('PAGADO', 'cancelado') ORDER BY p.fechaPedido DESC")
     List<Pedido> findPedidosConSaldo();

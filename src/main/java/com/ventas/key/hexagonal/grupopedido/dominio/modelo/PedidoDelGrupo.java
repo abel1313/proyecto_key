@@ -38,13 +38,27 @@ public record PedidoDelGrupo(
         return !estaCancelado() && !estaEntregado() && !PAGADO.equals(estado);
     }
 
+    public boolean estaPagado() {
+        return PAGADO.equals(estado);
+    }
+
+    /**
+     * Se puede unir: no esta cancelado ni cobrado de contado (R2).
+     *
+     * <p>Un pedido a credito ya liquidado si entra: su dinero pasa a ser del grupo y al separar se
+     * reparte. Uno de contado ya cobrado primero se pasa a Apartado o Ir pagando.
+     */
+    public boolean sePuedeUnir() {
+        return !estaCancelado() && !estaEntregado();
+    }
+
     /** Por que no se puede unir, para decirselo a quien lo intento. */
     public String motivoDelCierre() {
         if (estaCancelado()) {
             return "esta cancelado";
         }
         if (estaEntregado()) {
-            return "ya se entrego";
+            return "ya se cobro de contado (pasalo a Apartado o Ir pagando con \"Cambiar forma de cobro\" para unirlo)";
         }
         if (PAGADO.equals(estado)) {
             return "ya esta pagado";

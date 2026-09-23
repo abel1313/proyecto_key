@@ -21097,3 +21097,52 @@ Response `data`:
   el mismo campo. En una venta de contado sin fecha se guarda la de hoy. No cancela nada solo: la
   cancelación automática por no recoger solo aplica a pedidos de la tienda en línea en `Pendiente`.
 
+### Unir pedidos v2: separar repartiendo el dinero, quién recoge, editar artículos de todos (2026-09-23)
+
+#### Nuevo: `POST /v1/grupos-pedido/{grupoId}/separar`
+Separa uno o todos los pedidos. Reemplaza a "Deshacer" en la pantalla.
+Request:
+```json
+{
+  "pedidosQueSalen": [121],
+  "reparto": [ { "pedidoId": 121, "monto": 40 } ],
+  "nuevoTitularId": 123,
+  "motivo": "cada quien lo suyo"
+}
+```
+- `pedidosQueSalen`: los que se separan. Todos = separar el grupo entero. Si queda uno solo, también sale.
+- `reparto`: **solo en grupos a crédito**. Cuánto de lo que ha dado el cliente se queda cada pedido que
+  sale. Lo que no se reparte sigue en el grupo (se acomoda del más viejo al más nuevo en los que quedan).
+  Si salen todos, tiene que sumar **exacto** lo abonado.
+- `nuevoTitularId`: obligatorio si el que recogía se separa y siguen unidos 2 o más.
+
+Response `data`:
+```json
+{ "grupo": { "...": "Grupo separado (activo: false) con pagado/saldo/estadoPedido de cada pedido" },
+  "grupoNuevoId": 31 }
+```
+- `grupoNuevoId`: el grupo en el que siguen unidos los demás, o `null`.
+- Cada pedido queda según su dinero: si cubre su total, `PAGADO` (se crea su venta); si no, vuelve a
+  Apartado / Ir pagando debiendo lo que falte (si tenía venta, se borra).
+- 400: no se eligió pedido, el pedido no es del grupo, el reparto no suma exacto, a un pedido se le
+  deja más de lo que cuesta, sobra dinero que no cabe en los que quedan, falta elegir quién recoge,
+  o el grupo es de contado y se mandó reparto.
+
+#### Nuevo: `PUT /v1/grupos-pedido/{grupoId}/titular`
+Request `{ "pedidoTitularId": 123 }` → `data` = **Grupo**. 400 si ese pedido no es del grupo.
+
+#### Cambios en endpoints existentes
+- `POST /v1/grupos-pedido` (unir): **antes** rechazaba un pedido a crédito ya pagado; **ahora** sí lo
+  deja unir. Un pedido cobrado de contado sigue sin unirse, con el mensaje de pasarlo primero a
+  Apartado / Ir pagando.
+- `POST /v1/grupos-pedido/{id}/deshacer`: **nuevo 400** si el grupo es a crédito y el cliente ya dio
+  dinero: `"...al separar hay que decir cuanto se queda cada pedido"`. El front ya no lo usa.
+
+#### Front
+- Detalle del anfitrión: los artículos de los otros pedidos tienen **−** y **⇄**; el cambio se guarda
+  en su propio pedido (mismos endpoints de artículos, con el id de ese pedido).
+- **➕ Agregar artículo**: si el pedido está unido, pregunta primero a qué pedido va.
+- Sección del grupo: "Cambiar a …" para quién recoge, y **✂️ Separar pedidos** con una fila por pedido
+  (sale / cuánto se queda). No deja separar hasta que el reparto cuadre.
+- Permisos: separar y cambiar quién recoge usan `unir-pedidos` (ya existe). No hay script nuevo.
+

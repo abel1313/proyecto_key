@@ -29,6 +29,19 @@ public interface UnirPedidosCasoUso {
      */
     ResultadoCobro cobrarDeContado(Integer grupoId, Integer pagosYMesesId, Integer usuarioId);
 
+    /**
+     * Separa uno o varios pedidos. En un grupo a credito, lo que el cliente ha dado se reparte como
+     * se indique; la suma tiene que ser exacta (R14). Si quedan 2 o mas, siguen unidos en un grupo
+     * nuevo (R15).
+     *
+     * @param reparto pedidoId -> centavos que se queda cada pedido que sale
+     */
+    ResultadoSeparacion separar(Integer grupoId, List<Integer> salen, java.util.Map<Integer, Long> reparto,
+                                Integer nuevoTitular, String motivo, Integer usuarioId);
+
+    /** Cambia quien paga y recoge (R16). */
+    GrupoPedidos cambiarTitular(Integer grupoId, Integer pedidoTitularId, Integer usuarioId);
+
     /** Deshace el grupo. Cada pedido se queda con sus articulos y los abonos que le tocaron (R7). */
     GrupoPedidos deshacer(Integer grupoId, String motivo, Integer usuarioId);
 
@@ -44,6 +57,13 @@ public interface UnirPedidosCasoUso {
      * @param grupo           el grupo despues del cobro
      * @param pedidosCobrados los que se confirmaron, del mas viejo al mas nuevo
      */
+    /**
+     * @param grupo       el grupo que se separo (ya inactivo), con como quedo cada pedido
+     * @param grupoNuevo  id del grupo en el que siguen unidos los demas, o null
+     */
+    record ResultadoSeparacion(GrupoPedidos grupo, Integer grupoNuevo) {
+    }
+
     record ResultadoCobro(GrupoPedidos grupo, List<Integer> pedidosCobrados) {
     }
 }

@@ -3,14 +3,22 @@ package com.ventas.key.hexagonal.grupopedido.aplicacion.servicio;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.CobroDelGrupoInvalidoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoNoEncontradoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoPedidoException;
+import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.SeparacionInvalidaException;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.GrupoPedidos;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoRegistrado;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.Movimiento;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.PedidoDelGrupo;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.PlanDeSeparacion;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.ReacomodoDeAbonos;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.Separacion;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.RegistroGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.Reparto;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.UnionDePedidos;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonoPedidoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonosDelGrupoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.EstadoDePagoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.BitacoraPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.ConfirmarPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.GrupoPedidosPort;
@@ -23,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -44,6 +53,8 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
     private final AbonoPedidoPort abonos;
     private final BitacoraPedidoPort bitacora;
     private final ConfirmarPedidoPort confirmar;
+    private final AbonosDelGrupoPort abonosDelGrupo;
+    private final EstadoDePagoPort estadoDePago;
 
     @Override
     @Transactional
@@ -111,10 +122,87 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
 
     @Override
     @Transactional
+    public ResultadoSeparacion separar(Integer grupoId, List<Integer> salen, Map<Integer, Long> reparto,
+                                       Integer nuevoTitular, String motivo, Integer usuarioId) {
+        GrupoPedidos grupo = consultar(grupoId);
+        List<Integer> vivos = grupo.pedidos().stream().filter(p -> !p.estaCancelado())
+                .map(PedidoDelGrupo::pedidoId).toList();
+        List<AbonoRegistrado> abonos = grupo.esDeCredito() ? abonosDelGrupo.abonosDe(vivos) : List.of();
+
+        PlanDeSeparacion plan = Separacion.planear(grupo, abonos, salen, reparto, nuevoTitular);
+
+        if (!plan.objetivos().isEmpty()) {
+            String nota = "Reparto al separar el grupo #" + grupoId;
+            for (Movimiento m : ReacomodoDeAbonos.planear(abonos, plan.objetivos())) {
+                abonosDelGrupo.mover(m, nota);
+            }
+            for (Integer pedidoId : plan.objetivos().keySet()) {
+                estadoDePago.ajustarAlosAbonos(pedidoId, usuarioId);
+            }
+        }
+
+        grupos.marcarDeshecho(grupoId, usuarioId);
+        Integer grupoNuevo = null;
+        if (!plan.terminaElGrupo()) {
+            grupoNuevo = grupos.crear(plan.titular(), plan.quedan(),
+                    limpiar("Sigue del grupo #" + grupoId + sufijo(motivo)), usuarioId);
+        }
+
+        GrupoPedidos despues = consultar(grupoId);
+        String quedanTexto = plan.quedan().stream().map(id -> "#" + id).collect(Collectors.joining(", "));
+        for (PedidoDelGrupo p : despues.pedidos()) {
+            String texto;
+            if (plan.salen().contains(p.pedidoId())) {
+                texto = String.format("[%s] Se separo del grupo #%d%s%s", LocalDate.now(), grupoId,
+                        plan.objetivos().containsKey(p.pedidoId())
+                                ? String.format(": se quedo con $%.2f de lo abonado y debe $%.2f",
+                                        p.cobradoCentavos() / 100.0, p.saldoCentavos() / 100.0)
+                                : "",
+                        sufijo(motivo));
+            } else {
+                texto = String.format("[%s] Salieron pedidos del grupo #%d; sigue unido en el grupo #%d con %s (titular: pedido #%d)%s",
+                        LocalDate.now(), grupoId, grupoNuevo, quedanTexto, plan.titular(), sufijo(motivo));
+            }
+            bitacora.anotar(p.pedidoId(), texto);
+        }
+        log.info("Grupo {} separado: salen {}, quedan {} en el grupo {}, reparto {}",
+                grupoId, plan.salen(), plan.quedan(), grupoNuevo, plan.objetivos());
+        return new ResultadoSeparacion(despues, grupoNuevo);
+    }
+
+    @Override
+    @Transactional
+    public GrupoPedidos cambiarTitular(Integer grupoId, Integer pedidoTitularId, Integer usuarioId) {
+        GrupoPedidos grupo = consultar(grupoId);
+        if (!grupo.activo()) {
+            throw new GrupoPedidoException("El grupo " + grupoId + " ya se habia separado");
+        }
+        boolean esMiembro = grupo.pedidos().stream()
+                .anyMatch(p -> p.pedidoId().equals(pedidoTitularId) && !p.estaCancelado());
+        if (!esMiembro) {
+            throw new GrupoPedidoException("Quien recoge tiene que ser uno de los pedidos del grupo");
+        }
+        if (pedidoTitularId.equals(grupo.pedidoTitularId())) {
+            return grupo;
+        }
+        grupos.cambiarTitular(grupoId, pedidoTitularId);
+        for (PedidoDelGrupo p : grupo.pedidos()) {
+            bitacora.anotar(p.pedidoId(), String.format("[%s] En el grupo #%d ahora paga y recoge el cliente del pedido #%d (antes #%d)",
+                    LocalDate.now(), grupoId, pedidoTitularId, grupo.pedidoTitularId()));
+        }
+        return consultar(grupoId);
+    }
+
+    @Override
+    @Transactional
     public GrupoPedidos deshacer(Integer grupoId, String motivo, Integer usuarioId) {
         GrupoPedidos grupo = consultar(grupoId);
         if (!grupo.activo()) {
             throw new GrupoPedidoException("El grupo " + grupoId + " ya se habia deshecho");
+        }
+        if (grupo.esDeCredito() && grupo.pagadoCentavos() > 0) {
+            throw new SeparacionInvalidaException("El cliente ya dio dinero en este grupo: al separar hay que decir "
+                    + "cuanto se queda cada pedido");
         }
         grupos.marcarDeshecho(grupoId, usuarioId);
         for (PedidoDelGrupo pedido : grupo.pedidos()) {

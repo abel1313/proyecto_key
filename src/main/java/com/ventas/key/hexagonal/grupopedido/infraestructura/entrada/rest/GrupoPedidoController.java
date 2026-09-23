@@ -7,6 +7,9 @@ import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AbonoGrupoRequest;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AbonoGrupoResponse;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CambiarTitularRequest;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.SeparacionResponse;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.SepararRequest;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CobroContadoRequest;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CobroContadoResponse;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.DeshacerGrupoRequest;
@@ -24,11 +27,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -82,6 +88,28 @@ public class GrupoPedidoController {
                                                   @RequestBody CobroContadoRequest request) {
         return ejecutar(true, () -> CobroContadoResponse.de(
                 casoUso.cobrarDeContado(grupoId, request.getPagosYMesesId(), usuarioActual())));
+    }
+
+    /** Separa uno o varios pedidos; en un grupo a credito, repartiendo lo abonado (R14-R15). */
+    @PostMapping("/{grupoId}/separar")
+    public ResponseEntity<Object> separar(@PathVariable Integer grupoId, @RequestBody SepararRequest request) {
+        Map<Integer, Long> reparto = new LinkedHashMap<>();
+        if (request.getReparto() != null) {
+            for (SepararRequest.Parte parte : request.getReparto()) {
+                if (parte.getPedidoId() != null && parte.getMonto() != null) {
+                    reparto.put(parte.getPedidoId(), centavos(parte.getMonto()));
+                }
+            }
+        }
+        return ejecutar(true, () -> SeparacionResponse.de(casoUso.separar(grupoId, request.getPedidosQueSalen(),
+                reparto, request.getNuevoTitularId(), request.getMotivo(), usuarioActual())));
+    }
+
+    /** Cambia quien paga y recoge (R16). */
+    @PutMapping("/{grupoId}/titular")
+    public ResponseEntity<Object> cambiarTitular(@PathVariable Integer grupoId, @RequestBody CambiarTitularRequest request) {
+        return ejecutar(true, () -> GrupoPedidosResponse.de(
+                casoUso.cambiarTitular(grupoId, request.getPedidoTitularId(), usuarioActual())));
     }
 
     @PostMapping("/{grupoId}/deshacer")
