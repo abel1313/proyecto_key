@@ -19983,6 +19983,728 @@ dispara, responde de inmediato, y el resultado se consulta con el botón de "Ver
 
 ---
 
+# Cambiar la forma de cobro de un pedido ya creado (2026-09-22)
+
+**El caso real que lo pide:** se apartó un pedido, al ir a entregarlo el cliente decidió pagarlo
+completo. No había forma de cambiarlo, así que quedó registrado como apartado. La única
+alternativa era cancelar y rehacer el pedido entero — que además devuelve y vuelve a descontar
+el stock.
+
+Ahora el pedido se puede mover entre **NORMAL** (contado), **APARTADO** e **FIADO** (ir pagando)
+y, si el cliente paga en ese momento, el mismo request registra el abono.
+
+## Request
+
+```
+PUT /mis-productos/v1/pedidos/{pedidoId}/tipo
+Content-Type: application/json
+```
+
+```json
+{
+  "tipoPedido": "NORMAL",
+  "monto": 700.0,
+  "metodoPago": "EFECTIVO",
+  "montoDado": 1000.0,
+  "nota": "Pagó el resto al entregarlo",
+  "usuarioId": 12
+}
+```
+
+| Campo | Obligatorio | Qué es |
+|---|---|---|
+| `tipoPedido` | **sí** | A qué pasa: `NORMAL`, `APARTADO` o `FIADO`. No distingue mayúsculas. |
+| `monto` | no | Lo que se cobra **en este momento**. Null o 0 = solo se cambia el tipo, sin cobrar. |
+| `metodoPago` | no | `EFECTIVO` (default) o `TRANSFERENCIA`. **`TARJETA` no aplica en crédito** — mismo criterio que el abono normal. |
+| `montoDado` | no | Solo para `EFECTIVO`, para calcular el cambio. |
+| `nota` | no | **Texto libre: qué pasó.** Ver abajo. |
+| `usuarioId` | sí si hay `monto` | Quién lo hizo (va al abono). |
+
+### La nota es el punto del modal
+
+`nota` es texto libre y es lo único que queda para entender mañana por qué ese pedido cambió de
+forma de cobro. El back le antepone solo el cambio:
+
+- con nota → `"Cambio de APARTADO a NORMAL: Pagó el resto al entregarlo"`
+- sin nota (o en blanco) → `"Cambio de APARTADO a NORMAL"`
+
+O sea: **el front no tiene que armar ese prefijo**, solo mandar lo que escribió el usuario. Si
+manda el prefijo también, va a salir duplicado.
+
+Cuando viene `monto`, esto **genera un abono** con esa nota — se ve en el historial de abonos del
+pedido como cualquier otro, pero identificado.
+
+## Response 200
+
+Envelope `ResponseGeneric` de siempre (`mensaje` / `code` / `data`). En `data` va el **detalle
+completo del pedido ya actualizado** — el mismo shape que devuelve el detalle de pedido, así que
+la pantalla puede repintarse con esto sin volver a pedir nada. Los campos que cambian con esta
+operación:
+
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "pedidoId": 501,
+    "tipoPedido": "NORMAL",
+    "totalPedido": 1000.0,
+    "totalPagado": 1000.0,
+    "estadoPedido": "Pendiente"
+  }
+}
+```
+
+## Qué mostrar en el modal
+
+El saldo que se debe sale del pedido que ya tiene el front:
+`totalPedido - totalPagado`.
+
+- Pasar a **NORMAL** exige que el pedido quede liquidado: o ya estaba pagado, o el `monto` de
+  este request cubre el saldo. Conviene que el modal **precargue `monto` con el saldo** cuando se
+  elige NORMAL.
+- Pasar a **APARTADO** o **FIADO** no exige cobrar nada: `monto` puede ir vacío.
+
+## Errores
+
+Todos salen como **HTTP 400** con el texto en `mensaje` y `data: null`:
+
+```json
+{ "mensaje": "El pedido 501 ya es de tipo APARTADO", "code": 404, "data": null }
+```
+
+⚠️ **Ojo:** el `code` del body dice `404` aunque el HTTP sea `400` — lo pone el constructor de
+`ResponseGeneric` cuando `data` es null, es así en todos los endpoints de este controller. **Hay
+que guiarse por el status HTTP y por `mensaje`, no por ese `code`.**
+
+| Cuándo | `mensaje` |
+|---|---|
+| Falta saldo para pasar a contado | `Para pasar el pedido a contado hay que cobrar el saldo completo. Falta $700.00 y en este cambio se cobran $400.00` |
+| Tipo que no existe | `Tipo de pedido invalido: CREDITO. Los validos son NORMAL, APARTADO y FIADO` |
+| Pedido ya entregado | `El pedido 501 ya se entrego: no se puede cambiar su forma de cobro` |
+| Pedido cancelado | `El pedido 501 esta cancelado` |
+| Mismo tipo que ya tiene | `El pedido 501 ya es de tipo APARTADO` |
+| Manda `monto` sobre un pedido de contado | `El pedido 501 es de tipo NORMAL y no tiene saldo que cobrar` |
+| Sin el permiso | **403** de Spring Security, sin pasar por el controller (body distinto) |
+
+El mensaje de saldo trae los dos números ya formateados — se puede mostrar tal cual.
+
+## El botón va configurado (permiso fino)
+
+No es un botón de admin hardcodeado: es una acción puntual de la pantalla, para poder dársela a
+quien cobra en mostrador **sin** darle el resto de la gestión de pedidos.
+
+- Pantalla: `pedidos/mis-pedidos`
+- Clave de la acción: **`cambiar-tipo`**
+- Etiqueta en Gestión de roles: *"Cambiar forma de cobro del pedido (🔁)"*, bajo la categoría
+  *Detalle del pedido*
+- Migración: `migration_accion_pedido_cambiar_tipo.sql` — de arranque **solo `ROLE_ADMIN`** la
+  tiene. A diferencia de Entrega/Ticket/Cancelar/Abonar, **no** se le da a todo rol con Ver en la
+  pantalla: un cliente mirando sus propios pedidos no puede convertir su apartado en fiado.
+
+En el front, el botón se muestra con el mismo `tieneAccion('cambiar-tipo')` que ya usan los demás
+botones de esa pantalla.
+
+---
+
+# Editar los artículos de un pedido ya creado (2026-09-22)
+
+**El caso:** hoy solo se puede **quitar** una línea (el botón `−`). Para agregar algo o cambiar una
+talla hay que cancelar el pedido entero y rehacerlo — que devuelve y vuelve a descontar el stock, y
+deja registrado algo distinto de lo que realmente pasó.
+
+Tres endpoints nuevos. Los tres devuelven **el pedido completo ya actualizado**, así que la
+pantalla se repinta con la respuesta sin volver a pedir el detalle.
+
+## 1. Agregar un artículo
+
+```
+POST /mis-productos/v1/pedidos/{pedidoId}/articulos
+```
+```json
+{ "varianteId": 88, "cantidad": 2, "precioUnitario": null }
+```
+
+| Campo | Obligatorio | Qué es |
+|---|---|---|
+| `varianteId` | **sí** | el artículo (lo que hoy se llama variante) |
+| `cantidad` | no | default 1; tiene que ser > 0 |
+| `precioUnitario` | no | **null = precio normal.** Solo se acepta el normal o el de rebaja |
+
+**No manda `subTotal`** — el back lo calcula. Recibirlo fue el agujero por el que un pedido entero
+podía quedar en $1.
+
+**Si ese artículo ya está en el pedido al mismo precio, suma cantidad a la línea existente** en vez
+de crear una segunda. Dos líneas de lo mismo son imposibles de explicar en un ticket.
+
+## 2. Cambiar un artículo por otro
+
+```
+PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}
+```
+```json
+{ "varianteId": 99, "cantidad": null, "precioUnitario": null, "modo": null }
+```
+
+`detalleId` sale del campo `detalleId` de cada línea en el response. `cantidad: null` conserva la
+que tenía la línea.
+
+## 3. Quitar una promoción completa
+
+```
+DELETE /mis-productos/v1/pedidos/{pedidoId}/promociones/{promocionId}
+```
+Sin body. Saca **todas** las líneas de esa promoción y devuelve su stock.
+
+## Response 200 (los tres)
+
+```json
+{
+  "mensaje": "La peticion fue exitosa",
+  "code": 200,
+  "data": {
+    "pedidoId": 501,
+    "estadoPedido": "Pendiente",
+    "totalPedido": 1100.0,
+    "totalPagado": 300.0,
+    "saldo": 800.0,
+    "articulos": [
+      {
+        "detalleId": 3,
+        "varianteId": 88,
+        "productoId": 41,
+        "nombre": "Great Jeans talla M azul",
+        "cantidad": 2,
+        "precioUnitario": 400.0,
+        "subTotal": 800.0,
+        "promocionId": null,
+        "esDePromocion": false
+      }
+    ]
+  }
+}
+```
+
+⚠️ **`saldo` puede venir negativo** si el pedido ya tenía abonos y ahora vale menos. Eso es dinero
+a favor del cliente: hay que mostrarlo, no esconderlo ni tratarlo como 0. `totalPagado` **nunca** se
+toca al editar — una devolución es una decisión de negocio, no algo que el back haga solo.
+
+## 🎁 El caso de la promoción — respuesta **409**, que no es un error
+
+Si se intenta cambiar una línea que pertenece a una promoción por un artículo que **no está** en
+ese combo, el back **no decide solo**: responde **409 Conflict**, deja el pedido intacto y devuelve
+las dos salidas para que el modal pregunte.
+
+```json
+{
+  "requiereDecision": true,
+  "mensaje": "'Pantalón hombre' no forma parte de la promocion 'Combo pantalón + perfume'. Para llevarlo hay que quitar la promocion completa (2 articulo(s)) o conservarla y agregarlo aparte a precio normal",
+  "promocionId": 7,
+  "promocion": "Combo pantalón + perfume",
+  "articuloNuevo": "Pantalón hombre talla 32",
+  "importeDelCombo": 500.0,
+  "lineasDelCombo": [ { "detalleId": 1, "nombre": "...", "subTotal": 300.0, "...": "..." } ],
+  "opciones": [
+    { "modo": "QUITAR_PROMOCION",
+      "titulo": "Quitar la promocion completa",
+      "explicacion": "Salen las 2 linea(s) de la promocion 'Combo...' y entra 'Pantalón hombre' a precio normal. Lo demas del pedido no se toca" },
+    { "modo": "CONSERVAR_PROMOCION",
+      "titulo": "Conservarla y agregarlo aparte",
+      "explicacion": "La promocion queda como esta y 'Pantalón hombre' se suma como una linea nueva a precio normal" }
+  ]
+}
+```
+
+**El 409 es la señal, no un fallo.** El front lo distingue del 400 por el status o por
+`requiereDecision: true`; el modal se arma con `opciones[]` (título y explicación ya vienen
+escritos) y `lineasDelCombo` para listar qué se iría.
+
+Elegida la opción, se **repite el mismo PUT** con `modo` puesto:
+
+```json
+{ "varianteId": 99, "modo": "QUITAR_PROMOCION" }
+```
+
+| `modo` | Qué hace |
+|---|---|
+| `VALIDAR` (o null) | no cambia nada; devuelve el 409 con las opciones. Es el default |
+| `QUITAR_PROMOCION` | salen **todas** las líneas del combo, entra el artículo nuevo a precio normal. Lo ajeno a la promoción no se toca |
+| `CONSERVAR_PROMOCION` | la promoción queda intacta y el artículo nuevo se suma como línea nueva a precio normal |
+
+**Si el artículo nuevo SÍ está en la promoción**, no hay 409: se cambia directo, **al precio del
+combo**, y la promoción sigue entera.
+
+**Por qué (a) saca el combo entero y no solo la línea que se cambiaba:** el precio promocional
+existe porque se llevan esas piezas juntas. Dejar dos de tres al precio del combo sería cobrar un
+descuento por una condición que ya no se cumple.
+
+## ⚠️ Cambio de comportamiento: el botón `−` sobre una promoción
+
+`DELETE /v1/pedidos/{id}/detalle/{productoId}` **antes** dejaba sacar una línea suelta de una
+promoción; el resto del combo se quedaba al precio promocional, en silencio.
+
+**Ahora responde 400** cuando la línea pertenece a una promoción, y el mensaje dice con qué
+endpoint quitar el combo completo. Sobre una línea **sin** promoción funciona igual que siempre —
+este cambio no toca ese caso.
+
+El front debería ocultar el `−` en las líneas con `esDePromocion: true` y mostrar en su lugar
+"Quitar promoción".
+
+## Errores (400)
+
+Mismo envelope que el resto: `{ mensaje, code, data: null }`, HTTP **400** (el `code` del body dice
+`404`, hay que guiarse por el status y por `mensaje`).
+
+| Cuándo | `mensaje` |
+|---|---|
+| Precio que no es normal ni rebaja | `El precio $1.00 no es valido para 'X'. Se puede cobrar a $400.00 (normal) o $350.00 (rebaja)` |
+| Sin stock | `No hay stock suficiente de 'X'. Solicitado: 5. Disponible: 1 (articulo: 1, modelo: 8)` |
+| Pedido entregado / cancelado | `El pedido 501 ya se entrego: no se pueden editar sus articulos` |
+| Artículo dado de baja | `El articulo 'X' esta dado de baja y no se puede vender` |
+| Cantidad 0 o negativa | `La cantidad tiene que ser mayor a 0...` |
+| Cambiar al mismo artículo | `La linea 3 ya es de ese mismo articulo...` |
+| Quitar la última línea | `El pedido 501 quedaria sin articulos. Si ya no se quiere nada, hay que cancelar el pedido` |
+| Quitar el `−` de una promoción | `'X' es parte de la promocion 'Y' y no se puede quitar solo... DELETE /v1/pedidos/501/promociones/7` |
+| Sin permiso | **403** de Spring Security, sin pasar por el controller |
+
+Cuando algo se rechaza, **el stock no se movió**: las tres operaciones son todo o nada.
+
+## Los tres botones van configurados
+
+| Botón | Acción | Etiqueta en Gestión de roles |
+|---|---|---|
+| "+ Agregar artículo" | `agregar-articulo` | *Agregar articulo al pedido (+)* |
+| "Cambiar" en la línea | `cambiar-articulo` | *Cambiar un articulo del pedido...* |
+| "Quitar promoción" | `quitar-promocion` | *Quitar una promocion completa del pedido* |
+
+Pantalla `pedidos/mis-pedidos`, categoría *Detalle del pedido*. Migración:
+`migration_accion_pedido_articulos.sql`. De arranque **solo `ROLE_ADMIN`**.
+
+Son tres acciones separadas a propósito: se puede querer que quien atiende el mostrador agregue
+artículos **sin** poder desarmar una promoción, que es una decisión de dinero más grande.
+
+## El tercer precio (rebaja) ya se puede cobrar
+
+`producto` tiene tres precios: `precio_costo` (nunca se vende a eso), `precio_venta` (el normal) y
+`precio_rebaja`. Hasta ahora el tercero se guardaba y se mostraba en el admin pero **nunca se
+cobraba** — para bajar un precio había que armar una promoción.
+
+Ahora se puede cobrar, tanto al crear la venta como al editar el pedido, mandándolo en
+`precioUnitario`. Siguen siendo **solo esos dos**, así que el front no puede inventar un monto.
+
+**Qué ve el cliente:** en el catálogo y la tienda, siempre `precio_venta` — la rebaja no se
+publica. **En su pedido ve lo que realmente pagó**, aunque sea el rebajado: una vez aplicada en una
+venta es el precio de ese cliente y tiene derecho a verlo en su comprobante.
+
+---
+
+# Alta de artículos: el artículo vacío y la categoría heredada (2026-09-22)
+
+## El modelo y el artículo — cómo se relacionan
+
+El **modelo** (`producto`) identifica: nombre, precios, **código de barras** y categoría. El
+**artículo** (hoy `variante`) hereda todo eso y solo agrega **lo suyo**: talla, color, marca,
+presentación, contenido neto, descripción y stock.
+
+**El código de barras compartido entre todas las tallas no es un bug, es el diseño** — todas son
+el mismo producto. Lo que distingue a un artículo es lo que se le llena encima.
+
+## 1. El contador que decía 3 con 2 — corregido en el back
+
+**Antes:** la pantalla tiene el formulario base y la sección de varias tallas, independientes. Si
+se llenaba el base, se agregaban 2 tallas y después **se vaciaba el base**, el base seguía viajando:
+el back recibía 3 y **creaba 3**, y el tercero nacía sin talla, sin color y sin nada.
+
+**Ahora:** `POST /mis-productos/v1/variantes/guardarConImagenes` **descarta los artículos que no
+describen nada** antes de guardar.
+
+Un artículo se descarta solo si cumple **todo** esto a la vez:
+- es nuevo (`id` null),
+- no trae **ningún** dato propio (talla, color, marca, descripción, presentación, contenido neto —
+  en blanco o solo espacios cuenta como vacío),
+- no trae imágenes,
+- y su stock es 0 o menos.
+
+**Lo que NO se descarta** (a propósito, para no perder un alta real):
+
+| Caso | Se guarda |
+|---|---|
+| Artículo que **ya existe** (`id` con valor), aunque le vacíen todo | ✅ es una edición |
+| Sin talla ni color pero **con stock** | ✅ es el modelo de un solo artículo |
+| Sin texto pero **con imágenes** | ✅ |
+| Con **un solo** campo lleno (ej. solo color) | ✅ basta uno |
+
+Si **todos** llegan vacíos responde **400**: *"No hay ningún artículo que guardar: todos llegaron
+vacíos. Hay que llenar al menos la talla, el color u otro dato, o ponerle stock"*.
+
+**Para el front:** el response sigue trayendo los artículos realmente creados, así que el conteo a
+mostrar sale de ahí y no de lo que se envió. Lo ideal igual es **no mandar el formulario base
+vacío**, pero si se cuela, el back ya no lo guarda.
+
+## 2. La categoría se hereda del modelo
+
+Si un artículo **no trae** `palabraClaveId`, toma la del modelo. *"Si está llena, que la tome para
+todos los que agregue."*
+
+El que **sí** trae la suya la conserva — el modelo no la pisa. Así la mayoría salen con la del
+modelo y alguno se puede separar, sin tener que elegirla artículo por artículo.
+
+**Para el front:** ya no hace falta repetir `palabraClaveId` en cada talla; mandarlo en null
+alcanza. Si se manda, gana el del artículo.
+
+---
+
+# El precio de rebaja ya llega a la card de tienda (2026-09-22)
+
+`VarianteResumenDto` (lo que devuelven `/v1/variantes/buscar` y `/v1/variantes/buscar-filtrado`)
+llevaba **un solo precio**. Por eso, aunque el cobro ya aceptaba el precio de rebaja, la card no
+tenía con qué ofrecerlo.
+
+**Campo nuevo: `precioRebaja`**
+
+```json
+{
+  "id": 88,
+  "nombreProducto": "Great Jeans",
+  "talla": "M",
+  "precio": 400.0,
+  "precioRebaja": 350.0,
+  "codigoBarras": "7501234567890",
+  "stock": 5
+}
+```
+
+## 🔒 Solo viaja para el admin
+
+Para un **cliente** (o sin token) `precioRebaja` viene **null**. La rebaja no se publica en el
+catálogo: es un precio que el admin puede decidir aplicar en una venta, no un precio de lista.
+Publicarla lo convertiría en el precio de todos.
+
+**El cliente sí la ve después en su pedido**, porque ahí es lo que realmente pagó y tiene derecho
+a verlo en su comprobante.
+
+## Cómo usarlo en la card
+
+Cuando `precioRebaja` viene con valor, la card puede ofrecer los dos precios. El que se elija va en
+`precioUnitario` al crear la venta/pedido o al agregar el artículo — el back acepta **solo esos
+dos**, cualquier otro monto lo rechaza con el mensaje que dice cuáles valen.
+
+---
+
+## 🎟️ Boletos de rifa agrupados por perfil (2026-09-22)
+
+Reemplaza la carga de a una participación por vez. **La cabecera (cliente, plataforma, perfil del
+cliente en esa red) se carga UNA sola vez** y después se le suman participaciones. Cada URL de
+algo que el cliente hizo **es un boleto**.
+
+```
+Cliente:    Juan Perez
+Plataforma: FACEBOOK
+Perfil:     facebook.com/juan.perez        ← se carga UNA vez
+   ├── facebook.com/post/1   (dio like)    → 1 boleto
+   ├── facebook.com/post/2   (compartió)   → 1 boleto
+   └── facebook.com/post/3   (comentó)     → 1 boleto
+                                              totalBoletos: 3
+```
+
+La pantalla se dibuja **agrupada**: un renglón por (plataforma + perfil), colapsable, con sus
+participaciones adentro. No más filas sueltas de "Facebook · juan · like" y aparte
+"Facebook · juan · compartió".
+
+> **Lo viejo sigue funcionando.** Los endpoints `/v1/boletoRifa/...` no cambiaron y los boletos
+> ya cargados no se migraron. Los dos formatos leen las mismas filas; lo único que cambia es
+> cómo se presentan.
+
+### 1. Ver el listado agrupado
+
+```
+GET /v1/rifas/{rifaId}/boletos-agrupados
+```
+
+```jsonc
+{
+  "mensaje": "...", "code": 200, "lista": null,
+  "data": [
+    {
+      "concursanteId": 7,
+      "nombreConcursante": "Juan Perez",
+      "plataforma": "FACEBOOK",
+      "urlPerfil": "facebook.com/juan.perez",
+      "totalBoletos": 3,
+      "ultimaParticipacion": "2026-09-22",
+      "participaciones": [
+        { "boletoId": 41, "urlParticipacion": "facebook.com/post/1", "motivo": "dio like",   "fecha": "2026-09-22" },
+        { "boletoId": 42, "urlParticipacion": "facebook.com/post/2", "motivo": "compartio",  "fecha": "2026-09-22" },
+        { "boletoId": 43, "urlParticipacion": "facebook.com/post/3", "motivo": "comento",    "fecha": "2026-09-22" }
+      ]
+    }
+  ]
+}
+```
+
+`totalBoletos` es la cantidad de participaciones — **mostralo en la cabecera del grupo colapsado**,
+que es el dato que se quiere ver sin abrir.
+
+`boletoId` es lo que hay que mandar para **quitar** esa participación.
+
+`plataforma`: `FACEBOOK` · `INSTAGRAM` · `TIKTOK` · `OTRO`.
+
+#### 📜 El orden y el problema del scroll
+
+**La lista viene con lo último cargado arriba** (ordenada por `ultimaParticipacion` descendente;
+los grupos que quedaron sin participaciones van al final). Antes salía por orden de inserción, o
+sea que el grupo que acabás de cargar quedaba **al final de la lista** — había que bajar hasta
+abajo para verlo y volver a subir para cargar el siguiente.
+
+`ultimaParticipacion` viaja en el response, así que si preferís otro orden (alfabético, por
+cantidad de boletos) lo podés reordenar en el front sin pedir nada más.
+
+**Lo que falta de tu lado para cerrar el problema del scroll:**
+
+1. **Los renglones arrancan colapsados** — se ve `nombreConcursante`, `plataforma`, `urlPerfil` y
+   `totalBoletos`; las participaciones aparecen al desplegar. Expandir **no pide nada al back**:
+   ya vienen todas en esta misma respuesta.
+2. **El formulario de alta fijo** (arriba de la lista o en un panel que no scrollee), para que no
+   haya que recorrer la lista entera para llegar a él.
+
+Con eso, 20 concursantes con 3 participaciones cada uno pasan de 60 renglones a 20 colapsados.
+
+### 2. Alta de un perfil con todas sus participaciones
+
+```
+POST /v1/rifas/{rifaId}/boletos-agrupados
+```
+
+```jsonc
+{
+  "concursanteId": 7,
+  "plataforma": "FACEBOOK",
+  "urlPerfil": "facebook.com/juan.perez",
+  "participaciones": [
+    { "urlParticipacion": "facebook.com/post/1", "motivo": "dio like" },
+    { "urlParticipacion": "facebook.com/post/2", "motivo": "compartio", "modo": "UNICA" },
+    { "urlParticipacion": "facebook.com/post/3", "motivo": "comento",   "modo": "REPETIDA_PERMITIDA" }
+  ]
+}
+```
+
+Devuelve el grupo ya armado (mismo shape que un elemento de `data` arriba).
+
+**Es todo o nada:** si una URL choca, no se carga ninguna. No hace falta reconciliar estados
+parciales.
+
+### 3. Sumar una participación a un grupo que ya existe
+
+```
+POST /v1/rifas/{rifaId}/boletos-agrupados/participaciones?plataforma=FACEBOOK&urlPerfil=facebook.com/juan.perez
+```
+
+```jsonc
+{ "urlParticipacion": "facebook.com/post/4", "motivo": "compartio de nuevo", "modo": "UNICA" }
+```
+
+No se manda `concursanteId` ni el nombre: salen del grupo. Es el botón "+" adentro del renglón
+colapsado.
+
+### 4. Quitar una participación
+
+```
+DELETE /v1/rifas/{rifaId}/boletos-agrupados/participaciones/{boletoId}
+```
+
+Devuelve el grupo actualizado. **Puede volver con `totalBoletos: 0` y `participaciones: []`** —
+eso no es un error: el perfil quedó sin participaciones y el cliente sigue en la rifa por sus
+otras redes. Dibujá el renglón vacío, no lo trates como fallo.
+
+### 🔑 El campo `modo` — los dos modos de carga
+
+Cada participación lleva **una sola URL**, y `modo` dice cómo se valida:
+
+| `modo` | Qué hace el back |
+|---|---|
+| `"UNICA"` (default si no se manda) | Rechaza la URL con **409** si ya existe en esa rifa |
+| `"REPETIDA_PERMITIDA"` | La acepta aunque ya exista |
+
+**Se manda una o la otra, nunca las dos.** Una participación es un boleto; mandar las dos no lo
+convierte en dos.
+
+**Flujo sugerido en pantalla:** el campo de URL se manda siempre como `UNICA`. Si vuelve **409**,
+mostrás el mensaje del back (que dice de quién es la URL que ya estaba) con dos botones:
+*"Cancelar"* y *"Cargarla igual"*. El segundo reenvía **el mismo request** con
+`"modo": "REPETIDA_PERMITIDA"`.
+
+### Errores
+
+| Status | Cuándo | Qué hacer |
+|---|---|---|
+| **409** | URL repetida en modo `UNICA` | Ofrecer "cargarla igual" → reenviar con `REPETIDA_PERMITIDA` |
+| **400** | Perfil sin ninguna URL de participación | Mostrar el mensaje: falta al menos una URL |
+| **404** | El grupo (plataforma + perfil) no existe en esa rifa | Refrescar el listado |
+| **403** | Falta el permiso | La migración no corrió, o hay que volver a entrar |
+
+⚠️ Igual que en los endpoints de pedidos: **usar el status HTTP, no el `code` del body.** En los
+errores el `code` del envelope viene en `404` por cómo se arma `ResponseGeneric`, sin importar el
+status real.
+
+### El perfil se normaliza al agrupar
+
+`facebook.com/juan`, `https://facebook.com/juan`, `www.facebook.com/juan/` y
+`FACEBOOK.COM/Juan` son **el mismo perfil** y caen en el mismo renglón. El back guarda y devuelve
+la URL tal como se escribió, pero compara normalizada (ignora esquema, `www.`, barra final,
+mayúsculas y espacios). El front no tiene que normalizar nada antes de mandar.
+
+### Permisos
+
+| Acción | Endpoint |
+|---|---|
+| Ver la pantalla `rifas/boletos` | `GET .../boletos-agrupados` |
+| `cargar-boletos-agrupado` | `POST .../boletos-agrupados` |
+| `agregar-participacion` | `POST .../participaciones` |
+| `quitar-participacion` | `DELETE .../participaciones/{boletoId}` |
+
+Las tres se dan de alta con `migration_accion_rifa_boletos_agrupados.sql` y de arranque solo las
+tiene `ROLE_ADMIN`. **Después de correrla hay que volver a entrar** — los permisos viajan dentro
+del JWT.
+
+### Lo que NO cambia
+
+**El sorteo.** Sigue eligiendo una fila al azar y cada participación es su propia fila, así que
+las probabilidades de todos quedan exactamente iguales que antes. El agrupamiento es de
+presentación: no junta boletos ni los convierte en uno.
+
+---
+
+## 📊 Stock disponible de un producto (documentado tarde — el back ya estaba)
+
+⚠️ **Esto ya funcionaba antes de hoy y nunca se documentó acá.** Estaba anotado como "back hecho,
+falta el front" en el checklist de QA, pero el front nunca recibió el contrato — así que no se
+podía hacer. Queda documentado ahora.
+
+**El problema que resuelve:** al dar de alta modelos (artículos) de un producto, no hay forma de
+ver **cuánto stock queda sin repartir**. El admin escribe cantidades a ciegas, se pasa del total
+del producto, y así aparecen los descuadres (el producto 269: 12 en total, sus modelos suman 18).
+
+### 1. Cuánto queda libre de un producto
+
+```
+GET /v1/stock/producto/{productoId}
+```
+
+```jsonc
+{
+  "productoId": 269,
+  "nombreProducto": "Blusa manga larga",
+  "stockTotal": 12,          // lo que tiene el producto
+  "enVariantes": 8,          // lo ya repartido en modelos activos
+  "variantesActivas": 3,
+  "enVariantesDeBaja": 2,    // lo que está en modelos dados de baja (NO cuenta como repartido)
+  "disponible": 4,           // ← el número a mostrar
+  "descuadrado": false,
+  "mensaje": "12 en total, 8 repartidos en 3 modelos, quedan 4 disponibles."
+}
+```
+
+**`disponible` viene calculado, no lo recalcules en pantalla.** Si la pantalla repitiera la
+resta, el día que cambie la regla habría dos versiones distintas del mismo número.
+
+**`mensaje` viene armado para mostrarse tal cual.** Cambia solo según el caso:
+
+| Caso | Texto |
+|---|---|
+| Normal | `"12 en total, 8 repartidos en 3 modelos, quedan 4 disponibles."` |
+| Todo repartido | `"Los 12 en total ya están repartidos en 3 modelos: no queda disponible."` |
+| Descuadrado | `"Este producto está descuadrado: tiene 12 en total pero sus 3 modelos suman 18."` |
+
+### Dónde ponerlo en pantalla
+
+En el **alta y edición de artículos** (donde están talla/color/stock), como contador vivo arriba
+del formulario:
+
+```
+Quedan 4 disponibles de 12
+```
+
+Refrescalo al abrir la pantalla y después de guardar. Si `descuadrado` viene en `true`, mostralo
+en rojo con el `mensaje` — ese producto ya tiene datos rotos y hay que avisarlo, no esconderlo.
+
+Con `disponible: 0` el campo de stock no se bloquea (el back sigue validando), pero conviene
+avisar antes de que el usuario escriba.
+
+### 2. Reporte de descuadres (solo admin)
+
+```
+GET /v1/stock/admin/descuadrados
+```
+
+Devuelve una **lista** del mismo objeto, solo con los productos donde los modelos suman más que
+el producto. Es diagnóstico de datos rotos: sirve para una pantalla de mantenimiento, no para el
+flujo normal.
+
+### Permisos
+
+| Endpoint | Quién |
+|---|---|
+| `GET /v1/stock/producto/{id}` | Ver en `productos/buscar`, `productos/agregar`, `tienda/venta` o `tienda/update` |
+| `GET /v1/stock/admin/descuadrados` | Ver en `productos/buscar` |
+
+**No es público.** Expone el inventario real del negocio, que no es asunto del cliente. No hace
+falta migración: cuelga del permiso de pantalla que ya existe.
+
+---
+---
+
+# 🧭 ÍNDICE — todo lo que le toca al front (al 2026-09-22)
+
+Este documento tiene 20.000+ líneas en orden cronológico, así que lo pendiente queda desparramado.
+**Esta es la lista completa, en un solo lugar.** Cada fila apunta a su sección, que trae el
+contrato exacto: request, response, errores y permisos.
+
+El back de todo lo de abajo **ya está hecho, probado y en `qa`**. No hay nada esperando backend.
+
+| # | Qué hay que hacer | Sección de este doc | Endpoints |
+|---|---|---|---|
+| 1 | **Modal para cambiar la forma de cobro** de un pedido ya creado (Normal / Apartado / Ir pagando), con campo de descripción libre del abono | *Request · Response 200 · Qué mostrar en el modal* | `PUT /v1/pedidos/{id}/tipo` |
+| 2 | **Editar artículos del pedido**: agregar, cambiar, quitar promoción | *1. Agregar un artículo · 2. Cambiar · 3. Quitar promoción* | `POST/PUT/DELETE /v1/pedidos/{id}/articulos...` |
+| 3 | **El diálogo del 409 del combo** — dos botones, no un error | *🎁 El caso de la promoción — respuesta 409* | (misma) |
+| 4 | **El botón `−` sobre una promoción** ahora se rechaza: hay que ofrecer "quitar la promoción completa" | *⚠️ Cambio de comportamiento: el botón `−`* | `DELETE .../promociones/{id}` |
+| 5 | **No mandar el formulario base vacío** en el alta de artículos (era el contador que decía 3 con 2) | *1. El contador que decía 3 con 2* | `POST /v1/variantes/guardarConImagenes` |
+| 6 | **La categoría del modelo baja a todos** los artículos que no traigan la suya | *2. La categoría se hereda del modelo* | (misma) |
+| 7 | **`precioRebaja` en la card de tienda** — solo llega si sos admin | *🔒 Solo viaja para el admin · Cómo usarlo en la card* | `GET /v1/variantes/buscar` |
+| 8 | **Contador de stock disponible** en el alta/edición de artículos ("Quedan 4 disponibles de 12") | *📊 Stock disponible de un producto* | `GET /v1/stock/producto/{id}` |
+| 9 | **Rifa: colapsar los concursantes** y el alta agrupada por perfil | *🎟️ Boletos de rifa agrupados por perfil* | `GET/POST/DELETE /v1/rifas/{id}/boletos-agrupados...` |
+| 10 | **Rifa: el 409 de URL repetida** con el botón "cargarla igual" (`modo: REPETIDA_PERMITIDA`) | *🔑 El campo `modo`* | (misma) |
+| 11 | **Buscador blanco en modo día** — puro front, no toca backend | — | — |
+
+### Lo que NO necesita nada del front
+
+Estos se resolvieron enteros en el back y la pantalla no cambia:
+
+- Precios validados en el back (ya no se puede falsificar el subtotal ni el precio unitario)
+- Promociones con apartado, fiado y tarjeta
+- Búsqueda por código de barras exacto primero (`H1336` buscando `1336`)
+- `mis-pedidos` con código, nombre y foto
+- El sorteo de la rifa: **no cambió**, las probabilidades son las mismas de antes
+
+### Los 4 botones nuevos no aparecen hasta correr las migraciones
+
+Los botones de las filas 1, 2, 3, 4, 9 y 10 están detrás de permisos configurables. **Sin correr
+las migraciones responden 403 a todo el mundo, incluido el admin**, y después hay que
+**volver a entrar** (los permisos viajan dentro del JWT).
+
+La lista de scripts está al final de `PRUEBAS_QA_STOCK.md`, sección
+*"📜 Scripts que hay que ejecutar"*.
+
+Si un botón da 403 y la migración ya corrió: cerrar sesión y entrar de nuevo antes de reportarlo.
+
+### Una trampa que vale para TODOS los endpoints nuevos
+
+⚠️ **Usar el status HTTP, no el `code` del body.** El envelope es
+`{ mensaje, code, data, lista }`, y en los errores el `code` viene en `404` sin importar el status
+real, por cómo se arma `ResponseGeneric`. Si el front mira el `code`, va a tratar un 409 (que es
+una pregunta, no un error) como un "no encontrado".
+
+---
+
 ## 🔥 Hotfix prod 2026-09-22 — Carga rápida: el artículo quedaba vacío aunque el producto tuviera los datos
 
 **Síntoma que se vio en producción:** se sube la foto en **Carga rápida**, se llena "Completar
@@ -20031,3 +20753,152 @@ El fix aplica de aquí en adelante. Para los que ya están cargados hay un backf
 `src/main/resources/static/backfill_variantes_carga_rapida.sql` — copia del producto a la variante
 solo las columnas que estén vacías, **no toca stock**, y trae consultas de diagnóstico antes y de
 verificación después. Está anotado como PENDIENTE en el registro de migraciones de `CLAUDE.md`.
+
+---
+
+## 📦 Stock de artículos: el stock base del producto es el techo y ya no se infla (2026-09-22)
+
+**Estado:** en `dev` y `qa`. **No está en prod.** (El 2026-09-22 a las 19:58 un commit del front con
+esta pantalla se subió directo a `master` por error y se revirtió el mismo día: en prod no quedó.)
+
+No cambia ninguna URL ni el formato de request/response. Cambian los números que devuelve el back
+y cuándo responde 400.
+
+### La regla
+
+- `producto.stock` es el **stock base**: el total físico. Solo se mueve desde la **pantalla del
+  producto** (llegó mercancía) o al vender.
+- Los artículos **reparten** ese total: `suma(stock de artículos habilitados) ≤ stock base`.
+- **Disponible** = `stock base − suma(stock de artículos HABILITADOS)`. Es el número de
+  `GET /v1/stock/producto/{productoId}` → `disponible`.
+- A un artículo se le puede **sumar como máximo el disponible**. Su propio stock actual ya está
+  repartido: no cuenta como libre.
+
+Ejemplo: base 10, artículo A con 2 → disponible 8. A se edita a 5 → base sigue **10**, disponible
+**5**. A se da de baja → base sigue **10**, A queda en **0**, disponible **10**.
+
+### Bug 1 que se corrige — editar un artículo inflaba el stock base
+
+- **Antes:** subirle stock a un artículo le sumaba lo mismo al producto. Base 2 con todos los
+  artículos agotados: sumarle 2 a uno dejaba el producto en **4** y el disponible seguía en 2, así
+  que se podía volver a repartir stock que no existía.
+- **Ahora:** editar un artículo no toca `producto.stock`. Si una pantalla mostraba el stock del
+  producto después de guardar un artículo, ese número ya no crece solo.
+
+### Bug 2 que se corrige — el stock propio del artículo contaba como libre
+
+- **Antes:** base 10 con A=5 y B=5 (todo repartido): subir A a 7 **pasaba**, y quedaban 12 repartidos
+  sobre un base de 10. La inflación del bug 1 lo tapaba, porque subía el base a 12.
+- **Ahora:** responde **400** `Stock insuficiente para el producto '<nombre>' (id=<id>). Disponible: 0, Solicitado: 2`.
+
+`Solicitado` es **lo que se le suma** al artículo (el aumento), no su total. Bajarle stock a un
+artículo, o guardarlo sin cambiar el stock (renombrarlo, cambiarle el color), nunca falla por stock,
+aunque el modelo esté descuadrado.
+
+### Deshabilitar y dar de baja
+
+`PUT /v1/variantes/{id}/habilitar?habilitar=false`, `PUT /v1/variantes/admin/habilitar-lote` con
+`habilitar: false` y `DELETE /v1/variantes/deleteBy/{id}`:
+
+- **Antes:** el artículo quedaba en `habilitado = 0` conservando su stock.
+- **Ahora:** queda en `habilitado = 0` **y `stock = 0`**. Ese stock vuelve al disponible y el base
+  del producto no cambia.
+
+**Al habilitar de nuevo, el artículo entra con stock 0**: no recupera el viejo. Hay que asignárselo
+editándolo, y si el producto ya no tiene disponible, primero subirle el base al producto. Con stock 0
+no aparece en la tienda (el catálogo pide `stock > 0`).
+
+### Pantallas del front (en `dev`/`qa`)
+
+- **Alta de artículos:** `Quedan X disponibles de Y`, y aviso en rojo si lo que se reparte pasa de lo
+  disponible. No bloquea el guardado: el back valida.
+- **tienda/update (editar artículo):** el mismo `Quedan X disponibles de Y`, más `Este artículo tiene N
+  y va a quedar en M`, y aviso si lo que se le suma pasa de lo disponible. No bloquea el guardado.
+- Si la consulta del disponible falla, las dos pantallas lo dicen en vez de esconder el indicador.
+- **tienda/buscar:** al deshabilitar, el artículo se ve en 0 de inmediato. Al habilitar uno con stock
+  0 (individual o en lote) aparece un aviso con la opción de habilitarlo igual.
+- **Error al guardar un artículo:** si el back no manda motivo (sin respuesta, caída, error que no es
+  JSON), se muestra el código HTTP y se pide revisar si el cambio sí se guardó antes de reintentar.
+
+### Pendiente anotado (no implementado)
+
+No hay forma de registrar una **merma** (mercancía perdida o dañada) con su motivo. Hoy se resta a mano
+del stock base en la pantalla del producto.
+
+---
+
+## 🚫 Vender algo deshabilitado ya no pasa: el back revisa producto y artículo (2026-09-22)
+
+**Estado:** solo en `dev` (sin commit todavía). No cambia ninguna URL ni el formato de request/response.
+
+**Antes:** al vender, el back solo revisaba stock. No revisaba si el producto o el artículo estaban
+habilitados. Un artículo que se quedó en el carrito del cliente (el carrito vive en el navegador)
+después de deshabilitar su producto se vendía igual. Lo mismo desde venta directa: el buscador del
+admin muestra todo, incluido lo deshabilitado, y la venta pasaba.
+
+**Después:** estos endpoints revisan, en este orden: producto habilitado → stock del producto →
+artículo habilitado → stock del artículo. Si algo falla responden **400** y no descuentan nada.
+
+| Endpoint | Qué es |
+|---|---|
+| `POST /v1/pedidos/savePedido` | pedido del cliente o del admin (también el de flores eternas) |
+| `POST /v1/ventas/save` | venta directa en mostrador |
+| `POST /v1/abonos/{pedidoIdOrigen}/transferir` | pasar el saldo de un apartado cancelado a otro artículo |
+| `POST /v1/pedidos/{pedidoId}/articulos` · `PUT /v1/pedidos/{pedidoId}/articulos/{detalleId}` | agregar o cambiar un artículo de un pedido |
+
+**Mensajes que llegan en el 400** (el front solo tiene que mostrarlos):
+- `'Blusa talla M azul' ya no está a la venta: el producto está deshabilitado o dado de baja. Quítalo del carrito para continuar.`
+- `'Blusa talla M azul' ya no está a la venta: el artículo está deshabilitado o dado de baja. Quítalo del carrito para continuar.`
+- `No hay suficiente stock de 'Blusa talla M azul'. Disponible: 1, solicitado: 2`
+
+Antes el mensaje de stock decía `Stock insuficiente en variante id 123...`; si el front buscaba ese
+texto para algo, ya no lo va a encontrar.
+
+**Deshabilitar un producto no toca sus artículos:** no se ponen en 0 ni se deshabilitan. Con el
+producto apagado no se vende ninguno; al volver a habilitarlo quedan como estaban. Los apartados
+y pedidos pendientes que ya tenían ese artículo **no se cancelan solos** (su stock ya se descontó
+al crearlos): si la pieza sigue en la tienda se entregan normal.
+
+---
+
+## 🔁 Pedido cobrado de contado → Ir pagando / Apartado, 💲 precio en la card, código de barras en el detalle (2026-09-23)
+
+**Estado:** en `dev` (sin subir). Solo existe en `dev`/`qa`; en `main` no está nada de esto.
+
+### 1. `PUT /v1/pedidos/{id}/tipo` — ahora acepta pedidos Entregados de contado
+
+**Antes:** un pedido `Entregado` respondía 400 *"ya se entrego"*. El caso real: una promoción se
+registró como pago en efectivo cuando el cliente iba a ir pagando, y no había forma de darle abonos.
+
+**Después:** un pedido `NORMAL` + `Entregado` se puede pasar **solo** a `APARTADO` o `FIADO`.
+El back borra la venta de contado que se había registrado, deja `totalPagado = 0`, pone
+`estadoPedido = tipoPedido` y, si viene monto, lo registra como primer abono. Deja una línea en
+`observaciones`. El stock no se toca.
+
+Request (igual que antes, ahora también se acepta `usuarioId`):
+```json
+{ "tipoPedido": "FIADO", "montoCobrado": 200, "descripcion": "dio 200 de enganche", "usuarioId": 5 }
+```
+- 400 `"ya se entrego y se cobro de contado: solo se puede pasar a Apartado o Ir pagando"` si se pide `NORMAL`.
+
+**Bug corregido de paso:** el front mandaba `montoCobrado`/`descripcion` y el back leía
+`monto`/`nota`, así que **el cobro del cambio se ignoraba** y pasar a contado siempre fallaba con
+"se cobran $0.00". El back ahora acepta los dos nombres.
+
+### 2. Detalle del pedido — `detalles[].codigoBarras`
+Ya venía en `GET /v1/pedidos/{id}/detalle` (`qa`); el front no lo pintaba. Ahora sí.
+
+### 3. `PUT /v1/precios/producto/{productoId}` (nuevo) — botón 💲 en la card de Tienda
+Request: `{ "precioVenta": 400, "precioRebaja": 350 }` (`precioRebaja` 0 = sin descuento).
+Response: `{ productoId, precioVenta, precioRebaja, precioACobrar, vendeBajoCosto }`.
+Cambia el precio del **producto**: todos sus artículos lo heredan; lo ya vendido conserva su precio.
+- 400 si `precioVenta` ≤ 0, si `precioRebaja` < 0 o si `precioRebaja` > `precioVenta`.
+- 403 sin la acción `cambiar-precio` de `tienda/buscar` (`migration_accion_tienda_cambiar_precio.sql`).
+
+### 4. Alta de artículos — heredan datos básicos del producto
+`POST /v1/variantes/guardarConImagenes`: al artículo **nuevo** que llega sin color, marca,
+descripción o contenido neto se le ponen los del producto base (la categoría ya se heredaba).
+Lo que trae se respeta. Sin cambio de contrato.
+
+### 5. Autocompletado de categoría
+Mínimo 3 letras y 1.5 s de espera (antes 2 letras y 350 ms: buscaba casi por cada letra).

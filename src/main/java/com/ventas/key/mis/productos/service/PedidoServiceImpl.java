@@ -13,7 +13,10 @@ import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.UsuarioDto;
+import com.ventas.key.mis.productos.models.abonos.AbonoRequest;
 import com.ventas.key.mis.productos.models.pedidos.AbonoDetalleItem;
+import com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest;
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import com.ventas.key.mis.productos.models.pedidos.DetalleItemResponse;
 import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
@@ -34,6 +37,7 @@ import com.ventas.key.mis.productos.repository.IPromocionRepository;
 import com.ventas.key.mis.productos.repository.IRamoPedidoDetalleRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import com.ventas.key.mis.productos.repository.IVarianteImagenRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
@@ -55,6 +59,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -86,8 +91,21 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Autowired private CacheService cacheService;
     @Autowired private RabbitTemplate rabbitTemplate;
+    @Autowired private IVarianteImagenRepository iVarianteImagenRepository;
+
+    // Base del micro de imagenes, para armar la url de la miniatura de cada linea del pedido.
+    @org.springframework.beans.factory.annotation.Value("${api.imagenes}")
+    private String endpointImagenes;
+
+    @jakarta.annotation.PostConstruct
+    public void normalizarEndpointImagenes() {
+        if (endpointImagenes != null && !endpointImagenes.endsWith("/")) {
+            endpointImagenes = endpointImagenes + "/";
+        }
+    }
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
+    @Autowired private com.ventas.key.mis.productos.service.api.IAbonoService iAbonoService;
     @Autowired private EmailService emailService;
     @Autowired private RestockNotificacionService restockNotificacionService;
 
@@ -218,33 +236,26 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
             if (mpa.getVarianteId() != null) {
                 variante = iVarianteRepository.findByIdWithLock(mpa.getVarianteId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada: " + mpa.getVarianteId()));
+                        .orElseThrow(() -> new RuntimeException("Artículo no encontrado: " + mpa.getVarianteId()));
+                prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado para el artículo: " + mpa.getVarianteId()));
+                articuloAVender(prod, variante).exigirQueSePuedaVender(mpa.getCantidad());
 
-                if (variante.getStock() < mpa.getCantidad()) {
-                    throw new RuntimeException("Stock insuficiente en variante id " + mpa.getVarianteId()
-                            + ". Disponible: " + variante.getStock() + ", solicitado: " + mpa.getCantidad());
-                }
                 variante.setStock(variante.getStock() - mpa.getCantidad());
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);
-
-                prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
-                        .orElseThrow(() -> new RuntimeException("Producto no encontrado para variante: " + mpa.getVarianteId()));
             } else {
                 prod = this.iProductoRepository.findByIdWithLock(mpa.getProducto().getId())
                         .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId()));
-            }
-
-            if (prod.getStock() < mpa.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
-                        + ". Disponible: " + prod.getStock() + ", solicitado: " + mpa.getCantidad());
+                ArticuloAVender.soloModelo(prod.getNombre(), prod.getHabilitado() == '1', stockDe(prod))
+                        .exigirQueSePuedaVender(mpa.getCantidad());
             }
 
             // Lineas sin promocionId deben pagar el precio de catalogo — el precio con descuento
             // solo es valido dentro de una promocion (validada aparte en validarLineasDePromocion).
             // Sin este chequeo, el front (o cualquiera con el token) podia mandar cualquier precio.
             if (mpa.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, mpa.getPrecioUnitario(), mpa.getCantidad(), mpa.getSubTotal());
+                validarPrecioCatalogo(prod, mpa.getPrecioUnitario());
             }
 
             prod.setStock(prod.getStock() - mpa.getCantidad());
@@ -253,7 +264,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());
             dta.setPrecioUnitario(mpa.getPrecioUnitario());
-            dta.setSubTotal(mpa.getSubTotal());
+            // El subtotal se CALCULA, no se lee del request. El precio unitario si viene del
+            // front, pero pasa por validarPrecioCatalogo (linea sin promocion) o por
+            // validarLineasDePromocion (linea con promocion). El subtotal no lo validaba nadie:
+            // con promocionId el request podia traer el precio correcto y un subTotal de 1, y
+            // como totalPedido se arma sumando subtotales, el pedido entero quedaba en 1.
+            dta.setSubTotal(mpa.getPrecioUnitario() * mpa.getCantidad());
             dta.setPedido(pedido);
             dta.setProducto(prod);
             dta.setVariante(variante);
@@ -265,7 +281,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             detallePedido.add(dta);
         }
 
-        validarLineasDePromocion(detallePedido, tipoPedido);
+        validarLineasDePromocion(detallePedido);
 
         pedido.setDetalles(detallePedido);
         double totalPedido = detallePedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
@@ -348,20 +364,43 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     // El precio/subtotal que manda el cliente en una linea normal (sin promocionId) debe
     // coincidir con el precio real del producto — de lo contrario cualquiera con sesion podria
     // editar el request y pagar lo que quiera. Tolerancia de 1 centavo por redondeo de Double.
-    private void validarPrecioCatalogo(Producto prod, Double precioUnitario, Integer cantidad, Double subTotal) {
-        double precioCatalogo = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
-        if (precioUnitario == null || Math.abs(precioUnitario - precioCatalogo) > 0.01) {
-            throw new RuntimeException("El precio de " + prod.getNombre() + " no es valido");
+    /**
+     * Una linea sin promocion se cobra a uno de los dos precios del catalogo: el normal o el de
+     * rebaja. Nada mas.
+     *
+     * <p>Hasta el 2026-09-22 solo se aceptaba el normal, asi que para venderle mas barato a
+     * alguien habia que armarle una promocion -- mas trabajo, y quedaba registrada una promocion
+     * que nunca existio. El campo {@code precio_rebaja} ya existia: se capturaba y se mostraba en
+     * el admin, pero no habia forma de cobrarlo.
+     *
+     * <p>Sigue sin poder mandarse un precio arbitrario: los dos valores salen del catalogo, asi
+     * que el front elige entre ellos pero no inventa ninguno. El subtotal tampoco se valida
+     * porque ya no se usa el del request -- se calcula (ver savePedido).
+     */
+    private void validarPrecioCatalogo(Producto prod, Double precioUnitario) {
+        if (precioUnitario == null) {
+            throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
-        double subTotalEsperado = precioCatalogo * cantidad;
-        if (subTotal == null || Math.abs(subTotal - subTotalEsperado) > 0.01) {
-            throw new RuntimeException("El subtotal de " + prod.getNombre() + " no es valido");
+        double normal = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
+        double rebaja = prod.getPrecioRebaja() != null ? prod.getPrecioRebaja() : 0.0;
+
+        boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
+        // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
+        boolean esRebaja = rebaja > 0 && Math.abs(precioUnitario - rebaja) <= 0.01;
+
+        if (!esNormal && !esRebaja) {
+            String validos = rebaja > 0
+                    ? String.format("%.2f (normal) o %.2f (rebaja)", normal, rebaja)
+                    : String.format("%.2f", normal);
+            throw new RuntimeException(String.format(
+                    "El precio de %s no es valido: llego %.2f y los precios de catalogo son %s",
+                    prod.getNombre(), precioUnitario, validos));
         }
     }
 
     // Agrupa las lineas del pedido que traen promocionId y valida cada combo contra
     // PromocionServiceImpl (vigencia, precios, y que el pedido sea de contado).
-    private void validarLineasDePromocion(List<DetallePedido> detallePedido, String tipoPedido) {
+    private void validarLineasDePromocion(List<DetallePedido> detallePedido) {
         Map<Integer, List<PromocionServiceImpl.LineaPromocionCheck>> lineasPorPromocion = new LinkedHashMap<>();
         for (DetallePedido d : detallePedido) {
             if (d.getPromocion() != null) {
@@ -371,7 +410,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             }
         }
         for (var entry : lineasPorPromocion.entrySet()) {
-            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue(), tipoPedido);
+            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue());
         }
     }
 
@@ -521,6 +560,17 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
 
 
+    private static ArticuloAVender articuloAVender(Producto prod, Variantes variante) {
+        return ArticuloAVender.deArticulo(
+                ArticuloAVender.nombreVisible(prod.getNombre(), variante.getTalla(), variante.getColor()),
+                prod.getHabilitado() == '1', stockDe(prod),
+                variante.getHabilitado() == '1', variante.getStock());
+    }
+
+    private static int stockDe(Producto prod) {
+        return prod.getStock() != null ? prod.getStock() : 0;
+    }
+
     @Transactional
     @Override
     public void deletePedidoById(int id, String motivo) {
@@ -607,6 +657,21 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 .filter(d -> d.getProducto().getId().equals(productoId))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
+
+        // Una promocion es un combo: o esta completa, o no esta (R4 del dominio pedidoarticulo).
+        // Hasta el 2026-09-22 este boton dejaba sacar una linea suelta de una promocion, y el
+        // resto del combo se quedaba al precio promocional -- cobrando un descuento por una
+        // condicion que ya no se cumplia, y en silencio.
+        if (detalle.getPromocion() != null) {
+            throw new RuntimeException(String.format(
+                    "'%s' es parte de la promocion '%s' y no se puede quitar solo: el precio de "
+                            + "promocion existe porque se llevan todas las piezas juntas. Hay que quitar "
+                            + "la promocion completa (DELETE /v1/pedidos/%d/promociones/%d)",
+                    detalle.getProducto().getNombre(),
+                    detalle.getPromocion().getDescripcion(),
+                    pedidoId,
+                    detalle.getPromocion().getId()));
+        }
 
         Producto prod = iProductoRepository.findByIdWithLock(productoId)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
@@ -741,6 +806,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                         .orElse(null)
                 : null;
 
+        // Una sola consulta para las fotos de todas las lineas, en vez de una por renglon: un
+        // pedido de diez articulos haria diez viajes a la base solo para las miniaturas.
+        Map<Integer, Long> imagenPorVariante = resolverImagenesDe(pedido);
+
         List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
             DetalleItemResponse item = new DetalleItemResponse();
             item.setId(dp.getId());
@@ -750,6 +819,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             if (dp.getProducto() != null) {
                 item.setProductoId(dp.getProducto().getId());
                 item.setProductoNombre(dp.getProducto().getNombre());
+                if (dp.getProducto().getCodigoBarras() != null) {
+                    item.setCodigoBarras(dp.getProducto().getCodigoBarras().getCodigoBarras());
+                }
             }
             if (dp.getVariante() != null) {
                 item.setVarianteId(dp.getVariante().getId());
@@ -757,6 +829,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                 item.setColor(dp.getVariante().getColor());
                 item.setDescripcion(dp.getVariante().getDescripcion());
                 item.setEsLineaInterna(varianteIdPapel != null && varianteIdPapel.equals(dp.getVariante().getId()));
+
+                Long imagenId = imagenPorVariante.get(dp.getVariante().getId());
+                if (imagenId != null) {
+                    item.setImagenId(imagenId);
+                    item.setUrlImagen(endpointImagenes + "v1/imagenes/thumbnail/" + imagenId);
+                }
             }
             if (dp.getPromocion() != null) {
                 item.setPromocionId(dp.getPromocion().getId());
@@ -767,6 +845,169 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         resp.setDetalles(detalles);
         return resp;
+    }
+
+    /**
+     * Foto de cada variante del pedido, en una sola consulta.
+     *
+     * <p>Se queda con la primera que devuelve la consulta, que ya viene ordenada con la principal
+     * adelante. Las variantes sin foto simplemente no entran al mapa.
+     *
+     * <p>Best effort: si el listado de imagenes falla, el pedido se muestra igual sin fotos. Un
+     * cliente que no puede ver su pedido porque el micro de imagenes esta caido seria peor que
+     * uno que lo ve sin miniaturas.
+     */
+    private Map<Integer, Long> resolverImagenesDe(Pedido pedido) {
+        List<Integer> varianteIds = pedido.getDetalles().stream()
+                .map(dp -> dp.getVariante() != null ? dp.getVariante().getId() : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (varianteIds.isEmpty()) return Map.of();
+
+        try {
+            Map<Integer, Long> porVariante = new LinkedHashMap<>();
+            for (Object[] fila : iVarianteImagenRepository.findVarianteIdConImagenIdIn(varianteIds)) {
+                porVariante.putIfAbsent((Integer) fila[0], (Long) fila[1]);
+            }
+            return porVariante;
+        } catch (RuntimeException e) {
+            log.warn("No se pudieron resolver las imagenes del pedido {}: {}", pedido.getId(), e.getMessage());
+            return Map.of();
+        }
+    }
+
+    private static final Set<String> TIPOS_CREDITO_PEDIDO = Set.of("APARTADO", "FIADO");
+
+    /**
+     * Cambia la forma de cobro de un pedido ya creado, cobrando lo que falte en el mismo paso.
+     *
+     * <p>Caso que lo origina (2026-09-22): se aparto un pedido, al ir a entregarlo el cliente
+     * decidio pagarlo completo, y no habia forma de cambiarlo -- quedo registrado como apartado
+     * porque la unica alternativa era cancelar y rehacer el pedido entero, devolviendo y
+     * volviendo a descontar todo el stock.
+     *
+     * <p><b>El cobro se hace ANTES de cambiar el tipo</b>, y no al reves: registrarAbono() exige
+     * que el pedido sea de credito, asi que si primero se pasara a NORMAL el abono quedaria
+     * rechazado y el pago no se registraria en ningun lado.
+     *
+     * <p>Se delega en registrarAbono() en vez de escribir el cobro aca: ahi ya viven la
+     * validacion del monto contra el saldo, el paso a PAGADO, la creacion de la venta al
+     * liquidar y el aviso al cliente. Duplicarlo seria tener dos caminos que cobran distinto.
+     */
+    @Transactional
+    public PedidoDetalleResponse cambiarTipoPedido(int pedidoId, CambiarTipoPedidoRequest request) {
+        Pedido pedido = iPedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+
+        String tipoNuevo = request.getTipoPedido() != null ? request.getTipoPedido().toUpperCase() : null;
+        if (tipoNuevo == null || !Set.of("NORMAL", "APARTADO", "FIADO").contains(tipoNuevo)) {
+            throw new RuntimeException("Tipo de pedido invalido: " + request.getTipoPedido()
+                    + ". Los validos son NORMAL, APARTADO y FIADO");
+        }
+        boolean contadoYaEntregado = "Entregado".equals(pedido.getEstadoPedido());
+        if (contadoYaEntregado && (TIPOS_CREDITO_PEDIDO.contains(pedido.getTipoPedido())
+                || !TIPOS_CREDITO_PEDIDO.contains(tipoNuevo))) {
+            throw new RuntimeException("El pedido " + pedidoId + " ya se entrego y se cobro de contado: "
+                    + "solo se puede pasar a Apartado o Ir pagando");
+        }
+        if ("cancelado".equals(pedido.getEstadoPedido())) {
+            throw new RuntimeException("El pedido " + pedidoId + " esta cancelado");
+        }
+        if (tipoNuevo.equals(pedido.getTipoPedido())) {
+            throw new RuntimeException("El pedido " + pedidoId + " ya es de tipo " + tipoNuevo);
+        }
+
+        String tipoOriginal = pedido.getTipoPedido();
+        if (contadoYaEntregado) {
+            reabrirContadoComoCredito(pedido, tipoNuevo, request.getNota());
+        }
+
+        double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
+        double saldoPendiente = pedido.getTotalPedido() - totalPagado;
+
+        // Pasar a contado significa que se termino de pagar: o ya estaba liquidado, o el cobro
+        // que viene en este request lo liquida. Sin esta validacion quedarian pedidos NORMAL con
+        // saldo pendiente, que es justamente lo que NORMAL dice que no existe.
+        if ("NORMAL".equals(tipoNuevo)) {
+            double cobroAhora = request.traeCobro() ? request.getMonto() : 0.0;
+            if (saldoPendiente - cobroAhora > 0.01) {
+                throw new RuntimeException(String.format(
+                        "Para pasar el pedido a contado hay que cobrar el saldo completo. Falta $%.2f y en este cambio se cobran $%.2f",
+                        saldoPendiente, cobroAhora));
+            }
+        }
+
+        if (request.traeCobro()) {
+            if (!TIPOS_CREDITO_PEDIDO.contains(pedido.getTipoPedido())) {
+                throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + pedido.getTipoPedido()
+                        + " y no tiene saldo que cobrar");
+            }
+            AbonoRequest abono = new AbonoRequest();
+            abono.setMonto(request.getMonto());
+            abono.setMetodoPago(request.getMetodoPago());
+            abono.setMontoDado(request.getMontoDado());
+            // Si el abono liquida, registrarAbono crea la Venta y exige el usuario.
+            abono.setUsuarioId(request.getUsuarioId() != null ? request.getUsuarioId()
+                    : AuthenticationUtils.currentUsuarioOpt().map(Usuario::getId).orElse(null));
+            abono.setNota(notaDelCambio(tipoOriginal, tipoNuevo, request.getNota()));
+            iAbonoService.registrarAbono(pedidoId, abono);
+
+            // registrarAbono ya guardo el pedido (total pagado, estado, fecha de recogida): hay
+            // que releerlo para no pisar esos cambios con la copia vieja que quedo en memoria.
+            pedido = iPedidoRepository.findById(pedidoId).orElseThrow();
+        }
+
+        pedido.setTipoPedido(tipoNuevo);
+        iPedidoRepository.save(pedido);
+        log.info("Pedido {} cambio de {} a {} — cobro en el cambio: {}",
+                pedidoId, tipoOriginal, tipoNuevo, request.traeCobro() ? request.getMonto() : 0.0);
+
+        cacheService.evictAll();
+        return getDetallePedido(pedidoId);
+    }
+
+    /**
+     * Un pedido de contado que se cobro completo (y ya tiene su Venta) pasa a credito porque en
+     * realidad el cliente no pago todo: p. ej. una promocion que se registro como efectivo.
+     *
+     * <p>La Venta se BORRA, no se marca: cuando los abonos liquiden el pedido,
+     * registrarAbono() crea la Venta real. Si la vieja siguiera ahi, el ingreso y "mas vendidos"
+     * (que suma detalle_venta_variantes sin mirar el estado de la venta) contarian doble, y
+     * findByPedidoId() reventaria con dos resultados. El stock no se toca: ya salio.
+     */
+    private void reabrirContadoComoCredito(Pedido pedido, String tipoNuevo, String notaDelUsuario) {
+        iVentaRepository.findByPedidoId(pedido.getId()).ifPresent(venta -> {
+            log.info("Pedido {}: se borra la venta de contado {} (total {}) al pasar a {}",
+                    pedido.getId(), venta.getId(), venta.getTotalVenta(), tipoNuevo);
+            iVentaRepository.delete(venta);
+        });
+
+        pedido.setTipoPedido(tipoNuevo);
+        pedido.setEstadoPedido(tipoNuevo);
+        pedido.setTotalPagado(0.0);
+
+        String registro = String.format("[%s] Se cobro como contado y se paso a %s%s",
+                LocalDate.now(), "FIADO".equals(tipoNuevo) ? "Ir pagando" : "Apartado",
+                notaDelUsuario == null || notaDelUsuario.isBlank() ? "" : ": " + notaDelUsuario);
+        String previas = pedido.getObservaciones();
+        pedido.setObservaciones(previas == null || previas.isBlank() ? registro : previas + "\n" + registro);
+
+        iPedidoRepository.saveAndFlush(pedido);
+    }
+
+    /**
+     * La nota del abono deja escrito el cambio ademas de lo que haya puesto quien lo hizo.
+     *
+     * <p>Sin el prefijo automatico, un abono de un cambio de forma de cobro se ve igual que
+     * cualquier otro en el historial, y dentro de un mes nadie sabe por que ese pedido paso de
+     * apartado a contado.
+     */
+    private String notaDelCambio(String tipoAnterior, String tipoNuevo, String notaDelUsuario) {
+        String cambio = String.format("Cambio de %s a %s", tipoAnterior, tipoNuevo);
+        return (notaDelUsuario == null || notaDelUsuario.isBlank())
+                ? cambio
+                : cambio + ": " + notaDelUsuario;
     }
 
     // Edicion de solo los datos de entrega (quien recibe, direccion, fecha de entrega,

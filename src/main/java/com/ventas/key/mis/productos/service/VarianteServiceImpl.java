@@ -8,6 +8,7 @@ import com.ventas.key.mis.productos.entity.CodigoBarra;
 import com.ventas.key.mis.productos.entity.Favorito;
 import com.ventas.key.mis.productos.entity.Imagen;
 import com.ventas.key.mis.productos.entity.PalabraClave;
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloDeAlta;
 import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -247,7 +248,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));
 
         int stockEnVariantes = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
-                .stream().mapToInt(Variantes::getStock).sum();
+                .stream().filter(v -> v.getHabilitado() == '1').mapToInt(Variantes::getStock).sum();
 
         int stockDisponible = producto.getStock() - stockEnVariantes;
         if (stockDisponible < requestVarianteDto.getCantidadVariantes()) {
@@ -574,6 +575,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public List<Variantes> guardarConImagenes(List<VarianteDetalle> detalles) throws ExceptionDataNotFound {
+        // Antes de nada: sacar los articulos que no describen nada (R1 del dominio `articulo`).
+        // La pantalla de alta tiene el formulario base y la seccion de varias tallas, y son
+        // independientes; si alguien llena el base, agrega 2 tallas y despues vacia el base, el
+        // base seguia viajando y se guardaban 3 articulos -- el tercero sin talla, sin color y
+        // sin nada. Es el "dice que voy a guardar 3 cuando agregue 2" (reportado 2026-09-22).
+        detalles = soloLosQueDescribenAlgo(detalles);
+        if (detalles.isEmpty()) {
+            throw new ExceptionDataNotFound(
+                    "No hay ningun articulo que guardar: todos llegaron vacios. Hay que llenar al "
+                            + "menos la talla, el color u otro dato, o ponerle stock");
+        }
+
         validarStockContraProducto(detalles);
         List<Long> imageIds = subirImagenes(detalles);
 
@@ -581,7 +594,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         for (VarianteDetalle detalle : detalles) {
             boolean esRestock = false;
             if (detalle.getId() != null) {
-                esRestock = ajustarStock(detalle);
+                esRestock = esRestock(detalle);
             }
 
             Variantes saved = save(buildVariante(detalle));
@@ -661,12 +674,37 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                     .map(VarianteDetalle::getId)
                     .collect(Collectors.toSet());
 
+            // Solo las variantes HABILITADAS retienen stock. Una dada de baja ya no existe para
+            // el negocio y su stock vuelve a estar disponible -- antes se sumaban todas, asi que
+            // dar de baja una variante no liberaba nada y el disponible bajaba para siempre. En
+            // produccion eso dejaba productos en "Disponible: 0" con variantes muertas reteniendo
+            // todo, y la unica salida era inflar el stock del producto a mano (2026-09-22).
+            // Incluye a las que se estan editando, con su stock ACTUAL: lo que se valida abajo es el
+            // aumento, y el aumento solo puede salir de lo que nadie tiene asignado. Excluirlas
+            // contaba su stock actual como libre y dejaba pasar base 10 con A=5 y B=5 -> A a 7.
             int stockYaAsignado = iVarianteRepository.findByProductoId(productoId).stream()
-                    .filter(v -> !idsActualizando.contains(v.getId()))
+                    .filter(v -> v.getHabilitado() == '1')
                     .mapToInt(Variantes::getStock)
                     .sum();
 
-            int stockSolicitado = variantesRequest.stream().mapToInt(VarianteDetalle::getStock).sum();
+            Map<Integer, Integer> stockActualPorVariante = idsActualizando.isEmpty()
+                    ? Map.of()
+                    : iVarianteRepository.findAllById(idsActualizando).stream()
+                            .collect(Collectors.toMap(Variantes::getId, Variantes::getStock));
+
+            // Lo que hay que pedirle al producto es el AUMENTO, no el total. Una variante que ya
+            // tenia 3 y sigue con 3 no consume nada nuevo: antes se sumaba su total, asi que
+            // renombrar una variante fallaba por falta de stock aunque el stock no cambiara.
+            int stockSolicitado = variantesRequest.stream()
+                    .mapToInt(v -> v.getId() == null
+                            ? v.getStock()
+                            : v.getStock() - stockActualPorVariante.getOrDefault(v.getId(), 0))
+                    .sum();
+
+            if (stockSolicitado <= 0) {
+                continue;   // no pide nada nuevo (o libera): no hay nada que validar
+            }
+
             int stockDisponible = producto.getStock() - stockYaAsignado;
 
             if (stockSolicitado > stockDisponible) {
@@ -677,8 +715,20 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
     }
 
-    /** @return true si este ajuste hace que la variante pase de sin stock a con stock (0 -> N). */
-    private boolean ajustarStock(VarianteDetalle detalle) throws ExceptionDataNotFound {
+    /**
+     * Mover stock de una variante NO toca el stock base del producto: el base es el total fisico
+     * y las variantes solo se reparten lo que hay. Subirle 3 a una variante consume 3 del
+     * disponible (base - suma de variantes habilitadas), no crea 3 unidades nuevas. Para eso
+     * esta la pantalla del producto: si llega mercancia, se sube ahi el stock base y recien
+     * entonces hay mas disponible que repartir.
+     *
+     * <p>Antes este metodo hacia producto.stock += (nuevo - viejo), asi que editar una variante
+     * inflaba el total: base 10 con una variante en 2, editarla a 5 dejaba el producto en 13 y el
+     * disponible seguia en 8 -- se podia repartir indefinidamente stock que no existia.
+     *
+     * @return true si este ajuste hace que la variante pase de sin stock a con stock (0 -> N).
+     */
+    private boolean esRestock(VarianteDetalle detalle) throws ExceptionDataNotFound {
         // El front manda el stock final ya calculado (actual + agregar - quitar) -- guard acá
         // por si llega negativo de todos modos: validarStockContraProducto() suma stocks
         // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
@@ -688,19 +738,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
-        int diff = detalle.getStock() - actual.getStock();
-        if (diff != 0) {
-            Producto producto = iProductosRepository.findById(detalle.getProductoId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + detalle.getProductoId()));
-            producto.setStock(producto.getStock() + diff);
-            iProductosRepository.save(producto);
-        }
         return actual.getStock() == 0 && detalle.getStock() > 0;
     }
 
     /**
      * Avisa por correo a quienes tienen esta variante en Favoritos de que volvió a haber stock.
-     * No hay bandera de "ya avisado" en BD -- se apoya en que ajustarStock() solo devuelve true en
+     * No hay bandera de "ya avisado" en BD -- se apoya en que esRestock() solo devuelve true en
      * la transición real 0->N, así que una variante que ya tiene stock no vuelve a dispararlo
      * hasta que se agote y se reabastezca de nuevo. Nunca debe tumbar el guardado de la variante
      * si el envío falla.
@@ -733,19 +776,56 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return sb.toString();
     }
 
+    /**
+     * Descarta los articulos vacios del alta, preguntandole al dominio (R1).
+     *
+     * <p>Aqui solo vive la traduccion del DTO al modelo; la regla de que cuenta como articulo esta
+     * en {@link ArticuloDeAlta}, para poder leerla sola y porque va a seguir valiendo cuando
+     * `variante` pase a llamarse `articulo`.
+     */
+    private List<VarianteDetalle> soloLosQueDescribenAlgo(List<VarianteDetalle> detalles) {
+        if (detalles == null || detalles.isEmpty()) {
+            return List.of();
+        }
+        List<VarianteDetalle> reales = detalles.stream()
+                .filter(d -> aArticuloDeAlta(d).describeAlgo())
+                .toList();
+
+        int descartados = detalles.size() - reales.size();
+        if (descartados > 0) {
+            log.info("Alta de articulos: se descartaron {} de {} por venir vacios (sin datos "
+                    + "propios, sin imagenes y sin stock)", descartados, detalles.size());
+        }
+        return reales;
+    }
+
+    private static ArticuloDeAlta aArticuloDeAlta(VarianteDetalle d) {
+        boolean traeImagenes = d.getListImagenes() != null && !d.getListImagenes().isEmpty();
+        return new ArticuloDeAlta(
+                d.getId(), d.getTalla(), d.getColor(), d.getMarca(), d.getDescripcion(),
+                d.getPresentacion(), d.getContenidoNeto(), d.getStock(), traeImagenes,
+                d.getPalabraClaveId());
+    }
+
     private Variantes buildVariante(VarianteDetalle detalle) {
         Variantes v = new Variantes();
         if (detalle.getId() != null) v.setId(detalle.getId());
         v.setProducto(iProductosRepository.getReferenceById(detalle.getProductoId()));
+        // Categoria y datos basicos se heredan del modelo cuando el articulo nuevo no trae los suyos
+        // (R2 y R3 del dominio `articulo`). Lo que si trae se conserva.
+        Producto modelo = iProductosRepository.getReferenceById(detalle.getProductoId());
+        ArticuloDeAlta alta = aArticuloDeAlta(detalle);
         v.setTalla(detalle.getTalla());
-        v.setColor(detalle.getColor());
-        v.setMarca(detalle.getMarca());
+        v.setColor(alta.datoEfectivo(detalle.getColor(), modelo.getColor()));
+        v.setMarca(alta.datoEfectivo(detalle.getMarca(), modelo.getMarca()));
         v.setStock(detalle.getStock());
-        v.setDescripcion(detalle.getDescripcion());
+        v.setDescripcion(alta.datoEfectivo(detalle.getDescripcion(), modelo.getDescripcion()));
         v.setPresentacion(detalle.getPresentacion());
-        v.setContenidoNeto(detalle.getContenidoNeto());
-        if (detalle.getPalabraClaveId() != null) {
-            v.setPalabraClave(iPalabraClaveRepository.getReferenceById(detalle.getPalabraClaveId()));
+        v.setContenidoNeto(alta.datoEfectivo(detalle.getContenidoNeto(), modelo.getContenido()));
+        Integer categoria = alta
+                .categoriaEfectiva(modelo.getPalabraClave() != null ? modelo.getPalabraClave().getId() : null);
+        if (categoria != null) {
+            v.setPalabraClave(iPalabraClaveRepository.getReferenceById(categoria));
         }
         return v;
     }
@@ -833,6 +913,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setContenidoNeto(v.getContenidoNeto());
         dto.setFechaCreacion(v.getFechaCreacion());
         dto.setPrecio(v.getProducto().getPrecioVenta());
+        // La rebaja solo para el admin: es el precio que el puede decidir aplicar, no un precio
+        // de lista. Publicarla en el catalogo la convertiria en el precio de todos (R6).
+        if (AuthenticationUtils.isAdminContext()) {
+            dto.setPrecioRebaja(v.getProducto().getPrecioRebaja());
+        }
         String codBarras = Optional.ofNullable(v.getProducto())
                 .map(Producto::getCodigoBarras)
                 .map(CodigoBarra::getCodigoBarras)
@@ -949,6 +1034,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         List<Variantes> variantes = iVarianteRepository.findAllById(ids);
         Set<Integer> idsEncontrados = variantes.stream().map(Variantes::getId).collect(Collectors.toSet());
 
+        // Al deshabilitar, la variante se deja en 0 y con eso su stock vuelve a estar disponible
+        // para repartir (el disponible es base - suma de habilitadas; el stock base del producto
+        // no se toca). Al habilitar de nuevo NO se le devuelve stock solo -- si quedo en 0 hay que
+        // asignarle de nuevo, a proposito: evita que reactivar algo viejo se coma stock que ya se
+        // repartio en otras variantes mientras tanto.
+        if (!habilitar) {
+            variantes.forEach(v -> v.setStock(0));
+        }
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
         iVarianteRepository.flush();
@@ -1027,7 +1120,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
      * pedidos apuntando a una fila que ya no existe. Mismo criterio que
      * ProductosServiceImpl.deleteByIdProducto(), que tambien deja el producto en habilitado=0.
      *
-     * El stock del producto padre NO se toca aqui, igual que en el borrado de producto.
+     * La variante se deja en stock 0, y con eso su stock vuelve a estar disponible para repartir
+     * en otras variantes -- el stock base del producto NO se toca: nunca bajo al asignarlo a esta
+     * variante, asi que tampoco tiene que subir al soltarlo. Lo disponible se calcula siempre como
+     * base menos la suma de las variantes HABILITADAS (ver validarStockContraProducto).
+     *
+     * Ejemplo: base 10 con una variante en 2 -> disponible 8. Al dar de baja esa variante el base
+     * sigue en 10 y el disponible vuelve a 10. Si despues se vuelve a habilitar, entra con 0: hay
+     * que asignarle stock de nuevo, no lo recupera solo.
      *
      * Las imagenes si se borran de verdad (y del micro si quedan huerfanas): con la variante
      * deshabilitada ya no se muestran en ningun lado y solo ocupan disco.
@@ -1040,8 +1140,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         eliminarImagenesDeVariantes(List.of(id));
 
         variante.setHabilitado('0');
+        variante.setStock(0);
         iVarianteRepository.save(variante);
-        log.info("Variante id={} dada de baja (habilitado=0) y sus imagenes eliminadas", id);
+        log.info("Variante id={} dada de baja (habilitado=0, stock liberado al disponible del producto) "
+                + "y sus imagenes eliminadas", id);
         evictAllCaches();
     }
 

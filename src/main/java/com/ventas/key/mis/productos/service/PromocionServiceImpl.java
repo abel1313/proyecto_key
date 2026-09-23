@@ -133,14 +133,23 @@ public class PromocionServiceImpl {
     }
 
     // Usado por PedidoServiceImpl/VentaServiceImpl al confirmar un pedido/venta que trae
-    // lineas con promocionId — valida que la promocion siga vigente, que las lineas mandadas
-    // coincidan exactamente con lo definido en promocion_detalle y que el pedido sea de contado.
+    // lineas con promocionId — valida que la promocion siga vigente y que las lineas mandadas
+    // coincidan exactamente con lo definido en promocion_detalle (variantes, precios y
+    // cantidades). La forma de cobro ya no se valida aqui: ver el comentario del metodo.
     @Transactional(readOnly = true)
-    public void validarLineasPromocion(Integer promocionId, List<LineaPromocionCheck> lineas, String tipoPedido) {
-        if (tipoPedido != null && !"NORMAL".equalsIgnoreCase(tipoPedido)) {
-            throw new RuntimeException(
-                    "Las promociones solo se pueden comprar de contado, no se pueden apartar ni dar a credito");
-        }
+    public void validarLineasPromocion(Integer promocionId, List<LineaPromocionCheck> lineas) {
+        // Una promocion se puede cerrar de cualquier forma: contado, apartado o fiado. Hasta el
+        // 2026-09-22 esto exigia NORMAL y reventaba con cualquier otro valor en su primera linea,
+        // asi que la pantalla no dejaba mas salida que el pago en efectivo.
+        //
+        // No se filtra por tipo a proposito: el negocio decide caso por caso a quien le fia, y el
+        // sistema no tiene con que juzgarlo mejor que la persona que esta atendiendo. Bloquearlo
+        // obligaba a cancelar el pedido y rehacerlo sin promocion, que es mas trabajo y termina
+        // registrando algo distinto de lo que realmente paso.
+        //
+        // El precio queda congelado solo: se guarda en detalle_pedidos.precio_unitario al crear
+        // el pedido, y ni el cobro de abonos ni la entrega revalidan la promocion. Un pedido
+        // abierto conserva el precio del dia en que se hizo aunque la promocion venza.
 
         Promocion promo = iPromocionRepository.findByIdConDetalle(promocionId)
                 .orElseThrow(() -> new RuntimeException("La promocion ya no esta disponible"));

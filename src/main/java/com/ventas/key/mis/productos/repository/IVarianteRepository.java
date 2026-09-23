@@ -151,6 +151,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
            "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)")
     Page<Variantes> findConStockYImagenAdmin(Pageable pageable);
 
+    // El ORDER BY pone primero la coincidencia EXACTA del codigo de barras, despues el nombre
+    // exacto, despues las que empiezan con el termino, y al final el resto. Sin el, el LIKE
+    // '%termino%' devolvia todo mezclado en orden de inserccion: buscar "1336" traia veinte
+    // filas que contenian ese texto y el H1336 real podia quedar en la pagina 2, asi que en la
+    // practica parecia que no existia (reportado 2026-09-22). Con :nombreOCodigo nulo todas las
+    // filas caen en el mismo grupo y el orden queda por id, como antes.
+    //
     // Filtro combinado de admin: nombreOCodigo/conStock/conImagenes/habilitado son todos
     // opcionales (Boolean nullable = tri-estado: null = cualquiera). Se combinan con AND.
     // habilitado usa v.habilitado (de la variante), no v.producto.habilitado.
@@ -192,6 +199,16 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
+        ORDER BY
+          CASE
+            WHEN :nombreOCodigo IS NULL THEN 5
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) = LOWER(:nombreOCodigo) THEN 0
+            WHEN LOWER(p.nombre) = LOWER(:nombreOCodigo) THEN 1
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT(:nombreOCodigo, '%')) THEN 2
+            WHEN LOWER(p.nombre) LIKE LOWER(CONCAT(:nombreOCodigo, '%')) THEN 3
+            ELSE 4
+          END,
+          v.id DESC
         """,
         countQuery = """
         SELECT COUNT(v) FROM Variantes v

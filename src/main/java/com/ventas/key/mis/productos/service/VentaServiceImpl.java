@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -175,34 +176,37 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             }
 
             Variantes variante = iVarianteRepository.findByIdWithLock(item.getVarianteId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + item.getVarianteId()));
+                    .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado: " + item.getVarianteId()));
 
             Producto prod = variante.getProducto();
 
-            if (variante.getStock() < item.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente en variante id " + item.getVarianteId()
-                        + ". Disponible: " + variante.getStock() + ", solicitado: " + item.getCantidad());
-            }
+            ArticuloAVender.deArticulo(
+                    ArticuloAVender.nombreVisible(prod.getNombre(), variante.getTalla(), variante.getColor()),
+                    prod.getHabilitado() == '1', prod.getStock() != null ? prod.getStock() : 0,
+                    variante.getHabilitado() == '1', variante.getStock())
+                    .exigirQueSePuedaVender(item.getCantidad());
+
             variante.setStock(variante.getStock() - item.getCantidad());
             iVarianteRepository.save(variante);
-
-            if (prod.getStock() < item.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para: " + prod.getNombre()
-                        + ". Disponible: " + prod.getStock() + ", solicitado: " + item.getCantidad());
-            }
 
             // Lineas sin promocionId deben cobrarse al precio de catalogo — un descuento en
             // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request
             // podia traer cualquier precio.
             if (item.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, item.getPrecioVenta(), item.getCantidad(), item.getSubTotal());
+                validarPrecioCatalogo(prod, item.getPrecioVenta());
             }
 
             prod.setStock(prod.getStock() - item.getCantidad());
             iRepository.save(prod);
 
             double precioCosto = prod.getPrecioCosto();
-            double subTotal    = item.getSubTotal();
+            // El subtotal se CALCULA, no se lee del request. El precio unitario si viene del
+            // front, pero pasa por validarPrecioCatalogo (linea sin promocion) o por
+            // validarLineasDePromocion (linea con promocion) antes de que la transaccion
+            // confirme. El subtotal, en cambio, no lo validaba nadie: con promocionId el
+            // request podia traer el precio unitario correcto y un subTotal de 1, y como el
+            // total de la venta se arma sumando subtotales, la venta entera quedaba en 1.
+            double subTotal    = item.getPrecioVenta() * item.getCantidad();
             double costoTotal  = precioCosto * item.getCantidad();
             double comision    = subTotal * (tasaTarifa + tasaIva);
             double ganancia    = subTotal - costoTotal - comision;
@@ -234,7 +238,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             detallesVenta.add(dvv);
         }
 
-        validarLineasDePromocion(detallesPedido, tipoPedido);
+        validarLineasDePromocion(detallesPedido);
 
         double totalPedidoCalc = detallesPedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
 
@@ -368,20 +372,43 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     // El precio/subtotal que manda el request en una linea normal (sin promocionId) debe
     // coincidir con el precio real del producto — evita que la venta directa acepte un precio
     // arbitrario fuera de una promocion. Tolerancia de 1 centavo por redondeo de Double.
-    private void validarPrecioCatalogo(Producto prod, Double precioVenta, Integer cantidad, Double subTotal) {
-        double precioCatalogo = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
-        if (precioVenta == null || Math.abs(precioVenta - precioCatalogo) > 0.01) {
-            throw new RuntimeException("El precio de " + prod.getNombre() + " no es valido");
+    /**
+     * Una linea sin promocion se cobra a uno de los dos precios del catalogo: el normal o el de
+     * rebaja. Nada mas.
+     *
+     * <p>Hasta el 2026-09-22 solo se aceptaba el normal, asi que para venderle mas barato a
+     * alguien habia que armarle una promocion -- mas trabajo, y quedaba registrada una promocion
+     * que nunca existio. El campo {@code precio_rebaja} ya existia: se capturaba y se mostraba en
+     * el admin, pero no habia forma de cobrarlo.
+     *
+     * <p>Sigue sin poder mandarse un precio arbitrario: los dos valores salen del catalogo, asi
+     * que el front elige entre ellos pero no inventa ninguno. El subtotal tampoco se valida
+     * porque ya no se usa el del request -- se calcula (ver mas arriba).
+     */
+    private void validarPrecioCatalogo(Producto prod, Double precioUnitario) {
+        if (precioUnitario == null) {
+            throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
-        double subTotalEsperado = precioCatalogo * cantidad;
-        if (subTotal == null || Math.abs(subTotal - subTotalEsperado) > 0.01) {
-            throw new RuntimeException("El subtotal de " + prod.getNombre() + " no es valido");
+        double normal = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
+        double rebaja = prod.getPrecioRebaja() != null ? prod.getPrecioRebaja() : 0.0;
+
+        boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
+        // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
+        boolean esRebaja = rebaja > 0 && Math.abs(precioUnitario - rebaja) <= 0.01;
+
+        if (!esNormal && !esRebaja) {
+            String validos = rebaja > 0
+                    ? String.format("%.2f (normal) o %.2f (rebaja)", normal, rebaja)
+                    : String.format("%.2f", normal);
+            throw new RuntimeException(String.format(
+                    "El precio de %s no es valido: llego %.2f y los precios de catalogo son %s",
+                    prod.getNombre(), precioUnitario, validos));
         }
     }
 
     // Agrupa las lineas de la venta que traen promocionId y valida cada combo contra
     // PromocionServiceImpl (vigencia, precios, y que la venta sea de contado).
-    private void validarLineasDePromocion(List<DetallePedido> detallesPedido, String tipoPedido) {
+    private void validarLineasDePromocion(List<DetallePedido> detallesPedido) {
         Map<Integer, List<PromocionServiceImpl.LineaPromocionCheck>> lineasPorPromocion = new LinkedHashMap<>();
         for (DetallePedido dp : detallesPedido) {
             if (dp.getPromocion() != null) {
@@ -391,7 +418,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             }
         }
         for (var entry : lineasPorPromocion.entrySet()) {
-            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue(), tipoPedido);
+            promocionService.validarLineasPromocion(entry.getKey(), entry.getValue());
         }
     }
 

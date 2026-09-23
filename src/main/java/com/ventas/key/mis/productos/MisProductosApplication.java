@@ -9,7 +9,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.Base64;
 
-@SpringBootApplication
+// scanBasePackages abarca com.ventas.key entero y no solo el paquete de esta clase: los
+// dominios nuevos viven en com.ventas.key.hexagonal (ver hexagonal/README.md), que queda fuera
+// del escaneo por defecto. Sin esto sus @Service y @Repository no se registran, y el arranque
+// falla con "no qualifying bean" en el primer controller que los pida.
+@SpringBootApplication(scanBasePackages = "com.ventas.key")
 @EnableCaching
 @EnableScheduling
 @EnableAsync

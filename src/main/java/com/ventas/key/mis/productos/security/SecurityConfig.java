@@ -246,6 +246,15 @@ public class SecurityConfig {
                         // variantes embebido -- sin admin/promociones aca, ese permiso solo
                         // alcanzaba para el CRUD propio de promociones pero no para buscar la
                         // variante a promocionar.
+                        // Stock disponible: cuanto queda libre para armar modelos. Nunca publico --
+                        // expone el inventario real del negocio, que no es asunto del cliente.
+                        // El reporte de descuadres va aparte porque es diagnostico de datos rotos.
+                        .requestMatchers(HttpMethod.GET, "/v1/stock/admin/**")
+                                .hasAnyAuthority(pantalla("productos/buscar"))
+                        .requestMatchers(HttpMethod.GET, "/v1/stock/**")
+                                .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
+                                        "tienda/update"))
+
                         .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
@@ -275,6 +284,10 @@ public class SecurityConfig {
                         // Ver migration_accion_tienda_eliminar.sql.
                         .requestMatchers(HttpMethod.DELETE, "/v1/variantes/deleteBy/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "eliminar"))
+                        // Cambiar precio normal / con descuento desde la tarjeta de Tienda (💲).
+                        // Ver migration_accion_tienda_cambiar_precio.sql.
+                        .requestMatchers(HttpMethod.PUT, "/v1/precios/**")
+                                .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /v1/variantes/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
@@ -335,6 +348,24 @@ public class SecurityConfig {
                         // con 403 en cualquier intento real de un cliente (encontrado 2026-08-25,
                         // curl real de un ROLE_USUARIO contra PUT /v1/pedidos/99/entrega).
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/entrega").authenticated()
+                        // Cambiar la forma de cobro de un pedido ya creado (2026-09-22). Va como
+                        // accion puntual y no en el hasRole("ADMIN") de abajo porque es una
+                        // accion de dinero que el negocio quiere poder delegar a quien cobra en
+                        // mostrador sin darle el resto de la gestion de pedidos. accion() ya deja
+                        // pasar a ROLE_ADMIN, asi que el admin no pierde nada.
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/tipo")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-tipo"))
+                        // Editar los articulos de un pedido ya creado (2026-09-22, dominio
+                        // hexagonal pedidoarticulo). Tres acciones separadas a proposito: se
+                        // puede querer que alguien agregue articulos sin poder desarmar una
+                        // promocion, que es una decision de dinero mas grande. Van ANTES de los
+                        // catch-all de abajo, que si no se los comen.
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/articulos")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "agregar-articulo"))
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/articulos/*")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-articulo"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/promociones/*")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "quitar-promocion"))
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
@@ -471,6 +502,19 @@ public class SecurityConfig {
                         // Girar/reiniciar por ahi solo funciona mientras la rifa sea de prueba
                         // (lo valida BoletoRifaServiceImpl) -- la rifa real la mueve el admin.
                         .requestMatchers("/v1/boletoRifa/publico/**").permitAll()
+
+                        // Boletos agrupados por perfil (formato nuevo). Van ANTES del bloque de
+                        // abajo porque son acciones puntuales configurables por rol, no el
+                        // permiso general de la pantalla: cargar y quitar boletos mueve las
+                        // probabilidades del sorteo. Ver migration_accion_rifa_boletos_agrupados.sql
+                        .requestMatchers(HttpMethod.GET,    "/v1/rifas/*/boletos-agrupados")
+                                .hasAnyAuthority(pantalla("rifas/boletos"))
+                        .requestMatchers(HttpMethod.POST,   "/v1/rifas/*/boletos-agrupados")
+                                .hasAnyAuthority(accion("rifas/boletos", "cargar-boletos-agrupado"))
+                        .requestMatchers(HttpMethod.POST,   "/v1/rifas/*/boletos-agrupados/participaciones")
+                                .hasAnyAuthority(accion("rifas/boletos", "agregar-participacion"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/rifas/*/boletos-agrupados/participaciones/*")
+                                .hasAnyAuthority(accion("rifas/boletos", "quitar-participacion"))
                         .requestMatchers(HttpMethod.GET,
                                 "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
                                 "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"

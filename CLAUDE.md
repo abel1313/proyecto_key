@@ -544,8 +544,22 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_submenu_ayuda_contextual.sql` | ⚠️ corrida, 0 filas (sin efecto) | ⚠️ corrida, 0 filas (sin efecto) | 2026-09-17 |
 | `migration_submenu_ayuda_contextual_fix.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
 | `migration_qr_destino.sql` | ✅ corrida | ✅ corrida | 2026-09-17 |
-| `migration_accion_tienda_eliminar.sql` | ⬜ **PENDIENTE** — corre en DB `inventario_key_qa` (cubre dev+qa) | ⬜ pendiente | 2026-09-17 (merge hecho) |
-| `backfill_variantes_carga_rapida.sql` | ⬜ **PENDIENTE** — `inventario_key_qa` | ⬜ **PENDIENTE** — `inventario_key` | 2026-09-22 (hotfix) |
+| `migration_accion_tienda_eliminar.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `migration_accion_pedido_cambiar_tipo.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `migration_accion_pedido_articulos.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `migration_accion_rifa_boletos_agrupados.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
+| `backfill_variantes_carga_rapida.sql` | ✅ corrida | ✅ corrida | 2026-09-22 (hotfix) |
+| `migration_accion_tienda_cambiar_precio.sql` | ⏳ pendiente | ⏳ pendiente | — |
+
+**Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
+pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
+boletos de rifa agrupados (`cargar-boletos-agrupado`/`agregar-participacion`/`quitar-participacion`).
+Sin correrlas, esos endpoints responden **403 a todo el mundo, incluido el admin**. La lista completa con los comandos
+y la consulta de verificación está al final de `PRUEBAS_QA_STOCK.md`, sección
+**"Scripts que hay que ejecutar"**.
+
+Recordar que después de correrlas hay que **volver a entrar**: los permisos viajan dentro del JWT y
+un token viejo no trae la autoridad nueva.
 
 `backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
 del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas
@@ -575,3 +589,145 @@ cerrar siempre con un `SELECT` de verificación que deba devolver al menos una f
 
 Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
 `inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
+
+---
+
+## Arquitectura — Hexagonal + Clean para todo lo nuevo (2026-09-18)
+
+**Regla:** todo lo que arranque **de cero** (un dominio nuevo, un controller nuevo, un
+modelo nuevo) se escribe con arquitectura hexagonal y clean architecture, en
+`src/main/java/com/ventas/key/hexagonal/`.
+
+**Lo viejo no se toca por tocar.** `mis/productos/{controller,service,entity,repository}`
+se queda como está. Se migra una pieza **solo cuando haya que modificarla por otra razón**
+— nunca un refactor masivo de golpe.
+
+### Dónde está documentado
+- `hexagonal/README.md` — la arquitectura, la regla de dependencia, el mapeo entre los
+  conceptos de Hexagonal y los de Clean
+- `hexagonal/_plantilla/` — el molde a copiar para cada dominio nuevo, con un README por
+  carpeta que dice qué va, qué no va, y a qué corresponde en cada arquitectura
+
+### Estructura: primero el dominio, después la capa
+```
+hexagonal/
+├── _plantilla/          ← molde: cp -r _plantilla/ <dominio>/
+├── imagen/
+│   ├── dominio/ aplicacion/ infraestructura/
+└── presentacion/
+    ├── dominio/ aplicacion/ infraestructura/
+```
+Cada dominio queda autocontenido: si mañana se muda a otro micro, se mueve la carpeta
+entera.
+
+### La regla de dependencia
+```
+infraestructura ──▶ aplicacion ──▶ dominio        (nunca al revés)
+```
+`dominio/` no importa Spring, ni JPA, ni Jackson. Si un archivo de `dominio/` tiene un
+`import org.springframework.*` o `jakarta.persistence.*`, está mal ubicado.
+
+### Cómo leer las marcas en los README
+Cada carpeta dice a qué corresponde en ambas arquitecturas:
+```
+[Hexagonal: Driven Port]   [Clean: Interface Adapter]
+```
+Sirve para no perderse: son dos vocabularios para casi lo mismo. Hexagonal aporta
+*puerto/adaptador*; Clean aporta *capas y regla de dependencia*.
+
+---
+
+## Regla — un método, una responsabilidad
+
+Un método que escribe en disco **escribe en disco**. No guarda en BD, no publica a Rabbit,
+no invalida caché. El que orquesta es otro, y llama a los tres.
+
+Lo mismo para los puertos: un puerto llamado "cliente disco" no puede tener la mitad de
+sus métodos consultando la base de datos.
+
+**Por qué existe esta regla — dos casos reales de este proyecto:**
+
+1. `ProductosServiceImpl.mappImagenes()` escribía la imagen en disco **y** después otro
+   método la subía al micro. Cada imagen quedaba guardada **dos veces**
+   (ver `DUPLICADO_IMAGENES_AGREGAR_MODELO.md`, corregido 2026-09-18).
+2. `ClienteDiscoPort` en `micro_imagenes` se llama "cliente disco" pero
+   `resolverArchivo()`, `readAll()`, `verificarExistentes()` e `isHuerfana()` consultan la
+   BD, y `eliminarRelacionesDuplicadasVariante()` es SQL puro que ni toca disco. Resultado:
+   no se puede reusar la escritura en disco sin arrastrar la base detrás.
+
+---
+
+## Regla — antes de crear un dominio: primero las reglas, después el código
+
+No se modela hasta tener las reglas del dominio escritas y acordadas.
+
+El pedido nunca llega completo. Llega como *"quiero vender carros, que el producto sea un
+carro y que corra"* — y faltan las reglas que nadie dijo pero el dominio necesita: ¿un
+carro apagado puede correr?, ¿se puede encender uno ya encendido?, ¿se puede apagar en
+movimiento?
+
+**Parte del trabajo es proponer esas reglas que no se dijeron**, no solo implementar lo
+literal. El checklist completo (identidad, estados y transiciones, invariantes,
+validaciones, efectos de borde, permisos) está en `hexagonal/_plantilla/README.md`.
+
+Orden de construcción, siempre de adentro hacia afuera:
+```
+modelo → excepciones → puerto salida → puerto entrada → servicio → adaptadores → controller → DTOs
+```
+Arrancar por el controller hace que el diseño gire alrededor del JSON en vez del negocio.
+
+---
+
+## Regla — toda tabla nueva se anota aquí
+
+Cada vez que se cree una tabla, se agrega a la lista de abajo **en el mismo cambio** que
+la crea. Sin eso, la única forma de saber qué tabla usa una entidad es abrir el `@Table`
+de cada `@Entity` a mano.
+
+**Anotar siempre:** nombre real de la tabla, para qué es, y **qué `@Entity` la mapea** —
+porque varias no coinciden en el nombre (`Imagen` → `imagenes_copy`, no `imagenes`).
+
+### ⚠️ Trampa: nombres que no coinciden con la entidad
+
+| Entidad Java | Tabla real | Ojo con |
+|---|---|---|
+| `Imagen` | **`imagenes_copy`** | existe también `imagenes` — es la vieja, **no se usa** |
+| `ProductoImagen` | **`producto_imagen_copy`** | existe también `producto_imagen` — vieja, **no se usa** |
+| `ImagenPresentacion` | `imagen_presentacion` | la columna se llama `url_imagen` pero el campo Java es `nombreArchivo` |
+
+Además, en `imagenes_copy` la columna **`base_64` guarda el NOMBRE DEL ARCHIVO**, no
+base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
+
+### Inventario (81 tablas, `inventario_key_qa` al 2026-09-18)
+
+**Productos y catálogo**
+`producto` · `variantes` · `codigo_barras` · `palabra_clave` · `lotes_productos` · `favorito` · `resena`
+
+**Imágenes**
+`imagenes_copy` (entidad `Imagen`) · `producto_imagen_copy` (entidad `ProductoImagen`) · `variante_imagen` · `imagen_presentacion` · `logo`
+*Muertas:* `imagenes` · `producto_imagen`
+*Backups:* `producto_imagen_copy_bkp_20260811` · `variante_imagen_bkp_20260811`
+
+**Ventas y pedidos**
+`ventas` · `detalle_venta` · `detalle_venta_variantes` · `pedidos` · `detalle_pedidos` · `abono_pedido` · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
+
+**Clientes**
+`clientes` · `clientes_sin_registro` · `direcciones`
+
+**Usuarios, roles y permisos**
+`usuarios` · `usuarios_roles` · `roles` · `permisos` · `usuario_permiso` · `rol_permiso` · `menu` · `submenu` · `usuario_submenu` · `rol_submenu` · `rol_submenu_escritura` · `accion_submenu` · `rol_accion` · `historial_acceso` · `sesion_refresh` · `usuario_modificacion`
+
+**Flores eternas**
+`ramo_armado` · `ramo_armado_accesorio` · `ramo_pedido_detalle` · `ramo_pedido_detalle_color` · `accesorio_ramo` · `tipo_flor` · `color_flor` · `cantidad_flor_valida` · `frase_liston_predefinida` · `lugares_entrega` · `lugar_entrega_anillo`
+
+**Rifas**
+`configurar_rifa` · `configurar_rifa_variante` · `boletos_rifa` · `boleto_rifa_url_compartido` · `concursantes` · `ganador_rifa` · `historial_rifa_variante`
+
+**Chat**
+`chat_sesion` · `chat_mensaje`
+
+**Marketing y redes**
+`promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `tiktok_token` · `qr_destino`
+
+**Configuración y negocio**
+`configuracion_negocio` · `tema_variable` · `gastos_surtir` · `inversion`

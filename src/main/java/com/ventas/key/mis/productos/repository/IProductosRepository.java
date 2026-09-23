@@ -114,6 +114,16 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
           AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
           AND p.esCatalogoInterno = false
+        ORDER BY
+          CASE
+            WHEN :nombreOCodigo IS NULL THEN 5
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) = LOWER(:nombreOCodigo) THEN 0
+            WHEN LOWER(p.nombre) = LOWER(:nombreOCodigo) THEN 1
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT(:nombreOCodigo, '%')) THEN 2
+            WHEN LOWER(p.nombre) LIKE LOWER(CONCAT(:nombreOCodigo, '%')) THEN 3
+            ELSE 4
+          END,
+          p.id DESC
         """,
         countQuery = """
         SELECT COUNT(p) FROM Producto p
