@@ -19,6 +19,8 @@ import com.ventas.key.mis.productos.repository.IPromocionRepository;
 import com.ventas.key.mis.productos.repository.IRamoPedidoDetalleRepository;
 import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
+import com.ventas.key.mis.productos.repository.IVentaRepository;
+import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.service.api.IAbonoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +59,7 @@ class CambiarTipoPedidoTest {
 
     private IPedidoRepository pedidoRepo;
     private IAbonoService abonoService;
+    private IVentaRepository ventaRepo;
     private PedidoServiceImpl service;
 
     private static final int PEDIDO_ID = 501;
@@ -87,6 +90,8 @@ class CambiarTipoPedidoTest {
 
         ReflectionTestUtils.setField(real, "iAbonoService", abonoService);
         ReflectionTestUtils.setField(real, "cacheService", mock(CacheService.class));
+        ventaRepo = mock(IVentaRepository.class);
+        ReflectionTestUtils.setField(real, "iVentaRepository", ventaRepo);
 
         // getDetallePedido arma el response leyendo media docena de repositorios mas; lo que se
         // prueba aqui es el cambio, no como se pinta el detalle.
@@ -161,14 +166,69 @@ class CambiarTipoPedidoTest {
                 .hasMessageContaining("ya es de tipo APARTADO");
     }
 
+    private Pedido contadoEntregado(double total) {
+        Pedido p = pedido("NORMAL", total, total);
+        p.setEstadoPedido("Entregado");
+        return p;
+    }
+
     @Test
-    @DisplayName("un pedido ya entregado no cambia de forma de cobro")
-    void entregadoNoCambia() {
+    @DisplayName("un pedido de credito ya entregado no cambia de forma de cobro")
+    void creditoEntregadoNoCambia() {
         Pedido p = pedido("APARTADO", 1000, 1000);
         p.setEstadoPedido("Entregado");
 
         assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cambioA("NORMAL")))
                 .hasMessageContaining("ya se entrego");
+    }
+
+    @Test
+    @DisplayName("contado entregado solo puede pasar a apartado o ir pagando")
+    void contadoEntregadoSoloACredito() {
+        contadoEntregado(1000);
+
+        assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cambioA("NORMAL")))
+                .hasMessageContaining("solo se puede pasar a Apartado o Ir pagando");
+        verify(ventaRepo, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("el caso real: promocion cobrada como efectivo que en realidad es ir pagando")
+    void contadoEntregadoPasaAFiado() {
+        Pedido p = contadoEntregado(1000);
+        Venta venta = new Venta();
+        venta.setTotalVenta(1000.0);
+        when(ventaRepo.findByPedidoId(PEDIDO_ID)).thenReturn(Optional.of(venta));
+
+        service.cambiarTipoPedido(PEDIDO_ID, cambioA("FIADO"));
+
+        // Borrada: al liquidar con abonos se crea la venta real; si quedara, el ingreso se duplica.
+        verify(ventaRepo).delete(venta);
+        assertThat(p.getTipoPedido()).isEqualTo("FIADO");
+        assertThat(p.getEstadoPedido()).isEqualTo("FIADO");
+        assertThat(p.getTotalPagado()).isZero();
+        assertThat(p.getObservaciones()).contains("Se cobro como contado y se paso a Ir pagando");
+        verify(abonoService, never()).registrarAbono(anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("contado entregado a apartado con enganche: el enganche entra como primer abono")
+    void contadoEntregadoAApartadoConEnganche() {
+        Pedido p = contadoEntregado(1000);
+        p.setObservaciones("Venta de mostrador");
+        when(abonoService.registrarAbono(eq(PEDIDO_ID), any())).thenAnswer(inv -> {
+            assertThat(p.getTipoPedido()).isEqualTo("APARTADO");
+            assertThat(p.getTotalPagado()).isZero();
+            return null;
+        });
+
+        service.cambiarTipoPedido(PEDIDO_ID, cobrando("APARTADO", 200, "dio 200 de enganche"));
+
+        ArgumentCaptor<AbonoRequest> abono = ArgumentCaptor.forClass(AbonoRequest.class);
+        verify(abonoService).registrarAbono(eq(PEDIDO_ID), abono.capture());
+        assertThat(abono.getValue().getMonto()).isEqualTo(200.0);
+        assertThat(abono.getValue().getNota()).isEqualTo("Cambio de NORMAL a APARTADO: dio 200 de enganche");
+        assertThat(p.getObservaciones()).startsWith("Venta de mostrador\n").contains("Apartado: dio 200 de enganche");
     }
 
     @Test

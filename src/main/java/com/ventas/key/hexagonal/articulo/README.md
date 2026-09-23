@@ -64,6 +64,11 @@ No se copia al revés ni se pisa: un artículo **con** categoría propia conserv
 solo lo que falta permite que la mayoría salgan con la del modelo y alguno se separe sin tener que
 elegirla una por una.
 
+**Lo mismo con los datos básicos (2026-09-23):** color, marca, descripción y contenido neto que el
+artículo **nuevo** trae vacíos se toman del producto base (`ArticuloDeAlta.datoEfectivo`). Lo que
+trae se respeta. Un artículo que ya existe no hereda: vaciarle un campo es una edición.
+Reportado como *"creo el producto base con categoría y los artículos no se llenan con esa info"*.
+
 ### R3 — Lo que el artículo hereda no se le pregunta
 
 Código de barras, nombre, precios y categoría **vienen del modelo**. La pantalla de alta no los

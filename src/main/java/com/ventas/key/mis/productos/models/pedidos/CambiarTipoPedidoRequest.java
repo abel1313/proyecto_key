@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.models.pedidos;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 
 /**
@@ -22,9 +23,12 @@ import lombok.Data;
 public class CambiarTipoPedidoRequest {
 
     private String tipoPedido;
+    // El front lo manda como montoCobrado/descripcion: sin el alias el cobro se ignoraba en silencio.
+    @JsonAlias("montoCobrado")
     private Double monto;
     private String metodoPago = "EFECTIVO";
     private Double montoDado;
+    @JsonAlias("descripcion")
     private String nota;
     private Integer usuarioId;
 

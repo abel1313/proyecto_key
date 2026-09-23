@@ -20858,3 +20858,47 @@ texto para algo, ya no lo va a encontrar.
 producto apagado no se vende ninguno; al volver a habilitarlo quedan como estaban. Los apartados
 y pedidos pendientes que ya tenían ese artículo **no se cancelan solos** (su stock ya se descontó
 al crearlos): si la pieza sigue en la tienda se entregan normal.
+
+---
+
+## 🔁 Pedido cobrado de contado → Ir pagando / Apartado, 💲 precio en la card, código de barras en el detalle (2026-09-23)
+
+**Estado:** en `dev` (sin subir). Solo existe en `dev`/`qa`; en `main` no está nada de esto.
+
+### 1. `PUT /v1/pedidos/{id}/tipo` — ahora acepta pedidos Entregados de contado
+
+**Antes:** un pedido `Entregado` respondía 400 *"ya se entrego"*. El caso real: una promoción se
+registró como pago en efectivo cuando el cliente iba a ir pagando, y no había forma de darle abonos.
+
+**Después:** un pedido `NORMAL` + `Entregado` se puede pasar **solo** a `APARTADO` o `FIADO`.
+El back borra la venta de contado que se había registrado, deja `totalPagado = 0`, pone
+`estadoPedido = tipoPedido` y, si viene monto, lo registra como primer abono. Deja una línea en
+`observaciones`. El stock no se toca.
+
+Request (igual que antes, ahora también se acepta `usuarioId`):
+```json
+{ "tipoPedido": "FIADO", "montoCobrado": 200, "descripcion": "dio 200 de enganche", "usuarioId": 5 }
+```
+- 400 `"ya se entrego y se cobro de contado: solo se puede pasar a Apartado o Ir pagando"` si se pide `NORMAL`.
+
+**Bug corregido de paso:** el front mandaba `montoCobrado`/`descripcion` y el back leía
+`monto`/`nota`, así que **el cobro del cambio se ignoraba** y pasar a contado siempre fallaba con
+"se cobran $0.00". El back ahora acepta los dos nombres.
+
+### 2. Detalle del pedido — `detalles[].codigoBarras`
+Ya venía en `GET /v1/pedidos/{id}/detalle` (`qa`); el front no lo pintaba. Ahora sí.
+
+### 3. `PUT /v1/precios/producto/{productoId}` (nuevo) — botón 💲 en la card de Tienda
+Request: `{ "precioVenta": 400, "precioRebaja": 350 }` (`precioRebaja` 0 = sin descuento).
+Response: `{ productoId, precioVenta, precioRebaja, precioACobrar, vendeBajoCosto }`.
+Cambia el precio del **producto**: todos sus artículos lo heredan; lo ya vendido conserva su precio.
+- 400 si `precioVenta` ≤ 0, si `precioRebaja` < 0 o si `precioRebaja` > `precioVenta`.
+- 403 sin la acción `cambiar-precio` de `tienda/buscar` (`migration_accion_tienda_cambiar_precio.sql`).
+
+### 4. Alta de artículos — heredan datos básicos del producto
+`POST /v1/variantes/guardarConImagenes`: al artículo **nuevo** que llega sin color, marca,
+descripción o contenido neto se le ponen los del producto base (la categoría ya se heredaba).
+Lo que trae se respeta. Sin cambio de contrato.
+
+### 5. Autocompletado de categoría
+Mínimo 3 letras y 1.5 s de espera (antes 2 letras y 350 ms: buscaba casi por cada letra).
