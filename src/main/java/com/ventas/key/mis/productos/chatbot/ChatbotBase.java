@@ -164,6 +164,17 @@ public abstract class ChatbotBase {
     // comentario no traiga una pregunta clara -- decision explicita del dueño. De ahi en adelante,
     // si no entiende, se queda callado (##FAREWELL##) como el resto de las interacciones.
     protected Mono<String> responderComentario(String comentario, Variantes varianteDelPost, boolean esPrimeraVez) {
+        String categoria = detectarCategoriaEnMensaje(comentario);
+        String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria);
+
+        List<Map<String, String>> mensajes = new java.util.ArrayList<>();
+        mensajes.add(Map.of("role", "system", "content", sistemPrompt));
+        mensajes.add(Map.of("role", "system", "content", instruccionesRedSocial(varianteDelPost, esPrimeraVez)));
+        mensajes.add(Map.of("role", "user", "content", comentario));
+        return llamarOpenAI(mensajes);
+    }
+
+    protected String instruccionesRedSocial(Variantes varianteDelPost, boolean esPrimeraVez) {
         StringBuilder contextoExtra = new StringBuilder();
         if (varianteDelPost != null) {
             contextoExtra.append("Este comentario es sobre esta publicación específica, que es del producto: ")
@@ -180,6 +191,7 @@ public abstract class ChatbotBase {
                 inventes ni supongas una respuesta. En ese caso responde ÚNICAMENTE con ##ESCALAR## \
                 (sin nada más de texto) para que un administrador lo conteste directamente.
                 """);
+        contextoExtra.append(AVISOS_Y_AGRADECIMIENTOS);
         if (esPrimeraVez) {
             contextoExtra.append("""
                     Este es el PRIMER comentario de esta persona -- nunca le hemos contestado antes. \
@@ -191,16 +203,30 @@ public abstract class ChatbotBase {
                     usando ##ESCALAR## aunque sea su primer comentario.
                     """);
         }
-
-        String categoria = detectarCategoriaEnMensaje(comentario);
-        String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria);
-
-        List<Map<String, String>> mensajes = new java.util.ArrayList<>();
-        mensajes.add(Map.of("role", "system", "content", sistemPrompt));
-        mensajes.add(Map.of("role", "system", "content", contextoExtra.toString()));
-        mensajes.add(Map.of("role", "user", "content", comentario));
-        return llamarOpenAI(mensajes);
+        return contextoExtra.toString();
     }
+
+    // Sin esto el modelo toma "ya te sigo" como fuera de tema, usa ##FAREWELL## y el bot se queda callado.
+    private static final String AVISOS_Y_AGRADECIMIENTOS = """
+            AVISOS Y AGRADECIMIENTOS (la persona NO viene a comprar):
+            Muchos mensajes solo avisan algo que la persona hizo por la página, para que nos
+            enteremos. Por ejemplo: "ya te sigo", "ya te di follow", "ya compartí tu publicación",
+            "lo compartí en mi historia", "ya comenté", "ya le di like", "ya reaccioné", "ya
+            etiqueté a mis amigas", "ya me suscribí", "ya activé las notificaciones", "ya te
+            recomendé", "ya participé en la rifa", "listo, ya hice todo", o solo cariño y apoyo
+            ("me encantan sus cosas", "mucho éxito", "bendiciones").
+            - Contesta SIEMPRE con un agradecimiento corto por lo que hizo: 1 o 2 líneas y 1 emoji
+              como máximo. Nombra lo que hizo y despídete deseándole un buen día. Sigue el estilo
+              de estos ejemplos, puedes variar las palabras:
+              * "ya compartí" → "¡Hola! Gracias por compartir 💖 Que tengas un excelente día."
+              * "ya te sigo" → "¡Hola! Gracias por seguirnos 💖 Que tengas un excelente día."
+              * "ya comenté tu publicación" → "¡Hola! Gracias por tu comentario 💖 Que tengas un excelente día."
+              * "mucho éxito" → "¡Muchas gracias por tu apoyo! 💖 Que tengas un excelente día."
+            - No ofrezcas productos, no preguntes qué busca, no intentes vender y no uses ##BUSCAR##.
+            - No confirmes boletos, participaciones en rifas ni premios: eso lo revisa una persona.
+            - NUNCA uses ##FAREWELL## ni ##ESCALAR## con estos mensajes.
+            - Si además pregunta algo de la tienda, primero agradece y luego contesta la pregunta.
+            """;
 
     protected Mono<String> llamarOpenAI(List<Map<String, String>> mensajes) {
         Map<String, Object> body = Map.of(
