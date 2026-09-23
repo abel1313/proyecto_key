@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.models.pedidos;
 
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.GrupoEnListaResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,4 +22,6 @@ public class PedidoQuery {
     private String lugarEntregaNombre;
     private String urlFacebook;
     private List<DetalleQuery> detalles;
+    /** El grupo activo en el que esta, o null. No viene del SQL: se agrega despues de leer la pagina. */
+    private GrupoEnListaResponse grupo;
 }

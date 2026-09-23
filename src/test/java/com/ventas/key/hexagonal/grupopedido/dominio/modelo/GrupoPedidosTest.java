@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.grupopedido.dominio.modelo;
 
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.AbonoAlGrupoInvalidoException;
+import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.CobroDelGrupoInvalidoException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -82,5 +83,46 @@ class GrupoPedidosTest {
         assertThat(new AbonoAlGrupo(35_000, null, 50_000L, null).cambioCentavos()).isEqualTo(15_000);
         assertThat(new AbonoAlGrupo(35_000, "TRANSFERENCIA", 50_000L, null).cambioCentavos()).isZero();
         assertThatThrownBy(() -> new AbonoAlGrupo(35_000, "EFECTIVO", 20_000L, null).cambioCentavos()).hasMessageContaining("menor");
+    }
+
+    private static PedidoDelGrupo contado(int id, String estado, long total, int dia) {
+        return new PedidoDelGrupo(id, "NORMAL", estado, total, 0, LocalDateTime.of(2026, 9, dia, 12, 0), "C" + id);
+    }
+
+    @Test
+    @DisplayName("un pedido de contado entregado ya no debe nada aunque totalPagado siga en cero")
+    void entregadoCuentaComoCobrado() {
+        GrupoPedidos g = grupo(contado(1, "Entregado", 40_000, 1), contado(2, "Pendiente", 25_000, 2));
+        assertThat(g.totalCentavos()).isEqualTo(65_000);
+        assertThat(g.pagadoCentavos()).isEqualTo(40_000);
+        assertThat(g.saldoCentavos()).isEqualTo(25_000);
+    }
+
+    @Test
+    @DisplayName("cobrar de contado confirma los abiertos del mas viejo al mas nuevo y salta los ya entregados")
+    void porCobrarDeContado() {
+        GrupoPedidos g = grupo(contado(3, "Pendiente", 10_000, 9), contado(1, "Entregado", 10_000, 1),
+                contado(2, "Pendiente", 10_000, 4), contado(4, "cancelado", 10_000, 2));
+        assertThat(g.porCobrarDeContado()).containsExactly(2, 3);
+    }
+
+    @Test
+    @DisplayName("un grupo a credito no se cobra de contado: se abona")
+    void porCobrarDeContadoCredito() {
+        GrupoPedidos g = grupo(p(1, "FIADO", 10_000, 0, 1), p(2, "FIADO", 10_000, 0, 2));
+        assertThatThrownBy(g::porCobrarDeContado)
+                .isInstanceOf(CobroDelGrupoInvalidoException.class)
+                .hasMessageContaining("a credito");
+    }
+
+    @Test
+    @DisplayName("sin nada pendiente, o con el grupo deshecho, no hay cobro")
+    void porCobrarDeContadoSinPendientes() {
+        GrupoPedidos cobrado = grupo(contado(1, "Entregado", 10_000, 1), contado(2, "Entregado", 10_000, 2));
+        assertThatThrownBy(cobrado::porCobrarDeContado).hasMessageContaining("ya estan cobrados");
+
+        GrupoPedidos deshecho = new GrupoPedidos(1, 1, false, LocalDateTime.now(), null,
+                List.of(contado(1, "Pendiente", 10_000, 1), contado(2, "Pendiente", 10_000, 2)));
+        assertThatThrownBy(deshecho::porCobrarDeContado).hasMessageContaining("ya se deshizo");
     }
 }

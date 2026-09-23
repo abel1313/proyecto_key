@@ -36,7 +36,7 @@ public record GrupoPedidosResponse(
         List<PedidoItem> items = g.pedidos().stream()
                 .sorted(Comparator.comparing(PedidoDelGrupo::pedidoId))
                 .map(p -> new PedidoItem(p.pedidoId(), p.cliente(), p.tipo(), p.estado(),
-                        pesos(p.totalCentavos()), pesos(p.pagadoCentavos()), pesos(p.saldoCentavos()),
+                        pesos(p.totalCentavos()), pesos(p.cobradoCentavos()), pesos(p.saldoCentavos()),
                         p.pedidoId().equals(g.pedidoTitularId())))
                 .toList();
         String tipo = g.pedidos().stream().filter(PedidoDelGrupo::estaAbierto).map(PedidoDelGrupo::tipo)

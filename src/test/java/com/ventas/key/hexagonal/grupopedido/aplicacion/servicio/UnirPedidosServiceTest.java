@@ -8,6 +8,7 @@ import com.ventas.key.hexagonal.grupopedido.dominio.modelo.RegistroGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonoPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.BitacoraPedidoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.ConfirmarPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.GrupoPedidosPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.PedidosDelGrupoPort;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +43,7 @@ class UnirPedidosServiceTest {
     private GrupoPedidosPort grupos;
     private AbonoPedidoPort abonos;
     private BitacoraPedidoPort bitacora;
+    private ConfirmarPedidoPort confirmar;
     private UnirPedidosService service;
 
     private static final Integer USUARIO = 7;
@@ -52,7 +54,8 @@ class UnirPedidosServiceTest {
         grupos = mock(GrupoPedidosPort.class);
         abonos = mock(AbonoPedidoPort.class);
         bitacora = mock(BitacoraPedidoPort.class);
-        service = new UnirPedidosService(pedidos, grupos, abonos, bitacora);
+        confirmar = mock(ConfirmarPedidoPort.class);
+        service = new UnirPedidosService(pedidos, grupos, abonos, bitacora, confirmar);
     }
 
     private static PedidoDelGrupo fiado(int id, long total, long pagado, int dia) {
@@ -139,5 +142,42 @@ class UnirPedidosServiceTest {
 
         assertThatThrownBy(() -> service.deshacer(30, null, USUARIO)).hasMessageContaining("ya se habia deshecho");
         verify(grupos, never()).marcarDeshecho(any(), any());
+    }
+
+    private static PedidoDelGrupo contado(int id, String estado, int dia) {
+        return new PedidoDelGrupo(id, "NORMAL", estado, 10_000, 0, LocalDateTime.of(2026, 9, dia, 9, 0), "C" + id);
+    }
+
+    @Test
+    @DisplayName("cobrar de contado confirma cada pedido pendiente con la misma forma de pago y lo anota")
+    void cobrarDeContado() {
+        grupoGuardado(30, true, contado(1, "Entregado", 1), contado(2, "Pendiente", 2), contado(3, "Pendiente", 3));
+
+        UnirPedidosCasoUso.ResultadoCobro r = service.cobrarDeContado(30, 5, USUARIO);
+
+        assertThat(r.pedidosCobrados()).containsExactly(2, 3);
+        InOrder orden = inOrder(confirmar);
+        orden.verify(confirmar).confirmarDeContado(2, 5);
+        orden.verify(confirmar).confirmarDeContado(3, 5);
+        verify(confirmar, never()).confirmarDeContado(eq(1), any());
+        verify(bitacora, times(2)).anotar(anyInt(), contains("Cobrado de contado junto con el grupo #30"));
+    }
+
+    @Test
+    @DisplayName("sin forma de pago no se confirma nada")
+    void cobrarDeContadoSinFormaDePago() {
+        grupoGuardado(30, true, contado(1, "Pendiente", 1), contado(2, "Pendiente", 2));
+
+        assertThatThrownBy(() -> service.cobrarDeContado(30, null, USUARIO)).hasMessageContaining("forma de pago");
+        verify(confirmar, never()).confirmarDeContado(any(), any());
+    }
+
+    @Test
+    @DisplayName("un grupo a credito no se cobra de contado")
+    void cobrarDeContadoCredito() {
+        grupoGuardado(30, true, fiado(1, 10_000, 0, 1), fiado(2, 10_000, 0, 2));
+
+        assertThatThrownBy(() -> service.cobrarDeContado(30, 5, USUARIO)).hasMessageContaining("a credito");
+        verify(confirmar, never()).confirmarDeContado(any(), any());
     }
 }

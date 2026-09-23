@@ -374,6 +374,9 @@ public class SecurityConfig {
                         // tenga cualquiera de las dos, para que quien cobra vea el grupo.
                         .requestMatchers(HttpMethod.POST, "/v1/grupos-pedido/*/abonos")
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "abonar"))
+                        // Cobrar el grupo de contado confirma cada pedido igual que
+                        // PUT /v1/pedidos/confirmar/{id}, que es solo ADMIN: mismo nivel aqui.
+                        .requestMatchers(HttpMethod.POST, "/v1/grupos-pedido/*/cobrar-contado").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/**")
                                 .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "unir-pedidos"),
                                         accion("pedidos/mis-pedidos", "abonar")))
