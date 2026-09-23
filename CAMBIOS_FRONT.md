@@ -20863,7 +20863,7 @@ al crearlos): si la pieza sigue en la tienda se entregan normal.
 
 ## 🔁 Pedido cobrado de contado → Ir pagando / Apartado, 💲 precio en la card, código de barras en el detalle (2026-09-23)
 
-**Estado:** en `dev` (sin subir). Solo existe en `dev`/`qa`; en `main` no está nada de esto.
+**Estado:** en producción desde 2026-09-23 (`main` 20731bd, front `master` dd342d8). El botón 💲 responde 403 hasta correr `migration_accion_tienda_cambiar_precio.sql` en prod.
 
 ### 1. `PUT /v1/pedidos/{id}/tipo` — ahora acepta pedidos Entregados de contado
 
@@ -20902,3 +20902,83 @@ Lo que trae se respeta. Sin cambio de contrato.
 
 ### 5. Autocompletado de categoría
 Mínimo 3 letras y 1.5 s de espera (antes 2 letras y 350 ms: buscaba casi por cada letra).
+
+---
+
+## 🔗 Unir pedidos (2026-09-23)
+
+**Estado:** en `dev` y `qa` desde 2026-09-23 (desde la rama `feature/unir-pedidos`). Todavía no
+está en `main`. `migration_grupo_pedido.sql` ya se corrió en qa y en prod.
+
+**Qué es:** 2 o más pedidos se **agrupan** para cobrarlos y recogerlos juntos. No se fusionan:
+cada pedido conserva sus artículos, su cliente y sus abonos. El grupo muestra la suma y reparte
+cada abono **del pedido más viejo al más nuevo**. Deshacer se puede siempre, aunque ya haya abonos, y
+no mueve dinero ni stock. Reglas completas en `hexagonal/grupopedido/README.md`.
+
+Todas las respuestas van envueltas en `ResponseGeneric` (`{ data, mensaje, code }`).
+Los errores de negocio responden **400** con el motivo en `mensaje`.
+
+### `POST /v1/grupos-pedido` — unir
+Request:
+```json
+{ "pedidoIds": [101, 102, 105], "pedidoTitularId": 102, "nota": "recoge su hermana" }
+```
+Response `data` = **Grupo**:
+```json
+{
+  "grupoId": 30, "activo": true, "pedidoTitularId": 102, "titularNombre": "Ana López",
+  "tipoPedido": "FIADO", "fechaCreacion": "2026-09-23T12:10:00", "nota": "recoge su hermana",
+  "totalGrupo": 1450.0, "pagadoGrupo": 200.0, "saldoGrupo": 1250.0,
+  "pedidos": [
+    { "pedidoId": 101, "cliente": "Ana López", "tipoPedido": "FIADO", "estadoPedido": "FIADO",
+      "total": 500.0, "pagado": 200.0, "saldo": 300.0, "esTitular": false }
+  ]
+}
+```
+- 400 si hay menos de 2 pedidos distintos, si alguno no existe, si el titular no es uno de ellos,
+  si alguno está entregado/pagado/cancelado, o si ya está en otro grupo (`"...ya esta en el grupo #N: deshaz ese grupo primero"`).
+- 400 **distinta forma de cobro**: `mensaje` explica cuáles no coinciden y `data` trae el tipo de
+  cada pedido para marcarlos: `[{ "pedidoId": 101, "tipoPedido": "FIADO" }, { "pedidoId": 105, "tipoPedido": "APARTADO" }]`.
+  Se corrige con "Cambiar forma de cobro" (`PUT /v1/pedidos/{id}/tipo`) en el pedido que no
+  coincide y se vuelve a unir.
+
+### `GET /v1/grupos-pedido/por-pedido/{pedidoId}` — ¿este pedido está unido?
+- 200 con el **Grupo** activo del pedido.
+- **204** sin body si no está en ningún grupo.
+
+### `GET /v1/grupos-pedido/{grupoId}`
+200 con el **Grupo** (también si ya se deshizo: `activo: false`). 404 si no existe.
+
+### `POST /v1/grupos-pedido/{grupoId}/abonos` — abonar al grupo
+Request (mismos nombres que el abono normal):
+```json
+{ "monto": 500, "metodoPago": "EFECTIVO", "montoDado": 600, "nota": "semana 1" }
+```
+Response `data`:
+```json
+{ "grupo": { "...": "Grupo actualizado" },
+  "repartos": [ { "pedidoId": 101, "monto": 300.0, "liquida": true },
+                { "pedidoId": 102, "monto": 200.0, "liquida": false } ],
+  "cambio": 100.0 }
+```
+Cada parte queda como un abono normal del pedido, con la nota `"Abono del grupo #30: semana 1"`.
+El pedido que se liquida pasa a `PAGADO` y genera su venta, igual que con un abono suelto.
+- 400 si el grupo es de contado, si ya se deshizo, si `monto` ≤ 0 o excede `saldoGrupo`, si
+  `metodoPago` es `TARJETA`, o si `montoDado` es menor que `monto`.
+
+### `POST /v1/grupos-pedido/{grupoId}/deshacer`
+Request opcional: `{ "motivo": "cada quien paga lo suyo" }`. Response `data` = **Grupo** con `activo: false`.
+- 400 si ya se había deshecho.
+
+### Cambio en un endpoint existente
+`PUT /v1/pedidos/{id}/tipo` → **nuevo 400** si el pedido está en un grupo activo:
+`"El pedido N esta unido con otros pedidos: deshaz el grupo antes de cambiar su forma de cobro"`.
+
+### Permisos
+- Unir, deshacer y los GET: acción **`unir-pedidos`** de `pedidos/mis-pedidos` (nueva, solo
+  ROLE_ADMIN de arranque). Los GET también los puede quien tenga `abonar`.
+- Abonar al grupo: la acción **`abonar`** que ya existía.
+- ⚠️ **La migración se corre ANTES de desplegar esta rama.** Sin las tablas, `/v1/grupos-pedido`
+  responde 500 y además `PUT /v1/pedidos/{id}/tipo` (que ya está en prod) también falla con 500,
+  porque ahora revisa si el pedido está en un grupo.
+

@@ -24,6 +24,7 @@ import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;
 import com.ventas.key.mis.productos.models.pedidos.PedidoGenerico;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IAbonoRepository;
+import com.ventas.key.mis.productos.repository.IGrupoPedidoMiembroRepository;
 import com.ventas.key.mis.productos.repository.IAccesorioRamoRepository;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
 import com.ventas.key.mis.productos.repository.IColorFlorRepository;
@@ -105,6 +106,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     }
     @Autowired private IVentaRepository iVentaRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
+    @Autowired private IGrupoPedidoMiembroRepository iGrupoPedidoMiembroRepository;
     @Autowired private com.ventas.key.mis.productos.service.api.IAbonoService iAbonoService;
     @Autowired private EmailService emailService;
     @Autowired private RestockNotificacionService restockNotificacionService;
@@ -916,6 +918,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
         if (tipoNuevo.equals(pedido.getTipoPedido())) {
             throw new RuntimeException("El pedido " + pedidoId + " ya es de tipo " + tipoNuevo);
+        }
+        // Un grupo exige que todos sus pedidos tengan la misma forma de cobro (grupopedido R9).
+        if (iGrupoPedidoMiembroRepository.estaEnGrupoActivo(pedidoId)) {
+            throw new RuntimeException("El pedido " + pedidoId + " esta unido con otros pedidos: "
+                    + "deshaz el grupo antes de cambiar su forma de cobro");
         }
 
         String tipoOriginal = pedido.getTipoPedido();

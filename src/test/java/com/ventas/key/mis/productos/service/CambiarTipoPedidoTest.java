@@ -13,6 +13,7 @@ import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
+import com.ventas.key.mis.productos.repository.IGrupoPedidoMiembroRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IPromocionRepository;
@@ -60,6 +61,7 @@ class CambiarTipoPedidoTest {
     private IPedidoRepository pedidoRepo;
     private IAbonoService abonoService;
     private IVentaRepository ventaRepo;
+    private IGrupoPedidoMiembroRepository grupoMiembroRepo;
     private PedidoServiceImpl service;
 
     private static final int PEDIDO_ID = 501;
@@ -68,6 +70,7 @@ class CambiarTipoPedidoTest {
     void setUp() {
         pedidoRepo = mock(IPedidoRepository.class);
         abonoService = mock(IAbonoService.class);
+        grupoMiembroRepo = mock(IGrupoPedidoMiembroRepository.class);
 
         PedidoServiceImpl real = new PedidoServiceImpl(
                 pedidoRepo,
@@ -90,6 +93,7 @@ class CambiarTipoPedidoTest {
 
         ReflectionTestUtils.setField(real, "iAbonoService", abonoService);
         ReflectionTestUtils.setField(real, "cacheService", mock(CacheService.class));
+        ReflectionTestUtils.setField(real, "iGrupoPedidoMiembroRepository", grupoMiembroRepo);
         ventaRepo = mock(IVentaRepository.class);
         ReflectionTestUtils.setField(real, "iVentaRepository", ventaRepo);
 
@@ -180,6 +184,17 @@ class CambiarTipoPedidoTest {
 
         assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cambioA("NORMAL")))
                 .hasMessageContaining("ya se entrego");
+    }
+
+    @Test
+    @DisplayName("un pedido unido con otros no cambia de forma de cobro hasta deshacer el grupo")
+    void pedidoEnGrupoNoCambia() {
+        pedido("FIADO", 1000, 200);
+        when(grupoMiembroRepo.estaEnGrupoActivo(PEDIDO_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO")))
+                .hasMessageContaining("deshaz el grupo");
+        verify(abonoService, never()).registrarAbono(anyInt(), any());
     }
 
     @Test

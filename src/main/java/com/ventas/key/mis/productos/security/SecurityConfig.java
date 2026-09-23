@@ -369,6 +369,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
+                        // Unir pedidos (dominio hexagonal grupopedido). Abonar al grupo usa la
+                        // misma accion que abonar a un pedido suelto; consultar lo puede quien
+                        // tenga cualquiera de las dos, para que quien cobra vea el grupo.
+                        .requestMatchers(HttpMethod.POST, "/v1/grupos-pedido/*/abonos")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "abonar"))
+                        .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/**")
+                                .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "unir-pedidos"),
+                                        accion("pedidos/mis-pedidos", "abonar")))
+                        .requestMatchers("/v1/grupos-pedido/**")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "unir-pedidos"))
+
                         // "Entregas por zona" (2026-09-04, permisos finos agregados 2026-09-05):
                         // el cliente en el checkout solo elige la zona, nunca ve ni toca esto. Ver
                         // pendientes (View) vs programar/avisar por correo (Escritura) -- ver
