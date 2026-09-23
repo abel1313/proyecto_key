@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class VarianteResumenDto {
     private Integer id;
+    /** El boton 💲 de la card cambia el precio del producto, no del articulo: sin esto no aparece. */
+    private Integer productoId;
     private String talla;
     private String descripcion;
     private String color;
