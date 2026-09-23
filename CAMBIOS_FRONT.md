@@ -20506,6 +20506,26 @@ POST /v1/rifas/{rifaId}/boletos-agrupados/participaciones?plataforma=FACEBOOK&ur
 No se manda `concursanteId` ni el nombre: salen del grupo. Es el botón "+" adentro del renglón
 colapsado.
 
+### 3b. Editar un boleto (nuevo 2026-09-23, hotfix)
+
+```
+PUT /v1/rifas/{rifaId}/boletos-agrupados/participaciones/{boletoId}
+```
+
+```jsonc
+{ "urlParticipacion": "facebook.com/post/1", "motivo": "comentó", "modo": "UNICA" }
+```
+
+Cambia la URL de la publicación y/o lo que hizo. No cambia cuántos boletos tiene la persona.
+Devuelve el grupo actualizado (mismo shape que un elemento de `data` del GET).
+
+- El duplicado solo se revisa **si cambió la publicación**: corregir el "qué hizo" de un boleto
+  que se repite no da 409.
+- Si la publicación nueva ya la tiene ese perfil y va con `UNICA` → **409**; se reenvía con
+  `REPETIDA_PERMITIDA`, igual que al agregar.
+- 400 si la URL viene vacía · 404 si el boleto no es de esa rifa.
+- Permiso: el mismo de agregar (`agregar-participacion`). No requiere migración.
+
 ### 4. Quitar una participación
 
 ```
@@ -20522,11 +20542,32 @@ Cada participación lleva **una sola URL**, y `modo` dice cómo se valida:
 
 | `modo` | Qué hace el back |
 |---|---|
-| `"UNICA"` (default si no se manda) | Rechaza la URL con **409** si ya existe en esa rifa |
+| `"UNICA"` (default si no se manda) | Rechaza la URL con **409** si **ese mismo perfil** (misma red + mismo link del cliente) ya la tiene en esa rifa |
 | `"REPETIDA_PERMITIDA"` | La acepta aunque ya exista |
 
 **Se manda una o la otra, nunca las dos.** Una participación es un boleto; mandar las dos no lo
 convierte en dos.
+
+#### 🐛 Corregido 2026-09-23 (hotfix en prod) — el GET devolvía los grupos en `lista`, no en `data`
+
+- **Antes:** `GET /v1/rifas/{rifaId}/boletos-agrupados` respondía `{ "data": null, "lista": [...] }`
+  (el constructor de `ResponseGeneric` con una lista llena `lista`). El front lee `data`, así que
+  "Boletos por participación" salía siempre en "Todavía no hay boletos" aunque hubiera.
+- **Después:** `{ "data": [...], "lista": null }`, como dice este documento.
+- Los boletos cargados con la pantalla vieja no tenían `urlSeguimiento`; ahora
+  `urlParticipacion` trae el primer link de `urlsCompartido` para que no salgan "sin link".
+
+#### 🐛 Corregido 2026-09-23 (hotfix en prod) — qué cuenta como duplicado
+
+- **Antes:** el 409 buscaba la URL de la publicación en **toda la rifa**. En un sorteo por
+  publicación todos los participantes pegan la misma URL, así que el segundo participante se
+  rechazaba como "ya está cargada".
+- **Después:** duplicado es **red + perfil del cliente + URL de la publicación**. Otro
+  participante con la misma publicación entra sin 409. El mismo perfil con la misma publicación
+  sigue dando 409: es el caso "compartió y además comentó", que se carga con
+  `REPETIDA_PERMITIDA`.
+- El mensaje del 409 cambió: ahora dice de quién es y sugiere cargarla como que se repite. Sin
+  cambio de request ni de response.
 
 **Flujo sugerido en pantalla:** el campo de URL se manda siempre como `UNICA`. Si vuelve **409**,
 mostrás el mensaje del back (que dice de quién es la URL que ya estaba) con dos botones:
@@ -20537,7 +20578,7 @@ mostrás el mensaje del back (que dice de quién es la URL que ya estaba) con do
 
 | Status | Cuándo | Qué hacer |
 |---|---|---|
-| **409** | URL repetida en modo `UNICA` | Ofrecer "cargarla igual" → reenviar con `REPETIDA_PERMITIDA` |
+| **409** | Ese mismo perfil ya tiene esa publicación, en modo `UNICA` | Preguntar si es otra participación en la misma publicación → reenviar con `REPETIDA_PERMITIDA` |
 | **400** | Perfil sin ninguna URL de participación | Mostrar el mensaje: falta al menos una URL |
 | **404** | El grupo (plataforma + perfil) no existe en esa rifa | Refrescar el listado |
 | **403** | Falta el permiso | La migración no corrió, o hay que volver a entrar |

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,7 +53,10 @@ public class BoletoAgrupadoController {
         List<GrupoBoletosResponse> grupos = gestionarBoletos.verAgrupados(rifaId).stream()
                 .map(GrupoBoletosResponse::de)
                 .toList();
-        return ResponseEntity.ok(new ResponseGeneric<>(grupos));
+        // El tipo explicito importa: con new ResponseGeneric<>(lista) Java elige el constructor
+        // de `lista` y deja `data` en null. El front lee `data`, y la pantalla salia vacia
+        // aunque la rifa tuviera boletos.
+        return ResponseEntity.ok(new ResponseGeneric<List<GrupoBoletosResponse>>(grupos));
     }
 
     /**
@@ -81,6 +85,21 @@ public class BoletoAgrupadoController {
             @RequestParam String urlPerfil,
             @RequestBody CargarBoletosRequest.ParticipacionRequest request) {
         return ejecutar(() -> gestionarBoletos.agregarParticipacion(rifaId, plataforma, urlPerfil,
+                new GestionarBoletosCasoUso.NuevaParticipacion(
+                        request.getUrlParticipacion(),
+                        request.getMotivo(),
+                        ModoDeCarga.oPorDefecto(request.getModo()))));
+    }
+
+    /**
+     * Corrige la URL de la publicacion o lo que hizo, en un boleto ya cargado. No cambia
+     * cuantos boletos tiene la persona.
+     */
+    @PutMapping("/{rifaId}/boletos-agrupados/participaciones/{boletoId}")
+    public ResponseEntity<Object> editarParticipacion(@PathVariable Integer rifaId,
+                                                      @PathVariable Integer boletoId,
+                                                      @RequestBody CargarBoletosRequest.ParticipacionRequest request) {
+        return ejecutar(() -> gestionarBoletos.editarParticipacion(rifaId, boletoId,
                 new GestionarBoletosCasoUso.NuevaParticipacion(
                         request.getUrlParticipacion(),
                         request.getMotivo(),
