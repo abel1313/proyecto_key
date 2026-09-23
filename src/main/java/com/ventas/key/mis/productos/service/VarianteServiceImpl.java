@@ -904,6 +904,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private VarianteResumenDto buildBaseResumenDto(Variantes v) {
         VarianteResumenDto dto = new VarianteResumenDto();
         dto.setId(v.getId());
+        dto.setProductoId(Optional.ofNullable(v.getProducto()).map(Producto::getId).orElse(null));
         dto.setTalla(v.getTalla());
         dto.setDescripcion(v.getDescripcion());
         dto.setColor(v.getColor());
