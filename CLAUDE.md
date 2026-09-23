@@ -550,6 +550,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_accion_rifa_boletos_agrupados.sql` | ✅ corrida | ✅ corrida | 2026-09-22 |
 | `backfill_variantes_carga_rapida.sql` | ✅ corrida | ✅ corrida | 2026-09-22 (hotfix) |
 | `migration_accion_tienda_cambiar_precio.sql` | ⏳ pendiente | ⏳ pendiente | — |
+| `migration_grupo_pedido.sql` (rama `feature/unir-pedidos`) | ⏳ pendiente | ⏳ pendiente | — |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -709,7 +710,7 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 *Backups:* `producto_imagen_copy_bkp_20260811` · `variante_imagen_bkp_20260811`
 
 **Ventas y pedidos**
-`ventas` · `detalle_venta` · `detalle_venta_variantes` · `pedidos` · `detalle_pedidos` · `abono_pedido` · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
+`ventas` · `detalle_venta` · `detalle_venta_variantes` · `pedidos` · `detalle_pedidos` · `abono_pedido` · `grupo_pedido` (entidad `GrupoPedido`) · `grupo_pedido_miembro` (entidad `GrupoPedidoMiembro`) · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
 
 **Clientes**
 `clientes` · `clientes_sin_registro` · `direcciones`
