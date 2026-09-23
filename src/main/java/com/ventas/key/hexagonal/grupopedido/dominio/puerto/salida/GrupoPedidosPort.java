@@ -24,6 +24,8 @@ public interface GrupoPedidosPort {
     /** pedidoId -> grupo activo, solo para los que estan en uno. */
     Map<Integer, Integer> gruposActivosDe(Collection<Integer> pedidoIds);
 
+    void cambiarTitular(Integer grupoId, Integer pedidoTitularId);
+
     /** El grupo deja de estar activo. Los pedidos no se tocan. */
     void marcarDeshecho(Integer grupoId, Integer usuarioId);
 }

@@ -51,9 +51,8 @@ public final class UnionDePedidos {
 
         // R2
         for (PedidoDelGrupo pedido : encontrados) {
-            if (!pedido.estaAbierto()) {
-                throw new PedidoNoAgrupableException("El pedido #" + pedido.pedidoId() + " " + pedido.motivoDelCierre()
-                        + ": solo se unen pedidos abiertos");
+            if (!pedido.sePuedeUnir()) {
+                throw new PedidoNoAgrupableException("El pedido #" + pedido.pedidoId() + " " + pedido.motivoDelCierre());
             }
         }
 

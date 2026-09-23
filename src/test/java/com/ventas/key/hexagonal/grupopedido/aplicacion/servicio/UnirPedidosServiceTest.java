@@ -2,11 +2,15 @@ package com.ventas.key.hexagonal.grupopedido.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.PedidosDeDistintoTipoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoRegistrado;
+import com.ventas.key.hexagonal.grupopedido.dominio.modelo.Movimiento;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.GrupoPedidos;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.PedidoDelGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.RegistroGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonoPedidoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonosDelGrupoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.EstadoDePagoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.BitacoraPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.ConfirmarPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.GrupoPedidosPort;
@@ -44,6 +48,8 @@ class UnirPedidosServiceTest {
     private AbonoPedidoPort abonos;
     private BitacoraPedidoPort bitacora;
     private ConfirmarPedidoPort confirmar;
+    private AbonosDelGrupoPort abonosDelGrupo;
+    private EstadoDePagoPort estadoDePago;
     private UnirPedidosService service;
 
     private static final Integer USUARIO = 7;
@@ -55,7 +61,9 @@ class UnirPedidosServiceTest {
         abonos = mock(AbonoPedidoPort.class);
         bitacora = mock(BitacoraPedidoPort.class);
         confirmar = mock(ConfirmarPedidoPort.class);
-        service = new UnirPedidosService(pedidos, grupos, abonos, bitacora, confirmar);
+        abonosDelGrupo = mock(AbonosDelGrupoPort.class);
+        estadoDePago = mock(EstadoDePagoPort.class);
+        service = new UnirPedidosService(pedidos, grupos, abonos, bitacora, confirmar, abonosDelGrupo, estadoDePago);
     }
 
     private static PedidoDelGrupo fiado(int id, long total, long pagado, int dia) {
@@ -124,9 +132,9 @@ class UnirPedidosServiceTest {
     }
 
     @Test
-    @DisplayName("deshacer marca el grupo y no mueve dinero")
+    @DisplayName("deshacer sin dinero de por medio marca el grupo y no mueve nada")
     void deshacer() {
-        grupoGuardado(30, true, fiado(1, 10_000, 4_000, 1), fiado(2, 10_000, 0, 2));
+        grupoGuardado(30, true, fiado(1, 10_000, 0, 1), fiado(2, 10_000, 0, 2));
 
         service.deshacer(30, "cada quien paga lo suyo", USUARIO);
 
@@ -179,5 +187,72 @@ class UnirPedidosServiceTest {
 
         assertThatThrownBy(() -> service.cobrarDeContado(30, 5, USUARIO)).hasMessageContaining("a credito");
         verify(confirmar, never()).confirmarDeContado(any(), any());
+    }
+
+    private static AbonoRegistrado abono(int id, int pedidoId, long centavos, int dia) {
+        return new AbonoRegistrado(id, pedidoId, centavos, java.time.LocalDate.of(2026, 9, dia));
+    }
+
+    @Test
+    @DisplayName("con dinero dado, deshacer sin repartir no se deja: hay que separar diciendo cuanto se queda cada uno")
+    void deshacerConDinero() {
+        grupoGuardado(30, true, fiado(1, 10_000, 4_000, 1), fiado(2, 10_000, 0, 2));
+
+        assertThatThrownBy(() -> service.deshacer(30, null, USUARIO)).hasMessageContaining("cuanto se queda cada pedido");
+        verify(grupos, never()).marcarDeshecho(any(), any());
+    }
+
+    @Test
+    @DisplayName("separar todos: los $100 que estaban en el 1 se van completos al 3 y se ajusta el estado de cada uno")
+    void separarTodosMueveElDinero() {
+        grupoGuardado(30, true, fiado(1, 10_000, 10_000, 1), fiado(2, 10_000, 0, 2), fiado(3, 10_000, 0, 3));
+        when(abonosDelGrupo.abonosDe(List.of(1, 2, 3))).thenReturn(List.of(abono(50, 1, 10_000, 5)));
+
+        UnirPedidosCasoUso.ResultadoSeparacion r = service.separar(30, List.of(1, 2, 3),
+                Map.of(1, 0L, 2, 0L, 3, 10_000L), null, "cada quien lo suyo", USUARIO);
+
+        assertThat(r.grupoNuevo()).isNull();
+        verify(abonosDelGrupo).mover(new Movimiento(50, 1, 3, 10_000), "Reparto al separar el grupo #30");
+        verify(estadoDePago).ajustarAlosAbonos(1, USUARIO);
+        verify(estadoDePago).ajustarAlosAbonos(3, USUARIO);
+        verify(grupos).marcarDeshecho(30, USUARIO);
+        verify(grupos, never()).crear(any(), anyList(), any(), any());
+    }
+
+    @Test
+    @DisplayName("separar solo uno: se lleva lo que se diga y los otros siguen unidos con el titular elegido")
+    void separarUno() {
+        grupoGuardado(30, true, fiado(1, 10_000, 10_000, 1), fiado(2, 10_000, 0, 2), fiado(3, 10_000, 0, 3));
+        when(abonosDelGrupo.abonosDe(List.of(1, 2, 3))).thenReturn(List.of(abono(50, 1, 10_000, 5)));
+        when(grupos.crear(eq(3), eq(List.of(2, 3)), anyString(), eq(USUARIO))).thenReturn(31);
+
+        UnirPedidosCasoUso.ResultadoSeparacion r = service.separar(30, List.of(1), Map.of(1, 4_000L), 3, null, USUARIO);
+
+        assertThat(r.grupoNuevo()).isEqualTo(31);
+        // Los $60 que no se llevo el 1 se quedan en el grupo: llenan primero al 2, el mas viejo.
+        verify(abonosDelGrupo).mover(new Movimiento(50, 1, 2, 6_000), "Reparto al separar el grupo #30");
+        verify(grupos).crear(eq(3), eq(List.of(2, 3)), contains("Sigue del grupo #30"), eq(USUARIO));
+    }
+
+    @Test
+    @DisplayName("si el reparto no da exacto lo abonado no se separa nada")
+    void separarRepartoIncompleto() {
+        grupoGuardado(30, true, fiado(1, 10_000, 10_000, 1), fiado(2, 10_000, 0, 2));
+        when(abonosDelGrupo.abonosDe(List.of(1, 2))).thenReturn(List.of(abono(50, 1, 10_000, 5)));
+
+        assertThatThrownBy(() -> service.separar(30, List.of(1, 2), Map.of(1, 3_000L, 2, 3_000L), null, null, USUARIO))
+                .hasMessageContaining("tiene que ser exacto");
+        verify(abonosDelGrupo, never()).mover(any(), any());
+        verify(grupos, never()).marcarDeshecho(any(), any());
+    }
+
+    @Test
+    @DisplayName("cambiar quien recoge solo entre los pedidos del grupo")
+    void cambiarTitular() {
+        grupoGuardado(30, true, fiado(1, 10_000, 0, 1), fiado(2, 10_000, 0, 2));
+
+        service.cambiarTitular(30, 2, USUARIO);
+        verify(grupos).cambiarTitular(30, 2);
+        assertThatThrownBy(() -> service.cambiarTitular(30, 9, USUARIO)).hasMessageContaining("pedidos del grupo");
     }
 }

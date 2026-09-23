@@ -49,13 +49,28 @@ class UnionDePedidosTest {
     }
 
     @Test
-    @DisplayName("un pedido entregado, pagado o cancelado no se une")
+    @DisplayName("un pedido cobrado de contado o cancelado no se une")
     void cerrados() {
-        for (String estado : List.of("Entregado", "PAGADO", "cancelado")) {
+        for (String estado : List.of("Entregado", "cancelado")) {
             List<PedidoDelGrupo> p = List.of(pedido(1, "FIADO", "FIADO"), pedido(2, "FIADO", estado));
             assertThatThrownBy(() -> UnionDePedidos.validar(List.of(1, 2), p, 1, Map.of()))
                     .isInstanceOf(PedidoNoAgrupableException.class).hasMessageContaining("#2");
         }
+    }
+
+    @Test
+    @DisplayName("un pedido a credito ya pagado si se une: su dinero pasa a ser del grupo")
+    void creditoPagadoSeUne() {
+        List<PedidoDelGrupo> p = List.of(pedido(1, "FIADO", "FIADO"), pedido(2, "FIADO", "PAGADO"));
+        assertThatCode(() -> UnionDePedidos.validar(List.of(1, 2), p, 1, Map.of())).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("al contado ya cobrado se le dice que primero lo pase a credito")
+    void contadoCobradoSeExplica() {
+        List<PedidoDelGrupo> p = List.of(pedido(1, "NORMAL", "Pendiente"), pedido(2, "NORMAL", "Entregado"));
+        assertThatThrownBy(() -> UnionDePedidos.validar(List.of(1, 2), p, 1, Map.of()))
+                .hasMessageContaining("Cambiar forma de cobro");
     }
 
     @Test

@@ -37,7 +37,8 @@ public class GrupoPedidosJpaAdapter implements GrupoPedidosPort {
         grupo.setActivo(Boolean.TRUE);
         grupo.setFechaCreacion(LocalDateTime.now());
         grupo.setUsuarioCreoId(usuarioId);
-        grupo.setNota(nota);
+        // grupo_pedido.nota es VARCHAR(200)
+        grupo.setNota(nota != null && nota.length() > 200 ? nota.substring(0, 200) : nota);
         for (Integer pedidoId : pedidoIds) {
             GrupoPedidoMiembro miembro = new GrupoPedidoMiembro();
             miembro.setGrupo(grupo);
@@ -73,6 +74,14 @@ public class GrupoPedidosJpaAdapter implements GrupoPedidosPort {
             resultado.put((Integer) fila[0], (Integer) fila[1]);
         }
         return resultado;
+    }
+
+    @Override
+    public void cambiarTitular(Integer grupoId, Integer pedidoTitularId) {
+        GrupoPedido grupo = grupoRepository.findById(grupoId)
+                .orElseThrow(() -> new IllegalStateException("Grupo no encontrado: " + grupoId));
+        grupo.setPedidoTitular(pedidoRepository.getReferenceById(pedidoTitularId));
+        grupoRepository.save(grupo);
     }
 
     @Override

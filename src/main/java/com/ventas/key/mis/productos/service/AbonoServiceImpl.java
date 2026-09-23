@@ -424,6 +424,39 @@ public class AbonoServiceImpl implements IAbonoService {
         return new TransferirAbonoResponse(savedPedido.getId(), totalNuevo, montoTransferido, saldoPendiente, estadoFinal, msg);
     }
 
+    @Override
+    @Transactional
+    public void ajustarEstadoALosAbonos(int pedidoId, Integer usuarioId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+        if (!TIPOS_CREDITO.contains(pedido.getTipoPedido()) || "cancelado".equals(pedido.getEstadoPedido())) {
+            return;
+        }
+        List<AbonoPedido> abonos = abonoRepository.findByPedidoIdOrderByFechaPagoAsc(pedidoId);
+        double pagado = abonos.stream().mapToDouble(AbonoPedido::getMonto).sum();
+        pedido.setTotalPagado(pagado);
+
+        boolean cubre = pagado >= pedido.getTotalPedido() - 0.005;
+        boolean estabaPagado = "PAGADO".equals(pedido.getEstadoPedido());
+        if (cubre && !estabaPagado) {
+            pedido.setEstadoPedido("PAGADO");
+            if ("APARTADO".equals(pedido.getTipoPedido())) {
+                pedido.setFechaRecogida(LocalDate.now());
+            }
+            String metodo = abonos.isEmpty() ? "EFECTIVO" : abonos.get(abonos.size() - 1).getMetodoPago();
+            crearVentaDesdePedido(pedido, metodo, usuarioId);
+            log.info("Pedido {} liquidado al repartir abonos", pedidoId);
+        } else if (!cubre && estabaPagado) {
+            // Mismo criterio que reabrir un contado: la venta se borra, no se marca; se vuelve a
+            // crear cuando los abonos liquiden el pedido (si no, ingresos contarian doble).
+            ventaRepository.findByPedidoId(pedidoId).ifPresent(ventaRepository::delete);
+            pedido.setEstadoPedido(pedido.getTipoPedido());
+            log.info("Pedido {} vuelve a {} al repartir abonos: pagado {} de {}", pedidoId,
+                    pedido.getTipoPedido(), pagado, pedido.getTotalPedido());
+        }
+        pedidoRepository.save(pedido);
+    }
+
     private void crearVentaDesdePedido(Pedido pedido, String metodoPago, Integer usuarioId) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado al crear venta: " + usuarioId));
