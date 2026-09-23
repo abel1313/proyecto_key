@@ -143,6 +143,10 @@ public class FacebookWebhookController {
                 for (Map<String, Object> evento : messaging) {
                     procesarMensajeDirectoInstagram(evento);
                 }
+            } else if (messaging != null) {
+                // Messenger de Facebook llega igual pero con object=page: hoy no hay bot para eso.
+                log.info("Webhook con {} mensaje(s) directo(s) de object={} -- solo se contestan los de Instagram",
+                        messaging.size(), object);
             }
         }
     }
@@ -194,7 +198,11 @@ public class FacebookWebhookController {
     @SuppressWarnings("unchecked")
     private void procesarMensajeDirectoInstagram(Map<String, Object> evento) {
         Map<String, Object> message = (Map<String, Object>) evento.get("message");
-        if (message == null) return;
+        if (message == null) {
+            // Leídos, reacciones y demás eventos del chat llegan por el mismo arreglo, sin "message".
+            log.info("DM de Instagram: evento sin mensaje ({}) -- se ignora", evento.keySet());
+            return;
+        }
 
         Map<String, Object> sender = (Map<String, Object>) evento.get("sender");
         Map<String, Object> recipient = (Map<String, Object>) evento.get("recipient");
@@ -203,6 +211,11 @@ public class FacebookWebhookController {
         String mid = stringDe(message.get("mid"));
         String texto = (String) message.get("text");
         boolean esEcho = Boolean.TRUE.equals(message.get("is_echo"));
+
+        // Sin esta linea no habia forma de saber si Meta entrego el DM: el bot guarda en BD solo
+        // cuando lo termina de procesar. No se loguea el texto, es conversacion del cliente.
+        log.info("DM de Instagram recibido: mid={} de={} para={} eco={} texto={}", mid, senderId, recipientId,
+                esEcho, texto == null ? "ninguno (foto, audio, sticker...)" : texto.length() + " caracteres");
 
         instagramDirectMessageBotService.procesarMensaje(mid, senderId, recipientId, texto, esEcho);
     }

@@ -48,11 +48,13 @@ public class InstagramDirectMessageBotService {
             return;
         }
         if (texto == null || texto.isBlank() || mid == null || senderId == null) {
+            log.info("Mensaje directo IG {} ignorado -- no trae texto que contestar", mid);
             return;
         }
         if (senderId.equals(igUserId)) {
             // Seguridad extra -- no deberia pasar sin esEcho=true, pero por si acaso nunca se
             // auto-contesta a si misma.
+            log.info("Mensaje directo IG {} ignorado -- lo mando la propia cuenta del negocio", mid);
             return;
         }
 
