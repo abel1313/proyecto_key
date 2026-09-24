@@ -1063,6 +1063,22 @@ el mismo hilo.
 
 ✅ 2026-09-24: el dueño subió el **video de comentarios de Facebook** en `pages_read_user_content` (nombre del archivo: pendiente de anotar).
 
+### 2026-09-24 — `pages_manage_posts`: no va en esta revisión
+
+Apareció en la solicitud con todo ✅ menos el video. **No lleva video: hay que quitarlo de la
+solicitud.** El bot no lo usa; lo usa `PublicacionSocialService`, que publica fotos, videos y reels en
+la página desde el panel admin (`/{page-id}/photos`, `/videos`, `/video_reels`). Eso lo hace el propio
+dueño, que tiene rol en la app y en la página, así que el **acceso estándar alcanza** (3.5): el
+acceso avanzado solo hace falta para datos de gente sin rol. Pedirlo de más es de los rechazos más
+comunes y puede tumbar toda la solicitud.
+
+- Cómo quitarlo: en la lista de permisos de la solicitud, el botón de quitar/eliminar junto a
+  `pages_manage_posts` **[Sin confirmar dónde está exactamente]**.
+- Si Meta no deja quitarlo (por venir amarrado a un caso de uso), plan B: grabar el panel admin
+  publicando una foto en la página y que se vea la publicación en Facebook, con una descripción que
+  diga que solo el dueño publica en su propia página.
+- Mismo caso para `instagram_content_publish` si aparece.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
