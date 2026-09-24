@@ -1270,6 +1270,11 @@ Messenger from Meta"*. Es normal (el mismo permiso vive en los dos casos de uso)
 `pages_read_engagement`, `public_profile`, `instagram_basic`. No falta ninguno; solo sobra
 `business_management`.
 
+✅ **Lista final (2026-09-24):** `business_management` quitado. Quedan **10**: `instagram_manage_messages`,
+`pages_messaging`, `pages_manage_metadata`, `instagram_manage_comments`, `pages_read_user_content`,
+`pages_show_list`, `pages_manage_engagement`, `pages_read_engagement`, `public_profile`,
+`instagram_basic`. Esta es la lista correcta para el bot; para otra cuenta, pedir exactamente estos.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
