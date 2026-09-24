@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Mismo patron que InstagramCommentBotService, aplicado a mensajes directos (DM) en vez de
 // comentarios publicos -- mismo "cerebro" (ChatbotInstagramService, mismo canal que los
@@ -38,6 +40,11 @@ public class InstagramDirectMessageBotService {
 
     @Value("${chat.admin-email:}")
     private String adminEmail;
+
+    // Clientes a los que el bot les está contestando ahorita. El eco de la respuesta puede llegar
+    // antes de guardar respuestaMid, y sin esto se confundía con un admin y pausaba al cliente.
+    // Vive en memoria: alcanza con un solo pod.
+    private final Set<String> respuestasEnCurso = ConcurrentHashMap.newKeySet();
 
     public void procesarMensaje(String mid, String senderId, String recipientId, String texto, boolean esEcho) {
         if (esEcho) {
@@ -111,15 +118,19 @@ public class InstagramDirectMessageBotService {
         }
 
         String respuestaMid = null;
+        respuestasEnCurso.add(senderId);
         try {
-            respuestaMid = instagramGraphClient.enviarMensajeDirecto(senderId, respuestaLimpia);
-            log.info("Mensaje directo IG {} respondido por el bot (primeraVez={})", mid, esPrimeraVez);
-        } catch (Exception e) {
-            log.warn("No se pudo responder el mensaje directo IG {}: {}", mid, e.getMessage());
-            respuestaLimpia = null;
+            try {
+                respuestaMid = instagramGraphClient.enviarMensajeDirecto(senderId, respuestaLimpia);
+                log.info("Mensaje directo IG {} respondido por el bot (primeraVez={})", mid, esPrimeraVez);
+            } catch (Exception e) {
+                log.warn("No se pudo responder el mensaje directo IG {}: {}", mid, e.getMessage());
+                respuestaLimpia = null;
+            }
+            guardarRegistro(mid, senderId, texto, respuestaLimpia, respuestaMid);
+        } finally {
+            respuestasEnCurso.remove(senderId);
         }
-
-        guardarRegistro(mid, senderId, texto, respuestaLimpia, respuestaMid);
     }
 
     private void detectarRespuestaManualYPausar(String mid, String clienteId) {
@@ -128,6 +139,10 @@ public class InstagramDirectMessageBotService {
         }
         if (mensajeDirectoSocialRepository.existsByRespuestaMid(mid)) {
             // Es el eco de nuestra propia respuesta (bot), no una intervencion manual.
+            return;
+        }
+        if (respuestasEnCurso.contains(clienteId)) {
+            log.info("Eco {} de una respuesta del bot a {} que aún no se guarda -- no se pausa", mid, clienteId);
             return;
         }
         if (!mensajePausaRepository.existsByAutorId(clienteId)) {
