@@ -1202,6 +1202,40 @@ personaliza los casos de uso"* → quitar de la revisión y quitar de la app son
   revisión**. Hacerlo desde el caso de uso de Instagram, no desde el de Messenger (mezclar productos es
   motivo de rechazo, 3.6).
 
+**Pantalla "Casos de uso"** — URL de esta app:
+`https://developers.facebook.com/apps/1017171384561253/use_cases/?business_id=636203476989310`
+(app `1017171384561253`, portafolio comercial `636203476989310`). Ahí están los casos de uso que ya
+tiene la app, cada uno con **Personalizar** (adentro: la lista de permisos, captura 16), y arriba a la
+derecha el botón **"Agregar casos de uso"**.
+
+**Capturas 40, 41 y 42 — ventana "Agrega más casos de uso"** (se abre con "Agregar casos de uso"). Sirve
+solo para agregar casos de uso **nuevos**; **no es donde se agregan permisos a la revisión**. Si se abre
+por error: cerrar con la X sin marcar nada. Aviso de Meta: *"no todos los casos de uso se pueden
+agregar a la misma app. Crea una app nueva si los casos de uso que quieres agregar no están
+disponibles"*. Filtros: Destacados (4) · **Todo (13)** · Anuncios y monetización (7) · Administración
+de contenido (4) · Mensajes comerciales (1) · Otros (1). Los 13 que ofrece (ninguno hace falta para el
+bot):
+
+1. Crear y administrar anuncios con la API de marketing
+2. Medir datos de rendimiento de los anuncios con la API de marketing
+3. Captar y administrar clientes potenciales de anuncios con la API de marketing
+4. Crear y administrar anuncios sobre apps con el administrador de anuncios de Meta
+5. Acceder a la API de Threads
+6. Crear y administrar anuncios con el servidor MCP para anuncios
+7. Anúnciate en tu app con Meta Audience Network
+8. Administrar productos con la API de catálogos
+9. Comparte o crea recaudaciones de fondos en Facebook e Instagram
+10. Accede a la API de video en vivo
+11. Insertar contenido de Facebook, Instagram y Threads en otros sitios web (oEmbed)
+12. Conectarte con los clientes a través de WhatsApp (requiere portafolio comercial; ver 3.13)
+13. Haz un seguimiento de la interacción con la herramienta de eventos de la app de Meta
+
+En la captura 14 (madrugada) eran 14 e incluía **"Interactuar con los clientes en Messenger from
+Meta"**; ya no sale porque se agregó a la app ese mismo día (ver "Messenger: permiso, token nuevo").
+Para una cuenta nueva, los casos de uso que necesita el bot son: **Administrar todos los aspectos de
+tu página**, **Administrar mensajes y contenido en Instagram** e **Interactuar con los clientes en
+Messenger from Meta**.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
