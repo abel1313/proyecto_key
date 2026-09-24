@@ -1264,6 +1264,12 @@ this app — Este privilegio se encuentra en uno o varios casos de uso más en e
 también se solicitará en los casos de uso que figuran a continuación: Interactuar con los clientes en
 Messenger from Meta"*. Es normal (el mismo permiso vive en los dos casos de uso): botón **Request**.
 
+✅ **Resultado:** la solicitud ahora tiene 11: `business_management` (❌ falta quitarlo),
+**`instagram_manage_messages`** (✅ agregado), `pages_messaging`, `pages_manage_metadata`,
+`instagram_manage_comments`, `pages_read_user_content`, `pages_show_list`, `pages_manage_engagement`,
+`pages_read_engagement`, `public_profile`, `instagram_basic`. No falta ninguno; solo sobra
+`business_management`.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
