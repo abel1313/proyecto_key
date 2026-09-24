@@ -409,7 +409,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | `pages_read_user_content` | "Leer el contenido de la página generado por los usuarios, como las publicaciones, los comentarios o las calificaciones… y eliminar los comentarios de los usuarios en las publicaciones de la página… El uso autorizado es leer el contenido de los usuarios y de otras páginas que se haya publicado en la página, siempre que sea necesario para administrarla" **[Formulario]**. Requiere `pages_show_list` **[Formulario]** | Recibe el comentario del cliente (webhook `feed`) y le contesta con `POST /{comment-id}/comments`. La llamada de prueba ya sale Completado, o sea que Meta registró que la usamos | Leer solo comentarios de clientes en **nuestra** página, para contestarlos · no borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_metadata` | "Suscribirse y recibir webhooks sobre actividades en la página, y actualizar los ajustes de esta… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` en la misma solicitud **[Formulario]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
 | `pages_show_list` | "Acceder a la lista de páginas que administra una persona… mostrarle la lista de páginas que administra y verificar que una persona administra una página" **[Formulario]** | Sacar el token de la página | — |
-| `instagram_basic` | Leer el perfil y las publicaciones de la cuenta de Instagram **[Proveedor]** | Ligar la publicación con el producto | — |
+| `instagram_basic` | "Leer la información y el contenido multimedia del perfil de una cuenta de Instagram. El uso permitido es obtener metadatos básicos del perfil de una cuenta de empresa de Instagram, por ejemplo, un nombre de usuario o un identificador" **[Formulario]** | Ligar la publicación con el producto | — |
 
 **Reglas que aplican a todos** (texto del formulario y Condiciones de la plataforma): usar los datos
 **solo** para lo que se describió (atención a clientes); estadísticas solo "con información agrupada y
@@ -1324,6 +1324,23 @@ Our app is used only by our own small business, Novedades Jade, a store in Mexic
 When a customer comments on one of our posts, the webhook tells us which of our Page's posts the comment belongs to. Our app matches that post with the product we published from our catalog, so the assistant can answer with that product's price and availability, and then replies in the same thread. When a customer writes to our Page on Messenger, we use the customer's page-scoped ID (PSID) only to reply to that conversation.
 
 We only read content from our own Page, we do not collect followers' data for any other purpose, and we do not use it for advertising. The screen recording shows a customer commenting on one of our posts and the assistant replying with information about that product.
+```
+
+### 2026-09-24 — `instagram_basic`
+
+Llamadas de prueba en **Completado**. Es la base de los otros permisos de Instagram: el código trabaja
+con el **identificador de la cuenta de Instagram** (`igUserId`) de @novedades_bolsas_jade, ligada a la
+página, y con el id de la publicación (`media.id`) que trae el webhook de comentarios para saber de qué
+producto se habla. **Video: `videoRedesInstaComentariosv2`** (comentarios de Instagram).
+
+Descripción:
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico, and only with our own Instagram professional account (@novedades_bolsas_jade), which is linked to our Facebook Page. We use instagram_basic to read the basic profile metadata of that account, such as its Instagram user ID and username, and the IDs of its own posts.
+
+Our automated customer service assistant needs this to work: the Instagram user ID identifies our account when we reply to comments and Direct Messages, and when a customer comments on one of our posts, the post ID tells us which product from our catalog the customer is asking about, so the assistant can answer with that product's price and availability.
+
+We only read our own account's basic information and content. We do not read other people's profiles and we do not use this data for any other purpose. The screen recording shows a customer commenting on one of our Instagram posts and the assistant replying with information about that product.
 ```
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
