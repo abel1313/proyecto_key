@@ -685,6 +685,14 @@ Compila en producción; probado con navegador: sale el logo arriba a la izquierd
 app → **Return to Draft** → Basic information → App icon → subir `icono-tiktok-1024.png`; (3) revisar
 en la tienda que la pestaña y la barra muestren el mismo logo; (4) reenviar a revisión.
 
+**¿El ícono solo importa para que aprueben? (pregunta del dueño, investigado 2026-09-24) — No, es
+permanente.** Las guías de TikTok piden que el ícono sea "consistent with the app name or brand", y una vez
+aprobada la app, **"any subsequent changes must be submitted for review and approved"** **[Oficial, por
+buscador: App Review Guidelines / App Review FAQ]**. O sea: si mañana se cambia el logo de la tienda, hay
+que cambiar también el ícono en TikTok (y eso manda la app a revisión); si no, el sitio y la app dejan de
+coincidir y la siguiente revisión la rechaza. Meta también revisa el ícono de la app. Regla anotada en el
+`CLAUDE.md` del front y en el del back.
+
 ---
 
 ## 5. Lo que tienes que juntar

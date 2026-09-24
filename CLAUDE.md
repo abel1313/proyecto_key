@@ -325,6 +325,18 @@ general (solo cuando el dueño lo pide).
 
 ---
 
+## Regla — el logo de la tienda es el ícono de las apps de TikTok y Meta (2026-09-24)
+
+TikTok rechazó la app de desarrollador porque el ícono no coincidía con el del sitio y el favicon. Desde
+el 2026-09-24, el favicon, el logo de la barra lateral de la tienda y el ícono de la app de TikTok salen
+del **mismo archivo** (`producto_venta_online/src/assets/imagenes/logo_fondo.png`). **Si el dueño pide
+cambiar el logo o el favicon:** regenerar todos los archivos (tabla en el `CLAUDE.md` del front) **y
+avisarle que tiene que cambiar el ícono en TikTok** (y el de la app de Meta): cambiarlo en una app ya
+aprobada la manda otra vez a revisión, y si no se cambia, la siguiente revisión la rechaza. Detalle en
+`ALTA_NEGOCIO_META_TIKTOK.md`, 4.11.
+
+---
+
 ## JWT — Configuración y problema conocido resuelto
 
 **Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**
