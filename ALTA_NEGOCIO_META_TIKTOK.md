@@ -662,6 +662,29 @@ novedadesJade"*, botones **Apply changes** / **Delete Sandbox**:
 - Scopes: `user.info.basic`, `video.upload`.
 - **Target users:** `novedadesjade8` (agregado el 18-ago-2026). Hasta 10.
 
+**Motivo del rechazo ("See why", 2026-09-24):** *"Update the following fields and resubmit changes to your
+app: App icon. Note from reviewer: The app icon submitted in the Basic Info does not match the icon
+displayed on the website. Please ensure the same icon is used consistently across both the TikTok, the
+website and Browser tab (favicon), then resubmit for review."* Soporte:
+https://developers.tiktok.com/portal/support?category=support&enter_from_appId=7675270500029089812
+
+**Causa encontrada en el front (`producto_venta_online`):**
+- `src/favicon.ico` era el **favicon de ejemplo de Angular** (948 bytes): la pestaña mostraba el logo
+  de Angular.
+- La barra lateral (se ve en todas las pantallas, también sin sesión) mostraba el emoji 🛍️, no el logo.
+- El logo real ya existía sin usarse: `src/assets/imagenes/logo_fondo.png` (1254×1254, "JB Novedades
+  Bolsas Jade").
+
+**Arreglo (2026-09-24, en `dev` del front, sin commit todavía):** favicon `.ico` (16–64 px),
+`favicon-192.png` y `apple-touch-icon.png` generados del mismo `logo_fondo.png` y enlazados en
+`index.html`; logo en la barra lateral (`logo-sidebar.png`, 36 px, redondo) en lugar del emoji.
+Compila en producción; probado con navegador: sale el logo arriba a la izquierda y los 3 íconos cargan.
+Ícono para TikTok: `icono-tiktok-1024.png`, generado **del mismo archivo** (1024×1024, PNG).
+
+**Para reenviar:** (1) subir el arreglo del front a producción (`shop.novedades-jade.com.mx`); (2) en la
+app → **Return to Draft** → Basic information → App icon → subir `icono-tiktok-1024.png`; (3) revisar
+en la tienda que la pestaña y la barra muestren el mismo logo; (4) reenviar a revisión.
+
 ---
 
 ## 5. Lo que tienes que juntar
