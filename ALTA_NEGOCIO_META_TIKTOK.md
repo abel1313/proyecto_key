@@ -405,7 +405,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | `instagram_manage_messages` | "Permite que los usuarios comerciales lean y respondan mensajes de Instagram Direct. El uso autorizado es que los negocios recuperen conversaciones y mensajes de su bandeja de entrada de Instagram Direct, administren los mensajes que intercambian con sus clientes o utilicen herramientas CRM externas" **[Formulario]**. Requiere `instagram_basic` en la solicitud **[Formulario]** | Contesta los mensajes directos a @novedades_bolsas_jade | Las mismas de Messenger: misma política. La etiqueta `human_agent` (7 días) solo la puede usar una persona, **nunca el bot** |
 | `instagram_manage_comments` | "Crear, eliminar y ocultar comentarios en nombre de la cuenta de Instagram vinculada a una página… leer, actualizar y eliminar comentarios de cuentas de empresa de Instagram" **[Formulario]** | Contesta comentarios en las publicaciones propias | Solo comentarios de **nuestras** publicaciones · no ocultar ni borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_engagement` | "Crear, editar y eliminar comentarios publicados en la página… crear y eliminar los 'Me gusta' del contenido de tu propia página… con el objetivo de ayudar a administrar y moderar el contenido en la página" **[Formulario]**. Requiere `pages_show_list` y `pages_read_user_content` **[Formulario]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
-| `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
+| `pages_read_engagement` | "Leer contenido (publicaciones, fotos, videos y eventos) publicado por la página, leer datos de seguidores (nombre y PSID) y ver la foto del perfil, además de leer metadatos y otras estadísticas… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` **[Formulario]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
 | `pages_read_user_content` | "Leer el contenido de la página generado por los usuarios, como las publicaciones, los comentarios o las calificaciones… y eliminar los comentarios de los usuarios en las publicaciones de la página… El uso autorizado es leer el contenido de los usuarios y de otras páginas que se haya publicado en la página, siempre que sea necesario para administrarla" **[Formulario]**. Requiere `pages_show_list` **[Formulario]** | Recibe el comentario del cliente (webhook `feed`) y le contesta con `POST /{comment-id}/comments`. La llamada de prueba ya sale Completado, o sea que Meta registró que la usamos | Leer solo comentarios de clientes en **nuestra** página, para contestarlos · no borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_metadata` | "Suscribirse y recibir webhooks sobre actividades en la página, y actualizar los ajustes de esta… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` en la misma solicitud **[Formulario]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
 | `pages_show_list` | "Acceder a la lista de páginas que administra una persona… mostrarle la lista de páginas que administra y verificar que una persona administra una página" **[Formulario]** | Sacar el token de la página | — |
@@ -1307,6 +1307,24 @@ resultados en `FacebookWebhookController` ni en `botredes`): el bot no contesta 
 texto), pero el texto original **se queda guardado** en `mensaje_directo_social`. Si "View
 requirements" lo pide, hay que programar: al llegar `is_deleted`, borrar o vaciar el mensaje con ese
 `mid` en `mensaje_directo_social`. Pendiente de confirmar con lo que diga "View requirements".
+
+### 2026-09-24 — `pages_read_engagement`
+
+Llamadas de prueba en **Completado** (32 en la captura 16). El código no hace ningún `GET` a la página:
+se usa como dependencia de contestar en contenido de la página, y el bot liga el `post_id` del
+comentario con el producto que se publicó desde la app (`publicacion_social`, vía
+`ProductoDePublicacionJpaAdapter`). En Messenger, el PSID del cliente solo sirve para contestarle.
+**Video: el de comentarios de Facebook.**
+
+Descripción:
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico. We use pages_read_engagement together with pages_manage_engagement and pages_read_user_content so our automated customer service assistant can work with the posts published by our own Facebook Page (NovedadesJade).
+
+When a customer comments on one of our posts, the webhook tells us which of our Page's posts the comment belongs to. Our app matches that post with the product we published from our catalog, so the assistant can answer with that product's price and availability, and then replies in the same thread. When a customer writes to our Page on Messenger, we use the customer's page-scoped ID (PSID) only to reply to that conversation.
+
+We only read content from our own Page, we do not collect followers' data for any other purpose, and we do not use it for advertising. The screen recording shows a customer commenting on one of our posts and the assistant replying with information about that product.
+```
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
