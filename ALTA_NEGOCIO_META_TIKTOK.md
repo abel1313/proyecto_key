@@ -402,7 +402,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | Permiso | Qué permite (según Meta) | Qué hace nuestro bot con él | Reglas que prometemos cumplir |
 |---|---|---|---|
 | `pages_messaging` | "Administrar y acceder a conversaciones de la página en Messenger… crear experiencias interactivas iniciadas por el usuario, enviar mensajes de servicio de atención al cliente o confirmar reservas, compras y pedidos" **[Formulario]**. Depende de `pages_manage_metadata` y `pages_show_list` **[Proveedor]** | Contesta los mensajes que la gente le manda a la página NovedadesJade | Solo contestar a quien escribió primero, **dentro de 24 h** de su último mensaje (el código manda `messaging_type: RESPONSE` y contesta al momento) · decir al inicio que es un asistente automático (lo hace en el primer mensaje) · nada de publicidad fuera de las 24 h · pasar a una persona cuando el bot no puede (escala y se pausa 30 min) |
-| `instagram_manage_messages` | Mandar y recibir mensajes directos de la cuenta profesional de Instagram **[Proveedor]** | Contesta los mensajes directos a @novedades_bolsas_jade | Las mismas de Messenger: misma política. La etiqueta `human_agent` (7 días) solo la puede usar una persona, **nunca el bot** |
+| `instagram_manage_messages` | "Permite que los usuarios comerciales lean y respondan mensajes de Instagram Direct. El uso autorizado es que los negocios recuperen conversaciones y mensajes de su bandeja de entrada de Instagram Direct, administren los mensajes que intercambian con sus clientes o utilicen herramientas CRM externas" **[Formulario]**. Requiere `instagram_basic` en la solicitud **[Formulario]** | Contesta los mensajes directos a @novedades_bolsas_jade | Las mismas de Messenger: misma política. La etiqueta `human_agent` (7 días) solo la puede usar una persona, **nunca el bot** |
 | `instagram_manage_comments` | "Crear, eliminar y ocultar comentarios en nombre de la cuenta de Instagram vinculada a una página… leer, actualizar y eliminar comentarios de cuentas de empresa de Instagram" **[Formulario]** | Contesta comentarios en las publicaciones propias | Solo comentarios de **nuestras** publicaciones · no ocultar ni borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_engagement` | "Crear, editar y eliminar comentarios publicados en la página… crear y eliminar los 'Me gusta' del contenido de tu propia página… con el objetivo de ayudar a administrar y moderar el contenido en la página" **[Formulario]**. Requiere `pages_show_list` y `pages_read_user_content` **[Formulario]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
 | `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
@@ -1274,6 +1274,30 @@ Messenger from Meta"*. Es normal (el mismo permiso vive en los dos casos de uso)
 `pages_messaging`, `pages_manage_metadata`, `instagram_manage_comments`, `pages_read_user_content`,
 `pages_show_list`, `pages_manage_engagement`, `pages_read_engagement`, `public_profile`,
 `instagram_basic`. Esta es la lista correcta para el bot; para otra cuenta, pedir exactamente estos.
+
+### 2026-09-24 — `instagram_manage_messages`: cómo llenar cada campo
+
+No pide llamadas de prueba ni página. Requisito: `instagram_basic` en la solicitud (ya está). Arriba
+trae dos avisos con enlace **"View requirements"**: uno si se usa para cuentas de **otros** negocios y
+otro para la cuenta **propia**. El nuestro es el de la cuenta **propia**: abrir su "View requirements"
+y anotar aquí qué pide.
+
+1. **Descripción:**
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico, and only with our own Instagram professional account (@novedades_bolsas_jade), which is linked to our Facebook Page. We use instagram_manage_messages so an automated customer service assistant can answer customers who send a Direct Message to our account.
+
+When a customer writes to us, our server receives the Instagram "messages" webhook and replies through our Page with the messaging API, only in reply to a conversation the customer started and within the 24-hour messaging window. The first reply says it is the automated assistant of Novedades Jade. The assistant answers questions about our products, prices and availability using our own catalog. If it cannot answer, or the customer sends a photo, audio or sticker, it replies that a person will attend them shortly and notifies our team, and a person continues the conversation from the Instagram inbox. When someone from our team replies manually, the assistant stops replying to that customer for 30 minutes.
+
+We never send promotional or unsolicited messages, we do not use the human_agent tag for automated replies, and we use these conversations only to provide customer service. Without this permission the assistant cannot reply to Instagram Direct messages, and customers who write outside business hours would wait hours for an answer.
+
+The screen recording shows a customer sending a Direct Message to @novedades_bolsas_jade and the assistant's reply.
+```
+
+2. **Video:** el de **mensajes directos de Instagram** (no el de Messenger). Debe verse la cuenta del
+   cliente escribiéndole a @novedades_bolsas_jade y la respuesta "Soy el asistente automático de
+   Novedades Jade". Subirlo en Safari.
+3. **Casilla** de uso permitido → **Guardar**.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
