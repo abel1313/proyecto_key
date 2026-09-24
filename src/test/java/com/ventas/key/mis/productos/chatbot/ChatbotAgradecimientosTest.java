@@ -32,4 +32,12 @@ class ChatbotAgradecimientosTest {
         assertThat(instrucciones).contains("PRIMER comentario");
         assertThat(instrucciones).contains("##ESCALAR##");
     }
+
+    @Test
+    void soloElPrimerMensajeDiceQueEsUnBot() {
+        for (ChatbotBase canal : new ChatbotBase[]{facebook, instagram}) {
+            assertThat(canal.instruccionesRedSocial(null, true)).contains("asistente automático de Novedades Jade");
+            assertThat(canal.instruccionesRedSocial(null, false)).doesNotContain("asistente automático");
+        }
+    }
 }

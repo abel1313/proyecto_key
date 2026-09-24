@@ -137,7 +137,7 @@ facebook:
   page-access-token: ${FACEBOOK_PAGE_ACCESS_TOKEN:}
   app-secret: ${FACEBOOK_APP_SECRET:}
   webhook-verify-token: ${FACEBOOK_WEBHOOK_VERIFY_TOKEN:}
-  api-version: v21.0
+  api-version: v25.0
 
 instagram:
   account-id: ${INSTAGRAM_ACCOUNT_ID:}

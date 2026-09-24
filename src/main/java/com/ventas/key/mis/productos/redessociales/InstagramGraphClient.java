@@ -41,7 +41,7 @@ public class InstagramGraphClient {
     @Value("${facebook.page-access-token:}")
     private String pageAccessToken;
 
-    @Value("${facebook.api-version:v21.0}")
+    @Value("${facebook.api-version:v25.0}")
     private String apiVersion;
 
     private WebClient webClient;

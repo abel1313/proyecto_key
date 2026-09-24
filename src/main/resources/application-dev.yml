@@ -112,7 +112,7 @@ chat:
 facebook:
   page-id: asdasd
   page-access-token: asdasd
-  api-version: v21.0
+  api-version: v25.0
 
 whatsapp:
   # Proveedor activo: callmebot | twilio | ninguno
