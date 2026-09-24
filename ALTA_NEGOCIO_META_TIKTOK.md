@@ -557,6 +557,60 @@ Esto no es de mensajes, pero es el mismo pendiente de TikTok:
 | La respuesta automática nativa no se activa | Sigue en revisión (1–5 días) o "Todos" apagado | Esperar o revisar la privacidad |
 | "No se pudo verificar" el negocio | Nombre legal o número de documento distinto, o documento ilegible | Copiar exacto de la CSF o el acta |
 
+### 4.10 Investigación a fondo (2026-09-24) — ruta paso a paso, igual que con Meta
+
+⚠️ `business-api.tiktok.com` y `developers.facebook.com` están **bloqueados desde el servidor** donde
+se investigó: no se pudo leer la documentación completa. Lo marcado **[Oficial, por buscador]** es
+texto de las páginas oficiales tal como lo muestra el buscador. Al hacer cada paso, abrir la página
+oficial en **Safari o Chrome** y anotar aquí lo que cambie.
+
+**Qué ya hay y qué no** **[Código]**:
+- Hoy el proyecto solo tiene la parte de **publicar videos** (`TikTokGraphClient`, `TikTokToken`,
+  `developers.tiktok.com`, config `tiktok:` en los yml). Es **otro portal y otra app**; no sirve para
+  mensajes ni comentarios (4.1).
+- El bot (`hexagonal/botredes`) solo conoce `FACEBOOK` e `INSTAGRAM` (`RedSocial`). Para TikTok hay que
+  agregar `TIKTOK`, un adaptador de respuesta (comentarios y mensajes), un webhook y el cliente OAuth
+  de Business. El servicio `AtenderInteraccionService` y las reglas (`PoliticaDeRespuesta`) se reusan.
+
+**Ruta, en orden:**
+
+| # | Paso | Dónde | Qué pide / trampa |
+|---|---|---|---|
+| 0 | Cuenta de TikTok de **empresa**, con "Recibir mensajes de **Todos**" y ligada a **TikTok for Business / Business Center** (acceso avanzado) | App de TikTok + Business Center | 4.3 |
+| 1 | **Registrarse como desarrollador** | business-api.tiktok.com → Register as a developer | Correo **del dominio** (`@novedades-jade.com.mx`); sitio web del **mismo dominio**, que muestre el negocio sin iniciar sesión. En "cómo usarás los datos", ser **muy descriptivo** o rechazan el perfil **[Oficial, por buscador]** |
+| 2 | **Verificación del negocio** | Portal de desarrolladores | Documento de la autoridad fiscal del país: la **Constancia de Situación Fiscal** (mismo problema que en Meta: que el nombre y el domicilio coincidan) **[Oficial, por buscador]** |
+| 3 | **Formulario "Accounts API Access Application Form"** | Portal, antes de crear la app | **Obligatorio desde el 20-mar-2026** para cualquier app nueva o ampliación de permisos que incluya **"TikTok Accounts"** (el de comentarios). Revisión **2–3 días hábiles** **[Oficial, por buscador]** |
+| 4 | **Crear la developer app** | My Apps → Create | Elegir solo los permisos que se van a usar (**TikTok Accounts**; mensajes aparte en el paso 5). URL de redirección del titular de la cuenta (hasta **10**) → la del backend que recibe el `auth_code` **[Oficial, por buscador]** |
+| 5 | **Pedir la Business Messaging API** | My Apps → App Detail → **Allowlist Management** → Apply → elegir la función, decir el impacto → Apply | Beta abierta en **LATAM**. Requiere pasar la **revisión de seguridad y privacidad de datos** ("Business Messaging API data security & privacy review") **[Oficial, por buscador]** |
+| 6 | **Autorizar la cuenta de la tienda** | App Detail → Basic Information → "TikTok account holder authorization URL" | Abrirla con la cuenta de la tienda → Authorize → redirige con `code` (**vale 10 minutos, un solo uso**) → `POST /tt_user/oauth2/token/` con `grant_type=authorization_code` **[Oficial, por buscador]** |
+| 7 | **Webhooks** | Por API, no en pantalla | Comentarios: suscribir la categoría **`COMMENT`** (no `comment.update`, que TikTok **rechaza**); llegan eventos `comment.update`. Requiere que la cuenta haya dado **`comment.list`**; si se revoca, **deja de llegar sin avisar**. Mensajes: "Create a TikTok Business Messaging Webhook configuration" **[Proveedor: ChatbotX]** **[Oficial, por buscador]** |
+| 8 | **Programar** (en su propia rama, ver CLAUDE.md: feature bloqueada por aprobación externa) | Backend | `RedSocial.TIKTOK`, cliente Business (OAuth `tt_user`, refresh del token), adaptador de respuesta: `POST /business/comment/reply/create/` y `POST /business/message/send/`, webhook con validación de firma, tablas de registro/pausa |
+| 9 | **Videos y revisión** | Portal | Un video por permiso, como en Meta; pedir de más = rechazo |
+
+**Permisos (scopes) de la cuenta autorizada:**
+- **`comment.list`** — leer comentarios de videos propios; requisito del webhook de comentarios.
+- **`comment.list.manage`** — escribir: responder comentarios **[Proveedor: ChatbotX, que tuvo que
+  pedir este y quitar `video.list`]**.
+- Mensajes: los nombres exactos de los scopes de Business Messaging **[Sin confirmar]** — leerlos en la
+  página oficial "Permission scope" / "Business Messaging API Authorization" y anotarlos aquí.
+
+**Reglas de los mensajes** (4.4, se mantienen): el cliente escribe primero; ventana de **48 h**; máximo
+**10 mensajes seguidos** sin respuesta del cliente.
+
+**Diferencias con Meta que hay que cuidar:**
+- En TikTok **el correo y la web del dominio son obligatorios desde el registro** (en Meta fueron solo
+  para confirmar la verificación). Ya se tienen.
+- En TikTok hay **dos revisiones antes de la app**: el formulario de Accounts API (paso 3) y la de
+  seguridad de datos para mensajes (paso 5).
+- El token de la cuenta **caduca** y se renueva con refresh (en Meta el token de página no expira).
+
+**Fuentes (4.10):** business-api.tiktok.com — Business Messaging API (v1.3), Business Messaging API
+Authorization, Create a developer app, Register as a developer, Data security & privacy review,
+Create a TikTok Business Messaging Webhook configuration, Subscribe to Business Messaging events via
+Webhooks, Reply to a comment, Permission scope, Education Hub; ads.tiktok.com — About business
+verification, Data Security Verification; developers.tiktok.com — Scopes Overview, Webhooks Overview;
+GitHub ChatbotXIO/ChatbotX PR #1231 (scope `comment.list.manage`) y #1232 (webhook `COMMENT`).
+
 ---
 
 ## 5. Lo que tienes que juntar
@@ -1513,6 +1567,16 @@ constancia actual, que es el del patrón** (Blvd. Adolfo López Mateos, col. Las
 Ciudad de México, CP 01710). **En esta prueba se deja igual**, porque tiene que coincidir con el documento
 que se suba (la constancia). Cuando se cambie el domicilio fiscal al del negocio en Luvianos (11.8 y
 📌 Pendientes), aquí va el nuevo, copiado de la constancia nueva.
+
+**Pregunta del dueño (2026-09-24): vive en un lugar y el local está en otro, ¿cuál va?**
+- **En Meta:** la dirección que salga **en el documento que se sube** (Meta lo dice: "tal como aparece
+  en los documentos aceptados"). Meta no pide que sea el local ni la casa: pide que **coincida**.
+- **En el SAT:** para una persona física con actividad empresarial, el domicilio fiscal es **"el local
+  en que se encuentre el principal asiento de sus negocios"**; la casa solo cuenta si **no hay local**
+  (Código Fiscal de la Federación, **art. 10**, fracc. I) **[Oficial, por buscador]**.
+- **Conclusión:** al dar de alta el negocio en el SAT, el domicilio fiscal debe ser **el del local**. Con
+  la constancia nueva, la dirección de Meta (y la de TikTok) será **la del local**. La casa no se captura
+  en ningún lado. Mientras tanto, la prueba que se mandó usa la dirección de la constancia vieja.
 
 **Captura 53 — "Agregar información del negocio → Información de contacto":**
 - **Número de teléfono:** MX +52, el mismo que Meta no pudo ligar al negocio (+52 722 *** **14). Aviso de
