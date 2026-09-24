@@ -631,6 +631,26 @@ Webhooks, Reply to a comment, Permission scope, Education Hub; ads.tiktok.com �
 verification, Data Security Verification; developers.tiktok.com — Scopes Overview, Webhooks Overview;
 GitHub ChatbotXIO/ChatbotX PR #1231 (scope `comment.list.manage`) y #1232 (webhook `COMMENT`).
 
+### 4.11 Bitácora TikTok
+
+#### 2026-09-24 — Captura 59: la app de publicar videos, rechazada
+
+- Portal **`developers.tiktok.com`** (TikTok for Developers) → Developer Portal → **Manage apps**. Una sola
+  app: **novedadesJade**, App ID `7675270500029089812`, **Ownership: Individual**. Registrada con el
+  **correo personal** del dueño.
+- Pestañas **Production / Sandbox**. En Production: **"Not approved"** — *"Changes to your app were not
+  approved for production. See why"* — y botón **Return to Draft**.
+- Lo que tiene: **Login Kit** + **Content Posting API** (solo "Upload to TikTok" = borrador; **Direct Post**
+  sin activar), scopes **`user.info.basic`** y **`video.upload`**, categoría "Others", plataforma Web,
+  video demo **`videoTikTokPrueba.mp4`**. Sin dominio verificado (solo sirve para `pull_by_url`).
+- Requisitos del video según la pantalla: mp4/mov, hasta 5 archivos de 50 MB; **si la app nunca ha sido
+  aprobada, el demo tiene que hacerse desde un Sandbox**; debe verse la web donde está integrado y
+  **su dominio debe coincidir con la Web URL** capturada; cada producto y scope elegido debe verse en
+  el video (si sobra alguno, quitarlo).
+- ⚠️ **Esta app es solo para publicar videos.** Comentarios y mensajes directos van en **otra** app, en
+  `business-api.tiktok.com` (4.1). Son dos trámites separados.
+- Siguiente paso: abrir **"See why"** y anotar aquí los motivos exactos del rechazo.
+
 ---
 
 ## 5. Lo que tienes que juntar
