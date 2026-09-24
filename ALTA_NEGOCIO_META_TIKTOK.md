@@ -1061,6 +1061,8 @@ de comentarios: el texto llega en el webhook `feed` y se contesta con `POST /{co
 Si Meta pidiera más, el video tendría que enseñar el comentario del cliente y la respuesta del bot en
 el mismo hilo.
 
+✅ 2026-09-24: el dueño subió el **video de comentarios de Facebook** en `pages_read_user_content` (nombre del archivo: pendiente de anotar).
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
