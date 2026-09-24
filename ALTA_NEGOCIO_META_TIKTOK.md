@@ -898,6 +898,18 @@ Enrutamiento de conversaciones (según la ayuda de Meta): Business Suite → Con
   Configuración → **Integraciones comerciales** → Manychat → Eliminar. Sospecha: Manychat se quedaba
   con los mensajes directos de Instagram y a nuestra app solo le llegaba `standby`, que no escuchamos.
 
+### 2026-09-24 — App Review: subiendo los videos (capturas del dueño)
+
+- **Captura 37** (Revisar → Revisión de la app): el primer permiso (su nombre no sale en la captura) y
+  `pages_manage_metadata` solo tienen ✅ en "llamadas de prueba a la API" (metadata además ✅ "debe
+  contener pages_show_list"). Les falta descripción, video, uso permitido e instrucciones para
+  reproducir. `instagram_manage_comments` ya tiene ✅ la descripción; le falta el video.
+- **Captura 38**: al subir el video en `instagram_manage_comments` sale "Se produjo un error.
+  Actualiza la página…", y recargar no lo arregla. El navegador es **Brave con Shields activo** (5
+  bloqueos en developers.facebook.com): primera sospecha. Siguiente prueba: apagar Shields para el
+  sitio, o subirlo desde Safari/Chrome.
+- Video de comentarios de Instagram: **`videoRedesInstaComentariosv2`**.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
