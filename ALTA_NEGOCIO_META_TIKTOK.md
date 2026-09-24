@@ -691,6 +691,38 @@ pero no toca datos de la plataforma. Cloudflare ya no está en el camino.
 (el back manda correos desde `admin@`). Sirve para confirmar la verificación de Meta y es requisito
 de TikTok (4.2).
 
+### 2026-09-24 — Desplegado para grabar los videos
+
+| Repo | Rama | Qué |
+|---|---|---|
+| Back | `main` (prod) | Bot se presenta como asistente automático, eco sin pausa falsa, log de `standby` (cherry-pick, sin pedidos) |
+| Back | `dev` y `qa` | Lo mismo + Graph API v25.0 + esta guía |
+| Front | `master` (prod), `qa`, `dev` | Aviso de privacidad nuevo + página `/eliminar-datos` |
+
+El webhook de Meta apunta a **QA**, así que los videos se graban contra QA (el deploy es automático
+al subir a `qa`, 1–2 minutos).
+
+**Pendiente en el panel de Meta:** poner `https://shop.novedades-jade.com.mx/eliminar-datos` en
+Configuración de la app → Básica → "URL de instrucciones de eliminación de datos".
+
+### Cuentas de prueba para grabar (modo desarrollo)
+
+Mientras la app esté en desarrollo, el bot solo le contesta a cuentas **con rol en la app**.
+- **Sirven tus propias cuentas** personales de Instagram. **No sirve** la del negocio
+  (`novedades_bolsas_jade`): es la que recibe, y el bot ignora lo que manda ella misma.
+- **Caso fácil:** una cuenta de Instagram tuya conectada (Centro de cuentas) al mismo Facebook con el
+  que administras la app. Ese Facebook ya es administrador, así que la cuenta ya tiene rol. Así se
+  probó en QA el bot de comentarios.
+- **Otra persona u otra cuenta:** developers.facebook.com → la app → **Roles de la app → Roles →
+  Agregar personas → Evaluador (Tester)**. Se invita a su cuenta de **Facebook**, la persona acepta
+  en developers.facebook.com/requests, y su Instagram debe estar conectado a ese Facebook en el
+  Centro de cuentas. Si en Roles aparece la sección **"Evaluadores de Instagram"**, se invita por
+  usuario de Instagram y se acepta en Instagram → Configuración → Permisos de sitios web → Apps y
+  sitios web → Invitaciones de evaluador **[Sin confirmar cuál de las dos pide esta app]**.
+- La cuenta de prueba debe ser **distinta** en cada video "de cliente" que se quiera mostrar como
+  primera vez, porque el saludo de asistente automático solo sale en el **primer** mensaje de cada
+  persona. Si se reutiliza una cuenta que ya escribió antes, no saldrá el aviso.
+
 ---
 
 ## 9. Fuentes
