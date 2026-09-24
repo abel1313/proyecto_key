@@ -1343,6 +1343,23 @@ Our automated customer service assistant needs this to work: the Instagram user 
 We only read our own account's basic information and content. We do not read other people's profiles and we do not use this data for any other purpose. The screen recording shows a customer commenting on one of our Instagram posts and the assistant replying with information about that product.
 ```
 
+### 2026-09-24 — Captura 44: la solicitud solo espera la Verificación
+
+Pantalla "Solicitud de revisión de app" (Revisar → Revisión de la app → continuar). Barra de 5 pasos:
+**Verificación** (gris, falta) · Configuración de la app ✅ · Uso permitido ✅ · Tratamiento de datos ✅
+· Instrucciones para revisores ✅ ("Guardado automáticamente"). "Uso permitido" en verde = los 10
+permisos quedaron llenos.
+
+Verificación → "Conecta un portfolio comercial verificado": app **novedadesJade** conectada al
+portafolio **Novedades Jade**, con estado 🟠 **"Se requiere más información"** y botones **Ver
+detalles** / **Eliminar** (no usar Eliminar: desconecta el portafolio). Es la verificación del negocio
+(3.2 y 📌 Pendientes 1–3): Constancia de Situación Fiscal + información del negocio que coincida.
+Siguiente paso: **Ver detalles** para leer qué información pide Meta.
+
+Antes de enviar: el texto de "Instrucciones para revisores" (`instructions-web-2`) todavía podría decir
+que el bot de mensajes directos "does not reply and forwards the message by email"; corregirlo aunque
+el paso salga en verde.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
