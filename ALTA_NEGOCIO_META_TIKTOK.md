@@ -1165,6 +1165,32 @@ Quitarlo de la revisión no le quita el acceso estándar: si al sacar el token d
 Explorador hiciera falta (páginas de un portafolio comercial), sigue funcionando porque el dueño tiene
 rol. Al regenerar el token, dejarlo marcado igual que hoy.
 
+### 2026-09-24 — Lista completa de la solicitud y qué falta
+
+Pantalla: Revisar → Revisión de la app → "Solicitudes de revisión de apps" (estado **No enviada**).
+Al pie dice: *"Para eliminar permisos y funciones de tu app, no solo de la revisión de la app,
+personaliza los casos de uso"* → quitar de la revisión y quitar de la app son cosas distintas.
+`pages_manage_posts` ya no aparece: el dueño lo quitó de la revisión.
+
+| Permiso en la solicitud | ¿Se queda? | Video |
+|---|---|---|
+| `pages_messaging` | ✅ Sí — bot de Messenger | Messenger |
+| `pages_manage_metadata` | ✅ Sí — suscripción a webhooks | Messenger |
+| `instagram_manage_comments` | ✅ Sí — bot de comentarios de Instagram | `videoRedesInstaComentariosv2` |
+| `pages_read_user_content` | ✅ Sí — leer comentarios de clientes | Comentarios de Facebook |
+| `pages_show_list` | ✅ Sí — sacar el token de la página | Explorador `me/accounts` |
+| `pages_manage_engagement` | ✅ Sí — contestar comentarios de Facebook | Comentarios de Facebook |
+| `pages_read_engagement` | ✅ Sí — dependencia de los de página | Pendiente de llenar |
+| `instagram_basic` | ✅ Sí — base de todo lo de Instagram | Pendiente de llenar |
+| `public_profile` | ✅ Se deja — Meta lo agrega a todas las apps | Pendiente de ver qué pide |
+| `business_management` | ❌ Quitar — el código no lo usa | — |
+| **`instagram_manage_messages`** | ⚠️ **FALTA agregarlo** — sin él, el bot de mensajes directos de Instagram solo contesta a cuentas con rol | Mensajes directos de Instagram |
+
+Para agregar `instagram_manage_messages`: menú izquierdo → **Casos de uso** → el caso de uso de
+Instagram → **Personalizar** → buscar `instagram_manage_messages` → **Solicitar acceso avanzado** /
+agregar a la revisión **[Sin confirmar los nombres exactos]**. Tiene que ir en el mismo caso de uso que
+`instagram_manage_comments`, no en el de Messenger (mezclar productos es motivo de rechazo, 3.6).
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
