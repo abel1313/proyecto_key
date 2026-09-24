@@ -1482,6 +1482,13 @@ Sueldos y Salarios, de 2022, domicilio del patrón en CDMX; ver arriba "Constanc
 hace **como prueba**: seguir así para ver si Meta lo acepta, y el alta en RESICO / cambio de domicilio
 (11.8) se ve después si lo rechazan.
 
+**Captura 51 — "Agregar información del negocio":** *"Usaremos esta información para buscar un registro
+oficial de tu negocio y confirmar que es real. Si no hay ninguna coincidencia, puedes subir documentos"*.
+- **Nombre del negocio:** `Abel Tiburcio Felipe` ✅ — tal como sale en la constancia del SAT
+  (letra por letra, con acentos si los trae la constancia).
+- **Nombre del negocio alternativo (opcional):** `Novedades Jade` ✅ — el nombre comercial.
+Ya venían así; se dejan igual → **Siguiente**.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
