@@ -406,6 +406,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | `instagram_manage_comments` | "Crear, eliminar y ocultar comentarios en nombre de la cuenta de Instagram vinculada a una página… leer, actualizar y eliminar comentarios de cuentas de empresa de Instagram" **[Formulario]** | Contesta comentarios en las publicaciones propias | Solo comentarios de **nuestras** publicaciones · no ocultar ni borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_engagement` | Crear, editar y borrar comentarios de la página y moderar comentarios **[Proveedor]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
 | `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
+| `pages_read_user_content` | "Leer el contenido de la página generado por los usuarios, como las publicaciones, los comentarios o las calificaciones… y eliminar los comentarios de los usuarios en las publicaciones de la página… El uso autorizado es leer el contenido de los usuarios y de otras páginas que se haya publicado en la página, siempre que sea necesario para administrarla" **[Formulario]**. Requiere `pages_show_list` **[Formulario]** | Recibe el comentario del cliente (webhook `feed`) y le contesta con `POST /{comment-id}/comments`. La llamada de prueba ya sale Completado, o sea que Meta registró que la usamos | Leer solo comentarios de clientes en **nuestra** página, para contestarlos · no borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_metadata` | "Suscribirse y recibir webhooks sobre actividades en la página, y actualizar los ajustes de esta… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` en la misma solicitud **[Formulario]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
 | `pages_show_list` | Ver la lista de páginas que administra la persona **[Proveedor]** | Sacar el token de la página | — |
 | `instagram_basic` | Leer el perfil y las publicaciones de la cuenta de Instagram **[Proveedor]** | Ligar la publicación con el producto | — |
@@ -1050,6 +1051,15 @@ Without this permission our server would not receive these events and the assist
 3. **Casilla de uso permitido:** marcarla después de leer la fila de `pages_manage_metadata` en 3.14.
 
 Decisión del dueño (2026-09-24): en `pages_manage_metadata` se sube el **video de Messenger de Facebook** (nombre del archivo: pendiente de anotar). El mismo video va también en `pages_messaging`.
+
+### 2026-09-24 — `pages_read_user_content`
+
+Todo en ✅ (descripción, llamadas de prueba, `pages_show_list`) menos el video. **Video: el de
+comentarios de Facebook**, porque este permiso es el que deja leer el comentario que escribe un
+cliente en la página, que es lo que se ve cuando el bot lo contesta. El código no hace ningún `GET`
+de comentarios: el texto llega en el webhook `feed` y se contesta con `POST /{comment-id}/comments`.
+Si Meta pidiera más, el video tendría que enseñar el comentario del cliente y la respuesta del bot en
+el mismo hilo.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
