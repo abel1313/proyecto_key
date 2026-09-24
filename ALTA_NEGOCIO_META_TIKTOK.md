@@ -587,6 +587,17 @@ oficial en **Safari o Chrome** y anotar aquí lo que cambie.
 | 8 | **Programar** (en su propia rama, ver CLAUDE.md: feature bloqueada por aprobación externa) | Backend | `RedSocial.TIKTOK`, cliente Business (OAuth `tt_user`, refresh del token), adaptador de respuesta: `POST /business/comment/reply/create/` y `POST /business/message/send/`, webhook con validación de firma, tablas de registro/pausa |
 | 9 | **Videos y revisión** | Portal | Un video por permiso, como en Meta; pedir de más = rechazo |
 
+**¿Se puede probar ya con lo que hay? (pregunta del dueño, 2026-09-24) — No.** La app actual es de
+`developers.tiktok.com` y la cuenta solo autorizó **`user.info.basic` + `video.upload`** (subir videos
+al inbox; `video.publish` ni aparece) **[Código: `TikTokGraphClient`]**. Ese portal no tiene comentarios
+ni mensajes directos. Para probarlos hace falta, como mínimo: registro de desarrollador en
+`business-api.tiktok.com` (paso 1), el formulario de Accounts API (paso 3, 2–3 días), la app (paso 4),
+autorizar la cuenta (paso 6) y el código (paso 8); para mensajes, además la allowlist y la revisión de
+datos (paso 5). Si una app sin revisar deja probar con la propia cuenta (como el modo desarrollo de
+Meta): **[Sin confirmar]**, verlo al crear la app.
+**Lo único que se puede probar hoy, sin código:** las **respuestas automáticas nativas** de TikTok
+(bienvenida y palabras clave, 4.6).
+
 **Permisos (scopes) de la cuenta autorizada:**
 - **`comment.list`** — leer comentarios de videos propios; requisito del webhook de comentarios.
 - **`comment.list.manage`** — escribir: responder comentarios **[Proveedor: ChatbotX, que tuvo que
