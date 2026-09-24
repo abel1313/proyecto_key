@@ -1218,6 +1218,10 @@ nadie con rol ha escrito.
    - Los `mid` de Instagram miden ~180 caracteres y la columna era `VARCHAR(100)`:
      `Data too long for column 'mid'`. Entidad a 512 y migración
      `migration_mensaje_directo_mid.sql` (**correrla en QA antes de probar**).
+   ✅ **2026-09-24 11:53 — Mensajes directos de Instagram funcionando en QA:** migración corrida en qa
+   y prod, código subido a dev/qa, y el bot contestó el mensaje de `trece0594`. Con esto funcionan
+   los **cuatro canales** en QA: comentarios de Facebook, comentarios de Instagram, Messenger y
+   mensajes directos de Instagram. Lo que sigue: **grabar los videos de App Review**.
 3. Que la cuenta de prueba **siga** a `novedades_bolsas_jade`, para que el mensaje no caiga en Solicitudes.
 4. Mandar un mensaje **nuevo** y revisar:
    `GET /{page}/conversations?platform=instagram` (filtrando el token con `sed`) y el log
