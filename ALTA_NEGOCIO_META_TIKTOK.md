@@ -1469,6 +1469,14 @@ unipersonal** ("Empresa operada por un solo propietario, que usa otro nombre por
 nombre comercial "Novedades Jade". Si algún día se constituye una persona moral (S.A. de C.V., S. de
 R.L.), sería "Empresa privada".
 
+**Captura 50 — "¿Tu negocio está registrado oficialmente?":** **Registrado** ("registrado con el
+gobierno, y puedes acceder a documentos oficiales relacionados con el registro u obtenerlos") · **Aún
+no registrado** ("aún no está registrado o una persona lo representa"). Cómo decidir: si la
+**Constancia de Situación Fiscal** ya trae la **actividad del negocio** (RESICO 626 o actividad
+empresarial) → **Registrado**. Si solo trae **Sueldos y Salarios** (605) → **Aún no registrado**
+(pasos para darse de alta en 11.8). Qué pide Meta después de "Aún no registrado": **[Sin confirmar]**,
+anotarlo cuando se vea.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
