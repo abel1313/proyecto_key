@@ -1514,6 +1514,16 @@ Ciudad de México, CP 01710). **En esta prueba se deja igual**, porque tiene que
 que se suba (la constancia). Cuando se cambie el domicilio fiscal al del negocio en Luvianos (11.8 y
 📌 Pendientes), aquí va el nuevo, copiado de la constancia nueva.
 
+**Captura 53 — "Agregar información del negocio → Información de contacto":**
+- **Número de teléfono:** MX +52, el mismo que Meta no pudo ligar al negocio (+52 722 *** **14). Aviso de
+  Meta: *"Debes poder recibir un código de confirmación en este número."* Se deja igual (el dueño
+  recibe ahí los códigos); lo que falló fue ligarlo a un documento, y eso se resuelve en "Confirma tu
+  conexión" eligiendo el correo del dominio.
+- **Sitio web:** `https://novedades-jade.com.mx/`. Es el mismo dominio del correo
+  (`@novedades-jade.com.mx`), que es lo que permite confirmar por correo. Condición: que esa dirección
+  abra y muestre la tienda (nombre y contacto visibles). Si la raíz no abre o sale vacía, poner
+  `https://shop.novedades-jade.com.mx`, que sí es la tienda y es el mismo dominio.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
