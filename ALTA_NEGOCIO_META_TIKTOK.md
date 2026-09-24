@@ -693,6 +693,41 @@ que cambiar también el ícono en TikTok (y eso manda la app a revisión); si no
 coincidir y la siguiente revisión la rechaza. Meta también revisa el ícono de la app. Regla anotada en el
 `CLAUDE.md` del front y en el del back.
 
+✅ **Subido a producción (2026-09-24):** front `master` `17509937` ("Logo de la tienda como favicon y en la
+barra lateral"), bajado a `qa` y `dev` con merge. (Aviso: por un momento pareció que `dev`/`qa` del front
+habían perdido los commits del carrito; era la copia local con referencias viejas — el clon solo trae
+`master` por defecto. Para ver `qa`/`dev` reales: `git fetch origin '+refs/heads/qa:refs/remotes/origin/qa'`.)
+
+**Revisión del Sandbox antes de reenviar (2026-09-24):**
+- ✅ Existen en la tienda las rutas configuradas: `/termConditions`, `/privacidad`, `/eliminar-datos`,
+  `/tiktok/callback` (`app-routing.module.ts`).
+- ✅ Target user `novedadesjade8`.
+- ⚠️ **App icon** también en el Sandbox: poner `icono-tiktok-1024.png` (lo que se importa a Production sale
+  del Sandbox).
+- ⚠️ **Web/Desktop URL:** quitar el espacio que parece haber antes de `https://`.
+- ⚠️ **Descripción** (se muestra a los usuarios de TikTok): hoy dice qué vende la tienda, no qué hace la app.
+  Propuesta (≤120): `Tienda Novedades Jade: la dueña publica videos de sus productos en su TikTok desde el panel de la tienda.`
+  (ajustar "la dueña/el dueño").
+- ⚠️ **Explicación de productos y scopes** (Production → App review, hoy 68/1000 caracteres): explicar
+  cada uno. Texto propuesto abajo.
+- ⚠️ **Video demo** grabado **en el Sandbox** (la app nunca ha sido aprobada) y en `shop.novedades-jade.com.mx`:
+  1) entrar al panel de la tienda; 2) botón de conectar TikTok → pantalla de autorización de TikTok
+  (Login Kit, se ve `user.info.basic` y `video.upload`) → regresa a `/tiktok/callback`; 3) se ve el
+  nombre/avatar de la cuenta conectada (`user.info.basic`); 4) subir un video desde la tienda; 5) abrir
+  TikTok y mostrar el borrador en la bandeja (`video.upload`). Que en el video se vea el **logo nuevo**.
+
+Texto para "Explain how each product and scope works" (inglés):
+
+```
+Novedades Jade is our own online store (https://shop.novedades-jade.com.mx). Only the store owner uses this integration, from the store's admin panel, to share product videos to the store's own TikTok account.
+
+Login Kit (user.info.basic): the owner clicks "Connect TikTok" in the admin panel, authorizes the app on TikTok and is redirected to https://shop.novedades-jade.com.mx/tiktok/callback. We read the open_id, display name and avatar only to show which TikTok account is connected.
+
+Content Posting API (video.upload): from the product screen, the owner selects a product video and sends it to TikTok. The video arrives as a draft in the TikTok inbox of the connected account, where the owner edits the caption and publishes it from the TikTok app. We do not use Direct Post and we never publish without the owner's action.
+
+The demo video shows the complete flow in our sandbox: login, authorization, the connected account, uploading a video and the draft in the TikTok app.
+```
+
 ---
 
 ## 5. Lo que tienes que juntar
