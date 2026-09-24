@@ -157,15 +157,6 @@ public class FacebookWebhookController {
                         + "conversación; revisar Business Suite → Integraciones → Enrutamiento de conversaciones",
                         standby.size(), object);
             }
-
-            // "standby" = otra app es dueña de la conversación (enrutamiento de conversaciones de
-            // Business Suite). No contestamos: se loguea para que se note por qué el bot calla.
-            List<Map<String, Object>> standby = (List<Map<String, Object>>) entry.get("standby");
-            if (standby != null && !standby.isEmpty()) {
-                log.warn("Webhook con {} mensaje(s) en standby de object={} -- otra app es dueña de la "
-                        + "conversación; revisar Business Suite → Integraciones → Enrutamiento de conversaciones",
-                        standby.size(), object);
-            }
         }
     }
 
