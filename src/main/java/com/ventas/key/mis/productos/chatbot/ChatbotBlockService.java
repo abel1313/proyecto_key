@@ -20,7 +20,8 @@ public class ChatbotBlockService {
     // que alguien agote la cuota de OpenAI haciendo preguntas validas sin parar. Ventana movil:
     // arranca a contar desde el primer mensaje y se reinicia sola 1 hora despues de ese primer
     // mensaje (no es un contador fijo por reloj de pared).
-    private static final int MAX_MENSAJES_POR_HORA = 20;
+    // Aumentado a 200 para redes sociales (Meta App Review) — el chat del sitio lo comparte.
+    private static final int MAX_MENSAJES_POR_HORA = 200;
     private static final Duration VENTANA_LIMITE = Duration.ofHours(1);
 
     private final Map<String, IpInfo> ipInfoMap = new ConcurrentHashMap<>();
