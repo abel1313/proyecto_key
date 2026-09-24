@@ -151,6 +151,7 @@ cuenta **personal** con el nombre del negocio agregado **no sirve** **[Proveedor
 | Pusiste "Novedades Jade" como nombre legal y la CSF trae tu nombre | Nombre legal = el de la CSF |
 | Domicilio distinto entre CSF, recibo y lo capturado (CP, colonia, número interior) | Capturar el domicilio fiscal exacto de la CSF y usar un recibo con esa misma dirección |
 | El teléfono capturado no aparece en ningún documento | Usar el teléfono del recibo telefónico, o confirmar por correo o dominio |
+| **(Nos pasó, 2026-09-24)** "No podemos verificar que el número de teléfono … está asociado con el negocio" | Confirmar con el **correo del dominio** (`@novedades-jade.com.mx`), o subir recibo de teléfono / estado de cuenta con nombre legal + ese número **[Experiencia]** |
 | La web no muestra el negocio (sin nombre, dirección o teléfono visibles) | Poner nombre, contacto y aviso de privacidad visibles en la tienda |
 | Documento vencido, borroso, recortado o sin sellos | Descargar de nuevo el PDF original del SAT o de la compañía |
 | Estado de cuenta personal | Usar CSF + recibo de servicio |
@@ -1416,6 +1417,34 @@ seguridad, **no** son el requisito de la verificación. Lo seguro, si se quiere 
 Contraseña y seguridad → Llaves de acceso) **[Sin confirmar la ruta exacta]**; (2) cambiar el correo
 del usuario a uno del dominio (`admin@novedades-jade.com.mx`, que ya existe). Ninguna de las dos
 bloquea el App Review.
+
+### 2026-09-24 — Captura 46: por qué no pasó la verificación del negocio
+
+**Dónde está:** Business Suite → Configuración (portafolio Novedades Jade) → **Centro de seguridad** →
+bajar hasta el cuadro **"Verificación del negocio"**. Caso de uso de verificación: *"La app requiere
+acceso a los permisos en Meta for Developers"*. Dice: **"Verificación para Abel Tiburcio Felipe — No
+pudimos verificar tu organización con la información proporcionada"** · ⚠️ "Se necesita más
+información" · botón **Más información**. (El "Ver detalles" de la solicitud de revisión lleva aquí.)
+
+**Motivo exacto (Más información → "Detalles y próximos pasos"):**
+> No podemos verificar que el número de teléfono +52 722 *** **14 está asociado con el negocio Abel
+> Tiburcio Felipe. Para solucionar esto, vuelve a la verificación del negocio y realiza una de las
+> siguientes acciones: **Sube otro documento acreditativo** que muestre que el número de teléfono está
+> asociado al negocio (certificados/estatutos de la sociedad; licencias/permisos comerciales; cartas,
+> extractos o resúmenes bancarios; o facturas de agua, gas, electricidad y teléfono en la que figure el
+> número), con **el nombre legal del negocio y el número de teléfono**. **O bien confirma tu correo
+> electrónico de empleado del negocio.**
+
+O sea: el nombre legal ya no es el problema; lo que falla es **ligar el teléfono** al nombre legal.
+
+**Camino elegido: confirmar con el correo del dominio** (no hace falta ningún documento):
+- El negocio ya tiene buzones `@novedades-jade.com.mx` en Hosting-Mexico (`admin@…` existe). Meta manda
+  un código a ese correo y se captura.
+- Requisito **[Proveedor]**: el sitio web capturado en la información del negocio tiene que ser del mismo
+  dominio (`https://shop.novedades-jade.com.mx` → dominio `novedades-jade.com.mx`).
+- Si no deja elegir correo: plan B = **recibo de teléfono** (Telcel/Telmex/…) a nombre de Abel Tiburcio
+  Felipe donde salga ese número, o **estado de cuenta bancario** con nombre y teléfono. Si el recibo sale
+  a nombre de otra persona, no sirve: cambiar el teléfono capturado por uno que sí salga a su nombre.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
