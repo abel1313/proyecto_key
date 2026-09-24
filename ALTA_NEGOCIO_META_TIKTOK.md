@@ -1129,6 +1129,13 @@ The screen recording shows the owner listing the Pages they manage and finding N
    invalida el token de página que usa el bot.
 3. **Casilla** de uso permitido.
 
+Nota 2026-09-24: en el Explorador, la lista de **Permisos** ya trae las 12 opciones seleccionadas
+(pages_show_list, business_management, pages_messaging, instagram_basic, instagram_manage_comments,
+instagram_content_publish, instagram_manage_messages, pages_read_engagement, pages_manage_metadata,
+pages_read_user_content, pages_manage_posts, pages_manage_engagement). **No tocarla**: dejarla igual
+para que el token nuevo traiga los mismos permisos. Antes de subir el video, revisarlo completo: si
+en algún cuadro se ve el token (texto largo que empieza con `EAA…`), no subirlo y grabar de nuevo.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
