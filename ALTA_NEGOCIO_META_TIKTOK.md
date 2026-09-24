@@ -408,7 +408,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
 | `pages_read_user_content` | "Leer el contenido de la página generado por los usuarios, como las publicaciones, los comentarios o las calificaciones… y eliminar los comentarios de los usuarios en las publicaciones de la página… El uso autorizado es leer el contenido de los usuarios y de otras páginas que se haya publicado en la página, siempre que sea necesario para administrarla" **[Formulario]**. Requiere `pages_show_list` **[Formulario]** | Recibe el comentario del cliente (webhook `feed`) y le contesta con `POST /{comment-id}/comments`. La llamada de prueba ya sale Completado, o sea que Meta registró que la usamos | Leer solo comentarios de clientes en **nuestra** página, para contestarlos · no borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_metadata` | "Suscribirse y recibir webhooks sobre actividades en la página, y actualizar los ajustes de esta… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` en la misma solicitud **[Formulario]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
-| `pages_show_list` | Ver la lista de páginas que administra la persona **[Proveedor]** | Sacar el token de la página | — |
+| `pages_show_list` | "Acceder a la lista de páginas que administra una persona… mostrarle la lista de páginas que administra y verificar que una persona administra una página" **[Formulario]** | Sacar el token de la página | — |
 | `instagram_basic` | Leer el perfil y las publicaciones de la cuenta de Instagram **[Proveedor]** | Ligar la publicación con el producto | — |
 
 **Reglas que aplican a todos** (texto del formulario y Condiciones de la plataforma): usar los datos
@@ -1103,6 +1103,31 @@ The screen recording shows the owner creating a post from our admin panel and th
     el texto → publicar en Facebook → abrir `facebook.com` en la página NovedadesJade y mostrar la
     publicación nueva. En Safari, 1080p, sin mostrar tokens. La publicación de prueba es real: se
     puede borrar a mano desde Facebook después de grabar.
+
+### 2026-09-24 — `pages_show_list`
+
+No pide llamadas de prueba ni página. Solo descripción, video y casilla. Uso real: sacar el token de
+la página con `me/accounts` en el Explorador de la API Graph (3.9 y "Token de página nuevo").
+
+1. **Descripción:**
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico. We use pages_show_list when the business owner sets up our automated customer service assistant: using Meta's Graph API Explorer, the owner lists the Facebook Pages they manage (/me/accounts) to confirm they administer our Page (NovedadesJade) and to obtain that Page's access token.
+
+That Page token is what our server uses for the webhooks and replies described in pages_messaging, pages_manage_metadata and pages_read_user_content. We do not show, store or use the list of Pages for any other purpose, and we only work with our own Page.
+
+The screen recording shows the owner listing the Pages they manage and finding NovedadesJade.
+```
+
+2. **Video propio (1 minuto):** developers.facebook.com/tools/explorer → Meta App **novedadesJade**
+   → Usuario o página: **Token del usuario** → en Permisos agregar `pages_show_list` → **Generate
+   Access Token** (sale el cuadro de consentimiento de Facebook: dejarlo en el video) → en la consulta
+   escribir `me/accounts?fields=id,name` → **Enviar** → en la respuesta se ve NovedadesJade.
+   ⚠️ **El token se ve en la columna derecha del Explorador.** Grabar con Cmd + Shift + 5 → **"Grabar
+   parte seleccionada de la pantalla"** y dejar fuera esa columna. Pedir solo `fields=id,name` para
+   que la respuesta no traiga el `access_token` de la página. Generar un token de usuario nuevo no
+   invalida el token de página que usa el bot.
+3. **Casilla** de uso permitido.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
