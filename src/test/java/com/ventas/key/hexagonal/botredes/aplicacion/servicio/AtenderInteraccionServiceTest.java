@@ -73,7 +73,7 @@ class AtenderInteraccionServiceTest {
         assertThat(cerebro.llamadas).containsExactly("sinProducto:facebook:primera");
         assertThat(red.enviados).hasSize(1);
         assertThat(red.enviados.get(0)).startsWith("comentario:facebook:c1:¡Hola!")
-                .contains("asistente automático").contains("En un momento te compartimos la información");
+                .doesNotContain("asistente automático").contains("En un momento te compartimos la información");
         assertThat(avisos).hasSize(1);
         assertThat(pausas.desde(Canal.COMENTARIO, CLIENTA, POST)).contains(reloj.ahora());
         assertThat(registro.guardadas).containsKey("c1");
@@ -223,14 +223,16 @@ class AtenderInteraccionServiceTest {
     // ---------- Generales ----------
 
     @Test
-    void soloLaPrimeraVezSePresentaComoAsistenteAutomatico() {
-        registro.autoresConRespuesta.add(CLIENTA);
+    void soloEnElPrimerMensajeDirectoSePresentaComoAsistenteAutomatico() {
         cerebro.respuesta = "##ESCALAR##";
+        service.atender(Interaccion.mensajeDirecto(RedSocial.INSTAGRAM, "m1", CLIENTA, "¿Precio?", false));
+        assertThat(red.enviados.get(0)).contains("asistente automático");
 
-        service.atender(comentario("c1", "¿Precio?"));
-
-        assertThat(cerebro.llamadas).containsExactly("sinProducto:facebook:no-primera");
-        assertThat(red.enviados.get(0)).doesNotContain("asistente automático");
+        registro.autoresConRespuesta.add(CLIENTA);
+        pausas.guardadas.clear();
+        red.enviados.clear();
+        service.atender(Interaccion.mensajeDirecto(RedSocial.INSTAGRAM, "m2", CLIENTA, "¿Y en rojo?", false));
+        assertThat(red.enviados).allSatisfy(t -> assertThat(t).doesNotContain("asistente automático"));
     }
 
     @Test

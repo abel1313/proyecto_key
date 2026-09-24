@@ -552,6 +552,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_accion_tienda_cambiar_precio.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
+| `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -567,6 +568,10 @@ un token viejo no trae la autoridad nueva.
 de mensajes directos de Instagram. Antes no existían en ninguna base, así que ese bot nunca contestó:
 las respuestas por DM que recibían los clientes eran las automáticas de Meta Business Suite. Si
 las dos quedan prendidas, el cliente recibe dos respuestas.
+
+`migration_mensaje_directo_mid.sql` agranda `mid` y `respuesta_mid` de `mensaje_directo_social` a
+`VARCHAR(512)`: los ids de mensaje de Instagram miden ~180 caracteres y el primer mensaje directo de
+Instagram que llegó a QA no se pudo guardar (`Data too long for column 'mid'`).
 
 `backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
 del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas

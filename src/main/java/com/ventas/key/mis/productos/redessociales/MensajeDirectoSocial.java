@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class MensajeDirectoSocial extends BaseId {
 
-    @Column(name = "mid", unique = true, length = 100)
+    @Column(name = "mid", unique = true, length = 512)
     private String mid;
 
     @Column(name = "red_social", length = 20)
@@ -44,7 +44,7 @@ public class MensajeDirectoSocial extends BaseId {
     // ese mismo mid vuelve por el webhook como "echo" (Meta notifica los mensajes que manda la
     // propia pagina/cuenta tambien), que es un eco de nuestro propio bot y no una respuesta manual
     // del admin. Ver InstagramDirectMessageBotService.detectarRespuestaManualYPausar.
-    @Column(name = "respuesta_mid", length = 100)
+    @Column(name = "respuesta_mid", length = 512)
     private String respuestaMid;
 
     @Column(name = "fecha")

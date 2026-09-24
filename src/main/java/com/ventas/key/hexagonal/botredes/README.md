@@ -20,12 +20,23 @@ Las reglas las definió el dueño el 2026-09-24. El detalle de la conversación 
   A saludos, halagos y avisos ("bonito", "ya te sigo") contesta con un agradecimiento. A cualquier
   pregunta contesta **solo un saludo** y escala.
 - Si no entiende el comentario: contesta un saludo cordial.
+- El agradecimiento va **según lo que comentaron**, pero el saludo lo pone el código: el chatbot
+  contesta `##GRACIAS## ¡Muchas gracias por compartir! 💖` y sale "¡Hola! 😊 ¡Muchas gracias por
+  compartir! 💖". Si la frase viene vacía, larga o con algo interno, va "Gracias por tu comentario 💖".
+  Así no vuelve a pasar lo del 2026-09-24, cuando a un "Hola" contestó solo "¡Hola! 😊".
 
 **R3 — Mensajes directos: el bot usa todo el catálogo.** Si no sabe algo o no entiende: saluda y
 escala. Foto, audio o sticker sin texto: saluda y escala.
 
-**R4 — La primera vez que le escribe a una persona se presenta** como "el asistente automático
-de Novedades Jade" (política de Meta). Las siguientes veces, no.
+**R4 — Solo en el primer mensaje directo se presenta** como "el asistente automático de Novedades
+Jade" (política de Meta para mensajería). Las siguientes veces, no. **En los comentarios públicos
+nunca se presenta** (decisión del dueño, 2026-09-24).
+
+**R4b — Respeto y nada interno.** Ningún bot contesta seco, grosero ni sarcástico, ni un "Hola" solo.
+Nunca le dice al cliente cómo funciona la atención por dentro (correos al admin, "escalar", pausas):
+si el texto del chatbot trae algo así, no se publica, se contesta "En un momento te atendemos 💖" y
+se avisa al admin (`PoliticaDeRespuesta.mencionaAlgoInterno`). La regla de respeto vive en
+`ChatbotBase.REGLAS_DE_RESPETO` y la llevan también el chat del sitio y el chat en vivo.
 
 **R5 — Pausa de 30 minutos.** El bot se aparta de una conversación cuando la atiende una persona:
 - cuando **el bot escala** (saluda una vez y manda el correo), o

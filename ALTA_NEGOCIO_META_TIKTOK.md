@@ -863,6 +863,41 @@ Enrutamiento de conversaciones (según la ayuda de Meta): Business Suite → Con
 **Integraciones → Enrutamiento de conversaciones** → cuenta de Instagram → pestaña Enrutamiento →
 "Enrutamiento predeterminado" → ⋯ → Editar.
 
+### 2026-09-24 — Messenger: permiso, token nuevo y suscripciones
+
+- **Permiso:** developers.facebook.com → Casos de uso → Agregar casos de uso → "Interactuar con los
+  clientes en Messenger from Meta". `pages_messaging` queda "Listo para la prueba" (obligatorio del
+  caso de uso). Tiene **0 llamadas**: para mandarlo a App Review, Meta pide al menos una llamada real,
+  así que primero el bot tiene que contestar un Messenger.
+- **Token de página nuevo** (el viejo no traía `pages_messaging`): Graph API Explorer → "Token del
+  usuario" con los 12 permisos → Generate → ⓘ → Extender → `me/accounts` → `access_token` de la
+  página **NovedadesJade, id `645820348605806`** (no "Novedades Jade" `1275448475648441`).
+- En QA el token **no está en un secret**: está escrito directo en el deployment. Se cambió con
+  `kubectl -n qa set env deployment/proyecto-key-deployment FACEBOOK_PAGE_ACCESS_TOKEN=...` (con
+  `read -s`, sin dejarlo en el historial). `set env` reinicia el pod solo.
+- **Página** (`POST /{page}/subscribed_apps`): `feed`, `messages`, `message_echoes` ✅.
+  `message_echoes` es el aviso de que el admin contestó a mano desde Messenger (pausa de 30 min); en
+  Instagram ese aviso ya viene dentro de `messages`.
+- **Webhook de la app** (`POST /{app}/subscriptions`, `object=page`): `feed`, `messages`,
+  `message_echoes` ✅. Instagram: `comments`, `messages` ✅.
+- ⚠️ El primer intento dio `(#2200) Callback verification failed ... 502`: el backend de QA tarda
+  **~270 s en arrancar** y `rollout status` termina antes. Antes de suscribir, confirmar que responde:
+  `curl -s -o /dev/null -w "%{http_code}" ".../facebook/webhook?hub.mode=subscribe&hub.verify_token=x&hub.challenge=1"`
+  → debe dar **403** (token falso rechazado = backend vivo); 502 = sigue arrancando.
+- ✅ **Messenger funcionando en QA:** mensaje desde Trece Trece a NovedadesJade, el bot contestó.
+  Estado al cierre del día: comentarios de Facebook ✅, comentarios de Instagram ✅, Messenger ✅,
+  **mensajes directos de Instagram ❌** (siguen sin llegar: enrutamiento de conversaciones).
+- Comentario "Hola" en Facebook contestado solo con "¡Hola! 😊": seco, sin agradecimiento. Se cambió
+  para que saludos y halagos se contesten con texto fijo ("¡Hola! 😊 Gracias por tu comentario 💖")
+  y el chatbot solo clasifique (`##GRACIAS##` / `##ESCALAR##`). Ver `botredes/README.md`, R2.
+- **Enrutamiento de conversaciones** (Business Suite → Configuración → Integraciones → Enrutamiento
+  de conversaciones): solo aparece la página de Facebook, **Instagram no aparece**. En "Apps de socios"
+  de la página hay dos apps: **novedadesJade** (la nuestra) y **Manychat** (id `532160876956612`), que
+  nadie usa. El dueño le quitó los permisos "Acceder a todas las conversaciones" y "Tomar el control de
+  las conversaciones"; desde ahí no deja eliminarla. Para quitarla del todo: Facebook como la página →
+  Configuración → **Integraciones comerciales** → Manychat → Eliminar. Sospecha: Manychat se quedaba
+  con los mensajes directos de Instagram y a nuestra app solo le llegaba `standby`, que no escuchamos.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
@@ -885,7 +920,17 @@ solo sale la primera vez.
 
 5. **Cambiar `FACEBOOK_WEBHOOK_VERIFY_TOKEN` de QA**: hoy es el texto de ejemplo de la plantilla (se
    vio en el log de nginx al verificar el webhook de Página). Poner un valor aleatorio propio en el
-   secreto de QA y repetir la suscripción con ese valor.
+   deployment de QA (`kubectl set env`, igual que el token de página) y repetir la suscripción de
+   `object=page` y `object=instagram` con ese valor.
+6. **Token de usuario expuesto (2026-09-24):** el token de usuario extendido se pegó en el chat al
+   armar `me/accounts`. Caduca solo en 60 días, pero el token de página sale de él. La única forma de
+   invalidarlo es **cambiar la contraseña de Facebook**, y eso invalida también el token de página
+   del bot. Al final: cambiar contraseña → repetir "Token de página nuevo" → `kubectl set env`.
+   **También quedó expuesto el token de página nuevo** (2026-09-24): una consulta a
+   `/{page}/conversations` lo imprimió dentro de la URL `paging.next`. La misma rotación de arriba
+   lo reemplaza. De aquí en adelante, toda consulta a la Graph API desde el VPS se filtra con
+   `| sed 's/access_token=[^&"]*/access_token=XXX/g'`, y las que llevan `{}` en `fields` van con
+   `curl -g` (si no, curl interpreta las llaves como un patrón y parte la URL en dos).
 
 **Orden acordado:** primero los videos (comentarios ya funciona; mensajes directos falta el
 enrutamiento de conversaciones), al final la constancia y la verificación.
@@ -1105,3 +1150,210 @@ Cuando Meta apruebe: credenciales de prod, webhook a prod, migraciones en `inven
 - [SDK Go `bububa/tiktok-business`](https://github.com/bububa/tiktok-business) (endpoints de comentarios, mensajes y webhooks, leídos del código al 2026-09-08) · [SDK oficial de TikTok (anuncios)](https://github.com/tiktok/tiktok-business-api-sdk)
 - [Chatwoot: canal TikTok](https://developers.chatwoot.com/self-hosted/configuration/features/integrations/tiktok) · [SleekFlow: TikTok Business Messaging](https://sleekflow.io/channels-integrations/tiktok-business-messaging) · [respond.io: TikTok](https://respond.io/help/tiktok/tiktok-overview)
 - [Aprobación y auditoría de TikTok API](https://bundle.social/blog/tiktok-api-approval)
+
+---
+
+## 11. Segunda investigación (2026-09-24) — lo que falta, con base en lo que ya avanzamos
+
+Esta sección no repite lo de arriba: parte de lo que ya se configuró hoy (Messenger funcionando,
+comentarios funcionando, Instagram DM sin llegar) y de revisar otra vez **todas** las capturas.
+
+### 11.1 Lo que se ve en las capturas y hay que corregir
+
+| Dónde | Qué se ve | Qué hacer |
+|---|---|---|
+| Business Suite → Información del negocio | Nombre legal "Tortilleria la Salida"; dirección "51440 / 51440 / Mexico, Mexico 51440" | Ya anotado: nombre y domicilio **idénticos a la constancia nueva**. Es la causa #1 de rechazo de verificación en 2026. |
+| Business Suite → Personas | Tu usuario del portafolio se llama **"Tortilleria la Salidad (tú)"** | Cambiar tu nombre en el portafolio a tu nombre real (Detalles → editar). No es el nombre legal, pero el revisor lo ve. |
+| Business Suite → Personas | **"La llave de acceso no está activada"** en los dos usuarios | Activar la **llave de acceso (passkey)**: Meta la exige a cuentas ligadas a portafolios; si la pide y no la creas, **bloquea la cuenta** hasta crearla. Celular → Configuración de la cuenta de Meta → Inicio de sesión y seguridad → Llave de acceso → Crear. |
+| developers.facebook.com → Configuración → Básica (bloque de contacto) | Dirección incompleta: calle genérica, ciudad "mexico", estado "Mexico" | Poner **la misma dirección** que tendrá el portafolio y la constancia. Tres lugares distintos con tres direcciones distintas es motivo de rechazo. |
+| developers → Roles de la app | **Jade Castañeda — Evaluador — Pendiente** | La invitación **no se ha aceptado**. Mientras siga pendiente, sus cuentas no cuentan como "con rol en la app" (ver 11.2). Aceptarla desde su Facebook: developers.facebook.com/requests o la notificación. |
+| Selector de portafolio | 3 activos: NovedadesJade (+ Instagram), **Pagina2**, **"Novedades Jade"** (otra página) | Dos páginas casi con el mismo nombre confunden al revisor y ya confundieron el page id una vez. Si Pagina2 y la de "Novedades Jade" con espacio no se usan, **quitarlas del portafolio** (no hace falta borrarlas de Facebook). |
+| Enrutamiento de conversaciones → Apps de socios | **Manychat** conectada a la página | Ya se le quitaron los permisos. Quitarla del todo: Facebook como la página → Configuración → Integraciones comerciales → Eliminar. En Manychat **no** dar "Connect" ni "Refresh Permissions". |
+| Centro de cuentas (celular) | `novedades_bolsas_jade`, `trece0594` y `jade.castaneda.71868` están en **el mismo Centro de cuentas que el Facebook de Jade Castañeda** | Importante para 11.2: las pruebas de Instagram desde `trece0594` cuentan como de **Jade** (evaluador pendiente), no de Trece Trece. |
+| Instagram → Mensajes y respuestas a historias | "Herramientas conectadas" **no** está en esa pantalla | Está dentro de **Solicitudes de mensajes** → "Herramientas conectadas" → **Permitir acceso a los mensajes**. En la captura está **activado** ✅. |
+| Instagram → Solicitudes | Los mensajes de prueba cayeron en **Solicitudes** | La API **no devuelve** conversaciones de Solicitudes que lleven 30 días sin actividad; y todo el que no te sigue entra ahí. Para probar, que la cuenta de prueba **siga** a la tienda o aceptar la solicitud. |
+
+### 11.2 Por qué no llegan los mensajes directos de Instagram (y cómo probarlo)
+
+Ya descartado: webhook de la app con `messages` ✅, página suscrita con `messages` ✅, token con
+`instagram_manage_messages` ✅, página ligada a `novedades_bolsas_jade` (`17841444237033427`) ✅,
+cuenta dentro del portafolio ✅, "Permitir acceso a los mensajes" activado ✅, Manychat sin permisos ✅.
+Aun así `GET /{page}/conversations?platform=instagram` devuelve `{"data":[]}` y no llega ningún webhook.
+
+**Causa más probable — acceso Standard:** con acceso Standard, Meta solo entrega y deja leer mensajes
+de **cuentas con rol en la app** (admin, desarrollador, evaluador); el resto necesita acceso avanzado
+por App Review. La documentación también pide que el evaluador "tenga un rol en la cuenta profesional
+de Instagram". Messenger funcionó porque lo mandó **Trece Trece**, que es admin. Las pruebas de
+Instagram salieron de cuentas del Centro de cuentas de **Jade Castañeda**, cuyo rol sigue
+**pendiente**. Por eso la lista de conversaciones sale vacía y no llega ningún webhook: para Meta,
+nadie con rol ha escrito.
+
+**Cómo probarlo, en este orden:**
+1. Que **Jade acepte la invitación de evaluador** (developers.facebook.com/requests, con su Facebook).
+2. **Aclarado el 2026-09-24:** la cuenta de Instagram de pruebas del dueño es **`trece0594`** ("trece1305"
+   fue una confusión con los números) y vive en el Centro de cuentas de **Jade Castañeda**. Tiene que
+   estar ligada a un Facebook con rol **aceptado**: o Jade acepta su invitación de evaluadora, o se
+   mueve `trece0594` al Centro de cuentas de Trece Trece (admin).
+   ✅ **Hecho el 2026-09-24:** se quitó `trece0594` del Centro de cuentas de Jade ("Administrar
+   cuentas" → Quitar; en "Perfiles" no aparece esa opción) y se agregó el Facebook **Trece Trece**. Su
+   Centro de cuentas quedó con solo `trece0594` + Trece Trece (5 páginas administradas).
+   ✅ **Resultado:** el mensaje directo de `trece0594` **ya llega al bot**
+   (`Mensaje directo de INSTAGRAM recibido ... para=17841444237033427`). Se confirma la causa:
+   con acceso Standard, Meta solo entrega mensajes de cuentas ligadas a un Facebook con rol en la app.
+   ❌ Pero el bot no pudo contestar: el token de página quedó inválido
+   (`code 190, subcode 467: The session is invalid because the user logged out`). Al entrar con
+   Trece Trece en el celular para ligar la cuenta se cerró la sesión de la que salió el token. Eso
+   tumba **todo** el bot (comentarios y Messenger incluidos) hasta poner un token nuevo.
+   **Solución de fondo:** token de un **usuario del sistema** del portafolio (no depende de la sesión
+   ni de la contraseña personal; no caduca). Ver pasos en la conversación del 2026-09-24.
+   ✅ Usuario del sistema **bot-novedades** creado (Admin), con la página NovedadesJade (acceso total,
+   incluye la cuenta de Instagram) y la app novedadesJade (acceso total). Si la app no está asignada,
+   "Generar token" dice "No hay permisos disponibles". Token de página nuevo cargado en QA; la
+   prueba `me?fields=id,name` responde NovedadesJade.
+   ❌ Siguiente prueba, dos errores de código (corregidos, falta subir):
+   - Enviar el DM de Instagram por `POST /{ig-user-id}/messages` con token de página da
+     `(#3) Application does not have the capability to make this API call`. Con Facebook Login, los
+     DMs de Instagram van por la **página**: `POST /{page-id}/messages` (igual que Messenger).
+     Corregido en `InstagramGraphClient.enviarMensajeDirecto`.
+   - Los `mid` de Instagram miden ~180 caracteres y la columna era `VARCHAR(100)`:
+     `Data too long for column 'mid'`. Entidad a 512 y migración
+     `migration_mensaje_directo_mid.sql` (**correrla en QA antes de probar**).
+3. Que la cuenta de prueba **siga** a `novedades_bolsas_jade`, para que el mensaje no caiga en Solicitudes.
+4. Mandar un mensaje **nuevo** y revisar:
+   `GET /{page}/conversations?platform=instagram` (filtrando el token con `sed`) y el log
+   `Mensaje directo de INSTAGRAM recibido`.
+
+Si con eso llega, el bot ya funciona para Instagram en pruebas. Para **clientes reales** hace falta
+el acceso avanzado de `instagram_manage_messages` (App Review + verificación del negocio).
+
+### 11.3 ¿Por qué el bot le contestó un comentario a una clienta real si la app no está verificada?
+
+Interpretación de la documentación (no hay una frase de Meta que lo diga así de directo): el acceso
+Standard limita a **qué usuarios de la app** pueden conectar sus datos, no a quién comenta. El token
+que usa el bot es de una página que administra **Trece Trece**, que tiene rol de admin; por eso la app
+puede leer y contestar **cualquier** comentario de esa página. En los mensajes directos Meta sí
+aplica el filtro a quien **escribe** (11.2); por eso Messenger solo contesta a cuentas con rol.
+
+**Consecuencia importante:** el bot que contesta hoy los comentarios **es el de QA**, y lo hace con
+clientes reales en la página real. Cualquier cambio que se suba a `qa` se ve de inmediato en tu
+página. Probar primero en `dev` y subir a `qa` solo lo revisado.
+
+### 11.4 Presentarse como asistente: comentarios vs mensajes directos
+
+- La regla de Meta sobre avisar que es un bot está en la **política de Messenger/Instagram Messaging**,
+  o sea, **mensajes directos**. Pide avisar **al inicio de la conversación**, **después de un silencio
+  largo** y **cuando una persona le regresa la conversación al bot**. Es obligatorio donde lo exige la
+  ley; Meta menciona **California y Alemania**, y en el resto lo recomienda como buena práctica.
+- En **comentarios públicos** no hay esa regla. Por eso, desde el 2026-09-24 el bot **ya no se
+  presenta en comentarios**, solo en el primer mensaje directo (`botredes/README.md`, R4).
+- **Mejora pendiente (no programada):** cuando el bot retoma un mensaje directo después de la pausa de
+  30 minutos (la persona lo atendió y se lo "regresó"), Meta recomienda volver a decir que es el
+  asistente automático. Hoy no lo hace.
+
+### 11.5 App Review: lo que Meta pide para los mensajes (nuevo)
+
+- **Acceso avanzado = verificación del negocio + App Review.** Para contestar mensajes de clientes
+  reales, `instagram_manage_messages` y `pages_messaging` necesitan acceso avanzado. Eso solo se da con
+  App Review aprobado **sobre un portafolio verificado**. Por eso la constancia va primero.
+- **Screencast por permiso:** debe verse el **inicio de sesión y el consentimiento** (la pantalla de
+  Facebook que pide los permisos), un **intercambio real de mensajes** y el bot contestando. La
+  justificación escrita tiene que decir lo mismo que el video.
+- **El uso tiene que ser atención a clientes.** Meta rechaza `instagram_manage_messages` si el caso no
+  es claramente "negocio contesta a su cliente". Justificación sugerida: "Tienda en línea que contesta
+  dudas de sus clientes sobre productos, precios y pedidos; si el asistente no sabe, lo atiende una persona".
+- **Webhook funcionando es obligatorio.** Sin URL de callback que responda, rechazan (ya lo tenemos).
+- **Permiso `pages_messaging`:** tiene **0 llamadas**. Meta pide al menos una llamada real reciente
+  antes de mandarlo a revisión. Ya se hizo al contestar Messenger hoy; revisar que el contador suba.
+- **`human_agent` (7 días):** permite que **una persona** conteste hasta 7 días después del último
+  mensaje del cliente, fuera de la ventana de 24 h. Tiene su propio App Review y **está prohibido
+  usarlo para el bot**. Solo tiene sentido si el admin tarda más de 24 h en contestar. Se deja para después.
+- **Respuesta privada a un comentario (idea futura):** Instagram deja mandarle **un** mensaje directo a
+  quien comentó, hasta **7 días** después del comentario. Si esa persona contesta, se abre la ventana
+  normal de 24 h. Sirve para "¿precio?" → "Te mandamos la info por mensaje". Requiere
+  `instagram_manage_messages` avanzado.
+
+### 11.6 Verificación del negocio — qué te falta y cómo resolverlo
+
+| Falta | Cómo se resuelve |
+|---|---|
+| Constancia con actividad de negocio (hoy solo "Sueldos y Salarios", de 2022, domicilio del patrón) | 11.8: agregar la actividad (RESICO) y cambiar el domicilio fiscal, y sacar la constancia nueva. |
+| Nombre legal del portafolio ≠ constancia | Poner el nombre **exacto** de la constancia, letra por letra (acentos y espacios incluidos). |
+| Dirección incompleta en portafolio y en la app | La misma dirección completa de la constancia en los dos lugares. |
+| Documento que pruebe domicilio **a nombre del negocio o tuyo** | Recibo de luz, teléfono o estado de cuenta **con tu nombre y esa dirección** en la misma hoja. Un recibo con dirección pero sin tu nombre **no sirve**. |
+| Correo del negocio | Opcional, pero ayuda: un correo con el dominio `@novedades-jade.com.mx` en lugar de Gmail/Hotmail **acelera** la revisión, y la verificación por dominio es la más rápida. |
+| Llave de acceso (passkey) sin activar | Activarla (11.1). |
+| Tiempo | La revisión con documentos tarda de **3 a 7 días hábiles**, hasta 10. Si cambias nombre, dirección o dominio a medio trámite, la revisan con más lupa. **Corregir todo antes de enviar.** |
+
+### 11.7 TikTok (lo nuevo)
+
+- **Mensajes directos por API (Business Messaging API):** en **beta abierta en LATAM**, así que México
+  entra. Solo para **cuentas Business registradas fuera** de EE. UU., la UE, Suiza y el Reino Unido.
+- **Comentarios:** hay endpoints de "responder comentario" en la API for Business, pero una fuente
+  dice que solo cubren **comentarios de anuncios**, no de videos orgánicos. La colección oficial de
+  Postman sí tiene "Business comment list / reply" (Accounts API). **Hay que confirmarlo en el portal**
+  antes de planear el bot de comentarios de TikTok. No se pudo abrir el portal desde aquí (bloqueado).
+- **Orden sugerido:** TikTok después de que Meta quede aprobado. Mismo patrón de verificación de
+  negocio: nombre y documentos que coincidan con la constancia.
+
+### 11.8 SAT — seguir en tu trabajo y además tener el negocio
+
+**Sí se puede, y es muy común:** en el **mismo RFC** tienes "Sueldos y Salarios" (régimen 605) y agregas
+**RESICO** (régimen 626) para el negocio. Tu patrón te sigue reteniendo el ISR del sueldo como siempre;
+el negocio lo declaras tú aparte. El tope de RESICO (**$3.5 millones al año**) cuenta **solo** lo del
+negocio, no tu sueldo.
+
+**Pasos, en orden:**
+1. **Contraseña del SAT** (si no la tienes o no la recuerdas): se recupera en línea con la e.firma, o
+   con cita en el SAT.
+2. **e.firma** (muy recomendable, la vas a necesitar para el domicilio y otros trámites):
+   - Cita en **citas.sat.gob.mx** → "e.firma personas físicas".
+   - Llevar: **INE vigente**, **CURP**, **comprobante de domicilio** de no más de 3 meses, **correo**
+     y una **USB**.
+   - Te dan los archivos `.cer` y `.key` y un acuse. **Guarda la USB y la contraseña de la llave privada.**
+3. **Cambio de domicilio fiscal** (hoy está el del patrón, en CDMX):
+   - En línea con e.firma: "Realiza tu cambio de domicilio en el RFC", adjuntando el comprobante
+     digitalizado. Si no, en cita.
+   - Plazo legal: **10 días hábiles** después de cambiarte. La multa por no tenerlo al día va de
+     **$2,080 a $6,660**.
+4. **Aviso de actualización de actividades económicas y obligaciones** (persona física):
+   - En línea con **RFC y contraseña** (no pide e.firma), o en "mi @spacio" del SAT.
+   - Ahí agregas la actividad del negocio (comercio al por menor de ropa, bolsas y accesorios por
+     internet) y eliges **RESICO**.
+   - Descargas el **acuse de movimientos de actualización**.
+5. **Constancia de Situación Fiscal nueva:**
+   - Con **RFC y contraseña**, desde el portal del SAT o desde la app **SAT Móvil** → Documentos →
+     Constancia.
+   - Sin contraseña: app **SAT ID** (INE + video). Llega al correo en hasta 5 días hábiles.
+   - Revisar que diga: tu nombre, el **domicilio nuevo**, la actividad del negocio y el régimen
+     **RESICO**, además de Sueldos y Salarios.
+6. **Con esa constancia:** corregir nombre legal y dirección del portafolio y de la app, y ahí sí
+   iniciar la verificación en Meta.
+
+**Lo que implica tener el negocio en RESICO** (confirmar todo con un contador):
+- **ISR:** del **1% al 2.5%** sobre lo **cobrado** cada mes, sin IVA y sin deducciones. Se paga a más
+  tardar el **día 17 del mes siguiente**.
+- **IVA:** se declara aparte, normalmente también cada mes. RESICO solo simplifica el ISR.
+- **Facturas:** si le vendes a una empresa (persona moral), te retiene el **1.25%** de ISR.
+- **Declaración anual:** con sueldo **más** RESICO, en abril. Si tu sueldo pasa de $400,000 al año o
+  tuviste más de un patrón, la anual es obligatoria de todos modos.
+- Hay casos que **no pueden** estar en RESICO (por ejemplo, ser socio de ciertas empresas). Revisar
+  con el contador que no te toque ninguno.
+
+**Por qué con contador:** darte de alta en RESICO genera **declaraciones mensuales** aunque vendas poco.
+Si no las presentas, llegan multas. Un contador también te dice la actividad exacta del catálogo del
+SAT que te conviene.
+
+### 11.9 Fuentes de esta sección
+
+- [Meta — Webhooks de Instagram Messaging](https://developers.facebook.com/docs/messenger-platform/instagram/features/webhook/) · [Enviar mensajes (Instagram)](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api/) · [Conversations API](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/conversations-api) · [Overview Instagram Platform](https://developers.facebook.com/docs/instagram-platform/overview/)
+- [Meta — Niveles de acceso](https://developers.facebook.com/docs/graph-api/overview/access-levels/) · [Qué pide acceso avanzado](https://singhamandeep.com/what-is-meta-advanced-access/)
+- [Meta — Política de Messenger e IG Messaging](https://developers.facebook.com/documentation/business-messaging/messenger-platform/policy) · [Aviso de bot (resumen)](https://docs.chatbotbuilder.ai/support/solutions/articles/150000172232-meta-guidelines-and-policy-on-the-use-of-automated-bots)
+- [Meta — Respuestas privadas (Instagram)](https://developers.facebook.com/docs/instagram-platform/private-replies/) · [Respuestas privadas (Messenger Platform)](https://developers.facebook.com/docs/messenger-platform/instagram/features/private-replies/)
+- [Human agent (Chatwoot)](https://www.chatwoot.com/hc/user-guide/articles/1745225158-what-is-human-agent-tag-in-instagram-messenger-channel) · [Ventana de 24 h](https://www.keyapi.ai/blog/instagram-messaging-api-policy/)
+- [App Review de mensajes de Instagram 2026](https://singhamandeep.com/instagram-messaging-api-approval-getting-instagram_business_manage_messages-2026/) · [Chatwoot: Instagram App Review](https://developers.chatwoot.com/self-hosted/instagram-app-review) · [Por qué rechazan bots de Messenger](https://singhamandeep.com/facebook-messenger-bot-app-review-chatbot-saas/)
+- [Rechazos de verificación 2026](https://chakrahq.com/article/meta-business-verification-rejected-reasons/) · [7 arreglos](https://anylinga.com/blog/en/meta-business-verification-rejected-7-fixes.html) · [Leadsales: persona física con CSF](https://leadsales.io/blog/verificar-negocio-meta-business-para-usar-api/)
+- [Meta — Llave de acceso en portafolios](https://www.facebook.com/business/help/910360017835904) · [Acerca de las llaves de acceso](https://www.meta.com/help/meta-account/1991801474748071/)
+- [TikTok — Business Messaging API](https://business-api.tiktok.com/portal/docs/business-messaging-api/v1.3) · [Infobip: TikTok Business Messaging](https://www.infobip.com/docs/tiktok) · [TikTok — Responder un comentario](https://business-api.tiktok.com/portal/docs/reply-to-a-comment/v1.3) · [Postman: Business comment reply](https://www.postman.com/tiktok/tiktok-api-for-business/request/2t0gmfy/business-comment-reply)
+- [SAT — Aviso de actualización de actividades](https://www.sat.gob.mx/tramites/33758/presenta-el-aviso-de-actualizacion-de-actividades-economicas-y-obligaciones-fiscales-como-persona-fisica) · [SAT — Cambio de domicilio](https://wwwmat.sat.gob.mx/tramites/30357/realiza-tu-cambio-de-domicilio-en-el-rfc) · [SAT — Constancia](https://wwwmat.sat.gob.mx/aplicacion/53027/genera-tu-constancia-de-situacion-fiscal.)
+- [Asalariado y RESICO (Factorum)](https://www.factorum.com.mx/post/puedo-estar-en-resico-si-tambi%C3%A9n-soy-asalariado) · [RESICO y sueldos compatibles](https://mex.tramitesnotariales.info/resico/resico-y-sueldos-salarios/) · [RESICO 2026 tasas y obligaciones (Alegra)](https://blog.alegra.com/mexico/resico-personas-fisicas/) · [Obligaciones RESICO 2026](https://resicocalc.com/blog/obligaciones-fiscales-resico-2026)
+- [Constancia: 5 formas en 2026 (Alegra)](https://blog.alegra.com/mexico/constancia-de-situacion-fiscal/) · [Constancia con SAT ID](https://guiaconstanciafiscal.com/constancia-fiscal-sat-id-sin-efirma/) · [e.firma paso a paso 2026](https://serendipia.digital/tutoriales/tramitar-tu-e-firma-en-2026/) · [Cambio de domicilio 2026](https://serendipia.digital/tutoriales/cambiar-domicilio-fiscal/)
