@@ -1446,6 +1446,19 @@ O sea: el nombre legal ya no es el problema; lo que falla es **ligar el teléfon
   Felipe donde salga ese número, o **estado de cuenta bancario** con nombre y teléfono. Si el recibo sale
   a nombre de otra persona, no sirve: cambiar el teléfono capturado por uno que sí salga a su nombre.
 
+**Captura 47 — el asistente de verificación (se abre al reanudar):** ventana **"Verificar Abel Tiburcio
+Felipe"**: *"Para la verificación, deberás demostrar que tu negocio es real y que tienes una conexión
+legítima con él."* "Acciones que deberás realizar", en este orden:
+1. **Verifica la información del negocio** — nombre, dirección, número de teléfono, correo electrónico
+   y sitio web del negocio.
+2. **Confirma tu conexión** — elegir el método de contacto para confirmar la conexión con el negocio.
+   **Aquí se elige el correo `@novedades-jade.com.mx`.**
+3. **Subir documentos** — solo si Meta no encuentra el negocio ("documentos aceptados").
+
+Botón **Empezar**. En el paso 1 revisar antes de seguir: sitio web = `https://shop.novedades-jade.com.mx`
+y correo = uno del dominio, porque el correo del paso 2 tiene que coincidir con el sitio. Si en el paso
+1 se cambia el teléfono, tiene que ser uno que salga en un recibo a nombre de Abel Tiburcio Felipe.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
