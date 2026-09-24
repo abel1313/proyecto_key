@@ -1360,6 +1360,42 @@ Antes de enviar: el texto de "Instrucciones para revisores" (`instructions-web-2
 que el bot de mensajes directos "does not reply and forwards the message by email"; corregirlo aunque
 el paso salga en verde.
 
+### 2026-09-24 — 📍 Estado al cierre del App Review (para retomar)
+
+**Hecho:**
+- Solicitud con los **10 permisos correctos** (lista final arriba). Quitados de la revisión:
+  `pages_manage_posts` y `business_management` (se quedan con acceso estándar; publicar desde la app web
+  sigue funcionando). Agregado: `instagram_manage_messages`.
+- Los 10 formularios llenos: el paso **"Uso permitido" salió en verde** (captura 44). En
+  `instagram_basic` las palomitas del formulario no se marcaban justo después de guardar; no importó,
+  porque el paso general quedó en verde. Si pasa otra vez: revisar que se haya dado **Guardar**, esperar
+  a que Meta termine de procesar el video y recargar.
+- Configuración de la app, Tratamiento de datos e Instrucciones para revisores en verde.
+
+**Videos por permiso (lo que se subió o se decidió):**
+
+| Permiso | Video |
+|---|---|
+| `instagram_manage_comments`, `instagram_basic` | `videoRedesInstaComentariosv2` |
+| `pages_read_user_content`, `pages_manage_engagement`, `pages_read_engagement` | Comentarios de Facebook (nombre del archivo sin anotar) |
+| `pages_messaging`, `pages_manage_metadata` | Messenger de Facebook (nombre del archivo sin anotar) |
+| `pages_show_list` | Explorador de la API Graph, `me/accounts?fields=id,name` |
+| `instagram_manage_messages` | Mensajes directos de Instagram |
+| `public_profile` | No se llenó por separado; el paso "Uso permitido" quedó en verde igual |
+
+**Falta, en este orden:**
+1. **Verificación del negocio** — portafolio "Novedades Jade" en 🟠 "Se requiere más información". Abrir
+   **Ver detalles** y anotar qué pide. Es la Constancia de Situación Fiscal + información del negocio
+   (📌 Pendientes 1–2).
+2. **Instrucciones para revisores:** corregir la frase del punto de mensajes directos ("does not reply and
+   forwards the message by email") antes de enviar.
+3. **`pages_messaging`:** crear una cuenta real de Facebook, darle rol de **Evaluador** y poner sus datos en
+   Instrucciones para revisores.
+4. **`instagram_manage_messages`:** abrir **"View requirements"** (cuenta propia) y anotar qué pide. Si pide
+   lo de mensajes anulados, programar el borrado con `is_deleted` (ver arriba).
+5. Anotar los nombres de los archivos de los videos de Facebook y de Messenger.
+6. Recién entonces: **Enviar para revisión**.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
