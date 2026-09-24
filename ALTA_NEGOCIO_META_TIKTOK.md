@@ -1528,6 +1528,23 @@ que se suba (la constancia). Cuando se cambie el domicilio fiscal al del negocio
 la información de contacto. Marcar la casilla, resolver las imágenes si las pide → **Siguiente**. Normal,
 no es un error.
 
+**Captura 55 — "Verificar tu negocio con un documento y…":** *"No encontramos tu negocio. Sube los
+documentos y confirma tu vínculo con Abel Tiburcio Felipe. Elige uno de los siguientes métodos"*:
+
+| Método | Qué documento pide además |
+|---|---|
+| **Correo electrónico** (Recomendado) — código a un correo `@novedades-jade.com.mx` | Nombre legal + **dirección o** teléfono |
+| Llamada telefónica al número capturado | Nombre legal + **teléfono** |
+| Mensaje de texto (SMS) | Nombre legal + **teléfono** |
+| Mensaje de WhatsApp | Nombre legal + **teléfono** |
+| Verificación del dominio — "Usa tu dominio existente" | (no dice) |
+
+**Elegido: Correo electrónico.** Es el único donde basta **nombre + dirección**, y eso lo trae la
+**Constancia de Situación Fiscal** (nombre legal y el mismo domicilio que se capturó en la captura 52).
+Los tres de teléfono piden un documento con nombre + **teléfono**, y la constancia no trae teléfono: es
+justo lo que falló la vez pasada. Plan B: **Verificación del dominio** (meta etiqueta en la tienda o
+registro TXT en el DNS de Hostinger).
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
