@@ -377,6 +377,46 @@ No es parte de este trámite, pero es el mismo portafolio:
 
 ---
 
+### 3.14 Reglas de uso permitido — lo que confirmas en la casilla de cada permiso
+
+Cada permiso del App Review termina con la casilla *"Si se aprueba, confirmo que cualquier
+información que reciba a través de `<permiso>` se usará de acuerdo con el uso permitido"*. Esto es lo
+que se está prometiendo y dónde validarlo.
+
+**Dónde leer las reglas oficiales** (abrir en Safari o Chrome, no en Brave):
+
+| Documento | URL | Para qué |
+|---|---|---|
+| Referencia de permisos | https://developers.facebook.com/docs/permissions/ | Cada permiso con su **"Allowed usage"** y sus dependencias. Buscar el nombre con Cmd + F |
+| Política de Messenger y de mensajes de Instagram | https://developers.facebook.com/documentation/business-messaging/messenger-platform/policy | Ventana de 24 h, aviso de bot, qué se puede mandar. Aplica a `pages_messaging` **y** a `instagram_manage_messages` |
+| Moderación de comentarios de Instagram | https://developers.facebook.com/docs/instagram-platform/comment-moderation/ | Qué se puede hacer con `instagram_manage_comments` |
+| Condiciones de la plataforma | https://developers.facebook.com/terms/ | Reglas generales de datos: aplican a **todos** los permisos |
+| Políticas para desarrolladores | https://developers.facebook.com/devpolicy/ | Igual, generales |
+
+⚠️ Desde el servidor no se pudo abrir developers.facebook.com (bloqueado): los resúmenes de abajo salen
+del texto que muestra el formulario de Meta (copiado por el dueño, marcado **[Formulario]**) y de
+búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la referencia oficial.
+
+**Por permiso:**
+
+| Permiso | Qué permite (según Meta) | Qué hace nuestro bot con él | Reglas que prometemos cumplir |
+|---|---|---|---|
+| `pages_messaging` | "Administrar y acceder a conversaciones de la página en Messenger… crear experiencias interactivas iniciadas por el usuario, enviar mensajes de servicio de atención al cliente o confirmar reservas, compras y pedidos" **[Formulario]**. Depende de `pages_manage_metadata` y `pages_show_list` **[Proveedor]** | Contesta los mensajes que la gente le manda a la página NovedadesJade | Solo contestar a quien escribió primero, **dentro de 24 h** de su último mensaje (el código manda `messaging_type: RESPONSE` y contesta al momento) · decir al inicio que es un asistente automático (lo hace en el primer mensaje) · nada de publicidad fuera de las 24 h · pasar a una persona cuando el bot no puede (escala y se pausa 30 min) |
+| `instagram_manage_messages` | Mandar y recibir mensajes directos de la cuenta profesional de Instagram **[Proveedor]** | Contesta los mensajes directos a @novedades_bolsas_jade | Las mismas de Messenger: misma política. La etiqueta `human_agent` (7 días) solo la puede usar una persona, **nunca el bot** |
+| `instagram_manage_comments` | "Crear, eliminar y ocultar comentarios en nombre de la cuenta de Instagram vinculada a una página… leer, actualizar y eliminar comentarios de cuentas de empresa de Instagram" **[Formulario]** | Contesta comentarios en las publicaciones propias | Solo comentarios de **nuestras** publicaciones · no ocultar ni borrar comentarios de clientes con el bot (hoy no lo hace) |
+| `pages_manage_engagement` | Crear, editar y borrar comentarios de la página y moderar comentarios **[Proveedor]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
+| `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
+| `pages_manage_metadata` | Suscribir la página a webhooks y cambiar su configuración **[Proveedor]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
+| `pages_show_list` | Ver la lista de páginas que administra la persona **[Proveedor]** | Sacar el token de la página | — |
+| `instagram_basic` | Leer el perfil y las publicaciones de la cuenta de Instagram **[Proveedor]** | Ligar la publicación con el producto | — |
+
+**Reglas que aplican a todos** (texto del formulario y Condiciones de la plataforma): usar los datos
+**solo** para lo que se describió (atención a clientes); estadísticas solo "con información agrupada y
+no identificada o anónima (siempre que esos datos no se puedan volver a identificar)"
+**[Formulario]**; política de privacidad pública y forma de borrar datos
+(`/privacidad`, `/eliminar-datos`); no vender ni pasar los datos a terceros fuera de los encargados
+declarados en "Tratamiento de datos" (OpenAI, OVHcloud, Hosting Mexico).
+
 ## 4. TIKTOK
 
 ### 4.1 Hay dos portales distintos — la clave de todo
@@ -940,6 +980,43 @@ When a customer comments on one of our posts (for example, asking about price, a
 ⚠️ El texto para revisores (`instructions-web-2`, arriba) tiene el mismo error en el punto 1 de
 mensajes directos ("it does not reply and forwards the message by email"). Corregirlo igual antes de
 enviar: el bot contesta "En un momento te atendemos 💖" y avisa al admin.
+
+### 2026-09-24 — `pages_messaging`: cómo llenar cada campo
+
+Pantalla: Revisar → Revisión de la app → "¿Cómo usará la app pages_messaging?" → Empezar.
+"Llamadas de prueba a la API" ya sale **Completado**.
+
+1. **Indícanos por qué solicitas pages_messaging** (en inglés; tiene que decir lo mismo que el video):
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico that sells bags and accessories. We use pages_messaging so an automated assistant can answer customers who send a message to our own Facebook Page (NovedadesJade) on Messenger.
+
+When a customer writes to the Page, our server receives the Messenger webhook and replies with the Send API (messaging_type RESPONSE), only in reply to a conversation the customer started and always within the 24-hour standard messaging window. The first reply says it is the automated assistant of Novedades Jade. The assistant answers questions about our products, prices and availability using our own catalog. If it cannot answer, it replies that a person will attend them shortly and notifies our team, and a person continues the conversation from the Page inbox. When someone from our team replies manually, the assistant stops replying to that customer for 30 minutes.
+
+We never send promotional or unsolicited messages, and we use these conversations only to provide customer service. Without this permission the assistant cannot reply on Messenger, and customers who write outside business hours would wait hours for an answer.
+```
+
+2. **Prueba y reproduce → Selecciona una página:** **NovedadesJade** (id `645820348605806`), no
+   "Novedades Jade" (`1275448475648441`), que es otra.
+   Meta pide una **cuenta real de Facebook con rol de Evaluador** (Roles de la app → Evaluadores). Los
+   "usuarios de prueba" creados en Roles de la app **no sirven**: no reciben mensajes de bots. Hay que
+   crear una cuenta de Facebook dedicada (no la personal), invitarla como evaluador y aceptar la
+   invitación desde esa cuenta. Sus datos de acceso van en **Instrucciones para revisores**. Riesgo
+   **[Sin confirmar]**: Facebook puede bloquear el inicio de sesión del revisor desde otro país si la
+   cuenta es nueva o tiene verificación en dos pasos.
+3. **Video:** el de **Messenger** (no el de mensajes directos de Instagram). Debe verse: la cuenta del
+   cliente escribiendo a NovedadesJade en Messenger, la primera respuesta "Soy el asistente automático
+   de Novedades Jade", y de preferencia una pregunta que el bot no sabe → "En un momento te atendemos"
+   → la respuesta de una persona desde la bandeja de la página. Subirlo en **Safari**.
+4. **Casilla de uso permitido:** marcarla después de leer las reglas de 3.14.
+5. **Instrucciones para reproducir:**
+
+```
+1. Log in to Facebook with the tester account given in the reviewer instructions.
+2. Open Messenger and send a message to the Page "NovedadesJade" (facebook.com/NovedadesJade), for example: "¿Tienen bolsas negras?" ("Do you have black bags?").
+3. Within about 20 seconds the automated assistant replies in Spanish. The first reply says it is the automated assistant of Novedades Jade.
+4. Send a question the assistant cannot answer, for example "¿Me pueden llamar?" ("Can you call me?"). The assistant replies that a person will attend you shortly, and a member of our team answers from the Page inbox.
+```
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
