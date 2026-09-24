@@ -1462,6 +1462,13 @@ y correo = uno del dominio, porque el correo del paso 2 tiene que coincidir con 
 **Captura 48 — primera pantalla después de "Empezar":** "Seleccionar un país — Indica la ubicación de
 la organización que quieres verificar." Campo **País: México** (ya viene elegido) → **Siguiente**.
 
+**Captura 49 — "Selecciona tu tipo de negocio":** opciones: Sociedad (cotiza en bolsa) · **Sociedad
+unipersonal** ("Empresa operada por un solo propietario, que usa otro nombre por motivos comerciales
+(DBA)") · Sociedad (dos o más individuos) · Empresa privada (tipo LLC) · Institución. **Se elige
+"Sociedad unipersonal"**: el negocio es una persona física (Abel Tiburcio Felipe) que vende con el
+nombre comercial "Novedades Jade". Si algún día se constituye una persona moral (S.A. de C.V., S. de
+R.L.), sería "Empresa privada".
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
