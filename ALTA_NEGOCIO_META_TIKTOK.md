@@ -1567,6 +1567,13 @@ estar en **`https://hapi.hosting-mexico.net:2096`** o en `https://novedades-jade
 dominio → Correo / Webmail, o buscar el correo de bienvenida de Hosting-Mexico. **Anotar aquí la URL que
 funcione.** (No anotar la contraseña.)
 
+**Captura 57 — "Confirmar dirección de correo electrónico":** *"Tu correo electrónico debe estar asociado
+con tu negocio. Te enviaremos un código de confirmación por correo electrónico que será válido por 60
+minutos."* El primer campo ya trae el dominio fijo (`@novedades-jade.com.mx`) y el segundo pide
+escribir el correo completo "por tu seguridad": se puso **`admin@novedades-jade.com.mx`** → **Enviar
+correo electrónico**. El código dura **60 minutos**: tener el webmail abierto antes de enviarlo. Si no
+llega, revisar la carpeta de spam del buzón.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
