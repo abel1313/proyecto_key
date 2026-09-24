@@ -1396,6 +1396,27 @@ el paso salga en verde.
 5. Anotar los nombres de los archivos de los videos de Facebook y de Messenger.
 6. Recién entonces: **Enviar para revisión**.
 
+### 2026-09-24 — Captura 45: Centro de seguridad del portafolio
+
+Business Suite → Configuración (portafolio Novedades Jade) → **Centro de seguridad**. Sección "Action
+needed" con dos recomendaciones, cada una con botón **Realizar acción**:
+1. *"1 usuario without passkey enabled"* → recomienda *"Remove users without passkeys from your
+   business portfolio"*.
+2. *"1 usuario con un dominio de correo electrónico público"* → recomienda *"Elimina de tu portfolio
+   comercial a los usuarios con dominios de correo electrónico públicos"*.
+
+"Acción completada": dominio de confianza agregado a la aprobación de pares, y aprobación de pares
+activada en todas las cuentas publicitarias.
+
+⚠️ **No usar "Realizar acción" ahí:** las dos proponen **sacar usuarios** del portafolio, y el único
+usuario persona con correo público (`@hotmail.com`) es el propio dueño (captura 18/20: "Tortilleria la
+Salidad (tú)", acceso total). Sacarlo lo deja fuera de su propio negocio. Son recomendaciones de
+seguridad, **no** son el requisito de la verificación. Lo seguro, si se quiere quitar la alerta:
+(1) crear una **llave de acceso (passkey)** en la cuenta de Facebook del dueño (Centro de cuentas →
+Contraseña y seguridad → Llaves de acceso) **[Sin confirmar la ruta exacta]**; (2) cambiar el correo
+del usuario a uno del dominio (`admin@novedades-jade.com.mx`, que ya existe). Ninguna de las dos
+bloquea el App Review.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
