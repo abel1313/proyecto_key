@@ -404,7 +404,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | `pages_messaging` | "Administrar y acceder a conversaciones de la página en Messenger… crear experiencias interactivas iniciadas por el usuario, enviar mensajes de servicio de atención al cliente o confirmar reservas, compras y pedidos" **[Formulario]**. Depende de `pages_manage_metadata` y `pages_show_list` **[Proveedor]** | Contesta los mensajes que la gente le manda a la página NovedadesJade | Solo contestar a quien escribió primero, **dentro de 24 h** de su último mensaje (el código manda `messaging_type: RESPONSE` y contesta al momento) · decir al inicio que es un asistente automático (lo hace en el primer mensaje) · nada de publicidad fuera de las 24 h · pasar a una persona cuando el bot no puede (escala y se pausa 30 min) |
 | `instagram_manage_messages` | Mandar y recibir mensajes directos de la cuenta profesional de Instagram **[Proveedor]** | Contesta los mensajes directos a @novedades_bolsas_jade | Las mismas de Messenger: misma política. La etiqueta `human_agent` (7 días) solo la puede usar una persona, **nunca el bot** |
 | `instagram_manage_comments` | "Crear, eliminar y ocultar comentarios en nombre de la cuenta de Instagram vinculada a una página… leer, actualizar y eliminar comentarios de cuentas de empresa de Instagram" **[Formulario]** | Contesta comentarios en las publicaciones propias | Solo comentarios de **nuestras** publicaciones · no ocultar ni borrar comentarios de clientes con el bot (hoy no lo hace) |
-| `pages_manage_engagement` | Crear, editar y borrar comentarios de la página y moderar comentarios **[Proveedor]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
+| `pages_manage_engagement` | "Crear, editar y eliminar comentarios publicados en la página… crear y eliminar los 'Me gusta' del contenido de tu propia página… con el objetivo de ayudar a administrar y moderar el contenido en la página" **[Formulario]**. Requiere `pages_show_list` y `pages_read_user_content` **[Formulario]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
 | `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
 | `pages_read_user_content` | "Leer el contenido de la página generado por los usuarios, como las publicaciones, los comentarios o las calificaciones… y eliminar los comentarios de los usuarios en las publicaciones de la página… El uso autorizado es leer el contenido de los usuarios y de otras páginas que se haya publicado en la página, siempre que sea necesario para administrarla" **[Formulario]**. Requiere `pages_show_list` **[Formulario]** | Recibe el comentario del cliente (webhook `feed`) y le contesta con `POST /{comment-id}/comments`. La llamada de prueba ya sale Completado, o sea que Meta registró que la usamos | Leer solo comentarios de clientes en **nuestra** página, para contestarlos · no borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_metadata` | "Suscribirse y recibir webhooks sobre actividades en la página, y actualizar los ajustes de esta… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` en la misma solicitud **[Formulario]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
@@ -1135,6 +1135,24 @@ instagram_content_publish, instagram_manage_messages, pages_read_engagement, pag
 pages_read_user_content, pages_manage_posts, pages_manage_engagement). **No tocarla**: dejarla igual
 para que el token nuevo traiga los mismos permisos. Antes de subir el video, revisarlo completo: si
 en algún cuadro se ve el token (texto largo que empieza con `EAA…`), no subirlo y grabar de nuevo.
+
+### 2026-09-24 — `pages_manage_engagement`
+
+Es el permiso con el que el bot **contesta** los comentarios de Facebook (`POST /{comment-id}/comments`).
+Llamadas de prueba ya en **Completado**. Video: el mismo de **comentarios de Facebook** que se subió en
+`pages_read_user_content` (leer el comentario y contestarlo se ven en la misma grabación).
+
+Descripción:
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico. We use pages_manage_engagement so our automated customer service assistant can reply to comments that customers leave on the posts of our own Facebook Page (NovedadesJade).
+
+When a customer comments on one of our posts (for example, asking about price or availability), our server receives the comment through the Page webhook and replies in the same thread with information from our product catalog. If the assistant does not have the answer, it replies that we will share the information shortly and notifies our team so a person can answer. It also thanks customers who comment that they shared or followed our Page. If someone from our team replies to a comment manually, the assistant stops replying to that customer on that post.
+
+We only create replies on our own Page. We do not edit or delete customers' comments and we do not like or unlike content. Without this permission the assistant could not reply to our customers' comments.
+
+The screen recording shows a customer commenting on one of our posts and the assistant's reply appearing under the comment.
+```
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
