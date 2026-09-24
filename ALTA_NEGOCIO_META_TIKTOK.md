@@ -1015,6 +1015,7 @@ reproduce la funcionalidad de tu integración" tiene un desplegable **"Seleccion
 cuadro de instrucciones paso a paso (el ejemplo de Meta empieza con un enlace `m.me`). Ahí va el texto
 del punto 5, con el enlace `https://m.me/645820348605806` (id de NovedadesJade) — probarlo antes en
 Safari: debe abrir el chat de Messenger con NovedadesJade.
+✅ Probado por el dueño (2026-09-24): el enlace abre directo la conversación de Messenger con NovedadesJade.
 5. **Instrucciones para reproducir:**
 
 ```
