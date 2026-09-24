@@ -776,6 +776,14 @@ desde el panel de la tienda." (105/120) ✅; lo demás igual que en 60–64 ✅.
 unsaved changes"** → falta darle **Apply changes**. Pendiente: lo mismo (ícono y descripción) en
 **Production**.
 
+**Captura 66 — Production (2026-09-24):** menú izquierdo "Production · **Not approved**", App details, App
+review, Products, Scopes. Todo en **gris (solo lectura)**: para editar hay que darle **Return to Draft**
+(arriba a la derecha). Estado actual: ícono **"JADA"** (viejo), descripción "Publicaciones de bolsas para
+dama, perfumes, decant pantalones y mas" (68/120), explicación de App review 68/1000, video
+`videoTikTokPrueba.mp4`. Pasos: **Return to Draft** → ícono (`icono-tiktok-1024.png`) y descripción nueva
+(o, si aparece la opción, **importar la configuración del Sandbox** al borrador) → App review: pegar la
+explicación en inglés, **quitar `videoTikTokPrueba.mp4`** y subir el video nuevo → enviar a revisión.
+
 ---
 
 ## 5. Lo que tienes que juntar
