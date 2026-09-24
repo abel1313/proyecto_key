@@ -1085,6 +1085,24 @@ comunes y puede tumbar toda la solicitud.
   marcando `pages_manage_posts` (y `instagram_content_publish` para Instagram). Prueba: si hoy
   publicar desde la app web funciona, después de la revisión sigue igual, porque la revisión no toca
   el acceso estándar.
+- **Resultado (2026-09-24):** en la solicitud **no hay ningún botón** para quitar
+  `pages_manage_posts` (ni "Quitar", ni X, ni "…"). Se va con el **plan B**: se deja y se justifica,
+  porque la app **sí** lo usa (publicar desde el panel admin). El código solo crea publicaciones
+  (`/photos`, `/videos`, `/video_reels`); no edita ni borra ninguna.
+  - Descripción:
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico. The business owner uses our internal admin panel to publish product photos, videos and reels to our own Facebook Page (NovedadesJade) with pages_manage_posts, so our online store catalog and our Page stay in sync without uploading each product twice.
+
+Only the Page owner, who is an admin of the Page, publishes through our app; customers never publish anything. We only create posts on our own Page. We do not edit or delete posts, and we never publish on pages we do not own.
+
+The screen recording shows the owner creating a post from our admin panel and the new post appearing on our Facebook Page.
+```
+
+  - Video nuevo: entrar al panel admin → pantalla de publicar en redes → elegir una foto, escribir
+    el texto → publicar en Facebook → abrir `facebook.com` en la página NovedadesJade y mostrar la
+    publicación nueva. En Safari, 1080p, sin mostrar tokens. La publicación de prueba es real: se
+    puede borrar a mano desde Facebook después de grabar.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
