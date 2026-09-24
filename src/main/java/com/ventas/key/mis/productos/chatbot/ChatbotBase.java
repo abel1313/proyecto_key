@@ -70,10 +70,9 @@ public abstract class ChatbotBase {
                 - Si de verdad no lo ves, dilo sin cerrar la puerta: ofrece algo parecido que sí esté
                   en el catálogo. Negar algo que sí hay pierde una venta.
 
-                POLÍTICAS DE LA TIENDA:
-                - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
-                - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
-
+                """
+                + POLITICAS_TIENDA
+                + """
                 TONO:
                 - Amable, cercano y sencillo. Como si fuera una vecina del pueblo atendiendo.
                 - Respuestas cortas y directas, sin rodeos.
@@ -208,6 +207,124 @@ public abstract class ChatbotBase {
                     """);
         }
         return contextoExtra.toString();
+    }
+
+    static final String POLITICAS_TIENDA = """
+            POLÍTICAS DE LA TIENDA:
+            - Entregas en: Luvianos, el Estanco, Caja de Agua, Acatitlán, Tejupilco (Estado de México) y Zacazonapan.
+            - Pagos: tarjeta de crédito, débito, transferencia y efectivo.
+
+            """;
+
+    /** Mensaje directo de Instagram o Messenger: contesta con todo el catálogo (regla R3 de botredes). */
+    public Mono<String> responderMensajeDirecto(String mensaje, boolean esPrimeraVez) {
+        return responderComentario(mensaje, null, esPrimeraVez);
+    }
+
+    /**
+     * Comentario en una publicación ligada a un producto (subida desde el panel): el bot contesta
+     * solo sobre ese producto; cualquier otra cosa la escala (regla R2 de botredes).
+     */
+    public Mono<String> responderSobreProducto(String comentario, Variantes variante, boolean esPrimeraVez) {
+        List<Map<String, String>> mensajes = new java.util.ArrayList<>();
+        mensajes.add(Map.of("role", "system", "content", IDENTIDAD_COMENTARIOS + POLITICAS_TIENDA));
+        mensajes.add(Map.of("role", "system", "content", instruccionesSobreProducto(variante, esPrimeraVez)));
+        mensajes.add(Map.of("role", "user", "content", comentario));
+        return llamarOpenAI(mensajes);
+    }
+
+    /**
+     * Comentario en una publicación subida directo en la red: el bot no sabe de qué producto es.
+     * Agradece saludos y avisos; cualquier pregunta la escala (regla R2 de botredes).
+     */
+    public Mono<String> responderComentarioSinProducto(String comentario, boolean esPrimeraVez) {
+        List<Map<String, String>> mensajes = new java.util.ArrayList<>();
+        mensajes.add(Map.of("role", "system", "content", IDENTIDAD_COMENTARIOS));
+        mensajes.add(Map.of("role", "system", "content", instruccionesSinProducto(esPrimeraVez)));
+        mensajes.add(Map.of("role", "user", "content", comentario));
+        return llamarOpenAI(mensajes);
+    }
+
+    private static final String IDENTIDAD_COMENTARIOS = """
+            Eres el asistente automático de Novedades Jade, una tienda mexicana de bolsas, ropa y perfumes.
+            Estás contestando un COMENTARIO PÚBLICO en una publicación de Facebook o Instagram.
+            Responde en español, amable, breve (1 a 3 líneas) y con 1 emoji como máximo, como una
+            vecina del pueblo atendiendo. Nunca inventes precios, tallas, colores ni existencias.
+
+            """;
+
+    protected String instruccionesSobreProducto(Variantes v, boolean esPrimeraVez) {
+        StringBuilder sb = new StringBuilder("ESTA PUBLICACIÓN ES DEL PRODUCTO:\n");
+        sb.append(descripcionDelProducto(v));
+        sb.append("""
+
+                REGLAS:
+                - Si el comentario pregunta algo de ESTE producto y el dato está arriba, contéstalo breve.
+                - Si pregunta algo de este producto que NO está arriba (otra talla, otro color, medidas,
+                  apartados, etc.), o pregunta por otro producto o por cualquier cosa que no sea este
+                  producto, las entregas o los pagos, responde ÚNICAMENTE ##ESCALAR## (sin nada más).
+                - Si es un saludo, un halago o un aviso ("bonita", "ya te sigo", "ya compartí"), contesta
+                  un agradecimiento corto. No ofrezcas otros productos.
+                - Si no se entiende el comentario, contesta un saludo cordial corto.
+                - No uses ##BUSCAR## ni ##FAREWELL##.
+                """);
+        sb.append(inicioDeRespuesta(esPrimeraVez));
+        return sb.toString();
+    }
+
+    protected String instruccionesSinProducto(boolean esPrimeraVez) {
+        return """
+                NO SABES de qué producto es esta publicación.
+                - Si el comentario es SOLO un saludo, un halago, una felicitación o un aviso de algo que
+                  hizo la persona ("bonito", "me encanta", "mucho éxito", "ya te sigo", "ya compartí",
+                  "ya comenté", "ya participé"), contesta un agradecimiento corto y cordial. No ofrezcas
+                  productos ni preguntes qué busca.
+                - En CUALQUIER otro caso (pregunta precio, talla, color, si hay, entregas, pagos, pide
+                  "info", dice "me interesa", "precio", "dm", o cualquier duda o petición), responde
+                  ÚNICAMENTE ##ESCALAR## (sin nada más): una persona del negocio le va a contestar.
+                - No uses ##BUSCAR## ni ##FAREWELL##.
+                """ + inicioDeRespuesta(esPrimeraVez);
+    }
+
+    private static String inicioDeRespuesta(boolean esPrimeraVez) {
+        return esPrimeraVez
+                ? "Es la PRIMERA vez que le contestamos a esta persona: empieza con \"¡Hola! Soy el asistente "
+                        + "automático de Novedades Jade\" (no aplica si respondes ##ESCALAR##).\n"
+                : "Empieza siempre con un saludo corto (\"¡Hola!\"). No vuelvas a decir que eres el asistente "
+                        + "automático.\n";
+    }
+
+    static String descripcionDelProducto(Variantes v) {
+        StringBuilder sb = new StringBuilder("- ").append(v.getProducto().getNombre());
+        agregar(sb, "presentación", v.getPresentacion());
+        agregar(sb, "marca", v.getMarca());
+        agregar(sb, "talla", v.getTalla());
+        agregar(sb, "color", v.getColor());
+        agregar(sb, "contenido", v.getContenidoNeto());
+        Double precio = v.getProducto().getPrecioVenta();
+        Double rebaja = v.getProducto().getPrecioRebaja();
+        if (rebaja != null && rebaja > 0 && (precio == null || rebaja < precio)) {
+            sb.append("\n- Precio: $").append(String.format("%.0f", rebaja)).append(" MXN (con descuento");
+            if (precio != null) {
+                sb.append(", antes $").append(String.format("%.0f", precio));
+            }
+            sb.append(")");
+        } else if (precio != null) {
+            sb.append("\n- Precio: $").append(String.format("%.0f", precio)).append(" MXN");
+        }
+        sb.append("\n- Existencias: ").append(v.getStock() > 0 ? v.getStock() + " piezas" : "agotado");
+        String descripcion = (v.getDescripcion() != null && !v.getDescripcion().isBlank())
+                ? v.getDescripcion() : v.getProducto().getDescripcion();
+        if (descripcion != null && !descripcion.isBlank()) {
+            sb.append("\n- Descripción: ").append(descripcion);
+        }
+        return sb.append("\n").toString();
+    }
+
+    private static void agregar(StringBuilder sb, String etiqueta, String valor) {
+        if (valor != null && !valor.isBlank()) {
+            sb.append(", ").append(etiqueta).append(": ").append(valor);
+        }
     }
 
     // Sin esto el modelo toma "ya te sigo" como fuera de tema, usa ##FAREWELL## y el bot se queda callado.
