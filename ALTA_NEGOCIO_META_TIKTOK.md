@@ -1256,6 +1256,14 @@ y el que falta es **`instagram_manage_messages`** (sin "business"), que ya tení
 Facebook login". El botón "+ Agregar a revisión de la app" está en la pestaña/página **"Permisos y
 funciones"** del mismo Personalizar (captura 16), no en la de configuración.
 
+**Captura 43 — así se agregó `instagram_manage_messages` (2026-09-24):** en Personalizar de "API de
+Instagram", bajando en la lista de permisos (Cmd + F `instagram_manage_messages`), la fila del permiso
+tiene **Acciones ▾** (las filas que no están en la solicitud tienen **"+ Agregar a revisió…"**). Al
+pedirlo sale el aviso *"Requesting advanced access for this privilege will affect other use cases on
+this app — Este privilegio se encuentra en uno o varios casos de uso más en esta app. Al solicitarlo,
+también se solicitará en los casos de uso que figuran a continuación: Interactuar con los clientes en
+Messenger from Meta"*. Es normal (el mismo permiso vive en los dos casos de uso): botón **Request**.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
