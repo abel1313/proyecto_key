@@ -593,8 +593,17 @@ al inbox; `video.publish` ni aparece) **[Código: `TikTokGraphClient`]**. Ese po
 ni mensajes directos. Para probarlos hace falta, como mínimo: registro de desarrollador en
 `business-api.tiktok.com` (paso 1), el formulario de Accounts API (paso 3, 2–3 días), la app (paso 4),
 autorizar la cuenta (paso 6) y el código (paso 8); para mensajes, además la allowlist y la revisión de
-datos (paso 5). Si una app sin revisar deja probar con la propia cuenta (como el modo desarrollo de
-Meta): **[Sin confirmar]**, verlo al crear la app.
+datos (paso 5). **¿Se puede probar antes de la aprobación? (investigado 2026-09-24):**
+- **`developers.tiktok.com` (TikTok for Developers) sí tiene sandbox:** "Sandbox mode is a restricted
+  environment that allows you to try out integrations without having to submit your app for review";
+  hasta **10 cuentas** de prueba ("target users") y hasta **5 sandboxes**; si la app nunca ha sido
+  aprobada, **hay que** demostrar la integración desde un sandbox **[Oficial, por buscador]**. Pero ese
+  portal **no** tiene comentarios ni mensajes directos.
+- **`business-api.tiktok.com` (API for Business) no:** el token de la cuenta se obtiene **después** de que
+  la app queda aprobada ("once the app is approved, you can use the authorization code to get a
+  long-term access token"); mientras está "In review" no se puede cambiar nada, y mientras haya una
+  solicitud de allowlist pendiente no se pueden pedir otros permisos **[Oficial, por buscador]**.
+  → Para comentarios y mensajes **no hay forma de probar antes de que aprueben la app**.
 **Lo único que se puede probar hoy, sin código:** las **respuestas automáticas nativas** de TikTok
 (bienvenida y palabras clave, 4.6).
 
