@@ -1459,6 +1459,9 @@ Botón **Empezar**. En el paso 1 revisar antes de seguir: sitio web = `https://s
 y correo = uno del dominio, porque el correo del paso 2 tiene que coincidir con el sitio. Si en el paso
 1 se cambia el teléfono, tiene que ser uno que salga en un recibo a nombre de Abel Tiburcio Felipe.
 
+**Captura 48 — primera pantalla después de "Empezar":** "Seleccionar un país — Indica la ubicación de
+la organización que quieres verificar." Campo **País: México** (ya viene elegido) → **Siguiente**.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
