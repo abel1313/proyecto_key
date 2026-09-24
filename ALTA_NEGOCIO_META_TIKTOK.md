@@ -784,6 +784,19 @@ dama, perfumes, decant pantalones y mas" (68/120), explicación de App review 68
 (o, si aparece la opción, **importar la configuración del Sandbox** al borrador) → App review: pegar la
 explicación en inglés, **quitar `videoTikTokPrueba.mp4`** y subir el video nuevo → enviar a revisión.
 
+**⚠️ Dos bloqueos para grabar el video nuevo (encontrados 2026-09-24 en `REDES_SOCIALES_PENDIENTE_PROD.md`):**
+1. **Publicar en TikTok solo funciona en QA.** La cuenta `novedadesjade8` se autorizó a mano y sus tokens
+   están en la tabla `tiktok_token` de **`inventario_key_qa`**; producción no tiene `TIKTOK_CLIENT_KEY` /
+   `TIKTOK_CLIENT_SECRET` ni tokens. Pero la app de TikTok tiene como sitio **`shop.novedades-jade.com.mx`**
+   (producción), y el video tiene que mostrar ese dominio. Opciones: (a) cargar las credenciales del
+   **Sandbox** en producción (`kubectl set env` en el namespace `default`), correr
+   `migration_tiktok_token.sql` en prod si falta, y autorizar la cuenta ahí; o (b) grabar en QA
+   (`qa.shop…` / `qa.backend…`) y agregar esa URL en la app — **[Sin confirmar]** que TikTok acepte un
+   subdominio distinto al de la Web URL.
+2. **Bug sin resolver:** "Publicar video en TikTok (modo Upload): la API confirma recepción, pero **el
+   video no aparece en el celular**". El video demo tiene que terminar mostrando el borrador en TikTok,
+   así que hay que arreglar esto antes de grabar.
+
 ---
 
 ## 5. Lo que tienes que juntar
