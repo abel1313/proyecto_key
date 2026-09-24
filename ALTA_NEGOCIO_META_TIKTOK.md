@@ -1236,6 +1236,26 @@ Para una cuenta nueva, los casos de uso que necesita el bot son: **Administrar t
 tu página**, **Administrar mensajes y contenido en Instagram** e **Interactuar con los clientes en
 Messenger from Meta**.
 
+**Adentro de Personalizar del caso de uso de Instagram (2026-09-24):** el selector de caso de uso dice
+**"API de Instagram"** (antes la tarjeta se llamaba "Administrar mensajes y contenido en Instagram").
+Abre en la pestaña de configuración (`selected_tab=API-Setup`): app de Instagram **novedadesJade-IG**
+(id `1355584923399178`), y pasos 1–5 (permisos, tokens, webhooks, inicio de sesión de empresa de
+Instagram, revisión). Esa pestaña lista permisos **`instagram_business_*`** (`instagram_business_basic`,
+`instagram_business_manage_comments`, `instagram_business_manage_messages`): son de la variante **"API
+con inicio de sesión de Instagram"**.
+
+⚠️ **Trampa: hay dos juegos de permisos de Instagram con nombres casi iguales.**
+- `instagram_business_*` → variante con inicio de sesión de **Instagram** (token de Instagram).
+- `instagram_manage_messages`, `instagram_manage_comments`, `instagram_basic` → variante con inicio de
+  sesión de **Facebook** (token de la **página**).
+
+Nuestro código usa el **token de la página** (`/{page-id}/messages`, `/{comment-id}/replies`), o sea la
+variante de **Facebook**. Por eso la solicitud ya tiene `instagram_manage_comments` e `instagram_basic`,
+y el que falta es **`instagram_manage_messages`** (sin "business"), que ya tenía 6 llamadas.
+**No agregar ni pedir los `instagram_business_*`**, y no tocar el enlace "cambia a API setup with
+Facebook login". El botón "+ Agregar a revisión de la app" está en la pestaña/página **"Permisos y
+funciones"** del mismo Personalizar (captura 16), no en la de configuración.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
