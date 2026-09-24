@@ -1186,10 +1186,21 @@ personaliza los casos de uso"* → quitar de la revisión y quitar de la app son
 | `business_management` | ❌ Quitar — el código no lo usa | — |
 | **`instagram_manage_messages`** | ⚠️ **FALTA agregarlo** — sin él, el bot de mensajes directos de Instagram solo contesta a cuentas con rol | Mensajes directos de Instagram |
 
-Para agregar `instagram_manage_messages`: menú izquierdo → **Casos de uso** → el caso de uso de
-Instagram → **Personalizar** → buscar `instagram_manage_messages` → **Solicitar acceso avanzado** /
-agregar a la revisión **[Sin confirmar los nombres exactos]**. Tiene que ir en el mismo caso de uso que
-`instagram_manage_comments`, no en el de Messenger (mezclar productos es motivo de rechazo, 3.6).
+**Dónde se agrega (confirmado con capturas 8, 12 y 16):**
+- **Capturas 8 y 12** — menú izquierdo → **Casos de uso**: la app tiene "Administrar todos los aspectos
+  de tu página" y **"Administrar mensajes y contenido en Instagram"**, cada uno con botón
+  **Personalizar** (después se agregó también "Interactuar con los clientes en Messenger from Meta").
+  Capturas 13–15: el cuadro "Agrega más casos de uso" (botón "Agregar casos de uso").
+- **Captura 16** — adentro de Personalizar, la lista de permisos. Cada fila tiene: nombre, número de
+  llamadas, estado ("Listo para la prueba") y a la derecha **"+ Agregar a revisión de la app"** (si no
+  está en la solicitud) o **"Acciones ▾"** (si ya tiene algo). En "Acciones" salen **"Ir a revisión de
+  la app"** y **"Obligatorio para el caso de uso"** (gris = no se puede quitar). Ahí
+  `instagram_manage_messages` salía con **6 llamadas**, "Listo para la prueba", "Se encontró en 2 casos
+  de uso".
+- Pasos: Casos de uso → **Administrar mensajes y contenido en Instagram** → **Personalizar** → Cmd + F
+  `instagram_manage_messages` → **"+ Agregar a revisión de la app"**, o **Acciones ▾ → Agregar a
+  revisión**. Hacerlo desde el caso de uso de Instagram, no desde el de Messenger (mezclar productos es
+  motivo de rechazo, 3.6).
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
