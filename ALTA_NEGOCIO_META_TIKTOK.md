@@ -1299,6 +1299,15 @@ The screen recording shows a customer sending a Direct Message to @novedades_bol
    Novedades Jade". Subirlo en Safari.
 3. **Casilla** de uso permitido → **Guardar**.
 
+⚠️ **Posible requisito: mensajes anulados ("unsend").** Un proveedor dice que en 2026 Meta pide, para
+los permisos de mensajes de Instagram, un video que demuestre qué hace la app cuando el cliente
+**anula el envío** de un mensaje **[Proveedor]** (Chatwoot / BotSailor, ver fuentes de 11.9). Instagram
+avisa por el webhook con `message.is_deleted: true`. **Nuestro código no lo atiende** (grep sin
+resultados en `FacebookWebhookController` ni en `botredes`): el bot no contesta ese evento (no trae
+texto), pero el texto original **se queda guardado** en `mensaje_directo_social`. Si "View
+requirements" lo pide, hay que programar: al llegar `is_deleted`, borrar o vaciar el mensaje con ese
+`mid` en `mensaje_directo_social`. Pendiente de confirmar con lo que diga "View requirements".
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
