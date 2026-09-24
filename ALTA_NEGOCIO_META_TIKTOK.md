@@ -744,6 +744,32 @@ Sandbox), **Delete Sandbox**, **URL properties**, historial (reloj).
 - El Sandbox **no tiene** la sección "App review" (explicación y video): esa está solo en **Production**.
 - Después de cualquier cambio en el Sandbox, darle **Apply changes**.
 
+**Captura 65 — ícono del Sandbox:** dice **"JB … NOVEDADES JADA"**; el logo de la tienda
+(`logo_fondo.png`) dice **"NOVEDADES BOLSAS JADE"**. **Son dos versiones distintas del logo**: esa es la
+diferencia real que vio el revisor. Hay que reemplazarlo por `icono-tiktok-1024.png` en el Sandbox **y**
+en Production.
+
+**El video viejo (`videoTikTokPrueba.mp4`):** no se sabe qué mostraba. Se reemplaza por uno nuevo.
+
+**Guion del video nuevo (Sandbox, en `shop.novedades-jade.com.mx`)** — cómo se conecta hoy la cuenta
+**[Código]**: no hay botón "Conectar TikTok"; se abre a mano la URL de autorización y TikTok regresa a
+`/tiktok/callback` (`TiktokCallbackComponent`), que llama a `POST .../tiktok/autorizar` y muestra
+"✅ Cuenta de TikTok conectada". Publicar: panel → **Publicar en redes** (`admin/facebook`) → TikTok.
+1. Grabar con Cmd + Shift + 5 (pantalla completa, 1080p), en Safari, **logueado en TikTok con
+   `novedadesjade8`** (el target user del Sandbox).
+2. Abrir la URL de autorización (armarla antes, con el **Client key del Sandbox**; no mostrar el Client
+   secret):
+   `https://www.tiktok.com/v2/auth/authorize/?client_key=<CLIENT_KEY_SANDBOX>&scope=user.info.basic,video.upload&response_type=code&redirect_uri=https://shop.novedades-jade.com.mx/tiktok/callback&state=demo1`
+   (ojo: `TIKTOK_SETUP.md` dice `video.publish`; el scope real de la app es **`video.upload`**).
+3. Pantalla de TikTok pidiendo permiso (se ve el **ícono nuevo** y los permisos) → **Autorizar**.
+4. Regresa a `shop.novedades-jade.com.mx/tiktok/callback` → "✅ Cuenta de TikTok conectada"
+   (se ve el dominio en la barra y el logo en la pestaña).
+5. Entrar al panel de la tienda → **Publicar en redes** → elegir TikTok → escoger un video de un producto
+   → publicar. Se ve el aviso de que TikTok lo sube privado/borrador.
+6. Abrir TikTok (web o celular) con `novedadesjade8` → notificaciones / bandeja → se ve el video como
+   **borrador** listo para editar y publicar (`video.upload`).
+7. Detener la grabación. MP4 o MOV, máximo 50 MB (si pesa más, QuickTime → Exportar como → 1080p).
+
 ---
 
 ## 5. Lo que tienes que juntar
