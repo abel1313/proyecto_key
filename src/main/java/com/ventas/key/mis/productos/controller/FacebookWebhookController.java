@@ -1,9 +1,9 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.hexagonal.botredes.dominio.modelo.Interaccion;
+import com.ventas.key.hexagonal.botredes.dominio.modelo.RedSocial;
+import com.ventas.key.hexagonal.botredes.dominio.puerto.entrada.AtenderInteraccionCasoUso;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ventas.key.mis.productos.redessociales.FacebookCommentBotService;
-import com.ventas.key.mis.productos.redessociales.InstagramCommentBotService;
-import com.ventas.key.mis.productos.redessociales.InstagramDirectMessageBotService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -32,8 +32,8 @@ import java.util.Map;
 // recibe todo: Meta distingue el tipo de evento con el campo "object" del payload ("page" para
 // Facebook, "instagram" para Instagram) y la forma del evento (arreglo "changes" para comentarios,
 // "messaging" para DMs) -- por eso no hizo falta registrar una URL nueva para cada uno, solo una
-// suscripción adicional sobre el mismo callback_url. Dispara FacebookCommentBotService,
-// InstagramCommentBotService o InstagramDirectMessageBotService según corresponda.
+// suscripción adicional sobre el mismo callback_url. Todo lo atiende el bot de redes
+// (hexagonal/botredes); aquí solo se traduce el payload de Meta a una Interaccion.
 @Tag(name = "Facebook Webhook", description = "Recibe eventos de comentarios y mensajes directos de Meta (Facebook e Instagram) y dispara el bot de respuestas")
 @RestController
 @RequestMapping("/v1/redes-sociales/facebook")
@@ -41,9 +41,7 @@ import java.util.Map;
 @Slf4j
 public class FacebookWebhookController {
 
-    private final FacebookCommentBotService commentBotService;
-    private final InstagramCommentBotService instagramCommentBotService;
-    private final InstagramDirectMessageBotService instagramDirectMessageBotService;
+    private final AtenderInteraccionCasoUso botRedes;
     private final ObjectMapper objectMapper;
 
     @Value("${facebook.webhook-verify-token:}")
@@ -136,17 +134,14 @@ public class FacebookWebhookController {
                 }
             }
 
-            // Los mensajes directos vienen en un arreglo distinto ("messaging"), no en "changes"
-            // -- mismo formato que usa Meta para Messenger. Solo aplica a Instagram por ahora.
+            // Los mensajes directos vienen en un arreglo distinto ("messaging"), no en "changes":
+            // object=instagram son DMs de Instagram, object=page son mensajes de Messenger.
             List<Map<String, Object>> messaging = (List<Map<String, Object>>) entry.get("messaging");
-            if (messaging != null && "instagram".equals(object)) {
+            if (messaging != null) {
+                RedSocial red = "instagram".equals(object) ? RedSocial.INSTAGRAM : RedSocial.FACEBOOK;
                 for (Map<String, Object> evento : messaging) {
-                    procesarMensajeDirectoInstagram(evento);
+                    procesarMensajeDirecto(red, evento);
                 }
-            } else if (messaging != null) {
-                // Messenger de Facebook llega igual pero con object=page: hoy no hay bot para eso.
-                log.info("Webhook con {} mensaje(s) directo(s) de object={} -- solo se contestan los de Instagram",
-                        messaging.size(), object);
             }
 
             // "standby" = otra app es dueña de la conversación (enrutamiento de conversaciones de
@@ -174,7 +169,7 @@ public class FacebookWebhookController {
         Map<String, Object> from = (Map<String, Object>) value.get("from");
         String autorId = from != null ? stringDe(from.get("id")) : null;
 
-        commentBotService.procesarComentario(commentId, postId, parentId, mensaje, autorId);
+        botRedes.atender(Interaccion.comentario(RedSocial.FACEBOOK, commentId, postId, parentId, autorId, mensaje));
     }
 
     // Sin verificar contra la API real todavia -- primera vez que este proyecto recibe webhooks
@@ -195,21 +190,18 @@ public class FacebookWebhookController {
         Map<String, Object> media = (Map<String, Object>) value.get("media");
         String postId = media != null ? stringDe(media.get("id")) : null;
 
-        instagramCommentBotService.procesarComentario(commentId, postId, parentId, mensaje, autorId);
+        botRedes.atender(Interaccion.comentario(RedSocial.INSTAGRAM, commentId, postId, parentId, autorId, mensaje));
     }
 
-    // Formato "messaging" (igual al de Messenger): cada evento trae sender/recipient/message.mid/
-    // message.text, y opcionalmente message.is_echo=true cuando el mensaje lo mando la propia
-    // cuenta (bot o admin manual) -- en ese caso el remitente real es la pagina y el destinatario
-    // es el cliente, al reves que en un mensaje entrante normal. Sin verificar contra la API real
-    // todavia -- primera vez que este proyecto recibe DMs de Instagram, escrito siguiendo la forma
-    // documentada del payload. Si algun campo llega distinto a lo esperado, revisar aqui primero.
+    // Formato "messaging" (el mismo en Messenger y en Instagram): cada evento trae sender/recipient/
+    // message.mid/message.text/message.attachments, y message.is_echo=true cuando lo mandó la propia
+    // cuenta (el bot o el admin a mano). En el eco el remitente es el negocio y el destinatario el cliente.
     @SuppressWarnings("unchecked")
-    private void procesarMensajeDirectoInstagram(Map<String, Object> evento) {
+    private void procesarMensajeDirecto(RedSocial red, Map<String, Object> evento) {
         Map<String, Object> message = (Map<String, Object>) evento.get("message");
         if (message == null) {
             // Leídos, reacciones y demás eventos del chat llegan por el mismo arreglo, sin "message".
-            log.info("DM de Instagram: evento sin mensaje ({}) -- se ignora", evento.keySet());
+            log.info("Mensaje directo de {}: evento sin mensaje ({}) -- se ignora", red, evento.keySet());
             return;
         }
 
@@ -219,14 +211,19 @@ public class FacebookWebhookController {
         String recipientId = recipient != null ? stringDe(recipient.get("id")) : null;
         String mid = stringDe(message.get("mid"));
         String texto = (String) message.get("text");
+        List<?> adjuntos = (List<?>) message.get("attachments");
+        boolean traeAdjunto = adjuntos != null && !adjuntos.isEmpty();
         boolean esEcho = Boolean.TRUE.equals(message.get("is_echo"));
 
-        // Sin esta linea no habia forma de saber si Meta entrego el DM: el bot guarda en BD solo
-        // cuando lo termina de procesar. No se loguea el texto, es conversacion del cliente.
-        log.info("DM de Instagram recibido: mid={} de={} para={} eco={} texto={}", mid, senderId, recipientId,
-                esEcho, texto == null ? "ninguno (foto, audio, sticker...)" : texto.length() + " caracteres");
+        // Sin esta línea no había forma de saber si Meta entregó el mensaje. No se loguea el texto.
+        log.info("Mensaje directo de {} recibido: mid={} de={} para={} eco={} texto={} adjunto={}", red, mid,
+                senderId, recipientId, esEcho, texto == null ? "ninguno" : texto.length() + " caracteres", traeAdjunto);
 
-        instagramDirectMessageBotService.procesarMensaje(mid, senderId, recipientId, texto, esEcho);
+        if (esEcho) {
+            botRedes.registrarEcoDeMensaje(red, mid, recipientId);
+        } else {
+            botRedes.atender(Interaccion.mensajeDirecto(red, mid, senderId, texto, traeAdjunto));
+        }
     }
 
     private String stringDe(Object valor) {

@@ -288,6 +288,38 @@ public class FacebookGraphClient {
         return String.valueOf(response.get("id"));
     }
 
+    // Manda un mensaje por Messenger (POST /{page-id}/messages). Requiere pages_messaging en el
+    // token de la página. messaging_type=RESPONSE: contesta a un mensaje del cliente dentro de las 24 h.
+    public String enviarMensajeDirecto(String psid, String mensaje) {
+        if (pageId.isBlank() || pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Facebook no está configurado: falta FACEBOOK_PAGE_ID o "
+                    + "FACEBOOK_PAGE_ACCESS_TOKEN");
+        }
+        Map<String, Object> body = Map.of(
+                "recipient", Map.of("id", psid),
+                "messaging_type", "RESPONSE",
+                "message", Map.of("text", mensaje)
+        );
+
+        Map<?, ?> response = webClient.post()
+                .uri("/{version}/{pageId}/messages?access_token={token}", apiVersion, pageId, pageAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(BodyInserters.fromValue(body))
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                "Messenger rechazó enviar el mensaje: " + err))))
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(20))
+                .block();
+
+        if (response == null || response.get("message_id") == null) {
+            throw new ExceptionErrorInesperado("Messenger no confirmó el envío del mensaje: " + response);
+        }
+        return String.valueOf(response.get("message_id"));
+    }
+
     private String extensionDe(String contentType) {
         if (contentType == null) return "jpg";
         if (contentType.contains("png")) return "png";
