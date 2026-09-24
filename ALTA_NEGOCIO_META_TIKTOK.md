@@ -1555,8 +1555,8 @@ el nombre legal de la organización que ingresaste y no pueden estar caducados."
 **"Constancia de Situación Fiscal SAT" (Recomendado)** — Meta ya la ofrece por nombre para México.
 Archivo: el PDF que descarga el SAT (`RFC_<APELLIDOS><NOMBRE>.pdf`).
 ⚠️ La constancia que se tenía era **de 2022**; como Meta pide que "no estén caducados", conviene
-**descargar una del día** (SAT Móvil → Documentos → Constancia, o el portal del SAT con RFC y
-contraseña) y subir esa. El contenido es el mismo; solo cambia la fecha de emisión.
+**descargar una del día** (portal del SAT con RFC y contraseña, o la app **SAT ID** si no hay
+contraseña; SAT Móvil ya no la genera) y subir esa. El contenido es el mismo; solo cambia la fecha de emisión.
 
 **Cómo entrar al correo `@novedades-jade.com.mx` (webmail de Hosting-Mexico):** la URL del webmail
 **no estaba anotada** en ningún lado. Lo que sí consta en el proyecto (`application-qa.yml`): el
@@ -2010,8 +2010,8 @@ negocio, no tu sueldo.
      internet) y eliges **RESICO**.
    - Descargas el **acuse de movimientos de actualización**.
 5. **Constancia de Situación Fiscal nueva:**
-   - Con **RFC y contraseña**, desde el portal del SAT o desde la app **SAT Móvil** → Documentos →
-     Constancia.
+   - Con **RFC y contraseña**, desde el **portal del SAT** (sat.gob.mx → Genera tu Constancia de Situación
+     Fiscal). Ojo: desde 2022 **SAT Móvil ya no la genera** **[Proveedor]**.
    - Sin contraseña: app **SAT ID** (INE + video). Llega al correo en hasta 5 días hábiles.
    - Revisar que diga: tu nombre, el **domicilio nuevo**, la actividad del negocio y el régimen
      **RESICO**, además de Sueldos y Salarios.
@@ -2031,6 +2031,31 @@ negocio, no tu sueldo.
 **Por qué con contador:** darte de alta en RESICO genera **declaraciones mensuales** aunque vendas poco.
 Si no las presentas, llegan multas. Un contador también te dice la actividad exacta del catálogo del
 SAT que te conviene.
+
+**Actualización 2026-09-24 — lo que contó el dueño y lo que se investigó:**
+- Situación: la constancia que se tenía es de cuando trabajaba en una empresa. El dueño cree que podía
+  decir "persona física con actividad empresarial"; lo anotado antes decía solo Sueldos y Salarios.
+  **Se confirma al descargar la nueva.** Lo que "caducó" por no renovarlo es la **e.firma** (dura 4
+  años): la **constancia no caduca** (se descarga cuando sea; lo que envejece es su contenido)
+  **[Proveedor]**.
+- **Un RFC, una constancia.** No se sacan dos constancias: en el mismo RFC conviven **Sueldos y Salarios
+  (605)** y **RESICO (626)**, y la constancia lista los dos regímenes **[Proveedor]** (art. 113-E LISR: en
+  RESICO se puede tener también sueldos, si la suma del año anterior no pasa de $3.5 millones).
+- **Volver a trabajar en una empresa después no es problema:** el patrón usa el mismo RFC; el negocio en
+  RESICO sigue aparte. Con los dos regímenes la **declaración anual** suele volverse obligatoria (y lo es
+  siempre si el sueldo pasa de $400,000 al año).
+- **e.firma vencida:** si venció hace **menos de un año** se puede renovar en línea (SAT ID / CertiSAT);
+  si fue hace **más de un año**, **cita presencial** en el SAT con INE, comprobante de domicilio, CURP,
+  correo y una **USB** **[Proveedor]**. La cita se saca en citas.sat.gob.mx con RFC, CURP y correo (llega
+  un token para confirmar).
+- **Contraseña del SAT** sin e.firma: se recupera con la app **SAT ID** (INE + video) o en la misma cita.
+- Plan para una sola visita: pedir la cita de e.firma y, en la oficina, pedir también **contraseña**,
+  **agregar la actividad del negocio (RESICO)** y **cambiar el domicilio fiscal** a Luvianos; salir con la
+  **constancia nueva impresa**. Confirmar con un contador antes (obligaciones mensuales de RESICO).
+
+Fuentes de esta actualización: Infobae (e.firma vencida >1 año, jul-2026), e-consulta (renovar con SAT
+ID, abr-2026), Taxdown y Factorum (RESICO + sueldos), Calcu.mx y Facturama (la constancia no caduca;
+SAT Móvil ya no la genera), portal del SAT "Genera tu Constancia de Situación Fiscal".
 
 ### 11.9 Fuentes de esta sección
 
