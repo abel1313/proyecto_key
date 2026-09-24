@@ -1078,6 +1078,13 @@ comunes y puede tumbar toda la solicitud.
   publicando una foto en la página y que se vea la publicación en Facebook, con una descripción que
   diga que solo el dueño publica en su propia página.
 - Mismo caso para `instagram_content_publish` si aparece.
+- **Pregunta del dueño: ¿quitarlo rompe publicar desde la app web?** No. Quitarlo de la revisión no
+  le quita el permiso a la app: se queda con **acceso estándar**, que funciona para cuentas con rol
+  (el dueño). Condiciones para que siga funcionando: (1) el token de página lo genera siempre alguien
+  con rol en la app y en la página; (2) al regenerar el token en el Explorador de la API Graph, seguir
+  marcando `pages_manage_posts` (y `instagram_content_publish` para Instagram). Prueba: si hoy
+  publicar desde la app web funciona, después de la revisión sigue igual, porque la revisión no toca
+  el acceso estándar.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
