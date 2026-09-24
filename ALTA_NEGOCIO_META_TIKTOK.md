@@ -1574,6 +1574,15 @@ escribir el correo completo "por tu seguridad": se puso **`admin@novedades-jade.
 correo electrónico**. El código dura **60 minutos**: tener el webmail abierto antes de enviarlo. Si no
 llega, revisar la carpeta de spam del buzón.
 
+**Captura 58 — "Información enviada" (2026-09-24):** *"Gracias por enviar tu información. Nos llevará
+aproximadamente dos días laborables revisar tu solicitud. Actualizaremos el estado de la verificación
+cuando la revisión haya finalizado."* → **Listo**. ✅ **Verificación del negocio reenviada** con: tipo
+Sociedad unipersonal · Aún no registrado · nombre Abel Tiburcio Felipe · alternativo Novedades Jade ·
+dirección de la constancia · confirmación por correo `admin@novedades-jade.com.mx` · Constancia de
+Situación Fiscal. **Esperar ~2 días hábiles** (hasta ~28-sep-2026) y revisar el estado en Centro de
+seguridad → Verificación del negocio, y en el correo. Pendiente: el dueño va a explicar la situación de
+la constancia que subió (anotar aquí qué versión/fecha fue).
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
