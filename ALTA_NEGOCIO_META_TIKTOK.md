@@ -1009,11 +1009,17 @@ We never send promotional or unsolicited messages, and we use these conversation
    de Novedades Jade", y de preferencia una pregunta que el bot no sabe → "En un momento te atendemos"
    → la respuesta de una persona desde la bandeja de la página. Subirlo en **Safari**.
 4. **Casilla de uso permitido:** marcarla después de leer las reglas de 3.14.
+
+**Captura 39** (formulario de `pages_messaging`): la descripción ya pegada; debajo, "Prueba y
+reproduce la funcionalidad de tu integración" tiene un desplegable **"Selecciona una página"** y un
+cuadro de instrucciones paso a paso (el ejemplo de Meta empieza con un enlace `m.me`). Ahí va el texto
+del punto 5, con el enlace `https://m.me/645820348605806` (id de NovedadesJade) — probarlo antes en
+Safari: debe abrir el chat de Messenger con NovedadesJade.
 5. **Instrucciones para reproducir:**
 
 ```
 1. Log in to Facebook with the tester account given in the reviewer instructions.
-2. Open Messenger and send a message to the Page "NovedadesJade" (facebook.com/NovedadesJade), for example: "¿Tienen bolsas negras?" ("Do you have black bags?").
+2. Open https://m.me/645820348605806 (our Page "NovedadesJade" in Messenger) and send a message, for example: "¿Tienen bolsas negras?" ("Do you have black bags?").
 3. Within about 20 seconds the automated assistant replies in Spanish. The first reply says it is the automated assistant of Novedades Jade.
 4. Send a question the assistant cannot answer, for example "¿Me pueden llamar?" ("Can you call me?"). The assistant replies that a person will attend you shortly, and a member of our team answers from the Page inbox.
 ```
