@@ -1558,6 +1558,15 @@ Archivo: el PDF que descarga el SAT (`RFC_<APELLIDOS><NOMBRE>.pdf`).
 **descargar una del día** (SAT Móvil → Documentos → Constancia, o el portal del SAT con RFC y
 contraseña) y subir esa. El contenido es el mismo; solo cambia la fecha de emisión.
 
+**Cómo entrar al correo `@novedades-jade.com.mx` (webmail de Hosting-Mexico):** la URL del webmail
+**no estaba anotada** en ningún lado. Lo que sí consta en el proyecto (`application-qa.yml`): el
+servidor de correo es **`hapi.hosting-mexico.net`** (IP `63.143.40.210`); `mail.novedades-jade.com.mx`
+tardaba en propagar (ticket 551620 de Hosting-Mexico). Hosting-Mexico usa cPanel, cuyo webmail suele
+estar en **`https://hapi.hosting-mexico.net:2096`** o en `https://novedades-jade.com.mx/webmail`
+**[Sin confirmar]**; si ninguno abre, entrar por el **área de clientes de Hosting-Mexico** → servicio del
+dominio → Correo / Webmail, o buscar el correo de bienvenida de Hosting-Mexico. **Anotar aquí la URL que
+funcione.** (No anotar la contraseña.)
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
