@@ -1545,6 +1545,19 @@ Los tres de teléfono piden un documento con nombre + **teléfono**, y la consta
 justo lo que falló la vez pasada. Plan B: **Verificación del dominio** (meta etiqueta en la tienda o
 registro TXT en el DNS de Hostinger).
 
+✅ Se eligió **Correo electrónico** (el dueño sí tiene acceso al buzón `@novedades-jade.com.mx`).
+
+**Captura 56 — "Subir documentos":** *"Como no encontramos ningún registro que coincida, tendrás que subir
+documentos para confirmar los datos que ingresaste. Puedes subir el mismo documento más de una vez… Los
+formatos que se aceptan son .jpg, .png y .pdf."* Muestra los datos a comprobar (nombre legal y
+dirección capturados). **"Verifica el nombre legal del negocio: los documentos que subas deben incluir
+el nombre legal de la organización que ingresaste y no pueden estar caducados."** Tipo de documento:
+**"Constancia de Situación Fiscal SAT" (Recomendado)** — Meta ya la ofrece por nombre para México.
+Archivo: el PDF que descarga el SAT (`RFC_<APELLIDOS><NOMBRE>.pdf`).
+⚠️ La constancia que se tenía era **de 2022**; como Meta pide que "no estén caducados", conviene
+**descargar una del día** (SAT Móvil → Documentos → Constancia, o el portal del SAT con RFC y
+contraseña) y subir esa. El contenido es el mismo; solo cambia la fecha de emisión.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
