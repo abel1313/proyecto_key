@@ -1477,6 +1477,11 @@ empresarial) → **Registrado**. Si solo trae **Sueldos y Salarios** (605) → *
 (pasos para darse de alta en 11.8). Qué pide Meta después de "Aún no registrado": **[Sin confirmar]**,
 anotarlo cuando se vea.
 
+✅ **Elegido (2026-09-24): "Aún no registrado".** Coincide con la constancia que ya se tenía (solo
+Sueldos y Salarios, de 2022, domicilio del patrón en CDMX; ver arriba "Constancia del SAT"). El dueño lo
+hace **como prueba**: seguir así para ver si Meta lo acepta, y el alta en RESICO / cambio de domicilio
+(11.8) se ve después si lo rechazan.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
