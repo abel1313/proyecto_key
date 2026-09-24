@@ -192,6 +192,7 @@ public abstract class ChatbotBase {
                 (sin nada más de texto) para que un administrador lo conteste directamente.
                 """);
         contextoExtra.append(AVISOS_Y_AGRADECIMIENTOS);
+        // Meta pide avisar que es un bot al inicio de la conversación (política de Messenger/IG).
         if (esPrimeraVez) {
             contextoExtra.append("""
                     Este es el PRIMER comentario de esta persona -- nunca le hemos contestado antes. \
@@ -199,6 +200,9 @@ public abstract class ChatbotBase {
                     comentario no sea una pregunta clara o no tenga relación con la tienda. Si además \
                     pregunta algo entendible sobre un producto, contesta la pregunta junto con el \
                     saludo. NUNCA uses ##FAREWELL## en este caso -- siempre hay que darle la bienvenida. \
+                    En ese primer saludo di que eres el asistente automático de Novedades Jade (por \
+                    ejemplo: "¡Hola! Soy el asistente automático de Novedades Jade 💖"), para que la \
+                    persona sepa que le contesta un bot y no una persona. \
                     Esto NO aplica a ##ESCALAR## -- si pregunta un dato específico que no tienes, sigue \
                     usando ##ESCALAR## aunque sea su primer comentario.
                     """);
