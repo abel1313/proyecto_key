@@ -338,6 +338,7 @@ Meta **[Proveedor]**, y es lo que vivimos en QA **[Experiencia]**.
 | `(#100)` "The parameter recipient is required" | El `recipient` va en el query y no en el body **[Proveedor]** | Nuestro código ya lo manda en el body **[Código]** |
 | Verificación: "No pudimos verificar tu negocio" | Ver la tabla de 3.2 | — |
 | "Solicitar acceso avanzado" gris | Falta la llamada exitosa reciente con ese permiso **[Oficial]** | Paso 1 de 3.6 |
+| Al subir el video del App Review: "Se produjo un error. Actualiza la página o cierra y vuelve a abrir la ventana del navegador", y recargar no lo arregla | El navegador **Brave** bloquea la subida **[Experiencia]** | Subirlo desde **Safari** o Chrome |
 
 **Versión de la API:** el código usa **v21.0**, que Meta mantiene hasta el **21-ene-2027**
 **[Proveedor]**. Al vencer, las llamadas **no fallan**: Meta las corre en la siguiente versión
@@ -906,9 +907,39 @@ Enrutamiento de conversaciones (según la ayuda de Meta): Business Suite → Con
   reproducir. `instagram_manage_comments` ya tiene ✅ la descripción; le falta el video.
 - **Captura 38**: al subir el video en `instagram_manage_comments` sale "Se produjo un error.
   Actualiza la página…", y recargar no lo arregla. El navegador es **Brave con Shields activo** (5
-  bloqueos en developers.facebook.com): primera sospecha. Siguiente prueba: apagar Shields para el
-  sitio, o subirlo desde Safari/Chrome.
-- Video de comentarios de Instagram: **`videoRedesInstaComentariosv2`**.
+  bloqueos en developers.facebook.com).
+- ✅ **Confirmado: era el navegador.** En Brave no subió ni recargando; en **Safari** el mismo video
+  subió al primer intento ("Tu video se está procesando. Te enviaremos una notificación cuando esté
+  listo"). No hizo falta convertir a MP4 ni reducir el tamaño: Meta acepta el `.mov` de Cmd+Shift+5.
+  **Regla: todo lo de developers.facebook.com hacerlo en Safari o Chrome, nunca en Brave.**
+- Video de comentarios de Instagram: **`videoRedesInstaComentariosv2`** → subido en
+  `instagram_manage_comments`.
+
+**Qué video va en qué permiso** (un video por permiso; nunca el de Facebook en uno de Instagram):
+
+| Video | Permiso |
+|---|---|
+| Comentarios de Instagram | `instagram_manage_comments` |
+| Comentarios de Facebook | `pages_manage_engagement` |
+| Mensajes directos de Instagram | `instagram_manage_messages` |
+| Messenger (mensajes a la página) | `pages_messaging` |
+| Dependencias sin efecto visible (`pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`, `instagram_basic`) | El video de la función que hacen posible, diciéndolo en la descripción. **[Sin confirmar]** que Meta lo acepte siempre |
+
+Si en la solicitud aparece un permiso que el bot no usa (`pages_manage_posts`,
+`instagram_content_publish`), quitarlo: pedir de más es de los rechazos más comunes (3.5).
+
+**Descripción de `instagram_manage_comments` — corregida.** La primera versión decía que si el bot no
+sabe la respuesta "no publica nada y avisa por correo". Ya no es así: contesta en público "En un
+momento te compartimos la información 💖", avisa al admin y deja de contestarle a esa persona en ese
+post por 30 min. Meta compara el texto con el video, así que el segundo párrafo quedó:
+
+```
+When a customer comments on one of our posts (for example, asking about price, availability or product details), our system receives the event via webhook, looks up the product linked to that post in our catalog, and replies to the comment with that information. If the bot does not have the information, it replies with a short message saying we will follow up, notifies the business administrator so a person can answer, and stops replying to that customer on that post for 30 minutes. The bot also thanks customers who comment that they shared or followed our page. If the administrator replies to a comment manually, the bot pauses for that customer. Replies are in Spanish because our customers are in Mexico.
+```
+
+⚠️ El texto para revisores (`instructions-web-2`, arriba) tiene el mismo error en el punto 1 de
+mensajes directos ("it does not reply and forwards the message by email"). Corregirlo igual antes de
+enviar: el bot contesta "En un momento te atendemos 💖" y avisa al admin.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 

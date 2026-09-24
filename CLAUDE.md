@@ -298,6 +298,33 @@ diferencias — la restricción es sobre escribir/modificar/pushear, no sobre co
    uno más nuevo que el otro), no se sobrescribe nada solo: mostrar el diff al usuario y preguntar
    cuál gana antes de pisar contenido.
 
+## Regla — trámites externos (Meta, TikTok, SAT…): anotar TODO en la bitácora sin que lo pidan
+
+Pedido del dueño (2026-09-24): **no tiene que decir "anótalo"**. Cada vez que en una sesión se avance
+en un trámite fuera del código — alta del negocio en Meta o TikTok, App Review, verificación,
+documentos del SAT, configuración de páginas, tokens, webhooks — se anota **en ese momento** en
+`ALTA_NEGOCIO_META_TIKTOK.md`, sección 8 (bitácora del trámite), con fecha. El objetivo es que el
+documento sirva para **dar de alta otra cuenta o repetir el trámite sin preguntarle a nadie**.
+
+Qué se anota siempre:
+- **Cada paso hecho** y dónde está el botón (ruta de menús tal como se ve en pantalla).
+- **Cada error** con el texto exacto que mostró la pantalla, la causa y cómo se resolvió. Además de
+  la bitácora, va como fila en la tabla de errores (3.11 para Meta, 4.9 para TikTok).
+- **Lo que se descartó**, para no volver a probarlo.
+- **Cada captura que manda el dueño:** número de imagen y qué muestra, para que no tenga que volver
+  a mandarla.
+- **Nombres de archivos** (videos, documentos) y en qué campo o permiso se subieron.
+- **Textos que se pegaron en formularios** (descripciones, instrucciones para revisores), en su
+  versión final. Si el comportamiento del código cambia, revisar que esos textos sigan diciendo lo
+  mismo que hace el bot: Meta compara el texto con el video.
+
+No anotar tokens, contraseñas ni llaves, ni siquiera parciales.
+
+Es un cambio de documentación: se hace directo, sin preguntar. El commit y push siguen la regla
+general (solo cuando el dueño lo pide).
+
+---
+
 ## JWT — Configuración y problema conocido resuelto
 
 **Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**
