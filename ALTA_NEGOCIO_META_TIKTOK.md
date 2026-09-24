@@ -1524,6 +1524,10 @@ que se suba (la constancia). Cuando se cambie el domicilio fiscal al del negocio
   abra y muestre la tienda (nombre y contacto visibles). Si la raíz no abre o sale vacía, poner
   `https://shop.novedades-jade.com.mx`, que sí es la tienda y es el mismo dominio.
 
+**Captura 54 — "Ayúdanos a confirmar que eres tú":** reCAPTCHA de Google ("No soy un robot") después de
+la información de contacto. Marcar la casilla, resolver las imágenes si las pide → **Siguiente**. Normal,
+no es un error.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
