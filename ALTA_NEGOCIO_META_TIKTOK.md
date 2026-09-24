@@ -1489,6 +1489,23 @@ oficial de tu negocio y confirmar que es real. Si no hay ninguna coincidencia, p
 - **Nombre del negocio alternativo (opcional):** `Novedades Jade` ✅ — el nombre comercial.
 Ya venían así; se dejan igual → **Siguiente**.
 
+**"Documentos aceptados"** (enlace de la captura 51) — *"Sube uno de estos documentos para verificar el
+nombre de tu negocio"*:
+- **Certificado de constitución o estatuto de la sociedad** — "Documento legal relacionado con la
+  constitución de una empresa o sociedad." (no aplica: no hay persona moral)
+- **Licencia comercial** — "Permiso que emite un organismo gubernamental que te permite realizar
+  operaciones comerciales en una jurisdicción geográfica." (licencia de funcionamiento del municipio,
+  si existe)
+- **Certificado de registro fiscal o de IVA** — "Documento legal que te permite comprar bienes a través
+  de tu negocio sin pagar el impuesto local sobre las ventas." → en México, la **Constancia de Situación
+  Fiscal** del SAT.
+- Lista completa ("Más documentos aceptados"):
+  https://business.facebook.com/business/help/159334372093366
+
+Ojo: esta lista es para verificar el **nombre**. Lo que falló la vez pasada fue el **teléfono**; para
+eso sirve un recibo de teléfono o estado de cuenta con nombre + número, o confirmar con el correo del
+dominio (captura 46).
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
