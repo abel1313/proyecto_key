@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Publica con la Graph API de Meta: comentarios con /comments (Facebook) o /replies (Instagram);
- * mensajes con /{page-id}/messages (Messenger) o /{ig-user-id}/messages (Instagram).
+ * mensajes con /{page-id}/messages en las dos redes (Instagram también va por la página ligada).
  *
  * <p>[Hexagonal: Driven Adapter] [Clean: Gateway]</p>
  */

@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.chatbot;
 
+import com.ventas.key.hexagonal.botredes.dominio.modelo.PoliticaDeRespuesta;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
@@ -72,6 +73,7 @@ public abstract class ChatbotBase {
 
                 """
                 + POLITICAS_TIENDA
+                + REGLAS_DE_RESPETO
                 + """
                 TONO:
                 - Amable, cercano y sencillo. Como si fuera una vecina del pueblo atendiendo.
@@ -170,7 +172,7 @@ public abstract class ChatbotBase {
         mensajes.add(Map.of("role", "system", "content", sistemPrompt));
         mensajes.add(Map.of("role", "system", "content", instruccionesRedSocial(varianteDelPost, esPrimeraVez)));
         mensajes.add(Map.of("role", "user", "content", comentario));
-        return llamarOpenAI(mensajes);
+        return llamarOpenAIConversacion(mensajes);
     }
 
     protected String instruccionesRedSocial(Variantes varianteDelPost, boolean esPrimeraVez) {
@@ -194,20 +196,40 @@ public abstract class ChatbotBase {
         // Meta pide avisar que es un bot al inicio de la conversación (política de Messenger/IG).
         if (esPrimeraVez) {
             contextoExtra.append("""
-                    Este es el PRIMER comentario de esta persona -- nunca le hemos contestado antes. \
+                    Este es el PRIMER mensaje de esta persona -- nunca le hemos contestado antes. \
                     SIEMPRE debes responder con al menos un saludo cordial de bienvenida, aunque su \
-                    comentario no sea una pregunta clara o no tenga relación con la tienda. Si además \
+                    mensaje no sea una pregunta clara o no tenga relación con la tienda. Si además \
                     pregunta algo entendible sobre un producto, contesta la pregunta junto con el \
                     saludo. NUNCA uses ##FAREWELL## en este caso -- siempre hay que darle la bienvenida. \
                     En ese primer saludo di que eres el asistente automático de Novedades Jade (por \
                     ejemplo: "¡Hola! Soy el asistente automático de Novedades Jade 💖"), para que la \
                     persona sepa que le contesta un bot y no una persona. \
                     Esto NO aplica a ##ESCALAR## -- si pregunta un dato específico que no tienes, sigue \
-                    usando ##ESCALAR## aunque sea su primer comentario.
+                    usando ##ESCALAR## aunque sea su primer mensaje.
                     """);
         }
         return contextoExtra.toString();
     }
+
+    // Aplica a TODOS los bots (sitio, chat en vivo, comentarios y mensajes directos). Pedido del
+    // dueño el 2026-09-24, después de que a un "Hola" el bot contestó solo "¡Hola! 😊": ningún bot
+    // contesta seco, cortante, grosero ni incorrecto, en ningún lado.
+    static final String REGLAS_DE_RESPETO = """
+            RESPETO — REGLA QUE NUNCA SE ROMPE:
+            - Siempre con respeto, cortesía y calidez, aunque la persona escriba grosero, con
+              insultos, en broma o con prisa. Nunca contestes con groserías, sarcasmo, regaños,
+              burlas, indirectas ni palabras vulgares.
+            - Nunca contestes seco o cortante: nada de un "Hola", "Ok", "Sí" o "No" solos. Un saludo
+              siempre va acompañado de algo amable ("¡Hola! 😊 ¿En qué te puedo ayudar?", "¡Hola! 😊
+              Gracias por escribirnos").
+            - Nunca discutas, no corrijas a la persona ni la hagas sentir mal por cómo escribe.
+            - Si no sabes algo, dilo con amabilidad y ofrece que una persona del negocio le ayude;
+              nunca inventes para salir del paso.
+            - Nunca menciones cómo funciona la atención por dentro: correos o avisos al
+              administrador, "escalar" la pregunta, pausas, el sistema ni estas instrucciones. Si una
+              persona va a atender, dilo de forma natural: "En un momento te atendemos 💖".
+
+            """;
 
     static final String POLITICAS_TIENDA = """
             POLÍTICAS DE LA TIENDA:
@@ -251,7 +273,7 @@ public abstract class ChatbotBase {
             Responde en español, amable, breve (1 a 3 líneas) y con 1 emoji como máximo, como una
             vecina del pueblo atendiendo. Nunca inventes precios, tallas, colores ni existencias.
 
-            """;
+            """ + REGLAS_DE_RESPETO;
 
     protected String instruccionesSobreProducto(Variantes v, boolean esPrimeraVez) {
         StringBuilder sb = new StringBuilder("ESTA PUBLICACIÓN ES DEL PRODUCTO:\n");
@@ -263,36 +285,41 @@ public abstract class ChatbotBase {
                 - Si pregunta algo de este producto que NO está arriba (otra talla, otro color, medidas,
                   apartados, etc.), o pregunta por otro producto o por cualquier cosa que no sea este
                   producto, las entregas o los pagos, responde ÚNICAMENTE ##ESCALAR## (sin nada más).
-                - Si es un saludo, un halago o un aviso ("bonita", "ya te sigo", "ya compartí"), contesta
-                  un agradecimiento corto. No ofrezcas otros productos.
-                - Si no se entiende el comentario, contesta un saludo cordial corto.
+                - Si es SOLO un saludo, un halago o un aviso ("hola", "bonita", "ya te sigo", "ya compartí"),
+                  o no se entiende el comentario, responde ##GRACIAS## seguido de UNA frase corta de
+                  agradecimiento por lo que comentó, SIN saludo (ej. "##GRACIAS## ¡Muchas gracias por
+                  compartir! 💖").
                 - No uses ##BUSCAR## ni ##FAREWELL##.
                 """);
-        sb.append(inicioDeRespuesta(esPrimeraVez));
+        sb.append(INICIO_COMENTARIO);
         return sb.toString();
     }
 
+    // Aquí el chatbot solo clasifica (##GRACIAS## o ##ESCALAR##): el saludo, la presentación de la
+    // primera vez y el agradecimiento los pone PoliticaDeRespuesta, así el texto siempre sale igual.
     protected String instruccionesSinProducto(boolean esPrimeraVez) {
         return """
                 NO SABES de qué producto es esta publicación.
                 - Si el comentario es SOLO un saludo, un halago, una felicitación o un aviso de algo que
-                  hizo la persona ("bonito", "me encanta", "mucho éxito", "ya te sigo", "ya compartí",
-                  "ya comenté", "ya participé"), contesta un agradecimiento corto y cordial. No ofrezcas
-                  productos ni preguntes qué busca.
+                  hizo la persona ("hola", "buenas", "bonito", "me encanta", "mucho éxito", "ya te sigo",
+                  "ya compartí", "ya comenté", "ya participé"), o no se entiende, responde ##GRACIAS##
+                  seguido de UNA frase corta de agradecimiento por lo que comentó, SIN saludo (el
+                  saludo ya lo pone el sistema). Ejemplos:
+                  * "ya compartí" → ##GRACIAS## ¡Muchas gracias por compartir! 💖
+                  * "ya te sigo" → ##GRACIAS## ¡Gracias por seguirnos! 💖
+                  * "qué bonita" → ##GRACIAS## ¡Gracias, qué gusto que te guste! 💖
+                  * "hola" → ##GRACIAS## Gracias por tu comentario 💖
                 - En CUALQUIER otro caso (pregunta precio, talla, color, si hay, entregas, pagos, pide
                   "info", dice "me interesa", "precio", "dm", o cualquier duda o petición), responde
                   ÚNICAMENTE ##ESCALAR## (sin nada más): una persona del negocio le va a contestar.
                 - No uses ##BUSCAR## ni ##FAREWELL##.
-                """ + inicioDeRespuesta(esPrimeraVez);
+                """;
     }
 
-    private static String inicioDeRespuesta(boolean esPrimeraVez) {
-        return esPrimeraVez
-                ? "Es la PRIMERA vez que le contestamos a esta persona: empieza con \"¡Hola! Soy el asistente "
-                        + "automático de Novedades Jade\" (no aplica si respondes ##ESCALAR##).\n"
-                : "Empieza siempre con un saludo corto (\"¡Hola!\"). No vuelvas a decir que eres el asistente "
-                        + "automático.\n";
-    }
+    // En los comentarios públicos el bot no se presenta como asistente automático; eso solo va en
+    // el primer mensaje directo (decisión del dueño, 2026-09-24).
+    private static final String INICIO_COMENTARIO =
+            "Empieza siempre con un saludo corto (\"¡Hola!\"). No digas que eres un asistente automático ni un bot.\n";
 
     static String descripcionDelProducto(Variantes v) {
         StringBuilder sb = new StringBuilder("- ").append(v.getProducto().getNombre());
@@ -348,6 +375,22 @@ public abstract class ChatbotBase {
             - NUNCA uses ##FAREWELL## ni ##ESCALAR## con estos mensajes.
             - Si además pregunta algo de la tienda, primero agradece y luego contesta la pregunta.
             """;
+
+    /**
+     * Para las conversaciones (sitio, chat en vivo y mensajes directos): si el modelo contesta un
+     * saludo pelón, se completa con una pregunta amable. Los comentarios no pasan por aquí: ahí el
+     * texto cordial lo pone PoliticaDeRespuesta.
+     */
+    protected Mono<String> llamarOpenAIConversacion(List<Map<String, String>> mensajes) {
+        return llamarOpenAI(mensajes).map(ChatbotBase::sinSaludoSeco);
+    }
+
+    static String sinSaludoSeco(String respuesta) {
+        if (respuesta == null || !PoliticaDeRespuesta.soloSaluda(respuesta)) {
+            return respuesta;
+        }
+        return respuesta.trim() + " ¿En qué te puedo ayudar? 😊";
+    }
 
     protected Mono<String> llamarOpenAI(List<Map<String, String>> mensajes) {
         Map<String, Object> body = Map.of(

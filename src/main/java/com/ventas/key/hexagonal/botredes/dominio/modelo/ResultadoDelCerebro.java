@@ -10,6 +10,13 @@ public sealed interface ResultadoDelCerebro {
     record Escalar() implements ResultadoDelCerebro {
     }
 
+    /**
+     * Saludo, halago o aviso. {@code frase} es el agradecimiento que propuso el chatbot según lo que
+     * comentaron ("¡Muchas gracias por compartir! 💖"); el saludo lo pone PoliticaDeRespuesta.
+     */
+    record Agradecer(String frase) implements ResultadoDelCerebro {
+    }
+
     record NoEntendido() implements ResultadoDelCerebro {
     }
 }

@@ -17,7 +17,7 @@ class ChatbotComentariosTest {
 
         assertThat(instrucciones).contains("NO SABES de qué producto es esta publicación");
         assertThat(instrucciones).contains("ÚNICAMENTE ##ESCALAR##");
-        assertThat(instrucciones).contains("agradecimiento corto");
+        assertThat(instrucciones).contains("##GRACIAS##");
     }
 
     @Test
@@ -35,12 +35,19 @@ class ChatbotComentariosTest {
 
         assertThat(instrucciones).contains("Bolsa Lucía", "color: negro", "$300 MXN (con descuento, antes $350)", "2 piezas");
         assertThat(instrucciones).contains("ÚNICAMENTE ##ESCALAR##");
-        assertThat(instrucciones).contains("PRIMERA vez");
+        assertThat(instrucciones).contains("No digas que eres un asistente automático");
     }
 
     @Test
-    void despuesDeLaPrimeraVezSaludaPeroYaNoSePresenta() {
-        assertThat(facebook.instruccionesSinProducto(true)).contains("PRIMERA vez");
-        assertThat(facebook.instruccionesSinProducto(false)).contains("No vuelvas a decir que eres el asistente");
+    void conProductoLosSaludosYHalagosLosAgradeceElSistema() {
+        Producto producto = new Producto();
+        producto.setNombre("Bolsa Lucía");
+        Variantes variante = new Variantes();
+        variante.setProducto(producto);
+        variante.setStock(1);
+
+        assertThat(facebook.instruccionesSobreProducto(variante, false))
+                .contains("##GRACIAS##")
+                .contains("SIN saludo");
     }
 }

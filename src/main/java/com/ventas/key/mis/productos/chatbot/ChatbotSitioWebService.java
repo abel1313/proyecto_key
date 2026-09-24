@@ -22,7 +22,7 @@ public class ChatbotSitioWebService extends ChatbotBase {
     public Mono<String> chat(ChatbotRequest request) {
         List<Map<String, String>> mensajes = construirMensajes(request);
         mensajes.add(Map.of("role", "user", "content", request.getMensaje()));
-        return llamarOpenAI(mensajes);
+        return llamarOpenAIConversacion(mensajes);
     }
 
     /**
@@ -42,7 +42,7 @@ public class ChatbotSitioWebService extends ChatbotBase {
                 ##BUSCAR[término,0]##, usando como término el nombre o marca del producto que se
                 estaba discutiendo. No repitas que no hay imágenes disponibles.
                 """));
-        return llamarOpenAI(mensajes);
+        return llamarOpenAIConversacion(mensajes);
     }
 
     private List<Map<String, String>> construirMensajes(ChatbotRequest request) {

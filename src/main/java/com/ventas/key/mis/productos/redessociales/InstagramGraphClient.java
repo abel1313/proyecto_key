@@ -38,6 +38,11 @@ public class InstagramGraphClient {
     @Value("${instagram.account-id:}")
     private String igUserId;
 
+    // Los mensajes directos de Instagram se mandan por la página ligada (Messenger Platform), no
+    // por la cuenta de Instagram. Ver enviarMensajeDirecto().
+    @Value("${facebook.page-id:}")
+    private String pageId;
+
     @Value("${facebook.page-access-token:}")
     private String pageAccessToken;
 
@@ -234,13 +239,15 @@ public class InstagramGraphClient {
                 + "intenta publicarlo de nuevo en unos minutos");
     }
 
-    // Manda un mensaje directo (POST /{ig-user-id}/messages) -- lo usa el bot de DM
-    // (InstagramDirectMessageBotService). A diferencia de responder un comentario (form-urlencoded,
-    // el comment-id va en la URL), el Send API de Instagram usa JSON con el destinatario en el
-    // body y el access_token como query param -- formato distinto, mismo Page Access Token.
+    // Manda un mensaje directo de Instagram (POST /{page-id}/messages) -- lo usa el bot de
+    // mensajes (botredes). Con Facebook Login los DMs de Instagram van por la Messenger Platform:
+    // el endpoint es el de la PÁGINA ligada, con el token de página y el IGSID como destinatario.
+    // /{ig-user-id}/messages es de la otra API (Instagram Login, graph.instagram.com) y con un
+    // token de página responde "(#3) Application does not have the capability to make this API
+    // call" (visto en QA el 2026-09-24).
     public String enviarMensajeDirecto(String recipientId, String mensaje) {
-        if (igUserId.isBlank() || pageAccessToken.isBlank()) {
-            throw new ExceptionErrorInesperado("Instagram no esta configurado: falta INSTAGRAM_ACCOUNT_ID o "
+        if (pageId.isBlank() || pageAccessToken.isBlank()) {
+            throw new ExceptionErrorInesperado("Instagram no esta configurado: falta FACEBOOK_PAGE_ID o "
                     + "FACEBOOK_PAGE_ACCESS_TOKEN");
         }
         Map<String, Object> body = Map.of(
@@ -249,7 +256,7 @@ public class InstagramGraphClient {
         );
 
         Map<?, ?> response = webClient.post()
-                .uri("/{version}/{igUserId}/messages?access_token={token}", apiVersion, igUserId, pageAccessToken)
+                .uri("/{version}/{pageId}/messages?access_token={token}", apiVersion, pageId, pageAccessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(body))
                 .retrieve()

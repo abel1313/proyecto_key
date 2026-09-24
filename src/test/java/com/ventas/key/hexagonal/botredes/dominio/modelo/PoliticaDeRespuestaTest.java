@@ -20,15 +20,16 @@ class PoliticaDeRespuestaTest {
     }
 
     @Test
-    void alEscalarSaludaAvisaYSePausaYSoloLaPrimeraVezSePresenta() {
-        Accion primera = PoliticaDeRespuesta.decidir(Canal.COMENTARIO, new ResultadoDelCerebro.Escalar(), true);
-        Accion despues = PoliticaDeRespuesta.decidir(Canal.COMENTARIO, new ResultadoDelCerebro.Escalar(), false);
+    void alEscalarSaludaAvisaYSePausa_ySoloEnElPrimerMensajeDirectoSePresenta() {
+        Accion comentario = PoliticaDeRespuesta.decidir(Canal.COMENTARIO, new ResultadoDelCerebro.Escalar(), true);
+        Accion primerMensaje = PoliticaDeRespuesta.decidir(Canal.MENSAJE_DIRECTO, new ResultadoDelCerebro.Escalar(), true);
+        Accion otroMensaje = PoliticaDeRespuesta.decidir(Canal.MENSAJE_DIRECTO, new ResultadoDelCerebro.Escalar(), false);
 
-        assertThat(primera.avisarAdmin()).isTrue();
-        assertThat(primera.pausar()).isTrue();
-        assertThat(primera.textoPublico()).startsWith("¡Hola!").contains("asistente automático")
-                .contains("En un momento te compartimos la información");
-        assertThat(despues.textoPublico()).startsWith("¡Hola!").doesNotContain("asistente automático");
+        assertThat(comentario.avisarAdmin()).isTrue();
+        assertThat(comentario.pausar()).isTrue();
+        assertThat(comentario.textoPublico()).isEqualTo("¡Hola! 😊 En un momento te compartimos la información 💖");
+        assertThat(primerMensaje.textoPublico()).contains("asistente automático").contains("En un momento te atendemos");
+        assertThat(otroMensaje.textoPublico()).doesNotContain("asistente automático");
     }
 
     @Test
@@ -42,6 +43,50 @@ class PoliticaDeRespuestaTest {
         assertThat(mensaje.avisarAdmin()).isTrue();
         assertThat(mensaje.pausar()).isTrue();
         assertThat(mensaje.textoPublico()).contains("En un momento te atendemos");
+    }
+
+    @Test
+    void unSaludoOHalagoSeAgradeceSegunLoQueComentaronYNuncaConUnHolaPelon() {
+        assertThat(PoliticaDeRespuesta.interpretar("##GRACIAS## ¡Muchas gracias por compartir! 💖"))
+                .isEqualTo(new ResultadoDelCerebro.Agradecer("¡Muchas gracias por compartir! 💖"));
+
+        // Lo que pidió el dueño: "comparto la publicación" → gracias por compartir, sin decir que es un bot.
+        Accion compartir = PoliticaDeRespuesta.decidir(Canal.COMENTARIO,
+                new ResultadoDelCerebro.Agradecer("¡Muchas gracias por compartir! 💖"), true);
+        assertThat(compartir.textoPublico()).isEqualTo("¡Hola! 😊 ¡Muchas gracias por compartir! 💖");
+        assertThat(compartir.avisarAdmin()).isFalse();
+        assertThat(compartir.pausar()).isFalse();
+
+        // Si el chatbot ya trae su "¡Hola!", no sale doble.
+        assertThat(PoliticaDeRespuesta.decidir(Canal.COMENTARIO,
+                new ResultadoDelCerebro.Agradecer("¡Hola! Gracias por seguirnos 💖"), false).textoPublico())
+                .isEqualTo("¡Hola! 😊 Gracias por seguirnos 💖");
+
+        // Sin frase, va la de siempre.
+        assertThat(PoliticaDeRespuesta.decidir(Canal.COMENTARIO, new ResultadoDelCerebro.Agradecer(""), false)
+                .textoPublico()).isEqualTo("¡Hola! 😊 Gracias por tu comentario 💖");
+
+        // Lo que pasó en QA el 2026-09-24: comentaron "Hola" y el bot contestó solo "¡Hola! 😊".
+        assertThat(PoliticaDeRespuesta.decidir(Canal.COMENTARIO, new ResultadoDelCerebro.Contestar("¡Hola! 😊"), false)
+                .textoPublico()).isEqualTo("¡Hola! 😊 Gracias por tu comentario 💖");
+        assertThat(PoliticaDeRespuesta.decidir(Canal.COMENTARIO,
+                new ResultadoDelCerebro.Contestar("¡Hola! Cuesta $300 😊"), false).textoPublico())
+                .isEqualTo("¡Hola! Cuesta $300 😊");
+        assertThat(PoliticaDeRespuesta.soloSaluda("¡Buen día! ☀️")).isTrue();
+    }
+
+    @Test
+    void siLaRespuestaMencionaAlgoInternoNoSePublicaYSeEscala() {
+        Accion accion = PoliticaDeRespuesta.decidir(Canal.MENSAJE_DIRECTO,
+                new ResultadoDelCerebro.Contestar("Ya le mandé un correo a la dueña para que te conteste"), false);
+
+        assertThat(accion.textoPublico()).isEqualTo("¡Hola! 😊 En un momento te atendemos 💖");
+        assertThat(accion.avisarAdmin()).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Voy a escalar tu pregunta")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Le aviso al administrador")).isTrue();
+        // El correo de contacto de la tienda sí se puede dar.
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Puedes escribirnos a nuestro correo de contacto 😊")).isFalse();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Sí tenemos la bolsa en negro a $300")).isFalse();
     }
 
     @Test

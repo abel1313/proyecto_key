@@ -113,7 +113,7 @@ public class ChatbotChatVivoService extends ChatbotBase {
         // línea el log no distingue "se atoró armando el prompt" de "OpenAI no contestó".
         log.info("Chat en vivo: prompt armado (categoría={}, {} mensajes al modelo), llamando a OpenAI",
                 categoria, mensajes.size());
-        return llamarOpenAI(mensajes);
+        return llamarOpenAIConversacion(mensajes);
     }
 
     private List<Map<String, String>> historialParaModelo(List<ChatMensaje> historial) {

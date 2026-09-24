@@ -29,7 +29,7 @@ class ChatbotAgradecimientosTest {
         String instrucciones = facebook.instruccionesRedSocial(null, true);
 
         assertThat(instrucciones).contains("AVISOS Y AGRADECIMIENTOS");
-        assertThat(instrucciones).contains("PRIMER comentario");
+        assertThat(instrucciones).contains("PRIMER mensaje");
         assertThat(instrucciones).contains("##ESCALAR##");
     }
 
