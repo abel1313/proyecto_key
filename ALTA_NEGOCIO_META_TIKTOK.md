@@ -1049,6 +1049,8 @@ Without this permission our server would not receive these events and the assist
    de la API Graph (sin enseñar el token).
 3. **Casilla de uso permitido:** marcarla después de leer la fila de `pages_manage_metadata` en 3.14.
 
+Decisión del dueño (2026-09-24): en `pages_manage_metadata` se sube el **video de Messenger de Facebook** (nombre del archivo: pendiente de anotar). El mismo video va también en `pages_messaging`.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
