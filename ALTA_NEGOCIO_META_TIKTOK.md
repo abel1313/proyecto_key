@@ -744,7 +744,7 @@ Sandbox), **Delete Sandbox**, **URL properties**, historial (reloj).
 - El Sandbox **no tiene** la sección "App review" (explicación y video): esa está solo en **Production**.
 - Después de cualquier cambio en el Sandbox, darle **Apply changes**.
 
-**Captura 65 — ícono del Sandbox:** dice **"JB … NOVEDADES JADA"**; el logo de la tienda
+**Captura sin número (ícono del Sandbox antes del cambio):** dice **"JB … NOVEDADES JADA"**; el logo de la tienda
 (`logo_fondo.png`) dice **"NOVEDADES BOLSAS JADE"**. **Son dos versiones distintas del logo**: esa es la
 diferencia real que vio el revisor. Hay que reemplazarlo por `icono-tiktok-1024.png` en el Sandbox **y**
 en Production.
@@ -769,6 +769,12 @@ en Production.
 6. Abrir TikTok (web o celular) con `novedadesjade8` → notificaciones / bandeja → se ve el video como
    **borrador** listo para editar y publicar (`video.upload`).
 7. Detener la grabación. MP4 o MOV, máximo 50 MB (si pesa más, QuickTime → Exportar como → 1080p).
+
+**Captura 65 — Sandbox corregido (2026-09-24):** App icon = logo **"NOVEDADES BOLSAS JADE"** ✅ (el mismo de
+la tienda); Description = "Tienda Novedades Jade: la dueña publica videos de sus productos en su TikTok
+desde el panel de la tienda." (105/120) ✅; lo demás igual que en 60–64 ✅. Arriba decía **"This form has
+unsaved changes"** → falta darle **Apply changes**. Pendiente: lo mismo (ícono y descripción) en
+**Production**.
 
 ---
 
