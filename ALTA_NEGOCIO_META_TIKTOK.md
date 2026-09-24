@@ -643,6 +643,7 @@ categoría (processor-2a) y países (processor-2b):
 
 | Campo | Qué poner |
 |---|---|
+| ¿Dónde podemos encontrar la app? (Configuración → Básica → instrucciones de prueba) | `https://www.instagram.com/novedades_bolsas_jade/` |
 | URL del sitio | `https://shop.novedades-jade.com.mx` (la tienda pública). Estaba `https://qa.shop.novedades-jade.com.mx/login`: el revisor no ve nada del bot ahí |
 | instructions-web-2 | El texto en inglés de abajo |
 | fblogin-web-1 (¿Facebook Login integrado?) | **No**. El bot no tiene inicio de sesión de usuarios: los tokens se sacan del Explorador de la API Graph |
@@ -658,6 +659,11 @@ This app is an internal tool used only by our own small business, Novedades Jade
 store in Mexico). It connects only to our own Facebook Page (facebook.com/NovedadesJade) and our
 own Instagram professional account (@novedades_bolsas_jade). There is no end-user login and the
 bot has no user interface: it runs on our server and receives Meta webhooks.
+
+Facebook Login: not used. No end users log in to this app. The only access token is the Page
+access token of our own Page, generated once by our Page administrator. The Meta APIs we use are
+the Instagram messaging and comments endpoints listed below, plus the Page and Instagram
+webhooks ("messages" and "comments" fields).
 
 What the app does with each permission:
 1. instagram_manage_messages: when someone sends a Direct Message to @novedades_bolsas_jade,
@@ -675,8 +681,8 @@ How to test:
 2. Comment on any recent post of @novedades_bolsas_jade, for example "¿Qué precio tiene?"
    ("What is the price?"). The reply appears under the comment within about 20 seconds.
 
-While the app is in development mode, Meta only delivers these webhooks for accounts with a
-role on the app, so replies will not reach an account without a role. The attached screen
+Until Advanced Access is approved, Meta only delivers these webhooks for accounts with a role
+on the app, so replies will not reach an account without a role. The attached screen
 recordings show the complete flow for each permission with a test account.
 
 Privacy policy: https://shop.novedades-jade.com.mx/privacidad
@@ -705,6 +711,20 @@ al subir a `qa`, 1–2 minutos).
 **Pendiente en el panel de Meta:** poner `https://shop.novedades-jade.com.mx/eliminar-datos` en
 Configuración de la app → Básica → "URL de instrucciones de eliminación de datos".
 
+### 2026-09-24 — Configuración de la app → Básica (revisada)
+
+| Campo | Estaba | Debe quedar |
+|---|---|---|
+| Dominios de la app | `shop.novedades-jade.com.mx` | ✅ |
+| Correo de contacto | Hotmail personal | ✅ (a Meta le sirve) |
+| URL de la política de privacidad | `https://shop.novedades-jade.com.mx/privacidad` | ✅ |
+| URL de Condiciones del servicio | `https://www.facebook.com/` → ✅ corregido | `https://shop.novedades-jade.com.mx/termConditions` |
+| Eliminación de datos de usuario | `https://www.facebook.com/` → ✅ corregido | Elegir "URL de instrucciones" → `https://shop.novedades-jade.com.mx/eliminar-datos` |
+| Ícono | `icono-app-1024.png` | ✅ |
+| Categoría | Negocios y páginas | ✅ |
+| Delegado de protección de datos (RGPD) | Nombre, Gmail personal y un domicilio incompleto → ✅ vaciado | **Vaciarlo.** Es opcional, solo aplica a negocios con actividad en la Unión Europea, y Meta lo publica en Facebook. El domicilio no coincide con el fiscal |
+| Sitio web → URL del sitio | `…/login` de QA → ✅ corregido | `https://shop.novedades-jade.com.mx` |
+
 ### Cuentas de prueba para grabar (modo desarrollo)
 
 Mientras la app esté en desarrollo, el bot solo le contesta a cuentas **con rol en la app**.
@@ -723,9 +743,324 @@ Mientras la app esté en desarrollo, el bot solo le contesta a cuentas **con rol
   primera vez, porque el saludo de asistente automático solo sale en el **primer** mensaje de cada
   persona. Si se reutiliza una cuenta que ya escribió antes, no saldrá el aviso.
 
+**Modo de la app: PUBLICADA (Live)** — el menú izquierdo dice "Publicar · Publicada". O sea, ya no
+está en modo desarrollo: lo que limita al bot a cuentas con rol es que los permisos siguen en acceso
+**estándar**, no el modo. Por eso en las instrucciones para revisores va el párrafo "Until Advanced
+Access is approved…".
+
+### 2026-09-24 — Centro de cuentas del dueño (para elegir cuentas de prueba)
+
+En el mismo Centro de cuentas están: el Facebook personal **Jade Castañeda**, los Instagram
+`jade.castaneda.71868`, `trece0594`, `dulcek.garcia.3` y `novedades_bolsas_jade` (el negocio), un
+WhatsApp y la página de Facebook "Rosas Eternas Caterine".
+
+- Cuentas "cliente" para los videos: `trece0594` y `dulcek.garcia.3`. Nunca `novedades_bolsas_jade`.
+- Tienen rol en la app **solo si el Facebook "Jade Castañeda" tiene rol**: revisar en Roles de la
+  app → Roles. Si la app se creó con otro Facebook (el de Abel), agregar a "Jade Castañeda" como
+  Evaluador y aceptar en developers.facebook.com/requests.
+
+**Roles de la app (2026-09-24):** "Trece Trece" = Administrador (el Facebook con el que se creó la
+app). "Jade Castañeda" = Evaluador, **Pendiente**: la invitación existe pero no se ha aceptado.
+Hasta aceptarla, `trece0594` y `dulcek.garcia.3` no tienen rol y el bot no les contesta.
+Para aceptar: entrar con el Facebook de Jade Castañeda a `developers.facebook.com/requests`.
+
+### 2026-09-24 — Automatizaciones de Business Suite (Mensajes → Automatizaciones)
+
+Estaban activas y hay que apagarlas (causaban doble respuesta y la pausa falsa del bot):
+- **Respuesta automática** (Saludar a las personas). Aparecía también arriba como "Respuesta
+  instantánea — usando un mensaje predeterminado".
+- **Preguntas frecuentes** (Compartir información).
+- **Mensaje automático** (Saludar a las personas).
+
+Las tarjetas de "Sugerencias para ti" no están activas; no se tocan.
+
+✅ 2026-09-24: las tres apagadas por el dueño (no se borraron, se pueden volver a prender).
+
+### 2026-09-24 — "Permitir acceso a los mensajes" en novedades_bolsas_jade
+
+✅ Encendido. En esta versión de Instagram **no está** en "Controles de mensajes": está en
+Configuración → Mensajes y respuestas a historias → **Solicitudes de mensajes** → Herramientas
+conectadas. "Quién puede enviarte solicitudes de mensajes" = Todos.
+
+### 2026-09-24 — Decisión: el webhook se queda en QA hasta que aprueben la app
+
+El dueño decidió no mover el webhook a prod todavía: las credenciales de prod se cargan cuando Meta
+apruebe el acceso avanzado. Los videos y las pruebas se hacen contra QA (`inventario_key_qa`).
+
+**Incidente 2026-09-24:** el merge `main → dev` duplicó el bloque de `standby` en
+`FacebookWebhookController` y `dev`/`qa` no compilaban, así que el deploy de QA falló (QA siguió con
+la imagen anterior). Corregido en `e9bd64d` y subido a `dev`/`qa`. Lección: compilar después de cada
+merge, no solo antes.
+
+**Diagnóstico 2026-09-24:** en `inventario_key_qa`, `mensaje_directo_pausa` y
+`mensaje_directo_social` están **vacías**: nunca ha llegado un mensaje directo a QA, aunque los
+comentarios sí llegan. El problema es de Meta, no del código. Sospechas, en orden:
+1. El objeto Instagram del webhook no está suscrito al campo `messages` (probar con el botón "Probar").
+2. El Page Access Token de QA se generó sin `instagram_manage_messages` (revisar en el Depurador de tokens).
+
+**Revisión por API desde la VPS (2026-09-24)** — comandos en el chat de esa fecha: `/{app}/subscriptions`,
+`/debug_token` y `/{page}/subscribed_apps`, usando las llaves del pod de QA sin mostrarlas.
+- Suscripción `instagram` → `https://qa.backend.novedades-jade.com.mx/mis-productos/v1/redes-sociales/facebook/webhook`,
+  campos `comments` y `messages` ✅.
+- Suscripción `page` → **`https://hook.eu1.make.com/...` (Make.com)**, campo `feed`. ⚠️ Los comentarios
+  de **Facebook** van a Make.com, no a QA, así que el bot de comentarios de Facebook de QA no los recibe.
+  Hay que confirmar con el dueño si Make.com se sigue usando.
+- Token de página de QA: válido, no expira, **sí tiene** `instagram_manage_messages` ✅ (descarta la sospecha 2).
+- La página tiene instalada la app novedadesJade, pero **solo con `subscribed_fields: feed`**. Sospecha
+  nueva: falta `messages` en la suscripción de la página para que Meta entregue los mensajes directos
+  de Instagram.
+- Intento de agregar `messages` a la página: Meta responde `(#200) … needs pages_messaging`. Ese campo
+  es el de **Messenger** (mensajes a la página de Facebook), no el de Instagram, así que probablemente
+  **no** es la causa. No se pidió `pages_messaging`.
+- Siguiente prueba para separar causas: comentar desde `trece0594` y ver si llega el comentario
+  (si llega → la cuenta sí tiene rol y el problema es solo de mensajes directos).
+- Resultado: ni el comentario ni el mensaje directo de `trece0594` llegaron. En nginx, el último
+  `POST` de Meta al webhook de QA fue a las 01:33 UTC (con `200`) y después nada. **La conexión funciona;
+  Meta descarta lo de `trece0594` porque todavía no tiene rol** (Jade Castañeda seguía "Pendiente").
+  Comando útil: `sudo grep -h "facebook/webhook" /var/log/nginx/*access*.log | tail`.
+- **Corrección:** en `comentario_social` (QA) sí quedó el comentario "Que precio tiene" del
+  2026-09-23 21:09 (hora de México = 03:09 UTC del 24), contestado con **"¡Hola! Soy el asistente
+  automático de No…"**. Los comentarios de Instagram **funcionan** con la versión nueva y la cuenta de
+  prueba **sí tiene rol**. Lo que no llega son solo los **mensajes directos**. Nota: `fecha` en la base
+  está en hora de México (UTC−6), nginx en UTC.
+- Sospechas para los mensajes directos: (a) enrutamiento de conversaciones: otra app (la bandeja de
+  Business Suite) es la predeterminada y a la nuestra solo le llegaría `standby`, que no está suscrito;
+  (b) el mensaje cayó en "Solicitudes de mensajes" y Meta no lo entrega hasta aceptarlo.
+- ✅ El dueño confirmó en Instagram que el bot **sí contestó el comentario** (la respuesta sale
+  colapsada, en "Ver respuestas"). **El video de comentarios ya se puede grabar.** Falta resolver los
+  mensajes directos.
+- Chat de `trece0594` en novedades_bolsas_jade: está en **Solicitudes de mensajes** ("¿Aceptar la
+  solicitud de mensaje…?"). Adentro se ve la respuesta morada de Meta ("¡Hola! Gracias por ponerte en
+  contacto…"), que era la **Respuesta automática de Business Suite** ya apagada, y después dos "Hola"
+  sin respuesta. Siguiente prueba: aceptar la solicitud y mandar un mensaje nuevo.
+- Resultado: aceptada la solicitud y mandado un mensaje nuevo, **Meta no manda nada** (en nginx el
+  último `POST` es el del comentario de las 03:09 UTC). Descartadas: URL, suscripción a `messages`,
+  permisos del token, rol de la cuenta y solicitud pendiente. **Queda: enrutamiento de conversaciones**
+  en Business Suite (la app predeterminada para los mensajes directos de Instagram no es novedadesJade).
+
+### 2026-09-24 — ⚠️ Información del negocio del portafolio (bloquea la verificación)
+
+Business Suite → Configuración → Información del negocio tiene hoy:
+- **Nombre legal:** "Tortilleria la Salida". Debe ser **idéntico al de la Constancia de Situación
+  Fiscal** (persona física: el nombre completo del dueño) y al que se puso como responsable en
+  Tratamiento de datos. Si no coincide, Meta rechaza la verificación.
+- **Dirección:** "51440 / 51440 / Mexico, Mexico 51440": incompleta. Debe ser el domicilio fiscal de
+  la CSF completo (calle, número, colonia, CP, municipio, estado).
+- Teléfono: +52 722 111 1793. Sitio web: `https://shop.novedades-jade.com.mx/` ✅.
+
+Corregir con "Editar" en "Información del negocio" **antes** de iniciar la verificación.
+
+**Constancia de Situación Fiscal revisada (2026-09-24)** — sin anotar RFC, CURP ni domicilio aquí:
+- Emitida en **abril de 2022**: demasiado vieja, hay que sacar una del mes.
+- Régimen: **solo "Sueldos y Salarios"**. No demuestra actividad de negocio; Meta lo rechaza.
+- Domicilio registrado: el **del patrón**, en CDMX. No es el del negocio ni coincide con el portafolio.
+- Nombre: coincide con el responsable de Tratamiento de datos ✅.
+- **Qué falta:** constancia nueva. Si sigue en Sueldos y Salarios, alta en RESICO o Actividades
+  Empresariales y cambio de domicilio fiscal, **con un contador** (genera obligaciones fiscales).
+  Después: corregir nombre legal y domicilio del portafolio y recién ahí iniciar la verificación.
+
+Enrutamiento de conversaciones (según la ayuda de Meta): Business Suite → Configuración →
+**Integraciones → Enrutamiento de conversaciones** → cuenta de Instagram → pestaña Enrutamiento →
+"Enrutamiento predeterminado" → ⋯ → Editar.
+
+### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
+
+1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
+   darse de alta en RESICO o Actividades Empresariales con domicilio fiscal en Luvianos, **con un contador**.
+2. **Información del negocio en el portafolio** (Business Suite → Configuración → Información del
+   negocio): nombre legal `Abel Tiburcio Felipe` (idéntico a la constancia), calle y número, colonia,
+   ciudad Luvianos, Estado de México, CP 51440, RFC en "Identificación fiscal". Debe coincidir con la
+   constancia nueva y con un recibo del mismo domicilio.
+3. Recién con eso: **Verificación** → **Uso permitido** → **Enviar para revisión**.
+4. ~~Decidir qué hacer con el webhook de Página que apunta a **Make.com**.~~ ✅ 2026-09-24: el dueño no usa Make. El webhook de Página ahora apunta a QA (`POST /{app}/subscriptions`, `object=page`, `fields=feed` → `{"success":true}`).
+
+(Nota 2026-09-24: con el webhook de Página ya en QA, el primer comentario de Facebook llegó y el bot
+lo procesó: `Comentario … escalado por correo al admin (bot no tenía el dato)`. El camino de
+Facebook → bot funciona; ese comentario no se contestó en público porque el bot no tenía el precio y
+lo mandó por correo, que es la regla.)
+✅ 2026-09-24 21:53 (hora de México): comentario en Facebook **respondido por el bot**. Comentarios de
+Facebook e Instagram funcionando en QA. Para grabar el video con el saludo de "asistente
+automático" hay que borrar antes los registros de esa persona en `comentario_social`, porque el saludo
+solo sale la primera vez.
+
+5. **Cambiar `FACEBOOK_WEBHOOK_VERIFY_TOKEN` de QA**: hoy es el texto de ejemplo de la plantilla (se
+   vio en el log de nginx al verificar el webhook de Página). Poner un valor aleatorio propio en el
+   secreto de QA y repetir la suscripción con ese valor.
+
+**Orden acordado:** primero los videos (comentarios ya funciona; mensajes directos falta el
+enrutamiento de conversaciones), al final la constancia y la verificación.
+
 ---
 
-## 9. Fuentes
+## 9. Plan — bots de mensajes y comentarios en Facebook e Instagram (2026-09-24, SIN programar)
+
+Pedido del dueño: que los avisos de la página de Facebook lleguen a nuestro bot y no a Make.com, y
+que el bot conteste **mensajes y comentarios** en **Facebook e Instagram**. Primero el plan, después
+el código.
+
+### Estado actual
+
+| | Instagram | Facebook |
+|---|---|---|
+| Comentarios | ✅ Funciona en QA | Código listo (`FacebookCommentBotService`), pero el webhook de Página va a **Make.com** |
+| Mensajes directos | Código listo (`InstagramDirectMessageBotService`); Meta no entrega los mensajes: falta el **enrutamiento de conversaciones** | **No existe.** El webhook recibe `object=page` con `messaging` y lo ignora |
+
+### Fase 0 — Configuración en Meta (sin código)
+
+1. **Webhook de Página → QA** en lugar de Make.com, con `POST /{app}/subscriptions`, `object=page`,
+   `fields=feed` y el mismo verify token de QA. Meta verifica con un `GET` al controlador.
+2. **Quitar Make.com:** apagar o borrar el escenario en Make.com. Revisar Facebook → Configuración →
+   Integraciones comerciales y Business Suite → Integraciones, y quitar "Make" si aparece. La página
+   no tiene a Make instalado como app (`subscribed_apps` solo muestra novedadesJade); recibía por el
+   webhook de nuestra app.
+3. **Permiso `pages_messaging`:** agregar el caso de uso de Messenger a la app. Regenerar el token de
+   página incluyendo `pages_messaging` y las mismas que tiene hoy, de larga duración
+   (`FACEBOOK_SETUP.md` paso 5), y cargarlo en el secreto de QA.
+4. Con el token nuevo: página suscrita a `feed,messages` (`/{page}/subscribed_apps`) y campo
+   `messages` en el webhook de Página.
+5. **Enrutamiento de conversaciones:** novedadesJade como app predeterminada para Instagram y para
+   Messenger (Business Suite → Configuración → Integraciones → Enrutamiento de conversaciones).
+6. Respuestas automáticas de Business Suite apagadas ✅ (ya hecho).
+
+### Fase 1 — Código (cuando se aprueben las reglas)
+
+**Reglas del dominio propuestas** (hay que acordarlas antes de programar):
+1. Solo se contesta a **mensajes de texto entrantes de personas**. Nunca a ecos, a la propia
+   cuenta, a reacciones ni a avisos de "visto".
+2. **Idempotencia** por `mid`: si Meta reenvía el mismo evento, no se contesta dos veces.
+3. **Primer mensaje por persona y por red:** saludo con aviso de "asistente automático".
+4. **Pausa:** si una persona del negocio contesta a mano, el bot deja de contestarle a esa persona
+   en esa red. ❓ ¿Para siempre (como hoy) o por un tiempo (24 h, 7 días)?
+5. Si el bot no tiene el dato, **no contesta y avisa por correo** (como hoy).
+6. **Límites:** 20 mensajes por hora por persona, cooldown y bloqueo (`ChatbotBlockService`, con la
+   clave por red + persona).
+7. **Adjuntos** (fotos, audios, stickers): ❓ ¿ignorarlos o contestar una vez "por ahora solo puedo
+   leer texto"?
+8. Contestar en menos de 30 s y solo dentro de las 24 h (política de Meta).
+9. Los IDs de persona de Facebook (PSID) e Instagram (IGSID) son distintos. La pausa y la "primera
+   vez" se llevan por **(red, persona)**.
+
+**Arquitectura** (regla del proyecto: lo nuevo en hexagonal; lo viejo se migra cuando se toca):
+- Dominio nuevo `hexagonal/mensajedirecto/`. Dominio: el mensaje entrante y las reglas 1–9.
+  Puertos: enviar mensaje por canal, registro de mensajes, pausas, cerebro del chatbot, aviso por correo.
+- Adaptadores: Instagram (`POST /{ig-user-id}/messages`, ya existe) y **Messenger nuevo**
+  (`POST /{page-id}/messages` con `messaging_type=RESPONSE`), JPA sobre las tablas existentes, y
+  `ChatbotInstagramService` / `ChatbotFacebookService` como cerebro.
+- `InstagramDirectMessageBotService` **se migra** a este dominio (se toca de todos modos).
+- Webhook: `object=page` + `messaging` → Messenger (hoy se ignora), con el manejo de eco igual que
+  en Instagram.
+- ~~**Migración de BD**~~: no hizo falta. Los IDs de persona de Facebook e Instagram no se cruzan y
+  la pausa usa la columna `fecha` que ya existía.
+- Pruebas unitarias del dominio y del adaptador de Messenger.
+
+**Comentarios de Facebook:** no requieren código nuevo. Se prueban cuando el webhook de Página
+apunte a QA (Fase 0.1).
+
+### Fase 1b — Comentarios: cómo debería funcionar (pedido del dueño, 2026-09-24)
+
+**Cómo funciona hoy [Código]:**
+- El bot sabe de qué producto es una publicación **solo si se publicó desde el panel admin**
+  (`publicacion_social` guarda el id del post y la variante). Si se subió directo desde la app de
+  Facebook o Instagram, no sabe de qué producto es. **No lee el texto de la publicación.**
+- **Saluda solo la primera vez** que una persona comenta (en cualquier publicación). Si escala una
+  pregunta, no contesta nada en público.
+- Contesta sobre **todo el catálogo**; al producto de la publicación solo le da prioridad.
+
+**Cómo lo espera el dueño (reglas a confirmar antes de programar):**
+1. **Identificar el producto por la publicación:** si no se publicó desde el panel, leer el texto de
+   la publicación con la API (Facebook `GET /{post-id}?fields=message`, Instagram
+   `GET /{media-id}?fields=caption`), sacar el **código de barras o número** y buscar el producto.
+   ❓ ¿Con qué formato va el código en el texto? (pedir un ejemplo real)
+2. **Saludar siempre** y después contestar si pregunta algo del producto. ❓ ¿En cada comentario o
+   una vez por persona en cada publicación?
+3. **Contestar solo sobre el producto de esa publicación.** ❓ Si preguntan por otra cosa: ¿invitar
+   a escribir por mensaje o a la tienda, o contestar igual?
+4. ❓ Si el bot no tiene el dato, ¿saludar en público ("¡Hola! En un momento te damos el precio") y
+   además mandar el correo, en lugar de quedarse callado?
+
+**✅ Reglas decididas por el dueño (2026-09-24):**
+- **Siempre se contesta, y siempre con cortesía.** El bot nunca se queda callado ante un comentario.
+- **Publicación subida desde el panel admin** (ligada a un producto en `publicacion_social`): saluda y
+  contesta sobre **ese producto**.
+- **Publicación subida directo en Facebook o Instagram** (sin producto ligado, que es el caso de hoy):
+  el bot **no sabe de qué producto es**, así que **no contesta preguntas del producto**:
+  - Si el comentario es un saludo, un halago o un aviso ("bonito", "ya te sigo", "ya compartí"):
+    contesta un **saludo o agradecimiento cordial** y listo.
+  - Si pregunta algo (precio, tallas, colores, disponibilidad, etc.): contesta **solo un saludo
+    cordial** ("¡Hola! En un momento te compartimos la información 💖") y **escala por correo** al
+    admin, que le contesta directamente.
+  (Corregido 2026-09-24: antes decía "contesta normal con todo el catálogo"; el dueño lo aclaró.)
+  ✅ **Confirmado por el dueño (2026-09-24): "así mero".** Aplica **igual en Instagram** que en Facebook (confirmado).
+- Aplica igual en **Facebook y en Instagram**, cada una con su propio canal.
+- **Leer el código del texto de la publicación: por ahora NO.**
+- Consecuencias para el código:
+  - Cuando escala (no tiene el dato), **además** del correo contesta en público algo cordial, tipo
+    "¡Hola! En un momento te compartimos esa información 💖".
+  - Cuando "no entiende" (`##FAREWELL##`), ya no se calla: contesta un saludo cordial.
+  - Pendiente de confirmar: si el saludo va en **cada** respuesta o solo la primera vez por persona.
+    Por lo que dijo el dueño ("siempre tiene que contestar cordialmente"), se propone: **cada**
+    respuesta empieza cordial y el aviso de "asistente automático" va solo la primera vez.
+
+**✅ Regla de pausa y escalado (decidida 2026-09-24, comentarios y mensajes, Facebook e Instagram):**
+- **Cuando el bot escala** (manda el correo porque no tiene el dato): contesta **una sola vez** con un
+  saludo cordial y **se pausa para esa persona** en esa conversación (en comentarios: esa persona en
+  esa publicación; en mensajes directos: esa persona en esa red). Desde ahí **lo retoma el admin**.
+- **Publicación ligada a un producto (subida desde la app):** el bot **sigue la conversación**
+  contestando lo del producto (tallas, colores, precio…) mientras tenga el dato.
+- ~~**Cuando el admin contesta a mano:** el bot deja de contestarle a esa persona. **Para siempre**.~~
+  **Corregido por el dueño:** la pausa **no es para siempre**. Dura **30 minutos** (cambiado de 1 hora el 2026-09-24) desde la última vez
+  que el admin contestó a mano (o desde que el bot escaló). Si la persona vuelve a escribir después de
+  esos 30 minutos sin que el admin haya contestado, **el bot la retoma** con las mismas reglas: si la
+  publicación es de la app, contesta lo que sepa del producto; si no, saluda y manda el correo.
+  (Aceptado: los 30 minutos se reinician cada vez que el admin contesta; durante la pausa el bot no
+  contesta ni manda correos; la duración queda configurable. Fotos, audios y stickers = igual que
+  cuando no sabe algo.)
+- **Mensajes directos (Instagram y Messenger):** el bot contesta con **todo el catálogo** (como hoy,
+  puede buscar productos). Si no sabe algo, saluda, escala por correo y se pausa 30 minutos.
+- **Comentarios:** solo sobre **esa publicación** (ver arriba). Confirmado 2026-09-24.
+- Cambio de código nuevo: hoy el escalado **no** pausa (el bot volvería a contestar el siguiente
+  mensaje). Hay que guardar la pausa al escalar.
+
+### ✅ Fase 1 programada (2026-09-24, en `dev` sin commit)
+
+- Dominio nuevo **`hexagonal/botredes/`** con las reglas R1–R7 en su `README.md`. Reemplaza a
+  `FacebookCommentBotService`, `InstagramCommentBotService` e `InstagramDirectMessageBotService`
+  (borrados).
+- **Messenger:** el webhook ya no ignora `object=page` + `messaging`. Se contesta con
+  `POST /{page-id}/messages` (`FacebookGraphClient.enviarMensajeDirecto`). Falta la parte de Meta:
+  `pages_messaging` en el token y la página suscrita a `messages` (Fase 0, pasos 3 y 4).
+- **Comentarios:** sin producto → agradece o saluda y escala; con producto → contesta solo sobre él,
+  con precio (el de descuento si lo hay), talla, color y existencias.
+- **Pausa de 30 min** (`redes.bot.pausa-minutos`) al escalar o cuando el admin contesta a mano; se
+  reinicia con cada respuesta del admin. **No hizo falta migración:** la columna `fecha` de
+  `comentario_pausa` y `mensaje_directo_pausa` ahora es "desde cuándo".
+- Si el chatbot falla, se escala en vez de callar.
+- Pruebas: `AtenderInteraccionServiceTest` (17), `PoliticaDeRespuestaTest` (4) y
+  `ChatbotComentariosTest` (3). La suite completa pasa (326).
+
+**Textos nuevos del log** (para `kubectl logs … | grep`):
+- `COMENTARIO <id> de FACEBOOK respondido por el bot (primeraVez=…, escalado=…)`
+- `MENSAJE_DIRECTO <id> de INSTAGRAM escalado al admin (…)`
+- `Mensaje directo de INSTAGRAM recibido: mid=… de=… para=… eco=… texto=… adjunto=…`
+- `… ignorado -- una persona está atendiendo esa conversación` (pausa vigente)
+- `El admin contestó a mano …` (pausa creada o reiniciada)
+
+Comando para verlo todo: `kubectl logs deployment/proyecto-key-deployment -n qa --since=10m | grep -E "COMENTARIO|MENSAJE_DIRECTO|Mensaje directo|admin contestó"`
+
+### Fase 2 — Revisión de Meta
+
+Agregar al envío `pages_messaging` y `pages_manage_engagement` (y `pages_read_user_content` si Meta
+lo pide como dependencia). **Cada permiso lleva su propio video y su descripción.** Actualizar el
+texto para los revisores.
+
+### Fase 3 — Producción
+
+Cuando Meta apruebe: credenciales de prod, webhook a prod, migraciones en `inventario_key`
+(ver pendientes para el final).
+
+---
+
+## 10. Fuentes
 
 **Meta — oficiales**
 - [Verificar tu negocio en Meta Business Suite](https://www.facebook.com/business/help/2058515294227817)
