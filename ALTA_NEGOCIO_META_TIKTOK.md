@@ -1154,6 +1154,17 @@ We only create replies on our own Page. We do not edit or delete customers' comm
 The screen recording shows a customer commenting on one of our posts and the assistant's reply appearing under the comment.
 ```
 
+### 2026-09-24 — `business_management`: quitarlo de la revisión
+
+Meta lo describe así: "leer y escribir con la API del administrador comercial. El uso permitido es
+administrar activos comerciales, como cuentas publicitarias, y reclamar este tipo de cuentas"
+**[Formulario]**. **El código no lo usa**: no hay ninguna llamada a `/businesses`, `owned_pages` ni
+`client_pages` (revisado con grep). Se quita de la solicitud, igual que `pages_manage_posts`.
+
+Quitarlo de la revisión no le quita el acceso estándar: si al sacar el token de página en el
+Explorador hiciera falta (páginas de un portafolio comercial), sigue funcionando porque el dueño tiene
+rol. Al regenerar el token, dejarlo marcado igual que hoy.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
