@@ -651,6 +651,17 @@ GitHub ChatbotXIO/ChatbotX PR #1231 (scope `comment.list.manage`) y #1232 (webho
   `business-api.tiktok.com` (4.1). Son dos trámites separados.
 - Siguiente paso: abrir **"See why"** y anotar aquí los motivos exactos del rechazo.
 
+**Pestaña Sandbox de la misma app (2026-09-24)** — *"You are editing novedadesJade, a Sandbox version of
+novedadesJade"*, botones **Apply changes** / **Delete Sandbox**:
+- Descripción: "Videos de bolsas de dama, perfumes, pantalones, decant etc" (58/120). Categoría: Others.
+- Terms of Service URL: `https://shop.novedades-jade.com.mx/termConditions`
+- Privacy Policy URL: `https://shop.novedades-jade.com.mx/privacidad`
+- Web/Desktop URL: `https://shop.novedades-jade.com.mx` (revisar que no tenga un espacio al inicio).
+- Login Kit → Redirect URI (Web): `https://shop.novedades-jade.com.mx/tiktok/callback`
+- Content Posting API: solo "Upload to TikTok" (borrador); Direct Post apagado; dominio sin verificar.
+- Scopes: `user.info.basic`, `video.upload`.
+- **Target users:** `novedadesjade8` (agregado el 18-ago-2026). Hasta 10.
+
 ---
 
 ## 5. Lo que tienes que juntar
