@@ -1506,6 +1506,14 @@ Ojo: esta lista es para verificar el **nombre**. Lo que falló la vez pasada fue
 eso sirve un recibo de teléfono o estado de cuenta con nombre + número, o confirmar con el correo del
 dominio (captura 46).
 
+**Captura 52 — "Agregar información del negocio → Dirección":** *"Agrega la dirección de tu organización
+tal como aparece en los documentos aceptados."* Campos: Dirección postal · Dirección postal 2/localidad
+(opcional) · Ciudad · Estado/provincia/región · Código postal. Venía llena con el **domicilio de la
+constancia actual, que es el del patrón** (Blvd. Adolfo López Mateos, col. Las Águilas, Álvaro Obregón,
+Ciudad de México, CP 01710). **En esta prueba se deja igual**, porque tiene que coincidir con el documento
+que se suba (la constancia). Cuando se cambie el domicilio fiscal al del negocio en Luvianos (11.8 y
+📌 Pendientes), aquí va el nuevo, copiado de la constancia nueva.
+
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
 1. **Constancia de Situación Fiscal del negocio.** Sacar una nueva; si sigue en "Sueldos y Salarios",
