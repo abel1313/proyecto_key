@@ -406,7 +406,7 @@ búsquedas **[Proveedor]**. Antes de marcar cada casilla, leer el permiso en la 
 | `instagram_manage_comments` | "Crear, eliminar y ocultar comentarios en nombre de la cuenta de Instagram vinculada a una página… leer, actualizar y eliminar comentarios de cuentas de empresa de Instagram" **[Formulario]** | Contesta comentarios en las publicaciones propias | Solo comentarios de **nuestras** publicaciones · no ocultar ni borrar comentarios de clientes con el bot (hoy no lo hace) |
 | `pages_manage_engagement` | Crear, editar y borrar comentarios de la página y moderar comentarios **[Proveedor]** | Contesta comentarios en las publicaciones de la página de Facebook | Igual que el anterior, en Facebook |
 | `pages_read_engagement` | Leer publicaciones, comentarios y datos de la página **[Proveedor]** | Leer el comentario y su publicación | Leer solo lo de nuestra página |
-| `pages_manage_metadata` | Suscribir la página a webhooks y cambiar su configuración **[Proveedor]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
+| `pages_manage_metadata` | "Suscribirse y recibir webhooks sobre actividades en la página, y actualizar los ajustes de esta… con el objetivo de ayudar al administrador de una página a administrarla" **[Formulario]**. Requiere `pages_show_list` en la misma solicitud **[Formulario]** | Suscribir la página a `feed`, `messages`, `message_echoes` | Usarlo solo para esa suscripción |
 | `pages_show_list` | Ver la lista de páginas que administra la persona **[Proveedor]** | Sacar el token de la página | — |
 | `instagram_basic` | Leer el perfil y las publicaciones de la cuenta de Instagram **[Proveedor]** | Ligar la publicación con el producto | — |
 
@@ -1024,6 +1024,30 @@ Safari: debe abrir el chat de Messenger con NovedadesJade.
 3. Within about 20 seconds the automated assistant replies in Spanish. The first reply says it is the automated assistant of Novedades Jade.
 4. Send a question the assistant cannot answer, for example "¿Me pueden llamar?" ("Can you call me?"). The assistant replies that a person will attend you shortly, and a member of our team answers from the Page inbox.
 ```
+
+### 2026-09-24 — `pages_manage_metadata`: cómo llenar cada campo
+
+Pantalla: Revisar → Revisión de la app → "¿Cómo usará la app pages_manage_metadata?" → Empezar.
+"Llamadas de prueba a la API" ya sale **Completado**, y el requisito "La solicitud debe contener
+pages_show_list" ya salía ✅ (captura 37). Este formulario **no** tiene "Selecciona una página" ni
+instrucciones para reproducir: solo descripción, video y casilla.
+
+1. **Descripción** (cuadro debajo de "Proporciona una descripción detallada…"):
+
+```
+Our app is used only by our own small business, Novedades Jade, a store in Mexico. We use pages_manage_metadata to subscribe our own Facebook Page (NovedadesJade) to our app's webhooks for the fields "feed", "messages" and "message_echoes". We do not change any other Page settings.
+
+These webhooks are what make our automated customer service assistant work: "feed" tells our server when a customer comments on one of our Page's posts, so the assistant can reply to that comment; "messages" tells it when a customer writes to our Page on Messenger, so the assistant can reply; and "message_echoes" tells it when someone from our team has replied manually, so the assistant pauses and lets that person continue the conversation.
+
+Without this permission our server would not receive these events and the assistant could not answer our customers. The screen recording shows a customer writing to our Page and the assistant replying, which only happens because of this webhook subscription.
+```
+
+2. **Video:** este permiso no tiene nada visible propio (es la suscripción a los webhooks). Se sube el
+   video de **Messenger** o el de **comentarios de Facebook**: los dos solo funcionan gracias a esta
+   suscripción, y la descripción lo explica. **[Sin confirmar]** que Meta lo acepte; si lo rechaza,
+   grabar un video que además muestre la llamada `POST /{page-id}/subscribed_apps` en el Explorador
+   de la API Graph (sin enseñar el token).
+3. **Casilla de uso permitido:** marcarla después de leer la fila de `pages_manage_metadata` en 3.14.
 
 ### 📌 PENDIENTES PARA EL FINAL (acordado 2026-09-24)
 
