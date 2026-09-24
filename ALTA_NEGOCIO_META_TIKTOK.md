@@ -728,6 +728,22 @@ Content Posting API (video.upload): from the product screen, the owner selects a
 The demo video shows the complete flow in our sandbox: login, authorization, the connected account, uploading a video and the draft in the TikTok app.
 ```
 
+**Capturas 60–64 — revisión del Sandbox (2026-09-24):** pantalla de la app → **Sandbox** → novedadesJade.
+Menú izquierdo: App details · Products · Scopes · Sandbox settings. Arriba: **Apply changes** (guarda el
+Sandbox), **Delete Sandbox**, **URL properties**, historial (reloj).
+- (60) App name `novedadesJade`, Category `Others`, **Description todavía la vieja** ("Videos de bolsas de
+  dama…", 58/120) → cambiar. El ícono no se alcanza a ver en la captura: confirmar que sea el nuevo.
+- (61) Terms, Privacy y Platforms **Web** ✅; **Web/Desktop URL `https://shop.novedades-jade.com.mx` sin
+  espacio** ✅ (el espacio era del copiado).
+- (62) Login Kit → Redirect URI Web `https://shop.novedades-jade.com.mx/tiktok/callback` ✅.
+- (63) Content Posting API: **Direct Post apagado** ✅ (correcto: solo se pide `video.upload`, borrador).
+  **Verify domains: no hace falta** — el código sube el archivo (`source: FILE_UPLOAD` = `push_by_file`),
+  y verificar dominio solo es para `pull_by_url` **[Código: `TikTokGraphClient`]**.
+- (64) Scopes `user.info.basic` (Login Kit) y `video.upload` (Content Posting API) ✅; Target users
+  `novedadesjade8` ✅.
+- El Sandbox **no tiene** la sección "App review" (explicación y video): esa está solo en **Production**.
+- Después de cualquier cambio en el Sandbox, darle **Apply changes**.
+
 ---
 
 ## 5. Lo que tienes que juntar
