@@ -797,6 +797,23 @@ explicación en inglés, **quitar `videoTikTokPrueba.mp4`** y subir el video nue
    video no aparece en el celular**". El video demo tiene que terminar mostrando el borrador en TikTok,
    así que hay que arreglar esto antes de grabar.
 
+**Diagnóstico del "video que no aparece" (2026-09-24):**
+- El código espera a que TikTok diga **`SEND_TO_USER_INBOX`** (o `PUBLISH_COMPLETE`) antes de marcar la
+  publicación como hecha; si falla, muestra el `fail_reason` **[Código: `TikTokGraphClient`]**. O sea, si
+  la tienda dijo "publicado", **TikTok sí lo entregó**.
+- Dónde llega: **no a "Borradores"**. Con Upload, TikTok manda una **notificación a la Bandeja de entrada**
+  de la cuenta autorizada ("tu contenido está listo para editar") y hay que **tocarla** para seguir el
+  flujo de creación y publicarlo **[Oficial, por buscador: "they will receive a notification in their TikTok
+  inbox… users must click on inbox notifications to continue the editing flow"]**.
+- Límites: 6 solicitudes por minuto por token; mientras la app no pase la auditoría todo sale privado
+  (`SELF_ONLY`) y solo funciona con los target users del Sandbox **[Proveedor]**.
+- Hoy la cuenta autorizada (`novedadesjade8`) y sus tokens están **solo en QA**: probar desde la tienda de
+  **QA**, no desde producción.
+- Pasos para revisar: (1) publicar un video de prueba desde QA → Publicar en redes → TikTok y anotar el
+  mensaje que sale; (2) en el celular, TikTok con sesión de **`novedadesjade8`** → **Bandeja de entrada**
+  → notificaciones del sistema/actividad → buscar la de **novedadesJade**; (3) si no está, confirmar con
+  `GET /tiktok/whoami` a qué cuenta pertenece el token guardado.
+
 ---
 
 ## 5. Lo que tienes que juntar
