@@ -225,6 +225,9 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'lugarEntregaId', le.id,
           'lugarEntregaNombre', le.nombre,
           'urlFacebook', p.url_facebook,
+          'fechaEntrega', DATE_FORMAT(p.fecha_recogida, '%Y-%m-%d'),
+          'horaEntrega', p.hora_recogida,
+          'recogeEnLocal', IF(le.id IS NULL OR le.es_recoger_en_tienda = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -335,6 +338,9 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'lugarEntregaId', le.id,
           'lugarEntregaNombre', le.nombre,
           'urlFacebook', p.url_facebook,
+          'fechaEntrega', DATE_FORMAT(p.fecha_recogida, '%Y-%m-%d'),
+          'horaEntrega', p.hora_recogida,
+          'recogeEnLocal', IF(le.id IS NULL OR le.es_recoger_en_tienda = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,

@@ -798,6 +798,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             resp.setLugarEntregaId(pedido.getLugarEntrega().getId());
             resp.setLugarEntregaNombre(pedido.getLugarEntrega().getNombre());
         }
+        resp.setRecogeEnLocal(pedido.getLugarEntrega() == null
+                || Boolean.TRUE.equals(pedido.getLugarEntrega().getEsRecogerEnTienda()));
 
         if (pedido.getCliente() != null) {
             resp.setClienteNombre(pedido.getCliente().getNombrePersona());

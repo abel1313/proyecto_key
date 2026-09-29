@@ -58,6 +58,8 @@ public class PedidoDetalleResponse {
     private String referencias;
     private Integer lugarEntregaId;
     private String lugarEntregaNombre;
+    /** Sin lugar de entrega o con un lugar marcado como "recoger en tienda": "Cómo llegar" lleva al local. */
+    private Boolean recogeEnLocal;
     private String urlFacebook;
 
     private String clienteNombre;
