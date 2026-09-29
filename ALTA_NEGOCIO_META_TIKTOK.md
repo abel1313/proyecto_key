@@ -797,6 +797,25 @@ explicación en inglés, **quitar `videoTikTokPrueba.mp4`** y subir el video nue
    video no aparece en el celular**". El video demo tiene que terminar mostrando el borrador en TikTok,
    así que hay que arreglar esto antes de grabar.
 
+**App Review Guidelines de TikTok (texto que pegó el dueño, "Last updated August 4, 2026") — lo que nos
+afecta:**
+- *"The app name should match the app or website name"* → `novedadesJade` ✅.
+- *"The app icon must be consistent with the app name or brand"* → resuelto con el logo nuevo.
+- *"Apps must not be for private or personal use."* ⚠️ Riesgo real: la integración la usan solo los
+  administradores de la tienda para la cuenta de la tienda. En la explicación **no** decir "only the owner"
+  / "personal": describirlo como herramienta de la tienda (sitio público, administradores con rol admin).
+- *"Apps that are still in development or testing will not be approved."*
+- *"Your website URL cannot be a landing page or login page."* → la tienda es pública ✅.
+- ⚠️ *"Your Privacy Policy and Terms of Service links must be visible on the website URL **without having to
+  open a menu** to view them, and the links must be active."* → **la tienda NO los tiene a la vista**
+  (no hay pie de página con esos enlaces; solo existen las rutas). Hay que agregar un pie de página visible
+  en todas las páginas públicas con **Aviso de privacidad · Términos y condiciones · Eliminar mis datos**.
+- Web apps: *"You must provide a valid redirect URI"* ✅.
+- *"Only request permissions and features that your app needs."* ✅ (`user.info.basic`, `video.upload`).
+- Content Sharing Guidelines (UX de subir contenido) **[Oficial, por buscador]**: mostrar a qué cuenta de
+  TikTok se sube (nickname), avisar que llega una notificación a la bandeja para terminar de publicar, y
+  que puede tardar unos minutos. Hoy la pantalla "Publicar en redes" solo dice que sale privado.
+
 **Diagnóstico del "video que no aparece" (2026-09-24):**
 - El código espera a que TikTok diga **`SEND_TO_USER_INBOX`** (o `PUBLISH_COMPLETE`) antes de marcar la
   publicación como hecha; si falla, muestra el `fail_reason` **[Código: `TikTokGraphClient`]**. O sea, si
@@ -813,6 +832,42 @@ explicación en inglés, **quitar `videoTikTokPrueba.mp4`** y subir el video nue
   mensaje que sale; (2) en el celular, TikTok con sesión de **`novedadesjade8`** → **Bandeja de entrada**
   → notificaciones del sistema/actividad → buscar la de **novedadesJade**; (3) si no está, confirmar con
   `GET /tiktok/whoami` a qué cuenta pertenece el token guardado.
+
+### 4.12 Pendientes pedidos por el dueño (2026-09-25) — investigar a fondo y explicar sobre la marcha
+
+**A) Páginas profesionales en Facebook, Instagram y TikTok.** El dueño quiere dejar las tres
+"profesionales" para negocio. Investigar en la documentación oficial y guías de cada red: tipo de cuenta
+(página / cuenta profesional de empresa / TikTok Business), datos visibles (categoría, horario, dirección,
+teléfono, sitio web, botón de contacto), verificación, bio, enlaces, catálogo/tienda, respuestas
+automáticas, estadísticas. Explicarlo paso a paso cuando se toque cada red.
+
+**B) Que las publicaciones de la página "Novedades Jade" no muestren el perfil personal.** Pregunta: ¿se
+puede que diga que lo publicó Novedades Jade y no el perfil base? Por investigar a fondo. Lo que se sabe
+hoy: lo que se publica **desde la API con el token de la página** (el panel de la tienda) sale a nombre de
+la página; lo que se publica desde el perfil personal sin cambiar a la página sale a nombre del perfil.
+Meta muestra "Publicado por <persona>" **solo a los administradores** de la página, no al público
+**[Sin confirmar, verificar]**.
+
+**C) Lista legal para el sitio (según un video que vio el dueño) — revisar qué de verdad exige la ley
+mexicana y qué es buena práctica.** Cada punto: qué dice la norma, si aplica a la tienda, qué falta.
+| # | Tema del video | Normas a revisar (México) |
+|---|---|---|
+| 1 | Afirmaciones sin respaldo (publicidad) | Ley Federal de Protección al Consumidor (LFPC), PROFECO — publicidad engañosa |
+| 2 | Términos y condiciones | LFPC (comercio electrónico, art. 76 bis), NMX-COE-001-SCFI-2018 |
+| 3 | Etiquetas claras (precios, características) | LFPC (precio total a la vista), NOM-004 (textiles/ropa), NOM-051 no aplica si no es alimento |
+| 4 | Seguimiento de analíticas | LFPDPPP (datos personales), aviso de privacidad |
+| 5 | Consentimiento en formularios | LFPDPPP — consentimiento, finalidades, datos sensibles |
+| 6 | Sitio accesible | Buenas prácticas WCAG; revisar si alguna norma obliga a privados |
+| 7 | Copyright de imágenes | Ley Federal del Derecho de Autor — fotos propias o con licencia |
+| 8 | Consentimiento de cookies | LFPDPPP + Lineamientos del Aviso de Privacidad (tecnologías de rastreo) |
+| 9 | Leyes locales | Estado de México / municipio (licencia de funcionamiento) |
+| 10 | Eliminar reseñas falsas | LFPC / PROFECO; la tienda tiene tabla `resena` |
+| 11 | Integraciones de terceros | Aviso de privacidad: transferencias (OpenAI, Meta, TikTok, Mercado Pago, OVH, Hosting-Mexico) |
+| 12 | Política de cookies | Lineamientos del Aviso de Privacidad |
+| 13 | Formularios usables con teclado | Accesibilidad (WCAG 2.1) |
+| 14 | Solo datos necesarios | LFPDPPP — principio de proporcionalidad |
+| 15 | Datos del negocio visibles | LFPC art. 76 bis — nombre, domicilio, teléfono y medios de contacto del proveedor |
+Nota: la LFPDPPP se reformó en 2025 (nueva ley publicada el 20-mar-2025) **[Sin confirmar detalles, investigar]**.
 
 ---
 
