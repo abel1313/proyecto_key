@@ -553,6 +553,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
+| `backfill_estado_pedido_tipo.sql` | ✅ corrida | ⏳ pendiente | 2026-09-29 |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -572,6 +573,13 @@ las dos quedan prendidas, el cliente recibe dos respuestas.
 `migration_mensaje_directo_mid.sql` agranda `mid` y `respuesta_mid` de `mensaje_directo_social` a
 `VARCHAR(512)`: los ids de mensaje de Instagram miden ~180 caracteres y el primer mensaje directo de
 Instagram que llegó a QA no se pudo guardar (`Data too long for column 'mid'`).
+
+`backfill_estado_pedido_tipo.sql` repara pedidos a crédito cuyo `estado_pedido` quedó desfasado del
+`tipo_pedido` (bug corregido en `PedidoServiceImpl.cambiarTipoPedido`, 2026-09-29). Solo toca filas
+donde ambas columnas son tipos de crédito (APARTADO/FIADO) y no coinciden; no toca pedidos pagados,
+entregados ni cancelados, y es idempotente. **Ejecutada en `inventario_key_qa` el 2026-09-29 (encontró
+1 fila y la corrigió, verificación final = 0 pendientes).** Falta ejecutarla en `inventario_key` (prod)
+antes de hacer el deploy de la versión con la corrección.
 
 `backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
 del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas
