@@ -21156,3 +21156,59 @@ Request `{ "pedidoTitularId": 123 }` → `data` = **Grupo**. 400 si ese pedido n
   (sale / cuánto se queda). No deja separar hasta que el reparto cuadre.
 - Permisos: separar y cambiar quién recoge usan `unir-pedidos` (ya existe). No hay script nuevo.
 
+
+---
+
+### Fix: Unir pedidos — sincronización estado_pedido con tipo_pedido (2026-09-29)
+
+**Problema:** Al cambiar la forma de cobro de un pedido unido (Apartado ↔ Ir pagando), solo se
+actualizaba `tipo_pedido`, dejando `estado_pedido` desfasado. En los grupos, esto hacía que los
+miembros mostraran estados inconsistentes: el título del grupo decía "Ir pagando" pero la tabla
+mostraba "Apartado".
+
+**Solución:**
+- **Backend (`PedidoServiceImpl.cambiarTipoPedido`):** Si `estado_pedido` coincide con el tipo
+  anterior, ahora también se actualiza al nuevo tipo. Si diferían (ej. estado = "Pendiente"), se
+  mantiene sin cambios.
+  ```java
+  if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+      pedido.setEstadoPedido(tipoNuevo);
+  }
+  pedido.setTipoPedido(tipoNuevo);
+  ```
+- **Tests nuevos:** `CambiarTipoPedidoTest` con dos casos: estado que copia el tipo (FIADO→APARTADO)
+  y estado distinto al tipo (Pendiente se ignora).
+- **Backfill SQL:** `backfill_estado_pedido_tipo.sql` repara órdenes abiertas con tipo/estado
+  desfasado. Idempotente (solo toca lo necesario). **Debe ejecutarse en `inventario_key_qa` antes
+  de producción**.
+
+**Frontend — Cambios de UI:**
+- **Selector "Cambiar quién recoge":** rediseñado como una tarjeta limpia con:
+  - Avatar circular con la inicial del titular (fondo con gradiente de marca)
+  - Nombre y número de pedido en texto más pequeño
+  - Selector oculto debajo (sin los controles nativos del navegador)
+  - Icono de chevron-down de la app en la esquina del select
+  - **Responsive:** en móvil (< 575px) el selector expande a ancho completo
+- **Etiquetas de estado:** cada pedido en la tabla ahora muestra un badge con el estado en texto
+  legible y color semántico:
+  - `APARTADO`, `FIADO` → color de marca (azul, `.gp-estado--abierto`)
+  - `PAGADO` → verde éxito (`.gp-estado--ok`)
+  - `CANCELADO` → rojo peligro (`.gp-estado--cancelado`)
+  - `ENTREGADO` → verde éxito (mismo que pagado)
+- **Funciones TypeScript nuevas:**
+  - `inicial(nombre)`: extrae la primera letra para el avatar
+  - `etiquetaEstado(codigo)`: mapea APARTADO→"Apartado", FIADO→"Ir pagando", PAGADO→"Pagado",
+    ENTREGADO→"Entregado", CANCELADO→"Cancelado"
+  - `claseEstado(codigo)`: retorna la clase CSS para colorear (abierto/ok/cancelado)
+  - `candidatosRecoger` (getter): ahora devuelve `{ pedidoId, cliente }[]` en lugar de solo IDs,
+    para que el HTML pueda mostrar el nombre del cliente
+
+**No hay cambios en endpoints.** Todo es corrección de lógica interna (backend) y cosmético (UI).
+
+#### Checklist QA
+- [ ] Aplicar `backfill_estado_pedido_tipo.sql` en `inventario_key_qa`
+- [ ] Verificar que no haya pedidos unidos con tipo/estado desfasado (SELECT al final del script)
+- [ ] Cambiar forma de cobro en un pedido unido, verificar que el grupo se actualiza
+- [ ] En la tabla de miembros, confirmar que los estados muestran colores y textos legibles
+- [ ] Selector "Cambiar quién recoge": comprobar en desktop y móvil que es accesible
+
