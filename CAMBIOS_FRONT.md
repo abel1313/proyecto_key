@@ -21279,8 +21279,14 @@ Mis pedidos). Campos nuevos dentro de `pedido`:
 - `recogeEnLocal` (boolean): sin lugar de entrega, o con un lugar marcado "recoger en tienda".
 
 **Card:** "Fecha" pasa a **"Pedido"** (cuándo se hizo). Nueva fila **"Entrega: sáb 4 oct, 10:00 ·
-Zacazonapan"** o **"Recoge en el local: …"** cuando hay fecha, con **"⚠ Atrasado N días"** si ya pasó
-y no está Entregado/Cancelado (los "PAGADO" a crédito no se marcan hasta que exista el paso "Entregado").
+Zacazonapan"** o **"Recoge en el local: …"** cuando hay fecha, con **"⚠ Atrasado N días"** si ya pasó.
+La fila (y el atraso) solo sale en pedidos que **todavía esperan entrega**: no en Entregado, cancelado
+ni PAGADO. Motivo: la venta de mostrador de contado guarda hoy como `fecha_recogida` y no tiene lugar,
+así que sin ese filtro cada venta de mostrador diría "Recoge en el local: hoy". PAGADO queda fuera hasta
+que exista el paso "Entregado" para créditos.
+
+Solo la lista del **admin** trae estos campos; la lista del cliente (`findPedidoPorId2`) no, así que el
+cliente todavía no ve la fila "Entrega".
 
 ### 3. Detalle del pedido — `recogeEnLocal` y "Cómo llegar"
 `GET /v1/pedidos/{id}/detalle` trae `recogeEnLocal` (boolean), misma regla que arriba.
@@ -21292,8 +21298,9 @@ del cliente**.
 1. Punto del viaje marcado en el mapa → ruta a ese punto.
 2. Punto del viaje solo escrito → búsqueda de ese texto en Maps.
 3. `recogeEnLocal` → ruta al **local** (latitud/longitud de `GET /v1/negocio/contactos`, las mismas del
-   login). Si el local no tiene ubicación: botón deshabilitado + "Falta configurar la ubicación del local
-   en Administración → Negocio".
+   login). Si el local no tiene ubicación: el **admin** ve el botón deshabilitado + "Falta configurar la
+   ubicación del local en Administración → Negocio"; el **cliente** no ve botón (el aviso es una
+   instrucción para el admin).
 4. A domicilio → coordenadas del cliente, o su dirección escrita.
 
 #### Checklist QA
@@ -21302,3 +21309,5 @@ del cliente**.
 - [ ] Un pedido con fecha pasada y sin entregar muestra "⚠ Atrasado N días".
 - [ ] Detalle de un pedido "recoge en el local": "Cómo llegar" abre la ruta al local.
 - [ ] Detalle de un pedido de zona con punto solo escrito: busca el punto, no la casa del cliente.
+- [ ] Una venta de mostrador de contado (Entregado) NO muestra la fila "Recoge en el local".
+- [ ] Local sin ubicación: el admin ve el aviso; el cliente no ve botón ni aviso.
