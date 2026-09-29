@@ -12,11 +12,11 @@ usuario con la consulta de la sección "Cómo obtener los datos de la base".
 
 | Dato | QA (`inventario_key_qa`) | Prod (`inventario_key`) |
 |---|---|---|
-| Versión de MySQL | ⏳ pendiente | ⏳ pendiente |
-| `sql_mode` | ⏳ pendiente | ⏳ pendiente |
-| Charset / collation de la base | ⏳ pendiente | ⏳ pendiente |
-| `lower_case_table_names` | ⏳ pendiente | ⏳ pendiente |
-| Zona horaria | ⏳ pendiente | ⏳ pendiente |
+| Versión de MySQL | 8.4.10-0ubuntu0.25.10.1 | ⏳ pendiente |
+| `sql_mode` | `ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION` | ⏳ pendiente |
+| Charset / collation de la base | `utf8mb4` / `utf8mb4_0900_ai_ci` | ⏳ pendiente |
+| `lower_case_table_names` | `0` (case-sensitive) | ⏳ pendiente |
+| Zona horaria | `SYSTEM` (UTC) | ⏳ pendiente |
 | Esquema real exportado (sin datos) | ⏳ pendiente (`esquema_real_qa.sql`) | no hace falta si es igual a QA |
 
 `dev` y `qa` usan la misma base (`inventario_key_qa`); `main` usa `inventario_key`. Ver CLAUDE.md,
