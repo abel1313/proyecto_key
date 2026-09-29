@@ -986,6 +986,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             pedido = iPedidoRepository.findById(pedidoId).orElseThrow();
         }
 
+        // Mientras el pedido sigue abierto, estadoPedido es copia del tipo (así se crea en
+        // VentaServiceImpl). Si no se mueve junto, el grupo de pedidos muestra el tipo viejo.
+        if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+            pedido.setEstadoPedido(tipoNuevo);
+        }
         pedido.setTipoPedido(tipoNuevo);
         iPedidoRepository.save(pedido);
         log.info("Pedido {} cambio de {} a {} — cobro en el cambio: {}",

@@ -140,6 +140,28 @@ class CambiarTipoPedidoTest {
     }
 
     @Test
+    @DisplayName("si el estado era copia del tipo, cambia junto con el tipo")
+    void estadoQueCopiaElTipoSeMueveJunto() {
+        Pedido p = pedido("FIADO", 1000, 300);
+        p.setEstadoPedido("FIADO");
+
+        service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO"));
+
+        assertThat(p.getTipoPedido()).isEqualTo("APARTADO");
+        assertThat(p.getEstadoPedido()).isEqualTo("APARTADO");
+    }
+
+    @Test
+    @DisplayName("un estado que no es copia del tipo no se toca")
+    void estadoDistintoAlTipoNoSeToca() {
+        Pedido p = pedido("FIADO", 1000, 300);
+
+        service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO"));
+
+        assertThat(p.getEstadoPedido()).isEqualTo("Pendiente");
+    }
+
+    @Test
     @DisplayName("el tipo se acepta en minusculas")
     void aceptaMinusculas() {
         Pedido p = pedido("APARTADO", 1000, 300);
