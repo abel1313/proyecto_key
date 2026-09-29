@@ -391,10 +391,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Double precioNormal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
         Double precioDescuento = variante != null ? variante.precioDescuento() : prod.getPrecioRebaja();
         double normal = precioNormal != null ? precioNormal : 0.0;
-        // La rebaja solo la puede dar el admin (hotfix 2026-09-29): es un descuento que decide en
-        // el momento, no un precio de lista. Para un cliente no existe, ni en el mensaje de error.
-        boolean puedeRebaja = AuthenticationUtils.isAdminContext();
-        double rebaja = puedeRebaja && precioDescuento != null ? precioDescuento : 0.0;
+        double rebaja = precioDescuento != null ? precioDescuento : 0.0;
 
         boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
         // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".

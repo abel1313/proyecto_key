@@ -7,7 +7,6 @@ import com.ventas.key.hexagonal.precio.infraestructura.dto.PreciosArticuloRespon
 import com.ventas.key.hexagonal.precio.infraestructura.dto.PreciosProductoResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -41,11 +40,5 @@ public class PrecioController {
                                                                    @RequestBody CambiarPrecioRequest request) {
         return ResponseEntity.ok(PreciosArticuloResponse.de(
                 articulo.cambiar(varianteId, request.precioVenta(), request.precioRebaja())));
-    }
-
-    /** Le quita el precio propio al articulo: vuelve a cobrar el de su producto. */
-    @DeleteMapping("/articulo/{varianteId}")
-    public ResponseEntity<PreciosArticuloResponse> usarElDelProducto(@PathVariable Integer varianteId) {
-        return ResponseEntity.ok(PreciosArticuloResponse.de(articulo.usarElDelProducto(varianteId)));
     }
 }

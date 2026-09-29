@@ -35,8 +35,6 @@ public class VarianteResumenDto {
      * cobro ya lo aceptaba desde el 2026-09-22.
      */
     private Double precioRebaja;
-    /** Solo admin: true si el articulo tiene precio propio y no el de su producto (2026-09-29). */
-    private Boolean precioPropio;
     private String codigoBarras;
     private String nombreProducto;
     private char habilitado;

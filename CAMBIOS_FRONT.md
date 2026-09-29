@@ -20396,6 +20396,14 @@ dos**, cualquier otro monto lo rechaza con el mensaje que dice cuáles valen.
 
 # HOTFIX — el precio con descuento solo se cobra cuando el admin lo elige (2026-09-29)
 
+> ⚠️ **Qué quedó en prod (`main`) y qué solo en `qa`/`dev`.** Por decisión del dueño, a prod solo
+> subió lo de la tabla del carrito y el precio: card con el precio venta, carrito al precio normal
+> con "Otro precio" + check "Usar", y 💲 por artículo (`PUT /v1/precios/articulo/{id}`). Estas
+> partes están **solo en `qa`/`dev`** y suben a prod con el flujo normal: el botón "Otro precio"
+> del detalle del pedido, el bot de comentarios sin descuento, `savePedido` con descuento solo para
+> el admin (y su mensaje de error sin revelarlo), el campo `precioPropio` y
+> `DELETE /v1/precios/articulo/{id}` ("Usar el del producto").
+
 **Regla del dueño:** al dar de alta un producto se capturan precio costo, precio venta y precio
 descuento. **Siempre se cobra y se muestra el precio venta.** El precio descuento es para cuando el
 dueño decide dárselo a alguien en el momento (por ejemplo, un cliente que se lleva varias piezas),

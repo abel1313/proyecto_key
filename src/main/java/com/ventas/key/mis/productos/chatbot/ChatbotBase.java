@@ -328,10 +328,15 @@ public abstract class ChatbotBase {
         agregar(sb, "talla", v.getTalla());
         agregar(sb, "color", v.getColor());
         agregar(sb, "contenido", v.getContenidoNeto());
-        // Solo el precio normal. La rebaja es un descuento que el dueño decide dar en el momento,
-        // no un precio de lista: si el bot la anuncia, el cliente llega pidiéndola.
         Double precio = v.precioNormal();
-        if (precio != null) {
+        Double rebaja = v.precioDescuento();
+        if (rebaja != null && rebaja > 0 && (precio == null || rebaja < precio)) {
+            sb.append("\n- Precio: $").append(String.format("%.0f", rebaja)).append(" MXN (con descuento");
+            if (precio != null) {
+                sb.append(", antes $").append(String.format("%.0f", precio));
+            }
+            sb.append(")");
+        } else if (precio != null) {
             sb.append("\n- Precio: $").append(String.format("%.0f", precio)).append(" MXN");
         }
         sb.append("\n- Existencias: ").append(v.getStock() > 0 ? v.getStock() + " piezas" : "agotado");

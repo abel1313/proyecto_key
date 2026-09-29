@@ -41,7 +41,8 @@ Acción `cambiar-precio` de `tienda/buscar` → `migration_accion_tienda_cambiar
 ## Endpoint
 
 - `PUT /v1/precios/articulo/{varianteId}` — body `{ precioVenta, precioRebaja }`. Solo ese artículo.
-- `DELETE /v1/precios/articulo/{varianteId}` — vuelve al precio del producto.
+- `DELETE /v1/precios/articulo/{varianteId}` — vuelve al precio del producto. **Solo en qa/dev**
+  (en `main` no está expuesto; el caso de uso sí existe).
 - `PUT /v1/precios/producto/{productoId}` — el del producto (el front ya no lo usa).
 
 Columnas del precio propio: `variantes.precio_venta` / `precio_rebaja` (`migration_precio_variante.sql`).

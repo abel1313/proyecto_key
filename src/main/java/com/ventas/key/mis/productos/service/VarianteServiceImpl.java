@@ -920,7 +920,6 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // de lista. Publicarla en el catalogo la convertiria en el precio de todos (R6).
         if (AuthenticationUtils.isAdminContext()) {
             dto.setPrecioRebaja(v.precioDescuento());
-            dto.setPrecioPropio(v.tienePrecioPropio());
         }
         String codBarras = Optional.ofNullable(v.getProducto())
                 .map(Producto::getCodigoBarras)
