@@ -16,11 +16,13 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArti
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso.ModoCambio;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CatalogoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.MovimientoStockPort;
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PagoTrasEdicionPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PedidoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PromocionDePedidoPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,6 +58,7 @@ class EditarArticulosServiceTest {
     private CatalogoArticuloPort catalogo;
     private MovimientoStockPort stock;
     private PromocionDePedidoPort promociones;
+    private PagoTrasEdicionPort pagos;
     private EditarArticulosService service;
 
     private static final int PEDIDO = 501;
@@ -72,7 +76,8 @@ class EditarArticulosServiceTest {
         catalogo = mock(CatalogoArticuloPort.class);
         stock = mock(MovimientoStockPort.class);
         promociones = mock(PromocionDePedidoPort.class);
-        service = new EditarArticulosService(pedidos, catalogo, stock, promociones);
+        pagos = mock(PagoTrasEdicionPort.class);
+        service = new EditarArticulosService(pedidos, catalogo, stock, promociones, pagos);
     }
 
     // ───────────────────────── armado del escenario ─────────────────────────
@@ -124,6 +129,31 @@ class EditarArticulosServiceTest {
 
         verify(stock).descontar(PANTALON_HOMBRE, 2);
         verify(pedidos).agregarLinea(PEDIDO, PANTALON_HOMBRE, 2, 400.0);
+    }
+
+    @Test
+    @DisplayName("despues de editar, el estado se ajusta a los abonos con el total ya guardado (R9)")
+    void editarAjustaElEstadoDespuesDelTotal() {
+        conPedido(new PedidoEditable(PEDIDO, "APARTADO", 100.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, null, null, null));
+
+        InOrder orden = inOrder(pedidos, pagos);
+        orden.verify(pedidos).guardarTotal(eq(PEDIDO), anyDouble());
+        orden.verify(pagos).ajustarTrasEditar(PEDIDO);
+    }
+
+    @Test
+    @DisplayName("si la edicion se rechaza, el estado de pago no se toca (R9)")
+    void edicionRechazadaNoAjusta() {
+        conPedido(new PedidoEditable(PEDIDO, "APARTADO", 100.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        assertThatThrownBy(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, 1.0)))
+                .isInstanceOf(PrecioNoCobrableException.class);
+
+        verify(pagos, never()).ajustarTrasEditar(anyInt());
     }
 
     @Test

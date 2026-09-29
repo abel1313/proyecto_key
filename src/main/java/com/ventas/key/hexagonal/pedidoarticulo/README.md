@@ -113,6 +113,28 @@ quedar pagado de más — eso es una devolución, una decisión de negocio, y es
 inventa solo. Se informa en el response (`saldo` puede dar negativo) para que la pantalla lo
 muestre.
 
+### R9 — Después de editar, el estado queda como dicen los abonos de ESE pedido (2026-09-29)
+
+Después de cualquier edición (agregar, cambiar, quitar promoción, y también el botón viejo de
+quitar producto `DELETE /v1/pedidos/{id}/detalle/{productoId}`), si el pedido es a crédito
+(Apartado / Ir pagando):
+
+- Si lo abonado **cubre** el total nuevo → queda **PAGADO** y se crea su venta.
+- Si estaba PAGADO y **ya no** lo cubre (se cambió por algo más caro) → regresa a Apartado / Ir
+  pagando y se borra su venta; se vuelve a crear cuando termine de pagar.
+- Si estaba PAGADO y lo **sigue** cubriendo → su venta se rehace con los artículos nuevos (la de
+  antes tenía los artículos viejos). Efecto: la venta queda con la fecha de la edición.
+- Lo que sobre (abonado > total) es **saldo a favor de ese cliente**. **Nunca** se pasa a otros
+  pedidos del grupo: la cuenta es por pedido, porque en un grupo pueden ser clientes distintos.
+
+Pedidos de contado no se tocan. Lo implementa `AbonoServiceImpl.ajustarTrasEditarArticulos` (vía
+`PagoTrasEdicionPort`), que es el mismo servicio que crea y borra ventas de crédito.
+
+**Quitar el último producto se rechaza también en el botón viejo** (antes dejaba el pedido en $0).
+Si el cliente regresa todo, se **cancela** el pedido: eso devuelve stock, registra el motivo y el
+mensaje de cancelación dice el saldo a favor del cliente. En un grupo, cancelar un pedido no toca
+a los demás (R8 de `grupopedido`).
+
 ### R8 — Cada botón, su permiso
 
 Tres botones nuevos, tres acciones (R7 del dominio `promocion`):
@@ -136,7 +158,8 @@ Del checklist de `_plantilla/README.md` — las que cambiaron el diseño:
 quiere nada, se cancela (que además registra el motivo). Quitar la última línea se rechaza.
 
 **¿Se puede editar un pedido ya pagado?** Sí, y es el caso común: se apartó, se pagó, y al
-entregarlo el cliente cambia una talla. Por eso R7 no toca `totalPagado`.
+entregarlo el cliente cambia una talla. Por eso R7 no toca `totalPagado`, y R9 ajusta el estado y la
+venta después.
 
 **¿Cambiar a la misma variante?** Se rechaza en vez de hacer un no-op: pedirlo significa que
 quien lo mandó cree que está cambiando algo, y un 200 silencioso lo deja creyendo eso.

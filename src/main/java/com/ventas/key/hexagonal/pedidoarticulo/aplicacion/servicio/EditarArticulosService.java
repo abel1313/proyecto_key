@@ -14,6 +14,7 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PromocionDelPedido
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CatalogoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.MovimientoStockPort;
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PagoTrasEdicionPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PedidoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PromocionDePedidoPort;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     private final CatalogoArticuloPort catalogo;
     private final MovimientoStockPort stock;
     private final PromocionDePedidoPort promociones;
+    private final PagoTrasEdicionPort pagos;
 
     // ─────────────────────────── Agregar ───────────────────────────
 
@@ -271,7 +273,8 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     }
 
     /**
-     * Relee el pedido y guarda el total desde cero (R7).
+     * Relee el pedido, guarda el total desde cero (R7) y deja su estado como corresponde a sus
+     * abonos (R9).
      *
      * <p>Se relee a proposito en vez de ajustar el objeto en memoria: despues de mover lineas y
      * stock, la copia vieja ya no describe el pedido, y ajustar el total con sumas y restas
@@ -281,6 +284,8 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
         PedidoEditable actualizado = pedidos.buscarPedido(pedidoId)
                 .orElseThrow(() -> new ArticuloNoEncontradoException("Pedido no encontrado: " + pedidoId));
         pedidos.guardarTotal(pedidoId, actualizado.total());
-        return actualizado;
+        pagos.ajustarTrasEditar(pedidoId);
+        // Se relee: el ajuste de R9 puede haber cambiado el estado (PAGADO <-> Apartado).
+        return pedidos.buscarPedido(pedidoId).orElse(actualizado);
     }
 }
