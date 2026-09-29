@@ -20472,6 +20472,62 @@ Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea
 línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
 conviene vaciar el carrito una vez después del deploy.
 
+## Vender un artículo con descuento — checks "Precio venta" / "Precio descuento" (2026-09-29, dev/qa)
+
+En el 💲 de la card el admin elige, para **un** artículo, si se vende a su precio venta o a su
+precio con descuento. Con "Precio descuento" el artículo **cambia de precio para todos** (tienda,
+carrito, chatbot y pedidos de clientes) hasta que se vuelva a elegir "Precio venta". En el carrito,
+desmarcar "Usar" en esa línea cobra el normal **solo en esa venta**, sin cambiar el artículo.
+
+**Migración obligatoria antes del deploy:** `migration_usar_descuento_variante.sql` (agrega
+`variantes.usar_descuento TINYINT(1) NOT NULL DEFAULT 0`). Sin ella el back falla en cualquier
+consulta de artículos. No cambia ningún precio: todos nacen en 0.
+
+**`PUT /mis-productos/v1/precios/articulo/{varianteId}`** — body con campo nuevo `usarDescuento`:
+
+```json
+{ "precioVenta": 200, "precioRebaja": 150, "usarDescuento": true }
+```
+
+- `usarDescuento: true` → el artículo se vende a `precioRebaja`. Tiene que ser > 0 y **menor** a
+  `precioVenta`, si no: **400** *"Para vender este artículo con descuento, el precio con descuento
+  tiene que ser mayor a 0 y menor al normal ($200.00)"*.
+- `usarDescuento: false` o sin el campo → se vende a `precioVenta` (como antes). El `precioRebaja`
+  se guarda igual y sigue disponible para elegirlo en una venta con "Usar".
+
+Respuesta (campos nuevos `usarDescuento` y `precioACobrar`):
+
+```json
+{ "varianteId": 7, "precioVenta": 200.0, "precioRebaja": 150.0, "propio": true,
+  "usarDescuento": true, "precioACobrar": 150.0, "vendeBajoCosto": false }
+```
+
+`DELETE /v1/precios/articulo/{varianteId}` ("Usar el del producto") también apaga `usarDescuento`.
+
+**Cambia el significado de `precio` en `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto`:**
+
+| Campo | Antes | Ahora |
+|---|---|---|
+| `precio` | el precio normal | **al que se vende**: el descuento si `usarDescuento`, si no el normal. Para todos |
+| `precioNormal` (nuevo, solo admin) | — | el precio normal, para cobrarlo en una venta puntual |
+| `usarDescuento` (nuevo, solo admin) | — | `true` si el artículo se vende al descuento |
+| `precioRebaja` (solo admin) | sin cambio | sin cambio |
+
+Para un cliente `precioNormal` y `usarDescuento` llegan `null`: su precio es `precio` y ya trae el
+descuento si está activo.
+
+**`savePedido` antes/después:** antes, con token de cliente, un `precioUnitario` igual a la rebaja
+respondía 400. Ahora se acepta **si ese artículo tiene `usarDescuento`** (es su precio de lista).
+Sin `usarDescuento` sigue igual: la rebaja solo la puede cobrar el admin. La venta de mostrador no
+cambió (ya aceptaba normal y rebaja).
+
+**Chatbot:** dice el precio al que se vende (el descuento si está activo). Una rebaja sin activar
+sigue sin anunciarse.
+
+**Front — carrito:** un artículo con `usarDescuento` entra al descuento con "Usar" ya marcado;
+desmarcarlo cobra `precioNormal` en esa línea. `actualizarPrecios()` recibe también `usarDescuento`
+para que una línea ya en el carrito tome lo que se eligió en la card.
+
 ---
 
 ## 🎟️ Boletos de rifa agrupados por perfil (2026-09-22)

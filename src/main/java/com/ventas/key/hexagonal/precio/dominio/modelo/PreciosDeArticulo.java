@@ -1,5 +1,7 @@
 package com.ventas.key.hexagonal.precio.dominio.modelo;
 
+import com.ventas.key.hexagonal.precio.dominio.excepcion.PrecioInvalidoException;
+
 /**
  * Los precios de un articulo (una talla/color). Si no tiene propios, son los de su producto.
  *
@@ -11,8 +13,9 @@ package com.ventas.key.hexagonal.precio.dominio.modelo;
  *
  * @param precioCosto  el del producto; el articulo no tiene costo propio
  * @param precioVenta  el normal de este articulo
- * @param precioRebaja su descuento, 0 = sin. Solo se cobra si el admin lo elige
+ * @param precioRebaja su descuento, 0 = sin. Se cobra si el admin lo elige, o siempre con usarDescuento
  * @param propio       true si el articulo tiene precio propio; false si hereda el del producto
+ * @param usarDescuento R8: el admin activo "Precio descuento"; el articulo se vende al descuento
  */
 public record PreciosDeArticulo(
         Integer varianteId,
@@ -20,17 +23,30 @@ public record PreciosDeArticulo(
         double precioCosto,
         double precioVenta,
         double precioRebaja,
-        boolean propio) {
+        boolean propio,
+        boolean usarDescuento) {
 
-    /** Precio propio para este articulo, validado con las mismas reglas que el del producto. */
-    public PreciosDeArticulo conPrecios(Double nuevoVenta, Double nuevoRebaja) {
+    /**
+     * Precio propio para este articulo, validado con las mismas reglas que el del producto. Con
+     * {@code usar} el descuento pasa a ser el precio del articulo (R8), asi que tiene que existir
+     * y ser menor al normal.
+     */
+    public PreciosDeArticulo conPrecios(Double nuevoVenta, Double nuevoRebaja, boolean usar) {
         double rebaja = ReglasDePrecio.descuentoValido(nuevoVenta, nuevoRebaja);
-        return new PreciosDeArticulo(varianteId, nombre, precioCosto, nuevoVenta, rebaja, true);
+        if (usar && !(rebaja > 0 && rebaja < nuevoVenta)) {
+            throw PrecioInvalidoException.descuentoParaUsar(nuevoVenta);
+        }
+        return new PreciosDeArticulo(varianteId, nombre, precioCosto, nuevoVenta, rebaja, true, usar);
     }
 
     /** Deja de tener precio propio y vuelve al del producto (R6). */
     public PreciosDeArticulo heredando() {
-        return new PreciosDeArticulo(varianteId, nombre, precioCosto, precioVenta, precioRebaja, false);
+        return new PreciosDeArticulo(varianteId, nombre, precioCosto, precioVenta, precioRebaja, false, false);
+    }
+
+    /** Al que se vende por default: el descuento si esta activo (R8), si no el normal. */
+    public double precioACobrar() {
+        return usarDescuento && precioRebaja > 0 && precioRebaja < precioVenta ? precioRebaja : precioVenta;
     }
 
     /** R3: se permite, pero la pantalla avisa. */

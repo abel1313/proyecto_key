@@ -51,8 +51,13 @@ class PedidoPrecioRebajaTest {
     }
 
     private void cobrarA(Double precio) {
+        cobrarA(precio, false);
+    }
+
+    private void cobrarA(Double precio, boolean usarDescuento) {
         Variantes articulo = new Variantes();
         articulo.setProducto(producto);
+        articulo.setUsarDescuento(usarDescuento);
         ReflectionTestUtils.invokeMethod(pedidos, "validarPrecioCatalogo", producto, articulo, precio);
     }
 
@@ -88,5 +93,12 @@ class PedidoPrecioRebajaTest {
     void elClientePagaElNormal() {
         sesionCon("ROLE_USUARIO");
         assertThatCode(() -> cobrarA(NORMAL)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("R8: con el descuento activado en la card, el cliente paga el descuento")
+    void conDescuentoActivoElClientePagaLaRebaja() {
+        sesionCon("ROLE_USUARIO");
+        assertThatCode(() -> cobrarA(REBAJA, true)).doesNotThrowAnyException();
     }
 }

@@ -2,6 +2,7 @@ package com.ventas.key.hexagonal.precio.infraestructura.entrada.rest;
 
 import com.ventas.key.hexagonal.precio.dominio.puerto.entrada.CambiarPrecioArticuloCasoUso;
 import com.ventas.key.hexagonal.precio.dominio.puerto.entrada.CambiarPrecioCasoUso;
+import com.ventas.key.hexagonal.precio.infraestructura.dto.CambiarPrecioArticuloRequest;
 import com.ventas.key.hexagonal.precio.infraestructura.dto.CambiarPrecioRequest;
 import com.ventas.key.hexagonal.precio.infraestructura.dto.PreciosArticuloResponse;
 import com.ventas.key.hexagonal.precio.infraestructura.dto.PreciosProductoResponse;
@@ -38,9 +39,9 @@ public class PrecioController {
     /** Precio propio para un solo articulo (boton 💲 de la tarjeta, desde 2026-09-29). */
     @PutMapping("/articulo/{varianteId}")
     public ResponseEntity<PreciosArticuloResponse> cambiarArticulo(@PathVariable Integer varianteId,
-                                                                   @RequestBody CambiarPrecioRequest request) {
-        return ResponseEntity.ok(PreciosArticuloResponse.de(
-                articulo.cambiar(varianteId, request.precioVenta(), request.precioRebaja())));
+                                                                   @RequestBody CambiarPrecioArticuloRequest request) {
+        return ResponseEntity.ok(PreciosArticuloResponse.de(articulo.cambiar(varianteId,
+                request.precioVenta(), request.precioRebaja(), Boolean.TRUE.equals(request.usarDescuento()))));
     }
 
     /** Le quita el precio propio al articulo: vuelve a cobrar el de su producto. */

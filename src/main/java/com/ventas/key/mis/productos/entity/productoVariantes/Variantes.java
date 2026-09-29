@@ -75,6 +75,14 @@ public class Variantes  extends BaseId {
     @Column(name = "precio_rebaja")
     private Double precioRebaja;
 
+    /**
+     * R8 (2026-09-29): el admin activo "Precio descuento" en la tarjeta. Mientras siga activo, el
+     * articulo se vende al descuento para todos. Solo tiene efecto con un descuento valido; ver
+     * {@link #cobraConDescuento()}. Requiere migration_usar_descuento_variante.sql.
+     */
+    @Column(name = "usar_descuento", nullable = false)
+    private boolean usarDescuento;
+
     public boolean tienePrecioPropio() {
         return precioVenta != null;
     }
@@ -87,12 +95,24 @@ public class Variantes  extends BaseId {
         return producto != null ? producto.getPrecioVenta() : null;
     }
 
-    /** Su precio con descuento; null o 0 = no tiene. Solo se cobra si el admin lo elige. */
+    /** Su precio con descuento; null o 0 = no tiene. Se cobra si el admin lo elige o si esta activo (R8). */
     public Double precioDescuento() {
         if (tienePrecioPropio()) {
             return precioRebaja;
         }
         return producto != null ? producto.getPrecioRebaja() : null;
+    }
+
+    /** R8: se vende al descuento si el admin lo activo y el descuento es menor al normal. */
+    public boolean cobraConDescuento() {
+        Double normal = precioNormal();
+        Double descuento = precioDescuento();
+        return usarDescuento && normal != null && descuento != null && descuento > 0 && descuento < normal;
+    }
+
+    /** El precio al que se vende por default: el descuento si esta activo (R8), si no el normal. */
+    public Double precioACobrar() {
+        return cobraConDescuento() ? precioDescuento() : precioNormal();
     }
 
     @PrePersist

@@ -37,6 +37,13 @@ public class VarianteResumenDto {
     private Double precioRebaja;
     /** Solo admin: true si el articulo tiene precio propio y no el de su producto (2026-09-29). */
     private Boolean precioPropio;
+    /**
+     * Solo admin: el precio normal. Con {@link #usarDescuento} en true, {@code precio} trae el
+     * descuento (es a lo que se vende) y aqui queda el normal, para cobrarlo en una venta puntual.
+     */
+    private Double precioNormal;
+    /** Solo admin: R8, el articulo se vende al descuento (check "Precio descuento" de la card). */
+    private Boolean usarDescuento;
     private String codigoBarras;
     private String nombreProducto;
     private char habilitado;

@@ -160,7 +160,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             dto.setStock(v.getStock());
             dto.setMarca(v.getMarca());
             dto.setContenidoNeto(v.getContenidoNeto());
-            dto.setPrecio(v.precioNormal() != null ? v.precioNormal() : 0.0);
+            dto.setPrecio(v.precioACobrar() != null ? v.precioACobrar() : 0.0);
             CodigoBarra cb = v.getProducto().getCodigoBarras();
             dto.setCodigoBarras(cb != null ? cb.getCodigoBarras() : null);
             dto.setPalabraClave(v.getPalabraClave() != null
@@ -913,14 +913,17 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setMarca(v.getMarca());
         dto.setContenidoNeto(v.getContenidoNeto());
         dto.setFechaCreacion(v.getFechaCreacion());
-        // El del articulo si tiene precio propio (2026-09-29); si no, el del producto.
-        Double precioNormal = v.precioNormal();
-        dto.setPrecio(precioNormal != null ? precioNormal : 0.0);
+        // Al que se vende: el descuento si el admin lo activo (R8), si no el normal. Es el precio
+        // de lista para todos, clientes incluidos.
+        Double precioACobrar = v.precioACobrar();
+        dto.setPrecio(precioACobrar != null ? precioACobrar : 0.0);
         // La rebaja solo para el admin: es el precio que el puede decidir aplicar, no un precio
         // de lista. Publicarla en el catalogo la convertiria en el precio de todos (R6).
         if (AuthenticationUtils.isAdminContext()) {
             dto.setPrecioRebaja(v.precioDescuento());
             dto.setPrecioPropio(v.tienePrecioPropio());
+            dto.setPrecioNormal(v.precioNormal());
+            dto.setUsarDescuento(v.cobraConDescuento());
         }
         String codBarras = Optional.ofNullable(v.getProducto())
                 .map(Producto::getCodigoBarras)

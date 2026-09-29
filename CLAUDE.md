@@ -556,6 +556,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ⏳ pendiente | 2026-09-29 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
+| `migration_usar_descuento_variante.sql` | ⏳ pendiente (antes de subir el back a qa) | ⏳ cuando R8 suba a prod | 2026-09-29 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 
@@ -578,6 +579,12 @@ las dos quedan prendidas, el cliente recibe dos respuestas.
 el artículo usa el precio del producto): el 💲 de la card ahora cambia el precio de **un** artículo.
 **Correrla antes del deploy**: la entidad `Variantes` ya mapea las dos columnas y sin ellas falla
 cualquier consulta de artículos. Es idempotente y no mueve ningún precio.
+
+`migration_usar_descuento_variante.sql` agrega `variantes.usar_descuento` (R8 del dominio precio:
+el check "Precio descuento" del 💲 hace que el artículo se venda al descuento). **Correrla antes del
+deploy**: la entidad `Variantes` ya mapea la columna y sin ella falla cualquier consulta de artículos.
+Idempotente, no cambia ningún precio (todos nacen en 0). Probada dos veces en MySQL 8 local, también
+con `--safe-updates`.
 
 `datos_prueba_qa_catalogo.sql` crea 200 productos y 400 artículos de prueba (código de barras
 `2099000000001`–`2099000000200`, marca "Prueba QA") para probar ventas, pedidos y tienda en QA.
