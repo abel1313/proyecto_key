@@ -282,3 +282,6 @@ En cada archivo que se toque, los textos de pantalla y mensajes pasan de "varian
 | 4. Devoluciones y dinero | Regresar productos bien/mal · cancelar con lista · Ir pagando "¿regresó?" · registrar devolución · registrar dinero devuelto | D1–D5 |
 | 5. Grupos y cliente | Cambiar forma de cobro de todo el grupo al unir · buscador para unir · cambios del cliente "por confirmar" · artículos apartados en la búsqueda del admin | 6.6, 6.7, P8, 7.1 |
 | 6. Meses sin intereses | Pantalla de planes + mínimo $300 · casilla por producto/artículo · regla de carrito | 6.8, 7.2, 7.3 |
+
+**Avance (2026-09-29):** Bloque 1 ✅ en `dev` y `qa` (back y front). Bloque 2 ✅ código y pruebas
+listos; `migration_preferencia_filtro.sql` ya corrida en qa y prod.

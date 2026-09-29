@@ -554,6 +554,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ⏳ pendiente | 2026-09-29 |
+| `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -714,6 +715,7 @@ porque varias no coinciden en el nombre (`Imagen` → `imagenes_copy`, no `image
 | `Imagen` | **`imagenes_copy`** | existe también `imagenes` — es la vieja, **no se usa** |
 | `ProductoImagen` | **`producto_imagen_copy`** | existe también `producto_imagen` — vieja, **no se usa** |
 | `ImagenPresentacion` | `imagen_presentacion` | la columna se llama `url_imagen` pero el campo Java es `nombreArchivo` |
+| `Usuario` | **`usuario_modificacion`** | existe también `usuarios` — una FK a un usuario va a `usuario_modificacion(id)` |
 
 Además, en `imagenes_copy` la columna **`base_64` guarda el NOMBRE DEL ARCHIVO**, no
 base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
@@ -735,7 +737,7 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `clientes` · `clientes_sin_registro` · `direcciones`
 
 **Usuarios, roles y permisos**
-`usuarios` · `usuarios_roles` · `roles` · `permisos` · `usuario_permiso` · `rol_permiso` · `menu` · `submenu` · `usuario_submenu` · `rol_submenu` · `rol_submenu_escritura` · `accion_submenu` · `rol_accion` · `historial_acceso` · `sesion_refresh` · `usuario_modificacion`
+`usuarios` · `usuarios_roles` · `roles` · `permisos` · `usuario_permiso` · `rol_permiso` · `menu` · `submenu` · `usuario_submenu` · `rol_submenu` · `rol_submenu_escritura` · `accion_submenu` · `rol_accion` · `historial_acceso` · `sesion_refresh` · `usuario_modificacion` (entidad `Usuario`) · `preferencia_filtro` (entidad `PreferenciaFiltro`: filtros guardados de cada persona del personal en tienda/buscar y productos/buscar, dominio `preferenciafiltro`)
 
 **Flores eternas**
 `ramo_armado` · `ramo_armado_accesorio` · `ramo_pedido_detalle` · `ramo_pedido_detalle_color` · `accesorio_ramo` · `tipo_flor` · `color_flor` · `cantidad_flor_valida` · `frase_liston_predefinida` · `lugares_entrega` · `lugar_entrega_anillo`
