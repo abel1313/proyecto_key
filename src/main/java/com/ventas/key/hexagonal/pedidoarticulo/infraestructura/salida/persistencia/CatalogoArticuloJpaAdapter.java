@@ -49,7 +49,8 @@ public class CatalogoArticuloJpaAdapter implements CatalogoArticuloPort {
                 v.getHabilitado() == '1',
                 v.getStock(),
                 producto.getStock() != null ? producto.getStock() : 0,
-                new PrecioCatalogo(producto.getNombre(), producto.getPrecioVenta(), producto.getPrecioRebaja())));
+                // El articulo puede tener precio propio (2026-09-29); si no, son los del producto.
+                new PrecioCatalogo(producto.getNombre(), v.precioNormal(), v.precioDescuento())));
     }
 
     private static String nombreDe(Producto producto, Variantes variante) {

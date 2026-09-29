@@ -20389,6 +20389,89 @@ Cuando `precioRebaja` viene con valor, la card puede ofrecer los dos precios. El
 `precioUnitario` al crear la venta/pedido o al agregar el artículo — el back acepta **solo esos
 dos**, cualquier otro monto lo rechaza con el mensaje que dice cuáles valen.
 
+> ⚠️ **Cambió el 2026-09-29** — la rebaja ya no se aplica sola en ningún lado. Ver la sección
+> siguiente.
+
+---
+
+# HOTFIX — el precio con descuento solo se cobra cuando el admin lo elige (2026-09-29)
+
+**Regla del dueño:** al dar de alta un producto se capturan precio costo, precio venta y precio
+descuento. **Siempre se cobra y se muestra el precio venta.** El precio descuento es para cuando el
+dueño decide dárselo a alguien en el momento (por ejemplo, un cliente que se lleva varias piezas),
+y **solo** se aplica si él lo elige. Nunca en automático.
+
+**Antes (desde el hotfix del 2026-09-24):** la card de `tienda/buscar` mostraba el normal tachado y
+la rebaja como precio final, y al agregar al carrito entraba **directo la rebaja**. Lo mismo al
+agregar o cambiar un artículo en el detalle de un pedido. Y el bot que contesta comentarios en las
+publicaciones de Facebook/Instagram respondía **en público** *"Precio: $300 MXN (con descuento,
+antes $350)"*.
+
+**Ahora:**
+
+| Dónde | Antes | Ahora |
+|---|---|---|
+| Card de `tienda/buscar` | normal tachado + rebaja | **solo el precio normal** |
+| Agregar al carrito | entraba la rebaja | entra el **normal** |
+| `tienda/carrito` (admin) | — | columna nueva **Otro precio**: el monto va tapado (`$ ••••`), 👁 lo destapa 3 segundos, y un check **Usar** (desmarcado por default) cobra **toda esa fila** (todas sus piezas) al precio descuento; las demás filas siguen al normal |
+| Detalle del pedido → agregar/cambiar artículo | cobraba la rebaja | **Elegir** cobra el normal; botón **Otro precio** (sin mostrar el monto) cobra la rebaja |
+| Botón 💲 de la card | cambiaba el precio del **producto** (todas sus tallas/colores); el normal no se podía editar | cambia el precio **solo de ese artículo**; normal y descuento editables, más altos o más bajos. "Usar el del producto" le quita el precio propio |
+| Bot de comentarios de Facebook/Instagram | contestaba **en público** con la rebaja | **solo el precio normal** |
+| `POST /mis-productos/v1/pedidos/savePedido` | aceptaba la rebaja de cualquiera | la rebaja **solo** si quien guarda es `ROLE_ADMIN` |
+
+El monto del otro precio va tapado porque el cliente puede estar viendo la pantalla junto al admin.
+Solo se ofrece si de verdad es más barato que el normal (al dar de alta, el precio descuento se
+llena igual al normal por default, y en ese caso no hay "otro precio").
+
+**Cambio de contrato en `savePedido`:** con token de cliente, un `precioUnitario` igual a la rebaja
+ahora responde **400** *"El precio de X no es valido: llego 350.00 y los precios de catalogo son
+400.00"*. El mensaje ya no le revela la rebaja al cliente — antes decía *"400.00 (normal) o 350.00
+(rebaja)"* a cualquiera que mandara un precio equivocado. Para el admin no cambia nada.
+
+La Venta Directa no cambió: toma el precio que trae cada línea del carrito, así que respeta lo que
+el admin eligió ahí.
+
+## Precio propio por artículo
+
+Hasta hoy el precio vivía solo en el producto y todas sus tallas/colores lo heredaban. Ahora un
+artículo **puede** tener su propio par de precios (normal y descuento, siempre los dos juntos). Si
+no tiene, sigue usando los del producto — así que nada cambia hasta que alguien use el 💲.
+
+**Migración obligatoria antes del deploy:** `migration_precio_variante.sql` (agrega
+`variantes.precio_venta` y `variantes.precio_rebaja`, ambas NULL). Sin ella el back falla en
+cualquier consulta de artículos.
+
+Todo lo que cobra o muestra el precio de un artículo usa ya el suyo: `GET /v1/variantes/buscar` y
+`buscar-filtrado` (campo `precio`, y el filtro/rango de precios), `porProducto`, validación de
+`savePedido` y de la venta de mostrador, agregar/cambiar artículo en un pedido, promociones (precio
+de referencia), rifas y el chatbot.
+
+**Campo nuevo en `VarianteResumenDto` (solo admin):** `precioPropio: boolean` — true si ese
+artículo tiene precio propio. Null para un cliente, igual que `precioRebaja`.
+
+**`PUT /mis-productos/v1/precios/articulo/{varianteId}`** — body `{ "precioVenta": 450, "precioRebaja": 380 }`
+(`precioRebaja` 0 = sin descuento). Solo cambia ese artículo.
+
+```json
+{ "varianteId": 7, "precioVenta": 450.0, "precioRebaja": 380.0, "propio": true, "vendeBajoCosto": false }
+```
+
+**`DELETE /mis-productos/v1/precios/articulo/{varianteId}`** — le quita el precio propio; responde lo
+mismo con `propio: false` y los precios del producto.
+
+- 400 si `precioVenta` ≤ 0, `precioRebaja` < 0, `precioRebaja` > `precioVenta`, o el artículo no existe.
+- 403 sin la acción `cambiar-precio` de `tienda/buscar` (la misma de antes; no hay migración de permisos nueva).
+
+`PUT /v1/precios/producto/{productoId}` sigue existiendo pero el front ya no lo usa. Ojo: cambiar el
+precio del producto **no** pisa a los artículos que tienen precio propio.
+
+Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea toma el precio nuevo
+(si tenía marcado "Usar" y sigue habiendo descuento, se queda con el descuento nuevo).
+
+**Carritos guardados antes del deploy:** el carrito vive en el `localStorage` del navegador. Una
+línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
+conviene vaciar el carrito una vez después del deploy.
+
 ---
 
 ## 🎟️ Boletos de rifa agrupados por perfil (2026-09-22)

@@ -293,8 +293,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/v1/variantes/deleteBy/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "eliminar"))
                         // Cambiar precio normal / con descuento desde la tarjeta de Tienda (💲).
-                        // Ver migration_accion_tienda_cambiar_precio.sql.
+                        // Desde 2026-09-29 es por articulo (PUT) y DELETE lo regresa al del
+                        // producto. Ver migration_accion_tienda_cambiar_precio.sql.
                         .requestMatchers(HttpMethod.PUT, "/v1/precios/**")
+                                .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/precios/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /v1/variantes/guardarConImagenes (mismo endpoint generico de

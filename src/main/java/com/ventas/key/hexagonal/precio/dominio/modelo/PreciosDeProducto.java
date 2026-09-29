@@ -1,9 +1,8 @@
 package com.ventas.key.hexagonal.precio.dominio.modelo;
 
-import com.ventas.key.hexagonal.precio.dominio.excepcion.PrecioInvalidoException;
-
 /**
- * Los tres precios de un producto. Todos sus articulos los heredan (R3 de `articulo`).
+ * Los tres precios de un producto. Sus articulos los heredan, salvo los que tienen precio propio
+ * ({@link PreciosDeArticulo}, R5 del README).
  *
  * <p>[Hexagonal: dentro del hexagono] [Clean: Entities]
  *
@@ -27,22 +26,17 @@ public record PreciosDeProducto(
      * como pago en efectivo cuando el cliente iba a ir pagando.
      */
     public PreciosDeProducto conPrecios(Double nuevoVenta, Double nuevoRebaja) {
-        if (nuevoVenta == null || nuevoVenta <= 0) {
-            throw PrecioInvalidoException.ventaObligatoria();
-        }
-        double rebaja = nuevoRebaja == null ? 0.0 : nuevoRebaja;
-        if (rebaja < 0) {
-            throw PrecioInvalidoException.rebajaNegativa();
-        }
-        if (rebaja > nuevoVenta) {
-            throw PrecioInvalidoException.rebajaMayorQueVenta(rebaja, nuevoVenta);
-        }
+        double rebaja = ReglasDePrecio.descuentoValido(nuevoVenta, nuevoRebaja);
         return new PreciosDeProducto(productoId, nombre, precioCosto, nuevoVenta, rebaja);
     }
 
-    /** El precio al que se cobra hoy: el descuento si hay, si no el normal. */
+    /**
+     * Lo mas barato a lo que se puede cobrar: el descuento si hay, si no el normal. Desde el
+     * 2026-09-29 el descuento ya no se cobra solo (lo elige el admin en el carrito), pero es el
+     * que decide si puede quedar por debajo del costo.
+     */
     public double precioACobrar() {
-        return precioRebaja > 0 ? precioRebaja : precioVenta;
+        return ReglasDePrecio.minimoCobrable(precioVenta, precioRebaja);
     }
 
     /**

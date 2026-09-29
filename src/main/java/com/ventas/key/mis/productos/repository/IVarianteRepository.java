@@ -266,8 +266,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
                OR (cb IS NOT NULL
                    AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
-          AND (:precioMin IS NULL OR p.precioVenta >= :precioMin)
-          AND (:precioMax IS NULL OR p.precioVenta <= :precioMax)
+          AND (:precioMin IS NULL OR COALESCE(v.precioVenta, p.precioVenta) >= :precioMin)
+          AND (:precioMax IS NULL OR COALESCE(v.precioVenta, p.precioVenta) <= :precioMax)
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
@@ -285,8 +285,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
                OR (cb IS NOT NULL
                    AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
-          AND (:precioMin IS NULL OR p.precioVenta >= :precioMin)
-          AND (:precioMax IS NULL OR p.precioVenta <= :precioMax)
+          AND (:precioMin IS NULL OR COALESCE(v.precioVenta, p.precioVenta) >= :precioMin)
+          AND (:precioMax IS NULL OR COALESCE(v.precioVenta, p.precioVenta) <= :precioMax)
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
@@ -319,7 +319,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
     // "collection query" y anide la fila real en result[0] en vez de venir aplanada
     // (ver mismo patron/comentario en IVentaRepository.sumVentasRaw). Por eso se expone
     // como List<Object[]> y se aplana en el metodo default.
-    @Query("SELECT MIN(v.producto.precioVenta), MAX(v.producto.precioVenta) FROM Variantes v " +
+    @Query("SELECT MIN(COALESCE(v.precioVenta, v.producto.precioVenta)), MAX(COALESCE(v.precioVenta, v.producto.precioVenta)) FROM Variantes v " +
            "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
            "AND v.producto.esCatalogoInterno = false")
     List<Object[]> findRangoPreciosPublicoRaw();
