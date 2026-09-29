@@ -556,6 +556,8 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ⏳ pendiente | 2026-09-29 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
+| `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
+| `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -576,6 +578,12 @@ las dos quedan prendidas, el cliente recibe dos respuestas.
 el artículo usa el precio del producto): el 💲 de la card ahora cambia el precio de **un** artículo.
 **Correrla antes del deploy**: la entidad `Variantes` ya mapea las dos columnas y sin ellas falla
 cualquier consulta de artículos. Es idempotente y no mueve ningún precio.
+
+`datos_prueba_qa_catalogo.sql` crea 200 productos y 400 artículos de prueba (código de barras
+`2099000000001`–`2099000000200`, marca "Prueba QA") para probar ventas, pedidos y tienda en QA.
+Cada INSERT exige `DATABASE() = 'inventario_key_qa'`, así que en prod no hace nada. Reusa imágenes
+de productos reales (no crea ni borra imágenes). `limpiar_datos_prueba_qa_catalogo.sql` los da de
+baja y quita sus ligas de imagen. Ambos probados en MySQL 8 local antes de entregarlos.
 
 `migration_mensaje_directo_mid.sql` agranda `mid` y `respuesta_mid` de `mensaje_directo_social` a
 `VARCHAR(512)`: los ids de mensaje de Instagram miden ~180 caracteres y el primer mensaje directo de
@@ -616,6 +624,19 @@ cerrar siempre con un `SELECT` de verificación que deba devolver al menos una f
 
 Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
 `inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
+
+### Regla — ningún script SQL se entrega sin haberlo corrido
+
+Antes de pasar cualquier `.sql` (migración, backfill o datos de prueba), leer
+**`ESPECIFICACIONES_AMBIENTES.md`** (versión de MySQL, diferencias entre entidades y base real,
+convenciones de datos) y seguir su checklist (sección 5): correrlo en una base desechable con el
+esquema real, dos veces, y con consultas de verificación. Si falta un dato del ambiente, se le pide
+al usuario con la consulta que trae ese documento; no se supone.
+
+**Por qué:** el 2026-09-29 se entregó un script de 200 productos de prueba escrito de memoria:
+usaba columnas que no existen (`producto.codigo`, `creacion`, `palabra_clave.palabra`…) y todos sus
+INSERT fallaban. No dañó nada porque MySQL rechaza la sentencia completa, pero se corrió en la base
+de QA confiando en que estaba revisado.
 
 ---
 
