@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.Producto;
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,9 @@ class PrecioCatalogoValidacionTest {
     }
 
     private void cobrarA(Producto prod, Double precio) {
-        ReflectionTestUtils.invokeMethod(venta, "validarPrecioCatalogo", prod, precio);
+        Variantes articulo = new Variantes();
+        articulo.setProducto(prod);
+        ReflectionTestUtils.invokeMethod(venta, "validarPrecioCatalogo", prod, articulo, precio);
     }
 
     @Test
@@ -113,5 +116,23 @@ class PrecioCatalogoValidacionTest {
         assertThatThrownBy(() -> cobrarA(producto(NORMAL, REBAJA), null))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Falta el precio");
+    }
+
+    @Test
+    @DisplayName("un articulo con precio propio se cobra a su precio, no al del producto")
+    void articuloConPrecioPropio() {
+        Producto prod = producto(NORMAL, REBAJA);
+        Variantes articulo = new Variantes();
+        articulo.setProducto(prod);
+        articulo.setPrecioVenta(380.0);
+        articulo.setPrecioRebaja(300.0);
+
+        assertThatCode(() -> ReflectionTestUtils.invokeMethod(venta, "validarPrecioCatalogo", prod, articulo, 380.0))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> ReflectionTestUtils.invokeMethod(venta, "validarPrecioCatalogo", prod, articulo, 300.0))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(venta, "validarPrecioCatalogo", prod, articulo, NORMAL))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("no es valido");
     }
 }

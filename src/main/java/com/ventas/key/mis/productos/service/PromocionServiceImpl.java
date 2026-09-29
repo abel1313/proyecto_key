@@ -334,7 +334,7 @@ public class PromocionServiceImpl {
         dto.setTalla(variante.getTalla());
         dto.setColor(variante.getColor());
         dto.setCantidad(detalle.getCantidad());
-        dto.setPrecioNormal(variante.getProducto().getPrecioVenta());
+        dto.setPrecioNormal(variante.precioNormal());
         dto.setPrecioEnPromocion(detalle.getPrecioEnPromocion());
         dto.setImagenUrl(obtenerImagenUrl(variante.getId()));
         if (AuthenticationUtils.isAdminContext() && variante.getProducto().getCodigoBarras() != null) {
@@ -369,7 +369,7 @@ public class PromocionServiceImpl {
                 // mostraba "precio normal" y el ahorro en $0.00 para promociones ya guardadas
                 // (encontrado 2026-08-27, auditoria de correctitud) -- mismo dato que ya trae
                 // PromocionDetalleActivaDto para la pantalla publica.
-                variante.getProducto().getPrecioVenta(),
+                variante.precioNormal(),
                 detalle.getPrecioEnPromocion(),
                 obtenerImagenUrl(variante.getId()),
                 variante.getStock());

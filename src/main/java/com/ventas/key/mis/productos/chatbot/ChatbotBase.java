@@ -328,15 +328,10 @@ public abstract class ChatbotBase {
         agregar(sb, "talla", v.getTalla());
         agregar(sb, "color", v.getColor());
         agregar(sb, "contenido", v.getContenidoNeto());
-        Double precio = v.getProducto().getPrecioVenta();
-        Double rebaja = v.getProducto().getPrecioRebaja();
-        if (rebaja != null && rebaja > 0 && (precio == null || rebaja < precio)) {
-            sb.append("\n- Precio: $").append(String.format("%.0f", rebaja)).append(" MXN (con descuento");
-            if (precio != null) {
-                sb.append(", antes $").append(String.format("%.0f", precio));
-            }
-            sb.append(")");
-        } else if (precio != null) {
+        // Solo el precio normal. La rebaja es un descuento que el dueño decide dar en el momento,
+        // no un precio de lista: si el bot la anuncia, el cliente llega pidiéndola.
+        Double precio = v.precioNormal();
+        if (precio != null) {
             sb.append("\n- Precio: $").append(String.format("%.0f", precio)).append(" MXN");
         }
         sb.append("\n- Existencias: ").append(v.getStock() > 0 ? v.getStock() + " piezas" : "agotado");
@@ -430,7 +425,7 @@ public abstract class ChatbotBase {
             p.put("marca", v.getMarca());
             p.put("talla", v.getTalla());
             p.put("color", v.getColor());
-            p.put("precio", v.getProducto().getPrecioVenta());
+            p.put("precio", v.precioNormal());
             p.put("stock", v.getStock());
             p.put("descripcion", v.getDescripcion());
             if (v.getProducto().getCodigoBarras() != null) {
@@ -575,7 +570,7 @@ public abstract class ChatbotBase {
                     }
                 }
 
-                Double precioVenta = v.getProducto().getPrecioVenta();
+                Double precioVenta = v.precioNormal();
                 if (precioVenta != null) {
                     sb.append(", precio: $").append(String.format("%.0f", precioVenta)).append(" MXN");
                 }

@@ -261,7 +261,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             // solo es valido dentro de una promocion (validada aparte en validarLineasDePromocion).
             // Sin este chequeo, el front (o cualquiera con el token) podia mandar cualquier precio.
             if (mpa.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, mpa.getPrecioUnitario());
+                validarPrecioCatalogo(prod, variante, mpa.getPrecioUnitario());
             }
 
             prod.setStock(prod.getStock() - mpa.getCantidad());
@@ -383,12 +383,18 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      * que el front elige entre ellos pero no inventa ninguno. El subtotal tampoco se valida
      * porque ya no se usa el del request -- se calcula (ver savePedido).
      */
-    private void validarPrecioCatalogo(Producto prod, Double precioUnitario) {
+    private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario) {
         if (precioUnitario == null) {
             throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
-        double normal = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
-        double rebaja = prod.getPrecioRebaja() != null ? prod.getPrecioRebaja() : 0.0;
+        // El articulo puede tener precio propio (2026-09-29); si no, son los del producto.
+        Double precioNormal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
+        Double precioDescuento = variante != null ? variante.precioDescuento() : prod.getPrecioRebaja();
+        double normal = precioNormal != null ? precioNormal : 0.0;
+        // La rebaja solo la puede dar el admin (hotfix 2026-09-29): es un descuento que decide en
+        // el momento, no un precio de lista. Para un cliente no existe, ni en el mensaje de error.
+        boolean puedeRebaja = AuthenticationUtils.isAdminContext();
+        double rebaja = puedeRebaja && precioDescuento != null ? precioDescuento : 0.0;
 
         boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
         // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".

@@ -63,6 +63,38 @@ public class Variantes  extends BaseId {
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 
+    /**
+     * Precio propio del articulo (2026-09-29). Null = usa el del producto, como todos hasta hoy.
+     * Van siempre juntos: con precio propio, {@link #precioRebaja} es su descuento (0 = sin).
+     * Se cambian solo desde {@code hexagonal/precio}. Para cobrar, usar {@link #precioNormal()} y
+     * {@link #precioDescuento()}, nunca el precio del producto directo.
+     */
+    @Column(name = "precio_venta")
+    private Double precioVenta;
+
+    @Column(name = "precio_rebaja")
+    private Double precioRebaja;
+
+    public boolean tienePrecioPropio() {
+        return precioVenta != null;
+    }
+
+    /** El precio normal al que se vende este articulo. */
+    public Double precioNormal() {
+        if (tienePrecioPropio()) {
+            return precioVenta;
+        }
+        return producto != null ? producto.getPrecioVenta() : null;
+    }
+
+    /** Su precio con descuento; null o 0 = no tiene. Solo se cobra si el admin lo elige. */
+    public Double precioDescuento() {
+        if (tienePrecioPropio()) {
+            return precioRebaja;
+        }
+        return producto != null ? producto.getPrecioRebaja() : null;
+    }
+
     @PrePersist
     private void asignarFechaCreacion() {
         if (this.fechaCreacion == null) {
