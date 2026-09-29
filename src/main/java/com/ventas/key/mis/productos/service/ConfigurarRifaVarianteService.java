@@ -253,7 +253,7 @@ public class ConfigurarRifaVarianteService {
         Producto producto = v.getProducto();
         if (producto != null) {
             dto.setNombreProducto(producto.getNombre());
-            dto.setPrecio(producto.getPrecioVenta() != null ? producto.getPrecioVenta() : 0.0);
+            dto.setPrecio(v.precioNormal() != null ? v.precioNormal() : 0.0);
             dto.setCodigoBarras(Optional.ofNullable(producto.getCodigoBarras())
                     .map(CodigoBarra::getCodigoBarras).orElse(""));
         }

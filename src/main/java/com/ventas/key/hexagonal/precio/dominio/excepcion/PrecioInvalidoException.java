@@ -25,6 +25,10 @@ public class PrecioInvalidoException extends RuntimeException {
                         + "Si quieres cobrar más, sube el precio normal", rebaja, venta));
     }
 
+    public static PrecioInvalidoException articuloNoExiste(Integer varianteId) {
+        return new PrecioInvalidoException("No existe el artículo " + varianteId);
+    }
+
     public static PrecioInvalidoException productoNoExiste(Integer productoId) {
         return new PrecioInvalidoException("No existe el producto " + productoId);
     }

@@ -555,6 +555,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ⏳ pendiente | 2026-09-29 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
+| `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -570,6 +571,11 @@ un token viejo no trae la autoridad nueva.
 de mensajes directos de Instagram. Antes no existían en ninguna base, así que ese bot nunca contestó:
 las respuestas por DM que recibían los clientes eran las automáticas de Meta Business Suite. Si
 las dos quedan prendidas, el cliente recibe dos respuestas.
+
+`migration_precio_variante.sql` agrega `variantes.precio_venta` y `variantes.precio_rebaja` (NULL =
+el artículo usa el precio del producto): el 💲 de la card ahora cambia el precio de **un** artículo.
+**Correrla antes del deploy**: la entidad `Variantes` ya mapea las dos columnas y sin ellas falla
+cualquier consulta de artículos. Es idempotente y no mueve ningún precio.
 
 `migration_mensaje_directo_mid.sql` agranda `mid` y `respuesta_mid` de `mensaje_directo_social` a
 `VARCHAR(512)`: los ids de mensaje de Instagram miden ~180 caracteres y el primer mensaje directo de

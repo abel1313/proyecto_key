@@ -193,7 +193,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request
             // podia traer cualquier precio.
             if (item.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, item.getPrecioVenta());
+                validarPrecioCatalogo(prod, variante, item.getPrecioVenta());
             }
 
             prod.setStock(prod.getStock() - item.getCantidad());
@@ -385,12 +385,15 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
      * que el front elige entre ellos pero no inventa ninguno. El subtotal tampoco se valida
      * porque ya no se usa el del request -- se calcula (ver mas arriba).
      */
-    private void validarPrecioCatalogo(Producto prod, Double precioUnitario) {
+    private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario) {
         if (precioUnitario == null) {
             throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
-        double normal = prod.getPrecioVenta() != null ? prod.getPrecioVenta() : 0.0;
-        double rebaja = prod.getPrecioRebaja() != null ? prod.getPrecioRebaja() : 0.0;
+        // El articulo puede tener precio propio (2026-09-29); si no, son los del producto.
+        Double precioNormal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
+        Double precioDescuento = variante != null ? variante.precioDescuento() : prod.getPrecioRebaja();
+        double normal = precioNormal != null ? precioNormal : 0.0;
+        double rebaja = precioDescuento != null ? precioDescuento : 0.0;
 
         boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
         // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
