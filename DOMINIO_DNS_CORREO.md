@@ -257,16 +257,105 @@ Cómo leer la respuesta:
 - **"La zona DNS se borra"** → antes de dar de baja, mover el DNS (sección 6, paso 1).
 - **Tienen plan solo de correo y sale barato** → puede ser lo más sencillo, sin mover nada.
 
-Respuesta de Hosting-Mexico:
-```
-PEGAR AQUÍ
-```
+Respuesta de Hosting-Mexico (Erika F., Ventas, 2026-09-29):
+
+| Pregunta | Respuesta |
+|---|---|
+| Si no renuevo el hospedaje, ¿se borra la zona DNS? ¿Deja de funcionar shop, backend…? | **"SI DEJA DE FUNCIONAR"** |
+| ¿Conservar la administración DNS sin el hospedaje? | **"NO ES POSIBLE"** |
+| ¿Plan solo de correo? | Sí: https://hosting-mexico.net/email.htm — **cobro mensual + IVA, por cada cuenta de correo** |
+| ¿Exportación de la zona / fecha límite? | **No hacen migraciones**; el respaldo se saca uno mismo desde **cPanel**. **Fecha máxima de pago: 04/10/2026**; después **se suspende** |
+
+**Conclusión:** confirmado que el DNS vive en el hospedaje. Si no se paga antes del **4 de octubre
+de 2026** se caen la tienda, el backend, QA y el correo al mismo tiempo.
 
 ---
 
 ## 8. Pendientes de esta investigación
 
 - [ ] Paso 2 en la VPS (sección 2.2): respaldo de todos los registros DNS.
-- [ ] Respuesta de Hosting-Mexico (sección 7).
+- [x] Respuesta de Hosting-Mexico (sección 7) — 2026-09-29.
 - [ ] Revisar el panel de Hosting-Mexico (sección 3): precios, vencimientos, buzones, exportar zona DNS.
 - [ ] Comparar precios de correo (sección 4) y decidir.
+
+
+---
+
+## 9. Opciones y recomendación (2026-09-29)
+
+Datos que faltan para comparar en dinero (verlos en el panel de Hosting-Mexico):
+- Precio de renovar el hospedaje (orden 609155), por año: **$____**
+- Precio del plan solo de correo, por cuenta al mes + IVA: **$____** (la página no se pudo abrir desde aquí)
+
+Cuentas que usa el sistema: `boutique.bolsas@` (manda los correos de prod), `qa.boutique.bolsas@`
+(manda los de QA), `admin@` (recibe avisos del chat), `contacto@` (aparece en Privacidad/Términos).
+Solo las dos primeras necesitan **mandar**; las otras dos solo **recibir**.
+
+| Opción | Costo | DNS | Trabajo | Riesgo |
+|---|---|---|---|---|
+| **A. Renovar el hospedaje** (609155) | precio de renovación / año | se queda donde está | ninguno | ninguno |
+| **B. Plan solo de correo de Hosting-Mexico** | mensual × cuentas + IVA | ❓ hay que mover el DNS igual (el plan de correo no es "hospedaje") — **preguntarles** | medio | depende de la respuesta |
+| **C. Cloudflare + reenvío + envío gratis** | **$0** | Cloudflare (gratis) | alto la primera vez | medio si se hace con prisa |
+
+**Opción C en detalle** (la más barata):
+1. **DNS en Cloudflare (gratis):** copiar todos los registros (respaldo de cPanel), y en el panel del
+   **dominio** en Hosting-Mexico cambiar los nameservers a los de Cloudflare. ❓ Confirmar que el
+   panel del dominio deja cambiar nameservers (normalmente sí; es parte del registro del dominio).
+2. **Recibir** (`contacto@`, `admin@`): **Cloudflare Email Routing**, gratis, reenvía a un Gmail.
+   Hasta 200 direcciones, sin límite de mensajes, 25 MB por correo. **No sirve para mandar.**
+3. **Mandar** (verificación de cuenta, contraseña, tickets): **Brevo** plan gratis por SMTP, **300
+   correos al día** (suma los de campañas y los automáticos), con dominio propio (SPF/DKIM). Se
+   cambia `spring.mail.host/port` y las credenciales en la VPS.
+4. Opcional: contestar como `contacto@` desde Gmail con "Enviar como" usando el SMTP de Brevo.
+5. **Se pierden los correos guardados** en los buzones actuales si no se respaldan antes.
+
+**Recomendación:**
+- Con **5 días** de margen (hoy 29-sep, límite 4-oct), **pagar la renovación de 609155 ahora** es lo
+  seguro: la tienda no se cae y no se pierde nada.
+- Durante el año, **con calma**, migrar a la opción C (o B si la respuesta sobre DNS lo permite) y
+  probarla en QA; al siguiente vencimiento ya no se renueva el hospedaje.
+- Hacer la opción C en 5 días **se puede**, pero si algo falla (propagación de DNS, un registro
+  olvidado, el correo de verificación que no sale) se cae la tienda o el registro de clientes justo
+  en la fecha límite.
+
+Fuentes: [Cloudflare Email Routing](https://www.cloudflare.com/products/email-routing/) ·
+[límites (guía 2026)](https://www.frontendhorizon.com/blog/cloudflare-email-routing-free-email-forwarding-for-every-client-domain) ·
+[Brevo — SMTP gratis](https://www.brevo.com/free-smtp-server/) ·
+[Brevo — precios](https://www.brevo.com/pricing/) ·
+[Brevo — límites del plan gratis](https://www.emailtooltester.com/en/reviews/brevo/pricing/)
+
+---
+
+## 10. ✅ Decisión (2026-09-29)
+
+**Se paga la renovación del hospedaje (orden 609155) antes del 4-oct-2026.** La tienda, el backend,
+QA y el correo siguen igual un año más.
+
+**Durante ese año se prepara la salida** del hospedaje (opción C de la sección 9, o B si conviene) y
+**se prueba todo en QA antes** de cambiar producción. Al siguiente vencimiento solo se renueva el
+**dominio**, si ya quedó todo funcionando.
+
+### Plan para el año (sin prisa, en orden)
+
+| # | Qué | Dónde | Cómo se comprueba |
+|---|---|---|---|
+| 1 | Anotar la **fecha del próximo vencimiento** del hospedaje y del dominio (y poner recordatorio 2 meses antes) | Panel Hosting-Mexico | Fechas escritas aquí abajo |
+| 2 | **Respaldo de la zona DNS** desde cPanel (exportar / captura de todos los registros) | cPanel → Zona DNS | Archivo guardado fuera del repo |
+| 3 | **Respaldo de los buzones** que valga la pena conservar | cPanel / cliente de correo | Correos importantes guardados |
+| 4 | Cuenta de **Cloudflare** y el dominio agregado **sin cambiar nameservers todavía** (Cloudflare copia los registros; revisar que estén todos) | Cloudflare | Lista igual a la de cPanel |
+| 5 | Cuenta de **Brevo**, dominio verificado (SPF/DKIM) | Brevo | Brevo marca el dominio como verificado |
+| 6 | **QA manda correos por Brevo**: cambiar `spring.mail.*` de `application-qa.yml` y las variables de QA en la VPS | Código + VPS (namespace `qa`) | Registro, "olvidé mi contraseña" y ticket llegan desde QA |
+| 7 | Confirmar que el **panel del dominio** deja cambiar nameservers | Panel Hosting-Mexico | Se ve la opción |
+| 8 | Día elegido (con calma, no cerca del vencimiento): **cambiar nameservers a Cloudflare** | Panel del dominio | `dig NS novedades-jade.com.mx` muestra Cloudflare; shop/backend/QA abren |
+| 9 | **Email Routing** en Cloudflare: `contacto@` y `admin@` → Gmail | Cloudflare | Mandar un correo de prueba a cada una y que llegue |
+| 10 | **Producción manda por Brevo** (`application-docker.yml` + variables en la VPS, namespace `default`) | Código + VPS | Registro real, contraseña y ticket en prod |
+| 11 | Actualizar SPF/DMARC para Brevo y quitar los registros viejos de Hosting-Mexico (MX, SPF con 63.143.40.210) | Cloudflare | Correos no caen en spam (probar Gmail y Outlook) |
+| 12 | Dejar correr **al menos 1 mes** con todo nuevo antes del vencimiento | — | Sin quejas de correos que no llegan |
+| 13 | Al vencimiento: **renovar solo el dominio**, no el hospedaje | Panel Hosting-Mexico | La tienda sigue funcionando al día siguiente |
+
+**Vencimientos (llenar):**
+- Hospedaje 609155: próximo vencimiento **____ / ____ / 2027**
+- Dominio `novedades-jade.com.mx`: próximo vencimiento **____ / ____ / ____**
+
+**Plan B:** si a mitad del año algo no funciona (Brevo, reenvíos, entregabilidad), se renueva el
+hospedaje otro año y no se pierde nada: hasta el paso 8 nada de producción depende de lo nuevo.
