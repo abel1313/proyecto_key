@@ -21255,3 +21255,50 @@ puede haber cambiado a `PAGADO` o de `PAGADO` a `APARTADO`/`FIADO`.
 - [ ] Pedido Pagado: cambiar un producto por uno más caro → regresa a Apartado y debe la diferencia.
 - [ ] Quitar el último producto con el botón viejo → mensaje "cancela el pedido".
 - [ ] En un grupo, lo anterior sobre un pedido no cambia el saldo de los otros pedidos.
+
+---
+
+## 🧭 Bloque 1 (2026-09-30): Contado en la venta, fechas en la card, "Cómo llegar"
+
+Plan completo en `PLAN_PEDIDOS_VENTAS_ENTREGA.md` (secciones 6.1, 6.3 y V1).
+
+### 1. Venta directa — botón "Contado" (solo front)
+**Antes:** las formas de cobro eran "Apartado" e "Ir pagando"; para regresar a contado había que
+volver a picar el botón activo, así que parecía que había que recargar la pantalla.
+**Ahora:** arriba de "Forma de pago" hay tres botones: **Contado · Apartado · Ir pagando**. Sin cambio
+de contrato.
+
+### 2. Lista de pedidos del admin — campos nuevos en `pedido`
+Endpoints: los dos que arman la lista del admin (`buscarTodosLosPedidos` y la búsqueda por texto de
+Mis pedidos). Campos nuevos dentro de `pedido`:
+```json
+{ "fechaEntrega": "2026-10-04", "horaEntrega": "10:00", "recogeEnLocal": false }
+```
+- `fechaEntrega` (`yyyy-MM-dd` o `null`): día de entrega / día que pasa por él (`pedidos.fecha_recogida`).
+- `horaEntrega` (texto o `null`): la hora que puso "Entregas por zona".
+- `recogeEnLocal` (boolean): sin lugar de entrega, o con un lugar marcado "recoger en tienda".
+
+**Card:** "Fecha" pasa a **"Pedido"** (cuándo se hizo). Nueva fila **"Entrega: sáb 4 oct, 10:00 ·
+Zacazonapan"** o **"Recoge en el local: …"** cuando hay fecha, con **"⚠ Atrasado N días"** si ya pasó
+y no está Entregado/Cancelado (los "PAGADO" a crédito no se marcan hasta que exista el paso "Entregado").
+
+### 3. Detalle del pedido — `recogeEnLocal` y "Cómo llegar"
+`GET /v1/pedidos/{id}/detalle` trae `recogeEnLocal` (boolean), misma regla que arriba.
+
+**Antes:** "Cómo llegar" nunca llevaba al local, y si "Entregas por zona" programó el viaje con el
+punto de encuentro **solo escrito** (sin marcarlo en el mapa) mandaba a las coordenadas de la **casa
+del cliente**.
+**Ahora**, en este orden:
+1. Punto del viaje marcado en el mapa → ruta a ese punto.
+2. Punto del viaje solo escrito → búsqueda de ese texto en Maps.
+3. `recogeEnLocal` → ruta al **local** (latitud/longitud de `GET /v1/negocio/contactos`, las mismas del
+   login). Si el local no tiene ubicación: botón deshabilitado + "Falta configurar la ubicación del local
+   en Administración → Negocio".
+4. A domicilio → coordenadas del cliente, o su dirección escrita.
+
+#### Checklist QA
+- [ ] Venta: elegir Apartado, luego Contado, luego Ir pagando, luego Contado: cambian sin recargar.
+- [ ] Mis pedidos: la card dice "Pedido: …"; un pedido con viaje programado muestra "Entrega: …".
+- [ ] Un pedido con fecha pasada y sin entregar muestra "⚠ Atrasado N días".
+- [ ] Detalle de un pedido "recoge en el local": "Cómo llegar" abre la ruta al local.
+- [ ] Detalle de un pedido de zona con punto solo escrito: busca el punto, no la casa del cliente.
