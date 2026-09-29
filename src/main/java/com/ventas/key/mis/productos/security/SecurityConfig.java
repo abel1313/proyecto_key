@@ -157,6 +157,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/qr-destinos/**").hasAnyAuthority(pantalla("qr"))
                         .requestMatchers("/v1/qr-destinos/**").hasAnyAuthority(pantallaEscribir("qr"))
 
+                        // ── Filtros guardados (dominio preferenciafiltro) ─────────────────
+                        // Basta con VER la pantalla: guardar tus filtros no cambia datos del negocio.
+                        // Que no sea cliente se revisa en el servicio (un cliente puede tener
+                        // "tienda/buscar"). Una pantalla desconocida pasa y el servicio responde 400.
+                        .requestMatchers("/v1/preferencias-filtro/tienda-buscar").hasAnyAuthority(pantalla("tienda/buscar"))
+                        .requestMatchers("/v1/preferencias-filtro/productos-buscar").hasAnyAuthority(pantalla("productos/buscar"))
+                        .requestMatchers("/v1/preferencias-filtro/**").authenticated()
+
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/contactos").permitAll()

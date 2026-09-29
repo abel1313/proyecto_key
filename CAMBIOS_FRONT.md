@@ -21311,3 +21311,56 @@ del cliente**.
 - [ ] Detalle de un pedido de zona con punto solo escrito: busca el punto, no la casa del cliente.
 - [ ] Una venta de mostrador de contado (Entregado) NO muestra la fila "Recoge en el local".
 - [ ] Local sin ubicación: el admin ve el aviso; el cliente no ve botón ni aviso.
+
+---
+
+## 💾 Bloque 2 (2026-09-29): filtros guardados en la base (tienda/buscar y productos/buscar)
+
+Plan: `PLAN_PEDIDOS_VENTAS_ENTREGA.md`, secciones 8 y 8.1. Dominio hexagonal `preferenciafiltro`.
+
+**Antes:** los filtros se recordaban solo en memoria (`VarianteService.filtrosCache`,
+`ProductoService.prodFiltrosCache`): se perdían al recargar, cerrar sesión o cambiar de dispositivo.
+**Ahora:** cada persona del **personal** tiene los suyos guardados, uno por pantalla. Los **clientes no**.
+Se guardan solo los filtros (casillas, talla, color, marca, precio, fechas), **nunca** el texto buscado
+ni la página.
+
+⚠️ Requiere correr `migration_preferencia_filtro.sql` (tabla `preferencia_filtro`). Sin ella la pantalla
+sigue funcionando con la memoria, como antes, y los endpoints responden 500.
+
+### Endpoints — `/v1/preferencias-filtro/{pantalla}`
+`{pantalla}` = `tienda-buscar` | `productos-buscar`. Permiso: ver esa pantalla, y no ser cliente
+(`ROLE_USUARIO`).
+
+**`GET`** → lo guardado:
+```json
+{ "data": { "pantalla": "tienda-buscar", "filtros": { "mostrarConStock": true, "fechaDesde": "" },
+            "actualizado": "2026-09-30T10:00:00" } }
+```
+- 204: nunca guardó filtros en esa pantalla.
+
+**`PUT`** body `{ "filtros": { ... } }` → crea o reemplaza; responde igual que el GET.
+- 204: se mandó `{ "filtros": {} }` (equivale a borrar).
+
+**`DELETE`** → 204. Es lo que hace "Limpiar filtros".
+
+Errores (mensaje en `mensaje`):
+- 400: pantalla desconocida, `filtros` no es un objeto, o mide más de 2000 caracteres.
+- 403: es cliente, o no tiene permiso de ver esa pantalla.
+
+### Front
+- `shared/preferencia-filtro.service.ts`: `obtener()` al entrar, `guardar()` al aplicar un filtro (espera
+  800 ms y manda solo el último cambio), `borrar()` en "Limpiar". Para un cliente o un visitante no
+  hace ninguna petición. No muestra el spinner global (está en `skipUrls` del interceptor).
+- Al entrar a la pantalla manda la **memoria** si hay (navegar dentro de la app, igual que antes); si
+  no, lo guardado en la base. En tienda/buscar los filtros de admin solo se aplican si todavía tiene
+  permiso de verlos.
+
+#### Checklist QA
+- [ ] Admin en tienda/buscar: marcar "Con stock", recargar (F5) → sigue marcado y la lista filtrada.
+- [ ] Lo mismo con talla/color/marca/precio (filtros del catálogo).
+- [ ] productos/buscar: marcar filtros y fechas, cerrar sesión, volver a entrar → siguen puestos.
+- [ ] "Limpiar filtros" y recargar → ya no aparecen.
+- [ ] Otro usuario del personal no ve los filtros del primero.
+- [ ] Cliente en la tienda: sus filtros NO se guardan (en la pestaña Red no hay peticiones a
+      `/v1/preferencias-filtro`).
+- [ ] El texto del buscador y la página NO se restauran, solo los filtros.
