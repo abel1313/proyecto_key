@@ -21212,3 +21212,46 @@ mostraba "Apartado".
 - [ ] En la tabla de miembros, confirmar que los estados muestran colores y textos legibles
 - [ ] Selector "Cambiar quién recoge": comprobar en desktop y móvil que es accesible
 
+
+---
+
+## 💵 Editar artículos de un pedido a crédito: el estado sigue a los abonos de ESE pedido (2026-09-29)
+
+**No hay endpoints nuevos ni campos nuevos.** Cambia el comportamiento de los que ya existen:
+
+- `POST /v1/pedidos/{id}/articulos` (agregar)
+- `PUT /v1/pedidos/{id}/articulos/{detalleId}` (cambiar)
+- `DELETE /v1/pedidos/{id}/promociones/{promocionId}` (quitar promoción)
+- `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=N` (quitar producto, botón viejo)
+
+**Antes:** solo se recalculaba `totalPedido`. El estado se quedaba como estaba:
+- Un pedido Apartado / Ir pagando cuyo nuevo total ya quedaba cubierto por sus abonos **no pasaba a
+  Pagado**.
+- Un pedido **Pagado** al que se le cambiaba algo por un artículo más caro **seguía diciendo
+  Pagado** aunque debiera, y su venta registrada conservaba los artículos viejos.
+- El botón viejo de quitar producto dejaba quitar el último y el pedido quedaba en $0.
+
+**Ahora** (solo pedidos a crédito; los de contado no cambian):
+- Abonos ≥ total nuevo → `estadoPedido = PAGADO` y se crea la venta.
+- Estaba PAGADO y ahora debe → regresa a `APARTADO` / `FIADO` y se borra la venta.
+- Estaba PAGADO y sigue cubierto → sigue PAGADO; la venta se rehace con los artículos nuevos
+  (queda con la fecha de la edición).
+- **La cuenta es solo de ese pedido.** Si está en un grupo, el dinero que le sobre **no** se pasa a
+  los otros pedidos del grupo.
+- Abonado > total → **saldo a favor del cliente** = `totalPagado − totalPedido`. El back no lo
+  devuelve solo; la pantalla debería mostrarlo (pendiente en el front: "Saldo a favor del cliente $X").
+
+**Quitar el último producto** con `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}` ahora
+responde **400** con el mensaje `"'<nombre>' es el ultimo articulo del pedido #<id>. Para regresar
+todo, cancela el pedido"`. Para regresar todo se usa cancelar (`PUT /v1/abonos/{pedidoId}/cancelar`
+en crédito), que devuelve stock y en su mensaje dice el saldo a favor del cliente.
+
+**Qué debe hacer el front tras editar:** volver a leer el pedido (ya lo hace) — el `estadoPedido`
+puede haber cambiado a `PAGADO` o de `PAGADO` a `APARTADO`/`FIADO`.
+
+#### Checklist QA
+- [ ] Pedido Apartado $200 con $50 abonados: quitar un producto de $100 → debe $50, sigue Apartado.
+- [ ] Pedido Apartado $200 con $150 abonados: quitar un producto de $100 → queda **Pagado**, saldo a favor $50.
+- [ ] Pedido Pagado: cambiar un producto por uno más caro → regresa a Apartado y debe la diferencia.
+- [ ] Quitar el último producto con el botón viejo → mensaje "cancela el pedido".
+- [ ] En un grupo, lo anterior sobre un pedido no cambia el saldo de los otros pedidos.

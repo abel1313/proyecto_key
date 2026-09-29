@@ -696,6 +696,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                     detalle.getPromocion().getId()));
         }
 
+        if (cantidad >= detalle.getCantidad() && pedido.getDetalles().size() == 1) {
+            throw new RuntimeException(String.format(
+                    "'%s' es el ultimo articulo del pedido #%d. Para regresar todo, cancela el pedido",
+                    detalle.getProducto().getNombre(), pedidoId));
+        }
+
         Producto prod = iProductoRepository.findByIdWithLock(productoId)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
 
@@ -731,6 +737,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         double nuevoTotal = pedido.getDetalles().stream().mapToDouble(DetallePedido::getSubTotal).sum();
         pedido.setTotalPedido(nuevoTotal);
         iPedidoRepository.save(pedido);
+
+        // La cuenta es solo de este pedido: si lo abonado ya cubre el total nuevo queda PAGADO, y lo
+        // que sobre es saldo a favor de su cliente (no se pasa a otros pedidos del grupo).
+        iAbonoService.ajustarTrasEditarArticulos(pedidoId,
+                AuthenticationUtils.currentUsuarioOpt().map(Usuario::getId).orElse(null));
 
         cacheService.evictAll();
         try {

@@ -426,6 +426,25 @@ public class AbonoServiceImpl implements IAbonoService {
 
     @Override
     @Transactional
+    public void ajustarTrasEditarArticulos(int pedidoId, Integer usuarioId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+        if (!TIPOS_CREDITO.contains(pedido.getTipoPedido()) || "cancelado".equals(pedido.getEstadoPedido())) {
+            return;
+        }
+        if ("PAGADO".equals(pedido.getEstadoPedido())) {
+            // La venta se creo con los articulos de antes de la edicion. Se borra y, si los abonos
+            // siguen cubriendo el total, ajustarEstadoALosAbonos la vuelve a crear con los de ahora.
+            ventaRepository.findByPedidoId(pedidoId).ifPresent(ventaRepository::delete);
+            ventaRepository.flush();
+            pedido.setEstadoPedido(pedido.getTipoPedido());
+            pedidoRepository.save(pedido);
+        }
+        ajustarEstadoALosAbonos(pedidoId, usuarioId);
+    }
+
+    @Override
+    @Transactional
     public void ajustarEstadoALosAbonos(int pedidoId, Integer usuarioId) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
