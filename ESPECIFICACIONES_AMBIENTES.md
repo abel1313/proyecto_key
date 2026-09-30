@@ -4,7 +4,7 @@ Con qué versiones y reglas corre cada ambiente. **Claude lo lee antes de escrib
 SQL, migración o prueba automática.** Si un dato dice ⏳ pendiente, no se supone: se le pide al
 usuario con la consulta de la sección "Cómo obtener los datos de la base".
 
-Última actualización: 2026-09-29
+Última actualización: 2026-09-30 (QA verificado: MySQL 8.4.10, datos prueba e2e cargados)
 
 ---
 
