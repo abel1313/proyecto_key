@@ -44,6 +44,11 @@ public record PreciosDeArticulo(
         return new PreciosDeArticulo(varianteId, nombre, precioCosto, precioVenta, precioRebaja, false, false);
     }
 
+    /** El descuento que de verdad se puede cobrar: mayor a 0 y menor al normal; si no, 0. */
+    public double descuentoCobrable() {
+        return precioRebaja > 0 && precioRebaja < precioVenta ? precioRebaja : 0.0;
+    }
+
     /** Al que se vende por default: el descuento si esta activo (R8), si no el normal. */
     public double precioACobrar() {
         return usarDescuento && precioRebaja > 0 && precioRebaja < precioVenta ? precioRebaja : precioVenta;

@@ -20472,6 +20472,37 @@ Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea
 línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
 conviene vaciar el carrito una vez después del deploy.
 
+## 🔒 El precio con descuento ya no viaja en las listas: se pide uno por uno (2026-09-30, dev)
+
+**Antes:** `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto/.../paginado/resumen` traían
+`precioRebaja` de **todo** el catálogo cuando quien preguntaba era admin. Aunque la pantalla lo
+tapara con 👁, el monto quedaba en el navegador (respuesta de red, memoria y el `localStorage` del
+carrito).
+
+**Después:** `VarianteResumenDto` **ya no trae `precioRebaja`**, ni para el admin. El descuento se
+pide solo cuando se necesita:
+
+**`GET /mis-productos/v1/precios/articulo/{varianteId}/descuento`**
+
+```json
+{ "varianteId": 7, "precioRebaja": 350.0, "tieneDescuento": true }
+```
+
+- `precioRebaja` es el descuento **cobrable**: > 0 y menor al normal. Si no hay (incluido el caso
+  "descuento = normal", el default al dar de alta), llega `0` con `tieneDescuento: false`.
+- 403 sin `ROLE_ADMIN` ni la acción `cambiar-precio` de `tienda/buscar`.
+- 400 si el artículo no existe.
+
+Quién lo usa en el front:
+- **Carrito:** 👁 lo pide y lo muestra; 🙈 lo borra de la página. "Usar" lo pide al marcarse.
+  El carrito ya no guarda `precioOtro`: la línea solo guarda `usaOtroPrecio` y el `precio` que
+  se cobra (que ya está a la vista en la tabla).
+- **Detalle del pedido → "Otro precio":** lo pide al dar clic; si no hay descuento avisa.
+- **💲 de la card:** lo pide al abrirse para llenar la caja.
+
+`precioNormal`, `usarDescuento` y `precioPropio` siguen llegando al admin en las listas: no son
+secretos (el normal es el precio de lista).
+
 ## 🔒 Caché de artículos por rol: el precio con descuento se filtraba a clientes (2026-09-30, dev)
 
 **Antes:** cuatro búsquedas de artículos se guardaban en la caché (Redis) con una clave que no

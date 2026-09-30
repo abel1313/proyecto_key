@@ -917,10 +917,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // de lista para todos, clientes incluidos.
         Double precioACobrar = v.precioACobrar();
         dto.setPrecio(precioACobrar != null ? precioACobrar : 0.0);
-        // La rebaja solo para el admin: es el precio que el puede decidir aplicar, no un precio
-        // de lista. Publicarla en el catalogo la convertiria en el precio de todos (R6).
+        // El precio con descuento NO viaja aqui, ni para el admin (R9): quedaba en el navegador
+        // de todo el catalogo aunque nadie lo pidiera. Se consulta uno por uno en
+        // GET /v1/precios/articulo/{id}/descuento. Esto solo dice lo que el admin necesita para
+        // armar la pantalla, sin el monto oculto.
         if (AuthenticationUtils.isAdminContext()) {
-            dto.setPrecioRebaja(v.precioDescuento());
             dto.setPrecioPropio(v.tienePrecioPropio());
             dto.setPrecioNormal(v.precioNormal());
             dto.setUsarDescuento(v.cobraConDescuento());

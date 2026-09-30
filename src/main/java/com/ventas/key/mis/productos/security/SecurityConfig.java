@@ -299,6 +299,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
                         .requestMatchers(HttpMethod.DELETE, "/v1/precios/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
+                        // Consultar el precio con descuento de un articulo (R9): ya no viaja en las
+                        // listas de la tienda. Lo pide el carrito del admin (👁 / "Usar"), el detalle
+                        // del pedido ("Otro precio") y el 💲 al abrirse.
+                        .requestMatchers(HttpMethod.GET, "/v1/precios/**")
+                                .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /v1/variantes/guardarConImagenes (mismo endpoint generico de
                         // Variantes) -- sin esto, dar solo el permiso de esas pantallas no alcanzaba
