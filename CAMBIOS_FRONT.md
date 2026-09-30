@@ -20472,6 +20472,106 @@ Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea
 línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
 conviene vaciar el carrito una vez después del deploy.
 
+## 🔒 El precio con descuento ya no viaja en las listas: se pide uno por uno (2026-09-30, dev)
+
+**Antes:** `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto/.../paginado/resumen` traían
+`precioRebaja` de **todo** el catálogo cuando quien preguntaba era admin. Aunque la pantalla lo
+tapara con 👁, el monto quedaba en el navegador (respuesta de red, memoria y el `localStorage` del
+carrito).
+
+**Después:** `VarianteResumenDto` **ya no trae `precioRebaja`**, ni para el admin. El descuento se
+pide solo cuando se necesita:
+
+**`GET /mis-productos/v1/precios/articulo/{varianteId}/descuento`**
+
+```json
+{ "varianteId": 7, "precioRebaja": 350.0, "tieneDescuento": true }
+```
+
+- `precioRebaja` es el descuento **cobrable**: > 0 y menor al normal. Si no hay (incluido el caso
+  "descuento = normal", el default al dar de alta), llega `0` con `tieneDescuento: false`.
+- 403 sin `ROLE_ADMIN` ni la acción `cambiar-precio` de `tienda/buscar`.
+- 400 si el artículo no existe.
+
+Quién lo usa en el front:
+- **Carrito:** 👁 lo pide y lo muestra; 🙈 lo borra de la página. "Usar" lo pide al marcarse.
+  El carrito ya no guarda `precioOtro`: la línea solo guarda `usaOtroPrecio` y el `precio` que
+  se cobra (que ya está a la vista en la tabla).
+- **Detalle del pedido → "Otro precio":** lo pide al dar clic; si no hay descuento avisa.
+- **💲 de la card:** lo pide al abrirse para llenar la caja.
+
+`precioNormal`, `usarDescuento` y `precioPropio` siguen llegando al admin en las listas: no son
+secretos (el normal es el precio de lista).
+
+## 🔒 Caché de artículos por rol: el precio con descuento se filtraba a clientes (2026-09-30, dev)
+
+**Antes:** cuatro búsquedas de artículos se guardaban en la caché (Redis) con una clave que no
+distinguía admin de cliente: `GET /mis-productos/v1/variantes/buscar-filtrado`,
+`/v1/variantes/porProducto/{id}/paginado/resumen`, el filtro de admin y el de sin stock/deshabilitadas.
+La respuesta sí cambia según el rol (`precioRebaja`, `precioPropio`, `precioNormal` y `usarDescuento`
+solo para admin), así que el primero en llegar decidía lo que veían todos:
+- si llegaba primero un cliente, el admin recibía la lista **sin** descuento y el carrito mostraba "—";
+- si llegaba primero el admin, un cliente recibía `precioRebaja` en la respuesta.
+
+**Después:** la clave de las cuatro lleva el rol, igual que ya la llevaban `/buscar` y la lista de
+modelos. No cambia ningún request ni response.
+
+## Vender un artículo con descuento — checks "Precio venta" / "Precio descuento" (2026-09-29, dev/qa)
+
+En el 💲 de la card el admin elige, para **un** artículo, si se vende a su precio venta o a su
+precio con descuento. Con "Precio descuento" el artículo **cambia de precio para todos** (tienda,
+carrito, chatbot y pedidos de clientes) hasta que se vuelva a elegir "Precio venta". En el carrito,
+desmarcar "Usar" en esa línea cobra el normal **solo en esa venta**, sin cambiar el artículo.
+
+**Migración obligatoria antes del deploy:** `migration_usar_descuento_variante.sql` (agrega
+`variantes.usar_descuento TINYINT(1) NOT NULL DEFAULT 0`). Sin ella el back falla en cualquier
+consulta de artículos. No cambia ningún precio: todos nacen en 0.
+
+**`PUT /mis-productos/v1/precios/articulo/{varianteId}`** — body con campo nuevo `usarDescuento`:
+
+```json
+{ "precioVenta": 200, "precioRebaja": 150, "usarDescuento": true }
+```
+
+- `usarDescuento: true` → el artículo se vende a `precioRebaja`. Tiene que ser > 0 y **menor** a
+  `precioVenta`, si no: **400** *"Para vender este artículo con descuento, el precio con descuento
+  tiene que ser mayor a 0 y menor al normal ($200.00)"*.
+- `usarDescuento: false` o sin el campo → se vende a `precioVenta` (como antes). El `precioRebaja`
+  se guarda igual y sigue disponible para elegirlo en una venta con "Usar".
+
+Respuesta (campos nuevos `usarDescuento` y `precioACobrar`):
+
+```json
+{ "varianteId": 7, "precioVenta": 200.0, "precioRebaja": 150.0, "propio": true,
+  "usarDescuento": true, "precioACobrar": 150.0, "vendeBajoCosto": false }
+```
+
+`DELETE /v1/precios/articulo/{varianteId}` ("Usar el del producto") también apaga `usarDescuento`.
+
+**Cambia el significado de `precio` en `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto`:**
+
+| Campo | Antes | Ahora |
+|---|---|---|
+| `precio` | el precio normal | **al que se vende**: el descuento si `usarDescuento`, si no el normal. Para todos |
+| `precioNormal` (nuevo, solo admin) | — | el precio normal, para cobrarlo en una venta puntual |
+| `usarDescuento` (nuevo, solo admin) | — | `true` si el artículo se vende al descuento |
+| `precioRebaja` (solo admin) | sin cambio | sin cambio |
+
+Para un cliente `precioNormal` y `usarDescuento` llegan `null`: su precio es `precio` y ya trae el
+descuento si está activo.
+
+**`savePedido` antes/después:** antes, con token de cliente, un `precioUnitario` igual a la rebaja
+respondía 400. Ahora se acepta **si ese artículo tiene `usarDescuento`** (es su precio de lista).
+Sin `usarDescuento` sigue igual: la rebaja solo la puede cobrar el admin. La venta de mostrador no
+cambió (ya aceptaba normal y rebaja).
+
+**Chatbot:** dice el precio al que se vende (el descuento si está activo). Una rebaja sin activar
+sigue sin anunciarse.
+
+**Front — carrito:** un artículo con `usarDescuento` entra al descuento con "Usar" ya marcado;
+desmarcarlo cobra `precioNormal` en esa línea. `actualizarPrecios()` recibe también `usarDescuento`
+para que una línea ya en el carrito tome lo que se eligió en la card.
+
 ---
 
 ## 🎟️ Boletos de rifa agrupados por perfil (2026-09-22)

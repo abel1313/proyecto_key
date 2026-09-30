@@ -25,15 +25,16 @@ public class PreciosArticuloJpaAdapter implements PreciosArticuloPort {
                         v.getId(), nombreDe(v),
                         valor(v.getProducto().getPrecioCosto()),
                         valor(v.precioNormal()), valor(v.precioDescuento()),
-                        v.tienePrecioPropio()));
+                        v.tienePrecioPropio(), v.isUsarDescuento()));
     }
 
-    /** Solo los dos precios del articulo: ni el producto ni el resto del articulo se tocan. */
+    /** Solo los precios del articulo: ni el producto ni el resto del articulo se tocan. */
     @Override
     public void guardar(PreciosDeArticulo precios) {
         Variantes v = variantes.findById(precios.varianteId()).orElseThrow();
         v.setPrecioVenta(precios.propio() ? precios.precioVenta() : null);
         v.setPrecioRebaja(precios.propio() ? precios.precioRebaja() : null);
+        v.setUsarDescuento(precios.propio() && precios.usarDescuento());
         variantes.save(v);
     }
 

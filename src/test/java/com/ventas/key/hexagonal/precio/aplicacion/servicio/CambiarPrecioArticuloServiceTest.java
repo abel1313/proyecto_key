@@ -35,9 +35,9 @@ class CambiarPrecioArticuloServiceTest {
     @Test
     @DisplayName("guarda un precio propio para ese articulo y avisa al catalogo")
     void guardaPropio() {
-        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false)));
+        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false, false)));
 
-        PreciosDeArticulo r = service.cambiar(7, 380.0, 350.0);
+        PreciosDeArticulo r = service.cambiar(7, 380.0, 350.0, false);
 
         ArgumentCaptor<PreciosDeArticulo> guardado = ArgumentCaptor.forClass(PreciosDeArticulo.class);
         verify(precios).guardar(guardado.capture());
@@ -48,11 +48,24 @@ class CambiarPrecioArticuloServiceTest {
     }
 
     @Test
+    @DisplayName("R8: con usar descuento guarda el articulo vendiendose al descuento")
+    void guardaUsarDescuento() {
+        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false, false)));
+
+        PreciosDeArticulo r = service.cambiar(7, 400.0, 300.0, true);
+
+        ArgumentCaptor<PreciosDeArticulo> guardado = ArgumentCaptor.forClass(PreciosDeArticulo.class);
+        verify(precios).guardar(guardado.capture());
+        assertThat(guardado.getValue().usarDescuento()).isTrue();
+        assertThat(r.precioACobrar()).isEqualTo(300);
+    }
+
+    @Test
     @DisplayName("un precio invalido no guarda nada")
     void invalidoNoGuarda() {
-        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false)));
+        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false, false)));
 
-        assertThatThrownBy(() -> service.cambiar(7, 380.0, 400.0)).isInstanceOf(PrecioInvalidoException.class);
+        assertThatThrownBy(() -> service.cambiar(7, 380.0, 400.0, false)).isInstanceOf(PrecioInvalidoException.class);
         verify(precios, never()).guardar(any());
         verify(catalogo, never()).catalogoCambio();
     }
@@ -61,8 +74,8 @@ class CambiarPrecioArticuloServiceTest {
     @DisplayName("volver al del producto borra el propio y responde con el precio del producto")
     void vuelveAlDelProducto() {
         when(precios.buscar(7)).thenReturn(
-                Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 380, 350, true)),
-                Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false)));
+                Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 380, 350, true, false)),
+                Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false, false)));
 
         PreciosDeArticulo r = service.usarElDelProducto(7);
 
@@ -76,7 +89,7 @@ class CambiarPrecioArticuloServiceTest {
     @Test
     @DisplayName("si ya usaba el del producto no hace nada")
     void yaHeredaba() {
-        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false)));
+        when(precios.buscar(7)).thenReturn(Optional.of(new PreciosDeArticulo(7, "Blusa M", 200, 400, 0, false, false)));
 
         service.usarElDelProducto(7);
 
@@ -88,6 +101,6 @@ class CambiarPrecioArticuloServiceTest {
     @DisplayName("articulo inexistente")
     void noExiste() {
         when(precios.buscar(99)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.cambiar(99, 100.0, 0.0)).isInstanceOf(PrecioInvalidoException.class);
+        assertThatThrownBy(() -> service.cambiar(99, 100.0, 0.0, false)).isInstanceOf(PrecioInvalidoException.class);
     }
 }

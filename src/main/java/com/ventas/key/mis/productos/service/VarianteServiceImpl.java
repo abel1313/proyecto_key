@@ -160,7 +160,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             dto.setStock(v.getStock());
             dto.setMarca(v.getMarca());
             dto.setContenidoNeto(v.getContenidoNeto());
-            dto.setPrecio(v.precioNormal() != null ? v.precioNormal() : 0.0);
+            dto.setPrecio(v.precioACobrar() != null ? v.precioACobrar() : 0.0);
             CodigoBarra cb = v.getProducto().getCodigoBarras();
             dto.setCodigoBarras(cb != null ? cb.getCodigoBarras() : null);
             dto.setPalabraClave(v.getPalabraClave() != null
@@ -287,6 +287,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             Variantes variante = new Variantes();
             variante.setProducto(producto);
             variante.setStock(1);
+            // Nacen con los datos del modelo (R2 del dominio `articulo`); antes nacian vacios y
+            // solo mostraban lo que se lee del modelo (nombre, codigo, precio).
+            heredarDelModelo(variante, producto);
             Variantes savedVariante = save(variante);
             if (!finalImageIds.isEmpty()) {
                 vincularImagenes(savedVariante, finalImageIds);
@@ -295,6 +298,15 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         evictAllCaches();
         return true;
+    }
+
+    /** Color, marca, descripcion, contenido neto y categoria del modelo, para un articulo nuevo. */
+    static void heredarDelModelo(Variantes variante, Producto modelo) {
+        variante.setColor(modelo.getColor());
+        variante.setMarca(modelo.getMarca());
+        variante.setDescripcion(modelo.getDescripcion());
+        variante.setContenidoNeto(modelo.getContenido());
+        variante.setPalabraClave(modelo.getPalabraClave());
     }
 
     private List<Long> subirImagenesMultipart(MultipartFile[] imagenes) {
@@ -863,7 +875,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
-@Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size")
+@Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarPorProductoPaginadoResumen(Integer productoId, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoId(productoId, PageRequest.of(pagina - 1, size));
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
@@ -913,14 +925,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         dto.setMarca(v.getMarca());
         dto.setContenidoNeto(v.getContenidoNeto());
         dto.setFechaCreacion(v.getFechaCreacion());
-        // El del articulo si tiene precio propio (2026-09-29); si no, el del producto.
-        Double precioNormal = v.precioNormal();
-        dto.setPrecio(precioNormal != null ? precioNormal : 0.0);
-        // La rebaja solo para el admin: es el precio que el puede decidir aplicar, no un precio
-        // de lista. Publicarla en el catalogo la convertiria en el precio de todos (R6).
+        // Al que se vende: el descuento si el admin lo activo (R8), si no el normal. Es el precio
+        // de lista para todos, clientes incluidos.
+        Double precioACobrar = v.precioACobrar();
+        dto.setPrecio(precioACobrar != null ? precioACobrar : 0.0);
+        // El precio con descuento NO viaja aqui, ni para el admin (R9): quedaba en el navegador
+        // de todo el catalogo aunque nadie lo pidiera. Se consulta uno por uno en
+        // GET /v1/precios/articulo/{id}/descuento. Esto solo dice lo que el admin necesita para
+        // armar la pantalla, sin el monto oculto.
         if (AuthenticationUtils.isAdminContext()) {
-            dto.setPrecioRebaja(v.precioDescuento());
             dto.setPrecioPropio(v.tienePrecioPropio());
+            dto.setPrecioNormal(v.precioNormal());
+            dto.setUsarDescuento(v.cobraConDescuento());
         }
         String codBarras = Optional.ofNullable(v.getProducto())
                 .map(Producto::getCodigoBarras)
@@ -952,7 +968,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         evictAllCaches();
     }
 
-    @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> getVariantesSinStockDeshabilitadas(int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findVariantesSinStockDeshabilitadas(PageRequest.of(pagina - 1, size));
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
@@ -967,7 +983,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
     // normales exigen stock>0 + producto habilitado + con imagen.
     @Cacheable(value = "variantesProductoCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
             Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
             LocalDate fechaHasta, int pagina, int size) {
@@ -989,8 +1005,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // Catalogo publico con filtros combinables (precio, talla, color, marca + texto libre).
     // Blanks se tratan como "sin filtro" para que el front pueda mandar "" en vez de omitir el
     // parametro sin que eso reduzca los resultados a cero.
+    // Toda key de un metodo que devuelve VarianteResumenDto lleva isAdminContext(): el DTO trae
+    // precioRebaja/precioNormal solo para el admin. Sin eso, el primero en llegar decide que ven
+    // todos: un cliente recibia el descuento oculto que un admin cacheo antes, o al reves.
     @Cacheable(value = "variantesProductoCache",
-            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #pagina + ':' + #size")
+            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarVariantesPublicoFiltrado(String termino, Double precioMin,
             Double precioMax, String talla, String color, String marca, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);

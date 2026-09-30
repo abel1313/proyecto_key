@@ -32,7 +32,18 @@ iba a ir pagando. El pedido quedó "Entregado" de contado y no se le podían reg
   `precioDescuento()`, nunca `getProducto().getPrecioVenta()` directo.
 - **R6** — "Usar el del producto" le quita el precio propio al artículo.
 - **R7** (2026-09-29) — El descuento **nunca se cobra solo**: se cobra el normal, y el descuento
-  únicamente si el admin lo elige (check "Usar" en el carrito, "Otro precio" en el pedido).
+  únicamente si el admin lo elige (check "Usar" en el carrito, "Otro precio" en el pedido). La
+  única excepción es R8.
+- **R8** (2026-09-29) — El admin puede **activar el descuento de un artículo** (check "Precio
+  descuento" del 💲, columna `variantes.usar_descuento`). Mientras esté activo, el artículo se vende
+  al descuento para todos: tienda, carrito, chatbot y pedidos de clientes. Solo se puede activar
+  con un descuento > 0 y menor al normal. En el carrito, quitar "Usar" cobra el normal solo en esa
+  venta. "Usar el del producto" (R6) lo apaga. Para leerlo: `Variantes.precioACobrar()` y
+  `cobraConDescuento()`.
+- **R9** (2026-09-30) — El precio con descuento **no viaja en las listas** de artículos, ni para el
+  admin: quedaba en el navegador de todo el catálogo aunque nadie lo pidiera. Se consulta uno por
+  uno con `GET /v1/precios/articulo/{varianteId}/descuento` (admin o `cambiar-precio`), cuando el
+  admin lo destapa, lo aplica o abre el 💲.
 
 ## Permiso
 
@@ -40,8 +51,10 @@ Acción `cambiar-precio` de `tienda/buscar` → `migration_accion_tienda_cambiar
 
 ## Endpoint
 
-- `PUT /v1/precios/articulo/{varianteId}` — body `{ precioVenta, precioRebaja }`. Solo ese artículo.
+- `PUT /v1/precios/articulo/{varianteId}` — body `{ precioVenta, precioRebaja, usarDescuento }`. Solo ese artículo.
 - `DELETE /v1/precios/articulo/{varianteId}` — vuelve al precio del producto.
+- `GET /v1/precios/articulo/{varianteId}/descuento` — el descuento cobrable de ese artículo (R9).
 - `PUT /v1/precios/producto/{productoId}` — el del producto (el front ya no lo usa).
 
 Columnas del precio propio: `variantes.precio_venta` / `precio_rebaja` (`migration_precio_variante.sql`).
+Descuento activo (R8): `variantes.usar_descuento` (`migration_usar_descuento_variante.sql`).

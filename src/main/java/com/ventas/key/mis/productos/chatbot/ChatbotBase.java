@@ -328,9 +328,9 @@ public abstract class ChatbotBase {
         agregar(sb, "talla", v.getTalla());
         agregar(sb, "color", v.getColor());
         agregar(sb, "contenido", v.getContenidoNeto());
-        // Solo el precio normal. La rebaja es un descuento que el dueño decide dar en el momento,
-        // no un precio de lista: si el bot la anuncia, el cliente llega pidiéndola.
-        Double precio = v.precioNormal();
+        // El precio al que se vende: el normal, o el descuento solo si el dueño lo activó en la
+        // card (R8). Una rebaja sin activar no se anuncia: si el bot la dice, el cliente llega pidiéndola.
+        Double precio = v.precioACobrar();
         if (precio != null) {
             sb.append("\n- Precio: $").append(String.format("%.0f", precio)).append(" MXN");
         }
@@ -425,7 +425,7 @@ public abstract class ChatbotBase {
             p.put("marca", v.getMarca());
             p.put("talla", v.getTalla());
             p.put("color", v.getColor());
-            p.put("precio", v.precioNormal());
+            p.put("precio", v.precioACobrar());
             p.put("stock", v.getStock());
             p.put("descripcion", v.getDescripcion());
             if (v.getProducto().getCodigoBarras() != null) {
@@ -570,7 +570,7 @@ public abstract class ChatbotBase {
                     }
                 }
 
-                Double precioVenta = v.precioNormal();
+                Double precioVenta = v.precioACobrar();
                 if (precioVenta != null) {
                     sb.append(", precio: $").append(String.format("%.0f", precioVenta)).append(" MXN");
                 }

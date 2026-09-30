@@ -102,6 +102,7 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                             variante.setMarca(producto.getMarca());
                             variante.setContenidoNeto(producto.getContenido());
                             variante.setDescripcion(producto.getDescripcion());
+                            variante.setPalabraClave(producto.getPalabraClave());
                             variante.setStock(1);
                             variante.setTalla(null);
                             variante.setPresentacion(null);
@@ -140,6 +141,7 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                         variante.setMarca(producto.getMarca());
                         variante.setContenidoNeto(producto.getContenido());
                         variante.setDescripcion(producto.getDescripcion());
+                        variante.setPalabraClave(producto.getPalabraClave());
                         variante.setStock(1);
                         variante.setTalla(null);
                         variante.setPresentacion(null);

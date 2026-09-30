@@ -25,6 +25,12 @@ public class PrecioInvalidoException extends RuntimeException {
                         + "Si quieres cobrar más, sube el precio normal", rebaja, venta));
     }
 
+    public static PrecioInvalidoException descuentoParaUsar(double venta) {
+        return new PrecioInvalidoException(String.format(
+                "Para vender este artículo con descuento, el precio con descuento tiene que ser mayor a 0 "
+                        + "y menor al normal ($%.2f)", venta));
+    }
+
     public static PrecioInvalidoException articuloNoExiste(Integer varianteId) {
         return new PrecioInvalidoException("No existe el artículo " + varianteId);
     }
