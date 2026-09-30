@@ -107,8 +107,8 @@ proveedor más barato?
 
 ## D. Otros pendientes que ya estaban
 
-- [ ] Correr `backfill_estado_pedido_tipo.sql` en prod (`inventario_key`) antes de subir a `main`
-      la corrección de `cambiarTipoPedido` (ver tabla de migraciones en `CLAUDE.md`).
+- [x] Correr `backfill_estado_pedido_tipo.sql` en prod (`inventario_key`) antes de subir a `main`
+      la corrección de `cambiarTipoPedido` — corrida 2026-09-30, 0 filas desfasadas.
 
 ---
 
