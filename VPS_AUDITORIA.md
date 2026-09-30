@@ -899,6 +899,15 @@ Copia la salida y pégala en Bitwarden. Luego borra el historial: `history -c`
 | `MAIL_USERNAME` | Correo Gmail para chat en vivo | `***` |
 | `MAIL_PASSWORD` | App password Gmail | `***` |
 | `CHAT_ADMIN_EMAIL` | Email donde llegan avisos del chat | `***` |
+| `TIKTOK_CLIENT_KEY` | Client key de la app de TikTok (hoy la de Sandbox) | `***` |
+| `TIKTOK_CLIENT_SECRET` | Client secret de la app de TikTok | `***` |
+
+> **TikTok en prod (2026-10-01):** las dos llaves se copiaron del back de QA al secret `db-secret`
+> de `default` con esos mismos nombres (en mayúsculas, a diferencia del resto del secret) y se dieron
+> de alta en el deployment con `kubectl set env ... --from=secret/db-secret --keys=TIKTOK_CLIENT_KEY,TIKTOK_CLIENT_SECRET`
+> (quedan como `secretKeyRef`). El deployment de prod lee **cada variable por separado**: agregar una
+> llave al secret no basta, también hay que darla de alta en el deployment. En QA **no** están en
+> `db-secret`; vienen definidas directo en el deployment de `qa`.
 
 #### 🟡 K8s Secrets — proyecto_key_new QA (namespace qa → db-secret)
 > Mismas variables que prod pero con valores de QA (distintas contraseñas/DBs)
