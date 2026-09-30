@@ -133,3 +133,49 @@ TikTok tiene su propia versión de esa restricción, y es más estricta que la d
    auditoría para salir público; Upload funciona ya pero requiere que alguien termine de publicar
    desde el celular. Se puede empezar por Upload para probar el flujo completo del lado del back
    sin esperar a la auditoría, y cambiar a Direct Post cuando esté aprobada.
+
+---
+
+## Checklist para activar TikTok en un ambiente (aprendido el 2026-09-30)
+
+Al activarlo en prod salieron 4 errores seguidos, uno detrás de otro. Este es el orden que los
+evita. Correr cada verificación y **no pasar al siguiente paso hasta que dé lo esperado**.
+
+| # | Paso | Error que evita | Verificación |
+|---|---|---|---|
+| 1 | Llaves en el deployment **con valor** | "TikTok no está configurado: falta TIKTOK_CLIENT_KEY" | ver abajo — medir **caracteres**, no contar variables |
+| 2 | Redirect URI dada de alta en **Sandbox → Login Kit** (mientras la app no esté aprobada, Sandbox; no en el formulario de Production) | Página de TikTok "Something went wrong… redirect_uri" | la dirección exacta de la barra del navegador + `/tiktok/callback`, con `https://`, sin `/` al final, mismo `www.` o sin `www.` |
+| 3 | Back con el fix de `TikTokToken` (id asignado, commit "Fix TikTok: el token se guarda siempre con id=1") | "could not execute statement [Field 'id' doesn't have a default value]" | ya está en dev/qa/main; si se crea otra rama desde algo más viejo, revisar que `TikTokToken` NO herede `BaseId` |
+| 4 | `client_max_body_size 200M;` en el nginx del back de ese ambiente | `413 Request Entity Too Large` al publicar el video | `sudo grep client_max_body_size /etc/nginx/sites-available/backend` (prod) — ver VPS_AUDITORIA.md |
+
+### 1. Llaves: cómo cargarlas y cómo verificarlas bien
+
+El deployment lee **cada variable por separado** (`secretKeyRef`), así que hacen falta las dos cosas:
+la llave en el secret `db-secret` **y** la variable dada de alta en el deployment
+(`kubectl set env deployment/proyecto-key-deployment -n <ns> --from=secret/db-secret --keys=TIKTOK_CLIENT_KEY,TIKTOK_CLIENT_SECRET`).
+
+Al copiarlas con variables de shell (`KEY=$(...)`), el `patch` tiene que ir **en la misma terminal y
+en el mismo bloque**, protegido con `if [ -n "$KEY" ] && [ -n "$SEC" ]`. En prod se guardaron vacías
+porque el patch se corrió cuando `KEY`/`SEC` ya no tenían nada — y el comando respondió "patched" igual.
+
+**Verificación correcta** (mide caracteres; debe dar `key=18 secret=32`):
+```bash
+kubectl exec deploy/proyecto-key-deployment -n <ns> -- sh -c 'echo "key=${#TIKTOK_CLIENT_KEY} secret=${#TIKTOK_CLIENT_SECRET}"'
+```
+❌ **No sirve** `printenv | grep -c TIKTOK_CLIENT`: cuenta 2 aunque las dos estén vacías (así se nos pasó).
+
+Además, desde 2026-09-30 el back anota al arrancar qué variables de redes faltan o están vacías:
+```bash
+kubectl logs deploy/proyecto-key-deployment -n <ns> | grep -i "redes sociales"
+```
+Debe decir `configuración completa`. Si dice `faltan o están VACÍAS estas variables de entorno: [...]`,
+ahí está la lista (solo nombres, nunca valores). Las llaves solo se leen al arrancar: después de
+corregirlas, `kubectl rollout restart deployment proyecto-key-deployment -n <ns>`.
+
+### Cómo diagnosticar si vuelve a fallar
+- Los errores de conectar TikTok ahora quedan en el log del back:
+  `kubectl logs deploy/proyecto-key-deployment -n <ns> --since=15m | grep -i tiktok`.
+- Si el error sale en la página **de TikTok** (no en la nuestra), es configuración del portal de
+  TikTok (paso 2), no del back: en la barra de esa página viene `redirect_uri=...` con lo que mandamos.
+- El log de nginx (`/var/log/nginx/access.log`) es común a QA y prod y **no anota el dominio**: para
+  saber a qué ambiente fue una petición, fijarse en el `Referer` (`shop.` vs `qa.shop.`).

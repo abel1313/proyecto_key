@@ -298,6 +298,16 @@ diferencias — la restricción es sobre escribir/modificar/pushear, no sobre co
    uno más nuevo que el otro), no se sobrescribe nada solo: mostrar el diff al usuario y preguntar
    cuál gana antes de pisar contenido.
 
+## Regla — variables de entorno nuevas en un deployment de K8s
+
+El deployment del back lee **cada variable por separado** (`secretKeyRef`): agregar una llave a
+`db-secret` no basta, también hay que darla de alta en el deployment (`kubectl set env ...
+--from=secret/db-secret --keys=...`) y reiniciar el pod. Para verificar, **medir caracteres**
+(`sh -c 'echo ${#VARIABLE}'`), nunca `printenv | grep -c`: ese cuenta la variable aunque esté vacía.
+El 2026-09-30 las llaves de TikTok quedaron vacías en prod por eso, y no se detectó hasta que falló
+en pantalla. Las de redes sociales ya se revisan solas al arrancar (log "Redes sociales: ...").
+Checklist de TikTok: `TIKTOK_SETUP.md`.
+
 ## JWT — Configuración y problema conocido resuelto
 
 **Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**
@@ -638,6 +648,13 @@ cerrar siempre con un `SELECT` de verificación que deba devolver al menos una f
 
 Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
 `inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
+
+**Lección — tabla de una sola fila con id fijo (2026-09-30):** si una tabla guarda una sola fila
+con `id` fijo (p. ej. `tiktok_token`, id=1) y su columna es `id INT PRIMARY KEY` sin AUTO_INCREMENT,
+la entidad **no puede heredar `BaseId`**: su `@GeneratedValue(IDENTITY)` hace que Hibernate mande el
+INSERT sin id y MySQL falla con "Field 'id' doesn't have a default value". La entidad lleva su propio
+`@Id` asignado. En QA no se notó porque la fila ya existía; tronó en prod, la primera vez que hubo
+que insertarla.
 
 ### Regla — ningún script SQL se entrega sin haberlo corrido
 
