@@ -863,7 +863,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
-@Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size")
+@Cacheable(value = "variantesProductoCache", key = "'resumen:' + #productoId + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarPorProductoPaginadoResumen(Integer productoId, int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findByProductoId(productoId, PageRequest.of(pagina - 1, size));
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
@@ -955,7 +955,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         evictAllCaches();
     }
 
-    @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size")
+    @Cacheable(value = "variantesProductoCache", key = "'sin-stock-deshabilitadas:' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> getVariantesSinStockDeshabilitadas(int pagina, int size) {
         Page<Variantes> page = iVarianteRepository.findVariantesSinStockDeshabilitadas(PageRequest.of(pagina - 1, size));
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
@@ -970,7 +970,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
     // normales exigen stock>0 + producto habilitado + con imagen.
     @Cacheable(value = "variantesProductoCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
             Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
             LocalDate fechaHasta, int pagina, int size) {
@@ -992,8 +992,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // Catalogo publico con filtros combinables (precio, talla, color, marca + texto libre).
     // Blanks se tratan como "sin filtro" para que el front pueda mandar "" en vez de omitir el
     // parametro sin que eso reduzca los resultados a cero.
+    // Toda key de un metodo que devuelve VarianteResumenDto lleva isAdminContext(): el DTO trae
+    // precioRebaja/precioNormal solo para el admin. Sin eso, el primero en llegar decide que ven
+    // todos: un cliente recibia el descuento oculto que un admin cacheo antes, o al reves.
     @Cacheable(value = "variantesProductoCache",
-            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #pagina + ':' + #size")
+            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarVariantesPublicoFiltrado(String termino, Double precioMin,
             Double precioMax, String talla, String color, String marca, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);

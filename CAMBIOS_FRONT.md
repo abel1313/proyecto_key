@@ -20472,6 +20472,19 @@ Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea
 línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
 conviene vaciar el carrito una vez después del deploy.
 
+## 🔒 Caché de artículos por rol: el precio con descuento se filtraba a clientes (2026-09-30, dev)
+
+**Antes:** cuatro búsquedas de artículos se guardaban en la caché (Redis) con una clave que no
+distinguía admin de cliente: `GET /mis-productos/v1/variantes/buscar-filtrado`,
+`/v1/variantes/porProducto/{id}/paginado/resumen`, el filtro de admin y el de sin stock/deshabilitadas.
+La respuesta sí cambia según el rol (`precioRebaja`, `precioPropio`, `precioNormal` y `usarDescuento`
+solo para admin), así que el primero en llegar decidía lo que veían todos:
+- si llegaba primero un cliente, el admin recibía la lista **sin** descuento y el carrito mostraba "—";
+- si llegaba primero el admin, un cliente recibía `precioRebaja` en la respuesta.
+
+**Después:** la clave de las cuatro lleva el rol, igual que ya la llevaban `/buscar` y la lista de
+modelos. No cambia ningún request ni response.
+
 ## Vender un artículo con descuento — checks "Precio venta" / "Precio descuento" (2026-09-29, dev/qa)
 
 En el 💲 de la card el admin elige, para **un** artículo, si se vende a su precio venta o a su
