@@ -553,10 +553,10 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
-| `backfill_estado_pedido_tipo.sql` | ✅ corrida | ⏳ pendiente | 2026-09-29 |
+| `backfill_estado_pedido_tipo.sql` | ✅ corrida | ✅ corrida (0 filas, nada que reparar) | 2026-09-29 / prod 2026-09-30 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
-| `migration_usar_descuento_variante.sql` | ⏳ pendiente (antes de subir el back a qa) | ⏳ cuando R8 suba a prod | 2026-09-29 |
+| `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
@@ -585,7 +585,8 @@ cualquier consulta de artículos. Es idempotente y no mueve ningún precio.
 el check "Precio descuento" del 💲 hace que el artículo se venda al descuento). **Correrla antes del
 deploy**: la entidad `Variantes` ya mapea la columna y sin ella falla cualquier consulta de artículos.
 Idempotente, no cambia ningún precio (todos nacen en 0). Probada dos veces en MySQL 8 local, también
-con `--safe-updates`.
+con `--safe-updates`. **Ya corrida en qa y en prod** (prod 2026-09-30: columna creada,
+0 artículos con descuento activo): el back con R8 ya puede desplegarse a prod sin romper consultas.
 
 `datos_prueba_qa_catalogo.sql` crea 200 productos y 400 artículos de prueba (código de barras
 `2099000000001`–`2099000000200`, marca "Prueba QA") para probar ventas, pedidos y tienda en QA.
@@ -606,8 +607,8 @@ Instagram que llegó a QA no se pudo guardar (`Data too long for column 'mid'`).
 `tipo_pedido` (bug corregido en `PedidoServiceImpl.cambiarTipoPedido`, 2026-09-29). Solo toca filas
 donde ambas columnas son tipos de crédito (APARTADO/FIADO) y no coinciden; no toca pedidos pagados,
 entregados ni cancelados, y es idempotente. **Ejecutada en `inventario_key_qa` el 2026-09-29 (encontró
-1 fila y la corrigió, verificación final = 0 pendientes).** Falta ejecutarla en `inventario_key` (prod)
-antes de hacer el deploy de la versión con la corrección.
+1 fila y la corrigió, verificación final = 0 pendientes).** **Ejecutada en `inventario_key` (prod) el
+2026-09-30: no encontró filas desfasadas (0 cambios, verificación = 0).**
 
 `backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
 del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas
