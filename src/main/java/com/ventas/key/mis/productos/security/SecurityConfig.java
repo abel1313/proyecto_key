@@ -393,6 +393,9 @@ public class SecurityConfig {
                         // Cobrar el grupo de contado confirma cada pedido igual que
                         // PUT /v1/pedidos/confirmar/{id}, que es solo ADMIN: mismo nivel aqui.
                         .requestMatchers(HttpMethod.POST, "/v1/grupos-pedido/*/cobrar-contado").hasRole("ADMIN")
+                        // El buscador de "Unir pedidos" solo le sirve a quien puede unir.
+                        .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/candidatos")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "unir-pedidos"))
                         .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/**")
                                 .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "unir-pedidos"),
                                         accion("pedidos/mis-pedidos", "abonar")))

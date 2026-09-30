@@ -20472,6 +20472,63 @@ Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea
 línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
 conviene vaciar el carrito una vez después del deploy.
 
+## 🔗 Unir pedidos: buscador y agregar a un grupo que ya existe (2026-09-30, dev)
+
+**Antes:** para unir se escribían los números a mano ("102, 105") y no se validaban hasta presionar
+Unir. Una vez unidos no se podía sumar otro pedido: el botón desaparecía y el back respondía
+`"...ya esta en el grupo #N: deshaz ese grupo primero"`.
+
+**Ahora:** un buscador que solo muestra los que sí se pueden unir, y un botón **➕ Agregar pedidos**
+en el grupo activo. Mismas reglas que unir (R18 en `hexagonal/grupopedido/README.md`).
+
+### `GET /v1/grupos-pedido/candidatos?pedidoId=101&buscar=12&pagina=0` — buscador
+- `pedidoId`: el pedido que se está viendo. Si ya está en un grupo, se usa la forma de cobro del
+  grupo; si no, la del pedido.
+- `buscar`: número de pedido (**desde 1 dígito**, "empieza con") o nombre del cliente (**desde 3
+  letras**, "contiene"). Vacío = todos. Con 1 o 2 letras → **400** con el motivo en `mensaje`.
+- `pagina`: desde 0. Siempre de **10 en 10**, del pedido más nuevo al más viejo.
+
+Solo salen pedidos con la **misma forma de cobro**, que no estén cancelados ni cobrados de contado
+(`Entregado`), que no estén en un grupo activo y que no sean el mismo `pedidoId`. Un pedido a
+crédito ya `PAGADO` sí sale (regla R2).
+
+Response `data`:
+```json
+{ "pedidos": [ { "pedidoId": 128, "cliente": "Carla Méndez", "tipoPedido": "FIADO",
+                 "estadoPedido": "FIADO", "total": 250.0, "pagado": 50.0, "saldo": 200.0,
+                 "fecha": "2026-09-22T10:00:00" } ],
+  "pagina": 0, "hayMas": true }
+```
+Scroll infinito: al llegar abajo se pide `pagina + 1` con el mismo `buscar` y se agrega a la lista
+mientras `hayMas` sea `true`.
+- 400 `"No existe el pedido #N"` si `pedidoId` no existe.
+- Permiso: acción `unir-pedidos` de `pedidos/mis-pedidos` (no basta con `abonar`).
+
+### `POST /v1/grupos-pedido/{grupoId}/pedidos` — agregar a un grupo que ya existe
+Request: `{ "pedidoIds": [128, 129] }`. Response `data` = **Grupo** actualizado (ya con los nuevos).
+- No mueve dinero: lo que el pedido ya tenía abonado **cuenta para el grupo** (sube `pagadoGrupo`)
+  y queda escrito en sus observaciones, igual que "Se agregaron al grupo #N los pedidos #…" en los
+  que ya estaban. Quién recoge no cambia.
+- 400 si el grupo ya se separó, si no se manda ninguno, si alguno ya está en este grupo, no
+  existe, está cancelado o cobrado de contado, o está en otro grupo.
+- 400 **distinta forma de cobro**: igual que al unir, `data` trae el tipo de cada uno (el del grupo
+  va con el `pedidoId` del titular).
+- Permiso: `unir-pedidos`.
+
+### En el front
+- El campo de texto se cambió por el buscador en "Unir con otros pedidos" y en "Agregar pedidos".
+  Los elegidos quedan como etiquetas con ✕, y el botón dice cuántos se van a unir o agregar.
+- El encabezado del grupo dice cuántos pedidos tiene ("4 pedidos") y la sección de artículos se
+  titula "🔗 4 pedidos unidos".
+- Cada pedido unido se ve en una sola fila (número, cliente, cuántos artículos, total) y sus
+  artículos se abren con clic.
+
+### Pruebas E2E fuera del deploy de QA
+Las pruebas de `e2e/` ya no corren solas en GitHub (se quitó el job del workflow de QA): se corren a
+mano con `npm run test:ver` o `npm run test:ui`, que se ven en vivo.
+
+---
+
 ## 🔒 El precio con descuento ya no viaja en las listas: se pide uno por uno (2026-09-30, dev)
 
 **Antes:** `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto/.../paginado/resumen` traían

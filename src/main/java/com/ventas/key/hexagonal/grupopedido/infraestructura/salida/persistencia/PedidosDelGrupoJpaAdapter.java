@@ -5,11 +5,16 @@ import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.PedidosDelGrup
 import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Los pedidos del grupo, leidos de la tabla {@code pedidos}.
@@ -30,6 +35,19 @@ public class PedidosDelGrupoJpaAdapter implements PedidosDelGrupoPort {
         return pedidoRepository.findAllById(pedidoIds).stream()
                 .map(PedidosDelGrupoJpaAdapter::aDominio)
                 .toList();
+    }
+
+    @Override
+    public PaginaDePedidos candidatos(String tipo, Integer excluir, String buscar, int pagina, int tamano) {
+        Page<Integer> ids = pedidoRepository.candidatosParaUnir(tipo, excluir == null ? 0 : excluir,
+                buscar == null ? "" : buscar.trim(), PageRequest.of(pagina, tamano));
+        Map<Integer, PedidoDelGrupo> porId = new HashMap<>();
+        for (Pedido p : pedidoRepository.findAllById(ids.getContent())) {
+            porId.put(p.getId(), aDominio(p));
+        }
+        // findAllById no respeta el orden: se regresa en el del query (del mas nuevo al mas viejo).
+        List<PedidoDelGrupo> enOrden = ids.getContent().stream().map(porId::get).filter(Objects::nonNull).toList();
+        return new PaginaDePedidos(enOrden, ids.hasNext());
     }
 
     static PedidoDelGrupo aDominio(Pedido p) {
