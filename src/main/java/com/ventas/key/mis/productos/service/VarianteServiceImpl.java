@@ -287,6 +287,9 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             Variantes variante = new Variantes();
             variante.setProducto(producto);
             variante.setStock(1);
+            // Nacen con los datos del modelo (R2 del dominio `articulo`); antes nacian vacios y
+            // solo mostraban lo que se lee del modelo (nombre, codigo, precio).
+            heredarDelModelo(variante, producto);
             Variantes savedVariante = save(variante);
             if (!finalImageIds.isEmpty()) {
                 vincularImagenes(savedVariante, finalImageIds);
@@ -295,6 +298,15 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         evictAllCaches();
         return true;
+    }
+
+    /** Color, marca, descripcion, contenido neto y categoria del modelo, para un articulo nuevo. */
+    static void heredarDelModelo(Variantes variante, Producto modelo) {
+        variante.setColor(modelo.getColor());
+        variante.setMarca(modelo.getMarca());
+        variante.setDescripcion(modelo.getDescripcion());
+        variante.setContenidoNeto(modelo.getContenido());
+        variante.setPalabraClave(modelo.getPalabraClave());
     }
 
     private List<Long> subirImagenesMultipart(MultipartFile[] imagenes) {
