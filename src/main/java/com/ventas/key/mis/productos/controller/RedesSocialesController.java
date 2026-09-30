@@ -17,6 +17,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -137,6 +138,63 @@ public class RedesSocialesController {
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarEnInstagram(request);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
+    }
+
+    @Operation(
+        summary = "URL para conectar la cuenta de TikTok (botón \"Conectar TikTok\")",
+        description = "Devuelve la URL de autorización de TikTok armada con el client key de la configuración. " +
+                "redirectUri tiene que terminar en /tiktok/callback y estar dada de alta en la app de TikTok."
+    )
+    @GetMapping("/tiktok/url-autorizacion")
+    public ResponseEntity<ResponseGeneric<Map<String, String>>> urlAutorizacionTikTok(
+            @RequestParam String redirectUri, @RequestParam String state) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(Map.of("url", tikTokGraphClient.urlAutorizacion(redirectUri, state))));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((Map<String, String>) null, e.getMessage()));
+        }
+    }
+
+    @Operation(
+        summary = "Qué cuenta de TikTok está conectada",
+        description = "conectado=false si nunca se autorizó o si TikTok ya no acepta el token (se revocó o " +
+                "venció): en ese caso motivo trae el porqué y hay que volver a conectar."
+    )
+    @GetMapping("/tiktok/conexion")
+    public ResponseEntity<ResponseGeneric<Map<String, Object>>> conexionTikTok() {
+        Map<String, Object> r = new java.util.LinkedHashMap<>();
+        if (!tikTokGraphClient.tieneCuenta()) {
+            r.put("conectado", false);
+            return ResponseEntity.ok(new ResponseGeneric<>(r));
+        }
+        try {
+            Map<?, ?> data = tikTokGraphClient.quienSoy();
+            Map<?, ?> user = data != null && data.get("user") instanceof Map<?, ?> u ? u : Map.of();
+            r.put("conectado", true);
+            r.put("nombre", user.get("display_name"));
+            r.put("avatarUrl", user.get("avatar_url"));
+        } catch (Exception e) {
+            r.put("conectado", false);
+            r.put("motivo", e.getMessage());
+        }
+        return ResponseEntity.ok(new ResponseGeneric<>(r));
+    }
+
+    @Operation(
+        summary = "Quitar el acceso a TikTok (botón \"Desconectar\")",
+        description = "Le pide a TikTok que revoque el permiso y borra el token guardado: el sistema deja de " +
+                "poder mandar videos hasta que se vuelva a conectar. El token se borra aunque TikTok falle; " +
+                "revocadoEnTikTok=false avisa que el permiso puede seguir en la app de TikTok " +
+                "(Ajustes → Seguridad → Apps y servicios) y ahí se quita a mano."
+    )
+    @DeleteMapping("/tiktok/conexion")
+    public ResponseEntity<ResponseGeneric<Map<String, Object>>> desconectarTikTok() {
+        boolean habiaCuenta = tikTokGraphClient.tieneCuenta();
+        boolean revocado = tikTokGraphClient.desconectar();
+        Map<String, Object> r = new java.util.LinkedHashMap<>();
+        r.put("habiaCuenta", habiaCuenta);
+        r.put("revocadoEnTikTok", revocado);
+        return ResponseEntity.ok(new ResponseGeneric<>(r));
     }
 
     @Operation(
