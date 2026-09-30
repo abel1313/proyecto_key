@@ -56,6 +56,14 @@ mismo sin salir del navegador): la app necesita una URL de retorno registrada.
    autorización del paso 4.
 
 ### 4. Autorizar la cuenta del negocio y sacar el `code`
+> **Desde 2026-09-30 los pasos 4 y 5 ya no se hacen a mano:** en Publicar en redes
+> (`admin/facebook`) está el botón **"Conectar TikTok"**, que arma esta URL, recibe el `code` en
+> `/tiktok/callback` y lo cambia por los tokens. Lo único que sigue siendo manual es dar de alta la
+> Redirect URI del ambiente (`https://<dominio-del-front>/tiktok/callback`) en Login Kit (paso 3).
+> Para quitarle el permiso al sistema está **"Quitar acceso"** en la misma pantalla (revoca en
+> TikTok y borra `tiktok_token`).
+> Scopes que pide el botón: `user.info.basic,video.upload`. Ver CAMBIOS_FRONT.md, "Conectar TikTok".
+
 1. Armar esta URL (reemplazando client_key y redirect_uri) y abrirla en el navegador **logueado
    con la cuenta Business del negocio**:
    ```

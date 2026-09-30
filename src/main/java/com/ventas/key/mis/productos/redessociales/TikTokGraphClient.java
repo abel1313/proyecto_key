@@ -60,6 +60,92 @@ public class TikTokGraphClient {
         this.webClient = WebClient.builder().baseUrl("https://open.tiktokapis.com").build();
     }
 
+    static final String SCOPES = "user.info.basic,video.upload";
+
+    /**
+     * URL de la pantalla de autorizacion de TikTok (Login Kit), armada con el client key de la
+     * configuracion para que nadie tenga que escribirla a mano. {@code state} lo genera el front y
+     * lo compara al volver, para descartar una respuesta que no pidio el.
+     */
+    public String urlAutorizacion(String redirectUri, String state) {
+        if (clientKey.isBlank()) {
+            throw new ExceptionErrorInesperado("TikTok no está configurado: falta TIKTOK_CLIENT_KEY");
+        }
+        if (redirectUri == null || !redirectUri.matches("^(https://[^/]+|http://localhost(:\\d+)?)/tiktok/callback$")) {
+            throw new ExceptionErrorInesperado("La dirección de regreso tiene que terminar en /tiktok/callback");
+        }
+        return "https://www.tiktok.com/v2/auth/authorize/"
+                + "?client_key=" + codificar(clientKey)
+                + "&scope=" + codificar(SCOPES)
+                + "&response_type=code"
+                + "&redirect_uri=" + codificar(redirectUri)
+                + "&state=" + codificar(state == null ? "" : state);
+    }
+
+    /** Si ya hay una cuenta autorizada guardada (no dice si el token sigue sirviendo). */
+    public boolean tieneCuenta() {
+        return tokenRepository.existsById(1);
+    }
+
+    /**
+     * Quita el acceso a TikTok: le pide a TikTok que revoque el permiso y borra el token guardado.
+     * Devuelve si TikTok confirmo la revocacion.
+     *
+     * El token se borra aqui AUNQUE TikTok falle (p. ej. el dueño ya quito el acceso desde la app
+     * de TikTok y el token ya no sirve): lo que pidio el admin es que este sistema deje de publicar,
+     * y eso se cumple sin el token. Si no se borrara, el boton quedaria sin poder desconectar nunca.
+     */
+    public boolean desconectar() {
+        if (!tieneCuenta()) {
+            return false;
+        }
+        boolean revocado = revocarEnTikTok();
+        tokenRepository.deleteById(1);
+        log.info("TikTok desconectado (revocado en TikTok: {})", revocado);
+        return revocado;
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean revocarEnTikTok() {
+        if (clientKey.isBlank() || clientSecret.isBlank()) {
+            return false;
+        }
+        try {
+            String cuerpo = "client_key=" + codificar(clientKey)
+                    + "&client_secret=" + codificar(clientSecret)
+                    + "&token=" + codificar(obtenerAccessTokenValido());
+            Map<?, ?> response = webClient.post()
+                    .uri("/v2/oauth/revoke/")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .bodyValue(cuerpo)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, resp -> resp.bodyToMono(String.class)
+                            .defaultIfEmpty("")
+                            .flatMap(err -> Mono.error(new ExceptionErrorInesperado(
+                                    "TikTok rechazó revocar el acceso: " + err))))
+                    .bodyToMono(Map.class)
+                    .timeout(Duration.ofSeconds(15))
+                    .block();
+            // TikTok contesta 200 sin cuerpo; si trae "error", viene como texto o como {code: "ok"|...}.
+            Object error = response != null ? response.get("error") : null;
+            if (error instanceof Map<?, ?> e) {
+                error = "ok".equals(e.get("code")) ? null : e.get("code");
+            }
+            if (error != null && !String.valueOf(error).isBlank()) {
+                log.warn("TikTok no revocó el acceso: {}", response);
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            log.warn("No se pudo revocar el acceso en TikTok, se borra solo aquí: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private static String codificar(String valor) {
+        return org.springframework.web.util.UriUtils.encode(valor, StandardCharsets.UTF_8);
+    }
+
     // Paso unico, manual: despues de que el admin autoriza la cuenta en el navegador
     // (TIKTOK_SETUP.md paso 4) y llega el "code" en la URL de retorno, se manda aqui para
     // cambiarlo por el primer access_token/refresh_token y guardarlos. De ahi en adelante todo

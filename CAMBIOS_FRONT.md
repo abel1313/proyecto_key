@@ -21247,3 +21247,80 @@ Request `{ "pedidoTitularId": 123 }` → `data` = **Grupo**. 400 si ese pedido n
   (sale / cuánto se queda). No deja separar hasta que el reparto cuadre.
 - Permisos: separar y cambiar quién recoge usan `unir-pedidos` (ya existe). No hay script nuevo.
 
+
+---
+
+## 🎵 Conectar TikTok desde Publicar en redes (2026-09-30)
+
+**Antes:** la cuenta de TikTok se conectaba a mano (armar la URL de autorización, copiar el `code`
+de la barra, `POST /tiktok/autorizar` — `TIKTOK_SETUP.md` pasos 4-5). La pantalla no decía a qué
+cuenta llegaban los videos, y `/tiktok/callback` solo mostraba "Cuenta conectada".
+**Ahora:** botones **"🎵 Conectar TikTok"** y **"Quitar acceso"** en Publicar en redes (`admin/facebook`), y la pantalla
+muestra nombre y foto de la cuenta conectada antes de publicar (TikTok lo pide en su revisión de la app).
+
+Permisos: los tres endpoints viven bajo `/v1/redes-sociales/**` → GET con permiso de ver
+`admin/facebook` o `admin/hashtags`; POST con permiso de escribir en ellas. Sin cambios en `SecurityConfig`.
+
+### `GET /v1/redes-sociales/tiktok/url-autorizacion?redirectUri=&state=`
+El back arma la URL de TikTok con su `TIKTOK_CLIENT_KEY` y los scopes `user.info.basic,video.upload`.
+```json
+{ "data": { "url": "https://www.tiktok.com/v2/auth/authorize/?client_key=...&scope=user.info.basic%2Cvideo.upload&response_type=code&redirect_uri=...&state=..." } }
+```
+- `redirectUri` tiene que ser `https://<dominio>/tiktok/callback` (o `http://localhost:<puerto>/tiktok/callback`)
+  **y estar dada de alta en Login Kit** de la app de TikTok; si no, TikTok responde "redirect_uri" inválido.
+- `state`: valor aleatorio que genera el front; lo guarda en `sessionStorage` (`tiktok-oauth-state`) y
+  el callback lo compara.
+- 400: falta `TIKTOK_CLIENT_KEY` en el ambiente, o `redirectUri` no termina en `/tiktok/callback`.
+
+### `GET /v1/redes-sociales/tiktok/conexion`
+```json
+{ "data": { "conectado": true, "nombre": "Novedades Jade", "avatarUrl": "https://p16-sign..." } }
+{ "data": { "conectado": false } }
+{ "data": { "conectado": false, "motivo": "TikTok rechazó consultar el usuario: ..." } }
+```
+- `conectado:false` sin `motivo`: nunca se conectó. Con `motivo`: había cuenta pero TikTok ya no acepta
+  el permiso (se revocó o venció el refresh) → hay que volver a conectar.
+- Consulta a TikTok en cada llamada (no hay caché): se pide una vez al abrir la pantalla.
+
+### `DELETE /v1/redes-sociales/tiktok/conexion` — botón "Quitar acceso"
+Le pide a TikTok que revoque el permiso (`POST /v2/oauth/revoke/`) y borra el token guardado
+(`tiktok_token`). Desde ahí no se manda nada a TikTok, tampoco lo programado, hasta volver a conectar.
+```json
+{ "data": { "habiaCuenta": true, "revocadoEnTikTok": true } }
+```
+- `revocadoEnTikTok: false`: aquí ya quedó desconectado (el token se borra igual), pero TikTok no lo
+  confirmó (p. ej. el permiso ya se había quitado desde la app). El front avisa que se puede quitar a
+  mano en TikTok → Ajustes y privacidad → Seguridad → Apps y servicios con permiso.
+- `habiaCuenta: false`: no había nada conectado; responde 200 igual.
+- Permiso: escribir en `admin/facebook` o `admin/hashtags` (regla existente de `/v1/redes-sociales/**`).
+
+### `POST /v1/redes-sociales/tiktok/autorizar` (ya existía, sin cambios)
+Body `{ "code", "redirectUri" }`. El `redirectUri` tiene que ser **idéntico** al que se usó para pedir la URL.
+- 400 con `mensaje`: TikTok rechazó el `code` (vencido, ya usado, redirect distinto).
+- 401/403: sin sesión o sin permiso de escribir en `admin/facebook`.
+
+### Front
+- `RedesSocialesService`: `urlConectarTikTok()`, `conexionTikTok()`, `autorizarTikTok()`.
+- `RedesSocialesService.desconectarTikTok()`.
+- Publicar en redes, paso 2: sin cuenta, la casilla de TikTok queda **No disponible** con el motivo y el
+  botón "Conectar TikTok". Con cuenta, debajo de las casillas (esté o no marcada TikTok) aparece
+  "TikTok conectado · los videos llegan a <nombre>" con foto, y los botones **Cambiar de cuenta** y
+  **Quitar acceso** (pide confirmación). Si la consulta de la cuenta falla (red), no se bloquea TikTok.
+- Aviso de TikTok corregido: ya no dice "se sube como privado". Dice que el video llega como
+  notificación (Bandeja → Notificaciones del sistema) y desde ahí se termina de publicar (modo Upload).
+- `/tiktok/callback` (pública): valida el `state`, manda el `code`, muestra nombre y foto de la cuenta
+  y botón "Ir a Publicar en redes". Casos: cancelado en TikTok (`?error=`), `state` que no coincide,
+  sesión vencida (401/403). Quita el `code` de la barra al leerlo: recargar no lo vuelve a mandar.
+
+#### Checklist QA
+- [ ] En la app de TikTok (Sandbox → Login Kit) está dada de alta
+      `https://qa.shop.novedades-jade.com.mx/tiktok/callback`.
+- [ ] Publicar en redes sin cuenta conectada: TikTok "No disponible" + botón Conectar TikTok.
+- [ ] Conectar TikTok → login de TikTok → regresa a "Cuenta de TikTok conectada" con nombre y foto.
+- [ ] Volver a Publicar en redes, marcar TikTok: se ve la cuenta con foto; publicar un video → llega a
+      Notificaciones del sistema en la app de TikTok.
+- [ ] **Quitar acceso** → confirmar → "Acceso quitado"; TikTok vuelve a "No disponible" con "Conectar TikTok".
+      En la app de TikTok (Ajustes y privacidad → Seguridad → Apps y servicios) ya no aparece la app.
+- [ ] **Quitar acceso** → Cancelar → no cambia nada.
+- [ ] En TikTok tocar "Cancelar" → "No se conectó TikTok. No se cambió nada."
+- [ ] Recargar `/tiktok/callback` después de conectar → no marca error ni vuelve a mandar el code.
