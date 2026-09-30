@@ -55,6 +55,22 @@ public record GrupoPedidos(
         return pedidos.stream().filter(p -> !p.estaCancelado()).anyMatch(PedidoDelGrupo::esDeCredito);
     }
 
+    /**
+     * La forma de cobro del grupo: todos sus pedidos vivos la comparten (R3, R9). Se toma la del
+     * titular; si el titular se cancelo, la de cualquier otro vivo.
+     */
+    public String tipo() {
+        return titular().filter(p -> !p.estaCancelado())
+                .or(() -> pedidos.stream().filter(p -> !p.estaCancelado()).findFirst())
+                .or(this::titular)
+                .map(PedidoDelGrupo::tipo)
+                .orElse(null);
+    }
+
+    public boolean contiene(Integer pedidoId) {
+        return pedidos.stream().anyMatch(p -> p.pedidoId().equals(pedidoId));
+    }
+
     public Optional<PedidoDelGrupo> titular() {
         return pedidos.stream().filter(p -> p.pedidoId().equals(pedidoTitularId)).findFirst();
     }

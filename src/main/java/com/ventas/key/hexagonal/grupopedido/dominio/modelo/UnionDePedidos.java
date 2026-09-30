@@ -76,4 +76,64 @@ public final class UnionDePedidos {
             throw new PedidosDeDistintoTipoException(tipoPorPedido);
         }
     }
+
+    /**
+     * Agregar pedidos a un grupo que ya existe (R18). Se validan solo los que entran: los que ya
+     * estan pueden estar entregados o cancelados dentro del grupo, y eso es valido.
+     *
+     * @param grupo         el grupo tal como esta hoy
+     * @param nuevos        los que se quieren agregar
+     * @param encontrados   los que existen de esos
+     * @param grupoActivoDe pedidoId -> grupo activo en el que ya esta, solo para los que ya estan
+     */
+    public static void validarAgregado(GrupoPedidos grupo,
+                                       List<Integer> nuevos,
+                                       List<PedidoDelGrupo> encontrados,
+                                       Map<Integer, Integer> grupoActivoDe) {
+        if (!grupo.activo()) {
+            throw new PedidoNoAgrupableException("El grupo #" + grupo.grupoId() + " ya se separo");
+        }
+        Set<Integer> distintos = new LinkedHashSet<>(nuevos == null ? List.of() : nuevos);
+        distintos.remove(null);
+        if (distintos.isEmpty()) {
+            throw new PedidoNoAgrupableException("Elige al menos un pedido para agregar");
+        }
+
+        List<Integer> yaEstan = distintos.stream().filter(grupo::contiene).toList();
+        if (!yaEstan.isEmpty()) {
+            throw new PedidoNoAgrupableException("Ya estan en este grupo los pedidos " + yaEstan);
+        }
+
+        Set<Integer> existentes = encontrados.stream().map(PedidoDelGrupo::pedidoId).collect(Collectors.toSet());
+        List<Integer> faltantes = distintos.stream().filter(id -> !existentes.contains(id)).toList();
+        if (!faltantes.isEmpty()) {
+            throw new PedidoNoAgrupableException("No existen los pedidos " + faltantes);
+        }
+
+        for (PedidoDelGrupo pedido : encontrados) {
+            if (!pedido.sePuedeUnir()) {
+                throw new PedidoNoAgrupableException("El pedido #" + pedido.pedidoId() + " " + pedido.motivoDelCierre());
+            }
+        }
+
+        for (Integer id : distintos) {
+            Integer otro = grupoActivoDe.get(id);
+            if (otro != null) {
+                throw new PedidoNoAgrupableException("El pedido #" + id + " ya esta en el grupo #" + otro
+                        + ": separalo de ese grupo primero");
+            }
+        }
+
+        String tipoDelGrupo = grupo.tipo();
+        boolean distinto = encontrados.stream().anyMatch(p -> !p.tipo().equals(tipoDelGrupo));
+        if (distinto) {
+            Map<Integer, String> tipoPorPedido = new LinkedHashMap<>();
+            tipoPorPedido.put(grupo.pedidoTitularId(), tipoDelGrupo);
+            for (Integer id : distintos) {
+                encontrados.stream().filter(p -> p.pedidoId().equals(id)).findFirst()
+                        .ifPresent(p -> tipoPorPedido.put(id, p.tipo()));
+            }
+            throw new PedidosDeDistintoTipoException(tipoPorPedido);
+        }
+    }
 }

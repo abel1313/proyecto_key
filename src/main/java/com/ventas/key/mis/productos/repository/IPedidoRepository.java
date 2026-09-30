@@ -375,4 +375,44 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
                                         Pageable pegable);
 
 
+
+    /**
+     * Ids de los pedidos que se pueden unir con uno de forma de cobro {@code tipo} (grupopedido,
+     * buscador de "Unir pedidos"): misma forma de cobro, no cancelados, no cobrados de contado y
+     * fuera de cualquier grupo activo. Numero: empieza con lo escrito. Texto: nombre del cliente.
+     */
+    @Query(value = """
+        SELECT p.id FROM pedidos p
+        LEFT JOIN clientes c ON c.id = p.cliente_id
+        LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+        WHERE COALESCE(p.tipo_pedido, 'NORMAL') = :tipo
+          AND COALESCE(p.estado_pedido, '') NOT IN ('cancelado', 'Entregado')
+          AND p.id <> :excluir
+          AND NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro m JOIN grupo_pedido g ON g.id = m.grupo_id
+                          WHERE g.activo = 1 AND m.pedido_id = p.id)
+          AND (:buscar = ''
+               OR (:buscar REGEXP '^[0-9]+$' AND CAST(p.id AS CHAR) LIKE CONCAT(:buscar, '%'))
+               OR c.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%'))
+        ORDER BY p.id DESC
+        """,
+        countQuery = """
+        SELECT COUNT(*) FROM pedidos p
+        LEFT JOIN clientes c ON c.id = p.cliente_id
+        LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+        WHERE COALESCE(p.tipo_pedido, 'NORMAL') = :tipo
+          AND COALESCE(p.estado_pedido, '') NOT IN ('cancelado', 'Entregado')
+          AND p.id <> :excluir
+          AND NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro m JOIN grupo_pedido g ON g.id = m.grupo_id
+                          WHERE g.activo = 1 AND m.pedido_id = p.id)
+          AND (:buscar = ''
+               OR (:buscar REGEXP '^[0-9]+$' AND CAST(p.id AS CHAR) LIKE CONCAT(:buscar, '%'))
+               OR c.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%'))
+        """,
+        nativeQuery = true)
+    Page<Integer> candidatosParaUnir(@Param("tipo") String tipo,
+                                     @Param("excluir") Integer excluir,
+                                     @Param("buscar") String buscar,
+                                     Pageable pageable);
 }

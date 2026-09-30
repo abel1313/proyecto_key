@@ -49,6 +49,7 @@ cada artículo y cada abono, y los abonos hechos después de unir no tendrían d
 | R15 | **Se puede separar solo uno.** Lo que no se lleva sigue siendo del grupo y se acomoda en los que quedan, del más viejo al más nuevo. Si quedan 2 o más, siguen unidos en un **grupo nuevo** ("Sigue del grupo #N"); si queda 1, también se separa. Si el que recogía se separa, hay que elegir quién recoge a los que quedan. |
 | R16 | **Quién recoge se cambia** cuando se quiera, entre los pedidos del grupo. |
 | R17 | Después de repartir, cada pedido queda según su dinero: si cubre su total queda **PAGADO** y se crea su venta; si ya no lo cubre (se le pasó dinero a otro) vuelve a Apartado / Ir pagando y se **borra** la venta que tenía (mismo criterio que reabrir un contado). |
+| R18 | **Se agregan pedidos a un grupo que ya existe** (2026-09-30), con las mismas reglas que unir, pero solo para los que entran: misma forma de cobro que el grupo, abiertos (no cancelados ni cobrados de contado) y fuera de otro grupo. Los que ya estaban pueden estar pagados o cancelados y no se revisan. No se mueve dinero: lo que el pedido ya tenía abonado cuenta para el grupo y queda anotado en sus observaciones. Quién recoge no cambia. |
 
 **Cambios a reglas anteriores (2026-09-23, v2):**
 - **R2:** un pedido a crédito **ya pagado sí se une** (su dinero pasa a ser del grupo). Uno cobrado de
@@ -70,6 +71,8 @@ la lista, la unión no se notaba.
 - Las entidades `GrupoPedido` y `GrupoPedidoMiembro` viven en `mis/productos/entity` y no en
   `infraestructura/`, porque el escaneo de entidades JPA solo cubre `com.ventas.key.mis.productos`.
 - Endpoints: `/v1/grupos-pedido` (`GrupoPedidoController`). Contrato en `CAMBIOS_FRONT.md`.
+- Buscador de "Unir pedidos" (`GET /candidatos`): `IPedidoRepository.candidatosParaUnir`, SQL
+  nativo con los mismos filtros que las reglas (probado en MySQL 8 el 2026-09-30).
 - La lista del admin: el filtro que esconde a los no titulares está en los dos queries nativos
   de `IPedidoRepository` (`buscarPedidosPorCliente`, `buscarTodosLosPedidos`); el campo
   `pedido.grupo` lo pone `PedidoServiceImpl.marcarGrupos` con `ConsultarGruposCasoUso`.
