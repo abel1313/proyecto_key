@@ -908,6 +908,13 @@ Copia la salida y pégala en Bitwarden. Luego borra el historial: `history -c`
 > (quedan como `secretKeyRef`). El deployment de prod lee **cada variable por separado**: agregar una
 > llave al secret no basta, también hay que darla de alta en el deployment. En QA **no** están en
 > `db-secret`; vienen definidas directo en el deployment de `qa`.
+>
+> ⚠️ La primera vez quedaron **dadas de alta pero vacías** (el patch se corrió con las variables de
+> shell ya vacías) y `printenv | grep -c` decía 2 igual. Se verifica midiendo caracteres:
+> `kubectl exec deploy/proyecto-key-deployment -n default -- sh -c 'echo "key=${#TIKTOK_CLIENT_KEY} secret=${#TIKTOK_CLIENT_SECRET}"'`
+> → `key=18 secret=32`. El back además anota al arrancar qué variables de redes faltan:
+> `kubectl logs deploy/proyecto-key-deployment -n default | grep -i "redes sociales"`.
+> Checklist completo: TIKTOK_SETUP.md, "Checklist para activar TikTok en un ambiente".
 
 #### 🟡 K8s Secrets — proyecto_key_new QA (namespace qa → db-secret)
 > Mismas variables que prod pero con valores de QA (distintas contraseñas/DBs)

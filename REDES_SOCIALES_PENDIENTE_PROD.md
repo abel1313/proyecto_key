@@ -1,5 +1,13 @@
 # Redes sociales — qué tenemos, qué falta y cómo activarlo en producción
 
+> **Actualización 2026-09-30 — este documento quedó desfasado en parte.** El código de redes
+> sociales **ya está en `main`**, con la tabla `tiktok_token`. TikTok quedó conectado en prod
+> (cuenta `novedadesJade`) con el botón "Conectar TikTok" de Publicar en redes. Las llaves de TikTok
+> ya están en el deployment de prod. Para activar TikTok en cualquier ambiente, usar el checklist de
+> `TIKTOK_SETUP.md` ("Checklist para activar TikTok en un ambiente"), que junta los 4 errores que
+> salieron ese día. Para saber qué variables de Facebook/Instagram/TikTok le faltan a un ambiente:
+> `kubectl logs deploy/proyecto-key-deployment -n <ns> | grep -i "redes sociales"`.
+
 Este documento resume el estado real de la feature de redes sociales (Facebook, Instagram,
 TikTok) al 2026-08-21. El código **vive en `dev`/`qa`, no en `main`** — se excluyó a propósito del
 merge de qa→main del 2026-08-21 (todo lo demás sí se llevó) porque no está listo para producción:

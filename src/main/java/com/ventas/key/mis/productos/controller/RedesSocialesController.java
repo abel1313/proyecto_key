@@ -151,6 +151,8 @@ public class RedesSocialesController {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(Map.of("url", tikTokGraphClient.urlAutorizacion(redirectUri, state))));
         } catch (Exception e) {
+            // Se anota: sin esto el 400 solo lo veía el navegador y `kubectl logs` no decía nada.
+            log.warn("No se pudo armar la URL para conectar TikTok (redirectUri={}): {}", redirectUri, e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((Map<String, String>) null, e.getMessage()));
         }
     }
@@ -174,6 +176,7 @@ public class RedesSocialesController {
             r.put("nombre", user.get("display_name"));
             r.put("avatarUrl", user.get("avatar_url"));
         } catch (Exception e) {
+            log.warn("TikTok no aceptó consultar la cuenta conectada: {}", e.getMessage());
             r.put("conectado", false);
             r.put("motivo", e.getMessage());
         }
