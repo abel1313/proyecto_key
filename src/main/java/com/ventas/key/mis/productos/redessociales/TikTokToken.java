@@ -1,8 +1,8 @@
 package com.ventas.key.mis.productos.redessociales;
 
-import com.ventas.key.mis.productos.entity.BaseId;
-import jakarta.persistence.Entity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,7 +20,16 @@ import java.time.LocalDateTime;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class TikTokToken extends BaseId {
+public class TikTokToken {
+
+    // Id ASIGNADO (siempre 1), no autogenerado: la columna es `id INT PRIMARY KEY` sin
+    // AUTO_INCREMENT. Antes heredaba BaseId (@GeneratedValue IDENTITY) y Hibernate armaba el
+    // INSERT sin el id -> "Field 'id' doesn't have a default value" al conectar la cuenta en
+    // prod (2026-10-01). Aunque la tabla tuviera AUTO_INCREMENT, tras desconectar y volver a
+    // conectar la fila nueva saldria con id=2 y findById(1) ya no la encontraria.
+    @Id
+    @Column(name = "id")
+    private Integer id;
 
     @Column(name = "access_token", length = 500)
     private String accessToken;
