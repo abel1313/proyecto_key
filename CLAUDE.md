@@ -559,6 +559,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_usar_descuento_variante.sql` | ⏳ pendiente (antes de subir el back a qa) | ⏳ cuando R8 suba a prod | 2026-09-29 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
+| `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -591,6 +592,11 @@ con `--safe-updates`.
 Cada INSERT exige `DATABASE() = 'inventario_key_qa'`, así que en prod no hace nada. Reusa imágenes
 de productos reales (no crea ni borra imágenes). `limpiar_datos_prueba_qa_catalogo.sql` los da de
 baja y quita sus ligas de imagen. Ambos probados en MySQL 8 local antes de entregarlos.
+
+`limpiar_datos_e2e_qa.sql` da de baja (nunca DELETE) los modelos y artículos que crean las pruebas
+automáticas de `e2e/` en el front: código de barras exactamente `E2E` + 13 dígitos. Solo actúa en
+`inventario_key_qa`. Probado en MySQL 8 local dos veces, con Safe Updates, y con señuelos
+(`E2EABC`, `7501234E2E00000`) que no toca.
 
 `migration_mensaje_directo_mid.sql` agranda `mid` y `respuesta_mid` de `mensaje_directo_social` a
 `VARCHAR(512)`: los ids de mensaje de Instagram miden ~180 caracteres y el primer mensaje directo de
