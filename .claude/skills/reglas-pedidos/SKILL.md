@@ -62,10 +62,11 @@ podría entrar."*
 | Situación | Qué hace el sistema |
 |---|---|
 | Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Sale un aviso que **no deja seguir** y explica: un Apartado es sin dinero; si el cliente ya dio algo, el pedido es **Ir pagando**. Botón para cambiarlo a Ir pagando |
-| Apartado ya hecho y el cliente llega a dar dinero (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
+| Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
+| Apartado y el cliente da **el total o más** (debe $200 y da $200 o $500), se escriba en Cobrar o en Registrar abono | **No es abono: es el cobro completo.** Se cobra de una vez, queda pagado, y si dio de más muestra **cuánto hay que devolverle** (da $500 → devolver $300) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
 | Apartados unidos | No hay "Abonar al grupo": se pagan completos al recogerlos |
-| El cliente recoge el Apartado | Paga **todo** en ese momento (❓ cómo se cobra, ver `PLAN` §10.6) |
+| El cliente recoge el Apartado | Paga **todo** en ese momento con el botón **Cobrar** de la card (efectivo o transferencia; tarjeta y MSI cuando existan), que cobra el total de una vez — decidido 2026-10-01 |
 
 Estado: 🆕 **por programar** (lista en `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10.6). Hasta que se haga, el
 código todavía acepta enganche y abonos en Apartado. Si el dueño pide "deja dar un abono en un

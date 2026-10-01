@@ -18,7 +18,8 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [ ] **Hacer:** que el pedido abierto se vea igual que los otros del grupo (3.6) — por hacer.
 - [ ] **Hallazgo nuevo:** cancelar desde la card de Mis pedidos no dice el saldo a favor (5.1).
 - [x] ~~¿Apartado acepta anticipo / abonos?~~ → **No**: Apartado es sin dinero (3.9)
-- [ ] **Contestar ❓:** ¿el Apartado se cobra completo con el botón Cobrar al recogerlo? (3.9)
+- [x] ~~¿El Apartado se cobra completo con Cobrar?~~ → **Sí**, y detecta pago completo y cambio (3.10)
+- [ ] **Contestar ❓:** las 5 dudas de 3.10
 - [ ] **Hacer:** "Apartado = sin dinero" (`PLAN` §10.6, A1–A7)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
@@ -356,6 +357,37 @@ detalle del pedido y la pantalla **Créditos / Abonos** guardan el abono igual (
 back; también el "Pago inicial (enganche)" de la venta). Da igual dónde lo registres: sale en
 "📋 Pagos registrados", cuenta para el saldo y para el corte del día. El detalle es solo un atajo para
 no tener que ir a la otra pantalla.
+
+### 3.10 Cobrar el Apartado completo — decidido (2026-10-01)
+
+> 💬 *"Sí, me gusta. Que si detecta que pongo en abono, por ejemplo, si son 200 y llega y me da 200,
+> pongo 200 en abono, entonces detecte que lo pagó completo de una y no mandar a abono. Y por ejemplo
+> si me da 500, lo mismo: detecta que está completo y muestra lo que tengo que devolverle. ¿Alguna
+> otra duda?"*
+
+↳ Anotado (skill `reglas-pedidos` 2.1 y `PLAN` §10.6, A5 y A8):
+- **Cobrar** en un Apartado cobra el total de una vez y lo deja pagado.
+- Si en un Apartado se escribe el total **en "Registrar abono"**, no se anota como abono: se detecta
+  que es el pago completo y se cobra igual que con Cobrar.
+- Si da **de más** (debe $200, da $500), se cobra completo y muestra **"Devolver: $300"**.
+- Si da **menos**, sale el aviso de cambiarlo a Ir pagando (3.9).
+
+Hoy el sistema hace otra cosa: un abono mayor a lo que se debe **se rechaza** (*"El monto excede el
+saldo pendiente"*), y el cambio solo se calcula contra el abono escrito.
+
+**❓ Dudas que quedan:**
+1. **Ir pagando también:** si debe $150 y da $500, ¿igual se liquida, queda pagado y muestra
+   "Devolver: $350"? (hoy se rechaza). Recomendado: **sí**, misma regla.
+2. **Transferencia de más:** si transfiere $500 y debe $200, no hay cambio en efectivo que dar en el
+   momento. ¿Se rechaza y se le pide transferir lo exacto, o se acepta y le devuelves $300 por fuera?
+   Recomendado: **rechazar** y pedir lo exacto, para que el corte cuadre.
+3. **Cómo queda al cobrarlo:** si paga el Apartado al recogerlo, ¿queda **Entregado** (pagado y se lo
+   llevó), como el contado? Recomendado: **Entregado**. Si paga pero se lo llevan después, sería el
+   "Ya pagó, falta entregarlo" del plan (V3).
+4. **Apartados unidos:** al recogerlos, ¿un solo Cobrar por el total del grupo, igual que un grupo de
+   contado? Recomendado: **sí**.
+5. **Apartados que hoy ya tienen dinero** (en QA y prod): ¿se pasan todos a Ir pagando? Recomendado:
+   **sí**, con un script que primero te muestre la lista.
 
 ---
 
