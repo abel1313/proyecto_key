@@ -141,26 +141,26 @@ En Production siguen los de antes, así que el reenvío salió con lo mismo que 
 
 - [ ] **1. Copiar el motivo exacto del rechazo** ("See why" / correo de TikTok) y pegarlo aquí. Sin eso
       solo se puede suponer.
-- [ ] **2. Pie de página con enlaces visibles en la tienda.** La guía de TikTok dice que Privacidad y
+- [x] **2. Pie de página con enlaces visibles en la tienda.** *(2026-09-30: en prod)* La guía de TikTok dice que Privacidad y
       Términos deben verse en la página principal **sin abrir un menú**. Hoy la tienda no tiene pie de
       página (revisado en `master`, `qa` y `dev` del front): solo existen las rutas. Agregar en todas las
       páginas públicas: **Aviso de privacidad · Términos y condiciones · Eliminar mis datos**. Tiene que
       estar en **producción** (`shop.`), porque esa es la URL que revisan.
-- [ ] **3. Poder publicar en TikTok desde producción.** El video tiene que mostrar el dominio
+- [x] **3. Poder publicar en TikTok desde producción.** *(2026-09-30: llaves cargadas y cuenta conectada en prod)* El video tiene que mostrar el dominio
       `shop.novedades-jade.com.mx`, pero la cuenta autorizada y sus tokens están solo en la base de
       **QA**. En prod falta cargar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` (del **Sandbox**), confirmar
       que exista la tabla `tiktok_token` y autorizar `novedadesjade8` ahí.
-- [ ] **4. Confirmar que el video subido llega a TikTok.** Llega como **notificación en la Bandeja de
+- [x] **4. Confirmar que el video subido llega a TikTok.** *(2026-09-30: llega a Notificaciones del sistema)* Llega como **notificación en la Bandeja de
       entrada** de `novedadesjade8`, no en Borradores. Hay que verlo antes de grabar, porque el video
       demo tiene que terminar mostrándolo.
-- [ ] **5. Grabar el video nuevo** con el guion de la bitácora (4.11): autorizar con TikTok → regresa a
+- [x] **5. Grabar el video nuevo** *(2026-09-30: `Timeline 1.mp4`)* con el guion de la bitácora (4.11): autorizar con TikTok → regresa a
       `shop…/tiktok/callback` → "Cuenta conectada" → Publicar en redes → TikTok → abrir TikTok y mostrar
       la notificación/borrador. Tiene que verse cada scope (`user.info.basic`: la cuenta conectada;
       `video.upload`: el video subido como borrador).
-- [ ] **6. Explicación nueva en inglés** (hasta 1000 caracteres), que diga qué hace cada producto y
+- [x] **6. Explicación nueva en inglés** *(2026-09-30: ver E.2)* (hasta 1000 caracteres), que diga qué hace cada producto y
       scope, y **no** decir "uso personal" ni "solo la dueña": es una herramienta de la tienda para su
       cuenta de negocio (la guía dice que no aprueban apps de uso privado).
-- [ ] **7. En Production:** Return to Draft → ícono y descripción iguales al Sandbox → pegar la
+- [x] **7. En Production:** *(2026-09-30: reenviado, ver E.2)* Return to Draft → ícono y descripción iguales al Sandbox → pegar la
       explicación nueva → **quitar `videoTikTokPrueba.mp4`** y subir el nuevo → Submit for review.
 
 ### Borrador de la explicación (para pegar en "App review", revisar antes)
@@ -207,3 +207,91 @@ el Client secret.
 7. Terminar ahí (no hace falta publicarlo).
 
 Referencia de lo legal que se revisó para el sitio: `CUMPLIMIENTO_LEGAL_TIENDA.md`.
+
+---
+
+## E.2 TikTok — reenvío a revisión del 2026-09-30 (esperando respuesta)
+
+**Estado:** enviado con **Submit for review** el 2026-09-30. Esperando la respuesta de TikTok por
+correo y en developers.tiktok.com → `novedadesJade` → Production.
+
+### Qué cambió respecto al envío rechazado
+
+| Qué | Antes (rechazado) | Ahora (enviado 2026-09-30) |
+|---|---|---|
+| Ícono | logo viejo | logo "NOVEDADES BOLSAS JADE", 1024×1024 |
+| Video demo | `videoTikTokPrueba.mp4` (viejo, en QA) | `Timeline 1.mp4`: flujo completo en `shop.` (prod), ~1 min, < 50 MB |
+| Explicación | la vieja (68 y luego 990 caracteres) | la nueva, 887 caracteres (abajo) |
+| Pie legal | no existía | Privacidad · Términos · Eliminar mis datos en todas las páginas |
+| Conectar la cuenta | a mano (URL armada + curl) | botón **Conectar TikTok** / **Quitar acceso** en Publicar en redes, con nombre y foto |
+| Redirect URI de Production | `qa.shop…/tiktok/callback` | `https://shop.novedades-jade.com.mx/tiktok/callback` (se pidió cambiarla antes de enviar) |
+
+### Configuración de Production al enviar (capturas 76–82)
+
+- Nombre `novedadesJade` · categoría **Others** (se sugirió Business/Shopping si existe; no bloquea).
+- Descripción (110/120): *"Novedades Jade online store. Staff upload product videos to the store's
+  TikTok as drafts from the admin panel."*
+- Terms `https://shop.novedades-jade.com.mx/termConditions` · Privacy `…/privacidad` · Web `https://shop.novedades-jade.com.mx`.
+- Products: **Login Kit** + **Content Posting API** (Direct Post **apagado**; *Verify domains* sin
+  usar porque subimos el archivo, no una URL).
+- Scopes: solo `user.info.basic` y `video.upload`.
+
+### Qué muestra el video (`Timeline 1.mp4`)
+
+Publicar en redes → Conectar TikTok → pantalla de permisos de TikTok → "Cuenta de TikTok conectada"
+con nombre y foto → subir un video con TikTok marcado → "Publicado" → páginas de Privacidad y
+Eliminar datos → en el iPhone, TikTok → Bandeja de entrada → Notificaciones del sistema → el video.
+
+### Texto de App review que se pegó (887 caracteres)
+
+> Novedades Jade (https://shop.novedades-jade.com.mx) is an online store for handbags, perfumes and
+> clothing. Staff use its admin panel to share product videos to the store's own TikTok account.
+>
+> Login Kit / user.info.basic: in "Publicar en redes" staff tap "Conectar TikTok", TikTok shows its
+> authorization screen and redirects to /tiktok/callback. We read only the display name and avatar
+> to show which account is connected before posting. "Quitar acceso" revokes the token and deletes it.
+>
+> Content Posting API / video.upload: staff pick a video and send it with the upload flow
+> (FILE_UPLOAD). The creator gets an inbox notification in TikTok and edits and posts it there. We do
+> not use Direct Post; nothing is posted without the creator.
+>
+> Changes in this version: new demo video of the full flow on the live site, and Privacy Policy,
+> Terms and data deletion pages linked in the footer.
+
+### Motivo del reenvío que se pegó en "Please describe your reason for this submission"
+
+> Resubmission. We fixed the app icon (now our store logo, 1024x1024), added a new demo video
+> showing the full flow on our live website (Connect TikTok, authorization screen, connected account
+> name and avatar, video upload, and the draft arriving in the TikTok inbox), and linked the Privacy
+> Policy, Terms of Service and data deletion pages in the footer of every page.
+
+### Qué se arregló en el camino (2026-09-30)
+
+Para poder grabar en prod salieron 4 errores; todos quedaron resueltos y documentados en
+`TIKTOK_SETUP.md` → "Checklist para activar TikTok en un ambiente":
+1. `redirect_uri` no dado de alta en Sandbox → Login Kit.
+2. Llaves de TikTok **vacías** en el deployment de prod → recargadas y verificadas por longitud;
+   el back ahora avisa al arrancar qué llaves de redes faltan.
+3. `Field 'id' doesn't have a default value` al guardar la cuenta → `TikTokToken` con id asignado.
+4. (Prevenido) 413 al subir video por nginx de prod sin `client_max_body_size`.
+
+### Cuando llegue la respuesta
+
+**Si la aprueban:**
+- [ ] Production da **otro Client key y Client secret**. Cambiar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET`
+      del secret de prod por los de Production (verificar longitud, reiniciar el pod). QA se queda con
+      los de Sandbox.
+- [ ] En prod: **Quitar acceso** → **Conectar TikTok** (la conexión hecha con Sandbox no sirve con las
+      llaves nuevas).
+- [ ] Publicar un video de prueba y confirmar que llega.
+- [ ] Decidir si se pide **Direct Post** (publicar sin pasar por la bandeja): es otra revisión, con
+      requisitos de pantalla adicionales.
+
+**Si la rechazan:**
+- [ ] Copiar **el motivo exacto** ("See why" / correo) aquí, tal cual, con la fecha.
+- [ ] Revisar contra esta tabla qué parte señalan (ícono, video, explicación, URLs, scopes) antes de
+      cambiar nada.
+
+### Respuesta de TikTok
+
+*(pendiente — pegar aquí fecha y texto cuando llegue)*
