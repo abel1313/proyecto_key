@@ -28,7 +28,7 @@ abajo su sección marcada con **🔴 PRUEBA PENDIENTE**, con:
 | 1 | **Prueba 7** — Apartado es sin dinero | 🔴 pendiente | Lo programado hoy: abonos en Apartado, cambiar a Ir pagando, grupos de Apartados, venta directa |
 | 2 | **Prueba 8** — Botón Volver alineado | 🔴 pendiente | Que el botón quede en el mismo borde que la tarjeta en 13 pantallas |
 | 3 | **Prueba 4** — Quitar, cambiar o agregar un artículo con abonos | 🔴 **reiniciar** (segunda vuelta, pedidos nuevos H4–H7) | La primera vuelta encontró un error al agregar; ya está corregido y se repite completa |
-| 4 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente | Stock y mensajes al cancelar Ir pagando y pedidos unidos |
+| 4 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente (reescrita, pedidos K1–K6) | Stock y mensajes al cancelar Ir pagando, Apartado, un pedido unido y un Pagado (devolución) |
 | — | **Prueba 6** — Venta: "Falta entregarlo" | ⛔ todavía no se puede | No está programada; la prueba está escrita para cuando se haga |
 | — | **Prueba 1** — Botón ← Regresar en páginas legales | ✅ hecha | — |
 | — | **Prueba 2** — TikTok | ✅ hecha | — |
@@ -716,7 +716,7 @@ con cuentas tocadas por ese error, **no los uses**: se hacen pedidos nuevos (**H
 
 Para abrir cada uno: **Pedidos → Mis pedidos** → en el buscador escribe su número → **👁 Detalle**.
 Los controles están en cada tarjeta de artículo: **−** (quita una pieza, sin preguntar) y **⇄**
-(cambiarlo por otro). **➕ Agregar artículo** está arriba, junto al encabezado del pedido.
+(cambiarlo por otro). **➕ Agregar artículo** está arriba, junto a **🔁 Cambiar forma de cobro**.
 
 **Caso 1 — Quitar un artículo y que lo ya pagado alcance (H4)**
 1. Abre **H4**. Arriba: **Ir pagando**, *"Debe: $50"* (Total $200 · pagado $150).
@@ -883,48 +883,120 @@ esta mal porque ya agregue el nuevo producto de 300
 
 ## Prueba 5 — Cancelar un pedido con abonos
 
-### 🔴 PRUEBA PENDIENTE
+### 🔴 PRUEBA PENDIENTE (reescrita 2026-10-01 con los textos reales de las pantallas)
 
-Hay dos lugares para cancelar y **no dicen lo mismo** (hallazgo 5.1; ya decidido arreglarlo, todavía
-no está programado):
+**La regla, en palabras:** al cancelar, lo que pasa con el **stock** depende de si la mercancía ya
+se la llevó el cliente:
 
-| Dónde | Botón | Qué dice hoy al terminar |
-|---|---|---|
-| **Pedidos → Mis pedidos**, en la card | **Cancelar** → *"¿Por qué cancelas este pedido?"* (elige motivo) → **Cancelar pedido** | Solo *"Pedido cancelado correctamente"* |
-| **Ventas → Créditos / Abonos** | **✖ Cancelar** | Pregunta *"¿Cancelar el crédito (ir pagando) de …?"* y al final el mensaje completo |
+| Forma de cobro del pedido | ¿Se llevó la mercancía? | Al cancelar, el stock… | Lo que queda anotado |
+|---|---|---|---|
+| **💳 Ir pagando** que todavía debe | Sí, ya se la llevó | **no** regresa | lo que debía, como deuda que no se cobró |
+| **📦 Apartado** | No, sigue en la tienda | **sí** regresa | lo que había dado (saldo a favor) |
+| Pedido ya **Pagado** (liquidado) | Sí | **sí** regresa: es una devolución | cuánto hay que devolverle. **Solo un administrador** |
 
-**Antes de empezar — preparar 3 pedidos de Ir pagando (Ventas → Venta directa)**
-- **K1:** 1 artículo, enganche $50.
-- **K2:** 1 artículo, enganche $50.
-- **K3** y **K4:** 1 artículo cada uno, sin enganche; únelos (K3 titular) como en la Prueba 3.
+Hay **dos lugares** para cancelar y hoy **no dicen lo mismo** (hallazgo 5.1, ya decidido arreglarlo):
+- **Ventas → Créditos / Abonos**: dice montos y si regresó el stock.
+- **Pedidos → Mis pedidos**, botón **✖ Cancelar** de la card: solo dice *"Pedido cancelado correctamente"*.
 
-Anota el **stock** de cada artículo antes de cancelar (en **Catálogo → Modelos** o en la tienda).
+**Antes de empezar**
+1. Entra a QA **con tu usuario de administrador** y haz recarga forzada (`Ctrl + Shift + R`).
+2. Para el caso 5 necesitas también **un usuario que no sea administrador** (por ejemplo, uno de
+   vendedor). Si no tienes, sáltate ese caso y anótalo.
+3. Elige **un artículo de $100** (o el precio que tenga; las cuentas van con la fórmula) y anota su
+   **stock** en **Tienda** antes de empezar. Vuelve a mirarlo después de cada cancelación.
+4. Crea estos pedidos en **Ventas → Venta directa** (agrega el artículo → elige la forma de cobro →
+   escribe el enganche → **💰 Cobrar**) y anota cada número:
 
-**Caso 1 — Cancelar Ir pagando desde Créditos / Abonos (K1)**
-1. **Ventas → Créditos / Abonos** → K1 → **✖ Cancelar** → confirma **Sí, registrar como incobrable**.
-   - ✅ Debe pasar: queda **Cancelado**; el mensaje dice que el stock **no** se devolvió y la deuda
-     que quedó ($ que faltaba).
-   - ⛔ No puede pasar: que el stock suba (la mercancía ya se la llevó).
+   | Pedido | Forma de cobro | 💰 Pago inicial (enganche) | Debe | Número |
+   |---|---|---|---|---|
+   | **K1** | 💳 Ir pagando | **$40** | $60 | |
+   | **K2** | 💳 Ir pagando | **$40** | $60 | |
+   | **K3** | 📦 Apartado | **nada** (Apartado es sin dinero) | $100 | |
+   | **K4** | 💳 Ir pagando | nada | $100 | |
+   | **K5** | 💳 Ir pagando | nada | $100 | |
+   | **K6** | 💳 Ir pagando | **$40** | $60 | |
 
-**Caso 2 — Cancelar Ir pagando desde la card (K2)**
-1. **Pedidos → Mis pedidos** → card de K2 → **Cancelar** → motivo **El cliente avisó** → **Cancelar pedido**.
-   - ✅ Debe pasar: queda Cancelado y el stock **no** sube.
-   - Anota con 💬: el mensaje **no** dice cuánto devolver ni la deuda (es lo que se va a arreglar).
+5. **Une K4 y K5:** abre el detalle de **K4** → **🔗 Unir con otros pedidos** → busca **K5** →
+   elígelo → **Unir 2 pedidos**. K4 queda como titular (es el que sale en la lista).
+6. **Liquida K6:** **Ventas → Créditos / Abonos** → pestaña **📋 Cuentas por cobrar** → en la tarjeta
+   de **K6** toca **+ Abono** → **$60** → guárdalo. K6 pasa a la pestaña **✅ Liquidados**.
 
-**Caso 3 — Cancelar un pedido unido que no es el titular (K4)**
-1. Busca K4 por su número → **Cancelar**.
-   - ✅ Debe pasar: solo K4 queda cancelado; en el detalle de K3 el grupo ya no lo suma al total ni al
-     saldo.
-   - ⛔ No puede pasar: que se cancele también K3.
+**Caso 1 — Cancelar un Ir pagando desde Créditos / Abonos (K1)**
+1. **Ventas → Créditos / Abonos** → **📋 Cuentas por cobrar** → tarjeta **💳 Ir pagando #K1** →
+   **✖ Cancelar**.
+   - ✅ Pregunta: *"¿Cancelar el crédito (ir pagando) de <cliente>?"* y abajo *"El producto ya fue
+     entregado. La deuda de $60.00 quedará registrada."* Cuenta: $100 − $40 = $60.
+   - ✅ Hay que elegir un motivo: **No se presentó**, **El cliente avisó** o **Error al capturar**.
+2. Elige **El cliente avisó** → **Sí, registrar como incobrable**.
+   - ✅ Sale **Cancelado** con *"FIADO cancelado. Stock NO devuelto (producto entregado). Deuda
+     incobrable: $60.00"* y los botones **🖨️ Imprimir ticket** y **Cerrar**.
+     *(FIADO es el nombre interno de Ir pagando. Si prefieres que diga "Ir pagando", anótalo con 💬.)*
+   - ✅ K1 ya no está en **📋 Cuentas por cobrar** y sí en **✖ Cancelados**.
+   - ✅ El stock del artículo **no** cambió.
+   - ⛔ Que el stock suba: la mercancía ya se la llevó.
 
-**Caso 4 — Cancelar con un usuario que no es administrador**
-1. Entra con un usuario sin rol de administrador → intenta cancelar un pedido **Pagado**.
-   - ⛔ No puede pasar: que lo deje. Solo un administrador cancela un pedido pagado (es devolución).
+**Caso 2 — Cancelar un Ir pagando desde la card (K2)**
+1. **Pedidos → Mis pedidos** → busca **K2** → en su card **✖ Cancelar**.
+   - ✅ Pregunta: *"¿Por qué cancelas este pedido?"*, con *"Pedido #K2"* y los mismos 3 motivos.
+2. Elige **El cliente avisó** → **Cancelar pedido**.
+   - ✅ Sale *"Pedido cancelado correctamente"* y la card desaparece de la lista.
+   - ✅ El stock **no** cambió (igual que el caso 1).
+   - ℹ️ Aquí **no** dice que quedó a deber $60. Es el hallazgo 5.1, todavía no se arregla: no es error
+     de esta prueba.
 
-- [ ] Caso 1: Créditos / Abonos, stock no regresa, mensaje completo
-- [ ] Caso 2: desde la card, stock no regresa (anotar que no dice montos)
-- [ ] Caso 3: pedido unido, solo cae el que se cancela
-- [ ] Caso 4: un no-admin no cancela un pagado
+**Caso 3 — Cancelar un Apartado desde Créditos / Abonos (K3)**
+1. **Ventas → Créditos / Abonos** → **📋 Cuentas por cobrar** → tarjeta **📦 Apartado #K3** →
+   **✖ Cancelar**.
+   - ✅ Pregunta: *"¿Cancelar el apartado de <cliente>?"* con *"Pagó $0.00 de $100.00. Se devolverá
+     el stock."*
+2. Elige **No se presentó** → **Sí, cancelar y devolver stock**.
+   - ✅ Sale *"APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $0.00 El stock fue
+     devuelto."*
+   - ✅ El stock del artículo **subió 1**: la mercancía nunca salió de la tienda.
+   - ⛔ Que el stock no suba.
+
+**Caso 4 — Cancelar un pedido unido que no es el titular (K5)**
+1. Abre el detalle de **K4**: arriba debe decir el total de los dos pedidos, **$200**.
+2. **Pedidos → Mis pedidos** → en el buscador escribe el número **exacto** de **K5** (los pedidos
+   unidos que no son titulares solo salen así) → en su card **✖ Cancelar** → **El cliente avisó** →
+   **Cancelar pedido**.
+   - ✅ Sale *"Pedido cancelado correctamente"*.
+3. Vuelve a abrir el detalle de **K4**.
+   - ✅ K4 sigue **Ir pagando**, sin cancelar.
+   - ✅ El total del grupo ya **no** suma a K5: **$100** (solo K4) y debe **$100**.
+   - 💬 Anota cómo se lee el encabezado del grupo (si todavía dice "2 pedidos" con K5 cancelado).
+   - ✅ El stock **no** cambió (K5 era Ir pagando: la mercancía ya salió).
+   - ⛔ Que se cancele también K4, o que el grupo siga sumando los $100 de K5.
+
+**Caso 5 — Un usuario que no es administrador intenta cancelar un pedido Pagado (K6)**
+1. Cierra sesión y entra con el usuario **que no es administrador**.
+2. **Pedidos → Mis pedidos** → busca **K6** (Pagado).
+   - ✅ Puede pasar una de dos cosas, las dos están bien: no le sale el botón **✖ Cancelar** (su rol no
+     tiene ese permiso), o al tocarlo sale *"Este pedido no lo puedes cancelar tú — Escríbenos y con
+     gusto lo cancelamos por ti."* y **no** se cancela.
+   - ⛔ Que K6 quede cancelado.
+   - 💬 Si le sale ese texto, anota si te parece bien para alguien del personal: es el mismo que ve
+     un cliente.
+3. Cierra sesión y vuelve a entrar como **administrador**.
+
+**Caso 6 — El administrador cancela un pedido Pagado: es una devolución (K6)**
+1. **Ventas → Créditos / Abonos** → pestaña **✅ Liquidados** → tarjeta de **K6** → **✖ Cancelar**.
+   - ✅ Pregunta: *"¿Cancelar (devolución) el pedido de <cliente>?"* con *"Ya se pagó por completo
+     ($100.00). Se devolverá el stock."*
+   - ✅ Entre los motivos **no** sale **No se presentó** (el cliente sí cumplió).
+2. Elige **El cliente avisó** → **Sí, cancelar y devolver stock**.
+   - ✅ Sale *"Pedido pagado cancelado (devolución). Stock devuelto. Monto a reembolsar: $100.00 El
+     stock fue devuelto."* Cuenta: le regresas lo que pagó, $40 + $60 = $100.
+   - ✅ El stock del artículo **subió 1**.
+   - ✅ K6 aparece en **✖ Cancelados**.
+   - 💬 Anota cómo aparece la venta de K6 en **Reportes** (el back la marca como *Devuelta*).
+
+- [ ] Caso 1: Ir pagando desde Créditos / Abonos → deuda $60, stock igual
+- [ ] Caso 2: Ir pagando desde la card → "Pedido cancelado correctamente", stock igual
+- [ ] Caso 3: Apartado desde Créditos / Abonos → stock +1
+- [ ] Caso 4: pedido unido K5 → solo cae K5, el grupo queda en $100
+- [ ] Caso 5: no administrador → K6 no se cancela
+- [ ] Caso 6: administrador, devolución → reembolsar $100, stock +1
 
 ### 5.1 Hallazgo al preparar esta prueba
 
