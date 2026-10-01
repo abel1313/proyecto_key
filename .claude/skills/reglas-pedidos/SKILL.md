@@ -39,13 +39,37 @@ Leyenda: ✅ así funciona hoy · 🔮 para después (no está programado) · �
 | **Contado, efectivo** (en el local) | Completo en ese momento | Ahí mismo: el cliente está en el local y se lo lleva. El pedido queda terminado | ✅ |
 | **Contado, tarjeta** (en el local, terminal) | Tarjeta de débito o crédito, de una exhibición o a meses sin intereses | Ahí mismo, igual que efectivo | ✅ tarjeta · MSI ver 3 |
 | **Pago en línea** (el cliente paga con tarjeta desde su cuenta en la tienda) | Completo, con tarjeta, al hacer el pedido | **No** se entrega en ese momento: el cliente pone **a dónde** y **cuándo** se lo llevan, y la tienda se lo lleva | 🔮 |
-| **Apartado** | Solo efectivo o transferencia. **Nunca tarjeta ni MSI** (hoy) | Cuando va al local a recogerlo | ✅ (ver ❓ 4.1) |
-| **Ir pagando** | Abonos en efectivo o transferencia. **Nunca tarjeta ni MSI**. Los abonos **no caducan** | El cliente se lleva la mercancía y va pagando | ✅ |
+| **Apartado** | **Sin dinero.** Es el pedido que el cliente hace por Facebook, un live o un mensaje: solo lo pide, no ha dado nada. Se paga **completo** al recogerlo | Cuando va al local a recogerlo | regla 2026-10-01 (ver 2.1; el código todavía acepta dinero) |
+| **Ir pagando** | Abonos en efectivo o transferencia. **Nunca tarjeta ni MSI**. Los abonos **no caducan**. **Cualquier pedido en el que el cliente ya dio algo de dinero es Ir pagando** (enganche, transferencia, o un familiar que trajo $100) | El cliente se lleva la mercancía y va pagando | ✅ |
 | **Apartado, al recogerlo con tarjeta** | Al ir al local a recogerlo, poder pagar con tarjeta y, si cumple 3, a MSI | Al recogerlo | 🔮 |
 
+- Hoy el cliente **no puede pagar con tarjeta en la tienda en línea**: lo que pide por su cuenta queda
+  como pedido sin pagar (Apartado). El pago en línea es 🔮 (fila de arriba).
 - El botón **Cobrar** de la card no cobra un Apartado ni un Ir pagando: manda a Créditos / Abonos. ✅
+- **Un abono es uno solo, se dé donde se dé:** "💳 Registrar abono" en el detalle del pedido, la
+  pantalla Créditos / Abonos y el "Pago inicial (enganche)" de la venta usan el mismo registro
+  (`POST /v1/abonos/{pedidoId}`). No hay abonos "de primera" y "de segunda". ✅
 - Cuando lo pagado cubre el total, el pedido pasa solo a **PAGADO** y se crea su venta. ✅
 - **Ir pagando nunca tiene MSI**, aunque el pedido cumpla las reglas de 3.
+
+### 2.1 Apartado = sin dinero (decidido 2026-10-01)
+
+Palabras del dueño: *"El apartado es porque lo piden por Face, live o mensaje, y ahí no me ha dado
+nada, solo lo pide. Si al hacer el pedido me hace una transferencia o manda a la prima, la tía, a
+dejarme $100, lo tendría que poner en Ir pagando porque ya me dio un enganche, y en Apartado no
+podría entrar."*
+
+| Situación | Qué hace el sistema |
+|---|---|
+| Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Sale un aviso que **no deja seguir** y explica: un Apartado es sin dinero; si el cliente ya dio algo, el pedido es **Ir pagando**. Botón para cambiarlo a Ir pagando |
+| Apartado ya hecho y el cliente llega a dar dinero (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
+| Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
+| Apartados unidos | No hay "Abonar al grupo": se pagan completos al recogerlos |
+| El cliente recoge el Apartado | Paga **todo** en ese momento (❓ cómo se cobra, ver `PLAN` §10.6) |
+
+Estado: 🆕 **por programar** (lista en `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10.6). Hasta que se haga, el
+código todavía acepta enganche y abonos en Apartado. Si el dueño pide "deja dar un abono en un
+Apartado", **recordarle esta regla**: para dar un abono, el pedido se cambia a Ir pagando.
 
 ## 3. Meses sin intereses (MSI)
 
@@ -85,24 +109,13 @@ Al separar: 50 y 50 → cada uno debe $150. Los 100 a uno solo → uno debe $100
 dueño eso no importa: el dinero es del grupo y al separar se reparte como él diga (R14). En pantalla
 no hay que presentarlo como si el abono fuera de un pedido.
 
-### ❓ 4.1 Apartado: ¿acepta anticipo / abonos? — falta confirmar
-
-- 2026-09-29 (`PLAN` §1): *"Apartado: lo deja encargado. Si deja anticipo, se anota (efectivo o
-  transferencia)."*
-- 2026-10-01 (dueño): *"Si es apartado, cuando lo va a recoger es porque lo va a pagar por completo,
-  porque si va a estar dando abonos eso sería Ir pagando. Si unimos 2 pedidos [apartados], aquí no
-  aplican abonos."*
-- Código hoy: Apartado acepta **enganche** al crearlo y **abonos** después (y "Abonar al grupo").
-
-No cambiar nada hasta que el dueño diga cuál de las dos queda.
-
 ---
 
 ## 5. Quitar, cambiar y cancelar
 
 Ver `PENDIENTES_2026-09-29.md` B. En corto: la cuenta es **solo de ese pedido**; si lo pagado cubre
 el nuevo total queda Pagado; no se puede quitar el último artículo (se cancela el pedido); cancelar
-un Apartado regresa el stock y deja saldo a favor; cancelar un Ir pagando **no** regresa el stock.
+un Apartado regresa el stock (con la regla 2.1 ya no tiene dinero, así que no deja saldo a favor); cancelar un Ir pagando **no** regresa el stock.
 
 ---
 

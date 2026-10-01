@@ -298,4 +298,20 @@ Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`
 | 10.2 | **Apartado al recogerlo:** poder liquidarlo en el local con tarjeta y, si cumple las reglas de MSI (mínimo $300, todos los artículos lo aceptan), a meses | 🔮 (Bloque 6) |
 | 10.3 | **Ir pagando nunca tiene MSI**, aunque el pedido cumpla las reglas | regla para el Bloque 6 |
 | 10.4 | Apartado e Ir pagando hoy: **ni tarjeta ni MSI** (efectivo o transferencia) | ✅ así está |
-| 10.5 | ❓ **¿Apartado acepta anticipo / abonos?** El §1 dice "si deja anticipo, se anota"; el 2026-10-01 el dueño dijo que un Apartado se paga completo al recogerlo y que dar abonos es Ir pagando. El código hoy acepta enganche y abonos en Apartado. **Falta que el dueño confirme** | ❓ |
+| 10.5 | ✅ **Decidido: Apartado = sin dinero.** Es el pedido que el cliente hace por Facebook, live o mensaje y no ha dado nada. Si dio cualquier cosa (enganche, transferencia, un familiar que trajo $100) es **Ir pagando**. Reemplaza lo del §1 ("si deja anticipo, se anota"). Regla completa: skill `reglas-pedidos` 2.1 | 🆕 por programar (10.6) |
+
+### 10.6 Qué hay que cambiar para "Apartado = sin dinero" (🆕, sin programar)
+
+| # | Dónde | Cambio |
+|---|---|---|
+| A1 | Back, `AbonoServiceImpl.registrarAbono` | Rechazar abonos a un Apartado: *"Para dar un abono, cambia el pedido a Ir pagando"*. Cubre de un tiro el detalle, Créditos / Abonos, el enganche de la venta y "Abonar al grupo", porque todos pasan por ahí |
+| A2 | Back, venta directa | Rechazar un Apartado con pago inicial mayor a 0 (por si el front no lo frena) |
+| A3 | Back, `PedidoServiceImpl.cambiarTipoPedido` | No pasar a Apartado si se cobra algo en ese momento o si el pedido ya tiene abonos |
+| A4 | Front, venta directa | Apartado + "Pago inicial (enganche)" mayor a 0 → aviso que no deja seguir, explica la regla y ofrece **Cambiar a Ir pagando** |
+| A5 | Front, detalle del pedido y Créditos / Abonos | En un Apartado, "💳 Registrar abono" abre el aviso *"Para dar un abono, cambia el pedido a Ir pagando"* con botón a **🔁 Cambiar forma de cobro** |
+| A6 | Front, pedidos unidos | Sin "💵 Abonar al grupo" en un grupo de Apartados |
+| A7 | Datos en QA y prod | Consulta para encontrar Apartados que **ya tienen** abonos o enganche, y decidir con el dueño (lo natural: pasarlos a Ir pagando). Script probado antes de entregarlo (regla de `CLAUDE.md`) |
+| A8 | ❓ Cobrar al recogerlo | Hoy un Apartado solo se liquida con abonos. Con la regla nueva hace falta cobrarlo **completo de una vez** al recogerlo. Propuesta: el botón **Cobrar** de la card cobra el total del Apartado (efectivo o transferencia; tarjeta y MSI cuando exista 10.2) y lo deja Pagado. **Falta que el dueño confirme** |
+
+Consecuencias: cancelar un Apartado ya no deja "saldo a favor" (no tiene dinero), y la Prueba 5 de
+`PRUEBAS_QA_2026-10-01.md` cambia en ese punto.
