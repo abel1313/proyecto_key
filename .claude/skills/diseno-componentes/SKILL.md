@@ -121,6 +121,8 @@ la esquina de la página cuando la tarjeta está centrada.
 - [ ] Tokens nuevos dados de alta completos (sección 5).
 - [ ] Captura de día y de noche (`body.theme-light` / `body.theme-dark`), en escritorio y en celular.
 - [ ] Probado cambiando un color en Personalización: el componente nuevo cambia sin tocar código.
+- [ ] Si se tocó un componente compartido o un token: prueba de cada pantalla que lo usa, antes y
+      después (skill `pruebas-de-impacto`).
 
 ## 7. "Cámbialo conforme a la skill" (pantalla existente)
 
