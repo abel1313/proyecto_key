@@ -125,4 +125,5 @@ Cada paso deja el sistema funcionando y con pruebas en verde; nunca un "big bang
 - [ ] El controller no tiene lógica; el servicio no tiene reglas.
 - [ ] Mensajes de error en palabras del dueño (skill `reglas-pedidos`, sección 1).
 - [ ] `mvn test` completo en verde.
+- [ ] Mapa de impacto y pruebas antes/después de todo lo que toca el cambio (skill `pruebas-de-impacto`).
 - [ ] README del dominio, `CAMBIOS_FRONT.md` y `CLAUDE.md` (tablas) actualizados.
