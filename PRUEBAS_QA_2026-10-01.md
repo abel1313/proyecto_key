@@ -28,8 +28,8 @@ abajo su sección marcada con **🔴 PRUEBA PENDIENTE**, con:
 | 1 | **Prueba 7** — Apartado es sin dinero | 🔴 pendiente | Lo programado hoy: abonos en Apartado, cambiar a Ir pagando, grupos de Apartados, venta directa |
 | 2 | **Prueba 8** — Botón Volver alineado | 🔴 pendiente | Que el botón quede en el mismo borde que la tarjeta en 13 pantallas |
 | 3 | **Prueba 1** — Botón ← Regresar en páginas legales | 🟡 a medias | Ya se vio con sesión en Privacidad; faltan las otras 2 páginas y sin sesión |
-| 4 | **Prueba 3** — Pedidos unidos: abonar y separar | 🔴 pendiente | Abono al grupo (Ir pagando), saldos, separar con reparto |
-| 5 | **Prueba 4** — Quitar o cambiar un artículo con abonos | 🔴 pendiente | Que el pedido quede Pagado o debiendo según lo abonado |
+| 4 | **Prueba 3.7-bis** — Pedidos unidos: lo que se cambió por tus notas | 🔴 pendiente | Un solo botón de abonar, sin "Este pedido", aviso del monto al escribir, aviso centrado (la 3.7 ya pasó ✅) |
+| 5 | **Prueba 4** — Quitar o cambiar un artículo con abonos | 🔴 pendiente (reescrita) | Que el pedido quede Pagado o debiendo según lo abonado, con las cuentas en cada paso |
 | 6 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente | Stock y mensajes al cancelar Ir pagando y pedidos unidos |
 | — | **Prueba 6** — Venta: "Falta entregarlo" | ⛔ todavía no se puede | No está programada; la prueba está escrita para cuando se haga |
 | — | **Prueba 2** — TikTok | ✅ hecha | — |
@@ -41,7 +41,7 @@ abajo su sección marcada con **🔴 PRUEBA PENDIENTE**, con:
 | Botón ← Regresar en páginas legales | front `dev` y `qa` | 🟡 se ve con sesión en Privacidad; faltan casos (Prueba 1) |
 | TikTok: conectar, quitar acceso, subir video | prod (con llaves de Sandbox) | ✅ probado |
 | TikTok: revisión de la app de Production | developers.tiktok.com | ⏳ esperando respuesta (`PENDIENTES` E.2) |
-| Pedidos unidos: saldos y abonos | back y front `dev`/`qa` | 🔄 probando (Prueba 3) |
+| Pedidos unidos: saldos y abonos | back y front `dev`/`qa` | ✅ 3.7 probada; 🔴 falta 3.7-bis (cambios por tus notas) |
 | Quitar / cambiar artículo con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 4) |
 | Cancelar pedido con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 5) |
 | Venta: lo que paga decide y "Falta entregarlo" | — | 🆕 por programar (Prueba 6) |
@@ -221,8 +221,7 @@ suma a la confusión de 3.4. Todo este documento se revisó contra el código.
   pedido se anotó cada abono antes: al separar se reparte como se diga. O sea, la regla que pides
   ya se cumple al separar; lo que sobra es el segundo botón.
 
-**Por hacer (siguiente sesión):** cuando el pedido está unido, esconder **💳 Registrar abono** y dejar
-solo **💵 Abonar al grupo**.
+✅ **Hecho el 2026-10-01** (ver 3.7): unido, solo queda **💵 Abonar al grupo**.
 
 **Por decidir junto con ese cambio:**
 - [ ] "📋 Pagos registrados" hoy muestra solo los abonos de este pedido (un abono al grupo puede
@@ -260,77 +259,165 @@ ya estás dentro. Los otros salen en la sección *"🔗 N pedidos unidos"*, con 
 **Abrir pedido #Y** (para ver o cambiar sus datos de entrega). No es un error de cuentas, pero se
 ve disparejo.
 
-**Por hacer (siguiente sesión):** ponerle al pedido abierto la misma cabecera que a los otros
-(*Pedido #X · cliente · N artículos · $total · "este"*), para que los pedidos del grupo se vean
-iguales.
+✅ **Hecho el 2026-10-01** (ver 3.7): el pedido abierto ya sale con la misma cabecera que los otros.
 
-### 3.7 🔴 PRUEBA PENDIENTE — Pedidos unidos: abonar al grupo y separar
+### 3.7 ✅ Pedidos unidos: abonar al grupo y separar — probada en QA el 2026-10-01
 
-Con la regla nueva, un grupo de **Apartados** no recibe abonos (se paga completo; eso se prueba en la
-Prueba 7). Esta prueba se hace con pedidos de **Ir pagando**.
-esta no la entiendo no pusiste los pasos
+Resultado: **pasó** (las 5 casillas marcadas). Tus notas y lo que se hizo con cada una:
 
-**Antes de empezar — preparar 2 pedidos**
-1. Menú **Ventas → Venta directa** → agrega 1 artículo de ~$200 → **💳 Ir pagando** → enganche en 0
-   → **💰 Cobrar**. Anota el número: pedido **G1**.
-2. Espera un minuto y repite con otro artículo de ~$200: pedido **G2** (así G1 es el más viejo). hace falta especificar si es con ir pagando hay qu ser muy especifico
-3. y si se dio enganche o no
-3. **Pedidos → Mis pedidos** → busca **G1** → **👁 Detalle** → **🔗 Unir con otros pedidos** → busca
-   **G2** → elígelo → **Unir 2 pedidos**.
-   - ✅ Debe pasar: sale el bloque **"🔗 Unido en el grupo #…"** con G1 y G2.
-   - listo, dejo unir
+> 💬 *"Esta no la entiendo, no pusiste los pasos."* (sobre el párrafo de arriba de la prueba)
 
-**Paso A — Abonar al grupo**
-1. En el detalle de G1, en el bloque del grupo → **💵 Abonar al grupo**.
-2. Monto **$100**, forma de pago **Efectivo**, *¿Con cuánto paga?* **$200** → **Registrar abono**.
-   - ✅ Debe pasar: se registra; sale el cambio de $100. *Total del grupo* $400, *Pagado* $100,
-   - pero aqui veo 2 botones uno que dice abonar al grupo, y otro que dice registrar abono, cual es la diferencia, porque estan 2 botones?
-   - Sigo viendo diferencias que ya te habia comentado en lso epdidos en unso epdidos tiene cosas de mas en otro no eso es lo que ya te habia comentado
-   - Y si paso la prueba, solo que en el modal que da el resultado los textos estan disparejos unos estan en medio otros a la derecha y el boton de ok esta en elc ento texton en elcentro
-   - otros a la izquiera hay que homologarlos
-   - Hasta arriba del detalle dice total 2 pedidos igual al total 400 abajo dice  este pedido 200 pero no se entiende a que se refiere a que pedido eso
-   - es ambiguo no?
-   - 
-     *Saldo* $300. En la tabla, **G1** (el más viejo) muestra Pagado $100 y G2 $0.
-   - es correcto esto
-   - ⛔ No puede pasar: que pida tarjeta, que se reparta en partes iguales, o que el saldo no cuadre
-     (Total ≠ Pagado + Saldo).
-3. Regresa a **Mis pedidos**.
-   - ✅ Debe pasar: solo sale la card de G1 (la del titular), con **"Total de los 2 pedidos"** y
-     **"Falta $300"**.
-   - ⛔ No puede pasar: que salga la card de G2 suelta en la lista.
-   - es correcto hasta aqui solo que siigue igual en mis pedidos en la card g1 dice 2 pedidos total 400 y dice este pedido 200 pero no se entiende por que
-   - o para que es, debe de decir solo el total 2 pedidos 400 y nada mas
-   - 
-4. Intenta abonar **$500** al grupo.
-   - ✅ Debe pasar: aviso *"Monto mayor al saldo"* y no se registra nada.
-   - ⛔ No puede pasar: que lo acepte (el saldo es $300).
-    Es corrcto, solo que lo correcto seria que abajo del monto del input se hiciera el calculo o que apareciera abajo el modal que aprece despues porque estaria
-   - llenaod mas campos mas chamba y al final no se puede entiendes?
-   - 
-**Paso B — Separar con reparto**
-1. En el detalle de G1 → **✂️ Separar pedidos**. Marca **Sale** en los dos.
-2. En **Se queda con** pon $50 y $50 (el cliente dio $100).
-   - ✅ Debe pasar: **Queda debiendo** dice $150 y $150 mientras escribes.
-3. Cambia a $100 y $50. es correcto se ve cuando ingresar el transpaso y si no pone todo el saldo no deja seguir muy bien
-   - ✅ Debe pasar: sale un aviso en rojo debajo de la tabla y el botón **Separar** queda gris.
-   - ⛔ No puede pasar: que deje separar (suma $150 y el cliente dio $100).
-4. Regresa a $100 y $0 → **Separar**.
-   - ✅ Debe pasar: G1 queda Ir pagando, pagado $100, debe $100; G2 queda debiendo $200. Cada uno sale
-     con su propia card en Mis pedidos, con **"Pagado $X · Falta $Y"** (G2 sin "Pagado" porque no tiene
-     abonos).
-   - Es correcto
-   - ⛔ No puede pasar: que se pierda dinero (la suma de lo pagado de los dos tiene que ser $100), o
-     que G1 o G2 sigan diciendo "Unido".
-5. Abre el detalle de G1.
-   - ✅ Debe pasar: el encabezado dice **"Debe: $100"** con *Total $200 · pagado $100* abajo.
-   - es correcto
+↳ Ese párrafo no era un paso, era la explicación de por qué esta prueba usa pedidos de **Ir
+pagando** y no Apartados: desde hoy un Apartado es sin dinero (Prueba 7), así que un grupo de
+Apartados no acepta abonos sueltos. Ya se quitó y los pasos de abajo dicen exactamente qué elegir.
 
-- [ x] Abono al grupo: llena primero el más viejo y cuadra Total = Pagado + Saldo
-- [ x] Card del grupo con "Falta" y sin la card suelta del otro pedido
-- [ x] No deja abonar más que el saldo
-- [ x] Separar no deja si la suma no es exacta
-- [x] Al separar, cada pedido queda con lo que se le asignó y con su card "Pagado · Falta"
+> 💬 *"Hace falta especificar si es con Ir pagando, hay que ser muy específico, y si se dio enganche o no."*
+
+↳ Corregido abajo en **"Antes de empezar"**: los dos pedidos son **Ir pagando** y **sin enganche**
+(Pago inicial en $0), con el botón exacto que hay que tocar.
+
+> 💬 *"Veo 2 botones, uno que dice Abonar al grupo y otro que dice Registrar abono, ¿cuál es la
+> diferencia, por qué están 2 botones?"*
+
+↳ Eran dos caminos para lo mismo: **💵 Abonar al grupo** (para todo el grupo) y **💳 Registrar
+abono** (el de un pedido suelto, que seguía saliendo aunque el pedido estuviera unido). **Ya se
+quitó el segundo** cuando el pedido está unido: queda solo **💵 Abonar al grupo**, y donde estaba
+el otro sale la nota *"Este pedido está unido: los pagos se registran para todo el grupo con 💵
+Abonar al grupo, en el bloque de arriba"*. El botón que guarda dentro del formulario también se
+llama ahora **💵 Abonar al grupo** (antes decía "Registrar abono" y por eso parecían dos cosas).
+
+> 💬 *"Sigo viendo diferencias que ya te había comentado en los pedidos: en unos pedidos tiene
+> cosas de más, en otro no."*
+
+↳ Es lo de 3.6: el pedido abierto no tenía la misma cabecera que los otros en *"🔗 N pedidos
+unidos"*. **Ya se agregó**: ahora sale primero *"Pedido #X · paga y recoge · cliente · N artículos ·
+$total"* con la leyenda *"Es el que tienes abierto (sus artículos están arriba)"*, igual que los
+demás (que conservan *Abrir pedido #Y* porque sus artículos se despliegan ahí mismo).
+
+> 💬 *"Sí pasó la prueba, solo que en el modal que da el resultado los textos están disparejos:
+> unos están en medio, otros a la derecha, y el botón de OK en el centro; otros a la izquierda. Hay
+> que homologarlos."*
+
+↳ **Corregido.** El aviso de *"Abono registrado"* ahora tiene todos los renglones centrados y con
+el mismo formato: *Abono*, *Pagado del grupo*, *Falta* y, si hubo, *Cambio para el cliente*. Se
+quitó la lista *"Se repartió así: Pedido #…"* (alineada a la izquierda): el dinero es del grupo y
+lo de cada pedido se decide al separar. Si con el abono se termina de pagar, el título dice
+*"Grupo pagado"*.
+
+> 💬 *"Hasta arriba del detalle dice total 2 pedidos igual al total 400 y abajo dice 'Este pedido
+> 200', pero no se entiende a qué pedido se refiere. Es ambiguo, ¿no?"* — y en Mis pedidos:
+> *"debe decir solo el total 2 pedidos 400 y nada más"*.
+
+↳ **Sí era ambiguo. Corregido en los dos lugares:**
+- **Card de Mis pedidos:** solo *"Total de los 2 pedidos"* con **$400** (y *"Falta $X"* cuando ya
+  hay abonos). Se quitó *"Este pedido: $200"*.
+- **Encabezado del detalle:** solo *"Total de los 2 pedidos: $400"*. Abajo, en chico, ya no dice
+  *"Este pedido"*: dice *"Pagado $100 · falta $300"* (solo si ya hay abonos).
+- **Tabla del bloque del grupo:** cada pedido muestra solo su **Total**; se quitaron las columnas
+  *Pagado* y *Saldo* por pedido (regla ya decidida en la skill `reglas-pedidos`, sección 4). Lo
+  pagado y el saldo van abajo, del grupo completo, con la nota *"Lo pagado es de todo el grupo.
+  Cuánto se queda cada pedido se decide al ✂️ Separar pedidos"*.
+
+> 💬 *"En la tabla, G1 (el más viejo) muestra Pagado $100 y G2 $0 — es correcto esto."*
+
+↳ Era correcto por dentro (el abono llena primero el pedido más viejo), pero por la regla de arriba
+ya no se enseña por pedido: en la tabla solo verás los totales y abajo *Pagado $100 · Saldo $300*.
+
+> 💬 *"[Abonar $500] es correcto, solo que lo correcto sería que abajo del monto se hiciera el
+> cálculo o apareciera el aviso, porque estaría llenando más campos, más chamba, y al final no se
+> puede, ¿entiendes?"*
+
+↳ **Sí. Corregido:** en cuanto escribes el monto, debajo del campo sale:
+- si es más que el saldo: en rojo *"Es más de lo que se debe: el saldo del grupo es de $300.00"*,
+  el campo se pone rojo y el botón **💵 Abonar al grupo** se queda gris (no deja seguir);
+- si está bien: *"Quedaría debiendo $X"*.
+
+Lo mismo en el abono de un pedido suelto (**💳 Registrar abono** → campo *Monto*): *"Es más de lo
+que se debe: el saldo es de $X"* y **💾 Guardar abono** gris.
+
+### 3.7-bis 🔴 PRUEBA PENDIENTE — Lo que se cambió por tus notas de la 3.7
+
+**Antes de empezar — preparar 2 pedidos de Ir pagando sin enganche**
+1. Menú **Ventas → Venta directa**.
+2. Agrega **1 artículo**. Anota su precio (en el ejemplo, **$200**).
+3. En la forma de cobro toca **💳 Ir pagando**.
+4. En **💰 Pago inicial (enganche)** deja **$0** (no escribas nada).
+5. Toca **💰 Cobrar**. Anota el número de pedido que sale: es **G1**.
+6. Espera 1 minuto (así G1 queda como el más viejo) y repite los pasos 1 a 5 con **otro artículo**
+   (en el ejemplo, también de **$200**). Ese es **G2**.
+7. **Pedidos → Mis pedidos** → en el buscador escribe el número de **G1** → **👁 Detalle** →
+   **🔗 Unir con otros pedidos** → busca el número de **G2** → márcalo → **Unir 2 pedidos**.
+
+En los pasos de abajo, si tus precios no son de $200, la cuenta es: *total del grupo = precio de
+G1 + precio de G2*.
+
+**Paso 1 — Un solo botón de abonar (detalle de G1)**
+- ✅ Debe pasar: en el bloque *"🔗 Unido en el grupo #…"* está **💵 Abonar al grupo**. Más abajo,
+  donde antes estaba **💳 Registrar abono**, ahora solo hay una nota: *"Este pedido está unido: los
+  pagos se registran para todo el grupo con 💵 Abonar al grupo, en el bloque de arriba."*
+- ⛔ No puede pasar: que siga apareciendo **💳 Registrar abono** en G1.
+- Abre también el detalle de **G2** (en la tabla del grupo, clic en **#G2 ↗**): tampoco debe tener
+  **💳 Registrar abono**.
+
+**Paso 2 — Encabezado y tabla sin "Este pedido" (detalle de G1, todavía sin abonos)**
+- ✅ Debe pasar: arriba a la derecha dice solo **"Total de los 2 pedidos: $400.00"**, sin ningún
+  renglón chico debajo.
+- ✅ Debe pasar: la tabla del grupo tiene 4 columnas: *Pedido · Cliente · Estado · Total* (G1
+  $200, G2 $200). Abajo: *Total del grupo $400 · Pagado $0 · Saldo $400*.
+- ⛔ No puede pasar: que diga *"Este pedido: $200"* en cualquier parte, o que la tabla tenga
+  columnas *Pagado* / *Saldo* por pedido.
+
+**Paso 3 — Aviso del monto al escribir**
+1. Toca **💵 Abonar al grupo**. En **Monto** escribe **500** (no toques nada más).
+   - ✅ Debe pasar: sin salir del campo, debajo aparece en rojo *"Es más de lo que se debe: el
+     saldo del grupo es de $400.00."*, el campo se marca rojo y el botón **💵 Abonar al grupo**
+     de abajo está gris (no se puede tocar).
+   - ⛔ No puede pasar: que tengas que llenar *Forma de pago* o *¿Con cuánto paga?* para enterarte.
+2. Borra y escribe **100**.
+   - ✅ Debe pasar: el aviso rojo desaparece y debajo dice *"Quedaría debiendo $300.00"*. El botón
+     se activa.
+
+**Paso 4 — Aviso del resultado centrado**
+1. Con Monto **100**, *Forma de pago* **Efectivo**, *¿Con cuánto paga?* **200** → **💵 Abonar al grupo**.
+   - ✅ Debe pasar: sale *"Abono registrado"* y debajo, **todo centrado**, 4 renglones:
+     *Abono: **$100.00*** · *Pagado del grupo: $100.00* · *Falta: **$300.00*** ·
+     *Cambio para el cliente: **$100.00***. El botón **OK** centrado.
+   - ⛔ No puede pasar: textos a la izquierda y otros al centro, o la lista *"Se repartió así: Pedido #…"*.
+2. Cierra el aviso.
+   - ✅ Debe pasar: el encabezado ahora dice *"Total de los 2 pedidos: $400.00"* y debajo, chico,
+     *"Pagado $100.00 · falta $300.00"*. Debajo de la tabla: *Pagado $100 · Saldo $300* y la nota
+     *"Lo pagado es de todo el grupo. Cuánto se queda cada pedido se decide al ✂️ Separar pedidos."*
+
+**Paso 5 — Card de Mis pedidos**
+1. Regresa a **Pedidos → Mis pedidos** y busca **G1**.
+   - ✅ Debe pasar: la card dice **"Total de los 2 pedidos"** con **$400.00** a la derecha y
+     **"Falta $300.00"** debajo. Nada más.
+   - ⛔ No puede pasar: que diga *"Este pedido: $200"*, o que salga la card de G2 suelta.
+
+**Paso 6 — Los pedidos del grupo se ven iguales (detalle de G1, hasta abajo)**
+- ✅ Debe pasar: en *"🔗 2 pedidos unidos"* salen **dos** renglones con el mismo formato:
+  *"• Pedido #G1 · paga y recoge · cliente · 1 artículo · $200.00 — Es el que tienes abierto (sus
+  artículos están arriba)"* y *"▸ Pedido #G2 · cliente · 1 artículo · $200.00 — Abrir pedido #G2"*.
+- ⛔ No puede pasar: que G1 no salga en esa lista (era lo que se veía disparejo).
+
+**Paso 7 — Mismo aviso en un pedido suelto**
+1. Haz un pedido de Ir pagando sin enganche como en "Antes de empezar" (pasos 1 a 5), **sin unirlo**.
+   Ábrelo: **👁 Detalle** → **💳 Registrar abono** → en **Monto** escribe más que su total.
+   - ✅ Debe pasar: debajo del monto, en rojo, *"Es más de lo que se debe: el saldo es de $X."* y
+     **💾 Guardar abono** en gris.
+   - ⛔ No puede pasar: que deje guardar.
+
+- [ ] Paso 1: un solo botón de abonar en G1 y en G2
+- [ ] Paso 2: encabezado y tabla sin "Este pedido" ni Pagado/Saldo por pedido
+- [ ] Paso 3: el aviso de monto sale al escribir y bloquea el botón
+- [ ] Paso 4: aviso del resultado centrado, sin "Se repartió así"
+- [ ] Paso 5: card solo con "Total de los 2 pedidos" y "Falta"
+- [ ] Paso 6: G1 sale en "2 pedidos unidos" igual que G2
+- [ ] Paso 7: mismo aviso en un pedido suelto
+
+**Lo que sigue pendiente de 3.4 (no se hizo hoy):** el botón **"Detalle de los pagos"** que
+liste cada pago del grupo una sola vez y completo (decidido, skill `reglas-pedidos` sección 4).
+Necesita un cambio en el back para juntar los pagos de todos los pedidos del grupo.
 
 ### 3.8 Formas de cobro y unir pedidos — reglas del dueño (2026-10-01)
 
@@ -572,48 +659,87 @@ Lo de bien / dañado ya estaba en el plan (D1–D3); quedó ligado a cancelar de
 
 ## Prueba 4 — Quitar o cambiar un artículo en un pedido con abonos
 
+> 💬 *"ESTA REGLA NO LA ENTIENDO, SÉ MÁS ESPECÍFICO PORQUE NO ENTIENDO. No sé qué hacer pues, sé más
+> específico de favor en cada prueba."* (Caso 1)
+
+↳ Reescrita completa abajo. La regla, en palabras:
+
+**Cuando quitas o cambias un artículo de un pedido de Ir pagando, el sistema vuelve a sumar cuánto
+cuesta el pedido y lo compara con lo que el cliente ya te dio en ese pedido.**
+- Si lo que ya te dio **cubre** el nuevo total (es igual o más) → el pedido queda **Pagado**: ya no
+  debe nada. Si te dio de más, la diferencia es **saldo a favor** del cliente (esa leyenda todavía
+  no sale en pantalla).
+- Si lo que te dio **no alcanza** → el pedido queda (o regresa) a **Ir pagando**, debiendo la
+  diferencia.
+- Solo cuenta **ese** pedido; no se mezcla con otros pedidos del cliente.
+
+Ejemplo con los números de esta prueba: pedido de 2 artículos de $100 = **$200**; el cliente dio
+**$150** de enganche → debe **$50**. Quitas 1 artículo → el pedido ahora cuesta **$100**, pero el
+cliente ya había dado $150 → **no debe nada, queda Pagado**, y le sobran **$50** (saldo a favor).
+
+También se corrigió algo que encontramos al escribir esta prueba: al tocar **−** la pantalla
+bajaba el total pero el estado de arriba no cambiaba hasta salir y volver a entrar. Ahora, en
+Apartado e Ir pagando, el detalle se vuelve a cargar solo y el estado cambia en ese momento.
+
 ### 🔴 PRUEBA PENDIENTE
 
-Regla (`PENDIENTES` B): la cuenta se hace **solo con ese pedido**. Se usan pedidos de **Ir pagando**
-(un Apartado ya no puede tener abonos). Los controles están en el detalle, en cada artículo:
-**−** (quita uno, sin preguntar) y **⇄** (cambiar por otro).
+Los controles están en el **👁 Detalle** del pedido, en cada tarjeta de artículo:
+**−** (quita una pieza, sin preguntar) y **⇄** (cambiarlo por otro artículo).
 
-**Antes de empezar — preparar 3 pedidos (Ventas → Venta directa → 💳 Ir pagando → 💰 Cobrar)**
-- **H1:** 2 artículos de ~$100 cada uno, enganche **$150**.
-- **H2:** 2 artículos de ~$100, enganche **$150**.
-- **H3:** 1 artículo de ~$100, enganche $0. 
+**Antes de empezar — elige 2 artículos del mismo precio y prepara 3 pedidos**
 
-**Caso 1 — Quitar un artículo y que lo abonado cubra el total (H1)**
-1. **Pedidos → Mis pedidos** → H1 → **👁 Detalle** → en uno de los artículos, **−**.
-   - ✅ Debe pasar: el total baja a ~$100; como ya pagó $150, el pedido pasa solo a **Pagado**. ESTA REGLA NO LA ENTIENDO, SE MAS ESPECIFICO PORQUE NO ENTIENDO
-   - no se que hacer puies, se mas especifico de favor en cada prueba
-   - ⛔ No puede pasar: que siga diciendo que debe, o que el stock de ese artículo no regrese.
-   - Anota con 💬 qué mensaje sale sobre los $50 de más (el aviso de "saldo a favor" todavía no
-     existe en pantalla; lo queremos ver).
+Busca en **Tienda** dos artículos que cuesten lo mismo (en el ejemplo, **$100** cada uno) y uno más
+caro (en el ejemplo, **$200**) y otro de ~**$300**. Anota sus precios: si no son esos, haz las cuentas
+con los tuyos (la fórmula va en cada paso).
 
-**Caso 2 — Cambiar un artículo de un pedido Pagado por uno más caro (H1, ya Pagado)**
-1. En el detalle de H1 → **⇄** en el artículo → en el buscador (*"Cambiar por otro artículo"*)
-   escribe 3 letras y elige uno **más caro** (~$200).
-   - ✅ Debe pasar: el pedido regresa a **Ir pagando** y debe la diferencia ($200 − $150 = $50). Si
-     tenía venta registrada, se borra (en Reportes ya no debe contar).
-   - ⛔ No puede pasar: que siga diciendo **Pagado** debiendo dinero.
+Cada pedido se hace así: menú **Ventas → Venta directa** → agrega los artículos → toca **💳 Ir
+pagando** → en **💰 Pago inicial (enganche)** escribe lo que se indica → **💰 Cobrar** → anota el
+número de pedido.
 
-**Caso 3 — Quitar y que no alcance (H2)**
-1. H2 → **−** en un artículo.
-   - ✅ Debe pasar: total ~$100, pagado $150 → queda **Pagado** (igual que caso 1).
-2. Ahora **⇄** el artículo que queda por uno de ~$300.
-   - ✅ Debe pasar: regresa a Ir pagando, debe $150.
+| Pedido | Artículos | Total | 💰 Pago inicial (enganche) | Debe al crearlo |
+|---|---|---|---|---|
+| **H1** | 2 artículos de $100 | $200 | **$150** | $50 |
+| **H2** | 2 artículos de $100 | $200 | **$150** | $50 |
+| **H3** | 1 artículo de $100 | $100 | **$0** (no escribas nada) | $100 |
 
-**Caso 4 — Quitar el último artículo (H3)**
-1. H3 → **−** en su único artículo.
-   - ✅ Debe pasar: no lo deja y dice *"'<artículo>' es el ultimo articulo del pedido #N. Para
-     regresar todo, cancela el pedido"*.
+Para abrir cada uno: **Pedidos → Mis pedidos** → en el buscador escribe su número → **👁 Detalle**.
+
+**Caso 1 — Quitar un artículo y que lo que ya dio alcance (H1)**
+1. Abre el detalle de **H1**. Arriba debe decir **Ir pagando** y *"Debe: $50"* (Total $200 · pagado $150).
+2. En la tarjeta de uno de los 2 artículos toca **−** una vez.
+   - ✅ Debe pasar: el pedido se recarga solo y ahora el total es **$100** y el estado **Pagado**
+     (ya no dice "Debe"). Cuenta: total nuevo $100; ya dio $150; $150 ≥ $100 → Pagado.
+   - ✅ Debe pasar: en **Tienda**, el stock de ese artículo subió en 1.
+   - ⛔ No puede pasar: que siga diciendo *"Debe: $…"*, o que tengas que salir y volver a entrar
+     para ver *Pagado*.
+   - 💬 Anota qué ves de los **$50 de más** (hoy no debe salir nada: el aviso de saldo a favor está
+     pendiente). Es para confirmar que no aparece ningún número raro.
+
+**Caso 2 — A ese pedido ya Pagado, cambiarle un artículo por uno más caro (H1)**
+1. En el detalle de **H1** (que quedó Pagado con 1 artículo de $100), toca **⇄** en su tarjeta.
+2. En el buscador *"Cambiar por otro artículo"* escribe al menos 3 letras del artículo de **$200** y elígelo.
+   - ✅ Debe pasar: sale *"Artículo cambiado"*. El pedido regresa a **Ir pagando** y dice
+     *"Debe: $50"*. Cuenta: total nuevo $200; ya dio $150; le falta $200 − $150 = **$50**.
+   - ✅ Debe pasar: en **Reportes**, la venta que se había creado cuando quedó Pagado ya no cuenta
+     (el pedido volvió a deber).
+   - ⛔ No puede pasar: que siga diciendo **Pagado** cuando debe $50.
+
+**Caso 3 — Quitar y luego cambiar en el mismo pedido (H2)**
+1. Abre el detalle de **H2** (*"Debe: $50"*). Toca **−** en uno de sus artículos.
+   - ✅ Debe pasar: igual que el caso 1: total **$100**, queda **Pagado**.
+2. Ahora toca **⇄** en el artículo que quedó y cámbialo por el de **~$300**.
+   - ✅ Debe pasar: regresa a **Ir pagando** con *"Debe: $150"*. Cuenta: $300 − $150 = **$150**.
+
+**Caso 4 — Quitar el único artículo (H3)**
+1. Abre el detalle de **H3** (1 artículo, *"Debe: $100"*). Toca **−** en su tarjeta.
+   - ✅ Debe pasar: no lo deja y sale el aviso *"'<nombre del artículo>' es el ultimo articulo del
+     pedido #H3. Para regresar todo, cancela el pedido"*. El pedido queda igual.
    - ⛔ No puede pasar: que quede un pedido sin artículos.
 
-- [ ] Caso 1: quitar y que lo abonado cubra → Pagado (anotar el mensaje de los $50)
-- [ ] Caso 2: Pagado + cambio más caro → regresa a Ir pagando
-- [ ] Caso 3: quitar y cambiar en el mismo pedido
-- [ ] Caso 4: no deja quitar el último
+- [ ] Caso 1: quitar → Pagado al momento, sin salir de la pantalla; stock +1
+- [ ] Caso 2: Pagado + cambio a uno más caro → Ir pagando, debe $50
+- [ ] Caso 3: quitar (Pagado) y cambiar a uno de $300 → debe $150
+- [ ] Caso 4: no deja quitar el último artículo
 
 ---
 
