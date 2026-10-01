@@ -1,0 +1,133 @@
+---
+name: diseno-componentes
+description: Cómo crear o cambiar componentes visuales del front de Novedades Jade (input, select, textarea, tabla, formulario, card, botón, aviso, chip…) para que tomen los colores de día y de noche de Personalización y cambien todos juntos desde un solo lugar. Usar SIEMPRE antes de crear una pantalla o componente nuevo en producto_venta_online, antes de tocar estilos (.scss), y cuando el dueño pida "cámbialo conforme a la skill" o "que quede con el diseño".
+---
+
+# Diseño de componentes — un solo lugar para todo el look
+
+**Regla del dueño (2026-10-01):** todo componente nuevo (input, select, tabla, formulario, card,
+botón…) tiene que verse igual que los demás, de día y de noche, con los colores que estén elegidos
+en **Sistema → Personalización** en ese momento. Y tiene que ser **genérico**: si en Personalización
+se cambia un color, cambia en **toda** la app de una vez, sin ir componente por componente.
+
+---
+
+## 1. Cómo funciona hoy (la cadena)
+
+```
+styles.scss            → define los colores (tokens) para día (body.theme-light) y noche (body.theme-dark)
+  ↓ los sobrescribe
+Personalización        → tabla `tema_variable` en la base (una fila = un token, con valor de día y de noche)
+  (Sistema → Personalización, ruta `personalizacion`)
+  ↓ los aplica en vivo
+TemaService (front)    → lee GET /v1/tema-variable/activo al arrancar y aplica el valor de día o de noche
+ThemeService (front)   → decide día/noche: automático por hora (de 19:00 a 6:00 es noche) o con el botón ☀️/🌙
+  ↓ los usa
+design-system.scss     → componentes compartidos `.pk-*` hechos SOLO con esos tokens
+```
+
+Archivos (front, `src/`): `styles.scss` (tokens), `design-system.scss` (componentes `.pk-*`),
+`app/services/tema/tema.service.ts` y `tema.model.ts` (aplica Personalización; `ALIAS_LEGACY`),
+`app/services/theme/theme.service.ts` (día/noche).
+Back: entidad `TemaVariable`, endpoints `/v1/tema-variable`, semilla en `migration_tema_variable.sql`.
+
+## 2. Las 6 reglas
+
+1. **Cero colores escritos a mano en un componente.** Nada de `#00875A`, `rgb(…)`, `white`, `black`
+   en un `.scss` o en un `style=""`. Siempre `var(--token)` (tabla de la sección 3).
+2. **Primero lo compartido.** Si existe una clase `.pk-*` para eso (sección 4), se usa esa. No se
+   inventa un prefijo propio (`dp-`, `vd-`, `gp-`…) para algo que ya existe.
+3. **Si falta un componente, se agrega a `design-system.scss`**, no dentro de la pantalla. Así la
+   siguiente pantalla ya lo tiene.
+4. **Si falta un color, se crea el token completo** (sección 5): en los dos bloques de
+   `styles.scss` (día y noche) **y** como fila de `tema_variable` (migración) para que aparezca en
+   Personalización. Un token que no está en Personalización no se puede cambiar desde ahí.
+5. **Se revisa de día y de noche** antes de dar por terminado (captura de los dos). Un texto que se
+   lee de día y no de noche es error.
+6. **Lo de una pantalla vieja se arregla cuando se toca por otra razón**, igual que el renombrado
+   `variante → artículo`: no se hace un barrido de toda la app de golpe (salvo que el dueño lo pida).
+
+## 3. Qué token usar para qué
+
+| Para | Token |
+|---|---|
+| Fondo de la página | `--app-bg` |
+| Texto normal / secundario | `--app-text` / `--app-text-muted` |
+| Bordes generales | `--app-border` |
+| Color de marca (botón principal, enlaces, foco) | `--app-accent` (= `--brand-1`); hover `--app-accent-hover`; fondo suave `--app-accent-soft`; texto encima `--app-accent-ink` |
+| Degradado de marca | `--brand-1`, `--brand-2`, `--brand-3` |
+| Card | `--card-body-bg`, `--card-header-bg`, `--card-footer-bg`, `--card-text`, `--card-text-muted`, `--card-border`, `--card-radius`, `--card-shadow`, `--card-shadow-hover` |
+| Input / select / textarea | `--input-bg`, `--input-text`, `--input-border`, `--input-placeholder`, `--input-focus-border`, `--input-focus-shadow` |
+| Formulario (sección) | `--form-bg`, `--form-section-bg`, `--form-card-radius` |
+| Tabla | `--table-header-bg`, `--table-header-text`, `--table-row-hover`, `--table-row-active`, `--table-border` |
+| Éxito / alerta / peligro / info | `--pk-success`, `--pk-warning`, `--pk-danger`, `--pk-info` (+ `-soft` para fondos y `-to` para degradados) |
+| Menú lateral | `--sb-*` |
+| Encabezados de pantalla | `--header-text`, `--header-text-muted`, `--header-brand*` |
+
+Antes de usar uno, confirmar que existe: `grep -n "\-\-nombre" src/styles.scss`.
+
+## 4. Componentes compartidos que ya existen (`design-system.scss`)
+
+| Componente | Clases |
+|---|---|
+| Página | `.pk-page`, `.pk-title`, `.pk-subtitle`, `.pk-text` |
+| Card (imagen, header, body, footer; todos opcionales) | `.pk-card` y sus bloques `__…` |
+| Grid de cards | `.pk-grid` |
+| Botón | `.pk-btn` + `--primary`, `--secondary`, `--danger`, `--icon`, `--accion`, `--sm`, `--block` |
+| Campo de formulario | `.pk-field` (`--full`), `.pk-label`, `.pk-input` (`--error`), `.pk-error`, `.pk-hint` |
+| Sin resultados | `.pk-empty` |
+
+**Faltan** (se agregan al `design-system.scss` la primera vez que se necesiten, con tokens):
+`select` y `textarea` propios (hoy se reusa `.pk-input`), **tabla** (`.pk-table` existe pero copiada
+dentro de 4–6 pantallas, no compartida), checkbox / radio, chip o etiqueta de estado, aviso dentro de
+la pantalla (nota informativa), modal. Los avisos `Swal` toman estilo global de `styles.scss`
+(`.swal2-*`), que hoy tiene colores escritos a mano.
+
+## 5. Cómo agregar un color nuevo (token) — completo
+
+1. `styles.scss`: agregar `--nuevo-token` en **los dos** bloques (`body.theme-light` y `body.theme-dark`).
+2. Back: migración `migration_tema_<tema>.sql` con un `INSERT INTO tema_variable (clave, etiqueta,
+   grupo, tipo, valor_claro, valor_oscuro, orden)` idempotente (`WHERE NOT EXISTS` por `clave`), con
+   los **mismos** valores que en `styles.scss` (así no cambia nada visualmente al correrla). `clave`
+   va sin `--`. `etiqueta` en palabras del dueño ("Fondo de los avisos"). Probarla según la regla de
+   `CLAUDE.md` (base desechable, dos veces) y anotarla en la tabla de migraciones.
+3. Si el valor también alimenta otros nombres viejos, agregarlo a `ALIAS_LEGACY` en `tema.model.ts`.
+4. Usarlo solo con `var(--nuevo-token)`.
+
+## 6. Crear un componente o pantalla nueva — checklist
+
+- [ ] Se armó con clases `.pk-*`; lo que faltó se agregó a `design-system.scss`.
+- [ ] `grep -nE "#[0-9a-fA-F]{3,8}\b|rgba?\(" <archivo>.scss` no encuentra colores escritos a mano
+      (salvo `rgba(var(--…-rgb), …)`).
+- [ ] Tokens nuevos dados de alta completos (sección 5).
+- [ ] Captura de día y de noche (`body.theme-light` / `body.theme-dark`), en escritorio y en celular.
+- [ ] Probado cambiando un color en Personalización: el componente nuevo cambia sin tocar código.
+
+## 7. "Cámbialo conforme a la skill" (pantalla existente)
+
+1. Cambiar sus clases propias por las `.pk-*` equivalentes; lo que no exista, agregarlo al sistema.
+2. Reemplazar cada color escrito a mano por su token (si no hay token, crearlo: sección 5).
+3. Borrar los estilos locales que ya cubre `design-system.scss`.
+4. Captura antes y después, de día y de noche, y avisar si algo se ve distinto.
+
+---
+
+## 8. Pendiente — rediseño genérico (anotado 2026-10-01)
+
+El dueño va a **cambiar y agregar colores nuevos, para front y back, y el diseño completo**, para que
+todo quede genérico y se cambie desde Personalización. Cuando llegue:
+- Los colores nuevos entran como **tokens + filas de `tema_variable`** (sección 5), nunca a mano.
+- "Back" aquí significa el catálogo `tema_variable` (migraciones y su pantalla), que es de donde el
+  front lee los colores.
+- Deuda que hay que resolver para que de verdad cambie todo de un solo lugar (medido 2026-10-01):
+  - ~79 archivos `.scss` de pantallas tienen colores escritos a mano.
+  - `.pk-table`, `.pk-btn`, `.pk-input` están **copiados** dentro de 6 pantallas de admin
+    (gestion-roles, gestion-menu, gestion-palabras-clave, lugares-entrega…) en vez de usar los
+    compartidos.
+  - Solo ~8 pantallas usan ya `.pk-card` / `.pk-btn`; las demás tienen su prefijo propio.
+  - `.pk-error` / `.pk-input--error` usan `#dc2626` en vez de `--pk-danger`; los `.swal2-*` de
+    `styles.scss` tienen colores fijos.
+  - Personalización hoy solo expone ~25 tokens (marca, página, card, tablas, menú lateral,
+    formularios); los de estados (`--pk-success`…), chat y encabezados no se pueden cambiar desde ahí.
+- Antes de empezar: el dueño dice qué colores y para qué; se arma la lista de tokens nuevos y se
+  confirma con él antes de tocar pantallas.

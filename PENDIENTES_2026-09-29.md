@@ -295,3 +295,20 @@ Para poder grabar en prod salieron 4 errores; todos quedaron resueltos y documen
 ### Respuesta de TikTok
 
 *(pendiente — pegar aquí fecha y texto cuando llegue)*
+
+---
+
+## F. Rediseño genérico de colores y componentes (anotado 2026-10-01)
+
+**Pedido del dueño:** se van a **cambiar y agregar colores nuevos, para front y back, y el diseño
+completo**, para que todo quede genérico: que cada componente (input, select, tabla, formulario,
+card, botón…) tome los colores de día y de noche elegidos en **Sistema → Personalización**, y que al
+cambiar un color ahí cambie en toda la app, sin ir pantalla por pantalla.
+
+Cómo se hace y qué deuda hay que resolver: skill **`diseno-componentes`**
+(`.claude/skills/diseno-componentes/SKILL.md`, sección 8).
+
+- [ ] El dueño pasa la lista de colores nuevos y para qué es cada uno.
+- [ ] Armar la lista de tokens nuevos (styles.scss + filas de `tema_variable`) y confirmarla con él.
+- [ ] Agregar al sistema compartido lo que falta (select, textarea, tabla, checkbox, chip, aviso, modal).
+- [ ] Ir pasando pantallas al sistema compartido (las que se toquen, o todas si el dueño lo pide).
