@@ -16,13 +16,14 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [ ] **Prueba 1:** volver a probar el botón **← Regresar** (el deploy de QA se corrió de nuevo, ver 1.1).
 - [ ] **Hacer:** un solo botón de abonar en pedidos unidos (3.4) — por hacer, no está en el código.
 - [ ] **Hacer:** que el pedido abierto se vea igual que los otros del grupo (3.6) — por hacer.
-- [ ] **Hallazgo nuevo:** cancelar desde la card de Mis pedidos no dice el saldo a favor (5.1).
+- [x] ~~Cancelar desde la card no dice el saldo a favor~~ → decidido: que lo diga y pregunte bien/dañado (3.13)
 - [x] ~~¿Apartado acepta anticipo / abonos?~~ → **No**: Apartado es sin dinero (3.9)
 - [x] ~~¿El Apartado se cobra completo con Cobrar?~~ → **Sí**, y detecta pago completo y cambio (3.10)
 - [x] ~~Las 5 dudas de 3.10~~ → contestadas (3.11)
 - [x] ~~Venta que pagó todo pero no se lo lleva~~ → decidido (3.12); casos de prueba en la **Prueba 6**
 - [ ] **Hacer:** Prueba 6 (lo que paga decide, "Falta entregarlo", Ir pagando "¿ya se lo llevó?")
 - [ ] **Hacer:** "Apartado = sin dinero" (`PLAN` §10.6, A1–A7)
+- [x] ~~Tabla del grupo y "Pagos registrados"~~ → decidido: solo totales + "Detalle de los pagos" (3.13)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
 ## Estado de cada tema
@@ -471,6 +472,26 @@ regresarlo a "Falta entregarlo". Todo detallado en la **Prueba 6**.
 
 ↳ Hecho: **Prueba 6**. Se tomó como aprobado también que en **Ir pagando** se pregunte
 "¿Ya se lo llevó?" (era la pregunta pendiente de ese mensaje); si no era así, se quita.
+
+### 3.13 Tabla del grupo, pagos y cancelar — decidido (2026-10-01)
+
+> 💬 *"La 1 no la entiendo. 2: tabla del grupo, hay que dejar lo que dices, pero una opción que
+> diga 'detalle de los pagos' cuando aplique en Ir pagando, ¿no? 3: sí hay que mencionar cuánto
+> devolverle, y también recuerda que debe salir el modal de si el producto está correcto o está
+> dañado, para no regresar el stock en caso de que esté dañado, ¿no?"*
+
+↳ **1 y 2 son lo mismo, y tu "Detalle de los pagos" lo resuelve.** La duda 1 era: si el cliente
+da $100 al grupo, por dentro se puede anotar $60 en un pedido y $40 en otro, y la lista de pagos
+de cada pedido lo mostraba partido. Con tu botón **"Detalle de los pagos"** (solo en grupos de
+Ir pagando) se ve cada pago **una sola vez y completo**: *"$100 · 01/10 · efectivo"*. La tabla
+queda con el total de cada pedido y abajo el Pagado y el Saldo del grupo. (`PLAN` A14)
+
+**3: sí, las dos cosas.** Al cancelar, desde la card o desde Créditos / Abonos:
+- dice **cuánto devolverle** (*"Saldo a favor: $X"*);
+- pregunta por cada producto **"¿Viene bien o dañado?"**: bien → regresa al stock; dañado → no
+  regresa y queda la nota "regresó dañado".
+
+Lo de bien / dañado ya estaba en el plan (D1–D3); quedó ligado a cancelar desde la card. (`PLAN` A15)
 
 ---
 
