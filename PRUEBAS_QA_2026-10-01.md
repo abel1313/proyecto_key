@@ -11,33 +11,42 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 
 ---
 
-## ▶ Dónde nos quedamos — empezar aquí
+## ▶ Pruebas pendientes — empezar aquí
 
-- [ ] **Prueba 1:** volver a probar el botón **← Regresar** (el deploy de QA se corrió de nuevo, ver 1.1).
-- [ ] **Hacer:** un solo botón de abonar en pedidos unidos (3.4) — por hacer, no está en el código.
-- [ ] **Hacer:** que el pedido abierto se vea igual que los otros del grupo (3.6) — por hacer.
-- [x] ~~Cancelar desde la card no dice el saldo a favor~~ → decidido: que lo diga y pregunte bien/dañado (3.13)
-- [x] ~~¿Apartado acepta anticipo / abonos?~~ → **No**: Apartado es sin dinero (3.9)
-- [x] ~~¿El Apartado se cobra completo con Cobrar?~~ → **Sí**, y detecta pago completo y cambio (3.10)
-- [x] ~~Las 5 dudas de 3.10~~ → contestadas (3.11)
-- [x] ~~Venta que pagó todo pero no se lo lleva~~ → decidido (3.12); casos de prueba en la **Prueba 6**
-- [ ] **Hacer:** Prueba 6 (lo que paga decide, "Falta entregarlo", Ir pagando "¿ya se lo llevó?")
-- [x] ~~Hacer "Apartado = sin dinero"~~ → programado en `dev` y `qa` (falta el script de QA). **Probar: Prueba 7**
-- [x] ~~Tabla del grupo y "Pagos registrados"~~ → decidido: solo totales + "Detalle de los pagos" (3.13)
-- [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
+Esta es **la lista de lo que te falta probar en QA** (actualizada 2026-10-01). Cada prueba tiene más
+abajo su sección marcada con **🔴 PRUEBA PENDIENTE**, con:
+- **Antes de empezar:** qué preparar (pedidos de prueba, sesión, etc.).
+- **Pasos:** qué hacer, en orden, con los nombres reales de menús y botones.
+- **✅ Debe pasar:** lo que tienes que ver.
+- **⛔ No puede pasar:** lo que sería un error. Si ves algo de esto, anótalo con 💬 abajo del paso.
+
+**Siempre, antes de probar:** entra a QA (`qa.shop.novedades-jade.com.mx`) y haz recarga forzada
+(`Ctrl + Shift + R`) para no ver la versión vieja.
+
+| Orden | Prueba | Estado | Qué revisa |
+|---|---|---|---|
+| 1 | **Prueba 7** — Apartado es sin dinero | 🔴 pendiente | Lo programado hoy: abonos en Apartado, cambiar a Ir pagando, grupos de Apartados, venta directa |
+| 2 | **Prueba 8** — Botón Volver alineado | 🔴 pendiente | Que el botón quede en el mismo borde que la tarjeta en 13 pantallas |
+| 3 | **Prueba 1** — Botón ← Regresar en páginas legales | 🟡 a medias | Ya se vio con sesión en Privacidad; faltan las otras 2 páginas y sin sesión |
+| 4 | **Prueba 3** — Pedidos unidos: abonar y separar | 🔴 pendiente | Abono al grupo (Ir pagando), saldos, separar con reparto |
+| 5 | **Prueba 4** — Quitar o cambiar un artículo con abonos | 🔴 pendiente | Que el pedido quede Pagado o debiendo según lo abonado |
+| 6 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente | Stock y mensajes al cancelar Ir pagando y pedidos unidos |
+| — | **Prueba 6** — Venta: "Falta entregarlo" | ⛔ todavía no se puede | No está programada; la prueba está escrita para cuando se haga |
+| — | **Prueba 2** — TikTok | ✅ hecha | — |
 
 ## Estado de cada tema
 
 | Tema | Dónde está | Estado |
 |---|---|---|
-| Botón ← Regresar en páginas legales | front `dev` y `qa` | ⚠️ re-probar (1.1) |
+| Botón ← Regresar en páginas legales | front `dev` y `qa` | 🟡 se ve con sesión en Privacidad; faltan casos (Prueba 1) |
 | TikTok: conectar, quitar acceso, subir video | prod (con llaves de Sandbox) | ✅ probado |
 | TikTok: revisión de la app de Production | developers.tiktok.com | ⏳ esperando respuesta (`PENDIENTES` E.2) |
 | Pedidos unidos: saldos y abonos | back y front `dev`/`qa` | 🔄 probando (Prueba 3) |
 | Quitar / cambiar artículo con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 4) |
 | Cancelar pedido con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 5) |
 | Venta: lo que paga decide y "Falta entregarlo" | — | 🆕 por programar (Prueba 6) |
-| Apartado es sin dinero | back y front `dev`/`qa` | 🧪 listo para probar (Prueba 7) |
+| Apartado es sin dinero | back y front `dev`/`qa` | 🔴 pendiente de probar (Prueba 7) |
+| Botón Volver alineado con la tarjeta | front `dev` y `qa` | 🔴 pendiente de probar (Prueba 8) |
 | "Saldo a favor" en el front | — | ⏳ falta hacerlo (`PENDIENTES` B) |
 | Pagar Hosting-Mexico, orden 609155 | — | ⏳ antes del **4-oct-2026** (`PENDIENTES` C) |
 
@@ -59,11 +68,32 @@ sin sesión), por eso el botón solo sale con sesión.
 **Antes de probar:** recarga forzada (`Ctrl + Shift + R`, o en el celular cerrar la pestaña),
 para no quedarse con la versión vieja guardada en el navegador.
 
+### 🟡 PRUEBA PENDIENTE (a medias)
+
+Ya quedó probado (2026-10-01, captura del dueño): **con sesión, en `/privacidad` sale ← Regresar
+arriba del título**. Falta lo demás.
+
+**Pasos**
+1. **Sin sesión:** abre una ventana de incógnito y entra a
+   `qa.shop.novedades-jade.com.mx/privacidad`, luego `/eliminar-datos` y luego `/termConditions`.
+   - ✅ Debe pasar: las 3 páginas se ven completas y **sin** el botón ← Regresar.
+   - ⛔ No puede pasar: que salga el botón, o que te mande al login.
+2. **Con sesión, desde una pantalla:** en tu sesión normal entra a **Marketing → Publicar en redes**,
+   baja hasta el pie de página y da clic en **Eliminar mis datos**.
+   - ✅ Debe pasar: sale **← Regresar** arriba del título; al darle clic regresas a Publicar en redes.
+   - ⛔ No puede pasar: que regrese a otra pantalla, al inicio o a una página de fuera (TikTok, Meta).
+3. Repite el paso 2 con **Términos y condiciones**.
+4. **Con sesión, abriendo directo:** pega en la barra `qa.shop.novedades-jade.com.mx/termConditions`.
+   - ✅ Debe pasar: sale el botón; al darle clic te manda al inicio de la tienda.
+5. **Día y noche:** cambia el tema con el botón ☀️/🌙 del menú lateral y mira el botón en las 3 páginas.
+   - ✅ Debe pasar: se lee bien en los dos.
+
+- [x] Con sesión: aparece en `/privacidad`
 - [x] Sin sesión: no aparece en `/privacidad`
-- [ ] Sin sesión: no aparece en `/eliminar-datos` y `/termConditions`
-- [ ] Con sesión: aparece en las 3
-- [ ] Regresa a la pantalla anterior / al inicio si se abrió directo
-- [ ] Se ve bien en tema claro y oscuro
+- [ ] Sin sesión: no aparece en `/eliminar-datos` ni en `/termConditions`
+- [ ] Con sesión: aparece en `/eliminar-datos` y `/termConditions` y regresa a la pantalla anterior
+- [ ] Abierta directo: regresa al inicio
+- [ ] Se ve bien de día y de noche
 
 > 💬 *"No aparece el botón, pero si tengo sesión tampoco aparece"*
 > 💬 *"Sigue igual, así hay que dejarlo"*
@@ -234,29 +264,55 @@ ve disparejo.
 (*Pedido #X · cliente · N artículos · $total · "este"*), para que los pedidos del grupo se vean
 iguales.
 
-### 3.7 Lo que falta de la Prueba 3 (con los nombres reales)
+### 3.7 🔴 PRUEBA PENDIENTE — Pedidos unidos: abonar al grupo y separar
 
-**Paso 3 — Abonar al grupo**
-1. Mis pedidos → card del grupo → **👁 Detalle**.
-2. En "🔗 Unido en el grupo #G" → **💵 Abonar al grupo** → *Monto*, *Forma de pago* (Efectivo o
-   Transferencia), *¿Con cuánto paga?* si es efectivo → **Registrar abono**.
-3. Esperado:
-   - En la tabla, el pedido **más viejo** se llena primero (ver ejemplo de 3.4).
-   - *Total del grupo · Pagado · Saldo* se actualizan.
-   - De regreso en Mis pedidos, la card del grupo ya dice **"Falta $Y"**.
+Con la regla nueva, un grupo de **Apartados** no recibe abonos (se paga completo; eso se prueba en la
+Prueba 7). Esta prueba se hace con pedidos de **Ir pagando**.
 
-**Paso 4 — Separar**
-1. **✂️ Separar pedidos** → marcar en *Sale* los que se separan.
-2. En *Se queda con* escribir cuánto se queda cada uno; *Queda debiendo* se calcula mientras se escribe.
-3. **Separar**. Si no suma exacto lo que dio el cliente, no deja.
-4. Esperado: cada pedido sale con su propia card y, si es Apartado o Ir pagando con abonos, **"Pagado $X · Falta $Y"**.
-   El que cubre su total queda **Pagado**.
+**Antes de empezar — preparar 2 pedidos**
+1. Menú **Ventas → Venta directa** → agrega 1 artículo de ~$200 → **💳 Ir pagando** → enganche en 0
+   → **💰 Cobrar**. Anota el número: pedido **G1**.
+2. Espera un minuto y repite con otro artículo de ~$200: pedido **G2** (así G1 es el más viejo).
+3. **Pedidos → Mis pedidos** → busca **G1** → **👁 Detalle** → **🔗 Unir con otros pedidos** → busca
+   **G2** → elígelo → **Unir 2 pedidos**.
+   - ✅ Debe pasar: sale el bloque **"🔗 Unido en el grupo #…"** con G1 y G2.
 
-- [ ] La card del grupo dice "Falta" después de abonar
-- [ ] El abono al grupo llena primero el pedido más viejo
-- [ ] Total / Pagado / Saldo del grupo cuadran (Total = Pagado + Saldo)
+**Paso A — Abonar al grupo**
+1. En el detalle de G1, en el bloque del grupo → **💵 Abonar al grupo**.
+2. Monto **$100**, forma de pago **Efectivo**, *¿Con cuánto paga?* **$200** → **Registrar abono**.
+   - ✅ Debe pasar: se registra; sale el cambio de $100. *Total del grupo* $400, *Pagado* $100,
+     *Saldo* $300. En la tabla, **G1** (el más viejo) muestra Pagado $100 y G2 $0.
+   - ⛔ No puede pasar: que pida tarjeta, que se reparta en partes iguales, o que el saldo no cuadre
+     (Total ≠ Pagado + Saldo).
+3. Regresa a **Mis pedidos**.
+   - ✅ Debe pasar: solo sale la card de G1 (la del titular), con **"Total de los 2 pedidos"** y
+     **"Falta $300"**.
+   - ⛔ No puede pasar: que salga la card de G2 suelta en la lista.
+4. Intenta abonar **$500** al grupo.
+   - ✅ Debe pasar: aviso *"Monto mayor al saldo"* y no se registra nada.
+   - ⛔ No puede pasar: que lo acepte (el saldo es $300).
+
+**Paso B — Separar con reparto**
+1. En el detalle de G1 → **✂️ Separar pedidos**. Marca **Sale** en los dos.
+2. En **Se queda con** pon $50 y $50 (el cliente dio $100).
+   - ✅ Debe pasar: **Queda debiendo** dice $150 y $150 mientras escribes.
+3. Cambia a $100 y $50.
+   - ✅ Debe pasar: sale un aviso en rojo debajo de la tabla y el botón **Separar** queda gris.
+   - ⛔ No puede pasar: que deje separar (suma $150 y el cliente dio $100).
+4. Regresa a $100 y $0 → **Separar**.
+   - ✅ Debe pasar: G1 queda Ir pagando, pagado $100, debe $100; G2 queda debiendo $200. Cada uno sale
+     con su propia card en Mis pedidos, con **"Pagado $X · Falta $Y"** (G2 sin "Pagado" porque no tiene
+     abonos).
+   - ⛔ No puede pasar: que se pierda dinero (la suma de lo pagado de los dos tiene que ser $100), o
+     que G1 o G2 sigan diciendo "Unido".
+5. Abre el detalle de G1.
+   - ✅ Debe pasar: el encabezado dice **"Debe: $100"** con *Total $200 · pagado $100* abajo.
+
+- [ ] Abono al grupo: llena primero el más viejo y cuadra Total = Pagado + Saldo
+- [ ] Card del grupo con "Falta" y sin la card suelta del otro pedido
+- [ ] No deja abonar más que el saldo
 - [ ] Separar no deja si la suma no es exacta
-- [ ] Al separar, cada pedido conserva lo que se le asignó
+- [ ] Al separar, cada pedido queda con lo que se le asignó y con su card "Pagado · Falta"
 
 ### 3.8 Formas de cobro y unir pedidos — reglas del dueño (2026-10-01)
 
@@ -496,63 +552,110 @@ Lo de bien / dañado ya estaba en el plan (D1–D3); quedó ligado a cancelar de
 
 ---
 
-## Prueba 4 — Quitar o cambiar un artículo en un pedido con abonos (sin probar)
+## Prueba 4 — Quitar o cambiar un artículo en un pedido con abonos
 
-Se hace en el Detalle del pedido, en la card de cada artículo: **−** (quitar uno) y **⇄** (cambiar
-por otro). Regla acordada (`PENDIENTES` B): la cuenta se hace **solo con ese pedido**; lo que sobre
-es de ese cliente.
+### 🔴 PRUEBA PENDIENTE
 
-| Caso | Esperado |
-|---|---|
-| Pedido **Pagado** y se cambia un artículo por uno **más caro** | Regresa a Apartado / Ir pagando y se borra la venta que tenía |
-| Se quita un artículo y lo abonado **cubre** el nuevo total | Pasa solo a **Pagado** |
-| Lo abonado queda **mayor** que el nuevo total | Queda Pagado. El aviso "Saldo a favor del cliente" en pantalla **todavía no existe** (`PENDIENTES` B) |
-| Se quiere quitar el **último** artículo | No deja: *"'<artículo>' es el ultimo articulo del pedido #N. Para regresar todo, cancela el pedido"* |
+Regla (`PENDIENTES` B): la cuenta se hace **solo con ese pedido**. Se usan pedidos de **Ir pagando**
+(un Apartado ya no puede tener abonos). Los controles están en el detalle, en cada artículo:
+**−** (quita uno, sin preguntar) y **⇄** (cambiar por otro).
 
-- [ ] Cambiar a uno más caro un pedido Pagado
-- [ ] Quitar y que lo abonado cubra el total
-- [ ] Quitar de más (anotar qué se ve, para el aviso de saldo a favor)
-- [ ] Intentar quitar el último artículo
+**Antes de empezar — preparar 3 pedidos (Ventas → Venta directa → 💳 Ir pagando → 💰 Cobrar)**
+- **H1:** 2 artículos de ~$100 cada uno, enganche **$150**.
+- **H2:** 2 artículos de ~$100, enganche **$150**.
+- **H3:** 1 artículo de ~$100, enganche $0.
+
+**Caso 1 — Quitar un artículo y que lo abonado cubra el total (H1)**
+1. **Pedidos → Mis pedidos** → H1 → **👁 Detalle** → en uno de los artículos, **−**.
+   - ✅ Debe pasar: el total baja a ~$100; como ya pagó $150, el pedido pasa solo a **Pagado**.
+   - ⛔ No puede pasar: que siga diciendo que debe, o que el stock de ese artículo no regrese.
+   - Anota con 💬 qué mensaje sale sobre los $50 de más (el aviso de "saldo a favor" todavía no
+     existe en pantalla; lo queremos ver).
+
+**Caso 2 — Cambiar un artículo de un pedido Pagado por uno más caro (H1, ya Pagado)**
+1. En el detalle de H1 → **⇄** en el artículo → en el buscador (*"Cambiar por otro artículo"*)
+   escribe 3 letras y elige uno **más caro** (~$200).
+   - ✅ Debe pasar: el pedido regresa a **Ir pagando** y debe la diferencia ($200 − $150 = $50). Si
+     tenía venta registrada, se borra (en Reportes ya no debe contar).
+   - ⛔ No puede pasar: que siga diciendo **Pagado** debiendo dinero.
+
+**Caso 3 — Quitar y que no alcance (H2)**
+1. H2 → **−** en un artículo.
+   - ✅ Debe pasar: total ~$100, pagado $150 → queda **Pagado** (igual que caso 1).
+2. Ahora **⇄** el artículo que queda por uno de ~$300.
+   - ✅ Debe pasar: regresa a Ir pagando, debe $150.
+
+**Caso 4 — Quitar el último artículo (H3)**
+1. H3 → **−** en su único artículo.
+   - ✅ Debe pasar: no lo deja y dice *"'<artículo>' es el ultimo articulo del pedido #N. Para
+     regresar todo, cancela el pedido"*.
+   - ⛔ No puede pasar: que quede un pedido sin artículos.
+
+- [ ] Caso 1: quitar y que lo abonado cubra → Pagado (anotar el mensaje de los $50)
+- [ ] Caso 2: Pagado + cambio más caro → regresa a Ir pagando
+- [ ] Caso 3: quitar y cambiar en el mismo pedido
+- [ ] Caso 4: no deja quitar el último
 
 ---
 
-## Prueba 5 — Cancelar un pedido con abonos (sin probar)
+## Prueba 5 — Cancelar un pedido con abonos
 
-Hay dos lugares para cancelar, y **no dicen lo mismo**:
+### 🔴 PRUEBA PENDIENTE
 
-| Dónde | Botón | Qué dice al terminar |
+Hay dos lugares para cancelar y **no dicen lo mismo** (hallazgo 5.1; ya decidido arreglarlo, todavía
+no está programado):
+
+| Dónde | Botón | Qué dice hoy al terminar |
 |---|---|---|
-| Mis pedidos, en la card | **Cancelar** → *"¿Por qué cancelas este pedido?"* → **Cancelar pedido** | Solo *"Pedido cancelado correctamente"* |
-| Créditos / Abonos | **✖ Cancelar** | El mensaje completo, p. ej. *"APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $X"* |
+| **Pedidos → Mis pedidos**, en la card | **Cancelar** → *"¿Por qué cancelas este pedido?"* (elige motivo) → **Cancelar pedido** | Solo *"Pedido cancelado correctamente"* |
+| **Ventas → Créditos / Abonos** | **✖ Cancelar** | Pregunta *"¿Cancelar el crédito (ir pagando) de …?"* y al final el mensaje completo |
 
-Qué debe pasar (igual en los dos):
-- **Apartado:** el stock regresa. Hoy, si tiene abonos, quedan como saldo a favor; con la regla 3.9
-  un Apartado ya no tendrá dinero, así que esto se va a quitar.
-- **Ir pagando:** el stock **no** regresa (la mercancía ya se la llevó); lo que debía queda como
-  deuda incobrable.
-- **Pagado o Entregado:** es una devolución; solo la puede hacer un administrador.
-- **Unido:** se cancela solo ese pedido; el grupo deja de contarlo. Si es el titular, primero
-  **Cambiar quién recoge**.
-- La devolución del dinero se hace a mano (efectivo o transferencia); el sistema no registra la
-  salida (`PENDIENTES` B, pendiente de decidir).
+**Antes de empezar — preparar 3 pedidos de Ir pagando (Ventas → Venta directa)**
+- **K1:** 1 artículo, enganche $50.
+- **K2:** 1 artículo, enganche $50.
+- **K3** y **K4:** 1 artículo cada uno, sin enganche; únelos (K3 titular) como en la Prueba 3.
+
+Anota el **stock** de cada artículo antes de cancelar (en **Catálogo → Modelos** o en la tienda).
+
+**Caso 1 — Cancelar Ir pagando desde Créditos / Abonos (K1)**
+1. **Ventas → Créditos / Abonos** → K1 → **✖ Cancelar** → confirma **Sí, registrar como incobrable**.
+   - ✅ Debe pasar: queda **Cancelado**; el mensaje dice que el stock **no** se devolvió y la deuda
+     que quedó ($ que faltaba).
+   - ⛔ No puede pasar: que el stock suba (la mercancía ya se la llevó).
+
+**Caso 2 — Cancelar Ir pagando desde la card (K2)**
+1. **Pedidos → Mis pedidos** → card de K2 → **Cancelar** → motivo **El cliente avisó** → **Cancelar pedido**.
+   - ✅ Debe pasar: queda Cancelado y el stock **no** sube.
+   - Anota con 💬: el mensaje **no** dice cuánto devolver ni la deuda (es lo que se va a arreglar).
+
+**Caso 3 — Cancelar un pedido unido que no es el titular (K4)**
+1. Busca K4 por su número → **Cancelar**.
+   - ✅ Debe pasar: solo K4 queda cancelado; en el detalle de K3 el grupo ya no lo suma al total ni al
+     saldo.
+   - ⛔ No puede pasar: que se cancele también K3.
+
+**Caso 4 — Cancelar con un usuario que no es administrador**
+1. Entra con un usuario sin rol de administrador → intenta cancelar un pedido **Pagado**.
+   - ⛔ No puede pasar: que lo deje. Solo un administrador cancela un pedido pagado (es devolución).
+
+- [ ] Caso 1: Créditos / Abonos, stock no regresa, mensaje completo
+- [ ] Caso 2: desde la card, stock no regresa (anotar que no dice montos)
+- [ ] Caso 3: pedido unido, solo cae el que se cancela
+- [ ] Caso 4: un no-admin no cancela un pagado
 
 ### 5.1 Hallazgo al preparar esta prueba
 
-Desde la **card de Mis pedidos**, al cancelar un Apartado con abonos **no se ve cuánto hay que
-devolverle al cliente**: el back de ese botón contesta solo "Pedido cancelado correctamente". El
-monto sí sale cancelando desde **Créditos / Abonos**.
-
-**Por decidir:** que la card también muestre el saldo a favor (y el resto del mensaje), igual que
-Créditos / Abonos.
-
-- [ ] Cancelar un Apartado con abonos desde Créditos / Abonos (sale el saldo a favor)
-- [ ] Cancelar el mismo caso desde la card (confirmar que no sale)
-- [ ] Cancelar un Ir pagando (el stock no regresa)
-- [ ] Cancelar un pedido unido que no es el titular
+Desde la **card de Mis pedidos** no se ve cuánto devolver ni la deuda: el back de ese botón contesta
+solo "Pedido cancelado correctamente". En Créditos / Abonos sí sale. **Ya decidido** (3.13): la card
+también lo dirá y preguntará por producto si viene bien o dañado. Pendiente de programar.
 
 ---
 
 ## Prueba 6 — Venta: lo que paga decide y "Falta entregarlo" (🆕 por programar)
+
+### ⛔ TODAVÍA NO SE PUEDE PROBAR
+
+No está programada. La prueba está escrita para cuando se haga; **no la hagas todavía**.
 
 Reglas: skill `reglas-pedidos` 2.1–2.3 y `PLAN` §10.6 (A9, A11–A13). **Todavía no está en el
 código**: esta prueba es para cuando se programe. Todos los casos con un pedido de **$200**.
@@ -603,7 +706,9 @@ Revisar en todos: ninguno de los dos botones viene marcado, y antes de guardar s
 
 ---
 
-## Prueba 7 — Apartado es sin dinero (✅ en QA desde 2026-10-01)
+## Prueba 7 — Apartado es sin dinero (en QA desde 2026-10-01)
+
+### 🔴 PRUEBA PENDIENTE — es la primera que conviene hacer
 
 Reglas: skill `reglas-pedidos` 2.1. Qué cambió: `CAMBIOS_FRONT.md` → "📦 Apartado es sin dinero".
 **Antes de empezar:** en QA, recarga forzada (`Ctrl + Shift + R`) para no quedarte con la versión vieja.
@@ -639,6 +744,8 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
    - ✅ El pedido queda **💳 Ir pagando**, con **Pagado $50** y debe el resto.
    - ✅ En "📋 Pagos registrados" aparece el abono de $50 con la nota del cambio.
 
+⛔ **No puede pasar:** que se registre un abono menor al total en un Apartado, o que al cambiar a Ir pagando se pierdan los $50.
+
 - [ ] 7.1 completa
 
 ### 7.2 Apartado pagado completo, con cambio (pedido B)
@@ -650,6 +757,8 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
    - ✅ Se registra sin aviso y el pedido queda **Pagado**.
    - ✅ Ya no aparece el botón "💳 Registrar abono"; dice *"Este pedido ya está pagado por completo"*.
 
+⛔ **No puede pasar:** que salga el aviso "Un Apartado se paga completo" pagando el total, o que el cambio salga mal.
+
 - [ ] 7.2 completa
 
 ### 7.3 Créditos y Abonos (pedido C)
@@ -660,6 +769,8 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
    - ✅ Aviso **"Un Apartado se paga completo"** con el botón **Ir al pedido**. No se registra nada.
 3. Clic en **Ir al pedido**.
    - ✅ Se abre el pedido **C** en Mis pedidos.
+
+⛔ **No puede pasar:** que Créditos / Abonos registre el abono de $50 en el Apartado.
 
 - [ ] 7.3 completa
 
@@ -677,6 +788,8 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
    - ✅ Las ayudas de los botones dicen: Apartado *"Sin dinero: lo paga completo al recogerlo"* e
      Ir pagando *"Ya dio algo y va abonando"*.
 
+⛔ **No puede pasar:** poder elegir Apartado en un pedido que ya tiene dinero (E).
+
 - [ ] 7.4 completa
 
 ### 7.5 Apartados unidos (pedidos C y D)
@@ -690,6 +803,8 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
    - ✅ Aviso **"Los Apartados se pagan completos"**. No se registra nada.
 5. Regresa el monto al saldo completo → **Registrar abono**.
    - ✅ **C** y **D** quedan **Pagado**; el saldo del grupo queda en $0.
+
+⛔ **No puede pasar:** que el grupo de Apartados acepte un pago menor al saldo, o que diga "Abonar al grupo".
 
 - [ ] 7.5 completa
 
@@ -705,12 +820,51 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
 4. Otra venta: 1 artículo → **📦 Apartado** → sin enganche → **💰 Cobrar**.
    - ✅ Se guarda como **Apartado**, como siempre.
 
+⛔ **No puede pasar:** que se guarde un Apartado con enganche.
+
 - [ ] 7.6 completa
 
 ### Si algo no sale igual
 
 Anota debajo del paso, con 💬, qué hiciste, qué esperabas y qué salió (y el número de pedido). Lo
 reviso y respondo abajo con ↳.
+
+---
+
+## Prueba 8 — Botón Volver alineado con la tarjeta
+
+### 🔴 PRUEBA PENDIENTE
+
+Qué cambió (2026-10-01): el botón **← Volver** (o el texto que tenga en cada pantalla) ya no queda en
+la esquina; queda en el **mismo borde izquierdo de la tarjeta**, arriba de ella, como **← Regresar** en
+Política de Privacidad. Su texto y lo que hace **no cambiaron**.
+
+**Pasos — en cada pantalla de la lista**
+1. Entra a la pantalla.
+2. Mira el borde izquierdo del botón y el borde izquierdo de la tarjeta de abajo.
+   - ✅ Debe pasar: los dos bordes están en la misma línea vertical.
+   - ⛔ No puede pasar: que el botón quede pegado a la esquina o más a la izquierda/derecha que la tarjeta.
+3. Hazle clic.
+   - ✅ Debe pasar: regresas a la pantalla de antes (con los mismos filtros si venías de un buscador).
+4. Repite en el celular (o haciendo angosta la ventana).
+   - ✅ Debe pasar: sigue alineado con la tarjeta.
+
+| Pantalla | Cómo llegar (nombres sacados del código) | ✔ |
+|---|---|---|
+| Agregar Modelo | **Catálogo → Agregar modelo** | [ ] |
+| Actualizar Modelo | **Catálogo → Modelos** → en un modelo **✏️ Actualizar** | [ ] |
+| Nuevo Producto | **Catálogo → Agregar producto** | [ ] |
+| Actualizar producto (artículo) | **Tienda** → en un artículo **✏️ Editar** | [ ] |
+| Cargar catálogo Excel | **Catálogo → Cargar Excel** | [ ] |
+| Carrito | Agrega algo al carrito → botón **Carrito** del menú lateral | [ ] |
+| Entregas por zona | **Envíos → Entregas por zona** | [ ] |
+| Ver un cliente | **Clientes** → en un cliente **👁️ Ver/Editar** | [ ] |
+| Nuevo cliente | No tiene botón en el menú: pega `qa.shop.novedades-jade.com.mx/clientes/agregar` | [ ] |
+| Mis datos | Abajo en el menú lateral, debajo de tu nombre: **Mis datos** | [ ] |
+| Cambiar contraseña | Mismo lugar: **Cambiar contraseña** | [ ] |
+| Mi perfil | Mismo lugar: **Mi perfil** | [ ] |
+| Agregar mi compra | Mismo lugar: **Agregar mi compra** | [ ] |
+
 
 ---
 

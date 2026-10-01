@@ -175,6 +175,8 @@ Ver `PENDIENTES_2026-09-29.md` B y `PLAN` D1–D5. En corto:
 
 ## 6. Dónde está cada cosa
 
+- Skills relacionadas: `nombres-reales` (nombres de pantallas), `diseno-componentes` (pantallas nuevas), `arquitectura-hexagonal-limpia` (código nuevo del back), `renombrar` (cambiar un término en todo el proyecto).
+
 - `PLAN_PEDIDOS_VENTAS_ENTREGA.md` — plan de ventas, pedidos, entrega y MSI (decisiones del dueño).
 - `PENDIENTES_2026-09-29.md` — pendientes por tema (A–E).
 - `PRUEBAS_QA_<fecha>.md` — pruebas en QA con los comentarios del dueño y las respuestas.
