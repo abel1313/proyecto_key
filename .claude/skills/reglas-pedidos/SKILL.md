@@ -14,9 +14,9 @@ Leyenda: ✅ así funciona hoy · 🔮 para después (no está programado) · �
 
 ## 1. Cómo trabajar con el dueño
 
-1. **Nombres reales, nunca adivinados.** Antes de escribir el nombre de un botón, pantalla o mensaje
-   en una respuesta o en un plan de pruebas, buscarlo en el código del front (`producto_venta_online`)
-   y copiarlo tal cual. Si no se encontró, decirlo; no inventar uno parecido.
+1. **Nombres reales, nunca adivinados.** Antes de escribir el nombre de un menú, botón, pantalla o
+   mensaje, seguir la skill **`nombres-reales`** (dónde vive cada nombre: el menú está en la base,
+   los botones en el HTML del front). Si no se encontró, decirlo; no inventar uno parecido.
 2. **Hablar con sus palabras.** Decir **Apartado** e **Ir pagando**, no "a crédito" (en el código
    `APARTADO` y `FIADO` se llaman "crédito", pero para el dueño esa palabra no significa nada).
    `FIADO` en el código = **Ir pagando** en pantalla. Decir **artículo**, no "variante".

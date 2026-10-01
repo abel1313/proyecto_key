@@ -610,7 +610,7 @@ Reglas: skill `reglas-pedidos` 2.1. Qué cambió: `CAMBIOS_FRONT.md` → "📦 A
 
 ### 7.0 Preparar los pedidos de prueba (una sola vez)
 
-Todo en **Tienda → Venta directa** (pantalla "Venta directa"). Usa artículos baratos de prueba y
+Todo en el menú **Ventas → Venta directa** (pantalla "Venta directa"). Usa artículos baratos de prueba y
 anota el número de cada pedido que se crea (sale en el mensaje "✅ Apartado registrado · Pedido #…").
 
 | Pedido | Cómo crearlo | Anota |
@@ -654,7 +654,7 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
 
 ### 7.3 Créditos y Abonos (pedido C)
 
-1. Menú **Créditos / Abonos** (pantalla "💳 Créditos y Abonos") → busca el pedido **C** → **+ Abono**.
+1. Menú **Ventas → Créditos / Abonos** (pantalla "💳 Créditos y Abonos") → busca el pedido **C** → **+ Abono**.
    - ✅ El monto ya trae el total y abajo dice *"Es un Apartado: se paga completo…"*.
 2. Cambia el monto a **$50** → registrar.
    - ✅ Aviso **"Un Apartado se paga completo"** con el botón **Ir al pedido**. No se registra nada.
@@ -695,7 +695,7 @@ Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su n
 
 ### 7.6 Venta directa: Apartado con enganche se vuelve Ir pagando
 
-1. **Tienda → Venta directa** → agrega 1 artículo → clic en **📦 Apartado**.
+1. **Ventas → Venta directa** → agrega 1 artículo → clic en **📦 Apartado**.
 2. En **💰 Pago inicial (enganche)** escribe **100**.
    - ✅ El botón activo cambia solo a **💳 Ir pagando**.
    - ✅ Sale la nota *"Un Apartado es sin dinero: como te dio $100.00, queda como Ir pagando."*
