@@ -86,7 +86,7 @@ class PedidoArticuloJpaAdapterTest {
     /** Pedido Ir pagando con una linea de $100 y $150 abonados: ya Pagado, como en QA. */
     private Pedido pedidoPagadoDeMas(Variantes v) {
         Pedido p = new Pedido();
-        p.setTipoPedido("APARTADO");
+        p.setTipoPedido("FIADO"); // FIADO = "Ir pagando" en pantalla
         p.setEstadoPedido("PAGADO");
         p.setTotalPedido(100.0);
         p.setTotalPagado(150.0);
@@ -155,7 +155,7 @@ class PedidoArticuloJpaAdapterTest {
         Pedido despues = pedidoRepository.findById(p.getId()).orElseThrow();
         assertThat(despues.getTotalPedido()).isEqualTo(400.0);
         assertThat(despues.getTotalPagado()).isEqualTo(150.0);
-        assertThat(despues.getEstadoPedido()).isEqualTo("APARTADO");
+        assertThat(despues.getEstadoPedido()).isEqualTo("FIADO");
     }
 
     @Test
