@@ -63,14 +63,36 @@ podría entrar."*
 |---|---|
 | Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Sale un aviso que **no deja seguir** y explica: un Apartado es sin dinero; si el cliente ya dio algo, el pedido es **Ir pagando**. Botón para cambiarlo a Ir pagando |
 | Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
-| Apartado y el cliente da **el total o más** (debe $200 y da $200 o $500), se escriba en Cobrar o en Registrar abono | **No es abono: es el cobro completo.** Se cobra de una vez, queda pagado, y si dio de más muestra **cuánto hay que devolverle** (da $500 → devolver $300) |
+| Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
 | Apartados unidos | No hay "Abonar al grupo": se pagan completos al recogerlos |
-| El cliente recoge el Apartado | Paga **todo** en ese momento con el botón **Cobrar** de la card (efectivo o transferencia; tarjeta y MSI cuando existan), que cobra el total de una vez — decidido 2026-10-01 |
+| El cliente recoge el Apartado | Paga **todo** en ese momento, en el formulario de abono de siempre (detalle o Créditos / Abonos). El botón **Cobrar** de la card sigue mandando a Créditos / Abonos. Decidido 2026-10-01: "dejarlo como está" (reemplaza la idea de que Cobrar cobrara todo) |
+| Apartados unidos y vienen a recogerlos | Se liquida el total del grupo y queda pagado y entregado. Si solo deja un adelanto, el **grupo entero** pasa a Ir pagando (todos tienen la misma forma de cobro) — hoy eso obliga a separar, cambiar cada uno y volver a unir (🆕 `PLAN` §10.6 A10) |
 
 Estado: 🆕 **por programar** (lista en `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10.6). Hasta que se haga, el
 código todavía acepta enganche y abonos en Apartado. Si el dueño pide "deja dar un abono en un
 Apartado", **recordarle esta regla**: para dar un abono, el pedido se cambia a Ir pagando.
+
+### 2.2 Abono, billete y cambio (decidido 2026-10-01)
+
+- **El abono es lo que cuenta para la deuda; el "Monto recibido" es el billete que te dio.** El cambio
+  sale de la resta. Ejemplos: debe $100, quiere dar $20 y paga con uno de $500 → abono $20, monto
+  recibido $500 → **cambio $480**. Debe $100, lo liquida con uno de $500 → abono $100, recibido $500
+  → **cambio $400**. ✅ Así funciona hoy en el detalle y en Créditos / Abonos (solo en efectivo).
+- Un abono **nunca** puede ser mayor a lo que se debe (se rechaza: *"El monto excede el saldo
+  pendiente"*). ✅ Se queda así.
+- **Transferencia = monto exacto.** No hay cambio en transferencia: si transfirió de más, fue un
+  error del cliente y no se registra así. ✅ (el "Monto recibido" solo sale en efectivo)
+
+### 2.3 ❓ Venta: pagó todo pero no se lo lleva (propuesta, falta que el dueño la apruebe)
+
+Caso: en la venta el cliente paga el total (p. ej. por transferencia) pero no recoge en ese momento.
+Hoy no existe "pagado, falta entregar" (`PLAN` H7 / V3). Propuesta:
+- **Lo que paga decide la forma de cobro:** $0 → Apartado · menos del total → Ir pagando · el total →
+  pagado.
+- Si pagó el total, una sola pregunta obligatoria, sin respuesta marcada de inicio:
+  **"Ya se lo llevó"** (queda Entregado, como hoy) o **"Falta entregarlo"** (queda Pagado, falta
+  entregar; se pone si pasa por él o se lo llevan, y el día).
 
 ## 3. Meses sin intereses (MSI)
 
