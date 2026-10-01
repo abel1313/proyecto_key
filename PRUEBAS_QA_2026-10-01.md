@@ -268,51 +268,69 @@ iguales.
 
 Con la regla nueva, un grupo de **Apartados** no recibe abonos (se paga completo; eso se prueba en la
 Prueba 7). Esta prueba se hace con pedidos de **Ir pagando**.
+esta no la entiendo no pusiste los pasos
 
 **Antes de empezar — preparar 2 pedidos**
 1. Menú **Ventas → Venta directa** → agrega 1 artículo de ~$200 → **💳 Ir pagando** → enganche en 0
    → **💰 Cobrar**. Anota el número: pedido **G1**.
-2. Espera un minuto y repite con otro artículo de ~$200: pedido **G2** (así G1 es el más viejo).
+2. Espera un minuto y repite con otro artículo de ~$200: pedido **G2** (así G1 es el más viejo). hace falta especificar si es con ir pagando hay qu ser muy especifico
+3. y si se dio enganche o no
 3. **Pedidos → Mis pedidos** → busca **G1** → **👁 Detalle** → **🔗 Unir con otros pedidos** → busca
    **G2** → elígelo → **Unir 2 pedidos**.
    - ✅ Debe pasar: sale el bloque **"🔗 Unido en el grupo #…"** con G1 y G2.
+   - listo, dejo unir
 
 **Paso A — Abonar al grupo**
 1. En el detalle de G1, en el bloque del grupo → **💵 Abonar al grupo**.
 2. Monto **$100**, forma de pago **Efectivo**, *¿Con cuánto paga?* **$200** → **Registrar abono**.
    - ✅ Debe pasar: se registra; sale el cambio de $100. *Total del grupo* $400, *Pagado* $100,
+   - pero aqui veo 2 botones uno que dice abonar al grupo, y otro que dice registrar abono, cual es la diferencia, porque estan 2 botones?
+   - Sigo viendo diferencias que ya te habia comentado en lso epdidos en unso epdidos tiene cosas de mas en otro no eso es lo que ya te habia comentado
+   - Y si paso la prueba, solo que en el modal que da el resultado los textos estan disparejos unos estan en medio otros a la derecha y el boton de ok esta en elc ento texton en elcentro
+   - otros a la izquiera hay que homologarlos
+   - Hasta arriba del detalle dice total 2 pedidos igual al total 400 abajo dice  este pedido 200 pero no se entiende a que se refiere a que pedido eso
+   - es ambiguo no?
+   - 
      *Saldo* $300. En la tabla, **G1** (el más viejo) muestra Pagado $100 y G2 $0.
+   - es correcto esto
    - ⛔ No puede pasar: que pida tarjeta, que se reparta en partes iguales, o que el saldo no cuadre
      (Total ≠ Pagado + Saldo).
 3. Regresa a **Mis pedidos**.
    - ✅ Debe pasar: solo sale la card de G1 (la del titular), con **"Total de los 2 pedidos"** y
      **"Falta $300"**.
    - ⛔ No puede pasar: que salga la card de G2 suelta en la lista.
+   - es correcto hasta aqui solo que siigue igual en mis pedidos en la card g1 dice 2 pedidos total 400 y dice este pedido 200 pero no se entiende por que
+   - o para que es, debe de decir solo el total 2 pedidos 400 y nada mas
+   - 
 4. Intenta abonar **$500** al grupo.
    - ✅ Debe pasar: aviso *"Monto mayor al saldo"* y no se registra nada.
    - ⛔ No puede pasar: que lo acepte (el saldo es $300).
-
+    Es corrcto, solo que lo correcto seria que abajo del monto del input se hiciera el calculo o que apareciera abajo el modal que aprece despues porque estaria
+   - llenaod mas campos mas chamba y al final no se puede entiendes?
+   - 
 **Paso B — Separar con reparto**
 1. En el detalle de G1 → **✂️ Separar pedidos**. Marca **Sale** en los dos.
 2. En **Se queda con** pon $50 y $50 (el cliente dio $100).
    - ✅ Debe pasar: **Queda debiendo** dice $150 y $150 mientras escribes.
-3. Cambia a $100 y $50.
+3. Cambia a $100 y $50. es correcto se ve cuando ingresar el transpaso y si no pone todo el saldo no deja seguir muy bien
    - ✅ Debe pasar: sale un aviso en rojo debajo de la tabla y el botón **Separar** queda gris.
    - ⛔ No puede pasar: que deje separar (suma $150 y el cliente dio $100).
 4. Regresa a $100 y $0 → **Separar**.
    - ✅ Debe pasar: G1 queda Ir pagando, pagado $100, debe $100; G2 queda debiendo $200. Cada uno sale
      con su propia card en Mis pedidos, con **"Pagado $X · Falta $Y"** (G2 sin "Pagado" porque no tiene
      abonos).
+   - Es correcto
    - ⛔ No puede pasar: que se pierda dinero (la suma de lo pagado de los dos tiene que ser $100), o
      que G1 o G2 sigan diciendo "Unido".
 5. Abre el detalle de G1.
    - ✅ Debe pasar: el encabezado dice **"Debe: $100"** con *Total $200 · pagado $100* abajo.
+   - es correcto
 
-- [ ] Abono al grupo: llena primero el más viejo y cuadra Total = Pagado + Saldo
-- [ ] Card del grupo con "Falta" y sin la card suelta del otro pedido
-- [ ] No deja abonar más que el saldo
-- [ ] Separar no deja si la suma no es exacta
-- [ ] Al separar, cada pedido queda con lo que se le asignó y con su card "Pagado · Falta"
+- [ x] Abono al grupo: llena primero el más viejo y cuadra Total = Pagado + Saldo
+- [ x] Card del grupo con "Falta" y sin la card suelta del otro pedido
+- [ x] No deja abonar más que el saldo
+- [ x] Separar no deja si la suma no es exacta
+- [x] Al separar, cada pedido queda con lo que se le asignó y con su card "Pagado · Falta"
 
 ### 3.8 Formas de cobro y unir pedidos — reglas del dueño (2026-10-01)
 
@@ -563,11 +581,12 @@ Regla (`PENDIENTES` B): la cuenta se hace **solo con ese pedido**. Se usan pedid
 **Antes de empezar — preparar 3 pedidos (Ventas → Venta directa → 💳 Ir pagando → 💰 Cobrar)**
 - **H1:** 2 artículos de ~$100 cada uno, enganche **$150**.
 - **H2:** 2 artículos de ~$100, enganche **$150**.
-- **H3:** 1 artículo de ~$100, enganche $0.
+- **H3:** 1 artículo de ~$100, enganche $0. 
 
 **Caso 1 — Quitar un artículo y que lo abonado cubra el total (H1)**
 1. **Pedidos → Mis pedidos** → H1 → **👁 Detalle** → en uno de los artículos, **−**.
-   - ✅ Debe pasar: el total baja a ~$100; como ya pagó $150, el pedido pasa solo a **Pagado**.
+   - ✅ Debe pasar: el total baja a ~$100; como ya pagó $150, el pedido pasa solo a **Pagado**. ESTA REGLA NO LA ENTIENDO, SE MAS ESPECIFICO PORQUE NO ENTIENDO
+   - no se que hacer puies, se mas especifico de favor en cada prueba
    - ⛔ No puede pasar: que siga diciendo que debe, o que el stock de ese artículo no regrese.
    - Anota con 💬 qué mensaje sale sobre los $50 de más (el aviso de "saldo a favor" todavía no
      existe en pantalla; lo queremos ver).
