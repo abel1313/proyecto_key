@@ -21742,3 +21742,56 @@ Los Apartados que **ya** tenían abonos siguen pudiendo liquidarse pagando el sa
 
 #### Checklist QA
 Casos detallados en `PRUEBAS_QA_2026-10-01.md`, **Prueba 7**.
+
+---
+
+## 🧪 Datos de prueba en QA: modelos, artículos y pedidos con un botón (2026-10-01)
+
+**Dónde:** **Sistema → 🗑️ Limpiar caché** (`admin/cache`), sección nueva **🧪 Datos de prueba**,
+visible solo para administradores. Reglas completas: `hexagonal/datosprueba/README.md` (R1–R15).
+
+**Qué hace:** crea en la base de QA hasta 20 000 modelos con 1 a 4 artículos cada uno y hasta 3 000
+pedidos aleatorios (contado, Apartado, Apartado pagado, Ir pagando con abonos), **en segundo plano**.
+Todo queda con marca **"Prueba QA"** y código de barras `2098` + 9 dígitos; los pedidos, con la
+observación `[DATOS DE PRUEBA]` y a nombre de "Cliente Prueba QA NNN". Los pedidos pasan por la venta
+directa y el abono reales (mismas reglas, mismo stock). No sale ningún correo ni WhatsApp.
+
+**Solo QA:** el back le pregunta a MySQL el nombre de la base y fuera de `inventario_key_qa` se niega.
+**Solo ROLE_ADMIN:** no basta con la pantalla de caché.
+
+### Endpoints
+
+**`POST /mis-productos/v1/admin/datos-prueba/generar`** — arranca y regresa de inmediato.
+
+Request (todo opcional; sin body = 20 000 modelos, 1 a 4 artículos, 1 000 pedidos):
+```json
+{ "modelos": 20000, "articulosMin": 1, "articulosMax": 4, "pedidos": 1000, "semilla": 2026 }
+```
+Response **202**: `{ "data": <avance>, "mensaje": "Se empezaron a generar los datos de prueba en segundo plano" }`
+
+- **400** — fuera de los topes: modelos 1–20 000, artículos por modelo 1–4 (mín ≤ máx), pedidos 0–3 000.
+- **403** — no eres administrador, o la base no es `inventario_key_qa` (mensaje: *"Los datos de prueba solo se pueden generar en la base de QA…"*).
+- **409** — ya hay una corrida en curso.
+
+**`GET /mis-productos/v1/admin/datos-prueba/avance`** — cómo va (consultarlo cada pocos segundos mientras `estado = EN_CURSO`).
+```json
+{ "data": {
+  "estado": "EN_CURSO",            // SIN_CORRER | EN_CURSO | TERMINADO | FALLO
+  "fase": "Creando modelos y artículos",
+  "modelosPedidos": 20000, "modelosCreados": 8500, "articulosCreados": 21240,
+  "pedidosPedidos": 1000, "pedidosCreados": 0, "pedidosConError": 0,
+  "ultimoError": null,              // texto del último pedido que falló
+  "aviso": null,                    // p. ej. "QA no tiene imágenes para reusar…"
+  "inicio": "2026-10-01T10:00:00", "fin": null } }
+```
+
+**`POST /mis-productos/v1/admin/datos-prueba/dar-de-baja`** — baja lógica de los modelos y artículos
+de prueba (habilitado 0, stock 0) y quita sus ligas de imagen. No borra ninguna imagen ni toca nada
+real; los pedidos de prueba se quedan como historial.
+Response **200**: `{ "data": 50080, "mensaje": "50080 artículos de prueba dados de baja (y sus modelos)" }`
+- **403** — igual que arriba. **409** — hay una corrida en curso.
+
+### Medido antes de entregar
+Contra MySQL 8 local con el esquema de las entidades más los NOT NULL reales de `producto`:
+**20 000 modelos, 50 080 artículos y 1 000 pedidos en 53 s, 0 errores.** En QA puede tardar más (la
+base está en otra máquina). La prueba de integración corrió dos veces seguidas en MySQL y en H2.

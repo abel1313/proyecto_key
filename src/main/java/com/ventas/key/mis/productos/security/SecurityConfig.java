@@ -574,6 +574,10 @@ public class SecurityConfig {
                                 .hasAnyAuthority(pantalla("admin/reconciliacion-imagenes"))
                         .requestMatchers("/v1/admin/reconciliacion/**")
                                 .hasAnyAuthority(pantallaEscribir("admin/reconciliacion-imagenes"))
+                        // Generador de datos de prueba (dominio datosprueba): llena la base de QA con
+                        // miles de modelos y pedidos. Solo ADMIN, no basta con la pantalla de cache
+                        // (R2). Ademas el servicio se niega fuera de inventario_key_qa (R1).
+                        .requestMatchers("/v1/admin/datos-prueba/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/admin/**").hasAnyAuthority(pantalla("admin/cache"))
                         .requestMatchers("/v1/admin/**").hasAnyAuthority(pantallaEscribir("admin/cache"))
 
