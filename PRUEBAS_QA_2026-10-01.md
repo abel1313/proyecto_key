@@ -17,7 +17,9 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [ ] **Hacer:** un solo botón de abonar en pedidos unidos (3.4) — por hacer, no está en el código.
 - [ ] **Hacer:** que el pedido abierto se vea igual que los otros del grupo (3.6) — por hacer.
 - [ ] **Hallazgo nuevo:** cancelar desde la card de Mis pedidos no dice el saldo a favor (5.1).
-- [ ] **Contestar ❓:** ¿Apartado acepta anticipo / abonos? (3.8)
+- [x] ~~¿Apartado acepta anticipo / abonos?~~ → **No**: Apartado es sin dinero (3.9)
+- [ ] **Contestar ❓:** ¿el Apartado se cobra completo con el botón Cobrar al recogerlo? (3.9)
+- [ ] **Hacer:** "Apartado = sin dinero" (`PLAN` §10.6, A1–A7)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
 ## Estado de cada tema
@@ -315,6 +317,46 @@ en la skill como el ejemplo acordado.
 ↳ ✅ Los dos ya funcionan así (ver 3.5): **➕ Agregar artículo** pregunta *"¿A qué pedido lo agregas?"*
 y **⇄** deja el artículo nuevo en el mismo pedido del que se cambia.
 
+### 3.9 Apartado es sin dinero — decidido (2026-10-01)
+
+> 💬 *"Actualmente el cliente no puede pagar con tarjeta, solo apartado. Aquí me equivoqué: el
+> apartado es porque lo piden por Face o live o por mensaje, y ahí no me ha dado nada, solo lo pide.
+> Cuando hago el pedido, al cobrar el cliente me puede hacer una transferencia o mandar a la prima,
+> tía, etc. a dejarme 100 pesos; entonces lo tendría que poner en Ir pagando porque ya me dio un
+> enganche, y en Apartado no podría entrar, por eso hay que corregirlo. Si ya hizo un apartado y el
+> cliente viene y dice 'te voy a dar un enganche de 100', al dar el abono sería cambiar el pedido a
+> Ir pagando. Hay que anotarlo bien para que la próxima vez que te diga 'hace falta que en apartados
+> dejes dar un abono', me expliques que quedamos así, y me digas que para dar un abono tengo que
+> cambiar el pedido a Ir pagando. Y si en venta elijo Apartado y después pongo que me dio 100 por
+> transferencia, que muestre un modal y no deje seguir, explicando esto, para entender que lo tengo
+> que cambiar a Ir pagando."*
+
+↳ Anotado como regla en la skill (`reglas-pedidos` 2.1), con la indicación de recordártela si un
+día pides dejar abonar en un Apartado. En el plan quedó la lista de cambios (`PLAN` §10.6):
+- **Venta:** Apartado + pago inicial → aviso que no deja seguir y botón **Cambiar a Ir pagando**.
+- **Apartado ya hecho:** "💳 Registrar abono" avisa *"Para dar un abono, cambia el pedido a Ir
+  pagando"* y lleva a **🔁 Cambiar forma de cobro**.
+- **El back también lo rechaza**, para que no se cuele por ninguna pantalla.
+- **Grupos de Apartados:** sin "Abonar al grupo".
+- **Apartados que ya tienen dinero** en QA y prod: se buscan y se decide contigo (lo natural:
+  pasarlos a Ir pagando).
+
+**Todavía no está programado**: hoy el sistema sigue aceptando enganche y abonos en Apartado.
+
+❓ **Falta una cosa:** con esta regla, el Apartado se paga **completo** al recogerlo, pero hoy un
+Apartado solo se puede liquidar con abonos (el botón Cobrar lo manda a Créditos / Abonos).
+Propuesta: que **Cobrar** en la card de un Apartado cobre el total de una vez (efectivo o
+transferencia; tarjeta y MSI cuando existan) y lo deje Pagado. ¿Así?
+
+> 💬 *"Otra cosa que no me explicaste: ¿los abonos solo se dan en Abonos como tal? Porque ahorita los
+> abonos los dejaba dar en el detalle del pedido. Es una duda que no me has contestado."*
+
+↳ Se pueden dar en los dos lugares y **es exactamente lo mismo**: "💳 Registrar abono" en el
+detalle del pedido y la pantalla **Créditos / Abonos** guardan el abono igual (el mismo registro en el
+back; también el "Pago inicial (enganche)" de la venta). Da igual dónde lo registres: sale en
+"📋 Pagos registrados", cuenta para el saldo y para el corte del día. El detalle es solo un atajo para
+no tener que ir a la otra pantalla.
+
 ---
 
 ## Prueba 4 — Quitar o cambiar un artículo en un pedido con abonos (sin probar)
@@ -347,7 +389,8 @@ Hay dos lugares para cancelar, y **no dicen lo mismo**:
 | Créditos / Abonos | **✖ Cancelar** | El mensaje completo, p. ej. *"APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $X"* |
 
 Qué debe pasar (igual en los dos):
-- **Apartado:** el stock regresa; lo abonado queda como saldo a favor del cliente.
+- **Apartado:** el stock regresa. Hoy, si tiene abonos, quedan como saldo a favor; con la regla 3.9
+  un Apartado ya no tendrá dinero, así que esto se va a quitar.
 - **Ir pagando:** el stock **no** regresa (la mercancía ya se la llevó); lo que debía queda como
   deuda incobrable.
 - **Pagado o Entregado:** es una devolución; solo la puede hacer un administrador.
