@@ -316,6 +316,8 @@ Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`
 | A11 | Estado "Pagado · falta entregar" | Etiqueta en la card, botón **Entregar** sin cobro, filtro "Por entregar", atraso si tiene fecha, nunca se cancela solo. Se junta con V3 / H7 |
 | A12 | Ir pagando "todavía no se lo lleva" | Guardar si la mercancía ya salió. Al cancelar: si no se la llevó, el stock regresa. Los Ir pagando que ya existen cuentan como "ya se lo llevó" |
 | A13 | Corregir errores | "Ya se lo llevó" por error → regresarlo a "Falta entregarlo" (solo admin). Los demás errores se corrigen con 🔁 Cambiar forma de cobro o Entregar, que ya existen |
+| A14 | Tabla del grupo | Cada pedido solo con su total; Pagado y Saldo solo del grupo. Botón **"Detalle de los pagos"** en grupos de Ir pagando con cada pago una vez y completo |
+| A15 | Cancelar desde la card de Mis pedidos | Decir cuánto devolverle ("Saldo a favor: $X") igual que Créditos / Abonos, y pedir por producto **bien / dañado** (D1–D3) |
 | A10 | Pedidos unidos | **Cambiar la forma de cobro del grupo entero** (p. ej. Apartados unidos que dejan un adelanto → todos a Ir pagando). Hoy está bloqueado dentro de un grupo (R9, H11) |
 
 Consecuencias: cancelar un Apartado ya no deja "saldo a favor" (no tiene dinero), y la Prueba 5 de

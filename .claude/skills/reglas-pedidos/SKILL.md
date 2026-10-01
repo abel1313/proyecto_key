@@ -145,6 +145,8 @@ Reglas técnicas completas (R1–R18): `src/main/java/com/ventas/key/hexagonal/g
 | **➕ Agregar artículo** pregunta "¿A qué pedido lo agregas?" | ✅ |
 | **⇄** (cambiar artículo) se queda en el pedido de ese artículo | ✅ |
 | Un solo botón de abonar en un pedido unido (**💵 Abonar al grupo**); esconder **💳 Registrar abono** | 🔮 pedido por el dueño, sin hacer |
+| Tabla del grupo: cada pedido muestra **solo su total**; abajo, **Pagado** y **Saldo del grupo**. Se quitan "Pagado" y "Saldo" por pedido (el dinero es del grupo; lo de cada uno se ve al separar) | 🆕 decidido 2026-10-01 |
+| Botón **"Detalle de los pagos"** en grupos de **Ir pagando**: lista cada pago del grupo **una sola vez y completo** (monto, fecha, forma de pago, nota), aunque por dentro se haya anotado partido entre pedidos | 🆕 decidido 2026-10-01 |
 
 **Ejemplo acordado (Ir pagando):** 2 pedidos de $200 (total $400). Da $100 para los dos → deben $300.
 Al separar: 50 y 50 → cada uno debe $150. Los 100 a uno solo → uno debe $100 y el otro $200.
@@ -157,9 +159,16 @@ no hay que presentarlo como si el abono fuera de un pedido.
 
 ## 5. Quitar, cambiar y cancelar
 
-Ver `PENDIENTES_2026-09-29.md` B. En corto: la cuenta es **solo de ese pedido**; si lo pagado cubre
-el nuevo total queda Pagado; no se puede quitar el último artículo (se cancela el pedido); cancelar
-un Apartado regresa el stock (con la regla 2.1 ya no tiene dinero, así que no deja saldo a favor); cancelar un Ir pagando **no** regresa el stock.
+Ver `PENDIENTES_2026-09-29.md` B y `PLAN` D1–D5. En corto:
+- La cuenta es **solo de ese pedido**; si lo pagado cubre el nuevo total queda Pagado; no se puede
+  quitar el último artículo (se cancela el pedido). ✅
+- **Al cancelar o regresar productos, por cada producto: "¿Viene bien o dañado?"** Bien → regresa al
+  stock. Dañado → **no** regresa y queda la nota "regresó dañado". Aplica también a Ir pagando si la
+  mercancía regresa. 🆕 (`PLAN` D1–D3)
+- **Al cancelar, siempre decir cuánto hay que devolverle al cliente** ("Saldo a favor: $X"), se
+  cancele desde la card de Mis pedidos o desde Créditos / Abonos. 🆕 (hoy solo lo dice Créditos /
+  Abonos)
+- Registrar que el dinero ya se devolvió (para el corte): después (`PLAN` D5).
 
 ---
 
