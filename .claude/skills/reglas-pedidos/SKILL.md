@@ -61,7 +61,7 @@ podría entrar."*
 
 | Situación | Qué hace el sistema |
 |---|---|
-| Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Sale un aviso que **no deja seguir** y explica: un Apartado es sin dinero; si el cliente ya dio algo, el pedido es **Ir pagando**. Botón para cambiarlo a Ir pagando |
+| Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Pasa solo a **Ir pagando** y una nota explica por qué: un Apartado es sin dinero (ver 2.3; reemplaza el aviso que no dejaba seguir) |
 | Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
 | Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
@@ -84,15 +84,36 @@ Apartado", **recordarle esta regla**: para dar un abono, el pedido se cambia a I
 - **Transferencia = monto exacto.** No hay cambio en transferencia: si transfirió de más, fue un
   error del cliente y no se registra así. ✅ (el "Monto recibido" solo sale en efectivo)
 
-### 2.3 ❓ Venta: pagó todo pero no se lo lleva (propuesta, falta que el dueño la apruebe)
+### 2.3 Venta: lo que paga decide, y "¿ya se lo llevó?" (decidido 2026-10-01, 🆕 sin programar)
 
-Caso: en la venta el cliente paga el total (p. ej. por transferencia) pero no recoge en ese momento.
-Hoy no existe "pagado, falta entregar" (`PLAN` H7 / V3). Propuesta:
-- **Lo que paga decide la forma de cobro:** $0 → Apartado · menos del total → Ir pagando · el total →
-  pagado.
-- Si pagó el total, una sola pregunta obligatoria, sin respuesta marcada de inicio:
-  **"Ya se lo llevó"** (queda Entregado, como hoy) o **"Falta entregarlo"** (queda Pagado, falta
-  entregar; se pone si pasa por él o se lo llevan, y el día).
+Ejemplo con un pedido de $200. Casos de prueba completos: `PRUEBAS_QA_2026-10-01.md`, Prueba 6.
+
+| Lo que te dio | Queda como | Botón(es) para terminar la venta |
+|---|---|---|
+| $0 | **Apartado** | Uno solo (guardar), como hoy. **Nunca** salen los dos botones |
+| Menos de $200 | **Ir pagando** | Dos: **✅ Ya se lo llevó** · **📦 Todavía no se lo lleva** |
+| $200 (efectivo, transferencia o tarjeta) | **Pagado** | Dos: **✅ Ya se lo llevó** (Entregado) · **📦 Falta entregarlo** (Pagado · falta entregar) |
+
+- El tipo se decide solo mientras se escribe el monto, y la pantalla dice **"Quedará como: …"**. Si
+  se había elegido Apartado y se escribe dinero, cambia a Ir pagando con una nota que explica por qué
+  (esto reemplaza el aviso que bloqueaba, de 2.1).
+- Ninguno de los dos botones viene marcado: siempre hay que elegir.
+- Antes de guardar, resumen: *"Cobrado: $200 por transferencia · Falta entregarlo"*.
+- Efectivo de más: el monto es el total y el billete va en "Monto recibido" (cambio). Transferencia
+  de más: no se deja.
+- **Ir pagando "todavía no se lo lleva":** la mercancía sigue en la tienda; si se cancela, el stock
+  **sí** regresa. "Ya se lo llevó": no regresa (como hoy). Los Ir pagando que ya existen cuentan
+  como "ya se lo llevó".
+- **Pagado · falta entregar:** etiqueta en la card, botón **Entregar** (no cobra), filtro
+  **"Por entregar"**, "⚠ Atrasado N días" si tiene fecha y ya pasó, y **nunca se cancela solo**.
+
+**Si se equivocan al guardar:**
+| Error | Cómo se corrige |
+|---|---|
+| "Falta entregarlo" pero no había pagado nada | 🔁 Cambiar forma de cobro → Apartado (se anula el cobro y se borra la venta) |
+| "Falta entregarlo" pero pagó solo una parte | 🔁 Cambiar forma de cobro → Ir pagando, y en "¿Cobra algo ahora?" lo que dio de verdad |
+| "Falta entregarlo" pero sí se lo llevó | **Entregar** en la card |
+| "Ya se lo llevó" pero no se lo llevó | Botón para regresarlo a "Falta entregarlo", **solo administrador** |
 
 ## 3. Meses sin intereses (MSI)
 

@@ -307,12 +307,15 @@ Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`
 | A1 | Back, `AbonoServiceImpl.registrarAbono` | Rechazar abonos a un Apartado: *"Para dar un abono, cambia el pedido a Ir pagando"*. Cubre de un tiro el detalle, Créditos / Abonos, el enganche de la venta y "Abonar al grupo", porque todos pasan por ahí |
 | A2 | Back, venta directa | Rechazar un Apartado con pago inicial mayor a 0 (por si el front no lo frena) |
 | A3 | Back, `PedidoServiceImpl.cambiarTipoPedido` | No pasar a Apartado si se cobra algo en ese momento o si el pedido ya tiene abonos |
-| A4 | Front, venta directa | Apartado + "Pago inicial (enganche)" mayor a 0 → aviso que no deja seguir, explica la regla y ofrece **Cambiar a Ir pagando** |
+| A4 | Front, venta directa | ~~Aviso que no deja seguir~~ → reemplazado por A9: con dinero pasa solo a Ir pagando y una nota explica por qué |
 | A5 | Front, detalle del pedido y Créditos / Abonos | En un Apartado, "💳 Registrar abono": si el monto es **menor** al total, aviso *"Para dar un abono, cambia el pedido a Ir pagando"* con botón a **🔁 Cambiar forma de cobro**; si es **el total**, se acepta como pago completo. El cambio sale de "Monto recibido", como hoy |
 | A6 | Front, pedidos unidos | Sin "💵 Abonar al grupo" en un grupo de Apartados |
 | A7 | Datos en QA y prod | **QA:** script que pasa a Ir pagando los Apartados que ya tienen abonos o enganche (primero muestra la lista; probado antes de entregarlo). **Prod:** se dejan como están y se van resolviendo uno por uno |
 | A8 | Cobrar al recogerlo | ✅ **Decidido 2026-10-01: se deja como está.** El Apartado se liquida en el formulario de abono de siempre (detalle o Créditos / Abonos) pagando el total; Cobrar sigue mandando a Créditos / Abonos. Un abono nunca es mayor a la deuda; el cambio sale de "Monto recibido" (efectivo). Transferencia siempre exacta |
-| A9 | ❓ Venta: pagó todo pero no se lo lleva | Propuesta (skill 2.3): lo que paga decide la forma de cobro ($0 Apartado · parcial Ir pagando · total pagado) y, si pagó todo, pregunta obligatoria **"Ya se lo llevó"** / **"Falta entregarlo"**. Se junta con V3 / H7. Falta aprobación |
+| A9 | Venta: lo que paga decide | ✅ **Decidido 2026-10-01** (skill 2.3): $0 Apartado · parcial Ir pagando · total pagado, con "Quedará como: …". Con dinero, dos botones para terminar: **✅ Ya se lo llevó** / **📦 Falta entregarlo** (o "Todavía no se lo lleva" en Ir pagando), ninguno marcado, y resumen antes de guardar. Reemplaza el aviso que bloqueaba de A4 |
+| A11 | Estado "Pagado · falta entregar" | Etiqueta en la card, botón **Entregar** sin cobro, filtro "Por entregar", atraso si tiene fecha, nunca se cancela solo. Se junta con V3 / H7 |
+| A12 | Ir pagando "todavía no se lo lleva" | Guardar si la mercancía ya salió. Al cancelar: si no se la llevó, el stock regresa. Los Ir pagando que ya existen cuentan como "ya se lo llevó" |
+| A13 | Corregir errores | "Ya se lo llevó" por error → regresarlo a "Falta entregarlo" (solo admin). Los demás errores se corrigen con 🔁 Cambiar forma de cobro o Entregar, que ya existen |
 | A10 | Pedidos unidos | **Cambiar la forma de cobro del grupo entero** (p. ej. Apartados unidos que dejan un adelanto → todos a Ir pagando). Hoy está bloqueado dentro de un grupo (R9, H11) |
 
 Consecuencias: cancelar un Apartado ya no deja "saldo a favor" (no tiene dinero), y la Prueba 5 de

@@ -20,7 +20,8 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [x] ~~¿Apartado acepta anticipo / abonos?~~ → **No**: Apartado es sin dinero (3.9)
 - [x] ~~¿El Apartado se cobra completo con Cobrar?~~ → **Sí**, y detecta pago completo y cambio (3.10)
 - [x] ~~Las 5 dudas de 3.10~~ → contestadas (3.11)
-- [ ] **Contestar ❓:** venta que pagó todo pero no se lo lleva (3.11, punto 3)
+- [x] ~~Venta que pagó todo pero no se lo lleva~~ → decidido (3.12); casos de prueba en la **Prueba 6**
+- [ ] **Hacer:** Prueba 6 (lo que paga decide, "Falta entregarlo", Ir pagando "¿ya se lo llevó?")
 - [ ] **Hacer:** "Apartado = sin dinero" (`PLAN` §10.6, A1–A7)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
@@ -34,6 +35,7 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 | Pedidos unidos: saldos y abonos | back y front `dev`/`qa` | 🔄 probando (Prueba 3) |
 | Quitar / cambiar artículo con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 4) |
 | Cancelar pedido con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 5) |
+| Venta: lo que paga decide y "Falta entregarlo" | — | 🆕 por programar (Prueba 6) |
 | "Saldo a favor" en el front | — | ⏳ falta hacerlo (`PENDIENTES` B) |
 | Pagar Hosting-Mexico, orden 609155 | — | ⏳ antes del **4-oct-2026** (`PENDIENTES` C) |
 
@@ -448,6 +450,28 @@ cobro del grupo entero"** (`PLAN` §10.6 A10).
 (primero te muestra la lista); en **prod** se quedan como están y se resuelven uno por uno. Entendí
 "pagados" como **Ir pagando**: marcarlos como *Pagado* diría que ya no deben nada, y sí deben.
 
+### 3.12 "Falta entregarlo" — decidido (2026-10-01)
+
+> 💬 *"Entonces, si pagó todo el pedido, ¿solo se habilita cuando me da el total? ¿Qué pasa si lo
+> manda con una conocida pero la conocida no lo recoge, o lo mismo por transferencia? En los 2 casos
+> solo pagó el pedido pero no lo ha recogido. ¿Cómo sabría el sistema que no lo ha recogido?"*
+
+↳ Por el botón que eliges al guardar la venta: **📦 Falta entregarlo** deja el pedido como
+**Pagado · falta entregar**, con su etiqueta, el botón **Entregar** y el filtro **"Por entregar"**.
+
+> 💬 *"¿Entonces sacarás un botón más para elegir 'falta entregarlo'? ¿Y qué pasa si me equivoco y le
+> doy 'falta entregarlo' y aún no lo ha pagado?"*
+
+↳ No es un paso más: el botón de guardar se vuelve dos y eliges uno. Solo salen si escribiste que te
+dio dinero. Si te equivocas, se corrige con 🔁 Cambiar forma de cobro, Entregar, o (solo admin)
+regresarlo a "Falta entregarlo". Todo detallado en la **Prueba 6**.
+
+> 💬 *"Perfecto, me parece perfecto, pero en las pruebas hay que describirlo detalladamente para
+> cuando lo inicie sepa cuándo sacarlo o cuándo no."*
+
+↳ Hecho: **Prueba 6**. Se tomó como aprobado también que en **Ir pagando** se pregunte
+"¿Ya se lo llevó?" (era la pregunta pendiente de ese mensaje); si no era así, se quita.
+
 ---
 
 ## Prueba 4 — Quitar o cambiar un artículo en un pedido con abonos (sin probar)
@@ -503,6 +527,57 @@ Créditos / Abonos.
 - [ ] Cancelar el mismo caso desde la card (confirmar que no sale)
 - [ ] Cancelar un Ir pagando (el stock no regresa)
 - [ ] Cancelar un pedido unido que no es el titular
+
+---
+
+## Prueba 6 — Venta: lo que paga decide y "Falta entregarlo" (🆕 por programar)
+
+Reglas: skill `reglas-pedidos` 2.1–2.3 y `PLAN` §10.6 (A9, A11–A13). **Todavía no está en el
+código**: esta prueba es para cuando se programe. Todos los casos con un pedido de **$200**.
+
+### 6.1 Cuándo salen los dos botones y cuándo no
+
+| # | En la venta escribes | La pantalla dice | Botones para terminar | Queda en Mis pedidos como |
+|---|---|---|---|---|
+| a | Pago $0 | Quedará como: **Apartado** | **Uno solo** (guardar). **No** salen ✅ / 📦 | Apartado |
+| b | Pago $100, efectivo | Quedará como: **Ir pagando** | **✅ Ya se lo llevó** · **📦 Todavía no se lo lleva** | Ir pagando, debe $100 |
+| c | Pago $100 por transferencia (la manda la conocida, la tía…) | Quedará como: **Ir pagando** | Igual que b | Ir pagando, debe $100 |
+| d | Pago $200, efectivo | Quedará como: **Pagado** | **✅ Ya se lo llevó** · **📦 Falta entregarlo** | Según el botón (6.2) |
+| e | Pago $200 por transferencia | Quedará como: **Pagado** | Igual que d | Según el botón (6.2) |
+| f | Pago $200 con tarjeta en la terminal | Quedará como: **Pagado** | Igual que d | Según el botón (6.2) |
+| g | Pago $200 efectivo con un billete de $500 | Quedará como: **Pagado** · Cambio a devolver **$300** | Igual que d | Según el botón (6.2) |
+| h | Pago $500 por transferencia | **No deja**: en transferencia es el monto exacto | — | — |
+| i | Eliges **Apartado** y luego escribes $100 | Cambia solo a **Ir pagando**, con la nota *"Un Apartado es sin dinero; como te dio $100, queda como Ir pagando"* | Igual que b | Ir pagando |
+
+Revisar en todos: ninguno de los dos botones viene marcado, y antes de guardar sale el resumen
+(*"Cobrado: $200 por transferencia · Falta entregarlo"*).
+
+### 6.2 Qué pasa con cada botón
+
+| Caso | Botón | Esperado en Mis pedidos |
+|---|---|---|
+| Pagó $200 | ✅ Ya se lo llevó | **Entregado**, terminado (como hoy). Sin Cobrar ni Entregar |
+| Pagó $200 | 📦 Falta entregarlo | Etiqueta **"Pagado · falta entregar"**, botón **Entregar** (no Cobrar), sale en el filtro **"Por entregar"** |
+| Pagó $100 | ✅ Ya se lo llevó | Ir pagando, debe $100; si se cancela, el stock **no** regresa |
+| Pagó $100 | 📦 Todavía no se lo lleva | Ir pagando, debe $100; si se cancela, el stock **sí** regresa |
+
+### 6.3 Después de guardar
+
+- [ ] "Pagado · falta entregar" → **Entregar** → queda Entregado y **no** pide dinero.
+- [ ] "Pagado · falta entregar" con día de entrega ya pasado → sale **"⚠ Atrasado N días"**.
+- [ ] "Pagado · falta entregar" **no** se cancela solo aunque pasen días (los de contado sin cobrar sí,
+      a los 2 días).
+- [ ] El filtro **"Por entregar"** muestra solo los pagados que no se han entregado.
+
+### 6.4 Corregir errores
+
+| # | Error al guardar | Cómo corregirlo | Esperado |
+|---|---|---|---|
+| 1 | "Falta entregarlo" pero no había pagado nada | Detalle → 🔁 Cambiar forma de cobro → **Apartado** | Se anula el cobro, se borra la venta, queda Apartado debiendo $200 |
+| 2 | "Falta entregarlo" pero pagó solo $100 | 🔁 Cambiar forma de cobro → **Ir pagando**, "¿Cobra algo ahora?" $100 | Ir pagando, debe $100 |
+| 3 | "Falta entregarlo" pero sí se lo llevó | **Entregar** en la card | Entregado |
+| 4 | "Ya se lo llevó" pero no se lo llevó (con admin) | Botón para regresarlo a "Falta entregarlo" | Pagado · falta entregar |
+| 5 | Lo mismo que 4, con un usuario que **no** es admin | — | El botón **no** sale |
 
 ---
 
