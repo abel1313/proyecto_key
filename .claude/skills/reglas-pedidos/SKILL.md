@@ -145,8 +145,11 @@ Reglas técnicas completas (R1–R18): `src/main/java/com/ventas/key/hexagonal/g
 | **Al separar** se decide cuánto se queda cada pedido; tiene que sumar exacto lo que dio el cliente | ✅ |
 | **➕ Agregar artículo** pregunta "¿A qué pedido lo agregas?" | ✅ |
 | **⇄** (cambiar artículo) se queda en el pedido de ese artículo | ✅ |
-| Un solo botón de abonar en un pedido unido (**💵 Abonar al grupo**); esconder **💳 Registrar abono** | 🔮 pedido por el dueño, sin hacer |
-| Tabla del grupo: cada pedido muestra **solo su total**; abajo, **Pagado** y **Saldo del grupo**. Se quitan "Pagado" y "Saldo" por pedido (el dinero es del grupo; lo de cada uno se ve al separar) | 🆕 decidido 2026-10-01 |
+| Un solo botón de abonar en un pedido unido (**💵 Abonar al grupo**); **💳 Registrar abono** ya no sale si está unido | ✅ dev/qa 2026-10-01 |
+| Tabla del grupo: cada pedido muestra **solo su total**; abajo, **Pagado** y **Saldo del grupo**. Se quitan "Pagado" y "Saldo" por pedido (el dinero es del grupo; lo de cada uno se ve al separar) | ✅ dev/qa 2026-10-01 |
+| Card y encabezado de un grupo: solo **"Total de los N pedidos"** (y "Falta" / "Pagado · falta" si hay abonos). Nunca "Este pedido: $x" (el dueño lo vio ambiguo) | ✅ dev/qa 2026-10-01 |
+| Montos de abono: el aviso de "más de lo que se debe" sale **debajo del campo al escribir** y deja el botón gris; nunca al final después de llenar todo | ✅ dev/qa 2026-10-01 |
+| Avisos de resultado (Swal): todo centrado y con el mismo formato (*Etiqueta: $monto*), sin listas alineadas a la izquierda | ✅ dev/qa 2026-10-01 |
 | Botón **"Detalle de los pagos"** en grupos de **Ir pagando**: lista cada pago del grupo **una sola vez y completo** (monto, fecha, forma de pago, nota), aunque por dentro se haya anotado partido entre pedidos | 🆕 decidido 2026-10-01 |
 
 **Ejemplo acordado (Ir pagando):** 2 pedidos de $200 (total $400). Da $100 para los dos → deben $300.
