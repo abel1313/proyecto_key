@@ -17,6 +17,7 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [ ] **Hacer:** un solo botón de abonar en pedidos unidos (3.4) — por hacer, no está en el código.
 - [ ] **Hacer:** que el pedido abierto se vea igual que los otros del grupo (3.6) — por hacer.
 - [ ] **Hallazgo nuevo:** cancelar desde la card de Mis pedidos no dice el saldo a favor (5.1).
+- [ ] **Contestar ❓:** ¿Apartado acepta anticipo / abonos? (3.8)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
 ## Estado de cada tema
@@ -136,7 +137,7 @@ Detalle. Con $0 abonado, que no salga nada en la card es lo esperado.
 > 💬 *"Cuando se hace el pedido y se pone en Apartado o Ir pagando, ¿los pagos solo se hacen en
 > abonos? Esta es una duda que no me has respondido."*
 
-↳ **Sí.** A crédito todo el dinero entra como abono; no hay otro cobro. Por dónde entra:
+↳ **Sí.** En Apartado e Ir pagando todo el dinero entra como abono; no hay otro cobro. Por dónde entra:
 
 | Dónde | Botón / campo | Qué hace |
 |---|---|---|
@@ -144,7 +145,7 @@ Detalle. Con $0 abonado, que no salga nada en la card es lo esperado.
 | Detalle del pedido | **💳 Registrar abono** → 💾 Guardar abono | Abono a ese pedido |
 | Pantalla Créditos / Abonos | Registrar abono | Igual que el anterior |
 | Detalle de un pedido unido | **💵 Abonar al grupo** | Un abono para todo el grupo (ver 3.4) |
-| Detalle → 🔁 Cambiar forma de cobro (de contado a crédito) | **¿Cobra algo ahora?** | Lo que se escriba queda como abono, con la nota de "¿Por qué cambia?" |
+| Detalle → 🔁 Cambiar forma de cobro (de contado a Apartado o Ir pagando) | **¿Cobra algo ahora?** | Lo que se escriba queda como abono, con la nota de "¿Por qué cambia?" |
 
 - El botón **Cobrar** de la card **no cobra** un Apartado / Ir pagando: avisa *"Este pedido se cobra
   registrando un abono, no desde este botón"* y ofrece **Ir a Créditos / Abonos**.
@@ -240,7 +241,7 @@ iguales.
 1. **✂️ Separar pedidos** → marcar en *Sale* los que se separan.
 2. En *Se queda con* escribir cuánto se queda cada uno; *Queda debiendo* se calcula mientras se escribe.
 3. **Separar**. Si no suma exacto lo que dio el cliente, no deja.
-4. Esperado: cada pedido sale con su propia card y, si es a crédito con abonos, **"Pagado $X · Falta $Y"**.
+4. Esperado: cada pedido sale con su propia card y, si es Apartado o Ir pagando con abonos, **"Pagado $X · Falta $Y"**.
    El que cubre su total queda **Pagado**.
 
 - [ ] La card del grupo dice "Falta" después de abonar
@@ -248,6 +249,71 @@ iguales.
 - [ ] Total / Pagado / Saldo del grupo cuadran (Total = Pagado + Saldo)
 - [ ] Separar no deja si la suma no es exacta
 - [ ] Al separar, cada pedido conserva lo que se le asignó
+
+### 3.8 Formas de cobro y unir pedidos — reglas del dueño (2026-10-01)
+
+> 💬 *"Cuando se paga en carrito / tienda al contado y efectivo, el pedido ya se hizo completamente:
+> fue al local y ya se lo di. Está el otro, que paga con tarjeta, de una o a meses (¿ya metiste que
+> cada producto se pueda pagar a MSI?); ahí también el cliente estaba en el local. La otra, que
+> ahorita no se implementa: el cliente paga el pedido desde su cuenta con tarjeta, ahí no se lo
+> entregamos, el cliente pone a dónde y cuándo se lo vamos a llevar. Apartado e Ir pagando no se
+> pueden pagar ni con tarjeta ni con MSI. Más adelante: si lo aparta y va al local a recogerlo y
+> quiere pagar con tarjeta y tiene la opción de MSI, que lo pueda hacer; mínimo $300 para MSI, con
+> las reglas que ya te dije. Ir pagando no tiene MSI aunque el pedido cumpla."*
+
+↳ Anotado en `.claude/skills/reglas-pedidos/SKILL.md` (sección 2 y 3) y lo nuevo en
+`PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10. Sobre MSI por producto: **no está hecho todavía**. Está
+decidido y en el plan (Bloque 6: casilla por producto y por artículo, mínimo $300, solo si todos los
+artículos lo aceptan), pero sin programar. Hoy los meses se eligen al cobrar con tarjeta en la
+terminal, para toda la venta de contado, sin mínimo.
+
+> 💬 *"Y la duda que dices de que si paga a crédito, ahí no sé a qué te refieres."*
+
+↳ Fue una palabra mal usada: en el código, Apartado e Ir pagando se llaman "crédito". Quería decir
+**Apartado o Ir pagando**. Ya no se usa "a crédito" en lo que se te escriba (quedó como regla en la
+skill).
+
+> 💬 *"Quiero que inicies a hacer una skill para que siempre haga lo que diga, por ejemplo cosas
+> repetidas, cómo se reparte, para que lo anotes, porque ya habíamos quedado cómo era."*
+
+↳ Hecha: `.claude/skills/reglas-pedidos/SKILL.md` en el back. Se usa antes de tocar o contestar
+cualquier cosa de pedidos, ventas, cobro, abonos o grupos. Trae: cómo trabajar (nombres reales,
+tus palabras, no volver a preguntar, anotar cada regla nueva), formas de cobro, MSI, unir y separar
+con el ejemplo de abajo, y lo que falta confirmar.
+
+> 💬 *"Apartado e Ir pagando sin abonos: no se pueden unir porque no tienen la misma forma de pago.
+> Se puede cambiar la forma de pago de algún pedido para que los 2 sean iguales."*
+
+↳ ✅ Así funciona: el buscador de unir solo muestra pedidos con la misma forma de cobro. Para unirlos,
+primero se cambia uno con **🔁 Cambiar forma de cobro** en su detalle y luego se unen. Ya unidos ya no
+se puede cambiar la forma de cobro. (Elegir "pasar todos a … y unir" desde la pantalla de unir está
+en el plan, 6.7, sin hacer.)
+
+> 💬 *"Si es Apartado, cuando lo va a recoger es porque lo va a pagar por completo, porque si va a
+> estar dando abonos eso sería Ir pagando. Entonces si unimos 2 pedidos [apartados], aquí no aplican
+> abonos."*
+
+↳ ❓ **Esto choca con lo anotado antes y con el código, falta que confirmes:**
+- El 2026-09-29 quedó: *"Apartado: si deja anticipo, se anota (efectivo o transferencia)"*.
+- Hoy el sistema deja dar **enganche** al crear un Apartado y **abonos** después (también "Abonar al
+  grupo" en Apartados unidos).
+
+¿Cuál queda? **(a)** Apartado sin anticipo ni abonos: se paga completo al recogerlo (habría que
+quitar el enganche y los abonos en Apartado). **(b)** Apartado sí puede dejar un anticipo, y el resto
+se paga completo al recogerlo. **(c)** Se queda como está. No se cambia nada hasta que lo digas.
+
+> 💬 *"Ir pagando: ahí sí es ir dando abonos, de lo que sea, y no caducan. Dos pedidos de $200 ($400),
+> da $100 para los 2 y ya debe $300. Al separar: 50 y 50 → cada uno debe $150; si los 100 se van a
+> uno solo, uno debe $100 y el otro $200."*
+
+↳ ✅ Así funciona (Separar pide cuánto se queda cada uno y tiene que sumar exacto). El ejemplo quedó
+en la skill como el ejemplo acordado.
+
+> 💬 *"Agregar producto, que pregunte a qué pedido irá de los que tenemos en ese detalle; y cambiar
+> artículo, por el pedido debería saber que es para ese pedido, ¿no?"*
+
+↳ ✅ Los dos ya funcionan así (ver 3.5): **➕ Agregar artículo** pregunta *"¿A qué pedido lo agregas?"*
+y **⇄** deja el artículo nuevo en el mismo pedido del que se cambia.
 
 ---
 
