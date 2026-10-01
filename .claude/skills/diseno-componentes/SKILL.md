@@ -83,6 +83,25 @@ dentro de 4–6 pantallas, no compartida), checkbox / radio, chip o etiqueta de 
 la pantalla (nota informativa), modal. Los avisos `Swal` toman estilo global de `styles.scss`
 (`.swal2-*`), que hoy tiene colores escritos a mano.
 
+## 4.1 Botón de regresar — en toda pantalla nueva (regla del dueño 2026-10-01)
+
+Toda pantalla nueva que no sea la principal de un menú lleva botón de regresar, **alineado con el
+borde izquierdo del contenido, arriba del título**, como en Política de Privacidad. Nunca suelto en
+la esquina de la página cuando la tarjeta está centrada.
+
+- Se usa el compartido `<app-boton-volver>` (`shared/boton-volver`): vuelve a la pantalla anterior
+  real (con sus filtros) y si se entró directo usa `fallback`.
+- Si la pantalla tiene una tarjeta centrada, se le pasa su ancho y el margen lateral de la página:
+  `<app-boton-volver anchoContenido="820px" margen="16px" fallback="/productos/buscar">` (los mismos
+  valores que el `max-width` de la tarjeta y el `padding` lateral de su página). Si el contenido
+  ocupa todo el ancho, solo `margen`. Si no hay margen, nada.
+- Se revisa midiendo: el borde izquierdo del botón y el de la tarjeta tienen que coincidir a 1360,
+  900 y 400 px de ancho.
+- Alineadas así (2026-10-01, solo en `dev`): Agregar Modelo, Actualizar Modelo, Nuevo Producto,
+  actualizar artículo, carrito, Cargar catálogo Excel, Entregas por zona, Nuevo cliente, ver
+  cliente, Agregar mi compra, Cambiar contraseña, Mi perfil y Mis datos. Las demás pantallas con
+  botón de regresar ya estaban alineadas.
+
 ## 5. Cómo agregar un color nuevo (token) — completo
 
 1. `styles.scss`: agregar `--nuevo-token` en **los dos** bloques (`body.theme-light` y `body.theme-dark`).
