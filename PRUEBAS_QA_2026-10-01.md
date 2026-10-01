@@ -19,7 +19,8 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [ ] **Hallazgo nuevo:** cancelar desde la card de Mis pedidos no dice el saldo a favor (5.1).
 - [x] ~~¿Apartado acepta anticipo / abonos?~~ → **No**: Apartado es sin dinero (3.9)
 - [x] ~~¿El Apartado se cobra completo con Cobrar?~~ → **Sí**, y detecta pago completo y cambio (3.10)
-- [ ] **Contestar ❓:** las 5 dudas de 3.10
+- [x] ~~Las 5 dudas de 3.10~~ → contestadas (3.11)
+- [ ] **Contestar ❓:** venta que pagó todo pero no se lo lleva (3.11, punto 3)
 - [ ] **Hacer:** "Apartado = sin dinero" (`PLAN` §10.6, A1–A7)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
@@ -388,6 +389,64 @@ saldo pendiente"*), y el cambio solo se calcula contra el abono escrito.
    contado? Recomendado: **sí**.
 5. **Apartados que hoy ya tienen dinero** (en QA y prod): ¿se pasan todos a Ir pagando? Recomendado:
    **sí**, con un script que primero te muestre la lista.
+
+### 3.11 Respuestas a las 5 dudas (2026-10-01)
+
+> 💬 *"Entonces hay que dejarlo como está, que solo se pueda pagar en abonos, ¿no? Y si me voy a
+> Créditos y Abonos, ¿ahí sí lo puedo pagar todo? Y si me da uno de 500, ¿me daría cuánto le
+> regresaría? ¿O qué pasa si me debe 100 y me quiere dar 20 pesos y me da uno de 500? Quiero ver
+> cuánto le tengo que regresar."*
+
+↳ **Sí, se deja como está** (reemplaza lo de 3.10 de que Cobrar cobrara todo). En Créditos /
+Abonos, y también en "💳 Registrar abono" del detalle, **sí puedes pagar el total**: el pedido queda
+pagado. El cambio ya lo calcula hoy el campo **"💵 Monto recibido"** (solo en efectivo):
+- Debe $100 y lo liquida con uno de $500 → Monto $100, Monto recibido $500 → *Cambio a devolver $400*.
+- Debe $100, quiere dar $20 y paga con uno de $500 → Monto $20, Monto recibido $500 →
+  *Cambio a devolver $480*.
+
+Lo que no deja es escribir un abono **mayor** a lo que debe, y así se queda: el abono es lo que
+cuenta para la deuda, el monto recibido es el billete. Con la regla de Apartado (3.9), en un Apartado
+solo se acepta el total; si da menos, el aviso de cambiarlo a Ir pagando.
+
+> 💬 *"2. Si por transferencia me da 500, es que se equivocó, porque por transferencia me puede dar
+> exacto. No voy a poner 'me mandó 500 por transferencia y le tengo que regresar 300'."*
+
+↳ ✅ De acuerdo y ya funciona así: en transferencia no hay "Monto recibido" ni cambio, y un abono
+mayor a la deuda se rechaza.
+
+> 💬 *"3. Si lo paga por transferencia cuando estoy haciendo la venta y digo que me pagó todo,
+> entonces el pedido se va como pagado pero falta entregarlo. Ahí hay que ver cómo le hacemos para
+> saber que lo pagó pero aún no lo recoge; no sé cómo hacerle, tú dime."* — y al final: *"cuando
+> esté haciendo la venta, si detecta que es Apartado pero da el total, que aparezcan las opciones de
+> pago… puede que tenga 2 botones, de pagado y entregado; si hizo la transferencia y pongo el total,
+> por default se detecta pagado y solo queda el botón de si ya se entregó o no. Aquí no lo tengo
+> claro aún."*
+
+↳ **Propuesta** (skill 2.3, `PLAN` §10.6 A9):
+1. **Lo que paga decide la forma de cobro**, no tienes que acertarle al botón:
+   $0 → **Apartado** · menos del total → **Ir pagando** · el total → **pagado**.
+2. Si pagó el total, queda una sola pregunta obligatoria, **sin ninguna marcada de inicio** (para que
+   no se te pase): **"Ya se lo llevó"** → queda Entregado, como hoy · **"Falta entregarlo"** → queda
+   *Pagado, falta entregar*, y pones si pasa por él o se lo llevan, y qué día.
+3. En la lista de pedidos esos salen como **"Pagado · falta entregar"**, y cuando lo recoja le das
+   **Entregar** (ya no se cobra nada).
+
+¿Así te sirve? Si sí, se junta con el "Ya pagó, falta entregarlo" que ya estaba en el plan (V3).
+
+> 💬 *"4. Cuando están unidos como Apartados tienen que tener el mismo estatus. Cuando viene a
+> recogerlo lo tiene que liquidar para terminarlo como pagado y entregarlo. Y si dice 'te voy a dar
+> un adelanto nada más', tendría que cambiar el tipo de pago a Ir pagando para poder dar abonos, ¿no?"*
+
+↳ ✅ Sí, exacto. Ojo: hoy dentro de un grupo **no se puede cambiar la forma de cobro**; habría que
+separar, cambiar cada uno a Ir pagando y volver a unir. Quedó anotado hacer **"cambiar la forma de
+cobro del grupo entero"** (`PLAN` §10.6 A10).
+
+> 💬 *"5. Sí, hay que pasarlos a pagados para que no haya fallas, y ya en prod así lo dejamos y los
+> vamos sacando como se vayan pudiendo, ¿no?"*
+
+↳ Anotado (`PLAN` A7): en **QA** un script pasa a **Ir pagando** los Apartados que ya tienen dinero
+(primero te muestra la lista); en **prod** se quedan como están y se resuelven uno por uno. Entendí
+"pagados" como **Ir pagando**: marcarlos como *Pagado* diría que ya no deben nada, y sí deben.
 
 ---
 

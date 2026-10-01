@@ -308,10 +308,12 @@ Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`
 | A2 | Back, venta directa | Rechazar un Apartado con pago inicial mayor a 0 (por si el front no lo frena) |
 | A3 | Back, `PedidoServiceImpl.cambiarTipoPedido` | No pasar a Apartado si se cobra algo en ese momento o si el pedido ya tiene abonos |
 | A4 | Front, venta directa | Apartado + "Pago inicial (enganche)" mayor a 0 → aviso que no deja seguir, explica la regla y ofrece **Cambiar a Ir pagando** |
-| A5 | Front, detalle del pedido y Créditos / Abonos | En un Apartado, "💳 Registrar abono": si el monto es **menor** al total, aviso *"Para dar un abono, cambia el pedido a Ir pagando"* con botón a **🔁 Cambiar forma de cobro**; si es **igual o mayor**, se convierte en el cobro completo (A8) y muestra el cambio a devolver |
+| A5 | Front, detalle del pedido y Créditos / Abonos | En un Apartado, "💳 Registrar abono": si el monto es **menor** al total, aviso *"Para dar un abono, cambia el pedido a Ir pagando"* con botón a **🔁 Cambiar forma de cobro**; si es **el total**, se acepta como pago completo. El cambio sale de "Monto recibido", como hoy |
 | A6 | Front, pedidos unidos | Sin "💵 Abonar al grupo" en un grupo de Apartados |
-| A7 | Datos en QA y prod | Consulta para encontrar Apartados que **ya tienen** abonos o enganche, y decidir con el dueño (lo natural: pasarlos a Ir pagando). Script probado antes de entregarlo (regla de `CLAUDE.md`) |
-| A8 | Cobrar al recogerlo | ✅ **Decidido 2026-10-01:** el botón **Cobrar** de la card cobra el total del Apartado **de una vez** (efectivo o transferencia; tarjeta y MSI cuando exista 10.2) y lo deja pagado. Si el cliente da de más (debe $200, da $500), muestra **cuánto devolverle** ($300). Lo mismo si el monto completo se escribe en "Registrar abono" (A5): se detecta que es el pago completo y no se anota como abono |
+| A7 | Datos en QA y prod | **QA:** script que pasa a Ir pagando los Apartados que ya tienen abonos o enganche (primero muestra la lista; probado antes de entregarlo). **Prod:** se dejan como están y se van resolviendo uno por uno |
+| A8 | Cobrar al recogerlo | ✅ **Decidido 2026-10-01: se deja como está.** El Apartado se liquida en el formulario de abono de siempre (detalle o Créditos / Abonos) pagando el total; Cobrar sigue mandando a Créditos / Abonos. Un abono nunca es mayor a la deuda; el cambio sale de "Monto recibido" (efectivo). Transferencia siempre exacta |
+| A9 | ❓ Venta: pagó todo pero no se lo lleva | Propuesta (skill 2.3): lo que paga decide la forma de cobro ($0 Apartado · parcial Ir pagando · total pagado) y, si pagó todo, pregunta obligatoria **"Ya se lo llevó"** / **"Falta entregarlo"**. Se junta con V3 / H7. Falta aprobación |
+| A10 | Pedidos unidos | **Cambiar la forma de cobro del grupo entero** (p. ej. Apartados unidos que dejan un adelanto → todos a Ir pagando). Hoy está bloqueado dentro de un grupo (R9, H11) |
 
 Consecuencias: cancelar un Apartado ya no deja "saldo a favor" (no tiene dinero), y la Prueba 5 de
 `PRUEBAS_QA_2026-10-01.md` cambia en ese punto.
