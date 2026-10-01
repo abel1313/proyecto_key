@@ -90,10 +90,10 @@ arriba del título**. Falta lo demás.
 
 - [x] Con sesión: aparece en `/privacidad`
 - [x] Sin sesión: no aparece en `/privacidad`
-- [ ] Sin sesión: no aparece en `/eliminar-datos` ni en `/termConditions`
-- [ ] Con sesión: aparece en `/eliminar-datos` y `/termConditions` y regresa a la pantalla anterior
-- [ ] Abierta directo: regresa al inicio
-- [ ] Se ve bien de día y de noche
+- [ x] Sin sesión: no aparece en `/eliminar-datos` ni en `/termConditions`
+- [ x] Con sesión: aparece en `/eliminar-datos` y `/termConditions` y regresa a la pantalla anterior
+- [ x] Abierta directo: regresa al inicio
+- [x ] Se ve bien de día y de noche
 
 > 💬 *"No aparece el botón, pero si tengo sesión tampoco aparece"*
 > 💬 *"Sigue igual, así hay que dejarlo"*
@@ -407,13 +407,13 @@ G1 + precio de G2*.
      **💾 Guardar abono** en gris.
    - ⛔ No puede pasar: que deje guardar.
 
-- [ ] Paso 1: un solo botón de abonar en G1 y en G2
-- [ ] Paso 2: encabezado y tabla sin "Este pedido" ni Pagado/Saldo por pedido
-- [ ] Paso 3: el aviso de monto sale al escribir y bloquea el botón
-- [ ] Paso 4: aviso del resultado centrado, sin "Se repartió así"
-- [ ] Paso 5: card solo con "Total de los 2 pedidos" y "Falta"
-- [ ] Paso 6: G1 sale en "2 pedidos unidos" igual que G2
-- [ ] Paso 7: mismo aviso en un pedido suelto
+- [x ] Paso 1: un solo botón de abonar en G1 y en G2
+- [x ] Paso 2: encabezado y tabla sin "Este pedido" ni Pagado/Saldo por pedido
+- [x ] Paso 3: el aviso de monto sale al escribir y bloquea el botón
+- [x ] Paso 4: aviso del resultado centrado, sin "Se repartió así"
+- [x ] Paso 5: card solo con "Total de los 2 pedidos" y "Falta"
+- [x ] Paso 6: G1 sale en "2 pedidos unidos" igual que G2
+- [ x] Paso 7: mismo aviso en un pedido suelto
 
 **Lo que sigue pendiente de 3.4 (no se hizo hoy):** el botón **"Detalle de los pagos"** que
 liste cada pago del grupo una sola vez y completo (decidido, skill `reglas-pedidos` sección 4).
@@ -714,7 +714,8 @@ Para abrir cada uno: **Pedidos → Mis pedidos** → en el buscador escribe su n
      para ver *Pagado*.
    - 💬 Anota qué ves de los **$50 de más** (hoy no debe salir nada: el aviso de saldo a favor está
      pendiente). Es para confirmar que no aparece ningún número raro.
-
+es correcto y que pasa coin eso 50 en el historial?
+   - 
 **Caso 2 — A ese pedido ya Pagado, cambiarle un artículo por uno más caro (H1)**
 1. En el detalle de **H1** (que quedó Pagado con 1 artículo de $100), toca **⇄** en su tarjeta.
 2. En el buscador *"Cambiar por otro artículo"* escribe al menos 3 letras del artículo de **$200** y elígelo.
@@ -723,6 +724,13 @@ Para abrir cada uno: **Pedidos → Mis pedidos** → en el buscador escribe su n
    - ✅ Debe pasar: en **Reportes**, la venta que se había creado cuando quedó Pagado ya no cuenta
      (el pedido volvió a deber).
    - ⛔ No puede pasar: que siga diciendo **Pagado** cuando debe $50.
+   - aqui hay error quite el producto y si ya decia pagado y decia que pago 150 a un articulo de 100 es decir que yo debia 50 el dueno pues, pero agregue
+   - un producto de 300 y mira paso esto, total hast arriba donde esta el imprimir tiket etc dice total 100 en lugar de sumar el primer producto que quedo
+   - y el ultimo producto que  se agrego eso esta mal
+   - p[agos ]registrados dice 150 eso esta bien no pero mira este texto ✅ Este pedido ya está pagado por completo — no se pueden registrar más abonos.
+
+esta mal porque ya agregue el nuevo producto de 300
+
 
 **Caso 3 — Quitar y luego cambiar en el mismo pedido (H2)**
 1. Abre el detalle de **H2** (*"Debe: $50"*). Toca **−** en uno de sus artículos.
