@@ -931,9 +931,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      * porque la unica alternativa era cancelar y rehacer el pedido entero, devolviendo y
      * volviendo a descontar todo el stock.
      *
-     * <p><b>El cobro se hace ANTES de cambiar el tipo</b>, y no al reves: registrarAbono() exige
+     * <p><b>Al pasar a contado, el cobro se hace ANTES de cambiar el tipo</b>: registrarAbono() exige
      * que el pedido sea de credito, asi que si primero se pasara a NORMAL el abono quedaria
-     * rechazado y el pago no se registraria en ningun lado.
+     * rechazado. Al pasar a Apartado / Ir pagando es al reves: primero el tipo (ver abajo).
      *
      * <p>Se delega en registrarAbono() en vez de escribir el cobro aca: ahi ya viven la
      * validacion del monto contra el saldo, el paso a PAGADO, la creacion de la venta al
@@ -967,9 +967,33 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                     + "deshaz el grupo antes de cambiar su forma de cobro");
         }
 
+        // Un Apartado es sin dinero: si el cliente ya dio algo, o da algo ahora, es Ir pagando.
+        if ("APARTADO".equals(tipoNuevo)) {
+            double yaPagado = contadoYaEntregado || pedido.getTotalPagado() == null ? 0.0 : pedido.getTotalPagado();
+            if (request.traeCobro() || yaPagado > 0.01) {
+                throw new RuntimeException("Un Apartado es sin dinero: si el cliente ya dio algo, "
+                        + "el pedido es Ir pagando");
+            }
+        }
+
         String tipoOriginal = pedido.getTipoPedido();
         if (contadoYaEntregado) {
             reabrirContadoComoCredito(pedido, tipoNuevo, request.getNota());
+        }
+
+        if (request.traeCobro() && !contadoYaEntregado && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
+            throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + tipoOriginal
+                    + " y no tiene saldo que cobrar");
+        }
+
+        // Si pasa a Apartado o Ir pagando, el tipo cambia ANTES de cobrar: un Apartado solo acepta
+        // el pago completo, y el adelanto que se da al pasarlo a Ir pagando ya es de Ir pagando.
+        if (TIPOS_CREDITO_PEDIDO.contains(tipoNuevo) && !tipoNuevo.equals(pedido.getTipoPedido())) {
+            if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+                pedido.setEstadoPedido(tipoNuevo);
+            }
+            pedido.setTipoPedido(tipoNuevo);
+            iPedidoRepository.save(pedido);
         }
 
         double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
@@ -988,10 +1012,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         if (request.traeCobro()) {
-            if (!TIPOS_CREDITO_PEDIDO.contains(pedido.getTipoPedido())) {
-                throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + pedido.getTipoPedido()
-                        + " y no tiene saldo que cobrar");
-            }
             AbonoRequest abono = new AbonoRequest();
             abono.setMonto(request.getMonto());
             abono.setMetodoPago(request.getMetodoPago());

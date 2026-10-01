@@ -22,7 +22,7 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 - [x] ~~Las 5 dudas de 3.10~~ → contestadas (3.11)
 - [x] ~~Venta que pagó todo pero no se lo lleva~~ → decidido (3.12); casos de prueba en la **Prueba 6**
 - [ ] **Hacer:** Prueba 6 (lo que paga decide, "Falta entregarlo", Ir pagando "¿ya se lo llevó?")
-- [ ] **Hacer:** "Apartado = sin dinero" (`PLAN` §10.6, A1–A7)
+- [x] ~~Hacer "Apartado = sin dinero"~~ → programado en `dev` y `qa` (falta el script de QA). **Probar: Prueba 7**
 - [x] ~~Tabla del grupo y "Pagos registrados"~~ → decidido: solo totales + "Detalle de los pagos" (3.13)
 - [ ] **Seguir probando:** Prueba 3 desde el paso 3 (3.7), luego Pruebas 4 y 5.
 
@@ -37,6 +37,7 @@ Se sigue llenando aquí; lo que ya está en `PENDIENTES_2026-09-29.md` solo se r
 | Quitar / cambiar artículo con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 4) |
 | Cancelar pedido con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 5) |
 | Venta: lo que paga decide y "Falta entregarlo" | — | 🆕 por programar (Prueba 6) |
+| Apartado es sin dinero | back y front `dev`/`qa` | 🧪 listo para probar (Prueba 7) |
 | "Saldo a favor" en el front | — | ⏳ falta hacerlo (`PENDIENTES` B) |
 | Pagar Hosting-Mexico, orden 609155 | — | ⏳ antes del **4-oct-2026** (`PENDIENTES` C) |
 
@@ -599,6 +600,36 @@ Revisar en todos: ninguno de los dos botones viene marcado, y antes de guardar s
 | 3 | "Falta entregarlo" pero sí se lo llevó | **Entregar** en la card | Entregado |
 | 4 | "Ya se lo llevó" pero no se lo llevó (con admin) | Botón para regresarlo a "Falta entregarlo" | Pagado · falta entregar |
 | 5 | Lo mismo que 4, con un usuario que **no** es admin | — | El botón **no** sale |
+
+---
+
+## Prueba 7 — Apartado es sin dinero (✅ en QA desde 2026-10-01)
+
+Reglas: skill `reglas-pedidos` 2.1. Usa un Apartado sin abonos (p. ej. de $100) y uno de Ir pagando
+que ya tenga un abono.
+
+| # | Dónde | Qué haces | Esperado |
+|---|---|---|---|
+| 1 | Detalle de un **Apartado** | **💳 Registrar abono** | El monto ya viene con el total ($100) y abajo del título dice *"Es un Apartado: se paga completo ($100.00)…"* |
+| 2 | Mismo formulario | Cambia el monto a $50 → **💾 Guardar abono** | Aviso **"Un Apartado se paga completo"**. **No** se registra nada |
+| 3 | En el aviso | **🔁 Cambiar a Ir pagando** | Se abre "🔁 Cambiar la forma de cobro" con **Ir pagando** marcado y $50 en "¿Cobra algo ahora?" → **Guardar cambio** → queda Ir pagando, pagado $50, debe $50 |
+| 4 | Otro Apartado | **💳 Registrar abono** con el total ($100) | Se registra y el pedido queda **Pagado** |
+| 5 | Mismo caso en efectivo | Monto $100, **Monto recibido** $500 | *Cambio a devolver $400* |
+| 6 | **Créditos / Abonos**, un Apartado | Registrar $50 | Mismo aviso, con botón **Ir al pedido** (abre su detalle) |
+| 7 | Detalle de un **Ir pagando con abonos** | 🔁 Cambiar forma de cobro | **Apartado** sale deshabilitado (al pasar el mouse: *"Ya dio dinero…"*) |
+| 8 | Detalle de un Ir pagando **sin** abonos | 🔁 Cambiar forma de cobro → Apartado | No sale "¿Cobra algo ahora?" y sale la nota *"Un Apartado es sin dinero…"*. Se guarda |
+| 9 | **Grupo de Apartados** | Botón del grupo | Dice **💵 Pagar el grupo completo** y el monto viene con el saldo del grupo |
+| 10 | Mismo formulario | Escribe menos → **Registrar abono** | Aviso **"Los Apartados se pagan completos"**. No se registra nada |
+| 11 | Mismo formulario | Con el saldo completo → **Registrar abono** | Todos los pedidos del grupo quedan **Pagado** |
+| 12 | **Venta directa** | Elige **Apartado** y escribe un enganche de $100 | Cambia solo a **Ir pagando** con la nota *"Un Apartado es sin dinero: como te dio $100.00, queda como Ir pagando"*. Al guardar, el pedido queda Ir pagando con su enganche |
+| 13 | Venta directa | Elige **Apartado** sin enganche | Se guarda como Apartado, como siempre |
+
+- [ ] 1–3 Apartado con adelanto → Ir pagando
+- [ ] 4–5 Apartado pagado completo, con cambio
+- [ ] 6 Créditos / Abonos
+- [ ] 7–8 Cambiar forma de cobro
+- [ ] 9–11 Grupo de Apartados
+- [ ] 12–13 Venta directa
 
 ---
 
