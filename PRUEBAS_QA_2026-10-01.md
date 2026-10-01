@@ -29,6 +29,7 @@ abajo su sección marcada con **🔴 PRUEBA PENDIENTE**, con:
 | 2 | **Prueba 8** — Botón Volver alineado | 🔴 pendiente | Que el botón quede en el mismo borde que la tarjeta en 13 pantallas |
 | 3 | **Prueba 4** — Quitar, cambiar o agregar un artículo con abonos | 🔴 **reiniciar** (segunda vuelta, pedidos nuevos H4–H7) | La primera vuelta encontró un error al agregar; ya está corregido y se repite completa |
 | 4 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente (reescrita, pedidos K1–K6) | Stock y mensajes al cancelar Ir pagando, Apartado, un pedido unido y un Pagado (devolución) |
+| 5 | **Prueba 9** — Datos de prueba con un botón | 🔴 pendiente (nueva) | Crear 20 000 modelos, sus artículos y 1 000 pedidos en segundo plano, y darlos de baja |
 | — | **Prueba 6** — Venta: "Falta entregarlo" | ⛔ todavía no se puede | No está programada; la prueba está escrita para cuando se haga |
 | — | **Prueba 1** — Botón ← Regresar en páginas legales | ✅ hecha | — |
 | — | **Prueba 2** — TikTok | ✅ hecha | — |
@@ -1220,6 +1221,86 @@ Política de Privacidad. Su texto y lo que hace **no cambiaron**.
 | Mi perfil | Mismo lugar: **Mi perfil** | [ ] |
 | Agregar mi compra | Mismo lugar: **Agregar mi compra** | [ ] |
 
+
+---
+
+## Prueba 9 — Datos de prueba con un botón (2026-10-01)
+
+> 💬 *"me ayudas a meter un código java para meter unos 20 mil productos o es mucho, y esos productos
+> dividirlos en variantes o artículos para hacer pruebas y no tener que estar agregándolos
+> manualmente? y solo ejecutarlos 1 vez y se guarden en segundo plano? y también agregar pedidos?
+> que sean aleatorios"*
+
+↳ **20 mil no es mucho.** Medido antes de entregar, contra MySQL 8: **20 000 modelos, 50 080 artículos
+y 1 000 pedidos en 53 segundos**, sin errores. En QA puede tardar unos minutos (la base está en otra
+máquina). Se hizo con tres cuidados para que no estorbe:
+- **Stock de 6 a 20 por artículo.** La alerta diaria de stock bajo avisa con 5 o menos; con stock bajo
+  el correo traería miles de artículos de prueba.
+- **Fotos reusadas** de productos reales de QA (no se sube nada). Sin foto un artículo no sale en la
+  tienda. Dar de baja nunca borra una foto.
+- **Solo en QA:** el servidor le pregunta a la base cómo se llama, y si no es `inventario_key_qa` no
+  hace nada. Y solo un **administrador** lo puede usar.
+
+Los pedidos pasan por la **misma venta directa y el mismo abono** que usas en pantalla: 40 % contado
+(Entregado), 20 % Apartado sin dinero, 10 % Apartado pagado completo y 30 % Ir pagando con enganche y
+abonos (uno de cada 4 se termina de pagar). Las reglas, en `hexagonal/datosprueba/README.md`.
+
+### 🔴 PRUEBA PENDIENTE
+
+**Antes de empezar:** entra a QA con tu usuario **administrador** y haz recarga forzada.
+
+**Paso 1 — Lo de siempre sigue igual (Limpiar caché)**
+1. **Sistema → 🗑️ Limpiar caché**.
+   - ✅ Arriba sigue la tarjeta **Gestión de Caché** con **🗑️ Limpiar toda la caché**, igual que antes.
+   - ✅ Abajo hay una tarjeta nueva **🧪 Datos de prueba**.
+2. Toca **🗑️ Limpiar toda la caché** → **Sí, limpiar**.
+   - ✅ Sale *"¡N cachés limpiadas!"*, igual que antes.
+
+**Paso 2 — Generar**
+1. En **🧪 Datos de prueba** deja los valores (Modelos **20000**, Artículos por modelo **1** a **4**,
+   Pedidos **1000**) → **🧪 Generar datos de prueba** → **Sí, generar**.
+   - ✅ El botón cambia a **Generando…** y aparece una barra con el avance:
+     *"Creando modelos y artículos · N%"* y los contadores *Modelos: X de 20000 · Artículos: … · Pedidos: …*.
+   - ✅ Puedes salir de la pantalla: al volver, sigue mostrando el avance.
+2. Espera a que diga **Terminado · 100%**.
+   - ✅ *Modelos: 20000 de 20000* y *Pedidos: 1000 de 1000*. Anota los artículos: ______.
+   - ⛔ *"Se detuvo: …"* o *"con error: N"* mayor que 0 → anótalo con 💬 (copia el *Último error*).
+
+**Paso 3 — Ver lo que creó**
+1. **🛍️ Tienda** → busca **"QA-1"**.
+   - ✅ Salen artículos de prueba con foto (la foto es de otro producto real: es normal).
+2. **Catálogo → 🔍 Modelos** → busca **"Prueba QA"** o **"QA-"**.
+   - ✅ Salen modelos con marca *Prueba QA*. Abre uno: tiene de 1 a 4 artículos con stock de 6 a 20.
+3. **Mis pedidos** → busca **"Cliente Prueba QA"**.
+   - ✅ Hay pedidos **Entregado**, **Apartado**, **Ir pagando** y **Pagado**.
+4. **💳 Créditos / Abonos** → **📋 Cuentas por cobrar**.
+   - ✅ Salen Apartados (sin abonos) e Ir pagando (con enganche y abonos) de "Cliente Prueba QA".
+5. **Reportes**.
+   - ✅ Aparecen las ventas de contado y las de los pedidos que se terminaron de pagar.
+
+**Paso 4 — Una segunda corrida no repite**
+1. Cambia Modelos a **100** y Pedidos a **0** → **🧪 Generar datos de prueba**.
+   - ✅ Termina con *Modelos: 100 de 100*. En Modelos, el último sigue la numeración (por ejemplo
+     *QA-20100*), no vuelve a *QA-1*.
+2. Mientras dice **Generando…**, intenta generar otra vez (si alcanzas).
+   - ✅ No deja: los botones están desactivados (y el servidor contestaría *"Ya se están generando…"*).
+
+**Paso 5 — Dar de baja**
+1. **Dar de baja los datos de prueba** → **Sí, dar de baja**.
+   - ✅ *"N artículos de prueba dados de baja (y sus modelos)"*.
+   - ✅ En **🛍️ Tienda**, "QA-1" ya no sale. Tus productos reales y sus fotos siguen igual.
+   - ✅ Los pedidos de prueba siguen en **Mis pedidos** (se quedan como historial).
+
+**Paso 6 — Solo administrador**
+1. Entra con un usuario que tenga la pantalla **Limpiar caché** pero **no** sea administrador (si hay).
+   - ✅ No ve la tarjeta **🧪 Datos de prueba**.
+
+- [ ] Paso 1: Limpiar caché igual que antes
+- [ ] Paso 2: 20 000 modelos y 1 000 pedidos, Terminado sin errores
+- [ ] Paso 3: se ven en Tienda, Modelos, Mis pedidos, Créditos / Abonos y Reportes
+- [ ] Paso 4: la segunda corrida sigue la numeración
+- [ ] Paso 5: dar de baja; lo real no se toca
+- [ ] Paso 6: un no administrador no ve la tarjeta
 
 ---
 
