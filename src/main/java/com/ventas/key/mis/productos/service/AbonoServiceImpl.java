@@ -70,6 +70,12 @@ public class AbonoServiceImpl implements IAbonoService {
             throw new RuntimeException(
                 String.format("El monto $%.2f excede el saldo pendiente de $%.2f", request.getMonto(), saldoPendiente));
         }
+        // Un Apartado es sin dinero: solo se acepta el pago completo. Un adelanto es Ir pagando.
+        if ("APARTADO".equals(pedido.getTipoPedido()) && saldoPendiente - request.getMonto() > 0.01) {
+            throw new RuntimeException(String.format(
+                "Un Apartado se paga completo al recogerlo: debe $%.2f. Para dar un abono, cambia el pedido a Ir pagando",
+                saldoPendiente));
+        }
 
         String metodoPago = request.getMetodoPago() != null ? request.getMetodoPago() : "EFECTIVO";
 
@@ -367,7 +373,7 @@ public class AbonoServiceImpl implements IAbonoService {
         prod.setStock(prod.getStock() - request.getCantidad());
         productosRepository.save(prod);
 
-        // Crear nuevo pedido APARTADO
+        // El pedido nuevo ya nace con dinero, asi que es Ir pagando: un Apartado es sin dinero.
         DetallePedido detalle = new DetallePedido();
         detalle.setCantidad(request.getCantidad());
         detalle.setPrecioUnitario(request.getPrecioUnitario());
@@ -376,8 +382,8 @@ public class AbonoServiceImpl implements IAbonoService {
         detalle.setVariante(variante);
 
         Pedido nuevoPedido = new Pedido();
-        nuevoPedido.setTipoPedido("APARTADO");
-        nuevoPedido.setEstadoPedido("APARTADO");
+        nuevoPedido.setTipoPedido("FIADO");
+        nuevoPedido.setEstadoPedido("FIADO");
         nuevoPedido.setTotalPedido(totalNuevo);
         nuevoPedido.setTotalPagado(0.0);
         nuevoPedido.setCliente(origen.getCliente());
@@ -411,7 +417,7 @@ public class AbonoServiceImpl implements IAbonoService {
             estadoFinal = "PAGADO";
             crearVentaDesdePedido(savedPedido, "EFECTIVO", request.getUsuarioId());
         } else {
-            estadoFinal = "APARTADO";
+            estadoFinal = "FIADO";
         }
 
         pedidoRepository.save(savedPedido);

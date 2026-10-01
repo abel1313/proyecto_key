@@ -300,7 +300,9 @@ Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`
 | 10.4 | Apartado e Ir pagando hoy: **ni tarjeta ni MSI** (efectivo o transferencia) | ✅ así está |
 | 10.5 | ✅ **Decidido: Apartado = sin dinero.** Es el pedido que el cliente hace por Facebook, live o mensaje y no ha dado nada. Si dio cualquier cosa (enganche, transferencia, un familiar que trajo $100) es **Ir pagando**. Reemplaza lo del §1 ("si deja anticipo, se anota"). Regla completa: skill `reglas-pedidos` 2.1 | 🆕 por programar (10.6) |
 
-### 10.6 Qué hay que cambiar para "Apartado = sin dinero" (🆕, sin programar)
+### 10.6 Qué hay que cambiar para "Apartado = sin dinero"
+
+**Avance 2026-10-01:** ✅ A1, A2 (cubierto por A1), A3, A5, A6 y el paso automático a Ir pagando en la venta, en `dev` y `qa`. El "Grupo de Apartados" quedó como **💵 Pagar el grupo completo** (solo acepta el saldo completo). Falta A7 (script de QA) y lo de A9–A15.
 
 | # | Dónde | Cambio |
 |---|---|---|

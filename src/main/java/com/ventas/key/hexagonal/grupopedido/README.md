@@ -50,6 +50,7 @@ cada artículo y cada abono, y los abonos hechos después de unir no tendrían d
 | R16 | **Quién recoge se cambia** cuando se quiera, entre los pedidos del grupo. |
 | R17 | Después de repartir, cada pedido queda según su dinero: si cubre su total queda **PAGADO** y se crea su venta; si ya no lo cubre (se le pasó dinero a otro) vuelve a Apartado / Ir pagando y se **borra** la venta que tenía (mismo criterio que reabrir un contado). |
 | R18 | **Se agregan pedidos a un grupo que ya existe** (2026-09-30), con las mismas reglas que unir, pero solo para los que entran: misma forma de cobro que el grupo, abiertos (no cancelados ni cobrados de contado) y fuera de otro grupo. Los que ya estaban pueden estar pagados o cancelados y no se revisan. No se mueve dinero: lo que el pedido ya tenía abonado cuenta para el grupo y queda anotado en sus observaciones. Quién recoge no cambia. |
+| R19 | **Apartados unidos se pagan completos** (2026-10-01): un Apartado es sin dinero, así que el abono a un grupo de Apartados tiene que ser el saldo completo del grupo. Para un adelanto, los pedidos pasan a Ir pagando. Ver skill `reglas-pedidos` 2.1. |
 
 **Cambios a reglas anteriores (2026-09-23, v2):**
 - **R2:** un pedido a crédito **ya pagado sí se une** (su dinero pasa a ser del grupo). Uno cobrado de

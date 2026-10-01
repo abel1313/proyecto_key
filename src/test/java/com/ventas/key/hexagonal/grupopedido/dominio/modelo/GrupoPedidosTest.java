@@ -61,6 +61,17 @@ class GrupoPedidosTest {
     }
 
     @Test
+    @DisplayName("Apartados unidos: solo se acepta el pago completo del grupo")
+    void apartadoSoloPagoCompleto() {
+        GrupoPedidos g = new GrupoPedidos(1, 1, true, LocalDateTime.now(), null, List.of(
+                new PedidoDelGrupo(1, "APARTADO", "APARTADO", 20_000, 0, LocalDateTime.of(2026, 9, 1, 12, 0), "A"),
+                new PedidoDelGrupo(2, "APARTADO", "APARTADO", 20_000, 0, LocalDateTime.of(2026, 9, 2, 12, 0), "B")));
+        assertThatThrownBy(() -> g.repartir(10_000)).isInstanceOf(AbonoAlGrupoInvalidoException.class)
+                .hasMessageContaining("Ir pagando");
+        assertThat(g.repartir(40_000)).containsExactly(new Reparto(1, 20_000, true), new Reparto(2, 20_000, true));
+    }
+
+    @Test
     @DisplayName("un grupo de contado no recibe abonos")
     void contado() {
         GrupoPedidos g = new GrupoPedidos(1, 1, true, LocalDateTime.now(), null, List.of(

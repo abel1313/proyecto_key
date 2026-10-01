@@ -39,7 +39,7 @@ Leyenda: ✅ así funciona hoy · 🔮 para después (no está programado) · �
 | **Contado, efectivo** (en el local) | Completo en ese momento | Ahí mismo: el cliente está en el local y se lo lleva. El pedido queda terminado | ✅ |
 | **Contado, tarjeta** (en el local, terminal) | Tarjeta de débito o crédito, de una exhibición o a meses sin intereses | Ahí mismo, igual que efectivo | ✅ tarjeta · MSI ver 3 |
 | **Pago en línea** (el cliente paga con tarjeta desde su cuenta en la tienda) | Completo, con tarjeta, al hacer el pedido | **No** se entrega en ese momento: el cliente pone **a dónde** y **cuándo** se lo llevan, y la tienda se lo lleva | 🔮 |
-| **Apartado** | **Sin dinero.** Es el pedido que el cliente hace por Facebook, un live o un mensaje: solo lo pide, no ha dado nada. Se paga **completo** al recogerlo | Cuando va al local a recogerlo | regla 2026-10-01 (ver 2.1; el código todavía acepta dinero) |
+| **Apartado** | **Sin dinero.** Es el pedido que el cliente hace por Facebook, un live o un mensaje: solo lo pide, no ha dado nada. Se paga **completo** al recogerlo | Cuando va al local a recogerlo | ✅ desde 2026-10-01 (ver 2.1) |
 | **Ir pagando** | Abonos en efectivo o transferencia. **Nunca tarjeta ni MSI**. Los abonos **no caducan**. **Cualquier pedido en el que el cliente ya dio algo de dinero es Ir pagando** (enganche, transferencia, o un familiar que trajo $100) | El cliente se lleva la mercancía y va pagando | ✅ |
 | **Apartado, al recogerlo con tarjeta** | Al ir al local a recogerlo, poder pagar con tarjeta y, si cumple 3, a MSI | Al recogerlo | 🔮 |
 
@@ -65,12 +65,13 @@ podría entrar."*
 | Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
 | Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
-| Apartados unidos | No hay "Abonar al grupo": se pagan completos al recogerlos |
+| Apartados unidos | El botón dice **💵 Pagar el grupo completo** y solo acepta el saldo completo del grupo |
 | El cliente recoge el Apartado | Paga **todo** en ese momento, en el formulario de abono de siempre (detalle o Créditos / Abonos). El botón **Cobrar** de la card sigue mandando a Créditos / Abonos. Decidido 2026-10-01: "dejarlo como está" (reemplaza la idea de que Cobrar cobrara todo) |
 | Apartados unidos y vienen a recogerlos | Se liquida el total del grupo y queda pagado y entregado. Si solo deja un adelanto, el **grupo entero** pasa a Ir pagando (todos tienen la misma forma de cobro) — hoy eso obliga a separar, cambiar cada uno y volver a unir (🆕 `PLAN` §10.6 A10) |
 
-Estado: 🆕 **por programar** (lista en `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10.6). Hasta que se haga, el
-código todavía acepta enganche y abonos en Apartado. Si el dueño pide "deja dar un abono en un
+Estado: ✅ **programado en `dev` y `qa` el 2026-10-01** (A1–A6 de `PLAN` §10.6; falta A7, el script
+de QA). El back rechaza el abono parcial a un Apartado (pedido y grupo) y pasar a Apartado con
+dinero; el front avisa y ofrece cambiar a Ir pagando. Si el dueño pide "deja dar un abono en un
 Apartado", **recordarle esta regla**: para dar un abono, el pedido se cambia a Ir pagando.
 
 ### 2.2 Abono, billete y cambio (decidido 2026-10-01)

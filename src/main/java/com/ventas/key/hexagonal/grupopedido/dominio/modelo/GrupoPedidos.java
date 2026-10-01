@@ -136,6 +136,12 @@ public record GrupoPedidos(
             throw new AbonoAlGrupoInvalidoException(String.format(
                     "El monto $%.2f excede el saldo del grupo de $%.2f", montoCentavos / 100.0, saldo / 100.0));
         }
+        // Un Apartado es sin dinero: se paga completo al recogerlo. Un adelanto es Ir pagando.
+        if ("APARTADO".equals(tipo()) && montoCentavos < saldo) {
+            throw new AbonoAlGrupoInvalidoException(String.format(
+                    "Un Apartado se paga completo al recogerlo: el grupo debe $%.2f. "
+                            + "Para dar un adelanto, los pedidos tienen que pasar a Ir pagando", saldo / 100.0));
+        }
 
         List<Reparto> repartos = new ArrayList<>();
         long restante = montoCentavos;

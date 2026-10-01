@@ -142,7 +142,7 @@ class CambiarTipoPedidoTest {
     @Test
     @DisplayName("si el estado era copia del tipo, cambia junto con el tipo")
     void estadoQueCopiaElTipoSeMueveJunto() {
-        Pedido p = pedido("FIADO", 1000, 300);
+        Pedido p = pedido("FIADO", 1000, 0);
         p.setEstadoPedido("FIADO");
 
         service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO"));
@@ -154,7 +154,7 @@ class CambiarTipoPedidoTest {
     @Test
     @DisplayName("un estado que no es copia del tipo no se toca")
     void estadoDistintoAlTipoNoSeToca() {
-        Pedido p = pedido("FIADO", 1000, 300);
+        Pedido p = pedido("FIADO", 1000, 0);
 
         service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO"));
 
@@ -249,23 +249,59 @@ class CambiarTipoPedidoTest {
     }
 
     @Test
-    @DisplayName("contado entregado a apartado con enganche: el enganche entra como primer abono")
-    void contadoEntregadoAApartadoConEnganche() {
+    @DisplayName("contado entregado a Ir pagando con enganche: el enganche entra como primer abono")
+    void contadoEntregadoAFiadoConEnganche() {
         Pedido p = contadoEntregado(1000);
         p.setObservaciones("Venta de mostrador");
         when(abonoService.registrarAbono(eq(PEDIDO_ID), any())).thenAnswer(inv -> {
-            assertThat(p.getTipoPedido()).isEqualTo("APARTADO");
+            assertThat(p.getTipoPedido()).isEqualTo("FIADO");
             assertThat(p.getTotalPagado()).isZero();
             return null;
         });
 
-        service.cambiarTipoPedido(PEDIDO_ID, cobrando("APARTADO", 200, "dio 200 de enganche"));
+        service.cambiarTipoPedido(PEDIDO_ID, cobrando("FIADO", 200, "dio 200 de enganche"));
 
         ArgumentCaptor<AbonoRequest> abono = ArgumentCaptor.forClass(AbonoRequest.class);
         verify(abonoService).registrarAbono(eq(PEDIDO_ID), abono.capture());
         assertThat(abono.getValue().getMonto()).isEqualTo(200.0);
-        assertThat(abono.getValue().getNota()).isEqualTo("Cambio de NORMAL a APARTADO: dio 200 de enganche");
-        assertThat(p.getObservaciones()).startsWith("Venta de mostrador\n").contains("Apartado: dio 200 de enganche");
+        assertThat(abono.getValue().getNota()).isEqualTo("Cambio de NORMAL a FIADO: dio 200 de enganche");
+    }
+
+    @Test
+    @DisplayName("Apartado es sin dinero: no se pasa a Apartado cobrando algo")
+    void aApartadoConCobroSeRechaza() {
+        contadoEntregado(1000);
+
+        assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cobrando("APARTADO", 200, null)))
+                .hasMessageContaining("Un Apartado es sin dinero");
+        verify(abonoService, never()).registrarAbono(anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("Apartado es sin dinero: un Ir pagando que ya tiene abonos no pasa a Apartado")
+    void fiadoConAbonosNoPasaAApartado() {
+        Pedido p = pedido("FIADO", 1000, 300);
+
+        assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO")))
+                .hasMessageContaining("Un Apartado es sin dinero");
+        assertThat(p.getTipoPedido()).isEqualTo("FIADO");
+    }
+
+    @Test
+    @DisplayName("Apartado a Ir pagando con adelanto: el tipo cambia antes del abono")
+    void apartadoAFiadoConAdelanto() {
+        Pedido p = pedido("APARTADO", 1000, 0);
+        p.setEstadoPedido("APARTADO");
+        when(abonoService.registrarAbono(eq(PEDIDO_ID), any())).thenAnswer(inv -> {
+            assertThat(p.getTipoPedido()).isEqualTo("FIADO");
+            assertThat(p.getEstadoPedido()).isEqualTo("FIADO");
+            return null;
+        });
+
+        service.cambiarTipoPedido(PEDIDO_ID, cobrando("FIADO", 100, "lo trajo la tia"));
+
+        verify(abonoService).registrarAbono(eq(PEDIDO_ID), any(AbonoRequest.class));
+        assertThat(p.getTipoPedido()).isEqualTo("FIADO");
     }
 
     @Test
@@ -367,8 +403,8 @@ class CambiarTipoPedidoTest {
     @Test
     @DisplayName("el abono se arma con lo que mando quien hizo el cambio")
     void elAbonoLlevaLosDatosDelCobro() {
-        pedido("FIADO", 1000, 0);
-        CambiarTipoPedidoRequest req = cobrando("APARTADO", 400, "Abono en mostrador");
+        pedido("APARTADO", 1000, 0);
+        CambiarTipoPedidoRequest req = cobrando("FIADO", 400, "Abono en mostrador");
         req.setMetodoPago("TRANSFERENCIA");
         req.setMontoDado(400.0);
 
@@ -387,7 +423,7 @@ class CambiarTipoPedidoTest {
     void contadoNoTieneSaldoQueCobrar() {
         pedido("NORMAL", 1000, 1000);
 
-        assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cobrando("APARTADO", 200, null)))
+        assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cobrando("FIADO", 200, null)))
                 .hasMessageContaining("no tiene saldo que cobrar");
         verify(abonoService, never()).registrarAbono(anyInt(), any());
     }

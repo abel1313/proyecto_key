@@ -21681,3 +21681,39 @@ Body `{ "code", "redirectUri" }`. El `redirectUri` tiene que ser **idéntico** a
 - [ ] **Quitar acceso** → Cancelar → no cambia nada.
 - [ ] En TikTok tocar "Cancelar" → "No se conectó TikTok. No se cambió nada."
 - [ ] Recargar `/tiktok/callback` después de conectar → no marca error ni vuelve a mandar el code.
+
+---
+
+## 📦 Apartado es sin dinero (2026-10-01)
+
+Regla del dueño: un **Apartado** es el pedido que el cliente pide por Facebook, un live o un mensaje,
+y no ha dado nada. Se paga **completo** al recogerlo. Si el cliente da cualquier cosa (enganche,
+transferencia, un familiar que trae $100), el pedido es **Ir pagando** (`FIADO`). Detalle en la skill
+`reglas-pedidos` 2.1 y `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10.6.
+
+### Qué cambia en el back
+
+| Endpoint | Antes | Ahora |
+|---|---|---|
+| `POST /v1/abonos/{pedidoId}` | Un Apartado aceptaba cualquier abono hasta el saldo | En un Apartado solo se acepta **el saldo completo**. Menos → **400** `"Un Apartado se paga completo al recogerlo: debe $X. Para dar un abono, cambia el pedido a Ir pagando"`. Ir pagando sigue igual |
+| `POST /v1/grupos-pedido/{grupoId}/abonos` | Igual que arriba, repartido | En un grupo de Apartados solo se acepta **el saldo completo del grupo**. Menos → **400** `"Un Apartado se paga completo al recogerlo: el grupo debe $X. Para dar un adelanto, los pedidos tienen que pasar a Ir pagando"` |
+| `PUT /v1/pedidos/{id}/tipo` (Cambiar forma de cobro) | Se podía pasar a Apartado cobrando algo, o un Ir pagando con abonos | Pasar a `APARTADO` con `monto` > 0, o un pedido que ya tiene abonos → **400** `"Un Apartado es sin dinero: si el cliente ya dio algo, el pedido es Ir pagando"`. Al pasar a Apartado o Ir pagando, el tipo cambia **antes** del cobro: un Apartado → Ir pagando con `monto` registra el adelanto ya como Ir pagando |
+| `POST /v1/abonos/{pedidoId}/transferir` | El pedido nuevo nacía Apartado | El pedido nuevo nace **Ir pagando** (`FIADO`): ya trae dinero. `estadoPedido` del response: `FIADO` o `PAGADO` |
+
+Los Apartados que **ya** tenían abonos siguen pudiendo liquidarse pagando el saldo exacto.
+
+### Qué cambia en el front
+- **Detalle del pedido:** en un Apartado, "💳 Registrar abono" abre con el monto completo y una nota.
+  Si se escribe menos, aviso *"Un Apartado se paga completo"* con botón **🔁 Cambiar a Ir pagando**,
+  que abre Cambiar forma de cobro con Ir pagando marcado y el monto en "¿Cobra algo ahora?".
+- **Cambiar forma de cobro:** Apartado sale deshabilitado si el pedido ya tiene dinero; al elegir
+  Apartado no aparece "¿Cobra algo ahora?". Ayudas: Apartado *"Sin dinero: lo paga completo al
+  recogerlo"*, Ir pagando *"Ya dio algo y va abonando"*.
+- **Créditos / Abonos:** igual que el detalle; el aviso ofrece **Ir al pedido**.
+- **Pedidos unidos (Apartados):** el botón dice **💵 Pagar el grupo completo**, abre con el saldo del
+  grupo y no acepta menos.
+- **Venta:** con Apartado elegido, escribir un enganche lo pasa solo a **Ir pagando** con la nota
+  *"Un Apartado es sin dinero: como te dio $X, queda como Ir pagando"*.
+
+#### Checklist QA
+Casos detallados en `PRUEBAS_QA_2026-10-01.md`, **Prueba 7**.
