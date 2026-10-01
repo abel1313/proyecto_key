@@ -605,31 +605,112 @@ Revisar en todos: ninguno de los dos botones viene marcado, y antes de guardar s
 
 ## Prueba 7 — Apartado es sin dinero (✅ en QA desde 2026-10-01)
 
-Reglas: skill `reglas-pedidos` 2.1. Usa un Apartado sin abonos (p. ej. de $100) y uno de Ir pagando
-que ya tenga un abono.
+Reglas: skill `reglas-pedidos` 2.1. Qué cambió: `CAMBIOS_FRONT.md` → "📦 Apartado es sin dinero".
+**Antes de empezar:** en QA, recarga forzada (`Ctrl + Shift + R`) para no quedarte con la versión vieja.
 
-| # | Dónde | Qué haces | Esperado |
-|---|---|---|---|
-| 1 | Detalle de un **Apartado** | **💳 Registrar abono** | El monto ya viene con el total ($100) y abajo del título dice *"Es un Apartado: se paga completo ($100.00)…"* |
-| 2 | Mismo formulario | Cambia el monto a $50 → **💾 Guardar abono** | Aviso **"Un Apartado se paga completo"**. **No** se registra nada |
-| 3 | En el aviso | **🔁 Cambiar a Ir pagando** | Se abre "🔁 Cambiar la forma de cobro" con **Ir pagando** marcado y $50 en "¿Cobra algo ahora?" → **Guardar cambio** → queda Ir pagando, pagado $50, debe $50 |
-| 4 | Otro Apartado | **💳 Registrar abono** con el total ($100) | Se registra y el pedido queda **Pagado** |
-| 5 | Mismo caso en efectivo | Monto $100, **Monto recibido** $500 | *Cambio a devolver $400* |
-| 6 | **Créditos / Abonos**, un Apartado | Registrar $50 | Mismo aviso, con botón **Ir al pedido** (abre su detalle) |
-| 7 | Detalle de un **Ir pagando con abonos** | 🔁 Cambiar forma de cobro | **Apartado** sale deshabilitado (al pasar el mouse: *"Ya dio dinero…"*) |
-| 8 | Detalle de un Ir pagando **sin** abonos | 🔁 Cambiar forma de cobro → Apartado | No sale "¿Cobra algo ahora?" y sale la nota *"Un Apartado es sin dinero…"*. Se guarda |
-| 9 | **Grupo de Apartados** | Botón del grupo | Dice **💵 Pagar el grupo completo** y el monto viene con el saldo del grupo |
-| 10 | Mismo formulario | Escribe menos → **Registrar abono** | Aviso **"Los Apartados se pagan completos"**. No se registra nada |
-| 11 | Mismo formulario | Con el saldo completo → **Registrar abono** | Todos los pedidos del grupo quedan **Pagado** |
-| 12 | **Venta directa** | Elige **Apartado** y escribe un enganche de $100 | Cambia solo a **Ir pagando** con la nota *"Un Apartado es sin dinero: como te dio $100.00, queda como Ir pagando"*. Al guardar, el pedido queda Ir pagando con su enganche |
-| 13 | Venta directa | Elige **Apartado** sin enganche | Se guarda como Apartado, como siempre |
+### 7.0 Preparar los pedidos de prueba (una sola vez)
 
-- [ ] 1–3 Apartado con adelanto → Ir pagando
-- [ ] 4–5 Apartado pagado completo, con cambio
-- [ ] 6 Créditos / Abonos
-- [ ] 7–8 Cambiar forma de cobro
-- [ ] 9–11 Grupo de Apartados
-- [ ] 12–13 Venta directa
+Todo en **Tienda → Venta directa** (pantalla "Venta directa"). Usa artículos baratos de prueba y
+anota el número de cada pedido que se crea (sale en el mensaje "✅ Apartado registrado · Pedido #…").
+
+| Pedido | Cómo crearlo | Anota |
+|---|---|---|
+| **A** — Apartado sin dinero | 🔍 Buscar producto → agrega 1 artículo → **📦 Apartado** → deja **💰 Pago inicial (enganche)** vacío o en 0 → **💰 Cobrar** | número de A y su total |
+| **B** — otro Apartado | Igual que A, con otro artículo | número de B |
+| **C** — otro Apartado | Igual que A | número de C |
+| **D** — otro Apartado | Igual que A | número de D |
+| **E** — Ir pagando con dinero | Agrega 1 artículo → **💳 Ir pagando** → enganche **$50** → **💰 Cobrar** | número de E |
+| **F** — Ir pagando sin dinero | Agrega 1 artículo → **💳 Ir pagando** → enganche en 0 → **💰 Cobrar** | número de F |
+
+Para entrar al detalle de cualquiera: **Pedidos → Mis pedidos** → busca su número → **👁 Detalle**.
+
+### 7.1 Apartado con un adelanto → se cambia a Ir pagando (pedido A)
+
+1. Abre el detalle de **A**.
+2. Abajo, clic en **💳 Registrar abono**.
+   - ✅ El campo **Monto** ya trae el **total** del pedido.
+   - ✅ Abajo del título dice: *"Es un Apartado: se paga completo ($…). Para dejar un adelanto, cámbialo a Ir pagando."*
+3. Cambia el monto a **$50** y da **💾 Guardar abono**.
+   - ✅ Sale el aviso **"Un Apartado se paga completo"** que explica que, si dejó un adelanto, primero se cambia a Ir pagando.
+   - ✅ **No** se registró nada: en "📋 Pagos registrados" no aparece el abono.
+4. En el aviso, clic en **🔁 Cambiar a Ir pagando**.
+   - ✅ Se abre **"🔁 Cambiar la forma de cobro"** con **Ir pagando** ya marcado y **$50** en "¿Cobra algo ahora?".
+5. En "¿Por qué cambia?" escribe *"dejó $50 de adelanto"* → **Guardar cambio**.
+   - ✅ El pedido queda **💳 Ir pagando**, con **Pagado $50** y debe el resto.
+   - ✅ En "📋 Pagos registrados" aparece el abono de $50 con la nota del cambio.
+
+- [ ] 7.1 completa
+
+### 7.2 Apartado pagado completo, con cambio (pedido B)
+
+1. Abre el detalle de **B** → **💳 Registrar abono**. El monto ya trae el total.
+2. Deja el monto como está, forma de pago **Efectivo**, y en **💵 Monto recibido** pon **$500**.
+   - ✅ Sale *"Cambio a devolver: $…"* (500 menos el total).
+3. **💾 Guardar abono**.
+   - ✅ Se registra sin aviso y el pedido queda **Pagado**.
+   - ✅ Ya no aparece el botón "💳 Registrar abono"; dice *"Este pedido ya está pagado por completo"*.
+
+- [ ] 7.2 completa
+
+### 7.3 Créditos y Abonos (pedido C)
+
+1. Menú **Créditos / Abonos** (pantalla "💳 Créditos y Abonos") → busca el pedido **C** → **+ Abono**.
+   - ✅ El monto ya trae el total y abajo dice *"Es un Apartado: se paga completo…"*.
+2. Cambia el monto a **$50** → registrar.
+   - ✅ Aviso **"Un Apartado se paga completo"** con el botón **Ir al pedido**. No se registra nada.
+3. Clic en **Ir al pedido**.
+   - ✅ Se abre el pedido **C** en Mis pedidos.
+
+- [ ] 7.3 completa
+
+### 7.4 Cambiar forma de cobro (pedidos E y F)
+
+1. Abre el detalle de **E** (Ir pagando con $50) → **🔁 Cambiar forma de cobro**.
+   - ✅ El botón **Apartado** sale gris y no se puede elegir. Al pasar el mouse dice
+     *"Ya dio dinero: un Apartado es sin dinero, queda como Ir pagando"*.
+   - Da **Cancelar**.
+2. Abre el detalle de **F** (Ir pagando sin dinero) → **🔁 Cambiar forma de cobro** → clic en **Apartado**.
+   - ✅ **No** aparece "¿Cobra algo ahora?".
+   - ✅ Sale la nota *"Un Apartado es sin dinero: el cliente lo paga completo cuando lo recoge…"*.
+3. **Guardar cambio**.
+   - ✅ **F** queda como **📦 Apartado**.
+   - ✅ Las ayudas de los botones dicen: Apartado *"Sin dinero: lo paga completo al recogerlo"* e
+     Ir pagando *"Ya dio algo y va abonando"*.
+
+- [ ] 7.4 completa
+
+### 7.5 Apartados unidos (pedidos C y D)
+
+1. Abre el detalle de **C** → **🔗 Unir con otros pedidos** → busca **D** → elígelo → **Unir 2 pedidos**.
+2. En el bloque **"🔗 Unido en el grupo #…"**:
+   - ✅ El botón dice **💵 Pagar el grupo completo** (ya no "Abonar al grupo").
+3. Clic en **💵 Pagar el grupo completo**.
+   - ✅ El monto ya trae el **saldo del grupo** (C + D) y el texto dice *"Son Apartados: se pagan completos…"*.
+4. Cambia el monto a **$20** → **Registrar abono**.
+   - ✅ Aviso **"Los Apartados se pagan completos"**. No se registra nada.
+5. Regresa el monto al saldo completo → **Registrar abono**.
+   - ✅ **C** y **D** quedan **Pagado**; el saldo del grupo queda en $0.
+
+- [ ] 7.5 completa
+
+### 7.6 Venta directa: Apartado con enganche se vuelve Ir pagando
+
+1. **Tienda → Venta directa** → agrega 1 artículo → clic en **📦 Apartado**.
+2. En **💰 Pago inicial (enganche)** escribe **100**.
+   - ✅ El botón activo cambia solo a **💳 Ir pagando**.
+   - ✅ Sale la nota *"Un Apartado es sin dinero: como te dio $100.00, queda como Ir pagando."*
+3. **💰 Cobrar**.
+   - ✅ El mensaje dice **"Ir pagando registrado"** con el enganche de $100.
+   - ✅ En Mis pedidos ese pedido es **Ir pagando**, pagado $100.
+4. Otra venta: 1 artículo → **📦 Apartado** → sin enganche → **💰 Cobrar**.
+   - ✅ Se guarda como **Apartado**, como siempre.
+
+- [ ] 7.6 completa
+
+### Si algo no sale igual
+
+Anota debajo del paso, con 💬, qué hiciste, qué esperabas y qué salió (y el número de pedido). Lo
+reviso y respondo abajo con ↳.
 
 ---
 
