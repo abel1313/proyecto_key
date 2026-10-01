@@ -68,6 +68,31 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-14] ✅ Fix: agregar un artículo a un pedido no sumaba al total (y un pedido Pagado seguía Pagado)
+**Fecha:** 2026-10-01 · **Ramas:** `dev` y `qa` · **Front:** no requiere cambios
+
+**Endpoints afectados** (mismo contrato, cambia el resultado):
+- `POST /mis-productos/v1/pedidos/{pedidoId}/articulos` (agregar)
+- `PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}` con `modo: "QUITAR_PROMOCION"`
+- `DELETE /mis-productos/v1/pedidos/{pedidoId}/promociones/{promocionId}`
+
+**Antes:** el artículo agregado sí se guardaba como línea del pedido, pero `totalPedido` se
+calculaba sin él (y al quitar una promoción, se seguía sumando lo borrado). En un pedido a crédito
+eso dejaba el estado mal: un pedido de $100 Pagado con $150 recibía un artículo de $300 y seguía
+diciendo **Total $100 · PAGADO**, con la venta de Reportes recreada por $100. Hallado en QA
+2026-10-01 (Prueba 4, caso 2).
+
+**Después:** `totalPedido` sale de todas las líneas que tiene el pedido en ese momento, y el estado
+se ajusta con eso: el mismo caso queda **Total $400 · pagado $150 · APARTADO/FIADO** (debe $250).
+El response (`PedidoArticulosResponse`) y `GET /v1/pedidos/{id}/detalle` ya traen esos valores;
+la pantalla de detalle no cambia nada.
+
+**Pedidos que ya quedaron mal antes del fix:** su `totalPedido` guardado no incluye el artículo
+agregado. Se corrige solo con cualquier edición posterior de artículos (quitar con −, agregar,
+cambiar), porque todas recalculan el total desde las líneas.
+
+---
+
 ### [BUG-KEY-02] ✅ Fix: búsqueda de pedidos — endpoint migrado a query param
 **Fecha:** 2026-06-05  
 **Archivos corregidos:** `PedidoController.java:92`, `PedidoServiceImpl.java:250`

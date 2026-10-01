@@ -27,22 +27,22 @@ abajo su sección marcada con **🔴 PRUEBA PENDIENTE**, con:
 |---|---|---|---|
 | 1 | **Prueba 7** — Apartado es sin dinero | 🔴 pendiente | Lo programado hoy: abonos en Apartado, cambiar a Ir pagando, grupos de Apartados, venta directa |
 | 2 | **Prueba 8** — Botón Volver alineado | 🔴 pendiente | Que el botón quede en el mismo borde que la tarjeta en 13 pantallas |
-| 3 | **Prueba 1** — Botón ← Regresar en páginas legales | 🟡 a medias | Ya se vio con sesión en Privacidad; faltan las otras 2 páginas y sin sesión |
-| 4 | **Prueba 3.7-bis** — Pedidos unidos: lo que se cambió por tus notas | 🔴 pendiente | Un solo botón de abonar, sin "Este pedido", aviso del monto al escribir, aviso centrado (la 3.7 ya pasó ✅) |
-| 5 | **Prueba 4** — Quitar o cambiar un artículo con abonos | 🔴 pendiente (reescrita) | Que el pedido quede Pagado o debiendo según lo abonado, con las cuentas en cada paso |
-| 6 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente | Stock y mensajes al cancelar Ir pagando y pedidos unidos |
+| 3 | **Prueba 4** — Quitar, cambiar o agregar un artículo con abonos | 🔴 **reiniciar** (segunda vuelta, pedidos nuevos H4–H7) | La primera vuelta encontró un error al agregar; ya está corregido y se repite completa |
+| 4 | **Prueba 5** — Cancelar un pedido con abonos | 🔴 pendiente | Stock y mensajes al cancelar Ir pagando y pedidos unidos |
 | — | **Prueba 6** — Venta: "Falta entregarlo" | ⛔ todavía no se puede | No está programada; la prueba está escrita para cuando se haga |
+| — | **Prueba 1** — Botón ← Regresar en páginas legales | ✅ hecha | — |
 | — | **Prueba 2** — TikTok | ✅ hecha | — |
+| — | **Prueba 3.7 y 3.7-bis** — Pedidos unidos | ✅ hechas | — |
 
 ## Estado de cada tema
 
 | Tema | Dónde está | Estado |
 |---|---|---|
-| Botón ← Regresar en páginas legales | front `dev` y `qa` | 🟡 se ve con sesión en Privacidad; faltan casos (Prueba 1) |
+| Botón ← Regresar en páginas legales | front `dev` y `qa` | ✅ probado (Prueba 1) |
 | TikTok: conectar, quitar acceso, subir video | prod (con llaves de Sandbox) | ✅ probado |
 | TikTok: revisión de la app de Production | developers.tiktok.com | ⏳ esperando respuesta (`PENDIENTES` E.2) |
-| Pedidos unidos: saldos y abonos | back y front `dev`/`qa` | ✅ 3.7 probada; 🔴 falta 3.7-bis (cambios por tus notas) |
-| Quitar / cambiar artículo con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 4) |
+| Pedidos unidos: saldos y abonos | back y front `dev`/`qa` | ✅ probado (3.7 y 3.7-bis) |
+| Quitar / cambiar / agregar artículo con abonos | back y front `dev`/`qa` | 🔧 error al agregar corregido (BUG-KEY-14); 🔴 repetir Prueba 4 |
 | Cancelar pedido con abonos | back y front `dev`/`qa` | ⏳ sin probar (Prueba 5) |
 | Venta: lo que paga decide y "Falta entregarlo" | — | 🆕 por programar (Prueba 6) |
 | Apartado es sin dinero | back y front `dev`/`qa` | 🔴 pendiente de probar (Prueba 7) |
@@ -68,7 +68,7 @@ sin sesión), por eso el botón solo sale con sesión.
 **Antes de probar:** recarga forzada (`Ctrl + Shift + R`, o en el celular cerrar la pestaña),
 para no quedarse con la versión vieja guardada en el navegador.
 
-### 🟡 PRUEBA PENDIENTE (a medias)
+### ✅ PRUEBA HECHA
 
 Ya quedó probado (2026-10-01, captura del dueño): **con sesión, en `/privacidad` sale ← Regresar
 arriba del título**. Falta lo demás.
@@ -335,7 +335,7 @@ ya no se enseña por pedido: en la tabla solo verás los totales y abajo *Pagado
 Lo mismo en el abono de un pedido suelto (**💳 Registrar abono** → campo *Monto*): *"Es más de lo
 que se debe: el saldo es de $X"* y **💾 Guardar abono** gris.
 
-### 3.7-bis 🔴 PRUEBA PENDIENTE — Lo que se cambió por tus notas de la 3.7
+### 3.7-bis ✅ Lo que se cambió por tus notas de la 3.7 — probada en QA el 2026-10-01
 
 **Antes de empezar — preparar 2 pedidos de Ir pagando sin enganche**
 1. Menú **Ventas → Venta directa**.
@@ -657,7 +657,7 @@ Lo de bien / dañado ya estaba en el plan (D1–D3); quedó ligado a cancelar de
 
 ---
 
-## Prueba 4 — Quitar o cambiar un artículo en un pedido con abonos
+## Prueba 4 — Quitar, cambiar o agregar un artículo en un pedido con abonos
 
 > 💬 *"ESTA REGLA NO LA ENTIENDO, SÉ MÁS ESPECÍFICO PORQUE NO ENTIENDO. No sé qué hacer pues, sé más
 > específico de favor en cada prueba."* (Caso 1)
@@ -681,7 +681,98 @@ También se corrigió algo que encontramos al escribir esta prueba: al tocar **�
 bajaba el total pero el estado de arriba no cambiaba hasta salir y volver a entrar. Ahora, en
 Apartado e Ir pagando, el detalle se vuelve a cargar solo y el estado cambia en ese momento.
 
-### 🔴 PRUEBA PENDIENTE
+### 🔴 PRUEBA PENDIENTE — segunda vuelta (empezar de cero, 2026-10-01)
+
+**Por qué se reinicia:** en la primera vuelta (más abajo, con tus notas) encontraste un error del
+back: al **agregar** un artículo a un pedido ya Pagado, el total no lo sumaba y el pedido seguía
+diciendo Pagado. Ya está corregido. Como los pedidos **H1, H2 y H3** de la primera vuelta quedaron
+con cuentas tocadas por ese error, **no los uses**: se hacen pedidos nuevos (**H4 a H7**).
+
+**Antes de empezar**
+1. Confirma que ya se desplegó el arreglo: en GitHub → **Actions**, el último *"QA"* de
+   `proyecto_key` y de `producto_venta_online` en verde (tarda 1–2 minutos después de subir).
+2. Entra a QA y haz recarga forzada (`Ctrl + Shift + R`).
+3. Busca en **Tienda** 4 artículos **de modelos distintos** (no la misma prenda en otra talla/color:
+   el botón **−** busca la línea por modelo y con dos del mismo modelo podría quitar el que no es):
+
+   | Nombre en esta prueba | Precio de ejemplo | Anota el tuyo |
+   |---|---|---|
+   | **Art-A** | $100 | |
+   | **Art-B** | $100 | |
+   | **Art-200** | $200 | |
+   | **Art-300** | $300 | |
+
+   Si tus precios son otros, haz las cuentas con los tuyos: la fórmula va en cada paso.
+4. Crea 4 pedidos. Cada uno: **Ventas → Venta directa** → agrega los artículos → toca **💳 Ir
+   pagando** → en **💰 Pago inicial (enganche)** escribe lo que dice la tabla → **💰 Cobrar** →
+   anota el número de pedido.
+
+   | Pedido | Artículos | Total | 💰 Pago inicial | Debe al crearlo | Número |
+   |---|---|---|---|---|---|
+   | **H4** | Art-A + Art-B | $200 | **$150** | $50 | |
+   | **H5** | Art-A + Art-B | $200 | **$150** | $50 | |
+   | **H6** | Art-A + Art-B | $200 | **$150** | $50 | |
+   | **H7** | Art-A | $100 | **$0** (no escribas nada) | $100 | |
+
+Para abrir cada uno: **Pedidos → Mis pedidos** → en el buscador escribe su número → **👁 Detalle**.
+Los controles están en cada tarjeta de artículo: **−** (quita una pieza, sin preguntar) y **⇄**
+(cambiarlo por otro). **➕ Agregar artículo** está arriba, junto al encabezado del pedido.
+
+**Caso 1 — Quitar un artículo y que lo ya pagado alcance (H4)**
+1. Abre **H4**. Arriba: **Ir pagando**, *"Debe: $50"* (Total $200 · pagado $150).
+2. Toca **−** en la tarjeta de **Art-B**.
+   - ✅ El detalle se recarga solo: **Total $100**, estado **Pagado**, ya no dice "Debe".
+     Cuenta: $200 − $100 = $100; pagó $150 ≥ $100 → Pagado.
+   - ✅ *📋 Pagos registrados* sigue en **$150** (lo que entró no cambia).
+   - ✅ En **Tienda**, el stock de Art-B subió 1.
+   - ✅ No sale ningún número de los $50 de más (el "saldo a favor" todavía no está hecho).
+   - ⛔ Que siga diciendo "Debe", o que tengas que salir y volver a entrar para ver Pagado.
+
+**Caso 2 — A un pedido Pagado, cambiarle el artículo por uno más caro (H4)**
+1. En **H4** (Pagado, solo Art-A) toca **⇄** en Art-A.
+2. En *"Cambiar por otro artículo"* escribe 3 letras de **Art-200** y elígelo.
+   - ✅ Sale *"Artículo cambiado"* y el detalle se recarga: **Total $200**, **Ir pagando**,
+     *"Debe: $50"*. Cuenta: $200 − $150 = $50.
+   - ✅ Vuelve a salir **💳 Registrar abono** y ya **no** sale *"✅ Este pedido ya está pagado por
+     completo"*.
+   - ✅ En **Tienda**: Art-A +1, Art-200 −1.
+   - ✅ En **Reportes**, la venta que se creó cuando H4 quedó Pagado ya no aparece.
+   - ⛔ Que siga diciendo Pagado, o Total $100.
+
+**Caso 3 — A un pedido Pagado, AGREGARLE un artículo (H5) — el error de la primera vuelta**
+1. Abre **H5** y toca **−** en **Art-B** → igual que el caso 1: Total $100, **Pagado**.
+2. Toca **➕ Agregar artículo**, escribe 3 letras de **Art-300** y elígelo.
+   - ✅ Sale *"Artículo agregado"* y el detalle se recarga: arriba **Total $400** (Art-A $100 +
+     Art-300 $300), **Ir pagando**, *"Debe: $250"*. Cuenta: $400 − $150 = $250.
+   - ✅ *📋 Pagos registrados* sigue en **$150**.
+   - ✅ Vuelve a salir **💳 Registrar abono**; **no** sale *"Este pedido ya está pagado por
+     completo"*.
+   - ✅ En **Reportes**, la venta de H5 ya no aparece (volvió a deber).
+   - ⛔ **Total $100** arriba, o que siga **Pagado** — es exactamente lo que fallaba antes.
+3. Toca **💳 Registrar abono**, escribe **$250** y guárdalo.
+   - ✅ Queda **Pagado**, *"Pagos registrados"* suma **$400**, y en **Reportes** aparece la venta de
+     H5 por **$400** (no por $100).
+
+**Caso 4 — Quitar y luego cambiar en el mismo pedido (H6)**
+1. Abre **H6**, toca **−** en **Art-B** → Total $100, **Pagado**.
+2. Toca **⇄** en Art-A y cámbialo por **Art-300**.
+   - ✅ **Total $300**, **Ir pagando**, *"Debe: $150"*. Cuenta: $300 − $150 = $150.
+
+**Caso 5 — Quitar el único artículo (H7)**
+1. Abre **H7** (solo Art-A, *"Debe: $100"*) y toca **−**.
+   - ✅ No lo deja: *"'<nombre>' es el ultimo articulo del pedido #H7. Para regresar todo, cancela
+     el pedido"*. El pedido queda igual.
+   - ⛔ Que quede un pedido sin artículos.
+
+- [ ] Caso 1: quitar → Total $100, Pagado al momento; pagos $150; stock +1
+- [ ] Caso 2: Pagado + ⇄ a uno de $200 → Total $200, Ir pagando, debe $50; venta fuera de Reportes
+- [ ] Caso 3: Pagado + ➕ uno de $300 → Total $400, Ir pagando, debe $250; al abonar $250 la venta es de $400
+- [ ] Caso 4: quitar y ⇄ a uno de $300 → Total $300, debe $150
+- [ ] Caso 5: no deja quitar el último artículo
+
+### Primera vuelta (2026-10-01) — ya hecha, se deja como historial
+
+Con tus notas. Los pedidos **H1, H2, H3** no se vuelven a usar (ver arriba por qué).
 
 Los controles están en el **👁 Detalle** del pedido, en cada tarjeta de artículo:
 **−** (quita una pieza, sin preguntar) y **⇄** (cambiarlo por otro artículo).
@@ -715,7 +806,12 @@ Para abrir cada uno: **Pedidos → Mis pedidos** → en el buscador escribe su n
    - 💬 Anota qué ves de los **$50 de más** (hoy no debe salir nada: el aviso de saldo a favor está
      pendiente). Es para confirmar que no aparece ningún número raro.
 es correcto y que pasa coin eso 50 en el historial?
-   - 
+   - ↳ **Respuesta:** el historial (*Pagos registrados*) enseña lo que **entró**, y entró $150: eso
+     no cambia al quitar un artículo, por eso sigue diciendo $150 y está bien. Los **$50 de más no se
+     guardan en ningún lado todavía**: no hay "saldo a favor" del cliente ni devolución registrada.
+     Hoy solo se deducen restando (pagado $150 − total $100). Mostrarlos como *"Saldo a favor: $50"*
+     y decidir qué se hace con ellos (devolverlos, o usarlos en otra compra) es el pendiente
+     **"saldo a favor"**; ese no se tocó en esta corrección.
 **Caso 2 — A ese pedido ya Pagado, cambiarle un artículo por uno más caro (H1)**
 1. En el detalle de **H1** (que quedó Pagado con 1 artículo de $100), toca **⇄** en su tarjeta.
 2. En el buscador *"Cambiar por otro artículo"* escribe al menos 3 letras del artículo de **$200** y elígelo.
@@ -731,6 +827,40 @@ es correcto y que pasa coin eso 50 en el historial?
 
 esta mal porque ya agregue el nuevo producto de 300
 
+   - ↳ **Respuesta: tenías razón, era un error del back y ya está corregido** (ramas `dev` y `qa`;
+     ver la segunda vuelta de la Prueba 4). Qué pasaba: al agregar, el back primero lee el pedido para revisar que se
+     pueda editar, guarda el artículo nuevo y después vuelve a leer el pedido para sacar el total.
+     Esa segunda lectura usaba la copia de la primera (la que todavía no tenía el artículo de $300),
+     así que el total salía **$100**. Con $150 pagados contra $100, el back concluía *"ya está
+     cubierto"* y lo volvía a dejar **Pagado** — por eso arriba decía *Total $100* y abajo *"✅ Este
+     pedido ya está pagado por completo"*. El artículo sí quedó guardado en el pedido (por eso lo
+     ves en la lista); lo que estaba mal era la cuenta.
+     - Lo mismo le pasaba a **quitar una promoción completa** y a **cambiar a un artículo fuera del
+       combo con "Quitar la promoción"**: borraba las líneas pero el total las seguía sumando.
+       Quedó corregido con lo mismo.
+     - **Quitar con −** nunca tuvo este problema (por eso tu Caso 1 salió bien).
+     - Prueba automática nueva que reproduce exactamente tu caso ($100 pagado con $150 + artículo de
+       $300): antes del arreglo fallaba con *total $100*; ahora da **total $400, pagado $150,
+       Ir pagando**.
+   - ↳ **Cómo dejar H1 bien en QA** (quedó guardado con total $100 y una venta de $100 en Reportes),
+     **después de que se despliegue el arreglo en QA**:
+     1. En el detalle de H1 toca **−** en el artículo de **$300**. El total se recalcula con lo que
+        queda: **$100**, sigue **Pagado** y la venta queda en $100, que es lo correcto para ese
+        momento.
+        - ⚠️ Si los dos artículos son **del mismo modelo** (misma prenda, distinta talla/color), no
+          uses H1: el botón − busca la línea por modelo y podría quitar el de $100. Mejor crea un
+          pedido nuevo igual a H1 (1 artículo de $100, abono de $150) y prueba ahí.
+     2. Vuelve a agregar el artículo de **$300** (o repite el Caso 2 con ⇄).
+   - ↳ **Lo que debe pasar ahora al agregar el de $300 a H1 Pagado ($100, pagado $150):**
+     - ✅ Arriba: *Total $400 · pagado $150* y **"Debe: $250"**. Cuenta: $100 + $300 = $400;
+       $400 − $150 = **$250**.
+     - ✅ Estado **Ir pagando** (ya no *Pagado*), ya **no** sale *"Este pedido ya está pagado por
+       completo"* y vuelve a aparecer **💳 Registrar abono**.
+     - ✅ *Pagos registrados* sigue en **$150**.
+     - ✅ En **Reportes** ya no cuenta la venta de $100 (el pedido volvió a deber); se crea otra
+       hasta que vuelva a quedar pagado.
+     - ⛔ No puede pasar: que siga diciendo Total $100, o *Pagado*.
+
 
 **Caso 3 — Quitar y luego cambiar en el mismo pedido (H2)**
 1. Abre el detalle de **H2** (*"Debe: $50"*). Toca **−** en uno de sus artículos.
@@ -744,10 +874,10 @@ esta mal porque ya agregue el nuevo producto de 300
      pedido #H3. Para regresar todo, cancela el pedido"*. El pedido queda igual.
    - ⛔ No puede pasar: que quede un pedido sin artículos.
 
-- [ ] Caso 1: quitar → Pagado al momento, sin salir de la pantalla; stock +1
-- [ ] Caso 2: Pagado + cambio a uno más caro → Ir pagando, debe $50
-- [ ] Caso 3: quitar (Pagado) y cambiar a uno de $300 → debe $150
-- [ ] Caso 4: no deja quitar el último artículo
+- [x] Caso 1: quitar → Pagado al momento — ✅ salió bien
+- [ ] Caso 2: en lugar de ⇄ se agregó uno de $300 → ❌ Total $100 y seguía Pagado (corregido; se
+  repite como Caso 3 de la segunda vuelta)
+- [ ] Caso 3 y Caso 4: no se llegaron a probar → pasan a la segunda vuelta
 
 ---
 
