@@ -285,3 +285,17 @@ En cada archivo que se toque, los textos de pantalla y mensajes pasan de "varian
 
 **Avance (2026-09-29):** Bloque 1 ✅ en `dev` y `qa` (back y front). Bloque 2 ✅ código y pruebas
 listos; `migration_preferencia_filtro.sql` ya corrida en qa y prod.
+
+---
+
+## 10. Reglas nuevas del dueño (2026-10-01)
+
+Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`; aquí solo lo nuevo.
+
+| # | Regla | Estado |
+|---|---|---|
+| 10.1 | **Pago en línea:** el cliente paga con tarjeta desde su cuenta en la tienda; el pedido queda pagado pero **sin entregar**, y el cliente pone **a dónde** y **qué día** se lo llevan. Se junta con "Ya pagó, falta entregarlo" (H7 / V3) | 🔮 |
+| 10.2 | **Apartado al recogerlo:** poder liquidarlo en el local con tarjeta y, si cumple las reglas de MSI (mínimo $300, todos los artículos lo aceptan), a meses | 🔮 (Bloque 6) |
+| 10.3 | **Ir pagando nunca tiene MSI**, aunque el pedido cumpla las reglas | regla para el Bloque 6 |
+| 10.4 | Apartado e Ir pagando hoy: **ni tarjeta ni MSI** (efectivo o transferencia) | ✅ así está |
+| 10.5 | ❓ **¿Apartado acepta anticipo / abonos?** El §1 dice "si deja anticipo, se anota"; el 2026-10-01 el dueño dijo que un Apartado se paga completo al recogerlo y que dar abonos es Ir pagando. El código hoy acepta enganche y abonos en Apartado. **Falta que el dueño confirme** | ❓ |
