@@ -567,6 +567,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 | `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
+| `migration_tema_jade.sql` (diseño Jade por default) | ⏳ pendiente — correrla junto con el deploy de la rama `feature/tema-jade-articulo` | ⏳ pendiente | — |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
@@ -603,6 +604,14 @@ con `--safe-updates`. **Ya corrida en qa y en prod** (prod 2026-09-30: columna c
 Cada INSERT exige `DATABASE() = 'inventario_key_qa'`, así que en prod no hace nada. Reusa imágenes
 de productos reales (no crea ni borra imágenes). `limpiar_datos_prueba_qa_catalogo.sql` los da de
 baja y quita sus ligas de imagen. Ambos probados en MySQL 8 local antes de entregarlos.
+
+`migration_tema_jade.sql` deja el diseño **Jade** por default: respalda `tema_variable` en
+`tema_variable_bkp_20261001` (solo la primera vez), da de alta 32 variables nuevas (letra, tamaños,
+botones, dorado, cristal, sombras, `estilo`) y pone las 27 que ya existían en los valores de Jade.
+**Sí cambia cómo se ve la app** (es el objetivo); con un front viejo cambia los colores pero no la
+letra. Correrla junto con el deploy del front de la rama. Probada dos veces en MySQL 8 local con
+`--safe-updates`; trae al final las consultas para volver al diseño de antes (probadas: dejan las
+filas idénticas). Ver la skill `diseno-componentes`, sección 0.
 
 `limpiar_datos_e2e_qa.sql` da de baja (nunca DELETE) los modelos y artículos que crean las pruebas
 automáticas de `e2e/` en el front: código de barras exactamente `E2E` + 13 dígitos. Solo actúa en
@@ -810,4 +819,4 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `mensaje_directo_social` (entidad `MensajeDirectoSocial`) · `mensaje_directo_pausa` (entidad `MensajePausa`) · `tiktok_token` · `qr_destino`
 
 **Configuración y negocio**
-`configuracion_negocio` · `tema_variable` · `gastos_surtir` · `inversion`
+`configuracion_negocio` · `tema_variable` · `tema_variable_bkp_20261001` (respaldo de `tema_variable` antes del diseño Jade, lo crea `migration_tema_jade.sql`; sin entidad) · `gastos_surtir` · `inversion`
