@@ -1,7 +1,6 @@
 package com.ventas.key.hexagonal.busquedapedido.infraestructura.salida.persistencia;
 
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.CuandoSeEntrega;
-import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.EstadoBuscado;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.FiltroPedidos;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.FormaDeCobro;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.PaginaDePedidos;
@@ -28,6 +27,13 @@ import java.util.List;
  *
  * <p>Regresa solo los numeros de pedido de la pagina; la card la arma {@link TarjetasDePedidoLector}.
  *
+ * <p><b>R14 — un pedido unido se filtra por lo que muestra su card.</b> De un grupo activo solo sale
+ * el titular, y su card muestra el total, lo pagado y lo que falta <i>de todo el grupo</i>. Por eso
+ * el estado, el dinero, el total, la fecha de entrega y el orden "los que mas deben" del titular se
+ * calculan con el grupo ({@code grp}), y el texto, los ramos y las promociones buscan en todos sus
+ * pedidos. Antes se miraba solo al titular: como un abono al grupo liquida primero al pedido mas
+ * viejo, el titular quedaba Pagado y el grupo desaparecia de "Por cobrar" aunque siguiera debiendo.
+ *
  * <p>Valores reales de {@code estado_pedido} (se guardan con mayusculas distintas, por eso se compara
  * con UPPER): {@code Pendiente}, {@code Entregado}, {@code APARTADO}, {@code FIADO}, {@code PAGADO},
  * {@code cancelado}.
@@ -36,15 +42,64 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
 
+    private static final String ESTADO_P = "UPPER(COALESCE(p.estado_pedido,''))";
+
     /** Apartado o Ir pagando que todavia no se liquida ni se cancela. */
     private static final String CREDITO_ABIERTO = "(p.tipo_pedido IN ('APARTADO','FIADO')"
-            + " AND UPPER(COALESCE(p.estado_pedido,'')) NOT IN ('PAGADO','CANCELADO','ENTREGADO'))";
-
-    /** Igual que esperaEntrega() de la card: lo Entregado, Pagado o Cancelado ya no espera entrega. */
-    private static final String ESPERA_ENTREGA =
-            "UPPER(COALESCE(p.estado_pedido,'')) NOT IN ('ENTREGADO','CANCELADO','PAGADO')";
+            + " AND " + ESTADO_P + " NOT IN ('PAGADO','CANCELADO','ENTREGADO'))";
 
     private static final String SALDO = "(COALESCE(p.total_pedido,0) - COALESCE(p.total_pagado,0))";
+
+    /**
+     * Los numeros de los grupos activos, por titular. Mismas cuentas que {@code GrupoPedidos} (lo
+     * que muestra la card): los cancelados no suman total ni deuda, y un contado Entregado ya no
+     * debe aunque su totalPagado siga en 0 (R13 de grupopedido).
+     */
+    private static final String GRUPOS = """
+            LEFT JOIN (
+              SELECT g.pedido_titular_id AS titular_id,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) NOT IN ('PAGADO','CANCELADO','ENTREGADO') THEN 1 ELSE 0 END) AS abiertos,
+                MAX(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) NOT IN ('PAGADO','CANCELADO','ENTREGADO')
+                          AND pm.tipo_pedido IN ('APARTADO','FIADO') THEN 1 ELSE 0 END) AS credito_abierto,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) = 'PAGADO' THEN 1 ELSE 0 END) AS pagados,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) = 'ENTREGADO' THEN 1 ELSE 0 END) AS entregados,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) = 'CANCELADO' THEN 0
+                         ELSE COALESCE(pm.total_pedido,0) END) AS total,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) IN ('CANCELADO','ENTREGADO') THEN 0
+                         ELSE GREATEST(0, COALESCE(pm.total_pedido,0) - COALESCE(pm.total_pagado,0)) END) AS saldo,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) = 'CANCELADO' THEN 0
+                         ELSE (SELECT COUNT(*) FROM abono_pedido ag WHERE ag.pedido_id = pm.id) END) AS abonos,
+                MAX(CASE WHEN %s THEN 1 ELSE 0 END) AS a_favor
+              FROM grupo_pedido g
+              JOIN grupo_pedido_miembro gm ON gm.grupo_id = g.id
+              JOIN pedidos pm ON pm.id = gm.pedido_id
+              WHERE g.activo = 1
+              GROUP BY g.pedido_titular_id
+            ) grp ON grp.titular_id = p.id""".formatted(saldoAFavor("pm"));
+
+    /** R3 con las palabras de la card. Un titular toma el estado de su grupo (R14). */
+    private static final String ESTADO_CARD = "(CASE"
+            + " WHEN grp.titular_id IS NOT NULL THEN (CASE"
+            + "   WHEN grp.abiertos > 0 THEN (CASE WHEN grp.credito_abierto = 1 THEN 'POR_COBRAR' ELSE 'PENDIENTE' END)"
+            + "   WHEN grp.pagados > 0 THEN 'PAGADO'"
+            + "   WHEN grp.entregados > 0 THEN 'ENTREGADO'"
+            + "   ELSE 'CANCELADO' END)"
+            + " WHEN " + ESTADO_P + " IN ('CANCELADO','PAGADO','ENTREGADO','PENDIENTE') THEN " + ESTADO_P
+            + " WHEN p.tipo_pedido IN ('APARTADO','FIADO') AND " + ESTADO_P + " IN ('APARTADO','FIADO') THEN 'POR_COBRAR'"
+            + " ELSE 'OTRO' END)";
+
+    /** Igual que esperaEntrega() de la card: lo Entregado, Pagado o Cancelado ya no espera entrega. */
+    private static final String ESPERA_ENTREGA = ESTADO_CARD + " NOT IN ('ENTREGADO','CANCELADO','PAGADO')";
+
+    /** El total que muestra la card: el del pedido, o el de todo el grupo si es titular (R5). */
+    private static final String TOTAL_CARD =
+            "(CASE WHEN grp.titular_id IS NULL THEN COALESCE(p.total_pedido,0) ELSE grp.total END)";
+
+    /** Lo que falta cobrar, igual que la card ("Falta $…"). */
+    private static final String SALDO_CARD = "(CASE"
+            + " WHEN grp.titular_id IS NOT NULL THEN grp.saldo"
+            + " WHEN " + ESTADO_P + " IN ('CANCELADO','ENTREGADO','PAGADO') THEN 0"
+            + " ELSE " + SALDO + " END)";
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -56,7 +111,7 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
                 LEFT JOIN clientes c               ON c.id   = p.cliente_id
                 LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
                 LEFT JOIN lugares_entrega le       ON le.id  = p.lugar_entrega_id
-                WHERE """ + " " + String.join("\n  AND ", condiciones(filtro, hoy, params));
+                """ + GRUPOS + "\nWHERE " + String.join("\n  AND ", condiciones(filtro, hoy, params));
 
         Long total = jdbc.queryForObject("SELECT COUNT(*) " + desde, params, Long.class);
 
@@ -97,7 +152,8 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         }
 
         if (!f.estados().isEmpty()) {
-            w.add("(" + String.join(" OR ", f.estados().stream().map(PedidosFiltradosJdbcAdapter::estado).toList()) + ")");
+            params.addValue("estados", f.estados().stream().map(Enum::name).toList());
+            w.add(ESTADO_CARD + " IN (:estados)");
         }
 
         if (!f.dinero().isEmpty()) {
@@ -106,11 +162,11 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
 
         if (f.totalMinimo() != null) {
             params.addValue("totalMinimo", f.totalMinimo());
-            w.add("COALESCE(p.total_pedido,0) >= :totalMinimo");
+            w.add(TOTAL_CARD + " >= :totalMinimo");
         }
         if (f.totalMaximo() != null) {
             params.addValue("totalMaximo", f.totalMaximo());
-            w.add("COALESCE(p.total_pedido,0) <= :totalMaximo");
+            w.add(TOTAL_CARD + " <= :totalMaximo");
         }
 
         RangoDeFechas registro = f.registro();
@@ -152,18 +208,29 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         }
 
         if (f.soloRamos()) {
-            w.add("EXISTS (SELECT 1 FROM ramo_pedido_detalle r WHERE r.pedido_id = p.id)");
+            w.add("EXISTS (SELECT 1 FROM ramo_pedido_detalle r WHERE " + deLaCard("r.pedido_id") + ")");
         }
         if (f.soloConPromocion()) {
-            w.add("EXISTS (SELECT 1 FROM detalle_pedidos dpp WHERE dpp.pedido_id = p.id AND dpp.promocion_id IS NOT NULL)");
+            w.add("EXISTS (SELECT 1 FROM detalle_pedidos dpp WHERE " + deLaCard("dpp.pedido_id")
+                    + " AND dpp.promocion_id IS NOT NULL)");
         }
         return w;
     }
 
     /**
+     * Los pedidos que muestra la card de {@code p}: el mismo y, si es titular de un grupo activo,
+     * todos los de su grupo (R14).
+     */
+    private static String deLaCard(String columnaPedido) {
+        return "(" + columnaPedido + " = p.id OR " + columnaPedido + " IN (SELECT gc.pedido_id FROM grupo_pedido_miembro gc"
+                + " JOIN grupo_pedido gcg ON gcg.id = gc.grupo_id WHERE gcg.activo = 1 AND gcg.pedido_titular_id = p.id))";
+    }
+
+    /**
      * R1. Nombre del cliente (con cuenta o sin registro), nombre de quien recibe, telefono, correo,
      * y nombre o codigo de barras de cualquiera de sus articulos. Un numero ademas es el numero de
-     * pedido exacto.
+     * pedido exacto. En un titular tambien busca en los demas pedidos del grupo (R14): si no, el
+     * pedido unido de otro cliente no se encontraba por su nombre (el miembro no sale en la lista).
      */
     private static String texto(TextoBuscado t, Integer numero, MapSqlParameterSource params) {
         params.addValue("like", "%" + escaparLike(t.valor()) + "%");
@@ -171,27 +238,46 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         if (numero != null) {
             o.add("p.id = :numero");
         }
-        if (t.sirveParaTelefono()) {
-            o.add("c.numero_telefonico LIKE :like");
-            o.add("csr.numero_telefonico LIKE :like");
+        List<String> persona = datosDePersona(t, "p", "c", "csr");
+        o.addAll(persona);
+        if (!persona.isEmpty()) {
+            o.add("EXISTS (SELECT 1 FROM grupo_pedido gt"
+                    + " JOIN grupo_pedido_miembro gmt ON gmt.grupo_id = gt.id"
+                    + " JOIN pedidos pt ON pt.id = gmt.pedido_id"
+                    + " LEFT JOIN clientes ct ON ct.id = pt.cliente_id"
+                    + " LEFT JOIN clientes_sin_registro csrt ON csrt.id = pt.cliente_sin_registro_id"
+                    + " WHERE gt.activo = 1 AND gt.pedido_titular_id = p.id AND pt.id <> p.id AND ("
+                    + String.join(" OR ", datosDePersona(t, "pt", "ct", "csrt")) + "))");
         }
         String articulo = "EXISTS (SELECT 1 FROM detalle_pedidos dpt"
                 + " JOIN producto prt ON prt.id = dpt.producto_id"
                 + " LEFT JOIN codigo_barras cbt ON cbt.id = prt.codigo_barras_id"
-                + " WHERE dpt.pedido_id = p.id AND ";
+                + " WHERE " + deLaCard("dpt.pedido_id") + " AND ";
         if (t.esNumero()) {
             if (t.sirveParaTelefono()) {
                 o.add(articulo + "cbt.codigo_barras LIKE :like)");
             }
         } else {
-            o.add("c.nombre_persona LIKE :like");
-            o.add("csr.nombre_persona LIKE :like");
-            o.add("p.nombre_receptor LIKE :like");
-            o.add("c.correo_electronico LIKE :like");
-            o.add("csr.correo_electronico LIKE :like");
             o.add(articulo + "(prt.nombre LIKE :like OR cbt.codigo_barras LIKE :like))");
         }
         return "(" + String.join("\n       OR ", o) + ")";
+    }
+
+    /** Nombre, telefono y correo de quien hizo el pedido y de quien recibe. */
+    private static List<String> datosDePersona(TextoBuscado t, String pedido, String cliente, String sinRegistro) {
+        List<String> o = new ArrayList<>();
+        if (t.sirveParaTelefono()) {
+            o.add(cliente + ".numero_telefonico LIKE :like");
+            o.add(sinRegistro + ".numero_telefonico LIKE :like");
+        }
+        if (!t.esNumero()) {
+            o.add(cliente + ".nombre_persona LIKE :like");
+            o.add(sinRegistro + ".nombre_persona LIKE :like");
+            o.add(pedido + ".nombre_receptor LIKE :like");
+            o.add(cliente + ".correo_electronico LIKE :like");
+            o.add(sinRegistro + ".correo_electronico LIKE :like");
+        }
+        return o;
     }
 
     /** "50%" no debe volverse un comodin: se buscan el % y el _ tal cual. */
@@ -199,32 +285,33 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
-    /** R3. */
-    private static String estado(EstadoBuscado e) {
-        String estado = "UPPER(COALESCE(p.estado_pedido,''))";
-        return switch (e) {
-            case PENDIENTE -> estado + " = 'PENDIENTE'";
-            case POR_COBRAR -> "(p.tipo_pedido IN ('APARTADO','FIADO') AND " + estado + " IN ('APARTADO','FIADO'))";
-            case PAGADO -> estado + " = 'PAGADO'";
-            case ENTREGADO -> estado + " = 'ENTREGADO'";
-            case CANCELADO -> estado + " = 'CANCELADO'";
+    /** R4. Un titular se mide con su grupo (R14). */
+    private static String dinero(SituacionDeDinero d) {
+        String suelto = "grp.titular_id IS NULL AND ";
+        String grupo = "grp.titular_id IS NOT NULL AND ";
+        return switch (d) {
+            case CON_SALDO -> "((" + suelto + CREDITO_ABIERTO + " AND " + SALDO + " > 0.005)"
+                    + " OR (" + grupo + "grp.credito_abierto = 1 AND grp.saldo > 0.005))";
+            case SIN_ABONOS -> "((" + suelto + CREDITO_ABIERTO
+                    + " AND NOT EXISTS (SELECT 1 FROM abono_pedido ap WHERE ap.pedido_id = p.id))"
+                    + " OR (" + grupo + "grp.credito_abierto = 1 AND grp.abonos = 0))";
+            case SALDO_A_FAVOR -> "((" + suelto + saldoAFavor("p") + ") OR (" + grupo + "grp.a_favor = 1))";
         };
     }
 
-    /** R4. */
-    private static String dinero(SituacionDeDinero d) {
-        return switch (d) {
-            case CON_SALDO -> "(" + CREDITO_ABIERTO + " AND " + SALDO + " > 0.005)";
-            case SIN_ABONOS -> "(" + CREDITO_ABIERTO
-                    + " AND NOT EXISTS (SELECT 1 FROM abono_pedido ap WHERE ap.pedido_id = p.id))";
-            // Cancelado: igual que AbonoServiceImpl.cancelarPedido. Un Apartado devuelve lo abonado
-            // y un pedido ya pagado es devolucion (pagado >= total). Un Ir pagando que todavia debia
-            // NO: se llevo la mercancia y lo que falto es deuda incobrable, no dinero a devolver.
-            case SALDO_A_FAVOR -> "(p.tipo_pedido IN ('APARTADO','FIADO') AND COALESCE(p.total_pagado,0) > 0.005 AND ("
-                    + "(UPPER(COALESCE(p.estado_pedido,'')) <> 'CANCELADO' AND " + SALDO + " < -0.005)"
-                    + " OR (UPPER(COALESCE(p.estado_pedido,'')) = 'CANCELADO'"
-                    + " AND (p.tipo_pedido = 'APARTADO' OR " + SALDO + " <= 0.005))))";
-        };
+    /**
+     * Hay que devolverle dinero al cliente. Igual que AbonoServiceImpl.cancelarPedido: un Apartado
+     * cancelado devuelve lo abonado y un pedido ya pagado es devolucion (pagado >= total). Un Ir
+     * pagando cancelado que todavia debia NO: se llevo la mercancia y lo que falto es deuda
+     * incobrable, no dinero a devolver.
+     */
+    private static String saldoAFavor(String a) {
+        String estado = "UPPER(COALESCE(" + a + ".estado_pedido,''))";
+        String saldo = "(COALESCE(" + a + ".total_pedido,0) - COALESCE(" + a + ".total_pagado,0))";
+        return "(" + a + ".tipo_pedido IN ('APARTADO','FIADO') AND COALESCE(" + a + ".total_pagado,0) > 0.005 AND ("
+                + "(" + estado + " <> 'CANCELADO' AND " + saldo + " < -0.005)"
+                + " OR (" + estado + " = 'CANCELADO'"
+                + " AND (" + a + ".tipo_pedido = 'APARTADO' OR " + saldo + " <= 0.005))))";
     }
 
     /** R7. */
@@ -246,9 +333,16 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         return switch (f.orden()) {
             case RECIENTES -> registro + " DESC, p.id DESC";
             case ANTIGUOS -> registro + " ASC, p.id ASC";
-            case ENTREGA_PROXIMA -> "p.fecha_recogida IS NULL, p.fecha_recogida ASC, p.id DESC";
-            case MAYOR_SALDO -> "CASE WHEN UPPER(COALESCE(p.estado_pedido,'')) IN ('CANCELADO','ENTREGADO','PAGADO') THEN 0"
-                    + " ELSE " + SALDO + " END DESC, p.id DESC";
+            // Primero lo que falta entregar, de la fecha mas vieja (atrasados) a la mas lejana. Lo ya
+            // entregado, pagado, cancelado o sin fecha va despues, del mas reciente al mas viejo: antes
+            // salian primero los entregados de hace meses, porque su fecha era la mas antigua.
+            case ENTREGA_PROXIMA -> {
+                String pendiente = "(p.fecha_recogida IS NOT NULL AND " + ESPERA_ENTREGA + ")";
+                yield "CASE WHEN " + pendiente + " THEN 0 ELSE 1 END, "
+                        + "CASE WHEN " + pendiente + " THEN p.fecha_recogida END ASC, "
+                        + registro + " DESC, p.id DESC";
+            }
+            case MAYOR_SALDO -> SALDO_CARD + " DESC, p.id DESC";
         };
     }
 }
