@@ -96,7 +96,7 @@ public abstract class ChatbotBase {
                   3. Despedida corta y amable (máximo 2 líneas).
                   4. Escribe al final, sin espacios extra: ##FAREWELL##
 
-                CATÁLOGO ACTUAL (variantes disponibles con stock):
+                CATÁLOGO ACTUAL (artículos disponibles con stock):
                 """;
     }
 

@@ -71,7 +71,9 @@ public class ResenaController {
         }
     }
 
-    @GetMapping("/variante/{varianteId}")
+    // /articulo/ es el nombre nuevo (renombre variante -> articulo, 2026-10-01); /variante/ sigue
+    // vivo para el front que aun no migra. Mismo metodo, misma regla de seguridad (GET publico).
+    @GetMapping({"/variante/{varianteId}", "/articulo/{varianteId}"})
     public ResponseEntity<ResponseGeneric<PginaDto<List<ResenaResponseDto>>>> listarPorVariante(
             @PathVariable Integer varianteId,
             @RequestParam(defaultValue = "1") int pagina,
@@ -84,7 +86,7 @@ public class ResenaController {
         }
     }
 
-    @GetMapping("/variante/{varianteId}/resumen")
+    @GetMapping({"/variante/{varianteId}/resumen", "/articulo/{varianteId}/resumen"})
     public ResponseEntity<ResponseGeneric<ResenaResumenDto>> resumenPorVariante(@PathVariable Integer varianteId) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(resenaService.resumenPorVariante(varianteId)));

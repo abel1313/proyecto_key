@@ -43,7 +43,9 @@ public class GanadorRifaControllerImpl extends AbstractController<
         }
     }
 
-    @PostMapping("/continuarVariante/{configurarRifaId}")
+    // continuarArticulo es el nombre nuevo (renombre variante -> articulo, 2026-10-01);
+    // continuarVariante sigue vivo para el front que aun no migra.
+    @PostMapping({"/continuarVariante/{configurarRifaId}", "/continuarArticulo/{configurarRifaId}"})
     public ResponseEntity<ResponseGeneric<SorteoEstadoDto>> continuarVariante(
             @PathVariable int configurarRifaId,
             @RequestParam String modo) {

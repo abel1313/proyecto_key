@@ -429,7 +429,7 @@ public class EmailService {
             filas.append("<tr><td style=\"padding:8px 10px;border-bottom:1px solid #eef1f0;font-size:13px;\">")
                  .append(linea).append("</td></tr>");
         }
-        String html = "<p style=\"margin:0 0 4px;\">Estas variantes están en o por debajo del umbral de "
+        String html = "<p style=\"margin:0 0 4px;\">Estos artículos están en o por debajo del umbral de "
                 + umbral + " unidades:</p>"
                 + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
                 + "style=\"margin:16px 0;border:1px solid #eef1f0;border-radius:8px;overflow:hidden;\">"

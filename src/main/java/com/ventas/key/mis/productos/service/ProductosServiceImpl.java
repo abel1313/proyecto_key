@@ -828,7 +828,7 @@ public class ProductosServiceImpl extends
         List<Producto> productos = iProductosRepository.findProductosSinVariantes();
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Sheet sheet = workbook.createSheet("Productos Sin Variantes");
+            Sheet sheet = workbook.createSheet("Productos Sin Artículos");
             Row header = sheet.createRow(0);
             header.createCell(0).setCellValue("ID");
             header.createCell(1).setCellValue("Nombre");

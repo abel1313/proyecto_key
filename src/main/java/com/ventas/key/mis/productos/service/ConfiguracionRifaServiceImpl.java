@@ -172,7 +172,7 @@ public class ConfiguracionRifaServiceImpl extends CrudAbstractServiceImpl<Config
                     .findByConfigurarRifaIdOrderByOrdenAsc(id).isEmpty();
             if (tieneVariantes) {
                 throw new RuntimeException(
-                        "No se puede cambiar el tipo de rifa porque ya tiene variantes configuradas. Elimina las variantes primero.");
+                        "No se puede cambiar el tipo de rifa porque ya tiene artículos configurados. Elimina los artículos primero.");
             }
         }
 

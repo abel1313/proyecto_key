@@ -38,7 +38,7 @@ public class ChatbotChatVivoService extends ChatbotBase {
     protected String promptBase() {
         return super.promptBase()
                 .replace(
-                        "CATÁLOGO ACTUAL (variantes disponibles con stock):",
+                        "CATÁLOGO ACTUAL (artículos disponibles con stock):",
                         """
                         CUANDO EL CLIENTE QUIERE HABLAR CON UNA PERSONA:
                         - Este chat lo atiendes tú, pero SIEMPRE hay una persona del negocio que puede tomar
@@ -60,7 +60,7 @@ public class ChatbotChatVivoService extends ChatbotBase {
                         - En el historial, los mensajes marcados como (persona del negocio) los escribió un
                           humano, no tú. Respeta lo que ya contestó: no lo contradigas ni repitas su mensaje.
 
-                        CATÁLOGO ACTUAL (variantes disponibles con stock):""");
+                        CATÁLOGO ACTUAL (artículos disponibles con stock):""");
     }
 
     /**

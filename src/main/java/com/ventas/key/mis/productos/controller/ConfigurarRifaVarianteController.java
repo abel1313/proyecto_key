@@ -15,7 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/v1/configurarRifaVariante")
+// Renombre variante -> articulo (2026-10-01): /v2/configurarRifaArticulo es el mismo recurso;
+// /v1/configurarRifaVariante sigue vivo. Seguridad en espejo en SecurityConfig.
+@RequestMapping({"/v1/configurarRifaVariante", "/v2/configurarRifaArticulo"})
 @RequiredArgsConstructor
 @Slf4j
 public class ConfigurarRifaVarianteController {
@@ -50,7 +52,7 @@ public class ConfigurarRifaVarianteController {
     public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
         try {
             service.eliminar(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada y stock restaurado"));
+            return ResponseEntity.ok(new ResponseGeneric<>("Artículo eliminado y stock restaurado"));
         } catch (Exception e) {
             log.error("Error al eliminar variante de rifa: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

@@ -228,7 +228,7 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("productos/buscar", "eliminar"))
                         .requestMatchers(HttpMethod.PUT, "/v1/productos/*/habilitar", "/v1/productos/admin/habilitar-lote")
                                 .hasAnyAuthority(accion("productos/buscar", "habilitar"))
-                        .requestMatchers(HttpMethod.GET, "/v1/productos/admin/sin-variantes/reporte")
+                        .requestMatchers(HttpMethod.GET, "/v1/productos/admin/sin-variantes/reporte", "/v1/productos/admin/sin-articulos/reporte")
                                 .hasAnyAuthority(accion("productos/buscar", "descargar-excel"))
                         .requestMatchers(HttpMethod.GET, "/v1/productos/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
@@ -264,12 +264,17 @@ public class SecurityConfig {
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "tienda/update"))
 
+                        // Renombre variante -> articulo (2026-10-01): /v2/articulos es el mismo
+                        // recurso que /v1/variantes (mismo controller). Cada regla de abajo lleva
+                        // las dos rutas, en el mismo lugar, para que se evaluen en el mismo orden.
+                        // Si se agrega una regla de /v1/variantes, va tambien con /v2/articulos:
+                        // si no, la ruta /v2 cae en el GET publico de abajo (ver TESTS_PENDIENTES.md).
                         // Buscador del detalle de pedido: lo usa quien puede agregar o cambiar
                         // articulos de un pedido. Va antes del GET /v1/variantes/** publico.
-                        .requestMatchers(HttpMethod.GET, "/v1/variantes/para-pedido")
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/para-pedido", "/v2/articulos/para-pedido")
                                 .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "agregar-articulo"),
                                         accion("pedidos/mis-pedidos", "cambiar-articulo")))
-                        .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**", "/v2/articulos/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
                         // El CRUD generico heredado de AbstractController devuelve la entidad
@@ -279,24 +284,26 @@ public class SecurityConfig {
                         // abajo, asi que cualquiera sin token podia sacar el margen de la tienda
                         // con /v1/variantes/getAll?page=0&size=1000. El front no los usa (usa
                         // /v1/variantes/buscar y /v1/variantes/buscar-filtrado), asi que pasan a ADMIN.
-                        .requestMatchers(HttpMethod.GET, "/v1/variantes/getAll", "/v1/variantes/getOne/**")
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/getAll", "/v1/variantes/getOne/**",
+                                "/v2/articulos/getAll", "/v2/articulos/getOne/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta"))
-                        .requestMatchers(HttpMethod.GET, "/v1/variantes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/**", "/v2/articulos/**").permitAll()
                         // Fase 3 de permisos (piloto en Modelos): "Crear variantes" (🧩) de la
                         // tarjeta de producto en Modelos, antes capturado por el catch-all de abajo.
-                        .requestMatchers(HttpMethod.POST, "/v1/variantes/inicializarDesdeProducto")
+                        .requestMatchers(HttpMethod.POST, "/v1/variantes/inicializarDesdeProducto", "/v2/articulos/inicializarDesdeProducto")
                                 .hasAnyAuthority(accion("productos/buscar", "crear-variantes"))
                         // Fase 3 de permisos, extendida a "tienda/buscar" (2026-09-04): habilitar
                         // /deshabilitar variante (individual y en lote) desde la vitrina Tienda --
                         // antes caia en el catch-all de pantallaEscribir de abajo, que ni siquiera
                         // incluye "tienda/buscar" en su lista, asi que un rol no-ADMIN con esa
                         // pantalla nunca podia usar este boton pese a tenerla asignada.
-                        .requestMatchers(HttpMethod.PUT, "/v1/variantes/*/habilitar", "/v1/variantes/admin/habilitar-lote")
+                        .requestMatchers(HttpMethod.PUT, "/v1/variantes/*/habilitar", "/v1/variantes/admin/habilitar-lote",
+                                "/v2/articulos/*/habilitar", "/v2/articulos/admin/habilitar-lote")
                                 .hasAnyAuthority(accion("tienda/buscar", "habilitar"))
                         // Baja logica del modelo (habilitado=0 + borra sus imagenes). Accion
                         // propia como el "eliminar" de Modelos: se puede dar sin dar "habilitar".
                         // Ver migration_accion_tienda_eliminar.sql.
-                        .requestMatchers(HttpMethod.DELETE, "/v1/variantes/deleteBy/**")
+                        .requestMatchers(HttpMethod.DELETE, "/v1/variantes/deleteBy/**", "/v2/articulos/deleteBy/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "eliminar"))
                         // Cambiar precio normal / con descuento desde la tarjeta de Tienda (💲).
                         // Desde 2026-09-29 es por articulo (PUT) y DELETE lo regresa al del
@@ -322,7 +329,7 @@ public class SecurityConfig {
                         // asi que un rol con Editar en tienda/buscar pero no en tienda/venta se topaba
                         // con un 403, y el checkbox de Editar de esa pantalla en Gestion de roles no
                         // controlaba nada real (reportado por el usuario con capturas, 2026-09-08).
-                        .requestMatchers("/v1/variantes/**")
+                        .requestMatchers("/v1/variantes/**", "/v2/articulos/**")
                                 .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta",
                                         "tienda/buscar", "flores/catalogos", "flores/ramos-admin"))
 
@@ -563,11 +570,13 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("rifas/boletos", "quitar-participacion"))
                         .requestMatchers(HttpMethod.GET,
                                 "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
-                                "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
+                                "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**",
+                                "/v2/configurarRifaArticulo/**"
                         ).hasAnyAuthority(pantalla("rifas/agregar", "rifas/mes", "rifas/buscar", "rifas/boletos"))
                         .requestMatchers(
                                 "/v1/rifa/**", "/v1/ganadorRifa/**", "/v1/boletoRifa/**",
-                                "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**"
+                                "/v1/configurarRifa/**", "/v1/configurarRifaVariante/**", "/v1/concursante/**",
+                                "/v2/configurarRifaArticulo/**"
                         ).hasAnyAuthority(pantallaEscribir("rifas/agregar", "rifas/mes", "rifas/buscar", "rifas/boletos"))
 
                         // ── Carga de documentos (Excel) ───────────────────────────────────

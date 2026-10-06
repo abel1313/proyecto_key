@@ -32,7 +32,11 @@ import java.util.Optional;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/variantes")
+// Renombre variante -> articulo (2026-10-01): el mismo recurso sale tambien como /v2/articulos.
+// /v1/variantes sigue vivo para el front que aun no migra; las dos rutas llegan a los mismos
+// metodos, asi que no pueden contestar distinto. Sus reglas de seguridad van en espejo en
+// SecurityConfig (pendiente de test: TESTS_PENDIENTES.md, renombre variante -> articulo).
+@RequestMapping({"/v1/variantes", "/v2/articulos"})
 public class VarianteController extends AbstractController<
                                         Variantes,
                                         Optional<Variantes>,
@@ -46,7 +50,7 @@ public class VarianteController extends AbstractController<
     }
 
     // getAll, getOne, save, update y delete NO se declaran aqui: los publica AbstractController
-    // y ya salen bajo /v1/variantes por el @RequestMapping de esta clase. Declararlos otra vez
+    // y ya salen bajo /v1/variantes y /v2/articulos por el @RequestMapping de esta clase. Declararlos otra vez
     // arranca en "Ambiguous mapping" y la app no levanta.
 
     @GetMapping("/porProducto/{productoId}")
@@ -59,7 +63,9 @@ public class VarianteController extends AbstractController<
     // la ficha de producto cuando el cliente entra por un link directo/marcador y no trae el
     // productoId a mano -- el resto de los datos los sigue sacando de /v1/porProducto/{productoId},
     // que ya es publico.
-    @GetMapping("/variante/{varianteId}/producto-id")
+    // En /v2/articulos la ruta es /{id}/producto-id: "/v2/articulos/articulo/{id}" repetia la
+    // palabra. La de /variante/ se queda para /v1.
+    @GetMapping({"/variante/{varianteId}/producto-id", "/{varianteId}/producto-id"})
     public ResponseEntity<ResponseGeneric<ProductoIdDto>> getProductoIdPorVariante(@PathVariable Integer varianteId) {
         return ResponseEntity.ok(new ResponseGeneric<>(new ProductoIdDto(sGenerico.resolverProductoId(varianteId))));
     }
@@ -236,7 +242,7 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(Map.of(
                 "id", id,
                 "habilitado", habilitar,
-                "mensaje", habilitar ? "Variante habilitada correctamente" : "Variante deshabilitada correctamente"
+                "mensaje", habilitar ? "Artículo habilitado correctamente" : "Artículo deshabilitado correctamente"
         ));
     }
 
@@ -246,8 +252,8 @@ public class VarianteController extends AbstractController<
         try {
             String diagnostico = sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
             String mensaje = (request.isHabilitar()
-                    ? "Variantes habilitadas correctamente. "
-                    : "Variantes deshabilitadas correctamente. ") + diagnostico;
+                    ? "Artículos habilitados correctamente. "
+                    : "Artículos deshabilitados correctamente. ") + diagnostico;
             return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
         } catch (Exception e) {
             log.error("Error al habilitar/deshabilitar variantes en lote: {}", e.getMessage());
@@ -274,7 +280,7 @@ public class VarianteController extends AbstractController<
     public ResponseEntity<ResponseGeneric<String>> guardarVariantesInicializarDesdeProducto(  @RequestPart("request") RequestVarianteDto requestVarianteDto,
                                                                                               @RequestPart(value = "files[]", required = false) MultipartFile[] files) {
         sGenerico.guardarVariantesPorProductoConImagenes(requestVarianteDto, files);
-        return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Variantes"));
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>("Artículos"));
     }
 
     // El delete generico que hereda de AbstractController es un stub que no hace nada y devuelve
@@ -284,7 +290,7 @@ public class VarianteController extends AbstractController<
     public ResponseEntity<ResponseGeneric<String>> eliminarVarianteById(@PathVariable Integer id) {
         log.info("Dar de baja la variante id={}", id);
         sGenerico.deleteByIdVariante(id);
-        return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada correctamente"));
+        return ResponseEntity.ok(new ResponseGeneric<>("Artículo eliminado correctamente"));
     }
 
     @PostMapping("/{varianteId}/independizar")

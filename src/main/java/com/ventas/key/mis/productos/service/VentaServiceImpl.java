@@ -171,7 +171,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         for (var item : request.getDetalles()) {
             if (item.getCantidad() == null || item.getCantidad() <= 0) {
-                throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0 para la variante id "
+                throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0 para el artículo id "
                         + item.getVarianteId());
             }
 

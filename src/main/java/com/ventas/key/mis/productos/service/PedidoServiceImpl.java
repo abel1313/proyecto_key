@@ -640,7 +640,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
                 if (detalle.getVariante() != null) {
                     Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                            .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                            .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
                     int stockAntes = variante.getStock();
                     variante.setStock(variante.getStock() + detalle.getCantidad());
                     iVarianteRepository.save(variante);
@@ -728,7 +728,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             iProductoRepository.save(prod);
             if (detalle.getVariante() != null) {
                 Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                        .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
                 variante.setStock(variante.getStock() + detalle.getCantidad());
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);
@@ -740,7 +740,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             iProductoRepository.save(prod);
             if (detalle.getVariante() != null) {
                 Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                        .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
                 variante.setStock(variante.getStock() + cantidad);
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);

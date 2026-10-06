@@ -119,7 +119,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         Producto producto = iProductosRepository.findById(productoId)
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto borrador con id: " + productoId));
         Variantes variante = iVarianteRepository.findByProductoId(productoId).stream().findFirst()
-                .orElseThrow(() -> new ExceptionDataNotFound("El producto " + productoId + " no tiene variante asociada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("El producto " + productoId + " no tiene artículo asociado"));
 
         producto.setEstadoImagen(EstadoCargaImagen.PENDIENTE);
         producto.setMensajeErrorImagen(null);
@@ -141,7 +141,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
             Producto producto = iProductosRepository.findById(productoId)
                     .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto: " + productoId));
             Variantes variante = iVarianteRepository.findById(varianteId)
-                    .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante: " + varianteId));
+                    .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo: " + varianteId));
 
             ProductoImagen productoImagen = new ProductoImagen();
             productoImagen.setProducto(producto);

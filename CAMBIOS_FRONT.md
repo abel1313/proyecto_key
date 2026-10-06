@@ -184,9 +184,8 @@ venta" / "Stock insuficiente"). Hallado en QA 2026-10-06.
 última tecla, con menos de 3 letras no sale al back y limpia la lista, y descarta respuestas viejas
 (`switchMap` con `catchError` adentro). Reglas completas: skill `buscadores`.
 
-**Pendiente al mezclar con la rama `feature/tema-jade-articulo`:** agregar el alias
-`/v2/articulos/para-pedido` (esa rama ya sirve `/v1/variantes` y `/v2/articulos` desde el mismo controller,
-así que sale solo; falta la regla de SecurityConfig con la ruta v2).
+**Resuelto en la rama `rename/variante-a-articulo` (2026-10-06):** `/v2/articulos/para-pedido` tiene
+la misma regla de SecurityConfig que `/v1/variantes/para-pedido` (sin ella habría quedado pública).
 
 ---
 
@@ -21989,3 +21988,36 @@ No requiere migración (la columna `pantalla` es texto).
 - Abrir un pedido por su número (link desde Créditos / Abonos o desde otro pedido del grupo) busca
   **sin** los filtros puestos, para que siempre lo encuentre.
 - La vista del cliente (no admin) no cambia.
+
+---
+
+## 🏷️ Renombre variante → artículo: rutas `/v2/articulos` (2026-10-06, rama `rename/variante-a-articulo`)
+
+**Qué cambia:** las mismas funciones responden ahora con dos nombres. El viejo sigue vivo (el front de
+prod lo usa) y el nuevo es el que usa el front de esta rama. **Mismo método, mismo JSON, misma regla
+de seguridad**: no pueden contestar distinto. Ningún campo del JSON cambia (`varianteId`,
+`configurarRifaVariante`… siguen igual).
+
+| Antes (sigue vivo) | Nuevo |
+|---|---|
+| `/mis-productos/v1/variantes/**` (todo el recurso) | `/mis-productos/v2/articulos/**` |
+| `GET /v1/variantes/variante/{id}/producto-id` | `GET /v2/articulos/{id}/producto-id` (sin repetir la palabra) |
+| `/v1/configurarRifaVariante/**` | `/v2/configurarRifaArticulo/**` |
+| `POST /v1/ganadorRifa/continuarVariante/{id}?modo=` | `POST /v1/ganadorRifa/continuarArticulo/{id}?modo=` |
+| `GET /v1/productos/admin/sin-variantes/reporte` | `GET /v1/productos/admin/sin-articulos/reporte` (archivo `productos_sin_articulos.xlsx`, hoja "Productos Sin Artículos") |
+| `POST /v1/productos/compartir-imagenes-variantes` | `POST /v1/productos/compartir-imagenes-articulos` |
+| `GET /v1/resenas/variante/{id}` y `/resumen` | `GET /v1/resenas/articulo/{id}` y `/resumen` |
+
+**Seguridad:** cada regla de `/v1/variantes` en `SecurityConfig` lleva también `/v2/articulos`, en el
+mismo lugar (públicas: los GET de catálogo; con permiso: `getAll`/`getOne`, `admin/**`, `para-pedido`,
+habilitar, dar de baja, crear artículos y el resto de escrituras). Las demás rutas nuevas caen en la
+misma regla que su versión vieja (`/v1/productos/**`, `/v1/resenas/**`, `/v1/ganadorRifa/**`).
+
+**Mensajes del back:** los que ve el usuario dicen "artículo" en vez de "variante" (ej.
+`"Artículo eliminado correctamente"`, `"No existe el artículo con id: 5"`, `"Artículos habilitados
+correctamente."`). Ningún código del front compara esos textos.
+
+**Orden de despliegue:** primero el back (agrega las rutas nuevas sin quitar las viejas), después el
+front. Al revés, el front llamaría `/v2/...` a un back que no las tiene → 404.
+
+**Respuestas posibles:** las mismas que la ruta vieja (200/201/204, 401/403 por permisos, 404 si no existe).

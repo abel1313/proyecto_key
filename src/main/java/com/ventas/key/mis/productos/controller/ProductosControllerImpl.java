@@ -144,19 +144,22 @@ public class ProductosControllerImpl {
         return ResponseEntity.ok(this.pServiceImpl.diagnosticarImagenesProducto(productoId));
     }
 
-    @GetMapping("admin/sin-variantes/reporte")
+    // sin-articulos es el nombre nuevo (renombre variante -> articulo, 2026-10-01); sin-variantes
+    // sigue vivo. Las dos tienen la misma regla en SecurityConfig (accion descargar-excel).
+    @GetMapping({"admin/sin-variantes/reporte", "admin/sin-articulos/reporte"})
     public ResponseEntity<byte[]> getReporteProductosSinVariantes() throws IOException {
-        log.info("Admin: generar reporte de productos sin variantes");
+        log.info("Admin: generar reporte de productos sin articulos");
         byte[] excel = this.pServiceImpl.generarReporteProductosSinVariantes();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-        headers.setContentDispositionFormData("attachment", "productos_sin_variantes.xlsx");
+        headers.setContentDispositionFormData("attachment", "productos_sin_articulos.xlsx");
         return ResponseEntity.ok().headers(headers).body(excel);
     }
 
-    @PostMapping("/compartir-imagenes-variantes")
+    // compartir-imagenes-articulos es el nombre nuevo (renombre variante -> articulo, 2026-10-01).
+    @PostMapping({"/compartir-imagenes-variantes", "/compartir-imagenes-articulos"})
     public ResponseEntity<CompartirImagenesVarianteDto> diagnosticarImagenesProducto(@RequestBody CompartirImagenesVarianteDto compartirImagenesVarianteDto) {
-        log.info("Compartir imagenes a variantes {}", compartirImagenesVarianteDto);
+        log.info("Compartir imagenes a articulos {}", compartirImagenesVarianteDto);
         return ResponseEntity.ok(this.pServiceImpl.compartirImagenesVarianteDto(compartirImagenesVarianteDto));
     }
 

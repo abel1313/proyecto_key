@@ -548,9 +548,12 @@ No se abre un PR "de renombrado" ni se barre el repo entero.
 
 - **Nombres de tablas y columnas** (`variantes`, `variante_imagen`, `producto_id`…). Eso necesita
   migración coordinada con los 13 FKs.
-- **Rutas de endpoints** (`/v1/variantes/buscar`, `/v1/variantes/porProducto/{id}`). Cambiarlas
-  rompe el front en producción; cuando toque, se hace como `/v2/articulos/...` con el `/v1/`
-  conviviendo, siguiendo la estrategia de versionado de arriba.
+- **Quitar las rutas viejas** (`/v1/variantes/...`). Desde 2026-10-06 (rama
+  `rename/variante-a-articulo`) existe `/v2/articulos/...` conviviendo con `/v1/variantes/...` (mismo
+  controller, mismas reglas de seguridad en espejo) y el front de esa rama ya llama a `/v2`. Las `/v1`
+  se quedan hasta que el front de prod deje de usarlas. **Toda regla nueva de `/v1/variantes` en
+  `SecurityConfig` va también con `/v2/articulos`**: si no, la ruta `/v2` cae en el GET público.
+  Inventario y pruebas: `RENOMBRE_VARIANTE_A_ARTICULO.md`.
 - **Nombres de clases y DTOs** (`Variantes`, `VarianteDto`, `VarianteServiceImpl`) mientras las rutas
   sigan diciendo `variantes` — que el código y la URL se llamen distinto confunde más de lo que ayuda.
 - **Campos de request/response** (`varianteId`, `variantes: []`). Son contrato con el front.

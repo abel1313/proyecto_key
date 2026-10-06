@@ -133,7 +133,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, page, size);
 
         if (resultado.getT().isEmpty()) {
-            throw new ExceptionDataNotFound("No se encontraron variantes con la búsqueda: \"" + termino + "\"");
+            throw new ExceptionDataNotFound("No se encontraron artículos con la búsqueda: \"" + termino + "\"");
         }
         return resultado;
     }
@@ -144,7 +144,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Cacheable(value = "variantesProductoCache", key = "'productoId:' + #varianteId")
     public Integer resolverProductoId(Integer varianteId) {
         return iVarianteRepository.findProductoIdByVarianteId(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo con id: " + varianteId));
     }
 
     @Cacheable(value = "variantesProductoCache", key = "#productoId")
@@ -233,7 +233,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Override
     public Variantes delete(Integer id) throws Exception {
         Variantes variante = iVarianteRepository.findById(id)
-                .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + id));
+                .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado: " + id));
         variante.setHabilitado('0');
         variante.setStock(0);
         Variantes saved = iVarianteRepository.save(variante);
@@ -253,7 +253,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         int stockDisponible = producto.getStock() - stockEnVariantes;
         if (stockDisponible < requestVarianteDto.getCantidadVariantes()) {
             throw new ExceptionDataNotFound(
-                    String.format("Stock insuficiente para crear %d variantes del producto %d. Stock disponible: %d",
+                    String.format("Stock insuficiente para crear %d artículos del producto %d. Stock disponible: %d",
                             requestVarianteDto.getCantidadVariantes(), producto.getId(), stockDisponible));
         }
 
@@ -276,7 +276,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 imageIds = obtenerImagenPrincipalProducto(requestVarianteDto.getProductoId());
                 if (imageIds.isEmpty()) {
                     throw new ExceptionDataNotFound(
-                            "El producto " + producto.getId() + " no tiene una imagen para copiar a las variantes. "
+                            "El producto " + producto.getId() + " no tiene una imagen para copiar a los artículos. "
                                     + "Sube una imagen o desmarca la casilla de 'misma imagen para todas'.");
                 }
             }
@@ -361,7 +361,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Override
     public IndependizarVarianteResponseDto independizarVariante(Integer varianteId, IndependizarVarianteRequestDto request) {
         Variantes variante = iVarianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo con id: " + varianteId));
 
         if (request.getCodigoBarras() == null || request.getCodigoBarras().isBlank()) {
             throw new ExceptionDataNotFound("El codigo de barras es requerido");
@@ -573,7 +573,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Transactional
     public void marcarImagenPrincipalVariante(Integer varianteImagenId) {
         VarianteImagen target = iVarianteImagenRepository.findById(varianteImagenId)
-                .orElseThrow(() -> new ExceptionDataNotFound("Relación variante-imagen no encontrada: " + varianteImagenId));
+                .orElseThrow(() -> new ExceptionDataNotFound("Relación artículo-imagen no encontrada: " + varianteImagenId));
         aplicarPrincipalVariante(target.getVariante().getId(), target.getImagen().getId());
         evictAllCaches();
     }
@@ -746,10 +746,10 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
         // negativo aislado no lo detecta (reduce la suma en vez de superarla).
         if (detalle.getStock() < 0) {
-            throw new ExceptionDataNotFound("El stock de la variante no puede quedar negativo");
+            throw new ExceptionDataNotFound("El stock del artículo no puede quedar negativo");
         }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
-                .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
+                .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado: " + detalle.getId()));
         return actual.getStock() == 0 && detalle.getStock() > 0;
     }
 
@@ -1113,7 +1113,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         evictAllCaches();
 
-        return habilitar ? "Variantes habilitadas correctamente." : "Variantes deshabilitadas correctamente.";
+        return habilitar ? "Artículos habilitados correctamente." : "Artículos deshabilitados correctamente.";
     }
 
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {
@@ -1182,7 +1182,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Transactional
     public void deleteByIdVariante(Integer id) {
         Variantes variante = iVarianteRepository.findById(id)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con el id: " + id));
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo con el id: " + id));
 
         eliminarImagenesDeVariantes(List.of(id));
 

@@ -165,23 +165,23 @@ public class PromocionServiceImpl {
 
         if (porVariante.size() != lineas.size()) {
             throw new RuntimeException("La promocion '" + promo.getDescripcion() + "' requiere "
-                    + porVariante.size() + " linea(s) (una por cada variante del combo), se recibieron "
+                    + porVariante.size() + " linea(s) (una por cada artículo del combo), se recibieron "
                     + lineas.size());
         }
 
         for (LineaPromocionCheck linea : lineas) {
             PromocionDetalle detalle = porVariante.get(linea.varianteId());
             if (detalle == null) {
-                throw new RuntimeException("La variante " + linea.varianteId()
+                throw new RuntimeException("El artículo " + linea.varianteId()
                         + " no pertenece a la promocion '" + promo.getDescripcion() + "'");
             }
             if (!detalle.getPrecioEnPromocion().equals(linea.precioUnitario())) {
-                throw new RuntimeException("El precio de la variante " + linea.varianteId()
+                throw new RuntimeException("El precio del artículo " + linea.varianteId()
                         + " en la promocion '" + promo.getDescripcion() + "' no coincide. Esperado: "
                         + detalle.getPrecioEnPromocion() + ", recibido: " + linea.precioUnitario());
             }
             if (linea.cantidad() % detalle.getCantidad() != 0) {
-                throw new RuntimeException("La cantidad de la variante " + linea.varianteId()
+                throw new RuntimeException("La cantidad del artículo " + linea.varianteId()
                         + " en la promocion '" + promo.getDescripcion() + "' debe ser multiplo de "
                         + detalle.getCantidad() + ", se recibio " + linea.cantidad());
             }
@@ -275,7 +275,7 @@ public class PromocionServiceImpl {
         List<PromocionDetalle> detalles = new ArrayList<>();
         for (PromocionDetalleRequestDto d : dto.getDetalles()) {
             Variantes variante = iVarianteRepository.findById(d.getVarianteId())
-                    .orElseThrow(() -> new RuntimeException("La variante " + d.getVarianteId() + " no existe"));
+                    .orElseThrow(() -> new RuntimeException("El artículo " + d.getVarianteId() + " no existe"));
             int cantidadRequerida = d.getCantidad() != null ? d.getCantidad() : 1;
             int stockActual = variante.getStock();
             if (stockActual < cantidadRequerida) {
@@ -303,7 +303,7 @@ public class PromocionServiceImpl {
             throw new RuntimeException("La fecha de vencimiento es obligatoria");
         }
         if (dto.getDetalles() == null || dto.getDetalles().isEmpty()) {
-            throw new RuntimeException("La promocion debe incluir al menos una variante");
+            throw new RuntimeException("La promocion debe incluir al menos un artículo");
         }
     }
 
