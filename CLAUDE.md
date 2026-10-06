@@ -593,6 +593,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 | `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
+| `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ⏳ pendiente — correrla junto con el deploy del front a QA y volver a entrar | ⏳ pendiente (cuando suban los filtros de pedidos a main) | — |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
@@ -629,6 +630,16 @@ con `--safe-updates`. **Ya corrida en qa y en prod** (prod 2026-09-30: columna c
 Cada INSERT exige `DATABASE() = 'inventario_key_qa'`, así que en prod no hace nada. Reusa imágenes
 de productos reales (no crea ni borra imágenes). `limpiar_datos_prueba_qa_catalogo.sql` los da de
 baja y quita sus ligas de imagen. Ambos probados en MySQL 8 local antes de entregarlos.
+
+`migration_accion_pedidos_filtros_y_cobro.sql` pone al día los permisos de **Mis pedidos** en
+Gestión de roles (2026-10-06): da de alta 9 acciones para los bloques nuevos de ⚙️ Filtros (solo a
+ROLE_ADMIN), corrige etiquetas y categorías de las viejas ("Normal" → "Contado", "Registrar abono" →
+"Abonar y liquidar" porque también son los botones de la card) y renumera el `orden` para que
+Gestión de roles no parta ni repita grupos. **Correrla antes o junto con el deploy del front**: el
+front ya pide esas acciones, y sin ellas el administrador deja de ver los bloques nuevos hasta que se
+corra y vuelva a entrar. Apaga Safe Updates solo durante el script. Probada dos veces en MySQL 8 local
+con `--safe-updates`, sobre el catálogo de acciones reproducido con las migraciones anteriores, y con
+un rol extra que conserva sus casillas.
 
 `limpiar_datos_e2e_qa.sql` da de baja (nunca DELETE) los modelos y artículos que crean las pruebas
 automáticas de `e2e/` en el front: código de barras exactamente `E2E` + 13 dígitos. Solo actúa en

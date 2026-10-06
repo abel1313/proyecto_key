@@ -68,8 +68,36 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-18] ✅ Permisos de Mis pedidos al día en Gestión de roles (filtros nuevos y cobro desde la card)
+**Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Migración:** `migration_accion_pedidos_filtros_y_cobro.sql` (correrla con el deploy y volver a entrar)
+
+Ningún endpoint cambia. Cambia el catálogo de acciones de `pedidos/mis-pedidos` que viaja en el JWT
+(`pantallasAcciones`, el front lo lee con `tieneAccion('pedidos/mis-pedidos', clave)`).
+
+**Acciones nuevas** (solo ROLE_ADMIN de arranque), una por opción o por bloque de ⚙️ Filtros:
+
+| Clave | Qué esconde si no se tiene |
+|---|---|
+| `filtro-pendientes`, `filtro-por-cobrar`, `filtro-entregados` | Esa opción del bloque **Estado** |
+| `filtro-dinero` | Bloque **Dinero** (Debe dinero, Sin abonos, Saldo a favor) |
+| `filtro-fecha-entrega` | Bloque **Fecha de entrega** |
+| `filtro-lugar` | Bloque **Dónde se entrega** (buscador de lugar + Recoge / Envío) |
+| `filtro-unidos-otros` | Bloque **Unidos y otros** (Solo unidos, Sin unir, Ramos, Con promoción) |
+| `filtro-registrado` · `filtro-total` | Rango de fechas · rango de montos |
+
+- Un filtro **guardado** de un bloque que la persona ya no tiene **no se aplica** al cargar (no lo
+  vería en el panel ni podría quitarlo).
+- **Antes:** esos bloques los veía cualquiera que entrara a la lista de administrador y no se podían
+  quitar por rol. **Después:** se quitan desde Gestión de roles. El administrador ve lo mismo que antes
+  **solo si la migración ya corrió y volvió a entrar**; si el front llega primero, esos bloques no salen.
+- Etiquetas que cambian (misma clave): `filtro-normal` → "Filtro: Contado", `abonar` → "Abonar y
+  liquidar (tarjeta y detalle)" (también gobierna Liquidar / Dar abono / Abonar al grupo de la card),
+  `cobrar` → "Cobrar de contado", `unir-pedidos` → "Unir y separar pedidos".
+
+---
+
 ### [BUG-KEY-17] ✅ Revisión de filtros de pedidos y detalle del pedido: 4 fallas del back
-**Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` manda `detalleId` en el botón −)
+**Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Front:** sí cambia (`detalle-pedido` manda `detalleId` en el botón −)
 
 **1. Filtros de Mis pedidos con pedidos unidos** (`GET /mis-productos/v1/pedidos/buscar`, mismo request y response).
 - **Antes:** de un grupo solo sale la card del titular (con el total y el "Falta" del grupo), pero los

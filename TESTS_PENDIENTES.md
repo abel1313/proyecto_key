@@ -16,6 +16,18 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-06 — Permisos de Mis pedidos al día (`migration_accion_pedidos_filtros_y_cobro.sql`)
+**Dónde:** catálogo `accion_submenu` / `rol_accion` de `pedidos/mis-pedidos` · `GET /v1/accion-submenu/**`
+**Tipo:** MySQL (script sobre esquema real) + controller del catálogo
+**Debe comprobar:**
+- [ ] Sobre una base con las migraciones anteriores (18 acciones), queda con 27 y todas con ROLE_ADMIN.
+- [ ] Correrla dos veces deja exactamente las mismas filas (etiqueta, descripción, categoría, orden, roles).
+- [ ] Corre con `SQL_SAFE_UPDATES = 1` y al final lo deja en 1.
+- [ ] Un rol que ya tenía `abonar` y `cobrar` los conserva y no recibe ninguna de las 9 nuevas.
+- [ ] Las acciones de una misma categoría quedan con `orden` seguido (1–3, 4–8, 9–14, 15–20, 21–27); ninguna `orden` repetida.
+- [ ] Si no existe el submenú `pedidos/mis-pedidos`, no inserta nada y no falla.
+- [ ] `GET /v1/accion-submenu/...` devuelve las nuevas con su categoría para Gestión de roles.
+
 ### 2026-10-06 — Botón "−" quita la línea exacta (`detalleId`) y rechaza cantidad < 1
 **Dónde:** `PedidoServiceImpl.eliminarDetallePedido(pedidoId, productoId, cantidad, detalleId)` ·
 `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=&detalleId=`
