@@ -81,6 +81,16 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, size)));
     }
 
+    // Buscador de "Agregar / Cambiar articulo" del detalle de pedido: solo articulos con stock y
+    // habilitados (articulo y modelo), sin cache. Minimo 3 caracteres; sin resultados -> t: [].
+    @GetMapping("/para-pedido")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscarParaPedido(
+            @RequestParam(required = false) String termino,
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarParaPedido(termino, pagina, size)));
+    }
+
     // Catalogo publico con filtros combinables. A diferencia de /v1/buscar (que hace cascada
     // codigo -> palabra clave -> nombre y truena si no hay resultados), este endpoint combina
     // termino + precio/talla/color/marca con AND y simplemente devuelve lista vacia si no matchea.

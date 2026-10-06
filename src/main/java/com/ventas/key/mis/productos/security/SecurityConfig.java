@@ -163,6 +163,7 @@ public class SecurityConfig {
                         // "tienda/buscar"). Una pantalla desconocida pasa y el servicio responde 400.
                         .requestMatchers("/v1/preferencias-filtro/tienda-buscar").hasAnyAuthority(pantalla("tienda/buscar"))
                         .requestMatchers("/v1/preferencias-filtro/productos-buscar").hasAnyAuthority(pantalla("productos/buscar"))
+                        .requestMatchers("/v1/preferencias-filtro/pedidos-mis-pedidos").hasAnyAuthority(pantalla("pedidos/mis-pedidos"))
                         .requestMatchers("/v1/preferencias-filtro/**").authenticated()
 
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
@@ -263,6 +264,11 @@ public class SecurityConfig {
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "tienda/update"))
 
+                        // Buscador del detalle de pedido: lo usa quien puede agregar o cambiar
+                        // articulos de un pedido. Va antes del GET /v1/variantes/** publico.
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/para-pedido")
+                                .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "agregar-articulo"),
+                                        accion("pedidos/mis-pedidos", "cambiar-articulo")))
                         .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
@@ -353,6 +359,9 @@ public class SecurityConfig {
                         // logueado podia buscar y ver los pedidos de cualquier otro cliente
                         // (encontrado 2026-08-27, junto con la misma IDOR en findPedido/**).
                         .requestMatchers(HttpMethod.GET, "/v1/pedidos/buscarClientePedido").hasRole("ADMIN")
+                        // La lista con todos los filtros (dominio busquedapedido, 2026-10-06): misma
+                        // busqueda global que buscarClientePedido, mismo permiso.
+                        .requestMatchers(HttpMethod.GET, "/v1/pedidos/buscar").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/notificar").hasRole("ADMIN")

@@ -68,6 +68,38 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-15] ✅ Fix: "Cambiar / Agregar artículo" del pedido ofrecía artículos sin stock y dados de baja
+**Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` usa el endpoint nuevo)
+
+**Antes:** el buscador de **⇄ Cambiar** y **➕ Agregar artículo** del detalle de pedido usaba
+`GET /v1/variantes/buscar`, que **para el administrador** trae también lo sin stock y lo dado de baja
+(es el buscador de Tienda, donde sí se administran) y además guarda caché, así que el stock que se
+veía podía ser viejo. Se elegía uno de esos y el back lo rechazaba al guardar ("ya no está a la
+venta" / "Stock insuficiente"). Hallado en QA 2026-10-06.
+
+**Después:** endpoint propio, solo lo que se puede vender ahora:
+
+`GET /mis-productos/v1/variantes/para-pedido?termino=blusa&pagina=1&size=20`
+- Permiso: acción `pedidos/mis-pedidos` → `agregar-articulo` **o** `cambiar-articulo` (las mismas de los botones). Sin ellas, 403.
+- Solo artículos con **stock > 0 en el artículo y en su modelo**, **artículo y modelo habilitados**, y que no sean de catálogo interno. **No** exige imagen (en mostrador se vende sin foto).
+- Busca en nombre del modelo, marca, categoría y código de barras. Mismo orden que la búsqueda de admin (código exacto primero).
+- **Sin caché** (el stock cambia con cada venta).
+- `termino` con menos de 3 caracteres → `t: []` (no busca).
+- Sin resultados → **200 con `t: []`** (no 404, a diferencia de `/buscar`).
+- Response: el mismo `PginaDto<VarianteResumenDto>` de `/buscar` (`pagina`, `totalPaginas`, `totalRegistros`, `t: [...]`).
+
+`/v1/variantes/buscar` no cambia (Tienda lo sigue usando igual).
+
+**Front (`detalle-pedido`):** además el buscador ya no busca con cada letra: espera 400 ms después de la
+última tecla, con menos de 3 letras no sale al back y limpia la lista, y descarta respuestas viejas
+(`switchMap` con `catchError` adentro). Reglas completas: skill `buscadores`.
+
+**Pendiente al mezclar con la rama `feature/tema-jade-articulo`:** agregar el alias
+`/v2/articulos/para-pedido` (esa rama ya sirve `/v1/variantes` y `/v2/articulos` desde el mismo controller,
+así que sale solo; falta la regla de SecurityConfig con la ruta v2).
+
+---
+
 ### [BUG-KEY-14] ✅ Fix: agregar un artículo a un pedido no sumaba al total (y un pedido Pagado seguía Pagado)
 **Fecha:** 2026-10-01 · **Ramas:** `dev` y `qa` · **Front:** no requiere cambios
 
@@ -21795,3 +21827,75 @@ Response **200**: `{ "data": 50080, "mensaje": "50080 artículos de prueba dados
 Contra MySQL 8 local con el esquema de las entidades más los NOT NULL reales de `producto`:
 **20 000 modelos, 50 080 artículos y 1 000 pedidos en 53 s, 0 errores.** En QA puede tardar más (la
 base está en otra máquina). La prueba de integración corrió dos veces seguidas en MySQL y en H2.
+
+---
+
+## 🔎 Lista de pedidos del administrador con todos los filtros (2026-10-06)
+
+Dominio hexagonal `busquedapedido` (reglas R1–R13 en su `README.md`). Pedido por el dueño: *"necesito
+más filtros… que muestre todos los filtros posibles y búsqueda por nombre"*. Ramas: `dev` (falta `qa`).
+
+**Antes** (`GET /v1/pedidos/buscarClientePedido`, se queda funcionando sin cambios):
+- El texto buscaba nombre/teléfono/correo del cliente, pero **no el nombre de quien recibe**, que es
+  el que a veces muestra la card. Tampoco artículos.
+- Solo había filtro de lugar, forma de cobro (Normal/Apartado/Ir pagando) y estado Pagado/Cancelado.
+- Ordenaba por `fecha_pedido` **sin hora**: con varios pedidos el mismo día, al pasar de página uno
+  se repetía y otro no salía. El front reordenaba por número solo dentro de la página.
+- El buscador del front mandaba una petición por cada tecla, sin mínimo de letras, y una respuesta
+  vieja que llegaba tarde pisaba a la nueva.
+
+**Ahora:** `GET /mis-productos/v1/pedidos/buscar` — solo `ROLE_ADMIN` (igual que `buscarClientePedido`).
+
+| Parámetro | Valores | Notas |
+|---|---|---|
+| `buscar` | texto | Nombre (cliente con cuenta, sin registro, **quien recibe**), teléfono, correo, nombre o código de barras de un artículo. Sin acentos ni mayúsculas. Con letras: **mínimo 3** (si no, 400). Solo número o `#120`: número de pedido **exacto** desde 1 dígito (con 3+ dígitos también teléfonos y códigos). Un miembro oculto de un grupo sale si se busca su número exacto. |
+| `formaCobro` (repetible) | `CONTADO`, `APARTADO`, `IR_PAGANDO` | O entre ellos |
+| `estado` (repetible) | `PENDIENTE`, `POR_COBRAR`, `PAGADO`, `ENTREGADO`, `CANCELADO` | Como los dice la card. `POR_COBRAR` = Apartado/Ir pagando abierto; `PAGADO` = Apartado/Ir pagando liquidado; `ENTREGADO` = contado cobrado; `PENDIENTE` = contado sin cobrar |
+| `dinero` (repetible) | `CON_SALDO`, `SIN_ABONOS`, `SALDO_A_FAVOR` | Solo Apartado / Ir pagando. Saldo a favor = pagó más de lo que vale, o Apartado cancelado con dinero, o pedido pagado y cancelado (devolución). Un Ir pagando cancelado que debía **no** (deuda incobrable) |
+| `totalDesde`, `totalHasta` | número | Total de **ese** pedido (no el del grupo). No negativos, desde ≤ hasta |
+| `registroDesde`, `registroHasta` | `yyyy-mm-dd` | Día de registro, los dos incluidos |
+| `entrega` | `HOY`, `MANANA`, `ESTA_SEMANA`, `ATRASADOS` | Fecha de entrega/recogida, solo de los que **esperan entrega** (no Entregados, Pagados ni Cancelados). "Hoy" es hoy en México |
+| `lugarEntregaId` | id | Un lugar |
+| `modoEntrega` | `RECOGE_EN_TIENDA`, `ENVIO` | Recoge = sin lugar o lugar "recoger en tienda" |
+| `unidos` | `SOLO_UNIDOS`, `SIN_UNIR` | De un grupo solo sale el titular, como siempre |
+| `soloRamos`, `soloConPromocion` | `true` | |
+| `orden` | `RECIENTES` (default), `ANTIGUOS`, `ENTREGA_PROXIMA`, `MAYOR_SALDO` | Siempre desempata por número: las páginas ya no repiten ni brincan |
+| `pagina` | desde `0` | default 0 |
+| `tamano` | 1–50 | default 10 |
+
+Filtros distintos se combinan con **Y**; las opciones de un mismo filtro, con **O**. Las listas se
+mandan repetidas (`estado=PAGADO&estado=CANCELADO`) o separadas por coma. Mayúsculas o minúsculas da igual.
+
+**Response 200:**
+```json
+{ "data": {
+    "list": [ /* las mismas cards de buscarClientePedido: { cliente: {...}, pedido: {... grupo} } */ ],
+    "totalPaginas": 3,
+    "totalRegistros": 27,
+    "pagina": 0
+} }
+```
+`list` y `totalPaginas` se llaman igual que antes (`IPageable`); `totalRegistros` y `pagina` son nuevos.
+Ya viene **ordenado**: el front no debe reordenar.
+
+**400** con `mensaje` en palabras del dueño: texto de 1–2 letras, fechas o totales al revés, un valor que
+no existe (el mensaje dice cuáles valen, ej. `"ENVIADO" no es un valor de estado. Valen: PENDIENTE, POR_COBRAR, ...`).
+**403** si no es administrador.
+
+### Filtros guardados para esta pantalla
+`/v1/preferencias-filtro/pedidos-mis-pedidos` (mismo contrato que `tienda-buscar`, ver Bloque 2).
+Permiso: ver `pedidos/mis-pedidos`. El front guarda todos los filtros y el orden; **no** el texto ni la página.
+No requiere migración (la columna `pantalla` es texto).
+
+### Front (`mis-pedidos`, solo admin)
+- Buscador: espera 400 ms después de la última tecla, no sale con 1–2 letras (avisa), y descarta
+  respuestas viejas (`switchMap` con `catchError` adentro).
+- Botón **⚙️ Filtros** con contador de activos, que esconde/muestra el panel (cada navegador recuerda).
+- Selector **Ordenar**.
+- Las 5 opciones que ya existían siguen pidiendo su acción de Gestión de roles (`filtro-normal`,
+  `filtro-apartado`, `filtro-fiado`, `filtro-pagados`, `filtro-cancelados`); las nuevas no piden permiso
+  extra (la lista ya es solo de administrador). "Normal" ahora dice **Contado**.
+- Resumen "Buscando: … · N pedidos" y botón **Quitar filtros**.
+- Abrir un pedido por su número (link desde Créditos / Abonos o desde otro pedido del grupo) busca
+  **sin** los filtros puestos, para que siempre lo encuentre.
+- La vista del cliente (no admin) no cambia.

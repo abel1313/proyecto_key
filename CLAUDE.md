@@ -474,6 +474,9 @@ cada recurso necesita su propio `deleteBy/{id}`. Ya existen para productos y var
 
 ### Los buscadores de texto exigen 3 caracteres, y vacío recarga todo
 
+**Todas las reglas de buscadores (espera de 400 ms, mínimo, vacío, `switchMap`, qué puede ofrecer un
+buscador de venta/pedido) están en la skill `buscadores`. Leerla antes de crear o tocar uno.**
+
 Regla: **menos de 3 caracteres no sale al back** (con 1 o 2 el `LIKE '%x%'` barre casi todo el
 catálogo y el resultado no le sirve a nadie). **Vacío SÍ dispara** y significa "quitar el filtro
 y traer todo de nuevo". No aplica a buscadores por número (número de pedido), donde 1 dígito es

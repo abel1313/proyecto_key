@@ -11,7 +11,7 @@ dentro de la app, pero se perdían al recargar, cerrar sesión o entrar desde ot
 | # | Regla | Dónde vive |
 |---|---|---|
 | R1 | Solo el **personal** guarda filtros (admin y empleados). Un **cliente** (`ROLE_USUARIO`) no: su tienda ya trae sus filtros por defecto. | `FiltrosGuardadosService` → `SoloPersonalException` (403) |
-| R2 | Solo dos pantallas: `tienda-buscar` y `productos-buscar`. Además hay que tener permiso de esa pantalla. | `Pantalla` + `SecurityConfig` |
+| R2 | Solo tres pantallas: `tienda-buscar`, `productos-buscar` y `pedidos-mis-pedidos` (esta desde 2026-10-06, filtros de la lista de pedidos). Además hay que tener permiso de esa pantalla. | `Pantalla` + `SecurityConfig` |
 | R3 | Cada quien los suyos: el usuario sale del token, nunca del request. | `QuienGuardaPort` |
 | R4 | Se guardan **solo los filtros** (casillas, talla, color, marca, precio, fechas), **no** el texto buscado ni la página. | El front arma el objeto; el back guarda lo que llega |
 | R5 | Un objeto JSON de máximo 2000 caracteres (un juego de filtros real mide ~300). | `FiltrosGuardados` |

@@ -52,10 +52,11 @@ class FiltrosGuardadosTest {
     }
 
     @Test
-    @DisplayName("R2: solo tienda-buscar y productos-buscar")
+    @DisplayName("R2: solo tienda-buscar, productos-buscar y pedidos-mis-pedidos")
     void pantallas() {
         assertThat(Pantalla.deClave("tienda-buscar")).isEqualTo(Pantalla.TIENDA_BUSCAR);
         assertThat(Pantalla.deClave("productos-buscar").ruta()).isEqualTo("productos/buscar");
+        assertThat(Pantalla.deClave("pedidos-mis-pedidos").ruta()).isEqualTo("pedidos/mis-pedidos");
         assertThatThrownBy(() -> Pantalla.deClave("pedidos"))
                 .isInstanceOf(PreferenciaFiltroException.class)
                 .hasMessageContaining("no guarda filtros");
