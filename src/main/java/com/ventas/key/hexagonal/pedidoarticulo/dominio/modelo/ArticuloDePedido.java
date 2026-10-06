@@ -1,5 +1,7 @@
 package com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo;
 
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.excepcion.EdicionPedidoException;
+
 /**
  * Una linea de un pedido: que artculo, cuantos y a que precio se cobro.
  *
@@ -40,6 +42,37 @@ public record ArticuloDePedido(
      */
     public double subTotal() {
         return precioUnitario * cantidad;
+    }
+
+    /**
+     * Cuantas piezas de esta linea se cambian por otro articulo (R10). Null = todas.
+     *
+     * <p>Se cambian 1 a 1: cada pieza que sale entra como una pieza del articulo nuevo. En una
+     * linea de promocion solo se cambia la linea completa: partirla dejaria piezas del combo
+     * sueltas a precio promocional.
+     */
+    public int piezasACambiar(Integer pedidas) {
+        if (pedidas == null) {
+            return cantidad;
+        }
+        if (pedidas <= 0) {
+            throw new EdicionPedidoException(
+                    "La cantidad tiene que ser mayor a 0. Para quitar un articulo esta el boton de quitar");
+        }
+        if (pedidas > cantidad) {
+            throw new EdicionPedidoException("'" + nombre + "' tiene " + cantidad + " pieza(s) en el pedido: "
+                    + "no se pueden cambiar " + pedidas + ". Para sumar mas, usa Agregar articulo");
+        }
+        if (pedidas < cantidad && esDePromocion()) {
+            throw new EdicionPedidoException("'" + nombre + "' es parte de una promocion: se cambia la linea "
+                    + "completa (" + cantidad + " pieza(s)), no una parte");
+        }
+        return pedidas;
+    }
+
+    /** Si cambiar esas piezas deja parte de la linea con el articulo de antes. */
+    public boolean esCambioParcial(int piezas) {
+        return piezas < cantidad;
     }
 
     /** Si esta linea es de la promocion indicada. */

@@ -102,6 +102,18 @@ segunda. Dos líneas de lo mismo con distinto precio son imposibles de explicar 
 La excepción es una línea de promoción: esa se deja quieta y se crea una línea nueva a precio
 normal (por R5 una y otra no son lo mismo aunque sean la misma variante).
 
+### R10 — Cambiar es pieza por pieza (2026-10-06)
+
+`cantidad` en el cambio dice **cuántas piezas de la línea** se cambian por el artículo nuevo, 1 a 1
+(`null` = todas). Si son todas, la línea se convierte en el nuevo artículo. Si son menos, la línea
+vieja se queda con el resto, solo lo que sale regresa al stock y el nuevo entra aparte como si se
+agregara (R6). No se cambian más piezas de las que hay, y una línea de promoción se cambia completa
+(partirla dejaría piezas del combo sueltas a precio promocional, R4). La regla vive en
+`ArticuloDePedido.piezasACambiar()`.
+
+Antes `cantidad` era "piezas de la línea nueva" y el front mandaba siempre 1: con 3 piezas, las 3
+viejas salían del pedido y entraba 1 nueva.
+
 ### R7 — El total lo recalcula el back, siempre
 
 Después de cualquier edición, `totalPedido` se recalcula sumando los subtotales que quedaron. No
