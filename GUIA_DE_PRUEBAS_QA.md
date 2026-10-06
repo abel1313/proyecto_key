@@ -15,7 +15,8 @@ Aquí está **todo lo que falta probar**, en el orden en que conviene hacerlo, y
 | Pruebas **1, 2, 4** y de la **3** los casos **3.1 a 3.7** | ✅ Ya están en QA |
 | **3.6**, **3.7** y la **Prueba 5** (filtros de pedidos) | ✅ **Validadas por ti el 2026-10-06** |
 | **3.8** (⇄ en un artículo con 2 o más piezas pregunta cuántas cambiar) | ✅ En QA desde el 2026-10-06 (el **paso 5** necesita también la Prueba 7) |
-| **Prueba 7** (fallas que encontré al revisar filtros y detalle, 2026-10-06) | ⏳ Corregidas y probadas en mi lado, **falta que digas "sube"** |
+| **Prueba 7** (fallas que encontré al revisar filtros y detalle, 2026-10-06) | ✅ En QA (la 7.10, celular, sube junto con la 8) |
+| **Prueba 8** (Liquidar / Dar abono / Abonar al grupo desde la card) | ⏳ En QA, por probar. Incluye las pruebas de que no se rompió nada (8.5 a 8.16) |
 | **Prueba 6** (datos de prueba) | ✅ En QA. Va **al final** |
 
 **Cómo anotar:** si algo no sale como dice la columna "Debes ver", escribe debajo de esa tabla
@@ -72,6 +73,7 @@ en su tarjeta toca **👁 Detalle**.
 | 4 | **Cancelar pedidos con abonos** | Qué pasa con el stock y qué mensaje sale al cancelar | 20 min | ✅ | [ ] |
 | 5 | **Filtros de pedidos** | Buscar por nombre y todos los filtros nuevos de Mis pedidos | 30 min | ✅ | [x] |
 | 7 | **Revisión de filtros y detalle** | Pedidos unidos en los filtros, la card de un grupo, el botón − con dos tallas, ⇄ que suma en la misma línea | 40 min | ⏳ falta "sube" | [ ] |
+| 8 | **Cobrar a crédito desde la card** | Liquidar / Dar abono / Abonar al grupo sin ir a Créditos / Abonos | 40 min | ⏳ por probar | [ ] |
 | 6 | **Datos de prueba con un botón** | Crear 20 mil modelos y mil pedidos de prueba | 15 min | ✅ | [ ] |
 
 **La 5 va después de la 2, 3 y 4 a propósito:** usa los pedidos que creaste en esas (A–F, H4–H7,
@@ -712,6 +714,20 @@ Usa el pedido **H8** de la 3.8 (o crea uno Ir pagando con **Art-A × 2** y **Art
 | 1 | Sin texto en el buscador, ve a la **página 2** (Siguiente →) | — | Página 2 de N |
 | 2 | Da clic en el buscador y presiona **←** o **→** | Regresaba a la página 1 | Te quedas en la **página 2** |
 
+### 7.10 Detalle del pedido en el celular
+
+Abre en el **celular** el pedido **GA** (está unido, así se ve el bloque del grupo).
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Mira el encabezado | "← Regresar" al lado del título lo apretaba; la hora se partía en dos renglones | "← Regresar" arriba, el título y la hora completos abajo |
+| 2 | Baja al bloque **🔗 Unido en el grupo** | La tabla se cortaba en el nombre del cliente; el estado y el total solo se veían deslizando de lado | Cada pedido en dos renglones: número y total; cliente y estado. Sin deslizar de lado |
+| 3 | Toca **➕ Agregar artículo** (elige el pedido si pregunta) | No se veía nada: el buscador se abría una pantalla más abajo | La pantalla baja sola al buscador y el teclado se abre |
+| 4 | Escribe **3 letras** de un artículo | Cada resultado decía "B.", "Talla:" y "M" en renglones sueltos y el precio se encimaba | Nombre completo, "Talla · Color" en un renglón, y abajo el precio con **Otro precio** y **Elegir** |
+| 5 | Toca **⇄** en un artículo | Igual que el 3 | El buscador queda en pantalla con el cursor puesto |
+| 6 | En ningún paso | — | La pantalla **no** se mueve de lado a lado |
+| 7 | Ábrelo en la **computadora** | — | **Lo mismo que antes** (la tabla del grupo con sus títulos) |
+
 ### 7.9 Lo que no debe cambiar
 
 | # | Haz esto | Debes ver |
@@ -723,7 +739,99 @@ Usa el pedido **H8** de la 3.8 (o crea uno Ir pagando con **Art-A × 2** y **Art
 
 💬 Notas:
 
-- [ ] 7.1 · [ ] 7.2 · [ ] 7.3 · [ ] 7.4 · [ ] 7.5 · [ ] 7.6 · [ ] 7.7 · [ ] 7.8 · [ ] 7.9 — **Prueba 7 terminada**
+- [ ] 7.1 · [ ] 7.2 · [ ] 7.3 · [ ] 7.4 · [ ] 7.5 · [ ] 7.6 · [ ] 7.7 · [ ] 7.8 · [ ] 7.9 · [ ] 7.10 — **Prueba 7 terminada**
+
+---
+
+## Prueba 8 — Cobrar a crédito desde la card de Mis pedidos — ⏳ en QA desde el 2026-10-06
+
+**Para qué es:** antes, **Cobrar** en un Apartado o un Ir pagando te mandaba a **Créditos / Abonos**
+y había que regresar a Mis pedidos para el siguiente. Ahora cada card cobra ahí mismo, con su propio
+formulario.
+
+### Mapa de impacto
+
+| # | Le pega a | Antes | Después |
+|---|---|---|---|
+| 8.1 | Card de **Apartado** (suelto) | "Cobrar" → aviso → Créditos / Abonos | **Liquidar** → formulario con lo que debe, fijo |
+| 8.2 | Card de **Ir pagando** (suelto) | Igual que 8.1 | **Dar abono** → formulario con monto libre |
+| 8.3 | Card de **Apartados unidos** | "Cobrar" → "entra al detalle" | **Liquidar** → saldo de todo el grupo, fijo |
+| 8.4 | Card de **Ir pagando unidos** | Igual que 8.3 | **Abonar al grupo** → monto libre |
+| 8.5 | Card de **contado** (suelto o unido) | Cobrar → diálogo de cobro | **Lo mismo que antes** |
+| 8.6 | **Créditos / Abonos** y **💳 Registrar abono** / **💵 Abonar al grupo** del detalle | — | **Lo mismo que antes** (no se tocaron) |
+
+**Antes de empezar:** con la **Receta** crea: **L1** Apartado sin dinero (Art-A); **L2** Ir pagando
+con $50 de enganche (Art-A + Art-B, total $200); **L3** y **L4** Apartados sin dinero (Art-A cada uno)
+y únelos; **L5** y **L6** Ir pagando sin dinero (Art-A cada uno) y únelos; **L7** contado sin cobrar.
+
+### 8.1 Liquidar un Apartado (L1)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Mis pedidos** → busca **L1** | El botón de la card dice **💲 Liquidar** (antes "Cobrar") |
+| 2 | Toca **Liquidar** | Se abre **💵 Liquidar Apartado** ahí mismo: "Se cobra completo **$100.00**", sin poder escribir otro monto |
+| 3 | Efectivo, **Monto recibido 500** | "Cambio a devolver: **$400.00**" |
+| 4 | Toca **💵 Liquidar** | **¡Pedido liquidado!** con el cambio y **🖨️ Imprimir ticket**. Al cerrar, sigues en Mis pedidos y la card de L1 dice **Pagado** |
+| 5 | Repite con otro Apartado y toca **¿Dejó solo una parte? Cámbialo a Ir pagando** | Se abre su detalle, donde está **🔁 Cambiar forma de cobro** |
+
+❌ **Está mal si:** te manda a Créditos / Abonos, deja escribir un monto menor, o hay que recargar para ver Pagado.
+
+### 8.2 Dar abono a un Ir pagando (L2)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En la card de **L2** toca **Dar abono** | **💳 Dar abono**: Total $200, Pagado $50, Saldo **$150** |
+| 2 | Escribe **200** | "Es más de lo que se debe: el saldo es de $150.00" y el botón apagado |
+| 3 | Escribe **50**, efectivo, recibido **100** → **💳 Registrar abono** | **Abono registrado**, "Saldo restante: **$100.00**. Cambio al cliente: **$50.00**" |
+| 4 | Vuelve a **Dar abono** → toca **Liquidar todo ($100.00)** → Transferencia → guardar | **¡Pedido liquidado!**; la card queda **Pagado** |
+| 5 | **Créditos / Abonos** → pestaña **✅ Liquidados** | L2 aparece con sus 3 pagos ($50, $50, $100) |
+
+### 8.3 Liquidar Apartados unidos (L3 + L4)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En la card del grupo toca **Liquidar** | **💵 Liquidar pedidos unidos** con #L3 y #L4 y "Se cobra completo **$200.00**" (fijo) |
+| 2 | Toca **💵 Liquidar** | **Grupo pagado**: "Pagado hoy $200.00 · Falta $0.00". La card queda pagada |
+
+### 8.4 Abonar a Ir pagando unidos (L5 + L6)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En la card del grupo toca **Abonar al grupo** | Total $200, Pagado $0, Saldo **$200** |
+| 2 | Escribe **150** → guardar | **Abono registrado**: "Pagado del grupo $150.00 · Falta $50.00". En la card: "Falta $50.00" |
+| 3 | Abre el detalle de L5 | El bloque del grupo dice Pagado $150 · Saldo $50 (L5 pagado, L6 debe $50: primero el más viejo) |
+
+### 8.5 a 8.12 — Que no se haya roto nada
+
+Estas pruebas no usan el botón nuevo: revisan las pantallas que cobran **por otro camino**, que
+deben seguir **igual que antes**. Usa pedidos nuevos (con la **Receta**) para no mezclar números.
+
+| # | Pantalla | Haz esto | Debes ver (igual que antes) |
+|---|---|---|---|
+| 8.5 | Card de **contado** sin cobrar | **Cobrar** → efectivo → **Confirmar cobro** | El diálogo de cobro de siempre; la card queda **Entregado** |
+| 8.6 | Card de **contado** | **Cobrar** → tarjeta | Sale la opción de terminal y meses como siempre (no cobres de verdad: **Cancelar**) |
+| 8.7 | Card de **contado unidos** | **Cobrar** | "Se cobran juntos los que falten: $…" y cobra el grupo completo |
+| 8.8 | **Ventas → 💳 Créditos / Abonos** | **+ Abono** a un Ir pagando: 50, efectivo, recibido 100 | Cambio $50, ticket, "Saldo restante" correcto. El formulario de esa pantalla **no** cambió |
+| 8.9 | **Créditos / Abonos** | **+ Abono** a un Apartado con menos del total | Sigue saliendo "Un Apartado se paga completo" con **Ir al pedido** |
+| 8.10 | **Detalle del pedido** (Ir pagando suelto) | **💳 Registrar abono** | Igual que antes: monto, monto recibido, cambio, "Abono registrado" |
+| 8.11 | **Detalle del pedido** (unidos Ir pagando) | **💵 Abonar al grupo** en el bloque del grupo | Igual que antes: "Pagado del grupo / Falta" |
+| 8.12 | **Mis pedidos** con filtros puestos (ej. **🕒 Por cobrar**) y en la **página 2** | Cobra una card con **Dar abono** | Te quedas en la página 2 con los mismos filtros; la card se actualiza (si quedó pagada, ya no sale en "Por cobrar") |
+
+### 8.13 a 8.16 — Permisos, cliente y celular
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 8.13 | Entra con un usuario **cliente** (no administrador) → **Mis pedidos** | Ningún botón de **Liquidar**, **Dar abono** ni **Cobrar** |
+| 8.14 | *(Opcional, si tienes un usuario administrador de prueba)* En **Gestión de roles** quítale a su rol la acción **abonar** de Mis pedidos y vuelve a iniciar sesión con él | En cards de Apartado / Ir pagando **no** sale el botón; en contado sigue **Cobrar** si tiene **cobrar** |
+| 8.15 | En el **celular** abre los 4 formularios (8.1 a 8.4) | Caben en la pantalla, se puede bajar dentro del formulario y el botón del chat **no** tapa **Liquidar** / **Registrar abono** |
+| 8.16 | En un formulario escribe un monto mayor al saldo y toca afuera / **Cancelar** | No se registra nada; la card queda igual |
+
+❌ **Está mal si:** Créditos / Abonos o el detalle cambiaron en algo, el contado ya no abre su diálogo,
+el cliente ve botones de cobro, o al cobrar se pierde la página o los filtros.
+
+💬 Notas:
+
+- [ ] 8.1 · [ ] 8.2 · [ ] 8.3 · [ ] 8.4 · [ ] 8.5–8.12 · [ ] 8.13–8.16 — **Prueba 8 terminada**
 
 ---
 

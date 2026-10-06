@@ -5,6 +5,10 @@ description: Arquitectura Hexagonal (puertos y adaptadores) + Clean Architecture
 
 # Arquitectura Hexagonal + Clean — cómo se construye el back
 
+> **Desde 2026-10-06 no se escriben tests automáticos** (regla en `CLAUDE.md`): donde esta skill dice
+> "prueba unitaria", "prueba automática" o "`mvn test` en verde", en su lugar se anota en
+> `TESTS_PENDIENTES.md` qué test falta y qué debe comprobar, y solo se verifica que compile.
+
 Escrita como la aplicaría un arquitecto con experiencia que ya migró sistemas vivos: la
 arquitectura existe para que las **reglas del negocio** (lo que el dueño decide: Apartado sin
 dinero, cómo se reparte un abono, cuándo un pedido queda Pagado) vivan en un lugar que no depende de

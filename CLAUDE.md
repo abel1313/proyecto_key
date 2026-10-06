@@ -42,6 +42,29 @@ Este es el **backend/API** del sistema. Expone endpoints REST que el frontend (`
 - Solo pregunta si hay ambigüedad real en el requerimiento
 - **NO hacer git commit ni git push automáticamente** — hacer los cambios en los archivos localmente y esperar a que el usuario diga explícitamente "sube" o "haz commit" para ejecutar git commit y/o push.
 
+## Regla — no escribir tests automáticos: se anotan en `TESTS_PENDIENTES.md` (2026-10-06)
+
+Decisión del dueño: *"ya no sigas haciendo tests, ni Angular ni Spring, porque a cada rato cambian;
+lo que sí necesito es un doc con las pruebas que faltan: se hace algo nuevo y se apunta 'esto
+necesita un test que compruebe esto y esto'"*.
+
+- **No se escriben ni se actualizan tests automáticos**: ni JUnit/Mockito/Spring en el back, ni
+  Jasmine/Karma ni Playwright (`e2e/`) en el front. El código cambia tan seguido que se reescribían
+  a cada rato.
+- **Cada cambio nuevo deja su entrada en `TESTS_PENDIENTES.md`** (raíz del repo), en el mismo
+  cambio que el código: fecha, qué se hizo, dónde vive (clase y método, o componente) y la lista
+  **"Debe comprobar"** con casos concretos — qué entra y qué tiene que salir, incluidos los casos
+  de error (ej. *"cambiar 4 piezas de una línea de 3 → 400 'Solo hay 3'"*). Así, el día que se
+  escriban, ya está todo dicho.
+- **Sí se sigue comprobando que compile** antes de entregar: `mvn -q compile` en el back,
+  `ng build --configuration development` en el front.
+- **Los tests que ya existen no se borran.** Si un cambio rompe uno, no se arregla: se anota en
+  `TESTS_PENDIENTES.md`, sección "Tests existentes que quedaron viejos". Los deploys no corren
+  tests (`-DskipTests` en el Dockerfile del back; el front solo hace `ng build`), así que no bloquean.
+- **Esto no quita** la guía de pruebas manuales para QA (skill `pruebas-de-impacto`) ni la regla de
+  correr cada `.sql` en una base desechable antes de entregarlo: eso es comprobar el script, no un test.
+- Cuando el dueño diga que ya se escriban, se toman de `TESTS_PENDIENTES.md`.
+
 ## Flujo Git — cómo hacer los merges
 
 ### Orden de ramas
