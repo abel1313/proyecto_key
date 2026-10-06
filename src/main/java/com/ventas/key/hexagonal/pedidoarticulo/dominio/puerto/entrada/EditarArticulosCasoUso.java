@@ -47,16 +47,11 @@ public interface EditarArticulosCasoUso {
      * Por que articulo se cambia una linea, y que hacer si eso rompe un combo.
      *
      * @param varianteId     el articulo nuevo
-     * @param cantidad       piezas; null = la misma que tenia la linea
+     * @param cantidad       cuantas piezas de la linea se cambian, 1 a 1 (R10); null = todas
      * @param precioUnitario null = precio normal (o el del combo, si sigue dentro de la promocion)
      * @param modo           que hacer si el articulo nuevo no esta en la promocion de la linea
      */
-    record CambiarArticulo(Integer varianteId, Integer cantidad, Double precioUnitario, ModoCambio modo) {
-
-        public int cantidadElegida(int cantidadActual) {
-            return cantidad != null ? cantidad : cantidadActual;
-        }
-    }
+    record CambiarArticulo(Integer varianteId, Integer cantidad, Double precioUnitario, ModoCambio modo) {}
 
     /** Las dos salidas de R4, mas la de "todavia no elegi". */
     enum ModoCambio {

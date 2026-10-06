@@ -68,6 +68,30 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-16] ✅ Fix: "⇄ Cambiar" en una línea con varias piezas sacaba todas del pedido
+**Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` pregunta cuántas)
+
+**Antes:** el front siempre mandaba `cantidad: 1` y el back trataba `cantidad` como "piezas de la
+línea nueva": con 3 blusas en la línea, ⇄ regresaba las **3** al stock, la línea pasaba al artículo
+nuevo con **1** pieza y las otras 2 blusas desaparecían del pedido (el total bajaba sin que nadie lo
+pidiera). Hallado en QA 2026-10-06.
+
+**Después** (`PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}`, mismo body):
+- `cantidad` = **cuántas piezas de esa línea se cambian**, 1 a 1 por el artículo nuevo. `null` = todas (igual que antes).
+- **Todas** (`cantidad` = las de la línea, o `null`) → la línea se convierte en el artículo nuevo, como antes.
+- **Menos** (ej. 1 de 3) → la línea vieja se queda con 2, **solo 1** regresa al stock, y el artículo
+  nuevo entra como línea aparte con 1 pieza (si ya estaba en el pedido como línea normal al mismo
+  precio, se suma a esa). El total se recalcula como siempre (R7/R9).
+- **Más** de las que tiene la línea → **400** `"'X' tiene 2 pieza(s) en el pedido: no se pueden cambiar 3. Para sumar mas, usa Agregar articulo"`.
+- **Línea de promoción** con `cantidad` menor a la de la línea → **400** `"... es parte de una promocion: se cambia la linea completa (N pieza(s)), no una parte"`. En una promoción el front manda siempre la línea completa.
+- `cantidad` 0 o negativa → 400 (como antes).
+
+**Front (`detalle-pedido`):** si la línea tiene más de 1 pieza y no es de promoción, al elegir el
+artículo nuevo pregunta *"¿Cuántas piezas cambias?"* (1 a N, arranca en 1). Con 1 pieza, o en una
+promoción, cambia directo la línea completa. El reintento del combo (409) manda la misma cantidad.
+
+---
+
 ### [BUG-KEY-15] ✅ Fix: "Cambiar / Agregar artículo" del pedido ofrecía artículos sin stock y dados de baja
 **Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` usa el endpoint nuevo)
 

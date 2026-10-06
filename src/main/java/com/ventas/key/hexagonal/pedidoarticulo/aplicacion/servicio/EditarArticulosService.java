@@ -101,13 +101,35 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
                             + "no hace falta cambiar el articulo");
         }
 
-        int cantidad = peticion.cantidadElegida(linea.cantidad());
-        validarCantidad(cantidad);
+        int cantidad = linea.piezasACambiar(peticion.cantidad());
         ArticuloDisponible nuevo = articuloVendible(peticion.varianteId());
 
+        if (linea.esCambioParcial(cantidad)) {
+            return cambiarParteDeLaLinea(pedido, linea, nuevo, cantidad, peticion.precioUnitario());
+        }
         return linea.esDePromocion()
                 ? cambiarLineaDePromocion(pedido, linea, nuevo, cantidad, peticion)
                 : cambiarLineaNormal(pedido, linea, nuevo, cantidad, peticion.precioUnitario());
+    }
+
+    /**
+     * Solo algunas piezas de la linea (R10): la linea vieja se queda con las demas y el articulo
+     * nuevo entra aparte, como si se agregara. Solo regresa al stock lo que sale.
+     */
+    private PedidoEditable cambiarParteDeLaLinea(PedidoEditable pedido, ArticuloDePedido linea,
+                                                 ArticuloDisponible nuevo, int piezas, Double precioPedido) {
+        double precio = precioValidado(nuevo, precioPedido);
+        exigirStock(nuevo, piezas);
+
+        stock.devolver(linea.varianteId(), piezas);
+        pedidos.cambiarCantidad(linea.detalleId(), linea.cantidad() - piezas);
+        stock.descontar(nuevo.varianteId(), piezas);
+        sumarOCrearLinea(pedido, nuevo, piezas, precio);
+
+        log.info("Pedido {}: {} de {} pieza(s) de la linea {} pasaron del articulo {} al {}",
+                pedido.pedidoId(), piezas, linea.cantidad(), linea.detalleId(),
+                linea.varianteId(), nuevo.varianteId());
+        return recalcular(pedido.pedidoId());
     }
 
     /** Una linea sin promocion se cambia y ya: precio de catalogo y listo. */
