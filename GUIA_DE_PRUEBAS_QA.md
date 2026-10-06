@@ -14,7 +14,8 @@ Aquí está **todo lo que falta probar**, en el orden en que conviene hacerlo, y
 |---|---|
 | Pruebas **1, 2, 4** y de la **3** los casos **3.1 a 3.7** | ✅ Ya están en QA |
 | **3.6**, **3.7** y la **Prueba 5** (filtros de pedidos) | ✅ **Validadas por ti el 2026-10-06** |
-| **3.8** (⇄ en un artículo con 2 o más piezas pregunta cuántas cambiar) | ⏳ Hecha y probada en mi lado, **falta que digas "sube"** |
+| **3.8** (⇄ en un artículo con 2 o más piezas pregunta cuántas cambiar) | ✅ En QA desde el 2026-10-06 (el **paso 5** necesita también la Prueba 7) |
+| **Prueba 7** (fallas que encontré al revisar filtros y detalle, 2026-10-06) | ⏳ Corregidas y probadas en mi lado, **falta que digas "sube"** |
 | **Prueba 6** (datos de prueba) | ✅ En QA. Va **al final** |
 
 **Cómo anotar:** si algo no sale como dice la columna "Debes ver", escribe debajo de esa tabla
@@ -67,9 +68,10 @@ en su tarjeta toca **👁 Detalle**.
 |---|---|---|---|---|---|
 | 1 | **Botón Volver** | Que el botón ← Volver quede alineado con la tarjeta | 10 min | ✅ | [ ] |
 | 2 | **Apartado es sin dinero** | Que un Apartado no acepte abonos a medias y se pueda pasar a Ir pagando | 25 min | ✅ | [ ] |
-| 3 | **Detalle del pedido: quitar, cambiar o agregar artículos** | Que el total, lo que debe y el estado cambien bien; que el buscador solo ofrezca lo que se puede vender | 35 min | ✅ 3.1–3.7 · ⏳ 3.8 | [ ] |
+| 3 | **Detalle del pedido: quitar, cambiar o agregar artículos** | Que el total, lo que debe y el estado cambien bien; que el buscador solo ofrezca lo que se puede vender | 35 min | ✅ | [ ] |
 | 4 | **Cancelar pedidos con abonos** | Qué pasa con el stock y qué mensaje sale al cancelar | 20 min | ✅ | [ ] |
 | 5 | **Filtros de pedidos** | Buscar por nombre y todos los filtros nuevos de Mis pedidos | 30 min | ✅ | [x] |
+| 7 | **Revisión de filtros y detalle** | Pedidos unidos en los filtros, la card de un grupo, el botón − con dos tallas, ⇄ que suma en la misma línea | 40 min | ⏳ falta "sube" | [ ] |
 | 6 | **Datos de prueba con un botón** | Crear 20 mil modelos y mil pedidos de prueba | 15 min | ✅ | [ ] |
 
 **La 5 va después de la 2, 3 y 4 a propósito:** usa los pedidos que creaste en esas (A–F, H4–H7,
@@ -326,7 +328,11 @@ Con eso lo ubico.
 💬 *"Si en un pedido hay un artículo con 2 o 3 stock y le doy cambiar, lo que hace es quitar los 2 stock y agregar el nuevo; hace falta que pregunte cuántos quiere quitar, si es uno dejar el resto"* (2026-10-06)
 ↳ Correcto, era un error: el sistema regresaba **todas** las piezas y dejaba **1** del artículo nuevo, así que las demás desaparecían del pedido. Arreglado (back y front, en `dev`): ahora pregunta cuántas cambias y el resto se queda. Prueba **3.8**.
 
-### 3.8 ⇄ en un artículo con varias piezas: pregunta cuántas cambiar — ⏳ después de "sube"
+### 3.8 ⇄ en un artículo con varias piezas: pregunta cuántas cambiar — ✅ en QA
+
+⚠️ **El paso 5 todavía falla en QA** (salen dos líneas "Art-B" en vez de una "Art-B × 3"): al
+revisar encontré que cambiar **todas** las piezas no se sumaba a la línea que ya había. Ya está
+corregido en mi lado; pruébalo después de "sube" junto con la **Prueba 7.4**.
 
 **Qué se arregló:** antes, con 3 piezas de un artículo, **⇄** regresaba las 3 al stock y dejaba 1 del
 artículo nuevo (las otras 2 se perdían del pedido y el total bajaba). Ahora, si la línea tiene **2 o
@@ -605,6 +611,119 @@ guardado al recargar, o algo no se lee de noche.
 ↳ Anotada toda la Prueba 5 como OK.
 
 - [x] 5.1–5.6 · [x] 5.7 · [x] 5.8 · [x] 5.9 · [x] 5.10 · [x] 5.11 · [x] 5.12 — **Prueba 5 terminada**
+
+---
+
+## Prueba 7 — Revisión de filtros y detalle del pedido (2026-10-06) — ⏳ después de "sube"
+
+**Para qué es:** al revisar todo lo de filtros y detalle encontré estas fallas y ya las corregí.
+Cada una tiene su prueba: **antes** (lo que pasa hoy en QA) y **después** (lo que debe pasar).
+
+### Mapa de impacto
+
+| # | Qué se movió | Le pega a | Antes | Después |
+|---|---|---|---|---|
+| 7.1 | Filtros de **Mis pedidos** con pedidos **unidos** (`GET /v1/pedidos/buscar`) | Estado, Dinero, Total, Fecha de entrega, "Los que más deben" | Miraban solo al titular: un grupo que todavía debe salía como **Pagado** y no salía en **Por cobrar** | Miran al grupo, igual que la card |
+| 7.2 | (mismo) | Buscar por **nombre / teléfono / artículo** del otro cliente del grupo | No encontraba nada | Sale la card del grupo |
+| 7.3 | Card del titular de un grupo | Etiqueta de estado y "Entrega" | Decía **Pagado** con "Falta $100" debajo; no mostraba la fecha de entrega | Dice **Por cobrar** y muestra la fecha |
+| 7.4 | **⇄** cambiando **todas** las piezas por un artículo que ya está | Detalle del pedido | Quedaban **dos líneas** del mismo artículo | Una sola línea con la suma |
+| 7.5 | Botón **−** (`DELETE /v1/pedidos/{id}/detalle/{productoId}`, ahora con `detalleId`) | Pedido con **dos tallas del mismo modelo** | Podía quitar la **otra** talla | Quita la que tocaste |
+| 7.6 | Orden **"Entrega más próxima"** | Mis pedidos → Ordenar | Salían primero entregados de hace meses | Primero lo que falta entregar, atrasados arriba |
+| 7.7 | Aviso **📍 Entrega** de la card | Nombre o notas con comillas | Se cortaba en la comilla | Sale completo |
+| 7.8 | Buscador de Mis pedidos | Flechas o Tab dentro del buscador | Regresaba a la página 1 | Te quedas donde estabas |
+| 7.9 | **Lo mismo que antes** (no debe cambiar) | Pedidos **sin unir** en todos los filtros, buscar por número, ⇄ con 1 pieza, ➕ Agregar | — | **Lo mismo que antes** |
+
+**Antes de empezar:** `Ctrl + Shift + R`. Con la **Receta** crea:
+
+| Pedido | Artículos | Forma de cobro | 💰 Pago inicial | Cliente | Número |
+|---|---|---|---|---|---|
+| **GA** (créalo **primero**) | Art-A ($100) | 💳 Ir pagando | nada | uno cualquiera | |
+| **GB** (después) | Art-B ($100) | 💳 Ir pagando | nada | **otro** cliente (anota su nombre: ______) | |
+| **T2** | **2 tallas del mismo modelo** (ej. Blusa M y Blusa L), 1 de cada una | 💳 Ir pagando | nada | — | |
+
+Luego **une GA con GB**: abre **GA** → **🔗 Unir con otros pedidos** → busca **GB** → **Unir 2 pedidos**
+(GA queda como titular: su card dice "Unido con #GB"). En el bloque del grupo toca **💵 Abonar al
+grupo** → **100** → registrar. El dinero va primero al más viejo: **GA queda Pagado** y **GB debe $100**.
+
+### 7.1 Filtros con un grupo que todavía debe (GA + GB)
+
+En **Pedidos → Mis pedidos** pon **⚙️ Filtros → Registrado: Desde hoy, Hasta hoy** y luego:
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Estado **🕒 Por cobrar** | GA **no** salía | Sale **GA** (la card del grupo) |
+| 2 | Quita ese y marca **✅ Pagado** | Salía GA | GA **no** sale (al grupo le falta $100) |
+| 3 | Quita ese y marca Dinero **💰 Debe dinero** | GA no salía | Sale **GA** |
+| 4 | Cambia a **🚫 Sin abonos** | — | GA **no** sale (el grupo ya tiene un abono) |
+| 5 | Quita Dinero; en **Total del pedido** pon Desde **150** | GA no salía (su pedido es de $100) | Sale **GA** (la card dice $200 entre los dos) |
+| 6 | Quita filtros; **Ordenar → Los que más deben** | GA estaba al fondo (su pedido debe $0) | GA aparece según los **$100** que debe el grupo |
+
+### 7.2 Buscar al otro cliente del grupo
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | En el buscador escribe el **nombre del cliente de GB** | No salía nada | Sale la card de **GA** ("Unido con #GB") |
+| 2 | Escribe las 3 primeras letras de **Art-B** | Solo salían otros pedidos | También sale **GA** |
+| 3 | Escribe el **número exacto de GB** | Salía GB | **Lo mismo:** sale **GB** solo |
+
+### 7.3 La card del grupo
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Mira la card de **GA** | Arriba decía **✔ Pagado** y abajo "Falta $100.00" | Arriba **🕒 Por cobrar**; abajo "Total de los 2 pedidos $200.00 · Falta $100.00" |
+| 2 | En la card de GA toca **Entrega** → **📅 Fecha de entrega**: mañana → **💾 Guardar**; recarga | No salía la fecha (GA está pagado) | Sale la fila **"Recoge en el local"** (o **"Entrega"** si tiene lugar) con la fecha de mañana |
+| 3 | Filtro **Fecha de entrega → Mañana** | GA no salía | Sale **GA** |
+
+### 7.4 ⇄ todas las piezas por un artículo que ya está en el pedido
+
+Usa el pedido **H8** de la 3.8 (o crea uno Ir pagando con **Art-A × 2** y **Art-B × 1**).
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | **⇄** en Art-A (2 piezas) → **Art-B** → escribe **2** → **Cambiar** | Dos líneas: "Art-B × 2" y "Art-B × 1" | **Una sola línea "Art-B × 3"**. Total igual ($300) |
+| 2 | Stock en **Tienda** | — | Art-A **+2** · Art-B **−2** |
+
+❌ **Está mal si:** quedan dos líneas de Art-B o cambia el total.
+
+### 7.5 Botón − con dos tallas del mismo modelo (T2)
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Abre **T2** y toca **−** en la **segunda** talla (la de abajo) | Podía desaparecer la **de arriba** | Desaparece **la que tocaste**; la otra sigue |
+| 2 | Stock en **Tienda** | Subía la talla equivocada | Sube **la talla que quitaste** |
+
+### 7.6 Ordenar "Entrega más próxima"
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Quita filtros → **Ordenar → Entrega más próxima** | Primero pedidos **Entregados** de hace meses | Primero los que **faltan por entregar**: los **⚠ Atrasados** arriba, luego hoy, mañana… Los entregados, pagados o sin fecha van al final |
+
+### 7.7 Comillas en Entrega
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | En cualquier pedido **📍 Entrega** → "Nombre de quien recibe": `Ana "La Güera" López` → Guardar | — | — |
+| 2 | Vuelve a abrir **📍 Entrega** | El campo decía solo `Ana ` | Dice `Ana "La Güera" López` completo |
+
+### 7.8 Flechas en el buscador
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Sin texto en el buscador, ve a la **página 2** (Siguiente →) | — | Página 2 de N |
+| 2 | Da clic en el buscador y presiona **←** o **→** | Regresaba a la página 1 | Te quedas en la **página 2** |
+
+### 7.9 Lo que no debe cambiar
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Repite **5.7 a 5.11** con pedidos que **no** estén unidos | **Lo mismo que antes** |
+| 2 | Busca un pedido por su **número** | **Lo mismo que antes** |
+| 3 | **⇄** en un artículo de **1** pieza, y **➕ Agregar artículo** | **Lo mismo que antes** (3.2, 3.3) |
+| 4 | **−** en un pedido con modelos distintos (3.1) | **Lo mismo que antes** |
+
+💬 Notas:
+
+- [ ] 7.1 · [ ] 7.2 · [ ] 7.3 · [ ] 7.4 · [ ] 7.5 · [ ] 7.6 · [ ] 7.7 · [ ] 7.8 · [ ] 7.9 — **Prueba 7 terminada**
 
 ---
 
