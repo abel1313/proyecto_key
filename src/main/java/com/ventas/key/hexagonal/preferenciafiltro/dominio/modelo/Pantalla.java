@@ -11,7 +11,9 @@ import com.ventas.key.hexagonal.preferenciafiltro.dominio.excepcion.PreferenciaF
 public enum Pantalla {
 
     TIENDA_BUSCAR("tienda-buscar", "tienda/buscar"),
-    PRODUCTOS_BUSCAR("productos-buscar", "productos/buscar");
+    PRODUCTOS_BUSCAR("productos-buscar", "productos/buscar"),
+    /** Lista de pedidos del administrador (2026-10-06). */
+    PEDIDOS_MIS_PEDIDOS("pedidos-mis-pedidos", "pedidos/mis-pedidos");
 
     private final String clave;
     private final String ruta;

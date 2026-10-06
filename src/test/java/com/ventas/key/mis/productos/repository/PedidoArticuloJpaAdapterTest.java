@@ -175,4 +175,43 @@ class PedidoArticuloJpaAdapterTest {
         assertThat(detalleRepository.findById(sobra.getId())).isEmpty();
         assertThat(adapter.buscarPedido(p.getId()).orElseThrow().articulos()).hasSize(1);
     }
+    /**
+     * QA 2026-10-06: "cambie un producto de 500 por el de 100 y no se recalculo el saldo".
+     * Ir pagando de $500 con $100 abonados; la linea se cambia por un articulo de $300 en la misma
+     * peticion (leer, cambiar, releer): el total tiene que bajar a $300 y deber $200.
+     */
+    @Test
+    void cambiar_el_articulo_por_uno_mas_barato_baja_el_total_y_el_saldo() {
+        Variantes caro = articulo("G");
+        Variantes barato = articulo("CH");
+        Pedido p = new Pedido();
+        p.setTipoPedido("FIADO");
+        p.setEstadoPedido("FIADO");
+        p.setTotalPedido(500.0);
+        p.setTotalPagado(100.0);
+        p.setFechaPedido(LocalDate.now());
+        p.setFechaHoraRegistro(LocalDateTime.now());
+        p = pedidoRepository.save(p);
+        DetallePedido d = linea(p, caro, 500.0);
+        AbonoPedido a = new AbonoPedido();
+        a.setPedido(p);
+        a.setMonto(100.0);
+        a.setFechaPago(LocalDate.now());
+        a.setMetodoPago("EFECTIVO");
+        abonoRepository.save(a);
+        nuevaPeticion();
+
+        // Igual que EditarArticulosService.cambiarLineaNormal() + recalcular().
+        adapter.buscarPedido(p.getId()).orElseThrow();
+        adapter.cambiarArticulo(d.getId(), barato.getId(), 300.0);
+        adapter.cambiarCantidad(d.getId(), 1);
+        adapter.guardarTotal(p.getId(), adapter.buscarPedido(p.getId()).orElseThrow().total());
+        abonoService.ajustarTrasEditarArticulos(p.getId(), 1);
+        nuevaPeticion();
+
+        Pedido despues = pedidoRepository.findById(p.getId()).orElseThrow();
+        assertThat(despues.getTotalPedido()).isEqualTo(300.0);
+        assertThat(despues.getTotalPagado()).isEqualTo(100.0);
+        assertThat(despues.getEstadoPedido()).isEqualTo("FIADO");
+    }
 }

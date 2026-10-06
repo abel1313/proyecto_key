@@ -246,6 +246,46 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                           @Param("fechaHasta") java.time.LocalDateTime fechaHasta,
                                           Pageable pageable);
 
+    // Buscador de "Agregar / Cambiar articulo" en el detalle de un pedido (QA 2026-10-06): solo lo
+    // que se puede vender ahora. Antes usaba /buscar, que para el admin trae tambien los articulos
+    // sin stock y los deshabilitados: se elegian y el back los rechazaba al guardar. Stock > 0 en el
+    // articulo Y en el modelo porque el pedido descuenta de los dos (ArticuloDisponible.disponible).
+    // No exige imagen: en mostrador se vende aunque el articulo no tenga foto.
+    @Query(value = """
+        SELECT v FROM Variantes v
+        JOIN FETCH v.producto p
+        LEFT JOIN FETCH p.codigoBarras cb
+        LEFT JOIN FETCH v.palabraClave pc
+        WHERE v.stock > 0 AND p.stock > 0 AND v.habilitado = '1' AND p.habilitado = '1'
+          AND p.esCatalogoInterno = false
+          AND (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
+        ORDER BY
+          CASE
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) = LOWER(:termino) THEN 0
+            WHEN LOWER(p.nombre) = LOWER(:termino) THEN 1
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT(:termino, '%')) THEN 2
+            WHEN LOWER(p.nombre) LIKE LOWER(CONCAT(:termino, '%')) THEN 3
+            ELSE 4
+          END,
+          v.id DESC
+        """,
+        countQuery = """
+        SELECT COUNT(v) FROM Variantes v
+        JOIN v.producto p
+        LEFT JOIN p.codigoBarras cb
+        LEFT JOIN v.palabraClave pc
+        WHERE v.stock > 0 AND p.stock > 0 AND v.habilitado = '1' AND p.habilitado = '1'
+          AND p.esCatalogoInterno = false
+          AND (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
+        """)
+    Page<Variantes> buscarVariantesParaPedido(@Param("termino") String termino, Pageable pageable);
+
     // Catalogo publico con filtros: mismas restricciones de visibilidad que findConStockYImagenPublico
     // (stock>0, producto y variante habilitados, con imagen) + termino/precioMin/precioMax/talla/
     // color/marca opcionales (tri-estado, se combinan con AND). talla/color/marca son match exacto

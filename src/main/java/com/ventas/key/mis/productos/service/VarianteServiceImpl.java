@@ -1002,6 +1002,30 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         return resultado;
     }
 
+    /**
+     * Buscador del detalle de pedido: solo articulos que se pueden vender ahora (stock y
+     * habilitados, articulo y modelo). <b>Sin cache a proposito</b>: el stock cambia con cada venta
+     * y cada edicion de pedido, y una lista vieja vuelve a ofrecer lo que ya se acabo.
+     * Sin resultados devuelve lista vacia (no 404).
+     */
+    public PginaDto<List<VarianteResumenDto>> buscarParaPedido(String termino, int pagina, int size) {
+        PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
+        resultado.setPagina(pagina);
+        String texto = blankToNull(termino);
+        if (texto == null || texto.trim().length() < 3) {
+            resultado.setTotalPaginas(0);
+            resultado.setTotalRegistros(0);
+            resultado.setT(List.of());
+            return resultado;
+        }
+        Page<Variantes> page = iVarianteRepository.buscarVariantesParaPedido(texto.trim(),
+                PageRequest.of(Math.max(pagina, 1) - 1, size));
+        resultado.setTotalPaginas(page.getTotalPages());
+        resultado.setTotalRegistros((int) page.getTotalElements());
+        resultado.setT(buildResumenDtosBatch(page.getContent()));
+        return resultado;
+    }
+
     // Catalogo publico con filtros combinables (precio, talla, color, marca + texto libre).
     // Blanks se tratan como "sin filtro" para que el front pueda mandar "" en vez de omitir el
     // parametro sin que eso reduzca los resultados a cero.
