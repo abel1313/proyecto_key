@@ -17,6 +17,7 @@ Aquí está **todo lo que falta probar**, en el orden en que conviene hacerlo, y
 | **3.8** (⇄ en un artículo con 2 o más piezas pregunta cuántas cambiar) | ✅ En QA desde el 2026-10-06 (el **paso 5** necesita también la Prueba 7) |
 | **Prueba 7** (fallas que encontré al revisar filtros y detalle, 2026-10-06) | ✅ En QA (la 7.10, celular, sube junto con la 8) |
 | **Prueba 8** (Liquidar / Dar abono / Abonar al grupo desde la card) | ⏳ En QA, por probar. Incluye las pruebas de que no se rompió nada (8.5 a 8.16) |
+| **Prueba 9** (Gestión de roles al día: permisos de los filtros nuevos y del cobro desde la card) | ⏳ En QA, por probar. **Antes** corre `migration_accion_pedidos_filtros_y_cobro.sql` en `inventario_key_qa` y vuelve a entrar |
 | **Prueba 6** (datos de prueba) | ✅ En QA. Va **al final** |
 
 **Cómo anotar:** si algo no sale como dice la columna "Debes ver", escribe debajo de esa tabla
@@ -74,6 +75,7 @@ en su tarjeta toca **👁 Detalle**.
 | 5 | **Filtros de pedidos** | Buscar por nombre y todos los filtros nuevos de Mis pedidos | 30 min | ✅ | [x] |
 | 7 | **Revisión de filtros y detalle** | Pedidos unidos en los filtros, la card de un grupo, el botón − con dos tallas, ⇄ que suma en la misma línea | 40 min | ⏳ falta "sube" | [ ] |
 | 8 | **Cobrar a crédito desde la card** | Liquidar / Dar abono / Abonar al grupo sin ir a Créditos / Abonos | 40 min | ⏳ por probar | [ ] |
+| 9 | **Gestión de roles al día** | Que los permisos de Mis pedidos digan lo que hay hoy y que los filtros nuevos se puedan quitar por rol | 20 min | ⏳ por probar | [ ] |
 | 6 | **Datos de prueba con un botón** | Crear 20 mil modelos y mil pedidos de prueba | 15 min | ✅ | [ ] |
 
 **La 5 va después de la 2, 3 y 4 a propósito:** usa los pedidos que creaste en esas (A–F, H4–H7,
@@ -822,7 +824,7 @@ deben seguir **igual que antes**. Usa pedidos nuevos (con la **Receta**) para no
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 8.13 | Entra con un usuario **cliente** (no administrador) → **Mis pedidos** | Ningún botón de **Liquidar**, **Dar abono** ni **Cobrar** |
-| 8.14 | *(Opcional, si tienes un usuario administrador de prueba)* En **Gestión de roles** quítale a su rol la acción **abonar** de Mis pedidos y vuelve a iniciar sesión con él | En cards de Apartado / Ir pagando **no** sale el botón; en contado sigue **Cobrar** si tiene **cobrar** |
+| 8.14 | *(Opcional, si tienes un usuario administrador de prueba)* En **Gestión de roles** quítale a su rol la acción **Abonar y liquidar (tarjeta y detalle)** de Mis pedidos (antes se llamaba "Registrar abono") y vuelve a iniciar sesión con él | En cards de Apartado / Ir pagando **no** sale el botón; en contado sigue **Cobrar** si tiene **cobrar** |
 | 8.15 | En el **celular** abre los 4 formularios (8.1 a 8.4) | Caben en la pantalla, se puede bajar dentro del formulario y el botón del chat **no** tapa **Liquidar** / **Registrar abono** |
 | 8.16 | En un formulario escribe un monto mayor al saldo y toca afuera / **Cancelar** | No se registra nada; la card queda igual |
 
@@ -832,6 +834,63 @@ el cliente ve botones de cobro, o al cobrar se pierde la página o los filtros.
 💬 Notas:
 
 - [ ] 8.1 · [ ] 8.2 · [ ] 8.3 · [ ] 8.4 · [ ] 8.5–8.12 · [ ] 8.13–8.16 — **Prueba 8 terminada**
+
+---
+
+## Prueba 9 — Gestión de roles al día con Mis pedidos — ⏳ en QA desde el 2026-10-06
+
+**Qué cambió.** En **Sistema → Gestión de roles**, los permisos de **Mis pedidos** describían la
+pantalla de antes: "Filtro: Normal", "junto al buscador por lugar"... Los bloques nuevos de
+**⚙️ Filtros** (Pendiente, Por cobrar, Entregado, Dinero, Fecha de entrega, Dónde se entrega,
+Unidos y otros, Registrado, Total) no tenían permiso, así que no se podían quitar por rol. Y
+"Registrar abono" ahora también son los botones **Liquidar / Dar abono / Abonar al grupo** de la card.
+
+**Antes de empezar (una sola vez):**
+1. Corre `migration_accion_pedidos_filtros_y_cobro.sql` en `inventario_key_qa`. Puedes correrla
+   en Workbench tal cual, con Safe Updates prendido. Al final, la consulta de verificación
+   comentada debe dar **27 filas** y la segunda consulta, **0**.
+2. **Cierra sesión y vuelve a entrar** (los permisos van dentro del token). Si no lo haces, los
+   bloques nuevos de ⚙️ Filtros **no salen** aunque seas administrador.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 9.1 | Etiquetas, categorías y orden de las acciones de Mis pedidos | Gestión de roles | **Sistema → 🛡️ Gestión de roles** → un rol → **Mis pedidos** | 3 grupos de filtros con nombres viejos; "Unir pedidos" y "Quitar promoción" con el mismo orden | Grupos **Filtros — forma de cobro**, **Filtros — estado**, **Filtros — más filtros**, **Tarjeta de pedido**, **Detalle del pedido**, en ese orden y sin grupos repetidos |
+| 9.2 | 9 acciones nuevas, dadas solo a ROLE_ADMIN | Panel ⚙️ Filtros (administrador) | **Pedidos → Mis pedidos → ⚙️ Filtros** | Todos los bloques | **Lo mismo que antes**: todos los bloques y todas las opciones |
+| 9.3 | Filtros guardados | Lo que se carga al entrar | Mis pedidos | Tus filtros guardados | **Lo mismo que antes** |
+| 9.4 | Roles que ya tenían acciones | Lo que cada rol puede hacer | Gestión de roles | Sus casillas marcadas | **Las mismas casillas marcadas** (no se quita ni se agrega nada a otros roles) |
+| 9.5 | Ayuda **?** de Mis pedidos y de Créditos / Abonos | El texto de ayuda | El **?** arriba de cada pantalla | Abonos decía "lo que un cliente abonó a cuenta de un apartado" | Dice Ir pagando, y que un Apartado se liquida completo |
+| 9.6 | **El cambio:** quitar un bloque de filtros a un rol | Panel ⚙️ Filtros de ese rol | Mis pedidos | No se podía | El bloque desaparece |
+
+### 9.1 a 9.5 — Que todo siga igual y los textos estén al día
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 9.1 | **Sistema → 🛡️ Gestión de roles** → **ROLE_ADMIN** → abre **Pedidos → Mis pedidos** | En este orden: **Filtros — forma de cobro** (Contado, Apartado, Ir pagando) · **Filtros — estado** (Pendiente, Por cobrar, Pagado, Entregado, Cancelado) · **Filtros — más filtros** (Dinero, Fecha de entrega, Dónde se entrega, Unidos y otros, Registrado, Total del pedido) · **Tarjeta de pedido** (Entrega, Cobrar de contado, Imprimir ticket, Enviar comprobante, Cancelar pedido, **Abonar y liquidar**) · **Detalle del pedido** (Editar ramo, Quitar piezas, Cambiar forma de cobro, Agregar artículo, Cambiar un artículo, Quitar promoción, **Unir y separar pedidos**). **Todas marcadas** |
+| 9.1b | Toca el **ℹ️** de **Abonar y liquidar** | "Tarjeta: Liquidar, Dar abono, Liquidar el grupo y Abonar al grupo. Detalle: 💳 Registrar abono y 💵 Abonar al grupo…" |
+| 9.2 | **Pedidos → Mis pedidos → ⚙️ Filtros** (como administrador, después de volver a entrar) | Los 8 bloques de siempre con **todas** sus opciones, igual que en la Prueba 5 |
+| 9.3 | Si tenías filtros guardados, sal de Mis pedidos y vuelve a entrar | Se cargan los mismos filtros que tenías |
+| 9.4 | En Gestión de roles abre **otro rol** que ya tenga algo marcado en Mis pedidos | Siguen marcadas las mismas casillas que antes; las nuevas salen **sin** marcar |
+| 9.5 | Toca el **?** en **Mis pedidos** y en **Ventas → 💳 Créditos / Abonos** | Mis pedidos menciona ⚙️ Filtros y el cobro desde la tarjeta. Abonos dice que un Apartado se liquida completo y que los abonos son de Ir pagando |
+| 9.5b | **Sistema → 🗂️ Menús y submenús** → submenú **Créditos / Abonos** | Descripción: "Pedidos Apartado e Ir pagando: registrar abonos y liquidarlos…" |
+
+### 9.6 — El cambio: quitar filtros por rol *(opcional, necesitas un usuario administrador de prueba)*
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 9.6.1 | En Gestión de roles, al rol de tu usuario de prueba **desmarca** "Filtro: Dinero" y "Filtro: Pendiente" y guarda | Se guarda sin error |
+| 9.6.2 | Entra con ese usuario → **Mis pedidos → ⚙️ Filtros** | **No** sale el bloque **Dinero** y en **Estado** **no** sale **⏳ Pendiente**; lo demás sí |
+| 9.6.3 | Desmarca también Registrado y Total | Desaparece el bloque de fechas y montos |
+| 9.6.4 | Vuelve a marcar todo y vuelve a entrar | Regresa todo |
+
+❌ **Está mal si:** al administrador le falta un bloque o una opción de ⚙️ Filtros después de volver
+a entrar, otro rol perdió o ganó una casilla, en Gestión de roles un grupo sale dos veces o
+partido, o la migración da error en Workbench.
+
+💬 Notas:
+
+- [ ] 9.1 · [ ] 9.2 · [ ] 9.3 · [ ] 9.4 · [ ] 9.5 · [ ] 9.6 — **Prueba 9 terminada**
 
 ---
 
