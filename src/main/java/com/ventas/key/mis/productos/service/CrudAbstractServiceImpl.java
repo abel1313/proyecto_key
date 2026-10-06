@@ -137,7 +137,15 @@ public abstract class CrudAbstractServiceImpl<
             int codigoSql = sqlEx.getErrorCode(); // ← aquí está el código del motor
             String estadoSql = sqlEx.getSQLState(); // ← también puedes usar esto
 
-            throw new GenericException(codigoSql,"El codigo postal ya existe, ingrese uno diferente");
+            if (codigoSql == 1062) {
+                throw new GenericException(codigoSql,"El codigo postal ya existe, ingrese uno diferente");
+            }
+            // Antes cualquier otra restriccion (columna obligatoria vacia, llave foranea...) salia
+            // con el texto del codigo postal y no habia forma de saber que fallo.
+            log.error("No se pudo guardar por una restriccion de la base (codigo {}, estado {}): {}",
+                    codigoSql, estadoSql, sqlEx.getSQLException() != null ? sqlEx.getSQLException().getMessage() : sqlEx.getMessage());
+            throw new GenericException(codigoSql, "No se pudo guardar: "
+                    + (sqlEx.getSQLException() != null ? sqlEx.getSQLException().getMessage() : "restriccion de la base de datos"));
         }
 
         throw new GenericException(500, ex.getMessage());
