@@ -26,15 +26,16 @@ problemas que se arreglan aquí:
 | R2 | **Forma de cobro:** Contado (`NORMAL`), Apartado, Ir pagando (`FIADO`). | `FormaDeCobro` |
 | R3 | **Estado**, con las palabras de la card: Pendiente (contado sin cobrar), Por cobrar (Apartado o Ir pagando abierto), Pagado (Apartado o Ir pagando liquidado), Entregado (contado cobrado), Cancelado. | `EstadoBuscado`, `estado()` |
 | R4 | **Dinero:** *Con saldo* (Apartado / Ir pagando abierto que debe algo), *Sin abonos* (abierto y sin ningún abono), *Saldo a favor* (pagó más de lo que vale, o se canceló un Apartado con dinero o un pedido ya pagado: hay que devolverle; un Ir pagando cancelado que todavía debía **no**, eso es deuda incobrable). | `SituacionDeDinero`, `dinero()` |
-| R5 | **Total** del pedido desde / hasta. No negativo; desde ≤ hasta. Es el total de ese pedido, no el del grupo. | `FiltroPedidos` |
+| R5 | **Total** desde / hasta. No negativo; desde ≤ hasta. Es el total que muestra la card: el del pedido, o el de todo el grupo si es titular (R14). | `FiltroPedidos` |
 | R6 | **Día de registro** desde / hasta, los dos incluidos (hasta las 23:59:59). Desde ≤ hasta. | `RangoDeFechas` |
 | R7 | **Entrega:** Hoy, Mañana, Esta semana (hoy + 6 días), Atrasados (la fecha ya pasó). Solo pedidos que **esperan entrega** (no Entregados, Pagados ni Cancelados), igual que el "⚠ Atrasado" de la card. "Hoy" es hoy **en México**, aunque el servidor esté en UTC. | `CuandoSeEntrega`, `HoyPort` |
 | R8 | **Lugar de entrega** (uno) y **modo**: Recoge en tienda (sin lugar o un lugar "recoger en tienda") / Envío. | `ModoDeEntrega` |
 | R9 | **Unidos:** de un grupo activo solo sale el **titular** (su card trae el total de todos). Un miembro sale solo si se busca su **número exacto**. Filtro: Solo unidos / Sin unir. | `condiciones()` |
 | R10 | **Otros:** solo ramos de flores; solo con algún artículo de promoción. | `condiciones()` |
-| R11 | **Orden:** Más recientes (por fecha **y hora** de registro, el de siempre), Más antiguos, Entrega más próxima (los sin fecha al final), Mayor saldo. Siempre se desempata por número de pedido. | `OrdenDePedidos`, `orden()` |
+| R11 | **Orden:** Más recientes (por fecha **y hora** de registro, el de siempre), Más antiguos, Entrega más próxima (primero lo que falta entregar, de la fecha más vieja a la más lejana; después lo entregado, pagado, cancelado o sin fecha, del más reciente al más viejo), Mayor saldo (el del grupo en un titular). Siempre se desempata por número de pedido. | `OrdenDePedidos`, `orden()` |
 | R12 | **Páginas** desde 0, de 1 a 50 pedidos por página. Regresa total de pedidos y de páginas. | `FiltroPedidos`, `PaginaDePedidos` |
 | R13 | Filtros distintos se combinan con **Y**; las opciones dentro de un mismo filtro, con **O**. Un filtro vacío no filtra. | `FiltroPedidos` |
+| R14 | **Un pedido unido se filtra por lo que muestra su card** (2026-10-06). La card del titular muestra el total, lo pagado y lo que falta de **todo el grupo**, así que estado, dinero, total, fecha de entrega (espera entrega mientras el grupo deba) y "Los que más deben" se calculan con el grupo; el texto, ramos y promociones buscan en todos sus pedidos. Antes se miraba solo al titular: un abono al grupo liquida primero al más viejo, el titular quedaba Pagado y el grupo desaparecía de "Por cobrar" aunque siguiera debiendo. | `PedidosFiltradosJdbcAdapter` (`GRUPOS`, `ESTADO_CARD`, `deLaCard`) |
 
 Un pedido sin artículos no sale (igual que la lista de siempre). Sin caché: la lista cambia con cada
 abono, venta y cancelación.

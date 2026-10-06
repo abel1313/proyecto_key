@@ -68,8 +68,46 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-17] ✅ Revisión de filtros de pedidos y detalle del pedido: 4 fallas del back
+**Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` manda `detalleId` en el botón −)
+
+**1. Filtros de Mis pedidos con pedidos unidos** (`GET /mis-productos/v1/pedidos/buscar`, mismo request y response).
+- **Antes:** de un grupo solo sale la card del titular (con el total y el "Falta" del grupo), pero los
+  filtros miraban **solo al titular**. Un abono al grupo liquida primero al pedido más viejo, así que
+  el titular quedaba Pagado y el grupo **desaparecía de "Por cobrar" y "Debe dinero"** aunque siguiera
+  debiendo, y **salía en "Pagado"**. Buscar el nombre, teléfono o artículo del **otro** cliente del
+  grupo no encontraba nada (su pedido no sale en la lista y el titular no coincidía).
+- **Después (R14 de `busquedapedido`):** la card del titular se filtra por lo que muestra, el grupo:
+  estado, dinero (debe / sin abonos / saldo a favor), total (el del grupo), fecha de entrega (espera
+  entrega mientras el grupo deba) y "Los que más deben". El texto, "Ramos" y "Con promoción" buscan en
+  todos los pedidos del grupo. Buscar el **número exacto** de un pedido del grupo sigue abriendo ese
+  pedido solo.
+
+**2. Orden "Entrega más próxima".**
+- **Antes:** salían primero los pedidos **ya entregados** de hace meses (su fecha era la más vieja).
+- **Después:** primero lo que falta entregar, de la fecha más vieja (atrasados) a la más lejana;
+  después lo entregado, pagado, cancelado o sin fecha, del más reciente al más viejo.
+
+**3. "⇄ Cambiar" todas las piezas por un artículo que ya está en el pedido** (`PUT .../articulos/{detalleId}`, mismo body).
+- **Antes:** la línea se convertía en el artículo nuevo y quedaban **dos líneas iguales** (ej. "Blusa ×2" y "Blusa ×1").
+- **Después:** si el artículo nuevo ya está como línea normal al **mismo precio**, se suma a esa línea y
+  la vieja sale ("Blusa ×3"). Con otro precio (uno a precio normal y otro con descuento) siguen siendo
+  dos líneas, a propósito. Igual al elegir "Quitar la promoción" en el aviso del combo.
+
+**4. Botón "−" (quitar una pieza)** — `DELETE /mis-productos/v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=1&detalleId={id}`.
+- **Antes:** el back elegía la línea por **modelo** (`productoId`): con dos tallas del mismo modelo
+  quitaba la primera que encontraba, no la que se tocó; con el mismo artículo en promoción y suelto,
+  el "−" de la línea suelta podía contestar "es parte de una promoción". Además `cantidad` 0 o
+  negativa se aceptaba (una negativa **sumaba** piezas sin revisar stock).
+- **Después:** parámetro nuevo **`detalleId`** (opcional) = el `id` de la línea del detalle. Con él se
+  quita esa línea exacta; si la línea no es de ese `productoId` → 400. Sin él funciona como antes
+  (compatible con el front que está en prod). `cantidad` menor a 1 → **400** `"La cantidad a quitar tiene que ser al menos 1"`.
+- **Front:** `pedidosService.eliminarDetalle(pedidoId, productoId, detalleId)` manda `item.id`.
+
+---
+
 ### [BUG-KEY-16] ✅ Fix: "⇄ Cambiar" en una línea con varias piezas sacaba todas del pedido
-**Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` pregunta cuántas)
+**Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Front:** sí cambia (`detalle-pedido` pregunta cuántas)
 
 **Antes:** el front siempre mandaba `cantidad: 1` y el back trataba `cantidad` como "piezas de la
 línea nueva": con 3 blusas en la línea, ⇄ regresaba las **3** al stock, la línea pasaba al artículo

@@ -102,6 +102,11 @@ segunda. Dos líneas de lo mismo con distinto precio son imposibles de explicar 
 La excepción es una línea de promoción: esa se deja quieta y se crea una línea nueva a precio
 normal (por R5 una y otra no son lo mismo aunque sean la misma variante).
 
+Aplica también al **cambiar** (2026-10-06): si el artículo nuevo ya está como línea normal al mismo
+precio, lo que entra se suma a esa línea — tanto al cambiar una parte (R10) como la línea completa,
+y al elegir "Quitar la promoción". Antes el cambio completo convertía la línea y quedaban dos líneas
+de lo mismo. La regla vive en `PedidoEditable.lineaDondeSumar()`.
+
 ### R10 — Cambiar es pieza por pieza (2026-10-06)
 
 `cantidad` en el cambio dice **cuántas piezas de la línea** se cambian por el artículo nuevo, 1 a 1

@@ -197,13 +197,14 @@ class BusquedaPedidosMysqlTest {
     @Test
     void r1_busca_por_nombre_sin_acentos_ni_mayusculas() {
         assertThat(ids(F.nada().texto("maria"))).containsExactly(P7, P6, P5, P3, P1);
-        assertThat(ids(F.nada().texto("ROSA PEREZ"))).containsExactly(P4, P2);
+        // P7 sale por P8, su pedido unido de Rosa (R14): el miembro no sale en la lista, su titular si.
+        assertThat(ids(F.nada().texto("ROSA PEREZ"))).containsExactly(P7, P4, P2);
     }
 
     @Test
     void r1_busca_por_quien_recibe_telefono_correo_y_articulo() {
         assertThat(ids(F.nada().texto("Juana"))).containsExactly(P4);
-        assertThat(ids(F.nada().texto("98765"))).containsExactly(P4, P2);
+        assertThat(ids(F.nada().texto("98765"))).containsExactly(P7, P4, P2);
         assertThat(ids(F.nada().texto("maria@correo"))).containsExactly(P7, P6, P5, P3, P1);
         assertThat(ids(F.nada().texto("pantal"))).containsExactly(P2);
         assertThat(ids(F.nada().texto("7509990000002"))).containsExactly(P2);
@@ -256,7 +257,8 @@ class BusquedaPedidosMysqlTest {
 
     @Test
     void r5_rango_de_total() {
-        assertThat(ids(F.nada().total(200.0, 300.0))).containsExactly(P6, P3, P2);
+        // P7 es titular: su card dice "Total de los 2 pedidos $200" y se filtra por eso (R14).
+        assertThat(ids(F.nada().total(200.0, 300.0))).containsExactly(P7, P6, P3, P2);
         assertThat(ids(F.nada().total(400.0, null))).containsExactly(P4);
     }
 
@@ -296,7 +298,7 @@ class BusquedaPedidosMysqlTest {
 
     @Test
     void r13_los_filtros_se_combinan_con_y() {
-        assertThat(ids(F.nada().texto("rosa").formas(FormaDeCobro.IR_PAGANDO))).containsExactly(P4);
+        assertThat(ids(F.nada().texto("rosa").formas(FormaDeCobro.IR_PAGANDO))).containsExactly(P7, P4);
         assertThat(ids(F.nada().texto("maria").estados(EstadoBuscado.POR_COBRAR).dinero(SituacionDeDinero.SIN_ABONOS)))
                 .containsExactly(P7, P3);
     }
@@ -304,8 +306,48 @@ class BusquedaPedidosMysqlTest {
     @Test
     void r11_ordenes() {
         assertThat(ids(F.nada().orden(OrdenDePedidos.ANTIGUOS))).containsExactly(P1, P2, P3, P4, P5, P6, P7, P9);
-        assertThat(ids(F.nada().orden(OrdenDePedidos.ENTREGA_PROXIMA))).containsExactly(P2, P3, P1, P4, P9, P7, P6, P5);
-        assertThat(ids(F.nada().orden(OrdenDePedidos.MAYOR_SALDO)).subList(0, 3)).containsExactly(P4, P3, P9);
+        // Primero lo que falta entregar por fecha (P3 atrasado); P2 ya se entrego y va con los demas.
+        assertThat(ids(F.nada().orden(OrdenDePedidos.ENTREGA_PROXIMA))).containsExactly(P3, P1, P4, P9, P7, P6, P5, P2);
+        // P7 debe $200 entre los dos pedidos del grupo.
+        assertThat(ids(F.nada().orden(OrdenDePedidos.MAYOR_SALDO)).subList(0, 3)).containsExactly(P4, P3, P7);
+    }
+
+    /**
+     * R14. Grupo de Ir pagando de $200: el abono de $100 al grupo liquido primero al titular (el mas
+     * viejo), que quedo PAGADO, y el otro pedido todavia debe $100. La card dice "Total de los 2
+     * pedidos $200 · Falta $100", asi que el grupo es "Por cobrar" y "Debe dinero", no "Pagado".
+     */
+    @Test
+    void r14_un_grupo_se_filtra_por_lo_que_dice_su_card_aunque_el_titular_ya_este_pagado() {
+        int g1 = 900021, g2 = 900022;
+        jdbc.update("INSERT INTO clientes_sin_registro (id, nombre_persona, numero_telefonico) VALUES (900003,'Lucía Gómez','5533334444')");
+        pedido(g1, "FIADO", "PAGADO", 900001, null, 100, 100, "2026-10-05 14:00:00", "2026-10-08", null, null);
+        pedido(g2, "FIADO", "FIADO", null, 900003, 100, 0, "2026-10-05 15:00:00", null, null, null);
+        linea(g1, 900001, null);
+        linea(g2, 900002, null);
+        jdbc.update("INSERT INTO abono_pedido (pedido_id, monto, fecha_pago, metodo_pago) VALUES (?,100,'2026-10-05','EFECTIVO')", g1);
+        jdbc.update("INSERT INTO grupo_pedido (id, activo, fecha_creacion, pedido_titular_id) VALUES (900002,1,NOW(),?)", g1);
+        jdbc.update("INSERT INTO grupo_pedido_miembro (grupo_id, pedido_id) VALUES (900002,?),(900002,?)", g1, g2);
+
+        assertThat(delGrupo(F.nada().estados(EstadoBuscado.POR_COBRAR), g1, g2)).containsExactly(g1);
+        assertThat(delGrupo(F.nada().estados(EstadoBuscado.PAGADO), g1, g2)).isEmpty();
+        assertThat(delGrupo(F.nada().dinero(SituacionDeDinero.CON_SALDO), g1, g2)).containsExactly(g1);
+        assertThat(delGrupo(F.nada().dinero(SituacionDeDinero.SIN_ABONOS), g1, g2)).isEmpty();
+        // El cliente del otro pedido y su articulo encuentran la card del titular.
+        assertThat(delGrupo(F.nada().texto("lucia"), g1, g2)).containsExactly(g1);
+        assertThat(delGrupo(F.nada().texto("33334444"), g1, g2)).containsExactly(g1);
+        assertThat(delGrupo(F.nada().texto("pantal"), g1, g2)).containsExactly(g1);
+        // Total de la card: $200 entre los dos.
+        assertThat(delGrupo(F.nada().total(150.0, null), g1, g2)).containsExactly(g1);
+        // Sigue esperando entrega (el grupo no esta pagado completo): sale en "esta semana".
+        assertThat(delGrupo(F.nada().entrega(CuandoSeEntrega.ESTA_SEMANA), g1, g2)).containsExactly(g1);
+        // El numero exacto del otro pedido lo sigue abriendo a el solo.
+        assertThat(delGrupo(F.nada().texto(String.valueOf(g2)), g1, g2)).containsExactly(g2);
+    }
+
+    private List<Integer> delGrupo(F f, int... pedidos) {
+        List<Integer> buscados = java.util.Arrays.stream(pedidos).boxed().toList();
+        return adapter.buscar(f.filtro(0, 50), HOY).pedidoIds().stream().filter(buscados::contains).toList();
     }
 
     @Test

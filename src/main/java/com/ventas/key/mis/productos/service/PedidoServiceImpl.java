@@ -673,7 +673,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Transactional
     @Override
-    public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad) {
+    public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad, Integer detalleId) {
+        // Una cantidad negativa sumaba piezas a la linea sin revisar stock y bajaba el inventario.
+        if (cantidad < 1) {
+            throw new RuntimeException("La cantidad a quitar tiene que ser al menos 1");
+        }
         Pedido pedido = iPedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
@@ -684,10 +688,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             throw new RuntimeException("No se puede modificar un pedido cancelado");
         }
 
+        // Con detalleId se quita esa linea exacta. Solo con el producto se tomaba la primera de ese
+        // modelo: con dos tallas del mismo modelo (o el mismo articulo en promocion y suelto) se
+        // quitaba la que no era.
         DetallePedido detalle = pedido.getDetalles().stream()
-                .filter(d -> d.getProducto().getId().equals(productoId))
+                .filter(d -> detalleId != null ? d.getId().equals(detalleId) : d.getProducto().getId().equals(productoId))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
+        if (!detalle.getProducto().getId().equals(productoId)) {
+            throw new RuntimeException("La linea " + detalleId + " del pedido #" + pedidoId + " no es de ese producto");
+        }
 
         // Una promocion es un combo: o esta completa, o no esta (R4 del dominio pedidoarticulo).
         // Hasta el 2026-09-22 este boton dejaba sacar una linea suelta de una promocion, y el

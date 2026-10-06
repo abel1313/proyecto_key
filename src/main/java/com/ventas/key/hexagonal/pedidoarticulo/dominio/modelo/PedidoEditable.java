@@ -60,6 +60,14 @@ public record PedidoEditable(
                 .findFirst();
     }
 
+    /**
+     * R6: la linea normal de esta variante al mismo precio, donde se suma lo que entra en vez de
+     * abrir una segunda linea de lo mismo.
+     */
+    public Optional<ArticuloDePedido> lineaDondeSumar(Integer varianteId, double precio) {
+        return lineaNormalDe(varianteId).filter(l -> Math.abs(l.precioUnitario() - precio) <= 0.01);
+    }
+
     /** Todas las lineas de una promocion -- el combo completo, que entra o sale junto (R4). */
     public List<ArticuloDePedido> lineasDe(Integer promocionId) {
         return articulos.stream().filter(a -> a.perteneceA(promocionId)).toList();

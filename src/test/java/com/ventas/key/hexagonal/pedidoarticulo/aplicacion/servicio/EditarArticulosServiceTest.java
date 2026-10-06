@@ -342,6 +342,53 @@ class EditarArticulosServiceTest {
     }
 
     @Test
+    @DisplayName("R6: cambiar todas las piezas por un articulo que ya esta al mismo precio suma a su linea, no la duplica")
+    void cambioCompletoSumaALaLineaExistente() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(3, CARTERA, 2, 500, null),
+                linea(4, PANTALON_HOMBRE, 1, 400, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, 2, null, ModoCambio.VALIDAR));
+
+        verify(stock).devolver(CARTERA, 2);
+        verify(stock).descontar(PANTALON_HOMBRE, 2);
+        verify(pedidos).cambiarCantidad(4, 3);
+        verify(pedidos).borrarLineas(List.of(linea(3, CARTERA, 2, 500, null)));
+        verify(pedidos, never()).cambiarArticulo(anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("R6: si el articulo que ya esta tiene otro precio, el cambio completo convierte la linea")
+    void cambioCompletoConOtroPrecioNoSeSuma() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(3, CARTERA, 1, 500, null),
+                linea(4, PANTALON_HOMBRE, 1, 350, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, null, 400.0, ModoCambio.VALIDAR));
+
+        verify(pedidos).cambiarArticulo(3, PANTALON_HOMBRE, 400.0);
+        verify(pedidos, never()).borrarLineas(any());
+    }
+
+    @Test
+    @DisplayName("R6: quitar la promocion para meter un articulo que ya estaba suelto lo suma a esa linea")
+    void quitarPromocionSumaALaLineaSuelta() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(1, PANTALON_DAMA, 1, 300, PROMO),
+                linea(2, PERFUME, 1, 200, PROMO),
+                linea(5, PANTALON_HOMBRE, 1, 400, null))));
+        conPromocionDeDamaYPerfume();
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 1, new CambiarArticulo(PANTALON_HOMBRE, null, null, ModoCambio.QUITAR_PROMOCION));
+
+        verify(pedidos).cambiarCantidad(5, 2);
+        verify(pedidos, never()).agregarLinea(anyInt(), anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
     @DisplayName("R10: no se pueden cambiar mas piezas de las que tiene la linea")
     void masPiezasDeLasQueHay() {
         conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 2, 500, null))));

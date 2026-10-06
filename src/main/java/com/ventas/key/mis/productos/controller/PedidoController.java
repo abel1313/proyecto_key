@@ -191,9 +191,10 @@ public class PedidoController extends AbstractController<
     public ResponseEntity<ResponseGeneric<String>> eliminarDetalle(
             @PathVariable int pedidoId,
             @PathVariable int productoId,
-            @RequestParam(defaultValue = "1") int cantidad) {
+            @RequestParam(defaultValue = "1") int cantidad,
+            @RequestParam(required = false) Integer detalleId) {
         try {
-            iPedidoService.eliminarDetallePedido(pedidoId, productoId, cantidad);
+            iPedidoService.eliminarDetallePedido(pedidoId, productoId, cantidad, detalleId);
             return ResponseEntity.ok(new ResponseGeneric<>("Detalle actualizado correctamente"));
         } catch (Exception e) {
             ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
