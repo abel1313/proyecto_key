@@ -45,7 +45,15 @@ Leyenda: ✅ así funciona hoy · 🔮 para después (no está programado) · �
 
 - Hoy el cliente **no puede pagar con tarjeta en la tienda en línea**: lo que pide por su cuenta queda
   como pedido sin pagar (Apartado). El pago en línea es 🔮 (fila de arriba).
-- El botón **Cobrar** de la card no cobra un Apartado ni un Ir pagando: manda a Créditos / Abonos. ✅
+- **Card de Mis pedidos, cobro a crédito (decidido 2026-10-06, reemplaza "manda a Créditos / Abonos"
+  del 2026-10-01):** palabras del dueño: *"ir a Créditos / Abonos para cobrar y regresar a pedidos es
+  mucha pérdida de tiempo"*. En la card, en lugar de **Cobrar**: Apartado (suelto o unido) →
+  **💵 Liquidar** (paga lo que debe completo); Ir pagando suelto → **💳 Dar abono**; Ir pagando unido →
+  **💵 Abonar al grupo**. Los tres abren **el mismo formulario que Créditos / Abonos**, ahí mismo.
+  Contado (suelto o unido) sigue con **Cobrar** como siempre. Un formulario por caso, con herencia
+  para lo común (pedido del dueño: "si después pido algo específico para uno, no afecta a los otros").
+  ✅ programado en el front, rama `feature/cobro-desde-card` (carpeta `pedidos/cobro/`), sin cambios
+  en el back. Créditos / Abonos y el detalle siguen con su formulario.
 - **Un abono es uno solo, se dé donde se dé:** "💳 Registrar abono" en el detalle del pedido, la
   pantalla Créditos / Abonos y el "Pago inicial (enganche)" de la venta usan el mismo registro
   (`POST /v1/abonos/{pedidoId}`). No hay abonos "de primera" y "de segunda". ✅
@@ -66,7 +74,7 @@ podría entrar."*
 | Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
 | Apartados unidos | El botón dice **💵 Pagar el grupo completo** y solo acepta el saldo completo del grupo |
-| El cliente recoge el Apartado | Paga **todo** en ese momento, en el formulario de abono de siempre (detalle o Créditos / Abonos). El botón **Cobrar** de la card sigue mandando a Créditos / Abonos. Decidido 2026-10-01: "dejarlo como está" (reemplaza la idea de que Cobrar cobrara todo) |
+| El cliente recoge el Apartado | Paga **todo** en ese momento, en el formulario de abono de siempre (detalle o Créditos / Abonos). Desde la card con **💵 Liquidar** (2026-10-06; antes "dejarlo como está", 2026-10-01). Unidos: **💵 Liquidar** cobra el saldo completo del grupo |
 | Apartados unidos y vienen a recogerlos | Se liquida el total del grupo y queda pagado y entregado. Si solo deja un adelanto, el **grupo entero** pasa a Ir pagando (todos tienen la misma forma de cobro) — hoy eso obliga a separar, cambiar cada uno y volver a unir (🆕 `PLAN` §10.6 A10) |
 
 Estado: ✅ **programado en `dev` y `qa` el 2026-10-01** (A1–A6 de `PLAN` §10.6; falta A7, el script
@@ -115,6 +123,15 @@ Ejemplo con un pedido de $200. Casos de prueba completos: `PRUEBAS_QA_2026-10-01
 | "Falta entregarlo" pero pagó solo una parte | 🔁 Cambiar forma de cobro → Ir pagando, y en "¿Cobra algo ahora?" lo que dio de verdad |
 | "Falta entregarlo" pero sí se lo llevó | **Entregar** en la card |
 | "Ya se lo llevó" pero no se lo llevó | Botón para regresarlo a "Falta entregarlo", **solo administrador** |
+
+### 2.4 🆕 Pendiente: revisar a fondo el cobro por forma de pago (anotado 2026-10-06)
+
+Pedido del dueño, **después de terminar Liquidar / Dar abono en la card**: *"hay que meterle ojo al
+pago con efectivo, transferencia, crédito o débito y MSI, esto es importante"*. Revisar en todos los
+puntos de cobro (venta directa, Cobrar de la card, Liquidar / Dar abono, detalle, Créditos / Abonos,
+grupo) que cada forma de pago se registre bien: efectivo con monto recibido y cambio; transferencia
+exacta; tarjeta de **crédito** y de **débito** por separado; MSI con sus reglas (sección 3). Antes de
+tocar nada, hacer el mapa de qué acepta hoy cada punto.
 
 ## 3. Meses sin intereses (MSI)
 
