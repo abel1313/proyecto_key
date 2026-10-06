@@ -712,6 +712,20 @@ Usa el pedido **H8** de la 3.8 (o crea uno Ir pagando con **Art-A × 2** y **Art
 | 1 | Sin texto en el buscador, ve a la **página 2** (Siguiente →) | — | Página 2 de N |
 | 2 | Da clic en el buscador y presiona **←** o **→** | Regresaba a la página 1 | Te quedas en la **página 2** |
 
+### 7.10 Detalle del pedido en el celular
+
+Abre en el **celular** el pedido **GA** (está unido, así se ve el bloque del grupo).
+
+| # | Haz esto | Antes | Debes ver ahora |
+|---|---|---|---|
+| 1 | Mira el encabezado | "← Regresar" al lado del título lo apretaba; la hora se partía en dos renglones | "← Regresar" arriba, el título y la hora completos abajo |
+| 2 | Baja al bloque **🔗 Unido en el grupo** | La tabla se cortaba en el nombre del cliente; el estado y el total solo se veían deslizando de lado | Cada pedido en dos renglones: número y total; cliente y estado. Sin deslizar de lado |
+| 3 | Toca **➕ Agregar artículo** (elige el pedido si pregunta) | No se veía nada: el buscador se abría una pantalla más abajo | La pantalla baja sola al buscador y el teclado se abre |
+| 4 | Escribe **3 letras** de un artículo | Cada resultado decía "B.", "Talla:" y "M" en renglones sueltos y el precio se encimaba | Nombre completo, "Talla · Color" en un renglón, y abajo el precio con **Otro precio** y **Elegir** |
+| 5 | Toca **⇄** en un artículo | Igual que el 3 | El buscador queda en pantalla con el cursor puesto |
+| 6 | En ningún paso | — | La pantalla **no** se mueve de lado a lado |
+| 7 | Ábrelo en la **computadora** | — | **Lo mismo que antes** (la tabla del grupo con sus títulos) |
+
 ### 7.9 Lo que no debe cambiar
 
 | # | Haz esto | Debes ver |
@@ -723,7 +737,7 @@ Usa el pedido **H8** de la 3.8 (o crea uno Ir pagando con **Art-A × 2** y **Art
 
 💬 Notas:
 
-- [ ] 7.1 · [ ] 7.2 · [ ] 7.3 · [ ] 7.4 · [ ] 7.5 · [ ] 7.6 · [ ] 7.7 · [ ] 7.8 · [ ] 7.9 — **Prueba 7 terminada**
+- [ ] 7.1 · [ ] 7.2 · [ ] 7.3 · [ ] 7.4 · [ ] 7.5 · [ ] 7.6 · [ ] 7.7 · [ ] 7.8 · [ ] 7.9 · [ ] 7.10 — **Prueba 7 terminada**
 
 ---
 
