@@ -593,7 +593,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 | `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
-| `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ⏳ pendiente — correrla junto con el deploy del front a QA y volver a entrar | ⏳ pendiente (cuando suban los filtros de pedidos a main) | — |
+| `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ✅ corrida (verificación sin_admin = 0) | ✅ corrida antes que el front (sin_admin = 0; las claves no cambian, solo textos — ver nota) | 2026-10-06 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
@@ -640,6 +640,12 @@ front ya pide esas acciones, y sin ellas el administrador deja de ver los bloque
 corra y vuelva a entrar. Apaga Safe Updates solo durante el script. Probada dos veces en MySQL 8 local
 con `--safe-updates`, sobre el catálogo de acciones reproducido con las migraciones anteriores, y con
 un rol extra que conserva sus casillas.
+**Prod (2026-10-06): se corrió antes de que el front nuevo llegue a `main`.** No rompe nada: prod
+sigue usando las mismas claves (`filtro-normal`, `abonar`, `cobrar`...), que no cambian; las 9
+acciones nuevas quedan dadas de alta sin que el front de prod las use. Lo único que se nota es en
+Gestión de roles: los textos ya describen el panel ⚙️ Filtros y el cobro desde la card, que en prod
+todavía no existen ("Filtro: Contado" es el botón "🛒 Normal" de prod). Se empareja solo cuando suba
+el front. **No hay que volver a correrla** cuando se promueva a `main`.
 
 `limpiar_datos_e2e_qa.sql` da de baja (nunca DELETE) los modelos y artículos que crean las pruebas
 automáticas de `e2e/` en el front: código de barras exactamente `E2E` + 13 dígitos. Solo actúa en
