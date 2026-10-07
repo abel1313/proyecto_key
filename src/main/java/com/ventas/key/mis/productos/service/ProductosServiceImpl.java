@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.models.PalabraClaveResumenDto;
+
 import com.ventas.key.mis.productos.Utils.NombreArchivoImagen;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
@@ -217,6 +219,9 @@ public class ProductosServiceImpl extends
         productoAdmin.setContenido(p.getContenido());
         productoAdmin.setHabilitado(p.getHabilitado());
         productoAdmin.setFechaCreacion(p.getFechaCreacion());
+        productoAdmin.setPalabraClave(p.getPalabraClave() != null
+                ? new PalabraClaveResumenDto(p.getPalabraClave().getId(), p.getPalabraClave().getNombre())
+                : null);
 
         return productoAdmin;
     }

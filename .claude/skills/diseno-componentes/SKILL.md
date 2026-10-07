@@ -35,6 +35,8 @@ de día y de noche. Escoger uno escribe esas filas en `tema_variable`.
 - Seleccionado / activo (chip, pestaña) → los mismos `--btn-primary-*`, o `.pk-chip.is-on`.
 - Texto sobre foto → `var(--overlay-text)`. Texto sobre color de estado → `var(--pk-ink)`. Texto sobre la franja de color de un header → `var(--card-header-text)`.
 - Encabezados de cristal (`*-header__content`, `*-card__head`): lo que va adentro usa `--app-text`, `--app-border`, `--app-tint`; un buscador ahí usa `--input-bg` / `--input-border`.
+- `styles.scss` deja **transparente** todo `*-header__content` (una sola franja por pantalla, 2026-10-06). **Excepción:** `vb-header__content` (Tienda) y `pl-header__content` (Catálogo → Modelos), porque ahí el `__content` **es** el recuadro y no hay franja afuera; su fondo es `--filtros-panel-bg`. Si una pantalla nueva tiene el mismo caso, se agrega a ese `:not(...)` (si no, se queda sin fondo, como pasó el 2026-10-07).
+- Nada de clases de color de Bootstrap (`text-white-50`, `text-white`, `bg-light`…) en pantallas con tokens: traen `!important` y le ganan al token (el subtítulo de Tienda quedó blanco sobre blanco).
 - Login y Registro **no** se tocan; su paleta literal es a propósito.
 - Piezas nuevas de Jade para pantallas nuevas (equivalencias del archivo del dueño `.jd-*`): `.pk-kicker`, `.pk-rule`, `.pk-row-rule`, `.pk-chip`, `.pk-tag--accent/--outline/--neutral`, `.pk-price`, `.pk-glass-btn`, `.pk-photo`, `.pk-product`, `.pk-product-grid`, `.pk-tabbar`, `.pk-sidebar`, `.pk-h1…`, transiciones `.pk-enter-*` (en `design-system.scss`).
 - Pendiente (segundo paso, pedido del dueño): rediseño de **Tienda, Detalle de producto y barra inferior de celular** según `tema-jade` (menú angosto, franja de categorías, foto 4:5, tallas, "Agregar a la bolsa", transiciones) y cambiar emojis por íconos de línea Phosphor.
@@ -91,6 +93,7 @@ Back: entidad `TemaVariable`, endpoints `/v1/tema-variable`, semilla en `migrati
 | Card | `--card-body-bg`, `--card-header-bg`, `--card-footer-bg`, `--card-text`, `--card-text-muted`, `--card-border`, `--card-radius`, `--card-shadow`, `--card-shadow-hover` |
 | Input / select / textarea | `--input-bg`, `--input-text`, `--input-border`, `--input-placeholder`, `--input-focus-border`, `--input-focus-shadow` |
 | Formulario (sección) | `--form-bg`, `--form-section-bg`, `--form-card-radius` |
+| Recuadro de búsqueda y filtros / cada filtro (casilla, fecha, precio) | `--filtros-panel-bg` / `--filtro-bg` (Personalización → Formularios, 2026-10-07). Los `<select>` de filtro siguen la regla global de selects (`--input-bg`) |
 | Tabla | `--table-header-bg`, `--table-header-text`, `--table-row-hover`, `--table-row-active`, `--table-border` |
 | Éxito / alerta / peligro / info | `--pk-success`, `--pk-warning`, `--pk-danger`, `--pk-info` (+ `-soft` para fondos y `-to` para degradados) |
 | Menú lateral | `--sb-*` |

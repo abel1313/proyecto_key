@@ -991,11 +991,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         String tipoOriginal = pedido.getTipoPedido();
+        // El pedido que el cliente hizo desde su cuenta: contado que nadie ha cobrado. Si el
+        // cliente pide pasarlo a Ir pagando y deja un adelanto, ese adelanto si se cobra.
+        boolean enLineaSinCobrar = "NORMAL".equals(tipoOriginal) && "Pendiente".equalsIgnoreCase(pedido.getEstadoPedido());
         if (contadoYaEntregado) {
             reabrirContadoComoCredito(pedido, tipoNuevo, request.getNota());
         }
 
-        if (request.traeCobro() && !contadoYaEntregado && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
+        if (request.traeCobro() && !contadoYaEntregado && !enLineaSinCobrar && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
             throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + tipoOriginal
                     + " y no tiene saldo que cobrar");
         }
@@ -1003,7 +1006,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         // Si pasa a Apartado o Ir pagando, el tipo cambia ANTES de cobrar: un Apartado solo acepta
         // el pago completo, y el adelanto que se da al pasarlo a Ir pagando ya es de Ir pagando.
         if (TIPOS_CREDITO_PEDIDO.contains(tipoNuevo) && !tipoNuevo.equals(pedido.getTipoPedido())) {
-            if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+            // El pedido que el cliente hizo desde su cuenta nace 'Pendiente' (no es copia del tipo).
+            // Antes el estado se quedaba 'Pendiente' al pasarlo a Apartado: Entregas por zona lo
+            // seguia viendo como pedido en linea y el cancelador automatico (que busca 'Pendiente')
+            // lo cancelaba aunque el cliente hubiera pedido que se lo apartaran (2026-10-07).
+            if ((tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido()))
+                    || enLineaSinCobrar) {
                 pedido.setEstadoPedido(tipoNuevo);
             }
             pedido.setTipoPedido(tipoNuevo);

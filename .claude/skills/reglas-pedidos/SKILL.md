@@ -44,7 +44,22 @@ Leyenda: ✅ así funciona hoy · 🔮 para después (no está programado) · �
 | **Apartado, al recogerlo con tarjeta** | Al ir al local a recogerlo, poder pagar con tarjeta y, si cumple 3, a MSI | Al recogerlo | 🔮 |
 
 - Hoy el cliente **no puede pagar con tarjeta en la tienda en línea**: lo que pide por su cuenta queda
-  como pedido sin pagar (Apartado). El pago en línea es 🔮 (fila de arriba).
+  como **🕓 Pendiente** (ver 2.0). El pago en línea es 🔮 (fila de arriba).
+
+### 2.0 🕓 Pendiente = lo pidió el cliente desde su cuenta (decidido 2026-10-07)
+
+Palabras del dueño: *"si hacen el pedido desde la cuenta aparece como pendiente, que es el status que
+hace falta… que tal si al entregar el cliente ya me dijo que mejor se lo aparte: poder cambiar el
+status para poder verlo en todos lados"*.
+
+| Regla | Estado |
+|---|---|
+| El pedido que el cliente hace desde su cuenta (Carrito) es **🕓 Pendiente**: nadie lo ha cobrado ni apartado. En la base: `NORMAL` + estado `'Pendiente'` | ✅ |
+| Se ve aparte en **Mis pedidos → Filtros → Forma de cobro → 🕓 Pendiente** y con su etiqueta en la card. "🛒 Contado" ya no los incluye | ✅ 2026-10-07 |
+| Si el cliente pide que se lo aparten → 🔁 Cambiar forma de cobro → **Apartado**; si deja un adelanto → **Ir pagando** con ese monto. Desde ahí es Apartado / Ir pagando en todos lados | ✅ 2026-10-07 |
+| Para cobrarlo completo: **Cobrar** en la card (queda Contado) | ✅ |
+| Un Pendiente con fecha para recoger se **cancela solo** 2 días después de esa fecha (8:00 a. m.). Un Apartado o Ir pagando **no** | ✅ |
+| **Envíos → Entregas por zona** trae todo lo que falta entregar de la zona (Pendiente, Apartado, Ir pagando sin llevárselo, Pagado sin entregar) | ✅ 2026-10-07 |
 - **Card de Mis pedidos, cobro a crédito (decidido 2026-10-06, reemplaza "manda a Créditos / Abonos"
   del 2026-10-01):** palabras del dueño: *"ir a Créditos / Abonos para cobrar y regresar a pedidos es
   mucha pérdida de tiempo"*. En la card, en lugar de **Cobrar**: Apartado (suelto o unido) →

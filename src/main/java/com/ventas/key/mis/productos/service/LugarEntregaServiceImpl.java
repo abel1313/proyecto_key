@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
+
 import lombok.extern.slf4j.Slf4j;
 import com.ventas.key.mis.productos.config.RabbitMQConfig;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
@@ -42,6 +44,9 @@ public class LugarEntregaServiceImpl extends CrudAbstractServiceImpl<
     // no hace falta una linea de cobro por envio (ver ProductoSombraServiceImpl y FlorPedido).
     @Override
     public LugarEntrega save(LugarEntrega req) {
+        if (Boolean.TRUE.equals(req.getEsRecogerEnTienda())) {
+            prepararFilaDelLocal(req);
+        }
         if (req.getCostoEnvio() != null) {
             int stock = ProductoSombraServiceImpl.STOCK_SIN_CONTROL;
             Variantes varianteExistente = req.getId() != null
@@ -62,6 +67,25 @@ public class LugarEntregaServiceImpl extends CrudAbstractServiceImpl<
             log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
         }
         return resultado;
+    }
+
+    /**
+     * "Recoger en tienda" es la fila del local, no una zona (2026-10-07): solo puede haber una, y
+     * envio, horas extra y dia de entrega no aplican (nadie le lleva nada al local). Antes se
+     * podia prender en cualquier zona ("El estanco" con envio y horas) y el carrito le pedia al
+     * cliente fecha de recogida para un lugar que no es la tienda.
+     */
+    private void prepararFilaDelLocal(LugarEntrega req) {
+        iLugarEntregaRepository.findByEsRecogerEnTiendaTrue().stream()
+                .filter(otro -> !otro.getId().equals(req.getId()))
+                .findFirst()
+                .ifPresent(otro -> {
+                    throw new ExceptionErrorInesperado("\"" + otro.getNombre() + "\" ya es la fila de recoger en tienda. "
+                            + "Solo puede haber una: apágala ahí primero o edita esa.");
+                });
+        req.setCostoEnvio(null);
+        req.setHorasExtraAnticipacion(null);
+        req.setDiaEntregaSemanal(null);
     }
 
     // La implementacion base (CrudAbstractServiceImpl.delete) no hace nada -- hay que
