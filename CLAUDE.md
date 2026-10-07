@@ -337,6 +337,13 @@ Checklist de TikTok: `TIKTOK_SETUP.md`.
 - Access token: 15 minutos
 - Refresh token: 7 días
 
+**Tamaño del token (2026-10-07):** el access token lleva `pantallas`, `pantallasEscritura` y
+`pantallasAcciones` completos, así que crece con cada permiso nuevo (~40 bytes por acción). Al pasar de
+8 KB, Tomcat respondía **400 sin CORS a todo lo que llevara token** (lo público sin sesión seguía en 200;
+en el access.log de nginx, los 400 pesaban 435 bytes = página de error de Tomcat). Se subió
+`server.max-http-request-header-size` a 64KB. Arreglo de fondo pendiente: sacar las acciones del JWT y
+servirlas desde un endpoint (el back ya recalcula los permisos desde la BD en cada request).
+
 **Bug resuelto (frontend):** Al expirar el access token, el interceptor del front hacía el refresh correctamente pero parseaba mal el response. El back devuelve `{ response: { accessToken: '...' } }` (ResponseGeneric) y el interceptor leía `response.accessToken` → guardaba `undefined` → el retry fallaba con "no se puede sacar el nombre del JWT". Fix: leer `response.response.accessToken`.
 
 **Backend no requería cambios.** QA y Docker están correctos: env var `${TOKEN_JWT}` para el secret, `cookie.secure: true`, Redis y Rabbit configurados.
@@ -616,6 +623,16 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
+
+**⚠️ Antes de los scripts de permisos, el back con el límite de encabezados tiene que estar en `main`.**
+El 2026-10-07 QA dejó de responder (400 a todo, con "blocked by CORS" en la consola) justo después de
+correr `migration_entrega_pedido.sql`, `migration_accion_gastos_admin.sql` y
+`migration_accion_pedidos_filtros_y_cobro.sql`: el token del admin lleva todas sus pantallas y acciones,
+pasó de 8 KB y Tomcat lo rechazaba antes de llegar a la app. Arreglo:
+`server.max-http-request-header-size: 64KB` en `application.yml`. En prod pasa lo mismo si se corren
+esos scripts con el back viejo. Además, en la VPS, agregar `large_client_header_buffers 4 32k;` al
+bloque `server` de `/etc/nginx/sites-available/backend` (prod) y `/etc/nginx/sites-enabled/backend-qa`,
+y `sudo nginx -t && sudo systemctl reload nginx` (nginx corta cada encabezado en 8 KB por default).
 
 **Ya en prod sin bajar todavía a `qa`/`dev`:** el hotfix "Crear artículos" (`f5ad4fb` en `main`,
 2026-10-06). Al bajarlo con merge: en `VarianteServiceImpl` gana lo de `dev` (ya heredaba del modelo
