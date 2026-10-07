@@ -68,6 +68,42 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-20] 🆕 Datos legales del negocio y aceptación de Términos en el registro
+**Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migración:** `migration_datos_legales.sql`
+(**antes** del deploy del back: la entidad `Usuario` ya mapea `acepto_terminos` y sin la columna falla el login).
+Sale de `LEGAL_PLAN_DE_ACCION.md` (puntos 4, 5, 6, 7, 8, 13 y 16).
+
+**1. Endpoints nuevos** (dominio `datoslegales`)
+
+| Request | Quién | Response |
+|---|---|---|
+| `GET /mis-productos/v1/datos-legales` | **Público** (sin sesión) | `{ data: { nombreResponsable, rfc, domicilio, telefono, correo, horarioAtencion, faltan: string[], completos: boolean } }` |
+| `PUT /mis-productos/v1/datos-legales` | ROLE_ADMIN o Escritura en `admin/negocio` | Body: los 6 campos (todos opcionales, vacío = sin capturar). Response igual al GET |
+
+- `faltan` = lo que falta para la LFPC 76 bis III: `"Nombre del responsable"`, `"Domicilio"`, `"Teléfono"`, `"Correo"`.
+- `telefono` se guarda solo con 10 dígitos (acepta espacios, guiones, paréntesis y +52 al escribirlo).
+- **400** con `mensaje`: `"El RFC no es válido: deben ser 13 caracteres (persona física) o 12 (empresa), como viene en tu constancia"`,
+  `"El teléfono tiene que tener 10 dígitos"`, `"El correo no es válido"`, `"<campo> no puede pasar de N caracteres"`.
+- **403** sin el permiso en el PUT.
+
+**2. `POST /mis-productos/v1/auth/registrar` — campo nuevo opcional `aceptoTerminos`**
+- `true` → se guarda `acepto_terminos = 1` y la fecha. `false` → **400** `"Debes aceptar los Términos y condiciones para registrarte"`.
+- **Omitido** (front de antes) → se registra igual, sin aceptación de Términos (compatible).
+- El límite de registros por IP **ya existía** (mismo rate limit del login; apagado en QA a propósito).
+
+**3. Bots (chat de la tienda, chat en vivo, Instagram, Facebook):** nueva regla en el prompt
+(`ChatbotBase.SIN_PROMESAS`): solo decir de un producto lo que está en el catálogo; no decir "original",
+"100% piel", "garantizado", "el más barato" ni efectos en la salud si no está escrito; no prometer
+descuentos, regalos, meses sin intereses ni fechas. No cambia ningún endpoint.
+
+**Front que lo usa:** `legal/datos-legales.service.ts` (GET cacheado, sin spinner), pie de página
+(`app.component.html`, contacto), Términos y Aviso de privacidad (textos nuevos), Configuración del negocio
+(sección "Datos legales"), registro (aviso corto + casilla de Términos), ticket (`shared/ticket.util.ts`:
+encabezado con los datos y "Abonos sin intereses (CAT 0%)"), Venta directa y Carrito (aviso de Ir pagando y
+Apartado), SEO (`shared/seo/seo.service.ts`, sitemap, robots, `noindex` en "Página no disponible").
+
+---
+
 ### [BUG-KEY-19] 🆕 La entrega va aparte del pago: Entregado / Falta entregar, 📦 Entregar y filtros Pago + Entrega
 **Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migraciones:** `migration_entrega_pedido.sql`
 (**antes** del deploy del back: la entidad `Pedido` ya mapea las columnas nuevas) y `migration_accion_gastos_admin.sql`.

@@ -20,6 +20,7 @@ Aquí está **todo lo que falta probar**, en el orden en que conviene hacerlo, y
 | **Prueba 9** (Gestión de roles al día: permisos de los filtros nuevos y del cobro desde la card) | ✅ **Validada por ti el 2026-10-06** ("ya veo todos los roles") |
 | **Prueba 10** (arreglos del 2026-10-06: Crear artículos en prod, Mis datos, filtro Pendiente) | ⏳ 10.1 **ya está en prod**; 10.2 y 10.3 **todavía no se suben** (esperan tu "sube") |
 | **Prueba 11** (Entregado aparte del pago, filtros Pago / Entrega, stock del modelo en Agregar artículo, pantallas homologadas, Jade) | ⏳ **Todavía no se sube** (espera tu "sube"; antes hay que correr 3 scripts en QA, ver 11.0) |
+| **Prueba 12** (lo legal que ya se pudo resolver: datos del negocio, Términos, Aviso de privacidad, registro, Ir pagando, ticket, Google) | ⏳ **Todavía no se sube** (espera tu "sube"; antes hay que correr `migration_datos_legales.sql` en QA) |
 | **Prueba 6** (datos de prueba) | ✅ En QA. Va **al final** |
 
 **Cómo anotar:** si algo no sale como dice la columna "Debes ver", escribe debajo de esa tabla
@@ -80,6 +81,7 @@ en su tarjeta toca **👁 Detalle**.
 | 9 | **Gestión de roles al día** | Que los permisos de Mis pedidos digan lo que hay hoy y que los filtros nuevos se puedan quitar por rol | 20 min | ✅ | [x] |
 | 10 | **Arreglos del 2026-10-06** | Crear artículos en prod, Mis datos sin spinner, filtro Pendiente vs Por cobrar | 20 min | ⏳ 10.1 en prod; 10.2–10.3 sin subir | [ ] |
 | 11 | **Entregado y pantallas homologadas** | Etiquetas Pagado / Entregado, 📦 Entregar, "¿Ya se lo llevó?", filtros Pago y Entrega, stock del modelo en Agregar artículo, anchos, tablas, selects, Volver, Gastos | 60 min | ⏳ sin subir | [ ] |
+| 12 | **Lo legal** | Datos del negocio en el pie, Términos y Aviso nuevos, casilla de Términos al registrarse, "sin intereses" en Ir pagando, ticket, Google | 40 min | ⏳ sin subir | [ ] |
 | 6 | **Datos de prueba con un botón** | Crear 20 mil modelos y mil pedidos de prueba | 15 min | ✅ | [ ] |
 
 **La 5 va después de la 2, 3 y 4 a propósito:** usa los pedidos que creaste en esas (A–F, H4–H7,
@@ -1132,6 +1134,112 @@ La pregunta solo sale a quien tiene **Entregar** en Gestión de roles (de arranq
 💬 Notas:
 
 - [ ] **Prueba 11 terminada**
+
+---
+
+## Prueba 12 — Lo legal que ya se pudo resolver — ⏳ sin subir
+
+**Para qué es:** de `LEGAL_PLAN_DE_ACCION.md`, lo que **no necesitaba tus datos**: un lugar para
+capturarlos (y que salgan solos donde la ley pide), Términos y Aviso de privacidad nuevos, la casilla
+de Términos al registrarse, el aviso de "sin intereses" en Ir pagando, el ticket y lo de Google.
+
+### 12.0 Antes de empezar (lo hago yo cuando digas "sube")
+
+1. ✅ `migration_datos_legales.sql` ya corrida en `inventario_key_qa` (2026-10-07). Falta subir back y front.
+2. **Tú:** `Ctrl + Shift + R`.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Antes | Después |
+|---|---|---|---|---|
+| 12.1 | Tabla y pantalla nuevas de **datos legales** | **Sistema → Configuración del negocio** | No había dónde poner domicilio ni teléfono | Sección **⚖️ Datos legales del negocio** |
+| 12.2 | El pie de página lee esos datos | **Todas** las pantallas (abajo) | Solo "© Novedades Jade" y los 3 enlaces | Además: responsable, domicilio, teléfono, correo y horario (lo que esté capturado) |
+| 12.3 | Texto de **Términos y condiciones** | `/termConditions` (pie de página) | Decía "dentro de los siguientes días" (sin número); sin garantía ni derecho a cancelar | Garantía de 90 días, cancelar en 5 días hábiles, formas de pago, qué pasa con el dinero al cancelar, PROFECO |
+| 12.4 | Texto del **Aviso de privacidad** | `/privacidad` | Sin responsable ni domicilio; una sola lista de para qué | Responsable, para qué (necesario / lo que tú decides), con quién y en qué país, cómo pedir tus datos y en cuántos días |
+| 12.5 | **Registro**: aviso corto y casilla de Términos | Login → **Regístrate aquí** | Una casilla (privacidad) | Un párrafo corto + **dos** casillas (privacidad y Términos) |
+| 12.6 | Aviso de **Ir pagando / Apartado** | **Ventas → 💰 Venta directa** y **Carrito** | Nada | "Ir pagando, sin intereses. Precio de contado $X · Total a pagar $X (CAT 0%)" |
+| 12.7 | **Ticket** | Cualquier ticket (venta, abono, liquidado, cancelación) | Solo "NOVEDADES JADE" | Debajo, tus datos legales; en abonos "Abonos sin intereses (CAT 0%)"; abajo "Garantía de 90 días" |
+| 12.8 | **Bot**: no prometer lo que no dice el catálogo | Chat de la tienda, chat en vivo, Instagram y Facebook | Podía decir "original" o "garantizado" | Solo lo del catálogo |
+| 12.9 | **Google** | Detalle de un artículo, página que no existe, sitemap | Título igual en todo; sitemap a páginas rotas; fotos con "Imagen variante" | Título con el nombre del artículo; sitemap a la tienda; fotos con su nombre |
+| — | **Lo que NO debe cambiar** | Venta, cobro, abonos, totales, entrar al sistema | — | **Lo mismo que antes** |
+
+### 12.1 Datos legales en Configuración del negocio
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Sistema → Configuración del negocio** → baja hasta **⚖️ Datos legales del negocio** | El correo `contacto@novedades-jade.com.mx` ya lleno y **"⚠️ Falta: Nombre del responsable, Domicilio, Teléfono"** |
+| 2 | En RFC escribe `ABC123` y toca **💾 Guardar datos legales** | Mensaje del RFC (13 o 12 caracteres); no se guarda |
+| 3 | En Teléfono escribe `12345` → Guardar | *"El teléfono tiene que tener 10 dígitos"* |
+| 4 | Llena **datos de prueba** (no los reales todavía): nombre "Prueba QA", domicilio "Calle 1, Luvianos, Edo. Méx.", teléfono `(55) 1234-5678`, horario "Lunes a sábado 10 a 19" → Guardar | *"¡Datos legales guardados!"* y "Ya se ven en el pie de página…". El aviso de "Falta" desaparece |
+| 5 | Recarga la página | Los datos siguen; el teléfono aparece como `5512345678` |
+| 6 | Entra con un usuario **sin** permiso de escribir en Configuración del negocio | No puede guardar (o no ve la pantalla) |
+
+### 12.2 Pie de página
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Recarga (`Ctrl + Shift + R`) cualquier pantalla y baja hasta el final | "Prueba QA · Calle 1, Luvianos… · Tel. 55 1234 5678 · contacto@… · Atención: Lunes a sábado 10 a 19" |
+| 2 | Sin sesión (ventana privada), en la tienda | Lo mismo |
+| 3 | En el celular | Se acomoda en varias líneas, sin salirse de la pantalla |
+| 4 | Toca el teléfono en el celular | Abre la llamada |
+| 5 | **Al terminar la prueba:** borra los datos de prueba en Configuración (deja solo el correo) o pon los reales | — |
+
+### 12.3 y 12.4 Términos y Aviso de privacidad
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Pie de página → **Términos y condiciones** | Secciones nuevas: **Quién vende** (con tus datos), **Formas de pago**, **Cancelar tu compra (5 días hábiles)**, **Garantía… 90 días**, **Si cancelas un pedido en el que ya pagaste algo**, **Quejas y PROFECO**. Fecha: 7 de octubre de 2026. **Ya no** dice "dentro de los siguientes días" |
+| 2 | Pie de página → **Aviso de privacidad** | Título "Aviso de privacidad"; **Quién es responsable de tus datos**; **Para qué los usamos** en dos partes; OVHcloud, Google, OpenAI y Mercado Pago con su país; **Tus derechos (ARCO)** con 5 y 15 días hábiles |
+| 3 | Las dos, de noche y en celular | Se leen bien |
+
+### 12.5 Registro
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Cierra sesión → **Regístrate aquí** | Un párrafo corto ("Novedades Jade usa tus datos para…") y **dos casillas**: aviso de privacidad y **Términos y condiciones** |
+| 2 | Llena todo, marca solo la de privacidad | **Registrarse** sigue gris |
+| 3 | Marca también Términos → Registrarse | Se crea la cuenta como siempre (código al correo) |
+| 4 | **Leer los Términos y condiciones** | Abre los Términos en otra pestaña |
+| 5 | (Opcional, en la base) `SELECT username, acepto_terminos, fecha_acepto_terminos FROM usuario_modificacion ORDER BY id DESC LIMIT 1;` | `1` y la fecha de hoy |
+| 6 | Entra con tu usuario de siempre | Entra normal (las cuentas de antes no se ven afectadas) |
+
+### 12.6 Ir pagando y Apartado
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Venta directa** con Art-200 → **💳 Ir pagando** | *"💳 Ir pagando, sin intereses. Precio de contado $200.00 · Total a pagar $200.00 (CAT 0%). Puede liquidar antes cuando quiera, sin cargo."* |
+| 2 | Cambia a **📦 Apartado** | *"📦 Apartado, sin dinero ahora. Se paga completo ($200.00) al recogerlo."* |
+| 3 | **💵 Contado** | Ninguno de los dos avisos |
+| 4 | **Carrito** con artículos → Ir pagando / Apartado | Los mismos avisos con el total del carrito |
+| 5 | Haz la venta Ir pagando con $50 de enganche | Se crea igual que antes (el aviso no cambia nada del cobro) |
+
+### 12.7 Ticket
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Imprime el ticket de una venta de contado (con los datos de prueba de 12.1 capturados) | Debajo de "NOVEDADES JADE": nombre, domicilio, teléfono, correo. Abajo: "Garantía de 90 días desde que lo recibes" |
+| 2 | Ticket de un **abono** de Ir pagando | Además: "Abonos sin intereses (CAT 0%)" |
+| 3 | Totales, abonos y saldo | **Igual que antes** |
+
+### 12.8 Bot
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En el chat de la tienda pregunta "¿esta bolsa es original?" de una bolsa cuya descripción no lo diga | No contesta "sí, es original": dice lo que trae el catálogo y ofrece que alguien del negocio confirme |
+| 2 | "¿Este perfume quita las manchas?" | No promete efectos en la piel |
+
+### 12.9 Google
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre el detalle de un artículo | La pestaña del navegador dice "<nombre del artículo> — Novedades Jade" |
+| 2 | Regresa a la tienda | La pestaña vuelve a "Novedades Jade — Bolsas, Pantalones…" |
+| 3 | Abre `qa.shop.novedades-jade.com.mx/sitemap.xml` | Solo `/tienda/buscar`, Términos y Privacidad (ya no `/variantes/buscar` ni `/login`) |
+| 4 | (Opcional) Herramientas del navegador → Elementos, en el detalle, busca `ld+json` | Un bloque con el nombre, precio en MXN y disponibilidad |
+
+💬 Notas:
+
+- [ ] **Prueba 12 terminada**
 
 ---
 

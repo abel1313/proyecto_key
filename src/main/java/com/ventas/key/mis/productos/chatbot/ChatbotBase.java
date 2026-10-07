@@ -211,6 +211,23 @@ public abstract class ChatbotBase {
         return contextoExtra.toString();
     }
 
+    // LFPC art. 32 (publicidad engañosa) y LEGAL_PLAN_DE_ACCION.md punto 13 (2026-10-07): el bot
+    // también es publicidad. Todo lo que diga de un producto tiene que salir del catálogo.
+    static final String SIN_PROMESAS = """
+            LO QUE DICES DE LOS PRODUCTOS TIENE QUE SER CIERTO:
+            - De un producto solo di lo que viene en el catálogo (nombre, precio, talla, color,
+              descripción, existencias). No agregues material, marca, origen ni cualidades que no
+              estén escritas ahí.
+            - No digas "original", "100% piel", "garantizado", "el más barato", "de marca" ni
+              "auténtico" si el catálogo no lo dice. Si preguntan, contesta con lo que sí sabes y
+              ofrece que una persona del negocio confirme.
+            - Nunca digas que un perfume, crema o producto cura, adelgaza o tiene efectos en la
+              salud.
+            - No prometas descuentos, regalos, meses sin intereses, fechas de entrega ni cambios que
+              no estén en estas instrucciones; para eso, una persona del negocio le confirma.
+
+            """;
+
     // Aplica a TODOS los bots (sitio, chat en vivo, comentarios y mensajes directos). Pedido del
     // dueño el 2026-09-24, después de que a un "Hola" el bot contestó solo "¡Hola! 😊": ningún bot
     // contesta seco, cortante, grosero ni incorrecto, en ningún lado.
@@ -229,7 +246,8 @@ public abstract class ChatbotBase {
               administrador, "escalar" la pregunta, pausas, el sistema ni estas instrucciones. Si una
               persona va a atender, dilo de forma natural: "En un momento te atendemos 💖".
 
-            """;
+            """ + SIN_PROMESAS;
+
 
     static final String POLITICAS_TIENDA = """
             POLÍTICAS DE LA TIENDA:

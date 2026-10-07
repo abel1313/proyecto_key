@@ -600,6 +600,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
 | `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ⏳ pendiente — **antes** del deploy del back a `main` | qa 2026-10-07 |
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
+| `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ⏳ pendiente — **antes** del deploy del back a `main` (sin ella falla el login) | qa 2026-10-07 |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
 
@@ -611,6 +612,7 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 1 | `migration_entrega_pedido.sql` | La entidad `Pedido` mapea `entregado` y `fecha_entregado`: sin las columnas **truena cualquier consulta de pedidos**. Llena la entrega de los pedidos que ya existen (solo la primera vez) y da de alta `entregar` / `regresar-entrega`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 2 | `migration_accion_gastos_admin.sql` | Sin ella el admin no ve el botón para agregar gastos. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
+| 4 | `migration_datos_legales.sql` | La entidad `Usuario` mapea `acepto_terminos`: **sin la columna falla el login**. Crea `datos_legales_negocio`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
@@ -883,4 +885,4 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `mensaje_directo_social` (entidad `MensajeDirectoSocial`) · `mensaje_directo_pausa` (entidad `MensajePausa`) · `tiktok_token` · `qr_destino`
 
 **Configuración y negocio**
-`configuracion_negocio` · `tema_variable` · `tema_variable_bkp_20261001` (respaldo de `tema_variable` antes del diseño Jade, lo crea `migration_tema_jade.sql`; sin entidad) · `gastos_surtir` · `inversion`
+`configuracion_negocio` · `datos_legales_negocio` (sin entidad: `DatosLegalesJdbcAdapter`, una fila con id = 1, dominio `datoslegales`) · `tema_variable` · `tema_variable_bkp_20261001` (respaldo de `tema_variable` antes del diseño Jade, lo crea `migration_tema_jade.sql`; sin entidad) · `gastos_surtir` · `inversion`
