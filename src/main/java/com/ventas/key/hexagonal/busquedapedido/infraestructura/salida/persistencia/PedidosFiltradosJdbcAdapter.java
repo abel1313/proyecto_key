@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.busquedapedido.infraestructura.salida.persistencia;
 
+import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.EstadoBuscado;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.CuandoSeEntrega;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.FiltroPedidos;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.FormaDeCobro;
@@ -69,7 +70,10 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
                          ELSE GREATEST(0, COALESCE(pm.total_pedido,0) - COALESCE(pm.total_pagado,0)) END) AS saldo,
                 SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) = 'CANCELADO' THEN 0
                          ELSE (SELECT COUNT(*) FROM abono_pedido ag WHERE ag.pedido_id = pm.id) END) AS abonos,
-                MAX(CASE WHEN %s THEN 1 ELSE 0 END) AS a_favor
+                MAX(CASE WHEN %s THEN 1 ELSE 0 END) AS a_favor,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) = 'CANCELADO' THEN 0 ELSE 1 END) AS vivos,
+                SUM(CASE WHEN UPPER(COALESCE(pm.estado_pedido,'')) <> 'CANCELADO' AND pm.entregado = 0
+                         THEN 1 ELSE 0 END) AS sin_entregar
               FROM grupo_pedido g
               JOIN grupo_pedido_miembro gm ON gm.grupo_id = g.id
               JOIN pedidos pm ON pm.id = gm.pedido_id
@@ -84,12 +88,36 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
             + "   WHEN grp.pagados > 0 THEN 'PAGADO'"
             + "   WHEN grp.entregados > 0 THEN 'ENTREGADO'"
             + "   ELSE 'CANCELADO' END)"
-            + " WHEN " + ESTADO_P + " IN ('CANCELADO','PAGADO','ENTREGADO','PENDIENTE') THEN " + ESTADO_P
-            + " WHEN p.tipo_pedido IN ('APARTADO','FIADO') AND " + ESTADO_P + " IN ('APARTADO','FIADO') THEN 'POR_COBRAR'"
+            + " WHEN " + ESTADO_P + " = 'CANCELADO' THEN 'CANCELADO'"
+            // Igual que estadoBadge() de la card: un Apartado / Ir pagando es Pagado o Por cobrar,
+            // diga lo que diga estado_pedido. Antes un Apartado con estado 'Pendiente' (el cobro de
+            // la frase de liston nacia asi) salia en el filtro "Pendiente" y la card decia
+            // "Por cobrar" (reportado en QA 2026-10-06).
+            + " WHEN p.tipo_pedido IN ('APARTADO','FIADO') THEN"
+            + "   (CASE WHEN " + ESTADO_P + " = 'PAGADO' THEN 'PAGADO' ELSE 'POR_COBRAR' END)"
+            + " WHEN " + ESTADO_P + " IN ('PAGADO','ENTREGADO','PENDIENTE') THEN " + ESTADO_P
             + " ELSE 'OTRO' END)";
 
-    /** Igual que esperaEntrega() de la card: lo Entregado, Pagado o Cancelado ya no espera entrega. */
-    private static final String ESPERA_ENTREGA = ESTADO_CARD + " NOT IN ('ENTREGADO','CANCELADO','PAGADO')";
+    /** El pago como lo dice la card: Falta pagar, Pagado o Cancelado (un titular, el de su grupo). */
+    private static final String PAGO_CARD = "(CASE " + ESTADO_CARD
+            + " WHEN 'CANCELADO' THEN 'CANCELADO'"
+            + " WHEN 'PAGADO' THEN 'PAGADO'"
+            + " WHEN 'ENTREGADO' THEN 'PAGADO'"
+            + " ELSE 'FALTA_PAGAR' END)";
+
+    /**
+     * La entrega como la dice la card (columna {@code entregado}). Un titular esta Entregado solo si
+     * todos los de su grupo, sin cancelados, lo estan (E7). Un cancelado no tiene entrega (NULL).
+     */
+    private static final String ENTREGA_CARD = "(CASE"
+            + " WHEN " + ESTADO_P + " = 'CANCELADO' AND grp.titular_id IS NULL THEN NULL"
+            + " WHEN grp.titular_id IS NOT NULL THEN (CASE WHEN grp.sin_entregar > 0 THEN 'FALTA_ENTREGAR'"
+            + "   WHEN grp.vivos > 0 THEN 'ENTREGADO' ELSE NULL END)"
+            + " WHEN p.entregado = 1 THEN 'ENTREGADO'"
+            + " ELSE 'FALTA_ENTREGAR' END)";
+
+    /** Espera entrega: no esta cancelado y todavia no se lo lleva (antes: no Entregado ni Pagado). */
+    private static final String ESPERA_ENTREGA = "COALESCE(" + ENTREGA_CARD + ", '') = 'FALTA_ENTREGAR'";
 
     /** El total que muestra la card: el del pedido, o el de todo el grupo si es titular (R5). */
     private static final String TOTAL_CARD =
@@ -151,9 +179,20 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
             w.add("COALESCE(p.tipo_pedido,'NORMAL') IN (:formas)");
         }
 
-        if (!f.estados().isEmpty()) {
-            params.addValue("estados", f.estados().stream().map(Enum::name).toList());
-            w.add(ESTADO_CARD + " IN (:estados)");
+        // Pago y Entrega (dominio entrega, 2026-10-06): OR dentro de cada bloque, AND entre los dos.
+        List<String> pago = f.estados().stream().filter(e -> !e.esDeEntrega())
+                .map(e -> e == EstadoBuscado.PENDIENTE || e == EstadoBuscado.POR_COBRAR
+                        ? EstadoBuscado.FALTA_PAGAR.name() : e.name())
+                .distinct().toList();
+        List<String> entrega = f.estados().stream().filter(EstadoBuscado::esDeEntrega)
+                .map(Enum::name).distinct().toList();
+        if (!pago.isEmpty()) {
+            params.addValue("pago", pago);
+            w.add(PAGO_CARD + " IN (:pago)");
+        }
+        if (!entrega.isEmpty()) {
+            params.addValue("entrega", entrega);
+            w.add(ENTREGA_CARD + " IN (:entrega)");
         }
 
         if (!f.dinero().isEmpty()) {

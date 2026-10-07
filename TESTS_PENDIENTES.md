@@ -16,6 +16,94 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-07 — Entrega aparte del pago: dominio `entrega` (📦 Entregar / Regresar)
+**Dónde:** `hexagonal/entrega`: `Entrega.entregar()/regresar()`, `PedidoParaEntregar.estaPagado()`, `EntregaService`, `PedidosParaEntregarJdbcAdapter`, `EntregaController` (`POST`/`DELETE /v1/pedidos/{id}/entrega`), regla en `SecurityConfig`
+**Tipo:** unitario (dominio) · servicio con puertos simulados · MySQL (adaptador) · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] Contado 'Entregado' (cobrado) sin entregar → entregar → `[id]`; contado 'Pendiente' → 400 "todavía no está pagado (falta $X)"
+- [ ] Apartado PAGADO → se entrega; Apartado abierto con $0 → 400 con el faltante exacto
+- [ ] Ir pagando (FIADO) debiendo $150 → **sí** se entrega (E8)
+- [ ] Cancelado → 400 "está cancelado"; ya entregado → 400 "ya está entregado"
+- [ ] Grupo de 3 (uno cancelado, uno ya entregado) → entrega solo el que falta; el cancelado no se toca
+- [ ] Grupo con un Apartado sin pagar → 400 "El pedido N del grupo todavía no está pagado"
+- [ ] Regresar uno entregado → `entregado = 0`, `fecha_entregado = NULL`; uno sin entregar → 400; grupo → regresa todos los entregados
+- [ ] Pedido inexistente → 400 "No existe el pedido N"
+- [ ] Adaptador: un grupo **inactivo** (separado) no arrastra a los demás pedidos
+- [ ] Controller: sin la acción `entregar` → 403; sin `regresar-entrega` → 403 en el DELETE; con ella → 200 `{data:{pedidos,entregado}}` y caché vaciada
+- [ ] `PUT/DELETE /v1/pedidos/**` siguen con su regla de antes (la nueva va antes del comodín y no lo cambia)
+
+### 2026-10-07 — `pedidos.entregado` en listas, detalle, venta directa y cancelar Ir pagando
+**Dónde:** `IPedidoRepository` (5 consultas JSON), `TarjetasDePedidoLector` (`grupo.entregadoGrupo`), `PedidoServiceImpl` (detalle y cancelar), `AbonoServiceImpl.cancelar()`, `VentaServiceImpl` (`VentaDirectaRequest.entregado`), `migration_entrega_pedido.sql`
+**Tipo:** MySQL (SQL nativo) · unitario (servicio)
+**Debe comprobar:**
+- [ ] Listas de admin y cliente traen `entregado` true/false (nunca null) y el detalle también
+- [ ] Grupo con 2 vivos entregados y 1 cancelado sin entregar → `entregadoGrupo = true`; con uno vivo sin entregar → `false`
+- [ ] Venta contado sin `entregado` → entregado=1 (como antes); con `entregado:false` → 0 y estado de pago sin cambio
+- [ ] Venta Ir pagando sin campo → 1; con `false` → 0; Apartado siempre 0 aunque mande `true`
+- [ ] Cancelar Ir pagando con entregado=0 → stock regresa, mensaje "Ir pagando cancelado. Stock devuelto…"
+- [ ] Cancelar Ir pagando con entregado=1 → stock NO regresa (igual que antes); devolución de pagado → sí regresa
+- [ ] Cancelar desde Mis pedidos (`PedidoServiceImpl`) → mismas dos reglas
+- [ ] Migración: primera corrida marca entregado contado 'Entregado', todo FIADO y todo 'PAGADO'; deja en 0 Apartados abiertos, contados 'Pendiente' y cancelados; **segunda corrida no cambia nada** (aunque se haya regresado uno a mano)
+
+### 2026-10-07 — Filtro de estado partido en Pago y Entrega
+**Dónde:** `EstadoBuscado`, `PedidosFiltradosJdbcAdapter` (`ESTADO_CARD`, `PAGO_CARD`, `ENTREGA_CARD`, `GRUPOS`) — `GET /v1/pedidos/buscar?estado=…`
+**Tipo:** MySQL (SQL nativo)
+**Reemplaza** la entrada del 2026-10-06 "Filtro Estado…": PENDIENTE y POR_COBRAR ya no son opciones propias, valen FALTA_PAGAR.
+**Debe comprobar:**
+- [ ] FALTA_PAGAR trae contado sin cobrar + Apartado/Ir pagando abiertos; PENDIENTE y POR_COBRAR traen exactamente lo mismo
+- [ ] PAGADO trae contado cobrado + crédito liquidado; CANCELADO solo cancelados
+- [ ] FALTA_ENTREGAR / ENTREGADO por `entregado`, sin cancelados
+- [ ] `PAGADO + FALTA_ENTREGAR` = pagados que no se lo han llevado (AND entre bloques)
+- [ ] `FALTA_PAGAR + PAGADO` = la suma (OR dentro del bloque)
+- [ ] Grupo: Falta entregar si **algún** vivo no está entregado; Entregado si todos los vivos lo están
+- [ ] "Entrega más próxima" y "espera entrega" usan `entregado`, no el estado de pago
+
+### 2026-10-07 — Agregar artículo sube o baja el stock del modelo (B1)
+**Dónde:** `VarianteServiceImpl.aplicarAjusteStockModelo()` dentro de `guardarConImagenes()` (`POST /v1/variantes/guardarConImagenes`, `VarianteDetalle.ajusteStockModelo`)
+**Tipo:** unitario (servicio con repositorios simulados) · MySQL (transacción)
+**Debe comprobar:**
+- [ ] Modelo 10, repartido 10, artículo nuevo con 3 y ajuste +3 → modelo 13, artículo guardado
+- [ ] Mismo caso sin ajuste → 400 de stock (como antes)
+- [ ] Ajuste −3 con modelo 10 y repartido 8 → 400 "No se puede dejar el modelo en 7: ya tiene 8 repartidos"
+- [ ] Sin ROLE_ADMIN ni Escritura en productos/buscar, productos/agregar o tienda/venta → 400 "No tienes permiso…", modelo sin cambio
+- [ ] Falla la subida de imagen después del ajuste → rollback: el modelo vuelve a su stock
+- [ ] Varios detalles del mismo modelo con ajuste → se aplica una sola vez (el primero distinto de 0)
+- [ ] Ajuste 0 o ausente → igual que antes
+
+### 2026-10-07 — Gastos: el administrador puede agregar, editar y eliminar (`migration_accion_gastos_admin.sql`)
+**Dónde:** acciones `agregar-gasto`, `editar-gasto`, `eliminar-gasto` de `gastos/buscar`
+**Tipo:** MySQL (script)
+**Debe comprobar:**
+- [ ] Después de correrla, ROLE_ADMIN tiene las 3; segunda corrida no duplica filas
+- [ ] Si las acciones no existían, las crea; si existían, solo agrega el permiso
+
+### 2026-10-06 — Filtro "Estado" de Mis pedidos dice lo mismo que la card (Apartado nunca es "Pendiente")
+**Dónde:** `PedidosFiltradosJdbcAdapter.ESTADO_CARD` (`GET /v1/pedidos/buscar?estado=…`) y `RamoPedidoDetalleServiceImpl.crearPedidoAnticipoFrase()`
+**Tipo:** MySQL (SQL nativo) · unitario (servicio)
+**Contexto:** un Apartado con `estado_pedido = 'Pendiente'` salía en el filtro "⏳ Pendiente" y su card decía "Por cobrar". El cobro de la frase de listón nacía así (tipo APARTADO, estado 'Pendiente').
+**Debe comprobar:**
+- [ ] Apartado con estado 'Pendiente' → filtro POR_COBRAR lo trae; filtro PENDIENTE **no** lo trae
+- [ ] Ir pagando con estado 'Pendiente' → igual: POR_COBRAR sí, PENDIENTE no
+- [ ] Apartado PAGADO → PAGADO; Apartado cancelado → CANCELADO
+- [ ] Contado 'Pendiente' → PENDIENTE; contado 'Entregado' → ENTREGADO (sin cambio)
+- [ ] Grupo (titular) sigue igual que R14 (no cambia)
+- [ ] `crearPedidoAnticipoFrase` → pedido tipo APARTADO con estado APARTADO
+- [ ] `BusquedaPedidosMysqlTest` existente: revisar si algún caso armaba un Apartado 'Pendiente' esperando PENDIENTE (quedaría viejo)
+
+### 2026-10-06 — HOTFIX prod: "Crear artículos" (🧩 del modelo) hereda del modelo y el error de guardado dice qué falló
+**Dónde:** `VarianteServiceImpl.guardarVariantesPorProductoConImagenes()` (`POST /v1/variantes/inicializarDesdeProducto`) y `CrudAbstractServiceImpl.typeError()`
+**Tipo:** unitario (servicio con repositorios simulados) · controller (URL y status)
+**Contexto:** en prod (`main`) los artículos nacían vacíos (sin color, marca, descripción, contenido neto ni categoría); en qa/dev ya heredaban desde el 2026-09-30. En prod el alta respondía 400 y la causa **no** era una columna obligatoria (esquema de `variantes` idéntico en qa y prod, ver `ESPECIFICACIONES_AMBIENTES.md`). Cualquier restricción de la base que no fuera duplicado (1062) salía con el texto "El codigo postal ya existe".
+**Debe comprobar:**
+- [ ] Modelo con color "Negro", marca "Jade", descripción "Bolsa", contenido "1 pza" y categoría 7, stock 1, sin artículos → crear 1 → 201 y el artículo nace con esos 5 datos y stock 1
+- [ ] Modelo sin categoría → el artículo nace sin categoría (no truena)
+- [ ] Modelo con stock 1 y un artículo habilitado con stock 1 → crear 1 → 404 "Stock insuficiente… Stock disponible: 0"
+- [ ] Nunca hereda talla, presentación ni stock (stock siempre 1 por artículo)
+- [ ] `save()` que choca con una columna obligatoria vacía (MySQL 1048) → 400 con "No se pudo guardar: Column '…' cannot be null" y una línea `log.error` con el código
+- [ ] `save()` con duplicado (1062) → 409 con el mismo texto de antes (no cambia)
+- [ ] Consulta para revisar en QA/prod lo que nació (contenido neto y categoría del modelo contra el artículo):
+      `SELECT v.id, v.contenido_neto, p.contenido_neto, v.palabra_clave_id, p.palabra_clave_id FROM variantes v JOIN producto p ON p.id = v.producto_id ORDER BY v.id DESC LIMIT 5;`
+
 ### 2026-10-06 — Permisos de Mis pedidos al día (`migration_accion_pedidos_filtros_y_cobro.sql`)
 **Dónde:** catálogo `accion_submenu` / `rol_accion` de `pedidos/mis-pedidos` · `GET /v1/accion-submenu/**`
 **Tipo:** MySQL (script sobre esquema real) + controller del catálogo
@@ -61,3 +149,4 @@ Formato de cada entrada:
 | Test | Rama | Desde | Por qué falla |
 |---|---|---|---|
 | `RenombreArticuloRutasTest`, `RenombreArticuloSecurityTest` | `feature/tema-jade-articulo` | 2026-10-06 | Prueban rutas `/v2/articulos/...` que esa rama del back todavía no tiene. No llegan a `dev`/`qa`. |
+| `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. |

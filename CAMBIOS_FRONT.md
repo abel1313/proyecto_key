@@ -68,6 +68,86 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-19] 🆕 La entrega va aparte del pago: Entregado / Falta entregar, 📦 Entregar y filtros Pago + Entrega
+**Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migraciones:** `migration_entrega_pedido.sql`
+(**antes** del deploy del back: la entidad `Pedido` ya mapea las columnas nuevas) y `migration_accion_gastos_admin.sql`.
+Volver a entrar después (permisos en el JWT). Reglas: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §11 (E1–E10),
+dominio `hexagonal/entrega/README.md`.
+
+**Qué cambia en una línea:** `estado_pedido` sigue diciendo **solo el pago** (Pagado / Falta pagar /
+Cancelado). La entrega vive en una columna nueva, `pedidos.entregado` (+ `fecha_entregado`). La card
+muestra las dos etiquetas: verde lo hecho, rojo lo que falta.
+
+**1. Endpoints nuevos** (dominio `entrega`)
+
+| Request | Qué hace | Permiso (acción de `pedidos/mis-pedidos`) |
+|---|---|---|
+| `POST /mis-productos/v1/pedidos/{pedidoId}/entrega` | Marca entregado el pedido, o **todo su grupo** si está unido | `entregar` |
+| `DELETE /mis-productos/v1/pedidos/{pedidoId}/entrega` | Regresa a "Falta entregar" (por si se marcó por error) | `regresar-entrega` |
+
+- Sin body. **200** → `{ mensaje, data: { pedidos: [12, 13], entregado: true|false } }` (`pedidos` = los que cambiaron).
+- **400** con `mensaje` (el front lo muestra tal cual):
+  - Apartado o contado sin pagar: `"El pedido 12 todavía no está pagado (falta $150.00): primero se cobra y después se entrega"` (en grupo: `"El pedido 12 del grupo …"`). **Ir pagando sí se entrega sin estar pagado** (E8).
+  - Cancelado: `"El pedido 12 está cancelado: no se puede entregar"`. Ya entregado: `"El pedido 12 ya está entregado"`.
+  - Regresar uno que no está entregado: `"El pedido 12 no está entregado"`. Pedido inexistente: `"No existe el pedido 12"`.
+- **403** si la persona no tiene la acción. De arranque solo ROLE_ADMIN tiene las dos; se reparten en Gestión de roles.
+
+**2. Campo nuevo `entregado` en las respuestas**
+- Cards de `GET /v1/pedidos/buscar`, las listas de pedidos del admin y del cliente (`IPedidoQuery`) y el
+  detalle `GET /v1/pedidos/{id}` (`PedidoDetalleResponse`, también lo usa Créditos / Abonos): `entregado: boolean`.
+- Card de un grupo: `grupo.entregadoGrupo: boolean` — `true` solo si **todos** los pedidos vivos (no
+  cancelados) del grupo están entregados. La card del titular usa este, no el `entregado` del titular.
+
+**3. Filtro de estado partido en dos bloques** (`GET /mis-productos/v1/pedidos/buscar?estado=…`, mismo parámetro)
+
+| Bloque | Valores nuevos | Significa |
+|---|---|---|
+| Pago | `FALTA_PAGAR`, `PAGADO`, `CANCELADO` | lo que dice la etiqueta de pago de la card |
+| Entrega | `FALTA_ENTREGAR`, `ENTREGADO` | `pedidos.entregado` (los cancelados no entran en ninguno) |
+
+- Dentro de un bloque se suman (OR); entre bloques se cruzan (AND): `estado=PAGADO&estado=FALTA_ENTREGAR` = ya pagaron y no se lo han llevado.
+- **Compatibilidad:** `PENDIENTE` y `POR_COBRAR` (filtros guardados viejos) se aceptan y valen `FALTA_PAGAR`.
+- **Antes / después:**
+  - `ENTREGADO` **antes** = contado cobrado (estado). **Ahora** = se lo llevó, de cualquier forma de cobro.
+  - Un Apartado sin abonos **antes** caía en "Pendiente" (como contado sin cobrar). **Ahora** es "Falta pagar".
+  - El orden "Entrega más próxima" y "espera entrega" ahora miran `entregado`, no el estado del pago.
+- Grupos (R14): Falta pagar / Pagado por el saldo del grupo; Falta entregar si **algún** pedido vivo no está entregado.
+
+**4. `POST /mis-productos/v1/ventas/save` (venta directa) — campo nuevo opcional `entregado` en `VentaDirectaRequest`**
+- Contado: `entregado: false` = "Pagado · falta entregar". Omitido o `true` = entregado, como hasta hoy.
+- Ir pagando (`FIADO`): `entregado: false` = "todavía no se lo lleva". Omitido o `true` = se lo llevó, como hasta hoy.
+- Apartado: se ignora, nace siempre en Falta entregar.
+- El front viejo (que no manda el campo) se comporta igual que antes.
+
+**5. Cancelar un Ir pagando** (`PUT /v1/abonos/{pedidoId}/cancelar` y cancelar desde Mis pedidos)
+- **Antes:** un Ir pagando cancelado **nunca** regresaba el stock (se suponía que se lo llevó).
+- **Después:** si `entregado = false` el stock **sí** regresa y el mensaje es
+  `"Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $X"`.
+  Si ya se lo llevó, igual que antes (`"FIADO cancelado. Stock NO devuelto (producto entregado)…"`).
+  Los Ir pagando que ya existían quedan como entregados (migración), así que para ellos no cambia nada.
+
+**6. Agregar artículo: ajustar el stock del modelo** (`POST /mis-productos/v1/variantes/guardarConImagenes`)
+- Campo nuevo opcional en cada `VarianteDetalle`: `ajusteStockModelo: number` (+3 sube, −2 baja). Se
+  toma el primero distinto de 0 por modelo. Se aplica **antes** de validar el stock repartido y en la
+  **misma transacción** que el artículo: si el artículo no se guarda, el modelo no cambia.
+- **400** `"No tienes permiso para cambiar el stock del modelo. Pídele a alguien con permiso de editar modelos"`
+  si no es ROLE_ADMIN ni tiene Escritura en Modelos, Agregar modelo o Nuevo producto.
+- **400** `"No se puede dejar el modelo en 8: ya tiene 10 repartidos en sus artículos"` si se baja de más.
+- Sin el campo (o en 0), igual que antes.
+
+**7. Gestión de roles** (`migration_entrega_pedido.sql`, solo cambian textos y orden; las claves no)
+- Acciones nuevas: `entregar` (orden 21) y `regresar-entrega` (22), categoría "Tarjeta de pedido".
+- Filtros: `filtro-por-cobrar` → "Falta pagar (💰)", `filtro-pagados`, `filtro-cancelados` en
+  "Filtros — pago"; `filtro-pendientes` → "Falta entregar (📦)", `filtro-entregados` en "Filtros — entrega".
+- `migration_accion_gastos_admin.sql`: el administrador recibe `agregar-gasto`, `editar-gasto` y
+  `eliminar-gasto` de `gastos/buscar`. **Antes:** el admin no veía el botón de agregar gasto (le faltaba la acción).
+
+**Front que lo usa:** `pedidos/entrega/entrega.ts` (etiquetas y "¿Ya se lo llevó?"), `PedidosService.entregar/regresarEntrega`,
+Mis pedidos (dos etiquetas, 📦 Entregar, ↺, filtros Pago y Entrega), Detalle del pedido, Grupo, Créditos / Abonos,
+Venta directa, Venta por artículo (Ir pagando) y Agregar artículo (`ajusteStockModelo`).
+
+---
+
 ### [BUG-KEY-18] ✅ Permisos de Mis pedidos al día en Gestión de roles (filtros nuevos y cobro desde la card)
 **Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Migración:** `migration_accion_pedidos_filtros_y_cobro.sql` (correrla con el deploy y volver a entrar)
 

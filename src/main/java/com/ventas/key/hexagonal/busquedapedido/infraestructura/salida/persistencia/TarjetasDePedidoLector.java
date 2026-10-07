@@ -47,6 +47,8 @@ public class TarjetasDePedidoLector {
                   'estado_pedido', p.estado_pedido,
                   'tipoPedido', p.tipo_pedido,
                   'totalPagado', p.total_pagado,
+
+                  'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
                   'nombreReceptor', p.nombre_receptor,
                   'lugarEntregaId', le.id,
                   'lugarEntregaNombre', le.nombre,
@@ -113,11 +115,29 @@ public class TarjetasDePedidoLector {
         }
         Map<Integer, GrupoPedidos> grupos = consultarGrupos.gruposActivosDe(
                 tarjetas.stream().map(t -> t.getPedido().getId()).toList());
+        Map<Integer, Boolean> entregados = entregadosDe(grupos.values().stream()
+                .flatMap(g -> g.pedidos().stream()).filter(p -> !p.estaCancelado())
+                .map(p -> p.pedidoId()).distinct().toList());
         for (PedidoGenerico t : tarjetas) {
             GrupoPedidos grupo = grupos.get(t.getPedido().getId());
             if (grupo != null) {
-                t.getPedido().setGrupo(GrupoEnListaResponse.de(grupo, t.getPedido().getId()));
+                // E7 (dominio entrega): la card del titular dice Entregado solo si todos los del
+                // grupo, sin los cancelados, ya se lo llevaron.
+                boolean todos = grupo.pedidos().stream().filter(p -> !p.estaCancelado())
+                        .allMatch(p -> Boolean.TRUE.equals(entregados.get(p.pedidoId())));
+                t.getPedido().setGrupo(GrupoEnListaResponse.de(grupo, t.getPedido().getId(), todos));
             }
         }
+    }
+
+    private Map<Integer, Boolean> entregadosDe(List<Integer> pedidoIds) {
+        Map<Integer, Boolean> entregados = new HashMap<>();
+        if (pedidoIds.isEmpty()) {
+            return entregados;
+        }
+        jdbc.query("SELECT id, entregado FROM pedidos WHERE id IN (:ids)",
+                new MapSqlParameterSource("ids", pedidoIds),
+                rs -> { entregados.put(rs.getInt("id"), rs.getBoolean("entregado")); });
+        return entregados;
     }
 }

@@ -594,10 +594,31 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 | `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
 | `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ✅ corrida (verificación sin_admin = 0) | ✅ corrida antes que el front (sin_admin = 0; las claves no cambian, solo textos — ver nota) | 2026-10-06 |
-| `migration_tema_jade.sql` (diseño Jade por default) | ⏳ pendiente — el diseño Jade ya está en `dev` (2026-10-06): correrla en `inventario_key_qa` **cuando el front suba a QA** | ⏳ pendiente (cuando Jade llegue a `main`) | — |
+| `migration_tema_jade.sql` (diseño Jade por default) | ✅ corrida (estilo = jade, respaldo con 39 filas) | ⏳ pendiente (cuando Jade llegue a `main`) | qa 2026-10-07 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
+| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ⏳ pendiente — correrla **antes** del deploy del back a `dev`/`qa` | ⏳ pendiente — **antes** del deploy del back a `main` | — |
+| `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
+
+### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
+
+Se mantiene al día en cada cambio: cuando algo se corre en prod, se quita de aquí y se marca ✅ en la
+tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** del deploy del back:
+
+| # | Script | Por qué no puede faltar | Desde |
+|---|---|---|---|
+| 1 | `migration_entrega_pedido.sql` | La entidad `Pedido` mapea `entregado` y `fecha_entregado`: sin las columnas **truena cualquier consulta de pedidos**. Llena la entrega de los pedidos que ya existen (solo la primera vez) y da de alta `entregar` / `regresar-entrega` | 2026-10-07 |
+| 2 | `migration_accion_gastos_admin.sql` | Sin ella el admin no ve el botón para agregar gastos. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
+
+Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
+de verificación que trae cada script al final.
+
+**Ya en prod sin bajar todavía a `qa`/`dev`:** el hotfix "Crear artículos" (`f5ad4fb` en `main`,
+2026-10-06). Al bajarlo con merge: en `VarianteServiceImpl` gana lo de `dev` (ya heredaba del modelo
+desde el 2026-09-30, solo cambia un comentario); en `CrudAbstractServiceImpl.typeError()` gana lo de
+`main` (`dev` todavía dice "El codigo postal ya existe" para cualquier restricción de la base).
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de

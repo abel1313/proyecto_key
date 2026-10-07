@@ -8,16 +8,18 @@ Aquí está **todo lo que falta probar**, en el orden en que conviene hacerlo, y
 - **Pasos** — una tabla: a la izquierda lo que **haces**, a la derecha lo que **debes ver**.
 - **❌ Está mal si…** — lo que sería un error.
 
-### ¿Qué ya está en QA y qué falta subir? (2026-10-06)
+### ¿Qué ya está en QA y qué falta subir? (2026-10-07)
 
 | Parte | Estado |
 |---|---|
-| Pruebas **1, 2, 4** y de la **3** los casos **3.1 a 3.7** | ✅ Ya están en QA |
+| Pruebas **1, 2, 4** y de la **3** los casos **3.1 a 3.7** | ✅ Ya están en QA. **La 1 (Volver) la validaste el 2026-10-06**: falta que todos digan lo mismo ("Volver" o "Regresar"), va con la homologación de pantallas |
 | **3.6**, **3.7** y la **Prueba 5** (filtros de pedidos) | ✅ **Validadas por ti el 2026-10-06** |
 | **3.8** (⇄ en un artículo con 2 o más piezas pregunta cuántas cambiar) | ✅ En QA desde el 2026-10-06 (el **paso 5** necesita también la Prueba 7) |
 | **Prueba 7** (fallas que encontré al revisar filtros y detalle, 2026-10-06) | ✅ En QA (la 7.10, celular, sube junto con la 8) |
-| **Prueba 8** (Liquidar / Dar abono / Abonar al grupo desde la card) | ⏳ En QA, por probar. Incluye las pruebas de que no se rompió nada (8.5 a 8.16) |
-| **Prueba 9** (Gestión de roles al día: permisos de los filtros nuevos y del cobro desde la card) | ⏳ En QA, por probar. **Antes** corre `migration_accion_pedidos_filtros_y_cobro.sql` en `inventario_key_qa` y vuelve a entrar |
+| **Prueba 8** (Liquidar / Dar abono / Abonar al grupo desde la card) | ✅ **Validada por ti el 2026-10-06** ("ya se puede cobrar desde la card"). Tus dudas de los filtros se contestan en la Prueba 10 |
+| **Prueba 9** (Gestión de roles al día: permisos de los filtros nuevos y del cobro desde la card) | ✅ **Validada por ti el 2026-10-06** ("ya veo todos los roles") |
+| **Prueba 10** (arreglos del 2026-10-06: Crear artículos en prod, Mis datos, filtro Pendiente) | ⏳ 10.1 **ya está en prod**; 10.2 y 10.3 **todavía no se suben** (esperan tu "sube") |
+| **Prueba 11** (Entregado aparte del pago, filtros Pago / Entrega, stock del modelo en Agregar artículo, pantallas homologadas, Jade) | ⏳ **Todavía no se sube** (espera tu "sube"; antes hay que correr 3 scripts en QA, ver 11.0) |
 | **Prueba 6** (datos de prueba) | ✅ En QA. Va **al final** |
 
 **Cómo anotar:** si algo no sale como dice la columna "Debes ver", escribe debajo de esa tabla
@@ -68,14 +70,16 @@ en su tarjeta toca **👁 Detalle**.
 
 | Orden | Prueba | Qué revisa | Tiempo aprox. | ¿En QA? | ✔ |
 |---|---|---|---|---|---|
-| 1 | **Botón Volver** | Que el botón ← Volver quede alineado con la tarjeta | 10 min | ✅ | [ ] |
+| 1 | **Botón Volver** | Que el botón ← Volver quede alineado con la tarjeta | 10 min | ✅ | [x] |
 | 2 | **Apartado es sin dinero** | Que un Apartado no acepte abonos a medias y se pueda pasar a Ir pagando | 25 min | ✅ | [ ] |
 | 3 | **Detalle del pedido: quitar, cambiar o agregar artículos** | Que el total, lo que debe y el estado cambien bien; que el buscador solo ofrezca lo que se puede vender | 35 min | ✅ | [ ] |
 | 4 | **Cancelar pedidos con abonos** | Qué pasa con el stock y qué mensaje sale al cancelar | 20 min | ✅ | [ ] |
 | 5 | **Filtros de pedidos** | Buscar por nombre y todos los filtros nuevos de Mis pedidos | 30 min | ✅ | [x] |
-| 7 | **Revisión de filtros y detalle** | Pedidos unidos en los filtros, la card de un grupo, el botón − con dos tallas, ⇄ que suma en la misma línea | 40 min | ⏳ falta "sube" | [ ] |
-| 8 | **Cobrar a crédito desde la card** | Liquidar / Dar abono / Abonar al grupo sin ir a Créditos / Abonos | 40 min | ⏳ por probar | [ ] |
-| 9 | **Gestión de roles al día** | Que los permisos de Mis pedidos digan lo que hay hoy y que los filtros nuevos se puedan quitar por rol | 20 min | ⏳ por probar | [ ] |
+| 7 | **Revisión de filtros y detalle** | Pedidos unidos en los filtros, la card de un grupo, el botón − con dos tallas, ⇄ que suma en la misma línea | 40 min | ⏳ en QA | [ ] |
+| 8 | **Cobrar a crédito desde la card** | Liquidar / Dar abono / Abonar al grupo sin ir a Créditos / Abonos | 40 min | ✅ | [x] |
+| 9 | **Gestión de roles al día** | Que los permisos de Mis pedidos digan lo que hay hoy y que los filtros nuevos se puedan quitar por rol | 20 min | ✅ | [x] |
+| 10 | **Arreglos del 2026-10-06** | Crear artículos en prod, Mis datos sin spinner, filtro Pendiente vs Por cobrar | 20 min | ⏳ 10.1 en prod; 10.2–10.3 sin subir | [ ] |
+| 11 | **Entregado y pantallas homologadas** | Etiquetas Pagado / Entregado, 📦 Entregar, "¿Ya se lo llevó?", filtros Pago y Entrega, stock del modelo en Agregar artículo, anchos, tablas, selects, Volver, Gastos | 60 min | ⏳ sin subir | [ ] |
 | 6 | **Datos de prueba con un botón** | Crear 20 mil modelos y mil pedidos de prueba | 15 min | ✅ | [ ] |
 
 **La 5 va después de la 2, 3 y 4 a propósito:** usa los pedidos que creaste en esas (A–F, H4–H7,
@@ -618,7 +622,7 @@ guardado al recargar, o algo no se lee de noche.
 
 ---
 
-## Prueba 7 — Revisión de filtros y detalle del pedido (2026-10-06) — ⏳ después de "sube"
+## Prueba 7 — Revisión de filtros y detalle del pedido (2026-10-06) — ⏳ en QA, por probar
 
 **Para qué es:** al revisar todo lo de filtros y detalle encontré estas fallas y ya las corregí.
 Cada una tiene su prueba: **antes** (lo que pasa hoy en QA) y **después** (lo que debe pasar).
@@ -846,9 +850,8 @@ Unidos y otros, Registrado, Total) no tenían permiso, así que no se podían qu
 "Registrar abono" ahora también son los botones **Liquidar / Dar abono / Abonar al grupo** de la card.
 
 **Antes de empezar (una sola vez):**
-1. Corre `migration_accion_pedidos_filtros_y_cobro.sql` en `inventario_key_qa`. Puedes correrla
-   en Workbench tal cual, con Safe Updates prendido. Al final, la consulta de verificación
-   comentada debe dar **27 filas** y la segunda consulta, **0**.
+1. ✅ Ya hecho el 2026-10-06: `migration_accion_pedidos_filtros_y_cobro.sql` se corrió en
+   `inventario_key_qa` (y en prod) y la verificación dio **0**. No hay que volver a correrla.
 2. **Cierra sesión y vuelve a entrar** (los permisos van dentro del token). Si no lo haces, los
    bloques nuevos de ⚙️ Filtros **no salen** aunque seas administrador.
 
@@ -894,6 +897,244 @@ partido, o la migración da error en Workbench.
 
 ---
 
+## Prueba 10 — Arreglos del 2026-10-06 — ⏳ 10.1 en prod, 10.2 y 10.3 sin subir
+
+**Para qué es:** comprobar los tres arreglos de hoy. La **10.1** ya está en **prod** (se prueba en
+prod). La **10.2** va a prod y a QA, y la **10.3** solo a QA: las dos esperan tu "sube".
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Antes | Después |
+|---|---|---|---|---|
+| 10.1 | "Crear artículos" (🧩 de la tarjeta del modelo) copia del modelo color, marca, descripción, contenido neto y categoría | **Catálogo → 🔍 Modelos → 🧩 Productos** | En prod el artículo nacía vacío (y daba 400) | Nace con esos 5 datos, igual que en QA |
+| 10.1 | Mensaje cuando la base rechaza un guardado | Cualquier alta o cambio que use el guardado genérico (clientes, artículos, direcciones…) | Decía "El codigo postal ya existe" | Dice el motivo real. Un duplicado sigue diciendo lo mismo de antes |
+| 10.2 | El campo de fecha acepta también una fecha "de calendario" | **Mis datos** (fecha de nacimiento) y todos los campos de fecha (filtros de pedidos, gastos, reportes) | Mis datos se quedaba con el spinner encima y no dejaba hacer nada | Carga normal. Los demás campos de fecha, **igual que antes** |
+| 10.3 | Filtro **Estado** de Mis pedidos | **Pedidos → Mis pedidos → ⚙️ Filtros → Estado** | Un Apartado podía salir en "⏳ Pendiente" y su card decía "Por cobrar" | Un Apartado / Ir pagando solo sale en "🕒 Por cobrar", "✅ Pagado" o "❌ Cancelado", igual que su card |
+
+### 10.1 Crear artículos desde la tarjeta del modelo (en **prod**)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Catálogo → Agregar modelo**: modelo de prueba con stock **1**, color, marca, descripción, contenido neto y una categoría → Guardar | Se guarda |
+| 2 | **Catálogo → 🔍 Modelos** → búscalo → **🧩 Productos** → cantidad **1**, sin imagen → **Crear variantes** | *"1 variante(s) creada(s)"* (ya no el 400) |
+| 3 | Abre el artículo nuevo (✏️ en su tarjeta de Tienda) | Trae el color, la marca, la descripción, el contenido neto y la categoría del modelo. Stock 1 |
+| 4 | Vuelve a **🧩 Productos** del mismo modelo, cantidad 1 | *"Stock insuficiente… Stock disponible: 0"* (es correcto: ya no hay piezas libres) |
+
+❌ **Está mal si:** vuelve a salir 400. Si pasa: herramientas del navegador (F12) → **Red** → la
+línea `inicializarDesdeProducto` → pestaña **Respuesta**, y me pegas lo que diga.
+
+### 10.2 Mis datos sin spinner (prod y QA, cuando se suba)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Entra a **Mis datos** con un usuario que ya tenga su fecha de nacimiento guardada | Se ven tus datos, la fecha dice p. ej. *"12 de mayo de 1990"* y el spinner **se quita** |
+| 2 | Cambia el teléfono y **Guardar** | Se guarda. La fecha de nacimiento **no cambia** (ni un día antes) |
+| 3 | **Mis pedidos → ⚙️ Filtros → Registrado** desde / hasta | Los calendarios funcionan igual que antes |
+
+❌ **Está mal si:** el spinner sigue girando, o la fecha se guarda un día antes.
+
+### 10.3 Filtro "Pendiente" vs "Por cobrar" (QA, cuando se suba)
+
+> ⚠️ **Ya no se prueba así:** con la Prueba 11 el filtro Estado se partió en **Pago** y **Entrega** y
+> "Pendiente" / "Por cobrar" se juntaron en **💰 Falta pagar**. Prueba la **11.4** en lugar de esta.
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Mis pedidos → ⚙️ Filtros**: Forma de cobro **📦 Apartado** + Estado **⏳ Pendiente** | **Ningún** pedido. "Pendiente" es solo para contado sin cobrar |
+| 2 | Cambia Estado a **🕒 Por cobrar** | Los Apartados abiertos; su card dice **Por cobrar** |
+| 3 | Forma de cobro **🛒 Contado** + **⏳ Pendiente** | Contados sin cobrar; su card dice **Pendiente** (igual que antes) |
+
+### Respuestas a tus dudas de los filtros (2026-10-06)
+
+💬 *"Elegí Apartado y en estado sale Pendiente… ¿por qué un Apartado quedaría en pendiente? En la card dice Por cobrar."*
+↳ Tenías razón, era un error. "Pendiente" es solo para **contado sin cobrar**. Algunos Apartados
+tienen guardado por dentro el estado "Pendiente" (el cobro de la frase de listón nacía así), y el
+filtro le hacía caso a eso mientras la card decía "Por cobrar". Ya quedó: el filtro dice lo mismo
+que la card (10.3), y el cobro de la frase ya nace como Apartado. Las opciones de Estado se siguen
+viendo todas aunque elijas Apartado; con Apartado, "Pendiente" y "Entregado" simplemente no traen nada.
+
+💬 *"Liquidar con el link 'dejar algo y cambiarlo a Ir pagando' está bien y me gusta."*
+↳ ✅ Se queda así.
+
+💬 *"Filtro Pagados: sale uno que dice Entregado, pero ¿dónde marco que se entregó?"*
+↳ Hoy **no hay** botón para marcar "entregado" a un Apartado o Ir pagando liquidado: queda en
+**Pagado**. "Entregado" es como queda una venta de **contado** al cobrarla (el cliente se la lleva en
+ese momento). El botón **Entregar** para lo pagado que falta entregar está acordado
+(skill `reglas-pedidos` 2.3, "Pagado · falta entregar") pero **todavía no se programa**. Si en
+"Pagados" viste una card que dice "Entregado", pásame su número: puede ser un grupo de pedidos y lo
+reviso.
+
+💬 *"Filtro Saldo a favor: salen muchos y no sé por qué."*
+↳ "Saldo a favor" = pedidos donde **hay que devolverle dinero al cliente**: (a) pagó de más, (b) se
+canceló un **Apartado** que ya tenía dinero, o (c) se canceló un pedido **ya pagado**. En QA salen
+muchos porque las pruebas 2, 3 y 4 cancelaron y cambiaron pedidos con abonos a propósito. Para ver
+cuáles son y por qué:
+```sql
+SELECT id, tipo_pedido, estado_pedido, total_pedido, total_pagado,
+       total_pagado - total_pedido AS a_favor
+FROM pedidos
+WHERE tipo_pedido IN ('APARTADO','FIADO') AND total_pagado > 0
+  AND ((estado_pedido <> 'cancelado' AND total_pagado > total_pedido)
+       OR (estado_pedido = 'cancelado' AND (tipo_pedido = 'APARTADO' OR total_pagado >= total_pedido)))
+ORDER BY id DESC LIMIT 50;
+```
+
+💬 *"Ir pagando tiene lo mismo… si en Apartados no puede haber abonos, ¿por qué?"*
+↳ Un Apartado nuevo no acepta abonos a medias (desde el 2026-10-01), pero sí puede tener dinero
+cuando se **liquida completo**, y si después se cancela, ese dinero queda **a favor**. Los Apartados
+viejos (antes del 2026-10-01) pueden tener abonos de antes. En Ir pagando, "Saldo a favor" sale
+cuando pagó de más o cuando se canceló ya pagado; un Ir pagando cancelado que **todavía debía** no
+sale (eso es deuda, no saldo a favor).
+
+💬 *"Ordenar: el select se ve muy básico."*
+↳ Anotado: va en la homologación de pantallas (todos los selects con el mismo diseño).
+
+💬 Notas:
+
+- [ ] **Prueba 10 terminada**
+
+---
+
+## Prueba 11 — Entregado aparte del pago y pantallas homologadas — ⏳ sin subir
+
+**Para qué es:** desde ahora la card de un pedido dice **dos cosas**: si ya **pagó** y si ya se lo
+**llevó**. Verde lo que ya está, rojo lo que falta. Más el stock del modelo desde Agregar artículo y
+todas las pantallas con el mismo ancho y diseño.
+
+### 11.0 Antes de empezar (lo hago yo cuando digas "sube")
+
+1. En `inventario_key_qa`, en este orden: `migration_entrega_pedido.sql`, `migration_accion_gastos_admin.sql`
+   y `migration_tema_jade.sql`. Después se sube el back y el front a QA.
+2. **Tú:** cierra sesión y vuelve a entrar (los permisos nuevos viajan al entrar) y `Ctrl + Shift + R`.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Antes | Después |
+|---|---|---|---|---|
+| 11.1 | Columna nueva `pedidos.entregado` (la llena el script con lo que ya había) | Todas las cards de **Mis pedidos** | Una etiqueta: Pendiente / Por cobrar / Pagado / Entregado / Cancelado | Dos: **Pagado / Falta pagar $X** y **Entregado / Falta entregar** (cancelado: solo "Cancelado") |
+| 11.2 | Botones **📦 Entregar** y **↺** en la card y en el detalle | **Mis pedidos**, **👁 Detalle** | No había forma de marcar entregado | 📦 marca entregado (o todo el grupo); ↺ lo regresa (solo administrador) |
+| 11.3 | Pregunta **"¿Ya se lo llevó?"** | Venta directa, Carrito (Ir pagando), cobrar desde la card, liquidar en el detalle, Créditos / Abonos, pagar un grupo | Contado quedaba "Entregado" siempre; un Apartado liquidado quedaba "Pagado" sin saber si se lo llevó | Se pregunta. "Todavía no" deja **Falta entregar** con 📦 en la card |
+| 11.4 | Filtro **Estado** partido en **Pago** y **Entrega** | **Mis pedidos → ⚙️ Filtros** | Pendiente / Por cobrar / Pagado / Entregado / Cancelado | Pago: 💰 Falta pagar · ✅ Pagado · ❌ Cancelado. Entrega: 📦 Falta entregar · 🤝 Entregado |
+| 11.5 | Cancelar un **Ir pagando** | Cancelar desde Mis pedidos o Créditos / Abonos | El stock nunca regresaba | Si **no** se lo había llevado, el stock **sí** regresa. Si ya se lo llevó, igual que antes |
+| 11.6 | **Agregar artículo**: stock del modelo | **Catálogo → 🧩 Agregar producto** | Si al modelo no le quedaba stock, había que salir a subírselo | Se ve el stock total (bloqueado) y un campo para agregar o quitar |
+| 11.7 | Pantallas homologadas | Ver la lista en 11.7 | Anchos distintos, encabezados blancos o verdes, "Regresar" y "Volver" | Mismo ancho que Agregar modelo, encabezado con el color de Personalización, todos "Volver" |
+| 11.8 | Gastos: permisos del administrador | **Gastos** | El admin no veía el botón para agregar | Lo ve (y editar / eliminar) |
+| — | **Lo que NO debe cambiar** | Total, abonado, resta, cobrar, abonar, unir y separar | — | **Lo mismo que antes**: solo cambian las etiquetas y la entrega |
+
+**Tus pedidos para esta prueba** (créalos con la receta del principio, Art-200 = $200):
+
+| Pedido | Cómo | Anota su número |
+|---|---|---|
+| **E1** | Venta directa, **Contado**, Art-200, a la pregunta "¿Ya se lo llevó?" → **✅ Sí** | |
+| **E2** | Venta directa, **Contado**, Art-200, a la pregunta → **📦 Todavía no** | |
+| **E3** | Venta directa, **📦 Apartado**, Art-200, sin enganche (no pregunta) | |
+| **E4** | Venta directa, **💳 Ir pagando**, Art-200, enganche $50, a la pregunta → **📦 Todavía no** | |
+| **E5** | Venta directa, **💳 Ir pagando**, Art-200, enganche $50, a la pregunta → **✅ Sí** | |
+
+### 11.1 Las dos etiquetas de la card
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Mis pedidos** → busca **E1** | **Pagado** (verde) y **Entregado** (verde). Sin botón 📦 |
+| 2 | Busca **E2** | **Pagado** (verde) y **Falta entregar** (rojo). Botón **📦 Entregar** |
+| 3 | Busca **E3** | **Falta pagar $200.00** (rojo) y **Falta entregar** (rojo). **Sin** botón 📦 (un Apartado se entrega pagado) |
+| 4 | Busca **E4** | **Falta pagar $150.00** (rojo) y **Falta entregar** (rojo). **Con** botón 📦 (un Ir pagando sí se puede llevar debiendo) |
+| 5 | Busca **E5** | **Falta pagar $150.00** (rojo) y **Entregado** (verde) |
+| 6 | Busca un pedido **viejo** de contado cobrado, uno de Ir pagando y un Apartado abierto | Contado: Pagado + Entregado. Ir pagando: Entregado. Apartado abierto: Falta entregar |
+| 7 | Busca un pedido **cancelado** | Solo **Cancelado**, sin etiqueta de entrega ni 📦 |
+| 8 | Haz lo mismo **de noche** (botón 🌙) | Verde y rojo se leen bien |
+
+❌ **Está mal si:** el total, lo abonado o lo que falta cambió respecto a antes, o un Apartado sin pagar tiene 📦.
+
+### 11.2 📦 Entregar y ↺ regresar
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En **E2** toca **📦 Entregar** | La card pasa a **Entregado** (verde) y el 📦 desaparece. Sale el botón ↺ |
+| 2 | Toca **↺** → confirma | Regresa a **Falta entregar** |
+| 3 | Vuelve a tocar 📦 en E2 | Entregado otra vez |
+| 4 | Abre **👁 Detalle** de **E4** | Arriba: **Falta pagar** y **Falta entregar**, y el botón 📦 Entregar |
+| 5 | Toca 📦 en el detalle | Queda **Entregado**; sigue **Falta pagar $150.00** (entregar no cobra) |
+| 6 | En un grupo que falte entregar (el del paso 5 de 11.3 si ahí contestas **Todavía no**), toca 📦 en la card del grupo | Se entregan **los dos** pedidos del grupo |
+| 7 | Entra con un usuario **que no sea administrador** | No ve el ↺. El 📦 solo si en **Gestión de roles** su rol tiene "Entregar" |
+
+❌ **Está mal si:** 📦 cobra algo, o el ↺ le sale a alguien que no es administrador sin dárselo en Gestión de roles.
+
+### 11.3 "¿Ya se lo llevó?" al terminar de pagar
+
+La pregunta solo sale a quien tiene **Entregar** en Gestión de roles (de arranque, el administrador).
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre **E3** (Apartado $200) → **💳 Registrar abono** $200 (liquida) | Sale **"¿Ya se lo llevó?"**. Toca **✅ Sí** → Pagado + Entregado |
+| 2 | Crea otro Apartado de $200 y liquídalo desde **💳 Créditos / Abonos**; a la pregunta → **📦 Todavía no** | **Pagado** + **Falta entregar**, con 📦 en la card |
+| 3 | En **E4** (ya entregado en 11.2) registra $150 | Queda Pagado. **No** pregunta (ya se lo llevó) |
+| 4 | Si tienes un pedido de **contado sin cobrar** (su card tiene el botón **Cobrar**), cóbralo desde la card | Al cobrar pregunta "¿Ya se lo llevó?". La card **se queda** en la lista y se actualiza (antes desaparecía) |
+| 5 | Grupo de 2 Apartados de $100 → **💵 Pagar el grupo completo** ($200) | Pregunta una vez; con **Sí**, los dos quedan Entregado |
+| 6 | **Carrito** (Tienda → 🛒) → Ir pagando con enganche | Después de crear el pedido pregunta "¿Ya se lo llevó?" |
+| 7 | Venta directa con **Apartado** | **No** pregunta |
+| 8 | En la pregunta presiona **Esc** | Cuenta como "Todavía no": queda Falta entregar con 📦 |
+
+### 11.4 Filtros Pago y Entrega
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **⚙️ Filtros** | Dos bloques: **Pago** (💰 Falta pagar · ✅ Pagado · ❌ Cancelado) y **Entrega** (📦 Falta entregar · 🤝 Entregado) |
+| 2 | Solo **✅ Pagado** | E1, E2, E3 (ya liquidado)… todos con etiqueta verde de Pagado |
+| 3 | **✅ Pagado** + **📦 Falta entregar** | Solo los pagados que no se han llevado (el Apartado del paso 11.3.2). **No** sale E1 |
+| 4 | Solo **💰 Falta pagar** | Contados sin cobrar, Apartados e Ir pagando abiertos, juntos |
+| 5 | **💰 Falta pagar** + **🤝 Entregado** | Ir pagando que ya se llevaron y deben (E5) |
+| 6 | Forma de cobro **📦 Apartado** + **💰 Falta pagar** | Los Apartados abiertos. Ya no existe "Pendiente" para un Apartado |
+| 7 | Si tenías un filtro **guardado** con "Pendiente" o "Por cobrar" | Se carga como **💰 Falta pagar** |
+| 8 | **Gestión de roles → Mis pedidos** | Los filtros salen en "Filtros — pago" y "Filtros — entrega"; "Entregar" y "Regresar a Falta entregar" en "Tarjeta de pedido" |
+
+### 11.5 Cancelar un Ir pagando
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Anota el stock de Art-200. Crea un Ir pagando de Art-200 con enganche $50 y **📦 Todavía no** | El stock bajó 1 |
+| 2 | Cancélalo | *"Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $50.00"*. El stock **regresó** |
+| 3 | Cancela **E5** (Ir pagando que **sí** se llevó, debe $150) desde **💳 Créditos / Abonos** | *"FIADO cancelado. Stock NO devuelto (producto entregado). Deuda incobrable: $150.00"*. El stock **no** regresa (igual que antes) |
+
+### 11.6 Agregar artículo con stock del modelo
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Catálogo → Agregar modelo** con stock **2** → Guardar. Crea 2 artículos de 1 (que no le quede libre) | — |
+| 2 | **Catálogo → 🧩 Agregar producto** → elige ese modelo | **Stock total del modelo: 2** (gris, no se puede escribir) y al lado **Agregar (+) o quitar (−) al modelo**. Abajo *"Repartido: 2 · Libre: 0"* |
+| 3 | Llena el artículo con stock **3** sin tocar el ajuste | Aviso: *"Estás repartiendo 3 y solo quedan 0. Súbele stock al modelo en el campo de arriba."* |
+| 4 | Escribe **3** en Agregar (+) | *"Libre: 3 · El modelo quedaría en 5"*. Guardar → se guarda |
+| 5 | Vuelve a elegir el modelo | Stock total **5**, Repartido **5** |
+| 6 | Escribe **−1** | *"No se puede dejar el modelo en 4: ya tiene 5 repartidos."* y no deja guardar |
+| 7 | Con un usuario sin permiso de editar modelos | Solo ve el stock total, sin el campo de agregar |
+
+❌ **Está mal si:** el modelo sube de stock pero el artículo no se guardó (o al revés).
+
+### 11.7 Pantallas homologadas (de día y de noche)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre **Agregar modelo** y fíjate en el ancho de la tarjeta | Esa es la medida de todas |
+| 2 | Abre una por una: Nuevo producto, Carga rápida, Cargar catálogo Excel, Lugares de entrega, Entregas por zona, Cinta, Hashtags, Publicar en redes, Configuración del negocio, Diagnóstico, Reconciliación, Limpiar caché, Agregar mi compra, Mi perfil, Mis datos, Cambiar contraseña | Mismo ancho, centradas. El encabezado de la tarjeta con el color de **Personalización** (no blanco en unas y verde en otras), sin un cuadro dentro de otro |
+| 3 | **Clientes** y **Palabras clave (Categorías)** | Tabla: de día encabezado claro con letras en mayúsculas; de noche colores Jade oscuros |
+| 4 | Cualquier select (Ordenar en Mis pedidos, lugar en Lugares de entrega) | Todos iguales: mismo alto, borde y flecha |
+| 5 | Pantallas con botón para regresar | Todas dicen **"Volver"** (ninguna "Regresar") |
+| 6 | **Cambiar contraseña** | Sin botón Volver y el formulario arriba (ya no hasta abajo) |
+| 7 | **Sistema → Personalización** → cambia el color del encabezado de las tarjetas | Cambia en todas las pantallas de la lista |
+
+### 11.8 Gastos
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Gastos** con administrador | Botón para agregar gasto; editar y eliminar en cada uno |
+| 2 | Con un usuario sin ese permiso y sin gastos | No dice "agrega uno" |
+
+💬 Notas:
+
+- [ ] **Prueba 11 terminada**
+
+---
+
 ## Prueba 6 — Datos de prueba con un botón (la última)
 
 **Para qué es:** crear de un jalón miles de modelos, artículos y pedidos de prueba para no darlos de
@@ -928,6 +1169,7 @@ QA** (subir reinicia el servidor y corta la corrida).
 
 ## Lo que todavía no se prueba
 
-- **Diseño Jade y el cambio de "variante" a "artículo"**: están en una rama aparte y no han subido a QA.
-  Su guía es `PRUEBAS_RAMA_TEMA_JADE_ARTICULO.md`; te aviso cuando se suba.
-- **"Falta entregarlo" en la venta** y **"Saldo a favor"**: todavía no están programados.
+- **El cambio de "variante" a "artículo"** (rutas `/v2/articulos`): rama aparte `rename/variante-a-articulo`, no ha subido a QA.
+- **Alta de modelo con sus artículos en un paso** (flujo A de `PLAN_ALTA_MODELO_Y_ARTICULOS.md`):
+  esperan tus respuestas A10, A11 y si también reemplaza la ventana de 🧩 de la tarjeta.
+- **"¿Viene bien o dañado?"** al cancelar o devolver y **registrar que el dinero ya se devolvió**: acordados, sin programar.

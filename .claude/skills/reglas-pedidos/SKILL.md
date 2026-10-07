@@ -133,6 +133,14 @@ grupo) que cada forma de pago se registre bien: efectivo con monto recibido y ca
 exacta; tarjeta de **crédito** y de **débito** por separado; MSI con sus reglas (sección 3). Antes de
 tocar nada, hacer el mapa de qué acepta hoy cada punto.
 
+### 2.4 Pago y entrega son dos cosas (decidido 2026-10-06, 🆕 en desarrollo)
+
+La card dice siempre **dos** cosas: **Pagado** / **Falta pagar $X** y **Entregado** / **Falta entregar**
+(verde lo hecho, rojo lo que falta). Al liquidar un Apartado, al crear un Ir pagando y al cobrar un
+contado se pregunta **"¿Ya se lo llevó?"**; si se olvidó, la card tiene **📦 Entregar**. Ir pagando suele
+nacer Entregado con Falta pagar. Pedidos unidos: Entregar marca a todos. Regresar a "Falta entregar":
+solo admin por default, configurable en Gestión de roles. Reglas E1–E10: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §11.
+
 ## 3. Meses sin intereses (MSI)
 
 | Regla | Estado |

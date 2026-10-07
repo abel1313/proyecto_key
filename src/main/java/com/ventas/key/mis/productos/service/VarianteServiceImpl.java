@@ -14,6 +14,7 @@ import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
@@ -599,6 +600,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                             + "menos la talla, el color u otro dato, o ponerle stock");
         }
 
+        aplicarAjusteStockModelo(detalles);
         validarStockContraProducto(detalles);
         List<Long> imageIds = subirImagenes(detalles);
 
@@ -668,6 +670,57 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 }).toList();
         if (relaciones.isEmpty()) return;
         iVarianteImagenRepository.saveAll(relaciones);
+    }
+
+    /**
+     * B1 de PLAN_ALTA_MODELO_Y_ARTICULOS.md: desde Agregar articulo se le puede subir o bajar el
+     * stock al modelo sin salir de la pantalla. Va en la misma transaccion que el articulo: si el
+     * articulo no se guarda, el modelo tampoco cambia. Pide el mismo permiso que actualizar el
+     * modelo (Escritura en Modelos, Agregar modelo o Nuevo producto).
+     */
+    private void aplicarAjusteStockModelo(List<VarianteDetalle> detalles) {
+        Map<Integer, Integer> ajustes = new LinkedHashMap<>();
+        for (VarianteDetalle d : detalles) {
+            Integer ajuste = d.getAjusteStockModelo();
+            if (d.getProductoId() != null && ajuste != null && ajuste != 0) {
+                ajustes.putIfAbsent(d.getProductoId(), ajuste);
+            }
+        }
+        if (ajustes.isEmpty()) {
+            return;
+        }
+        if (!puedeActualizarModelo()) {
+            throw new ExceptionErrorInesperado(
+                    "No tienes permiso para cambiar el stock del modelo. Pídele a alguien con permiso de editar modelos");
+        }
+        for (Map.Entry<Integer, Integer> e : ajustes.entrySet()) {
+            Producto producto = iProductosRepository.findById(e.getKey())
+                    .orElseThrow(() -> new ExceptionDataNotFound("Producto no encontrado: " + e.getKey()));
+            int actual = producto.getStock() != null ? producto.getStock() : 0;
+            int nuevo = actual + e.getValue();
+            int repartido = iVarianteRepository.findByProductoId(e.getKey()).stream()
+                    .filter(v -> v.getHabilitado() == '1').mapToInt(Variantes::getStock).sum();
+            if (nuevo < repartido) {
+                throw new ExceptionErrorInesperado(String.format(
+                        "No se puede dejar el modelo en %d: ya tiene %d repartidos en sus artículos", nuevo, repartido));
+            }
+            producto.setStock(nuevo);
+            iProductosRepository.save(producto);
+            log.info("Stock del modelo {} ajustado desde Agregar artículo: {} -> {}", e.getKey(), actual, nuevo);
+        }
+    }
+
+    private static boolean puedeActualizarModelo() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        Set<String> permitidas = new HashSet<>(List.of("ROLE_ADMIN"));
+        for (String ruta : List.of("productos/buscar", "productos/agregar", "tienda/venta")) {
+            permitidas.add(com.ventas.key.mis.productos.filter.JwtAuthenticationFilter.PREFIJO_AUTORIDAD_PANTALLA
+                    + ruta + com.ventas.key.mis.productos.filter.JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ESCRITURA);
+        }
+        return auth.getAuthorities().stream().anyMatch(a -> permitidas.contains(a.getAuthority()));
     }
 
     private void validarStockContraProducto(List<VarianteDetalle> detalles) {
