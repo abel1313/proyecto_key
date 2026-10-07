@@ -162,6 +162,30 @@ class CambiarTipoPedidoTest {
     }
 
     @Test
+    @DisplayName("el pedido en linea (Pendiente) pasa a Apartado y deja de estar Pendiente")
+    void pedidoEnLineaPendienteAApartado() {
+        Pedido p = pedido("NORMAL", 450, 0);
+
+        service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO"));
+
+        assertThat(p.getTipoPedido()).isEqualTo("APARTADO");
+        // Si se quedara 'Pendiente', el cancelador automatico lo cancelaria igual.
+        assertThat(p.getEstadoPedido()).isEqualTo("APARTADO");
+    }
+
+    @Test
+    @DisplayName("el pedido en linea (Pendiente) pasa a Ir pagando con un adelanto")
+    void pedidoEnLineaPendienteAIrPagandoConAdelanto() {
+        Pedido p = pedido("NORMAL", 450, 0);
+
+        service.cambiarTipoPedido(PEDIDO_ID, cobrando("FIADO", 100, null));
+
+        assertThat(p.getTipoPedido()).isEqualTo("FIADO");
+        assertThat(p.getEstadoPedido()).isEqualTo("FIADO");
+        verify(abonoService).registrarAbono(eq(PEDIDO_ID), any());
+    }
+
+    @Test
     @DisplayName("el tipo se acepta en minusculas")
     void aceptaMinusculas() {
         Pedido p = pedido("APARTADO", 1000, 300);
@@ -421,7 +445,9 @@ class CambiarTipoPedidoTest {
     @Test
     @DisplayName("un pedido de contado no tiene saldo que cobrar en el cambio")
     void contadoNoTieneSaldoQueCobrar() {
-        pedido("NORMAL", 1000, 1000);
+        // Contado ya cobrado (falta entregar). El 'Pendiente' de un contado es el pedido en linea
+        // sin cobrar, que si acepta adelanto al pasarlo a Ir pagando (ver la prueba de arriba).
+        pedido("NORMAL", 1000, 1000).setEstadoPedido("PAGADO");
 
         assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cobrando("FIADO", 200, null)))
                 .hasMessageContaining("no tiene saldo que cobrar");

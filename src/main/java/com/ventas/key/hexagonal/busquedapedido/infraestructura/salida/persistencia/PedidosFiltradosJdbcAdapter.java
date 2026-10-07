@@ -152,6 +152,21 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         return new PaginaDePedidos(ids, total == null ? 0 : total, filtro.pagina(), filtro.tamano());
     }
 
+    /**
+     * Pendiente y Contado guardan los dos {@code tipo_pedido = 'NORMAL'}: los separa el estado. El
+     * pedido que el cliente hace desde su cuenta queda 'Pendiente' hasta que se cobra (Entregado /
+     * PAGADO) o se cancela. Constantes fijas: no entra texto del usuario al SQL.
+     */
+    private static String forma(FormaDeCobro forma) {
+        String esNormal = "COALESCE(p.tipo_pedido,'NORMAL') = 'NORMAL'";
+        return switch (forma) {
+            case PENDIENTE -> "(" + esNormal + " AND " + ESTADO_P + " = 'PENDIENTE')";
+            case CONTADO -> "(" + esNormal + " AND " + ESTADO_P + " <> 'PENDIENTE')";
+            case APARTADO -> "p.tipo_pedido = 'APARTADO'";
+            case IR_PAGANDO -> "p.tipo_pedido = 'FIADO'";
+        };
+    }
+
     private static List<String> condiciones(FiltroPedidos f, LocalDate hoy, MapSqlParameterSource params) {
         List<String> w = new ArrayList<>();
 
@@ -175,8 +190,7 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         }
 
         if (!f.formas().isEmpty()) {
-            params.addValue("formas", f.formas().stream().map(FormaDeCobro::codigo).toList());
-            w.add("COALESCE(p.tipo_pedido,'NORMAL') IN (:formas)");
+            w.add("(" + String.join(" OR ", f.formas().stream().map(PedidosFiltradosJdbcAdapter::forma).toList()) + ")");
         }
 
         // Pago y Entrega (dominio entrega, 2026-10-06): OR dentro de cada bloque, AND entre los dos.

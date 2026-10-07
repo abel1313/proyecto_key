@@ -14,17 +14,18 @@ qué hay hoy, qué falta, quién lo hace, dónde se saca y cuánto cuesta.
 
 ## Avance (2026-10-07) — lo que ya se programó sin tus datos
 
-En `dev`, **sin subir** (espera tu "sube"); se prueba con la **Prueba 12** de `GUIA_DE_PRUEBAS_QA.md`.
+En `dev` y `qa` desde el 2026-10-07; se prueba con la **Prueba 12** de `GUIA_DE_PRUEBAS_QA.md` (y lo de
+seguridad del mismo día, con la **Prueba 13**).
 
 | Punto | Qué quedó | Qué falta |
 |---|---|---|
-| 4 Datos del negocio | **Sistema → Configuración del negocio → ⚖️ Datos legales**; salen solos en el pie de página, Términos, Aviso de privacidad y ticket | **Tú:** capturar nombre, domicilio, teléfono y RFC reales |
+| 4 Datos del negocio | **Sistema → Negocio & Contactos → ⚖️ Datos legales del negocio** (debajo de cada campo dice de dónde sale y dónde se ve, 2026-10-07); salen solos en el pie de página, Términos, Aviso de privacidad y ticket | **Tú:** capturar nombre, domicilio, teléfono y RFC reales |
 | 5 Términos | Reescritos: garantía 90 días, cancelar en 5 días hábiles, formas de pago (Apartado sin dinero, Ir pagando sin intereses), qué pasa con el dinero al cancelar, perfumes, PROFECO | Abogado: revisar; **tú:** si quieres dar más de 90 días o cambios por talla, avísame |
 | 6 Aviso de privacidad | Responsable (de Datos legales), finalidades separadas, cómo limitar y revocar, ARCO con plazos, proveedores y países; aviso corto en el registro | Abogado: revisar |
 | 7 Ir pagando / Apartado | Aviso "sin intereses, precio de contado, total, CAT 0%" en Venta directa y Carrito; "Abonos sin intereses (CAT 0%)" en el ticket | — |
 | 8 Ticket | Datos del negocio arriba y "Garantía de 90 días" abajo | Factura: cuando estés en el SAT (punto 2) |
 | 13 Bot | Regla nueva: solo lo del catálogo, nada de "original"/"garantizado"/efectos en la salud | **Tú:** lo mismo en tus publicaciones |
-| 15 Seguridad | `SEGURIDAD_DATOS.md`: medidas documentadas y qué hacer si hay una fuga | DPA de OpenAI (punto 23) |
+| 15 Seguridad | `SEGURIDAD_DATOS.md`: medidas documentadas y qué hacer si hay una fuga. **2026-10-07:** la tienda ya manda encabezados de seguridad (contra clickjacking, https forzado en el navegador, cámara y ubicación solo de la tienda) — `SEGURIDAD_DATOS.md` §6 | DPA de OpenAI (punto 23); **tú:** revisar en la VPS que `http://` mande a `https://` (S2) y decidir si el RFC se muestra en la tienda (S3) |
 | 16 Aceptación de Términos | Casilla en el registro y fecha guardada | — |
 | 20 Google | Título y datos de producto por artículo, `noindex` en "no disponible", sitemap y robots arreglados, fotos con nombre, sin canonical fijo | Ficha de Google (tú) |
 
@@ -141,6 +142,18 @@ Tejupilco (Estado de México) y Zacazonapan**. Eso contesta en parte la duda 2: 
   cambiarlos sin programar.
 - **Si no quieres publicar tu casa:** necesitas un domicilio del negocio (oficina virtual o local),
   y ese mismo va en el SAT.
+- **De dónde sale cada dato (2026-10-07, también escrito en la pantalla):**
+
+  | Campo | De dónde | Se ve en |
+  |---|---|---|
+  | Nombre del responsable | Constancia de Situación Fiscal → "Datos de identificación del contribuyente": nombre(s) y apellidos, sin abreviar (igual que la INE) | Pie, Términos, Aviso de privacidad, ticket |
+  | RFC | Constancia → "RFC" (o la cédula con QR). No cambia al darse de alta en RESICO. Opcional (duda 19) | Términos, ticket |
+  | Teléfono | No sale de un documento: el número donde se contesta a clientes (WhatsApp del negocio). 10 dígitos | Pie, Términos, Aviso de privacidad, ticket |
+  | Domicilio | **El del negocio (local)**, no el de la constancia actual (es el del patrón). Mismo orden que la constancia. Después del cambio de domicilio en el SAT (punto 1) deben coincidir | Pie, Términos, Aviso de privacidad, ticket |
+  | Correo | Uno que se revise seguido: `contacto@novedades-jade.com.mx` | Pie, Términos, Aviso de privacidad, ticket |
+  | Horario | El mismo de "🕐 Horario de atención" de esa pantalla, en palabras | Pie, Términos |
+
+  La constancia se descarga gratis en sat.gob.mx → "Genera tu Constancia de Situación Fiscal" o en SAT Móvil.
 
 ### 5. 🔴 Términos y condiciones
 - **Tenemos:** Términos en `/termConditions`, en el pie de página.
@@ -331,6 +344,7 @@ Ya explicado en la conversación del 2026-10-07:
 | 16 | ¿Piensas publicar una **app** para clientes en Google Play o App Store? | `LEGAL_OTROS_PAISES.md` §5 |
 | 17 | ¿Vendes o envías **fuera de México**? | `LEGAL_OTROS_PAISES.md` §6 |
 | 18 | ¿Pagas **anuncios** en Facebook, Instagram, TikTok o Google? ¿Le pagas o regalas producto a alguien para que te promocione? | Puntos 13 y 24 |
+| 19 | ¿Quieres que tu **RFC** salga en la tienda (Términos)? Si vendes como persona física, el RFC trae tu fecha de nacimiento y la ley no pide mostrarlo antes de comprar (sí en la factura). Puede quedar solo en el ticket | `SEGURIDAD_DATOS.md` §6, S3 |
 
 ---
 

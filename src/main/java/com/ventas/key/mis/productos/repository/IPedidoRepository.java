@@ -32,7 +32,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     // 'cancelado'. Esta consulta solo AMPLIA lo que ve la pantalla: no toca ventas, reportes,
     // dashboard ni el auto-cancelador (ese usa su propio metodo con 'Pendiente' literal).
     @Query("SELECT p FROM Pedido p WHERE p.lugarEntrega.id = :lugarEntregaId " +
-           "AND p.estadoPedido IN ('Pendiente', 'APARTADO') " +
+           "AND p.entregado = false AND LOWER(p.estadoPedido) <> 'cancelado' " +
            "AND p.fechaPedido BETWEEN :desde AND :hasta " +
            "AND NOT EXISTS (SELECT 1 FROM RamoPedidoDetalle r WHERE r.pedido = p)")
     List<Pedido> findPendientesDeZonaEnRango(@Param("lugarEntregaId") Integer lugarEntregaId,

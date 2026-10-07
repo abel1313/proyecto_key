@@ -68,6 +68,132 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-26] 🆕 Pedido 🕓 Pendiente: filtro propio, pasarlo a Apartado / Ir pagando y Entregas por zona (2026-10-07)
+
+**1. Filtro de Mis pedidos** — `GET /mis-productos/v1/pedidos/buscar?formaCobro=PENDIENTE`
+- Valor nuevo `PENDIENTE` en `formaCobro`: el pedido que el cliente hizo desde su cuenta y nadie cobró ni
+  pasó a Apartado / Ir pagando (en la base: `tipo_pedido = NORMAL` y `estado_pedido = 'Pendiente'`).
+- **Cambia `CONTADO`:** antes traía también los Pendientes; ahora solo los contado ya cobrados. Un filtro
+  guardado con `CONTADO` + `FALTA_PAGAR` ahora da 0 (antes eran los Pendientes).
+
+**2. Cambiar forma de cobro** — `PUT /mis-productos/v1/pedidos/{id}/tipo` (el de siempre, sin cambios en el body)
+- Pendiente → `APARTADO` / `FIADO`: ahora el `estado_pedido` también cambia. **Antes** se quedaba
+  `'Pendiente'`, y el cancelador automático (8:00 a. m., `Pendiente` con fecha de recogida vencida hace
+  2 días) lo cancelaba aunque ya fuera Apartado; tampoco salía como Apartado en Créditos / Abonos.
+- Pendiente → `FIADO` con `monto` (adelanto): **antes** 400 *"es de tipo NORMAL y no tiene saldo que
+  cobrar"*; **ahora** registra el abono.
+- Un contado ya cobrado (`PAGADO`/`Entregado`) sigue sin aceptar cobro en el cambio (igual que antes).
+
+**3. Entregas por zona** — `GET /mis-productos/v1/entregas-zona/...` (sin cambios en URL ni response)
+- **Antes:** solo pedidos `Pendiente` y `APARTADO`.
+- **Ahora:** todos los de la zona que **no se han entregado** (`entregado = 0`) y no están cancelados:
+  también Ir pagando que no se ha llevado y Pagados que faltan por entregar. Siguen fuera los ramos.
+  Al programar, el correo también les llega a ellos.
+
+**Front:** opción "🕓 Pendiente" en Forma de cobro (mismo permiso que Contado, `filtro-normal`),
+etiqueta "🕓 Pendiente" en la card, el formulario 🔁 dice "Ahora está como 🕓 Pendiente…", y el ícono
+ⓘ (`<app-ayuda-opciones>`) en cada bloque de filtros y en Entregas por zona, visible solo con
+**Ayuda contextual** (o admin). Textos fijos en el código.
+
+---
+
+### [BUG-KEY-25] 🆕 Zonas de entrega: "Recoger en tienda" solo en una fila, y sin envío/horas/día (2026-10-07)
+
+**Request:** `POST /mis-productos/v1/lugares-entrega/save` y `PUT /mis-productos/v1/lugares-entrega/update/{id}`. Sin cambios en URL ni body.
+**Antes:** se podía prender `esRecogerEnTienda` en cualquier zona ("El estanco" con envío y horas extra)
+y en varias a la vez; el Carrito le pedía al cliente fecha de recogida para un lugar que no es el local.
+**Después:**
+- Si otra fila ya es la de recoger en tienda → **400** con `mensaje`: *"\"Local Tejupilco\" ya es la fila de recoger en tienda. Solo puede haber una: apágala ahí primero o edita esa."*
+- La fila con `esRecogerEnTienda: true` se guarda con `costoEnvio`, `horasExtraAnticipacion` y `diaEntregaSemanal` en `null` (no aplican al local).
+**Front:** en **Envíos → Zonas de entrega**, al prender el interruptor se esconden Envío, Horas extra,
+Día de entrega y los anillos, y sale una nota que explica que esa fila es el local.
+
+**También (solo front, mismo día):** se quitó de Zonas de entrega el select **"Sin día fijo / Lunes…"**
+(`diaEntregaSemanal`). Solo prellenaba la fecha del viaje en Entregas por zona y podía no coincidir con la
+fecha que se escoge ahí (la fecha ya dice el día). El front manda `diaEntregaSemanal: null` al guardar y
+ya no usa `fechaSugerida` de `GET /v1/entregas-zona/...`. El back no cambia: la columna y `fechaSugerida`
+siguen existiendo (para zonas viejas que aún no se editan).
+
+---
+
+### [BUG-KEY-24] 🆕 Agregar producto: la categoría del modelo pasa al artículo (2026-10-07)
+
+**Request:** los listados y búsquedas de modelos de siempre (`GET /mis-productos/v1/productos/obtenerProductos`,
+`/buscarNombreOrCodigoBarra`…). Sin cambios en URL ni params.
+**Response (solo admin):** cada producto trae un campo nuevo:
+```json
+{ "idProducto": 418, "nombre": "Bolsa", "palabraClave": { "id": 7, "nombre": "BOLSAS" } }
+```
+`palabraClave` viene `null` si el modelo no tiene categoría. El cliente (no admin) no lo recibe.
+**Front:** en **Catálogo → Agregar producto** (`tienda/venta`), al elegir el modelo la **Categoría** ya
+sale llena con la del modelo (editable), igual que color, marca, descripción y contenido. Si se cambia
+de modelo y nadie la tocó, se pone la del nuevo.
+**Diferencia clave:** antes la casilla salía **vacía** aunque el modelo tuviera categoría. Al guardar el
+back sí se la ponía al artículo si iba vacía, pero en pantalla parecía que no la tenía.
+
+---
+
+### [BUG-KEY-23] 🆕 Habilitar artículos en lote: el stock se ajusta a lo libre del modelo (2026-10-07)
+
+**Request:** el de siempre para habilitar/deshabilitar artículos en lote. Sin cambios en URL ni body.
+**Response:** el texto puede cambiar al habilitar: *"Variantes habilitadas. Se ajustó el stock a lo
+que quedaba libre del modelo: Bolsa M ROJA de 3 a 1."* Sin ajustes, el de siempre.
+**Diferencia clave:** antes un artículo viejo deshabilitado volvía con su stock aunque el modelo ya no
+tuviera libre (quedaba descuadrado). Deshabilitar sigue dejándolo en 0.
+
+---
+
+### [BUG-KEY-22] ✅ HOTFIX prod: 🧩 Productos del modelo respondía 400 y no decía cuánto stock quedaba (2026-10-07)
+
+**En prod desde el 2026-10-07** (back `282a530`, front `161c0d4f`; validado por el dueño).
+**Causa real del 400:** no era el stock. Tomcat rechazaba la petición (encabezados de más de 8 KB por
+el token del admin) antes de llegar a la app: nginx registraba `400 435` y el front, sin `mensaje` en
+la respuesta, mostraba *"Error al crear variantes — Intenta de nuevo"*. Arreglo:
+`server.max-http-request-header-size: 64KB` en el back. Lo de abajo se subió en el mismo hotfix.
+
+**Request:** `POST /mis-productos/v1/variantes/inicializarDesdeProducto` (multipart: `request` + `files[]`). Sin cambios.
+
+**Qué fallaba (antes):** en **Catálogo → 🔍 Modelos → 🧩 Productos**, la ventana decía "Stock disponible"
+con el stock **total** del modelo y dejaba pedir hasta ese número. El back resta el stock que ya tienen
+los artículos habilitados del modelo y rechazaba con *"Stock insuficiente para crear 2 variantes del
+producto 123. Stock disponible: 0"*. Caso real: modelo con 3, en la Tienda se veía 1 artículo, pedir 2
+fallaba; los otros artículos con stock existían pero **sin foto**, y sin foto no salen en la Tienda.
+Además, si se elegían fotos sin marcar "Misma imagen para todas", el back las **descartaba sin avisar**
+y los artículos nacían sin foto.
+
+**Después:**
+- La ventana pide `GET /v1/variantes/porProducto/{id}` y muestra *"Stock del modelo: 3 · En sus
+  artículos: 3 · Puedes crear: 0"*; no deja pedir más de lo que se puede. Con 0, no abre: explica y
+  manda a buscar los artículos con el filtro **Sin imágenes** de la Tienda.
+- Fotos elegidas sin marcar "Misma imagen para todas" → no deja seguir (antes se perdían).
+- **404** con mensaje nuevo: *"No alcanza el stock para crear 2 artículo(s): el modelo tiene 3 y sus
+  artículos ya tienen 3 (2 sin foto: no salen en la tienda, búscalos con el filtro "Sin imágenes").
+  Puedes crear 0. Sube el stock del modelo o quítale stock a un artículo."*
+- `IVarianteDto` (front) suma `habilitado`, que el back ya mandaba.
+
+---
+
+### [BUG-KEY-21] 🆕 Personalización: 2 colores nuevos para los filtros (2026-10-07)
+
+**Request:** `GET /mis-productos/v1/tema-variable/activo` (sin cambios en la URL ni en los parámetros).
+
+**Response:** después de correr `migration_tema_filtros.sql` trae **2 filas más**, grupo `Formularios`:
+
+| `clave` | Para qué | `valorClaro` | `valorOscuro` |
+|---|---|---|---|
+| `filtros-panel-bg` | Fondo del recuadro de búsqueda y filtros (Tienda y Catálogo → Modelos) | `rgba(255,255,255,0.70)` | `#1c1e2c` |
+| `filtro-bg` | Fondo de cada filtro (casillas, fechas y precio) | `rgba(45,117,96,0.10)` | `rgba(91,185,154,0.14)` |
+
+**Diferencia clave:** el front las aplica como `--filtros-panel-bg` y `--filtro-bg`, igual que las
+demás filas (`TemaService`). Sin el script, el front usa los mismos valores de `styles.scss`, así que
+se ve igual; solo que no se pueden cambiar desde Personalización.
+
+**Antes / después en pantalla:** el recuadro de Tienda y de Catálogo → Modelos estaba transparente
+(la regla de encabezados del 2026-10-06 lo borraba); ahora tiene fondo. Ver Prueba 13 de
+`GUIA_DE_PRUEBAS_QA.md`.
+
+---
+
 ### [BUG-KEY-20] 🆕 Datos legales del negocio y aceptación de Términos en el registro
 **Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migración:** `migration_datos_legales.sql`
 (**antes** del deploy del back: la entidad `Usuario` ya mapea `acepto_terminos` y sin la columna falla el login).

@@ -83,7 +83,15 @@ las promociones vigentes, y **rechaza** si el total que mandó el front no coinc
 
 ---
 
-## ⚠️ Duda 2 — Variantes deshabilitadas con stock
+## R6 — Al volver a habilitar, el artículo solo se lleva lo libre (decidido 2026-10-07)
+Palabras del dueño: *"si tengo un artículo con 3 deshabilitado y ya usé 2 para otro, sobra 1; al
+habilitarlo se valida cuánto hay libre y se actualiza a 1"*. Desde 2026-10-01 dar de baja o
+deshabilitar deja el artículo en 0 (su stock vuelve al libre del modelo, **lectura (a)** de la Duda 2:
+no hace falta modal). Los artículos deshabilitados **antes** de eso todavía guardan su stock viejo:
+al habilitarlos, `habilitarDeshabilitarVariantesLote` les deja `min(stock viejo, libre)` y el mensaje
+dice qué se ajustó (*"Bolsa M ROJA de 3 a 1"*). Pruebas en `VarianteStockDevolucionTest`.
+
+## ✅ Duda 2 — Variantes deshabilitadas con stock (cerrada: lectura (a) + R6)
 
 Pedido del usuario: un modal que pregunte *"¿querés tomar el stock de una variante dada
 de baja?"* y, al aceptar, se lo quite a esa variante.

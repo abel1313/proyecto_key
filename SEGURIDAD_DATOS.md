@@ -19,6 +19,9 @@ ese documento. Sale de `LEGAL_PLAN_DE_ACCION.md`, punto 15.
 **Técnicas**
 - Contraseñas cifradas (BCrypt); nadie del negocio puede verlas.
 - Conexión cifrada (https) en la tienda.
+- Encabezados de seguridad en la tienda (2026-10-07, ver §6): no se puede meter dentro de otra
+  página (clickjacking), el navegador no adivina tipos de archivo, solo usa https una vez que entró
+  por https, y la cámara y la ubicación solo las puede pedir la propia tienda.
 - Sesión con token de 15 minutos y renovación de 7 días en cookie segura; cerrar sesión la invalida.
 - Cambiar la contraseña invalida los tokens anteriores.
 - Bloqueo por intentos fallidos de login y límite de registros por IP (en dev y prod).
@@ -66,3 +69,18 @@ Plantilla del aviso:
 - [ ] Aceptar el acuerdo de tratamiento de datos (DPA) de OpenAI desde su cuenta (`LEGAL_PLAN_DE_ACCION.md`, punto 23).
 - [ ] Correo del negocio con dominio propio en lugar de Gmail personal (punto 25).
 - [ ] Revisar cada 6 meses quién tiene acceso al admin y quitar a quien ya no lo necesite.
+
+## 6. Revisión del 2026-10-07 — lo que salió al revisar lo legal
+
+Al revisar los dos videos legales (`LEGAL_PLAN_DE_ACCION.md`, puntos 15 y 20) y el código nuevo de
+datos legales salieron estos puntos de seguridad. Se prueban en la **Prueba 13** de
+`GUIA_DE_PRUEBAS_QA.md`.
+
+| # | Hallazgo | Riesgo | Estado |
+|---|---|---|---|
+| S1 | La tienda (nginx del contenedor del front, `default.conf`) **no mandaba ningún encabezado de seguridad**. El back sí los manda (Spring Security), la tienda no | Otra página podía mostrar la tienda dentro de un marco invisible y engañar al cliente para que tocara botones (clickjacking); sin HSTS, el primer acceso por `http://` se puede interceptar | ✅ **Corregido en `dev`** (front, `default.conf`): `X-Frame-Options: SAMEORIGIN`, `Content-Security-Policy: frame-ancestors 'self'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (cámara y ubicación solo la tienda, micrófono nadie), `Strict-Transport-Security` de 1 año y `server_tokens off` (ya no dice la versión de nginx). Probado con nginx 1.24: la tienda, sus rutas y sus archivos responden 200 con los encabezados |
+| S2 | ¿`http://` manda solo a `https://`? (punto 4 del video 1) | Si no redirige, alguien en la misma red puede ver lo que se manda | ⚠️ **No se pudo comprobar desde aquí** (la red de este entorno no entra a la tienda). Lo revisa el dueño en la VPS: `curl -sI http://shop.novedades-jade.com.mx/` y `curl -sI http://qa.shop.novedades-jade.com.mx/` → tiene que salir `301` con `Location: https://…`. Si sale `200`, en el bloque `server { listen 80; … }` de ese dominio poner `return 301 https://$host$request_uri;` (Certbot normalmente ya lo deja) |
+| S3 | `GET /v1/datos-legales` es público y devuelve el **RFC**, y Términos lo muestra | El RFC de una persona física trae su **fecha de nacimiento**. La ley (LFPC 76 bis III) pide domicilio y teléfono antes de comprar, **no** el RFC; el RFC sí va en la factura | ❓ **Decisión del dueño, no se cambió**: el plan legal decidió mostrarlo. Opciones: (a) dejarlo; (b) quitarlo de la respuesta pública y de Términos y dejarlo solo para el ticket y la factura. Mientras no se capture, no se muestra nada |
+| S4 | El límite de intentos de login y de registros por IP está **apagado en QA** (`seguridad.rate-limit-habilitado: false`, hallazgo 16 de `SEGURIDAD_AUTH.md`) | En QA, que está en internet, se pueden probar contraseñas sin límite | ⏭️ **Sigue así a propósito** (decisión del 2026-07-31). En dev y prod está encendido. Consecuencia: el límite de registros por IP **no se puede probar en QA** |
+| S5 | No hay `Content-Security-Policy` completa (qué scripts e imágenes puede cargar la tienda) | Si alguna vez se cuela un script, el navegador no lo frena | ⏳ **Pendiente, a propósito**: una política completa sin probar rompe la tienda (Bootstrap, fuentes, imágenes del micro, el chat y el escáner). Se arma después con `Content-Security-Policy-Report-Only`, revisando la consola en QA, y luego se enciende |
+

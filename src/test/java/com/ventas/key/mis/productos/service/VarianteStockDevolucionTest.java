@@ -143,6 +143,41 @@ class VarianteStockDevolucionTest {
         verify(iProductosRepository, never()).save(any());
     }
 
+    @Test
+    void habilitar_articuloViejoConStock_seAjustaALoLibreDelModelo() {
+        // Modelo con 5; un articulo habilitado ya tiene 4 -> libre 1. El viejo dado de baja guarda 3.
+        Producto producto = producto(100, 5);
+        Variantes activo = variante(1, producto, 4, '1');
+        Variantes viejo = variante(2, producto, 3, '0');
+        List<Integer> ids = List.of(2);
+
+        when(iVarianteRepository.findAllById(ids)).thenReturn(List.of(viejo));
+        when(iVarianteRepository.findByProductoIdAndHabilitado(100, '1')).thenReturn(List.of(activo));
+
+        String mensaje = service.habilitarDeshabilitarVariantesLote(ids, true);
+
+        assertEquals(1, viejo.getStock(), "solo se lleva lo libre del modelo");
+        assertEquals('1', viejo.getHabilitado());
+        assertEquals(5, producto.getStock());
+        org.junit.jupiter.api.Assertions.assertTrue(mensaje.contains("de 3 a 1"), mensaje);
+    }
+
+    @Test
+    void habilitar_articuloViejoConStock_siAlcanzaNoSeToca() {
+        Producto producto = producto(100, 10);
+        Variantes activo = variante(1, producto, 4, '1');
+        Variantes viejo = variante(2, producto, 3, '0');
+        List<Integer> ids = List.of(2);
+
+        when(iVarianteRepository.findAllById(ids)).thenReturn(List.of(viejo));
+        when(iVarianteRepository.findByProductoIdAndHabilitado(100, '1')).thenReturn(List.of(activo));
+
+        String mensaje = service.habilitarDeshabilitarVariantesLote(ids, true);
+
+        assertEquals(3, viejo.getStock());
+        assertEquals("Variantes habilitadas correctamente.", mensaje);
+    }
+
     /**
      * El caso del bug: editar el stock de una variante existente reparte del disponible, nunca
      * infla el stock base. Base 10 con la variante en 2, se edita a 5 -> base sigue 10.

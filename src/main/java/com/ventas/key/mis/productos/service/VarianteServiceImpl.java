@@ -248,14 +248,23 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Producto producto = iProductosRepository.findById(requestVarianteDto.getProductoId())
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));
 
-        int stockEnVariantes = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
-                .stream().filter(v -> v.getHabilitado() == '1').mapToInt(Variantes::getStock).sum();
+        List<Variantes> conStock = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
+                .stream().filter(v -> v.getHabilitado() == '1' && v.getStock() > 0).toList();
+        int stockEnVariantes = conStock.stream().mapToInt(Variantes::getStock).sum();
 
         int stockDisponible = producto.getStock() - stockEnVariantes;
         if (stockDisponible < requestVarianteDto.getCantidadVariantes()) {
-            throw new ExceptionDataNotFound(
-                    String.format("Stock insuficiente para crear %d variantes del producto %d. Stock disponible: %d",
-                            requestVarianteDto.getCantidadVariantes(), producto.getId(), stockDisponible));
+            // Los articulos sin foto no salen en la tienda pero si ocupan stock del modelo: sin
+            // decirlo, el dueño ve 1 articulo en la tienda y no entiende por que no le alcanza.
+            long sinFoto = conStock.stream()
+                    .filter(v -> iVarianteImagenRepository.findByVarianteId(v.getId()).isEmpty()).count();
+            String detalleSinFoto = sinFoto == 0 ? ""
+                    : String.format(" (%d sin foto: no salen en la tienda, búscalos con el filtro \"Sin imágenes\")", sinFoto);
+            throw new ExceptionDataNotFound(String.format(
+                    "No alcanza el stock para crear %d artículo(s): el modelo tiene %d y sus artículos ya tienen %d%s. "
+                            + "Puedes crear %d. Sube el stock del modelo o quítale stock a un artículo.",
+                    requestVarianteDto.getCantidadVariantes(), producto.getStock(), stockEnVariantes,
+                    detalleSinFoto, Math.max(stockDisponible, 0)));
         }
 
         List<Long> imageIds = List.of();
@@ -1142,6 +1151,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         if (!habilitar) {
             variantes.forEach(v -> v.setStock(0));
         }
+        List<String> ajustados = habilitar ? ajustarStockAlHabilitar(variantes) : List.of();
         variantes.forEach(v -> v.setHabilitado(habilitar ? '1' : '0'));
         iVarianteRepository.saveAll(variantes);
         iVarianteRepository.flush();
@@ -1166,7 +1176,45 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         evictAllCaches();
 
-        return habilitar ? "Variantes habilitadas correctamente." : "Variantes deshabilitadas correctamente.";
+        if (!habilitar) return "Variantes deshabilitadas correctamente.";
+        return ajustados.isEmpty() ? "Variantes habilitadas correctamente."
+                : "Variantes habilitadas. Se ajustó el stock a lo que quedaba libre del modelo: "
+                        + String.join("; ", ajustados) + ".";
+    }
+
+    /**
+     * Un articulo dado de baja antes de que la baja lo dejara en 0 todavia guarda su stock viejo.
+     * Al habilitarlo solo puede llevarse lo que el modelo tenga libre (stock del modelo menos lo
+     * que ya tienen sus articulos habilitados): si no, el modelo queda descuadrado. Devuelve los
+     * ajustes hechos, en palabras para el dueño.
+     */
+    private List<String> ajustarStockAlHabilitar(List<Variantes> aHabilitar) {
+        List<String> ajustes = new ArrayList<>();
+        Map<Integer, List<Variantes>> porModelo = aHabilitar.stream()
+                .filter(v -> v.getHabilitado() != '1' && v.getStock() > 0)
+                .collect(Collectors.groupingBy(v -> v.getProducto().getId()));
+        for (Map.Entry<Integer, List<Variantes>> e : porModelo.entrySet()) {
+            Producto modelo = e.getValue().get(0).getProducto();
+            int repartido = iVarianteRepository.findByProductoIdAndHabilitado(modelo.getId(), '1').stream()
+                    .mapToInt(Variantes::getStock).sum();
+            int libre = Math.max((modelo.getStock() != null ? modelo.getStock() : 0) - repartido, 0);
+            for (Variantes v : e.getValue()) {
+                int queda = Math.min(v.getStock(), libre);
+                if (queda < v.getStock()) {
+                    ajustes.add(String.format("%s de %d a %d", nombreArticulo(modelo, v), v.getStock(), queda));
+                    v.setStock(queda);
+                }
+                libre -= queda;
+            }
+        }
+        return ajustes;
+    }
+
+    private static String nombreArticulo(Producto modelo, Variantes v) {
+        StringBuilder sb = new StringBuilder(modelo.getNombre() != null ? modelo.getNombre() : "Artículo " + v.getId());
+        if (v.getTalla() != null && !v.getTalla().isBlank()) sb.append(" ").append(v.getTalla());
+        if (v.getColor() != null && !v.getColor().isBlank()) sb.append(" ").append(v.getColor());
+        return sb.toString();
     }
 
     public DiagnosticoImagenVarianteDto diagnosticarImagenesVariante(Integer varianteId) {

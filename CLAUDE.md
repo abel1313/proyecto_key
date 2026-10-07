@@ -608,6 +608,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ⏳ pendiente — **antes** del deploy del back a `main` | qa 2026-10-07 |
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
 | `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ⏳ pendiente — **antes** del deploy del back a `main` (sin ella falla el login) | qa 2026-10-07 |
+| `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
 
@@ -620,11 +621,14 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 2 | `migration_accion_gastos_admin.sql` | Sin ella el admin no ve el botón para agregar gastos. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
 | 4 | `migration_datos_legales.sql` | La entidad `Usuario` mapea `acepto_terminos`: **sin la columna falla el login**. Crea `datos_legales_negocio`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 5 | `migration_tema_filtros.sql` | Sin ella el fondo de los filtros funciona (sale de `styles.scss`) pero **no aparece en Personalización** para cambiarlo. Solo agrega 2 filas; no cambia nada que exista. Va después de `migration_tema_jade.sql`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
 
-**⚠️ Antes de los scripts de permisos, el back con el límite de encabezados tiene que estar en `main`.**
+**✅ El límite de encabezados de 64 KB ya está en `main` desde el 2026-10-07 (`282a530`).** Se subió
+como hotfix porque en prod pasó lo mismo que en QA (ver Incidente 3 de `PASOS_SUBIDA_2026-10-07.md`).
+La regla sigue: ningún script de permisos en un ambiente cuyo back no tenga ese límite.
 El 2026-10-07 QA dejó de responder (400 a todo, con "blocked by CORS" en la consola) justo después de
 correr `migration_entrega_pedido.sql`, `migration_accion_gastos_admin.sql` y
 `migration_accion_pedidos_filtros_y_cobro.sql`: el token del admin lleva todas sus pantallas y acciones,
@@ -635,7 +639,9 @@ bloque `server` de `/etc/nginx/sites-available/backend` (prod) y `/etc/nginx/sit
 y `sudo nginx -t && sudo systemctl reload nginx` (nginx corta cada encabezado en 8 KB por default).
 
 **Ya en prod sin bajar todavía a `qa`/`dev`:** el hotfix "Crear artículos" (`f5ad4fb` en `main`,
-2026-10-06). Al bajarlo con merge: en `VarianteServiceImpl` gana lo de `dev` (ya heredaba del modelo
+2026-10-06) y el hotfix del 400 en 🧩 Productos (`282a530` en `main` y `161c0d4f` en `master`,
+2026-10-07; al bajarlo, en `application.yml` ya está el límite de 64 KB en `dev`/`qa`: queda una
+sola vez). Al bajarlo con merge: en `VarianteServiceImpl` gana lo de `dev` (ya heredaba del modelo
 desde el 2026-09-30, solo cambia un comentario); en `CrudAbstractServiceImpl.typeError()` gana lo de
 `main` (`dev` todavía dice "El codigo postal ya existe" para cualquier restricción de la base).
 
