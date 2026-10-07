@@ -629,7 +629,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         // FIADO activo ya entrego la mercancia al cliente (igual que en AbonoServiceImpl.cancelarPedido) --
         // no se le devuelve el stock solo por dejar de pagar, queda como deuda incobrable. Si ya es una
         // devolucion (PAGADO/Entregado) si se devuelve, porque el cliente esta regresando algo que ya tenia.
-        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion;
+        // Desde 2026-10-06 la entrega va aparte: un Ir pagando que todavia no se lo lleva tiene la
+        // mercancia en la tienda, asi que al cancelarlo si regresa stock.
+        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion
+                && pedido.isEntregado();
 
         if (!esFiadoActivo) {
             pedido.getDetalles().forEach(detalle -> {
@@ -794,6 +797,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setTotalPedido(totalPedido);
         resp.setTotalPagado(totalPagado);
         resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
+        resp.setEntregado(pedido.isEntregado());
         resp.setFechaPedido(pedido.getFechaPedido());
         resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
                 ? pedido.getFechaHoraRegistro()

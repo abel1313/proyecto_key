@@ -26,6 +26,8 @@ public class PedidoQuery {
     private String horaEntrega;
     /** Sin lugar de entrega o con un lugar marcado como "recoger en tienda". */
     private Boolean recogeEnLocal;
+    /** Ya se lo llevo (aparte del pago, dominio entrega 2026-10-06). */
+    private Boolean entregado;
     private List<DetalleQuery> detalles;
     /** El grupo activo en el que esta, o null. No viene del SQL: se agrega despues de leer la pagina. */
     private GrupoEnListaResponse grupo;

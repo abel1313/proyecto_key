@@ -261,6 +261,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setFechaRecogida(request.getFechaEntrega());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
+            // Ir pagando se lo lleva al crearse salvo que digan que no; un Apartado nunca (E3, E8).
+            pedido.marcarEntregado("FIADO".equals(tipoPedido) && !Boolean.FALSE.equals(request.getEntregado()));
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
             pedido.setDetalles(detallesPedido);
             Pedido savedPedido = iPedidoRepository.save(pedido);
@@ -284,6 +286,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         // Crear y guardar Pedido (siempre, para todos los escenarios)
         Pedido pedido = new Pedido();
         pedido.setEstadoPedido("Entregado");
+        // Venta de contado en el local: se lo lleva en ese momento salvo que digan que no (E4).
+        pedido.marcarEntregado(!Boolean.FALSE.equals(request.getEntregado()));
         pedido.setCliente(cliente);
         pedido.setClienteSinRegistro(clienteSinRegistro);
         pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");

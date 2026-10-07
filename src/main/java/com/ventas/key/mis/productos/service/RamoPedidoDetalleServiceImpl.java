@@ -426,7 +426,9 @@ public class RamoPedidoDetalleServiceImpl {
 
         Pedido pedidoAnticipo = new Pedido();
         pedidoAnticipo.setCliente(original.getCliente());
-        pedidoAnticipo.setEstadoPedido("Pendiente");
+        // Un Apartado lleva estado_pedido = tipo_pedido hasta liquidarse (igual que la venta y
+        // los ramos urgentes). Con 'Pendiente' la lista lo trataba como contado sin cobrar.
+        pedidoAnticipo.setEstadoPedido("APARTADO");
         pedidoAnticipo.setFechaPedido(LocalDateTime.now().toLocalDate());
         pedidoAnticipo.setFechaHoraRegistro(LocalDateTime.now());
         // fechaRecogida se deja null a proposito: el scheduler de cancelacion automatica

@@ -391,6 +391,13 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-articulo"))
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/promociones/*")
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "quitar-promocion"))
+                        // Entrega aparte del pago (2026-10-06, dominio hexagonal entrega):
+                        // 📦 Entregar y regresarlo a "Falta entregar" son acciones separadas
+                        // (regresar es solo admin por default). Antes del catch-all.
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/entrega")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "entregar"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/entrega")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "regresar-entrega"))
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 

@@ -258,12 +258,15 @@ public class AbonoServiceImpl implements IAbonoService {
         }
 
         boolean esFiado = "FIADO".equals(pedido.getTipoPedido());
+        // Desde 2026-10-06 la entrega se guarda aparte (dominio entrega): un Ir pagando que
+        // "todavia no se lo lleva" tiene la mercancia en la tienda y al cancelarlo SI regresa.
+        boolean fiadoSeLoLlevo = esFiado && pedido.isEntregado();
         boolean stockDevuelto = false;
 
-        // FIADO activo (aun no pagado) ya entrego la mercancia -- no se le exige regresarla
-        // solo por dejar de pagar (queda como deuda incobrable). PAGADO si regresa stock
-        // porque es una devolucion real (el cliente esta regresando algo que ya tenia).
-        if (!esFiado || esDevolucion) {
+        // FIADO activo que ya se llevo la mercancia -- no se le exige regresarla solo por dejar
+        // de pagar (queda como deuda incobrable). PAGADO si regresa stock porque es una
+        // devolucion real (el cliente esta regresando algo que ya tenia).
+        if (!fiadoSeLoLlevo || esDevolucion) {
             for (DetallePedido dp : pedido.getDetalles()) {
                 Variantes v = dp.getVariante();
                 int stockAntes = v.getStock();
@@ -295,8 +298,10 @@ public class AbonoServiceImpl implements IAbonoService {
 
         String msg = esDevolucion
                 ? String.format("Pedido pagado cancelado (devolución). Stock devuelto. Monto a reembolsar: $%.2f", totalPagado)
-                : esFiado
+                : fiadoSeLoLlevo
                     ? String.format("FIADO cancelado. Stock NO devuelto (producto entregado). Deuda incobrable: $%.2f", totalPendiente)
+                : esFiado
+                    ? String.format("Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $%.2f", totalPagado)
                     : String.format("APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $%.2f", totalPagado);
 
         log.info("Pedido {} cancelado — tipo: {}, stock devuelto: {}", pedidoId, pedido.getTipoPedido(), stockDevuelto);

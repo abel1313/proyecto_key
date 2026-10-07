@@ -12,6 +12,38 @@ se cambia un color, cambia en **toda** la app de una vez, sin ir componente por 
 
 ---
 
+## 0. Diseños seleccionables y el diseño Jade (2026-10-01)
+
+**Jade es el diseño por default.** En **Sistema → Personalización → Diseños predefinidos** hay 5:
+**Jade** (Predeterminado), **Clásico** (el de fábrica de antes), Jade profundo elevado, Neutros
+cálidos y Teal transformador. Cada uno trae **todas** las claves: colores, letra, tamaños y botones,
+de día y de noche. Escoger uno escribe esas filas en `tema_variable`.
+
+| Pieza | Qué es | Dónde |
+|---|---|---|
+| Fila `estilo` (jade / clasico) | Enciende o apaga la **capa Jade**: letra Inter, títulos peso 500, labels 12px, campos de 44px, tablas en mayúsculas con línea dorada, botones de librerías delineados | front `src/tema-jade.scss` (selector `body[data-estilo="jade"]:not(.sin-diseno)`) |
+| Filas de letra (`font-family`, `title-weight`, `h1-size`…`input-height`) | Tamaños de la capa Jade, editables | `tema_variable`, grupo "Estilo y letra" |
+| `--btn-primary-bg / -text / -border / -hover-bg / -hover-text` | **Todo botón principal** de una pantalla usa estos 5. Jade: delineado (transparente + borde de acento). Clásico: relleno con el degradado de marca | grupo "Botones" |
+| Colores nuevos | `--app-accent-text` (precios, enlaces), `--app-tint` (seleccionado/hover), `--app-gold` y `--app-gold-line` (detalles y línea dorada), `--badge-bg/-text` (etiquetas), `--app-text-soft` y `--app-text-faint` (4 niveles de texto), `--app-hairline` (filas), `--app-glass` / `--app-glass-strong` (barras y headers de cristal), `--shadow-md/-lg`, `--app-bg-fx` (degradado del fondo) | `styles.scss` + `tema_variable` |
+| `--pk-ink` | Texto sobre un color de estado sólido (verde/rojo/ámbar) | `styles.scss` |
+| `--overlay-text` | Texto o ícono sobre una **foto o velo oscuro** (✕ de quitar imagen, contador, estrella): blanco en todos los diseños | `styles.scss` |
+| `body.sin-diseno` | **Login, Registro y Olvidé contraseña** se quedan siempre con el diseño de antes (lo pidió el dueño). AppComponent pone la clase en `/login*` y `/usuarios/registrar` | `app.component.ts`, `styles.scss` |
+| `--app-accent-rgb`, `--sb-bg-rgb` | Ya no se escriben a mano: TemaService los calcula de `brand-1` y `sb-body-bg` | `tema.model.ts` (`RGB_DERIVADOS`) |
+
+**Reglas que salen de esto:**
+- Botón principal nuevo → `background: var(--btn-primary-bg); color: var(--btn-primary-text); border: 1px solid var(--btn-primary-border)`. Nunca el degradado de marca a mano (así el diseño decide si es relleno o delineado).
+- Seleccionado / activo (chip, pestaña) → los mismos `--btn-primary-*`, o `.pk-chip.is-on`.
+- Texto sobre foto → `var(--overlay-text)`. Texto sobre color de estado → `var(--pk-ink)`. Texto sobre la franja de color de un header → `var(--card-header-text)`.
+- Encabezados de cristal (`*-header__content`, `*-card__head`): lo que va adentro usa `--app-text`, `--app-border`, `--app-tint`; un buscador ahí usa `--input-bg` / `--input-border`.
+- Login y Registro **no** se tocan; su paleta literal es a propósito.
+- Piezas nuevas de Jade para pantallas nuevas (equivalencias del archivo del dueño `.jd-*`): `.pk-kicker`, `.pk-rule`, `.pk-row-rule`, `.pk-chip`, `.pk-tag--accent/--outline/--neutral`, `.pk-price`, `.pk-glass-btn`, `.pk-photo`, `.pk-product`, `.pk-product-grid`, `.pk-tabbar`, `.pk-sidebar`, `.pk-h1…`, transiciones `.pk-enter-*` (en `design-system.scss`).
+- Pendiente (segundo paso, pedido del dueño): rediseño de **Tienda, Detalle de producto y barra inferior de celular** según `tema-jade` (menú angosto, franja de categorías, foto 4:5, tallas, "Agregar a la bolsa", transiciones) y cambiar emojis por íconos de línea Phosphor.
+
+**Cómo se hizo el barrido (para repetirlo en una pantalla nueva o vieja):** los colores fijos de
+93 `.scss` se pasaron a tokens con un script que mira la propiedad (texto, fondo, borde), si está en
+el bloque de noche y el fondo de la misma regla. Lo que no pudo decidir solo quedó revisado a mano.
+Comprobación: Login/Registro iguales píxel por píxel contra `dev`; Clásico igual que antes.
+
 ## 1. Cómo funciona hoy (la cadena)
 
 ```
@@ -62,6 +94,12 @@ Back: entidad `TemaVariable`, endpoints `/v1/tema-variable`, semilla en `migrati
 | Tabla | `--table-header-bg`, `--table-header-text`, `--table-row-hover`, `--table-row-active`, `--table-border` |
 | Éxito / alerta / peligro / info | `--pk-success`, `--pk-warning`, `--pk-danger`, `--pk-info` (+ `-soft` para fondos y `-to` para degradados) |
 | Menú lateral | `--sb-*` |
+| Botón principal | `--btn-primary-bg`, `--btn-primary-text`, `--btn-primary-border`, `--btn-primary-hover-bg`, `--btn-primary-hover-text` |
+| Precio, enlace, ícono activo | `--app-accent-text` |
+| Seleccionado / hover | `--app-tint` |
+| Etiqueta ("3 unidades") | `--badge-bg`, `--badge-text` |
+| Dorado (título pequeño, línea) | `--app-gold`, `--app-gold-line` |
+| Texto sobre foto / sobre color de estado | `--overlay-text` / `--pk-ink` |
 | Encabezados de pantalla | `--header-text`, `--header-text-muted`, `--header-brand*` |
 
 Antes de usar uno, confirmar que existe: `grep -n "\-\-nombre" src/styles.scss`.
@@ -121,6 +159,8 @@ la esquina de la página cuando la tarjeta está centrada.
 - [ ] Tokens nuevos dados de alta completos (sección 5).
 - [ ] Captura de día y de noche (`body.theme-light` / `body.theme-dark`), en escritorio y en celular.
 - [ ] Probado cambiando un color en Personalización: el componente nuevo cambia sin tocar código.
+- [ ] Si se tocó un componente compartido o un token: prueba de cada pantalla que lo usa, antes y
+      después (skill `pruebas-de-impacto`).
 
 ## 7. "Cámbialo conforme a la skill" (pantalla existente)
 
