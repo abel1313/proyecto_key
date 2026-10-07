@@ -41,6 +41,11 @@ sesión, y una sesión vieja no los trae.
 
 ### Antes de empezar
 
+0. **El back con `server.max-http-request-header-size: 64KB` tiene que estar en `main` antes de correr
+   los scripts de permisos** (o en la misma subida, con el back primero). En QA, al correr los scripts,
+   el token del admin pasó de 8 KB y Tomcat respondía 400 a todo (2026-10-07, ver "Incidente" abajo).
+   Y en la VPS: `large_client_header_buffers 4 32k;` en el bloque `server` de
+   `/etc/nginx/sites-available/backend`, luego `sudo nginx -t && sudo systemctl reload nginx`.
 1. **Revisar qué trae `qa` que `main` no tiene:** `git log --oneline main..qa` (back y front). Si
    aparece algo que todavía no debe ir a prod (una feature bloqueada), no se hace merge completo: se
    llevan con `git cherry-pick` solo los commits de esta subida (regla de `CLAUDE.md`, "Feature que
@@ -85,3 +90,19 @@ sesión, y una sesión vieja no los trae.
 | El front nuevo falla | `git revert -m 1 <merge>` en `master` y push |
 | No gusta el diseño Jade | Consultas "PARA VOLVER AL DISEÑO DE ANTES" al final de `migration_tema_jade.sql` (dejan las filas idénticas a antes, probado) |
 | Los permisos nuevos | No estorban al back viejo; se pueden dejar |
+
+---
+
+## Incidente en QA del 2026-10-07 — 400 en todo después de correr los scripts
+
+**Qué se vio:** al entrar a QA todo fallaba con `400 (Bad Request)` y "blocked by CORS policy" en la
+consola. Prod funcionaba. `curl` desde la VPS al mismo endpoint daba 200.
+
+**Causa:** el access token lleva todas las pantallas y acciones del usuario. Con las acciones nuevas de
+los scripts, el del admin pasó de 8 KB, que es el límite de encabezados por default de Tomcat. Tomcat
+rechazaba la petición antes de llegar a Spring (por eso sin cabecera CORS). Lo que salía sin token (los
+colores al arrancar) daba 200; lo que salía con token, 400 de 435 bytes en `/var/log/nginx/access.log`.
+No era el código ni un SQL mal hecho.
+
+**Arreglo:** `server.max-http-request-header-size: 64KB` en `application.yml` (todos los ambientes).
+Recomendado además: `large_client_header_buffers 4 32k;` en el nginx de la VPS (QA y prod).
