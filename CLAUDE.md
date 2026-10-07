@@ -598,7 +598,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
-| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ⏳ pendiente — correrla **antes** del deploy del back a `dev`/`qa` | ⏳ pendiente — **antes** del deploy del back a `main` | — |
+| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ⏳ pendiente — **antes** del deploy del back a `main` | qa 2026-10-07 |
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
@@ -608,7 +608,7 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 
 | # | Script | Por qué no puede faltar | Desde |
 |---|---|---|---|
-| 1 | `migration_entrega_pedido.sql` | La entidad `Pedido` mapea `entregado` y `fecha_entregado`: sin las columnas **truena cualquier consulta de pedidos**. Llena la entrega de los pedidos que ya existen (solo la primera vez) y da de alta `entregar` / `regresar-entrega` | 2026-10-07 |
+| 1 | `migration_entrega_pedido.sql` | La entidad `Pedido` mapea `entregado` y `fecha_entregado`: sin las columnas **truena cualquier consulta de pedidos**. Llena la entrega de los pedidos que ya existen (solo la primera vez) y da de alta `entregar` / `regresar-entrega`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 2 | `migration_accion_gastos_admin.sql` | Sin ella el admin no ve el botón para agregar gastos. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
 
