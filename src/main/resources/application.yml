@@ -33,6 +33,9 @@ server:
   port: 9091
   servlet:
     context-path: /mis-productos
+  # El access token lleva todas las pantallas y acciones del usuario; el del admin paso de 8KB
+  # (default de Tomcat) y Tomcat respondia 400 sin pasar por la app (2026-10-07, QA y prod).
+  max-http-request-header-size: 64KB
   tomcat:
     # Sin esto, Tomcat usa su default de 2MB. Si algo rechaza el request antes de terminar de
     # leer el body completo (401 por JWT vencido, error de validacion, etc.) mientras aun falta
