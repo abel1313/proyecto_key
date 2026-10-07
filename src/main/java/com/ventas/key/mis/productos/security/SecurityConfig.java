@@ -174,6 +174,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/imagenes/*/imagen").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes/*/imagen").permitAll()
+                        // Datos legales del negocio (LFPC 76 bis III): los lee cualquiera (pie de página,
+                        // Términos, Aviso de privacidad); los cambia quien escribe en Configuración del negocio.
+                        .requestMatchers(HttpMethod.GET, "/v1/datos-legales").permitAll()
+                        .requestMatchers("/v1/datos-legales/**", "/v1/datos-legales").hasAnyAuthority(pantallaEscribir("admin/negocio"))
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/**").hasAnyAuthority(pantalla("admin/negocio"))
                         .requestMatchers("/v1/negocio/**").hasAnyAuthority(pantallaEscribir("admin/negocio"))
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))

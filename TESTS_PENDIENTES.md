@@ -16,6 +16,36 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-07 — Datos legales del negocio (dominio `datoslegales`)
+**Dónde:** `DatosLegales` (modelo), `DatosLegalesService`, `DatosLegalesJdbcAdapter`, `DatosLegalesController` (`GET`/`PUT /v1/datos-legales`), `SecurityConfig`, `migration_datos_legales.sql`
+**Tipo:** unitario (dominio) · MySQL (adaptador) · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] RFC `peaa800101ab1` → se guarda `PEAA800101AB1`; RFC de 12 (empresa) válido; `ABC123` → 400 con el mensaje del RFC
+- [ ] Teléfono `(55) 1234-5678` y `+52 55 1234 5678` → `5512345678`; `12345` → 400 "El teléfono tiene que tener 10 dígitos"
+- [ ] Correo `sin-arroba` → 400; texto en blanco → se guarda NULL
+- [ ] Nombre de 151 caracteres → 400 "no puede pasar de 150 caracteres"
+- [ ] `faltantes()` con todo vacío → los 4; con los 4 llenos → vacío y `completos = true`
+- [ ] Sin fila en la tabla → GET devuelve todo null y `faltan` con los 4 (no 500)
+- [ ] PUT dos veces → sigue habiendo una sola fila (id = 1)
+- [ ] GET sin sesión → 200; PUT sin sesión → 401/403; PUT con Escritura en `admin/negocio` → 200
+- [ ] Migración: primera corrida crea la tabla con el correo y las 2 columnas; segunda no cambia nada
+
+### 2026-10-07 — Registro guarda la aceptación de Términos
+**Dónde:** `RegistroService.registrarUsuario(…, aceptoTerminos)`, `RegistroRequest.aceptoTerminos`, `AuthController.registrar`
+**Tipo:** unitario (servicio) · controller
+**Debe comprobar:**
+- [ ] `aceptoTerminos: true` → `acepto_terminos = 1` y `fecha_acepto_terminos` con la hora
+- [ ] `aceptoTerminos: false` → 400 "Debes aceptar los Términos y condiciones para registrarte" y no se crea el usuario
+- [ ] Sin el campo (front viejo) → se registra, `acepto_terminos = 0`, fecha NULL
+- [ ] `aceptoPrivacidad: false` sigue rechazando igual que antes
+
+### 2026-10-07 — Bots: no prometer lo que no dice el catálogo
+**Dónde:** `ChatbotBase.SIN_PROMESAS` (dentro de `REGLAS_DE_RESPETO`)
+**Tipo:** unitario
+**Debe comprobar:**
+- [ ] `REGLAS_DE_RESPETO` contiene el bloque de `SIN_PROMESAS` (lo usan todos los bots)
+- [ ] El prompt del sitio, chat en vivo, Instagram y Facebook lo incluyen
+
 ### 2026-10-07 — Entrega aparte del pago: dominio `entrega` (📦 Entregar / Regresar)
 **Dónde:** `hexagonal/entrega`: `Entrega.entregar()/regresar()`, `PedidoParaEntregar.estaPagado()`, `EntregaService`, `PedidosParaEntregarJdbcAdapter`, `EntregaController` (`POST`/`DELETE /v1/pedidos/{id}/entrega`), regla en `SecurityConfig`
 **Tipo:** unitario (dominio) · servicio con puertos simulados · MySQL (adaptador) · controller (URL, status y permiso)
