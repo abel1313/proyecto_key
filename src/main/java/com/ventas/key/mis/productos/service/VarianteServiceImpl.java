@@ -248,14 +248,23 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         Producto producto = iProductosRepository.findById(requestVarianteDto.getProductoId())
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto con id: " + requestVarianteDto.getProductoId()));
 
-        int stockEnVariantes = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
-                .stream().filter(v -> v.getHabilitado() == '1').mapToInt(Variantes::getStock).sum();
+        List<Variantes> conStock = obtenerVariantesPorProducto(requestVarianteDto.getProductoId())
+                .stream().filter(v -> v.getHabilitado() == '1' && v.getStock() > 0).toList();
+        int stockEnVariantes = conStock.stream().mapToInt(Variantes::getStock).sum();
 
         int stockDisponible = producto.getStock() - stockEnVariantes;
         if (stockDisponible < requestVarianteDto.getCantidadVariantes()) {
-            throw new ExceptionDataNotFound(
-                    String.format("Stock insuficiente para crear %d variantes del producto %d. Stock disponible: %d",
-                            requestVarianteDto.getCantidadVariantes(), producto.getId(), stockDisponible));
+            // Los articulos sin foto no salen en la tienda pero si ocupan stock del modelo: sin
+            // decirlo, el dueño ve 1 articulo en la tienda y no entiende por que no le alcanza.
+            long sinFoto = conStock.stream()
+                    .filter(v -> iVarianteImagenRepository.findByVarianteId(v.getId()).isEmpty()).count();
+            String detalleSinFoto = sinFoto == 0 ? ""
+                    : String.format(" (%d sin foto: no salen en la tienda, búscalos con el filtro \"Sin imágenes\")", sinFoto);
+            throw new ExceptionDataNotFound(String.format(
+                    "No alcanza el stock para crear %d artículo(s): el modelo tiene %d y sus artículos ya tienen %d%s. "
+                            + "Puedes crear %d. Sube el stock del modelo o quítale stock a un artículo.",
+                    requestVarianteDto.getCantidadVariantes(), producto.getStock(), stockEnVariantes,
+                    detalleSinFoto, Math.max(stockDisponible, 0)));
         }
 
         List<Long> imageIds = List.of();
