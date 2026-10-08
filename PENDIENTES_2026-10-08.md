@@ -118,10 +118,14 @@ Paso a paso en `PRUEBAS_PENDIENTES_2026-10-07.md` (resumen arriba de ese documen
 Retomado el 2026-10-08 en la rama `rename/variante-a-articulo` (back y front): se trajo todo lo de
 `dev` y se hizo la búsqueda completa. **Regla del dueño (2026-10-08):** en pantalla todo dice
 **artículo**, y los buscadores dicen "Buscar artículo…", **menos Tienda → Buscar** (lo que ve el cliente).
+Qué se cambió, pantalla por pantalla: `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.1 (en la rama).
 
 | ✔ | Qué | Detalle |
 |---|---|---|
-| [ ] | 👤 Probar la rama y decidir cuándo se junta con `dev` | `RENOMBRE_VARIANTE_A_ARTICULO.md` |
+| [x] | Traer `dev` a la rama, búsqueda completa de "variante" y buscadores con "artículo" (14 pantallas, menú lateral, ayuda ⓘ, pruebas e2e) | 2026-10-08, rama subida (no está en `dev`) |
+| [x] | Script de los textos de la base (menú "Agregar artículo", Gestión de roles sin "variante"): `migration_renombre_articulo_etiquetas.sql`, probado dos veces en base desechable | 2026-10-08, vive en la rama |
+| [ ] | 👤 Probar la rama (pruebas R1–R19) y decidir cuándo se junta con `dev` | `RENOMBRE_VARIANTE_A_ARTICULO.md` §6 |
+| [ ] | 👤 Al juntarla: correr `migration_renombre_articulo_etiquetas.sql` en QA (y en prod cuando suba a `main`) | Mismo documento, §1.1 punto 4 |
 | [ ] | Lo que **no** se renombra todavía: tablas y columnas, campos del JSON que comparten back y front, nombres de clases | `CLAUDE.md`, "Renombrado en curso" |
 
 ---
