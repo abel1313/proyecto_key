@@ -38,9 +38,12 @@ public class ProductosControllerImpl {
     public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam String nombre) {
-        log.info("buscarNombreOrCodigoBarras {} page {} nombre {}", size, page, nombre);
-        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre) );
+            @RequestParam String nombre,
+            // Agregar articulo: tambien sin stock, deshabilitados y dados de baja (permiso
+            // "ver-todos-los-modelos" en tienda/venta, o admin). Sin el permiso no cambia nada.
+            @RequestParam(defaultValue = "false") boolean todos) {
+        log.info("buscarNombreOrCodigoBarras {} page {} nombre {} todos {}", size, page, nombre, todos);
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre,todos) );
     }
 
     @PostMapping("save")

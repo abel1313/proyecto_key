@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.models.PalabraClaveResumenDto;
+
 import com.ventas.key.mis.productos.Utils.NombreArchivoImagen;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
@@ -56,6 +58,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -217,6 +220,9 @@ public class ProductosServiceImpl extends
         productoAdmin.setContenido(p.getContenido());
         productoAdmin.setHabilitado(p.getHabilitado());
         productoAdmin.setFechaCreacion(p.getFechaCreacion());
+        productoAdmin.setPalabraClave(p.getPalabraClave() != null
+                ? new PalabraClaveResumenDto(p.getPalabraClave().getId(), p.getPalabraClave().getNombre())
+                : null);
 
         return productoAdmin;
     }
@@ -224,11 +230,22 @@ public class ProductosServiceImpl extends
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
-            key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
+        return findNombreOrCodigoBarra(size, page, nombre, false);
+    }
+
+    /**
+     * {@code todos}: Agregar articulo lo pide para que quien tenga el permiso "ver-todos-los-modelos"
+     * (o el admin) encuentre tambien los modelos sin stock, deshabilitados o dados de baja, y los
+     * pueda habilitar o subirles stock ahi mismo (2026-10-08). Sin el permiso se ignora.
+     */
+    @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
+            key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()"
+                    + " + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).puedeVerTodosLosModelos(#todos)")
+    public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre, boolean todos) {
         Pageable pageable = PageRequest.of(page - 1, size);
         boolean isAdmin = isAdminContext();
+        boolean verTodos = AuthenticationUtils.puedeVerTodosLosModelos(todos);
 
         // Una sola query con OR (nombre / código de barras / palabra clave) en vez de la cascada
         // vieja de hasta 3 llamadas secuenciales que se detenía en el primer paso con resultados
@@ -236,14 +253,28 @@ public class ProductosServiceImpl extends
         // matcheado por código. Reusa buscarProductosAdmin (mismo patrón OR ya probado en el
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
-        Page<Producto> resultado = isAdmin
+        Page<Producto> resultado = verTodos
                 ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, null, null, pageable)
                 : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, null, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
         }
-        return buildPagina(resultado, page, isAdmin);
+        PginaDto<List<ProductoDTO>> pagina = buildPagina(resultado, page, isAdmin);
+        if (verTodos && !isAdmin) {
+            // Sin ser admin: lo de siempre (sin costos), mas lo que la pantalla necesita para avisar
+            // el estado del modelo y precargar sus articulos.
+            Map<Integer, Producto> porId = resultado.getContent().stream()
+                    .collect(Collectors.toMap(Producto::getId, p -> p, (a, b) -> a));
+            pagina.getT().forEach(dto -> {
+                Producto p = porId.get(dto.getIdProducto());
+                if (p == null) return;
+                dto.setHabilitado(p.getHabilitado());
+                dto.setMarca(p.getMarca());
+                dto.setContenido(p.getContenido());
+            });
+        }
+        return pagina;
     }
 
     private PginaDto<List<ProductoDTO>> buildPagina(Page<Producto> pagina, int page, boolean isAdmin) {

@@ -36,4 +36,10 @@ public class VentaDirectaRequest {
     private Integer lugarEntregaId;
     private String urlFacebook;
     private LocalDate fechaEntrega;
+
+    /**
+     * "¿Ya se lo llevó?" (dominio entrega, 2026-10-06). null = como siempre: contado e Ir pagando se
+     * lo llevan en ese momento, un Apartado no. Un Apartado nunca nace entregado.
+     */
+    private Boolean entregado;
 }

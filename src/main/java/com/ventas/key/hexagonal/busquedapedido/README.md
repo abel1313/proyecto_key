@@ -23,7 +23,7 @@ problemas que se arreglan aquí:
 | # | Regla | Dónde vive |
 |---|---|---|
 | R1 | **Texto:** busca en nombre del cliente (con cuenta y sin registro), nombre de quien recibe, teléfono, correo, y nombre o código de barras de cualquier artículo del pedido. Sin acentos ni mayúsculas. Con letras: mínimo **3**. Solo números (o `#120`): número de pedido **exacto** desde 1 dígito; con 3 o más dígitos además busca en teléfonos y códigos de barras. `%` y `_` se buscan tal cual. Máximo 100 caracteres. | `TextoBuscado`, `PedidosFiltradosJdbcAdapter.texto()` |
-| R2 | **Forma de cobro:** Contado (`NORMAL`), Apartado, Ir pagando (`FIADO`). | `FormaDeCobro` |
+| R2 | **Forma de cobro:** 🕓 Pendiente (`NORMAL` con estado `'Pendiente'`: lo pidió el cliente desde su cuenta y nadie lo ha cobrado ni apartado — 2026-10-07), Contado (`NORMAL` ya cobrado), Apartado, Ir pagando (`FIADO`). | `FormaDeCobro` |
 | R3 | **Estado**, con las palabras de la card: Pendiente (contado sin cobrar), Por cobrar (Apartado o Ir pagando abierto), Pagado (Apartado o Ir pagando liquidado), Entregado (contado cobrado), Cancelado. | `EstadoBuscado`, `estado()` |
 | R4 | **Dinero:** *Con saldo* (Apartado / Ir pagando abierto que debe algo), *Sin abonos* (abierto y sin ningún abono), *Saldo a favor* (pagó más de lo que vale, o se canceló un Apartado con dinero o un pedido ya pagado: hay que devolverle; un Ir pagando cancelado que todavía debía **no**, eso es deuda incobrable). | `SituacionDeDinero`, `dinero()` |
 | R5 | **Total** desde / hasta. No negativo; desde ≤ hasta. Es el total que muestra la card: el del pedido, o el de todo el grupo si es titular (R14). | `FiltroPedidos` |

@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.mapper;
 
+import com.ventas.key.mis.productos.models.PalabraClaveResumenDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,4 +23,6 @@ public class ProductoAdmin extends ProductoUser {
     // Solo admin -- ver comentario en Producto.java sobre por que existe (carga rapida con
     // codigo de barras al azar) y por que puede venir null (registros previos a la migracion).
     private LocalDateTime fechaCreacion;
+    // La categoria del modelo: Agregar producto la precarga en el articulo nuevo (2026-10-07).
+    private PalabraClaveResumenDto palabraClave;
 }

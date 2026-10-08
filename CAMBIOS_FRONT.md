@@ -68,6 +68,366 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-30] 🆕 Agregar artículo: todos los modelos, habilitar, agregar stock al momento (2026-10-08)
+
+**1. Buscador de modelos** — `GET /mis-productos/v1/productos/buscarNombreOrCodigoBarra?nombre=…&todos=true`
+- Param nuevo opcional `todos` (default `false`). Con `true` y el permiso **"Ver todos los modelos"**
+  (`tienda/venta` → `ver-todos-los-modelos`, migración `migration_accion_tienda_venta_ver_todos.sql`)
+  trae también los modelos **sin stock, deshabilitados y dados de baja**. Sin el permiso se ignora.
+- El admin los veía todos desde antes (con o sin `todos`): para él no cambia nada.
+- Para quien no es admin y tiene el permiso, cada modelo trae además `habilitado` (`"1"`/`"0"`), `marca`
+  y `contenido` (nunca costos).
+
+**2. Disponibilidad del modelo** — `GET /mis-productos/v1/stock/producto/{productoId}` (sin cambios en URL)
+- Campos nuevos: `habilitado` (bool), `conFoto` (bool), `articulosQueAunCaben` (int, nunca negativo).
+- `mensaje` dice ahora "artículos" donde decía "modelos".
+- **Ojo, la respuesta NO viene envuelta en `data`** (siempre fue así). El front leía `r.data` →
+  `undefined`, y por eso el recuadro "Stock total del modelo / Repartido / Libre" **nunca aparecía** en
+  Agregar artículo. Corregido en el front (lee el cuerpo directo).
+
+**3. Agregar (+) o quitar (−) stock al modelo, al momento** — `PUT /mis-productos/v1/stock/producto/{productoId}/ajuste`
+- Body: `{ "ajuste": 5 }`. Response: la disponibilidad igual que el GET, ya con el ajuste.
+- **400** con mensaje si `ajuste` es 0/null (*"Escribe cuánto stock agregar (+) o quitar (−) al modelo"*),
+  si deja el modelo en negativo (*"No se puede quitar 4: el modelo solo tiene 3"*) o por debajo de lo
+  repartido (*"No se puede dejar el modelo en 9: ya tiene 10 repartidos en sus artículos"*).
+- **404** si el modelo no existe. **403** sin Editar en Modelos, Agregar modelo o Agregar artículo (el mismo
+  permiso que ya pedía el ajuste dentro del guardado del artículo).
+- El ajuste dentro de `guardarConImagenes` (`ajusteStockModelo`, 2026-10-06) **sigue funcionando igual**.
+
+**4. Habilitar el modelo** — `PUT /mis-productos/v1/productos/{id}/habilitar?habilitar=true` (el de siempre,
+permiso **Habilitar** de Catálogo → 🔍 Modelos). Solo el modelo: sus artículos quedan como estaban.
+
+**Front (Agregar artículo, `tienda/venta`):** etiquetas ⛔ Deshabilitado / Sin stock / Sin foto en el
+buscador; al elegir un modelo deshabilitado, aviso con **✅ Habilitar modelo** (y no deja guardar artículos
+hasta habilitarlo); "Puedes hacer hasta N artículos más"; botón **Guardar en el modelo** junto al campo de
+stock y, al agregar, *"¿Deseas agregar los artículos de una vez?"* → ventana 🧩 Agregar artículos; botón
+**🧩 Agregar varios artículos de una vez** cuando hay stock libre.
+
+---
+
+### [BUG-KEY-29] 🆕 Agregar artículos de un modelo en un solo paso (flujo A) — foto propia o la del modelo (2026-10-08)
+
+**Request:** `POST /mis-productos/v1/variantes/guardarConImagenes` (el de siempre) — cada elemento acepta
+**dos campos opcionales nuevos**:
+
+| Campo | Tipo | Qué hace |
+|---|---|---|
+| `imagenesPropias` | `boolean` | `true`: las fotos de `listImagenes` son **solo de ese artículo**. Si no viene (o `false`), igual que siempre: todas las fotos del request las llevan todos los artículos del request (Agregar artículo con varias tallas) |
+| `usarImagenDelModelo` | `boolean` | `true`: el artículo apunta a la **foto principal del modelo**, sin volver a subirla. Si el modelo no tiene foto, el artículo queda sin foto (no falla) |
+
+**Response:** sin cambios (lista de artículos guardados).
+
+**Posibles errores nuevos:**
+- **400** *"No se pudieron subir todas las fotos (se mandaron N y llegaron M). Intenta de nuevo"* — solo
+  cuando algún elemento trae `imagenesPropias: true` y el micro de imágenes devolvió menos fotos de las
+  enviadas. No se guarda ningún artículo.
+- Los de siempre: stock del modelo insuficiente (400), todos vacíos (404).
+
+**Diferencia clave:** antes no había forma de que cada artículo de un mismo guardado tuviera su propia foto,
+ni de reusar la foto del modelo sin subirla otra vez. Si se da de baja un artículo que usa la foto del
+modelo, la foto **no** se borra (el modelo la sigue usando).
+
+**Front:** componente compartido `<app-alta-articulos>` (`shared/alta-articulos`). Lo abren:
+- **Catálogo → Agregar modelo**, al guardar un modelo **nuevo** (no al actualizar): pregunta
+  *"¿Quieres agregar sus artículos ahora?"* → **Sí, agregar artículos** / **Después**.
+- **Catálogo → 🔍 Modelos → 🧩 Productos** (tarjeta del modelo): va directo a los formularios.
+  **Reemplaza** la ventana "Inicializar variantes" (`POST /v1/variantes/inicializarDesdeProducto`, que
+  sigue existiendo pero el front ya no la llama).
+
+Color nuevo de Personalización: `--modal-backdrop` (velo detrás de la ventana), migración
+`migration_tema_modal.sql`. Sin correrla, se usa el valor de `styles.scss`.
+
+---
+
+### [BUG-KEY-28] 🆕 Datos del cliente en Venta directa: mínimo 3 letras, correo y teléfono válidos (2026-10-08)
+
+**1. Cliente sin registro** — `POST /mis-productos/v1/clientes-sin-registro` (sin cambios en URL ni body)
+- **Antes:** guardaba lo que llegara (había clientes con nombre `"a"`).
+- **Ahora** responde **400** con el motivo si:
+  - `nombre_persona` tiene menos de 3 letras → *"El nombre debe tener al menos 3 letras"*
+  - `segundo_nombre`, `apeido_Paterno` o `apeido_Materno` **vienen llenos** con menos de 3 letras →
+    *"El apellido paterno debe tener al menos 3 letras (o dejalo vacio)"* (y equivalentes)
+  - `correo_Electronico` viene lleno y no tiene forma de correo → *"El correo no es valido"*
+  - `numero_Telefonico` viene lleno y no son 10 dígitos (se aceptan espacios, guiones, paréntesis y
+    `+52` adelante) → *"El telefono debe tener 10 digitos"*
+- Vacío en los opcionales sigue siendo válido. Las letras con acento y la ñ cuentan como letras; los
+  números y espacios no.
+
+**2. Venta directa** — `POST /mis-productos/v1/ventas/save` (el de 💰 Cobrar, sin cambios en el body)
+- `nombreReceptor` (quién recibe) lleno con menos de 3 letras → **400** *"El nombre de quien recibe debe
+  tener al menos 3 letras (o déjalo vacío)"*. Si viene vacío, igual que antes.
+- Si llega el cliente embebido (`clienteSinRegistroDto`, camino viejo), se valida igual que en el punto 1.
+
+**Front:** las mismas reglas en el formulario (`shared/validadores-persona.ts`), con el aviso debajo de
+cada campo; el botón **Guardar cliente** y **💰 Cobrar** se apagan mientras haya un dato mal.
+
+---
+
+### [BUG-KEY-27] 🆕 Tienda → Buscar: los filtros se combinan y el precio es el que se cobra (2026-10-08)
+
+**Request:** `GET /mis-productos/v1/variantes/admin/filtrar` — params **nuevos opcionales**:
+`talla`, `color`, `marca` (iguales, sin importar mayúsculas), `precioMin`, `precioMax`.
+
+**Diferencias clave:**
+- **Antes**, con un filtro de admin (Con stock, Habilitadas, fechas…) y uno del catálogo (talla, precio…)
+  a la vez, el front hacía **dos búsquedas distintas** y la segunda pisaba a la primera: por eso "Con
+  stock" + "Habilitadas" dejaba un solo resultado. **Ahora** todo va en **una sola** llamada a
+  `admin/filtrar` y al quitar un filtro se vuelve a buscar con los que quedan.
+- **Precio mín/máx** (aquí y en `GET /v1/variantes/buscar-filtrado`): **antes** comparaba el precio normal;
+  **ahora** compara el **precio que se cobra** — el de descuento si el artículo tiene "Usar descuento"
+  activo y es menor, si no el precio de venta (el del artículo o, si no tiene, el del modelo). Así
+  "mín 100, máx 100" encuentra lo que la tarjeta dice $100.
+- La caché de `admin/filtrar` ahora distingue también fechas, talla, color, marca y precio (antes dos
+  búsquedas con distinta fecha podían devolver el mismo resultado guardado).
+
+**Front:** en el escritorio de Tienda → Buscar, cada cambio de filtro (o al quitarlo) vuelve a buscar con
+todos los que quedan; si una respuesta vieja llega tarde se descarta. El precio espera a que dejes de
+escribir. En Venta directa, después de cobrar se vuelve a buscar para que el stock se vea al día.
+
+---
+
+### [BUG-KEY-26] 🆕 Pedido 🕓 Pendiente: filtro propio, pasarlo a Apartado / Ir pagando y Entregas por zona (2026-10-07)
+
+**1. Filtro de Mis pedidos** — `GET /mis-productos/v1/pedidos/buscar?formaCobro=PENDIENTE`
+- Valor nuevo `PENDIENTE` en `formaCobro`: el pedido que el cliente hizo desde su cuenta y nadie cobró ni
+  pasó a Apartado / Ir pagando (en la base: `tipo_pedido = NORMAL` y `estado_pedido = 'Pendiente'`).
+- **Cambia `CONTADO`:** antes traía también los Pendientes; ahora solo los contado ya cobrados. Un filtro
+  guardado con `CONTADO` + `FALTA_PAGAR` ahora da 0 (antes eran los Pendientes).
+
+**2. Cambiar forma de cobro** — `PUT /mis-productos/v1/pedidos/{id}/tipo` (el de siempre, sin cambios en el body)
+- Pendiente → `APARTADO` / `FIADO`: ahora el `estado_pedido` también cambia. **Antes** se quedaba
+  `'Pendiente'`, y el cancelador automático (8:00 a. m., `Pendiente` con fecha de recogida vencida hace
+  2 días) lo cancelaba aunque ya fuera Apartado; tampoco salía como Apartado en Créditos / Abonos.
+- Pendiente → `FIADO` con `monto` (adelanto): **antes** 400 *"es de tipo NORMAL y no tiene saldo que
+  cobrar"*; **ahora** registra el abono.
+- Un contado ya cobrado (`PAGADO`/`Entregado`) sigue sin aceptar cobro en el cambio (igual que antes).
+
+**3. Entregas por zona** — `GET /mis-productos/v1/entregas-zona/...` (sin cambios en URL ni response)
+- **Antes:** solo pedidos `Pendiente` y `APARTADO`.
+- **Ahora:** todos los de la zona que **no se han entregado** (`entregado = 0`) y no están cancelados:
+  también Ir pagando que no se ha llevado y Pagados que faltan por entregar. Siguen fuera los ramos.
+  Al programar, el correo también les llega a ellos.
+
+**Front:** opción "🕓 Pendiente" en Forma de cobro (mismo permiso que Contado, `filtro-normal`),
+etiqueta "🕓 Pendiente" en la card, el formulario 🔁 dice "Ahora está como 🕓 Pendiente…", y el ícono
+ⓘ (`<app-ayuda-opciones>`) en cada bloque de filtros y en Entregas por zona, visible solo con
+**Ayuda contextual** (o admin). Textos fijos en el código.
+
+---
+
+### [BUG-KEY-25] 🆕 Zonas de entrega: "Recoger en tienda" solo en una fila, y sin envío/horas/día (2026-10-07)
+
+**Request:** `POST /mis-productos/v1/lugares-entrega/save` y `PUT /mis-productos/v1/lugares-entrega/update/{id}`. Sin cambios en URL ni body.
+**Antes:** se podía prender `esRecogerEnTienda` en cualquier zona ("El estanco" con envío y horas extra)
+y en varias a la vez; el Carrito le pedía al cliente fecha de recogida para un lugar que no es el local.
+**Después:**
+- Si otra fila ya es la de recoger en tienda → **400** con `mensaje`: *"\"Local Tejupilco\" ya es la fila de recoger en tienda. Solo puede haber una: apágala ahí primero o edita esa."*
+- La fila con `esRecogerEnTienda: true` se guarda con `costoEnvio`, `horasExtraAnticipacion` y `diaEntregaSemanal` en `null` (no aplican al local).
+**Front:** en **Envíos → Zonas de entrega**, al prender el interruptor se esconden Envío, Horas extra,
+Día de entrega y los anillos, y sale una nota que explica que esa fila es el local.
+
+**También (solo front, mismo día):** se quitó de Zonas de entrega el select **"Sin día fijo / Lunes…"**
+(`diaEntregaSemanal`). Solo prellenaba la fecha del viaje en Entregas por zona y podía no coincidir con la
+fecha que se escoge ahí (la fecha ya dice el día). El front manda `diaEntregaSemanal: null` al guardar y
+ya no usa `fechaSugerida` de `GET /v1/entregas-zona/...`. El back no cambia: la columna y `fechaSugerida`
+siguen existiendo (para zonas viejas que aún no se editan).
+
+---
+
+### [BUG-KEY-24] 🆕 Agregar producto: la categoría del modelo pasa al artículo (2026-10-07)
+
+**Request:** los listados y búsquedas de modelos de siempre (`GET /mis-productos/v1/productos/obtenerProductos`,
+`/buscarNombreOrCodigoBarra`…). Sin cambios en URL ni params.
+**Response (solo admin):** cada producto trae un campo nuevo:
+```json
+{ "idProducto": 418, "nombre": "Bolsa", "palabraClave": { "id": 7, "nombre": "BOLSAS" } }
+```
+`palabraClave` viene `null` si el modelo no tiene categoría. El cliente (no admin) no lo recibe.
+**Front:** en **Catálogo → Agregar producto** (`tienda/venta`), al elegir el modelo la **Categoría** ya
+sale llena con la del modelo (editable), igual que color, marca, descripción y contenido. Si se cambia
+de modelo y nadie la tocó, se pone la del nuevo.
+**Diferencia clave:** antes la casilla salía **vacía** aunque el modelo tuviera categoría. Al guardar el
+back sí se la ponía al artículo si iba vacía, pero en pantalla parecía que no la tenía.
+
+---
+
+### [BUG-KEY-23] 🆕 Habilitar artículos en lote: el stock se ajusta a lo libre del modelo (2026-10-07)
+
+**Request:** el de siempre para habilitar/deshabilitar artículos en lote. Sin cambios en URL ni body.
+**Response:** el texto puede cambiar al habilitar: *"Variantes habilitadas. Se ajustó el stock a lo
+que quedaba libre del modelo: Bolsa M ROJA de 3 a 1."* Sin ajustes, el de siempre.
+**Diferencia clave:** antes un artículo viejo deshabilitado volvía con su stock aunque el modelo ya no
+tuviera libre (quedaba descuadrado). Deshabilitar sigue dejándolo en 0.
+
+---
+
+### [BUG-KEY-22] ✅ HOTFIX prod: 🧩 Productos del modelo respondía 400 y no decía cuánto stock quedaba (2026-10-07)
+
+**En prod desde el 2026-10-07** (back `282a530`, front `161c0d4f`; validado por el dueño).
+**Causa real del 400:** no era el stock. Tomcat rechazaba la petición (encabezados de más de 8 KB por
+el token del admin) antes de llegar a la app: nginx registraba `400 435` y el front, sin `mensaje` en
+la respuesta, mostraba *"Error al crear variantes — Intenta de nuevo"*. Arreglo:
+`server.max-http-request-header-size: 64KB` en el back. Lo de abajo se subió en el mismo hotfix.
+
+**Request:** `POST /mis-productos/v1/variantes/inicializarDesdeProducto` (multipart: `request` + `files[]`). Sin cambios.
+
+**Qué fallaba (antes):** en **Catálogo → 🔍 Modelos → 🧩 Productos**, la ventana decía "Stock disponible"
+con el stock **total** del modelo y dejaba pedir hasta ese número. El back resta el stock que ya tienen
+los artículos habilitados del modelo y rechazaba con *"Stock insuficiente para crear 2 variantes del
+producto 123. Stock disponible: 0"*. Caso real: modelo con 3, en la Tienda se veía 1 artículo, pedir 2
+fallaba; los otros artículos con stock existían pero **sin foto**, y sin foto no salen en la Tienda.
+Además, si se elegían fotos sin marcar "Misma imagen para todas", el back las **descartaba sin avisar**
+y los artículos nacían sin foto.
+
+**Después:**
+- La ventana pide `GET /v1/variantes/porProducto/{id}` y muestra *"Stock del modelo: 3 · En sus
+  artículos: 3 · Puedes crear: 0"*; no deja pedir más de lo que se puede. Con 0, no abre: explica y
+  manda a buscar los artículos con el filtro **Sin imágenes** de la Tienda.
+- Fotos elegidas sin marcar "Misma imagen para todas" → no deja seguir (antes se perdían).
+- **404** con mensaje nuevo: *"No alcanza el stock para crear 2 artículo(s): el modelo tiene 3 y sus
+  artículos ya tienen 3 (2 sin foto: no salen en la tienda, búscalos con el filtro "Sin imágenes").
+  Puedes crear 0. Sube el stock del modelo o quítale stock a un artículo."*
+- `IVarianteDto` (front) suma `habilitado`, que el back ya mandaba.
+
+---
+
+### [BUG-KEY-21] 🆕 Personalización: 2 colores nuevos para los filtros (2026-10-07)
+
+**Request:** `GET /mis-productos/v1/tema-variable/activo` (sin cambios en la URL ni en los parámetros).
+
+**Response:** después de correr `migration_tema_filtros.sql` trae **2 filas más**, grupo `Formularios`:
+
+| `clave` | Para qué | `valorClaro` | `valorOscuro` |
+|---|---|---|---|
+| `filtros-panel-bg` | Fondo del recuadro de búsqueda y filtros (Tienda y Catálogo → Modelos) | `rgba(255,255,255,0.70)` | `#1c1e2c` |
+| `filtro-bg` | Fondo de cada filtro (casillas, fechas y precio) | `rgba(45,117,96,0.10)` | `rgba(91,185,154,0.14)` |
+
+**Diferencia clave:** el front las aplica como `--filtros-panel-bg` y `--filtro-bg`, igual que las
+demás filas (`TemaService`). Sin el script, el front usa los mismos valores de `styles.scss`, así que
+se ve igual; solo que no se pueden cambiar desde Personalización.
+
+**Antes / después en pantalla:** el recuadro de Tienda y de Catálogo → Modelos estaba transparente
+(la regla de encabezados del 2026-10-06 lo borraba); ahora tiene fondo. Ver Prueba 13 de
+`GUIA_DE_PRUEBAS_QA.md`.
+
+---
+
+### [BUG-KEY-20] 🆕 Datos legales del negocio y aceptación de Términos en el registro
+**Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migración:** `migration_datos_legales.sql`
+(**antes** del deploy del back: la entidad `Usuario` ya mapea `acepto_terminos` y sin la columna falla el login).
+Sale de `LEGAL_PLAN_DE_ACCION.md` (puntos 4, 5, 6, 7, 8, 13 y 16).
+
+**1. Endpoints nuevos** (dominio `datoslegales`)
+
+| Request | Quién | Response |
+|---|---|---|
+| `GET /mis-productos/v1/datos-legales` | **Público** (sin sesión) | `{ data: { nombreResponsable, rfc, domicilio, telefono, correo, horarioAtencion, faltan: string[], completos: boolean } }` |
+| `PUT /mis-productos/v1/datos-legales` | ROLE_ADMIN o Escritura en `admin/negocio` | Body: los 6 campos (todos opcionales, vacío = sin capturar). Response igual al GET |
+
+- `faltan` = lo que falta para la LFPC 76 bis III: `"Nombre del responsable"`, `"Domicilio"`, `"Teléfono"`, `"Correo"`.
+- `telefono` se guarda solo con 10 dígitos (acepta espacios, guiones, paréntesis y +52 al escribirlo).
+- **400** con `mensaje`: `"El RFC no es válido: deben ser 13 caracteres (persona física) o 12 (empresa), como viene en tu constancia"`,
+  `"El teléfono tiene que tener 10 dígitos"`, `"El correo no es válido"`, `"<campo> no puede pasar de N caracteres"`.
+- **403** sin el permiso en el PUT.
+
+**2. `POST /mis-productos/v1/auth/registrar` — campo nuevo opcional `aceptoTerminos`**
+- `true` → se guarda `acepto_terminos = 1` y la fecha. `false` → **400** `"Debes aceptar los Términos y condiciones para registrarte"`.
+- **Omitido** (front de antes) → se registra igual, sin aceptación de Términos (compatible).
+- El límite de registros por IP **ya existía** (mismo rate limit del login; apagado en QA a propósito).
+
+**3. Bots (chat de la tienda, chat en vivo, Instagram, Facebook):** nueva regla en el prompt
+(`ChatbotBase.SIN_PROMESAS`): solo decir de un producto lo que está en el catálogo; no decir "original",
+"100% piel", "garantizado", "el más barato" ni efectos en la salud si no está escrito; no prometer
+descuentos, regalos, meses sin intereses ni fechas. No cambia ningún endpoint.
+
+**Front que lo usa:** `legal/datos-legales.service.ts` (GET cacheado, sin spinner), pie de página
+(`app.component.html`, contacto), Términos y Aviso de privacidad (textos nuevos), Configuración del negocio
+(sección "Datos legales"), registro (aviso corto + casilla de Términos), ticket (`shared/ticket.util.ts`:
+encabezado con los datos y "Abonos sin intereses (CAT 0%)"), Venta directa y Carrito (aviso de Ir pagando y
+Apartado), SEO (`shared/seo/seo.service.ts`, sitemap, robots, `noindex` en "Página no disponible").
+
+---
+
+### [BUG-KEY-19] 🆕 La entrega va aparte del pago: Entregado / Falta entregar, 📦 Entregar y filtros Pago + Entrega
+**Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migraciones:** `migration_entrega_pedido.sql`
+(**antes** del deploy del back: la entidad `Pedido` ya mapea las columnas nuevas) y `migration_accion_gastos_admin.sql`.
+Volver a entrar después (permisos en el JWT). Reglas: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §11 (E1–E10),
+dominio `hexagonal/entrega/README.md`.
+
+**Qué cambia en una línea:** `estado_pedido` sigue diciendo **solo el pago** (Pagado / Falta pagar /
+Cancelado). La entrega vive en una columna nueva, `pedidos.entregado` (+ `fecha_entregado`). La card
+muestra las dos etiquetas: verde lo hecho, rojo lo que falta.
+
+**1. Endpoints nuevos** (dominio `entrega`)
+
+| Request | Qué hace | Permiso (acción de `pedidos/mis-pedidos`) |
+|---|---|---|
+| `POST /mis-productos/v1/pedidos/{pedidoId}/entrega` | Marca entregado el pedido, o **todo su grupo** si está unido | `entregar` |
+| `DELETE /mis-productos/v1/pedidos/{pedidoId}/entrega` | Regresa a "Falta entregar" (por si se marcó por error) | `regresar-entrega` |
+
+- Sin body. **200** → `{ mensaje, data: { pedidos: [12, 13], entregado: true|false } }` (`pedidos` = los que cambiaron).
+- **400** con `mensaje` (el front lo muestra tal cual):
+  - Apartado o contado sin pagar: `"El pedido 12 todavía no está pagado (falta $150.00): primero se cobra y después se entrega"` (en grupo: `"El pedido 12 del grupo …"`). **Ir pagando sí se entrega sin estar pagado** (E8).
+  - Cancelado: `"El pedido 12 está cancelado: no se puede entregar"`. Ya entregado: `"El pedido 12 ya está entregado"`.
+  - Regresar uno que no está entregado: `"El pedido 12 no está entregado"`. Pedido inexistente: `"No existe el pedido 12"`.
+- **403** si la persona no tiene la acción. De arranque solo ROLE_ADMIN tiene las dos; se reparten en Gestión de roles.
+
+**2. Campo nuevo `entregado` en las respuestas**
+- Cards de `GET /v1/pedidos/buscar`, las listas de pedidos del admin y del cliente (`IPedidoQuery`) y el
+  detalle `GET /v1/pedidos/{id}` (`PedidoDetalleResponse`, también lo usa Créditos / Abonos): `entregado: boolean`.
+- Card de un grupo: `grupo.entregadoGrupo: boolean` — `true` solo si **todos** los pedidos vivos (no
+  cancelados) del grupo están entregados. La card del titular usa este, no el `entregado` del titular.
+
+**3. Filtro de estado partido en dos bloques** (`GET /mis-productos/v1/pedidos/buscar?estado=…`, mismo parámetro)
+
+| Bloque | Valores nuevos | Significa |
+|---|---|---|
+| Pago | `FALTA_PAGAR`, `PAGADO`, `CANCELADO` | lo que dice la etiqueta de pago de la card |
+| Entrega | `FALTA_ENTREGAR`, `ENTREGADO` | `pedidos.entregado` (los cancelados no entran en ninguno) |
+
+- Dentro de un bloque se suman (OR); entre bloques se cruzan (AND): `estado=PAGADO&estado=FALTA_ENTREGAR` = ya pagaron y no se lo han llevado.
+- **Compatibilidad:** `PENDIENTE` y `POR_COBRAR` (filtros guardados viejos) se aceptan y valen `FALTA_PAGAR`.
+- **Antes / después:**
+  - `ENTREGADO` **antes** = contado cobrado (estado). **Ahora** = se lo llevó, de cualquier forma de cobro.
+  - Un Apartado sin abonos **antes** caía en "Pendiente" (como contado sin cobrar). **Ahora** es "Falta pagar".
+  - El orden "Entrega más próxima" y "espera entrega" ahora miran `entregado`, no el estado del pago.
+- Grupos (R14): Falta pagar / Pagado por el saldo del grupo; Falta entregar si **algún** pedido vivo no está entregado.
+
+**4. `POST /mis-productos/v1/ventas/save` (venta directa) — campo nuevo opcional `entregado` en `VentaDirectaRequest`**
+- Contado: `entregado: false` = "Pagado · falta entregar". Omitido o `true` = entregado, como hasta hoy.
+- Ir pagando (`FIADO`): `entregado: false` = "todavía no se lo lleva". Omitido o `true` = se lo llevó, como hasta hoy.
+- Apartado: se ignora, nace siempre en Falta entregar.
+- El front viejo (que no manda el campo) se comporta igual que antes.
+
+**5. Cancelar un Ir pagando** (`PUT /v1/abonos/{pedidoId}/cancelar` y cancelar desde Mis pedidos)
+- **Antes:** un Ir pagando cancelado **nunca** regresaba el stock (se suponía que se lo llevó).
+- **Después:** si `entregado = false` el stock **sí** regresa y el mensaje es
+  `"Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $X"`.
+  Si ya se lo llevó, igual que antes (`"FIADO cancelado. Stock NO devuelto (producto entregado)…"`).
+  Los Ir pagando que ya existían quedan como entregados (migración), así que para ellos no cambia nada.
+
+**6. Agregar artículo: ajustar el stock del modelo** (`POST /mis-productos/v1/variantes/guardarConImagenes`)
+- Campo nuevo opcional en cada `VarianteDetalle`: `ajusteStockModelo: number` (+3 sube, −2 baja). Se
+  toma el primero distinto de 0 por modelo. Se aplica **antes** de validar el stock repartido y en la
+  **misma transacción** que el artículo: si el artículo no se guarda, el modelo no cambia.
+- **400** `"No tienes permiso para cambiar el stock del modelo. Pídele a alguien con permiso de editar modelos"`
+  si no es ROLE_ADMIN ni tiene Escritura en Modelos, Agregar modelo o Nuevo producto.
+- **400** `"No se puede dejar el modelo en 8: ya tiene 10 repartidos en sus artículos"` si se baja de más.
+- Sin el campo (o en 0), igual que antes.
+
+**7. Gestión de roles** (`migration_entrega_pedido.sql`, solo cambian textos y orden; las claves no)
+- Acciones nuevas: `entregar` (orden 21) y `regresar-entrega` (22), categoría "Tarjeta de pedido".
+- Filtros: `filtro-por-cobrar` → "Falta pagar (💰)", `filtro-pagados`, `filtro-cancelados` en
+  "Filtros — pago"; `filtro-pendientes` → "Falta entregar (📦)", `filtro-entregados` en "Filtros — entrega".
+- `migration_accion_gastos_admin.sql`: el administrador recibe `agregar-gasto`, `editar-gasto` y
+  `eliminar-gasto` de `gastos/buscar`. **Antes:** el admin no veía el botón de agregar gasto (le faltaba la acción).
+
+**Front que lo usa:** `pedidos/entrega/entrega.ts` (etiquetas y "¿Ya se lo llevó?"), `PedidosService.entregar/regresarEntrega`,
+Mis pedidos (dos etiquetas, 📦 Entregar, ↺, filtros Pago y Entrega), Detalle del pedido, Grupo, Créditos / Abonos,
+Venta directa, Venta por artículo (Ir pagando) y Agregar artículo (`ajusteStockModelo`).
+
+---
+
 ### [BUG-KEY-18] ✅ Permisos de Mis pedidos al día en Gestión de roles (filtros nuevos y cobro desde la card)
 **Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Migración:** `migration_accion_pedidos_filtros_y_cobro.sql` (correrla con el deploy y volver a entrar)
 

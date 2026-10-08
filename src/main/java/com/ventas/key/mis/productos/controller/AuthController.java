@@ -287,7 +287,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body("Demasiados intentos de registro. Intente de nuevo en 15 minutos.");
         }
-        return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail(), request.isAceptoPrivacidad()));
+        return ResponseEntity.ok(registroService.registrarUsuario(request.getUserName(), request.getPassword(), request.getEmail(), request.isAceptoPrivacidad(), request.getAceptoTerminos()));
     }
 
     @Operation(summary = "Enviar codigo de verificacion de correo (registro)", description = "Genera un codigo de 6 digitos (expira en 15 minutos) y lo envia al correo del usuario recien registrado. El usuario no puede iniciar sesion hasta verificarlo. Rate-limit independiente del de login/registro.")

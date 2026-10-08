@@ -40,6 +40,7 @@ public class ClienteSinRegistroImpl extends CrudAbstractServiceImpl<ClienteSinRe
     // (el flujo anterior lo creaba de un jalon dentro de POST /v1/ventas/save, sin oportunidad
     // de verificar nada antes de guardar el pedido).
     public ClienteSinRegistro crear(ClienteSinRegistroDto dto) {
+        validar(dto);
         ClienteSinRegistro c = new ClienteSinRegistro();
         c.setNombrePersona(dto.getNombre_persona());
         c.setSegundoNombre(dto.getSegundo_nombre());
@@ -52,6 +53,44 @@ public class ClienteSinRegistroImpl extends CrudAbstractServiceImpl<ClienteSinRe
         c.setNumeroTelefonico(dto.getNumero_Telefonico());
         c.setCorreoVerificado(false);
         return iClienteSinRegistroRepository.save(c);
+    }
+
+    /**
+     * Lo que se escribe en Venta directa (QA 2026-10-08: se guardaban clientes con nombre "a").
+     * Nombre obligatorio con al menos 3 letras; los opcionales, si se escriben, tambien 3 letras;
+     * el correo con formato de correo y el telefono con 10 digitos.
+     */
+    static void validar(ClienteSinRegistroDto dto) {
+        if (letras(dto.getNombre_persona()) < MINIMO_LETRAS) {
+            throw new RuntimeException("El nombre debe tener al menos " + MINIMO_LETRAS + " letras");
+        }
+        validarOpcional(dto.getSegundo_nombre(), "El segundo nombre");
+        validarOpcional(dto.getApeido_Paterno(), "El apellido paterno");
+        validarOpcional(dto.getApeido_Materno(), "El apellido materno");
+        String correo = dto.getCorreo_Electronico();
+        if (correo != null && !correo.isBlank() && !correo.trim().matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            throw new RuntimeException("El correo no es valido");
+        }
+        String telefono = dto.getNumero_Telefonico();
+        if (telefono != null && !telefono.isBlank()) {
+            String digitos = telefono.replaceAll("[\\s()+-]", "");
+            if (digitos.length() == 12 && digitos.startsWith("52")) digitos = digitos.substring(2);
+            if (!digitos.matches("\\d{10}")) {
+                throw new RuntimeException("El telefono debe tener 10 digitos");
+            }
+        }
+    }
+
+    private static final int MINIMO_LETRAS = 3;
+
+    private static void validarOpcional(String valor, String campo) {
+        if (valor != null && !valor.isBlank() && letras(valor) < MINIMO_LETRAS) {
+            throw new RuntimeException(campo + " debe tener al menos " + MINIMO_LETRAS + " letras (o dejalo vacio)");
+        }
+    }
+
+    private static long letras(String valor) {
+        return valor == null ? 0 : valor.codePoints().filter(Character::isLetter).count();
     }
 
     public void enviarCodigoVerificacion(Integer id) {

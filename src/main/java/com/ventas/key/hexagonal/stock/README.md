@@ -83,7 +83,15 @@ las promociones vigentes, y **rechaza** si el total que mandó el front no coinc
 
 ---
 
-## ⚠️ Duda 2 — Variantes deshabilitadas con stock
+## R6 — Al volver a habilitar, el artículo solo se lleva lo libre (decidido 2026-10-07)
+Palabras del dueño: *"si tengo un artículo con 3 deshabilitado y ya usé 2 para otro, sobra 1; al
+habilitarlo se valida cuánto hay libre y se actualiza a 1"*. Desde 2026-10-01 dar de baja o
+deshabilitar deja el artículo en 0 (su stock vuelve al libre del modelo, **lectura (a)** de la Duda 2:
+no hace falta modal). Los artículos deshabilitados **antes** de eso todavía guardan su stock viejo:
+al habilitarlos, `habilitarDeshabilitarVariantesLote` les deja `min(stock viejo, libre)` y el mensaje
+dice qué se ajustó (*"Bolsa M ROJA de 3 a 1"*). Pruebas en `VarianteStockDevolucionTest`.
+
+## ✅ Duda 2 — Variantes deshabilitadas con stock (cerrada: lectura (a) + R6)
 
 Pedido del usuario: un modal que pregunte *"¿querés tomar el stock de una variante dada
 de baja?"* y, al aceptar, se lo quite a esa variante.
@@ -150,3 +158,26 @@ producto, qué dato es el verdadero:
 
 Eso es decisión del negocio, no técnica. **Primero el reporte de descuadres, después la
 migración.**
+
+---
+
+## Agregar o quitar stock al modelo (2026-10-08, pedido del dueño)
+
+`PUT /v1/stock/producto/{id}/ajuste` — caso de uso `AjustarStockModeloCasoUso`. Lo usa Agregar
+artículo: *"si no hay stock tiene que aparecer, y si agrego 5 se tendría que ir al modelo, y ya que se
+agregue sale el mensaje de ¿deseas agregar los artículos de una vez?"*.
+
+| # | Regla | Dónde |
+|---|---|---|
+| R-A1 | Lo que se agrega va al **modelo** y queda libre; no se reparte solo a ningún artículo | `DisponibilidadStock.conAjuste()` |
+| R-A2 | Ajuste 0 no es un cambio: se rechaza con mensaje | idem |
+| R-A3 | Quitar nunca deja el modelo en negativo ni por debajo de lo repartido en sus artículos habilitados (R1) | idem |
+| R-A4 | Cuántos artículos más caben = lo libre, nunca negativo (cada artículo necesita 1 pieza) | `articulosQueAunCaben()` |
+| R-A5 | La disponibilidad dice si el modelo está **habilitado** y si tiene **foto**: Agregar artículo avisa y no deja dar de alta artículos de un modelo deshabilitado hasta habilitarlo | `ConsultarStockJpaAdapter` |
+
+Puertos de salida nuevos: `GuardarStockModeloPort` (solo escribe el total) y `AvisarCambioStockPort`
+(solo limpia cachés): un método, una responsabilidad.
+
+Pruebas automáticas que faltan: `TESTS_PENDIENTES.md` (2026-10-08). Manuales: `PRUEBAS_PENDIENTES_2026-10-07.md`,
+Prueba 18.
+

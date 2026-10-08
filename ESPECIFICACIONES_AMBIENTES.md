@@ -62,6 +62,15 @@ cambian a mano con migraciones. Por eso una entidad puede decir una cosa y la ta
 | `producto` | `nombre`, `precio_costo`, `piezas`, `precio_venta` y `precio_rebaja` son NOT NULL en la base real; en la entidad no | comentario en `CargaImagenesServiceImpl` (alta del borrador) |
 | varias | la entidad y la tabla se llaman distinto (`Imagen` → `imagenes_copy`, `Usuario` → `usuario_modificacion`…) | CLAUDE.md, "Trampa: nombres que no coinciden" |
 
+### Tablas ya comparadas entre qa y prod (no volver a pedirlas)
+
+Antes de pedirle al dueño un `SHOW CREATE TABLE`, revisar aquí si ya se comparó. Si la tabla está
+en esta lista y no se ha corrido ninguna migración sobre ella desde la fecha, **no se vuelve a pedir**.
+
+| Tabla | Fecha | Resultado |
+|---|---|---|
+| `variantes` | 2026-10-06 | **Idénticas** en `inventario_key_qa` e `inventario_key`. Solo son obligatorias (`NOT NULL`) `id`, `habilitado` (default `'1'`) y `usar_descuento` (default `0`); todo lo demás acepta NULL (`producto_id`, `talla`, `color`, `presentacion`, `stock`, `descripcion`, `marca`, `contenido_neto`, `palabra_clave_id`, `fecha_creacion`, `precio_venta`, `precio_rebaja`). FKs: `producto_id` → `producto(id)`, `palabra_clave_id` → `palabra_clave(id)`. Un artículo con todo vacío **sí** se puede guardar: si algo falla al crear artículos, no es por una columna obligatoria |
+
 ### Convenciones de datos que un script tiene que respetar
 
 - `habilitado` es `CHAR(1)`: `'1'` o `'0'`.

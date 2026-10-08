@@ -34,15 +34,21 @@ public class ConsultarStockJpaAdapter implements ConsultarStockPort {
                    p.stock,
                    COALESCE(SUM(CASE WHEN v.habilitado = '1' THEN v.stock ELSE 0 END), 0),
                    COALESCE(SUM(CASE WHEN v.habilitado = '1' THEN 1 ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN v.habilitado <> '1' THEN v.stock ELSE 0 END), 0)
+                   COALESCE(SUM(CASE WHEN v.habilitado <> '1' THEN v.stock ELSE 0 END), 0),
+                   CASE WHEN p.habilitado = '1' THEN 1 ELSE 0 END,
+                   CASE WHEN EXISTS (SELECT 1 FROM producto_imagen_copy pi WHERE pi.producto_id = p.id)
+                        THEN 1 ELSE 0 END
             FROM producto p
             LEFT JOIN variantes v ON v.producto_id = p.id
             """;
 
+    // Habilitado y foto del modelo (2026-10-08): Agregar articulo avisa si esta deshabilitado o sin foto.
+    private static final String GROUP_BY = " GROUP BY p.id, p.nombre, p.stock, p.habilitado";
+
     @Override
     public Optional<DisponibilidadStock> disponibilidadDe(Integer productoId) {
         List<Object[]> filas = em.createNativeQuery(
-                        SELECT_DISPONIBILIDAD + " WHERE p.id = :productoId GROUP BY p.id, p.nombre, p.stock")
+                        SELECT_DISPONIBILIDAD + " WHERE p.id = :productoId" + GROUP_BY)
                 .setParameter("productoId", productoId)
                 .getResultList();
 
@@ -54,7 +60,7 @@ public class ConsultarStockJpaAdapter implements ConsultarStockPort {
         @SuppressWarnings("unchecked")
         List<Object[]> filas = em.createNativeQuery(
                         SELECT_DISPONIBILIDAD
-                        + " GROUP BY p.id, p.nombre, p.stock"
+                        + GROUP_BY
                         + " HAVING p.stock < COALESCE(SUM(CASE WHEN v.habilitado = '1' THEN v.stock ELSE 0 END), 0)"
                         + " ORDER BY p.id")
                 .getResultList();
@@ -69,7 +75,9 @@ public class ConsultarStockJpaAdapter implements ConsultarStockPort {
                 entero(fila[2]),
                 entero(fila[3]),
                 entero(fila[4]),
-                entero(fila[5]));
+                entero(fila[5]),
+                entero(fila[6]) == 1,
+                entero(fila[7]) == 1);
     }
 
     /**

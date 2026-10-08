@@ -174,6 +174,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/imagenes/*/imagen").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes/*/imagen").permitAll()
+                        // Datos legales del negocio (LFPC 76 bis III): los lee cualquiera (pie de página,
+                        // Términos, Aviso de privacidad); los cambia quien escribe en Configuración del negocio.
+                        .requestMatchers(HttpMethod.GET, "/v1/datos-legales").permitAll()
+                        .requestMatchers("/v1/datos-legales/**", "/v1/datos-legales").hasAnyAuthority(pantallaEscribir("admin/negocio"))
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/**").hasAnyAuthority(pantalla("admin/negocio"))
                         .requestMatchers("/v1/negocio/**").hasAnyAuthority(pantallaEscribir("admin/negocio"))
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))
@@ -258,6 +262,11 @@ public class SecurityConfig {
                         // Stock disponible: cuanto queda libre para armar modelos. Nunca publico --
                         // expone el inventario real del negocio, que no es asunto del cliente.
                         // El reporte de descuadres va aparte porque es diagnostico de datos rotos.
+                        // Agregar/quitar stock al modelo desde Agregar articulo (2026-10-08): el mismo
+                        // permiso que ya pedia el ajuste dentro del guardado del articulo (B1) y que
+                        // actualizar el modelo.
+                        .requestMatchers(HttpMethod.PUT, "/v1/stock/producto/*/ajuste")
+                                .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/v1/stock/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar"))
                         .requestMatchers(HttpMethod.GET, "/v1/stock/**")
@@ -398,6 +407,13 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-articulo"))
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/promociones/*")
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "quitar-promocion"))
+                        // Entrega aparte del pago (2026-10-06, dominio hexagonal entrega):
+                        // 📦 Entregar y regresarlo a "Falta entregar" son acciones separadas
+                        // (regresar es solo admin por default). Antes del catch-all.
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/entrega")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "entregar"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/entrega")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "regresar-entrega"))
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 

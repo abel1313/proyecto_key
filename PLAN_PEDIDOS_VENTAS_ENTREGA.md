@@ -324,3 +324,37 @@ Resumen de todas las reglas de cobro en `.claude/skills/reglas-pedidos/SKILL.md`
 
 Consecuencias: cancelar un Apartado ya no deja "saldo a favor" (no tiene dinero), y la Prueba 5 de
 `PRUEBAS_QA_2026-10-01.md` cambia en ese punto.
+
+## 11. Entrega separada del pago (decidido 2026-10-06)
+
+Palabras del dueño: *"en la card diría Pagado y abajo Falta entregar o Entregar… en Ir pagando sería al
+revés: Entregado en verde pero Falta pagar en rojo, y cuando termine de pagar cambia a Pagado en
+verde"*. Junta A9, A11, A13, P2 y P4.
+
+**La card siempre dice dos cosas, cada una con su color:**
+
+| | Pago | Entrega |
+|---|---|---|
+| ✅ verde | **Pagado** | **Entregado** |
+| 🔴 rojo / ámbar | **Falta pagar $X** | **Falta entregar** + botón **📦 Entregar** |
+
+| # | Regla | Estado |
+|---|---|---|
+| E1 | **Apartado**: al liquidar (último abono, desde el detalle, Créditos / Abonos o la card) pregunta **"¿Ya se lo llevó?"** → Sí: Pagado + Entregado. No: Pagado + Falta entregar | decidido |
+| E2 | Si se olvidó o se eligió mal, la card muestra **Pagado · Falta entregar** con el botón **📦 Entregar** | decidido |
+| E3 | **Ir pagando**: normalmente **Entregado** desde que se crea (se lo llevó) y **Falta pagar $X** en rojo; al terminar de pagar → Pagado. Al crearlo pregunta "¿Ya se lo llevó?" (2.3: "Todavía no se lo lleva" → Falta entregar, y si se cancela el stock **sí** regresa) | decidido |
+| E4 | **Contado** (cobrado): igual, al cobrar pregunta "¿Ya se lo llevó?"; si no, Pagado + Falta entregar con su botón | decidido |
+| E5 | El pedido está **terminado** cuando está Pagado **y** Entregado | decidido |
+| E6 | Regresar un Entregado a "Falta entregar": solo administrador **por default**, pero es una acción de Gestión de roles (configurable) | decidido |
+| E7 | Pedidos unidos: **📦 Entregar** marca a todos los del grupo, igual que el pago (todo homologado) | decidido |
+| E8 | Un Apartado no se entrega sin estar pagado (es la regla del Apartado); un Ir pagando sí | propuesta |
+| E9 | Filtros de Mis pedidos: el bloque **Estado** se parte en **Pago** (Falta pagar / Pagado) y **Entrega** (Falta entregar / Entregado), más Cancelado | propuesta ❓ |
+| E10 | Pedidos que ya existen: Contado cobrado, Ir pagando y Apartados/Ir pagando ya liquidados → **Entregado** (es historial); Apartados abiertos y contados sin cobrar → **Falta entregar** | propuesta ❓ |
+
+**Cómo se guarda (técnico):** columna nueva `pedidos.entregado` (0/1) + `fecha_entregado`, aparte de
+`estado_pedido`, que sigue diciendo solo el pago. Así no se toca toda la lógica de cobro, abonos,
+grupos y reportes que hoy lee `estado_pedido`. Migración con su backfill (E10), probada en una base
+desechable antes de entregarla, y una acción nueva de Gestión de roles para Entregar / Regresar.
+
+**Se sube todo junto** (entrega + homologación de pantallas) a `dev` y `qa` cuando esté completo, y
+se prueba en QA (decisión del dueño, 2026-10-06).

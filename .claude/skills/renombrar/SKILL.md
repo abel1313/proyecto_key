@@ -78,8 +78,10 @@ y se actualiza `CLAUDE.md` en el mismo cambio.
    - Revisión en el navegador de las pantallas cambiadas, de día y de noche (skill `diseno-componentes`).
    - Si hubo nivel 3: el `/v1/` viejo sigue respondiendo igual; documentar el `/v2/` en `CAMBIOS_FRONT.md`.
    - Si hubo nivel 4: migración corrida en una base desechable dos veces y anotada.
-6. **Entregar** al dueño: qué cambió por nivel, qué se dejó a propósito y por qué, y las pantallas
-   a revisar (agregar la prueba a `PRUEBAS_QA_<fecha>.md` como 🔴 PRUEBA PENDIENTE).
+6. **Entregar** al dueño: qué cambió por nivel, qué se dejó a propósito y por qué, y las pruebas.
+   Cada URI, campo o texto movido lleva su **mapa de impacto** (skill `pruebas-de-impacto`): dónde
+   se usa, qué daba con el nombre viejo, qué debe dar con el nuevo y lo que depende de eso, todo en
+   `PRUEBAS_QA_<fecha>.md` como 🔴 PRUEBA PENDIENTE.
 7. **Juntar** cuando el dueño lo apruebe: merge `--no-ff` de la rama a `dev`, y de ahí el flujo normal.
    Si `dev` avanzó mientras tanto, primero se trae `dev` a la rama y se vuelve a verificar.
 

@@ -44,7 +44,22 @@ Leyenda: ✅ así funciona hoy · 🔮 para después (no está programado) · �
 | **Apartado, al recogerlo con tarjeta** | Al ir al local a recogerlo, poder pagar con tarjeta y, si cumple 3, a MSI | Al recogerlo | 🔮 |
 
 - Hoy el cliente **no puede pagar con tarjeta en la tienda en línea**: lo que pide por su cuenta queda
-  como pedido sin pagar (Apartado). El pago en línea es 🔮 (fila de arriba).
+  como **🕓 Pendiente** (ver 2.0). El pago en línea es 🔮 (fila de arriba).
+
+### 2.0 🕓 Pendiente = lo pidió el cliente desde su cuenta (decidido 2026-10-07)
+
+Palabras del dueño: *"si hacen el pedido desde la cuenta aparece como pendiente, que es el status que
+hace falta… que tal si al entregar el cliente ya me dijo que mejor se lo aparte: poder cambiar el
+status para poder verlo en todos lados"*.
+
+| Regla | Estado |
+|---|---|
+| El pedido que el cliente hace desde su cuenta (Carrito) es **🕓 Pendiente**: nadie lo ha cobrado ni apartado. En la base: `NORMAL` + estado `'Pendiente'` | ✅ |
+| Se ve aparte en **Mis pedidos → Filtros → Forma de cobro → 🕓 Pendiente** y con su etiqueta en la card. "🛒 Contado" ya no los incluye | ✅ 2026-10-07 |
+| Si el cliente pide que se lo aparten → 🔁 Cambiar forma de cobro → **Apartado**; si deja un adelanto → **Ir pagando** con ese monto. Desde ahí es Apartado / Ir pagando en todos lados | ✅ 2026-10-07 |
+| Para cobrarlo completo: **Cobrar** en la card (queda Contado) | ✅ |
+| Un Pendiente con fecha para recoger se **cancela solo** 2 días después de esa fecha (8:00 a. m.). Un Apartado o Ir pagando **no** | ✅ |
+| **Envíos → Entregas por zona** trae todo lo que falta entregar de la zona (Pendiente, Apartado, Ir pagando sin llevárselo, Pagado sin entregar) | ✅ 2026-10-07 |
 - **Card de Mis pedidos, cobro a crédito (decidido 2026-10-06, reemplaza "manda a Créditos / Abonos"
   del 2026-10-01):** palabras del dueño: *"ir a Créditos / Abonos para cobrar y regresar a pedidos es
   mucha pérdida de tiempo"*. En la card, en lugar de **Cobrar**: Apartado (suelto o unido) →
@@ -71,6 +86,7 @@ podría entrar."*
 |---|---|
 | Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Pasa solo a **Ir pagando** y una nota explica por qué: un Apartado es sin dinero (ver 2.3; reemplaza el aviso que no dejaba seguir) |
 | Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
+| Al cobrar un Apartado (detalle, Créditos / Abonos o 💵 Pagar el grupo completo) | **Desde 2026-10-08 el monto viene fijo en el total y no se puede cambiar**; junto a él, **🔒 ¿Por qué no puedo cambiar el monto?** explica la regla y ofrece pasar a Ir pagando. Pedido del dueño: *"bloquear el monto cuando sea apartado"* |
 | Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
 | Apartados unidos | El botón dice **💵 Pagar el grupo completo** y solo acepta el saldo completo del grupo |
@@ -132,6 +148,14 @@ puntos de cobro (venta directa, Cobrar de la card, Liquidar / Dar abono, detalle
 grupo) que cada forma de pago se registre bien: efectivo con monto recibido y cambio; transferencia
 exacta; tarjeta de **crédito** y de **débito** por separado; MSI con sus reglas (sección 3). Antes de
 tocar nada, hacer el mapa de qué acepta hoy cada punto.
+
+### 2.4 Pago y entrega son dos cosas (decidido 2026-10-06, 🆕 en desarrollo)
+
+La card dice siempre **dos** cosas: **Pagado** / **Falta pagar $X** y **Entregado** / **Falta entregar**
+(verde lo hecho, rojo lo que falta). Al liquidar un Apartado, al crear un Ir pagando y al cobrar un
+contado se pregunta **"¿Ya se lo llevó?"**; si se olvidó, la card tiene **📦 Entregar**. Ir pagando suele
+nacer Entregado con Falta pagar. Pedidos unidos: Entregar marca a todos. Regresar a "Falta entregar":
+solo admin por default, configurable en Gestión de roles. Reglas E1–E10: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §11.
 
 ## 3. Meses sin intereses (MSI)
 
@@ -195,7 +219,7 @@ Ver `PENDIENTES_2026-09-29.md` B y `PLAN` D1–D5. En corto:
 
 ## 6. Dónde está cada cosa
 
-- Skills relacionadas: `nombres-reales` (nombres de pantallas), `diseno-componentes` (pantallas nuevas), `arquitectura-hexagonal-limpia` (código nuevo del back), `renombrar` (cambiar un término en todo el proyecto).
+- Skills relacionadas: `nombres-reales` (nombres de pantallas), `diseno-componentes` (pantallas nuevas), `arquitectura-hexagonal-limpia` (código nuevo del back), `renombrar` (cambiar un término en todo el proyecto), `pruebas-de-impacto` (qué probar de todo lo que depende de un cambio: antes y después).
 
 - `PLAN_PEDIDOS_VENTAS_ENTREGA.md` — plan de ventas, pedidos, entrega y MSI (decisiones del dueño).
 - `PENDIENTES_2026-09-29.md` — pendientes por tema (A–E).

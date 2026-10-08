@@ -117,6 +117,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
 
+        // QA 2026-10-08: se guardaban nombres como "a". Opcional, pero si viene necesita 3 letras.
+        String receptor = request.getNombreReceptor();
+        if (receptor != null && !receptor.isBlank() && receptor.codePoints().filter(Character::isLetter).count() < 3) {
+            throw new ExceptionErrorInesperado("El nombre de quien recibe debe tener al menos 3 letras (o déjalo vacío)");
+        }
+
         String tipoPedido = request.getTipoPedido();
         boolean esCredito = "APARTADO".equals(tipoPedido) || "FIADO".equals(tipoPedido);
 
@@ -159,6 +165,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             clienteSinRegistro = iClienteSinRegistroRepository.findById(request.getClienteSinRegistroId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Cliente sin registro no encontrado"));
         } else if (esSinRegistro) {
+            try {
+                ClienteSinRegistroImpl.validar(request.getClienteSinRegistroDto());
+            } catch (RuntimeException e) {
+                throw new ExceptionErrorInesperado(e.getMessage());
+            }
             clienteSinRegistro = iClienteSinRegistroRepository.save(mapperClienteSinRegistroDto(request));
         } else {
             cliente = iClienteRepository.findById(request.getClienteId())
@@ -261,6 +272,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setFechaRecogida(request.getFechaEntrega());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
+            // Ir pagando se lo lleva al crearse salvo que digan que no; un Apartado nunca (E3, E8).
+            pedido.marcarEntregado("FIADO".equals(tipoPedido) && !Boolean.FALSE.equals(request.getEntregado()));
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
             pedido.setDetalles(detallesPedido);
             Pedido savedPedido = iPedidoRepository.save(pedido);
@@ -284,6 +297,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         // Crear y guardar Pedido (siempre, para todos los escenarios)
         Pedido pedido = new Pedido();
         pedido.setEstadoPedido("Entregado");
+        // Venta de contado en el local: se lo lleva en ese momento salvo que digan que no (E4).
+        pedido.marcarEntregado(!Boolean.FALSE.equals(request.getEntregado()));
         pedido.setCliente(cliente);
         pedido.setClienteSinRegistro(clienteSinRegistro);
         pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");

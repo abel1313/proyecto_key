@@ -337,6 +337,13 @@ Checklist de TikTok: `TIKTOK_SETUP.md`.
 - Access token: 15 minutos
 - Refresh token: 7 días
 
+**Tamaño del token (2026-10-07):** el access token lleva `pantallas`, `pantallasEscritura` y
+`pantallasAcciones` completos, así que crece con cada permiso nuevo (~40 bytes por acción). Al pasar de
+8 KB, Tomcat respondía **400 sin CORS a todo lo que llevara token** (lo público sin sesión seguía en 200;
+en el access.log de nginx, los 400 pesaban 435 bytes = página de error de Tomcat). Se subió
+`server.max-http-request-header-size` a 64KB. Arreglo de fondo pendiente: sacar las acciones del JWT y
+servirlas desde un endpoint (el back ya recalcula los permisos desde la BD en cada request).
+
 **Bug resuelto (frontend):** Al expirar el access token, el interceptor del front hacía el refresh correctamente pero parseaba mal el response. El back devuelve `{ response: { accessToken: '...' } }` (ResponseGeneric) y el interceptor leía `response.accessToken` → guardaba `undefined` → el retry fallaba con "no se puede sacar el nombre del JWT". Fix: leer `response.response.accessToken`.
 
 **Backend no requería cambios.** QA y Docker están correctos: env var `${TOKEN_JWT}` para el secret, `cookie.secure: true`, Redis y Rabbit configurados.
@@ -597,9 +604,53 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 | `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
 | `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ✅ corrida (verificación sin_admin = 0) | ✅ corrida antes que el front (sin_admin = 0; las claves no cambian, solo textos — ver nota) | 2026-10-06 |
+| `migration_tema_jade.sql` (diseño Jade por default) | ✅ corrida (estilo = jade, respaldo con 39 filas) | ⏳ pendiente (cuando Jade llegue a `main`) | qa 2026-10-07 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
+| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ⏳ pendiente — **antes** del deploy del back a `main` | qa 2026-10-07 |
+| `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
+| `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ⏳ pendiente — **antes** del deploy del back a `main` (sin ella falla el login) | qa 2026-10-07 |
+| `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
+| `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ⏳ pendiente (opcional) | ⏳ pendiente (junto con Jade) | — |
+| `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ⏳ pendiente | ⏳ pendiente | — |
+
+### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
+
+Se mantiene al día en cada cambio: cuando algo se corre en prod, se quita de aquí y se marca ✅ en la
+tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** del deploy del back:
+
+| # | Script | Por qué no puede faltar | Desde |
+|---|---|---|---|
+| 1 | `migration_entrega_pedido.sql` | La entidad `Pedido` mapea `entregado` y `fecha_entregado`: sin las columnas **truena cualquier consulta de pedidos**. Llena la entrega de los pedidos que ya existen (solo la primera vez) y da de alta `entregar` / `regresar-entrega`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 2 | `migration_accion_gastos_admin.sql` | Sin ella el admin no ve el botón para agregar gastos. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
+| 4 | `migration_datos_legales.sql` | La entidad `Usuario` mapea `acepto_terminos`: **sin la columna falla el login**. Crea `datos_legales_negocio`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 5 | `migration_tema_filtros.sql` | Sin ella el fondo de los filtros funciona (sale de `styles.scss`) pero **no aparece en Personalización** para cambiarlo. Solo agrega 2 filas; no cambia nada que exista. Va después de `migration_tema_jade.sql`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 6 | `migration_tema_modal.sql` | Igual que la 5: sin ella el velo detrás de la ventana 🧩 Agregar artículos funciona (sale de `styles.scss`), solo no aparece en Personalización. Agrega 1 fila | 2026-10-08 |
+| 7 | `migration_accion_tienda_venta_ver_todos.sql` | Sin ella solo el admin ve en Agregar artículo los modelos sin stock, deshabilitados o dados de baja (los demás roles no pueden recibir el permiso). Agrega 1 acción y se la da al admin | 2026-10-08 |
+
+Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
+de verificación que trae cada script al final.
+
+**✅ El límite de encabezados de 64 KB ya está en `main` desde el 2026-10-07 (`282a530`).** Se subió
+como hotfix porque en prod pasó lo mismo que en QA (ver Incidente 3 de `PASOS_SUBIDA_2026-10-07.md`).
+La regla sigue: ningún script de permisos en un ambiente cuyo back no tenga ese límite.
+El 2026-10-07 QA dejó de responder (400 a todo, con "blocked by CORS" en la consola) justo después de
+correr `migration_entrega_pedido.sql`, `migration_accion_gastos_admin.sql` y
+`migration_accion_pedidos_filtros_y_cobro.sql`: el token del admin lleva todas sus pantallas y acciones,
+pasó de 8 KB y Tomcat lo rechazaba antes de llegar a la app. Arreglo:
+`server.max-http-request-header-size: 64KB` en `application.yml`. En prod pasa lo mismo si se corren
+esos scripts con el back viejo. Además, en la VPS, agregar `large_client_header_buffers 4 32k;` al
+bloque `server` de `/etc/nginx/sites-available/backend` (prod) y `/etc/nginx/sites-enabled/backend-qa`,
+y `sudo nginx -t && sudo systemctl reload nginx` (nginx corta cada encabezado en 8 KB por default).
+
+**Ya en prod sin bajar todavía a `qa`/`dev`:** el hotfix "Crear artículos" (`f5ad4fb` en `main`,
+2026-10-06) y el hotfix del 400 en 🧩 Productos (`282a530` en `main` y `161c0d4f` en `master`,
+2026-10-07; al bajarlo, en `application.yml` ya está el límite de 64 KB en `dev`/`qa`: queda una
+sola vez). Al bajarlo con merge: en `VarianteServiceImpl` gana lo de `dev` (ya heredaba del modelo
+desde el 2026-09-30, solo cambia un comentario); en `CrudAbstractServiceImpl.typeError()` gana lo de
+`main` (`dev` todavía dice "El codigo postal ya existe" para cualquier restricción de la base).
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -649,6 +700,14 @@ acciones nuevas quedan dadas de alta sin que el front de prod las use. Lo único
 Gestión de roles: los textos ya describen el panel ⚙️ Filtros y el cobro desde la card, que en prod
 todavía no existen ("Filtro: Contado" es el botón "🛒 Normal" de prod). Se empareja solo cuando suba
 el front. **No hay que volver a correrla** cuando se promueva a `main`.
+
+`migration_tema_jade.sql` deja el diseño **Jade** por default: respalda `tema_variable` en
+`tema_variable_bkp_20261001` (solo la primera vez), da de alta 32 variables nuevas (letra, tamaños,
+botones, dorado, cristal, sombras, `estilo`) y pone las 27 que ya existían en los valores de Jade.
+**Sí cambia cómo se ve la app** (es el objetivo); con un front viejo cambia los colores pero no la
+letra. Correrla junto con el deploy del front de la rama. Probada dos veces en MySQL 8 local con
+`--safe-updates`; trae al final las consultas para volver al diseño de antes (probadas: dejan las
+filas idénticas). Ver la skill `diseno-componentes`, sección 0.
 
 `limpiar_datos_e2e_qa.sql` da de baja (nunca DELETE) los modelos y artículos que crean las pruebas
 automáticas de `e2e/` en el front: código de barras exactamente `E2E` + 13 dígitos. Solo actúa en
@@ -856,4 +915,4 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `mensaje_directo_social` (entidad `MensajeDirectoSocial`) · `mensaje_directo_pausa` (entidad `MensajePausa`) · `tiktok_token` · `qr_destino`
 
 **Configuración y negocio**
-`configuracion_negocio` · `tema_variable` · `gastos_surtir` · `inversion`
+`configuracion_negocio` · `datos_legales_negocio` (sin entidad: `DatosLegalesJdbcAdapter`, una fila con id = 1, dominio `datoslegales`) · `tema_variable` · `tema_variable_bkp_20261001` (respaldo de `tema_variable` antes del diseño Jade, lo crea `migration_tema_jade.sql`; sin entidad) · `gastos_surtir` · `inversion`

@@ -32,7 +32,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     // 'cancelado'. Esta consulta solo AMPLIA lo que ve la pantalla: no toca ventas, reportes,
     // dashboard ni el auto-cancelador (ese usa su propio metodo con 'Pendiente' literal).
     @Query("SELECT p FROM Pedido p WHERE p.lugarEntrega.id = :lugarEntregaId " +
-           "AND p.estadoPedido IN ('Pendiente', 'APARTADO') " +
+           "AND p.entregado = false AND LOWER(p.estadoPedido) <> 'cancelado' " +
            "AND p.fechaPedido BETWEEN :desde AND :hasta " +
            "AND NOT EXISTS (SELECT 1 FROM RamoPedidoDetalle r WHERE r.pedido = p)")
     List<Pedido> findPendientesDeZonaEnRango(@Param("lugarEntregaId") Integer lugarEntregaId,
@@ -98,6 +98,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'producto', dp.producto_id,
@@ -134,6 +136,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
                               'nombre_producto', pro.nombre,
@@ -172,6 +176,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -221,6 +227,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'nombreReceptor', p.nombre_receptor,
           'lugarEntregaId', le.id,
           'lugarEntregaNombre', le.nombre,
@@ -334,6 +342,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'nombreReceptor', p.nombre_receptor,
           'lugarEntregaId', le.id,
           'lugarEntregaNombre', le.nombre,

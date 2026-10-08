@@ -629,7 +629,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         // FIADO activo ya entrego la mercancia al cliente (igual que en AbonoServiceImpl.cancelarPedido) --
         // no se le devuelve el stock solo por dejar de pagar, queda como deuda incobrable. Si ya es una
         // devolucion (PAGADO/Entregado) si se devuelve, porque el cliente esta regresando algo que ya tenia.
-        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion;
+        // Desde 2026-10-06 la entrega va aparte: un Ir pagando que todavia no se lo lleva tiene la
+        // mercancia en la tienda, asi que al cancelarlo si regresa stock.
+        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion
+                && pedido.isEntregado();
 
         if (!esFiadoActivo) {
             pedido.getDetalles().forEach(detalle -> {
@@ -794,6 +797,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setTotalPedido(totalPedido);
         resp.setTotalPagado(totalPagado);
         resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
+        resp.setEntregado(pedido.isEntregado());
         resp.setFechaPedido(pedido.getFechaPedido());
         resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
                 ? pedido.getFechaHoraRegistro()
@@ -987,11 +991,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         String tipoOriginal = pedido.getTipoPedido();
+        // El pedido que el cliente hizo desde su cuenta: contado que nadie ha cobrado. Si el
+        // cliente pide pasarlo a Ir pagando y deja un adelanto, ese adelanto si se cobra.
+        boolean enLineaSinCobrar = "NORMAL".equals(tipoOriginal) && "Pendiente".equalsIgnoreCase(pedido.getEstadoPedido());
         if (contadoYaEntregado) {
             reabrirContadoComoCredito(pedido, tipoNuevo, request.getNota());
         }
 
-        if (request.traeCobro() && !contadoYaEntregado && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
+        if (request.traeCobro() && !contadoYaEntregado && !enLineaSinCobrar && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
             throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + tipoOriginal
                     + " y no tiene saldo que cobrar");
         }
@@ -999,7 +1006,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         // Si pasa a Apartado o Ir pagando, el tipo cambia ANTES de cobrar: un Apartado solo acepta
         // el pago completo, y el adelanto que se da al pasarlo a Ir pagando ya es de Ir pagando.
         if (TIPOS_CREDITO_PEDIDO.contains(tipoNuevo) && !tipoNuevo.equals(pedido.getTipoPedido())) {
-            if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+            // El pedido que el cliente hizo desde su cuenta nace 'Pendiente' (no es copia del tipo).
+            // Antes el estado se quedaba 'Pendiente' al pasarlo a Apartado: Entregas por zona lo
+            // seguia viendo como pedido en linea y el cancelador automatico (que busca 'Pendiente')
+            // lo cancelaba aunque el cliente hubiera pedido que se lo apartaran (2026-10-07).
+            if ((tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido()))
+                    || enLineaSinCobrar) {
                 pedido.setEstadoPedido(tipoNuevo);
             }
             pedido.setTipoPedido(tipoNuevo);

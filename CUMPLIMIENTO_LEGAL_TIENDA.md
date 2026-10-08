@@ -1,5 +1,10 @@
 # Cumplimiento legal de la tienda en línea (México) — revisión 2026-09-29
 
+> 📌 **Actualizado el 2026-10-07:** la investigación completa (fiscal, rifas, antilavado, etiquetado,
+> COFEPRIS, IMPI, municipio) está en `LEGAL_MEXICO_INVESTIGACION.md`, y la lista de qué falta, quién
+> lo hace y dónde se saca, en `LEGAL_PLAN_DE_ACCION.md`; otros países, en `LEGAL_OTROS_PAISES.md`. Este documento se queda como la revisión de
+> los 15 puntos del primer video.
+
 > ⚠️ **Esto no es asesoría legal.** Es una investigación para saber qué preguntar y qué corregir.
 > Antes de publicar textos legales definitivos, que los revise un abogado (y el contador para lo
 > fiscal). Cada dato trae su fuente al final; lo marcado **[Por confirmar]** no se pudo leer en la

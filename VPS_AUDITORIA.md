@@ -664,7 +664,7 @@ kubectl exec rabbitmq-0 -n default -- rabbitmqctl list_vhosts
 
 | Dominio | Nginx proxy_pass | App en K8s | `client_max_body_size` |
 |---|---|---|---|
-| `backend.novedades-jade.com.mx` | `51.178.29.99:30010` | proyecto-key back (prod) | ❌ no tiene — pendiente (ver nota abajo) |
+| `backend.novedades-jade.com.mx` | `51.178.29.99:30010` | proyecto-key back (prod) | ✅ `200M` + `large_client_header_buffers 4 32k` (2026-10-07; estaba duplicado, ver PASOS_SUBIDA_2026-10-07.md) |
 | `backend-imagenes.novedades-jade.com.mx` | `127.0.0.1:30096` | micro_imagenes (prod) | ✅ `40m` |
 | `shop.novedades-jade.com.mx` | `127.0.0.1:30001` | front Angular (prod) | — (no recibe uploads) |
 | `qa.backend.novedades-jade.com.mx` | `127.0.0.1:31010` | proyecto-key back (QA) | ✅ `200M` (agregado 2026-08-18) |
