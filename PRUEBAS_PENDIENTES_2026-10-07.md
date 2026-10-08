@@ -1,4 +1,4 @@
-# Pruebas que faltan — paso a paso (al 2026-10-07)
+# Pruebas que faltan — paso a paso (al 2026-10-07, actualizado 2026-10-08)
 
 Aquí están **solo las pruebas que todavía no haces**, en el orden en que conviene hacerlas. Las que ya
 validaste no vienen: **1** (Volver), **5** (filtros de pedidos), **8** (cobrar desde la card),
@@ -21,27 +21,30 @@ casilla `[x]`. Yo leo tus 💬 y contesto debajo con `↳`.
 
 | Orden | Prueba | Qué revisa | ¿Ya se puede? | Tiempo | ✔ |
 |---|---|---|---|---|---|
-| 1 | **2 — Apartado es sin dinero** | Un Apartado no acepta abonos a medias; se pasa a Ir pagando | ✅ Ya, en QA | 25 min | [ ] |
+| 1 | **2 — Apartado es sin dinero** | Un Apartado no acepta abonos a medias; se pasa a Ir pagando | 2.2 y 2.6 ✅ ya; 2.1, 2.4 y 2.5 cambiaron el 2026-10-08 → cuando pase a `qa` | 25 min | [ ] |
 | 2 | **3 — Quitar, cambiar o agregar artículos** | Total, lo que debe y el estado al editar un pedido; ⇄ con varias piezas | ✅ Ya, en QA | 30 min | [ ] |
 | 3 | **4 — Cancelar pedidos con abonos** | Stock y mensajes al cancelar | ✅ Ya, en QA | 20 min | [ ] |
 | 4 | **7 — Filtros y detalle con pedidos unidos** | Grupos en los filtros, card del grupo, botón −, orden, celular | ✅ Ya, en QA | 40 min | [ ] |
 | 5 | **11 — Entregado aparte del pago** | Pagado / Entregado, 📦 Entregar, "¿Ya se lo llevó?", stock del modelo, pantallas homologadas, Gastos | ✅ Ya, en QA | 60 min | [ ] |
 | 6 | **12 — Lo legal** | Datos del negocio, pie de página, Términos, Aviso de privacidad, registro, ticket, Google | ✅ Ya, en QA | 40 min | [ ] |
-| 7 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos, colores en Personalización, encabezados de seguridad | ⏳ Después de tu **"sube"** | 15 min | [ ] |
-| 8 | **15 — Agregar producto, habilitar, Zonas de entrega** | Código y categoría del modelo, stock al habilitar, Zonas de entrega y Entregas por zona | ⏳ Después de tu **"sube"** | 30 min | [ ] |
-| 9 | **16 — 🕓 Pendiente, íconos ⓘ y datos legales** | Pendiente en filtros y card, pasarlo a Apartado, Entregas por zona, ⓘ, de dónde sale cada dato legal | ⏳ Después de tu **"sube"** | 30 min | [ ] |
-| 10 | **10.2 — Mis datos sin spinner** | Que Mis datos cargue | ⏳ Después de tu **"sube"** (QA y prod) | 5 min | [ ] |
-| 11 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | ⏳ Cuando baje los hotfixes de prod (va con tu "sube") | 10 min | [ ] |
-| 12 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
+| 7 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos, colores en Personalización, encabezados de seguridad | ✅ Ya, en QA (subido el 2026-10-07) | 15 min | [ ] |
+| 8 | **15 — Agregar producto, habilitar, Zonas de entrega** | Código y categoría del modelo, stock al habilitar, Zonas de entrega y Entregas por zona | ✅ Ya, en QA (subido el 2026-10-07) | 30 min | [ ] |
+| 9 | **16 — 🕓 Pendiente, íconos ⓘ y datos legales** | Pendiente en filtros y card, pasarlo a Apartado, Entregas por zona, ⓘ, de dónde sale cada dato legal | ✅ Ya, en QA (subido el 2026-10-07) | 30 min | [ ] |
+| 10 | **10.2 — Mis datos sin spinner** | Que Mis datos cargue | ✅ Confirmada por ti el 2026-10-08 | 5 min | [x] |
+| 11 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | ✅ Ya, en QA (subido el 2026-10-07) | 10 min | [ ] |
+| 12 | **17 — Filtros de Tienda, Venta directa, buscadores y Agregar artículos** (2026-10-08) | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras, la ventana 🧩 Agregar artículos | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) | 45 min | [ ] |
+| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) + `migration_accion_tienda_venta_ver_todos.sql` (solo para probarlo con un rol que no sea admin) | 30 min | [ ] |
+| 14 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
 
 **Por qué este orden:** las 2, 3 y 4 crean pedidos (A–F, H4–H8, K1–K6) que se reusan después. Las
-13, 15, 16, 10.2 y 14-QA esperan a que suba los cambios. La **6** va al final: mete miles de pedidos de
+17 y 18 (y lo que cambió de la 2) esperan a que lo del 2026-10-08 pase a `qa`. La **6** va al final: mete miles de pedidos de
 prueba y con eso es más difícil encontrar los tuyos.
 
-**Lo que sube con tu "sube"** (back y front a `dev` y `qa`): fondo de los filtros y seguridad (13),
-Agregar producto y Zonas de entrega (15), Pendiente, ⓘ y datos legales (16), Mis datos (10.2) y el
-hotfix de prod bajado a QA (14-QA). Ningún script nuevo para QA: `migration_tema_filtros.sql` ya está
-corrido.
+**Estado de las subidas (2026-10-08):** lo del 2026-10-07 (pruebas 13, 15, 16, 10.2 y 14-QA) ya está en
+QA. Lo del 2026-10-08 (Prueba 17, Prueba 18 y los cambios de 2.1, 2.3, 2.4 y 2.5) se subió **solo a
+`dev`**: llega a QA cuando digas "sube a qa". Scripts nuevos para QA: `migration_tema_modal.sql`
+(opcional) y `migration_accion_tienda_venta_ver_todos.sql`. Lista completa de pendientes:
+`PENDIENTES_2026-10-08.md`.
 
 ---
 
@@ -107,12 +110,21 @@ dinero**: se paga **completo** al recogerlo. Si el cliente deja un adelanto, el 
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Abre el **👁 Detalle** de **A** y toca **💳 Registrar abono** | El campo **Monto** ya trae el total del pedido, y la nota *"Es un Apartado: se paga completo ($…)"* |
-| 2 | Cambia el monto a **50** y toca **💾 Guardar abono** | Aviso **"Un Apartado se paga completo"**. **No** se registró nada en **📋 Pagos registrados** |
-| 3 | En el aviso toca **🔁 Cambiar a Ir pagando** | Se abre **🔁 Cambiar la forma de cobro** con **Ir pagando** marcado y **$50** en *"¿Cobra algo ahora?"* |
-| 4 | En *"¿Por qué cambia?"* escribe *"dejó $50 de adelanto"* y toca **Guardar cambio** | El pedido queda **💳 Ir pagando**, pagado **$50**, y debe el resto. En **📋 Pagos registrados** aparece el abono de $50 |
+> 🔄 **Cambió el 2026-10-08** (tu comentario de abajo): el monto de un Apartado ya **no se puede
+> mover**, y un botón explica por qué. Los pasos de abajo ya son los nuevos.
 
-❌ **Está mal si:** se registra el abono de $50 mientras sigue siendo Apartado, o si al cambiar a Ir pagando se pierden los $50.
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre el **👁 Detalle** de **A** y toca **💳 Registrar abono** | El campo **Monto** trae el total del pedido, con fondo de color y **no deja escribir**. Junto a él, el botón **🔒 ¿Por qué no puedo cambiar el monto?**. Arriba, la nota *"Es un Apartado: se paga completo ($…)"* |
+| 2 | Intenta escribir otro número en **Monto** | No cambia: se queda el total |
+| 3 | Toca **🔒 ¿Por qué no puedo cambiar el monto?** | Se abre un recuadro: *"Un Apartado es un pedido sin dinero: el cliente lo paga completo, en un solo pago, cuando lo recoge…"* y el botón **🔁 Cambiar a Ir pagando**. Vuelve a tocar 🔒 y se cierra |
+| 4 | Ábrelo otra vez y toca **🔁 Cambiar a Ir pagando** | Se cierra el abono y se abre **🔁 Cambiar la forma de cobro** con **Ir pagando** marcado |
+| 5 | En *"¿Cobra algo ahora?"* escribe **50**; en *"¿Por qué cambia?"* escribe *"dejó $50 de adelanto"* y toca **Guardar cambio** | Mensaje **"Quedó como Ir pagando"** con *"Se registró el cobro de $50.00"* y qué sigue; se queda hasta que tocas **Entendido**. El pedido queda **💳 Ir pagando**, pagado **$50**, y en **📋 Pagos registrados** aparece el abono de $50 |
+
+❌ **Está mal si:** se puede cambiar el monto de un Apartado, se registra un abono menor al total mientras sigue siendo Apartado, o al cambiar a Ir pagando se pierden los $50.
+
+💬 *"para el apartado en detalle, si pongo otro valor si me da el error o el mensaje que eso solo se hace en un pago … bloquear el monto para no dejar mover porque solo es un pago y un botón que aparezca flotando en algún lugar con el texto porque no se puede cambiar el monto … y ya que aparezca el porqué si es que no se ve el texto … bloquear el monto cuando sea apartado"* (2026-10-08)
+↳ Hecho: el monto de un Apartado queda fijo en el total en los **tres** lugares donde se cobra (Detalle → 💳 Registrar abono, **Créditos / Abonos → + Abono** y **💵 Pagar el grupo completo**). Junto al monto está el botón **🔒 ¿Por qué no puedo cambiar el monto?**, que abre la explicación. Va en 2.1, 2.3 y 2.5.
 
 ### 2.2 Un Apartado pagado completo, con cambio (pedido B)
 
@@ -128,30 +140,57 @@ dinero**: se paga **completo** al recogerlo. Si el cliente deja un adelanto, el 
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Ventas → 💳 Créditos / Abonos** → busca **C** → **+ Abono** | El monto ya trae el total y abajo *"Es un Apartado: se paga completo…"* |
-| 2 | Cambia el monto a **50** y regístralo | Aviso **"Un Apartado se paga completo"** con el botón **Ir al pedido**. No se registra nada |
+| 1 | **Ventas → 💳 Créditos / Abonos** → busca **C** → **+ Abono** | El monto trae el total, **no deja escribir**, y junto a él está **🔒 ¿Por qué no puedo cambiar el monto?**. Abajo *"Es un Apartado: se paga completo…"* |
+| 2 | Toca **🔒 ¿Por qué no puedo cambiar el monto?** | La explicación y el botón **Ir al pedido** |
 | 3 | Toca **Ir al pedido** | Se abre el pedido **C** |
 
-❌ **Está mal si:** se registra el abono de $50.
+❌ **Está mal si:** se puede escribir un monto menor al total.
+
+💬 *"2.3 también quedó listo"* (2026-10-08)
+↳ ✅ Gracias. Ojo: por tu comentario de 2.1 aquí también se bloqueó el monto, así que los pasos 1 y 2 cambiaron (antes se escribía 50 y salía el aviso). Vale la pena repasarla rápido.
 
 ### 2.4 Cambiar la forma de cobro (pedidos E y F)
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Abre **E** (Ir pagando con $50) → **🔁 Cambiar forma de cobro** | El botón **Apartado** está gris. Al pasar el mouse: *"Ya dio dinero: un Apartado es sin dinero, queda como Ir pagando"*. Toca **Cancelar** |
-| 2 | Abre **F** (Ir pagando sin dinero) → **🔁 Cambiar forma de cobro** → toca **Apartado** | **No** aparece *"¿Cobra algo ahora?"*; sale la nota *"Un Apartado es sin dinero: el cliente lo paga completo cuando lo recoge…"* |
-| 3 | Toca **Guardar cambio** | **F** queda **📦 Apartado** |
+En **🔁 Cambiar la forma de cobro** salen **4 recuadros** que se tocan como botones. Cada uno
+tiene el nombre en negritas y una línea abajo:
 
-❌ **Está mal si:** en **E** se puede elegir Apartado.
+| Recuadro | Línea de abajo |
+|---|---|
+| **🕓 Pendiente** | *Lo pidió el cliente desde su cuenta y nadie lo ha cobrado ni apartado* |
+| **Normal (contado)** | *Se paga completo ahora* |
+| **Apartado** | *Sin dinero: lo paga completo al recogerlo* |
+| **Ir pagando** | *Ya dio algo y va abonando* |
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre **E** (Ir pagando con $50) → **🔁 Cambiar forma de cobro** | Los 4 recuadros. **Ir pagando** dice **"Así está ahora"**. El recuadro **Apartado** está en **gris** y debajo dice, escrito (sin pasar el mouse): *"🔒 No se puede: ya dio $50.00. Un Apartado es sin dinero; por eso queda como Ir pagando."* Tocarlo no hace nada |
+| 2 | Mira el recuadro **🕓 Pendiente** | También gris, con *"🔒 Solo los pedidos que hace el cliente desde su cuenta quedan así; no se puede regresar a Pendiente"*. Toca **Cancelar** |
+| 3 | Abre **F** (Ir pagando sin dinero) → **🔁 Cambiar forma de cobro** → toca el recuadro **Apartado** | Se pinta con el color de marca. **No** aparece *"¿Cobra algo ahora?"*; en su lugar, un recuadro amarillo: *"Un Apartado es sin dinero: el cliente lo paga completo cuando lo recoge. Si te deja algo ahora, elige Ir pagando."* |
+| 4 | Toca **Guardar cambio** | Mensaje **"Quedó como Apartado"** con *"Cuando el cliente venga a recogerlo, cobra el total con 💳 Registrar abono: se paga completo, en un solo pago."* Se queda hasta que tocas **Entendido**. **F** queda **📦 Apartado** |
+| 5 | Toca **💳 Registrar abono** en **F** | El monto viene fijo en el total con **🔒 ¿Por qué no puedo cambiar el monto?** (igual que 2.1) |
+
+❌ **Está mal si:** en **E** se puede elegir Apartado, si el motivo solo se ve pasando el mouse, o si al guardar no sale ningún mensaje.
+
+💬 *"2.4 abre E ir pagando 50 y dice el botón apartado está en gris pero no veo ningún botón que diga apartado y habíamos quedado que eso ya lo tenías que decir tal cual"* (2026-10-08)
+↳ Tenías razón en las dos cosas. (1) El documento decía "botón" a lo que en pantalla es un **recuadro** con el nombre arriba y una explicación abajo, y el motivo solo salía **pasando el mouse** (en el celular no se ve nunca). Ahora el recuadro bloqueado se pone gris y el motivo va **escrito debajo**. (2) Los pasos de arriba ya describen la pantalla tal cual se ve.
+
+💬 *"en detalle no veo la opción de la nueva opción, como Pendiente como lo habíamos visto?"* (2026-10-08)
+↳ Antes Pendiente solo aparecía como texto ("Ahora está como 🕓 Pendiente") y únicamente en pedidos Pendientes. Ahora **🕓 Pendiente** sale siempre como el primer recuadro. En un pedido Pendiente dice "Así está ahora"; en los demás sale gris, porque Pendiente es el estado del pedido que hace el cliente desde su cuenta y no se regresa a él.
+💬 *"hay que dejarlo así"* (2026-10-08) ↳ ✅ Decidido: a Pendiente **no** se regresa.
+
+💬 *"F le cambié forma de pago no salió nada de mensaje y sí se cambió la forma de pago y no sale ningún mensaje de lo que dices, solo está dar abono, si doy dar abono ahí sí sale el mensaje"* (2026-10-08)
+↳ El mensaje de "Forma de cobro actualizada" duraba **3 segundos** y se cerraba solo, y no decía qué seguía. Ahora dice **"Quedó como Apartado"** con lo que sigue (cobrar el total con 💳 Registrar abono) y **se queda hasta que tocas Entendido**. La nota amarilla del paso 3 sale **antes** de guardar, al tocar el recuadro Apartado; si tampoco la ves, avísame con captura.
 
 ### 2.5 Apartados unidos (pedidos C y D)
 
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | Abre **C** → **🔗 Unir con otros pedidos** → busca **D** → elígelo → **Unir 2 pedidos** | El bloque **"🔗 Unido en el grupo #…"** con el botón **💵 Pagar el grupo completo** |
-| 2 | Toca **💵 Pagar el grupo completo** | El monto ya trae lo que deben **C + D** y el texto *"Son Apartados: se pagan completos…"* |
-| 3 | Cambia el monto a **20** → **Registrar abono** | Aviso **"Los Apartados se pagan completos"**. No se registra nada |
-| 4 | Regresa el monto al total → **Registrar abono** | **C** y **D** quedan **Pagado** y el grupo ya no debe nada |
+| 2 | Toca **💵 Pagar el grupo completo** | El monto trae lo que deben **C + D**, **no deja escribir**, y junto a él **🔒 ¿Por qué no puedo cambiar el monto?**. Arriba el texto *"Son Apartados: se pagan completos…"* |
+| 3 | Toca **🔒 ¿Por qué no puedo cambiar el monto?** | La explicación: son Apartados, se pagan completos en un solo pago; para dejar una parte hay que separarlos y pasarlos a Ir pagando |
+| 4 | Con el monto como viene → **💵 Pagar el grupo completo** | **C** y **D** quedan **Pagado** y el grupo ya no debe nada |
 
 ❌ **Está mal si:** el grupo acepta un pago menor al total.
 
@@ -168,7 +207,7 @@ dinero**: se paga **completo** al recogerlo. Si el cliente deja un adelanto, el 
 
 💬 Notas:
 
-- [ ] 2.1 · [ ] 2.2 · [ ] 2.3 · [ ] 2.4 · [ ] 2.5 · [ ] 2.6 — **Prueba 2 terminada**
+- [ ] 2.1 (repetir: cambió) · [ ] 2.2 · [x] 2.3 ✅ 2026-10-08 (repaso rápido: cambió el monto) · [ ] 2.4 (repetir: cambió) · [ ] 2.5 (cambió) · [ ] 2.6 — **Prueba 2 terminada**
 
 ---
 
@@ -982,6 +1021,215 @@ ventana deja pedir más de lo que dice "Puedes crear".
 
 ---
 
+## Prueba 17 — Filtros de Tienda, Venta directa, buscadores y Agregar artículos (2026-10-08)
+
+**Para qué es:** lo que reportaste el 2026-10-08 al validar en QA: los filtros de Tienda que no se
+combinaban, el precio mín/máx que no encontraba los de $100, el buscador de Venta directa que no se
+actualizaba después de vender, nombres de una letra guardados en Venta directa, y la ventana para dar
+de alta los artículos de un modelo al guardarlo.
+
+**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano:
+- Un modelo con **3 o más artículos con stock**, todos **habilitados**, y uno **deshabilitado** (borde rojo).
+- **Art-A** (de ~$100) y, si tienes, un artículo con **descuento activo** que en la tarjeta diga $100.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 17.1 | Búsqueda de Tienda: filtros de admin y del catálogo en **una sola** llamada | **Tienda → Buscar** (escritorio, con sesión de admin) | Las tarjetas | "Con stock" + "Habilitadas" dejaba 1; quitar un filtro no siempre volvía a buscar | Salen todos los que cumplen los dos; al quitar uno se busca con los que quedan |
+| 17.2 | Precio mín/máx compara el **precio que se cobra** | Tienda → Buscar (admin y catálogo de clientes) | Las tarjetas | Mín 100 / máx 100 no encontraba los de $100 | Encuentra los que la tarjeta dice $100, también con descuento |
+| 17.3 | (mismo) | Tienda sin sesión (cliente) | Las tarjetas | Comparaba el precio normal | **Lo mismo que 17.2**; lo demás del catálogo, igual que antes |
+| 17.4 | Venta directa vuelve a buscar después de cobrar | **Ventas → 💰 Venta directa** | Lista de **🔍 Buscar producto** | Seguía diciendo el stock viejo | El stock ya baja solo |
+| 17.5 | Validación del cliente sin registro y de quien recibe | Venta directa → registrar cliente / Datos de entrega | Aviso rojo debajo del campo | Guardaba "a" | Pide 3 letras; correo y teléfono válidos si se escriben |
+| 17.6 | Buscador de **Mis pedidos** desde la cuenta del cliente | Tienda → Mis pedidos (cliente) | Debajo del buscador | Letras = ventana emergente en cada tecla | Aviso debajo, sin ventana; el número de pedido con cualquier cantidad de dígitos |
+| 17.7 | Buscadores que buscaban con 2 letras | Promociones (buscar artículo del combo), Publicar en Facebook (buscar producto), Reportes (buscar cliente) | La lista de resultados | Buscaba con 2 letras | Busca desde 3 (vacío limpia) |
+| 17.8 | Ventana **🧩 Agregar artículos** | **Catálogo → Agregar modelo** (al guardar uno nuevo) | Ventana nueva | Solo "¡Producto guardado!" | Pregunta si quieres agregar sus artículos |
+| 17.9 | (misma ventana) | **Catálogo → 🔍 Modelos → 🧩 Productos** | Ventana | "Inicializar variantes": N artículos iguales con stock 1 y sin talla | Un formulario por artículo, con talla, stock, foto… |
+| 17.10 | `guardarConImagenes` acepta foto propia por artículo | **Catálogo → 🧩 Agregar producto** con varias tallas y una foto | Las fotos de los artículos | La foto la llevan todas las tallas | **Lo mismo que antes** |
+
+### 17.1 Filtros que se combinan (Tienda → Buscar, escritorio, como admin)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Tienda → Buscar** → abre los filtros → marca **Con stock** | Todos los artículos con stock (habilitados y deshabilitados) |
+| 2 | Marca también **Habilitadas** | Todos los que tienen stock **y** están habilitados. El del borde rojo ya no sale; los demás **sí** (antes quedaba 1) |
+| 3 | Agrega un tercer filtro: **Talla** (elige una que tenga tu modelo) | Solo los de esa talla, con stock y habilitados |
+| 4 | Quita **Talla** | Vuelve el resultado del paso 2 sin tocar nada más |
+| 5 | Quita **Habilitadas** | Vuelve el resultado del paso 1 |
+| 6 | Quita **Con stock** | Todo el catálogo, como al entrar |
+
+❌ **Está mal si:** al quitar un filtro la lista no cambia, o con dos filtros sale menos de lo que cumple los dos.
+
+### 17.2 Precio mín / máx
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En los filtros escribe **Precio mín 100** y **máx 100** (espera un segundo sin escribir) | Los artículos que **en la tarjeta** dicen $100, incluidos los que llegan a $100 con descuento |
+| 2 | Cambia el máx a **99** | No sale ninguno de $100 |
+| 3 | Borra los dos precios | Vuelve a todo |
+| 4 | Cierra sesión (o abre la tienda en una ventana privada) y repite el paso 1 | Los mismos de $100 que tengan foto y stock (el catálogo de clientes solo muestra esos) |
+
+❌ **Está mal si:** con 100 / 100 no sale un artículo cuya tarjeta dice $100.
+
+### 17.3 Venta directa: el buscador se actualiza al vender
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Ventas → 💰 Venta directa** → en **🔍 Buscar producto** escribe 3 letras de un artículo con **stock 1** | El artículo con **1** de stock |
+| 2 | Agrégalo, cobra de **💵 Contado** y cierra el aviso | La venta se registra |
+| 3 | Mira la lista del buscador (sin escribir nada) | Ese artículo ya dice **0** o ya no sale. **No** sigue diciendo 1 |
+
+### 17.4 Venta directa: nombres de 3 letras, correo y teléfono
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Agrega un artículo → **💰 Cobrar** → *"¿Agregar cliente para la rifa?"* → **Sí** | El formulario del cliente |
+| 2 | En **Nombre** escribe **a** | Debajo, en rojo: *"Escribe al menos 3 letras"*. **Guardar cliente** apagado |
+| 3 | Cambia a **Ana**; en **Apellido paterno** escribe **Lo** | Debajo de apellido: *"Si lo escribes, al menos 3 letras"*. Bórralo y el aviso se va (es opcional) |
+| 4 | En **Correo** escribe **ana@gmail** | *"El correo no es válido (ejemplo: nombre@gmail.com)"*. Corrígelo a **ana@gmail.com** y se va |
+| 5 | En **Número telefónico** escribe **55123** | *"El teléfono debe tener 10 dígitos"*. Con **55 1234 5678** se va |
+| 6 | Cancela. En **📍 Datos de entrega → Nombre de quien recibe** escribe **Jo** | Debajo: *"Si lo escribes, al menos 3 letras"*, y junto a **💰 Cobrar**: *"Para cobrar, corrige el nombre de quien recibe…"*. **Cobrar** apagado |
+| 7 | Cámbialo a **José** (o bórralo) | **Cobrar** se vuelve a prender |
+
+❌ **Está mal si:** se guarda un cliente o un "quien recibe" de 1 o 2 letras.
+
+### 17.5 Mis pedidos desde la cuenta del cliente
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Entra con una cuenta de **cliente** que tenga pedidos → **Mis pedidos** | Sus pedidos |
+| 2 | En el buscador escribe el número de uno de sus pedidos, aunque sea de **1 dígito** | Ese pedido |
+| 3 | Escribe letras, por ejemplo **abc** | Debajo del buscador: *"Escribe solo el número de tu pedido (por ejemplo 15)."* **Sin** ventana emergente |
+| 4 | Borra todo | Vuelven todos sus pedidos |
+
+### 17.6 Buscadores que ahora piden 3 letras
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Promociones** (pantalla de administrar promociones) → en el buscador de artículos del combo escribe **2 letras** | No busca. Con la 3.ª letra, sí |
+| 2 | **Publicar en Facebook** → buscador del producto → 2 letras / 3 letras | Igual que el paso 1 |
+| 3 | **Reportes** → buscador de cliente | El texto de ayuda dice *"Escribe al menos 3 letras…"* y busca desde la 3.ª |
+
+### 17.7 Agregar modelo → "¿Quieres agregar sus artículos ahora?"
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Catálogo → Agregar modelo** → llena nombre, precio, **stock 10**, color **Negro**, marca, descripción, categoría y una foto → **Guardar** | Ventana **"✅ Modelo guardado"** con *"¿Quieres agregar sus artículos ahora?"* y los botones **Después** / **Sí, agregar artículos** |
+| 2 | Toca **Sí, agregar artículos** | Ventana **🧩 Agregar artículos**: *"Stock del modelo: 10 · Libre: 10"*; la sección **Usar del modelo en todos los artículos** con una casilla **marcada** por cada dato que llenaste (Color: Negro, Marca…, Descripción…, Categoría…, **Foto del modelo**). Lo que no llenaste **no** aparece |
+| 3 | En **¿Cuántos artículos?** escribe **2** | Dos formularios: **Artículo 1** y **Artículo 2**, con color, marca y descripción ya llenos. Talla y stock vacíos. En **Foto**: *"📷 La foto del modelo"* |
+| 4 | En **Mismo stock para todos** escribe **4** → **Aplicar** | Los dos con stock 4. Abajo: *"Stock del modelo: 10 · Repartido: 8 · Te quedan 2"* |
+| 5 | En el **Artículo 2** cambia el stock a **8** | Abajo en rojo: *"Te pasaste por 2"*. **Guardar 2 artículos** apagado |
+| 6 | Regrésalo a **4**. Tallas: **CH** y **M**. En el Artículo 2 cambia el color a **Blanco** | El Artículo 1 sigue en Negro |
+| 7 | Desmarca **Color** arriba | El color **Negro** se borra del Artículo 1; **Blanco** del Artículo 2 se queda (lo cambiaste tú) |
+| 8 | Vuelve a marcar **Color**. En el Artículo 2 toca **Usar otra foto** y elige una foto | Se ve la miniatura en el Artículo 2 y los botones **Cambiar foto** / **Quitar** |
+| 9 | Toca **Guardar 2 artículos** | *"2 artículos guardados"* → **Entendido** y se cierra |
+| 10 | **Tienda** → busca el modelo | Dos artículos: **CH Negro** con la foto del modelo y **M Blanco** con su foto propia. Stock 4 cada uno |
+
+❌ **Está mal si:** se guarda uno solo de los dos, el Artículo 1 sale con la foto del 2, o se puede guardar con *"Te pasaste"*.
+
+### 17.8 "Después" y la tarjeta 🧩 Productos
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Da de alta otro modelo (stock 5) → en la pregunta toca **Después** | Se cierra. El modelo **sí** quedó guardado (búscalo en **Catálogo → 🔍 Modelos**) y no tiene artículos |
+| 2 | En su tarjeta toca **🧩 Productos** | La misma ventana **🧩 Agregar artículos**, **sin** la pregunta, con *"Libre: 5"* |
+| 3 | Pide **1** artículo con stock **5**, talla **U** → **Guardar 1 artículo** | *"1 artículo guardado"*; la lista de modelos se recarga |
+| 4 | Vuelve a tocar **🧩 Productos** en ese modelo | El aviso de siempre: *"No queda stock para artículos nuevos"* (ya repartiste los 5) |
+| 5 | En el modelo del 17.7 toca **🧩 Productos** | *"En sus artículos: 8 · Libre: 2"* |
+
+### 17.9 Lo que no debe cambiar: Agregar producto con varias tallas
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Catálogo → 🧩 Agregar producto** → elige un modelo con stock libre → llena el formulario de arriba, sube **una** foto y agrega **2 tallas** abajo → guarda | **Lo mismo que antes:** se guardan los artículos y **todos** llevan la foto que subiste |
+
+### 17.10 Color nuevo en Personalización (solo si corriste `migration_tema_modal.sql`)
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Sistema → Personalización → Página** | Fila nueva **"Velo detrás de una ventana abierta"** |
+| 2 | Cámbiale el color de día, guarda y abre la ventana de 🧩 Productos | El fondo detrás de la ventana usa el color nuevo |
+
+💬 Notas:
+
+- [ ] 17.1 · [ ] 17.2 · [ ] 17.3 · [ ] 17.4 · [ ] 17.5 · [ ] 17.6 · [ ] 17.7 · [ ] 17.8 · [ ] 17.9 · [ ] 17.10 — **Prueba 17 terminada**
+
+---
+
+## Prueba 18 — Agregar artículo: todos los modelos, habilitar y agregar stock (2026-10-08)
+
+**Para qué es:** lo que pediste el 2026-10-08: en **Catálogo → 🧩 Agregar producto** (la pantalla de
+agregar artículo) buscar **todos** los modelos, también los sin stock, deshabilitados o dados de baja; al
+elegir uno, que diga en qué estado está, dejar **habilitarlo**, decir **cuántos artículos más se pueden
+hacer**, y que al **agregarle stock** se vaya al modelo y pregunte *"¿Deseas agregar los artículos de una vez?"*.
+
+**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano:
+- **M-OFF**: un modelo **deshabilitado** (en Catálogo → 🔍 Modelos, con el interruptor apagado).
+- **M-0**: un modelo **habilitado** cuyo stock ya está todo repartido en sus artículos (Libre 0).
+- Para el paso con otro rol: corre `migration_accion_tienda_venta_ver_todos.sql` en QA y, en
+  **Gestión de roles**, márcale a ese rol **"Ver todos los modelos (sin stock, deshabilitados o dados de baja)"** en 🧩 Agregar producto.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 18.1 | Buscador de modelos con `todos=true` | 🧩 Agregar producto (admin o con el permiso) | Lista del buscador | Un rol que no es admin no veía los sin stock ni deshabilitados | Salen todos, con etiqueta ⛔ Deshabilitado / Sin stock / Sin foto |
+| 18.2 | (mismo endpoint, sin `todos`) | **Tienda**, Modelos y cualquier otro buscador de modelos | Sus listas | Lo de siempre | **Lo mismo que antes** |
+| 18.3 | La disponibilidad se lee bien | 🧩 Agregar producto → recuadro de stock | Recuadro verde | **No aparecía nunca** (el front leía mal la respuesta) | Aparece: total, repartido, libre y "Puedes hacer hasta N artículos más" |
+| 18.4 | **Guardar en el modelo** (al momento) | 🧩 Agregar producto | Botón junto a "Agregar (+) o quitar (−)" | El ajuste solo se guardaba junto con el artículo | Se guarda en el modelo al tocarlo; luego pregunta por los artículos |
+| 18.5 | ✅ Habilitar modelo | 🧩 Agregar producto | Aviso rojo | No había forma desde aquí | Habilita el modelo (sus artículos quedan como estaban) |
+| 18.6 | Ajuste dentro del guardado del artículo | 🧩 Agregar producto → 💾 Guardar | Stock del modelo | Funcionaba | **Lo mismo que antes** |
+
+### 18.1 Ver todos los modelos
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Como **admin**: **Catálogo → 🧩 Agregar producto** → en el buscador escribe 3 letras de **M-OFF** | Sale **M-OFF** con la etiqueta **⛔ Deshabilitado** debajo del nombre (y **Sin stock** / **Sin foto** si aplica) |
+| 2 | Busca **M-0** | Sale sin etiqueta de deshabilitado |
+| 3 | Entra con el **rol con el permiso** y busca **M-OFF** | También sale, con sus etiquetas |
+| 4 | Quítale el permiso al rol en Gestión de roles, vuelve a entrar y busca **M-OFF** | **Ya no sale** (como antes) |
+
+### 18.2 Modelo deshabilitado → Habilitar
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Elige **M-OFF** | Aviso rojo **"⛔ Este modelo está deshabilitado"** con el botón **✅ Habilitar modelo**. El botón **💾 Guardar** está apagado y **Guardar en el modelo** también |
+| 2 | Toca **✅ Habilitar modelo** | Pregunta *"¿Habilitar "M-OFF"?"* explicando que sus artículos dados de baja siguen de baja → **Sí, habilitar** |
+| 3 | — | **"Modelo habilitado"** con *"Stock del modelo: N. Tiene X artículos con Y piezas. Puedes hacer hasta Z artículos más"* (o *"No le queda stock libre…"*). Se queda hasta **Entendido** |
+| 4 | Mira la pantalla | El aviso rojo ya no está; se ve el recuadro de stock y **💾 Guardar** se prende |
+| 5 | **Catálogo → 🔍 Modelos** → busca **M-OFF** | Ya está habilitado |
+| 6 | Con un rol **sin** el permiso Habilitar de Modelos, elige un modelo deshabilitado | En vez del botón: *"Pídele a alguien con permiso de Habilitar…"* |
+
+### 18.3 Sin stock libre → Guardar en el modelo → artículos de una vez
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Elige **M-0** | Recuadro de stock: *"Stock total del modelo"*, *"Repartido · Libre 0"* y *"No le queda stock libre: agrégale stock al modelo para hacer artículos nuevos."* |
+| 2 | En **Agregar (+) o quitar (−) al modelo** escribe **5** | Abajo: *"El modelo quedaría en N+5"*. Se prende **Guardar en el modelo** |
+| 3 | Toca **Guardar en el modelo** | **"Se agregaron 5 al modelo"** con el resumen (*"Puedes hacer hasta 5 artículos más"*) y la pregunta **"¿Deseas agregar los artículos de una vez?"** → **Sí, agregar artículos** / **Después** |
+| 4 | Toca **Sí, agregar artículos** | Se abre la ventana **🧩 Agregar artículos** con *"Libre: 5"* (la misma de la Prueba 17.7) |
+| 5 | Pide **2** artículos con stock **2** cada uno → **Guardar 2 artículos** | *"2 artículos guardados"*. Al cerrar, el recuadro dice *"Puedes hacer hasta 1 artículo más"* |
+| 6 | Escribe **−1** → **Guardar en el modelo** | *"Se quitaron 1 al modelo"*; Libre 0 |
+| 7 | Escribe **−1** otra vez | Aviso rojo *"No se puede dejar el modelo en …: ya tiene … repartidos"* y el botón apagado |
+| 8 | Con libre > 0, toca **🧩 Agregar varios artículos de una vez** | La misma ventana, sin la pregunta |
+
+### 18.4 Lo que no debe cambiar
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En un modelo con libre 0, escribe **+3** en el campo **sin** tocar *Guardar en el modelo*, llena un artículo con stock **3** y toca **💾 Guardar** | **Lo mismo que antes:** se guarda el artículo y el modelo sube 3 (en una sola operación) |
+| 2 | **Tienda → Buscar** y **Catálogo → 🔍 Modelos** | Igual que antes: lo que veías antes es lo que ves ahora |
+| 3 | Sin sesión, busca en la tienda un modelo deshabilitado | No sale (el permiso nuevo no aplica sin sesión) |
+
+❌ **Está mal si:** un rol sin el permiso ve modelos deshabilitados, se puede guardar un artículo de un modelo
+deshabilitado, el stock agregado se reparte solo a algún artículo, o el recuadro de stock no aparece.
+
+💬 Notas:
+
+- [ ] 18.1 · [ ] 18.2 · [ ] 18.3 · [ ] 18.4 — **Prueba 18 terminada**
+
+---
+
 ## Prueba 6 — Datos de prueba con un botón (la última)
 
 **Para qué es:** crear de un jalón miles de modelos, artículos y pedidos de prueba para no darlos de
@@ -1017,6 +1265,4 @@ QA** (subir reinicia el servidor y corta la corrida).
 ## Lo que todavía no se prueba
 
 - **El cambio de "variante" a "artículo"** (rutas `/v2/articulos`): rama aparte `rename/variante-a-articulo`, no ha subido a QA.
-- **Alta de modelo con sus artículos en un paso** (flujo A de `PLAN_ALTA_MODELO_Y_ARTICULOS.md`):
-  esperan tus respuestas A10, A11 y si también reemplaza la ventana de 🧩 de la tarjeta.
 - **"¿Viene bien o dañado?"** al cancelar o devolver y **registrar que el dinero ya se devolvió**: acordados, sin programar.

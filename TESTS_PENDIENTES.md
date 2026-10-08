@@ -16,6 +16,68 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-08 — Agregar artículo: todos los modelos, habilitar y agregar stock al momento
+**Dónde:** `DisponibilidadStock.conAjuste()/articulosQueAunCaben()`, `AjustarStockModeloService`, `ConsultarStockJpaAdapter` (habilitado y foto), `GuardarStockModeloJpaAdapter`, `StockController` (`PUT /v1/stock/producto/{id}/ajuste`), `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)`, `AuthenticationUtils.tieneAccion()/puedeVerTodosLosModelos()`, `SecurityConfig`, `migration_accion_tienda_venta_ver_todos.sql`; front `variante/agregar`
+**Tipo:** unitario (dominio) · servicio con puertos simulados · H2/MySQL (adaptadores) · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] Modelo 10 con 10 repartidos, ajuste +5 → total 15, `articulosQueAunCaben` 5; no cambia habilitado ni foto
+- [ ] 15 con 10 repartidos: −5 → 10; −6 → 400 "No se puede dejar el modelo en 9: ya tiene 10 repartidos en sus artículos"
+- [ ] Ajuste 0 o null → 400 "Escribe cuánto stock agregar (+) o quitar (−) al modelo"; 3 con −4 → 400 "No se puede quitar 4: el modelo solo tiene 3"
+- [ ] Descuadrado (12 con 18 repartidos) → `articulosQueAunCaben` 0 (nunca negativo)
+- [ ] Servicio: ajuste válido → guarda el total nuevo y avisa a las cachés; ajuste inválido → no guarda ni avisa; modelo inexistente → 404
+- [ ] Consulta: modelo `habilitado='0'` sin fila en `producto_imagen_copy` → `habilitado=false`, `conFoto=false`; con foto → `true`; artículos dados de baja no cuentan en lo repartido
+- [ ] `UPDATE` del stock: después de guardar 7, la consulta devuelve `stockTotal` 7; el reporte de descuadrados sigue corriendo
+- [ ] `PUT …/ajuste` sin Editar en Modelos / Agregar modelo / Agregar artículo → 403; con Editar → 200
+- [ ] Buscador `?todos=true`: admin → todos (también sin `todos`); rol con `tienda/venta:ver-todos-los-modelos` → todos, con `habilitado`, `marca`, `contenido` y sin `precioCosto`; rol sin el permiso → solo con stock, habilitados y con foto; sin sesión → igual que hoy
+- [ ] La llave de caché distingue `todos` con y sin permiso (un rol sin permiso no recibe lo guardado para el admin)
+- [ ] Migración: dos corridas → 1 acción y 1 fila en `rol_accion` para ROLE_ADMIN *(comprobado en base desechable el 2026-10-08)*
+- [ ] Front: modelo deshabilitado → aviso, **✅ Habilitar modelo** (solo con el permiso Habilitar), 💾 Guardar y "Guardar en el modelo" apagados; tras habilitar, resumen con cuántos artículos caben
+- [ ] Front: "Guardar en el modelo" con +5 → stock al modelo y pregunta "¿Deseas agregar los artículos de una vez?" → ventana 🧩; con −1 → "Se quitaron 1"
+- [ ] Front: el recuadro de stock aparece (antes leía `r.data` y nunca salía)
+
+### 2026-10-08 — Ventana 🧩 Agregar artículos (flujo A) y foto propia o del modelo
+**Dónde:** `VarianteServiceImpl.repartirImagenes()` y `guardarConImagenes()` (campos `imagenesPropias`, `usarImagenDelModelo`); front `shared/alta-articulos`, `productos/producto/add`, `productos/producto/all`
+**Tipo:** unitario · servicio · front
+**Debe comprobar:**
+- [ ] Sin `imagenesPropias` (Agregar artículo con varias tallas): la foto del primero la llevan todos, como siempre; no se exige que el micro devuelva la misma cantidad
+- [ ] Con `imagenesPropias` en 3 artículos con 1, 0 y 2 fotos y el micro devolviendo [10, 20, 21] → [10], [], [20, 21]
+- [ ] Con `imagenesPropias` y el micro devolviendo menos fotos de las enviadas → 400 "No se pudieron subir todas las fotos…" y no se guarda ningún artículo
+- [ ] `usarImagenDelModelo` → el artículo queda ligado a la foto principal del modelo (sin subirla); modelo sin foto → artículo sin foto, sin error
+- [ ] Dar de baja un artículo que usa la foto del modelo → la foto **no** se borra (sigue en `producto_imagen_copy`)
+- [ ] Front: casillas solo de lo que el modelo tiene lleno; desmarcar borra el dato donde seguía igual al del modelo; "Te pasaste por N" apaga Guardar; "¿Cuántos?" fuera de rango apaga Guardar
+- [ ] Front: Agregar modelo (alta) pregunta; actualizar **no** pregunta; 🧩 Productos va directo a los formularios
+
+### 2026-10-08 — Tienda → Buscar: filtros combinados y precio a cobrar
+**Dónde:** `IVarianteRepository.PRECIO_A_COBRAR`, `buscarVariantesAdmin` (talla/color/marca/precio), `buscarVariantesPublicoFiltrado`, `VarianteServiceImpl.filtrarVariantesAdmin` (llave de caché), `VarianteController` (`GET /v1/variantes/admin/filtrar`); front `variante/buscar`
+**Tipo:** MySQL/H2 (consultas) · controller · front
+**Debe comprobar:**
+- [ ] "Con stock" + "Habilitadas" → todos los que tienen stock y están habilitados (artículo y modelo); no sale el deshabilitado ni el de stock 0
+- [ ] Talla "m" (minúsculas) con filtros de admin → solo la M
+- [ ] Precio 100–100 → el artículo de $100 del modelo y el de $150 con descuento activo a $100; **no** el de $150 con descuento apagado; 150–∞ → el de precio propio 150 y el de descuento apagado
+- [ ] La consulta del catálogo público corre con precio (y sigue exigiendo foto, stock y habilitado)
+- [ ] Dos búsquedas con distinta fecha/talla/precio no comparten caché
+- [ ] Front: quitar un filtro vuelve a buscar con los que quedan; una respuesta vieja que llega tarde no pisa la lista; el precio espera a que dejes de escribir
+
+### 2026-10-08 — Venta directa: nombres de 3 letras, correo y teléfono
+**Dónde:** `ClienteSinRegistroImpl.validar()` (`POST /v1/clientes-sin-registro`), `VentaServiceImpl.saveVentaDetalle()` (`nombreReceptor` y cliente embebido); front `shared/validadores-persona.ts`, `variante/venta-directa`
+**Tipo:** unitario · controller · front
+**Debe comprobar:**
+- [ ] Nombre "a" → 400 "El nombre debe tener al menos 3 letras"; "José" (con acento) → se guarda; "Jo3" → 400 (los números no cuentan)
+- [ ] Apellido paterno "Lo" → 400 "…al menos 3 letras (o dejalo vacio)"; vacío → se guarda
+- [ ] Correo "ana@gmail" → 400 "El correo no es valido"; "ana@gmail.com" → ok
+- [ ] Teléfono "55123" → 400; "55 1234 5678" y "+52 55 1234 5678" → ok
+- [ ] Venta con `nombreReceptor` "Jo" → 400 "El nombre de quien recibe debe tener al menos 3 letras (o déjalo vacío)"; vacío → ok
+- [ ] Front: los mismos avisos debajo de cada campo; Guardar cliente y 💰 Cobrar apagados mientras haya un dato mal; después de cobrar, el buscador muestra el stock nuevo
+
+### 2026-10-08 — Apartado: monto fijo y 🔁 Cambiar forma de cobro
+**Dónde:** front `pedidos/detalle-pedido`, `abonos`, `pedidos/grupo-pedido`, `design-system.scss` (`.pk-monto-fijo`)
+**Tipo:** front
+**Debe comprobar:**
+- [ ] Apartado → el monto viene con el saldo y no se puede editar (detalle, Créditos / Abonos, Pagar el grupo completo); "🔒 ¿Por qué no puedo cambiar el monto?" abre y cierra la explicación; "🔁 Cambiar a Ir pagando" abre el formulario con Ir pagando marcado
+- [ ] Ir pagando con dinero → el recuadro Apartado gris con "🔒 No se puede: ya dio $X…" escrito (no solo al pasar el mouse)
+- [ ] 🕓 Pendiente sale siempre; "Así está ahora" solo en un pedido Pendiente; nunca se puede elegir
+- [ ] Al guardar el cambio, el mensaje "Quedó como …" dice qué sigue y se queda hasta "Entendido"
+
 ### 2026-10-07 — Datos legales del negocio (dominio `datoslegales`)
 **Dónde:** `DatosLegales` (modelo), `DatosLegalesService`, `DatosLegalesJdbcAdapter`, `DatosLegalesController` (`GET`/`PUT /v1/datos-legales`), `SecurityConfig`, `migration_datos_legales.sql`
 **Tipo:** unitario (dominio) · MySQL (adaptador) · controller (URL, status y permiso)

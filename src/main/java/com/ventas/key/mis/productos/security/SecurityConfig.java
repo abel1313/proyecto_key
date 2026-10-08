@@ -262,6 +262,11 @@ public class SecurityConfig {
                         // Stock disponible: cuanto queda libre para armar modelos. Nunca publico --
                         // expone el inventario real del negocio, que no es asunto del cliente.
                         // El reporte de descuadres va aparte porque es diagnostico de datos rotos.
+                        // Agregar/quitar stock al modelo desde Agregar articulo (2026-10-08): el mismo
+                        // permiso que ya pedia el ajuste dentro del guardado del articulo (B1) y que
+                        // actualizar el modelo.
+                        .requestMatchers(HttpMethod.PUT, "/v1/stock/producto/*/ajuste")
+                                .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/v1/stock/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar"))
                         .requestMatchers(HttpMethod.GET, "/v1/stock/**")

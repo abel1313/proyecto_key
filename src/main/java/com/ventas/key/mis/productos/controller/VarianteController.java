@@ -216,10 +216,18 @@ public class VarianteController extends AbstractController<
             // comentario ahi para el motivo (codigo de barras al azar de la carga rapida).
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
+            // Los del catalogo (talla/color/marca/precio), opcionales: Tienda los combina con los de
+            // admin en una sola busqueda. El precio es el que muestra la tarjeta (precio a cobrar).
+            @RequestParam(required = false) String talla,
+            @RequestParam(required = false) String color,
+            @RequestParam(required = false) String marca,
+            @RequestParam(required = false) Double precioMin,
+            @RequestParam(required = false) Double precioMax,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, pagina, size)));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta,
+                talla, color, marca, precioMin, precioMax, pagina, size)));
     }
 
     // Faltaba: el front (Tienda → Buscar) llama esto para el toggle individual de una sola

@@ -117,6 +117,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
 
+        // QA 2026-10-08: se guardaban nombres como "a". Opcional, pero si viene necesita 3 letras.
+        String receptor = request.getNombreReceptor();
+        if (receptor != null && !receptor.isBlank() && receptor.codePoints().filter(Character::isLetter).count() < 3) {
+            throw new ExceptionErrorInesperado("El nombre de quien recibe debe tener al menos 3 letras (o déjalo vacío)");
+        }
+
         String tipoPedido = request.getTipoPedido();
         boolean esCredito = "APARTADO".equals(tipoPedido) || "FIADO".equals(tipoPedido);
 
@@ -159,6 +165,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             clienteSinRegistro = iClienteSinRegistroRepository.findById(request.getClienteSinRegistroId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Cliente sin registro no encontrado"));
         } else if (esSinRegistro) {
+            try {
+                ClienteSinRegistroImpl.validar(request.getClienteSinRegistroDto());
+            } catch (RuntimeException e) {
+                throw new ExceptionErrorInesperado(e.getMessage());
+            }
             clienteSinRegistro = iClienteSinRegistroRepository.save(mapperClienteSinRegistroDto(request));
         } else {
             cliente = iClienteRepository.findById(request.getClienteId())

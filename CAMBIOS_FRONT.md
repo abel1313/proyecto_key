@@ -68,6 +68,124 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-30] 🆕 Agregar artículo: todos los modelos, habilitar, agregar stock al momento (2026-10-08)
+
+**1. Buscador de modelos** — `GET /mis-productos/v1/productos/buscarNombreOrCodigoBarra?nombre=…&todos=true`
+- Param nuevo opcional `todos` (default `false`). Con `true` y el permiso **"Ver todos los modelos"**
+  (`tienda/venta` → `ver-todos-los-modelos`, migración `migration_accion_tienda_venta_ver_todos.sql`)
+  trae también los modelos **sin stock, deshabilitados y dados de baja**. Sin el permiso se ignora.
+- El admin los veía todos desde antes (con o sin `todos`): para él no cambia nada.
+- Para quien no es admin y tiene el permiso, cada modelo trae además `habilitado` (`"1"`/`"0"`), `marca`
+  y `contenido` (nunca costos).
+
+**2. Disponibilidad del modelo** — `GET /mis-productos/v1/stock/producto/{productoId}` (sin cambios en URL)
+- Campos nuevos: `habilitado` (bool), `conFoto` (bool), `articulosQueAunCaben` (int, nunca negativo).
+- `mensaje` dice ahora "artículos" donde decía "modelos".
+- **Ojo, la respuesta NO viene envuelta en `data`** (siempre fue así). El front leía `r.data` →
+  `undefined`, y por eso el recuadro "Stock total del modelo / Repartido / Libre" **nunca aparecía** en
+  Agregar artículo. Corregido en el front (lee el cuerpo directo).
+
+**3. Agregar (+) o quitar (−) stock al modelo, al momento** — `PUT /mis-productos/v1/stock/producto/{productoId}/ajuste`
+- Body: `{ "ajuste": 5 }`. Response: la disponibilidad igual que el GET, ya con el ajuste.
+- **400** con mensaje si `ajuste` es 0/null (*"Escribe cuánto stock agregar (+) o quitar (−) al modelo"*),
+  si deja el modelo en negativo (*"No se puede quitar 4: el modelo solo tiene 3"*) o por debajo de lo
+  repartido (*"No se puede dejar el modelo en 9: ya tiene 10 repartidos en sus artículos"*).
+- **404** si el modelo no existe. **403** sin Editar en Modelos, Agregar modelo o Agregar artículo (el mismo
+  permiso que ya pedía el ajuste dentro del guardado del artículo).
+- El ajuste dentro de `guardarConImagenes` (`ajusteStockModelo`, 2026-10-06) **sigue funcionando igual**.
+
+**4. Habilitar el modelo** — `PUT /mis-productos/v1/productos/{id}/habilitar?habilitar=true` (el de siempre,
+permiso **Habilitar** de Catálogo → 🔍 Modelos). Solo el modelo: sus artículos quedan como estaban.
+
+**Front (Agregar artículo, `tienda/venta`):** etiquetas ⛔ Deshabilitado / Sin stock / Sin foto en el
+buscador; al elegir un modelo deshabilitado, aviso con **✅ Habilitar modelo** (y no deja guardar artículos
+hasta habilitarlo); "Puedes hacer hasta N artículos más"; botón **Guardar en el modelo** junto al campo de
+stock y, al agregar, *"¿Deseas agregar los artículos de una vez?"* → ventana 🧩 Agregar artículos; botón
+**🧩 Agregar varios artículos de una vez** cuando hay stock libre.
+
+---
+
+### [BUG-KEY-29] 🆕 Agregar artículos de un modelo en un solo paso (flujo A) — foto propia o la del modelo (2026-10-08)
+
+**Request:** `POST /mis-productos/v1/variantes/guardarConImagenes` (el de siempre) — cada elemento acepta
+**dos campos opcionales nuevos**:
+
+| Campo | Tipo | Qué hace |
+|---|---|---|
+| `imagenesPropias` | `boolean` | `true`: las fotos de `listImagenes` son **solo de ese artículo**. Si no viene (o `false`), igual que siempre: todas las fotos del request las llevan todos los artículos del request (Agregar artículo con varias tallas) |
+| `usarImagenDelModelo` | `boolean` | `true`: el artículo apunta a la **foto principal del modelo**, sin volver a subirla. Si el modelo no tiene foto, el artículo queda sin foto (no falla) |
+
+**Response:** sin cambios (lista de artículos guardados).
+
+**Posibles errores nuevos:**
+- **400** *"No se pudieron subir todas las fotos (se mandaron N y llegaron M). Intenta de nuevo"* — solo
+  cuando algún elemento trae `imagenesPropias: true` y el micro de imágenes devolvió menos fotos de las
+  enviadas. No se guarda ningún artículo.
+- Los de siempre: stock del modelo insuficiente (400), todos vacíos (404).
+
+**Diferencia clave:** antes no había forma de que cada artículo de un mismo guardado tuviera su propia foto,
+ni de reusar la foto del modelo sin subirla otra vez. Si se da de baja un artículo que usa la foto del
+modelo, la foto **no** se borra (el modelo la sigue usando).
+
+**Front:** componente compartido `<app-alta-articulos>` (`shared/alta-articulos`). Lo abren:
+- **Catálogo → Agregar modelo**, al guardar un modelo **nuevo** (no al actualizar): pregunta
+  *"¿Quieres agregar sus artículos ahora?"* → **Sí, agregar artículos** / **Después**.
+- **Catálogo → 🔍 Modelos → 🧩 Productos** (tarjeta del modelo): va directo a los formularios.
+  **Reemplaza** la ventana "Inicializar variantes" (`POST /v1/variantes/inicializarDesdeProducto`, que
+  sigue existiendo pero el front ya no la llama).
+
+Color nuevo de Personalización: `--modal-backdrop` (velo detrás de la ventana), migración
+`migration_tema_modal.sql`. Sin correrla, se usa el valor de `styles.scss`.
+
+---
+
+### [BUG-KEY-28] 🆕 Datos del cliente en Venta directa: mínimo 3 letras, correo y teléfono válidos (2026-10-08)
+
+**1. Cliente sin registro** — `POST /mis-productos/v1/clientes-sin-registro` (sin cambios en URL ni body)
+- **Antes:** guardaba lo que llegara (había clientes con nombre `"a"`).
+- **Ahora** responde **400** con el motivo si:
+  - `nombre_persona` tiene menos de 3 letras → *"El nombre debe tener al menos 3 letras"*
+  - `segundo_nombre`, `apeido_Paterno` o `apeido_Materno` **vienen llenos** con menos de 3 letras →
+    *"El apellido paterno debe tener al menos 3 letras (o dejalo vacio)"* (y equivalentes)
+  - `correo_Electronico` viene lleno y no tiene forma de correo → *"El correo no es valido"*
+  - `numero_Telefonico` viene lleno y no son 10 dígitos (se aceptan espacios, guiones, paréntesis y
+    `+52` adelante) → *"El telefono debe tener 10 digitos"*
+- Vacío en los opcionales sigue siendo válido. Las letras con acento y la ñ cuentan como letras; los
+  números y espacios no.
+
+**2. Venta directa** — `POST /mis-productos/v1/ventas/save` (el de 💰 Cobrar, sin cambios en el body)
+- `nombreReceptor` (quién recibe) lleno con menos de 3 letras → **400** *"El nombre de quien recibe debe
+  tener al menos 3 letras (o déjalo vacío)"*. Si viene vacío, igual que antes.
+- Si llega el cliente embebido (`clienteSinRegistroDto`, camino viejo), se valida igual que en el punto 1.
+
+**Front:** las mismas reglas en el formulario (`shared/validadores-persona.ts`), con el aviso debajo de
+cada campo; el botón **Guardar cliente** y **💰 Cobrar** se apagan mientras haya un dato mal.
+
+---
+
+### [BUG-KEY-27] 🆕 Tienda → Buscar: los filtros se combinan y el precio es el que se cobra (2026-10-08)
+
+**Request:** `GET /mis-productos/v1/variantes/admin/filtrar` — params **nuevos opcionales**:
+`talla`, `color`, `marca` (iguales, sin importar mayúsculas), `precioMin`, `precioMax`.
+
+**Diferencias clave:**
+- **Antes**, con un filtro de admin (Con stock, Habilitadas, fechas…) y uno del catálogo (talla, precio…)
+  a la vez, el front hacía **dos búsquedas distintas** y la segunda pisaba a la primera: por eso "Con
+  stock" + "Habilitadas" dejaba un solo resultado. **Ahora** todo va en **una sola** llamada a
+  `admin/filtrar` y al quitar un filtro se vuelve a buscar con los que quedan.
+- **Precio mín/máx** (aquí y en `GET /v1/variantes/buscar-filtrado`): **antes** comparaba el precio normal;
+  **ahora** compara el **precio que se cobra** — el de descuento si el artículo tiene "Usar descuento"
+  activo y es menor, si no el precio de venta (el del artículo o, si no tiene, el del modelo). Así
+  "mín 100, máx 100" encuentra lo que la tarjeta dice $100.
+- La caché de `admin/filtrar` ahora distingue también fechas, talla, color, marca y precio (antes dos
+  búsquedas con distinta fecha podían devolver el mismo resultado guardado).
+
+**Front:** en el escritorio de Tienda → Buscar, cada cambio de filtro (o al quitarlo) vuelve a buscar con
+todos los que quedan; si una respuesta vieja llega tarde se descarta. El precio espera a que dejes de
+escribir. En Venta directa, después de cobrar se vuelve a buscar para que el stock se vea al día.
+
+---
+
 ### [BUG-KEY-26] 🆕 Pedido 🕓 Pendiente: filtro propio, pasarlo a Apartado / Ir pagando y Entregas por zona (2026-10-07)
 
 **1. Filtro de Mis pedidos** — `GET /mis-productos/v1/pedidos/buscar?formaCobro=PENDIENTE`

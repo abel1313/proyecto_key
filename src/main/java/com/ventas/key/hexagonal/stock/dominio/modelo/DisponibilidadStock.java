@@ -1,5 +1,7 @@
 package com.ventas.key.hexagonal.stock.dominio.modelo;
 
+import com.ventas.key.hexagonal.stock.dominio.excepcion.AjusteStockInvalidoException;
+
 /**
  * Cuanto stock de un producto esta libre para armar variantes nuevas.
  *
@@ -19,6 +21,9 @@ package com.ventas.key.hexagonal.stock.dominio.modelo;
  * @param variantesActivas cuantas variantes habilitadas hay
  * @param enVariantesDeBaja stock que retienen las dadas de baja -- NO cuenta para el disponible,
  *                          se informa solo para explicar diferencias contra la tabla
+ * @param modeloHabilitado  false si el modelo esta deshabilitado o dado de baja: no sale en la tienda
+ *                          ni en ventas, y sus articulos tampoco (2026-10-08)
+ * @param modeloConFoto     false si el modelo no tiene foto (al darlo de baja se le borran)
  */
 public record DisponibilidadStock(
         Integer productoId,
@@ -26,7 +31,15 @@ public record DisponibilidadStock(
         int stockTotal,
         int enVariantes,
         int variantesActivas,
-        int enVariantesDeBaja) {
+        int enVariantesDeBaja,
+        boolean modeloHabilitado,
+        boolean modeloConFoto) {
+
+    /** Sin el estado del modelo (como se armaba antes del 2026-10-08): habilitado y con foto. */
+    public DisponibilidadStock(Integer productoId, String nombreProducto, int stockTotal, int enVariantes,
+                               int variantesActivas, int enVariantesDeBaja) {
+        this(productoId, nombreProducto, stockTotal, enVariantes, variantesActivas, enVariantesDeBaja, true, true);
+    }
 
     /**
      * Lo que queda libre para variantes nuevas.
@@ -46,5 +59,37 @@ public record DisponibilidadStock(
     /** Si este producto esta descuadrado: sus variantes piden mas de lo que el producto tiene. */
     public boolean estaDescuadrado() {
         return disponible() < 0;
+    }
+
+    /**
+     * Cuantos articulos mas se pueden dar de alta: cada uno necesita al menos 1 pieza, asi que es
+     * lo libre (nunca negativo). Es lo que Agregar articulo muestra al elegir el modelo.
+     */
+    public int articulosQueAunCaben() {
+        return Math.max(disponible(), 0);
+    }
+
+    /**
+     * El modelo despues de agregarle (+) o quitarle (-) stock, sin tocar sus articulos (R-A1..R-A3,
+     * README de este dominio). Lo agregado queda libre para articulos nuevos.
+     *
+     * @throws AjusteStockInvalidoException si el ajuste es 0, deja el modelo en negativo o por debajo
+     *                                      de lo que ya tienen repartido sus articulos
+     */
+    public DisponibilidadStock conAjuste(int ajuste) {
+        if (ajuste == 0) {
+            throw new AjusteStockInvalidoException("Escribe cuánto stock agregar (+) o quitar (−) al modelo");
+        }
+        int nuevo = stockTotal + ajuste;
+        if (nuevo < 0) {
+            throw new AjusteStockInvalidoException(String.format(
+                    "No se puede quitar %d: el modelo solo tiene %d", -ajuste, stockTotal));
+        }
+        if (nuevo < enVariantes) {
+            throw new AjusteStockInvalidoException(String.format(
+                    "No se puede dejar el modelo en %d: ya tiene %d repartidos en sus artículos", nuevo, enVariantes));
+        }
+        return new DisponibilidadStock(productoId, nombreProducto, nuevo, enVariantes, variantesActivas,
+                enVariantesDeBaja, modeloHabilitado, modeloConFoto);
     }
 }

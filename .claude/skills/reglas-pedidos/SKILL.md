@@ -86,6 +86,7 @@ podría entrar."*
 |---|---|
 | Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Pasa solo a **Ir pagando** y una nota explica por qué: un Apartado es sin dinero (ver 2.3; reemplaza el aviso que no dejaba seguir) |
 | Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
+| Al cobrar un Apartado (detalle, Créditos / Abonos o 💵 Pagar el grupo completo) | **Desde 2026-10-08 el monto viene fijo en el total y no se puede cambiar**; junto a él, **🔒 ¿Por qué no puedo cambiar el monto?** explica la regla y ofrece pasar a Ir pagando. Pedido del dueño: *"bloquear el monto cuando sea apartado"* |
 | Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
 | Apartados unidos | El botón dice **💵 Pagar el grupo completo** y solo acepta el saldo completo del grupo |

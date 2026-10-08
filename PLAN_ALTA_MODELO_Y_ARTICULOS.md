@@ -1,6 +1,7 @@
 # Plan — Dar de alta un modelo y sus artículos en un solo paso
 
-Pedido del dueño (2026-10-06). **Todavía no se programa nada:** primero se acuerdan las reglas
+Pedido del dueño (2026-10-06). **Flujo A programado el 2026-10-08** (ver sección 5); flujo B (B1) ya
+estaba desde el 2026-10-06. Antes de programar se acordaron las reglas
 (regla de `CLAUDE.md`: *primero las reglas, después el código*). Las marcadas ❓ las tiene que decidir
 el dueño. Se programa en `dev` y sube a `qa` como siempre.
 
@@ -59,8 +60,8 @@ queda stock libre, hoy hay que dejar todo, ir a subirle stock al modelo y volver
 | A7 | Se puede dejar stock sin repartir (ej. 10 del modelo y solo 8 en artículos) | igual que hoy |
 | A8 | La imagen del modelo se **reusa** (no se sube otra vez): el artículo apunta a la misma foto | propuesta, necesita un cambio chico en el back |
 | A9 | Se guardan todos o ninguno | propuesta (el back ya guarda la lista en una sola transacción) |
-| A10 | Atajo **"Mismo stock para todos"**: escribes 2 y los 5 quedan en 2 | ❓ ¿lo quieres? |
-| A11 | Tallas: ¿cada formulario es **un** artículo (una talla), o cada formulario trae también la sección de **varias tallas** de Agregar artículo (que crea un artículo por talla)? | ❓ |
+| A10 | Atajo **"Mismo stock para todos"**: escribes 2 y los 5 quedan en 2 (y se puede cambiar en cada uno) | ✅ decidido 2026-10-08: sí |
+| A11 | Tallas: cada formulario es **un** artículo (una talla) | ✅ decidido 2026-10-08 |
 | A12 | Si sale de la pantalla sin guardar los artículos, el modelo **ya quedó guardado** (se guardó en el paso 1) | propuesta |
 
 ---
@@ -99,3 +100,52 @@ dos datos del modelo:
 3. Flujo B — ¿B1, B2 o las dos?
 4. ¿El flujo A también desde la tarjeta del modelo (**🧩 Artículos**), reemplazando la ventana de
    "Inicializar variantes"? Así los dos caminos serían la misma pantalla.
+
+✅ **Decidido por el dueño (2026-10-08):** A10 sí (atajo "Mismo stock para todos"), A11 un formulario = un
+artículo, y el flujo A **también** desde la tarjeta del modelo (🧩 Productos), reemplazando la ventana de hoy.
+
+---
+
+## 5. Cómo quedó programado el flujo A (2026-10-08)
+
+| Regla | Cómo quedó |
+|---|---|
+| A1 | La pregunta sale solo al **dar de alta** en Catálogo → Agregar modelo (no al actualizar) |
+| A2 / A12 | **Después** cierra; el modelo ya estaba guardado |
+| A3 | Casillas solo de lo que el modelo tiene lleno (color, marca, descripción, contenido neto, categoría, foto), todas marcadas. Marcar llena el dato en los formularios vacíos; desmarcar lo borra donde seguía igual al del modelo |
+| A4 | Talla, presentación y stock nunca vienen llenos |
+| A5 | ¿Cuántos? de 1 al stock libre |
+| A6 | Stock ≥ 1 por artículo; abajo *"Repartido · Te quedan / Te pasaste por N"* mientras se escribe; el back vuelve a validar |
+| A7 | Se puede guardar dejando stock sin repartir |
+| A8 | Campo nuevo `usarImagenDelModelo` en `guardarConImagenes`: el artículo apunta a la foto principal del modelo, sin subirla. Cada formulario puede subir **su propia** foto (campo nuevo `imagenesPropias`), y entonces usa esa en lugar de la del modelo |
+| A9 | Un solo `POST /v1/variantes/guardarConImagenes` (una transacción): todos o ninguno |
+| A10 | **Mismo stock para todos** + **Aplicar** |
+| A11 | Un formulario = un artículo |
+| 🧩 de la tarjeta | La misma ventana, sin la pregunta. Reemplaza "Inicializar variantes" (el endpoint `inicializarDesdeProducto` sigue, pero el front ya no lo usa) |
+
+Si en la ventana se deja la **categoría** desmarcada, cada formulario trae su propio buscador de categoría.
+Si se deja un dato vacío, el artículo toma el del modelo (regla R3 del dominio `articulo`, la de siempre).
+
+Código: front `shared/alta-articulos/` (componente `<app-alta-articulos>`), back
+`VarianteServiceImpl.repartirImagenes()` + `guardarConImagenes()`. Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`,
+Prueba 17 (17.7–17.9); las automáticas que faltan, en `TESTS_PENDIENTES.md` (2026-10-08).
+
+
+---
+
+## 6. El camino inverso: desde Agregar artículo (2026-10-08)
+
+Pedido del dueño: *"me voy a agregar artículo, busco el producto base y si no hay stock tiene que
+aparecer; si agrego 5 se tendría que ir al modelo y ya que se agregue sale el mensaje de ¿deseas agregar
+las variantes de una vez?"* y *"si está deshabilitado hay que habilitarlo con el mensaje, ya después
+validar el stock y que aparezca cuántas variantes puede hacer"*.
+
+| Regla | Cómo quedó |
+|---|---|
+| Ver todos los modelos | Permiso nuevo **"Ver todos los modelos"** en 🧩 Agregar producto (`tienda/venta`); el admin siempre. Etiquetas ⛔ Deshabilitado / Sin stock / Sin foto |
+| Deshabilitado | Aviso + **✅ Habilitar modelo** (permiso Habilitar de Modelos). Solo el modelo; sus artículos quedan como estaban. No deja guardar artículos hasta habilitarlo. Después dice su stock y cuántos artículos caben |
+| Agregar stock | **Guardar en el modelo**: se guarda al momento en el modelo (queda libre) y pregunta *"¿Deseas agregar los artículos de una vez?"* → ventana 🧩 Agregar artículos (sección 5) |
+| Con stock libre | "Puedes hacer hasta N artículos más" y botón **🧩 Agregar varios artículos de una vez** |
+
+Back: `PUT /v1/stock/producto/{id}/ajuste` (dominio `stock`, reglas R-A1..R-A5 en su README).
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`, Prueba 18.

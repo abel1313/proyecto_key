@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.Utils;
 
 import com.ventas.key.mis.productos.entity.Usuario;
+import com.ventas.key.mis.productos.filter.JwtAuthenticationFilter;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -24,6 +25,31 @@ public class AuthenticationUtils {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    /**
+     * Si quien hace la peticion es admin o tiene la accion puntual {@code clave} en la pantalla
+     * {@code ruta} (Gestion de roles). Misma autoridad que arma SecurityConfig.accion(). Sin sesion
+     * (endpoint publico) responde false.
+     */
+    public static boolean tieneAccion(String ruta, String clave) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        String autoridad = JwtAuthenticationFilter.PREFIJO_AUTORIDAD_PANTALLA + ruta
+                + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ACCION + clave;
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals(autoridad));
+    }
+
+    /**
+     * Agregar articulo (tienda/venta) con el permiso "ver-todos-los-modelos" (2026-10-08): el buscador
+     * de modelos trae tambien los que no tienen stock, los deshabilitados y los dados de baja. El
+     * admin siempre los ve. {@code pedido} es lo que pidio la pantalla; sin permiso se ignora.
+     */
+    public static boolean puedeVerTodosLosModelos(boolean pedido) {
+        return isAdminContext() || (pedido && tieneAccion("tienda/venta", "ver-todos-los-modelos"));
     }
 
     /** Usuario autenticado segun el JWT de la peticion actual (no lo que mande el body). */
