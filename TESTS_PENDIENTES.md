@@ -16,6 +16,15 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-08 — Renombre variante → artículo, retomado (rama `rename/variante-a-articulo`)
+**Dónde:** `migration_renombre_articulo_etiquetas.sql`; front: textos de buscadores y pantallas (`RENOMBRE_VARIANTE_A_ARTICULO.md` §1.1) y `e2e/`
+**Tipo:** MySQL (script) · e2e (front)
+**Debe comprobar:**
+- [ ] Script en base con los textos de las migraciones: menú `tienda/venta` → "Agregar artículo"; ninguna etiqueta/descripción/categoría con "variante"; "de la variante" → "del artículo" (nunca "de el"); claves (`crear-variantes`) y `rol_accion` sin cambios *(comprobado en base desechable el 2026-10-08, dos corridas y con safe updates)*
+- [ ] Segunda corrida → 0 filas cambiadas
+- [ ] Un test que recorra los `.html` y falle si un texto visible (texto, `title`, `placeholder`, `alt`, `aria-label`) dice "variante"
+- [ ] e2e: los buscadores de Venta directa, detalle de pedido y Modelos se encuentran por su placeholder nuevo; Tienda → Buscar sigue con "Buscar nombre o código…"
+
 ### 2026-10-08 — Agregar artículo: todos los modelos, habilitar y agregar stock al momento
 **Dónde:** `DisponibilidadStock.conAjuste()/articulosQueAunCaben()`, `AjustarStockModeloService`, `ConsultarStockJpaAdapter` (habilitado y foto), `GuardarStockModeloJpaAdapter`, `StockController` (`PUT /v1/stock/producto/{id}/ajuste`), `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)`, `AuthenticationUtils.tieneAccion()/puedeVerTodosLosModelos()`, `SecurityConfig`, `migration_accion_tienda_venta_ver_todos.sql`; front `variante/agregar`
 **Tipo:** unitario (dominio) · servicio con puertos simulados · H2/MySQL (adaptadores) · controller (URL, status y permiso)

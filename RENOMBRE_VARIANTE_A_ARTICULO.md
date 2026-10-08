@@ -1,7 +1,8 @@
 # Renombre variante → artículo — qué se movió y cómo probarlo
 
 **Rama:** `rename/variante-a-articulo` en el back (`proyecto_key`) y en el front
-(`producto_venta_online`). Las dos salen de `dev` (2026-10-06). **No está en `dev`, `qa` ni `main`**:
+(`producto_venta_online`). Las dos salen de `dev` (2026-10-06) y el 2026-10-08 se les volvió a traer
+todo lo de `dev` (sección 1.1). **No está en `dev`, `qa` ni `main`**:
 se junta a `dev` cuando la apruebes, y de ahí sigue el flujo normal.
 
 Reglas que se siguieron: skill `renombrar` y `CLAUDE.md` → "Renombrado en curso".
@@ -42,12 +43,66 @@ distinto. El front de esta rama usa el nuevo; el front de prod sigue con el viej
 | H1 | El renombrado **nunca se había subido**: el back estaba en un `stash` y el front en archivos sin commit, los dos mezclados con la rama del diseño Jade | Se pasó a esta rama propia, sin nada de Jade |
 | H2 | `dev` agregó `/v1/variantes/para-pedido` (buscador del detalle de pedido, solo con permiso) **después** del renombrado. Sin copiar la regla, **`/v2/articulos/para-pedido` habría quedado pública** | Regla en espejo en `SecurityConfig` |
 | H3 | Dos textos chocaban con colores del diseño Jade | Se dejó solo el texto nuevo; el color sigue como en `dev` |
-| H4 | En **Sistema → 🛡️ Gestión de roles** varios permisos dicen "variante" ("Tarjeta de variante", "Habilitar / deshabilitar variante", "Crear variantes"…). Esos textos están **en la base**, no en el código | ⏳ Pendiente: necesita un script `.sql` propio, probado en una base desechable. No entra en esta rama |
+| H4 | En **Sistema → 🛡️ Gestión de roles** varios permisos dicen "variante" ("Tarjeta de variante", "Habilitar / deshabilitar variante", "Crear variantes"…). Esos textos están **en la base**, no en el código | ✅ 2026-10-08: `migration_renombre_articulo_etiquetas.sql` (sección 1.1) |
 | H5 | El micro de imágenes, el chatbot y los interceptores del front **no** usan rutas de variantes | Nada que mover |
-| H6 | (Anotado por el dueño, 2026-10-06) **Catálogo → 🧩 Agregar producto** en realidad da de alta un **artículo** de un modelo que ya existe: el menú debería decir **"Agregar artículo"**. El texto del menú está **en la base** (tabla `submenu`), igual que H4. En la tarjeta del modelo (**Catálogo → 🔍 Modelos**) el botón **🧩 Productos** debe decir **🧩 Artículos**, y su ventana "Inicializar variantes" / "Crear variantes" → **"Crear artículos"** (`all.component`). Lo mismo la ayuda de pantalla (`ayuda-pantallas.catalog.ts`: "Nuevo Producto") y el texto de Agregar Modelo que manda a «Agregar producto» (`add.component.html`) | ⏳ Pendiente: va en el mismo script `.sql` que H4 + los textos del front. No entra en esta rama |
-| H7 | (Anotado por el dueño, 2026-10-06) En esa misma pantalla, al **elegir un modelo que ya existe**, todo lo que el artículo comparte con el modelo tiene que llegar **lleno y a la vista**: hoy precarga color, marca y descripción, pero el dueño vio que **contenido neto** y **categoría** no se llenan. La categoría no viaja en la búsqueda de modelos (`ProductoDTO` no la trae) y por eso el formulario sale sin ella aunque el back sí la copia al guardar | ⏳ Pendiente en `dev`: agregar la categoría a la búsqueda de modelos y precargarla; revisar por qué contenido neto no llegó (ver la consulta en `TESTS_PENDIENTES.md`, entrada 2026-10-06 "Crear artículos hereda del modelo") |
+| H6 | (Anotado por el dueño, 2026-10-06) **Catálogo → 🧩 Agregar producto** en realidad da de alta un **artículo** de un modelo que ya existe: el menú debería decir **"Agregar artículo"**. El texto del menú está **en la base** (tabla `submenu`), igual que H4. En la tarjeta del modelo (**Catálogo → 🔍 Modelos**) el botón **🧩 Productos** debe decir **🧩 Artículos**, y su ventana "Inicializar variantes" / "Crear variantes" → **"Crear artículos"** (`all.component`). Lo mismo la ayuda de pantalla (`ayuda-pantallas.catalog.ts`: "Nuevo Producto") y el texto de Agregar Modelo que manda a «Agregar producto» (`add.component.html`) | ✅ 2026-10-08: textos del front en esta rama + el mismo script de H4 para el menú |
+| H7 | (Anotado por el dueño, 2026-10-06) En esa misma pantalla, al **elegir un modelo que ya existe**, todo lo que el artículo comparte con el modelo tiene que llegar **lleno y a la vista**: hoy precarga color, marca y descripción, pero el dueño vio que **contenido neto** y **categoría** no se llenan. La categoría no viaja en la búsqueda de modelos (`ProductoDTO` no la trae) y por eso el formulario sale sin ella aunque el back sí la copia al guardar | ⏳ Pendiente en `dev`: agregar la categoría a la búsqueda de modelos y precargarla; revisar por qué contenido neto no llegó (ver la consulta en `TESTS_PENDIENTES.md`, entrada 2026-10-06 "Crear artículos hereda del modelo") — ✅ hecho en `dev` el 2026-10-07; llegó a esta rama con el merge del 2026-10-08 |
 
 **Compila:** back `mvn -q compile` ✅ · front `ng build --configuration development` ✅.
+
+### 1.1 Retomado el 2026-10-08
+
+**Pedido del dueño:** *"retomarla y hacer una búsqueda extensa para ya dejar cambiado variante por
+artículo en todo, y que las búsquedas digan artículo, menos en Tienda → Buscar"*.
+
+**1. Se trajo `dev` completo** (back y front, con todo lo del 2026-10-08). Conflictos resueltos con la
+lógica de `dev` y el texto en "artículo": `VarianteServiceImpl` (crear artículos y habilitar), la
+ventana 🧩 Agregar artículos de Modelos, el carrito y Agregar artículo.
+
+**2. Búsqueda completa.** Se revisó cada texto que ve una persona: lo que se pinta en las pantallas
+(`.html`, incluidos `title`, `placeholder`, `alt` y `aria-label`), los textos de los avisos (`.ts`)
+y los mensajes del back. Resultado:
+
+| Dónde | Qué quedaba | Cómo quedó |
+|---|---|---|
+| Front, pantallas | "+ Agregar variante" (Rifas → Agregar rifa) y "varianteId" (Diagnóstico de imágenes) | "+ Agregar artículo", "Id del artículo" |
+| Front, avisos (`.ts`) | Nada: ya decían "artículo" | — |
+| Back, mensajes al usuario | Nada: ya decían "artículo" | — |
+| Back, logs y Swagger | Dicen "variante" | **Se quedan así**: no los ve el dueño ni el cliente, y hablan de la tabla `variantes` |
+| Base de datos (menú y Gestión de roles) | "Agregar producto", "Tarjeta de variante", "Habilitar / deshabilitar variante", "🧩 Productos", "Excel sin productos"… | Script `migration_renombre_articulo_etiquetas.sql` |
+
+**3. Los buscadores dicen "artículo"** (regla del dueño), y los que buscan modelos dicen "modelo":
+
+| Pantalla | Antes | Ahora |
+|---|---|---|
+| Ventas → 💰 Venta directa | 🔍 Buscar producto · "Nombre o código de barras…" | 🔍 Buscar artículo · "Buscar artículo por nombre o código de barras…" |
+| Pedidos → Mis pedidos → 👁 Detalle → ➕ / ⇄ | "Buscar por nombre o código de barras…" | "Buscar artículo por nombre o código de barras…" |
+| Ventas → 💳 Créditos / Abonos → ↪ Aplicar a otro producto | "Buscar producto" · "Nombre, código o descripción…" | **↪ Aplicar a otro artículo** · "Buscar artículo" · "Buscar artículo por nombre, código o descripción…" |
+| Admin → 🎁 Gestión Promociones | "Agregar producto al combo" · "Buscar por nombre, talla o color…" | "Agregar artículo al combo" · "Buscar artículo por nombre, talla o color…" |
+| Marketing → Publicar en redes | "¿Es de algún producto?" · "Código, nombre o categoría…" | "¿Es de algún artículo?" · "Buscar artículo por código, nombre o categoría…" |
+| Rifas → Agregar rifa | "+ Agregar variante" · "Buscar por nombre, color o código…" | "+ Agregar artículo" · "Buscar artículo por nombre, color o código…" |
+| Rifas → Rifa mensual | "Buscar por nombre, talla o color…" | "Buscar artículo por nombre, talla o color…" |
+| Rifas → Boletos → Agregar premio | "Buscar producto por nombre o código…" · "Ningún producto coincide" | "Buscar artículo…" · "Ningún artículo coincide" |
+| Sistema → Diagnóstico de imágenes | pestañas 📦 Modelo / 🏷️ Producto, las dos "Buscar producto o código…" | 📦 Modelo ("Buscar modelo por nombre o código…") / 🏷️ **Artículo** ("Buscar artículo por nombre o código…") |
+| Catálogo → 🔍 Modelos | encabezado "Productos / Catálogo de productos" · "Buscar nombre o código…" · botón **🧩 Productos** | "Modelos / Catálogo de modelos (producto base)" · "Buscar modelo por nombre o código…" · botón **🧩 Artículos** |
+| Catálogo → 🧩 Agregar artículo (`tienda/venta`) | título "Nuevo Producto", "Productos adicionales", "💾 Guardar producto(s)" | "Nuevo artículo", "Artículos adicionales", "💾 Guardar artículo(s)" |
+| Editar artículo (`tienda/update`) | sección "Producto" · "Buscar nombre o código…" | sección "Modelo" · "Buscar modelo por nombre o código…" |
+| Catálogo → ➕ Agregar modelo | "…agrégale productos con su talla y color desde «Agregar producto»" | "…agrégale artículos con su talla y color desde «Agregar artículo»" |
+| Menú lateral | "🧩 Agregar producto" y sus explicaciones | "🧩 Agregar artículo"; el modelo se explica como "producto base" |
+| ⓘ Ayuda de pantalla | "Nuevo Producto" | "Agregar artículo" |
+| **Tienda → Buscar** | "Buscar nombre o código…" | **Sin cambio** (lo pidió el dueño: es lo que ve el cliente) |
+
+Lo que ve el **cliente** (carrito, ficha del artículo, chat) sigue diciendo "producto" donde ya lo
+decía: no se tocó. Las pruebas automáticas (`e2e/`) se ajustaron a los textos nuevos.
+
+**4. Script de la base:** `src/main/resources/static/migration_renombre_articulo_etiquetas.sql`.
+Cambia solo textos (`submenu.nombre/descripcion/descripcion_escritura` y
+`accion_submenu.etiqueta/descripcion/categoria`); **no** toca claves, rutas ni permisos, así que
+nadie gana ni pierde acceso y no hay que volver a entrar. Se probó en una base desechable con los
+textos que dejaron las migraciones: dos corridas seguidas (la segunda no cambia nada) y con el modo
+"safe updates" de MySQL Workbench prendido. Al final trae dos consultas que deben salir **vacías** y
+una que debe decir **Agregar artículo**. Se corre cuando la rama llegue a ese ambiente (primero
+`inventario_key_qa`, luego prod).
 
 ---
 
@@ -93,8 +148,8 @@ artículos (#____).
 | R2 | `.../producto-id`, `porProducto`, `imagenes/.../paginado`, `resenas/variante` | Ficha de un artículo por link directo (sin sesión) | `/tienda/detalle/{id}` | Ficha con fotos, artículos hermanos y reseñas | **Lo mismo** |
 | R3 | `habilitar`, `admin/habilitar-lote`, `deleteBy`, `admin/filtrar` | Tarjeta de artículo (admin) | **Tienda → Buscar** con sesión | Habilitar, en lote, dar de baja | **Lo mismo**; mensajes dicen "artículo" |
 | R4 | `getOne`, `guardarConImagenes`, `{id}/imagenes`, `imagenes/.../paginado` | Editar artículo | ✏️ en la tarjeta → `tienda/update` | Guarda cambios y fotos | **Lo mismo** |
-| R5 | `guardarConImagenes` | Alta de artículo | **Catálogo → 🧩 Agregar producto** | "¡Variante creada!" | **"¡Artículo creado!"**, mismo resultado |
-| R6 | `inicializarDesdeProducto`, `sin-articulos/reporte`, `compartir-imagenes-articulos` | Tarjeta del modelo | **Catálogo → 🔍 Modelos** | "Inicializar variantes", Excel `productos_sin_variantes.xlsx` | **"Crear artículos"**, Excel `productos_sin_articulos.xlsx` |
+| R5 | `guardarConImagenes` | Alta de artículo | **Catálogo → 🧩 Agregar artículo** (antes "Agregar producto") | "Nuevo Producto", "¡Variante creada!" | **"Nuevo artículo"**, **"¡Artículo creado!"**, mismo resultado |
+| R6 | `guardarConImagenes` (ventana 🧩), `sin-articulos/reporte`, `compartir-imagenes-articulos` | Tarjeta del modelo | **Catálogo → 🔍 Modelos** | botón "🧩 Productos", Excel `productos_sin_variantes.xlsx` | botón **"🧩 Artículos"** (abre 🧩 Agregar artículos), Excel `productos_sin_articulos.xlsx` |
 | R7 | `/v2/articulos/buscar` + venta | Venta en mostrador | **Ventas → 💰 Venta directa** | Busca, cobra, baja stock | **Lo mismo, mismos totales** |
 | R8 | `/v2/articulos/buscar` y `para-pedido` | ➕ Agregar artículo y ⇄ del detalle | **Pedidos → Mis pedidos** → 👁 Detalle | Busca solo lo que se puede vender | **Lo mismo** |
 | R9 | `/v2/articulos/buscar` | Buscador de Créditos / Abonos | **Ventas → 💳 Créditos / Abonos** | Encuentra el artículo | **Lo mismo** |
@@ -105,6 +160,8 @@ artículos (#____).
 | R14 | `admin/diagnostico-imagenes`, `buscar` | Diagnóstico | `admin/diagnostico-imagenes` | Diagnóstico de fotos de un artículo | **Lo mismo** |
 | R15 | Reglas de `SecurityConfig` | Permisos | Usuario con rol limitado | Lo que no tiene permitido da 403 | **Lo mismo** en `/v2` (y `para-pedido` **no** público) |
 | R16 | Texto del chatbot ("CATÁLOGO ACTUAL…") | Chat de la tienda | Burbuja de chat en la tienda | Contesta con productos | **Lo mismo** |
+| R18 | Textos de los buscadores (2026-10-08) | Venta directa, detalle de pedido, Créditos / Abonos, Promociones, Publicar en redes, Rifas, Diagnóstico, Editar artículo | Cada pantalla | "Buscar producto…", "Buscar por nombre…" | "Buscar artículo…" (o "Buscar modelo…" donde se busca un modelo); **lo mismo encontrado** |
+| R19 | Textos de la base (`migration_renombre_articulo_etiquetas.sql`) | Menú Catálogo y Gestión de roles | Sistema → 🛡️ Gestión de roles | "Agregar producto", "Tarjeta de variante"… | "Agregar artículo", "Tarjeta de artículo"…; **mismos permisos** |
 | R17 | **El cambio mismo** | — | Pestaña Red | Llamadas a `/v1/variantes/...` | Llamadas a `/v2/articulos/...`, y `/v1` sigue contestando |
 
 ---
@@ -154,20 +211,22 @@ artículos (#____).
 | 2 | Cambia la talla, guarda | Guarda. En Red: `POST …/v2/articulos/guardarConImagenes` con **200** |
 | 3 | Quita una foto y agrega otra, guarda | La foto quitada ya no sale; la nueva sí |
 
-### 🔴 R5 — Catálogo → 🧩 Agregar producto (alta de artículo)
+### 🔴 R5 — Catálogo → 🧩 Agregar artículo (antes "Agregar producto")
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Llena un artículo de prueba de un modelo con stock libre y guarda | Aviso **"¡Artículo creado!"** (antes decía "¡Variante creada!") |
+| 0 | Abre la pantalla | Título **"Nuevo artículo"**; el buscador dice **"Buscar modelo por nombre o código…"** |
+| 1 | Llena un artículo de prueba de un modelo con stock libre y guarda | El botón dice **"💾 Guardar artículo"**. Aviso **"¡Artículo creado!"** (antes decía "¡Variante creada!") |
 | 2 | Búscalo en **Tienda → Buscar** | Aparece (si tiene foto y stock) |
 
 ### 🔴 R6 — Catálogo → 🔍 Modelos (tarjeta del modelo)
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | En un modelo **con stock libre**, toca 🧩 | La ventana dice **"Crear artículos"**, **"Cantidad de artículos"**, botón **"Crear artículos"** |
-| 2 | Crea 1 | Aviso **"1 artículo(s) creado(s)"**. En Red: `inicializarDesdeProducto` con **201** |
-| 3 | Repite en un modelo **sin stock libre** | Error **"Stock insuficiente para crear 1 artículos del producto N. Stock disponible: 0"** (antes decía "variantes") |
+| 0 | Abre la pantalla | Encabezado **"Modelos"**; el buscador dice **"Buscar modelo por nombre o código…"** |
+| 1 | En un modelo **con stock libre**, toca **🧩 Artículos** (antes "🧩 Productos") | Se abre la ventana **🧩 Agregar artículos** (la misma de Agregar modelo) |
+| 2 | Crea 1 con stock 1 | Aviso **"1 artículo guardado"**. En Red: `v2/articulos/guardarConImagenes` con **200** |
+| 3 | Repite en un modelo **sin stock libre** | Aviso **"No queda stock para artículos nuevos"** y no se abre la ventana |
 | 4 | Descarga el Excel de modelos sin artículos | El archivo se llama **`productos_sin_articulos.xlsx`** y la hoja **"Productos Sin Artículos"** |
 | 5 | En el detalle de un modelo, comparte sus imágenes a sus artículos | Igual que antes. En Red: `compartir-imagenes-articulos` con **200** |
 
@@ -255,4 +314,41 @@ artículos (#____).
 | 2 | Con Red filtrando `articulos` | Todas las llamadas de artículos van a `/v2/articulos/...` con 200 |
 | 3 | Sin sesión, abre `https://qa.backend.novedades-jade.com.mx/mis-productos/v1/variantes/buscar?termino=bol` y luego `…/v2/articulos/buscar?termino=bol` | **El mismo JSON** en las dos (el `/v1` sigue vivo para el front de prod) |
 
-- [ ] R1 · [ ] R2 · [ ] R3 · [ ] R4 · [ ] R5 · [ ] R6 · [ ] R7 · [ ] R8 · [ ] R9 · [ ] R10 · [ ] R11 · [ ] R12 · [ ] R13 · [ ] R14 · [ ] R15 · [ ] R16 · [ ] R17
+### 🔴 R18 — Los buscadores dicen "artículo" (2026-10-08)
+
+Solo cambia el texto: lo que encuentra cada buscador tiene que ser **lo mismo que antes** con las
+mismas 3 letras.
+
+| # | Dónde | Debes ver en el buscador |
+|---|---|---|
+| 1 | Ventas → 💰 Venta directa | **🔍 Buscar artículo** · "Buscar artículo por nombre o código de barras…" |
+| 2 | Pedidos → Mis pedidos → 👁 Detalle → ➕ Agregar artículo | "Buscar artículo por nombre o código de barras (mínimo 3 letras)" |
+| 3 | Ventas → 💳 Créditos / Abonos → un pedido cancelado → **↪ Aplicar a otro artículo** | "Buscar artículo" · "Buscar artículo por nombre, código o descripción…" |
+| 4 | Admin → 🎁 Gestión Promociones → nuevo combo | "Agregar artículo al combo" · "Buscar artículo por nombre, talla o color…" |
+| 5 | Marketing → Publicar en redes | "¿Es de algún artículo?" · "Buscar artículo por código, nombre o categoría…" |
+| 6 | Rifas → Agregar rifa → **+ Agregar artículo** | "Buscar artículo por nombre, color o código…" |
+| 7 | Rifas → Rifa mensual (paso del premio) y Rifas → Boletos → Agregar premio | "Buscar artículo…" |
+| 8 | Sistema → Diagnóstico de imágenes | Pestañas **📦 Modelo** y **🏷️ Artículo**, cada una con su buscador |
+| 9 | ✏️ en la tarjeta de un artículo (Editar) | Sección **Modelo** · "Buscar modelo por nombre o código…" |
+| 10 | **Tienda → Buscar** | **"Buscar nombre o código…", igual que antes** (no cambia) |
+
+⛔ No puede pasar: que algún buscador encuentre distinto que antes, o que siga diciendo "variante".
+
+### 🔴 R19 — Menú y Gestión de roles (después de correr el script)
+
+**Antes de empezar:** correr `migration_renombre_articulo_etiquetas.sql` en `inventario_key_qa` y
+recargar la pantalla (no hace falta volver a entrar).
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Las consultas del final del script | Las dos primeras **vacías**; la tercera dice **Agregar artículo** |
+| 2 | Sistema → 🛡️ Gestión de roles → un rol → Catálogo | La pantalla **Agregar artículo** (antes "Agregar producto") |
+| 3 | En la misma pantalla → Tienda → Buscar | Categoría **"Tarjeta de artículo"**; "Habilitar / deshabilitar artículo"; las ℹ️ dicen "artículo" |
+| 4 | En la misma pantalla → Catálogo → Modelos | "Crear artículos desde el modelo (🧩 "Artículos" en la tarjeta)", "Descargar Excel sin artículos (📥 …)" |
+| 5 | Con un rol que ya tenía esos permisos, entra a Modelos y a Tienda → Buscar | Los mismos botones que antes (el script no cambia permisos) |
+| 6 | Corre el script otra vez | No cambia nada (0 filas) |
+
+⛔ No puede pasar: que un rol pierda o gane un botón; que alguna etiqueta diga "el artículo" donde
+debía decir "del artículo" (o "de el").
+
+- [ ] R1 · [ ] R2 · [ ] R3 · [ ] R4 · [ ] R5 · [ ] R6 · [ ] R7 · [ ] R8 · [ ] R9 · [ ] R10 · [ ] R11 · [ ] R12 · [ ] R13 · [ ] R14 · [ ] R15 · [ ] R16 · [ ] R17 · [ ] R18 · [ ] R19

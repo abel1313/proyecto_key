@@ -62,7 +62,7 @@ Rutas de los repos: back `/home/user/proyecto_key` (o `proyecto_key_new`), front
 | Tienda | Tienda | `tienda/buscar` |
 | Catálogo | Modelos | `productos/buscar` |
 | Catálogo | Agregar modelo | `productos/agregar` |
-| Catálogo | Agregar producto | `tienda/venta` |
+| Catálogo | Agregar artículo (antes "Agregar producto"; cambia al correr `migration_renombre_articulo_etiquetas.sql`) | `tienda/venta` |
 | Catálogo | Carga rápida de imágenes | `carga-imagenes` |
 | Catálogo | Cargar Excel | `tienda/cargar-excel` |
 | Catálogo | Categorías | `palabras-clave` |
