@@ -697,9 +697,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         DetallePedido detalle = pedido.getDetalles().stream()
                 .filter(d -> detalleId != null ? d.getId().equals(detalleId) : d.getProducto().getId().equals(productoId))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
+                .orElseThrow(() -> new RuntimeException("El artículo no existe en este pedido"));
         if (!detalle.getProducto().getId().equals(productoId)) {
-            throw new RuntimeException("La linea " + detalleId + " del pedido #" + pedidoId + " no es de ese producto");
+            throw new RuntimeException("La linea " + detalleId + " del pedido #" + pedidoId + " no es de ese modelo");
         }
 
         // Una promocion es un combo: o esta completa, o no esta (R4 del dominio pedidoarticulo).

@@ -65,6 +65,6 @@ public record PrecioCatalogo(String nombreProducto, Double precioVenta, Double p
     public String explicacion() {
         return tieneRebaja()
                 ? String.format("$%.2f (normal) o $%.2f (rebaja)", normal(), rebaja())
-                : String.format("$%.2f (normal, este producto no tiene rebaja cargada)", normal());
+                : String.format("$%.2f (normal, este artículo no tiene rebaja cargada)", normal());
     }
 }

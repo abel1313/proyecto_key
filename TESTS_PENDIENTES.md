@@ -24,6 +24,9 @@ Formato de cada entrada:
 - [ ] Segunda corrida → 0 filas cambiadas
 - [ ] Un test que recorra los `.html` y falle si un texto visible (texto, `title`, `placeholder`, `alt`, `aria-label`) dice "variante"
 - [ ] e2e: los buscadores de Venta directa, detalle de pedido y Modelos se encuentran por su placeholder nuevo; Tienda → Buscar sigue con "Buscar nombre o código…"
+- [ ] Mensajes del back (§1.3): modelo deshabilitado al vender o editar un pedido → "…el modelo está deshabilitado…"; precio inválido sin rebaja → "(normal, este artículo no tiene rebaja cargada)"; crear artículos sin stock libre → "Stock insuficiente en el modelo 'X'…"; cancelar un Ir pagando que ya se llevó → "Ir pagando cancelado. Stock NO devuelto (el cliente ya se llevó los artículos)…"
+- [ ] Script con la fila de Rifas: `rifas/agregar` → "Rifa de artículos" en `nombre`, `descripcion` y en el `descripcion_escritura` compartido de Rifas *(comprobado en base desechable el 2026-10-08)*
+- [ ] Script, segunda pasada: explicaciones de Diagnóstico de imágenes, Categorías, Reportes de ventas y Publicar en redes; permiso 💲 (`cambiar-precio`) con la explicación por artículo (233 caracteres, cabe en 255); `tema_variable.filtros-panel-bg` → "(Tienda y Modelos)"; "variante oscura" de los colores **no** cambia *(comprobado en base desechable el 2026-10-08)*
 
 ### 2026-10-08 — Agregar artículo: todos los modelos, habilitar y agregar stock al momento
 **Dónde:** `DisponibilidadStock.conAjuste()/articulosQueAunCaben()`, `AjustarStockModeloService`, `ConsultarStockJpaAdapter` (habilitado y foto), `GuardarStockModeloJpaAdapter`, `StockController` (`PUT /v1/stock/producto/{id}/ajuste`), `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)`, `AuthenticationUtils.tieneAccion()/puedeVerTodosLosModelos()`, `SecurityConfig`, `migration_accion_tienda_venta_ver_todos.sql`; front `variante/agregar`
@@ -267,3 +270,6 @@ Formato de cada entrada:
 |---|---|---|---|
 | `RenombreArticuloRutasTest`, `RenombreArticuloSecurityTest` | `feature/tema-jade-articulo` | 2026-10-06 | Prueban rutas `/v2/articulos/...` que esa rama del back todavía no tiene. No llegan a `dev`/`qa`. |
 | `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. |
+| `VarianteStockDevolucionTest.habilitar_articuloViejoConStock_siAlcanzaNoSeToca` | `rename/variante-a-articulo` | 2026-10-08 | Espera "Variantes habilitadas correctamente."; con el renombrado el mensaje dice "Artículos habilitados correctamente." Solo cambia el texto, el stock se comporta igual. |
+| `ArticuloAVenderTest` (`productoDeshabilitado`, `soloModelo`, `productoPrimero`) | `rename/variante-a-articulo` | 2026-10-08 | Esperan "…el producto está deshabilitado…"; ahora dice "…el **modelo** está deshabilitado…" (§1.3 de `RENOMBRE_VARIANTE_A_ARTICULO.md`). La regla no cambió. |
+| `EditarArticulosServiceTest.productoDeshabilitadoNo` | `rename/variante-a-articulo` | 2026-10-08 | Igual: espera "el producto está deshabilitado o dado de baja"; ahora "el modelo…". |

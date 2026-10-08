@@ -33,7 +33,7 @@ casilla `[x]`. Yo leo tus 💬 y contesto debajo con `↳`.
 | 10 | **10.2 — Mis datos sin spinner** | Que Mis datos cargue | ✅ Confirmada por ti el 2026-10-08 | 5 min | [x] |
 | 11 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | ✅ Ya, en QA (subido el 2026-10-07) | 10 min | [ ] |
 | 12 | **17 — Filtros de Tienda, Venta directa, buscadores y Agregar artículos** (2026-10-08) | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras, la ventana 🧩 Agregar artículos | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) | 45 min | [ ] |
-| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) + `migration_accion_tienda_venta_ver_todos.sql` (solo para probarlo con un rol que no sea admin) | 30 min | [ ] |
+| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) (el script `migration_accion_tienda_venta_ver_todos.sql` ✅ ya se corrió en QA el 2026-10-08) | 30 min | [ ] |
 | 14 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
 
 **Por qué este orden:** las 2, 3 y 4 crean pedidos (A–F, H4–H8, K1–K6) que se reusan después. Las
@@ -43,7 +43,7 @@ prueba y con eso es más difícil encontrar los tuyos.
 **Estado de las subidas (2026-10-08):** lo del 2026-10-07 (pruebas 13, 15, 16, 10.2 y 14-QA) ya está en
 QA. Lo del 2026-10-08 (Prueba 17, Prueba 18 y los cambios de 2.1, 2.3, 2.4 y 2.5) se subió **solo a
 `dev`**: llega a QA cuando digas "sube a qa". Scripts nuevos para QA: `migration_tema_modal.sql`
-(opcional) y `migration_accion_tienda_venta_ver_todos.sql`. Lista completa de pendientes:
+y `migration_accion_tienda_venta_ver_todos.sql`, ✅ los dos corridos en QA el 2026-10-08 (falta prod). Lista completa de pendientes:
 `PENDIENTES_2026-10-08.md`.
 
 ---
@@ -1166,7 +1166,7 @@ hacer**, y que al **agregarle stock** se vaya al modelo y pregunte *"¿Deseas ag
 **Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano:
 - **M-OFF**: un modelo **deshabilitado** (en Catálogo → 🔍 Modelos, con el interruptor apagado).
 - **M-0**: un modelo **habilitado** cuyo stock ya está todo repartido en sus artículos (Libre 0).
-- Para el paso con otro rol: corre `migration_accion_tienda_venta_ver_todos.sql` en QA y, en
+- Para el paso con otro rol: `migration_accion_tienda_venta_ver_todos.sql` ✅ ya está corrida en QA (2026-10-08); en
   **Gestión de roles**, márcale a ese rol **"Ver todos los modelos (sin stock, deshabilitados o dados de baja)"** en 🧩 Agregar producto.
 
 ### Mapa de impacto

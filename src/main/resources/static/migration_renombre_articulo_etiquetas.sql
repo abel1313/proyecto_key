@@ -4,6 +4,7 @@
 --
 -- Qué cambia (solo lo que el admin LEE):
 --   * Menú Catálogo: "🧩 Agregar producto" → "🧩 Agregar artículo" (submenu.nombre de tienda/venta).
+--   * Menú Rifas: "🎡 Rifa de productos" → "🎡 Rifa de artículos" (rifas/agregar: sus premios son artículos).
 --   * Sistema → 🛡️ Gestión de roles: etiquetas, explicaciones (ℹ️) y categorías de los permisos que
 --     decían "variante" ("Tarjeta de variante", "Habilitar / deshabilitar variante",
 --     "Crear productos desde el modelo (🧩 "Productos"…)", "Excel sin productos"…).
@@ -11,9 +12,14 @@
 -- Qué NO cambia: claves de las acciones ('crear-variantes'…), rutas, permisos de ningún rol.
 -- Nadie gana ni pierde acceso; no hace falta volver a entrar, basta recargar la pantalla.
 --
--- Columnas tocadas: submenu.nombre / descripcion / descripcion_escritura y
--- accion_submenu.etiqueta / descripcion / categoria. Ningún reemplazo alarga el texto
--- ("variante" y "artículo" miden lo mismo), así que no se pasa del largo de la columna.
+-- Columnas tocadas: tema_variable.etiqueta (solo la fila 'filtros-panel-bg'),
+-- submenu.nombre / descripcion / descripcion_escritura y
+-- accion_submenu.etiqueta / descripcion / categoria. Los reemplazos palabra por palabra no alargan
+-- el texto ("variante" y "artículo" miden lo mismo); los textos fijos de la sección 1 que sí son más
+-- largos quedan por debajo de 255 caracteres (el largo de la columna).
+-- También corrige 4 explicaciones (ℹ️) que decían "producto" por artículo (Diagnóstico de imágenes,
+-- Categorías, Reportes de ventas, Publicar en redes) y la del permiso 💲 de Tienda, que seguía
+-- describiendo el precio por modelo de antes del 2026-09-29.
 --
 -- Idempotente: correrla dos veces no cambia nada la segunda (ya no encuentra lo que reemplaza).
 -- Orden: primero en inventario_key_qa (cubre dev y qa), luego en inventario_key (prod), y solo
@@ -45,6 +51,48 @@ UPDATE submenu
  WHERE id > 0 AND ruta = 'tienda/venta'
    AND descripcion = 'Formulario para agregar un Producto (una variante concreta: talla/color) a partir de un Modelo ya creado. Vive en el menú: Catálogo → Agregar producto.';
 
+-- Menú Rifas → la pantalla rifas/agregar
+UPDATE submenu SET nombre = 'Rifa de artículos'
+ WHERE id > 0 AND ruta = 'rifas/agregar' AND nombre = 'Rifa de productos';
+
+UPDATE submenu
+   SET descripcion = 'Crear una rifa nueva y elegir qué artículos participan. Vive en el menú: Rifas → Rifa de artículos.'
+ WHERE id > 0 AND ruta = 'rifas/agregar'
+   AND descripcion = 'Crear una rifa nueva y elegir qué productos participan. Vive en el menú: Rifas → Rifa de productos.';
+
+-- Explicaciones (ℹ️) de otras pantallas que trabajan con artículos (2026-10-08, segunda pasada)
+UPDATE submenu
+   SET descripcion = 'Herramienta para revisar por qué no aparece la imagen de un modelo o de un artículo. Vive en el menú: Sistema → Diagnóstico de imágenes.'
+ WHERE id > 0 AND ruta = 'admin/diagnostico-imagenes'
+   AND descripcion = 'Herramienta para revisar por qué no aparece la imagen de un producto/variante. Vive en el menú: Sistema → Diagnóstico de imágenes.';
+
+UPDATE submenu
+   SET descripcion = 'Catálogo de categorías/palabras clave usadas para clasificar y buscar modelos y artículos. Vive en el menú: Catálogo → Categorías.'
+ WHERE id > 0 AND ruta = 'palabras-clave'
+   AND descripcion = 'Catálogo de categorías/palabras clave usadas para clasificar y buscar productos. Vive en el menú: Catálogo → Categorías.';
+
+UPDATE submenu
+   SET descripcion = 'Reportes detallados de ventas, por fecha/artículo/vendedor. Vive en el menú: Reportes → Reportes de ventas.'
+ WHERE id > 0 AND ruta = 'reportes'
+   AND descripcion = 'Reportes detallados de ventas, por fecha/producto/vendedor. Vive en el menú: Reportes → Reportes de ventas.';
+
+UPDATE submenu
+   SET descripcion = 'Publicar artículos/promociones directo en Facebook/Instagram desde el sistema. Vive en el menú: Marketing → Publicar en redes.'
+ WHERE id > 0 AND ruta = 'admin/facebook'
+   AND descripcion = 'Publicar productos/promociones directo en Facebook/Instagram desde el sistema. Vive en el menú: Marketing → Publicar en redes.';
+
+-- Tienda → Buscar, permiso 💲: desde el 2026-09-29 cambia el precio de UN artículo (ya no el de
+-- todos los artículos del modelo); la explicación decía lo de antes. Sigue siendo el mismo permiso.
+UPDATE accion_submenu a JOIN submenu s ON s.id = a.submenu_id
+   SET a.descripcion = 'Botón 💲 de la tarjeta de Tienda. Cambia el precio normal y con descuento de ese artículo (solo de ese). También deja ver el precio con descuento (👁) en el carrito y en el detalle del pedido. Los pedidos ya hechos conservan su precio.'
+ WHERE a.id > 0 AND s.ruta = 'tienda/buscar' AND a.clave = 'cambiar-precio'
+   AND a.descripcion = 'Botón 💲 de la tarjeta de Tienda. Cambia el precio normal y el precio con descuento del producto, para todos sus artículos. Los pedidos ya hechos conservan su precio.';
+
+-- Personalización: el color del recuadro de filtros nombraba la pantalla de Modelos como "Productos"
+UPDATE tema_variable SET etiqueta = 'Fondo del recuadro de búsqueda y filtros (Tienda y Modelos)'
+ WHERE id > 0 AND clave = 'filtros-panel-bg'
+   AND etiqueta = 'Fondo del recuadro de búsqueda y filtros (Tienda y Productos)';
+
 -- Modelos (productos/buscar): el botón 🧩 de la tarjeta ahora dice "Artículos"
 UPDATE accion_submenu a JOIN submenu s ON s.id = a.submenu_id
    SET a.etiqueta = 'Crear artículos desde el modelo (🧩 "Artículos" en la tarjeta)'
@@ -72,6 +120,7 @@ UPDATE submenu SET nombre = REPLACE(nombre, 'Crear variantes ("Productos")', 'Cr
 UPDATE submenu SET nombre = REPLACE(nombre, 'Descargar Excel de productos sin variantes', 'Descargar Excel de modelos sin artículos') WHERE id > 0 AND nombre LIKE '%Descargar Excel de productos sin variantes%';
 UPDATE submenu SET nombre = REPLACE(nombre, '🧩 "Productos"', '🧩 "Artículos"') WHERE id > 0 AND nombre LIKE '%🧩 "Productos"%';
 UPDATE submenu SET nombre = REPLACE(nombre, 'Agregar producto', 'Agregar artículo') WHERE id > 0 AND nombre LIKE '%Agregar producto%';
+UPDATE submenu SET nombre = REPLACE(nombre, 'Rifa de productos', 'Rifa de artículos') WHERE id > 0 AND nombre LIKE '%Rifa de productos%';
 UPDATE submenu SET nombre = REPLACE(nombre, 'no tienen producto/variante creada', 'no tienen artículos') WHERE id > 0 AND nombre LIKE '%no tienen producto/variante creada%';
 UPDATE submenu SET nombre = REPLACE(nombre, 'producto/variante', 'artículo') WHERE id > 0 AND nombre LIKE '%producto/variante%';
 UPDATE submenu SET nombre = REPLACE(nombre, 'de la variante', 'del artículo') WHERE id > 0 AND nombre LIKE '%de la variante%';
@@ -96,6 +145,7 @@ UPDATE submenu SET descripcion = REPLACE(descripcion, 'Crear variantes ("Product
 UPDATE submenu SET descripcion = REPLACE(descripcion, 'Descargar Excel de productos sin variantes', 'Descargar Excel de modelos sin artículos') WHERE id > 0 AND descripcion LIKE '%Descargar Excel de productos sin variantes%';
 UPDATE submenu SET descripcion = REPLACE(descripcion, '🧩 "Productos"', '🧩 "Artículos"') WHERE id > 0 AND descripcion LIKE '%🧩 "Productos"%';
 UPDATE submenu SET descripcion = REPLACE(descripcion, 'Agregar producto', 'Agregar artículo') WHERE id > 0 AND descripcion LIKE '%Agregar producto%';
+UPDATE submenu SET descripcion = REPLACE(descripcion, 'Rifa de productos', 'Rifa de artículos') WHERE id > 0 AND descripcion LIKE '%Rifa de productos%';
 UPDATE submenu SET descripcion = REPLACE(descripcion, 'no tienen producto/variante creada', 'no tienen artículos') WHERE id > 0 AND descripcion LIKE '%no tienen producto/variante creada%';
 UPDATE submenu SET descripcion = REPLACE(descripcion, 'producto/variante', 'artículo') WHERE id > 0 AND descripcion LIKE '%producto/variante%';
 UPDATE submenu SET descripcion = REPLACE(descripcion, 'de la variante', 'del artículo') WHERE id > 0 AND descripcion LIKE '%de la variante%';
@@ -120,6 +170,7 @@ UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'Crear
 UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'Descargar Excel de productos sin variantes', 'Descargar Excel de modelos sin artículos') WHERE id > 0 AND descripcion_escritura LIKE '%Descargar Excel de productos sin variantes%';
 UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, '🧩 "Productos"', '🧩 "Artículos"') WHERE id > 0 AND descripcion_escritura LIKE '%🧩 "Productos"%';
 UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'Agregar producto', 'Agregar artículo') WHERE id > 0 AND descripcion_escritura LIKE '%Agregar producto%';
+UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'Rifa de productos', 'Rifa de artículos') WHERE id > 0 AND descripcion_escritura LIKE '%Rifa de productos%';
 UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'no tienen producto/variante creada', 'no tienen artículos') WHERE id > 0 AND descripcion_escritura LIKE '%no tienen producto/variante creada%';
 UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'producto/variante', 'artículo') WHERE id > 0 AND descripcion_escritura LIKE '%producto/variante%';
 UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'de la variante', 'del artículo') WHERE id > 0 AND descripcion_escritura LIKE '%de la variante%';
@@ -144,6 +195,7 @@ UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'Crear variantes ("Produc
 UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'Descargar Excel de productos sin variantes', 'Descargar Excel de modelos sin artículos') WHERE id > 0 AND etiqueta LIKE '%Descargar Excel de productos sin variantes%';
 UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, '🧩 "Productos"', '🧩 "Artículos"') WHERE id > 0 AND etiqueta LIKE '%🧩 "Productos"%';
 UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'Agregar producto', 'Agregar artículo') WHERE id > 0 AND etiqueta LIKE '%Agregar producto%';
+UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'Rifa de productos', 'Rifa de artículos') WHERE id > 0 AND etiqueta LIKE '%Rifa de productos%';
 UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'no tienen producto/variante creada', 'no tienen artículos') WHERE id > 0 AND etiqueta LIKE '%no tienen producto/variante creada%';
 UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'producto/variante', 'artículo') WHERE id > 0 AND etiqueta LIKE '%producto/variante%';
 UPDATE accion_submenu SET etiqueta = REPLACE(etiqueta, 'de la variante', 'del artículo') WHERE id > 0 AND etiqueta LIKE '%de la variante%';
@@ -168,6 +220,7 @@ UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'Crear variantes ("
 UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'Descargar Excel de productos sin variantes', 'Descargar Excel de modelos sin artículos') WHERE id > 0 AND descripcion LIKE '%Descargar Excel de productos sin variantes%';
 UPDATE accion_submenu SET descripcion = REPLACE(descripcion, '🧩 "Productos"', '🧩 "Artículos"') WHERE id > 0 AND descripcion LIKE '%🧩 "Productos"%';
 UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'Agregar producto', 'Agregar artículo') WHERE id > 0 AND descripcion LIKE '%Agregar producto%';
+UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'Rifa de productos', 'Rifa de artículos') WHERE id > 0 AND descripcion LIKE '%Rifa de productos%';
 UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'no tienen producto/variante creada', 'no tienen artículos') WHERE id > 0 AND descripcion LIKE '%no tienen producto/variante creada%';
 UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'producto/variante', 'artículo') WHERE id > 0 AND descripcion LIKE '%producto/variante%';
 UPDATE accion_submenu SET descripcion = REPLACE(descripcion, 'de la variante', 'del artículo') WHERE id > 0 AND descripcion LIKE '%de la variante%';
@@ -192,6 +245,7 @@ UPDATE accion_submenu SET categoria = REPLACE(categoria, 'Crear variantes ("Prod
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'Descargar Excel de productos sin variantes', 'Descargar Excel de modelos sin artículos') WHERE id > 0 AND categoria LIKE '%Descargar Excel de productos sin variantes%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, '🧩 "Productos"', '🧩 "Artículos"') WHERE id > 0 AND categoria LIKE '%🧩 "Productos"%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'Agregar producto', 'Agregar artículo') WHERE id > 0 AND categoria LIKE '%Agregar producto%';
+UPDATE accion_submenu SET categoria = REPLACE(categoria, 'Rifa de productos', 'Rifa de artículos') WHERE id > 0 AND categoria LIKE '%Rifa de productos%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'no tienen producto/variante creada', 'no tienen artículos') WHERE id > 0 AND categoria LIKE '%no tienen producto/variante creada%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'producto/variante', 'artículo') WHERE id > 0 AND categoria LIKE '%producto/variante%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'de la variante', 'del artículo') WHERE id > 0 AND categoria LIKE '%de la variante%';
@@ -210,10 +264,14 @@ UPDATE accion_submenu SET categoria = REPLACE(categoria, 'Variante', 'Artículo'
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'variantes', 'artículos') WHERE id > 0 AND categoria LIKE '%variantes%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'variante', 'artículo') WHERE id > 0 AND categoria LIKE '%variante%';
 
--- ── Verificación DESPUÉS: las dos tienen que salir VACÍAS ───────────────────
+-- ── Verificación DESPUÉS: las tres primeras tienen que salir VACÍAS ─────────
 SELECT 'submenu con variante' AS revisar, id, ruta, nombre, descripcion, descripcion_escritura
   FROM submenu
- WHERE nombre = 'Agregar producto'
+ WHERE nombre IN ('Agregar producto', 'Rifa de productos')
+    OR CONCAT_WS(' ', descripcion, descripcion_escritura) LIKE '%Rifa de productos%'
+    OR descripcion LIKE '%buscar productos.%'
+    OR descripcion LIKE '%fecha/producto/%'
+    OR descripcion LIKE '%Publicar productos/%'
     OR CONCAT_WS(' ', nombre, descripcion, descripcion_escritura) LIKE '%variante%'
     OR CONCAT_WS(' ', descripcion, descripcion_escritura) LIKE '%Agregar producto%';
 
@@ -221,7 +279,12 @@ SELECT 'accion con variante' AS revisar, a.id, s.ruta, a.clave, a.etiqueta, a.ca
   FROM accion_submenu a JOIN submenu s ON s.id = a.submenu_id
  WHERE CONCAT_WS(' ', a.etiqueta, a.descripcion, a.categoria) LIKE '%variante%'
     OR CONCAT_WS(' ', a.etiqueta, a.descripcion) LIKE '%"Productos"%'
-    OR CONCAT_WS(' ', a.etiqueta, a.descripcion) LIKE '%sin productos%';
+    OR CONCAT_WS(' ', a.etiqueta, a.descripcion) LIKE '%sin productos%'
+    OR (a.clave = 'cambiar-precio' AND a.descripcion LIKE '%para todos sus artículos%');
 
--- Y esta tiene que devolver 1 fila: el menú ya dice "Agregar artículo"
-SELECT id, ruta, nombre FROM submenu WHERE ruta = 'tienda/venta';
+-- Esta también tiene que salir VACÍA
+SELECT 'color con Productos' AS revisar, clave, etiqueta FROM tema_variable
+ WHERE clave = 'filtros-panel-bg' AND etiqueta LIKE '%(Tienda y Productos)%';
+
+-- Y esta tiene que devolver 2 filas: "Agregar artículo" y "Rifa de artículos"
+SELECT id, ruta, nombre FROM submenu WHERE ruta IN ('tienda/venta', 'rifas/agregar');

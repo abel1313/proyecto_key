@@ -612,8 +612,8 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
 | `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ⏳ pendiente — **antes** del deploy del back a `main` (sin ella falla el login) | qa 2026-10-07 |
 | `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
-| `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ⏳ pendiente (opcional) | ⏳ pendiente (junto con Jade) | — |
-| `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ⏳ pendiente | ⏳ pendiente | — |
+| `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
+| `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
 | `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ cuando la rama llegue a `dev`/`qa` | ⏳ cuando la rama llegue a `main` | — |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
@@ -628,8 +628,8 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
 | 4 | `migration_datos_legales.sql` | La entidad `Usuario` mapea `acepto_terminos`: **sin la columna falla el login**. Crea `datos_legales_negocio`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 5 | `migration_tema_filtros.sql` | Sin ella el fondo de los filtros funciona (sale de `styles.scss`) pero **no aparece en Personalización** para cambiarlo. Solo agrega 2 filas; no cambia nada que exista. Va después de `migration_tema_jade.sql`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
-| 6 | `migration_tema_modal.sql` | Igual que la 5: sin ella el velo detrás de la ventana 🧩 Agregar artículos funciona (sale de `styles.scss`), solo no aparece en Personalización. Agrega 1 fila | 2026-10-08 |
-| 7 | `migration_accion_tienda_venta_ver_todos.sql` | Sin ella solo el admin ve en Agregar artículo los modelos sin stock, deshabilitados o dados de baja (los demás roles no pueden recibir el permiso). Agrega 1 acción y se la da al admin | 2026-10-08 |
+| 6 | `migration_tema_modal.sql` | Igual que la 5: sin ella el velo detrás de la ventana 🧩 Agregar artículos funciona (sale de `styles.scss`), solo no aparece en Personalización. Agrega 1 fila. Ya corrida en QA (2026-10-08) | 2026-10-08 |
+| 7 | `migration_accion_tienda_venta_ver_todos.sql` | Sin ella solo el admin ve en Agregar artículo los modelos sin stock, deshabilitados o dados de baja (los demás roles no pueden recibir el permiso). Agrega 1 acción y se la da al admin. Ya corrida en QA (2026-10-08) | 2026-10-08 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.

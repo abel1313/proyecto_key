@@ -93,16 +93,115 @@ y los mensajes del back. Resultado:
 | **Tienda → Buscar** | "Buscar nombre o código…" | **Sin cambio** (lo pidió el dueño: es lo que ve el cliente) |
 
 Lo que ve el **cliente** (carrito, ficha del artículo, chat) sigue diciendo "producto" donde ya lo
-decía: no se tocó. Las pruebas automáticas (`e2e/`) se ajustaron a los textos nuevos.
+decía: no se tocó. Las pruebas automáticas (`e2e/`) **no** se tocan (regla del 2026-10-06): las que
+buscan los textos viejos quedaron anotadas en `TESTS_PENDIENTES.md` del front, "Tests existentes que quedaron viejos".
 
 **4. Script de la base:** `src/main/resources/static/migration_renombre_articulo_etiquetas.sql`.
 Cambia solo textos (`submenu.nombre/descripcion/descripcion_escritura` y
 `accion_submenu.etiqueta/descripcion/categoria`); **no** toca claves, rutas ni permisos, así que
 nadie gana ni pierde acceso y no hay que volver a entrar. Se probó en una base desechable con los
 textos que dejaron las migraciones: dos corridas seguidas (la segunda no cambia nada) y con el modo
-"safe updates" de MySQL Workbench prendido. Al final trae dos consultas que deben salir **vacías** y
-una que debe decir **Agregar artículo**. Se corre cuando la rama llegue a ese ambiente (primero
+"safe updates" de MySQL Workbench prendido. Al final trae tres consultas que deben salir **vacías** y
+una que debe devolver **Agregar artículo** y **Rifa de artículos**. Se corre cuando la rama llegue a ese ambiente (primero
 `inventario_key_qa`, luego prod).
+
+### 1.2 Segunda revisión, solo "variante" → "artículo" (2026-10-08)
+
+Pedido del dueño: *"revisa detenidamente el cambio de variante a artículo en todos lados y en el
+menú"*, y después: *"ahorita solo variante por artículo"*. Resultado: **no quedó ningún "variante"
+que vea una persona.** Lo que se revisó:
+
+| Dónde | Resultado |
+|---|---|
+| Menú lateral (front) | Ninguno dice "variante"; "🧩 Agregar artículo" ✅ |
+| Menú y Gestión de roles (base) | Los cubre `migration_renombre_articulo_etiquetas.sql` (cualquier fila, no solo las conocidas) |
+| Pantallas (texto, `title`, `placeholder`, `alt`, `aria-label`) | Ninguno |
+| Avisos (Swal), títulos de pestaña, `assets`, `index.html` | Ninguno |
+| Back: mensajes al usuario, chatbot, Excel, correos | Ninguno (solo logs y Swagger, que no ve nadie) |
+| Otros textos de la base | Solo "variante oscura" en los colores de Personalización: ahí quiere decir "tono más oscuro", no es un artículo. Se queda |
+| Seguridad | Las 11 reglas de rutas viejas tienen su espejo en `/v2` (incluidas las que `dev` agregó hasta el 2026-10-08) |
+| Género ("la artículo", "artículo creada", "dala de baja") | Ninguno |
+| Pantalla `listar-variantes` ("works!") | No está en ninguna ruta: nunca se ve |
+| Internos que **no** se cambian a propósito | Clave de `localStorage` `carritoVariante` (cambiarla vacía los carritos), claves de acciones (`crear-variantes`), valores internos (`paso = 'variante'`) |
+
+**Para después:** los textos que dicen **"producto"** donde se refieren al **modelo** (Agregar
+modelo: "Nombre del producto", "Imágenes del producto", "¡Producto guardado!"; Actualizar modelo;
+Catálogo → 🔍 Modelos: "Dar de baja este producto", "Producto habilitado", "No se encontraron
+productos"; Carga rápida de imágenes: "producto borrador"). Los que se referían a un **artículo** ya
+se cambiaron en §1.3. **Se quedan como están:** lo que ve el cliente (Tienda → Buscar, ficha del
+artículo, Favoritos, carrito, chat, Términos y Aviso de privacidad).
+
+### 1.3 De back a front: cada endpoint de artículos y la pantalla que lo usa (2026-10-08)
+
+Pedido del dueño: *"desde back, controladores e imágenes, revisa de back hacia front todo endpoint
+que diga artículo, a qué hace referencia en front, qué nombre dice, y cámbialo a artículo"*.
+
+Se sacaron todos los endpoints del back que trabajan con artículos (también los de sus imágenes), se
+siguió cada uno al servicio del front que lo llama y de ahí a cada pantalla. En cada pantalla se
+revisó cómo se llama al artículo. Donde decía "producto" y era un artículo, ahora dice **artículo**;
+donde decía "producto" y en realidad era el modelo (en la misma frase que "artículo"), ahora dice
+**modelo**, para que no se confundan.
+
+| Endpoint del back | Servicio del front | Pantalla | Antes | Ahora |
+|---|---|---|---|---|
+| `/v2/articulos/getOne`, `guardarConImagenes`, `imagenes/…` | `VarianteService` | ✏️ Editar artículo (`tienda/update`) | "Editar Producto", "💾 Actualizar producto", "🖼️ Imágenes del producto", "excepto el producto", "súbele stock al producto" | "Editar artículo", "💾 Actualizar artículo", "🖼️ Imágenes del artículo", "excepto el **modelo**", "súbele stock al **modelo**" |
+| `/v2/articulos/buscar` | `VarianteService` | Ventas → 💰 Venta directa | "Busca productos…", "Agrega productos desde el buscador", "Producto sin stock", "El precio de uno o más productos cambió" | "artículos" / "Artículo sin stock" |
+| `/v1/pedidos/{id}/articulos` | `PedidosService` | Pedidos → Mis pedidos → 👁 Detalle | "No hay productos en este pedido", "No se pudo eliminar el producto" | "No hay artículos en este pedido", "No se pudo quitar el artículo" |
+| `/v1/abonos/{id}/cancelar` (cancelar Ir pagando) | `AbonoService` | Ventas → 💳 Créditos / Abonos | "El producto ya fue entregado" | "El cliente ya se llevó los artículos" |
+| `/v2/articulos/admin/filtrar` | `VarianteService` | Admin → 🎁 Gestión Promociones | columna "Producto", "Producto #", "agrega productos para armar el combo" | "Artículo", "Artículo #", "agrega artículos…" |
+| `/v2/articulos/buscar` | `VarianteService` | Marketing → Publicar en redes | "Las fotos de los productos…", "ese producto", "(si elegiste producto)" | "artículos", "ese artículo", "(si elegiste artículo)" |
+| `/v2/configurarRifaArticulo/…`, `continuarArticulo` | `RifaService` | Rifas → **🎡 Rifa de artículos** (antes "Rifa de productos"), Rifa mensual, Ver rifas activas, Boletos | "Productos a rifar", "✅ Confirmar producto", "siguiente producto", "Producto", "Productos", "Ver producto", "Este producto no tiene imágenes" | "Artículos a rifar", "✅ Confirmar artículo", "siguiente artículo", "Artículo", "Artículos", "Ver artículo", "Este artículo no tiene imágenes" |
+| `/v1/reportes/ventas/productos-mas-vendidos` (agrupa por artículo: talla y color) | `ReportesService` | Reportes → 📈 Reportes de ventas | "Top N productos más vendidos", columna "Producto" | "Top N artículos más vendidos", "Artículo" |
+| Resumen del dashboard (`countStockBajo` cuenta artículos) | `DashboardService` | Reportes → 🏠 Dashboard | "Productos con 1–4 piezas" | "Artículos con 1–4 piezas" |
+| `/v1/negocio/alertas-stock` (el correo diario lista artículos) | `NegocioService` | Sistema → 🏪 Negocio & Contactos | "con **las** productos que estén…" | "con los artículos que estén…" |
+| `/v2/articulos/{id}/habilitar`, `deleteBy`, `/v1/precios/articulo/{id}` | `VarianteService` | Tienda → Buscar (avisos que solo ve el admin) | "¿Dar de baja este **modelo**?" (era un artículo), "disponible del producto", "Pónselo al editar el producto", "Usar el del producto", "Vuelve al precio del producto" | "¿Dar de baja este artículo?", y "modelo" donde se refiere al modelo |
+| `/v2/articulos/{id}/independizar` | `VarianteService` | Ficha del artículo → independizar (solo admin) | "Este producto pasará a tener su propio modelo", "Nombre del producto", "Producto nuevo creado" | "Este artículo pasará…", "Nombre del modelo nuevo", "Modelo nuevo creado" |
+| — | ⓘ Ayuda de pantalla | Agregar rifa, Publicar en Facebook, Chat en vivo | "premios (productos…)", "Publica productos…", "enseñar un producto" | "artículos" |
+
+**Mensajes del back** que llegan a esas pantallas:
+
+| Dónde | Antes | Ahora |
+|---|---|---|
+| Crear artículos con "misma imagen para todas" | "El producto N no tiene una imagen para copiar a los artículos" | "El **modelo** N no tiene…" |
+| Crear artículos sin stock libre | "Stock insuficiente para el producto 'X'…" | "Stock insuficiente en el **modelo** 'X'…" |
+| Quitar una línea del pedido | "El producto no existe en este pedido" / "…no es de ese producto" | "El artículo no existe en este pedido" / "…no es de ese modelo" |
+| Precio inválido al editar un pedido | "(normal, este producto no tiene rebaja cargada)" | "(normal, este artículo no tiene rebaja cargada)" |
+| Agregar/cambiar artículo de un modelo deshabilitado | "ya no está a la venta: el producto está deshabilitado…" | "…el **modelo** está deshabilitado…" (en pedidos y en el carrito) |
+| Cancelar un Ir pagando que ya se llevó | "FIADO cancelado. Stock NO devuelto (producto entregado)" | "Ir pagando cancelado. Stock NO devuelto (el cliente ya se llevó los artículos)" |
+
+**Segunda pasada (2026-10-08):**
+
+| Pantalla | Antes | Ahora |
+|---|---|---|
+| Sistema → Diagnóstico de imágenes | "Producto seleccionado:" en las dos pestañas | "Modelo seleccionado:" / "**Artículo** seleccionado:" |
+| Carrito (combo sin nombre) | "1× Producto 15" | "1× Artículo #15" |
+| Catálogo → 🏷️ Categorías | "…búsqueda de modelos y productos", "Los productos/artículos que la usan…" | "modelos y artículos" |
+| Sistema → 🎨 Personalización (vista previa) | "así se ve un producto o modelo" | "un artículo o modelo" |
+| Sistema → 🗑️ Limpiar caché | "(imágenes, modelos, productos, clientes…)", "ningún producto real" | "modelos, artículos", "ningún modelo o artículo real" |
+| Ventas → 💸 Gastos (reporte) | "Ganancia por producto" | "Ganancia de los artículos vendidos" |
+
+**En la base** (`migration_renombre_articulo_etiquetas.sql`, sección 1), además de lo de §1.1:
+- Explicaciones (ℹ️) de Gestión de menú / roles que decían "producto" por artículo: Diagnóstico de
+  imágenes ("de un modelo o de un artículo"), Categorías ("buscar modelos y artículos"), Reportes de
+  ventas ("por fecha/artículo/vendedor") y Publicar en redes ("Publicar artículos/promociones").
+- Permiso **💲 Cambiar precio** de Tienda: su explicación seguía diciendo "del producto, para todos
+  sus artículos" (así era antes del 2026-09-29). Ahora: "de ese artículo (solo de ese). También deja
+  ver el precio con descuento (👁) en el carrito y en el detalle del pedido". El permiso es el mismo.
+- Personalización: el color "Fondo del recuadro de búsqueda y filtros (Tienda y **Productos**)" →
+  "(Tienda y **Modelos**)", que es como se llama esa pantalla en el menú.
+- Probado otra vez en base desechable: antes del script las verificaciones encuentran las filas,
+  después salen vacías; dos corridas y con safe updates.
+
+**Lo que se revisó y no se cambió:**
+- **Lo que ve el cliente:** ficha del artículo, reseñas, Favoritos, carrito, chat, ruleta pública,
+  "Agregar mi compra" y el correo de "volvió a haber stock". Siguen diciendo "producto", igual
+  que Tienda → Buscar.
+- **Pantallas de modelos** (Agregar modelo, Actualizar modelo, Modelos, Carga rápida): ahí
+  "producto" es el modelo. Queda para después (arriba).
+- **Imágenes:** `/v1/imagenes/…` son las del **modelo** (`productoId`) y las de los artículos van por
+  `/v2/articulos/imagenes/…`. Diagnóstico de imágenes ya distingue 📦 Modelo / 🏷️ Artículo (§1.1).
+- El correo diario de stock bajo ya decía "Estos artículos están en o por debajo…".
+- Los mensajes del back de `ProductosServiceImpl` y del Excel hablan del modelo: correcto.
 
 ---
 
@@ -112,8 +211,13 @@ una que debe decir **Agregar artículo**. Se corre cuando la rama llegue a ese a
    QA de ese momento sigue funcionando igual.
 2. **Front después.** Si el front sube antes, llamaría `/v2/...` a un back que todavía no las tiene
    → todo lo de artículos daría 404.
-3. A `main` sube igual: back y luego front. Las rutas viejas no se quitan hasta que el front de prod
-   ya no las use.
+3. **Script de la base, en QA** — en cuanto el front de la rama esté en `dev`/`qa`: correr
+   `migration_renombre_articulo_etiquetas.sql` en `inventario_key_qa` (cubre `dev` y `qa`). Al final
+   trae 4 consultas: las 3 primeras tienen que salir **vacías** y la última tiene que devolver
+   **Agregar artículo** y **Rifa de artículos**. No hace falta volver a entrar, basta recargar. Se anota como corrida en
+   `CLAUDE.md` (tabla de migraciones) y en `PENDIENTES_2026-10-08.md` §3.
+4. A `main` sube igual: back y luego front. Las rutas viejas no se quitan hasta que el front de prod
+   ya no las use. El mismo script se corre en `inventario_key` (prod) después del front.
 
 ---
 
@@ -161,7 +265,8 @@ artículos (#____).
 | R15 | Reglas de `SecurityConfig` | Permisos | Usuario con rol limitado | Lo que no tiene permitido da 403 | **Lo mismo** en `/v2` (y `para-pedido` **no** público) |
 | R16 | Texto del chatbot ("CATÁLOGO ACTUAL…") | Chat de la tienda | Burbuja de chat en la tienda | Contesta con productos | **Lo mismo** |
 | R18 | Textos de los buscadores (2026-10-08) | Venta directa, detalle de pedido, Créditos / Abonos, Promociones, Publicar en redes, Rifas, Diagnóstico, Editar artículo | Cada pantalla | "Buscar producto…", "Buscar por nombre…" | "Buscar artículo…" (o "Buscar modelo…" donde se busca un modelo); **lo mismo encontrado** |
-| R19 | Textos de la base (`migration_renombre_articulo_etiquetas.sql`) | Menú Catálogo y Gestión de roles | Sistema → 🛡️ Gestión de roles | "Agregar producto", "Tarjeta de variante"… | "Agregar artículo", "Tarjeta de artículo"…; **mismos permisos** |
+| R19 | Textos de la base (`migration_renombre_articulo_etiquetas.sql`) | Menú Catálogo, menú Rifas y Gestión de roles | Sistema → 🛡️ Gestión de roles | "Agregar producto", "Tarjeta de variante"… | "Agregar artículo", "Tarjeta de artículo"…; **mismos permisos** |
+| R20 | Textos de las pantallas que usan los endpoints de artículos (§1.3) | Editar artículo, Venta directa, detalle del pedido, Promociones, Publicar en redes, Rifas, Reportes, Dashboard, Negocio, avisos de Tienda | Cada pantalla | "producto" | "artículo" (o "modelo" donde era el modelo); **mismo comportamiento** |
 | R17 | **El cambio mismo** | — | Pestaña Red | Llamadas a `/v1/variantes/...` | Llamadas a `/v2/articulos/...`, y `/v1` sigue contestando |
 
 ---
@@ -341,9 +446,12 @@ recargar la pantalla (no hace falta volver a entrar).
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Las consultas del final del script | Las dos primeras **vacías**; la tercera dice **Agregar artículo** |
+| 1 | Las consultas del final del script | Las tres primeras **vacías**; la última devuelve **Agregar artículo** y **Rifa de artículos** |
 | 2 | Sistema → 🛡️ Gestión de roles → un rol → Catálogo | La pantalla **Agregar artículo** (antes "Agregar producto") |
 | 3 | En la misma pantalla → Tienda → Buscar | Categoría **"Tarjeta de artículo"**; "Habilitar / deshabilitar artículo"; las ℹ️ dicen "artículo" |
+| 3b | En la misma pantalla → Tienda → Buscar → ℹ️ de "Cambiar precio (💲…)" | "…de ese artículo (solo de ese). También deja ver el precio con descuento (👁)…" |
+| 3c | Sistema → 🗂️ Menús y submenús → ℹ️ de Categorías, Reportes de ventas, Publicar en redes y Diagnóstico de imágenes | Dicen "artículos" donde antes decían "productos" |
+| 3d | Sistema → 🎨 Personalización → Formularios | "Fondo del recuadro de búsqueda y filtros (Tienda y Modelos)" |
 | 4 | En la misma pantalla → Catálogo → Modelos | "Crear artículos desde el modelo (🧩 "Artículos" en la tarjeta)", "Descargar Excel sin artículos (📥 …)" |
 | 5 | Con un rol que ya tenía esos permisos, entra a Modelos y a Tienda → Buscar | Los mismos botones que antes (el script no cambia permisos) |
 | 6 | Corre el script otra vez | No cambia nada (0 filas) |
@@ -351,4 +459,25 @@ recargar la pantalla (no hace falta volver a entrar).
 ⛔ No puede pasar: que un rol pierda o gane un botón; que alguna etiqueta diga "el artículo" donde
 debía decir "del artículo" (o "de el").
 
-- [ ] R1 · [ ] R2 · [ ] R3 · [ ] R4 · [ ] R5 · [ ] R6 · [ ] R7 · [ ] R8 · [ ] R9 · [ ] R10 · [ ] R11 · [ ] R12 · [ ] R13 · [ ] R14 · [ ] R15 · [ ] R16 · [ ] R17 · [ ] R18 · [ ] R19
+### 🔴 R20 — Pantallas que usan los endpoints de artículos (§1.3)
+
+Solo cambian textos: lo que hace cada pantalla tiene que ser **igual que antes**.
+
+| # | Dónde | Debes ver |
+|---|---|---|
+| 1 | ✏️ en la tarjeta de un artículo | Título **"Editar artículo #N"**, botón **"💾 Actualizar artículo"**, sección **"🖼️ Imágenes del artículo"** |
+| 2 | Ventas → 💰 Venta directa | "Busca **artículos**, selecciona el pago y cobra"; con el carrito vacío, "Agrega **artículos** desde el buscador" |
+| 3 | Mis pedidos → 👁 Detalle de un pedido sin líneas (si tienes uno) | "No hay **artículos** en este pedido" |
+| 4 | Gestión Promociones → combo nuevo | Columna **"Artículo"** en la tabla del combo |
+| 5 | Menú **Rifas** | **"🎡 Rifa de artículos"** (después del script, también en Gestión de roles) |
+| 6 | Rifas → Rifa de artículos | "Artículos a rifar", "✅ Confirmar artículo" |
+| 7 | Rifas → Ver rifas activas | La etiqueta del conteo dice **"Artículos"** |
+| 8 | Reportes → 📈 Reportes de ventas | "Top N **artículos** más vendidos", columna **"Artículo"** (mismos números que antes) |
+| 9 | Reportes → 🏠 Dashboard | Stock bajo: "**Artículos** con 1–4 piezas" (mismo número que antes) |
+| 10 | Sistema → 🏪 Negocio & Contactos → Alertas de stock bajo | "…con **los artículos** que estén en este número de unidades o menos" |
+| 11 | Tienda → Buscar (admin) → dar de baja un artículo | "¿Dar de baja …?" con el nombre del **artículo**; si no tiene nombre, "este artículo" |
+| 12 | Tienda → Buscar (admin) → 💲 de un artículo | "Los demás del **modelo** se quedan igual", botón **"Usar el del modelo"** |
+| 13 | Créditos / Abonos → cancelar un Ir pagando que ya se llevó | Aviso "El cliente ya se llevó los artículos…" |
+| 14 | **Tienda → Buscar sin sesión**, ficha, Favoritos, carrito | **Igual que antes** (siguen diciendo "producto") |
+
+- [ ] R1 · [ ] R2 · [ ] R3 · [ ] R4 · [ ] R5 · [ ] R6 · [ ] R7 · [ ] R8 · [ ] R9 · [ ] R10 · [ ] R11 · [ ] R12 · [ ] R13 · [ ] R14 · [ ] R15 · [ ] R16 · [ ] R17 · [ ] R18 · [ ] R19 · [ ] R20

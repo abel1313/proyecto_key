@@ -286,7 +286,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 imageIds = obtenerImagenPrincipalProducto(requestVarianteDto.getProductoId());
                 if (imageIds.isEmpty()) {
                     throw new ExceptionDataNotFound(
-                            "El producto " + producto.getId() + " no tiene una imagen para copiar a los artículos. "
+                            "El modelo " + producto.getId() + " no tiene una imagen para copiar a los artículos. "
                                     + "Sube una imagen o desmarca la casilla de 'misma imagen para todas'.");
                 }
             }
@@ -829,7 +829,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
             if (stockSolicitado > stockDisponible) {
                 throw new ExceptionDataNotFound(
-                        String.format("Stock insuficiente para el producto '%s' (id=%d). Disponible: %d, Solicitado: %d",
+                        String.format("Stock insuficiente en el modelo '%s' (id=%d). Disponible: %d, Solicitado: %d",
                                 producto.getNombre(), productoId, stockDisponible, stockSolicitado));
             }
         }

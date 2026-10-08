@@ -299,7 +299,7 @@ public class AbonoServiceImpl implements IAbonoService {
         String msg = esDevolucion
                 ? String.format("Pedido pagado cancelado (devolución). Stock devuelto. Monto a reembolsar: $%.2f", totalPagado)
                 : fiadoSeLoLlevo
-                    ? String.format("FIADO cancelado. Stock NO devuelto (producto entregado). Deuda incobrable: $%.2f", totalPendiente)
+                    ? String.format("Ir pagando cancelado. Stock NO devuelto (el cliente ya se llevó los artículos). Deuda incobrable: $%.2f", totalPendiente)
                 : esFiado
                     ? String.format("Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $%.2f", totalPagado)
                     : String.format("APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $%.2f", totalPagado);
