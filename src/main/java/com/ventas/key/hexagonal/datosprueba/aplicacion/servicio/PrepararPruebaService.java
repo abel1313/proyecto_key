@@ -223,7 +223,7 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
                 new PedidoPreparado("P1", p1, "🕓 Pendiente de \"Cliente Prueba QA\", $150"),
                 new PedidoPreparado("P2", p2, "🕓 Pendiente del mismo cliente, $150")),
                 List.of(dato("Agotado", CatalogoPreparado.MODELO, agotado, "Modelo con stock 0 (agotado), para la 20.3")),
-                "20.2: abre P1 → 🔗 Unir con otros pedidos → busca P2 → Unir 2 pedidos. 20.3: Catálogo → 🔍 Modelos → \"QA Prueba 20 Agotado\".",
+                "20.2: abre P1 → 🔗 Unir con otros pedidos → escribe el número de P2 → Unir 2 pedidos. 20.3: Catálogo → 🔍 Modelos → \"QA Prueba 20 Agotado\".",
                 null);
     }
 

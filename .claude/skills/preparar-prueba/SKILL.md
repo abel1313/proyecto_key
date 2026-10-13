@@ -94,6 +94,17 @@ R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas).
 
 ## 3. Cosas que ya se aprendieron
 
+- **Las claves (K4, P1, T1, Art-A…) son etiquetas del documento, no algo que exista en pantalla.** El
+  pedido no lleva su clave escrita (la nota `[DATOS DE PRUEBA]` no se muestra en ninguna pantalla), así que
+  el dueño no puede "buscar K4". En el documento: **pedido → "escribe el número de K4"** (el del recuadro 🧪);
+  **modelo o artículo → su nombre ("QA Prueba 17 Art-A") o su código de barras**. Pasó el 2026-10-13: el
+  dueño no encontraba K4 en ninguna parte, y además le mandé a buscar **M3**, **AP**, **P1** y **A**.
+- **Los buscadores del sistema piden 3 letras o más** (desde 1 dígito si es el número de un pedido). Antes de
+  escribir "busca X" en un documento de pruebas o en el `siguientePaso` de una prueba, comprobar que X cumple
+  esa regla. Para revisar: `grep -nE "(busca|Busca)[^|]{0,25}\b(P1|P2|K4|K6|T1|T2|PE|AP|CA|A|B|C|D|M3|M5)\b"
+  PRUEBAS_PENDIENTES_*.md` debe salir sin pasos de prueba.
+- **El recuadro 🧪 se queda guardado** en el navegador (por prueba, con la hora): antes se perdía al cambiar
+  de pantalla y con él los números de los pedidos. Preparar una prueba otra vez reemplaza solo esa.
 - **Cada clic crea datos nuevos**, a propósito: una prueba no debe depender de lo que otra ya canceló,
   pagó o vendió (pasó con K5 y K6, cancelados en la Prueba 4: el dueño creyó que fallaba el buscador de Unir).
 - **Todo 🕓 Pendiente lleva zona.** Sin zona se toma como "recoge en el local", le ponen fecha para recoger
