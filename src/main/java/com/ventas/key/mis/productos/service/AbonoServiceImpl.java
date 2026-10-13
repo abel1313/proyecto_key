@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.Utils.CacheNames;
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.NotificacionRequest;
@@ -553,22 +554,21 @@ public class AbonoServiceImpl implements IAbonoService {
         return r;
     }
 
+    // Comprador de la venta primero y la cuenta del admin solo si no hay (2026-10-13: estaba al
+    // revés). Ver CompradorDelPedido; vale también para a quién se le manda el comprobante.
     private String nombreCliente(Pedido p) {
-        if (p.getCliente() != null) return p.getCliente().getNombrePersona();
-        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getNombrePersona();
-        return "Sin nombre";
+        String nombre = CompradorDelPedido.nombre(p);
+        return nombre != null ? nombre : "Sin nombre";
     }
 
     private String telefonoCliente(Pedido p) {
-        if (p.getCliente() != null) return p.getCliente().getNumeroTelefonico();
-        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getNumeroTelefonico();
-        return "";
+        String telefono = CompradorDelPedido.telefono(p);
+        return telefono != null ? telefono : "";
     }
 
     private String correoCliente(Pedido p) {
-        if (p.getCliente() != null) return p.getCliente().getCorreoElectronico();
-        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getCorreoElectronico();
-        return "";
+        String correo = CompradorDelPedido.correo(p);
+        return correo != null ? correo : "";
     }
 
     private void enviarNotificaciones(NotificacionRequest notif, Cliente cliente, String correo, String telefono,

@@ -8,6 +8,7 @@ import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.GrupoEnListaResp
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.DetalleVentaVariante;
 import com.ventas.key.mis.productos.entity.MesesIntereses;
@@ -825,14 +826,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setRecogeEnLocal(pedido.getLugarEntrega() == null
                 || Boolean.TRUE.equals(pedido.getLugarEntrega().getEsRecogerEnTienda()));
 
-        if (pedido.getCliente() != null) {
-            resp.setClienteNombre(pedido.getCliente().getNombrePersona());
-            resp.setClienteTelefono(pedido.getCliente().getNumeroTelefonico());
-            resp.setClienteCorreo(pedido.getCliente().getCorreoElectronico());
-        } else if (pedido.getClienteSinRegistro() != null) {
-            resp.setClienteNombre(pedido.getClienteSinRegistro().getNombrePersona());
-            resp.setClienteTelefono(pedido.getClienteSinRegistro().getNumeroTelefonico());
-            resp.setClienteCorreo(pedido.getClienteSinRegistro().getCorreoElectronico());
+        // El nombre de la venta primero (cliente sin registro, luego el que se escribió como receptor) y
+        // la cuenta de quien la hizo solo si no hay: el mismo orden que la card de Mis pedidos (2026-10-13:
+        // estaba al revés y el detalle enseñaba al admin). Ver CompradorDelPedido.
+        if (pedido.getClienteSinRegistro() != null || pedido.getCliente() != null) {
+            resp.setClienteNombre(CompradorDelPedido.nombre(pedido));
+            resp.setClienteTelefono(CompradorDelPedido.telefono(pedido));
+            resp.setClienteCorreo(CompradorDelPedido.correo(pedido));
         }
 
         // metodoPago/montoDado solo existen para ventas NORMAL al contado (vienen de la Venta

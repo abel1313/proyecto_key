@@ -145,15 +145,44 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
     @Override
     public int ventaDirecta(String tipoPedido, String prueba, String clave, int usuarioId, List<LineaDePedido> lineas,
                             Integer lugarEntregaId, boolean seLoLlevo) {
+        VentaDirectaRequest req = ventaBase(tipoPedido, prueba, clave, usuarioId, lineas, lugarEntregaId, seLoLlevo);
+        req.setClienteSinRegistroId(clienteSinRegistro(prueba, clave));
+        return guardarVenta(req, "NORMAL".equals(tipoPedido));
+    }
+
+    /**
+     * Igual que la Venta directa de la pantalla sin registrar al cliente: manda {@code clienteId} con el perfil
+     * de cliente del administrador (la pantalla lo busca siempre con {@code buscarClientePorIdUsuario}) y el
+     * nombre escrito en {@code nombreReceptor}. El pedido queda con la cuenta del admin y ese nombre.
+     */
+    @Override
+    public int ventaDirectaConNombreEscrito(String tipoPedido, String prueba, String clave, int usuarioId,
+                                            List<LineaDePedido> lineas, Integer lugarEntregaId, boolean seLoLlevo) {
+        VentaDirectaRequest req = ventaBase(tipoPedido, prueba, clave, usuarioId, lineas, lugarEntregaId, seLoLlevo);
+        req.setClienteId(perfilDeClienteDelAdmin(usuarioId));
+        req.setNombreReceptor(NombresDePrueba.cliente(prueba, clave));
+        return guardarVenta(req, "NORMAL".equals(tipoPedido));
+    }
+
+    private int perfilDeClienteDelAdmin(int usuarioId) {
+        List<Integer> ids = jdbc.queryForList(
+                "SELECT id FROM clientes WHERE usuario_id = ? ORDER BY id LIMIT 1", Integer.class, usuarioId);
+        if (ids.isEmpty()) {
+            throw new IllegalStateException("El administrador no tiene un perfil de cliente (Mis datos): sin él la "
+                    + "Venta directa tampoco deja vender sin registrar al cliente. Completa tus datos y vuelve a intentar.");
+        }
+        return ids.get(0);
+    }
+
+    private VentaDirectaRequest ventaBase(String tipoPedido, String prueba, String clave, int usuarioId,
+                                          List<LineaDePedido> lineas, Integer lugarEntregaId, boolean seLoLlevo) {
         VentaDirectaRequest req = new VentaDirectaRequest();
         req.setUsuarioId(usuarioId);
-        req.setClienteSinRegistroId(clienteSinRegistro(prueba, clave));
         req.setTipoPedido(tipoPedido);
         req.setObservaciones(NombresDePrueba.observacion(prueba, clave));
         req.setLugarEntregaId(lugarEntregaId);
         req.setEntregado(seLoLlevo);
-        boolean contado = "NORMAL".equals(tipoPedido);
-        if (contado) {
+        if ("NORMAL".equals(tipoPedido)) {
             req.setPagosYMesesId(efectivo());
         }
         req.setDetalles(lineas.stream().map(l -> {
@@ -164,6 +193,11 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
             d.setSubTotal(l.subtotal());
             return d;
         }).toList());
+        return req;
+    }
+
+    /** Guarda la venta con el servicio real y regresa el número del pedido que quedó. */
+    private int guardarVenta(VentaDirectaRequest req, boolean contado) {
         try {
             VentaDirectaResponse resp = ventas.saveVentaDetalle(req);
             // De contado la venta directa regresa la venta, no el pedido: el pedido es el de esa venta.

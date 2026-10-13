@@ -16,6 +16,14 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-13 — El nombre del comprador: el de la venta primero (`CompradorDelPedido`)
+**Dónde:** `Utils/CompradorDelPedido` (`nombre`, `nombreDelTitular`, `correo`, `telefono`), `EntregaZonaServiceImpl.nombreDe()` / `correoDe()`, `AbonoServiceImpl.nombreCliente()` / `telefonoCliente()` / `correoCliente()`, `PedidoServiceImpl.getDetallePedido()`, `PedidosDelGrupoJpaAdapter.nombreCliente()`, `RamoPedidoDetalleServiceImpl.nombreContactoDe()`, `IPedidoRepository.candidatosParaUnir` (busca también por `nombre_receptor`), `EscenariosPruebaAdapter.ventaDirectaConNombreEscrito()` (Prueba 21)
+- [ ] `CompradorDelPedido.nombre`: con cliente sin registro → el suyo; sin él y con `nombreReceptor` (con espacios al borde) → el receptor recortado; sin los dos → el de la cuenta; sin nada → null; un nombre en blanco no cuenta
+- [ ] `CompradorDelPedido.correo` / `telefono`: con cliente sin registro **sin datos** → null (nunca cae a la cuenta del admin); sin él → los de la cuenta
+- [ ] `nombreDelTitular` no mira el receptor (el detalle lo enseña aparte en "Recibe:")
+- [ ] MySQL, Venta directa con `clienteId` del admin + `nombreReceptor` y sin cliente sin registro: `listarPendientes` trae `nombreCliente` = el receptor; `reporteEstadoCuenta` trae `cliente` = el receptor; `getDetallePedido` trae `clienteNombre` = el receptor; `candidatosParaUnir` encuentra el pedido escribiendo el receptor y `PedidoDelGrupo.cliente` lo muestra
+- [ ] Servicio: `programarEntrega` manda el correo al del cliente sin registro (y saluda con su nombre) y no al de la cuenta cuando la venta trae los dos; con solo la cuenta, a la cuenta
+
 ### 2026-10-13 — Preparar prueba: nombre exacto en la venta y reiniciar (datosprueba R20 y R21)
 **Dónde:** `NombresDePrueba`, `PruebaQuitada`, `PrepararPruebaService.reiniciar()` / `quitarLoAnterior()` / `quitar()` / `quitarTodas()`, `EscenariosPruebaAdapter` (`clienteConCuenta()`, `clienteSinRegistro()`, `pedidosDeLaPrueba()`, `darDeBajaCatalogoDeLaPrueba()`), `PrepararPruebaController` (`/quitar/{prueba}`, `/quitar-todas`)
 **Tipo:** unitario (`NombresDePrueba`, `PruebaQuitada.resumen()`) · servicio con puertos simulados · MySQL (adaptador) · controller (URL, status y permiso)

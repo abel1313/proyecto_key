@@ -2,6 +2,7 @@ package com.ventas.key.hexagonal.grupopedido.infraestructura.salida.persistencia
 
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.PedidoDelGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.PedidosDelGrupoPort;
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import lombok.RequiredArgsConstructor;
@@ -73,13 +74,9 @@ public class PedidosDelGrupoJpaAdapter implements PedidosDelGrupoPort {
         return p.getFechaPedido() != null ? p.getFechaPedido().atStartOfDay() : null;
     }
 
+    /** El nombre que se puso en la venta primero, y el de quien la hizo solo si no hay (2026-10-13). */
     private static String nombreCliente(Pedido p) {
-        if (p.getCliente() != null) {
-            return p.getCliente().getNombrePersona();
-        }
-        if (p.getClienteSinRegistro() != null) {
-            return p.getClienteSinRegistro().getNombrePersona();
-        }
-        return "Sin nombre";
+        String nombre = CompradorDelPedido.nombre(p);
+        return nombre != null ? nombre : "Sin nombre";
     }
 }

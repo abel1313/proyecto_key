@@ -290,17 +290,26 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
                 null);
     }
 
-    /** 21: una zona con un pedido que debe (P1) y uno ya pagado que falta entregar (P2), los dos sin fecha. */
+    /**
+     * 21: una zona con dos Apartados que deben (P1 y P3) y un Ir pagando ya pagado que falta entregar (P2), todos sin
+     * fecha. Se venden como el dueño los vio fallar (2026-10-13): Venta directa sin registrar al cliente, con su
+     * nombre escrito en "nombre del receptor". El pedido queda con la cuenta del administrador y ese nombre; la
+     * columna Cliente de Entregas por zona tiene que enseñar el nombre escrito, no el de la cuenta. P3 es el
+     * segundo Apartado: sirve para buscarlo por su nombre escrito desde 🔗 Unir de P1 (solo se unen de la misma forma de cobro).
+     */
     private EscenarioPreparado prueba21(LineaDePedido linea, int usuarioId) {
         EscenarioDePrueba e = EscenarioDePrueba.P21;
         int zona = escenarios.zonaDePrueba();
-        int p1 = escenarios.ventaDirecta("APARTADO", e.prueba(), "P1", usuarioId, List.of(linea), zona, false);
-        int p2 = escenarios.ventaDirecta("FIADO", e.prueba(), "P2", usuarioId, List.of(linea), zona, false);
+        int p1 = escenarios.ventaDirectaConNombreEscrito("APARTADO", e.prueba(), "P1", usuarioId, List.of(linea), zona, false);
+        int p2 = escenarios.ventaDirectaConNombreEscrito("FIADO", e.prueba(), "P2", usuarioId, List.of(linea), zona, false);
+        int p3 = escenarios.ventaDirectaConNombreEscrito("APARTADO", e.prueba(), "P3", usuarioId, List.of(linea), zona, false);
         pedidos.abonar(p2, linea.subtotal(), usuarioId);
+        String escrito = "; nombre escrito en la venta, cuenta del administrador";
         return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(
-                pedido(e, "P1", p1, "📦 Apartado que debe $150, zona \"Zona Prueba QA\", sin fecha"),
-                pedido(e, "P2", p2, "💳 Ir pagando ya pagado completo que falta entregar, misma zona, sin fecha")),
-                "En Entregas por zona elige \"Zona Prueba QA\" y el rango de esta semana. En Mis pedidos escribe \"Prueba 21\".");
+                pedido(e, "P1", p1, "📦 Apartado que debe $150, zona \"Zona Prueba QA\", sin fecha" + escrito),
+                pedido(e, "P2", p2, "💳 Ir pagando ya pagado completo que falta entregar, misma zona, sin fecha" + escrito),
+                pedido(e, "P3", p3, "📦 Apartado que debe $150, misma zona, sin fecha" + escrito)),
+                "En Entregas por zona elige la zona \"Zona Prueba QA\" y toca \"Esta semana\": la columna Cliente debe decir \"Prueba 21 P1\", \"Prueba 21 P2\" y \"Prueba 21 P3\", no tu nombre. En Mis pedidos escribe \"Prueba 21\".");
     }
 
     /** 22: un 🕓 Pendiente (PE), un Apartado que debe (AP) y uno cancelado (CA). */

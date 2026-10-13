@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.AccesorioRamo;
 import com.ventas.key.mis.productos.entity.CantidadFlorValida;
 import com.ventas.key.mis.productos.entity.Cliente;
@@ -216,10 +217,8 @@ public class RamoPedidoDetalleServiceImpl {
     }
 
     private String nombreContactoDe(Pedido pedido) {
-        Cliente c = pedido.getCliente();
-        if (c != null) return c.getNombrePersona();
-        ClienteSinRegistro csr = pedido.getClienteSinRegistro();
-        return csr != null ? csr.getNombrePersona() : "Cliente";
+        String nombre = CompradorDelPedido.nombreDelTitular(pedido);
+        return nombre != null ? nombre : "Cliente";
     }
 
     // El 50% de urgencia es un ENGANCHE que sale del total, no un cobro aparte -- por eso NO se
@@ -470,14 +469,8 @@ public class RamoPedidoDetalleServiceImpl {
 
     private FrasePendienteDto toFrasePendienteDto(RamoPedidoDetalle detalle) {
         Pedido pedido = detalle.getPedido();
-        String clienteNombre;
-        if (pedido.getCliente() != null) {
-            clienteNombre = pedido.getCliente().getNombrePersona();
-        } else if (pedido.getClienteSinRegistro() != null) {
-            clienteNombre = pedido.getClienteSinRegistro().getNombrePersona();
-        } else {
-            clienteNombre = null;
-        }
+        // El nombre de la venta primero y el de quien la hizo solo si no hay (2026-10-13).
+        String clienteNombre = CompradorDelPedido.nombreDelTitular(pedido);
         return new FrasePendienteDto(
                 detalle.getId(),
                 pedido.getId(),

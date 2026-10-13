@@ -861,6 +861,31 @@ sus métodos consultando la base de datos.
 
 ---
 
+## Regla — quién es el comprador de un pedido: el nombre de la venta primero (2026-10-13)
+
+El dueño lo pidió dos veces (2026-09-22 en Mis pedidos y 2026-10-13 en Entregas por zona): *"se tiene que
+tomar primero el nombre que se puso en la venta, y si no hay, entonces el de quien hizo la venta"*.
+
+La Venta directa sin registrar al cliente guarda dos cosas en el pedido: la **cuenta del administrador**
+que atendió (`cliente_id`; el pedido necesita una) y el **nombre escrito** (`nombre_receptor`). La cuenta
+del admin **nunca** es el comprador. El orden es siempre:
+
+1. cliente sin registro (`cliente_sin_registro`) → 2. nombre escrito (`nombre_receptor`) → 3. cuenta (`cliente`).
+
+En Java hay **una sola implementación**: `Utils/CompradorDelPedido` (`nombre`, `nombreDelTitular`,
+`correo`, `telefono`). Cualquier pantalla, reporte, ticket o correo que necesite "el nombre del cliente de
+un pedido" **la usa**; no se vuelve a escribir un `if (pedido.getCliente() != null)` a mano. En SQL el
+equivalente es `COALESCE(csr.nombre_persona, NULLIF(TRIM(p.nombre_receptor), ''), c.nombre_persona)`. El
+correo y el teléfono, en cambio, **no** caen a los de la cuenta cuando la venta trae un cliente sin registro
+(el aviso o el comprobante le llegaría a quien atendió). Una búsqueda por nombre de cliente busca también en
+`nombre_receptor`.
+
+Al probar algo así, la prueba usa **los mismos datos que la pantalla**
+(`EscenariosPruebaPort.ventaDirectaConNombreEscrito()`, R22 de `datosprueba`): con un cliente sin registro
+el pedido no lleva la cuenta del admin y el fallo no se reproduce.
+
+---
+
 ## Regla — antes de crear un dominio: primero las reglas, después el código
 
 No se modela hasta tener las reglas del dominio escritas y acordadas.

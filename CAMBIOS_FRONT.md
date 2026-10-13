@@ -68,6 +68,29 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-39] 🆕 El nombre del cliente: primero el de la venta, luego el de la cuenta de quien la hizo (2026-10-13) — solo back, el front no cambia
+
+**Qué fallaba (antes):** una Venta directa **sin registrar al cliente** guarda en el pedido dos cosas: la **cuenta del administrador** que atendió (`clienteId`, el pedido necesita una) y el **nombre escrito** en "nombre del receptor". Mis pedidos ya enseñaba el nombre escrito (`COALESCE(cliente sin registro, nombre receptor, cuenta)`, desde 2026-09-22), pero estas pantallas tomaban **primero la cuenta** y salía el nombre de quien dio de alta el pedido:
+
+| Pantalla | Endpoint | Campo |
+|---|---|---|
+| Entregas por zona (columna **Cliente**) | `GET /v1/entregas-zona/{lugarEntregaId}/pendientes` | `pedidos[].nombreCliente` |
+| Créditos / Abonos (tarjetas de Cuentas por cobrar, Liquidados, Cancelados) | `GET /v1/abonos/reporte/estado-cuenta`, `/v1/abonos/reporte/pagados` y `/v1/abonos/reporte/cancelados` | `cliente` y `telefono` |
+| Detalle del pedido y formularios de cobro (Liquidar, Dar abono), tickets | `GET /v1/pedidos/{id}/detalle` | `clienteNombre`, `clienteTelefono`, `clienteCorreo` |
+| 🔗 Unir con otros pedidos (tarjetas) | `GET /v1/grupos-pedido/candidatos` | `cliente` |
+| Frases de listón pendientes (Flores) | `GET /v1/flores/pedidos/frases-pendientes` | `clienteNombre` |
+
+**Ahora (todas):** primero el **nombre de la venta** (cliente sin registro; si no, el que se escribió como receptor); solo si no hay, el de la **cuenta** de quien hizo el pedido. Es una sola regla en el back: `Utils/CompradorDelPedido`. El front **no cambia**: lee los mismos campos y trae el valor correcto.
+
+**Qué cambia además (el front lo ve):**
+- 🔗 **Unir:** el buscador (`GET /v1/grupos-pedido/candidatos?buscar=…`) ahora **también busca por el nombre escrito en la venta** (`nombre_receptor`). Antes un pedido sin cliente registrado solo se encontraba por el nombre de la cuenta del admin.
+- **Correos y comprobantes:** el correo/teléfono del comprador es el del **cliente sin registro** si la venta lo trae (aunque no tenga datos), y solo si no hay, el de la cuenta. Antes, con las dos cosas en el pedido, el aviso de **Entregas por zona** y el **comprobante de abono** se mandaban a la cuenta del admin. Si la venta solo trae la cuenta del admin (como en la Prueba 21), siguen llegándole a él.
+- Un pedido que el cliente hace desde su cuenta no cambia: sin cliente sin registro y, si puso un receptor, la card ya enseñaba ese receptor (el detalle ahora también; en el detalle sigue el renglón **Recibe:** aparte).
+
+**Cómo se prueba:** **🧪 Preparar prueba 21** crea tres pedidos vendidos así (cuenta del admin + nombre escrito «Prueba 21 P1/P2/P3») → `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 21, 21.1 y 21.3.
+
+---
+
 ### [BUG-KEY-38] 🆕 Listas desplegables que salían en blanco, chat de día y "$" de Reportes (2026-10-13) — solo front
 
 Reporte del dueño: *"vi unos select que cuando salían todas las opciones aparecía en blanco y no se veían"*.

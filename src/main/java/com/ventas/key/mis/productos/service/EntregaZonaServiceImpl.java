@@ -1,7 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
-import com.ventas.key.mis.productos.entity.Cliente;
-import com.ventas.key.mis.productos.entity.ClienteSinRegistro;
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
@@ -115,7 +114,7 @@ public class EntregaZonaServiceImpl {
             String correo = correoDe(pedido);
             if (correo == null || correo.isBlank()) continue;
             try {
-                boolean ok = emailService.enviarProgramacionEntregaZona(correo, nombreDe(pedido), pedido.getId(),
+                boolean ok = emailService.enviarProgramacionEntregaZona(correo, nombreParaElCorreo(pedido), pedido.getId(),
                         lugar.getNombre(), request.getFecha(), request.getHora(), request.getPuntoEncuentro(),
                         request.getLatitud(), request.getLongitud());
                 if (ok) enviados++;
@@ -138,17 +137,24 @@ public class EntregaZonaServiceImpl {
         return lugar;
     }
 
+    /**
+     * Lo que se ve en la columna Cliente. Primero el nombre que se puso en la venta, y solo si no
+     * hay, el de quien la hizo (2026-10-13: estaba al revés y salía el admin en todas las ventas
+     * de mostrador). Mismo orden que la card de Mis pedidos.
+     */
     private String nombreDe(Pedido pedido) {
-        Cliente c = pedido.getCliente();
-        if (c != null) return c.getNombrePersona();
-        ClienteSinRegistro csr = pedido.getClienteSinRegistro();
-        return csr != null ? csr.getNombrePersona() : "Cliente";
+        String nombre = CompradorDelPedido.nombre(pedido);
+        return nombre != null ? nombre : "Cliente";
     }
 
+    /** Con quién se saluda en el correo: la persona dueña del correo al que se manda. */
+    private String nombreParaElCorreo(Pedido pedido) {
+        String nombre = CompradorDelPedido.nombreDelTitular(pedido);
+        return nombre != null ? nombre : "Cliente";
+    }
+
+    /** El aviso va al comprador de la venta, no a la cuenta del admin que la capturó. */
     private String correoDe(Pedido pedido) {
-        Cliente c = pedido.getCliente();
-        if (c != null) return c.getCorreoElectronico();
-        ClienteSinRegistro csr = pedido.getClienteSinRegistro();
-        return csr != null ? csr.getCorreoElectronico() : null;
+        return CompradorDelPedido.correo(pedido);
     }
 }
