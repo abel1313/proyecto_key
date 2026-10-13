@@ -1,0 +1,60 @@
+// Skill probar-en-local. Plantilla de prueba TEMPORAL: levanta el back COMPLETO (todos los servicios
+// reales) contra la MySQL desechable, para comprobar un flujo de punta a punta antes de subirlo.
+// 1. Copiarla a src/test/java/com/ventas/key/tmpverif/TmpVerifTest.java (sin el .txt).
+// 2. mvn -q -o test -Dtest=TmpVerifTest -Dsurefire.failIfNoSpecifiedTests=false
+// 3. BORRAR la carpeta tmpverif antes de cualquier commit (regla: no se agregan tests automáticos).
+package com.ventas.key.tmpverif;
+
+import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.AmbientePort;
+import com.ventas.key.mis.productos.entity.Usuario;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.List;
+
+@SpringBootTest(classes = com.ventas.key.mis.productos.MisProductosApplication.class, properties = {
+        "spring.datasource.url=jdbc:mysql://127.0.0.1:33099/pk_preparar?jdbcCompliantTruncation=false",
+        "spring.datasource.username=root", "spring.datasource.password=",
+        "spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver",
+        // update: Hibernate crea las tablas que falten. El seed mínimo va en la SKILL (tipo_pago, pagos_y_meses).
+        "spring.jpa.hibernate.ddl-auto=update", "spring.jpa.database-platform=org.hibernate.dialect.MySQLDialect",
+        "spring.rabbitmq.listener.simple.auto-startup=false", "spring.rabbitmq.listener.direct.auto-startup=false",
+        "spring.task.scheduling.enabled=false",
+        // Con JavaMailSender simulado el chequeo de salud del correo truena al arrancar.
+        "management.health.mail.enabled=false", "management.health.rabbit.enabled=false",
+        "management.health.redis.enabled=false"
+})
+class TmpVerifTest {
+
+    @MockBean AmbientePort ambiente;     // solo si se prueba algo de datosprueba (pide la base de QA)
+    @MockBean RabbitTemplate rabbit;     // nada sale a Rabbit
+    @MockBean JavaMailSender mail;       // ningún correo sale a nadie
+    @Autowired JdbcTemplate jdbc;
+    // @Autowired <CasoDeUsoQueSePrueba> casoUso;
+
+    @Test
+    void verificar() {
+        Mockito.when(ambiente.nombreDeLaBase()).thenReturn(AmbientePort.BASE_DE_PRUEBAS);
+        Mockito.when(mail.createMimeMessage())
+                .thenReturn(new jakarta.mail.internet.MimeMessage((jakarta.mail.Session) null));
+        // Sesión de administrador (AuthenticationUtils.currentUsuario / isAdminContext)
+        Usuario u = new Usuario();
+        u.setId(1);
+        u.setUsername("admin");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                u, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+
+        // ... llamar al caso de uso y luego imprimir lo que quedó en la base:
+        System.out.println("PEDIDOS " + jdbc.queryForList(
+                "SELECT id, estado_pedido, tipo_pedido, total_pedido, total_pagado, entregado FROM pedidos ORDER BY id DESC LIMIT 10"));
+    }
+}

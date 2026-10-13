@@ -628,6 +628,7 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 5 | `migration_tema_filtros.sql` | Sin ella el fondo de los filtros funciona (sale de `styles.scss`) pero **no aparece en Personalización** para cambiarlo. Solo agrega 2 filas; no cambia nada que exista. Va después de `migration_tema_jade.sql`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
 | 6 | `migration_tema_modal.sql` | Igual que la 5: sin ella el velo detrás de la ventana 🧩 Agregar artículos funciona (sale de `styles.scss`), solo no aparece en Personalización. Agrega 1 fila. Ya corrida en QA (2026-10-08) | 2026-10-08 |
 | 7 | `migration_accion_tienda_venta_ver_todos.sql` | Sin ella solo el admin ve en Agregar artículo los modelos sin stock, deshabilitados o dados de baja (los demás roles no pueden recibir el permiso). Agrega 1 acción y se la da al admin. Ya corrida en QA (2026-10-08) | 2026-10-08 |
+| 8 | `migration_accion_editar_entrega_direccion.sql` | Solo cambia el **texto** del permiso `editar-entrega` en Gestión de roles a *"Dirección (📍 en la tarjeta)"*, para que diga lo mismo que el botón de la tarjeta (antes "📍 Entrega", se confundía con "📦 Entregar"). Sin ella todo funciona; solo el nombre en Gestión de roles queda viejo. No cambia claves ni quién tiene el permiso: **no hace falta volver a entrar**. **Falta correrla en QA** (se corre cuando el front con el botón "Dirección" esté en QA) | 2026-10-13 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.

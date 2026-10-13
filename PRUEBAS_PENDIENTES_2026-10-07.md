@@ -1,5 +1,10 @@
 # Pruebas que faltan — paso a paso (al 2026-10-07, actualizado 2026-10-08)
 
+> **⚠️ Desde el 2026-10-13 usa `PRUEBAS_PENDIENTES_2026-10-13.md`.** Ahí están **solo** las que faltan
+> (pediste quitar las que ya pasaron), la Prueba 12 con dónde revisar cada cosa, las nuevas 23 y 24, y
+> los botones **🧪 Preparar prueba** que crean los pedidos de cada prueba. Este documento se queda como
+> historial. Tus notas del 2026-10-13: las **2, 3, 4, 7 y 11 pasaron** (marcadas abajo).
+
 Aquí están **solo las pruebas que todavía no haces**, en el orden en que conviene hacerlas. Las que ya
 validaste no vienen: **1** (Volver), **5** (filtros de pedidos), **8** (cobrar desde la card),
 **9** (Gestión de roles), **14** (hotfix de prod) y los casos **3.6** y **3.7**. La **10.1** quedó cubierta
@@ -21,11 +26,11 @@ casilla `[x]`. Yo leo tus 💬 y contesto debajo con `↳`.
 
 | Orden | Prueba | Qué revisa | ¿Ya se puede? | Tiempo | ✔ |
 |---|---|---|---|---|---|
-| 1 | **2 — Apartado es sin dinero** | Un Apartado no acepta abonos a medias; se pasa a Ir pagando | ✅ Ya, en QA (2.1, 2.4 y 2.5 cambiaron el 2026-10-08 y subieron el 2026-10-13) | 25 min | [ ] |
-| 2 | **3 — Quitar, cambiar o agregar artículos** | Total, lo que debe y el estado al editar un pedido; ⇄ con varias piezas | ✅ Ya, en QA | 30 min | [ ] |
-| 3 | **4 — Cancelar pedidos con abonos** | Stock y mensajes al cancelar | ✅ Ya, en QA | 20 min | [ ] |
-| 4 | **7 — Filtros y detalle con pedidos unidos** | Grupos en los filtros, card del grupo, botón −, orden, celular | ✅ Ya, en QA | 40 min | [ ] |
-| 5 | **11 — Entregado aparte del pago** | Pagado / Entregado, 📦 Entregar, "¿Ya se lo llevó?", stock del modelo, pantallas homologadas, Gastos | ✅ Ya, en QA | 60 min | [ ] |
+| 1 | **2 — Apartado es sin dinero** | Un Apartado no acepta abonos a medias; se pasa a Ir pagando | ✅ Ya, en QA (2.1, 2.4 y 2.5 cambiaron el 2026-10-08 y subieron el 2026-10-13) | 25 min | [x] ✅ 2026-10-13 ||
+| 2 | **3 — Quitar, cambiar o agregar artículos** | Total, lo que debe y el estado al editar un pedido; ⇄ con varias piezas | ✅ Ya, en QA | 30 min | [x] ✅ 2026-10-13 ||
+| 3 | **4 — Cancelar pedidos con abonos** | Stock y mensajes al cancelar | ✅ Ya, en QA | 20 min | [x] ✅ 2026-10-13 ||
+| 4 | **7 — Filtros y detalle con pedidos unidos** | Grupos en los filtros, card del grupo, botón −, orden, celular | ✅ Ya, en QA | 40 min | [x] ✅ 2026-10-13 ||
+| 5 | **11 — Entregado aparte del pago** | Pagado / Entregado, 📦 Entregar, "¿Ya se lo llevó?", stock del modelo, pantallas homologadas, Gastos | ✅ Ya, en QA | 60 min | [x] ✅ 2026-10-13 ||
 | 6 | **12 — Lo legal** | Datos del negocio, pie de página, Términos, Aviso de privacidad, registro, ticket, Google | ✅ Ya, en QA | 40 min | [ ] |
 | 7 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos, colores en Personalización, encabezados de seguridad | ✅ Ya, en QA (subido el 2026-10-07) | 15 min | [ ] |
 | 8 | **15 — Agregar producto, habilitar, Zonas de entrega** | Código y categoría del modelo, stock al habilitar, Zonas de entrega y Entregas por zona | ✅ Ya, en QA (subido el 2026-10-07) | 30 min | [ ] |
