@@ -32,19 +32,20 @@ casilla `[x]`. Yo leo tus 💬 y contesto debajo con `↳`.
 | 9 | **16 — 🕓 Pendiente, íconos ⓘ y datos legales** | Pendiente en filtros y card, pasarlo a Apartado, Entregas por zona, ⓘ, de dónde sale cada dato legal | ✅ Ya, en QA (subido el 2026-10-07) | 30 min | [ ] |
 | 10 | **10.2 — Mis datos sin spinner** | Que Mis datos cargue | ✅ Confirmada por ti el 2026-10-08 | 5 min | [x] |
 | 11 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | ✅ Ya, en QA (subido el 2026-10-07) | 10 min | [ ] |
-| 12 | **17 — Filtros de Tienda, Venta directa, buscadores y Agregar artículos** (2026-10-08) | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras, la ventana 🧩 Agregar artículos | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) | 45 min | [ ] |
-| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) (el script `migration_accion_tienda_venta_ver_todos.sql` ✅ ya se corrió en QA el 2026-10-08) | 30 min | [ ] |
-| 14 | **19 — Errores con su código, página 404 y Home** (2026-10-08) | Que los avisos de error digan lo mismo de siempre, 404 de verdad, Home y la página 404 nuevas | ⏳ Cuando pase de `dev` a `qa` (todavía **sin subir**) | 25 min | [ ] |
-| 15 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** (2026-10-13) | Carrito → Mis datos → regresa; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos abre sin lo terminado | ⏳ Cuando pase de `dev` a `qa` (todavía **sin subir**) | 40 min | [ ] |
-| 16 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
+| 12 | **17 — Filtros de Tienda, Venta directa, buscadores y Agregar artículos** (2026-10-08) | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras, la ventana 🧩 Agregar artículos | ✅ Ya, en QA (subido el 2026-10-13) | 45 min | [ ] |
+| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ✅ Ya, en QA (subido el 2026-10-13; el script `migration_accion_tienda_venta_ver_todos.sql` ✅ ya se corrió en QA el 2026-10-08) | 30 min | [ ] |
+| 14 | **19 — Errores con su código, página 404 y Home** (2026-10-08) | Que los avisos de error digan lo mismo de siempre, 404 de verdad, Home y la página 404 nuevas | ✅ Ya, en QA (subido el 2026-10-13) | 25 min | [ ] |
+| 15 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** (2026-10-13) | Carrito → Mis datos → regresa; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos abre sin lo terminado | ✅ Ya, en QA (subido el 2026-10-13) | 40 min | [ ] |
+| 16 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** (2026-10-13) | Que la fecha que pones en Entregas por zona salga en la card y en el detalle, y que cada fecha diga qué es | ✅ Ya, en QA (subido el 2026-10-13) | 20 min | [ ] |
+| 17 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
 
-**Por qué este orden:** las 2, 3 y 4 crean pedidos (A–F, H4–H8, K1–K6) que se reusan después. Las
-17 y 18 (y lo que cambió de la 2) esperan a que lo del 2026-10-08 pase a `qa`. La **6** va al final: mete miles de pedidos de
+**Por qué este orden:** las 2, 3 y 4 crean pedidos (A–F, H4–H8, K1–K6) que se reusan después. De la
+17 a la 21 ya están en `qa`. La **6** va al final: mete miles de pedidos de
 prueba y con eso es más difícil encontrar los tuyos.
 
-**Estado de las subidas (2026-10-08):** lo del 2026-10-07 (pruebas 13, 15, 16, 10.2 y 14-QA) ya está en
-QA. Lo del 2026-10-08 (Prueba 17, Prueba 18 y los cambios de 2.1, 2.3, 2.4 y 2.5) se subió **solo a
-`dev`**: llega a QA cuando digas "sube a qa". Scripts nuevos para QA: `migration_tema_modal.sql`
+**Estado de las subidas (2026-10-13):** lo del 2026-10-07, 2026-10-08 y 2026-10-13 (pruebas 13 a 21,
+10.2, 14-QA y los cambios de 2.1, 2.3, 2.4 y 2.5) ya está en QA, back y front. No hay scripts nuevos
+que correr para estas. Scripts nuevos para QA: `migration_tema_modal.sql`
 y `migration_accion_tienda_venta_ver_todos.sql`, ✅ los dos corridos en QA el 2026-10-08 (falta prod). Lista completa de pendientes:
 `PENDIENTES_2026-10-08.md`.
 
@@ -1371,6 +1372,76 @@ en el detalle de uno: **🔗 Unir con otros pedidos** → únelo con el otro. An
 **❌ Está mal si…** el carrito vuelve a pedir datos ya guardados; Mis datos sale vacío después de
 guardar; *"deshaz el grupo antes…"*; uno de los pedidos del grupo cambia y el otro no; Apartado se deja
 elegir con dinero; un modelo agotado no se guarda; Mis pedidos abre con pedidos pagados y entregados.
+
+---
+
+## Prueba 21 — La fecha de entrega en Pedidos y en Entregas por zona (2026-10-13)
+
+**Para qué es:** tu nota del 2026-10-13: *"cuando busco los pedidos por zona y les pongo la fecha, no me
+aparece en pedidos la fecha en la que se va a entregar; y en pedidos hay una que dice fecha pero no sé de
+qué es"*.
+
+**Qué estaba pasando:**
+- **Entregas por zona sí guardaba la fecha** en cada pedido de la lista (y mandaba los correos), pero la
+  card de **Mis pedidos** solo enseñaba la fecha de entrega si el pedido **todavía debía dinero**. Un
+  pedido ya pagado que faltaba entregar (los que justamente salen en Entregas por zona) la escondía.
+  Ahora la card mira si **ya se lo llevó** (Entregado / Falta entregar), no si ya pagó.
+- La fecha que decía **"Pedido"** en la card, **"Fecha"** en la tabla de Entregas por zona y la del
+  🕒 del detalle es **el día en que se hizo el pedido**, no el de entrega. Ahora lo dicen así.
+
+**Dónde va cada fecha (respuesta a "¿va en pedidos o en el detalle?": en los dos):**
+
+| Pantalla | Cuándo se hizo el pedido | Cuándo se entrega |
+|---|---|---|
+| **Mis pedidos** (card) | 📅 **Pedido hecho el** | 🚚 **Se entrega el** sáb 18 oct, 10:00 · Zona (o 🏢 **Recoge en el local el** …). Si es de una zona y todavía no se programa: **Se entrega: Sin fecha todavía · Zona** |
+| **Detalle del pedido** | 🕒 **Pedido hecho el** 13/10/2026 14:30 hrs | En "Entrega": **Se entrega el:** 18/10/2026 a las 10:00, en (punto de encuentro) |
+| **Entregas por zona** (tabla) | Columna **Pedido hecho el** | Columna nueva **Se entrega el** (o *Sin fecha todavía*) |
+
+**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Necesitas una zona
+de entrega con al menos **dos pedidos sin entregar**: uno que **todavía debe** (🕓 Pendiente, Apartado o
+Ir pagando) y uno **ya pagado que falta entregar** (en Venta directa: cobra completo y en
+*"¿Ya se lo llevó?"* elige **📦 Todavía no**). Anota sus números (P1 debe, P2 pagado).
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 21.1 | Cuándo la card enseña la fecha de entrega: por **Entregado / Falta entregar**, ya no por el pago | Mis pedidos (admin y la del cliente) | Renglón 🚚 de la card | Solo si debía dinero | Siempre que falte entregar |
+| 21.2 | (mismo) pedido que debe y tiene fecha | Mis pedidos | Renglón 🚚 | Salía | **Lo mismo que antes** |
+| 21.3 | (mismo) pedido ya entregado | Mis pedidos | Renglón 🚚 | No salía | **Lo mismo que antes** (no sale) |
+| 21.4 | (mismo) "⚠ Atrasado N días" | Mis pedidos | Junto a la fecha | Solo en los que debían | También en pagados que faltan entregar y ya pasó la fecha |
+| 21.5 | Nombres de las fechas | Card, detalle y Entregas por zona | Las etiquetas | "Pedido", 🕒 sin nombre, "Fecha" | "Pedido hecho el", "Se entrega el" |
+| 21.6 | `GET /v1/entregas-zona/{id}/pendientes` trae `fechaEntrega` y `horaEntrega` | Entregas por zona | Columna nueva | No existía | **Se entrega el** |
+| 21.7 | **El cambio:** programar la entrega y verla | Entregas por zona → Mis pedidos → detalle | Las tres pantallas | La fecha solo llegaba en el correo (y en el detalle) | Sale en las tres |
+
+### 21.1 Antes de programar
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Entregas por zona** → elige la zona y el rango donde están P1 y P2 | La tabla con las columnas **Pedido hecho el** y **Se entrega el**. P1 y P2 dicen *Sin fecha todavía* (si nunca se les programó) |
+| 2 | **Mis pedidos** → busca P1 | 📅 **Pedido hecho el** con fecha y hora. 🚚 **Se entrega: Sin fecha todavía · (zona)** |
+| 3 | Busca P2 | Igual que P1: 🚚 **Se entrega: Sin fecha todavía · (zona)** (antes no salía nada) |
+
+### 21.2 Programar y ver la fecha
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro → **✉️ Avisar a 2 cliente(s)** → **Sí, enviar avisos** | *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 2 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* |
+| 2 | La tabla se vuelve a cargar | P1 y P2 dicen en **Se entrega el** la fecha y la hora que pusiste |
+| 3 | **Mis pedidos** → busca P1 | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
+| 4 | Busca P2 (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
+| 5 | Abre el detalle de P2 | Arriba 🕒 **Pedido hecho el** (fecha y hora de cuando se hizo). En "Entrega": **Se entrega el:** (fecha) a las (hora), en (punto) |
+| 6 | En la card de P2, **📦 Entregar** | El renglón 🚚 desaparece (ya se lo llevó) |
+| 7 | Un pedido con fecha de entrega **ya pasada** que falta entregar (pagado o no) | ⚠ **Atrasado N días** junto a la fecha |
+| 8 | Con la cuenta del cliente de P1 → **Mis pedidos** | También ve 🚚 **Se entrega el** … |
+
+**❌ Está mal si…** un pedido programado en Entregas por zona no enseña la fecha en la card o en el
+detalle; un pedido ya entregado sigue enseñando "Se entrega el"; la columna **Se entrega el** queda
+vacía después de avisar; la fecha de "Pedido hecho el" cambia al programar la entrega.
+
+💬 Notas:
+
+- [ ] **Prueba 21 terminada**
 
 ---
 
