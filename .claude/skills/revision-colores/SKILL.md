@@ -158,6 +158,17 @@ negra (17.74), aunque el campo cerrado no se lee, porque esos son los colores qu
 Revisión de texto (`--texto`, Jade, 13 pantallas): de noche 0 problemas. De día había 2: "Asistente
 Virtual" en el encabezado del chat (1.12) y el "$" verde de Reportes (2.65). Los dos quedaron corregidos.
 
+### Segundo hallazgo del 2026-10-13: el botón secundario parecía desactivado
+
+`.pk-btn--secondary` (`design-system.scss`) pintaba la letra con `--app-text-muted` sobre `--form-section-bg`. De día
+daba **2.28** en Neutros cálidos, **2.54** en Jade profundo, **2.76** en Teal y **4.49** en Clásico (Jade y fábrica,
+5.39): los botones "🧪 Preparar prueba N" se veían apagados y el dueño no sabía cuál tocar. **No estaban
+desactivados** (`disabled=false`): era solo contraste. Arreglo en la regla global: letra `--app-text` (ahora 10.7 a
+13.9 en los 5 diseños de día y 13.6 a 15 de noche) y el secundario desactivado ahora sí se apaga (`opacity: .5`), para
+distinguirlo. Lo usan 7 pantallas (Alta de artículos, Datos de prueba, Agregar, Ruleta, Boletos de rifa, Home y 404),
+ninguna sobre imagen. **Regla:** un botón "secundario" baja de peso por el fondo y el borde, no por una letra gris.
+Medido con una prueba de Playwright sobre `/admin/cache` (mismo método de la sección 2, apuntando a `.pk-btn`).
+
 ## 6. Checklist antes de decir "ya se ve bien"
 
 - [ ] Medí con los 5 diseños + sin filas, de día y de noche (12 corridas), en las pantallas que se tocaron.

@@ -159,6 +159,23 @@ sale solo el que acabas de crear.
 La lista del recuadro 🧪 **se queda guardada** en este navegador aunque cambies de pantalla, con la hora en que se
 preparó cada prueba; se quita con *🧹 Quitar la lista* (solo de la pantalla: no borra nada de la base).
 
+**Lo que escribes tú — y lo que NO.** Todo lo que una prueba necesita **de arranque** lo crea 🧪 con código:
+modelos, artículos, precios, stock, clientes, pedidos, abonos, ventas y cancelados. **Tú no metes ningún dato de
+arranque.** Las pruebas de **pedidos** (24, 22, 21, 20.2, 16 y los tickets de la 12) **no te piden escribir nada**:
+tocas el botón y haces los pasos de pantalla (buscar, unir, cancelar…). Lo único que escribes es en las pantallas
+que **son** la prueba: si el código las llenara, no se estaría probando la pantalla. Son pocas, y el nombre exacto
+ya viene en cada paso:
+
+| Prueba | Pantalla que se prueba | Qué escribes |
+|---|---|---|
+| 12.1 | ⚖️ Datos legales | nombre `Prueba 12 Negocio`, domicilio `Calle 1, Luvianos, Edo. Méx.`, teléfono `(55) 1234-5678`, horario `Lunes a sábado 10 a 19` |
+| 12.5 y 20.1 | Crear una cuenta (necesita **un correo tuyo** para el código) | nombre `Prueba 12 Registro` / `Prueba 20 Cliente nuevo` |
+| 15 (6, 6c) | Zonas de entrega | nombre `Prueba 15 Zona` / `Prueba 15 Estanco` |
+| 17.4 | Cliente de Venta directa (los avisos de 1 o 2 letras) | `a`, `Lo`, `Jo`… (son las pruebas) y `Prueba 17 Ana` |
+| 17.7 | Agregar modelo | `QA Prueba 17 Modelo nuevo`, precio `100`, stock `10`, color `Negro`, marca `Prueba QA`, descripción `Prueba`, primera categoría, una foto |
+| 20.3 | Agregar modelo con stock 0 (no debe dejar) | `QA Prueba 20 Modelo sin stock`, marca `Prueba QA`, stock `0` |
+| 21.1 | Entregas por zona (fecha de entrega) | fecha, hora y punto de encuentro `Prueba 21 Punto` |
+
 Los 🕓 Pendientes que crea el botón llevan la zona **"Zona Prueba QA"**: así no se cancelan solos a los
 pocos días (los que recogen en el local sí se cancelan, 2 días después de su fecha para recoger). Puedes
 regresar a una prueba días después y siguen ahí.
@@ -254,7 +271,7 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 | 1 | **Sistema → Negocio & Contactos** → baja hasta **⚖️ Datos legales del negocio** | El correo `contacto@novedades-jade.com.mx` ya lleno y **"⚠️ Falta: Nombre del responsable, Domicilio, Teléfono"** |
 | 2 | En RFC escribe `ABC123` y toca **💾 Guardar datos legales** | Mensaje del RFC (13 o 12 caracteres); no se guarda |
 | 3 | En Teléfono escribe `12345` → Guardar | *"El teléfono tiene que tener 10 dígitos"* |
-| 4 | Llena **datos de prueba** (no los reales todavía): nombre "Prueba QA", domicilio "Calle 1, Luvianos, Edo. Méx.", teléfono `(55) 1234-5678`, horario "Lunes a sábado 10 a 19" → Guardar | *"¡Datos legales guardados!"* y "Ya se ven en el pie de página…". El aviso de "Falta" desaparece |
+| 4 | Llena **datos de prueba** (no los reales todavía): nombre "Prueba 12 Negocio", domicilio "Calle 1, Luvianos, Edo. Méx.", teléfono `(55) 1234-5678`, horario "Lunes a sábado 10 a 19" → Guardar | *"¡Datos legales guardados!"* y "Ya se ven en el pie de página…". El aviso de "Falta" desaparece |
 | 5 | Recarga la página | Los datos siguen; el teléfono aparece como `5512345678` |
 | 6 | Entra con un usuario **sin** permiso de escribir en Negocio & Contactos | No puede guardar (o no ve la pantalla) |
 
@@ -262,7 +279,7 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Recarga (`Ctrl + Shift + R`) cualquier pantalla y baja hasta el final | "Prueba QA · Calle 1, Luvianos… · Tel. 55 1234 5678 · contacto@… · Atención: Lunes a sábado 10 a 19" |
+| 1 | Recarga (`Ctrl + Shift + R`) cualquier pantalla y baja hasta el final | "Prueba 12 Negocio · Calle 1, Luvianos… · Tel. 55 1234 5678 · contacto@… · Atención: Lunes a sábado 10 a 19" |
 | 2 | Sin sesión (ventana privada), en la tienda | Lo mismo |
 | 3 | En el celular | Se acomoda en varias líneas, sin salirse de la pantalla |
 | 4 | Toca el teléfono en el celular | Abre la llamada |
@@ -281,7 +298,7 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | Cierra sesión → **Regístrate aquí** | Un párrafo corto ("Novedades Jade usa tus datos para…") y **dos casillas**: aviso de privacidad y **Términos y condiciones** |
-| 2 | Llena todo, marca solo la de privacidad | **Registrarse** sigue gris |
+| 2 | Llena todo (nombre **Prueba 12 Registro**, con un correo tuyo para recibir el código), marca solo la de privacidad | **Registrarse** sigue gris |
 | 3 | Marca también Términos → Registrarse | Se crea la cuenta como siempre (código al correo) |
 | 4 | **Leer los Términos y condiciones** | Abre los Términos en otra pestaña |
 | 5 | (Opcional, en la base) `SELECT username, acepto_terminos, fecha_acepto_terminos FROM usuario_modificacion ORDER BY id DESC LIMIT 1;` | `1` y la fecha de hoy |
@@ -295,7 +312,7 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 | 2 | Cambia a **📦 Apartado** | *"📦 Apartado, sin dinero ahora. Se paga completo ($200.00) al recogerlo."* |
 | 3 | **💵 Contado** | Ninguno de los dos avisos |
 | 4 | **Carrito** con artículos → Ir pagando / Apartado | Los mismos avisos con el total del carrito |
-| 5 | Haz la venta Ir pagando con $50 de enganche | Se crea igual que antes (el aviso no cambia nada del cobro) |
+| 5 | **Mis pedidos** → escribe **Prueba 12 T2** | Es el 💳 Ir pagando con $50 que 🧪 ya hizo con la misma venta directa: dice **abonado $50.00** y **resta $150.00**. Es el "se crea igual que antes"; **no hace falta hacer otra venta** |
 
 ### 12.7 Ticket
 
@@ -368,9 +385,9 @@ Ya no hace falta la consulta en la base para encontrar un artículo viejo deshab
 | 3 | **M5-baja** (en M5 la talla CH tiene 4 y el modelo 5: le queda 1 libre) → **Tienda → Buscar** → busca *QA Prueba 15 M5* → filtro **No habilitadas** → marca la talla M → **🔓 Habilitar seleccionadas** | Mensaje *"…Se ajustó el stock… de 3 a 1"*; el artículo queda con 1. Con el **🔓 Habilitar** de la card también queda en 1 (ese botón no muestra el detalle) |
 | 4 | Mismo caso con **M10-baja** (modelo en 10, le quedan 6 libres) | Se habilita con sus 3, sin ajuste |
 | 5 | Deshabilita un artículo con stock 2 y vuelve a habilitarlo | Queda en 0 (igual que antes: al deshabilitar su stock vuelve al libre) |
-| 6 | **Envíos → Zonas de entrega** → nuevo lugar | "🏬 Recoger en tienda" es un interruptor; prenderlo y guardar marca la fila con "🏬 recoger en tienda" |
+| 6 | **Envíos → Zonas de entrega** → nuevo lugar **Prueba 15 Zona** | "🏬 Recoger en tienda" es un interruptor; prenderlo y guardar marca la fila con "🏬 recoger en tienda" |
 | 6b | **Envíos → Zonas de entrega** | Arriba el recuadro "ℹ️ Para qué sirve esta pantalla…", abierto; se cierra y abre con clic. Se lee bien de día y de noche. El "?" dice lo mismo en corto |
-| 6c | **Envíos → Zonas de entrega** → nuevo lugar "El estanco" → prende **🏬 Recoger en tienda** | Se esconden Envío, Horas extra y Día de entrega; sale la nota "Esta fila es tu local…". Al **➕ Agregar**: si ya tienes la fila del local, error *"\"(tu local)\" ya es la fila de recoger en tienda. Solo puede haber una…"* y no se guarda |
+| 6c | **Envíos → Zonas de entrega** → nuevo lugar **Prueba 15 Estanco** → prende **🏬 Recoger en tienda** | Se esconden Envío, Horas extra y Día de entrega; sale la nota "Esta fila es tu local…". Al **➕ Agregar**: si ya tienes la fila del local, error *"\"(tu local)\" ya es la fila de recoger en tienda. Solo puede haber una…"* y no se guarda |
 | 6d | ✏️ en la fila del local que ya existe → **💾 Actualizar** | Se guarda. Si tenía envío u horas extra, ya no los muestra en la lista |
 | 6e | ✏️ en una zona normal (Tejupilco) | Se ven Envío, Horas extra y, si tiene centro, los anillos, igual que antes |
 | 6f | ✏️ en Tejupilco | **Ya no sale** el select "Sin día fijo / Lunes…": se quitó. Al **💾 Actualizar** se borra el día viejo que tuviera |
@@ -485,11 +502,11 @@ de alta los artículos de un modelo al guardarlo.
 |---|---|---|
 | 1 | Agrega un artículo → **💰 Cobrar** → *"¿Agregar cliente para la rifa?"* → **Sí** | El formulario del cliente |
 | 2 | En **Nombre** escribe **a** | Debajo, en rojo: *"Escribe al menos 3 letras"*. **Guardar cliente** apagado |
-| 3 | Cambia a **Ana**; en **Apellido paterno** escribe **Lo** | Debajo de apellido: *"Si lo escribes, al menos 3 letras"*. Bórralo y el aviso se va (es opcional) |
+| 3 | Cambia a **Prueba 17 Ana**; en **Apellido paterno** escribe **Lo** | Debajo de apellido: *"Si lo escribes, al menos 3 letras"*. Bórralo y el aviso se va (es opcional) |
 | 4 | En **Correo** escribe **ana@gmail** | *"El correo no es válido (ejemplo: nombre@gmail.com)"*. Corrígelo a **ana@gmail.com** y se va |
 | 5 | En **Número telefónico** escribe **55123** | *"El teléfono debe tener 10 dígitos"*. Con **55 1234 5678** se va |
 | 6 | Cancela. En **📍 Datos de entrega → Nombre de quien recibe** escribe **Jo** | Debajo: *"Si lo escribes, al menos 3 letras"*, y junto a **💰 Cobrar**: *"Para cobrar, corrige el nombre de quien recibe…"*. **Cobrar** apagado |
-| 7 | Cámbialo a **José** (o bórralo) | **Cobrar** se vuelve a prender |
+| 7 | Cámbialo a **Prueba 17 José** (o bórralo) | **Cobrar** se vuelve a prender |
 
 ❌ **Está mal si:** se guarda un cliente o un "quien recibe" de 1 o 2 letras.
 
@@ -514,7 +531,7 @@ de alta los artículos de un modelo al guardarlo.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → Agregar modelo** → llena nombre, precio, **stock 10**, color **Negro**, marca, descripción, categoría y una foto → **Guardar** | Ventana **"✅ Modelo guardado"** con *"¿Quieres agregar sus artículos ahora?"* y los botones **Después** / **Sí, agregar artículos** |
+| 1 | **Catálogo → Agregar modelo** → llena: nombre **QA Prueba 17 Modelo nuevo**, precio **100**, **stock 10**, color **Negro**, marca **Prueba QA**, descripción **Prueba**, la primera categoría y una foto cualquiera → **Guardar** | Ventana **"✅ Modelo guardado"** con *"¿Quieres agregar sus artículos ahora?"* y los botones **Después** / **Sí, agregar artículos** |
 | 2 | Toca **Sí, agregar artículos** | Ventana **🧩 Agregar artículos**: *"Stock del modelo: 10 · Libre: 10"*; la sección **Usar del modelo en todos los artículos** con una casilla **marcada** por cada dato que llenaste (Color: Negro, Marca…, Descripción…, Categoría…, **Foto del modelo**). Lo que no llenaste **no** aparece |
 | 3 | En **¿Cuántos artículos?** escribe **2** | Dos formularios: **Artículo 1** y **Artículo 2**, con color, marca y descripción ya llenos. Talla y stock vacíos. En **Foto**: *"📷 La foto del modelo"* |
 | 4 | En **Mismo stock para todos** escribe **4** → **Aplicar** | Los dos con stock 4. Abajo: *"Stock del modelo: 10 · Repartido: 8 · Te quedan 2"* |
@@ -1046,7 +1063,7 @@ qué es"*.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro → **✉️ Avisar a 2 cliente(s)** → **Sí, enviar avisos** | (El cliente de prueba no tiene correo: es normal que diga que se avisó a 0.) *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 2 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* |
+| 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro **Prueba 21 Punto** → **✉️ Avisar a 2 cliente(s)** → **Sí, enviar avisos** | (El cliente de prueba no tiene correo: es normal que diga que se avisó a 0.) *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 2 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* |
 | 2 | La tabla se vuelve a cargar | P1 y P2 dicen en **Se entrega el** la fecha y la hora que pusiste |
 | 3 | **Mis pedidos** → escribe **Prueba 21 P1** | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
 | 4 | Escribe **Prueba 21 P2** (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
@@ -1093,7 +1110,7 @@ Para la 20.2 y la 20.3: **🧪 Preparar prueba 20** (o ya lo hiciste con **Prepa
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Crea una cuenta nueva, verifica el correo, acepta Términos y entra | Entras a la tienda |
+| 1 | Crea una cuenta nueva (nombre **Prueba 20 Cliente nuevo**, con un correo tuyo), verifica el correo, acepta Términos y entra | Entras a la tienda |
 | 2 | Agrega un artículo al carrito → **📋 Generar pedido** | *"Completa tus datos — necesitamos tu nombre, apellidos y teléfono. Tu correo ya está verificado."* → **Completar mis datos** |
 | 3 | — | Abre **Mis datos** con el aviso 🛒 *"Para terminar tu pedido…"* y tu correo ya escrito con **✅ Verificado** |
 | 4 | Guarda **sin** teléfono | *"Faltan datos obligatorios"* y el teléfono en rojo |
@@ -1125,7 +1142,7 @@ dos 🕓 Pendiente de $150 cada uno (en "Zona Prueba QA"), de los clientes «Pru
 |---|---|---|
 | 1 | **Catálogo → 🔍 Modelos** → busca **Agotado** (*QA Prueba 20 Agotado*) → **✏️ Actualizar** → cambia la descripción → Guardar | Guarda sin el aviso *"El stock no debe de ser 0"* |
 | 2 | En el mismo, **Actualizar stock** = 5 → Guardar | Queda con stock 5 |
-| 3 | **Agregar modelo** nuevo con stock 0 | Sigue sin dejar (*"El stock no debe de ser 0"*) |
+| 3 | **Agregar modelo** nuevo (nombre **QA Prueba 20 Modelo sin stock**, marca **Prueba QA**) con stock 0 | Sigue sin dejar (*"El stock no debe de ser 0"*) |
 
 ### 20.4 Mis pedidos al abrir
 

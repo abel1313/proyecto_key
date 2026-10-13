@@ -173,6 +173,13 @@ borra de la base.
 **Front:** el recuadro de cada prueba muestra `«Prueba 24 K4»` junto al número del pedido y una línea
 **♻️ Se quitó lo de antes: …** cuando reinició; al quitar, esa prueba sale de la lista guardada.
 
+**Botones legibles (2026-10-13, cuarta pasada) — solo front, sin cambios de contrato:** el dueño no sabía cuál botón
+tocar porque los **🧪 Preparar prueba N** se veían apagados. No lo estaban: `.pk-btn--secondary` usaba letra
+`--app-text-muted` y de día daba contraste 2.3 a 2.8 en 3 de los 5 diseños. Ahora usa `--app-text` (10.7 a 15 en los
+5 diseños, de día y de noche) y el secundario desactivado se apaga (`opacity: .5`). Afecta a las 7 pantallas que lo
+usan (Alta de artículos, Datos de prueba, Agregar artículo, Ruleta pública, Boletos de rifa, Home y Página no
+disponible). El panel además dice: *"Toca el botón con el número de la prueba que vas a hacer"*.
+
 **Lo que se guarda (2026-10-13, segunda pasada):** la lista de pruebas preparadas se **recuerda en el
 navegador** (`localStorage`, clave `cache:pruebas-preparadas`), una entrada por prueba con la hora en que
 se preparó. Antes se perdía al cambiar de pantalla y con ella los números de los pedidos: el dueño

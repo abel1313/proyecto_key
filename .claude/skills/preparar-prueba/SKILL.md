@@ -121,6 +121,13 @@ R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas), **R20 (nombre e
   PRUEBAS_PENDIENTES_*.md` debe salir sin pasos de prueba.
 - **El recuadro 🧪 se queda guardado** en el navegador (por prueba, con la hora): antes se perdía al cambiar
   de pantalla y con él los números de los pedidos. Preparar una prueba otra vez reemplaza solo esa.
+- **El dueño no mete datos de arranque a mano, nunca** (2026-10-13: *"no quiero meter datos a mano porque voy a
+  tardar mucho; por eso te dije que lo hicieras en código para cada prueba"*). Si un paso del documento le pide
+  crear, vender o armar algo que solo es el punto de partida, se mueve al botón 🧪 (o se quita el paso si ya lo cubre
+  un dato del botón, como pasó con la venta de la 12.6, que ya es T2). Lo único que escribe él son las pantallas que
+  **son** la prueba (un formulario, un registro, una zona): ahí el documento le da el **valor exacto** y con el
+  nombre de la convención («Prueba 17 Ana», «QA Prueba 17 Modelo nuevo»), y la tabla *"Lo que escribes tú"* de la
+  sección 🧪 del documento las lista todas; si agregas una, va ahí.
 - **Cada clic reinicia la prueba (R21)**: quita lo de esa prueba y la crea de nuevo, a propósito: una prueba no
   debe depender de lo que otra ya canceló, pagó o vendió (pasó con K5 y K6, cancelados en la Prueba 4: el dueño
   creyó que fallaba el buscador de Unir). Sin quitar lo anterior se acumulaban modelos repetidos y pedidos viejos.
