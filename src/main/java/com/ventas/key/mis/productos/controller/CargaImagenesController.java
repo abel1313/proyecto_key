@@ -37,9 +37,6 @@ public class CargaImagenesController {
             log.error("Error leyendo la imagen recibida: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, "No se pudo leer la imagen"));
-        } catch (Exception e) {
-            log.error("Error en carga rapida de imagen: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
@@ -57,9 +54,6 @@ public class CargaImagenesController {
             log.error("Error leyendo la imagen recibida: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ResponseGeneric<>(null, "No se pudo leer la imagen"));
-        } catch (Exception e) {
-            log.error("Error en reintento de carga rapida productoId={}: {}", productoId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
@@ -86,22 +80,12 @@ public class CargaImagenesController {
     public ResponseEntity<ResponseGeneric<Producto>> completarProducto(
             @PathVariable Integer productoId,
             @RequestBody CompletarProductoDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(cargaImagenService.completarProducto(productoId, request)));
-        } catch (Exception e) {
-            log.error("Error al completar producto borrador id={}: {}", productoId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(cargaImagenService.completarProducto(productoId, request)));
     }
 
     @DeleteMapping("{productoId}")
     public ResponseEntity<ResponseGeneric<String>> eliminarBorrador(@PathVariable Integer productoId) {
-        try {
-            cargaImagenService.eliminarBorrador(productoId);
-            return ResponseEntity.ok(new ResponseGeneric<>("Borrador eliminado correctamente"));
-        } catch (Exception e) {
-            log.error("Error al eliminar borrador id={}: {}", productoId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        cargaImagenService.eliminarBorrador(productoId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Borrador eliminado correctamente"));
     }
 }

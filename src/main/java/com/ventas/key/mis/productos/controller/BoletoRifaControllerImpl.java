@@ -26,13 +26,7 @@ public class BoletoRifaControllerImpl {
 
     @PostMapping("/registrar")
     public ResponseEntity<ResponseGeneric<BoletoRifa>> registrar(@RequestBody BoletoRifaRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.registrar(req)));
-        } catch (Exception e) {
-            log.error("Error al registrar boleto: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.registrar(req)));
     }
 
     @GetMapping("/porConcursante/{concursanteId}")
@@ -43,61 +37,31 @@ public class BoletoRifaControllerImpl {
     @PutMapping("/{id}")
     public ResponseEntity<ResponseGeneric<BoletoRifa>> editar(
             @PathVariable Integer id, @RequestBody BoletoRifaRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.editar(id, req)));
-        } catch (Exception e) {
-            log.error("Error al editar boleto {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.editar(id, req)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
-        try {
-            service.eliminar(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Boleto eliminado"));
-        } catch (Exception e) {
-            log.error("Error al eliminar boleto {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        service.eliminar(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Boleto eliminado"));
     }
 
     // ── Sorteo de la rifa PLATAFORMAS (se sortea entre boletos) ────────
 
     @GetMapping("/estado/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<SorteoPlataformasDto>> estado(@PathVariable Integer configurarRifaId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.obtenerEstado(configurarRifaId)));
-        } catch (Exception e) {
-            log.error("Error al obtener estado de la rifa {}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.obtenerEstado(configurarRifaId)));
     }
 
     @PostMapping("/sortear/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<SorteoPlataformasResultadoDto>> sortear(@PathVariable Integer configurarRifaId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.sortear(configurarRifaId)));
-        } catch (Exception e) {
-            log.error("Error al sortear la rifa {}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.sortear(configurarRifaId)));
     }
 
     @PostMapping("/reiniciar/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<String>> reiniciar(@PathVariable Integer configurarRifaId) {
-        try {
-            service.reiniciar(configurarRifaId);
-            return ResponseEntity.ok(new ResponseGeneric<>("Rifa reiniciada"));
-        } catch (Exception e) {
-            log.error("Error al reiniciar la rifa {}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        service.reiniciar(configurarRifaId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Rifa reiniciada"));
     }
 
     // ── Página pública de la ruleta (sin sesión) ───────────────────────
@@ -112,10 +76,6 @@ public class BoletoRifaControllerImpl {
             return ResponseEntity.ok(new ResponseGeneric<>(service.obtenerEstado(configurarRifaId, true)));
         } catch (ExceptionDataNotFound e) {
             return noEncontrada(configurarRifaId, e);
-        } catch (Exception e) {
-            log.error("Error al obtener estado público de la rifa {}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
@@ -128,10 +88,6 @@ public class BoletoRifaControllerImpl {
                     service.detallePremioPublico(configurarRifaId, premioId)));
         } catch (ExceptionDataNotFound e) {
             return noEncontrada(configurarRifaId, e);
-        } catch (Exception e) {
-            log.error("Error al obtener el premio {} de la rifa {}: {}", premioId, configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
@@ -141,10 +97,6 @@ public class BoletoRifaControllerImpl {
             return ResponseEntity.ok(new ResponseGeneric<>(service.sortear(configurarRifaId, true)));
         } catch (ExceptionDataNotFound e) {
             return noEncontrada(configurarRifaId, e);
-        } catch (Exception e) {
-            log.error("Error al sortear (público) la rifa {}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 
@@ -155,10 +107,6 @@ public class BoletoRifaControllerImpl {
             return ResponseEntity.ok(new ResponseGeneric<>("Rifa reiniciada"));
         } catch (ExceptionDataNotFound e) {
             return noEncontrada(configurarRifaId, e);
-        } catch (Exception e) {
-            log.error("Error al reiniciar (público) la rifa {}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
         }
     }
 

@@ -117,6 +117,8 @@ Antes de usar uno, confirmar que existe: `grep -n "\-\-nombre" src/styles.scss`.
 | Botón | `.pk-btn` + `--primary`, `--secondary`, `--danger`, `--icon`, `--accion`, `--sm`, `--block` |
 | Campo de formulario | `.pk-field` (`--full`), `.pk-label`, `.pk-input` (`--error`), `.pk-error`, `.pk-hint` |
 | Sin resultados | `.pk-empty` |
+| Monto que no se edita + botón que explica por qué (Apartado: se paga completo) | `.pk-monto-fijo` (`__input`, `__porque`, `__explica`, `__accion`) — 2026-10-08 |
+| Ventana para dar de alta los artículos de un modelo | componente `<app-alta-articulos>` (`shared/alta-articulos`); velo con el token `--modal-backdrop` — 2026-10-08 |
 
 **Faltan** (se agregan al `design-system.scss` la primera vez que se necesiten, con tokens):
 `select` y `textarea` propios (hoy se reusa `.pk-input`), **tabla** (`.pk-table` existe pero copiada

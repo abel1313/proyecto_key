@@ -61,13 +61,7 @@ public class ConfigurarRifaControllerImpl extends AbstractController<
     public ResponseEntity<ResponseGeneric<ConfigurarRifa>> actualizarConfiguracion(
             @PathVariable Integer id,
             @RequestBody ConfigurarRifaPatchDto body) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.actualizarConfiguracion(id, body)));
-        } catch (Exception e) {
-            log.error("Error al actualizar configuración de rifa {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.actualizarConfiguracion(id, body)));
     }
 
     /**
@@ -78,27 +72,15 @@ public class ConfigurarRifaControllerImpl extends AbstractController<
     public ResponseEntity<ResponseGeneric<ConfigurarRifa>> togglePublica(
             @PathVariable Integer id,
             @RequestBody Map<String, Boolean> body) {
-        try {
-            boolean publica = Boolean.TRUE.equals(body.get("publica"));
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.togglePublica(id, publica)));
-        } catch (Exception e) {
-            log.error("Error al cambiar publica de la rifa {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        boolean publica = Boolean.TRUE.equals(body.get("publica"));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.togglePublica(id, publica)));
     }
 
     @PutMapping("/{id}/esPrueba")
     public ResponseEntity<ResponseGeneric<ConfigurarRifa>> toggleEsPrueba(
             @PathVariable Integer id,
             @RequestBody Map<String, Boolean> body) {
-        try {
-            boolean esPrueba = Boolean.TRUE.equals(body.get("esPrueba"));
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.toggleEsPrueba(id, esPrueba)));
-        } catch (Exception e) {
-            log.error("Error al cambiar esPrueba de la rifa {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        boolean esPrueba = Boolean.TRUE.equals(body.get("esPrueba"));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.toggleEsPrueba(id, esPrueba)));
     }
 }

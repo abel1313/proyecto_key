@@ -32,33 +32,18 @@ public class FlorPedidoController {
     @PostMapping("/validar-cantidad")
     public ResponseEntity<ResponseGeneric<ValidarCantidadResponseDto>> validarCantidad(
             @RequestBody ValidarCantidadRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.validarCantidad(request)));
-        } catch (Exception e) {
-            log.error("Error al validar cantidad de flores: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.validarCantidad(request)));
     }
 
     @PostMapping("/calcular-precio")
     public ResponseEntity<ResponseGeneric<CalcularPrecioResponseDto>> calcularPrecio(
             @RequestBody CalcularPrecioRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.calcularPrecio(request)));
-        } catch (Exception e) {
-            log.error("Error al calcular precio de ramo: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.calcularPrecio(request)));
     }
 
     @PostMapping("/fechas-disponibles")
     public ResponseEntity<ResponseGeneric<FechasDisponiblesResponseDto>> fechasDisponibles(
             @RequestBody FechasDisponiblesRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.fechasDisponibles(request)));
-        } catch (Exception e) {
-            log.error("Error al calcular fechas disponibles: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(florPedidoService.fechasDisponibles(request)));
     }
 }

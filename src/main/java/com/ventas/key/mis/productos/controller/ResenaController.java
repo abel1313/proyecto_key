@@ -28,34 +28,19 @@ public class ResenaController {
 
     @PostMapping
     public ResponseEntity<ResponseGeneric<ResenaResponseDto>> crear(@RequestBody ResenaRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(resenaService.crear(request)));
-        } catch (Exception e) {
-            log.error("Error al crear resena: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(resenaService.crear(request)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ResponseGeneric<ResenaResponseDto>> editar(
             @PathVariable Integer id, @RequestBody ResenaEditarDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(resenaService.editar(id, request)));
-        } catch (Exception e) {
-            log.error("Error al editar resena {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(resenaService.editar(id, request)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
-        try {
-            resenaService.eliminar(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Resena eliminada"));
-        } catch (Exception e) {
-            log.error("Error al eliminar resena {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        resenaService.eliminar(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Resena eliminada"));
     }
 
     // Solo ADMIN (ver regla dedicada en SecurityConfig, /v1/resenas/** general es solo
@@ -63,12 +48,7 @@ public class ResenaController {
     @PutMapping("/{id}/responder")
     public ResponseEntity<ResponseGeneric<ResenaResponseDto>> responder(
             @PathVariable Integer id, @RequestBody ResenaResponderDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(resenaService.responder(id, request)));
-        } catch (Exception e) {
-            log.error("Error al responder resena {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(resenaService.responder(id, request)));
     }
 
     @GetMapping("/variante/{varianteId}")
@@ -98,11 +78,6 @@ public class ResenaController {
     public ResponseEntity<ResponseGeneric<PginaDto<List<ResenaResponseDto>>>> misResenas(
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(resenaService.misResenas(pagina, size)));
-        } catch (Exception e) {
-            log.error("Error al listar mis resenas: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(resenaService.misResenas(pagina, size)));
     }
 }

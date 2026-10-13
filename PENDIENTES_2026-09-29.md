@@ -1,5 +1,7 @@
 # Pendientes y dudas — sesión del 2026-09-29
 
+> **2026-10-08:** la lista única de todo lo pendiente está en `PENDIENTES_2026-10-08.md`.
+
 Todo lo que se preguntó o quedó abierto hoy, para no perderlo. Se tacha cuando se cierre.
 
 ---

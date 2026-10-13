@@ -58,6 +58,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -229,11 +230,23 @@ public class ProductosServiceImpl extends
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
-            key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre) {
+        return findNombreOrCodigoBarra(size, page, nombre, false);
+    }
+
+    /**
+     * {@code todos}: Agregar articulo lo pide para que quien tenga el permiso "ver-todos-los-modelos"
+     * (o el admin) encuentre tambien los modelos sin stock, deshabilitados o dados de baja, y los
+     * pueda habilitar o subirles stock ahi mismo (2026-10-08). Sin el permiso se ignora.
+     */
+    @Transactional(readOnly = true)
+    @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
+            key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()"
+                    + " + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).puedeVerTodosLosModelos(#todos)")
+    public PginaDto<List<ProductoDTO>> findNombreOrCodigoBarra(int size, int page, String nombre, boolean todos) {
         Pageable pageable = PageRequest.of(page - 1, size);
         boolean isAdmin = isAdminContext();
+        boolean verTodos = AuthenticationUtils.puedeVerTodosLosModelos(todos);
 
         // Una sola query con OR (nombre / código de barras / palabra clave) en vez de la cascada
         // vieja de hasta 3 llamadas secuenciales que se detenía en el primer paso con resultados
@@ -241,14 +254,28 @@ public class ProductosServiceImpl extends
         // matcheado por código. Reusa buscarProductosAdmin (mismo patrón OR ya probado en el
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
-        Page<Producto> resultado = isAdmin
+        Page<Producto> resultado = verTodos
                 ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, null, null, pageable)
                 : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, null, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
         }
-        return buildPagina(resultado, page, isAdmin);
+        PginaDto<List<ProductoDTO>> pagina = buildPagina(resultado, page, isAdmin);
+        if (verTodos && !isAdmin) {
+            // Sin ser admin: lo de siempre (sin costos), mas lo que la pantalla necesita para avisar
+            // el estado del modelo y precargar sus articulos.
+            Map<Integer, Producto> porId = resultado.getContent().stream()
+                    .collect(Collectors.toMap(Producto::getId, p -> p, (a, b) -> a));
+            pagina.getT().forEach(dto -> {
+                Producto p = porId.get(dto.getIdProducto());
+                if (p == null) return;
+                dto.setHabilitado(p.getHabilitado());
+                dto.setMarca(p.getMarca());
+                dto.setContenido(p.getContenido());
+            });
+        }
+        return pagina;
     }
 
     private PginaDto<List<ProductoDTO>> buildPagina(Page<Producto> pagina, int page, boolean isAdmin) {
@@ -394,11 +421,8 @@ public class ProductosServiceImpl extends
     // [FLUJO 1] INICIO: el controlador llama saveProductoLote() → llega aqui
     @Transactional
     protected Producto guardarProducto(ProductoDetalle productoDetalle) {
-        if (productoDetalle.getStock() == 0) {
-            throw new ExceptionErrorInesperado("El stock no debe de ser 0");
-        }
         if (productoDetalle.getCodigoBarras() == null) {
-            throw new ExceptionDataNotFound("El codigo de barras es requerido");
+            throw new ExceptionErrorInesperado("El codigo de barras es requerido");
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
@@ -427,6 +451,14 @@ public class ProductosServiceImpl extends
                         .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr)
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
+            }
+
+            // Stock 0 solo se rechaza al dar de alta un modelo nuevo. Antes se rechazaba siempre, y un
+            // modelo que se agotó (sus artículos vendieron todo) ya no se podía editar en
+            // "Actualizar Modelo": esa pantalla manda el stock real, que es 0 (2026-10-13).
+            if (prodExistenteNoOpt == null
+                    && (productoDetalle.getStock() == null || productoDetalle.getStock() == 0)) {
+                throw new ExceptionErrorInesperado("El stock no debe de ser 0");
             }
 
             // Solo set habilitado='1' para productos nuevos. Si el producto ya existe (borrador o no),
@@ -539,7 +571,7 @@ public class ProductosServiceImpl extends
                             + " unidades: solo hay " + prodExistenteNoOpt.getStock() + " en stock");
                 }
             } else {
-                nuevoStock = productoDetalle.getStock();
+                nuevoStock = productoDetalle.getStock() != null ? productoDetalle.getStock() : prodExistenteNoOpt.getStock();
             }
 
             ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
@@ -553,6 +585,9 @@ public class ProductosServiceImpl extends
             }
 
             return prd;
+        } catch (ExceptionErrorInesperado | ExceptionDuplicado e) {
+            // Ya traen su mensaje y su código (400 / 409): envolverlas las volvía todas 400.
+            throw e;
         } catch (Exception e) {
             this.error.error(e);
             throw new RuntimeException("No se guardo el producto: " + e.getMessage(), e);

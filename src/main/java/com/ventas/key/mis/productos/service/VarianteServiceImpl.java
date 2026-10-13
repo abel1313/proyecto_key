@@ -13,6 +13,8 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionServicioExterno;
+import com.ventas.key.mis.productos.exeption.ExceptionStockInsuficiente;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
@@ -130,7 +132,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // si otra variante ya había matcheado por código. Reusa los métodos ya probados del
         // filtro de admin/público (mismo patrón OR).
         PginaDto<List<VarianteResumenDto>> resultado = AuthenticationUtils.isAdminContext()
-                ? filtrarVariantesAdmin(termino, null, null, null, null, null, null, page, size)
+                ? filtrarVariantesAdmin(termino, null, null, null, null, null, null, null, null, null, null, null, page, size)
                 : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, page, size);
 
         if (resultado.getT().isEmpty()) {
@@ -285,7 +287,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             } else {
                 imageIds = obtenerImagenPrincipalProducto(requestVarianteDto.getProductoId());
                 if (imageIds.isEmpty()) {
-                    throw new ExceptionDataNotFound(
+                    throw new ExceptionErrorInesperado(
                             "El producto " + producto.getId() + " no tiene una imagen para copiar a las variantes. "
                                     + "Sube una imagen o desmarca la casilla de 'misma imagen para todas'.");
                 }
@@ -331,14 +333,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 };
                 formData.add("files", recurso);
             } catch (Exception e) {
-                throw new ExceptionDataNotFound("Error al procesar imagen: " + e.getMessage());
+                throw new ExceptionErrorInesperado("Error al procesar imagen: " + e.getMessage());
             }
         }
         try {
             return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
         } catch (Exception e) {
             log.error("Error al subir imagenes al microservicio de imagenes", e);
-            throw new ExceptionDataNotFound("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
+            throw new ExceptionServicioExterno("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
         }
     }
 
@@ -374,7 +376,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
 
         if (request.getCodigoBarras() == null || request.getCodigoBarras().isBlank()) {
-            throw new ExceptionDataNotFound("El codigo de barras es requerido");
+            throw new ExceptionErrorInesperado("El codigo de barras es requerido");
         }
         if (iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(request.getCodigoBarras()).isPresent()) {
             throw new ExceptionDuplicado(
@@ -604,17 +606,18 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // sin nada. Es el "dice que voy a guardar 3 cuando agregue 2" (reportado 2026-09-22).
         detalles = soloLosQueDescribenAlgo(detalles);
         if (detalles.isEmpty()) {
-            throw new ExceptionDataNotFound(
+            throw new ExceptionErrorInesperado(
                     "No hay ningun articulo que guardar: todos llegaron vacios. Hay que llenar al "
                             + "menos la talla, el color u otro dato, o ponerle stock");
         }
 
         aplicarAjusteStockModelo(detalles);
         validarStockContraProducto(detalles);
-        List<Long> imageIds = subirImagenes(detalles);
+        List<List<Long>> imagenesPorArticulo = repartirImagenes(detalles, subirImagenes(detalles));
 
         List<Variantes> resultado = new ArrayList<>();
-        for (VarianteDetalle detalle : detalles) {
+        for (int i = 0; i < detalles.size(); i++) {
+            VarianteDetalle detalle = detalles.get(i);
             boolean esRestock = false;
             if (detalle.getId() != null) {
                 esRestock = esRestock(detalle);
@@ -627,6 +630,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 notificarRestock(saved);
             }
 
+            List<Long> imageIds = new ArrayList<>(imagenesPorArticulo.get(i));
+            // A8: la foto del modelo se reusa, no se vuelve a subir. Si el articulo se da de baja,
+            // la foto no se borra: findOrphanIds la ve todavia en producto_imagen_copy.
+            if (Boolean.TRUE.equals(detalle.getUsarImagenDelModelo())) {
+                imageIds.addAll(obtenerImagenPrincipalProducto(detalle.getProductoId()));
+            }
             if (!imageIds.isEmpty()) {
                 vincularImagenes(saved, imageIds);
             }
@@ -636,6 +645,45 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             }
         }
         evictAllCaches();
+        return resultado;
+    }
+
+    /**
+     * Que fotos subidas le tocan a cada articulo del alta, en el mismo orden que {@code detalles}.
+     *
+     * <p>{@code subidas} son los ids que devolvio el micro, en el orden en que se mandaron (todas las
+     * de cada detalle, detalle por detalle). Un detalle con {@code imagenesPropias=true} se queda
+     * solo con las suyas; los demas comparten las de todos los que no son propias -- que es lo que
+     * siempre hizo Agregar articulo con varias tallas (la foto va en el primero y la llevan todos).
+     */
+    static List<List<Long>> repartirImagenes(List<VarianteDetalle> detalles, List<Long> subidas) {
+        boolean hayPropias = detalles.stream().anyMatch(d -> Boolean.TRUE.equals(d.getImagenesPropias()));
+        if (!hayPropias) {
+            // Como siempre: todas las fotos del alta para todos los articulos.
+            return detalles.stream().map(d -> List.copyOf(subidas)).toList();
+        }
+        int esperadas = detalles.stream().mapToInt(d -> d.getListImagenes() == null ? 0 : d.getListImagenes().size()).sum();
+        if (subidas.size() != esperadas) {
+            throw new ExceptionErrorInesperado(String.format(
+                    "No se pudieron subir todas las fotos (se mandaron %d y llegaron %d). Intenta de nuevo", esperadas, subidas.size()));
+        }
+        List<List<Long>> propias = new ArrayList<>();
+        List<Long> compartidas = new ArrayList<>();
+        int cursor = 0;
+        for (VarianteDetalle d : detalles) {
+            int n = d.getListImagenes() == null ? 0 : d.getListImagenes().size();
+            List<Long> suyas = subidas.subList(cursor, cursor + n);
+            cursor += n;
+            propias.add(suyas);
+            if (!Boolean.TRUE.equals(d.getImagenesPropias())) {
+                compartidas.addAll(suyas);
+            }
+        }
+        List<List<Long>> resultado = new ArrayList<>();
+        for (int i = 0; i < detalles.size(); i++) {
+            resultado.add(Boolean.TRUE.equals(detalles.get(i).getImagenesPropias())
+                    ? List.copyOf(propias.get(i)) : List.copyOf(compartidas));
+        }
         return resultado;
     }
 
@@ -782,7 +830,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             int stockDisponible = producto.getStock() - stockYaAsignado;
 
             if (stockSolicitado > stockDisponible) {
-                throw new ExceptionDataNotFound(
+                throw new ExceptionStockInsuficiente(
                         String.format("Stock insuficiente para el producto '%s' (id=%d). Disponible: %d, Solicitado: %d",
                                 producto.getNombre(), productoId, stockDisponible, stockSolicitado));
             }
@@ -808,7 +856,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
         // negativo aislado no lo detecta (reduce la suma en vez de superarla).
         if (detalle.getStock() < 0) {
-            throw new ExceptionDataNotFound("El stock de la variante no puede quedar negativo");
+            throw new ExceptionErrorInesperado("El stock de la variante no puede quedar negativo");
         }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));
@@ -1045,17 +1093,24 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // salvo el filtro elegido) — a diferencia de las búsquedas públicas que para clientes
     // normales exigen stock>0 + producto habilitado + con imagen.
     @Cacheable(value = "variantesProductoCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
+            // La llave lleva TODOS los filtros: antes no llevaba las fechas y dos rangos distintos
+            // devolvian el mismo resultado guardado (2026-10-08).
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #talla + ':' + #color + ':' + #marca + ':' + #precioMin + ':' + #precioMax + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
             Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
-            LocalDate fechaHasta, int pagina, int size) {
+            LocalDate fechaHasta, String talla, String color, String marca, Double precioMin, Double precioMax,
+            int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
         // Mismo criterio que ProductosServiceImpl.filtrarProductosAdmin: dia calendario expandido
         // al rango completo (00:00:00 - 23:59:59.999999999) para que incluya todo ese dia.
         LocalDateTime desde = fechaDesde != null ? fechaDesde.atStartOfDay() : null;
         LocalDateTime hasta = fechaHasta != null ? fechaHasta.atTime(LocalTime.MAX) : null;
-        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado, codigoGenerado, desde, hasta, pageable);
+        // Talla / color / marca / precio (los del catalogo) tambien aqui: en Tienda se combinan con los
+        // de admin en una sola busqueda (antes cada grupo ignoraba al otro, QA 2026-10-08).
+        Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado,
+                codigoGenerado, desde, hasta, blankToNull(talla), blankToNull(color), blankToNull(marca),
+                precioMin, precioMax, pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());

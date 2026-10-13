@@ -30,45 +30,25 @@ public class FavoritoController {
 
     @PostMapping("/{varianteId}")
     public ResponseEntity<ResponseGeneric<String>> agregar(@PathVariable Integer varianteId) {
-        try {
-            favoritoService.agregar(varianteId);
-            return ResponseEntity.ok(new ResponseGeneric<>("Agregado a favoritos"));
-        } catch (Exception e) {
-            log.error("Error al agregar favorito, variante {}: {}", varianteId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        favoritoService.agregar(varianteId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Agregado a favoritos"));
     }
 
     @DeleteMapping("/{varianteId}")
     public ResponseEntity<ResponseGeneric<String>> quitar(@PathVariable Integer varianteId) {
-        try {
-            favoritoService.quitar(varianteId);
-            return ResponseEntity.ok(new ResponseGeneric<>("Quitado de favoritos"));
-        } catch (Exception e) {
-            log.error("Error al quitar favorito, variante {}: {}", varianteId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        favoritoService.quitar(varianteId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Quitado de favoritos"));
     }
 
     @GetMapping
     public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> listar(
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(favoritoService.listar(pagina, size)));
-        } catch (Exception e) {
-            log.error("Error al listar favoritos: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(favoritoService.listar(pagina, size)));
     }
 
     @GetMapping("/ids")
     public ResponseEntity<ResponseGeneric<List<Integer>>> listarIds() {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<Integer>>(favoritoService.listarIds()));
-        } catch (Exception e) {
-            log.error("Error al listar ids de favoritos: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<List<Integer>>(favoritoService.listarIds()));
     }
 }

@@ -32,34 +32,19 @@ public class RamoArmadoController {
 
     @PostMapping
     public ResponseEntity<ResponseGeneric<RamoArmadoResponseDto>> crear(@RequestBody RamoArmadoRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoArmadoService.crear(request)));
-        } catch (Exception e) {
-            log.error("Error al crear ramo armado: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoArmadoService.crear(request)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ResponseGeneric<RamoArmadoResponseDto>> editar(
             @PathVariable Integer id, @RequestBody RamoArmadoRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoArmadoService.editar(id, request)));
-        } catch (Exception e) {
-            log.error("Error al editar ramo armado {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoArmadoService.editar(id, request)));
     }
 
     @PutMapping("/{id}/activo")
     public ResponseEntity<ResponseGeneric<RamoArmadoResponseDto>> cambiarActivo(
             @PathVariable Integer id, @RequestBody RamoArmadoActivoRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoArmadoService.cambiarActivo(id, Boolean.TRUE.equals(request.getActivo()))));
-        } catch (Exception e) {
-            log.error("Error al cambiar estado del ramo armado {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoArmadoService.cambiarActivo(id, Boolean.TRUE.equals(request.getActivo()))));
     }
 
     @GetMapping("/admin")

@@ -148,13 +148,7 @@ public class RedesSocialesController {
     @GetMapping("/tiktok/url-autorizacion")
     public ResponseEntity<ResponseGeneric<Map<String, String>>> urlAutorizacionTikTok(
             @RequestParam String redirectUri, @RequestParam String state) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(Map.of("url", tikTokGraphClient.urlAutorizacion(redirectUri, state))));
-        } catch (Exception e) {
-            // Se anota: sin esto el 400 solo lo veía el navegador y `kubectl logs` no decía nada.
-            log.warn("No se pudo armar la URL para conectar TikTok (redirectUri={}): {}", redirectUri, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((Map<String, String>) null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(Map.of("url", tikTokGraphClient.urlAutorizacion(redirectUri, state))));
     }
 
     @Operation(
@@ -208,13 +202,8 @@ public class RedesSocialesController {
     )
     @PostMapping("/tiktok/autorizar")
     public ResponseEntity<ResponseGeneric<String>> autorizarTikTok(@RequestBody AutorizarTikTokRequest request) {
-        try {
-            tikTokGraphClient.autorizarConCode(request.getCode(), request.getRedirectUri());
-            return ResponseEntity.ok(new ResponseGeneric<>("TikTok autorizado correctamente"));
-        } catch (Exception e) {
-            log.warn("Error al autorizar TikTok: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((String) null, e.getMessage()));
-        }
+        tikTokGraphClient.autorizarConCode(request.getCode(), request.getRedirectUri());
+        return ResponseEntity.ok(new ResponseGeneric<>("TikTok autorizado correctamente"));
     }
 
     @Operation(

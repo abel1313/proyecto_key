@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.GrupoPedidos;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.ConsultarGruposCasoUso;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.GrupoEnListaResponse;
@@ -205,7 +207,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     public Pedido savePedido(@RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
 
         Cliente cliente = this.iClienteRepository.findById(requestG.getCliente().getId())
-                .orElseThrow(() -> new Exception("Ocurrio un erro al buscar al cliente"));
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró el cliente del pedido"));
         if (!Boolean.TRUE.equals(cliente.getCorreoVerificado())) {
             throw new RuntimeException("Debes verificar tu correo antes de generar un pedido");
         }
@@ -467,9 +469,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         UsuarioDto usr = iUsuarioRepository.findUserByIdCliente(requestG.getCliente().getId())
-                .orElseThrow(() -> new Exception("Ocurrio un error al buscar el usuario"));
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró el usuario"));
         Usuario u = this.iUsuarioRepository.findById((int) usr.getIdUsuario())
-                .orElseThrow(() -> new Exception("Ocurrio un error al buscar el usuario"));
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró el usuario"));
 
         Venta venta = new Venta();
         venta.setEstadoVenta("Entregado");
@@ -955,6 +957,20 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      */
     @Transactional
     public PedidoDetalleResponse cambiarTipoPedido(int pedidoId, CambiarTipoPedidoRequest request) {
+        return cambiarTipo(pedidoId, request, false);
+    }
+
+    @Override
+    @Transactional
+    public void cambiarTipoDentroDeGrupo(int pedidoId, String tipoNuevo, String nota) {
+        CambiarTipoPedidoRequest request = new CambiarTipoPedidoRequest();
+        request.setTipoPedido(tipoNuevo);
+        request.setNota(nota);
+        cambiarTipo(pedidoId, request, true);
+    }
+
+    /** @param delGrupo el cambio lo pide el grupo completo (R20), que ya valido que se puede */
+    private PedidoDetalleResponse cambiarTipo(int pedidoId, CambiarTipoPedidoRequest request, boolean delGrupo) {
         Pedido pedido = iPedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
 
@@ -975,10 +991,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (tipoNuevo.equals(pedido.getTipoPedido())) {
             throw new RuntimeException("El pedido " + pedidoId + " ya es de tipo " + tipoNuevo);
         }
-        // Un grupo exige que todos sus pedidos tengan la misma forma de cobro (grupopedido R9).
-        if (iGrupoPedidoMiembroRepository.estaEnGrupoActivo(pedidoId)) {
-            throw new RuntimeException("El pedido " + pedidoId + " esta unido con otros pedidos: "
-                    + "deshaz el grupo antes de cambiar su forma de cobro");
+        // Un grupo exige que todos sus pedidos tengan la misma forma de cobro (grupopedido R3, R9):
+        // uno solo no se cambia; se cambia el grupo completo (R20, PUT /v1/grupos-pedido/{id}/tipo).
+        if (!delGrupo && iGrupoPedidoMiembroRepository.estaEnGrupoActivo(pedidoId)) {
+            throw new ExceptionOperacionNoPermitida("El pedido " + pedidoId + " esta unido con otros pedidos: "
+                    + "su forma de cobro se cambia para todo el grupo");
         }
 
         // Un Apartado es sin dinero: si el cliente ya dio algo, o da algo ahora, es Ir pagando.

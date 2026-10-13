@@ -27,5 +27,19 @@
       "Bash(cp *)",
       "Bash(python3 *)"
     ]
+  },
+  "language": "spanish",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf %s '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Regla del dueño: explícale TODO en español: respuestas, avisos de avance mientras trabajas, resúmenes, preguntas y explicaciones. Nunca en inglés. El código, los nombres en el código y los mensajes de commit siguen sus propias reglas.\"}}'",
+            "statusMessage": "Recordando: explicar en español"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -37,49 +37,25 @@ public class LugarEntregaController extends AbstractController<
 
     @GetMapping("/{lugarEntregaId}/anillos")
     public ResponseEntity<ResponseGeneric<List<AnilloResponse>>> listarAnillos(@PathVariable Integer lugarEntregaId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<AnilloResponse>>(anilloService.listar(lugarEntregaId)));
-        } catch (Exception e) {
-            ResponseGeneric<List<AnilloResponse>> error = new ResponseGeneric<List<AnilloResponse>>((List<AnilloResponse>) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<List<AnilloResponse>>(anilloService.listar(lugarEntregaId)));
     }
 
     @PostMapping("/{lugarEntregaId}/anillos")
     public ResponseEntity<ResponseGeneric<AnilloResponse>> crearAnillo(@PathVariable Integer lugarEntregaId,
                                                                         @RequestBody AnilloRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(anilloService.crear(lugarEntregaId, req)));
-        } catch (Exception e) {
-            ResponseGeneric<AnilloResponse> error = new ResponseGeneric<>((AnilloResponse) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(anilloService.crear(lugarEntregaId, req)));
     }
 
     @PutMapping("/anillos/{anilloId}")
     public ResponseEntity<ResponseGeneric<AnilloResponse>> editarAnillo(@PathVariable Integer anilloId,
                                                                          @RequestBody AnilloRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(anilloService.editar(anilloId, req)));
-        } catch (Exception e) {
-            ResponseGeneric<AnilloResponse> error = new ResponseGeneric<>((AnilloResponse) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(anilloService.editar(anilloId, req)));
     }
 
     @DeleteMapping("/anillos/{anilloId}")
     public ResponseEntity<ResponseGeneric<Void>> eliminarAnillo(@PathVariable Integer anilloId) {
-        try {
-            anilloService.eliminar(anilloId);
-            return ResponseEntity.ok(new ResponseGeneric<>((Void) null));
-        } catch (Exception e) {
-            ResponseGeneric<Void> error = new ResponseGeneric<>((Void) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        anilloService.eliminar(anilloId);
+        return ResponseEntity.ok(new ResponseGeneric<>((Void) null));
     }
 
     // Publico (ver SecurityConfig) -- lo llama el checkout antes de dejar avanzar/confirmar, y
@@ -87,14 +63,8 @@ public class LugarEntregaController extends AbstractController<
     @PostMapping("/{lugarEntregaId}/calcular-costo")
     public ResponseEntity<ResponseGeneric<CalcularCostoEnvioResponse>> calcularCosto(
             @PathVariable Integer lugarEntregaId, @RequestBody CalcularCostoEnvioRequest req) {
-        try {
-            CalcularCostoEnvioResponse resp =
-                    anilloService.calcularCosto(lugarEntregaId, req.getLatitud(), req.getLongitud());
-            return ResponseEntity.ok(new ResponseGeneric<>(resp));
-        } catch (Exception e) {
-            ResponseGeneric<CalcularCostoEnvioResponse> error = new ResponseGeneric<>((CalcularCostoEnvioResponse) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        CalcularCostoEnvioResponse resp =
+                anilloService.calcularCosto(lugarEntregaId, req.getLatitud(), req.getLongitud());
+        return ResponseEntity.ok(new ResponseGeneric<>(resp));
     }
 }

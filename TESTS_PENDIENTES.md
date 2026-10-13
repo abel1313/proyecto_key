@@ -16,6 +16,111 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-13 — Forma de cobro del grupo completo (grupopedido R20)
+**Dónde:** `GrupoPedidos.porCambiarFormaDeCobro()`, `CambiarFormaDeCobroGrupoService`, `FormaDeCobroAdapter`, `PedidoServiceImpl.cambiarTipoDentroDeGrupo()`, `PUT /v1/grupos-pedido/{id}/tipo`, `SecurityConfig`
+**Tipo:** unitario (dominio) · servicio con puertos simulados · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] Dominio: grupo Pendiente (NORMAL) → FIADO devuelve los vivos del más viejo al más nuevo; los cancelados no; uno que ya es del tipo nuevo no
+- [ ] Dominio: → APARTADO con `pagadoCentavos > 0` o con cobro ahora → `CambioDeFormaDeCobroInvalidoException`; → NORMAL, al mismo tipo, grupo inactivo o con un pedido `Entregado` → rechaza; cobro mayor al saldo → rechaza
+- [ ] Servicio: con cobro llama a `abonar` del grupo después de cambiar todos; si el dominio rechaza no llama a `FormaDeCobroPort` ni a la bitácora
+- [ ] `PUT /v1/pedidos/{id}/tipo` de un pedido unido → 409; `PUT /v1/grupos-pedido/{id}/tipo` sin la acción `cambiar-tipo` → 403, con ella → 200; grupo inexistente → 404
+
+### 2026-10-13 — Mis pedidos abre sin lo ya pagado y entregado (busquedapedido R15)
+**Dónde:** `EstadoBuscado.SIN_TERMINAR`, `PedidosFiltradosJdbcAdapter.condiciones()`
+**Tipo:** MySQL (SQL nativo)
+**Debe comprobar:**
+- [ ] `estado=SIN_TERMINAR` no trae contado Entregado ni Apartado/Ir pagando pagado con `entregado = 1`; sí trae Pagado sin entregar, Ir pagando entregado que debe, Pendiente y cancelados *(comprobado a mano en MySQL 8 el 2026-10-13 con 6 pedidos)*
+- [ ] Un titular de grupo se juzga por el grupo (R14): sale mientras algún pedido del grupo falte de pagar o de entregar
+- [ ] Combinado con otro estado (`SIN_TERMINAR` + `CANCELADO`) se cruza con Y
+
+### 2026-10-13 — Cliente: caché, Mis datos y modelo agotado
+**Dónde:** `ClienteServiceImpl` (`@CacheEvict clienteCache` en save y los 7 métodos que escriben), `UsuarioVerificacionService.verificarCorreo/confirmarCambioCorreo`, `PedidoServiceImpl.savePedido` (404), `ProductosServiceImpl.guardarProducto` (stock 0 solo en alta; 400/409 sin envolver)
+**Tipo:** integración (Spring + caché en memoria) · servicio con puertos simulados
+**Debe comprobar:**
+- [ ] `findClienteById` → guardar el cliente con nombre/apellido/teléfono → `findClienteById` trae `datosCompletos = true` (antes la copia vieja)
+- [ ] Verificar el correo de un usuario nuevo (alta automática del cliente) y luego leerlo: no queda en caché el "no existe"
+- [ ] `savePedido` con un cliente que no existe → `ExceptionDataNotFound`
+- [ ] `guardarProducto` con id existente y stock 0 → guarda; alta nueva con stock 0 → 400 "El stock no debe de ser 0"; código de barras de otro producto → `ExceptionDuplicado` (409) sin envolver
+
+### 2026-10-08 — Errores con su código HTTP (BUG-KEY-32)
+**Dónde:** `ExceptionGlobal` (409 `ExceptionOperacionNoPermitida`, 502 `ExceptionServicioExterno`, 403 `ExceptionSinPermiso`), 102 `catch` quitados en 27 controllers, `VarianteController.getImagenesV2` (ya no 200 en error), servicios de rifas, concursantes, ventas y gastos (sin `Exception` simple)
+**Tipo:** controller con `ExceptionGlobal` (MockMvc con `setControllerAdvice`)
+**Debe comprobar:**
+- [ ] Cada excepción propia sale con su código y el `mensaje` de siempre: 404, 400, 409, 422, 502, 403; base de datos → 500 con texto genérico; error inesperado → 500 "Error interno del servidor"
+- [ ] `GET /v1/variantes/imagenes/{id}` con error → status de error (no 200 con `[]`)
+- [ ] Reclamar compra: código vacío 400, inexistente 404, usado/vencido 409, de otro correo 403; concursante repetido 409; rifa cerrada 409
+- [ ] `AuthController` sigue con sus mensajes genéricos (no dice si el usuario existe)
+
+### 2026-10-08 — Revisión antes de QA: filtros de Tienda con permiso propio y ajuste de stock sin pisar movimientos
+**Dónde:** `SecurityConfig` (`GET /v1/variantes/admin/filtrar`, helper `acciones()`), `AjustarStockModeloService`, `GuardarStockModeloJpaAdapter`, `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)` (`@Transactional`)
+**Tipo:** controller (URL y status) · servicio con puertos simulados · MySQL
+**Debe comprobar:**
+- [ ] Rol con solo `tienda/buscar:filtro-sin-stock` (sin pantallas de Catálogo) → `admin/filtrar` 200; sin ningún filtro de admin ni pantalla de Catálogo → 403; `/v1/variantes/admin/sin-stock` con solo el filtro → sigue 403
+- [ ] Ajuste con el stock igual al leído → guarda; si otra operación lo cambió en medio → 400 "El stock del modelo cambió mientras lo ajustabas…" y no escribe ni limpia cachés *(UPDATE comprobado en MySQL el 2026-10-08)*
+- [ ] Modelo con `stock` NULL → se toma como 0 y el ajuste +5 guarda 5
+
+### 2026-10-08 — Agregar artículo: todos los modelos, habilitar y agregar stock al momento
+**Dónde:** `DisponibilidadStock.conAjuste()/articulosQueAunCaben()`, `AjustarStockModeloService`, `ConsultarStockJpaAdapter` (habilitado y foto), `GuardarStockModeloJpaAdapter`, `StockController` (`PUT /v1/stock/producto/{id}/ajuste`), `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)`, `AuthenticationUtils.tieneAccion()/puedeVerTodosLosModelos()`, `SecurityConfig`, `migration_accion_tienda_venta_ver_todos.sql`; front `variante/agregar`
+**Tipo:** unitario (dominio) · servicio con puertos simulados · H2/MySQL (adaptadores) · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] Modelo 10 con 10 repartidos, ajuste +5 → total 15, `articulosQueAunCaben` 5; no cambia habilitado ni foto
+- [ ] 15 con 10 repartidos: −5 → 10; −6 → 400 "No se puede dejar el modelo en 9: ya tiene 10 repartidos en sus artículos"
+- [ ] Ajuste 0 o null → 400 "Escribe cuánto stock agregar (+) o quitar (−) al modelo"; 3 con −4 → 400 "No se puede quitar 4: el modelo solo tiene 3"
+- [ ] Descuadrado (12 con 18 repartidos) → `articulosQueAunCaben` 0 (nunca negativo)
+- [ ] Servicio: ajuste válido → guarda el total nuevo y avisa a las cachés; ajuste inválido → no guarda ni avisa; modelo inexistente → 404
+- [ ] Consulta: modelo `habilitado='0'` sin fila en `producto_imagen_copy` → `habilitado=false`, `conFoto=false`; con foto → `true`; artículos dados de baja no cuentan en lo repartido
+- [ ] `UPDATE` del stock: después de guardar 7, la consulta devuelve `stockTotal` 7; el reporte de descuadrados sigue corriendo
+- [ ] `PUT …/ajuste` sin Editar en Modelos / Agregar modelo / Agregar artículo → 403; con Editar → 200
+- [ ] Buscador `?todos=true`: admin → todos (también sin `todos`); rol con `tienda/venta:ver-todos-los-modelos` → todos, con `habilitado`, `marca`, `contenido` y sin `precioCosto`; rol sin el permiso → solo con stock, habilitados y con foto; sin sesión → igual que hoy
+- [ ] La llave de caché distingue `todos` con y sin permiso (un rol sin permiso no recibe lo guardado para el admin)
+- [ ] Migración: dos corridas → 1 acción y 1 fila en `rol_accion` para ROLE_ADMIN *(comprobado en base desechable el 2026-10-08)*
+- [ ] Front: modelo deshabilitado → aviso, **✅ Habilitar modelo** (solo con el permiso Habilitar), 💾 Guardar y "Guardar en el modelo" apagados; tras habilitar, resumen con cuántos artículos caben
+- [ ] Front: "Guardar en el modelo" con +5 → stock al modelo y pregunta "¿Deseas agregar los artículos de una vez?" → ventana 🧩; con −1 → "Se quitaron 1"
+- [ ] Front: el recuadro de stock aparece (antes leía `r.data` y nunca salía)
+
+### 2026-10-08 — Ventana 🧩 Agregar artículos (flujo A) y foto propia o del modelo
+**Dónde:** `VarianteServiceImpl.repartirImagenes()` y `guardarConImagenes()` (campos `imagenesPropias`, `usarImagenDelModelo`); front `shared/alta-articulos`, `productos/producto/add`, `productos/producto/all`
+**Tipo:** unitario · servicio · front
+**Debe comprobar:**
+- [ ] Sin `imagenesPropias` (Agregar artículo con varias tallas): la foto del primero la llevan todos, como siempre; no se exige que el micro devuelva la misma cantidad
+- [ ] Con `imagenesPropias` en 3 artículos con 1, 0 y 2 fotos y el micro devolviendo [10, 20, 21] → [10], [], [20, 21]
+- [ ] Con `imagenesPropias` y el micro devolviendo menos fotos de las enviadas → 400 "No se pudieron subir todas las fotos…" y no se guarda ningún artículo
+- [ ] `usarImagenDelModelo` → el artículo queda ligado a la foto principal del modelo (sin subirla); modelo sin foto → artículo sin foto, sin error
+- [ ] Dar de baja un artículo que usa la foto del modelo → la foto **no** se borra (sigue en `producto_imagen_copy`)
+- [ ] Front: casillas solo de lo que el modelo tiene lleno; desmarcar borra el dato donde seguía igual al del modelo; "Te pasaste por N" apaga Guardar; "¿Cuántos?" fuera de rango apaga Guardar
+- [ ] Front: Agregar modelo (alta) pregunta; actualizar **no** pregunta; 🧩 Productos va directo a los formularios
+
+### 2026-10-08 — Tienda → Buscar: filtros combinados y precio a cobrar
+**Dónde:** `IVarianteRepository.PRECIO_A_COBRAR`, `buscarVariantesAdmin` (talla/color/marca/precio), `buscarVariantesPublicoFiltrado`, `VarianteServiceImpl.filtrarVariantesAdmin` (llave de caché), `VarianteController` (`GET /v1/variantes/admin/filtrar`); front `variante/buscar`
+**Tipo:** MySQL/H2 (consultas) · controller · front
+**Debe comprobar:**
+- [ ] "Con stock" + "Habilitadas" → todos los que tienen stock y están habilitados (artículo y modelo); no sale el deshabilitado ni el de stock 0
+- [ ] Talla "m" (minúsculas) con filtros de admin → solo la M
+- [ ] Precio 100–100 → el artículo de $100 del modelo y el de $150 con descuento activo a $100; **no** el de $150 con descuento apagado; 150–∞ → el de precio propio 150 y el de descuento apagado
+- [ ] La consulta del catálogo público corre con precio (y sigue exigiendo foto, stock y habilitado)
+- [ ] Dos búsquedas con distinta fecha/talla/precio no comparten caché
+- [ ] Front: quitar un filtro vuelve a buscar con los que quedan; una respuesta vieja que llega tarde no pisa la lista; el precio espera a que dejes de escribir
+
+### 2026-10-08 — Venta directa: nombres de 3 letras, correo y teléfono
+**Dónde:** `ClienteSinRegistroImpl.validar()` (`POST /v1/clientes-sin-registro`), `VentaServiceImpl.saveVentaDetalle()` (`nombreReceptor` y cliente embebido); front `shared/validadores-persona.ts`, `variante/venta-directa`
+**Tipo:** unitario · controller · front
+**Debe comprobar:**
+- [ ] Nombre "a" → 400 "El nombre debe tener al menos 3 letras"; "José" (con acento) → se guarda; "Jo3" → 400 (los números no cuentan)
+- [ ] Apellido paterno "Lo" → 400 "…al menos 3 letras (o dejalo vacio)"; vacío → se guarda
+- [ ] Correo "ana@gmail" → 400 "El correo no es valido"; "ana@gmail.com" → ok
+- [ ] Teléfono "55123" → 400; "55 1234 5678" y "+52 55 1234 5678" → ok
+- [ ] Venta con `nombreReceptor` "Jo" → 400 "El nombre de quien recibe debe tener al menos 3 letras (o déjalo vacío)"; vacío → ok
+- [ ] Front: los mismos avisos debajo de cada campo; Guardar cliente y 💰 Cobrar apagados mientras haya un dato mal; después de cobrar, el buscador muestra el stock nuevo
+
+### 2026-10-08 — Apartado: monto fijo y 🔁 Cambiar forma de cobro
+**Dónde:** front `pedidos/detalle-pedido`, `abonos`, `pedidos/grupo-pedido`, `design-system.scss` (`.pk-monto-fijo`)
+**Tipo:** front
+**Debe comprobar:**
+- [ ] Apartado → el monto viene con el saldo y no se puede editar (detalle, Créditos / Abonos, Pagar el grupo completo); "🔒 ¿Por qué no puedo cambiar el monto?" abre y cierra la explicación; "🔁 Cambiar a Ir pagando" abre el formulario con Ir pagando marcado
+- [ ] Ir pagando con dinero → el recuadro Apartado gris con "🔒 No se puede: ya dio $X…" escrito (no solo al pasar el mouse)
+- [ ] 🕓 Pendiente sale siempre; "Así está ahora" solo en un pedido Pendiente; nunca se puede elegir
+- [ ] Al guardar el cambio, el mensaje "Quedó como …" dice qué sigue y se queda hasta "Entendido"
+
 ### 2026-10-07 — Datos legales del negocio (dominio `datoslegales`)
 **Dónde:** `DatosLegales` (modelo), `DatosLegalesService`, `DatosLegalesJdbcAdapter`, `DatosLegalesController` (`GET`/`PUT /v1/datos-legales`), `SecurityConfig`, `migration_datos_legales.sql`
 **Tipo:** unitario (dominio) · MySQL (adaptador) · controller (URL, status y permiso)
@@ -180,3 +285,7 @@ Formato de cada entrada:
 |---|---|---|---|
 | `RenombreArticuloRutasTest`, `RenombreArticuloSecurityTest` | `feature/tema-jade-articulo` | 2026-10-06 | Prueban rutas `/v2/articulos/...` que esa rama del back todavía no tiene. No llegan a `dev`/`qa`. |
 | `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. |
+| `BusquedaPedidosMysqlTest` caso r2 (`r2_forma_de_cobro`) | `dev` | 2026-10-07 | Espera que "Contado" incluya los pedidos 🕓 Pendiente (900001, 900009). Desde el 2026-10-07 Pendiente es su propia forma de cobro (R2) y Contado es solo el ya cobrado. Corrida contra MySQL 8 el 2026-10-13: 16 de 20 pasan; fallan r2, r3, r7 y r11. |
+| `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**); el mensaje es el mismo. |
+| `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia` | `dev` | 2026-10-13 | Busca el texto viejo *"deshaz el grupo"*. Un pedido unido sigue sin poder cambiarse solo, pero ahora el mensaje es *"…su forma de cobro se cambia para todo el grupo"* (409), porque el grupo completo sí se cambia (grupopedido R20). |
+| `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |

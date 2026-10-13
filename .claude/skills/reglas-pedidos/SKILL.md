@@ -86,11 +86,12 @@ podría entrar."*
 |---|---|
 | Venta: se elige **Apartado** y se escribe un **Pago inicial (enganche)** | Pasa solo a **Ir pagando** y una nota explica por qué: un Apartado es sin dinero (ver 2.3; reemplaza el aviso que no dejaba seguir) |
 | Apartado ya hecho y el cliente da **menos** que el total (él, o un familiar en su nombre) | No se registra el abono en el Apartado: el sistema dice *"Para dar un abono, cambia el pedido a Ir pagando"*. Se cambia con 🔁 Cambiar forma de cobro y ya se registra el abono |
+| Al cobrar un Apartado (detalle, Créditos / Abonos o 💵 Pagar el grupo completo) | **Desde 2026-10-08 el monto viene fijo en el total y no se puede cambiar**; junto a él, **🔒 ¿Por qué no puedo cambiar el monto?** explica la regla y ofrece pasar a Ir pagando. Pedido del dueño: *"bloquear el monto cuando sea apartado"* |
 | Apartado y el cliente paga **el total** (se escribe en "Registrar abono", en el detalle o en Créditos / Abonos) | Se acepta: es el pago completo, queda pagado. Si paga en efectivo con un billete mayor, el cambio sale de "Monto recibido" (ver 2.2) |
 | Cambiar un pedido **a Apartado** escribiendo algo en "¿Cobra algo ahora?", o un Ir pagando que ya tiene abonos | No se permite: tiene dinero, es Ir pagando |
 | Apartados unidos | El botón dice **💵 Pagar el grupo completo** y solo acepta el saldo completo del grupo |
 | El cliente recoge el Apartado | Paga **todo** en ese momento, en el formulario de abono de siempre (detalle o Créditos / Abonos). Desde la card con **💵 Liquidar** (2026-10-06; antes "dejarlo como está", 2026-10-01). Unidos: **💵 Liquidar** cobra el saldo completo del grupo |
-| Apartados unidos y vienen a recogerlos | Se liquida el total del grupo y queda pagado y entregado. Si solo deja un adelanto, el **grupo entero** pasa a Ir pagando (todos tienen la misma forma de cobro) — hoy eso obliga a separar, cambiar cada uno y volver a unir (🆕 `PLAN` §10.6 A10) |
+| Apartados unidos y vienen a recogerlos | Se liquida el total del grupo y queda pagado y entregado. Si solo deja un adelanto, el **grupo entero** pasa a Ir pagando (todos tienen la misma forma de cobro) con 🔁 Cambiar forma de cobro, y el adelanto entra como abono del grupo (✅ `dev` 2026-10-13, A10 / grupopedido R20) |
 
 Estado: ✅ **programado en `dev` y `qa` el 2026-10-01** (A1–A6 de `PLAN` §10.6; falta A7, el script
 de QA). El back rechaza el abono parcial a un Apartado (pedido y grupo) y pasar a Apartado con
@@ -179,7 +180,8 @@ Reglas técnicas completas (R1–R18): `src/main/java/com/ventas/key/hexagonal/g
 | Regla | Estado |
 |---|---|
 | Solo se unen pedidos con la **misma forma de cobro**. Un Apartado y un Ir pagando **no** se unen | ✅ |
-| Para unirlos, primero se cambia uno con **🔁 Cambiar forma de cobro** en su detalle (y luego se unen). Dentro de un grupo ya no se puede cambiar la forma de cobro | ✅ |
+| Para unirlos, primero se cambia uno con **🔁 Cambiar forma de cobro** en su detalle (y luego se unen) | ✅ |
+| **Ya unidos, 🔁 Cambiar forma de cobro cambia el grupo completo** (2026-10-13, A10): Pendiente → Apartado o Ir pagando, Apartado ↔ Ir pagando. Ir pagando acepta abonos; **Apartado solo si el grupo no tiene dinero** (se liquida completo al recogerlo). A contado no: se cobra completo con 💵 Pagar el grupo completo. Un pedido ya cobrado de contado se separa primero. Palabras del dueño: *"el cliente hace 2 pedidos pendientes… me dice que lo quiere ir pagando y ya yo lo puedo cambiar"* | ✅ `dev` (grupopedido R20) |
 | Elegir en la pantalla de unir "Pasar todos a … y unir" | 🔮 (`PLAN` 6.7) |
 | **Ir pagando unido:** los abonos son **del grupo**, de cualquier monto, y no caducan | ✅ (ver nota) |
 | **Al separar** se decide cuánto se queda cada pedido; tiene que sumar exacto lo que dio el cliente | ✅ |
