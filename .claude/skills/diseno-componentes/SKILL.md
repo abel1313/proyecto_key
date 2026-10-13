@@ -29,6 +29,7 @@ de día y de noche. Escoger uno escribe esas filas en `tema_variable`.
 | `--overlay-text` | Texto o ícono sobre una **foto o velo oscuro** (✕ de quitar imagen, contador, estrella): blanco en todos los diseños | `styles.scss` |
 | `body.sin-diseno` | **Login, Registro y Olvidé contraseña** se quedan siempre con el diseño de antes (lo pidió el dueño). AppComponent pone la clase en `/login*` y `/usuarios/registrar` | `app.component.ts`, `styles.scss` |
 | `--app-accent-rgb`, `--sb-bg-rgb` | Ya no se escriben a mano: TemaService los calcula de `brand-1` y `sb-body-bg` | `tema.model.ts` (`RGB_DERIVADOS`) |
+| `--menu-bg`, `--menu-text`, `--menu-scheme` (2026-10-13) | Menú que se abre (opciones de un `select`, panel de `p-dropdown`, `datalist`): fondo sólido, letra que contrasta y `color-scheme` del mismo lado. No son filas de Personalización: TemaService los calcula de `--input-bg` sobre `--app-bg` y `--input-text` | `tema.model.ts` (`coloresDelMenu`), `tema.service.ts` (`derivarColoresMenu`), `styles.scss` ("Menú de opciones") |
 
 **Reglas que salen de esto:**
 - Botón principal nuevo → `background: var(--btn-primary-bg); color: var(--btn-primary-text); border: 1px solid var(--btn-primary-border)`. Nunca el degradado de marca a mano (así el diseño decide si es relleno o delineado).
@@ -91,7 +92,8 @@ Back: entidad `TemaVariable`, endpoints `/v1/tema-variable`, semilla en `migrati
 | Color de marca (botón principal, enlaces, foco) | `--app-accent` (= `--brand-1`); hover `--app-accent-hover`; fondo suave `--app-accent-soft`; texto encima `--app-accent-ink` |
 | Degradado de marca | `--brand-1`, `--brand-2`, `--brand-3` |
 | Card | `--card-body-bg`, `--card-header-bg`, `--card-footer-bg`, `--card-text`, `--card-text-muted`, `--card-border`, `--card-radius`, `--card-shadow`, `--card-shadow-hover` |
-| Input / select / textarea | `--input-bg`, `--input-text`, `--input-border`, `--input-placeholder`, `--input-focus-border`, `--input-focus-shadow` |
+| Input / select / textarea (el campo cerrado) | `--input-bg`, `--input-text`, `--input-border`, `--input-placeholder`, `--input-focus-border`, `--input-focus-shadow` |
+| Lo que se abre encima: opciones del select, panel de p-dropdown, listas de resultados | `--menu-bg`, `--menu-text` (y `color-scheme: var(--menu-scheme)` en el control). **Nunca `--input-bg`**: de noche en 4 diseños es casi transparente. Ver skill `revision-colores` |
 | Formulario (sección) | `--form-bg`, `--form-section-bg`, `--form-card-radius` |
 | Recuadro de búsqueda y filtros / cada filtro (casilla, fecha, precio) | `--filtros-panel-bg` / `--filtro-bg` (Personalización → Formularios, 2026-10-07). Los `<select>` de filtro siguen la regla global de selects (`--input-bg`) |
 | Tabla | `--table-header-bg`, `--table-header-text`, `--table-row-hover`, `--table-row-active`, `--table-border` |
@@ -163,6 +165,7 @@ la esquina de la página cuando la tarjeta está centrada.
       (salvo `rgba(var(--…-rgb), …)`).
 - [ ] Tokens nuevos dados de alta completos (sección 5).
 - [ ] Captura de día y de noche (`body.theme-light` / `body.theme-dark`), en escritorio y en celular.
+- [ ] Medido con la skill `revision-colores` (`medir-contraste.js`, los 5 diseños + sin filas, de día y de noche): nada por debajo de 4.5. Fondo y letra del mismo par (tabla de la sección 1 de esa skill).
 - [ ] Probado cambiando un color en Personalización: el componente nuevo cambia sin tocar código.
 - [ ] Si se tocó un componente compartido o un token: prueba de cada pantalla que lo usa, antes y
       después (skill `pruebas-de-impacto`).
