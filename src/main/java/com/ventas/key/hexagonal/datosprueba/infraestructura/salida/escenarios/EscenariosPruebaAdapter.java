@@ -3,11 +3,12 @@ package com.ventas.key.hexagonal.datosprueba.infraestructura.salida.escenarios;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.DatosDelModelo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.LineaDePedido;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.ModeloDePrueba;
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.NombresDePrueba;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.EscenariosPruebaPort;
-import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.PedidosPruebaPort;
 import com.ventas.key.hexagonal.precio.dominio.puerto.entrada.CambiarPrecioArticuloCasoUso;
 import com.ventas.key.hexagonal.precio.dominio.puerto.salida.AvisarCambioCatalogoPort;
 import com.ventas.key.mis.productos.entity.Cliente;
+import com.ventas.key.mis.productos.entity.ClienteSinRegistro;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.models.DetalleVentaDto;
@@ -17,12 +18,14 @@ import com.ventas.key.mis.productos.models.pedidos.ClienteDTOPedido;
 import com.ventas.key.mis.productos.models.pedidos.DetallePedidosDTOPedido;
 import com.ventas.key.mis.productos.models.pedidos.PedidosDTOPedido;
 import com.ventas.key.mis.productos.repository.IClienteRepository;
+import com.ventas.key.mis.productos.repository.IClienteSinRegistroRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.service.VentaServiceImpl;
 import com.ventas.key.mis.productos.service.api.IPedidoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -38,23 +41,27 @@ import java.util.List;
  * el resto del catálogo de prueba) y aquí solo se deja en el estado que pide la prueba: stock del
  * modelo, modelo deshabilitado, artículo viejo deshabilitado con stock. El precio con descuento pasa
  * por el mismo caso de uso que el 💲 de la tarjeta. Solo sobre modelos con marca "Prueba QA".
+ *
+ * <p>R20: cada pedido lleva un cliente con el nombre exacto de la prueba y la clave ("Prueba 24 K4").
+ * R21: para reiniciar una prueba se buscan sus pedidos por los artículos que llevan (modelos
+ * "QA Prueba {prueba} …" de marca "Prueba QA"), se cancelan con el servicio real y sus modelos se dan de
+ * baja; nunca se borra una fila.
  */
 @Component
 @RequiredArgsConstructor
 public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
 
     static final String ZONA = "Zona Prueba QA";
-    static final String NOMBRE_CLIENTE = "Cliente Prueba QA";
-    /** .invalid es un dominio reservado: ningun correo de confirmacion le llega a nadie. */
-    static final String CORREO_CLIENTE = "cliente.prueba.qa@ejemplo.invalid";
 
     private final ILugarEntregaRepository lugares;
     private final IClienteRepository clientes;
+    private final IClienteSinRegistroRepository clientesSinRegistro;
     private final IPedidoService pedidoService;
     private final VentaServiceImpl ventas;
     private final CambiarPrecioArticuloCasoUso precios;
     private final AvisarCambioCatalogoPort catalogoCambio;
     private final JdbcTemplate jdbc;
+    private final TransactionTemplate transaccion;
 
     @Override
     public int zonaDePrueba() {
@@ -70,34 +77,52 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
         return lugares.save(zona).getId();
     }
 
-    @Override
-    public int clienteConCuentaDePrueba() {
+    /**
+     * Un cliente con cuenta, correo verificado y datos completos (lo que exige el carrito), llamado
+     * "Prueba 16 A". El correo termina en .invalid (dominio reservado: no le llega a nadie) y no recibe correos.
+     */
+    private int clienteConCuenta(String prueba, String clave) {
+        String correo = NombresDePrueba.correo(prueba, clave);
         List<Integer> ids = jdbc.queryForList(
-                "SELECT id FROM clientes WHERE correo_electronico = ? ORDER BY id LIMIT 1", Integer.class, CORREO_CLIENTE);
+                "SELECT id FROM clientes WHERE correo_electronico = ? ORDER BY id LIMIT 1", Integer.class, correo);
         if (!ids.isEmpty()) {
             return ids.get(0);
         }
         Cliente c = new Cliente();
-        c.setNombrePersona(NOMBRE_CLIENTE);
-        c.setApeidoPaterno("Prueba");
+        c.setNombrePersona(NombresDePrueba.cliente(prueba, clave));
+        c.setApeidoPaterno("QA");
         c.setNumeroTelefonico("0000000000");
-        c.setCorreoElectronico(CORREO_CLIENTE);
+        c.setCorreoElectronico(correo);
         c.setCorreoVerificado(true);
         c.setRecibirCorreos(false);
         c.setRecibirPromociones(false);
         return clientes.save(c).getId();
     }
 
+    /** Un cliente de venta directa llamado "Prueba 24 K4", sin correo ni teléfono (R10). Lo reusa si ya existe. */
+    private int clienteSinRegistro(String prueba, String clave) {
+        String nombre = NombresDePrueba.cliente(prueba, clave);
+        List<Integer> ids = jdbc.queryForList(
+                "SELECT id FROM clientes_sin_registro WHERE nombre_persona = ? ORDER BY id LIMIT 1", Integer.class, nombre);
+        if (!ids.isEmpty()) {
+            return ids.get(0);
+        }
+        ClienteSinRegistro c = new ClienteSinRegistro();
+        c.setNombrePersona(nombre);
+        c.setApeidoPaterno("QA");
+        return clientesSinRegistro.save(c).getId();
+    }
+
     @Override
-    public int pedidoDelCliente(int clienteId, List<LineaDePedido> lineas, Integer lugarEntregaId) {
+    public int pedidoDelCliente(String prueba, String clave, List<LineaDePedido> lineas, Integer lugarEntregaId) {
         PedidosDTOPedido req = new PedidosDTOPedido();
         ClienteDTOPedido cliente = new ClienteDTOPedido();
-        cliente.setId(clienteId);
+        cliente.setId(clienteConCuenta(prueba, clave));
         req.setCliente(cliente);
         req.setFechaPedido(LocalDate.now());
         req.setEstadoPedido("Pendiente");
         req.setTipoPedido("NORMAL");
-        req.setObservaciones(PedidosPruebaPort.MARCA_PEDIDO);
+        req.setObservaciones(NombresDePrueba.observacion(prueba, clave));
         req.setLugarEntregaId(lugarEntregaId);
         req.setDetalles(lineas.stream().map(l -> {
             DetallePedidosDTOPedido d = new DetallePedidosDTOPedido();
@@ -118,13 +143,13 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
     }
 
     @Override
-    public int ventaDirecta(String tipoPedido, int clienteSinRegistroId, int usuarioId, List<LineaDePedido> lineas,
+    public int ventaDirecta(String tipoPedido, String prueba, String clave, int usuarioId, List<LineaDePedido> lineas,
                             Integer lugarEntregaId, boolean seLoLlevo) {
         VentaDirectaRequest req = new VentaDirectaRequest();
         req.setUsuarioId(usuarioId);
-        req.setClienteSinRegistroId(clienteSinRegistroId);
+        req.setClienteSinRegistroId(clienteSinRegistro(prueba, clave));
         req.setTipoPedido(tipoPedido);
-        req.setObservaciones(PedidosPruebaPort.MARCA_PEDIDO);
+        req.setObservaciones(NombresDePrueba.observacion(prueba, clave));
         req.setLugarEntregaId(lugarEntregaId);
         req.setEntregado(seLoLlevo);
         boolean contado = "NORMAL".equals(tipoPedido);
@@ -170,6 +195,38 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
     @Override
     public void cancelar(int pedidoId) {
         pedidoService.deletePedidoById(pedidoId, "CLIENTE_AVISO");
+    }
+
+    // ── Reiniciar una prueba (R21) ─────────────────────────────────────────────
+
+    @Override
+    public List<Integer> pedidosDeLaPrueba(String prueba) {
+        return jdbc.queryForList("""
+                SELECT DISTINCT p.id FROM pedidos p
+                  JOIN detalle_pedidos d ON d.pedido_id = p.id
+                  JOIN variantes v ON v.id = d.variante_id
+                  JOIN producto m ON m.id = v.producto_id
+                WHERE m.marca = ? AND m.nombre LIKE ? AND COALESCE(p.estado_pedido, '') <> 'cancelado'
+                ORDER BY p.id""", Integer.class, ModeloDePrueba.MARCA, NombresDePrueba.prefijoModelos(prueba) + "%");
+    }
+
+    @Override
+    public int darDeBajaCatalogoDeLaPrueba(String prueba) {
+        // Igual que la baja del generador (R14): stock en 0, sin ligas de imagen, nunca se borra una fila ni una imagen.
+        String modelos = "SELECT m.id FROM producto m WHERE m.marca = ? AND m.nombre LIKE ?";
+        Object[] args = {ModeloDePrueba.MARCA, NombresDePrueba.prefijoModelos(prueba) + "%"};
+        Integer dados = transaccion.execute(estado -> {
+            jdbc.update("DELETE FROM variante_imagen WHERE variante_id IN "
+                    + "(SELECT v.id FROM variantes v WHERE v.producto_id IN (" + modelos + "))", args);
+            jdbc.update("DELETE FROM producto_imagen_copy WHERE producto_id IN (" + modelos + ")", args);
+            jdbc.update("UPDATE variantes SET habilitado = '0', stock = 0 WHERE habilitado = '1' "
+                    + "AND producto_id IN (" + modelos + ")", args);
+            // MySQL no deja leer en un subquery la misma tabla que se actualiza (error 1093): la tabla
+            // derivada "x" se materializa antes del UPDATE y lo evita.
+            return jdbc.update("UPDATE producto SET habilitado = '0', stock = 0 WHERE habilitado = '1' AND id IN ("
+                    + "SELECT x.id FROM (" + modelos + ") x)", args);
+        });
+        return dados == null ? 0 : dados;
     }
 
     // ── Catálogo (R18) ─────────────────────────────────────────────────────────

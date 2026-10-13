@@ -16,6 +16,18 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-13 — Preparar prueba: nombre exacto en la venta y reiniciar (datosprueba R20 y R21)
+**Dónde:** `NombresDePrueba`, `PruebaQuitada`, `PrepararPruebaService.reiniciar()` / `quitarLoAnterior()` / `quitar()` / `quitarTodas()`, `EscenariosPruebaAdapter` (`clienteConCuenta()`, `clienteSinRegistro()`, `pedidosDeLaPrueba()`, `darDeBajaCatalogoDeLaPrueba()`), `PrepararPruebaController` (`/quitar/{prueba}`, `/quitar-todas`)
+**Tipo:** unitario (`NombresDePrueba`, `PruebaQuitada.resumen()`) · servicio con puertos simulados · MySQL (adaptador) · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] `NombresDePrueba`: `cliente("24","K4")` = "Prueba 24 K4"; `modelo("17","Art-A")` = "QA Prueba 17 Art-A"; `modelo("24","")` = "QA Prueba 24 Artículo"; `prefijoModelos("1")` ≠ prefijo de la "12" (termina en espacio); `correo` en minúsculas y con `-`
+- [ ] `PruebaQuitada.resumen()`: vacío → null; "1 pedido cancelado y 1 modelo dado de baja" (singular); con pedidos sin cancelar lo avisa
+- [ ] Servicio: `preparar` llama `quitarLoAnterior` antes de `armar`; si un `cancelar` lanza, cuenta `pedidosSinCancelar` y sigue con los demás y con `darDeBajaCatalogoDeLaPrueba`; `quitar` en una base que no es QA → `AmbienteNoPermitidoException` sin llamar a ningún otro puerto; `quitarTodas` sigue si una prueba falla
+- [ ] MySQL: `pedidosDeLaPrueba("24")` devuelve solo pedidos **no cancelados** con artículos de modelos "Prueba QA" que empiezan con "QA Prueba 24 " (incluye modelos viejos con " #…"); no confunde la 1 con la 12
+- [ ] MySQL: `darDeBajaCatalogoDeLaPrueba` deja `habilitado='0'`, stock 0 y sin `variante_imagen`/`producto_imagen_copy`; **no toca** un modelo con otra marca ni de otra prueba; repetirlo regresa 0
+- [ ] MySQL, preparar dos veces: la 2ª cancela los pedidos de la 1ª (también unidos en un grupo y un Contado entregado, que queda como devolución con la venta "Devuelta") y deja los mismos pedidos abiertos y los mismos modelos activos; «Prueba 24 K4» en Mis pedidos (`SIN_TERMINAR`) trae solo el K4 nuevo y en Unir (`candidatos`) desde K4 con «Prueba 24 K6» trae K6
+- [ ] Controller: `/quitar/99` → 400; sin `ROLE_ADMIN` → 403; `/quitar-todas` → 200 con `lista` y `mensaje` con los totales
+
 ### 2026-10-13 — 🧪 Preparar prueba N y Preparar todas (datosprueba R16–R19)
 **Dónde:** `PrepararPruebaService.preparar()` / `prepararTodas()` / cada `pruebaNN()`, `EscenarioDePrueba.de()`, `EscenariosPruebaAdapter` (`modeloDePrueba()`, `stockDelModelo()`, `habilitarModelo()`, `articuloDeshabilitadoConStock()`, `precioDelArticulo()`, `datosDelModelo()`), `PrepararPruebaController` (`/v1/admin/datos-prueba/escenarios`, `/preparar/{prueba}`, `/preparar-todas`)
 **Tipo:** servicio con puertos simulados · MySQL (adaptador JDBC y servicios reales) · controller (URL, status y permiso)

@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.datosprueba.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.datosprueba.dominio.excepcion.AmbienteNoPermitidoException;
 import com.ventas.key.hexagonal.datosprueba.dominio.excepcion.DatosPruebaException;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.EscenarioPreparado;
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.PruebaQuitada;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.entrada.PrepararPruebaCasoUso;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
@@ -23,6 +24,9 @@ import java.util.List;
  *
  * <p>R16: "Preparar prueba N" en 🧪 Datos de prueba. Mismo permiso que el generador: solo
  * ROLE_ADMIN ({@code /v1/admin/datos-prueba/**} en SecurityConfig) y solo en la base de QA.
+ *
+ * <p>R21: preparar una prueba otra vez la reinicia (quita lo anterior y vuelve a crearla); "quitar" la deja en
+ * blanco sin volver a crearla.
  */
 @RestController
 @RequestMapping("/v1/admin/datos-prueba")
@@ -61,6 +65,30 @@ public class PrepararPruebaController {
         String mensaje = conError == 0 ? "Todas las pruebas quedaron listas"
                 : (todas.size() - conError) + " pruebas listas, " + conError + " con error";
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>(todas, mensaje));
+    }
+
+    /**
+     * R21: quita lo de esa prueba (pedidos cancelados, modelos dados de baja) sin volver a crearlo. 200 con lo
+     * que se quitó. 403 fuera de QA; 400 si la prueba no existe.
+     */
+    @PostMapping("/quitar/{prueba}")
+    public ResponseEntity<ResponseGeneric<PruebaQuitada>> quitar(@PathVariable String prueba) {
+        PruebaQuitada quitada = casoUso.quitar(prueba);
+        String resumen = quitada.resumen();
+        return ResponseEntity.ok(new ResponseGeneric<>(quitada,
+                resumen != null ? "Prueba " + quitada.prueba() + ": " + resumen : "Prueba " + quitada.prueba() + ": no había nada que quitar"));
+    }
+
+    /** R21: quita lo de todas las pruebas; la que falló trae {@code error} y las demás siguen. 200 con una por prueba en {@code lista}. */
+    @PostMapping("/quitar-todas")
+    public ResponseEntity<ResponseGeneric<PruebaQuitada>> quitarTodas() {
+        List<PruebaQuitada> todas = casoUso.quitarTodas();
+        long conError = todas.stream().filter(q -> q.error() != null).count();
+        int pedidos = todas.stream().mapToInt(PruebaQuitada::pedidosCancelados).sum();
+        int modelos = todas.stream().mapToInt(PruebaQuitada::modelosDadosDeBaja).sum();
+        String mensaje = pedidos + " pedidos cancelados y " + modelos + " modelos dados de baja"
+                + (conError == 0 ? "" : " (" + conError + " pruebas con error)");
+        return ResponseEntity.ok(new ResponseGeneric<>(todas, mensaje));
     }
 
     @ExceptionHandler(AmbienteNoPermitidoException.class)
