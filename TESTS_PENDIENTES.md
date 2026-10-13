@@ -16,6 +16,24 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-13 — 🧪 Preparar prueba N y Preparar todas (datosprueba R16–R19)
+**Dónde:** `PrepararPruebaService.preparar()` / `prepararTodas()` / cada `pruebaNN()`, `EscenarioDePrueba.de()`, `EscenariosPruebaAdapter` (`modeloDePrueba()`, `stockDelModelo()`, `habilitarModelo()`, `articuloDeshabilitadoConStock()`, `precioDelArticulo()`, `datosDelModelo()`), `PrepararPruebaController` (`/v1/admin/datos-prueba/escenarios`, `/preparar/{prueba}`, `/preparar-todas`)
+**Tipo:** servicio con puertos simulados · MySQL (adaptador JDBC y servicios reales) · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] Base distinta de `inventario_key_qa` → `AmbienteNoPermitidoException` (403) en `preparar` y en `prepararTodas`, **sin** llamar a ningún otro puerto
+- [ ] `EscenarioDePrueba.de("99")` → 400 con la lista "12, 14-QA, 15, 16, 17, 18, 20, 21, 22, 24"; `de(" 21 ")` → P21
+- [ ] `prepararTodas`: si una prueba lanza, las demás se preparan y esa regresa con `error` (y `pedidos`/`catalogo` vacíos); `limpiarCache()` se llama una vez al final
+- [ ] `preparar` llama a `limpiarCache()` después de armar
+- [ ] MySQL, 12: Art-200 queda con stock 10 y precio 200; T1 venta NORMAL entregada; T2 FIADO con abono de 50
+- [ ] MySQL, 14-QA: modelo con stock 3, artículo con stock 1 (libre 2)
+- [ ] MySQL, 15: M5 y M10 de categorías distintas; talla M con `habilitado='0'` y stock 3; modelo con stock 5 y 10
+- [ ] MySQL, 17: XL de Filtros deshabilitada con stock 5; Descuento con `precio_venta=130`, `precio_rebaja=100`, `usar_descuento=1`; Stock-1 con stock 1
+- [ ] MySQL, 18: M-OFF con `producto.habilitado='0'` y su artículo habilitado; M-0 habilitado con stock 4 repartido (libre 0)
+- [ ] MySQL, 20: P1 y P2 🕓 Pendiente con zona (sin `fecha_recogida`); Agotado con stock 0
+- [ ] MySQL, 16, 21, 22, 24: tipo, pagado, entregado y estado de cada pedido como dice su `queEs`; todo Pendiente con zona
+- [ ] Adaptador: `stockDelModelo` / `habilitarModelo` / `articuloDeshabilitadoConStock` / `precioDelArticulo` sobre un modelo **sin** marca "Prueba QA" → rechaza y no escribe
+- [ ] Controller: sin `ROLE_ADMIN` → 403; `POST /preparar-todas` → 201 con la lista en `lista` y `mensaje` "N pruebas listas, M con error" cuando alguna falla
+
 ### 2026-10-13 — Forma de cobro del grupo completo (grupopedido R20)
 **Dónde:** `GrupoPedidos.porCambiarFormaDeCobro()`, `CambiarFormaDeCobroGrupoService`, `FormaDeCobroAdapter`, `PedidoServiceImpl.cambiarTipoDentroDeGrupo()`, `PUT /v1/grupos-pedido/{id}/tipo`, `SecurityConfig`
 **Tipo:** unitario (dominio) · servicio con puertos simulados · controller (URL, status y permiso)

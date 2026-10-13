@@ -49,6 +49,20 @@ public class PrepararPruebaController {
                 .body(new ResponseGeneric<>(listo, "Prueba " + listo.prueba() + " lista"));
     }
 
+    /**
+     * R19: todas las pruebas de una vez. 201 con una por prueba en {@code lista}; la que falló trae
+     * {@code error} y las demás siguen. 403 fuera de QA.
+     */
+    @PostMapping("/preparar-todas")
+    public ResponseEntity<ResponseGeneric<EscenarioPreparado>> prepararTodas() {
+        int usuarioId = AuthenticationUtils.currentUsuario().getId();
+        List<EscenarioPreparado> todas = casoUso.prepararTodas(usuarioId);
+        long conError = todas.stream().filter(e -> e.error() != null).count();
+        String mensaje = conError == 0 ? "Todas las pruebas quedaron listas"
+                : (todas.size() - conError) + " pruebas listas, " + conError + " con error";
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>(todas, mensaje));
+    }
+
     @ExceptionHandler(AmbienteNoPermitidoException.class)
     public ResponseEntity<ResponseGeneric<Void>> ambiente(AmbienteNoPermitidoException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, e.getMessage()));

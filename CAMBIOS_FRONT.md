@@ -102,7 +102,7 @@ Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 23 (23.5 y 23.6).
 
 ---
 
-### [BUG-KEY-37] 🆕 🧪 Preparar prueba N: los pedidos de cada prueba de QA con un botón (2026-10-13)
+### [BUG-KEY-37] 🆕 🧪 Preparar prueba N: los pedidos, modelos y artículos de cada prueba de QA con un botón (2026-10-13)
 
 Pedido del dueño: *"genera los scripts para generar las pruebas que necesitas; si necesitas varios
 pedidos, los agregas, y yo hago las pruebas en pedidos… cada prueba así hay que hacerla para no perder
@@ -112,11 +112,32 @@ tiempo en generar pedidos"*.
 
 | Request | Response |
 |---|---|
-| `GET /mis-productos/v1/admin/datos-prueba/escenarios` | 200. Las pruebas van en **`lista`** (no en `data`): `[{ prueba: "16", titulo: "…" }, { prueba: "20", … }, …]`. Hoy: 16, 20, 21, 22 y 24 |
-| `POST /mis-productos/v1/admin/datos-prueba/preparar/{prueba}` (sin body) | **201** con `data: { prueba, titulo, pedidos: [{ clave: "P1", pedidoId: 1180, queEs: "📦 Apartado que debe $150…" }], siguientePaso: "…" }` |
+| `GET /mis-productos/v1/admin/datos-prueba/escenarios` | 200. Las pruebas van en **`lista`** (no en `data`): `[{ prueba: "12", titulo: "…" }, { prueba: "14-QA", … }, …]`. Hoy: 12, 14-QA, 15, 16, 17, 18, 20, 21, 22 y 24 |
+| `POST /mis-productos/v1/admin/datos-prueba/preparar/{prueba}` (sin body; `{prueba}` va con `encodeURIComponent`) | **201** con `data: { prueba, titulo, pedidos: [...], catalogo: [...], siguientePaso, error: null }` (detalle abajo) |
+| `POST /mis-productos/v1/admin/datos-prueba/preparar-todas` (sin body) | **201**. Una por prueba en **`lista`**, en el orden de `escenarios`. La que falló trae `error` con el motivo (y `pedidos`/`catalogo` vacíos); las demás quedan listas. `mensaje`: *"Todas las pruebas quedaron listas"* o *"8 pruebas listas, 2 con error"* |
 
-- **403** fuera de `inventario_key_qa` (prod): `mensaje` *"Los datos de prueba solo se pueden generar en la base de QA…: no se hizo nada"*.
-- **400** si la prueba no existe: *"No hay datos para preparar la prueba 99. Se pueden preparar: 16, 20, 21, 22, 24"*.
+Cada prueba preparada:
+```
+{ prueba: "17", titulo: "Filtros de Tienda, precio $100 y Venta directa",
+  pedidos:  [ { clave: "P1", pedidoId: 1180, queEs: "🕓 Pendiente de …" } ],
+  catalogo: [ { clave: "Art-A", tipo: "ARTICULO",  // o "MODELO"
+                modeloId: 812, articuloId: 2301,
+                nombre: "QA Prueba 17 Art-A #2098000123", codigoBarras: "2098000123",
+                queEs: "Artículo de $100 con stock 10" } ],
+  siguientePaso: "17.1: Tienda → busca …",   // puede ser null
+  error: null }                               // solo en preparar-todas, cuando esa prueba falló
+```
+
+- **403** fuera de `inventario_key_qa` (prod), en los dos POST: `mensaje` *"Los datos de prueba solo se pueden generar en la base de QA…: no se hizo nada"*.
+- **400** si la prueba no existe: *"No hay datos para preparar la prueba 99. Se pueden preparar: 12, 14-QA, 15, 16, 17, 18, 20, 21, 22, 24"*.
+
+**Qué cambió respecto a la primera versión (mismo día):** antes solo creaba **pedidos** (pruebas 16, 20,
+21, 22 y 24) y la respuesta no traía `catalogo` ni `error`. Ahora también da de alta los **modelos y
+artículos** que pide cada prueba, ya en su estado (Art-A de $100, Art-200, uno con descuento, M-OFF
+deshabilitado, M-0 sin stock libre, artículos viejos deshabilitados que guardan stock, un modelo
+agotado), y existe `preparar-todas`. Al terminar se limpia la caché del catálogo, para que Tienda
+muestre lo recién creado. El dueño pidió: *"me refiero a los artículos, que ya estén los pedidos de las
+pruebas como los pedí"*.
 
 Cada llamada crea **datos nuevos**: un modelo "QA Prueba N #…" con un artículo ($150, stock 30, marca
 "Prueba QA", código `2098…`) y los pedidos de esa prueba, con la observación `[DATOS DE PRUEBA]`. Pasan
@@ -124,11 +145,15 @@ por los mismos servicios que la pantalla (carrito del cliente, venta directa, ab
 Pendientes son de un cliente con cuenta, **"Cliente Prueba QA"** (`cliente.prueba.qa@ejemplo.invalid`).
 
 **Front:** en **Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba**, sección **"Preparar una prueba"**:
-un botón **🧪 Preparar prueba N** por cada prueba (con su título al lado) y, al terminar, la lista de
-pedidos creados con enlace a `/pedidos/mis-pedidos?pedidoId=N` (abre el detalle) y el siguiente paso.
+el botón **🧪 Preparar todas las pruebas** (pide confirmación), un botón **🧪 Preparar prueba N** por
+cada prueba (con su título al lado) y, al terminar, un recuadro por prueba: los modelos y artículos
+(clave, nombre y el código de barras, que se copia al tocarlo), los pedidos creados con enlace a
+`/pedidos/mis-pedidos?pedidoId=N` (abre el detalle) y el siguiente paso. La que falló sale en rojo con
+su `error`.
 
-Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md` ("🧪 Preparar prueba" y las pruebas 16, 20, 21, 22 y 24).
-Reglas R16 y R17 en `hexagonal/datosprueba/README.md`.
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md` ("🧪 Preparar prueba", "Antes de todo" paso 5, y el "Antes
+de empezar" de 12, 14-QA, 15, 16, 17, 18, 20, 21, 22 y 24). Reglas R16 a R19 en
+`hexagonal/datosprueba/README.md`; cómo agregar otra prueba: skill `preparar-prueba`.
 
 ---
 

@@ -66,6 +66,20 @@ necesita un test que compruebe esto y esto'"*.
   correr cada `.sql` en una base desechable antes de entregarlo: eso es comprobar el script, no un test.
 - Cuando el dueño diga que ya se escriban, se toman de `TESTS_PENDIENTES.md`.
 
+## Regla — cada prueba de QA trae su botón 🧪 que da de alta lo que necesita (2026-10-13)
+
+Pedido del dueño: *"que ya estén los pedidos de las pruebas como los pedí… dar de alta lo que se
+necesita para las pruebas"*.
+
+- **Ninguna prueba de `PRUEBAS_PENDIENTES_*.md` le pide al dueño que busque, anote o arme datos.** Si
+  su "Antes de empezar" necesita algo en un estado dado (un artículo de $100, un modelo deshabilitado,
+  un Ir pagando con $40, un pedido cancelado…), la prueba lleva su botón **🧪 Preparar prueba N**
+  (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba) y el documento dice *"toca 🧪 Preparar prueba N"*
+  con la tabla de lo que crea. También existe **🧪 Preparar todas las pruebas**.
+- Pedidos, ventas y abonos salen de los **servicios reales**, nunca de un `INSERT`. El catálogo, del
+  generador de prueba y solo sobre modelos de marca "Prueba QA". Solo funciona en `inventario_key_qa`.
+- Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R19).
+
 ## Flujo Git — cómo hacer los merges
 
 ### Orden de ramas

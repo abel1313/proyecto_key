@@ -7,8 +7,10 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 **Ya pasaron (no vienen aquí):** 1, 2, 3, 4, 5, 7, 8, 9, 10.2, 11 y 14 (en prod), y los casos 3.6 y 3.7.
 
 **Lo nuevo de este documento:**
-- **🧪 Preparar prueba N:** un botón que crea los pedidos que necesita cada prueba. Ya no tienes que
-  armarlos tú en Venta directa (ver "🧪 Preparar prueba", abajo).
+- **🧪 Preparar prueba N:** un botón que da de alta **todo** lo que necesita cada prueba: los pedidos y
+  también los **modelos y artículos** (Art-A de $100, Art-200, M-OFF, el modelo agotado…). Ya no tienes
+  que armarlos, buscarlos ni anotarlos tú. Y **🧪 Preparar todas las pruebas** deja listo todo el
+  documento de un clic (ver "🧪 Preparar prueba", abajo).
 - **Prueba 12** reescrita: cada cosa dice **en qué menú y en qué pantalla** se revisa.
 - **Prueba 23** (nueva): los colores de noche que reportaste, **las listas que se abrían en blanco**, el chat de día y el botón **📍 Dirección**.
 - **Prueba 24** (nueva): lo de K4 / K5 / K6.
@@ -79,6 +81,19 @@ blanco sobre claro y el **"$" verde de Reportes** casi no se leía. Arreglados. 
 `revision-colores` (cómo medir esto), `preparar-prueba` (los botones 🧪) y `probar-en-local`. Se
 revisa en la **Prueba 23** (23.5 y 23.6).
 
+💬 *"Hay que subir a dev y a qa, y para las pruebas, me refiero a los artículos, es decir que ya estén
+los pedidos de las pruebas como los pedí; también genera una skill para esto de las pruebas: dar de alta
+lo que se necesita para las pruebas."*
+↳ Subido a `dev` y `qa`. Los botones 🧪 ahora también dan de alta los **modelos y artículos** de cada
+prueba, ya en el estado que pide: **Art-200** y los dos tickets (12), el modelo con stock 3 (14-QA), los
+artículos viejos deshabilitados que guardan stock (15), el modelo de los filtros, **Art-A** de $100, uno
+con descuento que se vende a $100 y uno con stock 1 (17), **M-OFF** y **M-0** (18) y el modelo
+**agotado** (20.3). Cada uno sale con su nombre y su código de barras (tócalo y se copia, para pegarlo en
+el buscador). Hay un botón nuevo, **🧪 Preparar todas las pruebas**. Lo comprobé en una base MySQL de
+prueba con el back completo: las 10 pruebas quedan listas y cada cosa queda en el estado que pide su
+prueba (stock, habilitado, precio, tipo de pedido, abonos). La skill `preparar-prueba` quedó con la
+regla: **ninguna prueba te pide que busques, anotes o armes datos**; si lo necesita, trae su botón.
+
 💬 *"Lo que estoy pensando es que generes los scripts para generar las pruebas que necesitas; si
 necesitas varios pedidos, los agregas, y yo hago las pruebas en pedidos. Cada prueba así hay que
 hacerla, para no perder tiempo en generar pedidos. ¿Cómo ves?"*
@@ -86,7 +101,8 @@ hacerla, para no perder tiempo en generar pedidos. ¿Cómo ves?"*
 pantalla** (venta directa, carrito del cliente, abono, cancelar), así se comportan igual que los
 tuyos y no hay que correr nada en la base. Ver **🧪 Preparar prueba** abajo. Hoy hay botón para las
 pruebas que necesitan pedidos: **16, 20, 21, 22 y 24**. Las demás no necesitan pedidos (o necesitan un
-modelo o un dato que se elige en la pantalla).
+modelo o un dato que se elige en la pantalla). *(Ampliado en la nota de abajo: ahora también los
+modelos y artículos.)*
 
 ---
 ## Antes de todo (una sola vez, 5 minutos)
@@ -96,14 +112,14 @@ modelo o un dato que se elige en la pantalla).
 | 1 | Abre QA: `qa.shop.novedades-jade.com.mx` | La tienda |
 | 2 | Entra con tu usuario **administrador** | Tu nombre abajo en el menú lateral |
 | 3 | Presiona `Ctrl + Shift + R` (recarga forzada) | La página se recarga. Hazlo **cada vez** que yo suba algo |
-| 4 | Cuando yo suba lo del 2026-10-13: corre en `inventario_key_qa` el script `migration_accion_editar_entrega_direccion.sql` (está en `src/main/resources/static/`). Al final trae una consulta | La consulta devuelve **1 fila** con *"Dirección (📍 en la tarjeta)"*. No hace falta volver a entrar |
-| 5 | Para las pruebas 12 y 17: en **Tienda** anota **un artículo con stock de 10 o más** de unos **$100** (**Art-A**) y otro de unos **$200** (**Art-200**) | — |
+| 4 | (Ya se subió, 2026-10-13.) Corre en `inventario_key_qa` el script `migration_accion_editar_entrega_direccion.sql` (está en `src/main/resources/static/`). Al final trae una consulta | La consulta devuelve **1 fila** con *"Dirección (📍 en la tarjeta)"*. No hace falta volver a entrar |
+| 5 | **Sistema → 🗑️ Limpiar caché** → **🧪 Datos de prueba** → **🧪 Preparar todas las pruebas** → **Sí, preparar todas** (ver "🧪 Preparar prueba", abajo). Ya **no** hay que buscar ni anotar Art-A ni Art-200: los da de alta el botón | Un recuadro **✅ Prueba N lista** por cada prueba (10), con sus pedidos, modelos y artículos. Déjala abierta en otra pestaña: de ahí sacas los números y los códigos |
 
 **Para abrir un pedido:** menú **📋 Pedidos → Mis pedidos** → escribe su número en el buscador → en
 su tarjeta toca **👁 Detalle**. (Desde **🧪 Preparar prueba**, el número del pedido ya es un enlace que
 abre su detalle.)
 
-### 🧪 Preparar prueba: los pedidos se crean solos
+### 🧪 Preparar prueba: los pedidos, modelos y artículos se crean solos
 
 **Dónde:** menú lateral **Sistema → 🗑️ Limpiar caché** → tarjeta **🧪 Datos de prueba** (solo la ve el
 administrador) → abajo, **Preparar una prueba**.
@@ -111,17 +127,22 @@ administrador) → abajo, **Preparar una prueba**.
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | Toca **🧪 Preparar prueba N** (la que vas a hacer) | El botón dice **Preparando…** unos segundos |
-| 2 | — | Un recuadro **✅ Prueba N lista** con la lista de pedidos: su **clave** (la que usa la prueba: P1, P2, A, B…), su **número** (es un enlace al detalle) y **qué es** cada uno. Abajo, 👉 por dónde seguir |
-| 3 | **Anota los números** en la tabla de "Antes de empezar" de esa prueba | — |
+| 2 | — | Un recuadro **✅ Prueba N lista** con: los **modelos y artículos** (su **clave** como la usa la prueba: Art-A, M-OFF…; su nombre; su **código de barras**, que al tocarlo se copia, y qué es) y los **pedidos** (clave: P1, A, K4…; su **número**, que es un enlace al detalle, y qué es). Abajo, 👉 por dónde seguir |
+| 3 | Si la prueba lo pide, **anota los números** en la tabla de "Antes de empezar" | — |
+| 4 | **O todas de una vez:** **🧪 Preparar todas las pruebas** → **Sí, preparar todas** | El botón dice **Preparando todas…** y sale un recuadro por prueba. Si alguna falla, sale en **⚠️ rojo con el motivo** y las demás quedan listas |
 
-**Qué crea, siempre:** un modelo nuevo **"QA Prueba N #…"** con **un** artículo de **$150**, stock 30, marca
-**"Prueba QA"** y código `2098…`, y los pedidos de esa prueba con la nota **[DATOS DE PRUEBA]**. Los
+**Cómo se llaman:** cada modelo es **"QA Prueba N <clave> #2098…"** (por ejemplo *"QA Prueba 17 Art-A
+#2098000123"*), con marca **"Prueba QA"**, código `2098…` y una foto de las que ya hay en QA. Para
+buscarlo, escribe su clave o pega su código de barras. Las pruebas de pedidos usan además un modelo
+**"QA Prueba N #…"** con **un** artículo de **$150** y stock 30, y los pedidos llevan la nota **[DATOS DE PRUEBA]**. Los
 clientes son **"Cliente Prueba QA 001"** (sin cuenta) y **"Cliente Prueba QA"** (con cuenta, para los 🕓
 Pendientes; su correo termina en `.invalid`, así que **no le llega ningún correo a nadie**). La zona,
 cuando la prueba la necesita, es **"Zona Prueba QA"** (envío $0; se crea la primera vez).
 
-**Cada vez que lo tocas salen pedidos nuevos.** Si una prueba te sale mal a la mitad, o ya cancelaste o
-uniste lo que tenías, vuelve a tocar el botón y empiezas limpio. Lo de antes se queda como historial.
+**Cada vez que lo tocas sale todo nuevo.** Si una prueba te sale mal a la mitad, o ya cancelaste, vendiste
+o uniste lo que tenías, vuelve a tocar el botón y empiezas limpio. Lo de antes se queda como historial. Si
+buscas por clave (Art-A) y salen varios, el **más nuevo** es el del número `#2098…` más alto; con el código
+de barras sale solo el que acabas de crear.
 
 Los 🕓 Pendientes que crea el botón llevan la zona **"Zona Prueba QA"**: así no se cancelan solos a los
 pocos días (los que recogen en el local sí se cancelan, 2 días después de su fecha para recoger). Puedes
@@ -134,29 +155,29 @@ botón siempre dice *"…solo se pueden generar en la base de QA…: no se hizo 
 
 ## Resumen: qué falta y cuándo se puede
 
-**"Ya"** = se puede hacer hoy en QA. **"Al subir"** = necesita lo del 2026-10-13 (colores de noche,
-botón 📍 Dirección y 🧪 Preparar prueba), que está listo pero **no se ha subido**: lo subo a `dev` y `qa`
-cuando digas "sube".
+Todo lo del 2026-10-13 (colores de noche, botón 📍 Dirección, 🧪 Preparar prueba con modelos y artículos,
+y Preparar todas) **ya está en `dev` y `qa`**: todas se pueden hacer hoy. La columna 🧪 dice qué botón
+prepara sus datos (con **Preparar todas** ya quedan todos).
 
 | Orden | Prueba | Qué revisa | ¿Ya se puede? | 🧪 Botón | Tiempo | ✔ |
 |---|---|---|---|---|---|---|
-| 1 | **12 — Lo legal** | Datos del negocio, pie de página, Términos, Aviso de privacidad, registro, ticket, bot, Google — con dónde se revisa cada uno | Ya | — | 40 min | [ ] |
-| 2 | **15 — Agregar producto, habilitar, Zonas de entrega** | Código y categoría del modelo, stock al habilitar, Zonas de entrega y Entregas por zona | Ya | — | 30 min | [ ] |
-| 3 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | Ya | — | 10 min | [ ] |
-| 4 | **17 — Filtros de Tienda, Venta directa, buscadores y 🧩 Agregar artículos** | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras | Ya | — | 45 min | [ ] |
-| 5 | **18 — Agregar artículo: todos los modelos** | Modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo | Ya | — | 30 min | [ ] |
+| 1 | **12 — Lo legal** | Datos del negocio, pie de página, Términos, Aviso de privacidad, registro, ticket, bot, Google — con dónde se revisa cada uno | Ya | 12 | 40 min | [ ] |
+| 2 | **15 — Agregar producto, habilitar, Zonas de entrega** | Código y categoría del modelo, stock al habilitar, Zonas de entrega y Entregas por zona | Ya | 15 | 30 min | [ ] |
+| 3 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | Ya | 14-QA | 10 min | [ ] |
+| 4 | **17 — Filtros de Tienda, Venta directa, buscadores y 🧩 Agregar artículos** | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras | Ya | 17 | 45 min | [ ] |
+| 5 | **18 — Agregar artículo: todos los modelos** | Modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo | Ya | 18 | 30 min | [ ] |
 | 6 | **19 — Errores con su código, 404 y Home** | Avisos de error, 404 de verdad, Home y página 404 | Ya | — | 25 min | [ ] |
-| 7 | **23 — Colores de noche, listas desplegables y 📍 Dirección** 🆕 | Ventana de cancelar, submenús de noche, casillas de filtros, **listas que salían en blanco**, chat de día, botón Dirección | Al subir | — | 20 min | [ ] |
-| 8 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos (ahora también de noche), Personalización, encabezados de seguridad | Al subir (13.1 de noche) · lo demás ya | — | 15 min | [ ] |
-| 9 | **24 — Unir un Ir pagando que ya tiene dinero** 🆕 | Lo de K4 / K5 / K6 | Al subir | 24 | 5 min | [ ] |
-| 10 | **22 — 🕓 Pendiente en Pago y sin cancelados al abrir** | Pendiente en Pago, Falta pagar sin Pendientes, sin cancelados al abrir | Ya (con el botón, al subir) | 22 | 10 min | [ ] |
-| 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle | Ya (con el botón, al subir) | 21 | 15 min | [ ] |
-| 12 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** | Carrito → Mis datos; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos al abrir | Ya (20.2 con el botón, al subir) | 20 | 35 min | [ ] |
-| 13 | **16 — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ** | Pendiente en filtros y card, pasarlo a Apartado / Ir pagando, Entregas por zona, ⓘ | Ya (con el botón, al subir) | 16 | 25 min | [ ] |
+| 7 | **23 — Colores de noche, listas desplegables y 📍 Dirección** 🆕 | Ventana de cancelar, submenús de noche, casillas de filtros, **listas que salían en blanco**, chat de día, botón Dirección | Ya | — (23.2: 22) | 20 min | [ ] |
+| 8 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos (ahora también de noche), Personalización, encabezados de seguridad | Ya | — | 15 min | [ ] |
+| 9 | **24 — Unir un Ir pagando que ya tiene dinero** 🆕 | Lo de K4 / K5 / K6 | Ya | 24 | 5 min | [ ] |
+| 10 | **22 — 🕓 Pendiente en Pago y sin cancelados al abrir** | Pendiente en Pago, Falta pagar sin Pendientes, sin cancelados al abrir | Ya | 22 | 10 min | [ ] |
+| 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle | Ya | 21 | 15 min | [ ] |
+| 12 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** | Carrito → Mis datos; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos al abrir | Ya | 20 (20.2 y 20.3) | 35 min | [ ] |
+| 13 | **16 — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ** | Pendiente en filtros y card, pasarlo a Apartado / Ir pagando, Entregas por zona, ⓘ | Ya | 16 | 25 min | [ ] |
 | 14 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
 
-**Por qué este orden:** primero lo que ya se puede hacer hoy sin esperar la subida; después lo que
-estrena la subida del 2026-10-13. La **6** va al final porque mete miles de pedidos de prueba.
+**Por qué este orden:** primero lo que ya se podía hacer antes de la subida del 2026-10-13; después lo
+que estrena esa subida. La **6** va al final porque mete miles de pedidos de prueba.
 
 **Al terminar todas:** QA pasa a **prod** (ver "Lo que sigue" al final).
 
@@ -187,6 +208,14 @@ los pasos de abajo la siguen en el mismo orden.
 ### 12.0 Antes de empezar
 
 `migration_datos_legales.sql` ya está corrida en QA (2026-10-07). **Tú:** `Ctrl + Shift + R`.
+
+Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Preparar todas**). Da de alta:
+
+| Clave | Qué es | Para |
+|---|---|---|
+| **Art-200** | Artículo de **$200** con stock 10 | 12.6: Venta directa |
+| **T1** | 🛒 Venta de contado de Art-200, ya cobrada | 12.7 paso 1: su ticket |
+| **T2** | 💳 Ir pagando de Art-200 con un abono de **$50** | 12.7 paso 2: el ticket de abono |
 
 ### Mapa de impacto
 
@@ -247,7 +276,7 @@ los pasos de abajo la siguen en el mismo orden.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Venta directa** con Art-200 → **💳 Ir pagando** | *"💳 Ir pagando, sin intereses. Precio de contado $200.00 · Total a pagar $200.00 (CAT 0%). Puede liquidar antes cuando quiera, sin cargo."* |
+| 1 | **Venta directa** → en **🔍 Buscar producto** escribe **Art-200** (o pega su código) → agrégalo → **💳 Ir pagando** | *"💳 Ir pagando, sin intereses. Precio de contado $200.00 · Total a pagar $200.00 (CAT 0%). Puede liquidar antes cuando quiera, sin cargo."* |
 | 2 | Cambia a **📦 Apartado** | *"📦 Apartado, sin dinero ahora. Se paga completo ($200.00) al recogerlo."* |
 | 3 | **💵 Contado** | Ninguno de los dos avisos |
 | 4 | **Carrito** con artículos → Ir pagando / Apartado | Los mismos avisos con el total del carrito |
@@ -257,8 +286,8 @@ los pasos de abajo la siguen en el mismo orden.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Imprime el ticket de una venta de contado (con los datos de prueba de 12.1 capturados) | Debajo de "NOVEDADES JADE": nombre, domicilio, teléfono, correo. Abajo: "Garantía de 90 días desde que lo recibes" |
-| 2 | Ticket de un **abono** de Ir pagando | Además: "Abonos sin intereses (CAT 0%)" |
+| 1 | Imprime el ticket de **T1**, la venta de contado (con los datos de prueba de 12.1 capturados). Ábrelo con el enlace de su número en el recuadro de 🧪 | Debajo de "NOVEDADES JADE": nombre, domicilio, teléfono, correo. Abajo: "Garantía de 90 días desde que lo recibes" |
+| 2 | Ticket del **abono** de **T2** (Ir pagando con $50) | Además: "Abonos sin intereses (CAT 0%)" |
 | 3 | Totales, abonos y saldo | **Igual que antes** |
 
 ### 12.8 Bot
@@ -287,6 +316,17 @@ los pasos de abajo la siguen en el mismo orden.
 
 **Para qué es:** lo que pediste el 2026-10-07 al revisar QA.
 
+**Antes de empezar:** **🧪 Preparar prueba 15** (o ya lo hiciste con **Preparar todas**). Da de alta:
+
+| Clave | Qué es | Para |
+|---|---|---|
+| **M5** | Modelo con **stock 5**: talla **CH** habilitada con 4 | Pasos 2b, 2c y 3 |
+| **M5-baja** | La talla **M** de M5, **deshabilitada, que guarda 3** (como los artículos viejos) | Paso 3: al habilitarla queda en **1** |
+| **M10** | Modelo con **stock 10**, de **otra categoría** que M5: talla CH habilitada con 4 | Pasos 2c y 4 |
+| **M10-baja** | La talla M de M10, deshabilitada, que guarda 3 | Paso 4: al habilitarla se queda con **3** |
+
+Ya no hace falta la consulta en la base para encontrar un artículo viejo deshabilitado.
+
 ### Mapa de impacto
 
 | # | Se movió | Le pega a | Antes | Después |
@@ -307,11 +347,11 @@ los pasos de abajo la siguen en el mismo orden.
 |---|---|---|
 | 1 | **Catálogo → Agregar producto** → busca "bolsa" | Cada resultado con su código: "BOLSA · 750…" |
 | 2 | Elige uno | Arriba sale "BOLSA · 750…" y los datos del modelo ya llenos (color, marca, descripción…) y "Repartido / Libre" |
-| 2b | Elige un modelo que **tenga categoría** (en **Catálogo → Modelos** se ve) | La casilla **Categoría** ya dice la del modelo. Cámbiala por otra y guarda: el artículo queda con la que escogiste |
-| 2c | Elige un modelo con categoría, quítalo con ✕ y elige otro con otra categoría | La Categoría cambia a la del segundo. Si la habías cambiado a mano, se queda la tuya |
+| 2b | Elige un modelo que **tenga categoría**: **M5** (búscalo como *QA Prueba 15 M5*) | La casilla **Categoría** ya dice la del modelo. Cámbiala por otra y guarda: el artículo queda con la que escogiste |
+| 2c | Elige **M5**, quítalo con ✕ y elige **M10** (otra categoría) | La Categoría cambia a la del segundo. Si la habías cambiado a mano, se queda la tuya |
 | 2d | Modelo **sin** categoría | La casilla queda vacía, como antes |
-| 3 | Modelo con stock 5: un artículo habilitado con 4 y uno **deshabilitado viejo** con 3 (ver la consulta de abajo para encontrar uno o prepararlo) → en Tienda, filtro **No habilitadas**, márcalo → **🔓 Habilitar seleccionadas** | Mensaje *"…Se ajustó el stock… de 3 a 1"*; el artículo queda con 1. Con el **🔓 Habilitar** de la card también queda en 1 (ese botón no muestra el detalle) |
-| 4 | Mismo caso con el modelo en 10 | Se habilita con sus 3, sin ajuste |
+| 3 | **M5-baja** (en M5 la talla CH tiene 4 y el modelo 5: le queda 1 libre) → **Tienda → Buscar** → busca *QA Prueba 15 M5* → filtro **No habilitadas** → marca la talla M → **🔓 Habilitar seleccionadas** | Mensaje *"…Se ajustó el stock… de 3 a 1"*; el artículo queda con 1. Con el **🔓 Habilitar** de la card también queda en 1 (ese botón no muestra el detalle) |
+| 4 | Mismo caso con **M10-baja** (modelo en 10, le quedan 6 libres) | Se habilita con sus 3, sin ajuste |
 | 5 | Deshabilita un artículo con stock 2 y vuelve a habilitarlo | Queda en 0 (igual que antes: al deshabilitar su stock vuelve al libre) |
 | 6 | **Envíos → Zonas de entrega** → nuevo lugar | "🏬 Recoger en tienda" es un interruptor; prenderlo y guardar marca la fila con "🏬 recoger en tienda" |
 | 6b | **Envíos → Zonas de entrega** | Arriba el recuadro "ℹ️ Para qué sirve esta pantalla…", abierto; se cierra y abre con clic. Se lee bien de día y de noche. El "?" dice lo mismo en corto |
@@ -323,15 +363,8 @@ los pasos de abajo la siguen en el mismo orden.
 | 7 | **Envíos → Zonas de entrega** y **Envíos → Entregas por zona**, de día, de noche y en el celular | Todo dentro de un recuadro con borde y sombra; en el celular sin moverse de lado |
 
 **Para el paso 3:** hoy, al deshabilitar un artículo su stock queda en 0, así que solo los viejos
-tienen stock estando deshabilitados. Para encontrarlos en `inventario_key_qa`:
-```sql
-SELECT v.id, p.nombre AS modelo, p.stock AS stock_modelo, v.stock AS stock_articulo
-FROM variantes v JOIN producto p ON p.id = v.producto_id
-WHERE v.habilitado = '0' AND v.stock > 0
-ORDER BY v.id DESC LIMIT 10;
-```
-Si no sale ninguno, prepara uno de prueba (solo en QA, con un artículo de un modelo de prueba):
-`UPDATE variantes SET habilitado = '0', stock = 3 WHERE id = <id del artículo>;`
+tienen stock estando deshabilitados. Por eso el botón 🧪 los crea así (M5-baja y M10-baja). Si ya
+habilitaste los dos y quieres repetir, vuelve a tocar **🧪 Preparar prueba 15**.
 
 💬 Notas:
 
@@ -345,11 +378,13 @@ Si no sale ninguno, prepara uno de prueba (solo en QA, con un artículo de un mo
 **prod**. Cuando lo baje a `qa` y `dev` (va junto con tu "sube"), hay que confirmar que en QA hace lo
 mismo y que no chocó con lo de QA (artículo nace con los datos del modelo, Agregar producto).
 
-**Antes de empezar:** en QA, un modelo de prueba con stock **3** y un artículo con stock **1** con foto.
+**Antes de empezar:** **🧪 Preparar prueba 14-QA** (o ya lo hiciste con **Preparar todas**). Da de alta
+**M3**: un modelo con stock **3** y un artículo con stock **1** con foto. Al terminar el paso 4 ya no le
+queda stock: para repetir, vuelve a tocar el botón.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → Modelos** → en el modelo **🧩 Productos** | *"Stock del modelo: 3 · En sus artículos: 1 · Puedes crear: 2"* |
+| 1 | **Catálogo → 🔍 Modelos** → busca **M3** (*QA Prueba 14 Productos*, o pega su código) → en su tarjeta **🧩 Productos** | *"Stock del modelo: 3 · En sus artículos: 1 · Puedes crear: 2"* |
 | 2 | Pon **3** en cantidad → Crear | No deja: *"Puedes crear hasta 2"* |
 | 3 | Pon **2**, elige una foto **sin** marcar "Misma imagen" → Crear | No deja: *"Para usar las fotos marca 'Misma imagen para todas las variantes'"* |
 | 4 | Marca la casilla → Crear | "2 variante(s) creada(s)"; en **Tienda** salen con la foto y con el color, marca, descripción y categoría del modelo |
@@ -372,9 +407,15 @@ combinaban, el precio mín/máx que no encontraba los de $100, el buscador de Ve
 actualizaba después de vender, nombres de una letra guardados en Venta directa, y la ventana para dar
 de alta los artículos de un modelo al guardarlo.
 
-**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Ten a la mano:
-- Un modelo con **3 o más artículos con stock**, todos **habilitados**, y uno **deshabilitado** (borde rojo).
-- **Art-A** (de ~$100) y, si tienes, un artículo con **descuento activo** que en la tarjeta diga $100.
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. **🧪 Preparar prueba 17**
+(o ya lo hiciste con **Preparar todas**). Da de alta:
+
+| Clave | Qué es | Para |
+|---|---|---|
+| **Filtros** | Modelo con tallas **CH, M y G** habilitadas con 5 y **XL deshabilitada** (borde rojo) con 5 | 17.1 |
+| **Art-A** | Artículo de **$100** con stock 10 | 17.2 |
+| **Descuento** | Artículo de $130 que se vende al **descuento de $100** (la tarjeta dice $100) | 17.2 |
+| **Stock-1** | Artículo con **stock 1** | 17.3 (después de venderlo queda en 0: para repetir, vuelve a tocar el botón) |
 
 ### Mapa de impacto
 
@@ -395,9 +436,9 @@ de alta los artículos de un modelo al guardarlo.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Tienda → Buscar** → abre los filtros → marca **Con stock** | Todos los artículos con stock (habilitados y deshabilitados) |
-| 2 | Marca también **Habilitadas** | Todos los que tienen stock **y** están habilitados. El del borde rojo ya no sale; los demás **sí** (antes quedaba 1) |
-| 3 | Agrega un tercer filtro: **Talla** (elige una que tenga tu modelo) | Solo los de esa talla, con stock y habilitados |
+| 1 | **Tienda → Buscar** → escribe **QA Prueba 17 Filtros** → abre los filtros → marca **Con stock** | Los 4 artículos de **Filtros**: CH, M, G y XL (XL con borde rojo) |
+| 2 | Marca también **Habilitadas** | CH, M y G. **XL ya no sale**; los otros 3 **sí** (antes quedaba 1) |
+| 3 | Agrega un tercer filtro: **Talla G** | Solo G |
 | 4 | Quita **Talla** | Vuelve el resultado del paso 2 sin tocar nada más |
 | 5 | Quita **Habilitadas** | Vuelve el resultado del paso 1 |
 | 6 | Quita **Con stock** | Todo el catálogo, como al entrar |
@@ -408,8 +449,8 @@ de alta los artículos de un modelo al guardarlo.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | En los filtros escribe **Precio mín 100** y **máx 100** (espera un segundo sin escribir) | Los artículos que **en la tarjeta** dicen $100, incluidos los que llegan a $100 con descuento |
-| 2 | Cambia el máx a **99** | No sale ninguno de $100 |
+| 1 | En los filtros escribe **Precio mín 100** y **máx 100** (espera un segundo sin escribir) | Los artículos que **en la tarjeta** dicen $100, incluidos los que llegan a $100 con descuento: entre ellos **Art-A** y **Descuento** |
+| 2 | Cambia el máx a **99** | No sale ninguno de $100 (ni Art-A ni Descuento) |
 | 3 | Borra los dos precios | Vuelve a todo |
 | 4 | Cierra sesión (o abre la tienda en una ventana privada) y repite el paso 1 | Los mismos de $100 que tengan foto y stock (el catálogo de clientes solo muestra esos) |
 
@@ -419,7 +460,7 @@ de alta los artículos de un modelo al guardarlo.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Ventas → 💰 Venta directa** → en **🔍 Buscar producto** escribe 3 letras de un artículo con **stock 1** | El artículo con **1** de stock |
+| 1 | **Ventas → 💰 Venta directa** → en **🔍 Buscar producto** escribe **Stock-1** (o pega su código) | **Stock-1** con **1** de stock |
 | 2 | Agrégalo, cobra de **💵 Contado** y cierra el aviso | La venta se registra |
 | 3 | Mira la lista del buscador (sin escribir nada) | Ese artículo ya dice **0** o ya no sale. **No** sigue diciendo 1 |
 
@@ -521,9 +562,15 @@ agregar artículo) buscar **todos** los modelos, también los sin stock, deshabi
 elegir uno, que diga en qué estado está, dejar **habilitarlo**, decir **cuántos artículos más se pueden
 hacer**, y que al **agregarle stock** se vaya al modelo y pregunte *"¿Deseas agregar los artículos de una vez?"*.
 
-**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Ten a la mano:
-- **M-OFF**: un modelo **deshabilitado** (en Catálogo → 🔍 Modelos, con el interruptor apagado).
-- **M-0**: un modelo **habilitado** cuyo stock ya está todo repartido en sus artículos (Libre 0).
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. **🧪 Preparar prueba 18**
+(o ya lo hiciste con **Preparar todas**). Da de alta:
+
+| Clave | Qué es | Para |
+|---|---|---|
+| **M-OFF** | Modelo **deshabilitado** (su artículo sigue habilitado) | 18.1 y 18.2 (al habilitarlo en 18.2 ya no está apagado: para repetir, vuelve a tocar el botón) |
+| **M-0** | Modelo **habilitado** con stock 4, todo repartido en su artículo (**Libre 0**) | 18.1 y 18.3 |
+
+Además:
 - Para el paso con otro rol: `migration_accion_tienda_venta_ver_todos.sql` ✅ ya está corrida en QA (2026-10-08); en
   **Gestión de roles**, márcale a ese rol **"Ver todos los modelos (sin stock, deshabilitados o dados de baja)"** en 🧩 Agregar producto.
 
@@ -650,7 +697,7 @@ del menú lateral azules o negros de noche (y negros al pasar el mouse), las cas
 dos botones con "Entrega" en la tarjeta de pedido, **las listas que se abrían en blanco**, y lo que salió
 al revisar todo el texto (el chat de día y el "$" de Reportes).
 
-**Antes de empezar:** necesita la subida del 2026-10-13 y el script del paso 4 de "Antes de todo".
+**Antes de empezar:** el script del paso 4 de "Antes de todo" (ya está subido lo del 2026-10-13).
 `Ctrl + Shift + R`. Usa tus temas de siempre: **Día "personalizado a mano"** y **Noche "Jade"**. Para
 ver la noche: abajo en el menú lateral **🌙 Modo oscuro** (o espera a después de las 7 de la noche).
 Para tener un pedido que cancelar sin tocar los tuyos: **🧪 Preparar prueba 22** y usa **AP**.
@@ -843,7 +890,7 @@ letra o pantalla deja de cargar.
 salía porque en la **Prueba 4.6 se canceló** (devolución), y los cancelados no se pueden unir. Esta
 prueba lo comprueba con pedidos nuevos.
 
-**Antes de empezar:** necesita la subida del 2026-10-13. **🧪 Preparar prueba 24**. Anota:
+**Antes de empezar:** **🧪 Preparar prueba 24** (o ya lo hiciste con **Preparar todas**). Anota:
 
 | Pedido | Qué es | Número |
 |---|---|---|
@@ -881,7 +928,7 @@ o un cancelado sí sale.
   hacer."* Al abrir Mis pedidos tampoco salen los **cancelados**; se ven con **❌ Cancelado**.
 
 **Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. **🧪 Preparar prueba 22**
-(después de la subida del 2026-10-13). Crea:
+(o ya lo hiciste con **Preparar todas**). Crea:
 
 | Pedido | Qué es | Número |
 |---|---|---|
@@ -889,7 +936,6 @@ o un cancelado sí sale.
 | **AP** | 📦 Apartado que debe $150 | |
 | **CA** | Apartado cancelado ("el cliente avisó") | |
 
-(Antes de la subida: usa uno tuyo de cada tipo.)
 
 ### Mapa de impacto
 
@@ -953,14 +999,13 @@ qué es"*.
 | **Entregas por zona** (tabla) | Columna **Pedido hecho el** | Columna nueva **Se entrega el** (o *Sin fecha todavía*) |
 
 **Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. **🧪 Preparar prueba 21**
-(después de la subida del 2026-10-13). Crea, en la zona **"Zona Prueba QA"** y sin fecha de entrega:
+(o ya lo hiciste con **Preparar todas**). Crea, en la zona **"Zona Prueba QA"** y sin fecha de entrega:
 
 | Pedido | Qué es | Número |
 |---|---|---|
 | **P1** | 📦 Apartado que debe $150 | |
 | **P2** | 💳 Ir pagando **ya pagado completo** que falta entregar | |
 
-(Antes de la subida: arma tú una zona con un pedido que debe y uno ya pagado con **📦 Todavía no**.)
 
 ### Mapa de impacto
 
@@ -1014,6 +1059,7 @@ Modelo. (4) Mis pedidos debe abrir sin los pedidos que ya están pagados y entre
 
 **Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Para la 20.1 ten a la mano un
 correo nuevo para crear una cuenta de cliente (esa no se puede preparar con botón: es justo lo que se prueba).
+Para la 20.2 y la 20.3: **🧪 Preparar prueba 20** (o ya lo hiciste con **Preparar todas**).
 
 ### Mapa de impacto
 
@@ -1043,10 +1089,9 @@ correo nuevo para crear una cuenta de cliente (esa no se puede preparar con bot�
 
 ### 20.2 Pedidos unidos: cambiar la forma de cobro
 
-**Antes de empezar:** **🧪 Preparar prueba 20** (después de la subida del 2026-10-13). Crea **P1** y **P2**:
+**Antes de empezar:** **🧪 Preparar prueba 20**. Crea **P1** y **P2**:
 dos 🕓 Pendiente de "Cliente Prueba QA", $150 cada uno (en "Zona Prueba QA"). Anota los números. Después, en el detalle de P1:
 **🔗 Unir con otros pedidos** → busca P2 → **Unir 2 pedidos**.
-(Antes de la subida: con una cuenta de cliente haz dos pedidos y únelos igual.)
 
 | # | Haz esto | Debes ver |
 |---|---|---|
@@ -1059,9 +1104,11 @@ dos 🕓 Pendiente de "Cliente Prueba QA", $150 cada uno (en "Zona Prueba QA"). 
 
 ### 20.3 Modelo agotado
 
+**Antes de empezar:** el mismo **🧪 Preparar prueba 20** da de alta **Agotado**: un modelo con stock 0.
+
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → 🔍 Modelos** → un modelo con stock 0 → **✏️ Actualizar** → cambia la descripción → Guardar | Guarda sin el aviso *"El stock no debe de ser 0"* |
+| 1 | **Catálogo → 🔍 Modelos** → busca **Agotado** (*QA Prueba 20 Agotado*) → **✏️ Actualizar** → cambia la descripción → Guardar | Guarda sin el aviso *"El stock no debe de ser 0"* |
 | 2 | En el mismo, **Actualizar stock** = 5 → Guardar | Queda con stock 5 |
 | 3 | **Agregar modelo** nuevo con stock 0 | Sigue sin dejar (*"El stock no debe de ser 0"*) |
 
@@ -1105,7 +1152,7 @@ botón del bloque **Pago**. Los pasos de abajo ya lo dicen así.
 
 ### Antes de empezar
 
-**🧪 Preparar prueba 16** (después de la subida del 2026-10-13). Crea los 4 pedidos, todos en la zona
+**🧪 Preparar prueba 16** (o ya lo hiciste con **Preparar todas**). Crea los 4 pedidos, todos en la zona
 **"Zona Prueba QA"** (en vez de Tejupilco) y sin llevárselos:
 
 | Pedido | Qué es | Número |

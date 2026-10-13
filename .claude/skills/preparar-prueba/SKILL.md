@@ -1,20 +1,32 @@
 ---
 name: preparar-prueba
-description: Cómo darle a una prueba de QA de Novedades Jade su botón "🧪 Preparar prueba N", que crea los pedidos (y lo que haga falta) para que el dueño solo haga la prueba. Usar SIEMPRE que se escriba una prueba nueva en PRUEBAS_PENDIENTES_*.md cuyo "Antes de empezar" pida crear pedidos, clientes o zonas; cuando el dueño diga "prepárame los datos", "no quiero estar creando pedidos"; o cuando una prueba dependa de pedidos que otra ya canceló o pagó.
+description: Dar de alta TODO lo que necesita cada prueba de QA de Novedades Jade — modelos, artículos (con precio, stock, descuento, deshabilitados, agotados), clientes, zonas y pedidos — con el botón "🧪 Preparar prueba N" (y "Preparar todas"), para que el dueño solo haga la prueba. Usar SIEMPRE al escribir o cambiar una prueba en PRUEBAS_PENDIENTES_*.md cuyo "Antes de empezar" pida tener, anotar o crear algo (un artículo de $100, un modelo deshabilitado, dos pedidos…); cuando el dueño diga "prepárame los datos", "que ya estén los pedidos/artículos", "no quiero estar creando"; o cuando una prueba dependa de datos que otra ya canceló, pagó o vendió.
 ---
 
-# Preparar prueba N — los datos de cada prueba con un botón
+# Preparar prueba N — dar de alta lo que necesita cada prueba
 
-**Pedido del dueño (2026-10-13):** *"genera los scripts para generar las pruebas que necesitas; si
-necesitas varios pedidos, los agregas, y yo hago las pruebas en pedidos. Cada prueba así hay que
-hacerla, para no perder tiempo en generar pedidos."*
+**Pedido del dueño (2026-10-13):**
+- *"genera los scripts para generar las pruebas que necesitas; si necesitas varios pedidos, los agregas,
+  y yo hago las pruebas en pedidos. Cada prueba así hay que hacerla, para no perder tiempo."*
+- *"me refiero a los artículos, que ya estén los pedidos de las pruebas como los pides; genera una skill
+  para esto de las pruebas: dar de alta lo que se necesita para las pruebas."*
+
+## La regla
+
+**Ninguna prueba le pide al dueño que busque, anote o arme datos.** Si el "Antes de empezar" de una
+prueba necesita algo que exista en un estado dado (un artículo de $100 con stock, un modelo
+deshabilitado, un Ir pagando con $40, un pedido cancelado…), esa prueba lleva su botón
+**🧪 Preparar prueba N** que lo da de alta, y el documento dice *"toca 🧪 Preparar prueba N"* con una
+tabla de lo que crea. Lo único que no se prepara es **lo que es la prueba misma** (p. ej. en la 20.1 el
+dueño crea la cuenta de cliente porque eso es lo que se prueba).
 
 **Por qué botones y no scripts SQL:** los pedidos salen de los mismos servicios que la pantalla
 (carrito del cliente, venta directa, abono, ✖ Cancelar), así se comportan igual que los reales: stock,
-estados, abonos, venta. Un `INSERT` a mano en las tablas de pedidos se salta reglas y prueba algo que
-la app nunca haría. Además el dueño no tiene que correr nada en la base.
+estados, abonos, venta. Un `INSERT` a mano en pedidos se salta reglas y prueba algo que la app nunca
+haría. El dueño no corre nada en la base, y un botón se puede tocar las veces que haga falta.
 
-Reglas del dominio: R16 y R17 en `hexagonal/datosprueba/README.md` (también R1 solo QA y R2 solo admin).
+Reglas del dominio: `hexagonal/datosprueba/README.md` — R1 (solo QA), R2 (solo admin), R16 (pedidos),
+R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas).
 
 ---
 
@@ -22,66 +34,95 @@ Reglas del dominio: R16 y R17 en `hexagonal/datosprueba/README.md` (también R1 
 
 | Pieza | Archivo (back, `hexagonal/datosprueba/`) |
 |---|---|
-| Lista de pruebas que se pueden preparar | `dominio/modelo/EscenarioDePrueba.java` (enum: número + título) |
+| Lista de pruebas | `dominio/modelo/EscenarioDePrueba.java` (enum: número + título, en orden de número) |
 | Qué crea cada una | `aplicacion/servicio/PrepararPruebaService.java` (un método `pruebaNN`) |
-| Lo que el dominio necesita de afuera | `dominio/puerto/salida/EscenariosPruebaPort.java` (zona, cliente con cuenta, pedido del cliente, venta directa, cancelar) y `PedidosPruebaPort` (clientes sin cuenta, abonar) |
-| Cómo se hace con los servicios reales | `infraestructura/salida/escenarios/EscenariosPruebaAdapter.java` |
-| Endpoints | `infraestructura/entrada/rest/PrepararPruebaController.java`: `GET /v1/admin/datos-prueba/escenarios` (en `lista`) y `POST /v1/admin/datos-prueba/preparar/{prueba}` (201) |
-| Botones | front: `admin/cache` (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba → "Preparar una prueba"). Salen solos de la lista del back: **el front no se toca** para agregar una prueba |
+| Lo que el dominio necesita de afuera | `dominio/puerto/salida/EscenariosPruebaPort.java` (pedidos: zona, cliente con cuenta, carrito, venta directa, cancelar; catálogo: stock del modelo, habilitar modelo, artículo viejo deshabilitado con stock, precio del artículo, limpiar caché), `CatalogoPruebaPort` (dar de alta modelos con artículos y foto) y `PedidosPruebaPort` (clientes sin cuenta, abonar) |
+| Cómo se hace | `infraestructura/salida/escenarios/EscenariosPruebaAdapter.java` |
+| Endpoints | `GET /v1/admin/datos-prueba/escenarios` (en `lista`), `POST /v1/admin/datos-prueba/preparar/{prueba}` (201) y `POST /v1/admin/datos-prueba/preparar-todas` (201, en `lista`) |
+| Botones | front `admin/cache` (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba → "Preparar una prueba"). Salen solos de la lista del back: **el front no se toca** para agregar una prueba |
 
-## 2. Agregar una prueba nueva (receta)
+## 2. Agregar una prueba (receta)
 
-1. **Leer la prueba** en el documento de pruebas: qué pedidos pide, en qué estado, de qué cliente, con
-   qué zona, con cuánto dinero, si ya se lo llevó. Ponerles las **mismas claves** que usa la prueba
-   (P1, P2, A, B, K4…).
-2. **Enum:** `P30("30", "Título en palabras del dueño")`.
-3. **Servicio:** `case P30 -> prueba30(linea, usuarioId);` y el método. Usar lo que ya hay:
-   - `lineaDeUnArticuloNuevo(...)` ya crea un modelo propio con **un** artículo de $150 y stock 30. No
-     usar artículos reales.
-   - 🕓 **Pendiente** (lo pide el cliente desde su cuenta): `escenarios.pedidoDelCliente(clienteConCuenta, lineas, zona)`, **siempre con zona** (ver sección 3).
-   - **Apartado / Ir pagando / Contado:** `escenarios.ventaDirecta("APARTADO" | "FIADO" | "NORMAL", clienteSinCuenta, usuarioId, lineas, zonaOnull, seLoLlevo)`.
-   - **Abono:** `pedidos.abonar(id, monto, usuarioId)`. Si cubre el total, pasa solo a PAGADO.
-   - **Cancelado:** `escenarios.cancelar(id)` (motivo "el cliente avisó", como el botón).
-   - **Zona:** `escenarios.zonaDePrueba()` ("Zona Prueba QA", envío $0).
-   - **Clientes:** `escenarios.clienteConCuentaDePrueba()` ("Cliente Prueba QA", correo `.invalid`) y
-     `pedidos.clientesDePrueba(1).get(0)` ("Cliente Prueba QA 001", sin cuenta).
-   - Regresar `EscenarioPreparado` con cada `PedidoPreparado(clave, id, "qué es")` y el **siguiente paso**
-     en una línea ("Abre P1 → 🔗 Unir… → busca P2").
-4. **Si hace falta algo nuevo** (otra forma de crear algo): método nuevo en `EscenariosPruebaPort` +
-   adaptador que llame **al servicio real**. Nunca SQL de escritura a tablas de pedidos, ventas o abonos.
-   Leer con SQL sí se vale (p. ej. el `pedido_id` de una venta de contado, que la venta directa no regresa).
-5. **Reglas de negocio que hay que respetar** (skill `reglas-pedidos`): Apartado sin dinero (si lleva
-   dinero es Ir pagando); el abono nunca mayor al saldo; un 🕓 Pendiente solo lo hace un cliente con
-   cuenta, correo verificado y datos completos.
-6. **Comprobarlo** con la base desechable y el back completo (skill `probar-en-local`): llamar
-   `casoUso.preparar("30", 1)` e imprimir de la base estado, tipo, total, pagado, entregado, zona y
-   cliente de cada pedido. Que coincida con lo que pide la prueba. Borrar la prueba temporal.
+1. **Leer el "Antes de empezar" y los pasos** de la prueba y listar cada cosa que debe existir, en qué
+   estado y con qué nombre la llama la prueba (Art-A, M-OFF, P1, K4…). Usar **esas mismas claves**.
+2. **Enum:** `P30("30", "Título en palabras del dueño")`, en su lugar por número.
+3. **Servicio:** `case P30 -> prueba30(...)` y el método, con lo que ya hay:
+
+   **Catálogo (R18)**
+   - `modeloNuevo(escenario, "Art-A", categoria, precio, List.of(new ArticuloDePrueba(talla, color, stock), …))`
+     → un modelo **"QA Prueba 30 Art-A #2098…"** con esos artículos, marca "Prueba QA", foto real de QA
+     (R7) y stock del modelo = suma de los artículos. Regresa los artículos en el mismo orden.
+   - Dejarlo en el estado que pide la prueba:
+     `escenarios.stockDelModelo(art, n)` (stock libre = n − repartido) ·
+     `escenarios.habilitarModelo(art, false)` (modelo deshabilitado) ·
+     `escenarios.articuloDeshabilitadoConStock(art, n)` (artículo viejo dado de baja que guarda stock) ·
+     `escenarios.precioDelArticulo(art, 130, 100, true)` (precio propio con descuento: la tarjeta dice $100;
+     usa el mismo caso de uso que el 💲 de la tarjeta). Agotado = artículo con stock 0.
+   - Reportarlo con `dato("Art-A", CatalogoPreparado.ARTICULO | MODELO, art, "qué es")`: lleva el nombre
+     y el código de barras para buscarlo en pantalla.
+
+   **Pedidos (R16)**
+   - `lineaDeUnArticuloNuevo(escenario)` → un artículo propio de $150 con stock 30 para vender.
+   - 🕓 **Pendiente:** `escenarios.pedidoDelCliente(clienteConCuenta, lineas, zona)`, **siempre con zona**.
+   - **Apartado / Ir pagando / Contado:** `escenarios.ventaDirecta("APARTADO" | "FIADO" | "NORMAL",
+     clienteSinCuenta, usuarioId, lineas, zonaOnull, seLoLlevo)`.
+   - **Abono:** `pedidos.abonar(id, monto, usuarioId)` (si cubre el total, pasa solo a PAGADO).
+   - **Cancelado:** `escenarios.cancelar(id)`.
+   - **Zona:** `escenarios.zonaDePrueba()`. **Clientes:** `escenarios.clienteConCuentaDePrueba()` y
+     `pedidos.clientesDePrueba(1).get(0)`.
+
+   Regresar `new EscenarioPreparado(prueba, titulo, pedidos, catalogo, siguientePaso, null)` con el
+   **siguiente paso** en una línea, con nombres reales de pantalla (skill `nombres-reales`).
+4. **Si hace falta algo nuevo:** método en `EscenariosPruebaPort` + adaptador.
+   - **Pedidos, ventas, abonos:** siempre por el **servicio real**; nunca SQL de escritura.
+   - **Catálogo:** JDBC como el generador, **solo sobre modelos con marca "Prueba QA"** (el adaptador lo
+     verifica en `modeloDePrueba()` y se niega si no). Si existe un caso de uso para ese cambio (precio,
+     habilitar), usarlo.
+   - Leer con SQL sí se vale (p. ej. el `pedido_id` de una venta de contado).
+5. **Reglas de negocio** (skill `reglas-pedidos`): Apartado sin dinero; abono nunca mayor al saldo; un
+   🕓 Pendiente solo lo hace un cliente con cuenta, correo verificado y datos completos.
+6. **Comprobarlo** con la base desechable y el back completo (skill `probar-en-local`): `casoUso.preparar("30", 1)`
+   y `casoUso.prepararTodas(1)`, e imprimir de la base el estado de cada cosa (stock y habilitado del modelo
+   y del artículo, precio, estado/tipo/pagado/entregado del pedido). Que coincida con lo que pide la
+   prueba. Borrar la prueba temporal.
 7. **Documentar:**
-   - README del dominio: fila en "Qué deja cada prueba" y el número en R16.
-   - En el documento de pruebas, "Antes de empezar" dice **"🧪 Preparar prueba 30"** y una tabla
-     Pedido / Qué es / Número para anotar.
-   - Mensaje 400 de la lista (sale solo del enum).
+   - README del dominio: fila en "Qué deja cada prueba".
+   - Documento de pruebas: el "Antes de empezar" dice **"🧪 Preparar prueba 30"** y una tabla
+     Clave / Qué es / Número o código para anotar. Quitar cualquier "busca uno que…", "anota uno con…"
+     o SQL para prepararlo.
    - `CAMBIOS_FRONT.md` solo si cambia el contrato.
 
 ## 3. Cosas que ya se aprendieron
 
-- **Cada clic crea datos nuevos**, a propósito. Una prueba no debe depender de lo que otra ya canceló o
-  pagó: pasó con K5 y K6 (cancelados en la Prueba 4) y el dueño creyó que el buscador de Unir fallaba.
-- **Todo 🕓 Pendiente lleva zona** (`escenarios.zonaDePrueba()`). Sin zona se toma como "recoge en el
-  local", le ponen fecha para recoger (hoy + 3) y `PedidoCancelacionScheduler` lo cancela solo 2 días
-  después: la prueba amanecería sin datos. Con zona la fecha queda vacía y no se cancela.
-- **El cliente con cuenta recibe la confirmación del pedido por correo**: por eso su correo es
-  `cliente.prueba.qa@ejemplo.invalid` (dominio reservado: no le llega a nadie).
+- **Cada clic crea datos nuevos**, a propósito: una prueba no debe depender de lo que otra ya canceló,
+  pagó o vendió (pasó con K5 y K6, cancelados en la Prueba 4: el dueño creyó que fallaba el buscador de Unir).
+- **Todo 🕓 Pendiente lleva zona.** Sin zona se toma como "recoge en el local", le ponen fecha para recoger
+  (hoy + 3) y `PedidoCancelacionScheduler` lo cancela solo 2 días después.
+- **El cliente con cuenta recibe la confirmación por correo**: su correo es `cliente.prueba.qa@ejemplo.invalid`.
 - **De contado, la venta directa regresa la venta, no el pedido**: el adaptador lee `ventas.pedido_id`.
-- **Solo en `inventario_key_qa`** (R1): en prod el botón responde 403 *"…no se hizo nada"*.
-- **Las pruebas que no necesitan pedidos** (textos, colores, catálogo, permisos) no llevan botón.
+- **Después de preparar se limpia la caché** (`escenarios.limpiarCache()`): si no, Tienda sigue mostrando
+  el catálogo de antes y el dueño no encuentra lo que se acaba de crear.
+- **Las fotos se reusan de QA** (R7): en una base vacía los artículos quedan sin foto y no salen en la
+  tienda pública (regla de las 4 condiciones); en QA sí tienen.
+- **Al vender, el stock del artículo baja**: si la prueba necesita "stock 10" después de crear pedidos con
+  ese artículo, darlo de alta con más (Art-200 nace con 12 y se venden 2).
+- **"Preparar todas" (R19)** corre todas en orden; si una falla, las demás siguen y esa trae `error`.
+- **Solo en `inventario_key_qa`** (R1): en prod responde 403 *"…no se hizo nada"*.
 
-## 4. Pruebas que ya tienen botón (2026-10-13)
+## 4. Pruebas con botón (2026-10-13)
 
-| Prueba | Crea |
+| Prueba | Da de alta |
 |---|---|
-| 16 | A, B 🕓 Pendiente (cliente con cuenta) · C Ir pagando con $50 · D Contado. Todos en "Zona Prueba QA", sin llevárselos |
-| 20 | P1, P2 🕓 Pendiente del cliente con cuenta, en "Zona Prueba QA" |
-| 21 | P1 Apartado que debe · P2 Ir pagando ya pagado que falta entregar. En "Zona Prueba QA", sin fecha |
-| 22 | PE 🕓 Pendiente (en "Zona Prueba QA") · AP Apartado que debe · CA Apartado cancelado |
-| 24 | K4 Ir pagando sin dinero · K6 Ir pagando con $40 (para unir) |
+| 12 | **Art-200** ($200, stock 10) · **T1** venta de contado (ticket) · **T2** Ir pagando con abono de $50 (ticket de abono) |
+| 14-QA | **M3**: modelo con stock 3 y un artículo con stock 1 con foto (🧩 Productos dice "Puedes crear: 2") |
+| 15 | **M5** (stock 5) y **M10** (stock 10, otra categoría), cada uno con talla CH habilitada con 4 y talla M **deshabilitada que guarda 3** |
+| 16 | **A**, **B** 🕓 Pendiente (cliente con cuenta) · **C** Ir pagando con $50 · **D** Contado. Todos en "Zona Prueba QA", sin llevárselos |
+| 17 | **Filtros** (tallas CH, M, G habilitadas con 5; XL deshabilitada con 5) · **Art-A** ($100, stock 10) · **Descuento** ($130 que se vende a $100) · **Stock-1** |
+| 18 | **M-OFF** (modelo deshabilitado) · **M-0** (habilitado, libre 0) |
+| 20 | **P1**, **P2** 🕓 Pendiente en "Zona Prueba QA" · **Agotado** (modelo con stock 0) |
+| 21 | **P1** Apartado que debe · **P2** Ir pagando ya pagado que falta entregar. En "Zona Prueba QA", sin fecha |
+| 22 | **PE** 🕓 Pendiente · **AP** Apartado que debe · **CA** Apartado cancelado |
+| 24 | **K4** Ir pagando sin dinero · **K6** Ir pagando con $40 (para unir) |
+
+Sin botón, a propósito: 13, 19, 23 (solo pantallas y colores), 20.1 (crear la cuenta es la prueba) y 6
+(es el generador masivo).
