@@ -27,9 +27,9 @@ Leyenda: 👤 lo haces tú · 🛠 lo hago yo (código) · ❓ falta que decidas
 | ✔ | Qué | Estado |
 |---|---|---|
 | [x] | Lo del 2026-10-08 (filtros de Tienda, Venta directa, ventana 🧩 Agregar artículos, Apartado con monto fijo, Cambiar forma de cobro, Agregar artículo con todos los modelos) **a `dev`** | Subido el 2026-10-08 (solo `dev`, como pediste) |
-| [ ] | 👤 Decir cuándo pasa de `dev` a **`qa`**. Hasta entonces, QA **no** tiene lo del 2026-10-08: las Pruebas 17 y 18 y los cambios de la Prueba 2 (2.1, 2.3, 2.4, 2.5) no se pueden hacer todavía | Espera tu "sube a qa" |
-| [ ] | Llevar `qa` a **prod** (`main`) cuando QA dé el visto bueno: checklist completo, con el orden de los scripts y lo que hay que revisar en la VPS | `PASOS_SUBIDA_2026-10-07.md` Parte 2 |
-| [ ] | Rama `rename/variante-a-articulo` (variante → artículo en todo): se retomó el 2026-10-08; decidir cuándo se junta con `dev` | Ver §6 |
+| [x] | `dev` → **`qa`** con todo lo del 2026-10-08 y del 2026-10-13 (Pruebas 17 a 22 y los cambios de la Prueba 2) | Subido el 2026-10-13, back y front |
+| [ ] | Llevar `qa` a **prod** (`main`) cuando QA dé el visto bueno: checklist completo, con el orden de los scripts y lo que hay que revisar en la VPS. **Acordado el 2026-10-13: va antes que el renombrado**, para no llevar a prod lo que no se ha probado | `PASOS_SUBIDA_2026-10-07.md` Parte 2 · `PRUEBAS_PENDIENTES_2026-10-07.md` → "Lo que sigue" |
+| [ ] | Rama `rename/variante-a-articulo` (variante → artículo en todo): **se junta con `dev` después de pasar QA a prod** (acordado el 2026-10-13) | Ver §6 |
 
 ---
 
@@ -125,7 +125,9 @@ Qué se cambió, pantalla por pantalla: `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.1 
 |---|---|---|
 | [x] | Traer `dev` a la rama, búsqueda completa de "variante" y buscadores con "artículo" (14 pantallas, menú lateral, ayuda ⓘ) | 2026-10-08, rama subida (no está en `dev`) |
 | [x] | Script de los textos de la base (menú "Agregar artículo", Gestión de roles sin "variante"): `migration_renombre_articulo_etiquetas.sql`, probado dos veces en base desechable | 2026-10-08, vive en la rama |
-| [ ] | 👤 Probar la rama (pruebas R1–R19) y decidir cuándo se junta con `dev` | `RENOMBRE_VARIANTE_A_ARTICULO.md` §6 |
+| [x] | Decidir cuándo se junta con `dev`: **después de pasar QA a prod** (2026-10-13) | `PRUEBAS_PENDIENTES_2026-10-07.md` → "Lo que sigue", Paso 2 |
+| [x] | Revisar qué hay que correr en QA (2026-10-13): solo `migration_renombre_articulo_etiquetas.sql`; vuelto a probar en base desechable (33 textos la primera vez, 0 la segunda). Al traer `dev` chocan 6 archivos del back y 1 del front | Mismo lugar |
+| [ ] | 👤 Probar la rama en QA (pruebas R1–R19) | `RENOMBRE_VARIANTE_A_ARTICULO.md` §6 |
 | [ ] | 👤 Al juntarla: correr `migration_renombre_articulo_etiquetas.sql` en QA (y en prod cuando suba a `main`) | Mismo documento, §1.1 punto 4 |
 | [x] | Segunda revisión, solo "variante" → "artículo" (menú, pantallas, avisos, back, base, seguridad): no quedó ninguno visible | 2026-10-08, `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.2 |
 | [x] | De back a front: cada endpoint de artículos → la pantalla que lo usa → su texto dice "artículo" (50 textos del front, 8 mensajes del back, menú "🎡 Rifa de artículos") | 2026-10-08, `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.3 |
