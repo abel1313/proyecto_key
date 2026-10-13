@@ -151,6 +151,15 @@ cada prueba (con su título al lado) y, al terminar, un recuadro por prueba: los
 `/pedidos/mis-pedidos?pedidoId=N` (abre el detalle) y el siguiente paso. La que falló sale en rojo con
 su `error`.
 
+**Lo que se guarda (2026-10-13, segunda pasada):** la lista de pruebas preparadas se **recuerda en el
+navegador** (`localStorage`, clave `cache:pruebas-preparadas`), una entrada por prueba con la hora en que
+se preparó. Antes se perdía al cambiar de pantalla y con ella los números de los pedidos: el dueño
+no encontraba "K4", que es solo el **nombre de la clave en el documento de pruebas** (el pedido no la
+lleva escrita; su nota `[DATOS DE PRUEBA]` no se muestra en ninguna pantalla). Preparar una prueba otra
+vez **reemplaza solo esa**; las demás se quedan. Cada pedido trae **copiar número** (para pegarlo en un
+buscador) y hay un botón **🧹 Quitar la lista** (solo la quita de la pantalla, no borra nada de la base).
+Sin cambios de contrato: el back responde igual.
+
 Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md` ("🧪 Preparar prueba", "Antes de todo" paso 5, y el "Antes
 de empezar" de 12, 14-QA, 15, 16, 17, 18, 20, 21, 22 y 24). Reglas R16 a R19 en
 `hexagonal/datosprueba/README.md`; cómo agregar otra prueba: skill `preparar-prueba`.

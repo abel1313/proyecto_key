@@ -139,9 +139,17 @@ clientes son **"Cliente Prueba QA 001"** (sin cuenta) y **"Cliente Prueba QA"** 
 Pendientes; su correo termina en `.invalid`, así que **no le llega ningún correo a nadie**). La zona,
 cuando la prueba la necesita, es **"Zona Prueba QA"** (envío $0; se crea la primera vez).
 
+**Qué son K4, P1, T1, Art-A…** Son **nombres que usa este documento**, para que sepas de cuál pedido o
+artículo se habla. **No están escritos en ningún pedido ni se escriben en un buscador.** Para encontrar un
+**pedido**, usa su **número** (el del recuadro 🧪, que es un enlace: tócalo para abrirlo, o toca *copiar número*
+y pégalo en el buscador). Para encontrar un **modelo o artículo**, escribe su nombre (*QA Prueba 17 Art-A*) o
+pega su código de barras. **Los buscadores siguen su regla:** de texto piden 3 letras o más; de número de
+pedido, desde 1 dígito. La lista del recuadro 🧪 **se queda guardada** en este navegador aunque cambies de
+pantalla, con la hora en que se preparó cada prueba; se quita con *🧹 Quitar la lista* (no borra nada de la base).
+
 **Cada vez que lo tocas sale todo nuevo.** Si una prueba te sale mal a la mitad, o ya cancelaste, vendiste
 o uniste lo que tenías, vuelve a tocar el botón y empiezas limpio. Lo de antes se queda como historial. Si
-buscas por clave (Art-A) y salen varios, el **más nuevo** es el del número `#2098…` más alto; con el código
+buscas por nombre (*QA Prueba 17 Art-A*) y salen varios, el **más nuevo** es el del número `#2098…` más alto; con el código
 de barras sale solo el que acabas de crear.
 
 Los 🕓 Pendientes que crea el botón llevan la zona **"Zona Prueba QA"**: así no se cancelan solos a los
@@ -384,7 +392,7 @@ queda stock: para repetir, vuelve a tocar el botón.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → 🔍 Modelos** → busca **M3** (*QA Prueba 14 Productos*, o pega su código) → en su tarjeta **🧩 Productos** | *"Stock del modelo: 3 · En sus artículos: 1 · Puedes crear: 2"* |
+| 1 | **Catálogo → 🔍 Modelos** → en el buscador escribe **QA Prueba 14** (o pega el código de barras de **M3**) → en su tarjeta **🧩 Productos** | *"Stock del modelo: 3 · En sus artículos: 1 · Puedes crear: 2"* |
 | 2 | Pon **3** en cantidad → Crear | No deja: *"Puedes crear hasta 2"* |
 | 3 | Pon **2**, elige una foto **sin** marcar "Misma imagen" → Crear | No deja: *"Para usar las fotos marca 'Misma imagen para todas las variantes'"* |
 | 4 | Marca la casilla → Crear | "2 variante(s) creada(s)"; en **Tienda** salen con la foto y con el color, marca, descripción y categoría del modelo |
@@ -731,7 +739,7 @@ Para tener un pedido que cancelar sin tocar los tuyos: **🧪 Preparar prueba 22
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | De noche, **Mis pedidos** → busca **AP** → en su tarjeta **✖ Cancelar** | *"¿Por qué cancelas este pedido?"* con los motivos como botones **oscuros con letra clara**, del color de la ventana (antes: botones blancos) |
+| 1 | De noche, **Mis pedidos** → en el buscador escribe el **número** de **AP** (el del recuadro 🧪) → en su tarjeta **✖ Cancelar** | *"¿Por qué cancelas este pedido?"* con los motivos como botones **oscuros con letra clara**, del color de la ventana (antes: botones blancos) |
 | 2 | Pasa el mouse por un motivo y tócalo | Se marca con el color de acento del tema; se lee |
 | 3 | Cierra la ventana **sin** cancelar (o cancela AP: es de prueba) | — |
 | 4 | Lo mismo de día | Se ve bien con tus colores de día |
@@ -1024,8 +1032,8 @@ qué es"*.
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | **🚚 Envíos → 📦 Entregas por zona** → elige **Zona Prueba QA** y el rango de esta semana | La tabla con las columnas **Pedido hecho el** y **Se entrega el**. P1 y P2 dicen *Sin fecha todavía* (si nunca se les programó) |
-| 2 | **Mis pedidos** → busca P1 | 📅 **Pedido hecho el** con fecha y hora. 🚚 **Se entrega: Sin fecha todavía · (zona)** |
-| 3 | Busca P2 | Igual que P1: 🚚 **Se entrega: Sin fecha todavía · (zona)** (antes no salía nada) |
+| 2 | **Mis pedidos** → escribe el **número** de P1 | 📅 **Pedido hecho el** con fecha y hora. 🚚 **Se entrega: Sin fecha todavía · (zona)** |
+| 3 | Escribe el **número** de P2 | Igual que P1: 🚚 **Se entrega: Sin fecha todavía · (zona)** (antes no salía nada) |
 
 ### 21.2 Programar y ver la fecha
 
@@ -1033,8 +1041,8 @@ qué es"*.
 |---|---|---|
 | 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro → **✉️ Avisar a 2 cliente(s)** → **Sí, enviar avisos** | (El cliente de prueba no tiene correo: es normal que diga que se avisó a 0.) *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 2 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* |
 | 2 | La tabla se vuelve a cargar | P1 y P2 dicen en **Se entrega el** la fecha y la hora que pusiste |
-| 3 | **Mis pedidos** → busca P1 | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
-| 4 | Busca P2 (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
+| 3 | **Mis pedidos** → escribe el **número** de P1 | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
+| 4 | Escribe el **número** de P2 (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
 | 5 | Abre el detalle de P2 | Arriba 🕒 **Pedido hecho el** (fecha y hora de cuando se hizo). En "Entrega": **Se entrega el:** (fecha) a las (hora), en (punto) |
 | 6 | En la card de P2, **📦 Entregar** | El renglón 🚚 desaparece (ya se lo llevó) |
 | 7 | Un pedido con fecha de entrega **ya pasada** que falta entregar (pagado o no) | ⚠ **Atrasado N días** junto a la fecha |
@@ -1091,7 +1099,7 @@ Para la 20.2 y la 20.3: **🧪 Preparar prueba 20** (o ya lo hiciste con **Prepa
 
 **Antes de empezar:** **🧪 Preparar prueba 20**. Crea **P1** y **P2**:
 dos 🕓 Pendiente de "Cliente Prueba QA", $150 cada uno (en "Zona Prueba QA"). Anota los números. Después, en el detalle de P1:
-**🔗 Unir con otros pedidos** → busca P2 → **Unir 2 pedidos**.
+**🔗 Unir con otros pedidos** → escribe el **número** de P2 → **Unir 2 pedidos**.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
@@ -1162,12 +1170,9 @@ botón del bloque **Pago**. Los pasos de abajo ya lo dicen así.
 | **C** | 💳 Ir pagando con $50, todavía no se lo lleva | |
 | **D** | 🛒 Contado, todavía no se lo lleva | |
 
-(Si lo haces antes de la subida: créalos a mano como decía antes — A y B con una cuenta de cliente desde
-la tienda con zona Tejupilco; C y D en **Ventas → 💰 Venta directa** con Tejupilco y **📦 Todavía no**.)
-
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Mis pedidos** → busca A | La card dice arriba **🕓 Pendiente** (contorno punteado) |
+| 1 | **Mis pedidos** → escribe el **número** de A | La card dice arriba **🕓 Pendiente** (contorno punteado) |
 | 2 | **⚙️ Filtros → Pago → 🕓 Pendiente** | Salen A y B. No salen C ni D |
 | 3 | Quita ese filtro y marca **🛒 Contado** | Sale D (cobrado de contado). **No** salen A ni B |
 | 4 | Toca la **ⓘ** junto a "Forma de cobro" | Se abre un recuadro con qué significa Contado, Apartado e Ir pagando (lo de 🕓 Pendiente está en la ⓘ de **Pago**). Se cierra con ✕, con Esc o tocando afuera. Prueba las ⓘ de Pago, Entrega, Dinero, Fecha de entrega, Dónde se entrega y Unidos y otros |
