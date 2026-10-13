@@ -114,18 +114,21 @@ tiempo en generar pedidos"*.
 |---|---|
 | `GET /mis-productos/v1/admin/datos-prueba/escenarios` | 200. Las pruebas van en **`lista`** (no en `data`): `[{ prueba: "12", titulo: "…" }, { prueba: "14-QA", … }, …]`. Hoy: 12, 14-QA, 15, 16, 17, 18, 20, 21, 22 y 24 |
 | `POST /mis-productos/v1/admin/datos-prueba/preparar/{prueba}` (sin body; `{prueba}` va con `encodeURIComponent`) | **201** con `data: { prueba, titulo, pedidos: [...], catalogo: [...], siguientePaso, error: null }` (detalle abajo) |
+| `POST /mis-productos/v1/admin/datos-prueba/quitar/{prueba}` (sin body) | **200** con `data: { prueba, titulo, pedidosCancelados, pedidosSinCancelar, modelosDadosDeBaja, error }`. Quita lo de esa prueba sin volver a crearlo (pedidos cancelados, modelos dados de baja; nada se borra) |
+| `POST /mis-productos/v1/admin/datos-prueba/quitar-todas` (sin body) | **200**. Una por prueba en **`lista`**, con la misma forma que la de arriba; la que falló trae `error` y las demás se quitan. `mensaje`: *"5 pedidos cancelados y 2 modelos dados de baja"* |
 | `POST /mis-productos/v1/admin/datos-prueba/preparar-todas` (sin body) | **201**. Una por prueba en **`lista`**, en el orden de `escenarios`. La que falló trae `error` con el motivo (y `pedidos`/`catalogo` vacíos); las demás quedan listas. `mensaje`: *"Todas las pruebas quedaron listas"* o *"8 pruebas listas, 2 con error"* |
 
 Cada prueba preparada:
 ```
 { prueba: "17", titulo: "Filtros de Tienda, precio $100 y Venta directa",
-  pedidos:  [ { clave: "P1", pedidoId: 1180, queEs: "🕓 Pendiente de …" } ],
+  pedidos:  [ { clave: "K4", pedidoId: 1180, queEs: "💳 Ir pagando sin dinero", cliente: "Prueba 24 K4" } ],
   catalogo: [ { clave: "Art-A", tipo: "ARTICULO",  // o "MODELO"
                 modeloId: 812, articuloId: 2301,
                 nombre: "QA Prueba 17 Art-A #2098000123", codigoBarras: "2098000123",
                 queEs: "Artículo de $100 con stock 10" } ],
   siguientePaso: "17.1: Tienda → busca …",   // puede ser null
-  error: null }                               // solo en preparar-todas, cuando esa prueba falló
+  error: null,                                // solo en preparar-todas, cuando esa prueba falló
+  queSeQuito: "Se quitó lo de antes: 2 pedidos cancelados y 1 modelo dado de baja." }   // null si no había nada
 ```
 
 - **403** fuera de `inventario_key_qa` (prod), en los dos POST: `mensaje` *"Los datos de prueba solo se pueden generar en la base de QA…: no se hizo nada"*.
@@ -150,6 +153,25 @@ cada prueba (con su título al lado) y, al terminar, un recuadro por prueba: los
 (clave, nombre y el código de barras, que se copia al tocarlo), los pedidos creados con enlace a
 `/pedidos/mis-pedidos?pedidoId=N` (abre el detalle) y el siguiente paso. La que falló sale en rojo con
 su `error`.
+
+**Nombre exacto en la venta y reiniciar (2026-10-13, tercera pasada)** — pedido del dueño: *"en la venta se pone
+el nombre exacto de la prueba para que coincida en todos lados… y si sale mal, en el mismo código eliminar lo que se
+metió y volverlo a meter"*.
+
+| Qué | Antes | Después |
+|---|---|---|
+| Cliente de cada pedido de prueba | "Cliente Prueba QA 001" (sin cuenta) o "Cliente Prueba QA" (con cuenta), el mismo para todos | **Uno por prueba y clave**: «Prueba 24 K4», «Prueba 24 K6», «Prueba 16 A»… Es lo que se ve en la tarjeta del pedido y lo que busca Mis pedidos / 🔗 Unir (3 letras o más: «Prueba 24» trae los de esa prueba) |
+| Nombre de los modelos | "QA Prueba 17 Art-A #2098000123" | **"QA Prueba 17 Art-A"** (sin número; el código de barras `2098…` los distingue) |
+| Tocar **🧪 Preparar prueba N** otra vez | Creaba datos nuevos y dejaba los viejos (modelos repetidos, pedidos que se acumulaban) | **Reinicia**: primero quita lo de esa prueba (pedidos cancelados con el servicio real, el stock regresa; modelos y artículos dados de baja) y luego la crea. La respuesta trae `queSeQuito` |
+| Quitar sin volver a crear | No existía | `POST …/quitar/{prueba}` y `POST …/quitar-todas`; en pantalla **🗑 Quitar** por prueba y **🗑 Quitar todas** (con confirmación) |
+
+Un Contado entregado o un Ir pagando ya pagado se cancela como **devolución** (su venta queda "Devuelta") y un
+pedido que está en un grupo también se cancela. Un pedido que no se pueda cancelar no detiene a los demás
+(`pedidosSinCancelar`). Los pedidos cancelados no salen en Mis pedidos al abrir (se ven con ❌ Cancelado). Nada se
+borra de la base.
+
+**Front:** el recuadro de cada prueba muestra `«Prueba 24 K4»` junto al número del pedido y una línea
+**♻️ Se quitó lo de antes: …** cuando reinició; al quitar, esa prueba sale de la lista guardada.
 
 **Lo que se guarda (2026-10-13, segunda pasada):** la lista de pruebas preparadas se **recuerda en el
 navegador** (`localStorage`, clave `cache:pruebas-preparadas`), una entrada por prueba con la hora en que

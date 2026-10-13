@@ -78,7 +78,13 @@ necesita para las pruebas"*.
   con la tabla de lo que crea. También existe **🧪 Preparar todas las pruebas**.
 - Pedidos, ventas y abonos salen de los **servicios reales**, nunca de un `INSERT`. El catálogo, del
   generador de prueba y solo sobre modelos de marca "Prueba QA". Solo funciona en `inventario_key_qa`.
-- Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R19).
+- **El nombre exacto de la prueba va en la venta (R20):** el cliente de cada pedido se llama "Prueba 24 K4" y los
+  modelos "QA Prueba 17 Art-A". El documento de pruebas busca esos nombres, nunca una clave suelta (K4) ni nada de
+  menos de 3 letras (regla de los buscadores).
+- **Si una prueba sale mal se reinicia (R21):** tocar **🧪 Preparar prueba N** otra vez quita lo de esa prueba
+  (pedidos cancelados con el servicio real, modelos dados de baja; nada se borra) y la vuelve a crear. **🗑 Quitar**
+  solo quita.
+- Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R21).
 
 ## Flujo Git — cómo hacer los merges
 

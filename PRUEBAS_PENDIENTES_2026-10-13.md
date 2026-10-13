@@ -127,30 +127,37 @@ administrador) → abajo, **Preparar una prueba**.
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | Toca **🧪 Preparar prueba N** (la que vas a hacer) | El botón dice **Preparando…** unos segundos |
-| 2 | — | Un recuadro **✅ Prueba N lista** con: los **modelos y artículos** (su **clave** como la usa la prueba: Art-A, M-OFF…; su nombre; su **código de barras**, que al tocarlo se copia, y qué es) y los **pedidos** (clave: P1, A, K4…; su **número**, que es un enlace al detalle, y qué es). Abajo, 👉 por dónde seguir |
+| 2 | — | Un recuadro **✅ Prueba N lista** con: los **modelos y artículos** (su **clave** como la usa la prueba: Art-A, M-OFF…; su nombre; su **código de barras**, que al tocarlo se copia, y qué es) y los **pedidos** (clave: P1, A, K4…; su **número**, que es un enlace al detalle; el **nombre con el que se ve en pantalla**, por ejemplo «Prueba 24 K4»; y qué es). Abajo, 👉 por dónde seguir |
 | 3 | Si la prueba lo pide, **anota los números** en la tabla de "Antes de empezar" | — |
 | 4 | **O todas de una vez:** **🧪 Preparar todas las pruebas** → **Sí, preparar todas** | El botón dice **Preparando todas…** y sale un recuadro por prueba. Si alguna falla, sale en **⚠️ rojo con el motivo** y las demás quedan listas |
+| 5 | **Si algo salió mal en una prueba:** vuelve a tocar su **🧪 Preparar prueba N** | **Reinicia** la prueba: primero quita lo de antes y luego la crea otra vez. En su recuadro dice **♻️ Se quitó lo de antes: 2 pedidos cancelados y 1 modelo dado de baja** |
+| 6 | **🗑 Quitar** (en cada prueba) o **🗑 Quitar todas** | Pide confirmación y **solo quita**, sin volver a crear. Avisa cuántos pedidos canceló y cuántos modelos dio de baja. Úsalo al terminar para dejar QA limpio |
 
-**Cómo se llaman:** cada modelo es **"QA Prueba N <clave> #2098…"** (por ejemplo *"QA Prueba 17 Art-A
-#2098000123"*), con marca **"Prueba QA"**, código `2098…` y una foto de las que ya hay en QA. Para
-buscarlo, escribe su clave o pega su código de barras. Las pruebas de pedidos usan además un modelo
-**"QA Prueba N #…"** con **un** artículo de **$150** y stock 30, y los pedidos llevan la nota **[DATOS DE PRUEBA]**. Los
-clientes son **"Cliente Prueba QA 001"** (sin cuenta) y **"Cliente Prueba QA"** (con cuenta, para los 🕓
-Pendientes; su correo termina en `.invalid`, así que **no le llega ningún correo a nadie**). La zona,
-cuando la prueba la necesita, es **"Zona Prueba QA"** (envío $0; se crea la primera vez).
+**Nombres exactos (para que lo que dice este documento sea lo que ves):**
+- **Modelos:** **"QA Prueba 17 Art-A"** (la prueba y la clave). Las pruebas de pedidos usan además un modelo
+  **"QA Prueba 24 Artículo"** con **un** artículo de **$150** y stock 30. Todos con marca **"Prueba QA"**, código
+  `2098…` y una foto de las que ya hay en QA.
+- **Pedidos:** el **cliente** de cada pedido se llama como la prueba y su clave: el pedido **K4** de la Prueba 24
+  es del cliente **«Prueba 24 K4»**; **T1** de la Prueba 12, «Prueba 12 T1»; y así todos. **Es lo que ves en la
+  tarjeta del pedido y lo que buscas** en **Mis pedidos** o en **🔗 Unir**: escribe «Prueba 24 K4», o solo «Prueba 24»
+  para traer todos los de esa prueba. También sirve el **número** del pedido.
+- **Los buscadores siguen su regla:** de texto piden **3 letras o más** (por eso «Prueba 24», nunca «K4» solo) y de
+  número de pedido basta 1 dígito.
+- Los clientes de los 🕓 Pendiente tienen cuenta (un correo que termina en `.invalid`, así que **no le llega ningún
+  correo a nadie**); los de venta directa no tienen correo ni teléfono. La zona, cuando la prueba la necesita, es
+  **"Zona Prueba QA"** (envío $0; se crea la primera vez). Los pedidos llevan además la nota `[DATOS DE PRUEBA]`
+  (no se ve en pantalla).
 
-**Qué son K4, P1, T1, Art-A…** Son **nombres que usa este documento**, para que sepas de cuál pedido o
-artículo se habla. **No están escritos en ningún pedido ni se escriben en un buscador.** Para encontrar un
-**pedido**, usa su **número** (el del recuadro 🧪, que es un enlace: tócalo para abrirlo, o toca *copiar número*
-y pégalo en el buscador). Para encontrar un **modelo o artículo**, escribe su nombre (*QA Prueba 17 Art-A*) o
-pega su código de barras. **Los buscadores siguen su regla:** de texto piden 3 letras o más; de número de
-pedido, desde 1 dígito. La lista del recuadro 🧪 **se queda guardada** en este navegador aunque cambies de
-pantalla, con la hora en que se preparó cada prueba; se quita con *🧹 Quitar la lista* (no borra nada de la base).
+**Si algo sale mal, se reinicia.** Si una prueba te sale mal a la mitad, o ya vendiste, cancelaste o uniste lo
+que tenías, vuelve a tocar **🧪 Preparar prueba N**: primero **quita lo de la vez anterior** (sus pedidos se
+**cancelan**, el stock regresa, y sus modelos se **dan de baja**) y luego la **crea otra vez** con los mismos
+nombres. **🗑 Quitar** solo quita. **Nada se borra:** los pedidos cancelados no salen en Mis pedidos al abrir (se
+ven con ❌ Cancelado) y los modelos dados de baja quedan deshabilitados en Catálogo → 🔍 Modelos. Si buscas por
+nombre y salen un modelo deshabilitado y uno habilitado, el bueno es el **habilitado**; con el código de barras
+sale solo el que acabas de crear.
 
-**Cada vez que lo tocas sale todo nuevo.** Si una prueba te sale mal a la mitad, o ya cancelaste, vendiste
-o uniste lo que tenías, vuelve a tocar el botón y empiezas limpio. Lo de antes se queda como historial. Si
-buscas por nombre (*QA Prueba 17 Art-A*) y salen varios, el **más nuevo** es el del número `#2098…` más alto; con el código
-de barras sale solo el que acabas de crear.
+La lista del recuadro 🧪 **se queda guardada** en este navegador aunque cambies de pantalla, con la hora en que se
+preparó cada prueba; se quita con *🧹 Quitar la lista* (solo de la pantalla: no borra nada de la base).
 
 Los 🕓 Pendientes que crea el botón llevan la zona **"Zona Prueba QA"**: así no se cancelan solos a los
 pocos días (los que recogen en el local sí se cancelan, 2 días después de su fecha para recoger). Puedes
@@ -187,7 +194,7 @@ prepara sus datos (con **Preparar todas** ya quedan todos).
 **Por qué este orden:** primero lo que ya se podía hacer antes de la subida del 2026-10-13; después lo
 que estrena esa subida. La **6** va al final porque mete miles de pedidos de prueba.
 
-**Al terminar todas:** QA pasa a **prod** (ver "Lo que sigue" al final).
+**Al terminar todas:** toca **🗑 Quitar todas** (en 🧪 Datos de prueba) para dejar QA limpio, y QA pasa a **prod** (ver "Lo que sigue" al final).
 
 ---
 ## Prueba 12 — Lo legal que ya se pudo resolver
@@ -222,8 +229,8 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 | Clave | Qué es | Para |
 |---|---|---|
 | **Art-200** | Artículo de **$200** con stock 10 | 12.6: Venta directa |
-| **T1** | 🛒 Venta de contado de Art-200, ya cobrada | 12.7 paso 1: su ticket |
-| **T2** | 💳 Ir pagando de Art-200 con un abono de **$50** | 12.7 paso 2: el ticket de abono |
+| **T1** | 🛒 Venta de contado de Art-200, ya cobrada · cliente «Prueba 12 T1» | 12.7 paso 1: su ticket |
+| **T2** | 💳 Ir pagando de Art-200 con un abono de **$50** · cliente «Prueba 12 T2» | 12.7 paso 2: el ticket de abono |
 
 ### Mapa de impacto
 
@@ -294,8 +301,8 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Imprime el ticket de **T1**, la venta de contado (con los datos de prueba de 12.1 capturados). Ábrelo con el enlace de su número en el recuadro de 🧪 | Debajo de "NOVEDADES JADE": nombre, domicilio, teléfono, correo. Abajo: "Garantía de 90 días desde que lo recibes" |
-| 2 | Ticket del **abono** de **T2** (Ir pagando con $50) | Además: "Abonos sin intereses (CAT 0%)" |
+| 1 | Imprime el ticket de **T1**, la venta de contado (con los datos de prueba de 12.1 capturados). En **Mis pedidos** escribe **Prueba 12 T1** (o ábrelo con el enlace de su número en el recuadro de 🧪) | Debajo de "NOVEDADES JADE": nombre, domicilio, teléfono, correo. Abajo: "Garantía de 90 días desde que lo recibes" |
+| 2 | Ticket del **abono** de **T2** (en Mis pedidos escribe **Prueba 12 T2**; Ir pagando con $50) | Además: "Abonos sin intereses (CAT 0%)" |
 | 3 | Totales, abonos y saldo | **Igual que antes** |
 
 ### 12.8 Bot
@@ -739,7 +746,7 @@ Para tener un pedido que cancelar sin tocar los tuyos: **🧪 Preparar prueba 22
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | De noche, **Mis pedidos** → en el buscador escribe el **número** de **AP** (el del recuadro 🧪) → en su tarjeta **✖ Cancelar** | *"¿Por qué cancelas este pedido?"* con los motivos como botones **oscuros con letra clara**, del color de la ventana (antes: botones blancos) |
+| 1 | De noche, **Mis pedidos** → en el buscador escribe **Prueba 22 AP** (el Apartado de la 🧪 Prueba 22) → en su tarjeta **✖ Cancelar** | *"¿Por qué cancelas este pedido?"* con los motivos como botones **oscuros con letra clara**, del color de la ventana (antes: botones blancos) |
 | 2 | Pasa el mouse por un motivo y tócalo | Se marca con el color de acento del tema; se lee |
 | 3 | Cierra la ventana **sin** cancelar (o cancela AP: es de prueba) | — |
 | 4 | Lo mismo de día | Se ve bien con tus colores de día |
@@ -902,19 +909,19 @@ prueba lo comprueba con pedidos nuevos.
 
 | Pedido | Qué es | Número |
 |---|---|---|
-| **K4** | 💳 Ir pagando sin dinero, debe $150 | |
-| **K6** | 💳 Ir pagando que ya dio $40, debe $110 | |
+| **K4** | 💳 Ir pagando sin dinero, debe $150 · cliente «Prueba 24 K4» | |
+| **K6** | 💳 Ir pagando que ya dio $40, debe $110 · cliente «Prueba 24 K6» | |
 
-(Los dos del mismo cliente de prueba, y los dos "ya se lo llevó", como en la Prueba 4.)
+(Los dos "ya se lo llevó", como en la Prueba 4. Cada uno es de su propio cliente, y **Unir** acepta pedidos de clientes distintos.)
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Abre el detalle de **K4** → **🔗 Unir con otros pedidos** | El buscador de pedidos para unir |
-| 2 | Escribe el número de **K6** | **Sale K6** |
-| 3 | Escribe **"Cliente Prueba"** | Salen K6 y otros Ir pagando de prueba; **no** salen Apartados ni cancelados |
+| 1 | **📋 Pedidos → Mis pedidos** → escribe **Prueba 24 K4** → en su tarjeta **👁 Detalle** (o ábrelo con su enlace en el recuadro 🧪) → **🔗 Unir con otros pedidos** | El buscador de pedidos para unir |
+| 2 | Escribe **Prueba 24 K6** (o el número de K6) | **Sale K6**, con *abonado $40.00* |
+| 3 | Borra y escribe **Prueba 24** | Sale K6, el único otro Ir pagando abierto de la prueba (K4 es el pedido desde el que buscas). **No** salen Apartados ni cancelados |
 | 4 | Elige **K6** → **Unir 2 pedidos** | Quedan unidos. El grupo suma **$300** y ya tiene **$40** pagados: debe **$260** |
 | 5 | Abre el detalle de **K6** | Dice que está unido con K4 |
-| 6 | (Contraprueba) Cancela un Ir pagando de prueba que **no** esté unido (por ejemplo, prepara otra vez la 24 y cancela su K6 con **El cliente avisó**). Después, desde su K4 → 🔗 Unir → escribe el número del cancelado | **No** sale: los cancelados no se unen (eso le pasó a tu K6) |
+| 6 | (Contraprueba) Toca otra vez **🧪 Preparar prueba 24**: **reinicia** y te deja K4 y K6 **nuevos y sin unir** (los de antes quedan cancelados; sale ♻️). Cancela el K6 nuevo con **El cliente avisó**. Después, desde el K4 nuevo → 🔗 Unir → escribe **Prueba 24 K6** | **No** sale ninguno: los cancelados no se unen (eso le pasó a tu K6) |
 
 ❌ **Está mal si:** un Ir pagando con dinero, no cancelado y fuera de un grupo **no** sale en el buscador;
 o un cancelado sí sale.
@@ -940,9 +947,9 @@ o un cancelado sí sale.
 
 | Pedido | Qué es | Número |
 |---|---|---|
-| **PE** | 🕓 Pendiente de "Cliente Prueba QA" (en "Zona Prueba QA") | |
-| **AP** | 📦 Apartado que debe $150 | |
-| **CA** | Apartado cancelado ("el cliente avisó") | |
+| **PE** | 🕓 Pendiente (en "Zona Prueba QA") · cliente «Prueba 22 PE» | |
+| **AP** | 📦 Apartado que debe $150 · cliente «Prueba 22 AP» | |
+| **CA** | Apartado cancelado ("el cliente avisó") · cliente «Prueba 22 CA» | |
 
 
 ### Mapa de impacto
@@ -973,7 +980,7 @@ o un cancelado sí sale.
 |---|---|---|
 | 1 | **✕ Quitar filtros** y sal y vuelve a entrar a **Mis pedidos** | Bajo el buscador: *"No se muestran los pedidos ya pagados y entregados ni los cancelados…"*. Sale PE y AP; **no** sale CA |
 | 2 | **⚙️ Filtros → ❌ Cancelado** | Sale CA y el aviso se va |
-| 3 | **✕ Quitar filtros** y escribe el número de CA en el buscador | Sale CA |
+| 3 | **✕ Quitar filtros** y escribe **Prueba 22 CA** en el buscador | Sale CA |
 
 **❌ Está mal si…** 🕓 Pendiente sigue en Forma de cobro; Falta pagar trae Pendientes; un cancelado sale al
 abrir; con ❌ Cancelado no salen los cancelados; Apartado o Ir pagando dejan de traer lo de siempre.
@@ -1011,8 +1018,8 @@ qué es"*.
 
 | Pedido | Qué es | Número |
 |---|---|---|
-| **P1** | 📦 Apartado que debe $150 | |
-| **P2** | 💳 Ir pagando **ya pagado completo** que falta entregar | |
+| **P1** | 📦 Apartado que debe $150 · cliente «Prueba 21 P1» | |
+| **P2** | 💳 Ir pagando **ya pagado completo** que falta entregar · cliente «Prueba 21 P2» | |
 
 
 ### Mapa de impacto
@@ -1032,8 +1039,8 @@ qué es"*.
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | **🚚 Envíos → 📦 Entregas por zona** → elige **Zona Prueba QA** y el rango de esta semana | La tabla con las columnas **Pedido hecho el** y **Se entrega el**. P1 y P2 dicen *Sin fecha todavía* (si nunca se les programó) |
-| 2 | **Mis pedidos** → escribe el **número** de P1 | 📅 **Pedido hecho el** con fecha y hora. 🚚 **Se entrega: Sin fecha todavía · (zona)** |
-| 3 | Escribe el **número** de P2 | Igual que P1: 🚚 **Se entrega: Sin fecha todavía · (zona)** (antes no salía nada) |
+| 2 | **Mis pedidos** → escribe **Prueba 21 P1** | 📅 **Pedido hecho el** con fecha y hora. 🚚 **Se entrega: Sin fecha todavía · (zona)** |
+| 3 | Escribe **Prueba 21 P2** | Igual que P1: 🚚 **Se entrega: Sin fecha todavía · (zona)** (antes no salía nada) |
 
 ### 21.2 Programar y ver la fecha
 
@@ -1041,8 +1048,8 @@ qué es"*.
 |---|---|---|
 | 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro → **✉️ Avisar a 2 cliente(s)** → **Sí, enviar avisos** | (El cliente de prueba no tiene correo: es normal que diga que se avisó a 0.) *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 2 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* |
 | 2 | La tabla se vuelve a cargar | P1 y P2 dicen en **Se entrega el** la fecha y la hora que pusiste |
-| 3 | **Mis pedidos** → escribe el **número** de P1 | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
-| 4 | Escribe el **número** de P2 (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
+| 3 | **Mis pedidos** → escribe **Prueba 21 P1** | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
+| 4 | Escribe **Prueba 21 P2** (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
 | 5 | Abre el detalle de P2 | Arriba 🕒 **Pedido hecho el** (fecha y hora de cuando se hizo). En "Entrega": **Se entrega el:** (fecha) a las (hora), en (punto) |
 | 6 | En la card de P2, **📦 Entregar** | El renglón 🚚 desaparece (ya se lo llevó) |
 | 7 | Un pedido con fecha de entrega **ya pasada** que falta entregar (pagado o no) | ⚠ **Atrasado N días** junto a la fecha |
@@ -1098,8 +1105,8 @@ Para la 20.2 y la 20.3: **🧪 Preparar prueba 20** (o ya lo hiciste con **Prepa
 ### 20.2 Pedidos unidos: cambiar la forma de cobro
 
 **Antes de empezar:** **🧪 Preparar prueba 20**. Crea **P1** y **P2**:
-dos 🕓 Pendiente de "Cliente Prueba QA", $150 cada uno (en "Zona Prueba QA"). Anota los números. Después, en el detalle de P1:
-**🔗 Unir con otros pedidos** → escribe el **número** de P2 → **Unir 2 pedidos**.
+dos 🕓 Pendiente de $150 cada uno (en "Zona Prueba QA"), de los clientes «Prueba 20 P1» y «Prueba 20 P2». Después, en el detalle de P1:
+**🔗 Unir con otros pedidos** → escribe **Prueba 20 P2** → **Unir 2 pedidos**.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
@@ -1165,14 +1172,14 @@ botón del bloque **Pago**. Los pasos de abajo ya lo dicen así.
 
 | Pedido | Qué es | Número |
 |---|---|---|
-| **A** | 🕓 Pendiente de "Cliente Prueba QA" (cliente con cuenta) | |
-| **B** | 🕓 Pendiente del mismo cliente | |
-| **C** | 💳 Ir pagando con $50, todavía no se lo lleva | |
-| **D** | 🛒 Contado, todavía no se lo lleva | |
+| **A** | 🕓 Pendiente · cliente «Prueba 16 A» (con cuenta) | |
+| **B** | 🕓 Pendiente · cliente «Prueba 16 B» | |
+| **C** | 💳 Ir pagando con $50, todavía no se lo lleva · cliente «Prueba 16 C» | |
+| **D** | 🛒 Contado, todavía no se lo lleva · cliente «Prueba 16 D» | |
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Mis pedidos** → escribe el **número** de A | La card dice arriba **🕓 Pendiente** (contorno punteado) |
+| 1 | **Mis pedidos** → escribe **Prueba 16 A** | La card dice arriba **🕓 Pendiente** (contorno punteado) |
 | 2 | **⚙️ Filtros → Pago → 🕓 Pendiente** | Salen A y B. No salen C ni D |
 | 3 | Quita ese filtro y marca **🛒 Contado** | Sale D (cobrado de contado). **No** salen A ni B |
 | 4 | Toca la **ⓘ** junto a "Forma de cobro" | Se abre un recuadro con qué significa Contado, Apartado e Ir pagando (lo de 🕓 Pendiente está en la ⓘ de **Pago**). Se cierra con ✕, con Esc o tocando afuera. Prueba las ⓘ de Pago, Entrega, Dinero, Fecha de entrega, Dónde se entrega y Unidos y otros |
