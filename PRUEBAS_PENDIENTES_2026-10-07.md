@@ -21,7 +21,7 @@ casilla `[x]`. Yo leo tus 💬 y contesto debajo con `↳`.
 
 | Orden | Prueba | Qué revisa | ¿Ya se puede? | Tiempo | ✔ |
 |---|---|---|---|---|---|
-| 1 | **2 — Apartado es sin dinero** | Un Apartado no acepta abonos a medias; se pasa a Ir pagando | 2.2 y 2.6 ✅ ya; 2.1, 2.4 y 2.5 cambiaron el 2026-10-08 → cuando pase a `qa` | 25 min | [ ] |
+| 1 | **2 — Apartado es sin dinero** | Un Apartado no acepta abonos a medias; se pasa a Ir pagando | ✅ Ya, en QA (2.1, 2.4 y 2.5 cambiaron el 2026-10-08 y subieron el 2026-10-13) | 25 min | [ ] |
 | 2 | **3 — Quitar, cambiar o agregar artículos** | Total, lo que debe y el estado al editar un pedido; ⇄ con varias piezas | ✅ Ya, en QA | 30 min | [ ] |
 | 3 | **4 — Cancelar pedidos con abonos** | Stock y mensajes al cancelar | ✅ Ya, en QA | 20 min | [ ] |
 | 4 | **7 — Filtros y detalle con pedidos unidos** | Grupos en los filtros, card del grupo, botón −, orden, celular | ✅ Ya, en QA | 40 min | [ ] |
@@ -1031,7 +1031,7 @@ combinaban, el precio mín/máx que no encontraba los de $100, el buscador de Ve
 actualizaba después de vender, nombres de una letra guardados en Venta directa, y la ventana para dar
 de alta los artículos de un modelo al guardarlo.
 
-**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano:
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Ten a la mano:
 - Un modelo con **3 o más artículos con stock**, todos **habilitados**, y uno **deshabilitado** (borde rojo).
 - **Art-A** (de ~$100) y, si tienes, un artículo con **descuento activo** que en la tarjeta diga $100.
 
@@ -1180,7 +1180,7 @@ agregar artículo) buscar **todos** los modelos, también los sin stock, deshabi
 elegir uno, que diga en qué estado está, dejar **habilitarlo**, decir **cuántos artículos más se pueden
 hacer**, y que al **agregarle stock** se vaya al modelo y pregunte *"¿Deseas agregar los artículos de una vez?"*.
 
-**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano:
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Ten a la mano:
 - **M-OFF**: un modelo **deshabilitado** (en Catálogo → 🔍 Modelos, con el interruptor apagado).
 - **M-0**: un modelo **habilitado** cuyo stock ya está todo repartido en sus artículos (Libre 0).
 - Para el paso con otro rol: `migration_accion_tienda_venta_ver_todos.sql` ✅ ya está corrida en QA (2026-10-08); en
@@ -1253,7 +1253,7 @@ deshabilitado, el stock agregado se reparte solo a algún artículo, o el recuad
 400, y uno contestaba 200 aunque fallara), que una página que no existe dé un **404 de verdad**, y que
 Home y la página 404 ya no carguen una foto de pantalla completa que tardaba y no dejaba leer el texto.
 
-**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Para ver el código
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Para ver el código
 de una respuesta: **F12 → Red (Network)**, columna **Estado (Status)**.
 
 ### Mapa de impacto
@@ -1309,7 +1309,7 @@ el carrito se los volvía a pedir. (2) Dos pedidos 🕓 Pendiente unidos no se p
 Apartado (*"deshaz el grupo antes…"*). (3) Un modelo agotado (stock 0) no se podía guardar en Actualizar
 Modelo. (4) Mis pedidos debe abrir sin los pedidos que ya están pagados y entregados.
 
-**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano un
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Ten a la mano un
 correo nuevo para crear una cuenta de cliente.
 
 ### Mapa de impacto
@@ -1397,7 +1397,7 @@ qué es"*.
 | **Detalle del pedido** | 🕒 **Pedido hecho el** 13/10/2026 14:30 hrs | En "Entrega": **Se entrega el:** 18/10/2026 a las 10:00, en (punto de encuentro) |
 | **Entregas por zona** (tabla) | Columna **Pedido hecho el** | Columna nueva **Se entrega el** (o *Sin fecha todavía*) |
 
-**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Necesitas una zona
+**Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Necesitas una zona
 de entrega con al menos **dos pedidos sin entregar**: uno que **todavía debe** (🕓 Pendiente, Apartado o
 Ir pagando) y uno **ya pagado que falta entregar** (en Venta directa: cobra completo y en
 *"¿Ya se lo llevó?"* elige **📦 Todavía no**). Anota sus números (P1 debe, P2 pagado).
