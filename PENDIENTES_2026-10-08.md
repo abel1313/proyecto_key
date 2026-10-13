@@ -48,6 +48,7 @@ Después de correr uno de permisos hay que **volver a entrar** (los permisos via
 | [ ] | `migration_accion_gastos_admin.sql` | ✅ | ⏳ | Botones de gastos para el admin |
 | [ ] | `migration_tema_jade.sql` | ✅ | ⏳ (cuando Jade llegue a `main`) | Diseño Jade |
 | [ ] | `migration_tema_filtros.sql` | ✅ | ⏳ (con Jade) | Fondo de los filtros en Personalización |
+| [ ] | `migration_accion_editar_entrega_direccion.sql` (2026-10-13) | ⏳ **cuando el front con el botón "📍 Dirección" esté en QA** | ⏳ con ese front en `main` | Solo cambia el texto del permiso en Gestión de roles a "Dirección (📍 en la tarjeta)". No hay que volver a entrar |
 
 Lista con el orden para prod y por qué no puede faltar cada uno: `CLAUDE.md`, "Pendiente para prod".
 
@@ -55,22 +56,28 @@ Lista con el orden para prod y por qué no puede faltar cada uno: `CLAUDE.md`, "
 
 ## 4. 👤 Pruebas en QA
 
-Paso a paso en `PRUEBAS_PENDIENTES_2026-10-07.md` (resumen arriba de ese documento).
+**Desde el 2026-10-13 el paso a paso está en `PRUEBAS_PENDIENTES_2026-10-13.md`** (solo las que faltan; lo de antes, con tus 💬, sigue en `PRUEBAS_PENDIENTES_2026-10-07.md`).
 
 | ✔ | Prueba | ¿Ya se puede? |
 |---|---|---|
-| [ ] | **2** — Apartado es sin dinero (2.3 ✅; **2.1, 2.4 y 2.5 cambiaron** y hay que repetirlas) | 2.2 y 2.6 ya; 2.1/2.4/2.5 después de subir a `qa` |
-| [ ] | **3** — Quitar, cambiar o agregar artículos | Ya |
-| [ ] | **4** — Cancelar pedidos con abonos | Ya |
-| [ ] | **7** — Filtros y detalle con pedidos unidos | Ya |
-| [ ] | **11** — Entregado aparte del pago (11.6 depende del arreglo del recuadro de stock, que está en `dev`) | Ya, salvo 11.6 |
-| [ ] | **12** — Lo legal | Ya |
-| [ ] | **13** — Fondo de los filtros y seguridad | Ya |
+| [x] | **2** — Apartado es sin dinero | ✅ 2026-10-13 |
+| [x] | **3** — Quitar, cambiar o agregar artículos | ✅ 2026-10-13 |
+| [x] | **4** — Cancelar pedidos con abonos | ✅ 2026-10-13 (la ventana de cancelar se veía fea de noche: arreglado, se revisa en la Prueba 23) |
+| [x] | **7** — Filtros y detalle con pedidos unidos | ✅ 2026-10-13 |
+| [x] | **11** — Entregado aparte del pago | ✅ 2026-10-13 (botón "📍 Entrega" renombrado a "📍 Dirección": Prueba 23) |
+| [ ] | **12** — Lo legal (reescrita el 2026-10-13 con dónde revisar cada cosa) | Ya |
+| [ ] | **13** — Fondo de los filtros y seguridad (de noche se veía feo: arreglado, falta subirlo) | Después de subir a `qa` |
 | [ ] | **15** — Agregar producto, habilitar, Zonas de entrega | Ya |
 | [ ] | **16** — 🕓 Pendiente, ⓘ y datos legales | Ya |
 | [ ] | **14-QA** — El hotfix de prod en QA | Ya |
-| [ ] | **17** — Filtros de Tienda, Venta directa, buscadores y ventana 🧩 | Después de subir a `qa` |
-| [ ] | **18** — Agregar artículo: todos los modelos, habilitar y agregar stock | Después de subir a `qa` (el script ya se corrió en QA el 2026-10-08) |
+| [ ] | **17** — Filtros de Tienda, Venta directa, buscadores y ventana 🧩 | Ya |
+| [ ] | **18** — Agregar artículo: todos los modelos, habilitar y agregar stock | Ya |
+| [ ] | **19** — Errores con su código, 404 y Home | Ya |
+| [ ] | **20** — Cliente que no podía pedir, grupo, modelo agotado, Mis pedidos | Ya (20.2 con 🧪 Preparar prueba 20, después de subir) |
+| [ ] | **21** — Fecha de entrega en Pedidos y Entregas por zona | Ya (con 🧪 Preparar prueba 21, después de subir) |
+| [ ] | **22** — 🕓 Pendiente en Pago y sin cancelados al abrir | Ya (con 🧪 Preparar prueba 22, después de subir) |
+| [ ] | **23** — Colores de noche, listas que se abrían en blanco, chat de día y botón 📍 Dirección (2026-10-13) | Después de subir a `qa` |
+| [ ] | **24** — Unir un Ir pagando que ya tiene dinero (lo de K4/K5/K6) | Después de subir a `qa` |
 | [ ] | **6** — Datos de prueba con un botón | Al final |
 | [x] | 10.2 — Mis datos sin spinner | ✅ 2026-10-08 |
 

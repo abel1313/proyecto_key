@@ -68,6 +68,93 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-38] 🆕 Listas desplegables que salían en blanco, chat de día y "$" de Reportes (2026-10-13) — solo front
+
+Reporte del dueño: *"vi unos select que cuando salían todas las opciones aparecía en blanco y no se veían"*.
+
+**Medido** con los 5 diseños de Personalización, de día y de noche (skill `revision-colores`):
+con los 4 diseños de estilo Clásico (Clásico, Jade profundo elevado, Neutros cálidos, Teal), **de noche
+11 de 12 listas tenían contraste 1.1–1.2** (lo legible es 4.5 o más). El menú salía blanco y las
+opciones con letra casi blanca. Jade y los colores de fábrica salían bien.
+
+**Causa:** el menú de opciones de un `<select>` lo dibuja el navegador y toma su fondo, su letra y su
+`color-scheme` de tres lugares distintos. Un parche global (y 4 por pantalla) forzaba el menú claro,
+mientras la regla de `<option>` le ponía la letra clara del tema y el fondo del campo
+(`rgba(255,255,255,0.05)` en esos diseños).
+
+**Antes → después:**
+| Qué | Antes | Después |
+|---|---|---|
+| Menú de opciones de cualquier `select` (y `datalist`) | Fondo, letra y esquema de lugares distintos | Trío `--menu-bg` / `--menu-text` / `--menu-scheme`: fondo sólido, letra que contrasta y esquema del mismo lado |
+| Panel de `p-dropdown` (Venta directa, cobro en Mis pedidos, Agregar venta, detalle de producto) | `--card-bg` / `--app-text` | El mismo trío |
+| Campo cerrado del `select` en estilo Clásico de noche | Blanco con letra oscura (parche) | Con los colores del campo, igual que los demás campos |
+| Parches de `venta-directa`, `venta-variante`, `gestion-lugares`, `entregas-zona` | Forzaban el menú blanco | Quitados |
+| Login y Registro | Parche propio | **Igual** (se quedan con su diseño a propósito) |
+| "Asistente Virtual" y ✕ en el encabezado del chat, de día en Jade | Letra casi blanca sobre encabezado claro (1.12) | Letra del encabezado (`--card-header-text`) |
+| "$" verde de las tarjetas de Reportes, de día | `--pk-success` (2.65) | `--pk-success-to` (el mismo verde, más oscuro) |
+
+**Cómo se calcula el trío:** `TemaService.derivarColoresMenu()` lo saca de los colores ya aplicados (el
+campo encima del fondo de la página, la letra del campo o negro/blanco si no contrasta, y el esquema
+según qué tan claro es el fondo). Se recalcula al cargar Personalización, al previsualizar y al cambiar
+de día a noche. Sin endpoints ni filas nuevas en `tema_variable`.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 23 (23.5 y 23.6).
+
+---
+
+### [BUG-KEY-37] 🆕 🧪 Preparar prueba N: los pedidos de cada prueba de QA con un botón (2026-10-13)
+
+Pedido del dueño: *"genera los scripts para generar las pruebas que necesitas; si necesitas varios
+pedidos, los agregas, y yo hago las pruebas en pedidos… cada prueba así hay que hacerla para no perder
+tiempo en generar pedidos"*.
+
+**Endpoints nuevos** (solo `ROLE_ADMIN`, ya cubiertos por `/v1/admin/datos-prueba/**` en SecurityConfig):
+
+| Request | Response |
+|---|---|
+| `GET /mis-productos/v1/admin/datos-prueba/escenarios` | 200. Las pruebas van en **`lista`** (no en `data`): `[{ prueba: "16", titulo: "…" }, { prueba: "20", … }, …]`. Hoy: 16, 20, 21, 22 y 24 |
+| `POST /mis-productos/v1/admin/datos-prueba/preparar/{prueba}` (sin body) | **201** con `data: { prueba, titulo, pedidos: [{ clave: "P1", pedidoId: 1180, queEs: "📦 Apartado que debe $150…" }], siguientePaso: "…" }` |
+
+- **403** fuera de `inventario_key_qa` (prod): `mensaje` *"Los datos de prueba solo se pueden generar en la base de QA…: no se hizo nada"*.
+- **400** si la prueba no existe: *"No hay datos para preparar la prueba 99. Se pueden preparar: 16, 20, 21, 22, 24"*.
+
+Cada llamada crea **datos nuevos**: un modelo "QA Prueba N #…" con un artículo ($150, stock 30, marca
+"Prueba QA", código `2098…`) y los pedidos de esa prueba, con la observación `[DATOS DE PRUEBA]`. Pasan
+por los mismos servicios que la pantalla (carrito del cliente, venta directa, abono, ✖ Cancelar). Los 🕓
+Pendientes son de un cliente con cuenta, **"Cliente Prueba QA"** (`cliente.prueba.qa@ejemplo.invalid`).
+
+**Front:** en **Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba**, sección **"Preparar una prueba"**:
+un botón **🧪 Preparar prueba N** por cada prueba (con su título al lado) y, al terminar, la lista de
+pedidos creados con enlace a `/pedidos/mis-pedidos?pedidoId=N` (abre el detalle) y el siguiente paso.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md` ("🧪 Preparar prueba" y las pruebas 16, 20, 21, 22 y 24).
+Reglas R16 y R17 en `hexagonal/datosprueba/README.md`.
+
+---
+
+### [BUG-KEY-36] 🆕 Colores de noche (Jade) y botón "📍 Dirección" en la tarjeta de pedido (2026-10-13) — solo front + 1 script de texto
+
+Reporte del dueño: la ventana de cancelar se veía fea de noche; los submenús del menú lateral de noche
+se veían azules o negros y al pasar el mouse se ponían negros; los fondos de los filtros se veían mal;
+y en la tarjeta de pedido había dos botones con "Entrega" (📍 Entrega y 📦 Entregar).
+
+**Antes → después (sin cambios de endpoints):**
+| Qué | Antes | Después |
+|---|---|---|
+| Menú lateral de noche | Dos comentarios sin cerrar en `styles.scss` (bloque de noche) se tragaban variables: `--sb-text-active`, `--sb-bg-item` y las de las cards quedaban sin valor → submenús en azul/negro y hover negro | Comentarios cerrados; los submenús usan el color del menú y el hover el fondo de "seleccionado" |
+| Cards de noche | `--card-bg` no existía de noche | Definido (`#232532`) |
+| Ventana "¿Por qué cancelas este pedido?" | Botones de motivo con colores fijos | Usan los colores del tema (`--card-body-bg`, `--app-text`, hover `--app-tint`) |
+| Casillas de filtro (Tienda, Modelos) en Jade | La regla de etiquetas de Jade las pintaba encima | Excluidas de esa regla: se ven con su fondo de filtro |
+| Botón de la tarjeta de pedido | **📍 Entrega** | **📍 Dirección** (abre lo mismo: a quién, dónde y cuándo se entrega). Ventana: *"📍 Dirección y fecha de entrega — Pedido #N"* |
+
+Permiso: la clave sigue siendo `editar-entrega` (nadie gana ni pierde acceso). Script
+`migration_accion_editar_entrega_direccion.sql` solo cambia su texto en Gestión de roles a
+*"Dirección (📍 en la tarjeta)"*; no hay que volver a entrar.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 23.
+
+---
+
 ### [BUG-KEY-35] 🆕 Mis pedidos: 🕓 Pendiente en el bloque Pago y vista de inicio sin cancelados (2026-10-13)
 
 Pedido del dueño: *"como no hay un filtro de Pendientes aparecen siempre y no deberían; debería ir en
