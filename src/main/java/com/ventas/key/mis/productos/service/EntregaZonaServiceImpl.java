@@ -65,7 +65,8 @@ public class EntregaZonaServiceImpl {
 
         List<Pedido> pendientes = iPedidoRepository.findPendientesDeZonaEnRango(lugarEntregaId, rango[0], rango[1]);
         List<EntregaZonaPendienteDto> dtos = pendientes.stream()
-                .map(p -> new EntregaZonaPendienteDto(p.getId(), nombreDe(p), correoDe(p), p.getTotalPedido(), p.getFechaPedido()))
+                .map(p -> new EntregaZonaPendienteDto(p.getId(), nombreDe(p), correoDe(p), p.getTotalPedido(),
+                        p.getFechaPedido(), p.getFechaRecogida(), p.getHoraRecogida()))
                 .toList();
 
         return new EntregaZonaSemanaResponse(rango[0], rango[1], fechaSugerida, dtos);

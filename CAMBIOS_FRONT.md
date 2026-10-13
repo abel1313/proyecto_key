@@ -68,6 +68,43 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-34] 🆕 La fecha de entrega de Entregas por zona no salía en Mis pedidos (2026-10-13)
+
+Reporte del dueño: *"cuando busco los pedidos por zona y les pongo la fecha, no me aparece en pedidos la
+fecha en la que se va a entregar; y en pedidos hay una que dice fecha pero no sé de qué es"*.
+
+**Back — sin cambio de comportamiento:** `POST /v1/entregas-zona/{lugarEntregaId}/programar` **ya**
+guardaba fecha, hora y punto de encuentro en cada pedido de la lista (`fecha_recogida`,
+`hora_recogida`, `punto_encuentro`), tuviera correo o no. En las cards llegan como `pedido.fechaEntrega`
+(`yyyy-MM-dd`) y `pedido.horaEntrega`; en el detalle como `fechaRecogida`, `horaRecogida`,
+`puntoEncuentro`.
+
+**Back — campo nuevo (aditivo):** `GET /v1/entregas-zona/{lugarEntregaId}/pendientes`, en cada
+elemento de `pedidos[]`:
+```json
+{ "pedidoId": 1159, "nombreCliente": "…", "correo": "…", "total": 450.0,
+  "fechaPedido": "2026-10-10",
+  "fechaEntrega": "2026-10-18",   // nuevo: día ya programado; null si todavía no
+  "horaEntrega": "10:00" }        // nuevo: null si todavía no
+```
+`fechaPedido` es **cuándo se hizo el pedido** (el rango de la pantalla filtra por esta), no la entrega.
+
+**Front — qué fallaba y qué cambia:**
+- **Antes:** la card de Mis pedidos enseñaba la fecha de entrega solo si el pedido **debía dinero**
+  (`estado_pedido` distinto de Entregado/PAGADO). Un pedido ya pagado que faltaba entregar —justo los
+  que lista Entregas por zona— la escondía, aunque se le acabara de programar.
+- **Después:** se enseña mientras **falte entregar** (`pedido.entregado !== true`, y en un grupo
+  `grupo.entregadoGrupo !== true`), igual que el filtro "Fecha de entrega" del back. Un pedido de zona
+  sin fecha dice *"Se entrega: Sin fecha todavía · Zona"*.
+- Etiquetas: card **"Pedido hecho el"** (antes "Pedido") y **"Se entrega el"** (antes "Entrega");
+  detalle **"🕒 Pedido hecho el …"** (antes solo 🕒) y **"Se entrega el:"** (antes "Llega el:");
+  Entregas por zona: columnas **"Pedido hecho el"** (antes "Fecha") y **"Se entrega el"** (nueva). Al
+  avisar, el mensaje dice que la fecha quedó guardada en todos los pedidos, no solo en los que tienen correo.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`, Prueba 21.
+
+---
+
 ### [BUG-KEY-33] 🆕 Cliente que no podía pedir, grupo que no cambiaba de forma de cobro, modelo agotado y vista de inicio de Mis pedidos (2026-10-13)
 
 **1. Datos del cliente: la caché no se borraba al guardar (corrige un ciclo en el carrito)**
