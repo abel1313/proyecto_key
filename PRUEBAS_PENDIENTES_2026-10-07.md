@@ -1531,7 +1531,47 @@ QA** (subir reinicia el servidor y corta la corrida).
 
 ---
 
+## Lo que sigue al terminar estas pruebas (acordado el 2026-10-13)
+
+**Orden:** primero se terminan las pruebas de este documento → QA pasa a **prod** con lo que hay hoy →
+**después** entra el cambio de "variante" a "artículo" a `dev` y `qa`. Así a prod no se lleva el
+renombrado sin probar; solo lo que ya está en QA.
+
+### Paso 1 — QA a prod (cuando termines las pruebas 2 a 22)
+
+Lista completa y orden: `CLAUDE.md` → *"Pendiente para prod"* (7 scripts, se corren en `inventario_key`
+**antes** del deploy del back) y `PASOS_SUBIDA_2026-10-07.md` Parte 2. Del 2026-10-13 **no hay scripts
+nuevos**: los cambios de las Pruebas 19 a 22 son solo código. Después de los scripts de permisos, volver
+a entrar.
+
+### Paso 2 — "Variante" → "artículo" en QA (después de prod)
+
+Revisado el 2026-10-13. Vive en la rama `rename/variante-a-articulo` (back y front); detalle completo en
+`RENOMBRE_VARIANTE_A_ARTICULO.md` (en la rama).
+
+**Lo único que hay que correr en la base:** `migration_renombre_articulo_etiquetas.sql`. Cambia **solo
+textos** que ve el admin (menú *"🧩 Agregar producto"* → **"🧩 Agregar artículo"**, *"🎡 Rifa de
+productos"* → **"🎡 Rifa de artículos"**, y las etiquetas de Gestión de roles que dicen "variante"). No
+toca claves, rutas ni permisos: nadie gana ni pierde acceso y **no hay que volver a entrar**, basta
+recargar. Se volvió a probar el 2026-10-13 en una base desechable con los textos que dejan las
+migraciones, con "safe updates" prendido como en MySQL Workbench: la primera corrida cambió 33 textos,
+la segunda ninguno, y las consultas de verificación salieron bien.
+
+**Orden en QA:**
+1. Traer a la rama lo de `dev` (hoy le faltan 5 cambios del back y 3 del front). Probado en una copia
+   aparte: en el back chocan 6 archivos (`VarianteController`, `ConfigurarRifaVarianteController`,
+   `VarianteServiceImpl`, `SecurityConfig` y dos documentos); en el front solo `TESTS_PENDIENTES.md`. Se
+   resuelven con la lógica de `dev` y el texto de la rama, y se compila antes de subir.
+2. **Back** a `dev` → `qa` (agrega `/v2/articulos` sin quitar `/v1/variantes`: el front de QA sigue igual).
+3. **Front** a `dev` → `qa` (ya llama `/v2/articulos` y dice "artículo"). Nunca antes que el back: daría 404.
+4. Correr `migration_renombre_articulo_etiquetas.sql` en `inventario_key_qa`. Al final trae 4 consultas:
+   las 3 primeras tienen que salir **vacías** y la última tiene que devolver **Agregar artículo** y
+   **Rifa de artículos**.
+5. Pruebas R1–R19 de `RENOMBRE_VARIANTE_A_ARTICULO.md` §6 (con F12 → Red y el filtro `articulos`: todo
+   200, nunca 401, 403 ni 404).
+6. A prod igual: back, front y el mismo script en `inventario_key`.
+
 ## Lo que todavía no se prueba
 
-- **El cambio de "variante" a "artículo"** (rutas `/v2/articulos`): rama aparte `rename/variante-a-articulo`, no ha subido a QA.
+- **El cambio de "variante" a "artículo"** (rutas `/v2/articulos`): rama aparte `rename/variante-a-articulo`. Entra a QA en el Paso 2 de arriba, después de pasar a prod.
 - **"¿Viene bien o dañado?"** al cancelar o devolver y **registrar que el dinero ya se devolvió**: acordados, sin programar.
