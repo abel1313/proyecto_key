@@ -389,7 +389,9 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     /**
      * Ids de los pedidos que se pueden unir con uno de forma de cobro {@code tipo} (grupopedido,
      * buscador de "Unir pedidos"): misma forma de cobro, no cancelados, no cobrados de contado y
-     * fuera de cualquier grupo activo. Numero: empieza con lo escrito. Texto: nombre del cliente.
+     * fuera de cualquier grupo activo. Numero: empieza con lo escrito. Texto: nombre del cliente, el de
+     * la cuenta o el que se escribio en la venta (nombre del receptor), que es el que enseña la card
+     * (2026-10-13: antes no buscaba por este ultimo y no aparecia lo que se escribio en la venta).
      */
     @Query(value = """
         SELECT p.id FROM pedidos p
@@ -403,7 +405,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           AND (:buscar = ''
                OR (:buscar REGEXP '^[0-9]+$' AND CAST(p.id AS CHAR) LIKE CONCAT(:buscar, '%'))
                OR c.nombre_persona LIKE CONCAT('%', :buscar, '%')
-               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%'))
+               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR p.nombre_receptor LIKE CONCAT('%', :buscar, '%'))
         ORDER BY p.id DESC
         """,
         countQuery = """
@@ -418,7 +421,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           AND (:buscar = ''
                OR (:buscar REGEXP '^[0-9]+$' AND CAST(p.id AS CHAR) LIKE CONCAT(:buscar, '%'))
                OR c.nombre_persona LIKE CONCAT('%', :buscar, '%')
-               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%'))
+               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR p.nombre_receptor LIKE CONCAT('%', :buscar, '%'))
         """,
         nativeQuery = true)
     Page<Integer> candidatosParaUnir(@Param("tipo") String tipo,

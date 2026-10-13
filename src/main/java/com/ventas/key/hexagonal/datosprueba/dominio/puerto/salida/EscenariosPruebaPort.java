@@ -34,6 +34,16 @@ public interface EscenariosPruebaPort {
     int ventaDirecta(String tipoPedido, String prueba, String clave, int usuarioId, List<LineaDePedido> lineas,
                      Integer lugarEntregaId, boolean seLoLlevo);
 
+    /**
+     * Una venta directa como la deja la pantalla cuando <b>no</b> se registra al cliente y solo se escribe
+     * su nombre en "nombre del receptor": el pedido queda con la cuenta del administrador que atendió y
+     * con el nombre "Prueba {prueba} {clave}" escrito en la venta (lo que el dueño llama "el nombre que se
+     * puso en la venta"). Es el caso donde la pantalla debe enseñar el nombre escrito y no el de la cuenta.
+     * Mismos parámetros y mismo resultado que {@link #ventaDirecta}.
+     */
+    int ventaDirectaConNombreEscrito(String tipoPedido, String prueba, String clave, int usuarioId,
+                                     List<LineaDePedido> lineas, Integer lugarEntregaId, boolean seLoLlevo);
+
     /** Lo cancela como el boton ✖ Cancelar con el motivo "El cliente aviso" (devuelve el stock). */
     void cancelar(int pedidoId);
 

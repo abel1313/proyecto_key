@@ -6,6 +6,18 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 
 **Ya pasaron (no vienen aquí):** 1, 2, 3, 4, 5, 7, 8, 9, 10.2, 11 y 14 (en prod), y los casos 3.6 y 3.7.
 
+**📍 Llevamos (se hacen una por una, con los datos que crea 🧪 Preparar prueba N):**
+
+| Prueba | Estado | Cuándo |
+|---|---|---|
+| **24** — Unir un Ir pagando que ya tiene dinero (K4 / K6) | ✅ Pasó | 2026-10-13 |
+| **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
+| **21** — La fecha de entrega en Pedidos y en Entregas por zona | 👉 **Sigue** | |
+| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | ⏳ Falta | |
+| **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ⏳ Falta | |
+
+Las demás (12, 15, 14-QA, 17, 18, 19, 23, 13 y 6) siguen en la tabla de abajo, sin hacer.
+
 **Lo nuevo de este documento:**
 - **🧪 Preparar prueba N:** un botón que da de alta **todo** lo que necesita cada prueba: los pedidos y
   también los **modelos y artículos** (Art-A de $100, Art-200, M-OFF, el modelo agotado…). Ya no tienes
@@ -201,9 +213,9 @@ prepara sus datos (con **Preparar todas** ya quedan todos).
 | 6 | **19 — Errores con su código, 404 y Home** | Avisos de error, 404 de verdad, Home y página 404 | Ya | — | 25 min | [ ] |
 | 7 | **23 — Colores de noche, listas desplegables y 📍 Dirección** 🆕 | Ventana de cancelar, submenús de noche, casillas de filtros, **listas que salían en blanco**, chat de día, botón Dirección | Ya | — (23.2: 22) | 20 min | [ ] |
 | 8 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos (ahora también de noche), Personalización, encabezados de seguridad | Ya | — | 15 min | [ ] |
-| 9 | **24 — Unir un Ir pagando que ya tiene dinero** 🆕 | Lo de K4 / K5 / K6 | Ya | 24 | 5 min | [ ] |
-| 10 | **22 — 🕓 Pendiente en Pago y sin cancelados al abrir** | Pendiente en Pago, Falta pagar sin Pendientes, sin cancelados al abrir | Ya | 22 | 10 min | [ ] |
-| 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle | Ya | 21 | 15 min | [ ] |
+| 9 | **24 — Unir un Ir pagando que ya tiene dinero** 🆕 | Lo de K4 / K5 / K6 | Ya | 24 | 5 min | [x] |
+| 10 | **22 — 🕓 Pendiente en Pago y sin cancelados al abrir** | Pendiente en Pago, Falta pagar sin Pendientes, sin cancelados al abrir | Ya | 22 | 10 min | [x] |
+| 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle; **el nombre del cliente es el de la venta, no el de tu cuenta** | Ya (el nombre: al subir esta corrección) | 21 | 20 min | [ ] |
 | 12 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** | Carrito → Mis datos; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos al abrir | Ya | 20 (20.2 y 20.3) | 35 min | [ ] |
 | 13 | **16 — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ** | Pendiente en filtros y card, pasarlo a Apartado / Ir pagando, Entregas por zona, ⓘ | Ya | 16 | 25 min | [ ] |
 | 14 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
@@ -945,7 +957,7 @@ o un cancelado sí sale.
 
 💬 Notas:
 
-- [ ] **Prueba 24 terminada**
+- [x] **Prueba 24 terminada** (2026-10-13: "esta prueba está bien")
 
 ---
 
@@ -1004,7 +1016,7 @@ abrir; con ❌ Cancelado no salen los cancelados; Apartado o Ir pagando dejan de
 
 💬 Notas:
 
-- [ ] **Prueba 22 terminada**
+- [x] **Prueba 22 terminada** (2026-10-13: pasaron las dos partes, 22.1 y 22.2, con los pedidos de 🧪 Preparar prueba 22)
 
 ---
 
@@ -1022,6 +1034,16 @@ qué es"*.
 - La fecha que decía **"Pedido"** en la card, **"Fecha"** en la tabla de Entregas por zona y la del
   🕒 del detalle es **el día en que se hizo el pedido**, no el de entrega. Ahora lo dicen así.
 
+- **El nombre del cliente** (tu nota del 2026-10-13 al probar esto): *"esta semana sale el nombre de quien dio
+  de alta el pedido, en lugar del nombre que se puso en la venta; ya habíamos quedado en tomar primero el
+  nombre de la venta, y si no hay, el de quien hizo la venta"*. Pasaba porque la Venta directa, cuando **no**
+  registras al cliente y solo escribes su nombre, guarda dos cosas en el pedido: **tu cuenta** (la de quien
+  atiende) y **el nombre que escribiste**. Mis pedidos ya enseñaba el nombre escrito, pero **Entregas por zona
+  tomaba primero la cuenta** y salías tú en toda la columna **Cliente**. Lo mismo pasaba en **Créditos / Abonos**,
+  en el nombre del formulario de cobro y de los tickets (detalle del pedido), y 🔗 **Unir** ni siquiera buscaba
+  por el nombre escrito. Ahora todas las pantallas usan **la misma regla que Mis pedidos**: primero el nombre
+  de la venta; solo si no hay, el de la cuenta de quien la hizo.
+
 **Dónde va cada fecha (respuesta a "¿va en pedidos o en el detalle?": en los dos):**
 
 | Pantalla | Cuándo se hizo el pedido | Cuándo se entrega |
@@ -1031,12 +1053,25 @@ qué es"*.
 | **Entregas por zona** (tabla) | Columna **Pedido hecho el** | Columna nueva **Se entrega el** (o *Sin fecha todavía*) |
 
 **Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. **🧪 Preparar prueba 21**
-(o ya lo hiciste con **Preparar todas**). Crea, en la zona **"Zona Prueba QA"** y sin fecha de entrega:
+(o ya lo hiciste con **Preparar todas**; si ya la habías preparado, tócalo otra vez: **reinicia** y te deja
+los pedidos nuevos, con el nombre bien guardado). Crea, en la zona **"Zona Prueba QA"** y sin fecha de entrega,
+tres pedidos **vendidos como tú los vendes** (Venta directa sin registrar al cliente: el pedido queda con
+**tu cuenta** y con el **nombre escrito**):
 
-| Pedido | Qué es | Número |
-|---|---|---|
-| **P1** | 📦 Apartado que debe $150 · cliente «Prueba 21 P1» | |
-| **P2** | 💳 Ir pagando **ya pagado completo** que falta entregar · cliente «Prueba 21 P2» | |
+| Pedido | Qué es | Nombre escrito en la venta | Número |
+|---|---|---|---|
+| **P1** | 📦 Apartado que debe $150 | «Prueba 21 P1» | |
+| **P2** | 💳 Ir pagando **ya pagado completo** que falta entregar | «Prueba 21 P2» | |
+| **P3** | 📦 Apartado que debe $150 (el segundo Apartado, para probar 🔗 Unir) | «Prueba 21 P3» | |
+
+**Ejemplo de lo que debes ver en Entregas por zona** (esta es la tabla de la 21.1, paso 1): en la columna
+**Cliente** los tres nombres de arriba, **nunca el tuyo** (el de la cuenta con la que entraste):
+
+| Pedido | Cliente | Total | Pedido hecho el | Se entrega el |
+|---|---|---|---|---|
+| #(número de P1) | **Prueba 21 P1** | $150.00 | (hoy) | Sin fecha todavía |
+| #(número de P2) | **Prueba 21 P2** | $150.00 | (hoy) | Sin fecha todavía |
+| #(número de P3) | **Prueba 21 P3** | $150.00 | (hoy) | Sin fecha todavía |
 
 
 ### Mapa de impacto
@@ -1050,31 +1085,51 @@ qué es"*.
 | 21.5 | Nombres de las fechas | Card, detalle y Entregas por zona | Las etiquetas | "Pedido", 🕒 sin nombre, "Fecha" | "Pedido hecho el", "Se entrega el" |
 | 21.6 | `GET /v1/entregas-zona/{id}/pendientes` trae `fechaEntrega` y `horaEntrega` | Entregas por zona | Columna nueva | No existía | **Se entrega el** |
 | 21.7 | **El cambio:** programar la entrega y verla | Entregas por zona → Mis pedidos → detalle | Las tres pantallas | La fecha solo llegaba en el correo (y en el detalle) | Sale en las tres |
+| 21.8 | **El nombre del comprador:** primero el de la venta, y solo si no hay, el de la cuenta de quien la hizo | **Entregas por zona** (columna Cliente) | La tabla | Salía el nombre de quien dio de alta el pedido | Sale el nombre escrito en la venta |
+| 21.9 | (mismo) | **Ventas → 💳 Créditos / Abonos** (tarjetas y formulario de abono) | El nombre de la tarjeta | Salía el de la cuenta | Sale el nombre escrito |
+| 21.10 | (mismo) | Formularios de cobro (**Liquidar**, **Dar abono**) y tickets | El nombre arriba del formulario | Salía el de la cuenta | Sale el nombre escrito |
+| 21.11 | (mismo) y 🔗 **Unir** también busca por el nombre escrito | **🔗 Unir con otros pedidos** | El buscador y la tarjeta | No encontraba por el nombre escrito (solo por el de la cuenta o el cliente sin registro) | Encuentra y enseña el nombre escrito |
+| 21.12 | (sin cambio) Mis pedidos | **Mis pedidos** | La card | Ya enseñaba el nombre escrito | **Lo mismo que antes** |
+| 21.13 | (mismo) correos de aviso y comprobantes | **Avisar a N cliente(s)** | El saludo del correo | Iba a la cuenta de quien atendió aunque la venta trajera un cliente sin registro | Va al cliente de la venta (si la venta solo trae tu cuenta, sigue llegando a ti) |
 
 ### 21.1 Antes de programar
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **🚚 Envíos → 📦 Entregas por zona** → elige **Zona Prueba QA** y el rango de esta semana | La tabla con las columnas **Pedido hecho el** y **Se entrega el**. P1 y P2 dicen *Sin fecha todavía* (si nunca se les programó) |
+| 1 | **🚚 Envíos → 📦 Entregas por zona** → en la lista **📍 Zona** elige **Zona Prueba QA** → toca el botón **Esta semana** | La tabla de arriba: columnas **Cliente**, **Pedido hecho el** y **Se entrega el**. P1, P2 y P3 dicen *Sin fecha todavía*. **Cliente** dice «Prueba 21 P1», «Prueba 21 P2» y «Prueba 21 P3» — **no tu nombre** |
 | 2 | **Mis pedidos** → escribe **Prueba 21 P1** | 📅 **Pedido hecho el** con fecha y hora. 🚚 **Se entrega: Sin fecha todavía · (zona)** |
 | 3 | Escribe **Prueba 21 P2** | Igual que P1: 🚚 **Se entrega: Sin fecha todavía · (zona)** (antes no salía nada) |
+| 4 | Con el rango de **Esta semana** puesto, cambia la **📍 Zona** a otra y regresa a **Zona Prueba QA** | La tabla se vuelve a llenar con los mismos tres, con el mismo nombre en **Cliente** |
 
 ### 21.2 Programar y ver la fecha
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro **Prueba 21 Punto** → **✉️ Avisar a 2 cliente(s)** → **Sí, enviar avisos** | (El cliente de prueba no tiene correo: es normal que diga que se avisó a 0.) *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 2 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* |
-| 2 | La tabla se vuelve a cargar | P1 y P2 dicen en **Se entrega el** la fecha y la hora que pusiste |
+| 1 | En **Entregas por zona**, llena 📅 Fecha de entrega (por ejemplo el sábado), hora y punto de encuentro **Prueba 21 Punto** → **✉️ Avisar a 3 cliente(s)** → **Sí, enviar avisos** | *"Se avisó por correo a N cliente(s). La fecha de entrega quedó guardada en los 3 pedido(s): se ve en Mis pedidos y en el detalle de cada uno."* Como estos pedidos llevan **tu cuenta** (la venta no trae cliente con correo), los correos te llegan **a ti**, al correo de tu cuenta: es normal. Si tu cuenta no tiene correo, N será 0 |
+| 2 | La tabla se vuelve a cargar | P1, P2 y P3 dicen en **Se entrega el** la fecha y la hora que pusiste. **Cliente** sigue diciendo los mismos tres nombres |
 | 3 | **Mis pedidos** → escribe **Prueba 21 P1** | 🚚 **Se entrega el** sáb (día) (mes), (hora) · (zona) |
 | 4 | Escribe **Prueba 21 P2** (el ya pagado) | **También** sale 🚚 **Se entrega el** … (antes aquí no salía) |
 | 5 | Abre el detalle de P2 | Arriba 🕒 **Pedido hecho el** (fecha y hora de cuando se hizo). En "Entrega": **Se entrega el:** (fecha) a las (hora), en (punto) |
 | 6 | En la card de P2, **📦 Entregar** | El renglón 🚚 desaparece (ya se lo llevó) |
-| 7 | Un pedido con fecha de entrega **ya pasada** que falta entregar (pagado o no) | ⚠ **Atrasado N días** junto a la fecha |
-| 8 | Con la cuenta del cliente de P1 → **Mis pedidos** | También ve 🚚 **Se entrega el** … |
+| 7 | Con **P1** (sigue sin entregar): vuelve a **Entregas por zona**, pon una fecha de entrega **ya pasada** (por ejemplo, ayer) → **Avisar** → **Mis pedidos** → escribe **Prueba 21 P1**. *(Si el calendario no te deja escoger un día pasado, anótalo en 💬: esta parte la reviso yo.)* | ⚠ **Atrasado N días** junto a la fecha |
+| 8 | *(Opcional: «Prueba 21 P1» es un cliente sin cuenta, así que con los datos de 🧪 no se puede entrar como él. Solo si ya tienes una cuenta de cliente con un pedido programado.)* Con la cuenta del cliente → **Mis pedidos** | También ve 🚚 **Se entrega el** … |
+
+### 21.3 El nombre del cliente en las demás pantallas (lo que reportaste)
+
+Es la misma regla en todas partes: primero el nombre que se escribió en la venta; solo si no hay, el de la cuenta.
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Ventas → 💳 Créditos / Abonos** → pestaña **📋 Cuentas por cobrar** → busca la tarjeta del Apartado P1 (debe $150) | La tarjeta dice **Prueba 21 P1** (no tu nombre). P3 igual |
+| 2 | En esa tarjeta toca **+ Abono** y mira el nombre arriba del formulario; ciérralo sin guardar | Dice **Prueba 21 P1**. (Un Apartado se paga completo: no hace falta guardarlo) |
+| 3 | **Mis pedidos** → escribe **Prueba 21 P1** → en su tarjeta toca **Liquidar** y mira el renglón de arriba con el número y el nombre; ciérralo con ✕ sin pagar | Dice **Prueba 21 P1** |
+| 4 | **Mis pedidos** → abre el **👁 Detalle** de P1 → **🔗 Unir con otros pedidos** → escribe **Prueba 21 P3** | Sale **un solo pedido**: P3, y su tarjeta dice **Prueba 21 P3**. (P2 no sale: es Ir pagando y P1 es Apartado; solo se unen de la misma forma de cobro) |
+| 5 | En ese mismo buscador borra y escribe el **número** de P3 | Sale P3 con el mismo nombre |
+| 6 | (Contraprueba) Sin cerrar, escribe **Prueba 21 P2** | **No** sale ninguno: es de otra forma de cobro |
 
 **❌ Está mal si…** un pedido programado en Entregas por zona no enseña la fecha en la card o en el
 detalle; un pedido ya entregado sigue enseñando "Se entrega el"; la columna **Se entrega el** queda
-vacía después de avisar; la fecha de "Pedido hecho el" cambia al programar la entrega.
+vacía después de avisar; la fecha de "Pedido hecho el" cambia al programar la entrega; **en Entregas por zona, Créditos / Abonos o los formularios de cobro sale tu nombre en lugar de «Prueba 21 …»**; 🔗 Unir no encuentra a P3 escribiendo su nombre.
 
 💬 Notas:
 
