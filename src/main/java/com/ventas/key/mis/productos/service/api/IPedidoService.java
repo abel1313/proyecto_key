@@ -35,6 +35,12 @@ public interface IPedidoService extends ICrud<
     /** Cambia la forma de cobro de un pedido ya creado, cobrando lo que falte en el mismo paso. */
     com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse cambiarTipoPedido(
             int pedidoId, com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest request);
+    /**
+     * El mismo cambio, para un pedido que esta en un grupo: lo llama el grupo cuando cambia la
+     * forma de cobro de todos sus pedidos (grupopedido R20). Sin cobro: el dinero entra como abono
+     * del grupo.
+     */
+    void cambiarTipoDentroDeGrupo(int pedidoId, String tipoNuevo, String nota);
     PedidoDetalleResponse getDetallePedido(int id);
     boolean notificarPedido(int id, NotificarPedidoRequest requestG);
     PedidoDetalleResponse editarDatosEntrega(int id, EditarEntregaPedidoRequest requestG);

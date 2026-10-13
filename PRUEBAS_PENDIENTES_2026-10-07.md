@@ -33,8 +33,10 @@ casilla `[x]`. Yo leo tus 💬 y contesto debajo con `↳`.
 | 10 | **10.2 — Mis datos sin spinner** | Que Mis datos cargue | ✅ Confirmada por ti el 2026-10-08 | 5 min | [x] |
 | 11 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | ✅ Ya, en QA (subido el 2026-10-07) | 10 min | [ ] |
 | 12 | **17 — Filtros de Tienda, Venta directa, buscadores y Agregar artículos** (2026-10-08) | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras, la ventana 🧩 Agregar artículos | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) | 45 min | [ ] |
-| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) + `migration_accion_tienda_venta_ver_todos.sql` (solo para probarlo con un rol que no sea admin) | 30 min | [ ] |
-| 14 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
+| 13 | **18 — Agregar artículo: todos los modelos, habilitar y agregar stock** (2026-10-08) | Buscar modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo, "¿agregar los artículos de una vez?" | ⏳ Cuando pase de `dev` a `qa` (el 2026-10-08 se subió **solo a `dev`**) (el script `migration_accion_tienda_venta_ver_todos.sql` ✅ ya se corrió en QA el 2026-10-08) | 30 min | [ ] |
+| 14 | **19 — Errores con su código, página 404 y Home** (2026-10-08) | Que los avisos de error digan lo mismo de siempre, 404 de verdad, Home y la página 404 nuevas | ⏳ Cuando pase de `dev` a `qa` (todavía **sin subir**) | 25 min | [ ] |
+| 15 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** (2026-10-13) | Carrito → Mis datos → regresa; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos abre sin lo terminado | ⏳ Cuando pase de `dev` a `qa` (todavía **sin subir**) | 40 min | [ ] |
+| 16 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | ✅ Ya, pero **al final** | 15 min | [ ] |
 
 **Por qué este orden:** las 2, 3 y 4 crean pedidos (A–F, H4–H8, K1–K6) que se reusan después. Las
 17 y 18 (y lo que cambió de la 2) esperan a que lo del 2026-10-08 pase a `qa`. La **6** va al final: mete miles de pedidos de
@@ -43,7 +45,7 @@ prueba y con eso es más difícil encontrar los tuyos.
 **Estado de las subidas (2026-10-08):** lo del 2026-10-07 (pruebas 13, 15, 16, 10.2 y 14-QA) ya está en
 QA. Lo del 2026-10-08 (Prueba 17, Prueba 18 y los cambios de 2.1, 2.3, 2.4 y 2.5) se subió **solo a
 `dev`**: llega a QA cuando digas "sube a qa". Scripts nuevos para QA: `migration_tema_modal.sql`
-(opcional) y `migration_accion_tienda_venta_ver_todos.sql`. Lista completa de pendientes:
+y `migration_accion_tienda_venta_ver_todos.sql`, ✅ los dos corridos en QA el 2026-10-08 (falta prod). Lista completa de pendientes:
 `PENDIENTES_2026-10-08.md`.
 
 ---
@@ -1152,7 +1154,21 @@ de alta los artículos de un modelo al guardarlo.
 
 💬 Notas:
 
-- [ ] 17.1 · [ ] 17.2 · [ ] 17.3 · [ ] 17.4 · [ ] 17.5 · [ ] 17.6 · [ ] 17.7 · [ ] 17.8 · [ ] 17.9 · [ ] 17.10 — **Prueba 17 terminada**
+### 17.11 Filtros de Tienda con un rol que no es admin (corregido antes de subir a QA)
+
+**Antes de empezar:** un usuario de prueba con un rol que tenga **Tienda → Buscar** y, en Gestión de
+roles, el filtro **"Con stock"** de Tienda, pero **sin** Catálogo (Modelos, Agregar modelo, Agregar
+artículo). Entra con ese usuario.
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Tienda → Buscar** → filtros → marca **Con stock** | La lista con stock, **sin error** (antes daba error 403) |
+| 2 | Quita **Con stock** y elige solo una **Talla** | Los de esa talla, sin error |
+| 3 | Con tu usuario admin, lo mismo | Igual que en 17.1 |
+
+❌ **Está mal si:** sale "No tienes permiso" o la lista se queda vacía con error.
+
+- [ ] 17.1 · [ ] 17.2 · [ ] 17.3 · [ ] 17.4 · [ ] 17.5 · [ ] 17.6 · [ ] 17.7 · [ ] 17.8 · [ ] 17.9 · [ ] 17.10 · [ ] 17.11 — **Prueba 17 terminada**
 
 ---
 
@@ -1166,7 +1182,7 @@ hacer**, y que al **agregarle stock** se vaya al modelo y pregunte *"¿Deseas ag
 **Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano:
 - **M-OFF**: un modelo **deshabilitado** (en Catálogo → 🔍 Modelos, con el interruptor apagado).
 - **M-0**: un modelo **habilitado** cuyo stock ya está todo repartido en sus artículos (Libre 0).
-- Para el paso con otro rol: corre `migration_accion_tienda_venta_ver_todos.sql` en QA y, en
+- Para el paso con otro rol: `migration_accion_tienda_venta_ver_todos.sql` ✅ ya está corrida en QA (2026-10-08); en
   **Gestión de roles**, márcale a ese rol **"Ver todos los modelos (sin stock, deshabilitados o dados de baja)"** en 🧩 Agregar producto.
 
 ### Mapa de impacto
@@ -1227,6 +1243,134 @@ deshabilitado, el stock agregado se reparte solo a algún artículo, o el recuad
 💬 Notas:
 
 - [ ] 18.1 · [ ] 18.2 · [ ] 18.3 · [ ] 18.4 — **Prueba 18 terminada**
+
+---
+
+## Prueba 19 — Errores con su código, página 404 y Home (2026-10-08)
+
+**Para qué es:** lo que pediste el 2026-10-08: que cada error salga con su código (antes casi todo era
+400, y uno contestaba 200 aunque fallara), que una página que no existe dé un **404 de verdad**, y que
+Home y la página 404 ya no carguen una foto de pantalla completa que tardaba y no dejaba leer el texto.
+
+**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Para ver el código
+de una respuesta: **F12 → Red (Network)**, columna **Estado (Status)**.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 19.1 | 102 `catch` que contestaban 400 a todo | Todas las pantallas que muestran el error del back | El aviso rojo | El texto del error | **El mismo texto**; solo cambia el número en Red |
+| 19.2 | Concursantes, rifas, Agregar mi compra, Gastos lanzaban un error "genérico" | Rifas (agregar participante), Agregar mi compra | El aviso | El texto | **El mismo texto** (sin el arreglo saldría "Error interno del servidor") |
+| 19.3 | Imágenes de un artículo: error → 200 con lista vacía | Boletos de rifa (foto del premio) | La foto | Si fallaba decía "sin imágenes" | Si falla, sale el error con "reintentar" |
+| 19.4 | URL que no existe | Cualquier link roto | Barra de direcciones + Red | Se veía "no disponible" con **200** | Cambia a `/no-encontrada` y Red dice **404** |
+| 19.5 | Home y página 404 | Home (`/home`) y `/no-encontrada` | La pantalla | Foto de 3 MB, texto blanco encima | Logo y texto con los colores de Personalización, de día y de noche |
+| 19.6 | `a.pk-btn` (botón que es enlace) | **Boletos de rifa** → botón "Ver ruleta" (secundario) | El color del texto | Azul (Nebular pintaba todos los enlaces) | Del color de los botones secundarios |
+
+### 19.1 Los avisos de error dicen lo mismo
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Rifas** → abre una rifa activa → agrega un participante que **ya está** en esa rifa | *"Este cliente ya está registrado en esta rifa"* (igual que antes). En Red: **409** |
+| 2 | Agrega un participante en una rifa ya sorteada o cerrada | *"Esta rifa ya fue sorteada o está inactiva"* / *"El plazo de registro cerró…"*. En Red: **409** |
+| 3 | Como cliente: **Agregar mi compra** → escribe un código que no existe | *"No encontramos ese código, revisa que esté bien copiado."* En Red: **404** |
+| 4 | Escribe un código ya usado | *"Este código ya fue usado."* En Red: **409** |
+| 5 | **Gestión de roles** → intenta quitarle a ROLE_ADMIN "Gestión de roles" | El aviso de siempre (*"No se le puede quitar a ROLE_ADMIN…"*). En Red: **409** |
+| 6 | **Catálogo → 🧩 Agregar producto** → pide más stock del que tiene libre el modelo | *"Stock insuficiente para el producto…"*. En Red: **422** (antes salía 404) |
+
+### 19.2 Página que no existe
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Escribe en la barra `…/esta-pagina-no-existe` y Enter | La dirección cambia a **`/no-encontrada`**: *"Error 404 · Esta página no existe"* con **🛍️ Ir a la tienda** y **← Regresar**. En Red, el documento `no-encontrada`: **404** |
+| 2 | **🛍️ Ir a la tienda** | Abre Tienda → Buscar |
+| 3 | Abre la ficha de un artículo que no existe: `…/tienda/detalle/999999999` | *"Este producto ya no está disponible."* (antes un visitante sin sesión veía *"No pudimos abrir este producto desde un enlace directo"*) |
+| 4 | Abre un link de ruleta de una rifa que no existe | La pantalla 404, con tu link en la barra |
+
+### 19.3 Home y página 404 nuevas
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre **Home** de día y luego cambia a noche (☀️/🌙) | El logo en círculo, "Tienda en línea", **Novedades Jade** y "Bolsas, pantalones, blusas y perfumes". Todo se lee en los dos. Carga al instante |
+| 2 | Sin sesión: Home | Solo **🛍️ Ver la tienda**. Con sesión: también **🎁 Promociones** |
+| 3 | En el celular | El panel ocupa el ancho, botones uno debajo de otro |
+| 4 | **Rifas → Boletos de rifa** → rifa pública → botón **Ver ruleta** | El texto ya no sale azul |
+
+**❌ Está mal si…** un aviso de error cambió de texto o sale vacío; aparece *"Error interno del servidor"*
+donde antes salía un mensaje claro; `/no-encontrada` dice 200 en Red; algún texto de Home no se lee de
+noche.
+
+---
+
+## Prueba 20 — Cliente que no podía pedir, pedidos unidos, modelo agotado y Mis pedidos (2026-10-13)
+
+**Para qué es:** tus notas del 2026-10-13. (1) Un cliente con el correo verificado llenaba sus datos y
+el carrito se los volvía a pedir. (2) Dos pedidos 🕓 Pendiente unidos no se podían pasar a Ir pagando ni a
+Apartado (*"deshaz el grupo antes…"*). (3) Un modelo agotado (stock 0) no se podía guardar en Actualizar
+Modelo. (4) Mis pedidos debe abrir sin los pedidos que ya están pagados y entregados.
+
+**Antes de empezar:** ⏳ espera mi aviso de que subió a QA y haz `Ctrl + Shift + R`. Ten a la mano un
+correo nuevo para crear una cuenta de cliente.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 20.1 | Al guardar el cliente se borra su copia guardada (caché) | Carrito, Mis datos, Mi perfil, admin → Clientes | Si pide datos otra vez | Seguía viendo los datos viejos hasta 10 min | Ve lo recién guardado |
+| 20.2 | "Completa tus datos" lleva a **Mis datos** y regresa | Carrito, detalle de producto, Tienda → Buscar (♥), Mis pedidos, Flores, Favoritos | A dónde lleva el botón | **Nuevo cliente** vacío (pedía el correo otra vez) o `/mis-datos` (404) | Mis datos con tu correo ✅ Verificado; al guardar regresa |
+| 20.3 | Teléfono obligatorio en Mis datos | Mis datos | Al guardar sin teléfono | Guardaba y el carrito seguía pidiendo datos | *"Faltan datos obligatorios"* con el teléfono en rojo |
+| 20.4 | 🔁 Cambiar forma de cobro de un pedido unido | Detalle del pedido (unido) | El aviso al guardar | *"deshaz el grupo antes…"* | Cambia **todos** los del grupo |
+| 20.5 | (mismo) en un pedido **no** unido | Detalle del pedido | — | Funcionaba | **Lo mismo que antes** |
+| 20.6 | Stock 0 al editar un modelo | Catálogo → 🔍 Modelos → ✏️ Actualizar | Al guardar | *"El stock no debe de ser 0"* | Guarda |
+| 20.7 | (mismo) alta de modelo nuevo | Catálogo → Agregar modelo con stock 0 | Al guardar | No dejaba | **Lo mismo que antes** (no deja) |
+| 20.8 | Mis pedidos abre con `SIN_TERMINAR` | Mis pedidos (admin) | La lista al entrar | Todos, también los ya pagados y entregados | Sin esos; con cualquier filtro o búsqueda sale lo que pidas |
+
+### 20.1 Cliente nuevo hace su primer pedido
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Crea una cuenta nueva, verifica el correo, acepta Términos y entra | Entras a la tienda |
+| 2 | Agrega un artículo al carrito → **📋 Generar pedido** | *"Completa tus datos — necesitamos tu nombre, apellidos y teléfono. Tu correo ya está verificado."* → **Completar mis datos** |
+| 3 | — | Abre **Mis datos** con el aviso 🛒 *"Para terminar tu pedido…"* y tu correo ya escrito con **✅ Verificado** |
+| 4 | Guarda **sin** teléfono | *"Faltan datos obligatorios"* y el teléfono en rojo |
+| 5 | Llena todo con * y **Guardar** | *"Datos guardados — Ya puedes terminar tu pedido"* → **🛒 Regresar al carrito** te regresa |
+| 6 | **📋 Generar pedido** otra vez | Ya **no** pide datos: sale la confirmación y el pedido se crea |
+| 7 | Vuelve a **Mis datos** | Se ven los datos que guardaste (antes se veían vacíos) |
+| 8 | Con esa cuenta: **Favoritos** o **Mis pedidos** antes de llenar datos (repite con otra cuenta nueva) | **Completar mis datos** lleva a Mis datos y al guardar regresa a esa pantalla |
+
+### 20.2 Pedidos unidos: cambiar la forma de cobro
+
+**Antes de empezar:** con la cuenta de cliente haz **dos pedidos** (quedan 🕓 Pendiente). Como admin,
+en el detalle de uno: **🔗 Unir con otros pedidos** → únelo con el otro. Anota los números (P1, P2).
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Detalle de P1 → **🔁 Cambiar forma de cobro** | Arriba: *"🔗 Este pedido está unido con otros: el cambio se hace en todo el grupo (pedidos #P1, #P2)…"*. "De contado" bloqueado con su motivo |
+| 2 | Elige **Ir pagando**, deja 0 → **Guardar cambio** | *"El grupo quedó como Ir pagando — Cambiaron los pedidos #P1, #P2"*. Los dos dicen Ir pagando |
+| 3 | **🔁 Cambiar forma de cobro** → **Apartado** → Guardar | *"El grupo quedó como Apartado"* (no tiene dinero) |
+| 4 | Cámbialo a **Ir pagando** escribiendo **$50** en "¿Cobra algo ahora?" | Queda Ir pagando y *"Se registró el abono del grupo de $50.00"*. En el grupo: Pagado $50 |
+| 5 | Intenta pasarlo a **Apartado** | **Apartado** bloqueado: *"🔒 No se puede: ya dio $50.00 entre los pedidos del grupo…"* |
+| 6 | Un pedido **no** unido: 🔁 Cambiar forma de cobro de Pendiente a Ir pagando | Igual que siempre (20.5) |
+
+### 20.3 Modelo agotado
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Catálogo → 🔍 Modelos** → un modelo con stock 0 → **✏️ Actualizar** → cambia la descripción → Guardar | Guarda sin el aviso *"El stock no debe de ser 0"* |
+| 2 | En el mismo, **Actualizar stock** = 5 → Guardar | Queda con stock 5 |
+| 3 | **Agregar modelo** nuevo con stock 0 | Sigue sin dejar (*"El stock no debe de ser 0"*) |
+
+### 20.4 Mis pedidos al abrir
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Entra a **Mis pedidos** (admin) | Bajo el buscador: *"No se muestran los pedidos que ya están pagados y entregados…"*. No sale ninguno pagado **y** entregado; sí los pagados que faltan entregar, los que deben, los Pendiente y los cancelados |
+| 2 | **⚙️ Filtros** → Pago: **Pagado** + Entrega: **Entregado** | Ahora sí salen los terminados, y el aviso se va |
+| 3 | **Quitar filtros** | Vuelve la vista de inicio con el aviso |
+| 4 | Escribe el número de un pedido ya pagado y entregado | Sale |
+
+**❌ Está mal si…** el carrito vuelve a pedir datos ya guardados; Mis datos sale vacío después de
+guardar; *"deshaz el grupo antes…"*; uno de los pedidos del grupo cambia y el otro no; Apartado se deja
+elegir con dinero; un modelo agotado no se guarda; Mis pedidos abre con pedidos pagados y entregados.
 
 ---
 

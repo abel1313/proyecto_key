@@ -40,8 +40,9 @@ Después de correr uno de permisos hay que **volver a entrar** (los permisos via
 
 | ✔ | Script | QA | Prod | Para qué |
 |---|---|---|---|---|
-| [ ] | `migration_accion_tienda_venta_ver_todos.sql` | ⏳ | ⏳ | Permiso "Ver todos los modelos" en 🧩 Agregar producto (sin él, solo el admin) |
-| [ ] | `migration_tema_modal.sql` | ⏳ (opcional) | ⏳ (con Jade) | Color "Velo detrás de una ventana abierta" en Personalización |
+| [ ] | `migration_accion_tienda_venta_ver_todos.sql` | ✅ 2026-10-08 | ⏳ | Permiso "Ver todos los modelos" en 🧩 Agregar producto (sin él, solo el admin) |
+| [ ] | `migration_tema_modal.sql` | ✅ 2026-10-08 | ⏳ (con Jade) | Color "Velo detrás de una ventana abierta" en Personalización |
+| [ ] | `migration_renombre_articulo_etiquetas.sql` (vive en la rama `rename/variante-a-articulo`) | ⏳ **al pasar la rama a `dev`** | ⏳ cuando llegue a `main` | Menú "Agregar artículo" y Gestión de roles sin "variante". Pasos: `RENOMBRE_VARIANTE_A_ARTICULO.md` §2 |
 | [ ] | `migration_entrega_pedido.sql` | ✅ | ⏳ **antes** del back en `main` | Entrega aparte del pago (sin las columnas truena cualquier consulta de pedidos) |
 | [ ] | `migration_datos_legales.sql` | ✅ | ⏳ **antes** del back en `main` | Datos legales; sin la columna falla el login |
 | [ ] | `migration_accion_gastos_admin.sql` | ✅ | ⏳ | Botones de gastos para el admin |
@@ -69,7 +70,7 @@ Paso a paso en `PRUEBAS_PENDIENTES_2026-10-07.md` (resumen arriba de ese documen
 | [ ] | **16** — 🕓 Pendiente, ⓘ y datos legales | Ya |
 | [ ] | **14-QA** — El hotfix de prod en QA | Ya |
 | [ ] | **17** — Filtros de Tienda, Venta directa, buscadores y ventana 🧩 | Después de subir a `qa` |
-| [ ] | **18** — Agregar artículo: todos los modelos, habilitar y agregar stock | Después de subir a `qa` + script de §3 |
+| [ ] | **18** — Agregar artículo: todos los modelos, habilitar y agregar stock | Después de subir a `qa` (el script ya se corrió en QA el 2026-10-08) |
 | [ ] | **6** — Datos de prueba con un botón | Al final |
 | [x] | 10.2 — Mis datos sin spinner | ✅ 2026-10-08 |
 
@@ -87,7 +88,7 @@ Paso a paso en `PRUEBAS_PENDIENTES_2026-10-07.md` (resumen arriba de ese documen
 | [ ] | **"No se entregó"** con motivo (sigue Pendiente, queda en su historial) | Plan P3 / 6.5 |
 | [ ] | Cambios del cliente **"por confirmar"** (pasar al local, nota) con correo al admin | Plan 6.6 |
 | [ ] | **Devoluciones:** "¿Viene bien o dañado?" por artículo al cancelar o regresar; decir siempre "Saldo a favor: $X" al cancelar desde la card; registrar que el dinero ya se devolvió | Plan D1–D5; skill §5 |
-| [ ] | **Grupos:** al unir con distinta forma de cobro, "Pasar todos a … y unir"; un solo botón de abonar en un pedido unido; tabla del grupo con solo el total por pedido y abajo Pagado / Saldo del grupo; botón "Detalle de los pagos"; Apartados unidos que dejan adelanto → todo el grupo a Ir pagando | Plan 6.7; skill §4; `PLAN` §10.6 A10 |
+| [ ] | **Grupos:** al unir con distinta forma de cobro, "Pasar todos a … y unir"; un solo botón de abonar en un pedido unido; tabla del grupo con solo el total por pedido y abajo Pagado / Saldo del grupo; botón "Detalle de los pagos". *(Apartados unidos que dejan adelanto → todo el grupo a Ir pagando: ✅ hecho en `dev` el 2026-10-13, R20)* | Plan 6.7; skill §4; `PLAN` §10.6 A10 |
 | [ ] | **Meses sin intereses:** pantalla de planes (3/6/9/12) con comisión, mínimo $300, casilla "Acepta meses sin intereses" por modelo y por artículo, solo si **todos** lo aceptan | Plan 6.8, 7.2, 7.3 (Bloque 6) |
 | [ ] | 🔮 Pago en línea con tarjeta desde la tienda; Apartado liquidado con tarjeta/MSI al recogerlo; pago mixto | Plan §3 "Para después", 10.1, 10.2 |
 
@@ -122,10 +123,13 @@ Qué se cambió, pantalla por pantalla: `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.1 
 
 | ✔ | Qué | Detalle |
 |---|---|---|
-| [x] | Traer `dev` a la rama, búsqueda completa de "variante" y buscadores con "artículo" (14 pantallas, menú lateral, ayuda ⓘ, pruebas e2e) | 2026-10-08, rama subida (no está en `dev`) |
+| [x] | Traer `dev` a la rama, búsqueda completa de "variante" y buscadores con "artículo" (14 pantallas, menú lateral, ayuda ⓘ) | 2026-10-08, rama subida (no está en `dev`) |
 | [x] | Script de los textos de la base (menú "Agregar artículo", Gestión de roles sin "variante"): `migration_renombre_articulo_etiquetas.sql`, probado dos veces en base desechable | 2026-10-08, vive en la rama |
 | [ ] | 👤 Probar la rama (pruebas R1–R19) y decidir cuándo se junta con `dev` | `RENOMBRE_VARIANTE_A_ARTICULO.md` §6 |
 | [ ] | 👤 Al juntarla: correr `migration_renombre_articulo_etiquetas.sql` en QA (y en prod cuando suba a `main`) | Mismo documento, §1.1 punto 4 |
+| [x] | Segunda revisión, solo "variante" → "artículo" (menú, pantallas, avisos, back, base, seguridad): no quedó ninguno visible | 2026-10-08, `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.2 |
+| [x] | De back a front: cada endpoint de artículos → la pantalla que lo usa → su texto dice "artículo" (50 textos del front, 8 mensajes del back, menú "🎡 Rifa de artículos") | 2026-10-08, `RENOMBRE_VARIANTE_A_ARTICULO.md` §1.3 |
+| [ ] | ❓ Para después: los textos que dicen "producto" donde es el **modelo** (Agregar modelo, Actualizar modelo, Modelos, Carga rápida) | Mismo documento, §1.2 |
 | [ ] | Lo que **no** se renombra todavía: tablas y columnas, campos del JSON que comparten back y front, nombres de clases | `CLAUDE.md`, "Renombrado en curso" |
 
 ---

@@ -239,6 +239,7 @@ public class ProductosServiceImpl extends
      * (o el admin) encuentre tambien los modelos sin stock, deshabilitados o dados de baja, y los
      * pueda habilitar o subirles stock ahi mismo (2026-10-08). Sin el permiso se ignora.
      */
+    @Transactional(readOnly = true)
     @Cacheable(value = "buscarNombreOrCodigoBarrasCache",
             key = "#nombre + ':' + #page + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()"
                     + " + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).puedeVerTodosLosModelos(#todos)")
@@ -420,11 +421,8 @@ public class ProductosServiceImpl extends
     // [FLUJO 1] INICIO: el controlador llama saveProductoLote() → llega aqui
     @Transactional
     protected Producto guardarProducto(ProductoDetalle productoDetalle) {
-        if (productoDetalle.getStock() == 0) {
-            throw new ExceptionErrorInesperado("El stock no debe de ser 0");
-        }
         if (productoDetalle.getCodigoBarras() == null) {
-            throw new ExceptionDataNotFound("El codigo de barras es requerido");
+            throw new ExceptionErrorInesperado("El codigo de barras es requerido");
         }
         try {
             Producto producto = llenarProductoDTO(productoDetalle);
@@ -453,6 +451,14 @@ public class ProductosServiceImpl extends
                         .findByCodigoBarras_CodigoBarrasIgnoreCase(nuevoCodigoBarrasStr)
                         .orElse(null);
                 log.info("Se busco el codigo de barras {}", prodExistenteNoOpt);
+            }
+
+            // Stock 0 solo se rechaza al dar de alta un modelo nuevo. Antes se rechazaba siempre, y un
+            // modelo que se agotó (sus artículos vendieron todo) ya no se podía editar en
+            // "Actualizar Modelo": esa pantalla manda el stock real, que es 0 (2026-10-13).
+            if (prodExistenteNoOpt == null
+                    && (productoDetalle.getStock() == null || productoDetalle.getStock() == 0)) {
+                throw new ExceptionErrorInesperado("El stock no debe de ser 0");
             }
 
             // Solo set habilitado='1' para productos nuevos. Si el producto ya existe (borrador o no),
@@ -565,7 +571,7 @@ public class ProductosServiceImpl extends
                             + " unidades: solo hay " + prodExistenteNoOpt.getStock() + " en stock");
                 }
             } else {
-                nuevoStock = productoDetalle.getStock();
+                nuevoStock = productoDetalle.getStock() != null ? productoDetalle.getStock() : prodExistenteNoOpt.getStock();
             }
 
             ajustarVariantesSiExceden(prodExistenteNoOpt.getId(), nuevoStock);
@@ -579,6 +585,9 @@ public class ProductosServiceImpl extends
             }
 
             return prd;
+        } catch (ExceptionErrorInesperado | ExceptionDuplicado e) {
+            // Ya traen su mensaje y su código (400 / 409): envolverlas las volvía todas 400.
+            throw e;
         } catch (Exception e) {
             this.error.error(e);
             throw new RuntimeException("No se guardo el producto: " + e.getMessage(), e);

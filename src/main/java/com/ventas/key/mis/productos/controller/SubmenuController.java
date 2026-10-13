@@ -31,12 +31,6 @@ public class SubmenuController extends AbstractController<
     // un grupo del acordeon (ver flujo descrito en PLAN_PERMISOS_PANTALLAS.md).
     @GetMapping("/porMenu/{menuId}")
     public ResponseEntity<ResponseGeneric<List<Submenu>>> porMenu(@PathVariable Integer menuId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<Submenu>>(sGenerico.porMenu(menuId)));
-        } catch (Exception e) {
-            ResponseGeneric<List<Submenu>> error = new ResponseGeneric<List<Submenu>>((List<Submenu>) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<List<Submenu>>(sGenerico.porMenu(menuId)));
     }
 }

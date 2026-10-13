@@ -13,6 +13,8 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionServicioExterno;
+import com.ventas.key.mis.productos.exeption.ExceptionStockInsuficiente;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
@@ -285,7 +287,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             } else {
                 imageIds = obtenerImagenPrincipalProducto(requestVarianteDto.getProductoId());
                 if (imageIds.isEmpty()) {
-                    throw new ExceptionDataNotFound(
+                    throw new ExceptionErrorInesperado(
                             "El producto " + producto.getId() + " no tiene una imagen para copiar a las variantes. "
                                     + "Sube una imagen o desmarca la casilla de 'misma imagen para todas'.");
                 }
@@ -331,14 +333,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 };
                 formData.add("files", recurso);
             } catch (Exception e) {
-                throw new ExceptionDataNotFound("Error al procesar imagen: " + e.getMessage());
+                throw new ExceptionErrorInesperado("Error al procesar imagen: " + e.getMessage());
             }
         }
         try {
             return imageneClienteDisco.save(formData).stream().map(ImagenDto::getId).toList();
         } catch (Exception e) {
             log.error("Error al subir imagenes al microservicio de imagenes", e);
-            throw new ExceptionDataNotFound("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
+            throw new ExceptionServicioExterno("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
         }
     }
 
@@ -374,7 +376,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
 
         if (request.getCodigoBarras() == null || request.getCodigoBarras().isBlank()) {
-            throw new ExceptionDataNotFound("El codigo de barras es requerido");
+            throw new ExceptionErrorInesperado("El codigo de barras es requerido");
         }
         if (iProductosRepository.findByCodigoBarras_CodigoBarrasIgnoreCase(request.getCodigoBarras()).isPresent()) {
             throw new ExceptionDuplicado(
@@ -604,7 +606,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // sin nada. Es el "dice que voy a guardar 3 cuando agregue 2" (reportado 2026-09-22).
         detalles = soloLosQueDescribenAlgo(detalles);
         if (detalles.isEmpty()) {
-            throw new ExceptionDataNotFound(
+            throw new ExceptionErrorInesperado(
                     "No hay ningun articulo que guardar: todos llegaron vacios. Hay que llenar al "
                             + "menos la talla, el color u otro dato, o ponerle stock");
         }
@@ -828,7 +830,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             int stockDisponible = producto.getStock() - stockYaAsignado;
 
             if (stockSolicitado > stockDisponible) {
-                throw new ExceptionDataNotFound(
+                throw new ExceptionStockInsuficiente(
                         String.format("Stock insuficiente para el producto '%s' (id=%d). Disponible: %d, Solicitado: %d",
                                 producto.getNombre(), productoId, stockDisponible, stockSolicitado));
             }
@@ -854,7 +856,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // solicitados y solo revienta si el TOTAL excede lo disponible, así que un valor
         // negativo aislado no lo detecta (reduce la suma en vez de superarla).
         if (detalle.getStock() < 0) {
-            throw new ExceptionDataNotFound("El stock de la variante no puede quedar negativo");
+            throw new ExceptionErrorInesperado("El stock de la variante no puede quedar negativo");
         }
         Variantes actual = iVarianteRepository.findById(detalle.getId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada: " + detalle.getId()));

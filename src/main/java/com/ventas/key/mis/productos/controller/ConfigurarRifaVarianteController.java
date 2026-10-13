@@ -25,13 +25,7 @@ public class ConfigurarRifaVarianteController {
     @PostMapping("/save")
     public ResponseEntity<ResponseGeneric<ConfigurarRifaVarianteDto>> agregar(
             @RequestBody ConfigurarRifaVarianteRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.agregar(req)));
-        } catch (Exception e) {
-            log.error("Error al agregar variante a rifa: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.agregar(req)));
     }
 
     @GetMapping("/porRifa/{rifaId}")
@@ -48,14 +42,8 @@ public class ConfigurarRifaVarianteController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
-        try {
-            service.eliminar(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada y stock restaurado"));
-        } catch (Exception e) {
-            log.error("Error al eliminar variante de rifa: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        service.eliminar(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Variante eliminada y stock restaurado"));
     }
 
     /**
@@ -67,26 +55,14 @@ public class ConfigurarRifaVarianteController {
     public ResponseEntity<ResponseGeneric<ConfigurarRifaVarianteDto>> editar(
             @PathVariable Integer id,
             @RequestBody ConfigurarRifaVarianteEditarRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.editar(id, req)));
-        } catch (Exception e) {
-            log.error("Error al editar premio {} de la rifa: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.editar(id, req)));
     }
 
     @PutMapping("/{id}/palabraClave")
     public ResponseEntity<ResponseGeneric<ConfigurarRifaVarianteDto>> actualizarPalabraClave(
             @PathVariable Integer id,
             @RequestBody Map<String, String> body) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(
-                    service.actualizarPalabraClave(id, body.get("palabraClave"))));
-        } catch (Exception e) {
-            log.error("Error al actualizar palabraClave: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(
+                service.actualizarPalabraClave(id, body.get("palabraClave"))));
     }
 }

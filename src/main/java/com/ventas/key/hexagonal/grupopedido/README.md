@@ -40,7 +40,7 @@ cada artículo y cada abono, y los abonos hechos después de unir no tendrían d
 | R6 | El abono al grupo solo aplica a crédito (Apartado / Ir pagando). Se reparte **del pedido más viejo al más nuevo**, nunca excede el saldo del grupo, y cada parte lleva la nota `Abono del grupo #N`. Tarjeta no, igual que el abono normal. El cambio del efectivo se calcula contra el abono completo. |
 | R7 | **Deshacer se puede siempre**, aunque ya haya abonos: cada pedido se queda con sus artículos y con los abonos que le tocaron. No se mueve dinero ni stock. |
 | R8 | Un pedido cancelado dentro del grupo deja de sumar al saldo. |
-| R9 | Mientras un pedido está en un grupo activo **no se le cambia la forma de cobro** (rompería R3). Guardia en `PedidoServiceImpl.cambiarTipoPedido`. |
+| R9 | Mientras un pedido está en un grupo activo **no se le cambia la forma de cobro a él solo** (rompería R3): se cambia la del grupo completo (R20). Guardia en `PedidoServiceImpl.cambiarTipoPedido` (409). |
 | R10 | Unir y deshacer quedan escritos en las observaciones de cada pedido, con fecha. |
 | R11 | Un grupo **de contado** se cobra de una vez desde la card del titular: se confirman todos los pedidos abiertos, del más viejo al más nuevo, con la misma forma de pago, todo o nada. Los ya entregados se saltan. Un grupo a crédito no se cobra así: se abona (R6). |
 | R12 | **Unidos se ven como uno.** En la lista del admin solo sale el titular, con el total de todos; los demás se abren buscando su número exacto. En el detalle se ven los artículos de todos. |
@@ -51,6 +51,7 @@ cada artículo y cada abono, y los abonos hechos después de unir no tendrían d
 | R17 | Después de repartir, cada pedido queda según su dinero: si cubre su total queda **PAGADO** y se crea su venta; si ya no lo cubre (se le pasó dinero a otro) vuelve a Apartado / Ir pagando y se **borra** la venta que tenía (mismo criterio que reabrir un contado). |
 | R18 | **Se agregan pedidos a un grupo que ya existe** (2026-09-30), con las mismas reglas que unir, pero solo para los que entran: misma forma de cobro que el grupo, abiertos (no cancelados ni cobrados de contado) y fuera de otro grupo. Los que ya estaban pueden estar pagados o cancelados y no se revisan. No se mueve dinero: lo que el pedido ya tenía abonado cuenta para el grupo y queda anotado en sus observaciones. Quién recoge no cambia. |
 | R19 | **Apartados unidos se pagan completos** (2026-10-01): un Apartado es sin dinero, así que el abono a un grupo de Apartados tiene que ser el saldo completo del grupo. Para un adelanto, los pedidos pasan a Ir pagando. Ver skill `reglas-pedidos` 2.1. |
+| R20 | **La forma de cobro se cambia para el grupo completo** (2026-10-13, A10 del plan): todos los pedidos vivos pasan juntos, todo o nada. A **Ir pagando** siempre; si el cliente deja dinero en ese momento entra como abono del grupo (R6). A **Apartado** solo si el grupo no tiene dinero (ni el que ya dio ni uno nuevo). A **contado** no: para que quede pagado se usa Pagar el grupo completo / Cobrar el grupo (R11). Si un pedido ya se cobró de contado (Entregado) hay que separarlo primero. Caso que lo originó: dos pedidos 🕓 Pendiente del cliente, unidos, y el cliente pide irlos pagando. Regla en `GrupoPedidos.porCambiarFormaDeCobro`; caso de uso `CambiarFormaDeCobroGrupoService`; `PUT /v1/grupos-pedido/{id}/tipo`. |
 
 **Cambios a reglas anteriores (2026-09-23, v2):**
 - **R2:** un pedido a crédito **ya pagado sí se une** (su dinero pasa a ser del grupo). Uno cobrado de
@@ -80,4 +81,10 @@ la lista, la unión no se notaba.
 - `ConsultarGruposCasoUso` va separado de `UnirPedidosCasoUso` a propósito: la lista
   (`PedidoServiceImpl`) lo usa, y `UnirPedidosService` depende de `PedidoServiceImpl` para cobrar
   (`ConfirmarPedidoAdapter`). Juntos cerrarían un ciclo de dependencias y Spring no arranca.
-- Permisos: `unir-pedidos` (nuevo) para unir, ver y deshacer; `abonar` (ya existía) para abonar.
+- Permisos: `unir-pedidos` (nuevo) para unir, ver y deshacer; `abonar` (ya existía) para abonar;
+  `cambiar-tipo` (el de 🔁 Cambiar forma de cobro) para cambiar la forma de cobro del grupo (R20).
+- Cambiar la forma de cobro del grupo (R20) es su propio caso de uso
+  (`CambiarFormaDeCobroGrupoCasoUso` / `CambiarFormaDeCobroGrupoService`): usa `UnirPedidosCasoUso`
+  para leer el grupo y abonar, y `FormaDeCobroPort` → `FormaDeCobroAdapter` →
+  `PedidoServiceImpl.cambiarTipoDentroDeGrupo`, el mismo cambio que un pedido suelto pero sin la
+  guardia de R9.

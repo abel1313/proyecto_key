@@ -115,6 +115,17 @@ public class SecurityConfig {
                         + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ACCION + clave };
     }
 
+    /** Cualquiera de varias acciones de la misma pantalla (o admin). */
+    private static String[] acciones(String ruta, String... claves) {
+        String[] authorities = new String[claves.length + 1];
+        authorities[0] = "ROLE_ADMIN";
+        for (int i = 0; i < claves.length; i++) {
+            authorities[i + 1] = JwtAuthenticationFilter.PREFIJO_AUTORIDAD_PANTALLA + ruta
+                    + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ACCION + claves[i];
+        }
+        return authorities;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         log.info("SecurityConfig cargado");
@@ -278,6 +289,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/variantes/para-pedido")
                                 .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "agregar-articulo"),
                                         accion("pedidos/mis-pedidos", "cambiar-articulo")))
+                        // Filtros de Tienda → Buscar (2026-10-08): quien tiene en Gestión de roles alguno de
+                        // los filtros de admin de Tienda (stock, imágenes, habilitados, código, fecha) busca
+                        // por admin/filtrar aunque no tenga las pantallas de Catálogo. Antes la pantalla le
+                        // ofrecía el filtro y aquí le tocaba 403. Mismos datos que el catálogo público (sin
+                        // costos). /v2/articulos va en espejo para cuando llegue el renombrado.
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/filtrar", "/v2/articulos/admin/filtrar")
+                                .hasAnyAuthority(unir(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
+                                        "admin/promociones"),
+                                        acciones("tienda/buscar", "filtro-con-stock", "filtro-sin-stock",
+                                                "filtro-con-imagenes", "filtro-sin-imagenes", "filtro-habilitados",
+                                                "filtro-no-habilitados", "filtro-codigo-generado", "filtro-codigo-real",
+                                                "filtro-fecha-creacion")))
                         .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
@@ -418,6 +441,10 @@ public class SecurityConfig {
                         // Cobrar el grupo de contado confirma cada pedido igual que
                         // PUT /v1/pedidos/confirmar/{id}, que es solo ADMIN: mismo nivel aqui.
                         .requestMatchers(HttpMethod.POST, "/v1/grupos-pedido/*/cobrar-contado").hasRole("ADMIN")
+                        // Cambiar la forma de cobro del grupo completo (R20): el mismo permiso que
+                        // "🔁 Cambiar forma de cobro" de un pedido suelto (PUT /v1/pedidos/*/tipo).
+                        .requestMatchers(HttpMethod.PUT, "/v1/grupos-pedido/*/tipo")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-tipo"))
                         // El buscador de "Unir pedidos" solo le sirve a quien puede unir.
                         .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/candidatos")
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "unir-pedidos"))

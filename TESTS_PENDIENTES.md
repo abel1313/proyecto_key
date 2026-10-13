@@ -16,6 +16,49 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-13 — Forma de cobro del grupo completo (grupopedido R20)
+**Dónde:** `GrupoPedidos.porCambiarFormaDeCobro()`, `CambiarFormaDeCobroGrupoService`, `FormaDeCobroAdapter`, `PedidoServiceImpl.cambiarTipoDentroDeGrupo()`, `PUT /v1/grupos-pedido/{id}/tipo`, `SecurityConfig`
+**Tipo:** unitario (dominio) · servicio con puertos simulados · controller (URL, status y permiso)
+**Debe comprobar:**
+- [ ] Dominio: grupo Pendiente (NORMAL) → FIADO devuelve los vivos del más viejo al más nuevo; los cancelados no; uno que ya es del tipo nuevo no
+- [ ] Dominio: → APARTADO con `pagadoCentavos > 0` o con cobro ahora → `CambioDeFormaDeCobroInvalidoException`; → NORMAL, al mismo tipo, grupo inactivo o con un pedido `Entregado` → rechaza; cobro mayor al saldo → rechaza
+- [ ] Servicio: con cobro llama a `abonar` del grupo después de cambiar todos; si el dominio rechaza no llama a `FormaDeCobroPort` ni a la bitácora
+- [ ] `PUT /v1/pedidos/{id}/tipo` de un pedido unido → 409; `PUT /v1/grupos-pedido/{id}/tipo` sin la acción `cambiar-tipo` → 403, con ella → 200; grupo inexistente → 404
+
+### 2026-10-13 — Mis pedidos abre sin lo ya pagado y entregado (busquedapedido R15)
+**Dónde:** `EstadoBuscado.SIN_TERMINAR`, `PedidosFiltradosJdbcAdapter.condiciones()`
+**Tipo:** MySQL (SQL nativo)
+**Debe comprobar:**
+- [ ] `estado=SIN_TERMINAR` no trae contado Entregado ni Apartado/Ir pagando pagado con `entregado = 1`; sí trae Pagado sin entregar, Ir pagando entregado que debe, Pendiente y cancelados *(comprobado a mano en MySQL 8 el 2026-10-13 con 6 pedidos)*
+- [ ] Un titular de grupo se juzga por el grupo (R14): sale mientras algún pedido del grupo falte de pagar o de entregar
+- [ ] Combinado con otro estado (`SIN_TERMINAR` + `CANCELADO`) se cruza con Y
+
+### 2026-10-13 — Cliente: caché, Mis datos y modelo agotado
+**Dónde:** `ClienteServiceImpl` (`@CacheEvict clienteCache` en save y los 7 métodos que escriben), `UsuarioVerificacionService.verificarCorreo/confirmarCambioCorreo`, `PedidoServiceImpl.savePedido` (404), `ProductosServiceImpl.guardarProducto` (stock 0 solo en alta; 400/409 sin envolver)
+**Tipo:** integración (Spring + caché en memoria) · servicio con puertos simulados
+**Debe comprobar:**
+- [ ] `findClienteById` → guardar el cliente con nombre/apellido/teléfono → `findClienteById` trae `datosCompletos = true` (antes la copia vieja)
+- [ ] Verificar el correo de un usuario nuevo (alta automática del cliente) y luego leerlo: no queda en caché el "no existe"
+- [ ] `savePedido` con un cliente que no existe → `ExceptionDataNotFound`
+- [ ] `guardarProducto` con id existente y stock 0 → guarda; alta nueva con stock 0 → 400 "El stock no debe de ser 0"; código de barras de otro producto → `ExceptionDuplicado` (409) sin envolver
+
+### 2026-10-08 — Errores con su código HTTP (BUG-KEY-32)
+**Dónde:** `ExceptionGlobal` (409 `ExceptionOperacionNoPermitida`, 502 `ExceptionServicioExterno`, 403 `ExceptionSinPermiso`), 102 `catch` quitados en 27 controllers, `VarianteController.getImagenesV2` (ya no 200 en error), servicios de rifas, concursantes, ventas y gastos (sin `Exception` simple)
+**Tipo:** controller con `ExceptionGlobal` (MockMvc con `setControllerAdvice`)
+**Debe comprobar:**
+- [ ] Cada excepción propia sale con su código y el `mensaje` de siempre: 404, 400, 409, 422, 502, 403; base de datos → 500 con texto genérico; error inesperado → 500 "Error interno del servidor"
+- [ ] `GET /v1/variantes/imagenes/{id}` con error → status de error (no 200 con `[]`)
+- [ ] Reclamar compra: código vacío 400, inexistente 404, usado/vencido 409, de otro correo 403; concursante repetido 409; rifa cerrada 409
+- [ ] `AuthController` sigue con sus mensajes genéricos (no dice si el usuario existe)
+
+### 2026-10-08 — Revisión antes de QA: filtros de Tienda con permiso propio y ajuste de stock sin pisar movimientos
+**Dónde:** `SecurityConfig` (`GET /v1/variantes/admin/filtrar`, helper `acciones()`), `AjustarStockModeloService`, `GuardarStockModeloJpaAdapter`, `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)` (`@Transactional`)
+**Tipo:** controller (URL y status) · servicio con puertos simulados · MySQL
+**Debe comprobar:**
+- [ ] Rol con solo `tienda/buscar:filtro-sin-stock` (sin pantallas de Catálogo) → `admin/filtrar` 200; sin ningún filtro de admin ni pantalla de Catálogo → 403; `/v1/variantes/admin/sin-stock` con solo el filtro → sigue 403
+- [ ] Ajuste con el stock igual al leído → guarda; si otra operación lo cambió en medio → 400 "El stock del modelo cambió mientras lo ajustabas…" y no escribe ni limpia cachés *(UPDATE comprobado en MySQL el 2026-10-08)*
+- [ ] Modelo con `stock` NULL → se toma como 0 y el ajuste +5 guarda 5
+
 ### 2026-10-08 — Agregar artículo: todos los modelos, habilitar y agregar stock al momento
 **Dónde:** `DisponibilidadStock.conAjuste()/articulosQueAunCaben()`, `AjustarStockModeloService`, `ConsultarStockJpaAdapter` (habilitado y foto), `GuardarStockModeloJpaAdapter`, `StockController` (`PUT /v1/stock/producto/{id}/ajuste`), `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)`, `AuthenticationUtils.tieneAccion()/puedeVerTodosLosModelos()`, `SecurityConfig`, `migration_accion_tienda_venta_ver_todos.sql`; front `variante/agregar`
 **Tipo:** unitario (dominio) · servicio con puertos simulados · H2/MySQL (adaptadores) · controller (URL, status y permiso)
@@ -242,3 +285,7 @@ Formato de cada entrada:
 |---|---|---|---|
 | `RenombreArticuloRutasTest`, `RenombreArticuloSecurityTest` | `feature/tema-jade-articulo` | 2026-10-06 | Prueban rutas `/v2/articulos/...` que esa rama del back todavía no tiene. No llegan a `dev`/`qa`. |
 | `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. |
+| `BusquedaPedidosMysqlTest` caso r2 (`r2_forma_de_cobro`) | `dev` | 2026-10-07 | Espera que "Contado" incluya los pedidos 🕓 Pendiente (900001, 900009). Desde el 2026-10-07 Pendiente es su propia forma de cobro (R2) y Contado es solo el ya cobrado. Corrida contra MySQL 8 el 2026-10-13: 16 de 20 pasan; fallan r2, r3, r7 y r11. |
+| `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**); el mensaje es el mismo. |
+| `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia` | `dev` | 2026-10-13 | Busca el texto viejo *"deshaz el grupo"*. Un pedido unido sigue sin poder cambiarse solo, pero ahora el mensaje es *"…su forma de cobro se cambia para todo el grupo"* (409), porque el grupo completo sí se cambia (grupopedido R20). |
+| `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |

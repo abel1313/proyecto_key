@@ -18,10 +18,11 @@ public class GuardarStockModeloJpaAdapter implements GuardarStockModeloPort {
     private EntityManager em;
 
     @Override
-    public void guardarStockTotal(Integer productoId, int stockTotal) {
-        em.createNativeQuery("UPDATE producto SET stock = :stock WHERE id = :id")
-                .setParameter("stock", stockTotal)
+    public boolean guardarStockTotal(Integer productoId, int stockAnterior, int stockNuevo) {
+        return em.createNativeQuery("UPDATE producto SET stock = :nuevo WHERE id = :id AND COALESCE(stock, 0) = :anterior")
+                .setParameter("nuevo", stockNuevo)
                 .setParameter("id", productoId)
-                .executeUpdate();
+                .setParameter("anterior", stockAnterior)
+                .executeUpdate() == 1;
     }
 }

@@ -46,34 +46,22 @@ public class PedidoController extends AbstractController<
     }
 
     @PostMapping("/savePedido")
-    public ResponseEntity<ResponseGeneric<Pedido>> savePedido(@Validated @RequestBody PedidosDTOPedido requestG, BindingResult result) {
-        try {
-            if( result.hasErrors()){
-                String errores = result.getAllErrors().stream().map(DefaultMessageSourceResolvable::getDefaultMessage).collect(Collectors.joining(", "));
-                ResponseGeneric<Pedido> erroResponse = new ResponseGeneric<>((Pedido) null);
-                erroResponse.setMensaje(errores);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
-            }
-            Pedido response = iPedidoService.savePedido(requestG,result);
-
-            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
-        } catch (Exception e) {
-            ResponseGeneric<Pedido> errorResponse = new ResponseGeneric<>((Pedido) null);
-            errorResponse.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    public ResponseEntity<ResponseGeneric<Pedido>> savePedido(@Validated @RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
+        if( result.hasErrors()){
+            String errores = result.getAllErrors().stream().map(DefaultMessageSourceResolvable::getDefaultMessage).collect(Collectors.joining(", "));
+            ResponseGeneric<Pedido> erroResponse = new ResponseGeneric<>((Pedido) null);
+            erroResponse.setMensaje(errores);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(erroResponse);
         }
+        Pedido response = iPedidoService.savePedido(requestG,result);
+
+        return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
     }
 
     @PutMapping("/confirmar/{id}")
-    public ResponseEntity<ResponseGeneric<PedidoGenerico>> updatePedido(@PathVariable int id, @Validated @RequestBody PedidoGenerico requestG) {
-        try {
-            PedidoGenerico response = iPedidoService.updatePedido(id, requestG);
-            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
-        } catch (Exception e) {
-            ResponseGeneric<PedidoGenerico> errorResponse = new ResponseGeneric<>((PedidoGenerico) null);
-            errorResponse.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        }
+    public ResponseEntity<ResponseGeneric<PedidoGenerico>> updatePedido(@PathVariable int id, @Validated @RequestBody PedidoGenerico requestG) throws Exception {
+        PedidoGenerico response = iPedidoService.updatePedido(id, requestG);
+        return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>(response));
     }
 
     @GetMapping("/findPedido/{id}")
@@ -111,27 +99,15 @@ public class PedidoController extends AbstractController<
 
     @GetMapping("/{id}/detalle")
     public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> getDetalle(@PathVariable int id) {
-        try {
-            PedidoDetalleResponse response = iPedidoService.getDetallePedido(id);
-            return ResponseEntity.ok(new ResponseGeneric<>(response));
-        } catch (Exception e) {
-            ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        PedidoDetalleResponse response = iPedidoService.getDetallePedido(id);
+        return ResponseEntity.ok(new ResponseGeneric<>(response));
     }
 
     @PutMapping("/{id}/entrega")
     public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> editarEntrega(
             @PathVariable int id, @RequestBody EditarEntregaPedidoRequest requestG) {
-        try {
-            PedidoDetalleResponse response = iPedidoService.editarDatosEntrega(id, requestG);
-            return ResponseEntity.ok(new ResponseGeneric<>(response));
-        } catch (Exception e) {
-            ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        PedidoDetalleResponse response = iPedidoService.editarDatosEntrega(id, requestG);
+        return ResponseEntity.ok(new ResponseGeneric<>(response));
     }
 
     /**
@@ -144,47 +120,29 @@ public class PedidoController extends AbstractController<
     @PutMapping("/{id}/tipo")
     public ResponseEntity<ResponseGeneric<PedidoDetalleResponse>> cambiarTipo(
             @PathVariable int id, @RequestBody CambiarTipoPedidoRequest requestG) {
-        try {
-            PedidoDetalleResponse response = iPedidoService.cambiarTipoPedido(id, requestG);
-            return ResponseEntity.ok(new ResponseGeneric<>(response));
-        } catch (Exception e) {
-            ResponseGeneric<PedidoDetalleResponse> error = new ResponseGeneric<>((PedidoDetalleResponse) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        PedidoDetalleResponse response = iPedidoService.cambiarTipoPedido(id, requestG);
+        return ResponseEntity.ok(new ResponseGeneric<>(response));
     }
 
     @PostMapping("/{id}/notificar")
     public ResponseEntity<ResponseGeneric<String>> notificar(
             @PathVariable int id, @Valid @RequestBody NotificarPedidoRequest requestG) {
-        try {
-            boolean ok = iPedidoService.notificarPedido(id, requestG);
-            if (!ok) {
-                ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
-                error.setMensaje("No se pudo enviar el correo. Verifica la dirección.");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-            }
-            return ResponseEntity.ok(new ResponseGeneric<>(
-                    "Comprobante enviado correctamente a " + requestG.getCorreo()));
-        } catch (Exception e) {
+        boolean ok = iPedidoService.notificarPedido(id, requestG);
+        if (!ok) {
             ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
-            error.setMensaje(e.getMessage());
+            error.setMensaje("No se pudo enviar el correo. Verifica la dirección.");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
+        return ResponseEntity.ok(new ResponseGeneric<>(
+                "Comprobante enviado correctamente a " + requestG.getCorreo()));
     }
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<ResponseGeneric<String>> deleteById(
             @PathVariable int id,
             @RequestParam(defaultValue = "NO_SE_PRESENTO") String motivo) {
-        try {
-            this.iPedidoService.deletePedidoById(id, motivo);
-            return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>("Pedido cancelado correctamente"));
-        } catch (Exception e) {
-            ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        this.iPedidoService.deletePedidoById(id, motivo);
+        return ResponseEntity.status(HttpStatus.OK).body(new ResponseGeneric<>("Pedido cancelado correctamente"));
     }
 
     @DeleteMapping("/{pedidoId}/detalle/{productoId}")
@@ -193,13 +151,7 @@ public class PedidoController extends AbstractController<
             @PathVariable int productoId,
             @RequestParam(defaultValue = "1") int cantidad,
             @RequestParam(required = false) Integer detalleId) {
-        try {
-            iPedidoService.eliminarDetallePedido(pedidoId, productoId, cantidad, detalleId);
-            return ResponseEntity.ok(new ResponseGeneric<>("Detalle actualizado correctamente"));
-        } catch (Exception e) {
-            ResponseGeneric<String> error = new ResponseGeneric<>((String) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        iPedidoService.eliminarDetallePedido(pedidoId, productoId, cantidad, detalleId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Detalle actualizado correctamente"));
     }
 }

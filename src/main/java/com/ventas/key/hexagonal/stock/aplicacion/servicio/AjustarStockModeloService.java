@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.stock.aplicacion.servicio;
 
+import com.ventas.key.hexagonal.stock.dominio.excepcion.AjusteStockInvalidoException;
 import com.ventas.key.hexagonal.stock.dominio.excepcion.ProductoSinStockConocidoException;
 import com.ventas.key.hexagonal.stock.dominio.modelo.DisponibilidadStock;
 import com.ventas.key.hexagonal.stock.dominio.puerto.entrada.AjustarStockModeloCasoUso;
@@ -30,7 +31,11 @@ public class AjustarStockModeloService implements AjustarStockModeloCasoUso {
         DisponibilidadStock actual = consultarStock.disponibilidadDe(productoId)
                 .orElseThrow(() -> new ProductoSinStockConocidoException(productoId));
         DisponibilidadStock ajustado = actual.conAjuste(ajuste);
-        guardarStock.guardarStockTotal(productoId, ajustado.stockTotal());
+        if (!guardarStock.guardarStockTotal(productoId, actual.stockTotal(), ajustado.stockTotal())) {
+            throw new AjusteStockInvalidoException(
+                    "El stock del modelo cambió mientras lo ajustabas (una venta o la edición de un pedido). "
+                            + "No se guardó nada: vuelve a intentarlo.");
+        }
         avisarCambio.stockCambio(productoId);
         return ajustado;
     }

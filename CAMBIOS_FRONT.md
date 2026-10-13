@@ -68,6 +68,160 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-33] 🆕 Cliente que no podía pedir, grupo que no cambiaba de forma de cobro, modelo agotado y vista de inicio de Mis pedidos (2026-10-13)
+
+**1. Datos del cliente: la caché no se borraba al guardar (corrige un ciclo en el carrito)**
+- **Antes:** `GET /v1/clientes/buscarPorIdCliente/{id}` se guarda en Redis 10 minutos (`clienteCache`)
+  y **ningún guardado la borraba**. El cliente llenaba sus datos, el back los guardaba bien, pero el
+  carrito (que revisa `datosCompletos`) y **Mis datos** seguían leyendo la copia vacía hasta 10 minutos
+  después: *"lo lleno, lo guardo y me vuelve a pedir lo mismo"*.
+- **Ahora:** cualquier cambio del cliente borra `clienteCache`: guardar o editar (`/v1/clientes/save`,
+  `/update`), el alta automática al verificar el correo, verificar o cambiar el correo y las dos
+  preferencias de correo. El contrato no cambia.
+- **Front (ya hecho):** el carrito y las otras 5 pantallas que pedían completar datos (detalle de
+  producto, Tienda → Buscar, Mis pedidos, Flores, Favoritos) mandan a
+  **`/clientes/mis-datos?volver=<pantalla>`** en vez de **Nuevo cliente** (`/clientes/agregar`), que
+  pedía el correo otra vez con el formulario vacío. Mis datos dice qué falta y, al guardar con
+  `datosCompletos = true`, regresa a `volver` (solo rutas de la app). El teléfono pasó a obligatorio en
+  el formulario (el back ya lo exigía). El aviso "Completa tu perfil" del carrito llevaba a
+  `/mis-datos`, que no existe (caía en la página 404).
+
+**2. `POST /v1/pedidos/savePedido` con un cliente que no existe**
+- **Antes:** `Exception` simple → con BUG-KEY-32 salía **500** *"Error interno del servidor"*.
+- **Ahora:** **404** *"No se encontró el cliente del pedido"* (y *"No se encontró el usuario"* al
+  confirmar). Los rechazos por correo sin verificar o datos incompletos siguen igual (400).
+
+**3. `PUT /v1/productos/update` — modelo agotado**
+- **Antes:** **400** *"El stock no debe de ser 0"* también al **editar**: un modelo que vendió todo
+  (stock 0) ya no se podía guardar en **Actualizar Modelo** (la pantalla manda el stock real).
+- **Ahora:** stock 0 solo se rechaza al **dar de alta** un modelo nuevo (`POST /save` sin id ni
+  código existente). Además, *"El codigo de barras … ya esta en uso por otro producto"* sale **409** y
+  los 400 propios salen con su texto (antes todo llegaba como 400 *"No se guardo el producto: …"*).
+
+**4. 🆕 `PUT /v1/grupos-pedido/{grupoId}/tipo` — cambiar la forma de cobro del grupo completo (R20)**
+
+Permiso: la acción `cambiar-tipo` de Mis pedidos (la misma de 🔁 Cambiar forma de cobro).
+```json
+{ "tipoPedido": "FIADO", "monto": 100, "metodoPago": "EFECTIVO", "montoDado": 200, "nota": "texto" }
+```
+- `tipoPedido`: `APARTADO` o `FIADO` (Ir pagando). `monto` opcional, solo Ir pagando: entra como
+  abono del grupo en el mismo paso (se reparte del más viejo al más nuevo, R6).
+- **200** → `data`: `{ grupo, tipoAnterior, pedidosCambiados: [1159, 1160], abono: AbonoGrupoResponse | null }`.
+- **400** con `mensaje`: el grupo ya es esa forma; *"Un Apartado es sin dinero…"* (el grupo ya tiene
+  dinero, o se manda `monto`); *"Un grupo no se pasa a contado…"* (`NORMAL`: para eso está
+  💵 Pagar el grupo completo / Cobrar el grupo); *"El pedido N ya se cobró de contado: sepáralo…"*;
+  el monto excede lo que debe el grupo; el grupo ya se deshizo.
+- **404** el grupo no existe. Todo o nada: si uno falla, ninguno cambia.
+- **`PUT /v1/pedidos/{id}/tipo` a un pedido unido** — antes: **400** *"…deshaz el grupo antes de
+  cambiar su forma de cobro"*; ahora: **409** *"…su forma de cobro se cambia para todo el grupo"*. El
+  detalle del pedido ya manda a este endpoint cuando el pedido está unido.
+
+**5. `GET /v1/pedidos/buscar` — nuevo valor `estado=SIN_TERMINAR` (R15)**
+- Todo **menos** lo ya pagado **y** entregado (los cancelados sí salen). Se cruza con Y con los demás
+  filtros. **Mis pedidos lo manda sola al abrir** (sin filtros ni texto) y deja de mandarlo en cuanto se
+  pone cualquier filtro o se escribe algo. Antes la pantalla abría con todos, también los ya terminados.
+
+---
+
+### [BUG-KEY-32] 🆕 Errores con su código HTTP correcto, y 404 de verdad en el front (2026-10-08)
+
+**Por qué:** casi todos los controllers viejos tenían un `catch (Exception e)` que contestaba **400** a
+cualquier falla: "no existe", "ya está duplicado", "la rifa ya cerró", "se cayó la base"… todo era 400.
+Y un endpoint contestaba **200** cuando fallaba. Se quitaron 102 de esos `catch` en 27 controllers: ahora
+cada error sale por `ExceptionGlobal` con el código que le toca.
+
+**Lo que NO cambia:** el body sigue siendo `{ mensaje, code, data: null }` y el **texto de `mensaje` es el
+mismo de antes**. Toda pantalla que muestra `err.error.mensaje` sigue mostrando lo mismo. Lo único
+distinto en el body: `code` ahora es igual al status (antes los `catch` ponían `code: 404` aunque el
+status fuera 400).
+
+| Situación | Antes | Ahora |
+|---|---|---|
+| No existe (pedido, cliente, gasto, concursante, rifa, venta, rol, submenú, código de "Agregar mi compra"…) | 400 | **404** |
+| Falta un dato o viene mal escrito | 400 | 400 (igual) |
+| Duplicado (el cliente ya está en la rifa, clave de un color de Personalización repetida) | 400 | **409** |
+| El estado no lo deja: rifa sorteada o inactiva, plazo de registro cerrado, código de compra ya usado o vencido, venta que ya tiene cliente, quitarle a ROLE_ADMIN "Gestión de roles", dar una acción sin poder VER la pantalla, borrar el último menú, habilitar un borrador de carga rápida sin código real | 400 | **409** |
+| Stock insuficiente al guardar artículos (`guardarConImagenes`) | **404** (se lanzaba como "no encontrado") | **422** |
+| Falla el micro de imágenes al subir (carga rápida, guardar artículo con fotos) | 400 | **502** |
+| "Agregar mi compra" con un código de otra persona (el correo no coincide) | 400 | **403** |
+| Falla de base de datos | 400 con el texto técnico | **500** *"No se pudo guardar el cambio. Intenta de nuevo en unos minutos."* |
+| Error inesperado | 400 con el texto técnico | **500** *"Error interno del servidor"* |
+
+**El 200 que era error — `GET /v1/variantes/imagenes/{varianteId}`**
+- **Antes:** si algo fallaba contestaba **200 con lista vacía**: la pantalla decía que el artículo no
+  tenía fotos aunque sí las tuviera.
+- **Ahora:** contesta el error con su código. Si el micro de imágenes no responde **no** es error: el
+  back ya manda las URLs que tiene en la base. Quién lo usa: **Boletos de rifa** (ya muestra el error con
+  "reintentar") y la galería de **Flores** (`flores-imagen.service`, su `catchError` sigue regresando `[]`).
+
+**Endpoints afectados** (el código cambia solo cuando hay error; con éxito todo es igual):
+`/v1/abonos` (registrar, ver, cancelar, transferir) · `/v1/boletoRifa` (10) · `/v1/carga-imagenes` (4) ·
+`/v1/clientes/{id}` (correo, verificación, preferencias) · `/v1/clientes-sin-registro` (3) ·
+`/v1/concursante` (5) · `/v1/configurarRifa/{id}` (3) · `/v1/configurarRifaVariante` (4) ·
+`/v1/entregas-zona` (2) · `/v1/favoritos` (4) · `/v1/flores` (validar cantidad, precio, fechas) ·
+`/v1/flores/pedidos` (5) · `/v1/ganadorRifa` (4) · `/v1/gastos` (5) · `/v1/lugares-entrega` (anillos y costo) ·
+`/v1/pedidos` (savePedido, confirmar, detalle, entrega, tipo, notificar, delete, quitar detalle) ·
+`/v1/productos/admin/habilitar-lote` · `/v1/promociones` (4) · `/v1/ramos-armados` (3) ·
+`/v1/redes-sociales/tiktok` (2) · `/v1/reportes/ventas` (mensual, por cliente) · `/v1/resenas` (5) ·
+`/v1/rifa/registrar` · `/v1/roles/{rolId}/...` (6) · `/v1/submenu/porMenu/{menuId}` ·
+`/v1/usuarios/{id}/submenus/{id}` · `/v1/variantes` (guardarConImagenes, imagenes/{id}, admin/habilitar-lote) ·
+`/v1/ventas` (reclamar, asignarCliente, buscar). Sin `catch` pero con la excepción equivocada: el
+alta de un color en `/v1/tema-variable` con clave repetida pasa de 400 a **409**; `/v1/menu` y
+`/v1/submenu` al borrar el último menú, de 400 a **409**; `/v1/qr-destino` sigue en 400 (sus
+validaciones son de datos).
+
+**Lo que se dejó igual a propósito**
+- `AuthController` (login, refresh, registro, recuperar contraseña): sus `catch` siguen. Contestan
+  mensajes genéricos para no decir si un usuario existe o no.
+- `GET /v1/reportes/ventas/mensual` con una fecha mal escrita sigue en **400** (el `catch` se dejó solo
+  para el error de formato de fecha).
+- Un `RuntimeException` simple sigue saliendo **400**: muchas validaciones de negocio viejas se lanzan
+  así. Pasarlo a 500 haría que un "no hay stock" se viera como falla del servidor; esas se van
+  cambiando a su excepción propia cuando se toca cada servicio.
+
+**Front — qué revisar:** ninguna pantalla depende del 400 de estos endpoints (las que miran el status
+son de dominios hexagonales que no cambiaron: `grupo-pedido` 400, `detalle-pedido` 409 del combo,
+`boletos-rifa` 409 de participación, buscadores 404/400 de productos). Sin cambios obligatorios.
+
+**Front — 404 de verdad (soft 404)**
+- **Antes:** el servidor del front contestaba **200** a cualquier URL (así funciona una app de Angular)
+  y la pantalla "no disponible" salía con 200. Google lo marca como *soft 404*.
+- **Ahora:** hay una URL fija **`/no-encontrada`** que nginx (`default.conf`) sirve con **status 404**
+  y la misma app. Si alguien abre directo una ruta que no existe (link roto, Google), la app lo manda a
+  `/no-encontrada` → el navegador recibe 404. Navegando dentro de la app no recarga nada. La pantalla
+  lleva `noindex`. Ver la ficha de un artículo que no existe → *"Este producto ya no está
+  disponible."* + `noindex` (antes un visitante veía *"No pudimos abrir este producto desde un enlace
+  directo"*, porque el respaldo `getOne` es solo de admin). Ruleta pública de una rifa que no existe →
+  la misma pantalla 404, dejando el link en la barra.
+- **Home y la pantalla 404 rediseñadas:** ya no cargan una foto de pantalla completa (Home bajaba
+  `tulipanes.jpg`, 3.1 MB). Ahora: logo de la tienda (7–18 KB en WebP) y textos con los colores de
+  Personalización, legibles de día y de noche.
+
+---
+
+### [BUG-KEY-31] 🆕 Revisión antes de QA: permisos de los filtros de Tienda y ajuste de stock sin perder movimientos (2026-10-08)
+
+**1. `GET /v1/variantes/admin/filtrar` — quién puede usarlo (corrección de autorización)**
+- **Antes:** pedía tener alguna pantalla de Catálogo (Modelos, Agregar modelo, Agregar artículo) o
+  Gestionar promociones. Un rol con los filtros de admin de **Tienda → Buscar** en Gestión de roles
+  (con/sin stock, imágenes, habilitados, código, fecha) pero sin esas pantallas veía el filtro y al
+  usarlo recibía **403**. Desde BUG-KEY-27 también le pasaba al filtrar solo por talla, color, marca o
+  precio (la pantalla manda todo junto por `admin/filtrar` cuando el rol tiene algún filtro de admin).
+- **Ahora:** además de lo de antes, entra quien tenga cualquiera de esas 9 acciones de `tienda/buscar`
+  (`filtro-con-stock`, `filtro-sin-stock`, `filtro-con-imagenes`, `filtro-sin-imagenes`,
+  `filtro-habilitados`, `filtro-no-habilitados`, `filtro-codigo-generado`, `filtro-codigo-real`,
+  `filtro-fecha-creacion`). La respuesta no trae costos (mismos campos que el catálogo). El front no
+  cambia. Los demás `/v1/variantes/admin/**` siguen igual.
+
+**2. `PUT /v1/stock/producto/{productoId}/ajuste` — 400 nuevo**
+- Si entre que se leyó el stock y se guardó otra operación movió el stock del modelo (editar un
+  pedido, otro ajuste), ya no lo pisa: responde **400** con `mensaje` *"El stock del modelo cambió
+  mientras lo ajustabas (una venta o la edición de un pedido). No se guardó nada: vuelve a
+  intentarlo."*. Antes escribía el total calculado y el otro movimiento se perdía. El front ya muestra
+  `err.error.mensaje` en "No se cambió el stock"; no requiere cambios.
+
+---
+
 ### [BUG-KEY-30] 🆕 Agregar artículo: todos los modelos, habilitar, agregar stock al momento (2026-10-08)
 
 **1. Buscador de modelos** — `GET /mis-productos/v1/productos/buscarNombreOrCodigoBarra?nombre=…&todos=true`

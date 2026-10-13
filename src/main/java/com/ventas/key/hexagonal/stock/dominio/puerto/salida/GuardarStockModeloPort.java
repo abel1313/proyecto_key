@@ -8,5 +8,10 @@ package com.ventas.key.hexagonal.stock.dominio.puerto.salida;
  */
 public interface GuardarStockModeloPort {
 
-    void guardarStockTotal(Integer productoId, int stockTotal);
+    /**
+     * Cambia el total de {@code stockAnterior} a {@code stockNuevo} solo si el modelo sigue teniendo
+     * {@code stockAnterior}: si en medio otra operacion le movio el stock (editar un pedido, otro
+     * ajuste), no escribe y devuelve false, para no perder ese movimiento.
+     */
+    boolean guardarStockTotal(Integer productoId, int stockAnterior, int stockNuevo);
 }

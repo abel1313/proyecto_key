@@ -338,7 +338,7 @@ public class PublicacionSocialService {
     @Transactional
     public HashtagsDefault actualizarHashtagsDefault(String redSocial, String hashtags) {
         HashtagsDefault h = hashtagsDefaultRepository.findByRedSocial(redSocial.toLowerCase())
-                .orElseThrow(() -> new ExceptionDataNotFound(
+                .orElseThrow(() -> new ExceptionErrorInesperado(
                         "Red social desconocida: '" + redSocial + "' -- debe ser facebook, instagram o tiktok"));
         h.setHashtags(hashtags);
         h.setActualizadoEn(LocalDateTime.now());

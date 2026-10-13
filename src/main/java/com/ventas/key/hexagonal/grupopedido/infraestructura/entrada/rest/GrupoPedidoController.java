@@ -1,5 +1,8 @@
 package com.ventas.key.hexagonal.grupopedido.infraestructura.entrada.rest;
 
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.CambiarFormaDeCobroGrupoCasoUso;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CambioFormaCobroGrupoResponse;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CambiarFormaCobroGrupoRequest;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoNoEncontradoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoPedidoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.PedidosDeDistintoTipoException;
@@ -57,6 +60,7 @@ public class GrupoPedidoController {
     private static final int TAMANO_PAGINA = 10;
 
     private final UnirPedidosCasoUso casoUso;
+    private final CambiarFormaDeCobroGrupoCasoUso cambiarFormaDeCobro;
     private final CacheService cacheService;
 
     @PostMapping
@@ -108,6 +112,22 @@ public class GrupoPedidoController {
                         request.getMontoDado() == null ? null : centavos(request.getMontoDado()),
                         request.getNota()),
                 usuarioActual())));
+    }
+
+    /**
+     * Cambia la forma de cobro de todos los pedidos del grupo (R20). Si el cliente deja dinero
+     * (solo Ir pagando), entra como abono del grupo en el mismo paso.
+     */
+    @PutMapping("/{grupoId}/tipo")
+    public ResponseEntity<Object> cambiarFormaDeCobro(@PathVariable Integer grupoId,
+                                                      @RequestBody CambiarFormaCobroGrupoRequest request) {
+        long monto = centavos(request.getMonto());
+        AbonoAlGrupo cobro = monto > 0
+                ? new AbonoAlGrupo(monto, request.getMetodoPago(),
+                        request.getMontoDado() == null ? null : centavos(request.getMontoDado()), request.getNota())
+                : null;
+        return ejecutar(true, () -> CambioFormaCobroGrupoResponse.de(cambiarFormaDeCobro.cambiar(
+                grupoId, request.getTipoPedido(), cobro, request.getNota(), usuarioActual())));
     }
 
     /** Confirma de una vez los pedidos de contado del grupo que falten (R11). */

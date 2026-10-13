@@ -86,26 +86,16 @@ public class VentaControllerImpl {
     }
 
     @PostMapping("/reclamar")
-    public ResponseEntity<ResponseGeneric<String>> reclamar(@RequestBody Map<String, String> body) {
-        try {
-            vImpl.reclamarVenta(body.get("codigo"));
-            return ResponseEntity.ok(new ResponseGeneric<>("Compra vinculada a tu cuenta"));
-        } catch (Exception e) {
-            log.error("Error al reclamar venta: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+    public ResponseEntity<ResponseGeneric<String>> reclamar(@RequestBody Map<String, String> body) throws Exception {
+        vImpl.reclamarVenta(body.get("codigo"));
+        return ResponseEntity.ok(new ResponseGeneric<>("Compra vinculada a tu cuenta"));
     }
 
     @PostMapping("/{ventaId}/asignarCliente")
     public ResponseEntity<ResponseGeneric<String>> asignarCliente(
-            @PathVariable Integer ventaId, @RequestBody Map<String, Integer> body) {
-        try {
-            vImpl.asignarClienteManual(ventaId, body.get("clienteId"));
-            return ResponseEntity.ok(new ResponseGeneric<>("Cliente vinculado a la venta"));
-        } catch (Exception e) {
-            log.error("Error al asignar cliente a venta {}: {}", ventaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+            @PathVariable Integer ventaId, @RequestBody Map<String, Integer> body) throws Exception {
+        vImpl.asignarClienteManual(ventaId, body.get("clienteId"));
+        return ResponseEntity.ok(new ResponseGeneric<>("Cliente vinculado a la venta"));
     }
 
     @GetMapping("/buscar")
@@ -115,26 +105,20 @@ public class VentaControllerImpl {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        try {
-            LocalDate desde = fecha != null ? fecha : (fechaInicio != null ? fechaInicio : LocalDate.now());
-            LocalDate hasta = fecha != null ? fecha : (fechaFin != null ? fechaFin : desde);
+        LocalDate desde = fecha != null ? fecha : (fechaInicio != null ? fechaInicio : LocalDate.now());
+        LocalDate hasta = fecha != null ? fecha : (fechaFin != null ? fechaFin : desde);
 
-            LocalDateTime desdeTs = desde.atStartOfDay();
-            LocalDateTime hastaTs = hasta.atTime(LocalTime.MAX);
+        LocalDateTime desdeTs = desde.atStartOfDay();
+        LocalDateTime hastaTs = hasta.atTime(LocalTime.MAX);
 
-            Page<Venta> resultado = iVentaRepository.buscarPorFecha(desdeTs, hastaTs, PageRequest.of(page, size));
+        Page<Venta> resultado = iVentaRepository.buscarPorFecha(desdeTs, hastaTs, PageRequest.of(page, size));
 
-            PginaDto<List<Venta>> dto = new PginaDto<>();
-            dto.setT(resultado.getContent());
-            dto.setTotalRegistros((int) resultado.getTotalElements());
-            dto.setTotalPaginas(resultado.getTotalPages());
-            dto.setPagina(page);
+        PginaDto<List<Venta>> dto = new PginaDto<>();
+        dto.setT(resultado.getContent());
+        dto.setTotalRegistros((int) resultado.getTotalElements());
+        dto.setTotalPaginas(resultado.getTotalPages());
+        dto.setPagina(page);
 
-            return ResponseEntity.ok(new ResponseGeneric<>(dto));
-        } catch (Exception e) {
-            log.error("Error al buscar ventas: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(dto));
     }
 }

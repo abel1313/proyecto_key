@@ -116,13 +116,7 @@ public class VarianteController extends AbstractController<
 
     @PostMapping("/guardarConImagenes")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> guardarConImagenes(@RequestBody List<VarianteDetalle> detalles) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
-        } catch (Exception e) {
-            log.error("Error al guardar variantes con imágenes: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
     }
 
     /**
@@ -136,13 +130,10 @@ public class VarianteController extends AbstractController<
 
     @GetMapping("/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenesV2(@PathVariable Integer varianteId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
-        } catch (Exception e) {
-            log.error("Error obteniendo imagenes de varianteId={}: {}", varianteId, e.getMessage(), e);
-            List<ImagenUpdateDto> vacio = List.of();
-            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(vacio));
-        }
+        // Antes un error respondía 200 con la lista vacía y la pantalla decía "no tiene imágenes"
+        // aunque las tuviera. Ahora el error sale con su código (ExceptionGlobal). Si el micro no
+        // contesta, el servicio ya manda las URLs de la BD: eso no es error.
+        return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
     }
 
     @GetMapping("/imagenes/{varianteId}/paginado")
@@ -251,17 +242,11 @@ public class VarianteController extends AbstractController<
     @PutMapping("/admin/habilitar-lote")
     public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarVariantesLote(
             @Validated @RequestBody HabilitarLoteRequest request) {
-        try {
-            String diagnostico = sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
-            String mensaje = (request.isHabilitar()
-                    ? "Variantes habilitadas correctamente. "
-                    : "Variantes deshabilitadas correctamente. ") + diagnostico;
-            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
-        } catch (Exception e) {
-            log.error("Error al habilitar/deshabilitar variantes en lote: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        String diagnostico = sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
+        String mensaje = (request.isHabilitar()
+                ? "Variantes habilitadas correctamente. "
+                : "Variantes deshabilitadas correctamente. ") + diagnostico;
+        return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
     }
 
     @GetMapping("/admin/diagnostico-imagenes/{varianteId}")

@@ -36,6 +36,7 @@ problemas que se arreglan aquí:
 | R12 | **Páginas** desde 0, de 1 a 50 pedidos por página. Regresa total de pedidos y de páginas. | `FiltroPedidos`, `PaginaDePedidos` |
 | R13 | Filtros distintos se combinan con **Y**; las opciones dentro de un mismo filtro, con **O**. Un filtro vacío no filtra. | `FiltroPedidos` |
 | R14 | **Un pedido unido se filtra por lo que muestra su card** (2026-10-06). La card del titular muestra el total, lo pagado y lo que falta de **todo el grupo**, así que estado, dinero, total, fecha de entrega (espera entrega mientras el grupo deba) y "Los que más deben" se calculan con el grupo; el texto, ramos y promociones buscan en todos sus pedidos. Antes se miraba solo al titular: un abono al grupo liquida primero al más viejo, el titular quedaba Pagado y el grupo desaparecía de "Por cobrar" aunque siguiera debiendo. | `PedidosFiltradosJdbcAdapter` (`GRUPOS`, `ESTADO_CARD`, `deLaCard`) |
+| R15 | **Vista de inicio: sin lo ya terminado** (2026-10-13). `estado=SIN_TERMINAR` trae todo menos lo **pagado y entregado** (los cancelados sí salen); se cruza con Y con los demás filtros. Mis pedidos lo manda solo al abrir, sin filtros ni texto; con cualquier filtro o búsqueda sale lo que se pidió. | `EstadoBuscado.SIN_TERMINAR`, `PedidosFiltradosJdbcAdapter` |
 
 Un pedido sin artículos no sale (igual que la lista de siempre). Sin caché: la lista cambia con cada
 abono, venta y cancelación.

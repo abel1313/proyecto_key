@@ -194,7 +194,7 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         }
 
         // Pago y Entrega (dominio entrega, 2026-10-06): OR dentro de cada bloque, AND entre los dos.
-        List<String> pago = f.estados().stream().filter(e -> !e.esDeEntrega())
+        List<String> pago = f.estados().stream().filter(EstadoBuscado::esDePago)
                 .map(e -> e == EstadoBuscado.PENDIENTE || e == EstadoBuscado.POR_COBRAR
                         ? EstadoBuscado.FALTA_PAGAR.name() : e.name())
                 .distinct().toList();
@@ -207,6 +207,10 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         if (!entrega.isEmpty()) {
             params.addValue("entrega", entrega);
             w.add(ENTREGA_CARD + " IN (:entrega)");
+        }
+        // R15: todo menos lo ya pagado y entregado (la vista con la que abre la pantalla).
+        if (f.estados().contains(EstadoBuscado.SIN_TERMINAR)) {
+            w.add("NOT (" + PAGO_CARD + " = 'PAGADO' AND COALESCE(" + ENTREGA_CARD + ", '') = 'ENTREGADO')");
         }
 
         if (!f.dinero().isEmpty()) {
