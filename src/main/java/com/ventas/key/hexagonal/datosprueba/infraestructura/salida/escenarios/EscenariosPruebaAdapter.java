@@ -1,8 +1,12 @@
 package com.ventas.key.hexagonal.datosprueba.infraestructura.salida.escenarios;
 
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.DatosDelModelo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.LineaDePedido;
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.ModeloDePrueba;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.EscenariosPruebaPort;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.PedidosPruebaPort;
+import com.ventas.key.hexagonal.precio.dominio.puerto.entrada.CambiarPrecioArticuloCasoUso;
+import com.ventas.key.hexagonal.precio.dominio.puerto.salida.AvisarCambioCatalogoPort;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.Pedido;
@@ -29,6 +33,11 @@ import java.util.List;
  * <p>R8, R16 y R17: los pedidos de una prueba salen de los mismos servicios que la pantalla
  * ({@code savePedido} del carrito, {@code saveVentaDetalle} de la venta directa y
  * {@code deletePedidoById} del boton ✖ Cancelar). No se escribe ninguna tabla de pedidos a mano.
+ *
+ * <p>R18: el catálogo de una prueba se da de alta con el generador (CatalogoPruebaPort, JDBC como
+ * el resto del catálogo de prueba) y aquí solo se deja en el estado que pide la prueba: stock del
+ * modelo, modelo deshabilitado, artículo viejo deshabilitado con stock. El precio con descuento pasa
+ * por el mismo caso de uso que el 💲 de la tarjeta. Solo sobre modelos con marca "Prueba QA".
  */
 @Component
 @RequiredArgsConstructor
@@ -43,6 +52,8 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
     private final IClienteRepository clientes;
     private final IPedidoService pedidoService;
     private final VentaServiceImpl ventas;
+    private final CambiarPrecioArticuloCasoUso precios;
+    private final AvisarCambioCatalogoPort catalogoCambio;
     private final JdbcTemplate jdbc;
 
     @Override
@@ -159,5 +170,55 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
     @Override
     public void cancelar(int pedidoId) {
         pedidoService.deletePedidoById(pedidoId, "CLIENTE_AVISO");
+    }
+
+    // ── Catálogo (R18) ─────────────────────────────────────────────────────────
+
+    @Override
+    public DatosDelModelo datosDelModelo(int articuloId) {
+        return jdbc.queryForObject("SELECT p.id, p.nombre, cb.codigo_barras FROM variantes v "
+                        + "JOIN producto p ON p.id = v.producto_id "
+                        + "LEFT JOIN codigo_barras cb ON cb.id = p.codigo_barras_id WHERE v.id = ?",
+                (rs, n) -> new DatosDelModelo(rs.getInt("id"), rs.getString("nombre"), rs.getString("codigo_barras")),
+                articuloId);
+    }
+
+    @Override
+    public void stockDelModelo(int articuloId, int stock) {
+        int modelo = modeloDePrueba(articuloId);
+        jdbc.update("UPDATE producto SET stock = ?, piezas = ? WHERE id = ?", stock, stock, modelo);
+    }
+
+    @Override
+    public void habilitarModelo(int articuloId, boolean habilitado) {
+        int modelo = modeloDePrueba(articuloId);
+        jdbc.update("UPDATE producto SET habilitado = ? WHERE id = ?", habilitado ? "1" : "0", modelo);
+    }
+
+    @Override
+    public void articuloDeshabilitadoConStock(int articuloId, int stock) {
+        modeloDePrueba(articuloId);
+        jdbc.update("UPDATE variantes SET habilitado = '0', stock = ? WHERE id = ?", stock, articuloId);
+    }
+
+    @Override
+    public void precioDelArticulo(int articuloId, double precioVenta, double precioRebaja, boolean usarDescuento) {
+        modeloDePrueba(articuloId);
+        precios.cambiar(articuloId, precioVenta, precioRebaja, usarDescuento);
+    }
+
+    @Override
+    public void limpiarCache() {
+        catalogoCambio.catalogoCambio();
+    }
+
+    /** El modelo del artículo, solo si es de prueba (marca "Prueba QA"): nunca se toca uno real. */
+    private int modeloDePrueba(int articuloId) {
+        List<Integer> ids = jdbc.queryForList("SELECT p.id FROM variantes v JOIN producto p ON p.id = v.producto_id "
+                + "WHERE v.id = ? AND p.marca = ?", Integer.class, articuloId, ModeloDePrueba.MARCA);
+        if (ids.isEmpty()) {
+            throw new IllegalStateException("El artículo " + articuloId + " no es de prueba: no se modifica");
+        }
+        return ids.get(0);
     }
 }

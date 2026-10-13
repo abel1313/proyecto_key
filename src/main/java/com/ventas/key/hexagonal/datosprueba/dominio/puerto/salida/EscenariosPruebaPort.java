@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida;
 
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.DatosDelModelo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.LineaDePedido;
 
 import java.util.List;
@@ -35,4 +36,27 @@ public interface EscenariosPruebaPort {
 
     /** Lo cancela como el boton ✖ Cancelar con el motivo "El cliente aviso" (devuelve el stock). */
     void cancelar(int pedidoId);
+
+    // ── Catálogo (R18): dejar un modelo o artículo recién creado en el estado que pide la prueba ──
+
+    /** Nombre y código de barras del modelo de ese artículo, para buscarlo en pantalla. */
+    DatosDelModelo datosDelModelo(int articuloId);
+
+    /** Stock del modelo de ese artículo (stock libre = este menos lo repartido en sus artículos). */
+    void stockDelModelo(int articuloId, int stock);
+
+    /** Habilita o deshabilita el modelo de ese artículo (sus artículos se quedan como están). */
+    void habilitarModelo(int articuloId, boolean habilitado);
+
+    /**
+     * Un artículo deshabilitado que guarda stock: el caso de los artículos viejos (hoy, al
+     * deshabilitar uno, su stock queda en 0). Solo para las pruebas que revisan ese caso.
+     */
+    void articuloDeshabilitadoConStock(int articuloId, int stock);
+
+    /** Precio propio del artículo con el mismo caso de uso que la pantalla (💲 de la tarjeta). */
+    void precioDelArticulo(int articuloId, double precioVenta, double precioRebaja, boolean usarDescuento);
+
+    /** Que la tienda muestre lo nuevo de inmediato (la misma limpieza que hace guardar un pedido). */
+    void limpiarCache();
 }
