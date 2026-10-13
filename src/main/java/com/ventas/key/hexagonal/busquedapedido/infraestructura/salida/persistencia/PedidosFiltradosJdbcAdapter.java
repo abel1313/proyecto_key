@@ -98,11 +98,15 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
             + " WHEN " + ESTADO_P + " IN ('PAGADO','ENTREGADO','PENDIENTE') THEN " + ESTADO_P
             + " ELSE 'OTRO' END)";
 
-    /** El pago como lo dice la card: Falta pagar, Pagado o Cancelado (un titular, el de su grupo). */
+    /**
+     * El pago como lo dice la card: Pendiente, Falta pagar, Pagado o Cancelado (un titular, el de su
+     * grupo). Pendiente va aparte de Falta pagar (R16): es lo que pidió el cliente y nadie ha tocado.
+     */
     private static final String PAGO_CARD = "(CASE " + ESTADO_CARD
             + " WHEN 'CANCELADO' THEN 'CANCELADO'"
             + " WHEN 'PAGADO' THEN 'PAGADO'"
             + " WHEN 'ENTREGADO' THEN 'PAGADO'"
+            + " WHEN 'PENDIENTE' THEN 'PENDIENTE'"
             + " ELSE 'FALTA_PAGAR' END)";
 
     /**
@@ -195,8 +199,7 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
 
         // Pago y Entrega (dominio entrega, 2026-10-06): OR dentro de cada bloque, AND entre los dos.
         List<String> pago = f.estados().stream().filter(EstadoBuscado::esDePago)
-                .map(e -> e == EstadoBuscado.PENDIENTE || e == EstadoBuscado.POR_COBRAR
-                        ? EstadoBuscado.FALTA_PAGAR.name() : e.name())
+                .map(e -> e == EstadoBuscado.POR_COBRAR ? EstadoBuscado.FALTA_PAGAR.name() : e.name())
                 .distinct().toList();
         List<String> entrega = f.estados().stream().filter(EstadoBuscado::esDeEntrega)
                 .map(Enum::name).distinct().toList();
@@ -208,9 +211,10 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
             params.addValue("entrega", entrega);
             w.add(ENTREGA_CARD + " IN (:entrega)");
         }
-        // R15: todo menos lo ya pagado y entregado (la vista con la que abre la pantalla).
+        // R15: todo menos lo ya pagado y entregado y lo cancelado (la vista con la que abre la pantalla).
         if (f.estados().contains(EstadoBuscado.SIN_TERMINAR)) {
             w.add("NOT (" + PAGO_CARD + " = 'PAGADO' AND COALESCE(" + ENTREGA_CARD + ", '') = 'ENTREGADO')");
+            w.add(PAGO_CARD + " <> 'CANCELADO'");
         }
 
         if (!f.dinero().isEmpty()) {

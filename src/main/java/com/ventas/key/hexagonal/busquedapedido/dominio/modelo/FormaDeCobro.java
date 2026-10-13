@@ -10,6 +10,8 @@ package com.ventas.key.hexagonal.busquedapedido.dominio.modelo;
  * cuenta y nadie ha cobrado ni pasado a Apartado / Ir pagando. Se guarda como {@code NORMAL} con
  * {@code estado_pedido = 'Pendiente'}; {@code CONTADO} ya no los incluye (son los contado que ya se
  * cobraron). Antes no habia forma de verlos aparte: salian como "Contado + Falta pagar".
+ * Desde el 2026-10-13 (R16) su boton vive en el bloque Pago ({@code EstadoBuscado.PENDIENTE});
+ * aqui se sigue aceptando por los filtros guardados.
  */
 public enum FormaDeCobro {
 

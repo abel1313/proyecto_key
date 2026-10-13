@@ -68,6 +68,28 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-35] 🆕 Mis pedidos: 🕓 Pendiente en el bloque Pago y vista de inicio sin cancelados (2026-10-13)
+
+Pedido del dueño: *"como no hay un filtro de Pendientes aparecen siempre y no deberían; debería ir en
+Pagos, donde está Falta pagar, Pagado…"* y *"todo lo que se pueda filtrar se tiene que hacer"*.
+
+**`GET /v1/pedidos/buscar` — qué cambia:**
+| Parámetro | Antes | Después |
+|---|---|---|
+| `estado=PENDIENTE` | Nombre viejo: equivalía a `FALTA_PAGAR` | **Solo** los 🕓 Pendientes (lo pidió el cliente desde su cuenta y nadie lo ha cobrado ni apartado) |
+| `estado=FALTA_PAGAR` | Incluía los Pendientes | **Ya no** los incluye: Apartados, Ir pagando y lo demás que deba |
+| `estado=POR_COBRAR` | = `FALTA_PAGAR` | Igual (= `FALTA_PAGAR`, ahora sin Pendientes) |
+| `estado=SIN_TERMINAR` | Todo menos pagado **y** entregado | Además **sin cancelados** |
+| `forma=PENDIENTE` | Botón de Forma de cobro | Se sigue aceptando (filtros guardados), trae lo mismo que `estado=PENDIENTE` |
+
+**Front:** el botón 🕓 Pendiente pasa de Forma de cobro al bloque **Pago** (permiso `filtro-por-cobrar`,
+el mismo de 💰 Falta pagar). Un filtro guardado con `formas: ['PENDIENTE']` se pasa solo a
+`estados: ['PENDIENTE']` al leerlo. El aviso de la vista de inicio dice que tampoco salen los cancelados.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`, Prueba 22. Regla R16 en `hexagonal/busquedapedido/README.md`.
+
+---
+
 ### [BUG-KEY-34] 🆕 La fecha de entrega de Entregas por zona no salía en Mis pedidos (2026-10-13)
 
 Reporte del dueño: *"cuando busco los pedidos por zona y les pongo la fecha, no me aparece en pedidos la
