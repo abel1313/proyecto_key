@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
@@ -39,6 +40,7 @@ implements IClienteService {
     private final IUsuarioRepository iUsuarioRepository;
     private final ErrorGenerico errorGenerico;
     private final EmailService emailService;
+    private final VersionDeListasDePedidos versionDeListas;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -47,13 +49,15 @@ implements IClienteService {
         final IClienteRepository iRepository,
         final IUsuarioRepository iUsuarioRepository,
         final ErrorGenerico eGenerico,
-        final EmailService emailService
+        final EmailService emailService,
+        final VersionDeListasDePedidos versionDeListas
     ){
         super(iRepository, eGenerico);
         this.iClienteRepository = iRepository;
         this.iUsuarioRepository = iUsuarioRepository;
         this.errorGenerico = eGenerico;
         this.emailService = emailService;
+        this.versionDeListas = versionDeListas;
     }
 
     /**
@@ -233,6 +237,8 @@ implements IClienteService {
         } else {
             iClienteRepository.confirmarCorreoSinCambioPendiente(cliente.getId());
         }
+        // El correo sale en la tarjeta de Mis pedidos y un UPDATE directo no avisa al caché (R18 de busquedapedido)
+        versionDeListas.subirAlConfirmar("correo confirmado del cliente " + cliente.getId());
     }
 
     /** Solo para pruebas/soporte — regresa el correo del cliente a "no verificado". */

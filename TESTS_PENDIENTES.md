@@ -63,6 +63,36 @@ Formato de cada entrada:
 - [ ] Servicio: con cobro llama a `abonar` del grupo después de cambiar todos; si el dominio rechaza no llama a `FormaDeCobroPort` ni a la bitácora
 - [ ] `PUT /v1/pedidos/{id}/tipo` de un pedido unido → 409; `PUT /v1/grupos-pedido/{id}/tipo` sin la acción `cambiar-tipo` → 403, con ella → 200; grupo inexistente → 404
 
+### 2026-10-14 — Caché versionado de la lista de Mis pedidos (busquedapedido R18)
+**Dónde:** `busquedapedido/infraestructura/cache/*` (`VersionDeListasDePedidos`, `ListasDePedidosEnCache`, `CambiosDePedidosListener`, `EscriturasWebInterceptor`), `BuscarPedidosController`
+**Tipo:** integración con MySQL + Redis (`@SpringBootTest` con `pedidos.lista.cache.habilitado=true`; en `src/test/resources/application.properties` está apagado)
+**Debe comprobar** *(todo comprobado a mano el 2026-10-14 contra la base de 6 000 pedidos, 11/11)*:
+- [ ] La respuesta desde caché es idéntica byte por byte a la calculada (mismo JSON, mismas tarjetas, mismo total)
+- [ ] Mismo filtro dos veces: la segunda no consulta la base; regresar a un filtro ya visto también sale del caché
+- [ ] Guardar por JPA un `Pedido`, `AbonoPedido`, `GrupoPedido`, `Cliente`, `LugarEntrega` o `Producto` sube la versión **después del commit** (con rollback no sube) y la siguiente búsqueda trae el dato nuevo
+- [ ] Entregado (`PedidosParaEntregarJdbcAdapter`, SQL directo) sube la versión y la lista refresca
+- [ ] POST/PUT/PATCH/DELETE con 2xx sube la versión; con 4xx/5xx no; `GET` no; `/v1/preferencias-filtro`, `/auth/` y `/chatbot/` no
+- [ ] Sistema → limpiar cachés (`CacheService.evictAll`) sube la versión
+- [ ] La llave lleva el día: al cambiar `HoyPort` de día, la misma búsqueda no se lee del caché de ayer
+- [ ] Redis caído o con error: la lista se calcula sin caché y responde 200 (nunca 500)
+- [ ] `pedidos.lista.cache.habilitado=false`: no lee ni escribe Redis y el listener no se registra
+
+### 2026-10-14 — Mis pedidos: solo se une lo que el filtro usa (busquedapedido R19)
+**Dónde:** `PedidosFiltradosJdbcAdapter` (`desde`, `MIEMBROS_OCULTOS`)
+**Tipo:** MySQL (SQL nativo) — agregarlo a `BusquedaPedidosMysqlTest`
+**Debe comprobar:**
+- [ ] Mismos pedidos, mismo orden y mismo total que el SQL anterior en todas las combinaciones de estado × entrega × forma de cobro × modo de entrega × fechas × orden, con y sin texto *(comprobado a mano el 2026-10-14: 992 combinaciones en la base de 800 pedidos)*
+- [ ] Un miembro no titular de un grupo **activo** no sale; de un grupo inactivo sí sale
+- [ ] Sin filtro de modo de entrega la consulta no une `lugares_entrega`; con él, sí
+- [ ] Rendimiento: con 6 000 pedidos, abrir la pantalla (SIN_TERMINAR) en menos de 150 ms *(medido: 123 → 72 ms)*
+
+### 2026-10-14 — Aviso de stock del artículo con dónde sumárselo al modelo
+**Dónde:** `VarianteServiceImpl.validarStockContraProducto()`
+**Tipo:** unitaria (ya cubierta en parte por `VarianteStockValidacionTest`, que revisa el final "Disponible: X, Solicitado: Y")
+**Debe comprobar:**
+- [ ] El mensaje dice el nombre del modelo, cuántas piezas libres tiene, cuántas más se piden y la ruta *Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock»*
+- [ ] Con más artículos que stock del modelo (disponible negativo) dice "tiene 0 libres", y el final sigue con el número real
+
 ### 2026-10-14 — La búsqueda por texto de Mis pedidos se resuelve como un conjunto (busquedapedido R17)
 **Dónde:** `PedidosFiltradosJdbcAdapter.coincidencias()` / `texto()` / `datosDePersona()`
 **Tipo:** MySQL (SQL nativo) — agregarlo a `BusquedaPedidosMysqlTest`
@@ -334,6 +364,7 @@ Formato de cada entrada:
 | `RenombreArticuloRutasTest`, `RenombreArticuloSecurityTest` | `feature/tema-jade-articulo` | 2026-10-06 | Prueban rutas `/v2/articulos/...` que esa rama del back todavía no tiene. No llegan a `dev`/`qa`. |
 | `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. **2026-10-13 (R16):** con 🕓 Pendiente otra vez aparte, la línea de `PENDIENTE` de r3 ya pasa (antes fallaba ahí); r3 sigue fallando más abajo, en `PAGADO`, por la entrega aparte. Antes y después del cambio fallan los mismos 4 (r2, r3, r7, r11). |
 | `BusquedaPedidosMysqlTest` caso r2 (`r2_forma_de_cobro`) | `dev` | 2026-10-07 | Espera que "Contado" incluya los pedidos 🕓 Pendiente (900001, 900009). Desde el 2026-10-07 Pendiente es su propia forma de cobro (R2) y Contado es solo el ya cobrado. Corrida contra MySQL 8 el 2026-10-13: 16 de 20 pasan; fallan r2, r3, r7 y r11. |
-| `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**); el mensaje es el mismo. |
+| `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**). El 2026-10-14 cambió el texto del aviso (*"El modelo «…» no tiene piezas libres…"*), pero sigue terminando en *"(Disponible: X, Solicitado: Y)"*, que es lo que revisan: no fallan por el texto. |
 | `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia` | `dev` | 2026-10-13 | Busca el texto viejo *"deshaz el grupo"*. Un pedido unido sigue sin poder cambiarse solo, pero ahora el mensaje es *"…su forma de cobro se cambia para todo el grupo"* (409), porque el grupo completo sí se cambia (grupopedido R20). |
 | `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |
+| `BuscarPedidosControllerTest` (ajustado, **no** falla) | `dev` | 2026-10-14 | No es una falla: el controller recibe ahora el caché (`ListasDePedidosEnCache`) y el test se tuvo que tocar **solo para que compile** (se le pasa un caché apagado). Si no compila, el Dockerfile (`-DskipTests` sí compila los tests) rompe el deploy. `src/test/resources/application.properties` lleva `pedidos.lista.cache.habilitado=false` para que ningún test dependa de Redis. |

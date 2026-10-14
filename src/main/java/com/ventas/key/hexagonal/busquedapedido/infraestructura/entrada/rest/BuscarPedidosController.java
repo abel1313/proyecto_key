@@ -13,6 +13,7 @@ import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.RangoDeFechas;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.SituacionDeDinero;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.TextoBuscado;
 import com.ventas.key.hexagonal.busquedapedido.dominio.puerto.entrada.BuscarPedidosCasoUso;
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.ListasDePedidosEnCache;
 import com.ventas.key.hexagonal.busquedapedido.infraestructura.dto.PedidosEncontradosResponse;
 import com.ventas.key.hexagonal.busquedapedido.infraestructura.salida.persistencia.TarjetasDePedidoLector;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -50,6 +51,7 @@ public class BuscarPedidosController {
 
     private final BuscarPedidosCasoUso casoUso;
     private final TarjetasDePedidoLector tarjetas;
+    private final ListasDePedidosEnCache cache;
 
     @GetMapping("/buscar")
     public ResponseEntity<ResponseGeneric<PedidosEncontradosResponse>> buscar(
@@ -86,12 +88,16 @@ public class BuscarPedidosController {
                 uno(orden, OrdenDePedidos.class, "orden"),
                 pagina, tamano);
 
-        PaginaDePedidos encontrados = casoUso.buscar(filtro);
-        return ResponseEntity.ok(new ResponseGeneric<>(new PedidosEncontradosResponse(
-                tarjetas.tarjetas(encontrados.pedidoIds()),
-                encontrados.totalPaginas(),
-                encontrados.totalRegistros(),
-                encontrados.pagina())));
+        // R18: la misma combinacion de filtros, sin cambios en los pedidos, sale del cache.
+        PedidosEncontradosResponse respuesta = cache.obtener(filtro, () -> {
+            PaginaDePedidos encontrados = casoUso.buscar(filtro);
+            return new PedidosEncontradosResponse(
+                    tarjetas.tarjetas(encontrados.pedidoIds()),
+                    encontrados.totalPaginas(),
+                    encontrados.totalRegistros(),
+                    encontrados.pagina());
+        });
+        return ResponseEntity.ok(new ResponseGeneric<>(respuesta));
     }
 
     @ExceptionHandler(FiltroInvalidoException.class)

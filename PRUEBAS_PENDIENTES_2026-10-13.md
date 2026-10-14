@@ -13,9 +13,10 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 | **24** — Unir un Ir pagando que ya tiene dinero (K4 / K6) | ✅ Pasó | 2026-10-13 |
 | **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
 | **21** — La fecha de entrega en Pedidos y en Entregas por zona (y el nombre del cliente de la venta) | ✅ Pasó | 2026-10-13 |
-| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | 👉 **Sigue** | |
+| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | ⏳ 20.2 ✅ y 20.4 ✅ (2026-10-14). Falta **20.3** (reescrita, se repite) y **20.1** (sin reportar) | |
 | **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ⏳ Falta | |
-| **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | 🆕 Nueva (reportada el 2026-10-14) | |
+| **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | ✅ Pasó | 2026-10-14 |
+| **26** — Mis pedidos con caché: rápido y sin datos viejos | 👉 **Sigue** (es la primera de pedidos; subida a QA el 2026-10-14) | |
 
 Las demás (12, 15, 14-QA, 17, 18, 19, 23, 13 y 6) siguen en la tabla de abajo, sin hacer.
 
@@ -126,7 +127,7 @@ modelos y artículos.)*
 | 2 | Entra con tu usuario **administrador** | Tu nombre abajo en el menú lateral |
 | 3 | Presiona `Ctrl + Shift + R` (recarga forzada) | La página se recarga. Hazlo **cada vez** que yo suba algo |
 | 4 | (Ya se subió, 2026-10-13.) Corre en `inventario_key_qa` el script `migration_accion_editar_entrega_direccion.sql` (está en `src/main/resources/static/`). Al final trae una consulta | La consulta devuelve **1 fila** con *"Dirección (📍 en la tarjeta)"*. No hace falta volver a entrar |
-| 5 | **Sistema → 🗑️ Limpiar caché** → **🧪 Datos de prueba** → **🧪 Preparar todas las pruebas** → **Sí, preparar todas** (ver "🧪 Preparar prueba", abajo). Ya **no** hay que buscar ni anotar Art-A ni Art-200: los da de alta el botón | Un recuadro **✅ Prueba N lista** por cada prueba (10), con sus pedidos, modelos y artículos. Déjala abierta en otra pestaña: de ahí sacas los números y los códigos |
+| 5 | **Sistema → 🗑️ Limpiar caché** → **🧪 Datos de prueba** → **🧪 Preparar todas las pruebas** → **Sí, preparar todas** (ver "🧪 Preparar prueba", abajo). Ya **no** hay que buscar ni anotar Art-A ni Art-200: los da de alta el botón | Un recuadro **✅ Prueba N lista** por cada prueba (11), con sus pedidos, modelos y artículos. Déjala abierta en otra pestaña: de ahí sacas los números y los códigos |
 
 **Para abrir un pedido:** menú **📋 Pedidos → Mis pedidos** → escribe su número en el buscador → en
 su tarjeta toca **👁 Detalle**. (Desde **🧪 Preparar prueba**, el número del pedido ya es un enlace que
@@ -186,7 +187,9 @@ ya viene en cada paso:
 | 15 (6, 6c) | Zonas de entrega | nombre `Prueba 15 Zona` / `Prueba 15 Estanco` |
 | 17.4 | Cliente de Venta directa (los avisos de 1 o 2 letras) | `a`, `Lo`, `Jo`… (son las pruebas) y `Prueba 17 Ana` |
 | 17.7 | Agregar modelo | `QA Prueba 17 Modelo nuevo`, precio `100`, stock `10`, color `Negro`, marca `Prueba QA`, descripción `Prueba`, primera categoría, una foto |
-| 20.3 | Agregar modelo con stock 0 (no debe dejar) | `QA Prueba 20 Modelo sin stock`, marca `Prueba QA`, stock `0` |
+| 20.3 | Actualizar stock (del artículo y del modelo) | `5` en cada uno |
+| 20.3 | Agregar modelo con stock 0 (no debe dejar) | `QA Prueba 20 Modelo sin stock`, marca `Prueba QA`, precio de compra `50`, precio de venta `100`, stock `0`, descripción `Prueba`, **Generar código automático** prendido |
+| 26 | Abono, cambiar forma de cobro, Entregar y Cancelar (lo que se prueba es que la lista lo enseñe al instante) | abono `30` y luego `70`, en efectivo |
 | 21.1 | Entregas por zona (fecha de entrega) | fecha, hora y punto de encuentro `Prueba 21 Punto` |
 
 Los 🕓 Pendientes que crea el botón llevan la zona **"Zona Prueba QA"**: así no se cancelan solos a los
@@ -219,8 +222,9 @@ prepara sus datos (con **Preparar todas** ya quedan todos).
 | 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle; **el nombre del cliente es el de la venta, no el de tu cuenta** | Ya (el nombre: al subir esta corrección) | 21 | 20 min | [x] |
 | 12 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** | Carrito → Mis datos; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos al abrir | Ya | 20 (20.2 y 20.3) | 35 min | [ ] |
 | 13 | **16 — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ** | Pendiente en filtros y card, pasarlo a Apartado / Ir pagando, Entregas por zona, ⓘ | Ya | 16 | 25 min | [ ] |
-| 14 | **25 — Mis pedidos: buscar y poner/quitar filtros ya no tarda** 🆕 | La búsqueda por texto responde en ~1 s (antes hasta 48 s con 6 000 pedidos); mismos resultados | Al subir el arreglo | — | 10 min | [ ] |
-| 15 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
+| 14 | **25 — Mis pedidos: buscar y poner/quitar filtros ya no tarda** 🆕 | La búsqueda por texto responde en ~1 s (antes hasta 48 s con 6 000 pedidos); mismos resultados | Al subir el arreglo | — | 10 min | [x] |
+| 15 | **26 — Mis pedidos con caché: rápido y sin datos viejos** 🆕 | Poner/quitar filtros y regresar a uno ya visto sale al instante; un abono, cambio de forma de cobro, Entregar o Cancelar se ve en la lista en ese momento | Al subir esta ronda (2026-10-14) | 26 | 15 min | [ ] |
+| 16 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
 
 **Por qué este orden:** primero lo que ya se podía hacer antes de la subida del 2026-10-13; después lo
 que estrena esa subida. La **6** va al final porque mete miles de pedidos de prueba.
@@ -710,7 +714,7 @@ de una respuesta: **F12 → Red (Network)**, columna **Estado (Status)**.
 | 3 | Como cliente: **Agregar mi compra** → escribe un código que no existe | *"No encontramos ese código, revisa que esté bien copiado."* En Red: **404** |
 | 4 | Escribe un código ya usado | *"Este código ya fue usado."* En Red: **409** |
 | 5 | **Gestión de roles** → intenta quitarle a ROLE_ADMIN "Gestión de roles" | El aviso de siempre (*"No se le puede quitar a ROLE_ADMIN…"*). En Red: **409** |
-| 6 | **Catálogo → 🧩 Agregar producto** → pide más stock del que tiene libre el modelo | *"Stock insuficiente para el producto…"*. En Red: **422** (antes salía 404) |
+| 6 | **Catálogo → 🧩 Agregar producto** → pide más stock del que tiene libre el modelo | *"El modelo «…» no tiene piezas libres para darle a este artículo: tiene N libres y le pides M más…"* (hasta el 2026-10-14 decía *"Stock insuficiente para el producto…"*; las dos están bien). En Red: **422** (antes salía 404) |
 
 ### 19.2 Página que no existe
 
@@ -1197,15 +1201,51 @@ dos 🕓 Pendiente de $150 cada uno (en "Zona Prueba QA"), de los clientes «Pru
 | 5 | Intenta pasarlo a **Apartado** | **Apartado** bloqueado: *"🔒 No se puede: ya dio $50.00 entre los pedidos del grupo…"* |
 | 6 | Un pedido **no** unido: 🔁 Cambiar forma de cobro de Pendiente a Ir pagando | Igual que siempre (20.5) |
 
-### 20.3 Modelo agotado
+- [x] **20.2 ✅ Pasó (2026-10-14).**
+💬 *"20.2 Pedidos unidos: cambiar la forma de cobro, quedo bien toda la prueba completa"*
 
-**Antes de empezar:** el mismo **🧪 Preparar prueba 20** da de alta **Agotado**: un modelo con stock 0.
+### 20.3 Modelo agotado (reescrita el 2026-10-14)
+
+**Antes de empezar:** vuelve a tocar **🧪 Preparar prueba 20**: deja **QA Prueba 20 Agotado** como
+nuevo, con el modelo en stock 0 y su único artículo (talla **M**, **Negro**) también en 0.
+
+**Lo que hay que saber antes (porque confunde):** hay **dos** campos que se llaman "Actualizar stock" y no
+hacen lo mismo.
+- El del **modelo** (Catálogo → 🔍 Modelos → ✏️ Actualizar) **mete piezas nuevas** a la tienda.
+- El del **artículo** (Tienda → Buscar → ✏️ Editar) **no mete piezas nuevas**: toma piezas
+  **libres del modelo** y se las da a esa talla/color.
+
+Por eso, con el modelo en 0, el del artículo no puede dar nada: es lo que te salió el 2026-10-14.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → 🔍 Modelos** → busca **Agotado** (*QA Prueba 20 Agotado*) → **✏️ Actualizar** → cambia la descripción → Guardar | Guarda sin el aviso *"El stock no debe de ser 0"* |
-| 2 | En el mismo, **Actualizar stock** = 5 → Guardar | Queda con stock 5 |
-| 3 | **Agregar modelo** nuevo (nombre **QA Prueba 20 Modelo sin stock**, marca **Prueba QA**) con stock 0 | Sigue sin dejar (*"El stock no debe de ser 0"*) |
+| 1 | **Catálogo → 🔍 Modelos** → en el buscador escribe **QA Prueba 20 Agotado** → en su tarjeta **✏️ Actualizar** → cambia solo la **Descripción** → **💾 Actualizar modelo** | Se guarda. **No sale ningún aviso de error** (antes salía *"El stock no debe de ser 0"*). La descripción nueva se queda |
+| 2 | **Tienda → Buscar** → escribe **QA Prueba 20 Agotado** → en la tarjeta del artículo (M, Negro) **✏️ Editar** → **Actualizar stock** = **5** → **💾 Actualizar producto** | **No deja**, porque el modelo no tiene piezas libres. Aviso: *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres para darle a este artículo: tiene 0 libres y le pides 5 más. Primero súmale stock al modelo en Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock». (Disponible: 0, Solicitado: 5)"* ⚠️ Este texto nuevo sale **después de subir** lo de esta ronda; mientras tanto sale el de antes (*"Stock insuficiente para el producto…"*), y también está bien que no deje |
+| 3 | **Catálogo → 🔍 Modelos** → **QA Prueba 20 Agotado** → **✏️ Actualizar** → en **Actualizar stock** (abajo, junto a "Eliminar stock") escribe **5** → **💾 Actualizar modelo** | Se guarda. En la tarjeta del modelo, **Stock 5** |
+| 4 | Repite el paso 2 (artículo M, Negro → **Actualizar stock** = **5** → **💾 Actualizar producto**) | Ahora **sí** deja: el artículo queda con stock **5** y el modelo con **0 libres** (en 🧩 Productos: *"Stock del modelo: 5 · En sus artículos: 5 · Puedes crear: 0"*) |
+| 5 | Menú **Catálogo → Agregar modelo** → llena **Nombre** *QA Prueba 20 Modelo sin stock*, **Marca** *Prueba QA*, **Precio de compra** *50*, **Precio de venta** *100*, **Stock** *0*, **Descripción** *Prueba*, y prende **Generar código automático** (código de barras) → **💾 Guardar modelo** | **No deja:** aviso *"El stock no debe de ser 0"*. Un modelo nuevo tiene que nacer con piezas. Si lo buscas en **Catálogo → 🔍 Modelos** no aparece |
+
+**❌ Está mal si…** el paso 1 pide stock o da error; el paso 2 deja darle 5 al artículo con el modelo en 0;
+el paso 3 no suma las 5 al modelo; el paso 4 sigue sin dejar; el paso 5 crea el modelo con stock 0.
+
+- [ ] **20.3 — se repite con los pasos de arriba.** Lo que salió el 2026-10-14 (con los pasos de antes):
+
+💬 *"20.3 Modelo agotado cambie solo la descripcion y si dejo actualizar, ahi como dices no deberia? no sale el mensaje que mencionas"*
+↳ Está bien así: **debía guardar sin mensaje**. El texto de antes decía "Guarda sin el aviso *El stock no
+debe de ser 0*" y se leía como si tuviera que salir ese aviso. El aviso era el error de antes (un modelo
+agotado no se podía editar); ahora ya no sale. El paso 1 de arriba lo dice así: *"No sale ningún aviso de error"*.
+
+💬 *"Error al actualizar Stock insuficiente para el producto 'QA Prueba 20 Agotado' (id=20677). Disponible: 0, Solicitado: 5, cuando actualizo de actualizar stock da este error tienda modelo buscar el producto agotado"*
+↳ No es una falla. Lo hiciste desde **Tienda → Buscar → ✏️ Editar del artículo**, y ese "Actualizar stock" toma
+piezas **libres del modelo**: con el modelo en 0, no hay de dónde. El paso 2 de la prueba vieja era el
+"Actualizar stock" **del modelo** (Catálogo → 🔍 Modelos → ✏️ Actualizar), pero no lo decía. Se arregló de dos
+formas: (1) la prueba ahora dice exactamente en qué pantalla va cada uno y prueba los dos (pasos 2 a 4), y
+(2) el aviso ya no dice "Stock insuficiente para el producto… (id=…)". Ahora dice qué pasa y dónde se arregla
+(paso 2). El aviso nuevo sale **después de subir** esta ronda.
+
+💬 *"Agregar modelo nuevo (nombre QA Prueba 20 Modelo sin stock, marca Prueba QA) con stock 0 no dice donde ir, es decir no explica bien como hacer la prueba"*
+↳ Tienes razón. El paso 5 de arriba ya dice el menú (**Catálogo → Agregar modelo**), cada campo con su valor y
+el botón.
 
 ### 20.4 Mis pedidos al abrir
 
@@ -1215,6 +1255,9 @@ dos 🕓 Pendiente de $150 cada uno (en "Zona Prueba QA"), de los clientes «Pru
 | 2 | **⚙️ Filtros** → Pago: **Pagado** + Entrega: **Entregado** | Ahora sí salen los terminados, y el aviso se va |
 | 3 | **Quitar filtros** | Vuelve la vista de inicio con el aviso |
 | 4 | Escribe el número de un pedido ya pagado y entregado | Sale |
+
+- [x] **20.4 ✅ Pasó (2026-10-14).**
+💬 *"20.4 Mis pedidos al abrir 1 listo, 2 listo, 3 listo, 4 listo"*
 
 **❌ Está mal si…** el carrito vuelve a pedir datos ya guardados; Mis datos sale vacío después de
 guardar; *"deshaz el grupo antes…"*; uno de los pedidos del grupo cambia y el otro no; Apartado se deja
@@ -1339,7 +1382,105 @@ encuentra a su titular.
 
 💬 Notas:
 
-- [ ] **Prueba 25 terminada**
+💬 *"25.1 Qué tan rápido responde: ya está más rápido, pero una duda: ¿no se maneja caché aquí? Y quitarla cuando sea requerido según la venta; es decir, si es Ir pagando solo se limpia la caché de Ir pagando, que es la que se dio de alta, y así con los demás; y cuando se pague algo solo se limpia la caché según lo que sea. 25.2 Que sigan saliendo los mismos pedidos: ya quedó."* (2026-10-14)
+↳ 25.2 pasó; 25.1 pasó con "más rápido". Sobre el caché (respuesta actualizada el 2026-10-14, después de tu otra nota *"al final me pones la caché para pedidos, se va a poder o no, porque sigue tardando al seleccionar un filtro o quitarlo"*): **sí se pudo y ya está hecho** (sube con esta ronda). Lo que **no** conviene es limpiar "solo la de Ir pagando": un abono pasa un pedido de Ir pagando a Pagado, cambiar la forma de cobro lo pasa de Pendiente a Apartado, y la búsqueda por texto cruza todas las formas de cobro. Si se limpiara solo una, otra lista se quedaría con el saldo viejo. Por eso el caché lleva una **versión**: cualquier movimiento (venta, abono, cancelar, entregar, unir, cambiar forma de cobro, editar artículos, cambiar datos del cliente) la sube, y la lista se vuelve a calcular. Mientras no se mueva nada, poner y quitar filtros sale del caché. Medido con 6 000 pedidos: la primera vez ~0.26 s, la segunda ~0.008 s. Además, los filtros sin texto quedaron ~2× más rápidos. Se prueba en la **Prueba 26**. Detalle: `hexagonal/busquedapedido/README.md`, R18 y R19.
+
+💬 *"duda: en pedidos ¿no traes los pedidos por paginación? ¿o traes todos los pedidos de una vez?"* (2026-10-14)
+↳ Sí se pagina: la pantalla pide **10 por página** y el servidor solo manda esas 10 tarjetas. Lo que sí recorre **todos** los que cumplen el filtro es el **conteo** ("N pedidos", para saber cuántas páginas hay) y el **orden** (para saber cuáles son los primeros 10). Por eso la mejora fue en esa consulta y en el caché, no en la página.
+
+- [x] **Prueba 25 terminada** (2026-10-14)
+
+---
+
+## Prueba 26 — Mis pedidos con caché: rápido y sin datos viejos (2026-10-14) 🆕
+
+**Para qué es:** tus notas del 2026-10-14: *"¿no se maneja caché aquí? … y cuando se pague algo solo se limpia
+la caché según lo que sea"* y *"sigue tardando al seleccionar un filtro o quitarlo"*.
+
+**Qué cambió:**
+- La lista de Mis pedidos ahora se guarda un rato (caché).
+- Si vuelves a pedir un filtro que ya viste y no se movió nada, sale **al instante** sin volver a calcularse.
+- **Cualquier** movimiento (vender, abonar, cancelar, entregar, unir, cambiar forma de cobro, editar artículos o datos
+  del cliente) hace que la lista se vuelva a calcular. No se limpia "solo la de Ir pagando", porque un abono cambia
+  al pedido de filtro y otra lista se quedaría con el saldo viejo.
+- Los filtros sin texto también quedaron ~2× más rápidos.
+
+**Lo más importante de esta prueba no es la velocidad: es que nunca veas un dato viejo.**
+
+**Antes de empezar:** ✅ después de que yo suba esta ronda a QA y el deploy termine (te aviso); `Ctrl + Shift + R`.
+Luego **🧪 Preparar prueba 26**. Crea 4 pedidos en "Zona Prueba QA":
+
+| Clave | Qué es · cliente |
+|---|---|
+| **IP** | 💳 Ir pagando de $150 con $50 dados (debe $100) · «Prueba 26 IP» |
+| **PE** | 🕓 Pendiente de $150 · «Prueba 26 PE» |
+| **PF** | ✅ Pagado de contado ($150) que **falta entregar** · «Prueba 26 PF» |
+| **AP** | 📦 Apartado de $150 sin dinero · «Prueba 26 AP» |
+
+Si ya habías preparado la 26 antes, con «Prueba 26» también salen los de la vez anterior con **❌ Cancelado**: no
+les hagas caso.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 26.1 | La lista se guarda en caché | **Mis pedidos** (administrador): ⚙️ Filtros, buscador, páginas | Cuánto tarda | Cada clic se calculaba todo de nuevo | Un filtro ya visto sale al instante |
+| 26.2 | Un abono sube la versión | 💳 Dar abono (tarjeta) y 💳 Registrar abono (detalle) | La tarjeta | Pagado / Falta al momento | **Lo mismo que antes**: al momento, sin `Ctrl + Shift + R` |
+| 26.3 | (mismo) cambiar forma de cobro | 🔁 Cambiar forma de cobro (detalle) | La tarjeta | Al momento | **Lo mismo** |
+| 26.4 | 📦 Entregar avisa al caché (el único que guarda sin pasar por la ruta normal) | 📦 Entregar (tarjeta) | La tarjeta | Al momento | **Lo mismo** |
+| 26.5 | (mismo) cancelar | Cancelar (tarjeta) | La tarjeta | Al momento | **Lo mismo** |
+| 26.6 | La versión es una sola para todos | Dos pestañas o dos personas | La otra pestaña | Al buscar otra vez | **Lo mismo** |
+| 26.7 | Guardar los filtros **no** borra el caché | Mis pedidos: salir y volver a entrar | Los filtros que dejaste | Se quedaban | **Lo mismo** |
+| 26.8 | Mensaje de stock del artículo (BUG-KEY-41) | Tienda → Buscar → ✏️ Editar → Actualizar stock | El aviso | *"Stock insuficiente para el producto…"* | Dice qué pasa y dónde se arregla (se prueba en la 20.3, paso 2) |
+
+### 26.1 Rápido al poner y quitar filtros
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Mis pedidos** → en el buscador escribe **Prueba 26** | Las 4 tarjetas: IP, PE, PF y AP |
+| 2 | **⚙️ Filtros** → toca **💳 Ir pagando** | Solo IP |
+| 3 | Quita **💳 Ir pagando** | Otra vez las 4 |
+| 4 | Vuelve a tocar **💳 Ir pagando**, quítalo, y otra vez | Desde la segunda vez, **al instante** (esa combinación ya se había calculado) |
+| 5 | Borra el texto. Prende y quita **✅ Pagado**, luego **📦 Apartado**, dos veces cada uno | La primera vez de cada uno, rápido (1 s o menos); la segunda, al instante |
+| 6 | Pasa a la página **Siguiente →** y regresa con **← Anterior** | La página que ya viste regresa al instante |
+
+### 26.2 a 26.5 — Cada movimiento se ve en ese momento
+
+Hazlos **con «Prueba 26» escrito** en el buscador. Después de cada uno, **no** recargues la página.
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Tarjeta de **IP** → **💳 Dar abono** → Monto del abono **30**, efectivo → **💳 Registrar abono** | La tarjeta de IP ya dice **$80 pagado y falta $70**, sin recargar |
+| 2 | Tarjeta de **PE** → **👁 Detalle** → **🔁 Cambiar forma de cobro** → **Apartado** → **Guardar cambio** → **← Volver** | La tarjeta de PE ya dice **📦 Apartado** (ya no 🕓 Pendiente) |
+| 3 | Tarjeta de **PF** → **📦 Entregar** → **Sí, entregado** | La tarjeta de PF ya dice **Entregado** y el botón 📦 Entregar ya no sale |
+| 4 | Tarjeta de **AP** → **Cancelar** → elige cualquier motivo → **Cancelar pedido** | La tarjeta de AP ya dice **❌ Cancelado** |
+| 5 | Borra el texto (vista de inicio) | **AP no sale** (los cancelados no salen al abrir); **PF tampoco** (ya está pagado y entregado). IP y PE sí |
+
+### 26.6 Dos pestañas
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Abre **otra pestaña** con **Mis pedidos** y escribe **Prueba 26 IP** en las dos | En las dos: IP con $80 pagado |
+| 2 | En la pestaña 2: **💳 Dar abono** → **Liquidar todo ($70.00)** → **💳 Registrar abono** (si pregunta si ya se lo llevó, contesta lo que quieras) | En la pestaña 2, IP **pagado** |
+| 3 | En la pestaña 1 **no** recargues: toca **⚙️ Filtros → 💳 Ir pagando** y quítalo | En la pestaña 1, IP ya sale **pagado** (no se quedó con $80) |
+
+### 26.7 Los filtros guardados siguen igual
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Deja puesto **⚙️ Filtros → 📦 Apartado**, sal a otra pantalla y vuelve a **Mis pedidos** | El filtro sigue puesto, como antes |
+| 2 | **✕ Quitar filtros** | La vista de inicio |
+
+**❌ Está mal si…**
+- cualquier tarjeta se queda con el dato de antes después de un movimiento (y hay que recargar para verlo);
+- en la pestaña 1 IP sigue con $80 después del paso 26.6;
+- un filtro que ya viste tarda lo mismo que la primera vez;
+- sale un error o el spinner se queda dando vueltas;
+- se pierden los filtros guardados.
+
+💬 Notas:
+
+- [ ] **Prueba 26 terminada**
 
 ---
 

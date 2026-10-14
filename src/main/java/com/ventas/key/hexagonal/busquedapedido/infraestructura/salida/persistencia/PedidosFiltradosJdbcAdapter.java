@@ -81,6 +81,19 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
               GROUP BY g.pedido_titular_id
             ) grp ON grp.titular_id = p.id""".formatted(saldoAFavor("pm"));
 
+    /**
+     * R9: los pedidos que estan en un grupo activo sin ser su titular (no salen en la lista). Se calcula
+     * una vez y se cruza por numero de pedido; antes era un NOT EXISTS por cada pedido que MySQL resolvia
+     * recorriendo la tabla de grupos completa en cada vuelta (2026-10-14).
+     */
+    private static final String MIEMBROS_OCULTOS = """
+            LEFT JOIN (
+              SELECT DISTINCT gmo.pedido_id
+              FROM grupo_pedido_miembro gmo
+              JOIN grupo_pedido go ON go.id = gmo.grupo_id
+              WHERE go.activo = 1 AND go.pedido_titular_id <> gmo.pedido_id
+            ) oculto ON oculto.pedido_id = p.id""";
+
     /** R3 con las palabras de la card. Un titular toma el estado de su grupo (R14). */
     private static final String ESTADO_CARD = "(CASE"
             + " WHEN grp.titular_id IS NOT NULL THEN (CASE"
@@ -140,12 +153,13 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         MapSqlParameterSource params = new MapSqlParameterSource();
         // El texto se resuelve UNA vez, como un conjunto de pedidos que coinciden: ver coincidencias().
         String coinciden = filtro.texto() == null ? null : coincidencias(filtro.texto(), params);
-        String desde = """
-                FROM pedidos p
-                LEFT JOIN clientes c               ON c.id   = p.cliente_id
-                LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
-                LEFT JOIN lugares_entrega le       ON le.id  = p.lugar_entrega_id
-                """ + GRUPOS + "\nWHERE " + String.join("\n  AND ", condiciones(filtro, hoy, params, coinciden));
+        // Solo se une lo que algun filtro usa: MySQL no quita un LEFT JOIN que sobra, y cada uno recorre
+        // todos los pedidos (2026-10-14: clientes y clientes sin registro ya no los usa nadie aqui; el
+        // texto se resuelve en coincidencias()).
+        String desde = "FROM pedidos p\n"
+                + (filtro.modoEntrega() != null ? "LEFT JOIN lugares_entrega le ON le.id = p.lugar_entrega_id\n" : "")
+                + MIEMBROS_OCULTOS + "\n"
+                + GRUPOS + "\nWHERE " + String.join("\n  AND ", condiciones(filtro, hoy, params, coinciden));
 
         Long total = jdbc.queryForObject("SELECT COUNT(*) " + desde, params, Long.class);
 
@@ -182,9 +196,7 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
 
         // R9: de un grupo activo solo sale el titular, salvo que se busque su numero exacto.
         Integer numero = f.numeroExacto();
-        String noEsMiembroOculto = "NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro gm"
-                + " JOIN grupo_pedido g ON g.id = gm.grupo_id"
-                + " WHERE gm.pedido_id = p.id AND g.activo = 1 AND g.pedido_titular_id <> p.id)";
+        String noEsMiembroOculto = "oculto.pedido_id IS NULL";
         if (numero != null) {
             params.addValue("numero", numero);
             w.add("(" + noEsMiembroOculto + " OR p.id = :numero)");

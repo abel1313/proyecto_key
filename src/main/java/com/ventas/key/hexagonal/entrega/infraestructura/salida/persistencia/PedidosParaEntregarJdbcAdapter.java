@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.entrega.infraestructura.salida.persistencia;
 
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
 import com.ventas.key.hexagonal.entrega.dominio.modelo.PedidoParaEntregar;
 import com.ventas.key.hexagonal.entrega.dominio.puerto.salida.PedidosParaEntregarPort;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class PedidosParaEntregarJdbcAdapter implements PedidosParaEntregarPort {
             ORDER BY p.id""";
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final VersionDeListasDePedidos versionDeListas;
 
     @Override
     public List<PedidoParaEntregar> delPedidoOSuGrupo(Integer pedidoId) {
@@ -53,5 +55,7 @@ public class PedidosParaEntregarJdbcAdapter implements PedidosParaEntregarPort {
         jdbc.update("UPDATE pedidos SET entregado = :entregado, fecha_entregado = "
                         + (entregado ? "NOW()" : "NULL") + " WHERE id IN (:ids)",
                 new MapSqlParameterSource("entregado", entregado).addValue("ids", pedidoIds));
+        // SQL directo: el aviso de JPA no lo ve. Las listas de Mis pedidos guardadas dejan de valer (R18 de busquedapedido).
+        versionDeListas.subirAlConfirmar("entregado " + pedidoIds);
     }
 }
