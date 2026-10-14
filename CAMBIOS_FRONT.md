@@ -68,6 +68,30 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-43] 🆕 Agregar stock al modelo desde el artículo, pregunta al actualizar el modelo y checks por artículo (2026-10-14) — solo front, el back no cambia
+
+Pedido del dueño en QA (Prueba 20.3): *"si estoy en artículo y ya no tiene stock… debería abrir un modal… ahí puedo poner 10 o 100, pero eso no quiere decir que el artículo… se le vayan a poner esos 10 o 100"*; *"al dar guardar [el modelo] me debe salir cuántos artículos quiero hacer"*; *"el primer artículo con los check de que quiero actualizar… la variante se va a hacer igual que lo que tiene el producto… y solo diferente los check que cambie"*.
+
+**Editar artículo (`tienda/update`, `update-variante`):**
+- **Antes:** pedirle al artículo más de lo libre del modelo mandaba `POST /v1/variantes/guardarConImagenes` y salía el 422 *"El modelo «…» no tiene piezas libres…"*.
+- **Ahora:** si `stockQuePide > stockDisponible.disponible`, **💾 Actualizar artículo** (antes decía *"Actualizar producto"*) no manda nada: abre la ventana **➕ Agregar stock al modelo** y con lo escrito llama a `PUT /v1/stock/producto/{productoId}/ajuste` `{ ajuste }` (el mismo de Agregar artículo, BUG-KEY-30). Usa la respuesta (`IStockDisponible`) para refrescar lo libre; **el artículo no se guarda ni cambia**. Si el `guardarConImagenes` responde **422** de todos modos (lo libre cambió mientras tanto), recarga `GET /v1/stock/producto/{id}` y abre la misma ventana. Botón **➕ Agregar stock al modelo** también en el recuadro de stock (cuando no queda libre o se está pasando).
+- Permiso del front para ofrecerla: admin o escritura en `productos/buscar`, `productos/agregar` o `tienda/venta` — el mismo que pide el back para el `PUT …/ajuste`. Sin él, un aviso dice que lo pida a alguien con permiso de Catálogo.
+- Aviso al guardar: *"¡Artículo actualizado!"* (antes *"¡Variante actualizada!"*).
+
+**Actualizar modelo (`productos/update`, `add.component` en modo Actualizar):**
+- **Antes:** solo *"¡Producto actualizado!"* y regresaba a Modelos (la pregunta de artículos era solo al dar de alta, A1).
+- **Ahora:** al guardar consulta `GET /v1/stock/producto/{id}`; si `articulosQueAunCaben` (o `disponible`) ≥ 1, abre `<app-alta-articulos>` con la pregunta (*"✅ Modelo actualizado"*). Si no, o si esa consulta falla: *"¡Modelo actualizado!"* y regresa a Modelos, como antes. Al cerrar la ventana también regresa a Modelos. En alta, el aviso sin id dice *"¡Modelo guardado!"* (antes *"¡Producto guardado!"*).
+
+**Ventana 🧩 Agregar artículos (`shared/alta-articulos`, la usan Agregar modelo, Actualizar modelo, 🧩 Productos y Agregar artículo):**
+- La pregunta ahora es *"¿Cuántos artículos quieres hacer de este modelo?"* (1 a lo libre) con **Ahora no** / **Continuar**; antes *"¿Quieres agregar sus artículos ahora?"* con **Después** / **Sí, agregar artículos**. `@Input() accion: 'alta' | 'actualizar'` solo cambia el título.
+- Se quitaron las casillas globales *"Usar del modelo en todos los artículos"*. Cada artículo tiene 6 checks **sin marcar** (Foto, Descripción, Color, Marca, Contenido neto, Categoría). **Lo no marcado viaja vacío** (`color: ""`, `palabraClaveId: null`…) y el back lo llena con el del modelo (`buildVariante` → `datoEfectivo` / `categoriaEfectiva`, R2/R3 del dominio `articulo`, sin cambios). Foto no marcada → `usarImagenDelModelo: true` si el modelo tiene foto; marcada → la foto propia en `listImagenes` (`imagenesPropias: true`, como antes). Marcado y vacío no deja guardar.
+- Cada artículo se **pliega y despliega** con su propia línea (▸ Mostrar / ▾ Ocultar) que, plegada, resume *"Talla · Stock · Cambia: …"* y *"⚠️ Falta: …"*. Hasta 3 salen abiertos; con más, los nuevos salen plegados. **Abrir todos / Cerrar todos** y abajo *"A los artículos … les falta algo — Abrir solo esos"*. Solo pantalla: no cambia lo que se manda.
+- E2E: `e2e/support/modelo.ts` ya no espera *"¡Producto guardado!"* (desde el flujo A no salía): espera la ventana y toca **Ahora no**.
+
+Detalle de las reglas: `PLAN_ALTA_MODELO_Y_ARTICULOS.md`, sección 7. Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, 20.3 (y 17.7 / 17.8).
+
+---
+
 ### [BUG-KEY-42] 🆕 🧪 Preparar prueba: rifas, códigos de compra y usuarios de prueba (2026-10-14) — back y front
 
 Pedido del dueño: *"ayúdame con el código para dar de alta todas las pruebas que vamos a hacer, para poder hacerlas tal cual"*.

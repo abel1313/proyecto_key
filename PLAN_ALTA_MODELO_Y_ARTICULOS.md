@@ -110,11 +110,11 @@ artículo, y el flujo A **también** desde la tarjeta del modelo (🧩 Productos
 
 | Regla | Cómo quedó |
 |---|---|
-| A1 | La pregunta sale solo al **dar de alta** en Catálogo → Agregar modelo (no al actualizar) |
-| A2 / A12 | **Después** cierra; el modelo ya estaba guardado |
-| A3 | Casillas solo de lo que el modelo tiene lleno (color, marca, descripción, contenido neto, categoría, foto), todas marcadas. Marcar llena el dato en los formularios vacíos; desmarcar lo borra donde seguía igual al del modelo |
+| A1 | La pregunta sale al **dar de alta** en Catálogo → Agregar modelo y, desde el 2026-10-14, también al **actualizar** (Catálogo → 🔍 Modelos → ✏️ Actualizar) si el modelo queda con stock libre. Sin stock libre, solo el aviso *"¡Modelo actualizado!"*. Ver sección 7 |
+| A2 / A12 | **Ahora no** (antes "Después") cierra; el modelo ya estaba guardado. Al actualizar, regresa a Modelos |
+| A3 | ~~Casillas arriba para todos los artículos~~ (2026-10-08). **Desde el 2026-10-14: checks por artículo** — ver sección 7 |
 | A4 | Talla, presentación y stock nunca vienen llenos |
-| A5 | ¿Cuántos? de 1 al stock libre |
+| A5 | ¿Cuántos? de 1 al stock libre. Desde el 2026-10-14 es **la pregunta misma** (*"¿Cuántos artículos quieres hacer de este modelo?"*), y se puede cambiar otra vez en los formularios |
 | A6 | Stock ≥ 1 por artículo; abajo *"Repartido · Te quedan / Te pasaste por N"* mientras se escribe; el back vuelve a validar |
 | A7 | Se puede guardar dejando stock sin repartir |
 | A8 | Campo nuevo `usarImagenDelModelo` en `guardarConImagenes`: el artículo apunta a la foto principal del modelo, sin subirla. Cada formulario puede subir **su propia** foto (campo nuevo `imagenesPropias`), y entonces usa esa en lugar de la del modelo |
@@ -123,8 +123,8 @@ artículo, y el flujo A **también** desde la tarjeta del modelo (🧩 Productos
 | A11 | Un formulario = un artículo |
 | 🧩 de la tarjeta | La misma ventana, sin la pregunta. Reemplaza "Inicializar variantes" (el endpoint `inicializarDesdeProducto` sigue, pero el front ya no lo usa) |
 
-Si en la ventana se deja la **categoría** desmarcada, cada formulario trae su propio buscador de categoría.
-Si se deja un dato vacío, el artículo toma el del modelo (regla R3 del dominio `articulo`, la de siempre).
+Si se deja un dato vacío, el artículo toma el del modelo (regla R3 del dominio `articulo`, la de siempre). Desde
+el 2026-10-14 la ventana se apoya justo en eso: lo que no se marca en un artículo viaja vacío.
 
 Código: front `shared/alta-articulos/` (componente `<app-alta-articulos>`), back
 `VarianteServiceImpl.repartirImagenes()` + `guardarConImagenes()`. Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`,
@@ -149,3 +149,32 @@ validar el stock y que aparezca cuántas variantes puede hacer"*.
 
 Back: `PUT /v1/stock/producto/{id}/ajuste` (dominio `stock`, reglas R-A1..R-A5 en su README).
 Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`, Prueba 18.
+
+---
+
+## 7. Checks por artículo, pregunta al actualizar y stock del modelo desde el artículo (2026-10-14)
+
+Pedido del dueño en QA (Prueba 20.3): *"si estoy en artículo y ya no tiene stock… debería abrir un modal…
+ahí puedo poner 10 o 100, pero eso no quiere decir que el artículo… se le vayan a poner esos 10 o 100"*;
+*"para el producto base… al dar guardar me debe salir cuántos artículos quiero hacer"*; y *"el primer
+artículo con los check de que quiero actualizar, ejemplo la descripción o la imagen… la variante se va a
+hacer igual que lo que tiene el producto, todos sus campos, y solo diferente los check que cambie"*.
+
+| Regla | Cómo quedó |
+|---|---|
+| C1 — igual al modelo | Cada artículo nace **igual al modelo**. En su formulario hay 6 checks, **todos sin marcar**: Foto, Descripción, Color, Marca, Contenido neto, Categoría. Lo no marcado viaja **vacío** y el back pone el del modelo (R2/R3 del dominio `articulo`); la foto no marcada es la del modelo (`usarImagenDelModelo`, A8) |
+| C2 — marcar = cambiar | Al marcar, aparece el campo **ya escrito con el dato del modelo** para cambiar solo lo necesario. Abajo de cada artículo: *"Igual al modelo: …"* con lo que no se marcó |
+| C3 — marcado y vacío | No deja guardar: *"Escribe el color o quita la marca de Color"* (igual con los demás; la foto: *"Sube la foto o quita la marca de Foto"*) |
+| C4 — siempre por artículo | Talla, presentación y stock (como A4) |
+| C6 — plegar | Cada artículo se pliega y despliega con su propia línea (**▸ Mostrar / ▾ Ocultar**); plegado enseña *"Talla S · Stock 1 · Cambia: Descripción"* y *"⚠️ Falta: stock"* si le falta algo. Hasta 3 salen abiertos; con más, los nuevos salen plegados (el primero siempre abierto). **Abrir todos / Cerrar todos** y, abajo, *"A los artículos 2, 5 y 7 les falta algo — Abrir solo esos"*. Pedido del dueño: *"¿si pongo 20 o 30 artículos se hará una listota hacia abajo?"* |
+| C5 — modelo sin foto | Si el modelo no tiene foto y no se marca Foto: *"este artículo no sale en la tienda hasta que tenga una"* (se puede guardar igual) |
+| P1 — pregunta al actualizar | Al **💾 Actualizar modelo**, si `GET /v1/stock/producto/{id}` dice que caben artículos, sale la misma pregunta (*"✅ Modelo actualizado"*). Sin stock libre o si esa consulta falla: el aviso de siempre y regresa a Modelos |
+| S1 — stock del modelo desde el artículo | En **Tienda → Buscar → ✏️ Editar**, si lo que se le pide al artículo pasa de lo libre del modelo, **💾 Actualizar artículo no manda nada**: abre **➕ Agregar stock al modelo**. Lo escrito ahí se suma **solo al modelo** (`PUT /v1/stock/producto/{id}/ajuste`) y el artículo no se toca; al cerrar, el artículo se guarda con su propio botón |
+| S2 — botón directo | El recuadro de stock del artículo trae **➕ Agregar stock al modelo** cuando no le queda libre o cuando se está pasando |
+| S3 — si el back rechaza | Si el back responde 422 (lo libre cambió mientras tanto), se recarga lo libre y se abre la misma ventana en vez del error |
+| S4 — sin permiso | Sin permiso de escritura en Modelos / Agregar modelo / Agregar producto (el mismo que pide el back): *"Pídele a alguien con permiso de Catálogo que le sume stock al modelo…"* |
+
+No cambió nada en el back: se usan `guardarConImagenes` y `PUT /v1/stock/producto/{id}/ajuste` tal como estaban.
+Código: front `shared/alta-articulos/`, `variante/update-variante/`, `productos/producto/add/`.
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, 20.3 (y 17.7 / 17.8 reescritas).
+
