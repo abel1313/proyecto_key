@@ -22,11 +22,11 @@
 | A8 | Completar producto → carga de imágenes: nombre, marca, color, contenido y código ya van en mayúsculas | ✅ ya estaba |
 | A12 | **Todos** los demás buscadores (revisar uno por uno) | ⏳ falta |
 | B | Productos → Buscar: decidir qué botones son del modelo y cuáles del artículo | ⏳ falta |
-| C | Compartir imagen: error 400 del thumbnail | ⏳ falta |
-| E1 | Rifas: cards del mismo tamaño | ⏳ falta |
-| E2 | Flores → Configurar: homologar | ⏳ falta |
-| E3 E4 | Catálogo de menús y submenús / Gestión de roles: campos muy cortos y sobra espacio | ⏳ falta |
-| — | Skills `cards`, `buscadores` (ampliar), `diseno-componentes` (ampliar) | ⏳ falta |
+| C | Compartir imagen: la miniatura responde bytes y se pedía como JSON; ahora se pide como imagen | ✅ local · ⏳ probar en QA (si sigue el 400, es del micro de imágenes) |
+| E1 | Rifas: anchos de pantalla a 820px (agregar, boletos, buscar, rifa del mes) | ✅ local · ⏳ falta igualar el tamaño de las cards dentro de las listas |
+| E2 | Flores → Configurar: ancho 820px | ✅ local |
+| E3 E4 | Catálogo de menús y submenús / Gestión de roles: pantalla de 1400px y columnas más anchas | ✅ local (sin ver en pantalla) |
+| — | Skills `cards` (nueva), `buscadores` y `diseno-componentes` (ampliadas) | ✅ local |
 | — | Pantalla para generar códigos QR por tipo | ⏳ falta (definir tipos) |
 
 ## A. Texto en MAYÚSCULAS (buscadores y catálogos)
@@ -120,3 +120,35 @@ Ya existen las skills `buscadores` y `diseno-componentes`; en vez de crear tres 
 4. Con las skills acordadas, se aplican a las pantallas de las secciones A y E, de una en una,
    con su prueba.
 5. C (compartir imagen) y D (sesión) son errores, no diseño: se investigan aparte.
+
+## G. Carrito de producto base (decisión del 2026-10-14)
+
+Se quitaron de la card de **Productos → Buscar** (modelos): ➕ Agregar, ➖ Quitar, 🛒 Carrito, el 🛒 con
+contador del encabezado y el aviso "N en carrito". ✅ local.
+
+**Roles / permisos que hay que quitar por esto: ninguno.**
+- Esos botones **no tenían permiso propio** (los veía cualquier usuario con sesión), así que no hay
+  acción que borrar en `accion_submenu` / `rol_accion`.
+- Los permisos de la card que **se quedan**: `productos/buscar` → `habilitar`, `eliminar`,
+  `crear-variantes`, `compartir-imagen`, `descargar-excel`; y la pantalla `productos/agregar` (editar).
+- Las pantallas del carrito viejo (`productos/detalle-productos`, y el botón de agregar de
+  `productos/detalle-producto`) solo tienen `AuthGuard`, sin fila en menús ni permisos.
+- El endpoint `POST /v1/pedidos/savePedido` **no se toca**: lo usan también el carrito de artículos
+  (`tienda/carrito`) y Flores.
+
+⏳ **Pendiente de confirmar por el dueño:** que ya nadie vende modelos completos; si confirma, se
+borran la pantalla `detalle-productos`, el botón de agregar de `detalle-producto`, el contador del
+carrito viejo en la barra y `CarritoService`/`CarritoGuard` (si nada más los usa).
+
+## H. Pantalla generadora de códigos QR (tipos acordados el 2026-10-14)
+
+Hoy: `/qr` (QR fijo de la tienda) y `qr_destino` (lista de enlaces administrable). La pantalla nueva
+deja elegir el **tipo**, pide solo los datos de ese tipo, genera el QR y permite **copiar o descargar**:
+1. **Tienda** · 2. **Producto o artículo** · 3. **Red social** · 4. **Enlace libre**.
+Al crearla: una fila de menú/submenú y su acción de permiso (migración idempotente), para poder
+asignarla por rol en Gestión de roles.
+
+### Confirmado por el dueño (2026-10-14): solo se vende por ARTÍCULOS
+Se borró la pantalla `productos/detalle-productos` (carrito de producto base) y los botones de agregar /
+quitar de `productos/detalle-producto`. ✅ local→subido. Queda como limpieza futura: `CarritoService` y
+`CarritoGuard` (siguen enlazados en el login, la sesión y las rutas; hay que quitarlos con cuidado).

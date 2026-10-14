@@ -128,6 +128,8 @@ dentro de 4–6 pantallas, no compartida), checkbox / radio, chip o etiqueta de 
 la pantalla (nota informativa), modal. Los avisos `Swal` toman estilo global de `styles.scss`
 (`.swal2-*`), que hoy tiene colores escritos a mano.
 
+Tamaños y anchos de pantalla (820px / 1400px, cards iguales): ver la skill `cards`.
+
 ## 4.1 Botón de regresar — en toda pantalla nueva (regla del dueño 2026-10-01)
 
 Toda pantalla nueva que no sea la principal de un menú lleva botón de regresar, **alineado con el
