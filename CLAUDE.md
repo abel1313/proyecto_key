@@ -88,6 +88,8 @@ necesita para las pruebas"*.
   el 🧪 crea `qa.prueba{N}` con el rol `ROLE_QA_PRUEBA_{N}` y los permisos exactos; **la contraseña nunca la pone ni
   la muestra el código**: el documento dice *"Sistema → Usuarios → qa.pruebaN → Resetear contraseña"*.
 - Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R23).
+- **Cuando el dueño pida "dame el caso", "la prueba", "lo que falta y lo que llevo" o "no entiendo el paso N"**: skill **`dar-el-caso`**. El caso se da **completo en el chat**, cada paso con *Dónde* (menú → submenú → pantalla), *Haz* (botón exacto y valor a escribir) y *Debes ver* (texto exacto), con ✅ en lo que ya pasó. Nunca una tabla de títulos ni "sigue el documento" (pedido del 2026-10-14).
+- **Al terminar cualquier cambio, y antes de decir "ya quedó documentado" o de ofrecer "sube"**: skill **`documentar`** (qué documento recibe cada cosa —`CAMBIOS_FRONT.md`, `TESTS_PENDIENTES.md`, `PLAN_*.md`, `PRUEBAS_PENDIENTES_*.md`, README del dominio, inventario de tablas, registro de migraciones, bitácora de trámites— con su formato y el checklist). Reúne las reglas de documentación de este archivo; si chocan, gana este archivo.
 
 ## Flujo Git — cómo hacer los merges
 

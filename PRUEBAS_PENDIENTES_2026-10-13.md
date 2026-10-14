@@ -13,7 +13,7 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 | **24** — Unir un Ir pagando que ya tiene dinero (K4 / K6) | ✅ Pasó | 2026-10-13 |
 | **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
 | **21** — La fecha de entrega en Pedidos y en Entregas por zona (y el nombre del cliente de la venta) | ✅ Pasó | 2026-10-13 |
-| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | 👉 **Sigue**: 20.2 ✅ y 20.4 ✅ (2026-10-14). Falta **20.3** (paso 1 ✅; se repite con la ventana para agregar stock al modelo, la pregunta de cuántos artículos y los checks por artículo — **después de subir**) y **20.1** (sin reportar) | |
+| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | 👉 **Sigue**: 20.2 ✅ y 20.4 ✅ (2026-10-14). Falta **20.3** (pasos 1, 2 y 3 ✅; sigue en el 4: la ventana para agregar stock al modelo ya pasó, faltan la pregunta de cuántos artículos y los checks por artículo, ya subidos a QA) y **20.1** (sin reportar) | |
 | **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ⏳ Falta | |
 | **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | ✅ Pasó | 2026-10-14 |
 | **26** — Mis pedidos con caché: rápido y sin datos viejos | ✅ Pasó | 2026-10-14 |
@@ -1246,8 +1246,8 @@ artículos** quieres hacer; cada artículo nace **igual al modelo** y con checks
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 ✅ | **Catálogo → 🔍 Modelos** → en el buscador escribe **QA Prueba 20 Agotado** → en su tarjeta **✏️ Actualizar** → cambia solo la **Descripción** → **💾 Actualizar modelo** | Se guarda. **No sale ningún aviso de error**. La descripción nueva se queda. Como no tiene stock libre, **no** pregunta por artículos: sale *"¡Modelo actualizado!"* y regresa a Modelos. ✅ **Pasó el 2026-10-14** (con el aviso de antes, *"¡Producto actualizado!"*) |
-| 2 | **Tienda → Buscar** → escribe **QA Prueba 20 Agotado** → en la tarjeta del artículo (M, Negro) **✏️ Editar** | En el recuadro de stock: *"Quedan 0 disponibles de 0"* y el botón **➕ Agregar stock al modelo** |
-| 3 | En **Actualizar stock** escribe **1** → **💾 Actualizar artículo** (antes decía *"Actualizar producto"*) | **No** se guarda nada todavía: se abre la ventana **➕ Agregar stock al modelo**: *"El modelo «QA Prueba 20 Agotado» tiene 0 libres y a este artículo le pides 1 más. ¿Cuántas piezas le agregas al modelo?…"* con un **1** ya escrito. ✅ El 2026-10-14 aquí salió el aviso *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres…"* — estaba bien, pero pediste esta ventana en su lugar |
+| 2 ✅ | **Tienda → Buscar** → escribe **QA Prueba 20 Agotado** → en la tarjeta del artículo (M, Negro) **✏️ Editar** | En el recuadro de stock: *"Quedan 0 disponibles de 0"* y el botón **➕ Agregar stock al modelo** |
+| 3 ✅ | En **Actualizar stock** escribe **1** → **💾 Actualizar artículo** (antes decía *"Actualizar producto"*) | **No** se guarda nada todavía: se abre la ventana **➕ Agregar stock al modelo**: *"El modelo «QA Prueba 20 Agotado» tiene 0 libres y a este artículo le pides 1 más. ¿Cuántas piezas le agregas al modelo?…"* con un **1** ya escrito. ✅ El 2026-10-14 aquí salió el aviso *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres…"* — estaba bien, pero pediste esta ventana en su lugar |
 | 4 | **Solo es una prueba de seguridad** (si no la quieres hacer, sáltala al 5). Estás en la ventana **➕ Agregar stock al modelo** del paso 3: el campo trae un **1**. Bórralo, escribe **0** y toca el botón **Agregar al modelo** | Debajo del campo sale en rojo: *"Escribe cuántas piezas: un número entero de 1 en adelante."* La ventana **se queda abierta** y no se guardó nada: el sistema no deja agregar 0 piezas |
 | 5 | En ese mismo campo escribe **10** (las piezas que "llegaron") y toca **Agregar al modelo** | Se cierra esa ventana y se abre **otra** con palomita verde: *"Se agregaron 10 al modelo"* y debajo *"Ahora el modelo tiene 10 libres de 10. Este artículo sigue con 0. Ya alcanza para sumarle 1: da 💾 Actualizar artículo."* Toca **Entendido** |
 | 6 | Ya no hay ventanas: estás otra vez en la pantalla de **editar el artículo**. **No toques nada**, solo mira. Arriba, el recuadro de stock; abajo, los campos **Stock** y **Actualizar stock** | El recuadro dice *"Quedan 10 disponibles de 10"* (el modelo ya tiene piezas). El campo **Stock** (gris, no se escribe) sigue en **0** y **Actualizar stock** sigue en **1**. Es lo importante: **los 10 se fueron al modelo, no al artículo** |
@@ -1284,7 +1284,10 @@ pantallas; las cuatro se prueban:
 | d | Checks por artículo en vez de casillas para todos | Ventana 🧩 desde Agregar modelo, Actualizar modelo, 🧩 Productos y Agregar artículo → Guardar en el modelo | Los formularios | Casillas *"Usar del modelo en todos los artículos"* arriba y campos ya llenos | Cada artículo con sus 6 checks; lo no marcado queda igual al modelo — Pruebas 17.7, 17.8, 18 (pasos 3–4) y 20.3 |
 | e | Lo que se guarda | El back (sin cambios) | El artículo guardado | El dato que venía escrito | Lo no marcado viaja vacío y el back pone el del modelo (como siempre que un dato llega vacío) |
 
-- [ ] **20.3 — se repite con los pasos de arriba.** Paso 1 ✅ y el aviso del paso 3 ✅ (2026-10-14). Lo que dijiste:
+- [ ] **20.3 — sigue en el paso 4.** Pasos **1, 2 y 3 ✅** (2026-10-14). Faltan del 4 al 20. Lo que dijiste:
+
+💬 *"listo 2 y 3, la 4 no la entiendo, explícalo mejor… de la 4 hacia adelante no la entiendo, descríbela más"* (2026-10-14)
+↳ Hecho: los pasos **4 a 20** se reescribieron diciendo qué tocar, dónde y qué debe aparecer. El 4 y el 10 son solo pruebas de seguridad (escribir 0 o 20 a propósito para ver el aviso en rojo): si no las quieres hacer, se saltan.
 
 💬 *"20.3 Modelo agotado cambie solo la descripcion y si dejo actualizar, ahi como dices no deberia? no sale el mensaje que mencionas"*
 ↳ Está bien así: **debía guardar sin mensaje**. El texto de antes decía "Guarda sin el aviso *El stock no
