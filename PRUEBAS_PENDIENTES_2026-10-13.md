@@ -13,10 +13,10 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 | **24** — Unir un Ir pagando que ya tiene dinero (K4 / K6) | ✅ Pasó | 2026-10-13 |
 | **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
 | **21** — La fecha de entrega en Pedidos y en Entregas por zona (y el nombre del cliente de la venta) | ✅ Pasó | 2026-10-13 |
-| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | ⏳ 20.2 ✅ y 20.4 ✅ (2026-10-14). Falta **20.3** (reescrita, se repite) y **20.1** (sin reportar) | |
+| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | 👉 **Sigue**: 20.2 ✅ y 20.4 ✅ (2026-10-14). Falta **20.3** (paso 1 ✅; se repite con la ventana para agregar stock al modelo, la pregunta de cuántos artículos y los checks por artículo — **después de subir**) y **20.1** (sin reportar) | |
 | **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ⏳ Falta | |
 | **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | ✅ Pasó | 2026-10-14 |
-| **26** — Mis pedidos con caché: rápido y sin datos viejos | 👉 **Sigue** (es la primera de pedidos; subida a QA el 2026-10-14) | |
+| **26** — Mis pedidos con caché: rápido y sin datos viejos | ✅ Pasó | 2026-10-14 |
 
 Las demás (12, 15, 14-QA, 17, 18, 19, 23, 13 y 6) siguen en la tabla de abajo, sin hacer.
 
@@ -190,7 +190,7 @@ ya viene en cada paso:
 | 15 (6, 6c) | Zonas de entrega | nombre `Prueba 15 Zona` / `Prueba 15 Estanco` |
 | 17.4 | Cliente de Venta directa (los avisos de 1 o 2 letras) | `a`, `Lo`, `Jo`… (son las pruebas) y `Prueba 17 Ana` |
 | 17.7 | Agregar modelo | `QA Prueba 17 Modelo nuevo`, precio `100`, stock `10`, color `Negro`, marca `Prueba QA`, descripción `Prueba`, primera categoría, una foto |
-| 20.3 | Actualizar stock (del artículo y del modelo) | `5` en cada uno |
+| 20.3 | Editar artículo y la ventana ➕ Agregar stock al modelo; 🧩 Agregar artículos con checks | artículo `1`, modelo `10`; 2 artículos: talla `S` stock `1` con descripción `Prueba 20 artículo S`, talla `L` stock `1` color `Rojo` y una foto cualquiera; `9` y otra vez `2` en ¿Cuántos artículos? |
 | 20.3 | Agregar modelo con stock 0 (no debe dejar) | `QA Prueba 20 Modelo sin stock`, marca `Prueba QA`, precio de compra `50`, precio de venta `100`, stock `0`, descripción `Prueba`, **Generar código automático** prendido |
 | 26 | Abono, cambiar forma de cobro, Entregar y Cancelar (lo que se prueba es que la lista lo enseñe al instante) | abono `30` y luego `70`, en efectivo |
 | 19.1 | Participante de rifa (no debe dejar: el plazo ya venció) | nombre `Prueba`, apellido `Diecinueve`, teléfono `5512345678`, palabra clave `QAPRUEBA19` |
@@ -228,7 +228,7 @@ prepara sus datos (con **Preparar todas** ya quedan todos).
 | 12 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** | Carrito → Mis datos; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos al abrir | Ya | 20 (20.2 y 20.3) | 35 min | [ ] |
 | 13 | **16 — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ** | Pendiente en filtros y card, pasarlo a Apartado / Ir pagando, Entregas por zona, ⓘ | Ya | 16 | 25 min | [ ] |
 | 14 | **25 — Mis pedidos: buscar y poner/quitar filtros ya no tarda** 🆕 | La búsqueda por texto responde en ~1 s (antes hasta 48 s con 6 000 pedidos); mismos resultados | Al subir el arreglo | — | 10 min | [x] |
-| 15 | **26 — Mis pedidos con caché: rápido y sin datos viejos** 🆕 | Poner/quitar filtros y regresar a uno ya visto sale al instante; un abono, cambio de forma de cobro, Entregar o Cancelar se ve en la lista en ese momento | Al subir esta ronda (2026-10-14) | 26 | 15 min | [ ] |
+| 15 | **26 — Mis pedidos con caché: rápido y sin datos viejos** 🆕 | Poner/quitar filtros y regresar a uno ya visto sale al instante; un abono, cambio de forma de cobro, Entregar o Cancelar se ve en la lista en ese momento | Ya (subida a QA el 2026-10-14) | 26 | 15 min | [x] |
 | 16 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
 
 **Por qué este orden:** primero lo que ya se podía hacer antes de la subida del 2026-10-13; después lo
@@ -483,7 +483,7 @@ de alta los artículos de un modelo al guardarlo.
 | 17.5 | Validación del cliente sin registro y de quien recibe | Venta directa → registrar cliente / Datos de entrega | Aviso rojo debajo del campo | Guardaba "a" | Pide 3 letras; correo y teléfono válidos si se escriben |
 | 17.6 | Buscador de **Mis pedidos** desde la cuenta del cliente | Tienda → Mis pedidos (cliente) | Debajo del buscador | Letras = ventana emergente en cada tecla | Aviso debajo, sin ventana; el número de pedido con cualquier cantidad de dígitos |
 | 17.7 | Buscadores que buscaban con 2 letras | Promociones (buscar artículo del combo), Publicar en Facebook (buscar producto), Reportes (buscar cliente) | La lista de resultados | Buscaba con 2 letras | Busca desde 3 (vacío limpia) |
-| 17.8 | Ventana **🧩 Agregar artículos** | **Catálogo → Agregar modelo** (al guardar uno nuevo) | Ventana nueva | Solo "¡Producto guardado!" | Pregunta si quieres agregar sus artículos |
+| 17.8 | Ventana **🧩 Agregar artículos** | **Catálogo → Agregar modelo** (al guardar uno nuevo) | Ventana nueva | Solo "¡Producto guardado!" | Pregunta **cuántos** artículos quieres hacer; cada artículo con sus checks de lo que cambia (2026-10-14) |
 | 17.9 | (misma ventana) | **Catálogo → 🔍 Modelos → 🧩 Productos** | Ventana | "Inicializar variantes": N artículos iguales con stock 1 y sin talla | Un formulario por artículo, con talla, stock, foto… |
 | 17.10 | `guardarConImagenes` acepta foto propia por artículo | **Catálogo → 🧩 Agregar producto** con varias tallas y una foto | Las fotos de los artículos | La foto la llevan todas las tallas | **Lo mismo que antes** |
 
@@ -550,29 +550,32 @@ de alta los artículos de un modelo al guardarlo.
 | 2 | **Publicar en Facebook** → buscador del producto → 2 letras / 3 letras | Igual que el paso 1 |
 | 3 | **Reportes** → buscador de cliente | El texto de ayuda dice *"Escribe al menos 3 letras…"* y busca desde la 3.ª |
 
-### 17.7 Agregar modelo → "¿Quieres agregar sus artículos ahora?"
+### 17.7 Agregar modelo → "¿Cuántos artículos quieres hacer?" (cambiada el 2026-10-14)
+
+Cambió con lo que pediste en la 20.3: la pregunta ahora es **cuántos** artículos, y en cada artículo marcas
+**solo lo que cambia** (lo demás queda igual al modelo). Antes había casillas arriba para todos.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → Agregar modelo** → llena: nombre **QA Prueba 17 Modelo nuevo**, precio **100**, **stock 10**, color **Negro**, marca **Prueba QA**, descripción **Prueba**, la primera categoría y una foto cualquiera → **Guardar** | Ventana **"✅ Modelo guardado"** con *"¿Quieres agregar sus artículos ahora?"* y los botones **Después** / **Sí, agregar artículos** |
-| 2 | Toca **Sí, agregar artículos** | Ventana **🧩 Agregar artículos**: *"Stock del modelo: 10 · Libre: 10"*; la sección **Usar del modelo en todos los artículos** con una casilla **marcada** por cada dato que llenaste (Color: Negro, Marca…, Descripción…, Categoría…, **Foto del modelo**). Lo que no llenaste **no** aparece |
-| 3 | En **¿Cuántos artículos?** escribe **2** | Dos formularios: **Artículo 1** y **Artículo 2**, con color, marca y descripción ya llenos. Talla y stock vacíos. En **Foto**: *"📷 La foto del modelo"* |
-| 4 | En **Mismo stock para todos** escribe **4** → **Aplicar** | Los dos con stock 4. Abajo: *"Stock del modelo: 10 · Repartido: 8 · Te quedan 2"* |
-| 5 | En el **Artículo 2** cambia el stock a **8** | Abajo en rojo: *"Te pasaste por 2"*. **Guardar 2 artículos** apagado |
-| 6 | Regrésalo a **4**. Tallas: **CH** y **M**. En el Artículo 2 cambia el color a **Blanco** | El Artículo 1 sigue en Negro |
-| 7 | Desmarca **Color** arriba | El color **Negro** se borra del Artículo 1; **Blanco** del Artículo 2 se queda (lo cambiaste tú) |
-| 8 | Vuelve a marcar **Color**. En el Artículo 2 toca **Usar otra foto** y elige una foto | Se ve la miniatura en el Artículo 2 y los botones **Cambiar foto** / **Quitar** |
-| 9 | Toca **Guardar 2 artículos** | *"2 artículos guardados"* → **Entendido** y se cierra |
-| 10 | **Tienda** → busca el modelo | Dos artículos: **CH Negro** con la foto del modelo y **M Blanco** con su foto propia. Stock 4 cada uno |
+| 1 | **Catálogo → Agregar modelo** → llena: nombre **QA Prueba 17 Modelo nuevo**, precio **100**, **stock 10**, color **Negro**, marca **Prueba QA**, descripción **Prueba**, la primera categoría y una foto cualquiera → **💾 Guardar modelo** | Ventana **"✅ Modelo guardado"**: *"Stock del modelo: 10 · Libre: 10"*, *"¿Cuántos artículos quieres hacer de este modelo?"* con un **1** escrito y los botones **Ahora no** / **Continuar** |
+| 2 | Escribe **2** → **Continuar** | Ventana **🧩 Agregar artículos** con **Artículo 1** y **Artículo 2**, abiertos (con 4 o más, del segundo en adelante salen plegados; se prueba en la 20.3): Talla, Stock y Presentación vacíos, y *"¿Qué cambia en este artículo?"* con 6 checks **sin marcar** (Foto, Descripción, Color, Marca, Contenido neto, Categoría). Abajo de cada uno: *"Igual al modelo: Foto: la del modelo · Descripción: Prueba · Color: Negro · Marca: Prueba QA · Contenido neto: (el modelo no tiene) · Categoría: …"* |
+| 3 | En **Mismo stock para todos** escribe **4** → **Aplicar** | Los dos con stock 4. Abajo: *"Stock del modelo: 10 · Repartido: 8 · Te quedan 2"* |
+| 4 | En el **Artículo 2** cambia el stock a **8** | Abajo en rojo: *"Te pasaste por 2"*. **Guardar 2 artículos** apagado |
+| 5 | Regrésalo a **4**. Tallas: **CH** y **M**. En el Artículo 2 marca **Color** | Aparece el campo Color ya escrito con **Negro**; cámbialo a **Blanco**. El Artículo 1 sigue sin marcar (*"Igual al modelo: … Color: Negro …"*) |
+| 6 | En el Artículo 2 marca **Foto** → **Subir foto** → elige una foto | Se ve la miniatura y los botones **Cambiar foto** / **Quitar** |
+| 7 | En el Artículo 1 marca **Marca** y quítale la marca enseguida | El campo aparece y se va; en *"Igual al modelo"* vuelve a salir *"Marca: Prueba QA"* |
+| 8 | Toca **Guardar 2 artículos** | *"2 artículos guardados"* → **Entendido** y se cierra |
+| 9 | **Tienda** → busca el modelo | Dos artículos: **CH Negro** con la foto del modelo y **M Blanco** con su foto propia. Stock 4 cada uno. Los dos con marca **Prueba QA** y descripción **Prueba** (las del modelo) |
 
-❌ **Está mal si:** se guarda uno solo de los dos, el Artículo 1 sale con la foto del 2, o se puede guardar con *"Te pasaste"*.
+❌ **Está mal si:** se guarda uno solo de los dos, el Artículo 1 sale con la foto del 2, el CH sale sin marca o
+sin descripción, o se puede guardar con *"Te pasaste"* o con un check marcado y vacío.
 
-### 17.8 "Después" y la tarjeta 🧩 Productos
+### 17.8 "Ahora no" y la tarjeta 🧩 Productos
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Da de alta otro modelo (stock 5) → en la pregunta toca **Después** | Se cierra. El modelo **sí** quedó guardado (búscalo en **Catálogo → 🔍 Modelos**) y no tiene artículos |
-| 2 | En su tarjeta toca **🧩 Productos** | La misma ventana **🧩 Agregar artículos**, **sin** la pregunta, con *"Libre: 5"* |
+| 1 | Da de alta otro modelo (stock 5) → en la pregunta toca **Ahora no** | Se cierra. El modelo **sí** quedó guardado (búscalo en **Catálogo → 🔍 Modelos**) y no tiene artículos |
+| 2 | En su tarjeta toca **🧩 Productos** | La misma ventana **🧩 Agregar artículos**, **sin** la pregunta, con *"Libre: 5"* y los checks por artículo |
 | 3 | Pide **1** artículo con stock **5**, talla **U** → **Guardar 1 artículo** | *"1 artículo guardado"*; la lista de modelos se recarga |
 | 4 | Vuelve a tocar **🧩 Productos** en ese modelo | El aviso de siempre: *"No queda stock para artículos nuevos"* (ya repartiste los 5) |
 | 5 | En el modelo del 17.7 toca **🧩 Productos** | *"En sus artículos: 8 · Libre: 2"* |
@@ -1222,10 +1225,11 @@ dos 🕓 Pendiente de $150 cada uno (en "Zona Prueba QA"), de los clientes «Pru
 - [x] **20.2 ✅ Pasó (2026-10-14).**
 💬 *"20.2 Pedidos unidos: cambiar la forma de cobro, quedo bien toda la prueba completa"*
 
-### 20.3 Modelo agotado (reescrita el 2026-10-14)
+### 20.3 Modelo agotado (reescrita otra vez el 2026-10-14, con lo que pediste)
 
 **Antes de empezar:** vuelve a tocar **🧪 Preparar prueba 20**: deja **QA Prueba 20 Agotado** como
-nuevo, con el modelo en stock 0 y su único artículo (talla **M**, **Negro**) también en 0.
+nuevo, con el modelo en stock 0 y su único artículo (talla **M**, **Negro**) también en 0. El modelo trae
+foto, color, marca y descripción.
 
 **Lo que hay que saber antes (porque confunde):** hay **dos** campos que se llaman "Actualizar stock" y no
 hacen lo mismo.
@@ -1233,20 +1237,54 @@ hacen lo mismo.
 - El del **artículo** (Tienda → Buscar → ✏️ Editar) **no mete piezas nuevas**: toma piezas
   **libres del modelo** y se las da a esa talla/color.
 
-Por eso, con el modelo en 0, el del artículo no puede dar nada: es lo que te salió el 2026-10-14.
+**Lo nuevo (lo que pediste el 2026-10-14):** si en el artículo pides más de lo que el modelo tiene libre,
+ya no sale el error: se abre una ventana para **agregarle stock al modelo** sin salir del artículo. Lo que
+pongas ahí (10, 100…) se guarda **solo en el modelo**; el artículo no cambia hasta que tú le pongas su stock
+y guardes. Y al guardar un modelo con stock libre (también al **actualizarlo**), te pregunta **cuántos
+artículos** quieres hacer; cada artículo nace **igual al modelo** y con checks marcas solo lo que cambia.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → 🔍 Modelos** → en el buscador escribe **QA Prueba 20 Agotado** → en su tarjeta **✏️ Actualizar** → cambia solo la **Descripción** → **💾 Actualizar modelo** | Se guarda. **No sale ningún aviso de error** (antes salía *"El stock no debe de ser 0"*). La descripción nueva se queda |
-| 2 | **Tienda → Buscar** → escribe **QA Prueba 20 Agotado** → en la tarjeta del artículo (M, Negro) **✏️ Editar** → **Actualizar stock** = **5** → **💾 Actualizar producto** | **No deja**, porque el modelo no tiene piezas libres. Aviso: *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres para darle a este artículo: tiene 0 libres y le pides 5 más. Primero súmale stock al modelo en Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock». (Disponible: 0, Solicitado: 5)"* ⚠️ Este texto nuevo sale **después de subir** lo de esta ronda; mientras tanto sale el de antes (*"Stock insuficiente para el producto…"*), y también está bien que no deje |
-| 3 | **Catálogo → 🔍 Modelos** → **QA Prueba 20 Agotado** → **✏️ Actualizar** → en **Actualizar stock** (abajo, junto a "Eliminar stock") escribe **5** → **💾 Actualizar modelo** | Se guarda. En la tarjeta del modelo, **Stock 5** |
-| 4 | Repite el paso 2 (artículo M, Negro → **Actualizar stock** = **5** → **💾 Actualizar producto**) | Ahora **sí** deja: el artículo queda con stock **5** y el modelo con **0 libres** (en 🧩 Productos: *"Stock del modelo: 5 · En sus artículos: 5 · Puedes crear: 0"*) |
-| 5 | Menú **Catálogo → Agregar modelo** → llena **Nombre** *QA Prueba 20 Modelo sin stock*, **Marca** *Prueba QA*, **Precio de compra** *50*, **Precio de venta** *100*, **Stock** *0*, **Descripción** *Prueba*, y prende **Generar código automático** (código de barras) → **💾 Guardar modelo** | **No deja:** aviso *"El stock no debe de ser 0"*. Un modelo nuevo tiene que nacer con piezas. Si lo buscas en **Catálogo → 🔍 Modelos** no aparece |
+| 1 ✅ | **Catálogo → 🔍 Modelos** → en el buscador escribe **QA Prueba 20 Agotado** → en su tarjeta **✏️ Actualizar** → cambia solo la **Descripción** → **💾 Actualizar modelo** | Se guarda. **No sale ningún aviso de error**. La descripción nueva se queda. Como no tiene stock libre, **no** pregunta por artículos: sale *"¡Modelo actualizado!"* y regresa a Modelos. ✅ **Pasó el 2026-10-14** (con el aviso de antes, *"¡Producto actualizado!"*) |
+| 2 | **Tienda → Buscar** → escribe **QA Prueba 20 Agotado** → en la tarjeta del artículo (M, Negro) **✏️ Editar** | En el recuadro de stock: *"Quedan 0 disponibles de 0"* y el botón **➕ Agregar stock al modelo** |
+| 3 | En **Actualizar stock** escribe **1** → **💾 Actualizar artículo** (antes decía *"Actualizar producto"*) | **No** se guarda nada todavía: se abre la ventana **➕ Agregar stock al modelo**: *"El modelo «QA Prueba 20 Agotado» tiene 0 libres y a este artículo le pides 1 más. ¿Cuántas piezas le agregas al modelo?…"* con un **1** ya escrito. ✅ El 2026-10-14 aquí salió el aviso *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres…"* — estaba bien, pero pediste esta ventana en su lugar |
+| 4 | En la ventana escribe **0** → **Agregar al modelo** | *"Escribe cuántas piezas: un número entero de 1 en adelante."* No se guarda |
+| 5 | Escribe **10** → **Agregar al modelo** | *"Se agregaron 10 al modelo — Ahora el modelo tiene 10 libres de 10. Este artículo sigue con 0. Ya alcanza para sumarle 1: da 💾 Actualizar artículo."* → **Entendido** |
+| 6 | Mira la pantalla del artículo (sin guardar todavía) | El recuadro dice *"Quedan 10 disponibles de 10"*. El campo **Stock** del artículo **sigue en 0** y **Actualizar stock** sigue en **1** |
+| 7 | **💾 Actualizar artículo** | *"¡Artículo actualizado!"* y regresa a la Tienda. El artículo **M, Negro** con stock **1** |
+| 8 | **Catálogo → 🔍 Modelos** → **QA Prueba 20 Agotado** | **Stock 10** en el modelo (los 10 de la ventana, no 11). En **🧩 Productos**: *"Stock del modelo: 10 · En sus artículos: 1 · Libre: 9"* → ciérrala con **Cancelar** |
+| 9 | En su tarjeta **✏️ Actualizar** → no cambies nada → **💾 Actualizar modelo** | Ahora sí pregunta: ventana **"✅ Modelo actualizado"** con *"Stock del modelo: 10 · En sus artículos: 1 · Libre: 9"* y *"¿Cuántos artículos quieres hacer de este modelo?"* con un **1** escrito. Botones **Ahora no** / **Continuar** |
+| 10 | Escribe **20** | *"De 1 a 9 (cada artículo necesita al menos 1 pieza)."* y **Continuar** apagado |
+| 11 | Escribe **2** → **Continuar** | Ventana **🧩 Agregar artículos** con **Artículo 1** y **Artículo 2**, los dos abiertos (cada uno con su línea **▾ Artículo N … Ocultar** para plegarlo). Cada uno: **Talla**, **Stock**, **Presentación** y *"¿Qué cambia en este artículo?"* con 6 checks **sin marcar**: **Foto**, **Descripción**, **Color**, **Marca**, **Contenido neto**, **Categoría**. Abajo de cada uno: *"Igual al modelo: Foto: la del modelo · Descripción: … · Color: … · Marca: …"* |
+| 12 | **Artículo 1:** Talla **S**, Stock **1** → marca **Descripción** | Aparece el campo Descripción **ya escrito con la del modelo**. Cámbialo a **Prueba 20 artículo S**. En *"Igual al modelo"* ya no sale Descripción |
+| 13 | **Artículo 2:** Talla **L**, Stock **1** → marca **Color** → déjalo vacío | En rojo: *"Escribe el color o quita la marca de Color."* y **Guardar 2 artículos** apagado (abajo: *"Hay un dato marcado sin llenar."*) |
+| 14 | En el color del Artículo 2 escribe **Rojo**. Marca **Foto** en el Artículo 2 | Sale **Subir foto** y en rojo *"Sube la foto o quita la marca de Foto."*. Sube una foto cualquiera: se ve la miniatura y se quita lo rojo |
+| 15 | En **¿Cuántos artículos?** (arriba) cambia a **9** | Aparecen 9. El 1 y el 2 siguen **abiertos** con lo que llenaste; del **Artículo 3 al 9 salen cerrados**, en una sola línea cada uno: *"▸ Artículo 3 · Igual al modelo · ⚠️ Falta: stock · Mostrar"*. Abajo: *"⚠️ A los artículos 3, 4, 5, 6, 7, 8 y 9 les falta algo. Abrir solo esos"* y **Guardar 9 artículos** apagado |
+| 16 | Toca **Cerrar todos** | Los 9 quedan en una línea. El 1 dice *"Talla S · Stock 1 · Cambia: Descripción"* y el 2 *"Talla L · Stock 1 · Cambia: Foto, Color"*. Toca la línea del **Artículo 2**: se abre **solo ese**, con su foto y su color Rojo; tócala otra vez (**Ocultar**) y se cierra |
+| 17 | Regresa **¿Cuántos artículos?** a **2** → **Abrir todos** | Quedan el 1 y el 2 con todo lo que llenaste; ya no sale el aviso de abajo |
+| 18 | **Guardar 2 artículos** | *"2 artículos guardados — Ya se pueden vender. Stock repartido: 2 de 10."* → **Entendido** y regresa a **Catálogo → 🔍 Modelos** |
+| 19 | **Tienda → Buscar** → **QA Prueba 20 Agotado** | **3** artículos: **M Negro** (1), **S** con la descripción *Prueba 20 artículo S*, el color y la foto **del modelo** (1), y **L Rojo** con **su** foto y la descripción **del modelo** (1) |
+| 20 | Menú **Catálogo → Agregar modelo** → llena **Nombre** *QA Prueba 20 Modelo sin stock*, **Marca** *Prueba QA*, **Precio de compra** *50*, **Precio de venta** *100*, **Stock** *0*, **Descripción** *Prueba*, y prende **Generar código automático** (código de barras) → **💾 Guardar modelo** | **No deja:** aviso *"El stock no debe de ser 0"*. Un modelo nuevo tiene que nacer con piezas. Si lo buscas en **Catálogo → 🔍 Modelos** no aparece |
 
-**❌ Está mal si…** el paso 1 pide stock o da error; el paso 2 deja darle 5 al artículo con el modelo en 0;
-el paso 3 no suma las 5 al modelo; el paso 4 sigue sin dejar; el paso 5 crea el modelo con stock 0.
+**❌ Está mal si…** el paso 1 pide stock, da error o pregunta por artículos; en el paso 3 se guarda el
+artículo o sale el error en vez de la ventana; en el paso 6 el artículo ya tiene los 10 (la ventana solo
+toca el modelo); el modelo queda con 11 en el paso 8; en el paso 9 no pregunta; se puede continuar con 20
+en el paso 10; se puede guardar con un check marcado y vacío; en el paso 19 el artículo S no trae la foto del
+modelo o el L no trae su propia foto; en el paso 15 los nuevos salen abiertos o se pierde lo que ya llenaste
+en el 1 y el 2; el paso 20 crea el modelo con stock 0.
 
-- [ ] **20.3 — se repite con los pasos de arriba.** Lo que salió el 2026-10-14 (con los pasos de antes):
+**Mapa de impacto de lo nuevo (2026-10-14)** — la ventana 🧩 Agregar artículos es una sola y la abren 4
+pantallas; las cuatro se prueban:
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| a | Pedir más stock del libre en el artículo | Tienda → Buscar → ✏️ Editar | Al dar 💾 | Error *"no tiene piezas libres…"* | Ventana **➕ Agregar stock al modelo** (pasos 2–7) |
+| b | Pregunta al guardar un modelo | Catálogo → 🔍 Modelos → ✏️ Actualizar | Al dar 💾 Actualizar modelo | Solo *"¡Producto actualizado!"* | Con stock libre: *"¿Cuántos artículos…?"*; sin libre: *"¡Modelo actualizado!"* (pasos 1 y 9) |
+| c | (mismo) | Catálogo → Agregar modelo | Al guardar uno nuevo | *"¿Quieres agregar sus artículos ahora?"* (Después / Sí) | *"¿Cuántos artículos quieres hacer de este modelo?"* (Ahora no / Continuar) — Prueba 17.7 |
+| d | Checks por artículo en vez de casillas para todos | Ventana 🧩 desde Agregar modelo, Actualizar modelo, 🧩 Productos y Agregar artículo → Guardar en el modelo | Los formularios | Casillas *"Usar del modelo en todos los artículos"* arriba y campos ya llenos | Cada artículo con sus 6 checks; lo no marcado queda igual al modelo — Pruebas 17.7, 17.8, 18 (pasos 3–4) y 20.3 |
+| e | Lo que se guarda | El back (sin cambios) | El artículo guardado | El dato que venía escrito | Lo no marcado viaja vacío y el back pone el del modelo (como siempre que un dato llega vacío) |
+
+- [ ] **20.3 — se repite con los pasos de arriba.** Paso 1 ✅ y el aviso del paso 3 ✅ (2026-10-14). Lo que dijiste:
 
 💬 *"20.3 Modelo agotado cambie solo la descripcion y si dejo actualizar, ahi como dices no deberia? no sale el mensaje que mencionas"*
 ↳ Está bien así: **debía guardar sin mensaje**. El texto de antes decía "Guarda sin el aviso *El stock no
@@ -1264,6 +1302,16 @@ formas: (1) la prueba ahora dice exactamente en qué pantalla va cada uno y prue
 💬 *"Agregar modelo nuevo (nombre QA Prueba 20 Modelo sin stock, marca Prueba QA) con stock 0 no dice donde ir, es decir no explica bien como hacer la prueba"*
 ↳ Tienes razón. El paso 5 de arriba ya dice el menú (**Catálogo → Agregar modelo**), cada campo con su valor y
 el botón.
+
+💬 *"si se guarda sin ningún error"* (paso 1) y *"Error al actualizar El modelo «QA Prueba 20 Agotado» no tiene piezas libres para darle a este artículo: tiene 0 libres y le pides 5 más… aquí se supone que debería darte la opción de actualizar el stock del producto base… debería abrir un modal en el cual debería decir quieres actualizar producto y el stock y ahí puedo poner 10 o 100 pero eso no quiere decir que el artículo… se le vayan a poner esos 10 o 100… y para el producto base… al dar guardar me debe salir cuántos artículos quiero hacer… con los check de que quiero actualizar, ejemplo la descripción o la imagen… la variante se va a hacer igual que lo que tiene el producto, todos sus campos, y solo diferente los check que cambie"* (2026-10-14)
+↳ Hecho, tal cual. (1) En **editar artículo**, si el modelo no alcanza, al dar 💾 se abre **➕ Agregar stock al
+modelo**: lo que escribas ahí se suma **solo al modelo**; el artículo sigue igual, y al cerrar le pones 1, 2… y
+guardas (pasos 2–7). También hay un botón **➕ Agregar stock al modelo** en el recuadro de stock por si lo quieres
+hacer antes. (2) Al **actualizar** un modelo con stock libre, te pregunta **cuántos artículos** quieres hacer (de 1
+a lo libre) y te pone ese número de formularios (pasos 9–11); antes solo preguntaba al dar de alta. (3) Cada
+artículo tiene sus checks **Foto, Descripción, Color, Marca, Contenido neto y Categoría**: lo que no marques queda
+**igual al modelo**; al marcar uno aparece el campo ya escrito con el dato del modelo para que lo cambies (pasos
+11–19). Y cada artículo se puede **plegar y desplegar** (pasos 15–17). Talla, presentación y stock son siempre de cada artículo. Los pasos que ya pasaste llevan ✅.
 
 ### 20.4 Mis pedidos al abrir
 
@@ -1498,7 +1546,10 @@ Hazlos **con «Prueba 26» escrito** en el buscador. Después de cada uno, **no*
 
 💬 Notas:
 
-- [ ] **Prueba 26 terminada**
+💬 *"esta prueba sí está haciendo lo que dice en la prueba"* (2026-10-14; antes había escrito que no veía los datos del 🧪 y lo canceló)
+↳ ✅ Pasó.
+
+- [x] **Prueba 26 terminada** (2026-10-14)
 
 ---
 
