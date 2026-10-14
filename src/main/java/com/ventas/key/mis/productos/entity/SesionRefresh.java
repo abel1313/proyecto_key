@@ -46,6 +46,18 @@ public class SesionRefresh {
     @Column(name = "jti", nullable = false, unique = true, length = 36)
     private String jti;
 
+    /**
+     * jti que estaba vigente justo antes de la ultima rotacion. Sirve para NO tratar como robo el
+     * refresh doble legitimo (dos pestanas, o el arranque de la pagina y una peticion que expira
+     * al mismo tiempo): el segundo llega con el jti viejo unos milisegundos despues del primero.
+     */
+    @Column(name = "jti_anterior", length = 36)
+    private String jtiAnterior;
+
+    /** Cuando se roto por ultima vez; contra esto se mide la ventana de gracia de jtiAnterior. */
+    @Column(name = "rotado_en")
+    private LocalDateTime rotadoEn;
+
     /** Momento del login original — contra esto se mide el limite absoluto de sesion. */
     @Column(name = "session_start", nullable = false)
     private LocalDateTime sessionStart;
