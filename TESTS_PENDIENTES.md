@@ -63,6 +63,16 @@ Formato de cada entrada:
 - [ ] Servicio: con cobro llama a `abonar` del grupo después de cambiar todos; si el dominio rechaza no llama a `FormaDeCobroPort` ni a la bitácora
 - [ ] `PUT /v1/pedidos/{id}/tipo` de un pedido unido → 409; `PUT /v1/grupos-pedido/{id}/tipo` sin la acción `cambiar-tipo` → 403, con ella → 200; grupo inexistente → 404
 
+### 2026-10-14 — La búsqueda por texto de Mis pedidos se resuelve como un conjunto (busquedapedido R17)
+**Dónde:** `PedidosFiltradosJdbcAdapter.coincidencias()` / `texto()` / `datosDePersona()`
+**Tipo:** MySQL (SQL nativo) — agregarlo a `BusquedaPedidosMysqlTest`
+**Debe comprobar:**
+- [ ] Mismos pedidos, mismo orden y mismo total que el SQL anterior para: nombre de cliente con cuenta, de cliente sin registro, nombre de quien recibe, teléfono, correo, nombre de artículo, código de barras, número de 1, 2, 3 y 4+ dígitos, `#14`, `50%`, `a_b` (comodines tal cual) y un texto que no existe; solos y combinados con estado (`SIN_TERMINAR`, `POR_COBRAR`) y forma de cobro *(comprobado a mano el 2026-10-14: 490 búsquedas en una base de 800 pedidos)*
+- [ ] Un titular sale cuando coincide **un miembro** de su grupo activo (por nombre, por artículo, por teléfono) y el miembro sigue sin salir en la lista
+- [ ] Un número de 1 o 2 dígitos solo trae el pedido con ese número (la subconsulta no se arma)
+- [ ] Rendimiento: con ≥ 5 000 pedidos y ≥ 10 000 artículos, buscar un nombre y un artículo responde en menos de 1 segundo *(medido el 2026-10-14: 6 000 pedidos, 48 102 ms → ~120 ms)*
+- [ ] No usa `WITH` ni funciones de ventana (corre en MySQL 5.7)
+
 ### 2026-10-13 — Mis pedidos abre sin lo ya pagado y entregado (busquedapedido R15)
 **Dónde:** `EstadoBuscado.SIN_TERMINAR`, `PedidosFiltradosJdbcAdapter.condiciones()`
 **Tipo:** MySQL (SQL nativo)

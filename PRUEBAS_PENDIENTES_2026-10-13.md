@@ -12,9 +12,10 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 |---|---|---|
 | **24** — Unir un Ir pagando que ya tiene dinero (K4 / K6) | ✅ Pasó | 2026-10-13 |
 | **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
-| **21** — La fecha de entrega en Pedidos y en Entregas por zona | 👉 **Sigue** | |
-| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | ⏳ Falta | |
+| **21** — La fecha de entrega en Pedidos y en Entregas por zona (y el nombre del cliente de la venta) | ✅ Pasó | 2026-10-13 |
+| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos (20.2 y 20.3 con botón) | 👉 **Sigue** | |
 | **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ⏳ Falta | |
+| **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | 🆕 Nueva (reportada el 2026-10-14) | |
 
 Las demás (12, 15, 14-QA, 17, 18, 19, 23, 13 y 6) siguen en la tabla de abajo, sin hacer.
 
@@ -215,10 +216,11 @@ prepara sus datos (con **Preparar todas** ya quedan todos).
 | 8 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos (ahora también de noche), Personalización, encabezados de seguridad | Ya | — | 15 min | [ ] |
 | 9 | **24 — Unir un Ir pagando que ya tiene dinero** 🆕 | Lo de K4 / K5 / K6 | Ya | 24 | 5 min | [x] |
 | 10 | **22 — 🕓 Pendiente en Pago y sin cancelados al abrir** | Pendiente en Pago, Falta pagar sin Pendientes, sin cancelados al abrir | Ya | 22 | 10 min | [x] |
-| 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle; **el nombre del cliente es el de la venta, no el de tu cuenta** | Ya (el nombre: al subir esta corrección) | 21 | 20 min | [ ] |
+| 11 | **21 — La fecha de entrega en Pedidos y en Entregas por zona** | La fecha que pones en Entregas por zona sale en la card y en el detalle; **el nombre del cliente es el de la venta, no el de tu cuenta** | Ya (el nombre: al subir esta corrección) | 21 | 20 min | [x] |
 | 12 | **20 — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos** | Carrito → Mis datos; cambiar forma de cobro de pedidos unidos; Actualizar Modelo en 0; Mis pedidos al abrir | Ya | 20 (20.2 y 20.3) | 35 min | [ ] |
 | 13 | **16 — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ** | Pendiente en filtros y card, pasarlo a Apartado / Ir pagando, Entregas por zona, ⓘ | Ya | 16 | 25 min | [ ] |
-| 14 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
+| 14 | **25 — Mis pedidos: buscar y poner/quitar filtros ya no tarda** 🆕 | La búsqueda por texto responde en ~1 s (antes hasta 48 s con 6 000 pedidos); mismos resultados | Al subir el arreglo | — | 10 min | [ ] |
+| 15 | **6 — Datos de prueba con un botón** | Miles de modelos y pedidos de prueba | **Al final** | — | 15 min | [ ] |
 
 **Por qué este orden:** primero lo que ya se podía hacer antes de la subida del 2026-10-13; después lo
 que estrena esa subida. La **6** va al final porque mete miles de pedidos de prueba.
@@ -1133,7 +1135,13 @@ vacía después de avisar; la fecha de "Pedido hecho el" cambia al programar la 
 
 💬 Notas:
 
-- [ ] **Prueba 21 terminada**
+💬 *"Ya está el nombre correcto en Entregas y además ya se ve la fecha en Pedidos de cuándo se va a entregar."* (2026-10-13, ya con el arreglo en QA, commit `486c0b5`)
+↳ Anotado: el nombre de la venta («Prueba 21 P1/P2/P3») sale en la columna **Cliente** de Entregas por zona, y la fecha de entrega programada sale en **Mis pedidos**. Confirmado por el dueño: 21.1 y 21.2. Sin falla reportada en 21.3 (Créditos / Abonos, formularios de cobro y 🔗 Unir); el paso 7 de 21.2 (⚠ Atrasado) quedó sin confirmar.
+
+💬 *"21.1 Antes de programar ya quedó; 21.2 Programar y ver la fecha, ya se ve en Pedidos después de poner la fecha de entrega. Hay que revisar los filtros o las búsquedas de los pedidos porque tarda mucho para usar un filtro o quitarlo; no sé si lo estás paginando o qué está pasando."* (2026-10-14)
+↳ 21.1 y 21.2 anotadas como pasadas. Lo de la lentitud se midió: la pantalla sí pagina (de 10 en 10); lo lento era el texto escrito en el buscador (48 s con 6 000 pedidos). Arreglado en el back y con su propia prueba: **Prueba 25**.
+
+- [x] **Prueba 21 terminada** (2026-10-13)
 
 ---
 
@@ -1269,6 +1277,69 @@ botón del bloque **Pago**. Los pasos de abajo ya lo dicen así.
 💬 Notas:
 
 - [ ] **Prueba 16 terminada**
+
+---
+
+## Prueba 25 — Mis pedidos: buscar y poner o quitar filtros ya no tarda (2026-10-14) 🆕
+
+**Para qué es:** tu nota del 2026-10-14: *"hay que revisar los filtros o las búsquedas de los pedidos porque
+tarda mucho para usar un filtro o quitarlo, no sé si lo estás paginando o qué está pasando"*.
+
+**Qué pasaba (medido, no supuesto):** la pantalla sí pagina (pide de 10 en 10), espera 400 ms después de la
+última tecla y descarta respuestas viejas. El problema estaba en el servidor: **cuando hay texto en el
+buscador, cada pedido de la lista revisaba por su cuenta todos sus artículos y los de su grupo**. Con 6 000
+pedidos de prueba, buscar un nombre tardaba **48 segundos**, y como la pantalla vuelve a buscar con **cada**
+filtro que prendes o quitas, cada clic con texto escrito esperaba eso (justo lo que hacíamos en las pruebas 21
+y 22: escribir «Prueba 2x» y luego tocar filtros). Sin texto, los filtros tardaban ~0.1 s con ese volumen.
+Ahora el servidor calcula una sola vez qué pedidos coinciden con el texto: el mismo caso tarda ~0.12 s.
+**Los resultados son los mismos de antes** (se compararon 490 búsquedas contra el código anterior).
+
+**Antes de empezar:** ✅ después de que yo suba el arreglo a QA y el deploy termine (te aviso); `Ctrl + Shift + R`.
+No necesita botón 🧪: usa los pedidos que ya hay en QA (cuantos más haya, más se nota la diferencia). Ten a la
+mano un cronómetro (el del celular): **mide desde que tocas hasta que salen las tarjetas**.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Dónde se ve | Antes | Después |
+|---|---|---|---|---|---|
+| 25.1 | La búsqueda por texto (`GET /v1/pedidos/buscar?buscar=…`) | **Mis pedidos** (administrador): buscador | Segundos que tarda en salir la lista | Segundos o minutos con muchos pedidos | Cerca de 1 segundo o menos |
+| 25.2 | (mismo) con filtros puestos | **⚙️ Filtros** mientras hay texto en el buscador | Cada clic | Cada clic esperaba lo mismo que la búsqueda | Cada clic ~1 segundo o menos |
+| 25.3 | (sin cambio) filtros sin texto | ⚙️ Filtros, **✕ Quitar filtros**, páginas ‹ › | Segundos | Ya eran rápidos | **Lo mismo que antes** |
+| 25.4 | (sin cambio) qué pedidos salen | Todos los de arriba | La lista | — | **Los mismos pedidos, en el mismo orden y con el mismo total que antes** |
+| 25.5 | (sin cambio) pedidos unidos | Buscar por el nombre de un cliente que está **dentro** de un grupo | La tarjeta del titular | El titular sale | **Lo mismo** (sigue saliendo el titular, no el miembro) |
+
+### 25.1 Qué tan rápido responde
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Entra a **Mis pedidos** y mide hasta que salgan las tarjetas | Menos de 2 segundos |
+| 2 | En el buscador escribe **Prueba** (3 letras o más) y espera | Salen las tarjetas en 1 o 2 segundos, no 10 ni 30 |
+| 3 | Con ese texto puesto: **⚙️ Filtros** → toca **🕓 Pendiente**, luego quítalo | Cada clic responde en 1 o 2 segundos; el spinner se quita solo |
+| 4 | Con el texto puesto: toca **💰 Falta pagar**, luego **📦 Apartado**, luego quita los dos | Igual: cada clic en 1 o 2 segundos |
+| 5 | Borra el texto y prende y quita **💳 Ir pagando**, **✅ Pagado** y **❌ Cancelado** | Cada cambio en 1 segundo o menos |
+| 6 | **✕ Quitar filtros** | Vuelve la vista de inicio (con el aviso de pagados y entregados) en 1 o 2 segundos |
+| 7 | Escribe una palabra del nombre de un artículo (por ejemplo **bolsa**) | Sale en 1 o 2 segundos |
+| 8 | Escribe el número de un pedido que conozcas | Sale ese pedido al instante |
+
+Si algún paso tarda **más de 3 segundos**, escribe en 💬 qué hiciste, cuántos pedidos crees que hay y cuánto
+tardó (aproximado). Con eso sé si falta otra mejora.
+
+### 25.2 Que sigan saliendo los mismos pedidos
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | Escribe **Prueba 22** (si ya no tienes la 🧪 22 preparada, tócala) | Salen PE y AP (CA solo con el filtro ❌ Cancelado), igual que cuando hiciste la Prueba 22 |
+| 2 | Escribe **Prueba 21 P1** | Sale solo P1 (el nombre que se escribió en la venta) |
+| 3 | Escribe el nombre de un cliente que esté en un grupo de pedidos unidos (por ejemplo **Prueba 24 K6** si los uniste) | Sale la tarjeta **del titular del grupo**, no la del miembro |
+| 4 | Escribe el **teléfono** o una parte (4 o más números) de un cliente | Salen sus pedidos |
+
+**❌ Está mal si…** algún paso tarda más de 3 segundos con pocos pedidos; el spinner se queda dando vueltas;
+falta un pedido que antes salía (o sale uno que no tiene que ver con lo escrito); un cliente de un grupo ya no
+encuentra a su titular.
+
+💬 Notas:
+
+- [ ] **Prueba 25 terminada**
 
 ---
 

@@ -68,6 +68,16 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-40] 🆕 Mis pedidos: buscar por texto y poner/quitar filtros tardaba muchísimo (2026-10-14) — solo back, el front no cambia
+
+**Qué pasaba:** `GET /v1/pedidos/buscar` con `buscar=…` (nombre, teléfono, correo, artículo) tardaba segundos o minutos según cuántos pedidos hubiera: medido con 6 000 pedidos, **48 segundos** para un nombre. La pantalla vuelve a pedir la lista con cada filtro que se prende o se quita, así que con texto escrito en el buscador **cada clic** esperaba eso. La causa era el SQL del texto (una subconsulta por pedido que reescaneaba sus artículos), no la paginación: el front pide de 10 en 10, espera 400 ms al escribir y descarta respuestas viejas.
+
+**Ahora:** la misma petición, la misma respuesta (mismos pedidos, orden y totales; comprobado contra el SQL anterior en 490 búsquedas), pero el texto se resuelve una vez. Medido con los mismos 6 000 pedidos: nombre **48 102 ms → ~120 ms**, artículo («bolsa», 5 800 coincidencias) ~200 ms; los filtros sin texto no cambian (30–190 ms).
+
+**Para el front:** nada. No cambia el contrato de `/v1/pedidos/buscar` ni de `/v1/pedidos/buscarClientePedido`. Detalle de la regla: `hexagonal/busquedapedido/README.md`, R17.
+
+---
+
 ### [BUG-KEY-39] 🆕 El nombre del cliente: primero el de la venta, luego el de la cuenta de quien la hizo (2026-10-13) — solo back, el front no cambia
 
 **Qué fallaba (antes):** una Venta directa **sin registrar al cliente** guarda en el pedido dos cosas: la **cuenta del administrador** que atendió (`clienteId`, el pedido necesita una) y el **nombre escrito** en "nombre del receptor". Mis pedidos ya enseñaba el nombre escrito (`COALESCE(cliente sin registro, nombre receptor, cuenta)`, desde 2026-09-22), pero estas pantallas tomaban **primero la cuenta** y salía el nombre de quien dio de alta el pedido:
