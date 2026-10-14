@@ -13,8 +13,9 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 | **24** — Unir un Ir pagando que ya tiene dinero (K4 / K6) | ✅ Pasó | 2026-10-13 |
 | **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
 | **21** — La fecha de entrega en Pedidos y en Entregas por zona (y el nombre del cliente de la venta) | ✅ Pasó | 2026-10-13 |
-| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos | 👉 **Sigue**: 20.2 ✅, 20.3 ✅ y 20.4 ✅ (2026-10-14). Falta **20.1** (cliente nuevo): se reescribió con lo que viste en Mis datos (calendario, nombres, teléfono, código postal) — **después de subir** | |
-| **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ⏳ Falta | |
+| **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos | 👉 **Sigue**: 20.2 ✅, 20.3 ✅ y 20.4 ✅ (2026-10-14). **20.1** (cliente nuevo): ✅ los datos personales — calendario, nombres, teléfono, código postal y Guardar (pasos 1 a 13, 2026-10-14). Faltan por confirmar los pasos 14 a 16 (generar el pedido y la otra cuenta) | |
+| **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | 👉 **Sigue**: 16-B, 16-C, 16-D y 16-E ✅ (2026-10-14). Falta **16-A** (el pedido Pendiente en la tarjeta y en los filtros) | |
+| **27** — Códigos postales guardados en nuestra base (necesita `migration_codigo_postal.sql`) | ⏳ Falta (sin subir) | |
 | **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | ✅ Pasó | 2026-10-14 |
 | **26** — Mis pedidos con caché: rápido y sin datos viejos | ✅ Pasó | 2026-10-14 |
 
@@ -1236,7 +1237,11 @@ obligatorios"* sale sin decir cuál; el código postal no dice nada cuando no lo
 **año** del título → elige el año de hoy → elige el mes de hoy → elige el día 1. Debe filtrar igual que antes, y las
 flechas ‹ › siguen moviendo un mes.
 
-- [ ] **20.1 — se repite con los pasos de arriba** (después de subir lo del 2026-10-14).
+- [x] **20.1 — datos personales (pasos 1 a 13)** ✅ 2026-10-14: *"ya quedó lo de los datos personales"*.
+- [ ] **20.1 — pasos 14 a 16** (generar el pedido, volver a ver Mis datos y la otra cuenta): sin confirmar.
+
+💬 *"por qué no vamos guardando [los códigos postales] en nuestra base en una tabla y primero vamos a la base nuestra a buscar y si no está entonces vamos al externo, y además si hay error como pasó ahorita pues se escribe como ahora para no detener porque falle algo"* · *"R1 y R7 me parecen correctos"* · *"tardó un poco en redirigir al carrito"* (2026-10-14)
+↳ Hecho (solo en local, sin subir): dominio `codigopostal` con las reglas R1 a R7 (`hexagonal/codigopostal/README.md`) y la tabla `codigo_postal` (`migration_codigo_postal.sql`). El código sigue respondiendo igual para la pantalla. Se comprueba en la **Prueba 27**. Lo de la tardanza: no pude medirlo; lo más probable es que QA acababa de reiniciarse por el despliegue; si se repite, F12 → Red y el tiempo de la llamada `save`.
 
 💬 *"aquí en mis datos veo varias cosas, la fecha de nacimiento, pero como es fecha las fechas de nacimiento tengo que ir de un mes en un mes hacia atrás, entonces para llegar hasta un 1900 me voy a echar como 10 años, entonces necesito otro calendario de los nuevos para la fecha de nacimiento, creo que ya hay una skill revísala y quiero un calendario perrón; Nombre * pruebas para qa me, me sale esto Campo requerido; paterno y materno también error mismo; número de contacto no tiene validaciones, puedo elegir o poner más de 10 dígitos; código postal hace una simulación de búsqueda pero no se llena municipio automáticamente; dice faltan datos pero todo está lleno… ya no hay errores visibles en el front pero da este error Faltan datos obligatorios — Revisa los campos marcados en rojo antes de guardar."* (2026-10-14)
 ↳ Todo tenía causa, y está corregido:
@@ -1424,6 +1429,17 @@ botón del bloque **Pago**. Los pasos de abajo ya lo dicen así.
 | **C** | 💳 Ir pagando con $50, todavía no se lo lleva · cliente «Prueba 16 C» | |
 | **D** | 🛒 Contado, todavía no se lo lleva · cliente «Prueba 16 D» | |
 
+**Esta prueba son 5 partes chicas (partida el 2026-10-14, a pedido del dueño: *"pones muchas cosas en una sola prueba"*).
+Se hacen en este orden, una a la vez, y cada una se palomea sola:**
+
+| Parte | Qué revisa | Pasos de abajo | Estado |
+|---|---|---|---|
+| **16-A** | El pedido 🕓 Pendiente se ve en la tarjeta y en los filtros | 1, 2 y 3 | ⏳ |
+| **16-B** | Pasar un Pendiente a Apartado o a Ir pagando | 5, 6 y 7 | ✅ 2026-10-14 |
+| **16-C** | Entregas por zona trae los 4 pedidos | 8 | ✅ 2026-10-14 |
+| **16-D** | Los íconos ⓘ y quitarlos con el permiso Ayuda contextual | 4, 9 y 10 | ✅ 2026-10-14 |
+| **16-E** | Datos legales: de dónde sale cada campo | 9b | ✅ 2026-10-14 |
+
 | # | Haz esto | Debes ver |
 |---|---|---|
 | 1 | **Mis pedidos** → escribe **Prueba 16 A** | La card dice arriba **🕓 Pendiente** (contorno punteado) |
@@ -1608,6 +1624,36 @@ Hazlos **con «Prueba 26» escrito** en el buscador. Después de cada uno, **no*
 ↳ ✅ Pasó.
 
 - [x] **Prueba 26 terminada** (2026-10-14)
+
+---
+
+## Prueba 27 — Códigos postales guardados en nuestra base (2026-10-14) 🆕
+
+**Para qué es:** que el municipio de un código postal se busque primero en **nuestra base** y solo si no está se le
+pregunte al servicio de afuera (y se guarde); y que si algo falla, el cliente pueda escribir el municipio y seguir.
+
+**Antes de empezar:** que esté subido (dime «sube») y que se corra **`migration_codigo_postal.sql`** en
+`inventario_key_qa` (te doy el comando exacto cuando lo subamos). `Ctrl + Shift + R`. Usa la cuenta del cliente de la 20.1.
+
+### Mapa de impacto
+
+| # | Se movió | Le pega a | Antes | Después |
+|---|---|---|---|---|
+| 27.1 | `GET /v1/dipomex/getCodigoPostal/{cp}` busca primero en la tabla `codigo_postal` | **Mis datos → Dirección → Código postal** y **ver cliente** (admin) | Cada vez le preguntaba al servicio de afuera | El primero lo consulta y lo guarda; los siguientes salen de nuestra base |
+| 27.2 | (mismo) código que no existe | Los mismos | Aviso «No encontramos ese código postal» | **Lo mismo que antes**, y no queda guardado |
+| 27.3 | (mismo) servicio de afuera caído | Los mismos | Aviso «No pudimos buscar… escribe el municipio tú» | **Lo mismo que antes** (con un código ya guardado ya ni lo necesita) |
+
+| # | Haz esto | Debes ver |
+|---|---|---|
+| 1 | **Mis datos → Dirección 1 → Código postal**: teclea un código que **nunca** hayas usado en QA (5 dígitos reales) | Se llena **Municipio** (y Colonia si hay una sola) |
+| 2 | Cambia el código por **otro**, y luego vuelve a poner el del paso 1 | Se llena igual y **más rápido** (sale de nuestra base) |
+| 3 | Teclea **99999** | Amarillo: «No encontramos ese código postal…». Lo puedes repetir las veces que quieras: no se guarda |
+| 4 | *Opcional, lo reviso yo en el log: puedes saltarlo.* Con el código del paso 1 ya guardado, dime y miro en el log del back que ya no le preguntó al servicio de afuera | Yo te digo qué vi; tú no tienes que hacer nada |
+
+**❌ Está mal si…** el municipio no se llena con un código que sí existe; un código guardado sale distinto de la primera vez
+(colonias o acentos); un código inventado (99999) queda guardado.
+
+- [ ] **Prueba 27 terminada**
 
 ---
 

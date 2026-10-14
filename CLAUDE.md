@@ -638,6 +638,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
 | `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
 | `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ cuando la rama llegue a `dev`/`qa` | ⏳ cuando la rama llegue a `main` | — |
+| `migration_codigo_postal.sql` | ⏳ por correr | ⏳ por correr | 2026-10-14 (probada 2 veces en base desechable) |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
 
@@ -972,7 +973,7 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `ventas` · `detalle_venta` · `detalle_venta_variantes` · `pedidos` · `detalle_pedidos` · `abono_pedido` · `grupo_pedido` (entidad `GrupoPedido`) · `grupo_pedido_miembro` (entidad `GrupoPedidoMiembro`) · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
 
 **Clientes**
-`clientes` · `clientes_sin_registro` · `direcciones`
+`clientes` · `clientes_sin_registro` · `direcciones` · `codigo_postal` (entidad `CodigoPostalGuardado`: códigos postales ya consultados al servicio externo, con municipio, estado y colonias en JSON; dominio `codigopostal`)
 
 **Usuarios, roles y permisos**
 `usuarios` · `usuarios_roles` · `roles` · `permisos` · `usuario_permiso` · `rol_permiso` · `menu` · `submenu` · `usuario_submenu` · `rol_submenu` · `rol_submenu_escritura` · `accion_submenu` · `rol_accion` · `historial_acceso` · `sesion_refresh` · `usuario_modificacion` (entidad `Usuario`) · `preferencia_filtro` (entidad `PreferenciaFiltro`: filtros guardados de cada persona del personal en tienda/buscar y productos/buscar, dominio `preferenciafiltro`)
