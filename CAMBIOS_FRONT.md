@@ -68,6 +68,17 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-46] 🆕 Tienda → Buscar: la etiqueta «Deshabilitado» se encimaba con la ✕ y con «Agotado» (2026-10-14) — solo front, el back no cambia
+
+Pedido del dueño en QA (Prueba 15-B), con captura: *"en su card aparece deshabilitado pero como que se enciman los datos, para que revises y hagas que se vea correcto, uno abajo del otro o primero uno y después el otro"*.
+
+**Antes:** en la card de un artículo deshabilitado, la etiqueta «Deshabilitado» flotaba arriba a la derecha (`position: absolute`) y caía encima de la ✕ de dar de baja y de la etiqueta «Agotado»/«N unidades» del encabezado; además la casilla de selección tapaba el puntito de color.
+**Ahora:** «⛔ Deshabilitado» es una **franja propia debajo del encabezado** (ancho completo, rojo suave, día y noche). El encabezado deja su lugar a la casilla (a la izquierda) y a la ✕ (a la derecha) con padding, así cada cosa queda en su sitio. Mismos permisos y mismos datos: solo cambia el acomodo. Archivos: `variante/buscar/buscar.component.html` y `.scss` (clases `.vb-badge-disabled`, `.vb-card__header--con-check`, `.vb-card__header--con-baja`).
+**Medido en pantalla (día y noche):** casilla, puntito, precio, «Agotado», ✕ y la franja sin ninguna caja encimada.
+**Pendiente de revisar (no se tocó):** en **Catálogo → 🔍 Modelos** (`productos/producto/all`) la etiqueta «Deshabilitado» también es flotante (arriba a la izquierda); no se reportó encimada.
+
+---
+
 ### [BUG-KEY-45] 🆕 Los bots no dicen cómo están hechos, pagos solo efectivo o transferencia, zonas desde la tabla y sin cantidades (2026-10-14) — back y front, el contrato no cambia
 
 Pedido del dueño: *"que no haga o diga cómo está hecho, que no diga nada técnico sobre su desarrollo"*.
