@@ -68,6 +68,35 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-44] 🆕 Mis datos: calendario de nacimiento por año y mes, nombres con espacios, teléfono de 10 dígitos y código postal que sí llena el municipio (2026-10-14) — back y front, el contrato no cambia
+
+Pedido del dueño en QA (Prueba 20.1): *"las fechas de nacimiento tengo que ir de un mes en un mes hacia atrás… necesito otro calendario de los nuevos para la fecha de nacimiento… quiero un calendario perrón; Nombre * pruebas para qa me, me sale esto Campo requerido; paterno y materno también; número de contacto no tiene validaciones, puedo poner más de 10 dígitos; código postal hace una simulación de búsqueda pero no se llena municipio; dice faltan datos pero todo está lleno"*.
+
+**Calendario compartido (`shared/selector-fecha`, ~30 campos de fecha en la app):**
+- **Antes:** solo flechas ‹ › de un mes en un mes. Para llegar a 1985 eran ~500 clics.
+- **Ahora:** en el título del mes, **«octubre ▾»** abre los 12 meses y **«2026 ▾»** abre la lista de años (con scroll, el año activo centrado). Elegir año → meses → día. Con la vista de meses abierta, ‹ › mueven un año. Igual en todos los campos de fecha; lo que guarda (`aaaa-mm-dd`) no cambia.
+- `@Input() modo: 'normal' | 'nacimiento'` (default `normal`). En `nacimiento`: no deja fechas después de hoy (máximo hoy, mínimo 1900-01-01 si no se pasa `min`/`max`), si está vacío **abre directo en los años** (centrado 30 años atrás), no muestra **Hoy**, y arriba trae una caja **"Escríbela"** (`dd/mm/aaaa`, pone las diagonales sola; Enter la confirma). Errores: *"Esa fecha no existe. Revisa el día y el mes."* y *"La fecha de nacimiento no puede ser después de hoy."*. Lo usan **Mis datos**, **ver cliente** (`clientes-mostrar`) y **Ventas → Venta directa** (fecha de nacimiento del cliente nuevo).
+
+**Mis datos (`clietes/mis-datos`):**
+- **Nombres:** antes el patrón era una sola palabra sin espacios y el error decía siempre *"Campo requerido"*, así que *"pruebas para qa me"* salía como si estuviera vacío. Ahora acepta varias palabras con acentos, ü, ñ, apóstrofo, punto y guion (*"María José"*, *"De la Cruz"*, *"O'Neil"*), y si tiene números o símbolos dice *"Solo letras y espacios, por ejemplo «María José» o «De la Cruz»."* (requerido sigue diciendo *"Campo requerido"*). El error sale al escribir, no solo al salir del campo. Al guardar se quitan los espacios de más. Patrón compartido en `clietes/validaciones-cliente.ts` (`PATRON_NOMBRE`).
+- **Número de contacto:** antes dejaba escribir letras y más de 10 dígitos y el error solo salía al salir del campo. Ahora solo deja dígitos y se corta en 10; si lo pegan con espacios, guiones o lada del país, lo limpia (*"+52 55 1234 5678"* y *"521 55 1234 5678"* → `5512345678`; por eso el campo ya no lleva `maxlength`, que lo cortaba antes de limpiarlo). Abajo dice *"Llevas N de 10 dígitos"* hasta completar.
+- **Referencias:** antes era **obligatorio sin marcarse en rojo** (no tenía mensaje): por eso salía *"Faltan datos obligatorios"* con todo lleno. Ahora es opcional y dice *"(opcional)"*. El back nunca lo pidió.
+- **Aviso al guardar:** antes *"Faltan datos obligatorios — Revisa los campos marcados en rojo antes de guardar."*. Ahora dice **cuáles** (*"Revisa estos campos (están en rojo): Calle · Colonia"*; con uno solo, *"Revisa este campo (está en rojo): Calle"*), y al tocar **Entendido** baja al primero. (La pantalla **ver cliente** del admin sigue con el aviso de antes.)
+- **Guardar cambios al primer clic:** antes, con el cursor dentro de un campo vacío, tocar **Guardar cambios** no hacía nada: al salir del campo aparecía su *"Campo requerido"*, la pantalla bajaba ~25 px y el clic caía fuera del botón. Ahora el botón no le quita el foco al campo (`mousedown` sin efecto) y el primer clic siempre guarda o muestra el aviso.
+- **Largo de los campos** (lo preguntó el dueño; no cambió): ni Mis datos ni el back ponen un largo mínimo o máximo a nombres, apellidos, calle o colonia (las entidades `Cliente` y `Direccion` no tienen `length`, así que JPA usa 255). Los avisos rojos nunca fueron por el largo: eran el patrón sin espacios y Referencias.
+- **Código postal:** antes leía `res.codigo_postal.municipio` sin revisar: si el servicio externo fallaba o decía "no existe", solo se veía el spinner y el municipio quedaba vacío. Ahora busca al completar 5 dígitos (o al salir del campo), muestra *"Buscando el municipio…"*, llena **Municipio** y, si hay una sola colonia, también **Colonia**; si hay varias, las sugiere en Colonia (*"Encontramos N colonias: elígela en el campo Colonia."*). Si no existe: *"No encontramos ese código postal. Revisa los 5 dígitos o escribe el municipio tú."*; si el servicio no contesta: *"No pudimos buscar el código postal en este momento. Escribe el municipio tú."*. En **ver cliente** del admin, el mismo texto sale en una ventana informativa.
+
+**Back — `GET /mis-productos/v1/dipomex/getCodigoPostal/{codigoPostal}` (`DopoMexService`):** el JSON de éxito es el mismo (`codigo_postal.municipio`, `.estado`, `.colonias[]`).
+- **Antes:** un código inexistente regresaba 200 con `error: true` o un 500 sin explicación; si el servicio externo no contestaba, la pantalla esperaba sin límite.
+- **Ahora:** espera máximo 8 segundos.
+  - **200** — encontrado, con `codigo_postal.municipio`.
+  - **404** — no son 5 dígitos (*"El código postal debe tener 5 dígitos"*) o no existe (*"No encontramos el código postal 99999"*).
+  - **502** — el servicio externo falló, tardó más de 8 s o rechazó la llave: *"No pudimos buscar el código postal en este momento. Escribe el municipio a mano"*. El log del back dice qué código HTTP contestó el servicio externo (nunca la llave), para saber si hay que renovarla.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, 20.1 (pasos 4 a 13 y mapa de impacto del calendario).
+
+---
+
 ### [BUG-KEY-43] 🆕 Agregar stock al modelo desde el artículo, pregunta al actualizar el modelo y checks por artículo (2026-10-14) — solo front, el back no cambia
 
 Pedido del dueño en QA (Prueba 20.3): *"si estoy en artículo y ya no tiene stock… debería abrir un modal… ahí puedo poner 10 o 100, pero eso no quiere decir que el artículo… se le vayan a poner esos 10 o 100"*; *"al dar guardar [el modelo] me debe salir cuántos artículos quiero hacer"*; *"el primer artículo con los check de que quiero actualizar… la variante se va a hacer igual que lo que tiene el producto… y solo diferente los check que cambie"*.

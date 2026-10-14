@@ -16,6 +16,17 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-14 — Código postal: tiempo límite y errores claros (`DopoMexService`)
+**Dónde:** `DopoMexService.getCodigoPostal()`, `GET /v1/dipomex/getCodigoPostal/{codigoPostal}` (`DopoMexController`)
+**Tipo:** unitario (servicio con `WebClient` apuntando a un servidor simulado, p. ej. MockWebServer) · controller (URL y status)
+**Debe comprobar:**
+- [ ] `"5120"`, `"512000"`, `"abcde"` o null → `ExceptionDataNotFound` «El código postal debe tener 5 dígitos» **sin** llamar al servicio externo
+- [ ] Servicio externo responde `error: true` o sin `codigo_postal.municipio` → `ExceptionDataNotFound` «No encontramos el código postal 99999» → 404
+- [ ] Responde con municipio → regresa el mismo JSON (`codigo_postal.municipio`, `.estado`, `.colonias`) → 200
+- [ ] Responde 401/403/500 → `ExceptionServicioExterno` «No pudimos buscar el código postal en este momento. Escribe el municipio a mano» → 502, y el log dice el código HTTP **sin la llave**
+- [ ] No contesta en 8 s → mismo 502 (con `StepVerifier.withVirtualTime`)
+- [ ] Controller: el `Mono` con error llega al `ExceptionGlobal` con su status (404 / 502), no como 500
+
 ### 2026-10-13 — El nombre del comprador: el de la venta primero (`CompradorDelPedido`)
 **Dónde:** `Utils/CompradorDelPedido` (`nombre`, `nombreDelTitular`, `correo`, `telefono`), `EntregaZonaServiceImpl.nombreDe()` / `correoDe()`, `AbonoServiceImpl.nombreCliente()` / `telefonoCliente()` / `correoCliente()`, `PedidoServiceImpl.getDetallePedido()`, `PedidosDelGrupoJpaAdapter.nombreCliente()`, `RamoPedidoDetalleServiceImpl.nombreContactoDe()`, `IPedidoRepository.candidatosParaUnir` (busca también por `nombre_receptor`), `EscenariosPruebaAdapter.ventaDirectaConNombreEscrito()` (Prueba 21)
 - [ ] `CompradorDelPedido.nombre`: con cliente sin registro → el suyo; sin él y con `nombreReceptor` (con espacios al borde) → el receptor recortado; sin los dos → el de la cuenta; sin nada → null; un nombre en blanco no cuenta
