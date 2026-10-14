@@ -93,7 +93,7 @@ con el formato que ya usa el dueño: **🔴 PRUEBA PENDIENTE**, *Antes de empeza
 **⛔ No puede pasar:** error 401/403/404, lista vacía, spinner que no se quita, …
 ```
 
-Reglas de redacción:
+Reglas de redacción (y cómo se le manda al dueño por chat: skill `dar-el-caso`):
 - **Nombres reales** de menús, pantallas y botones (skill `nombres-reales`), nunca inventados.
 - Cada paso es una acción que se puede hacer con el mouse; nada de "verificar que el endpoint
   responda" sin decir **dónde** se ve (pantalla o Herramientas del navegador → Red, filtrando por
