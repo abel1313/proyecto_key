@@ -68,6 +68,24 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-42] 🆕 🧪 Preparar prueba: rifas, códigos de compra y usuarios de prueba (2026-10-14) — back y front
+
+Pedido del dueño: *"ayúdame con el código para dar de alta todas las pruebas que vamos a hacer, para poder hacerlas tal cual"*.
+
+**Back (`/v1/admin/datos-prueba/...`, solo administrador y solo en la base de QA, como antes):**
+- `GET /escenarios` trae una prueba más: `"19"` (*"Errores con su código: rifa con el plazo vencido y código de compra ya usado"*).
+- `POST /preparar/17` y `/preparar/18` además dan de alta un usuario de prueba (`qa.prueba17`, `qa.prueba18`) con su rol (`ROLE_QA_PRUEBA_17/18`) y solo los permisos que pide la prueba. **La contraseña no viaja en la respuesta**: el administrador le pone una con `PUT /v1/usuarios/{id}/resetear-password` (Sistema → Usuarios → Resetear contraseña).
+- `catalogo[].tipo` puede ser ahora `MODELO`, `ARTICULO`, **`RIFA`**, **`CODIGO`** o **`USUARIO`**. En `CODIGO` y `USUARIO`, `codigoBarras` trae lo que se copia (el código de Agregar mi compra o el nombre de usuario); en `RIFA` viene `null`. `modeloId`/`articuloId` vienen en 0 si no es catálogo.
+- `POST /quitar/{prueba}` y `/quitar-todas`: campo nuevo **`otrosDesactivados`** (rifas y usuarios de prueba desactivados). `queSeQuito` ya lo menciona.
+
+**Front (`admin/cache`, recuadro 🧪):** cada dato dice *"modelo"*, *"artículo de"*, *"rifa"*, *"código de"* o *"usuario"* según `tipo`; el botón de copiar dice *"Copiar el código"* / *"Copiar el usuario"*; el aviso de **Quitar** suma las rifas y usuarios desactivados. `ICatalogoPreparado.tipo` e `IPruebaQuitada.otrosDesactivados` en `admin.service.ts`.
+
+**Antes:** la 17.11 y la 18 pedían *"un usuario de prueba con un rol…"* y la 19 *"abre una rifa activa"* / *"un código ya usado"*: había que armarlos a mano. **Ahora:** salen del 🧪.
+
+Detalle: `hexagonal/datosprueba/README.md`, R23.
+
+---
+
 ### [BUG-KEY-41] 🆕 Mis pedidos: caché de la lista y filtros más rápidos; aviso claro de stock del artículo (2026-10-14) — solo back, el front no cambia
 
 **1. Poner o quitar un filtro en Mis pedidos (`GET /v1/pedidos/buscar`).**

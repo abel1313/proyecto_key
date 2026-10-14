@@ -84,7 +84,10 @@ necesita para las pruebas"*.
 - **Si una prueba sale mal se reinicia (R21):** tocar **🧪 Preparar prueba N** otra vez quita lo de esa prueba
   (pedidos cancelados con el servicio real, modelos dados de baja; nada se borra) y la vuelve a crear. **🗑 Quitar**
   solo quita.
-- Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R21).
+- **También rifas, códigos de compra y usuarios de prueba (R23, 2026-10-14):** si una prueba pide "un usuario con tal rol",
+  el 🧪 crea `qa.prueba{N}` con el rol `ROLE_QA_PRUEBA_{N}` y los permisos exactos; **la contraseña nunca la pone ni
+  la muestra el código**: el documento dice *"Sistema → Usuarios → qa.pruebaN → Resetear contraseña"*.
+- Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R23).
 
 ## Flujo Git — cómo hacer los merges
 
