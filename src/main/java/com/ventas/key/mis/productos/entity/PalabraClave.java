@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.ventas.key.mis.productos.Utils.TextoNormalizado;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,4 +22,10 @@ public class PalabraClave extends BaseId {
 
     @Column(nullable = false, unique = true, length = 100)
     private String nombre;
+
+    @PrePersist
+    @PreUpdate
+    private void normalizarNombre() {
+        this.nombre = TextoNormalizado.mayusculas(this.nombre);
+    }
 }

@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.entity.productoVariantes;
 import com.ventas.key.mis.productos.entity.BaseId;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.entity.Producto;
+import com.ventas.key.mis.productos.Utils.TextoNormalizado;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -120,5 +121,13 @@ public class Variantes  extends BaseId {
         if (this.fechaCreacion == null) {
             this.fechaCreacion = LocalDateTime.now();
         }
+        normalizarTextos();
+    }
+
+    @PreUpdate
+    private void normalizarTextos() {
+        this.talla = TextoNormalizado.mayusculas(this.talla);
+        this.color = TextoNormalizado.mayusculas(this.color);
+        this.marca = TextoNormalizado.mayusculas(this.marca);
     }
 }
