@@ -138,12 +138,14 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
     @Override
     public PaginaDePedidos buscar(FiltroPedidos filtro, LocalDate hoy) {
         MapSqlParameterSource params = new MapSqlParameterSource();
+        // El texto se resuelve UNA vez, como un conjunto de pedidos que coinciden: ver coincidencias().
+        String coinciden = filtro.texto() == null ? null : coincidencias(filtro.texto(), params);
         String desde = """
                 FROM pedidos p
                 LEFT JOIN clientes c               ON c.id   = p.cliente_id
                 LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
                 LEFT JOIN lugares_entrega le       ON le.id  = p.lugar_entrega_id
-                """ + GRUPOS + "\nWHERE " + String.join("\n  AND ", condiciones(filtro, hoy, params));
+                """ + GRUPOS + "\nWHERE " + String.join("\n  AND ", condiciones(filtro, hoy, params, coinciden));
 
         Long total = jdbc.queryForObject("SELECT COUNT(*) " + desde, params, Long.class);
 
@@ -171,7 +173,8 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         };
     }
 
-    private static List<String> condiciones(FiltroPedidos f, LocalDate hoy, MapSqlParameterSource params) {
+    private static List<String> condiciones(FiltroPedidos f, LocalDate hoy, MapSqlParameterSource params,
+                                            String coinciden) {
         List<String> w = new ArrayList<>();
 
         // Mismo criterio que la lista de siempre: un pedido sin articulos no sale.
@@ -190,7 +193,7 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
         }
 
         if (f.texto() != null) {
-            w.add(texto(f.texto(), numero, params));
+            w.add(texto(numero, coinciden));
         }
 
         if (!f.formas().isEmpty()) {
@@ -287,56 +290,94 @@ public class PedidosFiltradosJdbcAdapter implements PedidosFiltradosPort {
                 + " JOIN grupo_pedido gcg ON gcg.id = gc.grupo_id WHERE gcg.activo = 1 AND gcg.pedido_titular_id = p.id))";
     }
 
-    /**
-     * R1. Nombre del cliente (con cuenta o sin registro), nombre de quien recibe, telefono, correo,
-     * y nombre o codigo de barras de cualquiera de sus articulos. Un numero ademas es el numero de
-     * pedido exacto. En un titular tambien busca en los demas pedidos del grupo (R14): si no, el
-     * pedido unido de otro cliente no se encontraba por su nombre (el miembro no sale en la lista).
-     */
-    private static String texto(TextoBuscado t, Integer numero, MapSqlParameterSource params) {
-        params.addValue("like", "%" + escaparLike(t.valor()) + "%");
+    /** R1: lo que dice el buscador, ya resuelto en {@link #coincidencias}. */
+    private static String texto(Integer numero, String coinciden) {
         List<String> o = new ArrayList<>();
         if (numero != null) {
             o.add("p.id = :numero");
         }
-        List<String> persona = datosDePersona(t, "p", "c", "csr");
-        o.addAll(persona);
-        if (!persona.isEmpty()) {
-            o.add("EXISTS (SELECT 1 FROM grupo_pedido gt"
-                    + " JOIN grupo_pedido_miembro gmt ON gmt.grupo_id = gt.id"
-                    + " JOIN pedidos pt ON pt.id = gmt.pedido_id"
-                    + " LEFT JOIN clientes ct ON ct.id = pt.cliente_id"
-                    + " LEFT JOIN clientes_sin_registro csrt ON csrt.id = pt.cliente_sin_registro_id"
-                    + " WHERE gt.activo = 1 AND gt.pedido_titular_id = p.id AND pt.id <> p.id AND ("
-                    + String.join(" OR ", datosDePersona(t, "pt", "ct", "csrt")) + "))");
+        if (coinciden != null) {
+            o.add("p.id IN (" + coinciden + ")");
         }
-        String articulo = "EXISTS (SELECT 1 FROM detalle_pedidos dpt"
-                + " JOIN producto prt ON prt.id = dpt.producto_id"
-                + " LEFT JOIN codigo_barras cbt ON cbt.id = prt.codigo_barras_id"
-                + " WHERE " + deLaCard("dpt.pedido_id") + " AND ";
-        if (t.esNumero()) {
-            if (t.sirveParaTelefono()) {
-                o.add(articulo + "cbt.codigo_barras LIKE :like)");
-            }
-        } else {
-            o.add(articulo + "(prt.nombre LIKE :like OR cbt.codigo_barras LIKE :like))");
-        }
-        return "(" + String.join("\n       OR ", o) + ")";
+        return "(" + String.join(" OR ", o) + ")";
     }
 
-    /** Nombre, telefono y correo de quien hizo el pedido y de quien recibe. */
-    private static List<String> datosDePersona(TextoBuscado t, String pedido, String cliente, String sinRegistro) {
-        List<String> o = new ArrayList<>();
-        if (t.sirveParaTelefono()) {
-            o.add(cliente + ".numero_telefonico LIKE :like");
-            o.add(sinRegistro + ".numero_telefonico LIKE :like");
+    /**
+     * R1. Los pedidos que coinciden con lo escrito, calculados <b>una sola vez</b> como un conjunto
+     * (una subconsulta que no depende del pedido) y no pedido por pedido.
+     *
+     * <p>Antes cada pedido de la lista corria, por su cuenta, una subconsulta que recorria sus articulos
+     * (y los de todo su grupo) con {@code LIKE '%...%'}. Con {@code OR} dentro de la subconsulta MySQL no
+     * podia usar el indice del pedido y reescaneaba la tabla de articulos por cada pedido: con 6 000
+     * pedidos, buscar un nombre tardaba 48 segundos, y la pantalla repite la busqueda con cada filtro
+     * que se prende o se quita (reportado en QA 2026-10-14). Ahora se recorre cada tabla una vez y se
+     * cruza por indice.
+     *
+     * <p>Coincide: el nombre del cliente (con cuenta o sin registro), el de quien recibe, telefono,
+     * correo, y nombre o codigo de barras de cualquiera de sus articulos. Un titular tambien coincide
+     * si coincide <i>cualquiera</i> de los pedidos de su grupo activo (R14): el miembro no sale en la
+     * lista, asi que si no su cliente no se encontraria por su nombre. Un numero ademas es el numero de
+     * pedido exacto (eso lo agrega {@link #texto}).
+     *
+     * <p>Sin {@code WITH} a proposito: produccion todavia no tiene confirmada su version de MySQL
+     * (ESPECIFICACIONES_AMBIENTES.md) y esto tiene que correr igual en 5.7.
+     *
+     * @return el {@code SELECT} con los numeros de pedido que coinciden, o null si este texto no busca en
+     *         nada mas que en el numero de pedido (un numero de 1 o 2 digitos)
+     */
+    private static String coincidencias(TextoBuscado t, MapSqlParameterSource params) {
+        params.addValue("like", "%" + escaparLike(t.valor()) + "%");
+        List<String> base = new ArrayList<>();
+
+        // Quien hizo el pedido y quien recibe: cada tabla se recorre una vez y se cruza con pedidos por su indice.
+        List<String> cliente = datosDePersona(t, "cliente");
+        if (!cliente.isEmpty()) {
+            base.add("SELECT pm.id AS id FROM clientes cm JOIN pedidos pm ON pm.cliente_id = cm.id WHERE "
+                    + String.join(" OR ", cliente));
+        }
+        List<String> sinRegistro = datosDePersona(t, "sinRegistro");
+        if (!sinRegistro.isEmpty()) {
+            base.add("SELECT pm.id AS id FROM clientes_sin_registro csrm JOIN pedidos pm ON pm.cliente_sin_registro_id = csrm.id WHERE "
+                    + String.join(" OR ", sinRegistro));
         }
         if (!t.esNumero()) {
-            o.add(cliente + ".nombre_persona LIKE :like");
-            o.add(sinRegistro + ".nombre_persona LIKE :like");
-            o.add(pedido + ".nombre_receptor LIKE :like");
-            o.add(cliente + ".correo_electronico LIKE :like");
-            o.add(sinRegistro + ".correo_electronico LIKE :like");
+            base.add("SELECT pm.id AS id FROM pedidos pm WHERE pm.nombre_receptor LIKE :like");
+        }
+
+        // Articulos: nombre o codigo de barras. Un numero solo busca en el codigo (y solo si es largo).
+        String articulo = null;
+        if (!t.esNumero()) {
+            articulo = "(prm.nombre LIKE :like OR cbm.codigo_barras LIKE :like)";
+        } else if (t.sirveParaTelefono()) {
+            articulo = "cbm.codigo_barras LIKE :like";
+        }
+        if (articulo != null) {
+            base.add("SELECT dm.pedido_id AS id FROM producto prm"
+                    + " LEFT JOIN codigo_barras cbm ON cbm.id = prm.codigo_barras_id"
+                    + " JOIN detalle_pedidos dm ON dm.producto_id = prm.id WHERE " + articulo);
+        }
+        if (base.isEmpty()) {
+            return null;
+        }
+        // La base va dos veces (los pedidos que coinciden y, por ellos, el titular de su grupo): es barata,
+        // cada rama recorre una tabla una vez y cruza por indice.
+        String lista = "SELECT x.id FROM (" + String.join(" UNION ", base) + ") x";
+        return lista + " UNION SELECT g.pedido_titular_id FROM grupo_pedido g"
+                + " JOIN grupo_pedido_miembro gm ON gm.grupo_id = g.id"
+                + " JOIN (" + String.join(" UNION ", base) + ") y ON y.id = gm.pedido_id"
+                + " WHERE g.activo = 1";
+    }
+
+    /** Telefono, nombre y correo de una persona: {@code cliente} (con cuenta) o {@code sinRegistro}. */
+    private static List<String> datosDePersona(TextoBuscado t, String tabla) {
+        String alias = tabla.equals("cliente") ? "cm" : "csrm";
+        List<String> o = new ArrayList<>();
+        if (t.sirveParaTelefono()) {
+            o.add(alias + ".numero_telefonico LIKE :like");
+        }
+        if (!t.esNumero()) {
+            o.add(alias + ".nombre_persona LIKE :like");
+            o.add(alias + ".correo_electronico LIKE :like");
         }
         return o;
     }
