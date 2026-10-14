@@ -88,10 +88,12 @@ Pedido del dueño en QA (Prueba 20.1): *"las fechas de nacimiento tengo que ir d
 
 **Back — `GET /mis-productos/v1/dipomex/getCodigoPostal/{codigoPostal}` (`DopoMexService`):** el JSON de éxito es el mismo (`codigo_postal.municipio`, `.estado`, `.colonias[]`).
 - **Antes:** un código inexistente regresaba 200 con `error: true` o un 500 sin explicación; si el servicio externo no contestaba, la pantalla esperaba sin límite.
-- **Ahora:** espera máximo 8 segundos.
+- **Ahora:** primero busca en **nuestra base** (tabla `codigo_postal`); solo si el código no está, o tiene más de un año, le pregunta al servicio externo (máximo 8 segundos) y lo guarda para la próxima. Un código que el servicio dice que no existe **no se guarda**, y lo que el cliente escribe a mano tampoco. Si el servicio externo falla pero el código ya estaba guardado, se responde con lo guardado. Reglas R1–R7 en `hexagonal/codigopostal/README.md`. El JSON y los códigos no cambian para el front (la pantalla sigue igual):
   - **200** — encontrado, con `codigo_postal.municipio`.
   - **404** — no son 5 dígitos (*"El código postal debe tener 5 dígitos"*) o no existe (*"No encontramos el código postal 99999"*).
   - **502** — el servicio externo falló, tardó más de 8 s o rechazó la llave: *"No pudimos buscar el código postal en este momento. Escribe el municipio a mano"*. El log del back dice qué código HTTP contestó el servicio externo (nunca la llave), para saber si hay que renovarla.
+
+**Script:** `migration_codigo_postal.sql` crea la tabla (hay que correrla en QA y luego en prod; sin ella todo sigue funcionando como antes, preguntándole al servicio externo cada vez).
 
 Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, 20.1 (pasos 4 a 13 y mapa de impacto del calendario).
 

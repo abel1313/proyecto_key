@@ -16,6 +16,20 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-14 — Códigos postales guardados en nuestra base (dominio `codigopostal`)
+**Dónde:** `BuscarCodigoPostalService`, `CodigoPostalInfo`, `CodigoPostalJpaAdapter`, `CodigoPostalExternoAdapter`, `CodigoPostalController`
+**Tipo:** unitario (servicio con puertos simulados; se probó a mano el 2026-10-14 con 8 casos y se borró) · MySQL (adaptador) · controller (URL y status)
+**Debe comprobar:**
+- [ ] R1: código guardado y vigente → no llama al externo
+- [ ] R2: no está → llama al externo y guarda; la segunda vez no llama
+- [ ] R3: el externo dice que no existe → `NO_EXISTE` (404) y no guarda
+- [ ] R4: el externo falla → `SERVICIO_NO_DISPONIBLE` (502) y no guarda
+- [ ] R7: guardado hace 400 días → se vuelve a consultar y se actualiza; si el externo falla, devuelve el guardado
+- [ ] La tabla falla al leer o guardar → igual responde con el externo
+- [ ] `null`, `5120`, `512000`, `abcde` → `NO_VALIDO` (404) sin llamar a nadie
+- [ ] MySQL: `guardar` dos veces el mismo código → una sola fila; con colonias con acentos y comillas se leen igual; dos hilos a la vez → una fila y ninguna excepción (R6)
+- [ ] Controller: `GET /v1/dipomex/getCodigoPostal/51200` → 200 con `codigo_postal.municipio`, `.estado`, `.colonias`; sin sesión también responde (es pública)
+
 ### 2026-10-14 — Código postal: tiempo límite y errores claros (`DopoMexService`)
 **Dónde:** `DopoMexService.getCodigoPostal()`, `GET /v1/dipomex/getCodigoPostal/{codigoPostal}` (`DopoMexController`)
 **Tipo:** unitario (servicio con `WebClient` apuntando a un servidor simulado, p. ej. MockWebServer) · controller (URL y status)
