@@ -20,14 +20,14 @@
 | — | Mostrar talla, color y marca con `uppercase` en todas las pantallas (28 archivos) | ✅ local |
 | A1 A5 A7 A11 | Buscadores de Tienda, Productos, Venta y Clientes: ya tenían mayúsculas al escribir | ✅ ya estaba |
 | A8 | Completar producto → carga de imágenes: nombre, marca, color, contenido y código ya van en mayúsculas | ✅ ya estaba |
-| A12 | **Todos** los demás buscadores (revisar uno por uno) | ⏳ falta |
+| A12 | Demás buscadores en MAYÚSCULAS (unir pedidos, boletos de rifa, buscador de artículos del detalle de pedido) | ✅ local |
 | B | Productos → Buscar: decidir qué botones son del modelo y cuáles del artículo | ⏳ falta |
 | C | Compartir imagen: la miniatura responde bytes y se pedía como JSON; ahora se pide como imagen | ✅ local · ⏳ probar en QA (si sigue el 400, es del micro de imágenes) |
-| E1 | Rifas: anchos de pantalla a 820px (agregar, boletos, buscar, rifa del mes) | ✅ local · ⏳ falta igualar el tamaño de las cards dentro de las listas |
+| E1 | Rifas: anchos de pantalla a 820px (agregar, boletos, buscar, rifa del mes) | ✅ local · ✅ radio y encabezado de las cards de rifa igualados (local) |
 | E2 | Flores → Configurar: ancho 820px | ✅ local |
 | E3 E4 | Catálogo de menús y submenús / Gestión de roles: pantalla de 1400px y columnas más anchas | ✅ local (sin ver en pantalla) |
 | — | Skills `cards` (nueva), `buscadores` y `diseno-componentes` (ampliadas) | ✅ local |
-| — | Pantalla para generar códigos QR por tipo | ⏳ falta (definir tipos) |
+| — | Pantalla de códigos QR (`/qr`): Tienda, Producto o artículo, Red social, Enlace libre; copiar enlace/imagen, descargar, compartir | ✅ local (vista previa revisada) |
 
 ## A. Texto en MAYÚSCULAS (buscadores y catálogos)
 
@@ -152,3 +152,9 @@ asignarla por rol en Gestión de roles.
 Se borró la pantalla `productos/detalle-productos` (carrito de producto base) y los botones de agregar /
 quitar de `productos/detalle-producto`. ✅ local→subido. Queda como limpieza futura: `CarritoService` y
 `CarritoGuard` (siguen enlazados en el login, la sesión y las rutas; hay que quitarlos con cuidado).
+
+### Marcado como `@deprecated` (2026-10-14) — para decidir más adelante si se elimina
+- `CarritoService` y `CarritoGuard` (carrito de producto base).
+- En `productos/producto/all` y `detalle-producto`: `addCarrito`, `removeCarrito`, `verCarrito`,
+  `cantidadEnCarrito`, `stockAgotadoEnCarrito`, `isProductoEnCarrito`.
+No se borran todavía: siguen enlazados en el login, la sesión, el navbar y varias rutas.
