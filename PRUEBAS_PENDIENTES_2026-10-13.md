@@ -631,7 +631,7 @@ contraseña la primera vez).
 
 ❌ **Está mal si:** sale "No tienes permiso" o la lista se queda vacía con error.
 
-- [ ] 17.1 · [ ] 17.2 · [ ] 17.3 · [ ] 17.4 · [ ] 17.5 · [ ] 17.6 · [ ] 17.7 · [ ] 17.8 · [ ] 17.9 · [ ] 17.10 · [ ] 17.11 — **Prueba 17 terminada**
+- [x] 17.1 · [x] 17.2 · [x] 17.3 · [x] 17.4 · [x] 17.5 · [x] 17.6 · [x] 17.7 · [x] 17.8 · [x] 17.9 · [ ] 17.10 · [ ] 17.11 — **Prueba 17 terminada**
 
 ---
 
