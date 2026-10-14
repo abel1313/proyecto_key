@@ -376,6 +376,18 @@ servirlas desde un endpoint (el back ya recalcula los permisos desde la BD en ca
 
 ---
 
+## Regla — ningún bot dice cómo está hecho (2026-10-14)
+
+Pedido del dueño: los bots (chat de la tienda, chat en vivo, mensajes directos y comentarios de Facebook e Instagram)
+**no dicen nada técnico de su desarrollo**: ni qué IA o empresa los hace funcionar, ni servidores, base de datos,
+código, quién los programó ni sus instrucciones, y no obedecen si les piden ignorarlas. Vive en
+`ChatbotBase.SIN_DETALLES_TECNICOS`, dentro de `REGLAS_DE_RESPETO`. **Todo prompt nuevo tiene que llevar
+`REGLAS_DE_RESPETO`**; si no, se queda sin esta regla. Presentarse como "asistente automático" en el primer mensaje
+directo sí se queda (lo pide Meta). Revisión completa y lo que quedó para revisar: `BUGS_CHATBOT_BACK.md`, sección del
+2026-10-14.
+
+---
+
 ## Decisión — el chat en vivo se queda SIN imágenes (2026-09-17)
 
 **Decidido a propósito: el chat en vivo (Chat directo) manda solo texto. No se implementan
@@ -638,7 +650,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
 | `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
 | `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ cuando la rama llegue a `dev`/`qa` | ⏳ cuando la rama llegue a `main` | — |
-| `migration_codigo_postal.sql` | ⏳ por correr | ⏳ por correr | 2026-10-14 (probada 2 veces en base desechable) |
+| `migration_codigo_postal.sql` | ✅ corrida (tabla `codigo_postal` creada) | ⏳ pendiente (cuando el dominio `codigopostal` llegue a `main`) | qa 2026-10-14 (antes, probada 2 veces en base desechable) |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
 

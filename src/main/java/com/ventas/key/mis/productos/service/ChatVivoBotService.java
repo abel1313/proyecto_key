@@ -62,13 +62,12 @@ public class ChatVivoBotService {
     // 1 min y no contesta"). 25s alcanzan para que el dueño que está en el panel escriba primero.
     private static final Duration ESPERA_MODO_HUMANO = Duration.ofSeconds(25);
 
-    private static final String AVISO_LIMITE =
-            "Voy a pasar tu mensaje con una persona del negocio para que te atienda por aquí mismo. "
-            + "Dame un momento 🙏";
+    // P5 de la revisión de prompts (2026-10-14): mientras sale el correo y el admin se entera, el
+    // cliente solo lee que en un momento lo atienden. Antes decía "Voy a pasar tu mensaje…" y
+    // "Tuve un problema… Ya le avisé a una persona del negocio".
+    private static final String AVISO_LIMITE = "En un momento te atendemos por aquí mismo 💖";
 
-    private static final String AVISO_FALLA =
-            "Tuve un problema para responderte. Ya le avisé a una persona del negocio para que "
-            + "te atienda por aquí mismo 🙏";
+    private static final String AVISO_FALLA = "¡Gracias por tu paciencia! En un momento te atendemos por aquí mismo 💖";
 
     /**
      * Se llama justo después de guardar el mensaje del cliente. No bloquea: programa la respuesta

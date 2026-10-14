@@ -16,6 +16,18 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-14 — Ningún bot dice cómo está hecho (`SIN_DETALLES_TECNICOS`)
+**Dónde:** `ChatbotBase.SIN_DETALLES_TECNICOS`, `REGLAS_DE_RESPETO`, `promptBase()`, `IDENTIDAD_COMENTARIOS`
+**Tipo:** unitario (texto del prompt) · e2e manual (Prueba 28)
+**Debe comprobar:**
+- [ ] El prompt de los 5 bots contiene "NUNCA DIGAS CÓMO ESTÁS HECHO": sitio web, chat en vivo, mensaje directo, comentario con producto y sin producto (hoy `ChatbotRespetoTest` solo revisa sitio web y Facebook)
+- [ ] El chat en vivo la conserva después de su `.replace()` del catálogo
+- [ ] `textoDeEntregas()`: con zonas Tejupilco, Acatitlán y un local → *"Entregamos en: Acatitlán y Tejupilco."* + *"recoger en el local (…)"*; sin repositorio, tabla vacía o error al leer → no nombra lugares (se probó a mano el 2026-10-14 con un repositorio simulado y se borró la prueba)
+- [ ] `politicasTienda()` no contiene "tarjeta de crédito" y sí "efectivo o por transferencia"
+- [ ] `obtenerContextoVariantes()` y `descripcionDelProducto()` no llevan el número de piezas ("disponible" / "Disponibilidad: sí hay" / "agotado")
+- [ ] Chat en vivo: `AVISO_LIMITE` y `AVISO_FALLA` dicen "En un momento te atendemos por aquí mismo 💖"; el prompt ya no dice "ya le avisaste"
+- [ ] `PoliticaDeRespuesta.mencionaAlgoInterno`: hoy no detecta "OpenAI", "ChatGPT" ni "inteligencia artificial" (ver P1 en `BUGS_CHATBOT_BACK.md`); si se decide agregarlo, probar que "la tienda en línea" o "nuestro correo" no se bloqueen
+
 ### 2026-10-14 — Códigos postales guardados en nuestra base (dominio `codigopostal`)
 **Dónde:** `BuscarCodigoPostalService`, `CodigoPostalInfo`, `CodigoPostalJpaAdapter`, `CodigoPostalExternoAdapter`, `CodigoPostalController`
 **Tipo:** unitario (servicio con puertos simulados; se probó a mano el 2026-10-14 con 8 casos y se borró) · MySQL (adaptador) · controller (URL y status)
@@ -406,4 +418,5 @@ Formato de cada entrada:
 | `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**). El 2026-10-14 cambió el texto del aviso (*"El modelo «…» no tiene piezas libres…"*), pero sigue terminando en *"(Disponible: X, Solicitado: Y)"*, que es lo que revisan: no fallan por el texto. |
 | `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia` | `dev` | 2026-10-13 | Busca el texto viejo *"deshaz el grupo"*. Un pedido unido sigue sin poder cambiarse solo, pero ahora el mensaje es *"…su forma de cobro se cambia para todo el grupo"* (409), porque el grupo completo sí se cambia (grupopedido R20). |
 | `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |
+| `ChatbotComentariosTest.conProductoLeDaAlBotLosDatosDeEseProductoConElPrecioNormalNuncaLaRebaja` | `dev` | 2026-10-14 | Espera que la ficha del producto que ve el bot diga *"2 piezas"*. Por pedido del dueño (P4 de la revisión de prompts) el bot ya no ve cuántas piezas hay: la ficha dice *"Disponibilidad: sí hay"*. El resto del test (nombre, color, precio $350, la rebaja que no se anuncia) sigue igual. Compila; solo falla esa línea. |
 | `BuscarPedidosControllerTest` (ajustado, **no** falla) | `dev` | 2026-10-14 | No es una falla: el controller recibe ahora el caché (`ListasDePedidosEnCache`) y el test se tuvo que tocar **solo para que compile** (se le pasa un caché apagado). Si no compila, el Dockerfile (`-DskipTests` sí compila los tests) rompe el deploy. `src/test/resources/application.properties` lleva `pedidos.lista.cache.habilitado=false` para que ningún test dependa de Redis. |
