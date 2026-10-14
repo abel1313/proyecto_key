@@ -107,3 +107,17 @@ oportunista, igual que el renombrado):
 - `ventas/venta-producto/add-venta` (además revisar que solo ofrezca lo que se puede vender, sección 2)
 
 Al arreglar uno, moverlo a "Ya cumplen".
+
+
+---
+
+## Mayúsculas y filtros con buscador (2026-10-14)
+
+- **Todo texto de búsqueda y de catálogo va en MAYÚSCULAS**: al escribir (`appUppercase`), al guardar
+  (el back lo normaliza en la entidad con `TextoNormalizado`) y al mostrar (pipe `uppercase`, así los
+  datos viejos también se ven así sin migrar). Marca, color, talla y palabras clave.
+- **Color nunca lleva números** (`appSoloLetras` junto a `appUppercase`). La marca sí puede llevarlos.
+- **Lugares de entrega**: estilo oración, solo la primera letra en mayúscula (`appPrimeraMayuscula`).
+- **Talla / color / marca como filtro**: no se usa un `<select>` (con muchas opciones se hace enorme).
+  Se usa `<app-filtro-buscable>`: se escribe, la lista se acorta, todo en MAYÚSCULAS. El orden lo da
+  `ordenarOpciones()`: tallas conocidas (XXS … XXXL), luego otras letras A–Z, y al final los números.
