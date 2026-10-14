@@ -14,7 +14,7 @@ El de antes (`PRUEBAS_PENDIENTES_2026-10-07.md`) se queda como historial, con tu
 | **22** — 🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir | ✅ Pasó | 2026-10-13 |
 | **21** — La fecha de entrega en Pedidos y en Entregas por zona (y el nombre del cliente de la venta) | ✅ Pasó | 2026-10-13 |
 | **20** — Cliente que no podía pedir, grupo, modelo agotado y Mis pedidos | 👉 **Sigue**: 20.2 ✅, 20.3 ✅ y 20.4 ✅ (2026-10-14). **20.1** (cliente nuevo): ✅ los datos personales — calendario, nombres, teléfono, código postal y Guardar (pasos 1 a 13, 2026-10-14). Faltan por confirmar los pasos 14 a 16 (generar el pedido y la otra cuenta) | |
-| **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | 👉 **Sigue**: 16-B, 16-C, 16-D y 16-E ✅ (2026-10-14). Falta **16-A** (el pedido Pendiente en la tarjeta y en los filtros) | |
+| **16** — 🕓 Pendiente, cambiarlo a Apartado, Entregas por zona, ⓘ | ✅ Pasó (16-A a 16-E) | 2026-10-14 |
 | **27** — Códigos postales guardados en nuestra base (necesita `migration_codigo_postal.sql`) | ⏳ Falta (sin subir) | |
 | **25** — Mis pedidos: buscar y poner/quitar filtros ya no tarda | ✅ Pasó | 2026-10-14 |
 | **26** — Mis pedidos con caché: rápido y sin datos viejos | ✅ Pasó | 2026-10-14 |
@@ -1434,7 +1434,7 @@ Se hacen en este orden, una a la vez, y cada una se palomea sola:**
 
 | Parte | Qué revisa | Pasos de abajo | Estado |
 |---|---|---|---|
-| **16-A** | El pedido 🕓 Pendiente se ve en la tarjeta y en los filtros | 1, 2 y 3 | ⏳ |
+| **16-A** | El pedido 🕓 Pendiente se ve en la tarjeta y en los filtros | 1, 2 y 3 | ✅ 2026-10-14 |
 | **16-B** | Pasar un Pendiente a Apartado o a Ir pagando | 5, 6 y 7 | ✅ 2026-10-14 |
 | **16-C** | Entregas por zona trae los 4 pedidos | 8 | ✅ 2026-10-14 |
 | **16-D** | Los íconos ⓘ y quitarlos con el permiso Ayuda contextual | 4, 9 y 10 | ✅ 2026-10-14 |
@@ -1459,7 +1459,7 @@ Se hacen en este orden, una a la vez, y cada una se palomea sola:**
 
 💬 Notas:
 
-- [ ] **Prueba 16 terminada**
+- [x] **Prueba 16 terminada** ✅ 2026-10-14
 
 ---
 
