@@ -158,3 +158,12 @@ quitar de `productos/detalle-producto`. ✅ local→subido. Queda como limpieza 
 - En `productos/producto/all` y `detalle-producto`: `addCarrito`, `removeCarrito`, `verCarrito`,
   `cantidadEnCarrito`, `stockAgotadoEnCarrito`, `isProductoEnCarrito`.
 No se borran todavía: siguen enlazados en el login, la sesión, el navbar y varias rutas.
+
+### Imágenes de Tienda → Buscar en blanco y compartir imagen con error 400 (2026-10-14, captura del dueño)
+**Causa:** las tarjetas de Tienda cargaban la miniatura con `HttpClient` (pipe `imagenSrc`), que manda
+`Accept: application/json` y el `Authorization` del usuario; el micro de imágenes contesta **400** a esa
+petición, aunque la misma URL abre bien en el navegador y en Productos → Buscar (que usa `<img>` directo).
+**Arreglo (local, sin subir):** el pipe devuelve la URL de las miniaturas tal cual (carga directa con
+caché del navegador); Compartir imagen la pide con `fetch` sin esas cabeceras; si una imagen no carga se
+muestra 📦 y se esconde el botón "Imagen" de esa tarjeta. Sin probar contra QA desde aquí (no hay salida
+a ese host): hay que verlo en QA.
