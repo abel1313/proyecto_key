@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
 import org.springframework.cache.annotation.CacheEvict;
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
@@ -36,6 +37,7 @@ public class UsuarioVerificacionService {
     private final IClienteRepository clienteRepository;
     private final EmailService emailService;
     private final ClienteServiceImpl clienteService;
+    private final VersionDeListasDePedidos versionDeListas;
 
     @Transactional
     public void enviarCodigoVerificacion(String usernameOEmail) {
@@ -245,6 +247,8 @@ public class UsuarioVerificacionService {
         // campo para nada (encontrado 2026-09-05, hotfix urgente en prod).
         if (usuario.getCliente() != null) {
             clienteRepository.actualizarCorreoElectronico(usuario.getCliente().getId(), usuario.getEmail());
+            // El correo sale en la tarjeta de Mis pedidos y un UPDATE directo no avisa al caché (R18 de busquedapedido)
+            versionDeListas.subirAlConfirmar("correo del cliente " + usuario.getCliente().getId());
         }
     }
 

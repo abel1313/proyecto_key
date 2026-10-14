@@ -163,6 +163,7 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
             case P21 -> prueba21(lineaDeUnArticuloNuevo(escenario), usuarioId);
             case P22 -> prueba22(lineaDeUnArticuloNuevo(escenario), usuarioId);
             case P24 -> prueba24(lineaDeUnArticuloNuevo(escenario), usuarioId);
+            case P26 -> prueba26(lineaDeUnArticuloNuevo(escenario), usuarioId);
         };
         log.info("Prueba {} preparada: pedidos {} catálogo {}", escenario.prueba(), listo.pedidos(), listo.catalogo());
         return listo;
@@ -339,6 +340,26 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
                 pedido(e, "K4", k4, "💳 Ir pagando sin dinero, debe $150"),
                 pedido(e, "K6", k6, "💳 Ir pagando que ya dio $40, debe $110")),
                 "Abre K4 → 🔗 Unir con otros pedidos → escribe \"Prueba 24 K6\". Tiene que salir.");
+    }
+
+    /**
+     * 26 (caché de Mis pedidos, R18 de busquedapedido): un pedido de cada movimiento que tiene que verse al
+     * instante en la lista. IP se abona, PE cambia de forma de cobro, PF se entrega (SQL directo) y AP se cancela.
+     */
+    private EscenarioPreparado prueba26(LineaDePedido linea, int usuarioId) {
+        EscenarioDePrueba e = EscenarioDePrueba.P26;
+        int zona = escenarios.zonaDePrueba();
+        int ip = escenarios.ventaDirecta("FIADO", e.prueba(), "IP", usuarioId, List.of(linea), zona, false);
+        pedidos.abonar(ip, 50.0, usuarioId);
+        int pe = escenarios.pedidoDelCliente(e.prueba(), "PE", List.of(linea), zona);
+        int pf = escenarios.ventaDirecta("NORMAL", e.prueba(), "PF", usuarioId, List.of(linea), zona, false);
+        int ap = escenarios.ventaDirecta("APARTADO", e.prueba(), "AP", usuarioId, List.of(linea), zona, false);
+        return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(
+                pedido(e, "IP", ip, "💳 Ir pagando con $50, debe $100"),
+                pedido(e, "PE", pe, "🕓 Pendiente, $150"),
+                pedido(e, "PF", pf, "✅ Pagado de contado, falta entregar"),
+                pedido(e, "AP", ap, "📦 Apartado que debe $150")),
+                "Abre Mis pedidos y escribe \"Prueba 26\": salen las 4 tarjetas. Sigue la 26.1.");
     }
 
     /** Un modelo de prueba con un solo articulo y stock suficiente para todos los pedidos de la prueba. */

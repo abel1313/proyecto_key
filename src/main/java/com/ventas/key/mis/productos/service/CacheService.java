@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
@@ -15,6 +17,7 @@ import java.util.List;
 public class CacheService {
 
     private final CacheManager cacheManager;
+    private final VersionDeListasDePedidos versionDeListas;
 
     public List<String> evictAll() {
         List<String> limpiadas = new ArrayList<>();
@@ -25,6 +28,8 @@ public class CacheService {
                 limpiadas.add(nombre);
             }
         });
+        // Las listas de Mis pedidos no son una cache de Spring (llevan version, R18 de busquedapedido).
+        versionDeListas.subir("limpiar todas las caches");
         log.info("Caches invalidadas: {}", limpiadas);
         return limpiadas;
     }

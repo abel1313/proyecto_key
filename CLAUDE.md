@@ -886,6 +886,31 @@ el pedido no lleva la cuenta del admin y el fallo no se reproduce.
 
 ---
 
+## Regla — SQL directo que cambia pedidos: avisar al caché de Mis pedidos (2026-10-14)
+
+La lista de Mis pedidos (`GET /v1/pedidos/buscar`) se guarda en Redis con una **versión** que sube con
+cada cambio (R18 de `hexagonal/busquedapedido/README.md`). Los cambios por JPA y las peticiones POST/PUT/
+PATCH/DELETE que salen bien ya suben la versión solos. **Lo que Hibernate no ve es el SQL directo**
+(`JdbcTemplate`, `NamedParameterJdbcTemplate`, y cualquier `@Modifying @Query` — JPQL o nativo: un
+`UPDATE Cliente c SET …` masivo tampoco dispara el listener). El interceptor de peticiones lo cubre solo
+cuando entra por una petición que no sea `/auth/`, `/chatbot/` ni de filtros; un job `@Scheduled`, un
+listener de Rabbit o un webhook no lo cubre nadie.
+
+**Regla:** todo SQL directo que cambie algo que se ve en la tarjeta de Mis pedidos o que usan sus filtros
+(`pedidos`, `detalle_pedidos`, `abono_pedido`, `grupo_pedido`, `grupo_pedido_miembro`, nombre/correo/
+teléfono de `clientes` y `clientes_sin_registro`, `lugares_entrega`, nombre de `producto`) llama
+`VersionDeListasDePedidos.subirAlConfirmar("motivo")` justo después del `UPDATE`/`INSERT`/`DELETE`. Si no,
+la pantalla puede enseñar el saldo o el estado viejo hasta 120 s. Ya lo hacen:
+`PedidosParaEntregarJdbcAdapter` (Entregado), `ClienteServiceImpl.verificarCorreo` y
+`UsuarioVerificacionService` (correo del cliente, que entran por `/auth/`). No hace falta en lo que no sale
+en la tarjeta (el stock de `producto`, códigos de verificación, huérfanos de `clientes_sin_registro`).
+
+El caché se apaga sin tocar código con `pedidos.lista.cache.habilitado=false` (variable de entorno
+`PEDIDOS_LISTA_CACHE_HABILITADO=false` en el deployment). No limpiar "solo la de Ir pagando" ni ninguna
+otra parte: la versión invalida todo junto a propósito (R18).
+
+---
+
 ## Regla — antes de crear un dominio: primero las reglas, después el código
 
 No se modela hasta tener las reglas del dominio escritas y acordadas.

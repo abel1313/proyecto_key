@@ -830,9 +830,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             int stockDisponible = producto.getStock() - stockYaAsignado;
 
             if (stockSolicitado > stockDisponible) {
-                throw new ExceptionStockInsuficiente(
-                        String.format("Stock insuficiente para el producto '%s' (id=%d). Disponible: %d, Solicitado: %d",
-                                producto.getNombre(), productoId, stockDisponible, stockSolicitado));
+                // El stock de un articulo sale del de su modelo. Mensaje en palabras del dueño (QA 2026-10-14:
+                // "Stock insuficiente para el producto ... id=..." no decia que hacer). El final
+                // "Disponible: X, Solicitado: Y" se queda igual: lo revisan las pruebas.
+                throw new ExceptionStockInsuficiente(String.format(
+                        "El modelo «%s» no tiene piezas libres para darle a este artículo: tiene %d libres y le pides %d más. "
+                                + "Primero súmale stock al modelo en Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock». "
+                                + "(Disponible: %d, Solicitado: %d)",
+                        producto.getNombre(), Math.max(stockDisponible, 0), stockSolicitado, stockDisponible, stockSolicitado));
             }
         }
     }

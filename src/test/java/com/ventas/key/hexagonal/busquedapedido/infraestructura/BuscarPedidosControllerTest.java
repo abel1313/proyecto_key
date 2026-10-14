@@ -6,6 +6,8 @@ import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.FormaDeCobro;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.PaginaDePedidos;
 import com.ventas.key.hexagonal.busquedapedido.dominio.modelo.CuandoSeEntrega;
 import com.ventas.key.hexagonal.busquedapedido.dominio.puerto.entrada.BuscarPedidosCasoUso;
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.ListasDePedidosEnCache;
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
 import com.ventas.key.hexagonal.busquedapedido.infraestructura.entrada.rest.BuscarPedidosController;
 import com.ventas.key.hexagonal.busquedapedido.infraestructura.salida.persistencia.TarjetasDePedidoLector;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +42,12 @@ class BuscarPedidosControllerTest {
         TarjetasDePedidoLector tarjetas = mock(TarjetasDePedidoLector.class);
         when(tarjetas.tarjetas(anyList())).thenReturn(List.of());
         when(casoUso.buscar(any())).thenReturn(new PaginaDePedidos(List.of(), 21, 1, 10));
-        mvc = MockMvcBuilders.standaloneSetup(new BuscarPedidosController(casoUso, tarjetas)).build();
+        // Cache apagado (R18): este test revisa la traduccion de parametros, no el cache.
+        ListasDePedidosEnCache sinCache = new ListasDePedidosEnCache(
+                new VersionDeListasDePedidos(mock(org.springframework.beans.factory.ObjectProvider.class), false),
+                mock(org.springframework.beans.factory.ObjectProvider.class), new com.fasterxml.jackson.databind.ObjectMapper(),
+                () -> LocalDate.now(), 120);
+        mvc = MockMvcBuilders.standaloneSetup(new BuscarPedidosController(casoUso, tarjetas, sinCache)).build();
     }
 
     @Test

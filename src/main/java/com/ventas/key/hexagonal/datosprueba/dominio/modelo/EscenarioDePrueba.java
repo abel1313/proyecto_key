@@ -23,7 +23,8 @@ public enum EscenarioDePrueba {
     P20("20", "Pedidos unidos: cambiar la forma de cobro del grupo, y un modelo agotado"),
     P21("21", "La fecha de entrega en Pedidos y en Entregas por zona"),
     P22("22", "🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir"),
-    P24("24", "Unir un Ir pagando que ya tiene dinero");
+    P24("24", "Unir un Ir pagando que ya tiene dinero"),
+    P26("26", "Mis pedidos con caché: rápido y sin datos viejos");
 
     private final String prueba;
     private final String titulo;

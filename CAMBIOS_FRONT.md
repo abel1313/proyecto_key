@@ -68,6 +68,28 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-41] 🆕 Mis pedidos: caché de la lista y filtros más rápidos; aviso claro de stock del artículo (2026-10-14) — solo back, el front no cambia
+
+**1. Poner o quitar un filtro en Mis pedidos (`GET /v1/pedidos/buscar`).**
+
+- **Antes:** después de BUG-KEY-40 el texto ya era rápido, pero cada clic en un filtro volvía a calcular la lista completa (conteo, orden y tarjetas). Además la consulta unía siempre lugares de entrega y clientes y revisaba pedido por pedido si era miembro escondido de un grupo. Regresar a un filtro que ya habías visto lo calculaba otra vez.
+- **Ahora:**
+  - La consulta solo une lo que el filtro usa. Los filtros sin texto quedan ~2× más rápidos (al abrir, con 6 000 pedidos: 123 → 72 ms). Se comprobó en 992 combinaciones de filtros que salen los mismos pedidos, en el mismo orden y con el mismo total.
+  - La respuesta completa se guarda en Redis 120 s, con una **versión** que sube con cualquier cambio de pedidos, abonos, grupos, clientes, lugares o productos. Medido: primera vez ~260 ms, mismo filtro otra vez ~8 ms.
+  - Nunca se ve un dato viejo después de un cambio: la versión sube al confirmar la transacción, y también con cualquier POST/PUT/PATCH/DELETE que responda bien.
+  - Guardar los filtros de la pantalla (`/v1/preferencias-filtro`) no cambia la versión, así que no vacía el caché.
+- **Para el front:** nada. La petición, la respuesta y la paginación (`page`, `size=10`) son las mismas. Si Redis no responde, la lista se calcula como antes, sin error. Detalle: `hexagonal/busquedapedido/README.md`, R18 y R19.
+
+**2. Aviso de stock al darle más stock a un artículo** (`POST /v1/variantes/guardarConImagenes`, desde **Tienda → Buscar → artículo → Actualizar stock** o **Catálogo → 🧩 Agregar producto**).
+
+- **Antes:** 422 con *"Stock insuficiente para el producto 'QA Prueba 20 Agotado' (id=20677). Disponible: 0, Solicitado: 5"*. El mensaje no decía que el stock del artículo sale del stock libre del modelo ni dónde sumárselo.
+- **Ahora:** el mismo 422, con *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres para darle a este artículo: tiene 0 libres y le pides 5 más. Primero súmale stock al modelo en Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock». (Disponible: 0, Solicitado: 5)"*.
+- **Para el front:** nada. Ya muestra el `message` del error tal cual.
+
+**3. 🧪 Preparar prueba 26** (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba): `GET /v1/admin/datos-prueba/escenarios` trae una prueba más (`"26"`, *"Mis pedidos con caché: rápido y sin datos viejos"*). El front pinta los botones de esa lista, así que **no cambia**.
+
+---
+
 ### [BUG-KEY-40] 🆕 Mis pedidos: buscar por texto y poner/quitar filtros tardaba muchísimo (2026-10-14) — solo back, el front no cambia
 
 **Qué pasaba:** `GET /v1/pedidos/buscar` con `buscar=…` (nombre, teléfono, correo, artículo) tardaba segundos o minutos según cuántos pedidos hubiera: medido con 6 000 pedidos, **48 segundos** para un nombre. La pantalla vuelve a pedir la lista con cada filtro que se prende o se quita, así que con texto escrito en el buscador **cada clic** esperaba eso. La causa era el SQL del texto (una subconsulta por pedido que reescaneaba sus artículos), no la paginación: el front pide de 10 en 10, espera 400 ms al escribir y descarta respuestas viejas.
