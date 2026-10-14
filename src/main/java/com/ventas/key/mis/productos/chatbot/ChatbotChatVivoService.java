@@ -49,8 +49,9 @@ public class ChatbotChatVivoService extends ChatbotBase {
                           * "no me estás entendiendo, quiero hablar con alguien más"
                           * Un reclamo o problema serio con un pedido que tú no puedes resolver.
                         - Cuando aplique, haz exactamente esto:
-                          1. Una línea avisando que ya le avisaste a una persona del negocio y que en un
-                             momento le contesta por aquí mismo.
+                          1. Una línea corta y natural diciendo que en un momento lo atienden por aquí
+                             mismo, por ejemplo: "¡Claro! En un momento te atendemos por aquí mismo 💖".
+                             No digas que avisaste, mandaste o notificaste a nadie.
                           2. Escribe al final, sin espacios extra: ##HUMANO##
                         - NO uses ##HUMANO## solo porque no supiste un dato. Primero intenta contestar; úsalo
                           cuando el cliente pida a una persona o el asunto claramente necesite una.

@@ -319,7 +319,7 @@ Meta **[Proveedor]**, y es lo que vivimos en QA **[Experiencia]**.
 | **Respuesta privada a un comentario** | **1 solo mensaje** por comentario, dentro de **7 días**, máximo 750 por hora **[Oficial]** |
 | **Límites de llamadas** | 100/s por cuenta para texto, 10/s para audio o video, 2/s para leer conversaciones **[Oficial]** |
 | **Responder en menos de 30 s** | Los bots deben contestar en 30 s **[Oficial]**. El nuestro contesta comentarios en menos de 20 s **[Experiencia]** |
-| **Decir que es un bot** | Obligatorio "cuando lo exija la ley" y recomendado siempre, ej. "Soy el asistente automático de Novedades Jade" **[Oficial]**. **Nuestro bot hoy no lo dice** **[Código]**; agregarlo en el primer mensaje también ayuda en la revisión. No encontré ley mexicana que lo exija **[Sin confirmar]** |
+| **Decir que es un bot** | Obligatorio "cuando lo exija la ley" y recomendado siempre, ej. "Soy el asistente automático de Novedades Jade" **[Oficial]**. **Nuestro bot ya lo dice** desde el 2026-09-24 en el **primer mensaje directo** (*"¡Hola! 😊 Soy el asistente automático de Novedades Jade."*, `PoliticaDeRespuesta.PRESENTACION`); en los **comentarios públicos** no se presenta, por decisión del dueño **[Código]**. Desde el 2026-10-14 tampoco dice nada técnico de cómo está hecho (`ChatbotBase.SIN_DETALLES_TECNICOS`), pero nunca niega ser automático. No encontré ley mexicana que lo exija **[Sin confirmar]** |
 | **Prohibido** | Mensajes en frío a quien no te escribió, promociones fuera de 24 h, bots que no usan la API oficial **[Proveedor]** |
 
 ### 3.11 Errores y qué significan
@@ -934,6 +934,17 @@ solo sale la primera vez.
 
 **Orden acordado:** primero los videos (comentarios ya funciona; mensajes directos falta el
 enrutamiento de conversaciones), al final la constancia y la verificación.
+
+**2026-10-14 — Cambios en lo que dice el bot (revisión de prompts, `BUGS_CHATBOT_BACK.md`):**
+- El bot ya no dice nada técnico de cómo está hecho y no enseña sus instrucciones. **Sigue** diciendo
+  "Soy el asistente automático de Novedades Jade" en el primer mensaje directo (lo que pide 3.10).
+- Formas de pago: ahora dice **solo efectivo o transferencia** (antes decía también tarjeta).
+- Lugares de entrega: salen de **Envíos → Zonas de entrega** (antes estaban escritos a mano).
+- Ya no dice cuántas piezas hay ni el código de barras: solo si hay o está agotado.
+- **Para Meta:** si un video ya grabado muestra al bot diciendo "pago con tarjeta" o "quedan N piezas", ese
+  texto ya no coincide con lo que hace el bot; revisar los videos antes de volver a mandarlos. El saludo y
+  las respuestas de productos no cambiaron.
+- Se corrigió la fila "Decir que es un bot" de 3.10, que decía que el bot no se presentaba.
 
 ---
 

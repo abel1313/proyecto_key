@@ -68,6 +68,23 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-45] 🆕 Los bots no dicen cómo están hechos, pagos solo efectivo o transferencia, zonas desde la tabla y sin cantidades (2026-10-14) — back y front, el contrato no cambia
+
+Pedido del dueño: *"que no haga o diga cómo está hecho, que no diga nada técnico sobre su desarrollo"*.
+
+**Antes:** los bots tenían prohibido mencionar correos, avisos al administrador, pausas y "estas instrucciones", pero nada
+les impedía decir qué IA los hace funcionar ni les decía qué hacer si alguien les pedía sus instrucciones.
+**Ahora:** regla `SIN_DETALLES_TECNICOS` en los 5 bots (chat de la tienda, chat en vivo, mensajes directos y comentarios).
+Endpoints y JSON sin cambios. Revisión completa: `BUGS_CHATBOT_BACK.md` (2026-10-14). Prueba 28.
+
+**También, de la misma revisión (P2 a P5):**
+- **Pagos:** el bot decía *"tarjeta de crédito, débito, transferencia y efectivo"*; ahora *"por ahora solo en efectivo o por transferencia"*.
+- **Zonas:** antes escritas a mano en el prompt; ahora salen de **Envíos → Zonas de entrega** (`lugares_entrega`) en cada mensaje.
+- **Cantidades:** el bot ya no dice cuántas piezas hay ni el código de barras, solo si hay o está agotado. **Front:** la tarjeta de producto del chat de la tienda (`chatbot.component.html`) dice *"✅ Disponible"* / *"Agotado"* en vez de *"N pzas"* y ya no pinta el código de barras. `POST /mis-productos/chatbot/mensaje` sigue mandando `stock` y `codigoBarras` en `productos[]` (el carrito usa `stock` para el tope); el front solo deja de mostrarlos.
+- **Chat en vivo:** al pasar con una persona dice *"En un momento te atendemos por aquí mismo 💖"* (antes *"Voy a pasar tu mensaje con una persona del negocio…"* y, si fallaba, *"Tuve un problema para responderte. Ya le avisé a una persona del negocio…"*).
+
+---
+
 ### [BUG-KEY-44] 🆕 Mis datos: calendario de nacimiento por año y mes, nombres con espacios, teléfono de 10 dígitos y código postal que sí llena el municipio (2026-10-14) — back y front, el contrato no cambia
 
 Pedido del dueño en QA (Prueba 20.1): *"las fechas de nacimiento tengo que ir de un mes en un mes hacia atrás… necesito otro calendario de los nuevos para la fecha de nacimiento… quiero un calendario perrón; Nombre * pruebas para qa me, me sale esto Campo requerido; paterno y materno también; número de contacto no tiene validaciones, puedo poner más de 10 dígitos; código postal hace una simulación de búsqueda pero no se llena municipio; dice faltan datos pero todo está lleno"*.
