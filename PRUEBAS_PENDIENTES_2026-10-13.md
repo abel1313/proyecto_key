@@ -28,6 +28,9 @@ Las demás (12, 15, 14-QA, 17, 18, 19, 23, 13 y 6) siguen en la tabla de abajo, 
 - **Prueba 12** reescrita: cada cosa dice **en qué menú y en qué pantalla** se revisa.
 - **Prueba 23** (nueva): los colores de noche que reportaste, **las listas que se abrían en blanco**, el chat de día y el botón **📍 Dirección**.
 - **Prueba 24** (nueva): lo de K4 / K5 / K6.
+- **2026-10-14:** el 🧪 también da de alta lo que no es catálogo ni pedidos: la **rifa con el plazo vencido** y los
+  **códigos de Agregar mi compra** de la 19, y los **usuarios de prueba** con su rol (**qa.prueba17** y **qa.prueba18**).
+  A esos usuarios les pones contraseña tú en **Sistema → Usuarios → Resetear contraseña**; nadie más la sabe.
 
 Cada prueba trae:
 - **Para qué es** — en una línea.
@@ -127,7 +130,7 @@ modelos y artículos.)*
 | 2 | Entra con tu usuario **administrador** | Tu nombre abajo en el menú lateral |
 | 3 | Presiona `Ctrl + Shift + R` (recarga forzada) | La página se recarga. Hazlo **cada vez** que yo suba algo |
 | 4 | (Ya se subió, 2026-10-13.) Corre en `inventario_key_qa` el script `migration_accion_editar_entrega_direccion.sql` (está en `src/main/resources/static/`). Al final trae una consulta | La consulta devuelve **1 fila** con *"Dirección (📍 en la tarjeta)"*. No hace falta volver a entrar |
-| 5 | **Sistema → 🗑️ Limpiar caché** → **🧪 Datos de prueba** → **🧪 Preparar todas las pruebas** → **Sí, preparar todas** (ver "🧪 Preparar prueba", abajo). Ya **no** hay que buscar ni anotar Art-A ni Art-200: los da de alta el botón | Un recuadro **✅ Prueba N lista** por cada prueba (11), con sus pedidos, modelos y artículos. Déjala abierta en otra pestaña: de ahí sacas los números y los códigos |
+| 5 | **Sistema → 🗑️ Limpiar caché** → **🧪 Datos de prueba** → **🧪 Preparar todas las pruebas** → **Sí, preparar todas** (ver "🧪 Preparar prueba", abajo). Ya **no** hay que buscar ni anotar Art-A ni Art-200: los da de alta el botón | Un recuadro **✅ Prueba N lista** por cada prueba (12), con sus pedidos, modelos y artículos. Déjala abierta en otra pestaña: de ahí sacas los números y los códigos |
 
 **Para abrir un pedido:** menú **📋 Pedidos → Mis pedidos** → escribe su número en el buscador → en
 su tarjeta toca **👁 Detalle**. (Desde **🧪 Preparar prueba**, el número del pedido ya es un enlace que
@@ -190,6 +193,8 @@ ya viene en cada paso:
 | 20.3 | Actualizar stock (del artículo y del modelo) | `5` en cada uno |
 | 20.3 | Agregar modelo con stock 0 (no debe dejar) | `QA Prueba 20 Modelo sin stock`, marca `Prueba QA`, precio de compra `50`, precio de venta `100`, stock `0`, descripción `Prueba`, **Generar código automático** prendido |
 | 26 | Abono, cambiar forma de cobro, Entregar y Cancelar (lo que se prueba es que la lista lo enseñe al instante) | abono `30` y luego `70`, en efectivo |
+| 19.1 | Participante de rifa (no debe dejar: el plazo ya venció) | nombre `Prueba`, apellido `Diecinueve`, teléfono `5512345678`, palabra clave `QAPRUEBA19` |
+| 19.1 | Agregar mi compra | `codigo-que-no-existe` y el código de **CU** (se copia del recuadro 🧪) |
 | 21.1 | Entregas por zona (fecha de entrega) | fecha, hora y punto de encuentro `Prueba 21 Punto` |
 
 Los 🕓 Pendientes que crea el botón llevan la zona **"Zona Prueba QA"**: así no se cancelan solos a los
@@ -212,9 +217,9 @@ prepara sus datos (con **Preparar todas** ya quedan todos).
 | 1 | **12 — Lo legal** | Datos del negocio, pie de página, Términos, Aviso de privacidad, registro, ticket, bot, Google — con dónde se revisa cada uno | Ya | 12 | 40 min | [ ] |
 | 2 | **15 — Agregar producto, habilitar, Zonas de entrega** | Código y categoría del modelo, stock al habilitar, Zonas de entrega y Entregas por zona | Ya | 15 | 30 min | [ ] |
 | 3 | **14-QA — El hotfix de prod en QA** | Que 🧩 Productos haga en QA lo mismo que en prod | Ya | 14-QA | 10 min | [ ] |
-| 4 | **17 — Filtros de Tienda, Venta directa, buscadores y 🧩 Agregar artículos** | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras | Ya | 17 | 45 min | [ ] |
-| 5 | **18 — Agregar artículo: todos los modelos** | Modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo | Ya | 18 | 30 min | [ ] |
-| 6 | **19 — Errores con su código, 404 y Home** | Avisos de error, 404 de verdad, Home y página 404 | Ya | — | 25 min | [ ] |
+| 4 | **17 — Filtros de Tienda, Venta directa, buscadores y 🧩 Agregar artículos** | Filtros que se combinan, precio mín/máx, stock después de vender, nombres de 3 letras | Ya | 17 (también el usuario **qa.prueba17**) | 45 min | [ ] |
+| 5 | **18 — Agregar artículo: todos los modelos** | Modelos sin stock o deshabilitados, ✅ Habilitar, Guardar en el modelo | Ya | 18 (también el usuario **qa.prueba18**) | 30 min | [ ] |
+| 6 | **19 — Errores con su código, 404 y Home** | Avisos de error, 404 de verdad, Home y página 404 | Ya (el 🧪 19, al subir esta ronda) | 19 (y 18) | 25 min | [ ] |
 | 7 | **23 — Colores de noche, listas desplegables y 📍 Dirección** 🆕 | Ventana de cancelar, submenús de noche, casillas de filtros, **listas que salían en blanco**, chat de día, botón Dirección | Ya | — (23.2: 22) | 20 min | [ ] |
 | 8 | **13 — Fondo de los filtros y seguridad** | Recuadro de Tienda y Modelos (ahora también de noche), Personalización, encabezados de seguridad | Ya | — | 15 min | [ ] |
 | 9 | **24 — Unir un Ir pagando que ya tiene dinero** 🆕 | Lo de K4 / K5 / K6 | Ya | 24 | 5 min | [x] |
@@ -589,9 +594,11 @@ de alta los artículos de un modelo al guardarlo.
 
 ### 17.11 Filtros de Tienda con un rol que no es admin (corregido antes de subir a QA)
 
-**Antes de empezar:** un usuario de prueba con un rol que tenga **Tienda → Buscar** y, en Gestión de
-roles, el filtro **"Con stock"** de Tienda, pero **sin** Catálogo (Modelos, Agregar modelo, Agregar
-artículo). Entra con ese usuario.
+**Antes de empezar:** el mismo **🧪 Preparar prueba 17** da de alta el usuario **qa.prueba17** con el rol
+**ROLE_QA_PRUEBA_17**: solo **Tienda → Buscar** y el filtro **"Con stock"**, sin nada de Catálogo. Su contraseña no
+la sabe nadie: ponle una tú en **Sistema → Usuarios** → busca **qa.prueba17** → **Resetear contraseña** (te
+enseña una contraseña nueva; cópiala). Entra con ese usuario en otra ventana de incógnito (te pide cambiar la
+contraseña la primera vez).
 
 | # | Haz esto | Debes ver |
 |---|---|---|
@@ -621,8 +628,10 @@ hacer**, y que al **agregarle stock** se vaya al modelo y pregunte *"¿Deseas ag
 | **M-0** | Modelo **habilitado** con stock 4, todo repartido en su artículo (**Libre 0**) | 18.1 y 18.3 |
 
 Además:
-- Para el paso con otro rol: `migration_accion_tienda_venta_ver_todos.sql` ✅ ya está corrida en QA (2026-10-08); en
-  **Gestión de roles**, márcale a ese rol **"Ver todos los modelos (sin stock, deshabilitados o dados de baja)"** en 🧩 Agregar producto.
+- Para los pasos con otro rol: el mismo **🧪 Preparar prueba 18** da de alta el usuario **qa.prueba18** con el rol
+  **ROLE_QA_PRUEBA_18**: **🧩 Agregar producto** con **"Ver todos los modelos"** y **sin** "Habilitar" de Modelos
+  (`migration_accion_tienda_venta_ver_todos.sql` ✅ ya está corrida en QA). Ponle contraseña en **Sistema →
+  Usuarios** → **qa.prueba18** → **Resetear contraseña** y entra con él en una ventana de incógnito.
 
 ### Mapa de impacto
 
@@ -641,8 +650,8 @@ Además:
 |---|---|---|
 | 1 | Como **admin**: **Catálogo → 🧩 Agregar producto** → en el buscador escribe 3 letras de **M-OFF** | Sale **M-OFF** con la etiqueta **⛔ Deshabilitado** debajo del nombre (y **Sin stock** / **Sin foto** si aplica) |
 | 2 | Busca **M-0** | Sale sin etiqueta de deshabilitado |
-| 3 | Entra con el **rol con el permiso** y busca **M-OFF** | También sale, con sus etiquetas |
-| 4 | Quítale el permiso al rol en Gestión de roles, vuelve a entrar y busca **M-OFF** | **Ya no sale** (como antes) |
+| 3 | Entra con **qa.prueba18** y busca **M-OFF** | También sale, con sus etiquetas |
+| 4 | En **Gestión de roles**, a **ROLE_QA_PRUEBA_18** quítale **"Ver todos los modelos"**; con **qa.prueba18** sal, vuelve a entrar y busca **M-OFF** | **Ya no sale** (como antes). Para repetir, vuelve a tocar 🧪 18: le regresa el permiso |
 
 ### 18.2 Modelo deshabilitado → Habilitar
 
@@ -653,7 +662,7 @@ Además:
 | 3 | — | **"Modelo habilitado"** con *"Stock del modelo: N. Tiene X artículos con Y piezas. Puedes hacer hasta Z artículos más"* (o *"No le queda stock libre…"*). Se queda hasta **Entendido** |
 | 4 | Mira la pantalla | El aviso rojo ya no está; se ve el recuadro de stock y **💾 Guardar** se prende |
 | 5 | **Catálogo → 🔍 Modelos** → busca **M-OFF** | Ya está habilitado |
-| 6 | Con un rol **sin** el permiso Habilitar de Modelos, elige un modelo deshabilitado | En vez del botón: *"Pídele a alguien con permiso de Habilitar…"* |
+| 6 | Con **qa.prueba18** (no tiene "Habilitar" de Modelos) elige **M-OFF** (si ya lo habilitaste, vuelve a tocar 🧪 18) | En vez del botón: *"Pídele a alguien con permiso de Habilitar…"* |
 
 ### 18.3 Sin stock libre → Guardar en el modelo → artículos de una vez
 
@@ -692,7 +701,16 @@ deshabilitado, el stock agregado se reparte solo a algún artículo, o el recuad
 Home y la página 404 ya no carguen una foto de pantalla completa que tardaba y no dejaba leer el texto.
 
 **Antes de empezar:** ✅ ya está en QA (2026-10-13); haz `Ctrl + Shift + R`. Para ver el código
-de una respuesta: **F12 → Red (Network)**, columna **Estado (Status)**.
+de una respuesta: **F12 → Red (Network)**, columna **Estado (Status)**. Toca **🧪 Preparar prueba 19** (y la **18**,
+que deja **M-0**). Da de alta:
+
+| Clave | Qué es | Para |
+|---|---|---|
+| **RC** | Rifa #N (🧪 Prueba, diaria de hoy) con un premio, cuyo **plazo de registro ya venció**. El recuadro 🧪 dice su número | 19.1 paso 2 |
+| **CU** | Código de **Agregar mi compra** que **ya se usó** (tócalo en el recuadro 🧪 para copiarlo) | 19.1 paso 4 |
+| **CL** | Código que **no** se ha usado. No lo captures: solo es para comparar | — |
+
+La rifa sigue abierta para entrar a ella hasta un día después; si ya pasó más, vuelve a tocar 🧪 19.
 
 ### Mapa de impacto
 
@@ -709,12 +727,12 @@ de una respuesta: **F12 → Red (Network)**, columna **Estado (Status)**.
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Rifas** → abre una rifa activa → agrega un participante que **ya está** en esa rifa | *"Este cliente ya está registrado en esta rifa"* (igual que antes). En Red: **409** |
-| 2 | Agrega un participante en una rifa ya sorteada o cerrada | *"Esta rifa ya fue sorteada o está inactiva"* / *"El plazo de registro cerró…"*. En Red: **409** |
-| 3 | Como cliente: **Agregar mi compra** → escribe un código que no existe | *"No encontramos ese código, revisa que esté bien copiado."* En Red: **404** |
-| 4 | Escribe un código ya usado | *"Este código ya fue usado."* En Red: **409** |
+| 1 | ⚠️ **Sin prueba en pantalla.** El aviso *"Este cliente ya está registrado en esta rifa"* (409) solo sale si se registra **el mismo cliente de pedidos** dos veces, y la pantalla nunca lo manda: **+ Agregar** registra nombre y teléfono sin cliente, y **📅 Importar del mes** se salta a los que ya están (los cuenta como "omitidos"). Se revisó en el código el 2026-10-14 | — |
+| 2 | Pantalla **🎰 Rifas** → **☀️ Diaria**, día de hoy → **Rifa #N** (la de RC, con 🧪 Prueba) → **🎡 Ir a ejecución** → en **Participantes**, **+ Agregar** → nombre **Prueba**, apellido **Diecinueve**, teléfono **5512345678**, en **Palabra clave** elige **QAPRUEBA19** → **Registrar** | *"El plazo de registro cerró el …"* (o *"Esta rifa ya fue sorteada o está inactiva"* si ya pasó un día). En Red: **409**. No se agrega |
+| 3 | **Agregar mi compra** → escribe **codigo-que-no-existe** | *"No encontramos ese código, revisa que esté bien copiado."* En Red: **404** |
+| 4 | Pega el código de **CU** (del recuadro 🧪) | *"Este código ya fue usado."* En Red: **409** |
 | 5 | **Gestión de roles** → intenta quitarle a ROLE_ADMIN "Gestión de roles" | El aviso de siempre (*"No se le puede quitar a ROLE_ADMIN…"*). En Red: **409** |
-| 6 | **Catálogo → 🧩 Agregar producto** → pide más stock del que tiene libre el modelo | *"El modelo «…» no tiene piezas libres para darle a este artículo: tiene N libres y le pides M más…"* (hasta el 2026-10-14 decía *"Stock insuficiente para el producto…"*; las dos están bien). En Red: **422** (antes salía 404) |
+| 6 | **Catálogo → 🧩 Agregar producto** → elige **QA Prueba 18 M-0** (libre 0) → llena un artículo con stock **1** → **💾 Guardar** | *"El modelo «…» no tiene piezas libres para darle a este artículo: tiene N libres y le pides M más…"* (hasta el 2026-10-14 decía *"Stock insuficiente para el producto…"*; las dos están bien). En Red: **422** (antes salía 404) |
 
 ### 19.2 Página que no existe
 

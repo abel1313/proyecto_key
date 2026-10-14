@@ -53,6 +53,26 @@ public final class NombresDePrueba {
         return "QA Prueba " + prueba + " ";
     }
 
+    /** Nombre de una rifa de la prueba ("QA Prueba 19 Rifa cerrada"): va en la descripción de la rifa. */
+    public static String rifa(String prueba, String etiqueta) {
+        return prefijoModelos(prueba) + etiqueta;
+    }
+
+    /** Usuario de prueba con un rol limitado ("qa.prueba17"): con él se entra para probar lo que ve ese rol. */
+    public static String usuario(String prueba) {
+        return "qa.prueba" + slug(prueba).replace("-", "");
+    }
+
+    /** Correo de ese usuario ({@code .invalid}: no le llega a nadie). */
+    public static String correoUsuario(String prueba) {
+        return "usuario.prueba.qa." + slug(prueba) + DOMINIO_CORREO;
+    }
+
+    /** El rol de ese usuario ("ROLE_QA_PRUEBA_17"), con solo los permisos que pide la prueba. */
+    public static String rol(String prueba) {
+        return "ROLE_QA_PRUEBA_" + prueba.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+    }
+
     /** La nota que lleva el pedido (no se muestra en pantalla; sirve para reconocerlo en la base). */
     public static String observacion(String prueba, String clave) {
         return PedidosPruebaPort.MARCA_PEDIDO + " Prueba " + prueba + " · " + clave;

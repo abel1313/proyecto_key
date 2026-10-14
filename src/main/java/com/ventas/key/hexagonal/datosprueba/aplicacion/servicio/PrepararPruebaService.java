@@ -1,10 +1,12 @@
 package com.ventas.key.hexagonal.datosprueba.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.datosprueba.dominio.excepcion.AmbienteNoPermitidoException;
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.AccionDePantalla;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.ArticuloDePrueba;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.ArticuloGuardado;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.CatalogoAleatorio;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.CatalogoPreparado;
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.CompraConCodigo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.DatosDelModelo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.EscenarioDePrueba;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.EscenarioPreparado;
@@ -16,12 +18,15 @@ import com.ventas.key.hexagonal.datosprueba.dominio.modelo.PruebaQuitada;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.entrada.PrepararPruebaCasoUso;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.AmbientePort;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.CatalogoPruebaPort;
+import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.CuentasPruebaPort;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.EscenariosPruebaPort;
 import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.PedidosPruebaPort;
+import com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida.RifasPruebaPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -45,6 +50,11 @@ import java.util.List;
  * para reiniciar la prueba"): preparar una prueba primero quita lo de la vez anterior. Los pedidos se
  * cancelan con el servicio real (el stock regresa) y los modelos y artículos se dan de baja; nada se borra,
  * como en el resto del sistema (hay historial y 13 tablas que apuntan a un artículo).
+ *
+ * <p>R23 (2026-10-14, pedido del dueño: "el código para dar de alta todas las pruebas que vamos a hacer, para
+ * poder hacerlas tal cual"): además de catálogo y pedidos, una prueba puede llevar una rifa de prueba, un código
+ * de "Agregar mi compra" o un usuario de prueba con un rol limitado. Al reiniciar, las rifas y el usuario se
+ * desactivan (nunca se borran).
  */
 @Slf4j
 @Service
@@ -58,6 +68,8 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
     private final CatalogoPruebaPort catalogo;
     private final PedidosPruebaPort pedidos;
     private final EscenariosPruebaPort escenarios;
+    private final RifasPruebaPort rifas;
+    private final CuentasPruebaPort cuentas;
 
     @Override
     public List<EscenarioDePrueba> disponibles() {
@@ -133,6 +145,8 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
      * existen) y da de baja sus modelos. Un pedido que no se puede cancelar no detiene a los demás.
      */
     private PruebaQuitada quitarLoAnterior(EscenarioDePrueba escenario) {
+        // Primero las rifas: al desactivarlas regresa al artículo la pieza apartada del premio, antes de darlo de baja.
+        int otros = rifas.quitarRifasDeLaPrueba(escenario.prueba());
         int cancelados = 0;
         int sinCancelar = 0;
         for (int pedidoId : escenarios.pedidosDeLaPrueba(escenario.prueba())) {
@@ -145,9 +159,10 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
             }
         }
         int modelos = escenarios.darDeBajaCatalogoDeLaPrueba(escenario.prueba());
-        PruebaQuitada quitada = new PruebaQuitada(escenario.prueba(), escenario.titulo(), cancelados, sinCancelar, modelos, null);
-        log.info("Prueba {} quitada: {} pedidos cancelados, {} sin cancelar, {} modelos dados de baja",
-                escenario.prueba(), cancelados, sinCancelar, modelos);
+        otros += cuentas.quitarUsuarioDeLaPrueba(escenario.prueba());
+        PruebaQuitada quitada = new PruebaQuitada(escenario.prueba(), escenario.titulo(), cancelados, sinCancelar, modelos, otros, null);
+        log.info("Prueba {} quitada: {} pedidos cancelados, {} sin cancelar, {} modelos dados de baja, {} rifas o usuarios desactivados",
+                escenario.prueba(), cancelados, sinCancelar, modelos, otros);
         return quitada;
     }
 
@@ -159,6 +174,7 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
             case P16 -> prueba16(lineaDeUnArticuloNuevo(escenario), usuarioId);
             case P17 -> prueba17();
             case P18 -> prueba18();
+            case P19 -> prueba19(usuarioId);
             case P20 -> prueba20(lineaDeUnArticuloNuevo(escenario));
             case P21 -> prueba21(lineaDeUnArticuloNuevo(escenario), usuarioId);
             case P22 -> prueba22(lineaDeUnArticuloNuevo(escenario), usuarioId);
@@ -237,8 +253,11 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
                 dato("Filtros", CatalogoPreparado.MODELO, filtros.get(0), "Tallas CH, M y G habilitadas con 5; XL deshabilitada (borde rojo) con 5"),
                 dato("Art-A", CatalogoPreparado.ARTICULO, artA, "Artículo de $100 con stock 10"),
                 dato("Descuento", CatalogoPreparado.ARTICULO, descuento, "Artículo de $130 que se vende al descuento: la tarjeta dice $100"),
-                dato("Stock-1", CatalogoPreparado.ARTICULO, stock1, "Artículo con stock 1, para Venta directa (17.3)")),
-                "17.1: Tienda → escribe \"QA Prueba 17 Filtros\". 17.2: precio $100 → salen Art-A y Descuento. 17.3: Venta directa → \"Stock-1\".", null);
+                dato("Stock-1", CatalogoPreparado.ARTICULO, stock1, "Artículo con stock 1, para Venta directa (17.3)"),
+                usuarioDePrueba(e, List.of("tienda/buscar"), List.of(new AccionDePantalla("tienda/buscar", "filtro-con-stock")),
+                        "Rol con Tienda → Buscar y el filtro \"Con stock\", sin nada de Catálogo (17.11)")),
+                "17.1: Tienda → escribe \"QA Prueba 17 Filtros\". 17.2: precio $100 → salen Art-A y Descuento. 17.3: Venta directa → \"Stock-1\". "
+                        + "17.11: Sistema → Usuarios → \"qa.prueba17\" → Resetear contraseña y entra con ese usuario.", null);
     }
 
     /** 18: M-OFF (modelo deshabilitado) y M-0 (habilitado, todo su stock repartido: libre 0). */
@@ -249,8 +268,47 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
         ArticuloGuardado cero = modeloNuevo(e, "M-0", 0, 150.0, List.of(new ArticuloDePrueba("M", "Negro", 4))).get(0);
         return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(), List.of(
                 dato("M-OFF", CatalogoPreparado.MODELO, off, "Modelo deshabilitado (su artículo sigue habilitado)"),
-                dato("M-0", CatalogoPreparado.MODELO, cero, "Modelo habilitado con stock 4, todo repartido en su artículo: libre 0")),
-                "Catálogo → 🧩 Agregar producto → escribe \"QA Prueba 18 M-OFF\" y \"QA Prueba 18 M-0\". Sigue la 18.1.", null);
+                dato("M-0", CatalogoPreparado.MODELO, cero, "Modelo habilitado con stock 4, todo repartido en su artículo: libre 0"),
+                usuarioDePrueba(e, List.of("tienda/venta"), List.of(new AccionDePantalla("tienda/venta", "ver-todos-los-modelos")),
+                        "Rol con 🧩 Agregar producto y \"Ver todos los modelos\", sin \"Habilitar\" de Modelos (18.1 paso 3 y 18.2 paso 6)")),
+                "Catálogo → 🧩 Agregar producto → escribe \"QA Prueba 18 M-OFF\" y \"QA Prueba 18 M-0\". Sigue la 18.1. "
+                        + "Para los pasos con otro rol: Sistema → Usuarios → \"qa.prueba18\" → Resetear contraseña.", null);
+    }
+
+    /**
+     * 19 (errores con su código): una rifa con el plazo de registro vencido (agregar un participante → 409 "El
+     * plazo de registro cerró…"), un código de "Agregar mi compra" que ya se usó (→ 409 "Este código ya fue usado")
+     * y uno que no se ha usado (para ver que el aviso de "usado" no sale con cualquiera). El modelo M-0 de la 18
+     * sirve para el paso de stock.
+     */
+    private EscenarioPreparado prueba19(int usuarioId) {
+        EscenarioDePrueba e = EscenarioDePrueba.P19;
+        ArticuloGuardado premio = modeloNuevo(e, "Premio", 0, 150.0, List.of(new ArticuloDePrueba("M", "Negro", 3))).get(0);
+        String nombreRifa = NombresDePrueba.rifa(e.prueba(), "Rifa cerrada");
+        int rifa = rifas.rifaConPremio(nombreRifa, premio.id(), "QAPRUEBA19", LocalDateTime.now().minusMinutes(5));
+        LineaDePedido linea = lineaDeUnArticuloNuevo(e);
+        CompraConCodigo usado = escenarios.compraConCodigo(e.prueba(), "CU", usuarioId, List.of(linea), true);
+        CompraConCodigo libre = escenarios.compraConCodigo(e.prueba(), "CL", usuarioId, List.of(linea), false);
+        return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(
+                pedido(e, "CU", usado.pedidoId(), "🛒 Venta de contado cuyo código de Agregar mi compra ya se usó"),
+                pedido(e, "CL", libre.pedidoId(), "🛒 Venta de contado cuyo código todavía no se usa")),
+                List.of(
+                        CatalogoPreparado.otro("RC", CatalogoPreparado.RIFA, nombreRifa, null,
+                                "Rifa #" + rifa + " (🧪 Prueba, diaria de hoy) con premio y palabra clave QAPRUEBA19; su plazo de registro ya venció"),
+                        CatalogoPreparado.otro("CU", CatalogoPreparado.CODIGO, "Agregar mi compra", usado.codigo(),
+                                "Código que ya se usó (19.1 paso 4)"),
+                        CatalogoPreparado.otro("CL", CatalogoPreparado.CODIGO, "Agregar mi compra", libre.codigo(),
+                                "Código sin usar: no lo captures, solo es para comparar")),
+                "19.1 paso 2: pantalla 🎰 Rifas → ☀️ Diaria, día de hoy → Rifa #" + rifa + " → 🎡 Ir a ejecución → "
+                        + "Participantes → + Agregar. 19.1 paso 4: Agregar mi compra → pega el código de CU.", null);
+    }
+
+    /** R23: el usuario "qa.prueba{N}" con un rol que solo tiene esas pantallas y acciones. */
+    private CatalogoPreparado usuarioDePrueba(EscenarioDePrueba e, List<String> pantallas, List<AccionDePantalla> acciones,
+                                              String queEs) {
+        String usuario = cuentas.usuarioConRol(e.prueba(), pantallas, acciones);
+        return CatalogoPreparado.otro("Usuario", CatalogoPreparado.USUARIO, usuario, usuario,
+                queEs + ". Para entrar: Sistema → Usuarios → \"" + usuario + "\" → Resetear contraseña");
     }
 
     /**

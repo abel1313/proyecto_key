@@ -63,6 +63,20 @@ Formato de cada entrada:
 - [ ] Servicio: con cobro llama a `abonar` del grupo después de cambiar todos; si el dominio rechaza no llama a `FormaDeCobroPort` ni a la bitácora
 - [ ] `PUT /v1/pedidos/{id}/tipo` de un pedido unido → 409; `PUT /v1/grupos-pedido/{id}/tipo` sin la acción `cambiar-tipo` → 403, con ella → 200; grupo inexistente → 404
 
+### 2026-10-14 — 🧪 rifas, códigos de compra y usuarios de prueba (datosprueba R23)
+**Dónde:** `PrepararPruebaService.prueba19()` / `usuarioDePrueba()` / `quitarLoAnterior()`, `RifasPruebaAdapter`, `CuentasPruebaAdapter`, `EscenariosPruebaAdapter.compraConCodigo()`
+**Tipo:** integración con MySQL (como `TmpPrep19Test`, que se corrió a mano el 2026-10-14 contra `pk_preparar`: 0 fallas)
+**Debe comprobar:**
+- [ ] 19: una sola rifa activa "QA Prueba 19 Rifa cerrada", es de prueba, diaria, con premio QAPRUEBA19 y plazo vencido; el premio apartó 1 pieza
+- [ ] 19: registrar un concursante en esa rifa → `ExceptionOperacionNoPermitida` "El plazo de registro cerró…"
+- [ ] 19: el código de CU ya está usado (`reclamado_en`) y `reclamarVenta(CU)` → "Este código ya fue utilizado"; CL sin usar; un código inventado → `ExceptionDataNotFound` "Código inválido"
+- [ ] Preparar 19 dos veces: la segunda desactiva la rifa de antes y regresa su pieza apartada (`otrosDesactivados` = 1)
+- [ ] 17 y 18: `qa.prueba17`/`qa.prueba18` activos con `ROLE_QA_PRUEBA_17/18`, con **exactamente** sus pantallas y acciones (no se duplican al reiniciar)
+- [ ] El usuario entra con la contraseña que se le ponga y no con otra; quitar la prueba lo desactiva y ya no entra
+- [ ] La respuesta de preparar nunca trae una contraseña
+- [ ] Preparar todas / Quitar todas sin errores; ningún usuario de prueba ni rifa de prueba activa después de Quitar todas
+- [ ] Si falta la acción en la base (migración sin correr), el 🧪 responde con *"No existe la acción … (¿falta correr su migración?)"*
+
 ### 2026-10-14 — Caché versionado de la lista de Mis pedidos (busquedapedido R18)
 **Dónde:** `busquedapedido/infraestructura/cache/*` (`VersionDeListasDePedidos`, `ListasDePedidosEnCache`, `CambiosDePedidosListener`, `EscriturasWebInterceptor`), `BuscarPedidosController`
 **Tipo:** integración con MySQL + Redis (`@SpringBootTest` con `pedidos.lista.cache.habilitado=true`; en `src/test/resources/application.properties` está apagado)

@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.datosprueba.dominio.puerto.salida;
 
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.CompraConCodigo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.DatosDelModelo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.LineaDePedido;
 
@@ -43,6 +44,13 @@ public interface EscenariosPruebaPort {
      */
     int ventaDirectaConNombreEscrito(String tipoPedido, String prueba, String clave, int usuarioId,
                                      List<LineaDePedido> lineas, Integer lugarEntregaId, boolean seLoLlevo);
+
+    /**
+     * Una venta de contado (ya entregada) a un cliente sin registro "Prueba {prueba} {clave}" que sí tiene correo
+     * (.invalid, no le llega a nadie): la venta genera el código de "Agregar mi compra". Con {@code yaUsado}, la
+     * venta se le asigna a un cliente con cuenta como lo hace el administrador, y el código queda usado.
+     */
+    CompraConCodigo compraConCodigo(String prueba, String clave, int usuarioId, List<LineaDePedido> lineas, boolean yaUsado);
 
     /** Lo cancela como el boton ✖ Cancelar con el motivo "El cliente aviso" (devuelve el stock). */
     void cancelar(int pedidoId);

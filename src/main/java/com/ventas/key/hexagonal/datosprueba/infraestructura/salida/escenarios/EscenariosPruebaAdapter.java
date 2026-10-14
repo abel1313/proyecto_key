@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.datosprueba.infraestructura.salida.escenarios;
 
+import com.ventas.key.hexagonal.datosprueba.dominio.modelo.CompraConCodigo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.DatosDelModelo;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.LineaDePedido;
 import com.ventas.key.hexagonal.datosprueba.dominio.modelo.ModeloDePrueba;
@@ -29,6 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * [Hexagonal: Driven Adapter] [Clean: Frameworks & Drivers]
@@ -224,6 +226,47 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
             throw new IllegalStateException("No hay forma de pago 'Efectivo' en pagos_y_meses: no se puede crear una venta de contado");
         }
         return ids.get(0);
+    }
+
+    /**
+     * La venta directa de contado a un cliente sin registro con correo genera el código de "Agregar mi compra"
+     * ({@code VentaServiceImpl.saveVentaDetalle}). "Ya usado" es lo que deja el administrador al asignarle la venta
+     * a un cliente ({@code asignarClienteManual}): la venta queda reclamada.
+     */
+    @Override
+    public CompraConCodigo compraConCodigo(String prueba, String clave, int usuarioId, List<LineaDePedido> lineas,
+                                           boolean yaUsado) {
+        VentaDirectaRequest req = ventaBase("NORMAL", prueba, clave, usuarioId, lineas, null, true);
+        req.setClienteSinRegistroId(clienteSinRegistroConCorreo(prueba, clave));
+        int pedidoId = guardarVenta(req, true);
+        Map<String, Object> venta = jdbc.queryForMap(
+                "SELECT id, codigo_reclamo FROM ventas WHERE pedido_id = ? ORDER BY id DESC LIMIT 1", pedidoId);
+        String codigo = (String) venta.get("codigo_reclamo");
+        if (codigo == null) {
+            throw new IllegalStateException("La venta del pedido " + pedidoId + " no generó el código de Agregar mi compra");
+        }
+        if (yaUsado) {
+            try {
+                ventas.asignarClienteManual(((Number) venta.get("id")).intValue(), clienteConCuenta(prueba, clave));
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+        }
+        return new CompraConCodigo(pedidoId, codigo);
+    }
+
+    /** El cliente sin registro "Prueba 19 CU" con un correo .invalid: sin correo, la venta no genera código. */
+    private int clienteSinRegistroConCorreo(String prueba, String clave) {
+        int id = clienteSinRegistro(prueba, clave);
+        clientesSinRegistro.findById(id).ifPresent(c -> {
+            if (c.getCorreoElectronico() == null || c.getCorreoElectronico().isBlank()) {
+                c.setCorreoElectronico(NombresDePrueba.correo(prueba, clave));
+                clientesSinRegistro.save(c);
+            }
+        });
+        return id;
     }
 
     @Override

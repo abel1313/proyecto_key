@@ -36,8 +36,8 @@ estados, abonos, venta. Un `INSERT` a mano en pedidos se salta reglas y prueba a
 haría. El dueño no corre nada en la base, y un botón se puede tocar las veces que haga falta.
 
 Reglas del dominio: `hexagonal/datosprueba/README.md` — R1 (solo QA), R2 (solo admin), R16 (pedidos),
-R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas), **R20 (nombre exacto de la prueba en la venta)** y
-**R21 (reiniciar: quitar lo de antes y volver a crear)**.
+R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas), **R20 (nombre exacto de la prueba en la venta)**,
+**R21 (reiniciar: quitar lo de antes y volver a crear)** y **R23 (rifas, códigos de compra y usuarios de prueba)**.
 
 ---
 
@@ -50,6 +50,8 @@ R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas), **R20 (nombre e
 | Qué crea cada una | `aplicacion/servicio/PrepararPruebaService.java` (un método `pruebaNN`) |
 | Lo que el dominio necesita de afuera | `dominio/puerto/salida/EscenariosPruebaPort.java` (pedidos: zona, cliente con cuenta, carrito, venta directa, cancelar; catálogo: stock del modelo, habilitar modelo, artículo viejo deshabilitado con stock, precio del artículo, limpiar caché), `CatalogoPruebaPort` (dar de alta modelos con artículos y foto) y `PedidosPruebaPort` (clientes sin cuenta, abonar) |
 | Cómo se hace | `infraestructura/salida/escenarios/EscenariosPruebaAdapter.java` |
+| Rifas de prueba (R23) | `dominio/puerto/salida/RifasPruebaPort.java` → `infraestructura/salida/rifas/RifasPruebaAdapter.java` (rifa con premio y plazo; quitar = desactivar y regresar la pieza apartada) |
+| Usuario con rol limitado (R23) | `dominio/puerto/salida/CuentasPruebaPort.java` → `infraestructura/salida/cuentas/CuentasPruebaAdapter.java` (rol `ROLE_QA_PRUEBA_{N}` con permisos exactos + usuario `qa.prueba{N}`; quitar = desactivar) |
 | Endpoints | `GET /v1/admin/datos-prueba/escenarios` (en `lista`), `POST …/preparar/{prueba}` (201, reinicia), `POST …/preparar-todas` (201, en `lista`), `POST …/quitar/{prueba}` y `POST …/quitar-todas` (200) |
 | Botones | front `admin/cache` (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba → "Preparar una prueba"). Salen solos de la lista del back: **el front no se toca** para agregar una prueba |
 
@@ -85,6 +87,17 @@ R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas), **R20 (nombre e
    - **Zona:** `escenarios.zonaDePrueba()`. **Clientes:** ya no se piden: los crea `pedidoDelCliente` /
      `ventaDirecta` con el nombre de la prueba y la clave (R20).
 
+   **Lo que no es catálogo ni pedidos (R23)**
+   - **Rifa:** `rifas.rifaConPremio(NombresDePrueba.rifa(e.prueba(), "Rifa cerrada"), articulo.id(), "PALABRA", plazo)`.
+     El premio sale de un modelo de la misma prueba (`modeloNuevo`). Un plazo vencido deja la rifa activa un día
+     (luego `desactivarVencidas` la apaga). La tarjeta de Rifas dice "Rifa #N", no el nombre: dar el número.
+   - **Código de Agregar mi compra:** `escenarios.compraConCodigo(e.prueba(), "CU", usuarioId, lineas, yaUsado)`.
+   - **Usuario con rol:** `cuentas.usuarioConRol(e.prueba(), List.of("ruta/pantalla"), List.of(new AccionDePantalla("ruta", "clave")))`.
+     **Nunca** se pone ni se muestra una contraseña: el documento dice *"Sistema → Usuarios → qa.pruebaN → Resetear
+     contraseña"*. Las rutas y claves tienen que existir en la base (si falta su migración, el 🧪 lo dice).
+   - Reportarlos con `CatalogoPreparado.otro(clave, RIFA | CODIGO | USUARIO, nombre, loQueSeCopia, queEs)`.
+   - Quitar ya lo hace `quitarLoAnterior` para todas las pruebas: no hay que agregar nada.
+
    Regresar `new EscenarioPreparado(prueba, titulo, pedidos, catalogo, siguientePaso, null)` con el
    **siguiente paso** en una línea, con nombres reales de pantalla (skill `nombres-reales`).
 4. **Si hace falta algo nuevo:** método en `EscenariosPruebaPort` + adaptador.
@@ -109,6 +122,11 @@ R17 (cliente con cuenta), R18 (catálogo), R19 (Preparar todas), **R20 (nombre e
    - `CAMBIOS_FRONT.md` solo si cambia el contrato.
 
 ## 3. Cosas que ya se aprendieron
+
+- **Antes de prometer un aviso de error en un paso, comprobar que la pantalla lo puede provocar** (2026-10-14): la
+  19.1 decía *"agrega un participante que ya está → 'Este cliente ya está registrado'"*, pero ese aviso solo sale con
+  el cliente de pedidos (`clientePedidoId`), que la pantalla nunca manda. Un paso así se marca **⚠️ sin prueba en
+  pantalla** con el motivo (skill `pruebas-de-impacto` §5), no se deja para que el dueño lo busque.
 
 - **Una clave suelta (K4, P1, T1…) no existe en ninguna pantalla**: la nota `[DATOS DE PRUEBA]` del pedido no se
   muestra en ningún lado. Por eso (R20) la clave va en el **nombre del cliente** ("Prueba 24 K4"), que sí se ve en
