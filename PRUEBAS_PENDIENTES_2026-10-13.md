@@ -382,10 +382,10 @@ Para la 12.6 y la 12.7: **🧪 Preparar prueba 12** (o ya lo hiciste con **Prepa
 
 | Parte | Qué revisa | Pasos de abajo | Estado |
 |---|---|---|---|
-| **15-A** | Agregar producto: código de barras en el buscador y categoría del modelo | 1, 2, 2b, 2c y 2d | ⏳ |
-| **15-B** | Habilitar un artículo viejo: se queda con lo libre del modelo | 3, 4 y 5 | ⏳ |
-| **15-C** | Zonas de entrega: interruptor, solo un local, sin día fijo, explicación y diseño | 6, 6b, 6c, 6d, 6e, 6f y 7 | ⏳ |
-| **15-D** | Entregas por zona: la fecha del viaje sale vacía | 6g | ⏳ |
+| **15-A** | Agregar producto: código de barras en el buscador y categoría del modelo | 1, 2, 2b, 2c y 2d | ✅ 2026-10-14 |
+| **15-B** | Habilitar un artículo viejo: se queda con lo libre del modelo | 3, 4 y 5 | ✅ 2026-10-14 (paso 5: «la prueba en sí ya pasó») |
+| **15-C** | Zonas de entrega: interruptor, solo un local, sin día fijo, explicación y diseño | 6, 6b, 6c, 6d, 6e, 6f y 7 | ✅ 2026-10-14 |
+| **15-D** | Entregas por zona: la fecha del viaje sale vacía | 6g ✅ | ✅ 2026-10-14 |
 
 **Antes de empezar:** **🧪 Preparar prueba 15** (o ya lo hiciste con **Preparar todas**). Da de alta:
 
@@ -416,22 +416,22 @@ Ya no hace falta la consulta en la base para encontrar un artículo viejo deshab
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | **Catálogo → Agregar producto** → busca "bolsa" | Cada resultado con su código: "BOLSA · 750…" |
-| 2 | Elige uno | Arriba sale "BOLSA · 750…" y los datos del modelo ya llenos (color, marca, descripción…) y "Repartido / Libre" |
-| 2b | Elige un modelo que **tenga categoría**: **M5** (búscalo como *QA Prueba 15 M5*) | La casilla **Categoría** ya dice la del modelo. Cámbiala por otra y guarda: el artículo queda con la que escogiste |
+| 1 ✅ | **Catálogo → Agregar producto** → busca "bolsa" | Cada resultado con su código: "BOLSA · 750…" (✅ 2026-10-14) |
+| 2 ✅ | Elige uno | Arriba sale "BOLSA · 750…" y los datos del modelo ya llenos (color, marca, descripción…) y "Repartido / Libre" |
+| 2b ✅ (hasta ver la categoría puesta) | Elige un modelo que **tenga categoría**: **M5** (búscalo como *QA Prueba 15 M5*) | La casilla **Categoría** ya dice la del modelo. Cámbiala por otra y guarda: el artículo queda con la que escogiste |
 | 2c | Elige **M5**, quítalo con ✕ y elige **M10** (otra categoría) | La Categoría cambia a la del segundo. Si la habías cambiado a mano, se queda la tuya |
 | 2d | Modelo **sin** categoría | La casilla queda vacía, como antes |
-| 3 | **M5-baja** (en M5 la talla CH tiene 4 y el modelo 5: le queda 1 libre) → **Tienda → Buscar** → busca *QA Prueba 15 M5* → filtro **No habilitadas** → marca la talla M → **🔓 Habilitar seleccionadas** | Mensaje *"…Se ajustó el stock… de 3 a 1"*; el artículo queda con 1. Con el **🔓 Habilitar** de la card también queda en 1 (ese botón no muestra el detalle) |
-| 4 | Mismo caso con **M10-baja** (modelo en 10, le quedan 6 libres) | Se habilita con sus 3, sin ajuste |
-| 5 | Deshabilita un artículo con stock 2 y vuelve a habilitarlo | Queda en 0 (igual que antes: al deshabilitar su stock vuelve al libre) |
-| 6 | **Envíos → Zonas de entrega** → nuevo lugar **Prueba 15 Zona** | "🏬 Recoger en tienda" es un interruptor; prenderlo y guardar marca la fila con "🏬 recoger en tienda" |
-| 6b | **Envíos → Zonas de entrega** | Arriba el recuadro "ℹ️ Para qué sirve esta pantalla…", abierto; se cierra y abre con clic. Se lee bien de día y de noche. El "?" dice lo mismo en corto |
-| 6c | **Envíos → Zonas de entrega** → nuevo lugar **Prueba 15 Estanco** → prende **🏬 Recoger en tienda** | Se esconden Envío, Horas extra y Día de entrega; sale la nota "Esta fila es tu local…". Al **➕ Agregar**: si ya tienes la fila del local, error *"\"(tu local)\" ya es la fila de recoger en tienda. Solo puede haber una…"* y no se guarda |
-| 6d | ✏️ en la fila del local que ya existe → **💾 Actualizar** | Se guarda. Si tenía envío u horas extra, ya no los muestra en la lista |
-| 6e | ✏️ en una zona normal (Tejupilco) | Se ven Envío, Horas extra y, si tiene centro, los anillos, igual que antes |
-| 6f | ✏️ en Tejupilco | **Ya no sale** el select "Sin día fijo / Lunes…": se quitó. Al **💾 Actualizar** se borra el día viejo que tuviera |
+| 3 ✅ | **M5-baja** (en M5 la talla CH tiene 4 y el modelo 5: le queda 1 libre) → **Tienda → Buscar** → busca *QA Prueba 15 M5* → filtro **No habilitadas** → marca la talla M → **🔓 Habilitar seleccionadas** | Mensaje *"…Se ajustó el stock… de 3 a 1"*; el artículo queda con 1. Con el **🔓 Habilitar** de la card también queda en 1 (ese botón no muestra el detalle) |
+| 4 ✅ | Mismo caso con **M10-baja** (modelo en 10, le quedan 6 libres) | Se habilita con sus 3, sin ajuste |
+| 5 ✅ | Deshabilita un artículo con stock 2 y vuelve a habilitarlo | Queda en 0 (igual que antes: al deshabilitar su stock vuelve al libre) |
+| 6 ✅ (interruptor; en QA ya había un local, así que prenderlo en una fila nueva se rechazó: es lo de 6c) | **Envíos → Zonas de entrega** → nuevo lugar **Prueba 15 Zona** | "🏬 Recoger en tienda" es un interruptor; prenderlo y guardar marca la fila con "🏬 recoger en tienda" |
+| 6b  ✅ | **Envíos → Zonas de entrega** | Arriba el recuadro "ℹ️ Para qué sirve esta pantalla…", abierto; se cierra y abre con clic. Se lee bien de día y de noche. El "?" dice lo mismo en corto |
+| 6c  ✅ | **Envíos → Zonas de entrega** → nuevo lugar **Prueba 15 Estanco** → prende **🏬 Recoger en tienda** | Se esconden Envío, Horas extra y Día de entrega; sale la nota "Esta fila es tu local…". Al **➕ Agregar**: si ya tienes la fila del local, error *"\"(tu local)\" ya es la fila de recoger en tienda. Solo puede haber una…"* y no se guarda |
+| 6d  ✅ | ✏️ en la fila del local que ya existe → **💾 Actualizar** | Se guarda. Si tenía envío u horas extra, ya no los muestra en la lista |
+| 6e  ✅ | ✏️ en una zona normal (Tejupilco) | Se ven Envío, Horas extra y, si tiene centro, los anillos, igual que antes |
+| 6f  ✅ | ✏️ en Tejupilco | **Ya no sale** el select "Sin día fijo / Lunes…": se quitó. Al **💾 Actualizar** se borra el día viejo que tuviera |
 | 6g | **Envíos → Entregas por zona** → elige Tejupilco | Salen **todos** los de Tejupilco que faltan por entregar (ver Prueba 16). La **Fecha** del viaje sale **vacía**: la escoges tú (ya no se prellena con el día fijo) |
-| 7 | **Envíos → Zonas de entrega** y **Envíos → Entregas por zona**, de día, de noche y en el celular | Todo dentro de un recuadro con borde y sombra; en el celular sin moverse de lado |
+| 7 ✅ | **Envíos → Zonas de entrega** y **Envíos → Entregas por zona**, de día, de noche y en el celular | Todo dentro de un recuadro con borde y sombra; en el celular sin moverse de lado |
 
 **Para el paso 3:** hoy, al deshabilitar un artículo su stock queda en 0, así que solo los viejos
 tienen stock estando deshabilitados. Por eso el botón 🧪 los crea así (M5-baja y M10-baja). Si ya
@@ -439,7 +439,7 @@ habilitaste los dos y quieres repetir, vuelve a tocar **🧪 Preparar prueba 15*
 
 💬 Notas:
 
-- [ ] **Prueba 15 terminada**
+- [x] **Prueba 15 terminada** ✅ 2026-10-14 (15-A a 15-D)
 
 ---
 
@@ -487,6 +487,10 @@ de alta los artículos de un modelo al guardarlo.
 | **Art-A** | Artículo de **$100** con stock 10 | 17.2 |
 | **Descuento** | Artículo de $130 que se vende al **descuento de $100** (la tarjeta dice $100) | 17.2 |
 | **Stock-1** | Artículo con **stock 1** | 17.3 (después de venderlo queda en 0: para repetir, vuelve a tocar el botón) |
+
+**Esta prueba son varias partes chicas (partida el 2026-10-14). Se hacen una a la vez, en este orden, y cada una se palomea sola:**
+**17.1** filtros que se combinan · **17.2** precio mín/máx · **17.3** Venta directa se actualiza al vender · **17.4 en adelante** las
+demás secciones de abajo, en el orden en que aparecen.
 
 ### Mapa de impacto
 
