@@ -41,20 +41,14 @@ public class RifaControllerImpl extends AbstractController<
     public ResponseEntity<ResponseGeneric<Rifa>> registrar(
             @Validated @RequestBody Rifa rifa,
             BindingResult result,
-            @RequestParam(defaultValue = "false") boolean forzar) {
+            @RequestParam(defaultValue = "false") boolean forzar) throws Exception {
         if (result.hasErrors()) {
             String errores = result.getAllErrors().stream()
                     .map(DefaultMessageSourceResolvable::getDefaultMessage)
                     .collect(Collectors.joining(", "));
             return ResponseEntity.badRequest().body(new ResponseGeneric<>(null, errores));
         }
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(iRifaService.registrar(rifa, forzar)));
-        } catch (Exception e) {
-            log.error("Error al registrar concursante: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(iRifaService.registrar(rifa, forzar)));
     }
 
     @GetMapping("/listConcursantes/{configurarRifaId}")

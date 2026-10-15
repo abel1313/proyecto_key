@@ -14,6 +14,7 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PromocionDelPedido
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CatalogoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.MovimientoStockPort;
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PagoTrasEdicionPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PedidoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PromocionDePedidoPort;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     private final CatalogoArticuloPort catalogo;
     private final MovimientoStockPort stock;
     private final PromocionDePedidoPort promociones;
+    private final PagoTrasEdicionPort pagos;
 
     // ─────────────────────────── Agregar ───────────────────────────
 
@@ -75,8 +77,8 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
      */
     private void sumarOCrearLinea(PedidoEditable pedido, ArticuloDisponible articulo,
                                   int cantidad, double precio) {
-        Optional<ArticuloDePedido> existente = pedido.lineaNormalDe(articulo.varianteId());
-        if (existente.isPresent() && Math.abs(existente.get().precioUnitario() - precio) <= 0.01) {
+        Optional<ArticuloDePedido> existente = pedido.lineaDondeSumar(articulo.varianteId(), precio);
+        if (existente.isPresent()) {
             ArticuloDePedido linea = existente.get();
             pedidos.cambiarCantidad(linea.detalleId(), linea.cantidad() + cantidad);
         } else {
@@ -99,16 +101,42 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
                             + "no hace falta cambiar el articulo");
         }
 
-        int cantidad = peticion.cantidadElegida(linea.cantidad());
-        validarCantidad(cantidad);
+        int cantidad = linea.piezasACambiar(peticion.cantidad());
         ArticuloDisponible nuevo = articuloVendible(peticion.varianteId());
 
+        if (linea.esCambioParcial(cantidad)) {
+            return cambiarParteDeLaLinea(pedido, linea, nuevo, cantidad, peticion.precioUnitario());
+        }
         return linea.esDePromocion()
                 ? cambiarLineaDePromocion(pedido, linea, nuevo, cantidad, peticion)
                 : cambiarLineaNormal(pedido, linea, nuevo, cantidad, peticion.precioUnitario());
     }
 
-    /** Una linea sin promocion se cambia y ya: precio de catalogo y listo. */
+    /**
+     * Solo algunas piezas de la linea (R10): la linea vieja se queda con las demas y el articulo
+     * nuevo entra aparte, como si se agregara. Solo regresa al stock lo que sale.
+     */
+    private PedidoEditable cambiarParteDeLaLinea(PedidoEditable pedido, ArticuloDePedido linea,
+                                                 ArticuloDisponible nuevo, int piezas, Double precioPedido) {
+        double precio = precioValidado(nuevo, precioPedido);
+        exigirStock(nuevo, piezas);
+
+        stock.devolver(linea.varianteId(), piezas);
+        pedidos.cambiarCantidad(linea.detalleId(), linea.cantidad() - piezas);
+        stock.descontar(nuevo.varianteId(), piezas);
+        sumarOCrearLinea(pedido, nuevo, piezas, precio);
+
+        log.info("Pedido {}: {} de {} pieza(s) de la linea {} pasaron del articulo {} al {}",
+                pedido.pedidoId(), piezas, linea.cantidad(), linea.detalleId(),
+                linea.varianteId(), nuevo.varianteId());
+        return recalcular(pedido.pedidoId());
+    }
+
+    /**
+     * Una linea sin promocion se cambia completa, a precio de catalogo. Si el articulo nuevo ya
+     * estaba en el pedido al mismo precio, se suma a esa linea y la vieja sale (R6): convertirla
+     * dejaba dos lineas de lo mismo.
+     */
     private PedidoEditable cambiarLineaNormal(PedidoEditable pedido, ArticuloDePedido linea,
                                               ArticuloDisponible nuevo, int cantidad, Double precioPedido) {
         double precio = precioValidado(nuevo, precioPedido);
@@ -116,8 +144,14 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
 
         stock.devolver(linea.varianteId(), linea.cantidad());
         stock.descontar(nuevo.varianteId(), cantidad);
-        pedidos.cambiarArticulo(linea.detalleId(), nuevo.varianteId(), precio);
-        pedidos.cambiarCantidad(linea.detalleId(), cantidad);
+        Optional<ArticuloDePedido> yaEsta = pedido.lineaDondeSumar(nuevo.varianteId(), precio);
+        if (yaEsta.isPresent()) {
+            pedidos.cambiarCantidad(yaEsta.get().detalleId(), yaEsta.get().cantidad() + cantidad);
+            pedidos.borrarLineas(List.of(linea));
+        } else {
+            pedidos.cambiarArticulo(linea.detalleId(), nuevo.varianteId(), precio);
+            pedidos.cambiarCantidad(linea.detalleId(), cantidad);
+        }
 
         log.info("Pedido {}: la linea {} paso del articulo {} al {}",
                 pedido.pedidoId(), linea.detalleId(), linea.varianteId(), nuevo.varianteId());
@@ -173,8 +207,8 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
         exigirStock(nuevo, cantidad);
 
         devolverYBorrar(combo);
-        pedidos.agregarLinea(pedido.pedidoId(), nuevo.varianteId(), cantidad, precio);
         stock.descontar(nuevo.varianteId(), cantidad);
+        sumarOCrearLinea(pedido, nuevo, cantidad, precio);
 
         log.info("Pedido {}: se quito la promocion completa ({} lineas) y entro el articulo {}",
                 pedido.pedidoId(), combo.size(), nuevo.varianteId());
@@ -271,7 +305,8 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     }
 
     /**
-     * Relee el pedido y guarda el total desde cero (R7).
+     * Relee el pedido, guarda el total desde cero (R7) y deja su estado como corresponde a sus
+     * abonos (R9).
      *
      * <p>Se relee a proposito en vez de ajustar el objeto en memoria: despues de mover lineas y
      * stock, la copia vieja ya no describe el pedido, y ajustar el total con sumas y restas
@@ -281,6 +316,8 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
         PedidoEditable actualizado = pedidos.buscarPedido(pedidoId)
                 .orElseThrow(() -> new ArticuloNoEncontradoException("Pedido no encontrado: " + pedidoId));
         pedidos.guardarTotal(pedidoId, actualizado.total());
-        return actualizado;
+        pagos.ajustarTrasEditar(pedidoId);
+        // Se relee: el ajuste de R9 puede haber cambiado el estado (PAGADO <-> Apartado).
+        return pedidos.buscarPedido(pedidoId).orElse(actualizado);
     }
 }

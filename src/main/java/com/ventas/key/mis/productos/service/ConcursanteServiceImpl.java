@@ -1,5 +1,9 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.entity.Concursante;
 import com.ventas.key.mis.productos.entity.ConfigurarRifa;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
@@ -75,22 +79,22 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public Concursante registrar(Concursante concursante, boolean forzar) throws Exception {
         if (concursante.getConfigurarRifa() == null || concursante.getConfigurarRifa().getId() == null) {
-            throw new Exception("Debe indicar la configuración de rifa");
+            throw new ExceptionErrorInesperado("Debe indicar la configuración de rifa");
         }
         ConfigurarRifa config = iConfigurarRifaRepository.findById(concursante.getConfigurarRifa().getId())
-                .orElseThrow(() -> new Exception("Configuración de rifa no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de rifa no encontrada"));
 
         if (!Boolean.TRUE.equals(config.getActiva())) {
-            throw new Exception("Esta rifa ya fue sorteada o está inactiva");
+            throw new ExceptionOperacionNoPermitida("Esta rifa ya fue sorteada o está inactiva");
         }
         if (!forzar && LocalDateTime.now().isAfter(config.getFechaHoraLimite())) {
-            throw new Exception("El plazo de registro cerró el " + config.getFechaHoraLimite());
+            throw new ExceptionOperacionNoPermitida("El plazo de registro cerró el " + config.getFechaHoraLimite());
         }
 
         if (concursante.getClientePedidoId() != null
                 && iConcursanteRepository.existsByConfigurarRifaIdAndClientePedidoId(
                         config.getId(), concursante.getClientePedidoId())) {
-            throw new Exception("Este cliente ya está registrado en esta rifa");
+            throw new ExceptionDuplicado("Este cliente ya está registrado en esta rifa");
         }
 
         if (concursante.getClientePedidoId() != null
@@ -119,7 +123,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public Concursante descartar(Integer concursanteId) throws Exception {
         Concursante concursante = iConcursanteRepository.findById(concursanteId)
-                .orElseThrow(() -> new Exception("Concursante no encontrado"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Concursante no encontrado"));
         concursante.setDescartado(true);
         return iConcursanteRepository.save(concursante);
     }
@@ -144,10 +148,10 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     public ImportarDePedidosResponseDto importarDePedidos(ImportarDePedidosRequest req) throws Exception {
         ConfigurarRifa config = iConfigurarRifaRepository.findById(req.getConfigurarRifaId())
-                .orElseThrow(() -> new Exception("Configuración de rifa no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de rifa no encontrada"));
 
         if (!Boolean.TRUE.equals(config.getActiva())) {
-            throw new Exception("Esta rifa no está activa");
+            throw new ExceptionOperacionNoPermitida("Esta rifa no está activa");
         }
 
         Set<Integer> yaRegistrados = iConcursanteRepository.findByConfigurarRifaId(req.getConfigurarRifaId())
@@ -206,10 +210,10 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
 
     public void eliminar(Integer concursanteId) throws Exception {
         Concursante concursante = iConcursanteRepository.findById(concursanteId)
-                .orElseThrow(() -> new Exception("Concursante no encontrado"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Concursante no encontrado"));
 
         if (iGanadorRifaRepository.existsByConcursanteId(concursanteId)) {
-            throw new Exception("No se puede eliminar: el concursante ya participó en un sorteo");
+            throw new ExceptionOperacionNoPermitida("No se puede eliminar: el concursante ya participó en un sorteo");
         }
 
         iConcursanteRepository.delete(concursante);
@@ -217,7 +221,7 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
 
     public Concursante editar(Integer concursanteId, ConcursanteEditarRequest req) throws Exception {
         Concursante concursante = iConcursanteRepository.findById(concursanteId)
-                .orElseThrow(() -> new Exception("Concursante no encontrado"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Concursante no encontrado"));
 
         if (req.getNombre() != null) concursante.setNombre(req.getNombre());
         if (req.getApellidoPaterno() != null) concursante.setApellidoPaterno(req.getApellidoPaterno());
@@ -231,15 +235,15 @@ public class ConcursanteServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     public List<Concursante> copiarDeRifa(CopiarConcursantesRequest req) throws Exception {
         ConfigurarRifa destino = iConfigurarRifaRepository.findById(req.getRifaDestinoId())
-                .orElseThrow(() -> new Exception("Rifa destino no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Rifa destino no encontrada"));
 
         if (!Boolean.TRUE.equals(destino.getActiva())) {
-            throw new Exception("La rifa destino no está activa");
+            throw new ExceptionOperacionNoPermitida("La rifa destino no está activa");
         }
 
         List<Concursante> origen = iConcursanteRepository.findByConfigurarRifaId(req.getRifaOrigenId());
         if (origen.isEmpty()) {
-            throw new Exception("La rifa origen no tiene concursantes");
+            throw new ExceptionOperacionNoPermitida("La rifa origen no tiene concursantes");
         }
 
         // IDs ya registrados en destino para evitar duplicados

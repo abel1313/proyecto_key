@@ -33,22 +33,13 @@ public class EntregaZonaController {
             @PathVariable Integer lugarEntregaId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(service.listarPendientes(lugarEntregaId, desde, hasta)));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((EntregaZonaSemanaResponse) null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(service.listarPendientes(lugarEntregaId, desde, hasta)));
     }
 
     @PostMapping("/{lugarEntregaId}/programar")
     public ResponseEntity<ResponseGeneric<Integer>> programar(@PathVariable Integer lugarEntregaId,
                                                                 @RequestBody ProgramarEntregaZonaRequest request) {
-        try {
-            int enviados = service.programarEntrega(lugarEntregaId, request);
-            return ResponseEntity.ok(new ResponseGeneric<>(enviados, "Se avisó a " + enviados + " cliente(s)"));
-        } catch (Exception e) {
-            log.warn("Error al programar entrega de zona {}: {}", lugarEntregaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((Integer) null, e.getMessage()));
-        }
+        int enviados = service.programarEntrega(lugarEntregaId, request);
+        return ResponseEntity.ok(new ResponseGeneric<>(enviados, "Se avisó a " + enviados + " cliente(s)"));
     }
 }

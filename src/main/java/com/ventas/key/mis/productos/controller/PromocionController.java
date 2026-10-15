@@ -33,34 +33,19 @@ public class PromocionController {
 
     @PostMapping
     public ResponseEntity<ResponseGeneric<PromocionResponseDto>> crear(@RequestBody PromocionRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(promocionService.crear(request)));
-        } catch (Exception e) {
-            log.error("Error al crear promocion: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(promocionService.crear(request)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ResponseGeneric<PromocionResponseDto>> editar(
             @PathVariable Integer id, @RequestBody PromocionRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(promocionService.editar(id, request)));
-        } catch (Exception e) {
-            log.error("Error al editar promocion {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(promocionService.editar(id, request)));
     }
 
     @PutMapping("/{id}/activo")
     public ResponseEntity<ResponseGeneric<PromocionResponseDto>> cambiarActivo(
             @PathVariable Integer id, @RequestBody PromocionActivoRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(promocionService.cambiarActivo(id, Boolean.TRUE.equals(request.getActivo()))));
-        } catch (Exception e) {
-            log.error("Error al cambiar estado de promocion {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(promocionService.cambiarActivo(id, Boolean.TRUE.equals(request.getActivo()))));
     }
 
     @GetMapping("/admin")
@@ -101,15 +86,10 @@ public class PromocionController {
     // inmediato -- no espera a que termine de mandarle el correo a todos los clientes elegibles.
     @PostMapping("/{id}/enviar-correo")
     public ResponseEntity<ResponseGeneric<String>> enviarCorreo(@PathVariable Integer id) {
-        try {
-            promocionService.validarPromocionVigenteParaCorreo(id);
-            long elegibles = promocionService.contarElegiblesParaCorreoPromocion();
-            promocionService.enviarCorreoPromocionAsync(id);
-            return ResponseEntity.ok(new ResponseGeneric<>(
-                    "Envío iniciado a " + elegibles + " cliente(s), en tandas de 10"));
-        } catch (Exception e) {
-            log.error("Error al iniciar envio de correo de promocion {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        promocionService.validarPromocionVigenteParaCorreo(id);
+        long elegibles = promocionService.contarElegiblesParaCorreoPromocion();
+        promocionService.enviarCorreoPromocionAsync(id);
+        return ResponseEntity.ok(new ResponseGeneric<>(
+                "Envío iniciado a " + elegibles + " cliente(s), en tandas de 10"));
     }
 }

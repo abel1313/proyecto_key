@@ -43,14 +43,9 @@ public class RamoPedidoDetalleController {
     @PostMapping("/{pedidoId}/detalle")
     public ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> adjuntar(
             @PathVariable Integer pedidoId, @RequestBody RamoPedidoDetalleRequestDto request) {
-        try {
-            ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
-            if (noAutorizado != null) return noAutorizado;
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.adjuntar(pedidoId, request)));
-        } catch (Exception e) {
-            log.error("Error al adjuntar detalle de ramo al pedido {}: {}", pedidoId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
+        if (noAutorizado != null) return noAutorizado;
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.adjuntar(pedidoId, request)));
     }
 
     @GetMapping("/{pedidoId}/detalle")
@@ -102,14 +97,9 @@ public class RamoPedidoDetalleController {
     @PostMapping("/{pedidoId}/revalidar-antes-de-pagar")
     public ResponseEntity<ResponseGeneric<RevalidarPagoResponseDto>> revalidarAntesDePagar(
             @PathVariable Integer pedidoId) {
-        try {
-            ResponseEntity<ResponseGeneric<RevalidarPagoResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
-            if (noAutorizado != null) return noAutorizado;
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.revalidarAntesDePagar(pedidoId)));
-        } catch (Exception e) {
-            log.error("Error al revalidar pago del pedido {}: {}", pedidoId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        ResponseEntity<ResponseGeneric<RevalidarPagoResponseDto>> noAutorizado = rechazarSiNoEsDueno(pedidoId);
+        if (noAutorizado != null) return noAutorizado;
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.revalidarAntesDePagar(pedidoId)));
     }
 
     // Solo ADMIN: reemplaza colores/accesorios de un ramo ya guardado y recotiza esa parte;
@@ -121,12 +111,7 @@ public class RamoPedidoDetalleController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseGeneric<EditarRamoResponseDto>> editarRamo(
             @PathVariable Integer pedidoId, @RequestBody EditarRamoRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.editarRamo(pedidoId, request)));
-        } catch (Exception e) {
-            log.warn("Error al editar ramo del pedido {}: {}", pedidoId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.editarRamo(pedidoId, request)));
     }
 
     // El cliente cancela su propio pedido de flores, solo antes de pagar el anticipo -- pedido
@@ -135,33 +120,23 @@ public class RamoPedidoDetalleController {
     // pero no tiene sentido bloquearlo aqui tambien), cualquier otro solo si es su propio pedido.
     @DeleteMapping("/{pedidoId}/cancelar")
     public ResponseEntity<ResponseGeneric<String>> cancelarPropio(@PathVariable Integer pedidoId) {
-        try {
-            if (!AuthenticationUtils.isAdminContext()) {
-                Usuario actual = AuthenticationUtils.currentUsuario();
-                Integer clienteIdPropietario = ramoPedidoDetalleService.obtenerClienteIdPropietario(pedidoId);
-                boolean esDueno = actual.getCliente() != null && clienteIdPropietario != null
-                        && actual.getCliente().getId().equals(clienteIdPropietario);
-                if (!esDueno) {
-                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                            .body(new ResponseGeneric<>((String) null, "No autorizado -- este pedido no es tuyo"));
-                }
+        if (!AuthenticationUtils.isAdminContext()) {
+            Usuario actual = AuthenticationUtils.currentUsuario();
+            Integer clienteIdPropietario = ramoPedidoDetalleService.obtenerClienteIdPropietario(pedidoId);
+            boolean esDueno = actual.getCliente() != null && clienteIdPropietario != null
+                    && actual.getCliente().getId().equals(clienteIdPropietario);
+            if (!esDueno) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ResponseGeneric<>((String) null, "No autorizado -- este pedido no es tuyo"));
             }
-            ramoPedidoDetalleService.cancelarPropio(pedidoId);
-            return ResponseEntity.ok(new ResponseGeneric<>("Pedido cancelado correctamente"));
-        } catch (Exception e) {
-            log.warn("Error al cancelar pedido {} por el cliente: {}", pedidoId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((String) null, e.getMessage()));
         }
+        ramoPedidoDetalleService.cancelarPropio(pedidoId);
+        return ResponseEntity.ok(new ResponseGeneric<>("Pedido cancelado correctamente"));
     }
 
     @PutMapping("/detalle/{id}/validar-frase")
     public ResponseEntity<ResponseGeneric<RamoPedidoDetalleResponseDto>> validarFrase(
             @PathVariable Integer id, @RequestBody RamoPedidoDetalleValidarFraseRequestDto request) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.validarFrase(id, request)));
-        } catch (Exception e) {
-            log.error("Error al validar frase del detalle {}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ramoPedidoDetalleService.validarFrase(id, request)));
     }
 }

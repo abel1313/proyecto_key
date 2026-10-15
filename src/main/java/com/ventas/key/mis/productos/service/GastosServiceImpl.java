@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.dto.GastosReporteDto;
 import com.ventas.key.mis.productos.entity.Gastos;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
@@ -61,7 +62,7 @@ public class GastosServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public Gastos editar(Integer id, Gastos datos) throws Exception {
         Gastos existente = iRepository.findById(id)
-                .orElseThrow(() -> new Exception("Gasto no encontrado"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Gasto no encontrado"));
 
         if (datos.getDescripcion() != null) existente.setDescripcion(datos.getDescripcion());
         if (datos.getMonto() != null) existente.setMonto(datos.getMonto());
@@ -77,7 +78,7 @@ public class GastosServiceImpl extends CrudAbstractServiceImpl<
     @Override
     public void eliminar(Integer id) throws Exception {
         if (!iRepository.existsById(id)) {
-            throw new Exception("Gasto no encontrado");
+            throw new ExceptionDataNotFound("Gasto no encontrado");
         }
         iRepository.deleteById(id);
     }

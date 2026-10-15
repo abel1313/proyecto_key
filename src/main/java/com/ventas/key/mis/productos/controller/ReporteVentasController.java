@@ -40,7 +40,8 @@ public class ReporteVentasController {
     public ResponseEntity<ResponseGeneric<ReporteMensualDto>> mensual(@RequestParam String mes) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(reporteVentasService.reporteMensual(mes)));
-        } catch (Exception e) {
+        } catch (java.time.format.DateTimeParseException e) {
+            // Solo el mes mal escrito es 400; cualquier otra falla sale con su código (ExceptionGlobal).
             ResponseGeneric<ReporteMensualDto> error = new ResponseGeneric<>((ReporteMensualDto) null);
             error.setMensaje("Formato de mes invalido, usar yyyy-MM");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
@@ -49,13 +50,7 @@ public class ReporteVentasController {
 
     @GetMapping("/cliente/{clienteId}")
     public ResponseEntity<ResponseGeneric<ReporteClienteDto>> porCliente(@PathVariable int clienteId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(reporteVentasService.reporteCliente(clienteId)));
-        } catch (Exception e) {
-            ResponseGeneric<ReporteClienteDto> error = new ResponseGeneric<>((ReporteClienteDto) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(reporteVentasService.reporteCliente(clienteId)));
     }
 
     @GetMapping("/productos-mas-vendidos")

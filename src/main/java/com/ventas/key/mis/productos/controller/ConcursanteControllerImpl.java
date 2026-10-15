@@ -44,20 +44,14 @@ public class ConcursanteControllerImpl extends AbstractController<
     public ResponseEntity<ResponseGeneric<Concursante>> registrar(
             @Validated @RequestBody Concursante concursante,
             BindingResult result,
-            @RequestParam(defaultValue = "false") boolean forzar) {
+            @RequestParam(defaultValue = "false") boolean forzar) throws Exception {
         if (result.hasErrors()) {
             String errores = result.getAllErrors().stream()
                     .map(DefaultMessageSourceResolvable::getDefaultMessage)
                     .collect(Collectors.joining(", "));
             return ResponseEntity.badRequest().body(new ResponseGeneric<>(null, errores));
         }
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(iConcursanteService.registrar(concursante, forzar)));
-        } catch (Exception e) {
-            log.error("Error al registrar concursante: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(iConcursanteService.registrar(concursante, forzar)));
     }
 
     @GetMapping("/porRifa/{configurarRifaId}")
@@ -78,50 +72,26 @@ public class ConcursanteControllerImpl extends AbstractController<
 
     @PostMapping("/importarDePedidos")
     public ResponseEntity<ResponseGeneric<ImportarDePedidosResponseDto>> importarDePedidos(
-            @RequestBody ImportarDePedidosRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.importarDePedidos(req)));
-        } catch (Exception e) {
-            log.error("Error al importar participantes de pedidos: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+            @RequestBody ImportarDePedidosRequest req) throws Exception {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.importarDePedidos(req)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) {
-        try {
-            sGenerico.eliminar(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Concursante eliminado"));
-        } catch (Exception e) {
-            log.error("Error al eliminar concursante {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+    public ResponseEntity<ResponseGeneric<String>> eliminar(@PathVariable Integer id) throws Exception {
+        sGenerico.eliminar(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Concursante eliminado"));
     }
 
     @PostMapping("/copiarDeRifa")
     public ResponseEntity<ResponseGeneric<List<Concursante>>> copiarDeRifa(
-            @RequestBody CopiarConcursantesRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<Concursante>>(sGenerico.copiarDeRifa(req)));
-        } catch (Exception e) {
-            log.error("Error al copiar concursantes entre rifas: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+            @RequestBody CopiarConcursantesRequest req) throws Exception {
+        return ResponseEntity.ok(new ResponseGeneric<List<Concursante>>(sGenerico.copiarDeRifa(req)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ResponseGeneric<Concursante>> editar(
             @PathVariable Integer id,
-            @RequestBody ConcursanteEditarRequest req) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.editar(id, req)));
-        } catch (Exception e) {
-            log.error("Error al editar concursante {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+            @RequestBody ConcursanteEditarRequest req) throws Exception {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.editar(id, req)));
     }
 }

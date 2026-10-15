@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionSinPermiso;
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
@@ -117,6 +119,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         Usuario usuario = iUsuarioRepository.findById(request.getUsuarioId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Usuario no encontrado"));
 
+        // QA 2026-10-08: se guardaban nombres como "a". Opcional, pero si viene necesita 3 letras.
+        String receptor = request.getNombreReceptor();
+        if (receptor != null && !receptor.isBlank() && receptor.codePoints().filter(Character::isLetter).count() < 3) {
+            throw new ExceptionErrorInesperado("El nombre de quien recibe debe tener al menos 3 letras (o déjalo vacío)");
+        }
+
         String tipoPedido = request.getTipoPedido();
         boolean esCredito = "APARTADO".equals(tipoPedido) || "FIADO".equals(tipoPedido);
 
@@ -159,6 +167,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             clienteSinRegistro = iClienteSinRegistroRepository.findById(request.getClienteSinRegistroId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Cliente sin registro no encontrado"));
         } else if (esSinRegistro) {
+            try {
+                ClienteSinRegistroImpl.validar(request.getClienteSinRegistroDto());
+            } catch (RuntimeException e) {
+                throw new ExceptionErrorInesperado(e.getMessage());
+            }
             clienteSinRegistro = iClienteSinRegistroRepository.save(mapperClienteSinRegistroDto(request));
         } else {
             cliente = iClienteRepository.findById(request.getClienteId())
@@ -261,6 +274,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setFechaRecogida(request.getFechaEntrega());
             pedido.setTotalPedido(totalPedidoCalc);
             pedido.setTotalPagado(0.0);
+            // Ir pagando se lo lleva al crearse salvo que digan que no; un Apartado nunca (E3, E8).
+            pedido.marcarEntregado("FIADO".equals(tipoPedido) && !Boolean.FALSE.equals(request.getEntregado()));
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
             pedido.setDetalles(detallesPedido);
             Pedido savedPedido = iPedidoRepository.save(pedido);
@@ -284,6 +299,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         // Crear y guardar Pedido (siempre, para todos los escenarios)
         Pedido pedido = new Pedido();
         pedido.setEstadoPedido("Entregado");
+        // Venta de contado en el local: se lo lleva en ese momento salvo que digan que no (E4).
+        pedido.marcarEntregado(!Boolean.FALSE.equals(request.getEntregado()));
         pedido.setCliente(cliente);
         pedido.setClienteSinRegistro(clienteSinRegistro);
         pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
@@ -461,27 +478,27 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Transactional
     public Venta reclamarVenta(String codigo) throws Exception {
         if (codigo == null || codigo.isBlank()) {
-            throw new Exception("Debes indicar el código");
+            throw new ExceptionErrorInesperado("Debes indicar el código");
         }
         Venta venta = iVentaRepository.findByCodigoReclamo(codigo.trim())
-                .orElseThrow(() -> new Exception("Código inválido"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Código inválido"));
         if (venta.getReclamadoEn() != null) {
-            throw new Exception("Este código ya fue utilizado");
+            throw new ExceptionOperacionNoPermitida("Este código ya fue utilizado");
         }
 
         LocalDateTime finDeMes = YearMonth.from(venta.getFechaVenta()).atEndOfMonth().atTime(23, 59, 59);
         if (LocalDateTime.now().isAfter(finDeMes)) {
-            throw new Exception("Este código ya expiró: solo es válido durante el mes de tu compra");
+            throw new ExceptionOperacionNoPermitida("Este código ya expiró: solo es válido durante el mes de tu compra");
         }
 
         Usuario usuario = AuthenticationUtils.currentUsuario();
         Cliente cliente = usuario.getCliente();
         if (cliente == null) {
-            throw new Exception("Tu cuenta todavía no tiene un perfil de cliente completo");
+            throw new ExceptionOperacionNoPermitida("Tu cuenta todavía no tiene un perfil de cliente completo");
         }
         if (venta.getCorreoReclamo() == null
                 || !venta.getCorreoReclamo().equalsIgnoreCase(cliente.getCorreoElectronico())) {
-            throw new Exception("El correo de tu cuenta no coincide con el de esta compra");
+            throw new ExceptionSinPermiso("El correo de tu cuenta no coincide con el de esta compra");
         }
 
         return vincularClienteAVenta(venta, cliente);
@@ -493,12 +510,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Transactional
     public Venta asignarClienteManual(Integer ventaId, Integer clienteId) throws Exception {
         Venta venta = iVentaRepository.findById(ventaId)
-                .orElseThrow(() -> new Exception("Venta no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Venta no encontrada"));
         if (venta.getCliente() != null) {
-            throw new Exception("Esta venta ya tiene un cliente asignado");
+            throw new ExceptionOperacionNoPermitida("Esta venta ya tiene un cliente asignado");
         }
         Cliente cliente = iClienteRepository.findById(clienteId)
-                .orElseThrow(() -> new Exception("Cliente no encontrado"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Cliente no encontrado"));
 
         return vincularClienteAVenta(venta, cliente);
     }

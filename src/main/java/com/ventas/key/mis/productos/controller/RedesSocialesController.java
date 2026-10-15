@@ -148,11 +148,7 @@ public class RedesSocialesController {
     @GetMapping("/tiktok/url-autorizacion")
     public ResponseEntity<ResponseGeneric<Map<String, String>>> urlAutorizacionTikTok(
             @RequestParam String redirectUri, @RequestParam String state) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(Map.of("url", tikTokGraphClient.urlAutorizacion(redirectUri, state))));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((Map<String, String>) null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(Map.of("url", tikTokGraphClient.urlAutorizacion(redirectUri, state))));
     }
 
     @Operation(
@@ -174,6 +170,7 @@ public class RedesSocialesController {
             r.put("nombre", user.get("display_name"));
             r.put("avatarUrl", user.get("avatar_url"));
         } catch (Exception e) {
+            log.warn("TikTok no aceptó consultar la cuenta conectada: {}", e.getMessage());
             r.put("conectado", false);
             r.put("motivo", e.getMessage());
         }
@@ -205,13 +202,8 @@ public class RedesSocialesController {
     )
     @PostMapping("/tiktok/autorizar")
     public ResponseEntity<ResponseGeneric<String>> autorizarTikTok(@RequestBody AutorizarTikTokRequest request) {
-        try {
-            tikTokGraphClient.autorizarConCode(request.getCode(), request.getRedirectUri());
-            return ResponseEntity.ok(new ResponseGeneric<>("TikTok autorizado correctamente"));
-        } catch (Exception e) {
-            log.warn("Error al autorizar TikTok: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ResponseGeneric<>((String) null, e.getMessage()));
-        }
+        tikTokGraphClient.autorizarConCode(request.getCode(), request.getRedirectUri());
+        return ResponseEntity.ok(new ResponseGeneric<>("TikTok autorizado correctamente"));
     }
 
     @Operation(

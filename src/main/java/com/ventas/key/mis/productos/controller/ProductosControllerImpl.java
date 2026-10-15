@@ -38,9 +38,12 @@ public class ProductosControllerImpl {
     public ResponseEntity<PginaDto<List<ProductoDTO>>> buscarNombreOrCodigoBarra(
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam String nombre) {
-        log.info("buscarNombreOrCodigoBarras {} page {} nombre {}", size, page, nombre);
-        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre) );
+            @RequestParam String nombre,
+            // Agregar articulo: tambien sin stock, deshabilitados y dados de baja (permiso
+            // "ver-todos-los-modelos" en tienda/venta, o admin). Sin el permiso no cambia nada.
+            @RequestParam(defaultValue = "false") boolean todos) {
+        log.info("buscarNombreOrCodigoBarras {} page {} nombre {} todos {}", size, page, nombre, todos);
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre,todos) );
     }
 
     @PostMapping("save")
@@ -125,17 +128,11 @@ public class ProductosControllerImpl {
     public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarProductosLote(
             @Validated @RequestBody HabilitarLoteRequest request) {
         log.info("Admin: habilitar/deshabilitar productos en lote ids={} habilitar={}", request.getIds(), request.isHabilitar());
-        try {
-            this.pServiceImpl.habilitarDeshabilitarProductosLote(request.getIds(), request.isHabilitar());
-            String mensaje = request.isHabilitar()
-                    ? "Productos habilitados correctamente"
-                    : "Productos deshabilitados correctamente";
-            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
-        } catch (Exception e) {
-            log.error("Error al habilitar/deshabilitar productos en lote: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        this.pServiceImpl.habilitarDeshabilitarProductosLote(request.getIds(), request.isHabilitar());
+        String mensaje = request.isHabilitar()
+                ? "Productos habilitados correctamente"
+                : "Productos deshabilitados correctamente";
+        return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
     }
 
     @GetMapping("admin/diagnostico-imagenes/{productoId}")

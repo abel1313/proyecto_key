@@ -13,7 +13,10 @@ public class CambiarArticuloRequest {
     /** El articulo nuevo. */
     private Integer varianteId;
 
-    /** Null = se conserva la cantidad que ya tenia la linea. */
+    /**
+     * Cuantas piezas de la linea se cambian por el articulo nuevo, 1 a 1. Null = todas. Si son
+     * menos que las de la linea, el resto se queda con el articulo de antes (R10).
+     */
     private Integer cantidad;
 
     /** Null = precio normal; si el articulo nuevo sigue dentro del combo, manda el del combo. */

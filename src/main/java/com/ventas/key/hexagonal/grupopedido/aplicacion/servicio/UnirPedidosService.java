@@ -77,6 +77,43 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
     }
 
     @Override
+    @Transactional
+    public GrupoPedidos agregar(Integer grupoId, List<Integer> pedidoIds, Integer usuarioId) {
+        GrupoPedidos grupo = consultar(grupoId);
+        List<Integer> nuevos = pedidoIds == null ? List.of()
+                : List.copyOf(new LinkedHashSet<>(pedidoIds.stream().filter(java.util.Objects::nonNull).toList()));
+        List<PedidoDelGrupo> encontrados = pedidos.buscar(nuevos);
+
+        UnionDePedidos.validarAgregado(grupo, nuevos, encontrados, grupos.gruposActivosDe(nuevos));
+
+        grupos.agregar(grupoId, nuevos);
+
+        String lista = nuevos.stream().map(id -> "#" + id).collect(Collectors.joining(", "));
+        for (PedidoDelGrupo p : grupo.pedidos()) {
+            bitacora.anotar(p.pedidoId(), String.format("[%s] Se agregaron al grupo #%d los pedidos %s",
+                    LocalDate.now(), grupoId, lista));
+        }
+        for (PedidoDelGrupo p : encontrados) {
+            String abonado = p.cobradoCentavos() > 0
+                    ? String.format("; lo que ya tenia abonado ($%.2f) cuenta para el grupo", p.cobradoCentavos() / 100.0)
+                    : "";
+            bitacora.anotar(p.pedidoId(), String.format("[%s] Se agrego al grupo #%d (titular: pedido #%d)%s",
+                    LocalDate.now(), grupoId, grupo.pedidoTitularId(), abonado));
+        }
+        log.info("Grupo {}: se agregaron los pedidos {}", grupoId, nuevos);
+        return consultar(grupoId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PedidosDelGrupoPort.PaginaDePedidos candidatos(Integer pedidoId, String buscar, int pagina, int tamano) {
+        String tipo = grupoActivoDe(pedidoId).map(GrupoPedidos::tipo)
+                .or(() -> pedidos.buscar(List.of(pedidoId)).stream().findFirst().map(PedidoDelGrupo::tipo))
+                .orElseThrow(() -> new GrupoPedidoException("No existe el pedido #" + pedidoId));
+        return pedidos.candidatos(tipo, pedidoId, buscar, Math.max(0, pagina), tamano);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public GrupoPedidos consultar(Integer grupoId) {
         RegistroGrupo registro = grupos.buscar(grupoId).orElseThrow(() -> new GrupoNoEncontradoException(grupoId));

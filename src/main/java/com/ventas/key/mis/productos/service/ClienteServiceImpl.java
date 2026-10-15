@@ -1,11 +1,13 @@
 package com.ventas.key.mis.productos.service;
 
+import org.springframework.cache.annotation.CacheEvict;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.models.ClienteAdminDetalleDto;
 import com.ventas.key.mis.productos.models.ClienteBusquedaDto;
@@ -38,6 +40,7 @@ implements IClienteService {
     private final IUsuarioRepository iUsuarioRepository;
     private final ErrorGenerico errorGenerico;
     private final EmailService emailService;
+    private final VersionDeListasDePedidos versionDeListas;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -46,13 +49,15 @@ implements IClienteService {
         final IClienteRepository iRepository,
         final IUsuarioRepository iUsuarioRepository,
         final ErrorGenerico eGenerico,
-        final EmailService emailService
+        final EmailService emailService,
+        final VersionDeListasDePedidos versionDeListas
     ){
         super(iRepository, eGenerico);
         this.iClienteRepository = iRepository;
         this.iUsuarioRepository = iUsuarioRepository;
         this.errorGenerico = eGenerico;
         this.emailService = emailService;
+        this.versionDeListas = versionDeListas;
     }
 
     /**
@@ -68,6 +73,7 @@ implements IClienteService {
      * Cliente.recalcularDatosCompletos(), que usa isBlank()), asi que no cambia el significado
      * de "datos incompletos" -- solo evita la excepcion sin tener que alterar la tabla.
      */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional
     public Cliente crearClienteDesdeRegistro(Usuario usuario, String correo) {
         entityManager.createNativeQuery(
@@ -81,6 +87,7 @@ implements IClienteService {
     }
 
     /** Toggle de correos no transaccionales (seguimiento de pedido, alerta de stock). */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional
     public ResponseGeneric<String> actualizarPreferenciaCorreo(int idCliente, boolean recibirCorreos) {
         Cliente cliente = iClienteRepository.findById(idCliente)
@@ -93,6 +100,7 @@ implements IClienteService {
     }
 
     /** Toggle independiente del de arriba -- controla solo los correos de promociones. */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional
     public ResponseGeneric<String> actualizarPreferenciaPromociones(int idCliente, boolean recibirPromociones) {
         Cliente cliente = iClienteRepository.findById(idCliente)
@@ -124,6 +132,7 @@ implements IClienteService {
      * evita que reintentos/doble-click (o un doble blur del input) manden varios correos con
      * codigos distintos. Devuelve true si mando un correo nuevo, false si reutilizo uno vigente.
      */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional
     public boolean solicitarCambioCorreo(Integer clienteId, String correoNuevo) {
         Cliente cliente = iClienteRepository.findById(clienteId)
@@ -163,6 +172,7 @@ implements IClienteService {
         return true;
     }
 
+    @CacheEvict(value = "clienteCache", allEntries = true)
     public void enviarCodigoVerificacionCorreo(Integer clienteId) {
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
@@ -181,6 +191,7 @@ implements IClienteService {
         emailService.enviarCodigoVerificacion(destino, codigo);
     }
 
+    @CacheEvict(value = "clienteCache", allEntries = true)
     public void verificarCorreo(Integer clienteId, String codigo) {
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
@@ -226,9 +237,12 @@ implements IClienteService {
         } else {
             iClienteRepository.confirmarCorreoSinCambioPendiente(cliente.getId());
         }
+        // El correo sale en la tarjeta de Mis pedidos y un UPDATE directo no avisa al caché (R18 de busquedapedido)
+        versionDeListas.subirAlConfirmar("correo confirmado del cliente " + cliente.getId());
     }
 
     /** Solo para pruebas/soporte — regresa el correo del cliente a "no verificado". */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     public void resetVerificacionCorreo(Integer clienteId) {
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
@@ -236,6 +250,15 @@ implements IClienteService {
         cliente.setCodigoVerificacion(null);
         cliente.setCodigoVerificacionExpira(null);
         iClienteRepository.save(cliente);
+    }
+
+    // El alta y la edición (Nuevo cliente, Mis datos, admin) pasan por aquí. Sin borrar la caché,
+    // findClienteById seguía devolviendo la copia de antes por 10 minutos: el carrito decía que
+    // faltaban datos aunque ya se hubieran guardado, y Mis datos los mostraba vacíos (2026-10-13).
+    @Override
+    @CacheEvict(value = "clienteCache", allEntries = true)
+    public Cliente save(Cliente req) {
+        return super.save(req);
     }
 
     /**

@@ -33,6 +33,12 @@ public class SesionRefreshService {
 
     /** Duracion maxima de una sesion contada desde el login original, sin importar cuantas veces se renueve. */
     private static final int SESION_MAXIMA_DIAS = 30;
+    /**
+     * Segundos en que un refresh con el jti recien rotado se acepta en vez de tomarse por robo.
+     * Cubre refresh simultaneos del mismo navegador (pestanas, arranque + peticion vencida); un
+     * token robado y usado fuera de esa ventana sigue matando la sesion completa.
+     */
+    static final int GRACIA_REUSO_SEGUNDOS = 20;
     /** Debe coincidir con la expiracion del refresh token que emite JwtUtil. */
     private static final int REFRESH_EXPIRA_DIAS = 7;
 
@@ -97,6 +103,13 @@ public class SesionRefreshService {
 
         SesionRefresh sesion = encontrada.get();
 
+        if (!sesion.getJti().equals(jti) && dentroDeGracia(sesion, jti)) {
+            // Segundo refresh legitimo de la misma rotacion: se contesta con el jti vigente, sin
+            // volver a rotar, para que el navegador quede con una cookie que si sirve.
+            log.info("Refresh simultaneo tolerado (dentro de {}s), sessionId: {}", GRACIA_REUSO_SEGUNDOS, sessionId);
+            return Optional.of(sesion.getJti());
+        }
+
         if (!sesion.getJti().equals(jti)) {
             // Token viejo que ya fue rotado => alguien conserva una copia. Se cierra la sesion
             // entera para expulsar tanto al atacante como al usuario legitimo.
@@ -122,6 +135,8 @@ public class SesionRefreshService {
         }
 
         String jtiNuevo = UUID.randomUUID().toString();
+        sesion.setJtiAnterior(sesion.getJti());
+        sesion.setRotadoEn(ahora);
         sesion.setJti(jtiNuevo);
         sesion.setExpira(ahora.plusDays(REFRESH_EXPIRA_DIAS));
         sesionRepository.save(sesion);
@@ -132,6 +147,12 @@ public class SesionRefreshService {
         historialAccesoRepository.actualizarUltimaActividad(sessionId, ahora);
 
         return Optional.of(jtiNuevo);
+    }
+
+    private boolean dentroDeGracia(SesionRefresh sesion, String jti) {
+        return jti.equals(sesion.getJtiAnterior())
+                && sesion.getRotadoEn() != null
+                && !LocalDateTime.now().isAfter(sesion.getRotadoEn().plusSeconds(GRACIA_REUSO_SEGUNDOS));
     }
 
     /** Logout: el refresh token deja de servir en el acto. */

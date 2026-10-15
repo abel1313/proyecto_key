@@ -24,4 +24,10 @@ public class RegistroRequest {
 
     @AssertTrue(message = "Debes aceptar el aviso de privacidad para registrarte")
     private boolean aceptoPrivacidad;
+
+    /**
+     * Aceptación de los Términos y condiciones (2026-10-07). Nullable a propósito: un front de
+     * antes no lo manda y se sigue registrando igual; {@code false} explícito sí se rechaza.
+     */
+    private Boolean aceptoTerminos;
 }

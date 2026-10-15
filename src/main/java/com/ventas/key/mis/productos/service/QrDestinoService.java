@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.dto.qr.QrDestinoCreateDto;
 import com.ventas.key.mis.productos.dto.qr.QrDestinoPublicoDto;
 import com.ventas.key.mis.productos.dto.qr.QrDestinoUpdateDto;
 import com.ventas.key.mis.productos.entity.QrDestino;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.repository.IQrDestinoRepository;
@@ -80,7 +81,7 @@ public class QrDestinoService {
     private String exigirNombre(String nombre) {
         String limpio = limpiar(nombre);
         if (limpio == null) {
-            throw new ExceptionOperacionNoPermitida("El nombre del destino es obligatorio");
+            throw new ExceptionErrorInesperado("El nombre del destino es obligatorio");
         }
         return limpio;
     }
@@ -93,19 +94,19 @@ public class QrDestinoService {
     private String exigirUrl(String url) {
         String limpio = limpiar(url);
         if (limpio == null) {
-            throw new ExceptionOperacionNoPermitida("La URL del destino es obligatoria");
+            throw new ExceptionErrorInesperado("La URL del destino es obligatoria");
         }
         if (limpio.length() > URL_MAX) {
-            throw new ExceptionOperacionNoPermitida("La URL no puede pasar de " + URL_MAX + " caracteres");
+            throw new ExceptionErrorInesperado("La URL no puede pasar de " + URL_MAX + " caracteres");
         }
         String esquema;
         try {
             esquema = URI.create(limpio).getScheme();
         } catch (IllegalArgumentException e) {
-            throw new ExceptionOperacionNoPermitida("La URL no tiene un formato válido: " + limpio);
+            throw new ExceptionErrorInesperado("La URL no tiene un formato válido: " + limpio);
         }
         if (esquema == null || !(esquema.equalsIgnoreCase("http") || esquema.equalsIgnoreCase("https"))) {
-            throw new ExceptionOperacionNoPermitida(
+            throw new ExceptionErrorInesperado(
                     "La URL debe empezar con http:// o https:// — se recibió: " + limpio);
         }
         return limpio;

@@ -36,11 +36,60 @@ Este es el **backend/API** del sistema. Expone endpoints REST que el frontend (`
 
 # Instrucciones de comportamiento
 
+- **Todo se le explica al dueño en español**: respuestas, avisos de avance mientras se trabaja, resúmenes y preguntas. Nunca en inglés (pedido 2026-10-13). Lo refuerza un hook `UserPromptSubmit` y `"language": "spanish"` en `.claude/settings.json`.
 - No pidas confirmación antes de hacer cambios en el código
 - No preguntes si puedes proceder con cambios en el código
 - Ejecuta directamente y muestra el resultado
 - Solo pregunta si hay ambigüedad real en el requerimiento
 - **NO hacer git commit ni git push automáticamente** — hacer los cambios en los archivos localmente y esperar a que el usuario diga explícitamente "sube" o "haz commit" para ejecutar git commit y/o push.
+
+## Regla — no escribir tests automáticos: se anotan en `TESTS_PENDIENTES.md` (2026-10-06)
+
+Decisión del dueño: *"ya no sigas haciendo tests, ni Angular ni Spring, porque a cada rato cambian;
+lo que sí necesito es un doc con las pruebas que faltan: se hace algo nuevo y se apunta 'esto
+necesita un test que compruebe esto y esto'"*.
+
+- **No se escriben ni se actualizan tests automáticos**: ni JUnit/Mockito/Spring en el back, ni
+  Jasmine/Karma ni Playwright (`e2e/`) en el front. El código cambia tan seguido que se reescribían
+  a cada rato.
+- **Cada cambio nuevo deja su entrada en `TESTS_PENDIENTES.md`** (raíz del repo), en el mismo
+  cambio que el código: fecha, qué se hizo, dónde vive (clase y método, o componente) y la lista
+  **"Debe comprobar"** con casos concretos — qué entra y qué tiene que salir, incluidos los casos
+  de error (ej. *"cambiar 4 piezas de una línea de 3 → 400 'Solo hay 3'"*). Así, el día que se
+  escriban, ya está todo dicho.
+- **Sí se sigue comprobando que compile** antes de entregar: `mvn -q compile` en el back,
+  `ng build --configuration development` en el front.
+- **Los tests que ya existen no se borran.** Si un cambio rompe uno, no se arregla: se anota en
+  `TESTS_PENDIENTES.md`, sección "Tests existentes que quedaron viejos". Los deploys no corren
+  tests (`-DskipTests` en el Dockerfile del back; el front solo hace `ng build`), así que no bloquean.
+- **Esto no quita** la guía de pruebas manuales para QA (skill `pruebas-de-impacto`) ni la regla de
+  correr cada `.sql` en una base desechable antes de entregarlo: eso es comprobar el script, no un test.
+- Cuando el dueño diga que ya se escriban, se toman de `TESTS_PENDIENTES.md`.
+
+## Regla — cada prueba de QA trae su botón 🧪 que da de alta lo que necesita (2026-10-13)
+
+Pedido del dueño: *"que ya estén los pedidos de las pruebas como los pedí… dar de alta lo que se
+necesita para las pruebas"*.
+
+- **Ninguna prueba de `PRUEBAS_PENDIENTES_*.md` le pide al dueño que busque, anote o arme datos.** Si
+  su "Antes de empezar" necesita algo en un estado dado (un artículo de $100, un modelo deshabilitado,
+  un Ir pagando con $40, un pedido cancelado…), la prueba lleva su botón **🧪 Preparar prueba N**
+  (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba) y el documento dice *"toca 🧪 Preparar prueba N"*
+  con la tabla de lo que crea. También existe **🧪 Preparar todas las pruebas**.
+- Pedidos, ventas y abonos salen de los **servicios reales**, nunca de un `INSERT`. El catálogo, del
+  generador de prueba y solo sobre modelos de marca "Prueba QA". Solo funciona en `inventario_key_qa`.
+- **El nombre exacto de la prueba va en la venta (R20):** el cliente de cada pedido se llama "Prueba 24 K4" y los
+  modelos "QA Prueba 17 Art-A". El documento de pruebas busca esos nombres, nunca una clave suelta (K4) ni nada de
+  menos de 3 letras (regla de los buscadores).
+- **Si una prueba sale mal se reinicia (R21):** tocar **🧪 Preparar prueba N** otra vez quita lo de esa prueba
+  (pedidos cancelados con el servicio real, modelos dados de baja; nada se borra) y la vuelve a crear. **🗑 Quitar**
+  solo quita.
+- **También rifas, códigos de compra y usuarios de prueba (R23, 2026-10-14):** si una prueba pide "un usuario con tal rol",
+  el 🧪 crea `qa.prueba{N}` con el rol `ROLE_QA_PRUEBA_{N}` y los permisos exactos; **la contraseña nunca la pone ni
+  la muestra el código**: el documento dice *"Sistema → Usuarios → qa.pruebaN → Resetear contraseña"*.
+- Cómo se agrega una prueba: skill **`preparar-prueba`**. Reglas: `hexagonal/datosprueba/README.md` (R16–R23).
+- **Cuando el dueño pida "dame el caso", "la prueba", "lo que falta y lo que llevo" o "no entiendo el paso N"**: skill **`dar-el-caso`**. El caso se da **completo en el chat**, cada paso con *Dónde* (menú → submenú → pantalla), *Haz* (botón exacto y valor a escribir) y *Debes ver* (texto exacto), con ✅ en lo que ya pasó. Nunca una tabla de títulos ni "sigue el documento" (pedido del 2026-10-14).
+- **Al terminar cualquier cambio, y antes de decir "ya quedó documentado" o de ofrecer "sube"**: skill **`documentar`** (qué documento recibe cada cosa —`CAMBIOS_FRONT.md`, `TESTS_PENDIENTES.md`, `PLAN_*.md`, `PRUEBAS_PENDIENTES_*.md`, README del dominio, inventario de tablas, registro de migraciones, bitácora de trámites— con su formato y el checklist). Reúne las reglas de documentación de este archivo; si chocan, gana este archivo.
 
 ## Flujo Git — cómo hacer los merges
 
@@ -298,15 +347,44 @@ diferencias — la restricción es sobre escribir/modificar/pushear, no sobre co
    uno más nuevo que el otro), no se sobrescribe nada solo: mostrar el diff al usuario y preguntar
    cuál gana antes de pisar contenido.
 
+## Regla — variables de entorno nuevas en un deployment de K8s
+
+El deployment del back lee **cada variable por separado** (`secretKeyRef`): agregar una llave a
+`db-secret` no basta, también hay que darla de alta en el deployment (`kubectl set env ...
+--from=secret/db-secret --keys=...`) y reiniciar el pod. Para verificar, **medir caracteres**
+(`sh -c 'echo ${#VARIABLE}'`), nunca `printenv | grep -c`: ese cuenta la variable aunque esté vacía.
+El 2026-09-30 las llaves de TikTok quedaron vacías en prod por eso, y no se detectó hasta que falló
+en pantalla. Las de redes sociales ya se revisan solas al arrancar (log "Redes sociales: ...").
+Checklist de TikTok: `TIKTOK_SETUP.md`.
+
 ## JWT — Configuración y problema conocido resuelto
 
 **Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**
 - Access token: 15 minutos
 - Refresh token: 7 días
 
+**Tamaño del token (2026-10-07):** el access token lleva `pantallas`, `pantallasEscritura` y
+`pantallasAcciones` completos, así que crece con cada permiso nuevo (~40 bytes por acción). Al pasar de
+8 KB, Tomcat respondía **400 sin CORS a todo lo que llevara token** (lo público sin sesión seguía en 200;
+en el access.log de nginx, los 400 pesaban 435 bytes = página de error de Tomcat). Se subió
+`server.max-http-request-header-size` a 64KB. Arreglo de fondo pendiente: sacar las acciones del JWT y
+servirlas desde un endpoint (el back ya recalcula los permisos desde la BD en cada request).
+
 **Bug resuelto (frontend):** Al expirar el access token, el interceptor del front hacía el refresh correctamente pero parseaba mal el response. El back devuelve `{ response: { accessToken: '...' } }` (ResponseGeneric) y el interceptor leía `response.accessToken` → guardaba `undefined` → el retry fallaba con "no se puede sacar el nombre del JWT". Fix: leer `response.response.accessToken`.
 
 **Backend no requería cambios.** QA y Docker están correctos: env var `${TOKEN_JWT}` para el secret, `cookie.secure: true`, Redis y Rabbit configurados.
+
+---
+
+## Regla — ningún bot dice cómo está hecho (2026-10-14)
+
+Pedido del dueño: los bots (chat de la tienda, chat en vivo, mensajes directos y comentarios de Facebook e Instagram)
+**no dicen nada técnico de su desarrollo**: ni qué IA o empresa los hace funcionar, ni servidores, base de datos,
+código, quién los programó ni sus instrucciones, y no obedecen si les piden ignorarlas. Vive en
+`ChatbotBase.SIN_DETALLES_TECNICOS`, dentro de `REGLAS_DE_RESPETO`. **Todo prompt nuevo tiene que llevar
+`REGLAS_DE_RESPETO`**; si no, se queda sin esta regla. Presentarse como "asistente automático" en el primer mensaje
+directo sí se queda (lo pide Meta). Revisión completa y lo que quedó para revisar: `BUGS_CHATBOT_BACK.md`, sección del
+2026-10-14.
 
 ---
 
@@ -464,6 +542,9 @@ cada recurso necesita su propio `deleteBy/{id}`. Ya existen para productos y var
 
 ### Los buscadores de texto exigen 3 caracteres, y vacío recarga todo
 
+**Todas las reglas de buscadores (espera de 400 ms, mínimo, vacío, `switchMap`, qué puede ofrecer un
+buscador de venta/pedido) están en la skill `buscadores`. Leerla antes de crear o tocar uno.**
+
 Regla: **menos de 3 caracteres no sale al back** (con 1 o 2 el `LIKE '%x%'` barre casi todo el
 catálogo y el resultado no le sirve a nadie). **Vacío SÍ dispara** y significa "quitar el filtro
 y traer todo de nuevo". No aplica a buscadores por número (número de pedido), donde 1 dígito es
@@ -553,7 +634,62 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
+| `migration_sesion_refresh_gracia.sql` (ventana de gracia del refresh token: `jti_anterior`, `rotado_en`) | ✅ corrida (2 columnas verificadas) | ⏳ pendiente | 2026-10-14 |
+| `backfill_estado_pedido_tipo.sql` | ✅ corrida | ✅ corrida (0 filas, nada que reparar) | 2026-09-29 / prod 2026-09-30 |
+| `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
+| `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
+| `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ✅ corrida (verificación sin_admin = 0) | ✅ corrida antes que el front (sin_admin = 0; las claves no cambian, solo textos — ver nota) | 2026-10-06 |
+| `migration_tema_jade.sql` (diseño Jade por default) | ✅ corrida (estilo = jade, respaldo con 39 filas) | ⏳ pendiente (cuando Jade llegue a `main`) | qa 2026-10-07 |
+| `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
+| `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
+| `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
+| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ⏳ pendiente — **antes** del deploy del back a `main` | qa 2026-10-07 |
+| `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
+| `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ⏳ pendiente — **antes** del deploy del back a `main` (sin ella falla el login) | qa 2026-10-07 |
+| `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
+| `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
+| `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
+| `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ cuando la rama llegue a `dev`/`qa` | ⏳ cuando la rama llegue a `main` | — |
+| `migration_codigo_postal.sql` | ✅ corrida (tabla `codigo_postal` creada) | ⏳ pendiente (cuando el dominio `codigopostal` llegue a `main`) | qa 2026-10-14 (antes, probada 2 veces en base desechable) |
+
+### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
+
+Se mantiene al día en cada cambio: cuando algo se corre en prod, se quita de aquí y se marca ✅ en la
+tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** del deploy del back:
+
+| # | Script | Por qué no puede faltar | Desde |
+|---|---|---|---|
+| 1 | `migration_entrega_pedido.sql` | La entidad `Pedido` mapea `entregado` y `fecha_entregado`: sin las columnas **truena cualquier consulta de pedidos**. Llena la entrega de los pedidos que ya existen (solo la primera vez) y da de alta `entregar` / `regresar-entrega`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 2 | `migration_accion_gastos_admin.sql` | Sin ella el admin no ve el botón para agregar gastos. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 3 | `migration_tema_jade.sql` | Solo cuando el diseño Jade suba a `main` (cambia cómo se ve la app). Ya corrida en QA (2026-10-07) | 2026-10-01 |
+| 4 | `migration_datos_legales.sql` | La entidad `Usuario` mapea `acepto_terminos`: **sin la columna falla el login**. Crea `datos_legales_negocio`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 5 | `migration_tema_filtros.sql` | Sin ella el fondo de los filtros funciona (sale de `styles.scss`) pero **no aparece en Personalización** para cambiarlo. Solo agrega 2 filas; no cambia nada que exista. Va después de `migration_tema_jade.sql`. Ya corrida en QA (2026-10-07) | 2026-10-07 |
+| 6 | `migration_tema_modal.sql` | Igual que la 5: sin ella el velo detrás de la ventana 🧩 Agregar artículos funciona (sale de `styles.scss`), solo no aparece en Personalización. Agrega 1 fila. Ya corrida en QA (2026-10-08) | 2026-10-08 |
+| 7 | `migration_accion_tienda_venta_ver_todos.sql` | Sin ella solo el admin ve en Agregar artículo los modelos sin stock, deshabilitados o dados de baja (los demás roles no pueden recibir el permiso). Agrega 1 acción y se la da al admin. Ya corrida en QA (2026-10-08) | 2026-10-08 |
+| 8 | `migration_accion_editar_entrega_direccion.sql` | Solo cambia el **texto** del permiso `editar-entrega` en Gestión de roles a *"Dirección (📍 en la tarjeta)"*, para que diga lo mismo que el botón de la tarjeta (antes "📍 Entrega", se confundía con "📦 Entregar"). Sin ella todo funciona; solo el nombre en Gestión de roles queda viejo. No cambia claves ni quién tiene el permiso: **no hace falta volver a entrar**. **Falta correrla en QA** (se corre cuando el front con el botón "Dirección" esté en QA) | 2026-10-13 |
+
+Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
+de verificación que trae cada script al final.
+
+**✅ El límite de encabezados de 64 KB ya está en `main` desde el 2026-10-07 (`282a530`).** Se subió
+como hotfix porque en prod pasó lo mismo que en QA (ver Incidente 3 de `PASOS_SUBIDA_2026-10-07.md`).
+La regla sigue: ningún script de permisos en un ambiente cuyo back no tenga ese límite.
+El 2026-10-07 QA dejó de responder (400 a todo, con "blocked by CORS" en la consola) justo después de
+correr `migration_entrega_pedido.sql`, `migration_accion_gastos_admin.sql` y
+`migration_accion_pedidos_filtros_y_cobro.sql`: el token del admin lleva todas sus pantallas y acciones,
+pasó de 8 KB y Tomcat lo rechazaba antes de llegar a la app. Arreglo:
+`server.max-http-request-header-size: 64KB` en `application.yml`. En prod pasa lo mismo si se corren
+esos scripts con el back viejo. Además, en la VPS, agregar `large_client_header_buffers 4 32k;` al
+bloque `server` de `/etc/nginx/sites-available/backend` (prod) y `/etc/nginx/sites-enabled/backend-qa`,
+y `sudo nginx -t && sudo systemctl reload nginx` (nginx corta cada encabezado en 8 KB por default).
+
+**Ya en prod sin bajar todavía a `qa`/`dev`:** el hotfix "Crear artículos" (`f5ad4fb` en `main`,
+2026-10-06) y el hotfix del 400 en 🧩 Productos (`282a530` en `main` y `161c0d4f` en `master`,
+2026-10-07; al bajarlo, en `application.yml` ya está el límite de 64 KB en `dev`/`qa`: queda una
+sola vez). Al bajarlo con merge: en `VarianteServiceImpl` gana lo de `dev` (ya heredaba del modelo
+desde el 2026-09-30, solo cambia un comentario); en `CrudAbstractServiceImpl.typeError()` gana lo de
+`main` (`dev` todavía dice "El codigo postal ya existe" para cualquier restricción de la base).
 
 **Las tres de 2026-09-22** dan de alta los permisos de los botones nuevos: los del detalle de
 pedido (`cambiar-tipo`, y `agregar-articulo`/`cambiar-articulo`/`quitar-promocion`) y los de
@@ -575,9 +711,58 @@ el artículo usa el precio del producto): el 💲 de la card ahora cambia el pre
 **Correrla antes del deploy**: la entidad `Variantes` ya mapea las dos columnas y sin ellas falla
 cualquier consulta de artículos. Es idempotente y no mueve ningún precio.
 
+`migration_usar_descuento_variante.sql` agrega `variantes.usar_descuento` (R8 del dominio precio:
+el check "Precio descuento" del 💲 hace que el artículo se venda al descuento). **Correrla antes del
+deploy**: la entidad `Variantes` ya mapea la columna y sin ella falla cualquier consulta de artículos.
+Idempotente, no cambia ningún precio (todos nacen en 0). Probada dos veces en MySQL 8 local, también
+con `--safe-updates`. **Ya corrida en qa y en prod** (prod 2026-09-30: columna creada,
+0 artículos con descuento activo): el back con R8 ya puede desplegarse a prod sin romper consultas.
+
+`datos_prueba_qa_catalogo.sql` crea 200 productos y 400 artículos de prueba (código de barras
+`2099000000001`–`2099000000200`, marca "Prueba QA") para probar ventas, pedidos y tienda en QA.
+Cada INSERT exige `DATABASE() = 'inventario_key_qa'`, así que en prod no hace nada. Reusa imágenes
+de productos reales (no crea ni borra imágenes). `limpiar_datos_prueba_qa_catalogo.sql` los da de
+baja y quita sus ligas de imagen. Ambos probados en MySQL 8 local antes de entregarlos.
+
+`migration_accion_pedidos_filtros_y_cobro.sql` pone al día los permisos de **Mis pedidos** en
+Gestión de roles (2026-10-06): da de alta 9 acciones para los bloques nuevos de ⚙️ Filtros (solo a
+ROLE_ADMIN), corrige etiquetas y categorías de las viejas ("Normal" → "Contado", "Registrar abono" →
+"Abonar y liquidar" porque también son los botones de la card) y renumera el `orden` para que
+Gestión de roles no parta ni repita grupos. **Correrla antes o junto con el deploy del front**: el
+front ya pide esas acciones, y sin ellas el administrador deja de ver los bloques nuevos hasta que se
+corra y vuelva a entrar. Apaga Safe Updates solo durante el script. Probada dos veces en MySQL 8 local
+con `--safe-updates`, sobre el catálogo de acciones reproducido con las migraciones anteriores, y con
+un rol extra que conserva sus casillas.
+**Prod (2026-10-06): se corrió antes de que el front nuevo llegue a `main`.** No rompe nada: prod
+sigue usando las mismas claves (`filtro-normal`, `abonar`, `cobrar`...), que no cambian; las 9
+acciones nuevas quedan dadas de alta sin que el front de prod las use. Lo único que se nota es en
+Gestión de roles: los textos ya describen el panel ⚙️ Filtros y el cobro desde la card, que en prod
+todavía no existen ("Filtro: Contado" es el botón "🛒 Normal" de prod). Se empareja solo cuando suba
+el front. **No hay que volver a correrla** cuando se promueva a `main`.
+
+`migration_tema_jade.sql` deja el diseño **Jade** por default: respalda `tema_variable` en
+`tema_variable_bkp_20261001` (solo la primera vez), da de alta 32 variables nuevas (letra, tamaños,
+botones, dorado, cristal, sombras, `estilo`) y pone las 27 que ya existían en los valores de Jade.
+**Sí cambia cómo se ve la app** (es el objetivo); con un front viejo cambia los colores pero no la
+letra. Correrla junto con el deploy del front de la rama. Probada dos veces en MySQL 8 local con
+`--safe-updates`; trae al final las consultas para volver al diseño de antes (probadas: dejan las
+filas idénticas). Ver la skill `diseno-componentes`, sección 0.
+
+`limpiar_datos_e2e_qa.sql` da de baja (nunca DELETE) los modelos y artículos que crean las pruebas
+automáticas de `e2e/` en el front: código de barras exactamente `E2E` + 13 dígitos. Solo actúa en
+`inventario_key_qa`. Probado en MySQL 8 local dos veces, con Safe Updates, y con señuelos
+(`E2EABC`, `7501234E2E00000`) que no toca.
+
 `migration_mensaje_directo_mid.sql` agranda `mid` y `respuesta_mid` de `mensaje_directo_social` a
 `VARCHAR(512)`: los ids de mensaje de Instagram miden ~180 caracteres y el primer mensaje directo de
 Instagram que llegó a QA no se pudo guardar (`Data too long for column 'mid'`).
+
+`backfill_estado_pedido_tipo.sql` repara pedidos a crédito cuyo `estado_pedido` quedó desfasado del
+`tipo_pedido` (bug corregido en `PedidoServiceImpl.cambiarTipoPedido`, 2026-09-29). Solo toca filas
+donde ambas columnas son tipos de crédito (APARTADO/FIADO) y no coinciden; no toca pedidos pagados,
+entregados ni cancelados, y es idempotente. **Ejecutada en `inventario_key_qa` el 2026-09-29 (encontró
+1 fila y la corrigió, verificación final = 0 pendientes).** **Ejecutada en `inventario_key` (prod) el
+2026-09-30: no encontró filas desfasadas (0 cambios, verificación = 0).**
 
 `backfill_variantes_carga_rapida.sql` repara los artículos que la Carga rápida dejó vacíos antes
 del hotfix del 2026-09-22 (ver CAMBIOS_FRONT.md). Copia del producto a la variante solo las columnas
@@ -607,6 +792,26 @@ cerrar siempre con un `SELECT` de verificación que deba devolver al menos una f
 
 Recordar el mapeo de bases: `dev` y `qa` apuntan ambas a `inventario_key_qa`, `main` a
 `inventario_key`. Correrla en "qa" cubre dev y qa a la vez.
+
+**Lección — tabla de una sola fila con id fijo (2026-09-30):** si una tabla guarda una sola fila
+con `id` fijo (p. ej. `tiktok_token`, id=1) y su columna es `id INT PRIMARY KEY` sin AUTO_INCREMENT,
+la entidad **no puede heredar `BaseId`**: su `@GeneratedValue(IDENTITY)` hace que Hibernate mande el
+INSERT sin id y MySQL falla con "Field 'id' doesn't have a default value". La entidad lleva su propio
+`@Id` asignado. En QA no se notó porque la fila ya existía; tronó en prod, la primera vez que hubo
+que insertarla.
+
+### Regla — ningún script SQL se entrega sin haberlo corrido
+
+Antes de pasar cualquier `.sql` (migración, backfill o datos de prueba), leer
+**`ESPECIFICACIONES_AMBIENTES.md`** (versión de MySQL, diferencias entre entidades y base real,
+convenciones de datos) y seguir su checklist (sección 5): correrlo en una base desechable con el
+esquema real, dos veces, y con consultas de verificación. Si falta un dato del ambiente, se le pide
+al usuario con la consulta que trae ese documento; no se supone.
+
+**Por qué:** el 2026-09-29 se entregó un script de 200 productos de prueba escrito de memoria:
+usaba columnas que no existen (`producto.codigo`, `creacion`, `palabra_clave.palabra`…) y todos sus
+INSERT fallaban. No dañó nada porque MySQL rechaza la sentencia completa, pero se corrió en la base
+de QA confiando en que estaba revisado.
 
 ---
 
@@ -675,6 +880,56 @@ sus métodos consultando la base de datos.
 
 ---
 
+## Regla — quién es el comprador de un pedido: el nombre de la venta primero (2026-10-13)
+
+El dueño lo pidió dos veces (2026-09-22 en Mis pedidos y 2026-10-13 en Entregas por zona): *"se tiene que
+tomar primero el nombre que se puso en la venta, y si no hay, entonces el de quien hizo la venta"*.
+
+La Venta directa sin registrar al cliente guarda dos cosas en el pedido: la **cuenta del administrador**
+que atendió (`cliente_id`; el pedido necesita una) y el **nombre escrito** (`nombre_receptor`). La cuenta
+del admin **nunca** es el comprador. El orden es siempre:
+
+1. cliente sin registro (`cliente_sin_registro`) → 2. nombre escrito (`nombre_receptor`) → 3. cuenta (`cliente`).
+
+En Java hay **una sola implementación**: `Utils/CompradorDelPedido` (`nombre`, `nombreDelTitular`,
+`correo`, `telefono`). Cualquier pantalla, reporte, ticket o correo que necesite "el nombre del cliente de
+un pedido" **la usa**; no se vuelve a escribir un `if (pedido.getCliente() != null)` a mano. En SQL el
+equivalente es `COALESCE(csr.nombre_persona, NULLIF(TRIM(p.nombre_receptor), ''), c.nombre_persona)`. El
+correo y el teléfono, en cambio, **no** caen a los de la cuenta cuando la venta trae un cliente sin registro
+(el aviso o el comprobante le llegaría a quien atendió). Una búsqueda por nombre de cliente busca también en
+`nombre_receptor`.
+
+Al probar algo así, la prueba usa **los mismos datos que la pantalla**
+(`EscenariosPruebaPort.ventaDirectaConNombreEscrito()`, R22 de `datosprueba`): con un cliente sin registro
+el pedido no lleva la cuenta del admin y el fallo no se reproduce.
+
+---
+
+## Regla — SQL directo que cambia pedidos: avisar al caché de Mis pedidos (2026-10-14)
+
+La lista de Mis pedidos (`GET /v1/pedidos/buscar`) se guarda en Redis con una **versión** que sube con
+cada cambio (R18 de `hexagonal/busquedapedido/README.md`). Los cambios por JPA y las peticiones POST/PUT/
+PATCH/DELETE que salen bien ya suben la versión solos. **Lo que Hibernate no ve es el SQL directo**
+(`JdbcTemplate`, `NamedParameterJdbcTemplate`, y cualquier `@Modifying @Query` — JPQL o nativo: un
+`UPDATE Cliente c SET …` masivo tampoco dispara el listener). El interceptor de peticiones lo cubre solo
+cuando entra por una petición que no sea `/auth/`, `/chatbot/` ni de filtros; un job `@Scheduled`, un
+listener de Rabbit o un webhook no lo cubre nadie.
+
+**Regla:** todo SQL directo que cambie algo que se ve en la tarjeta de Mis pedidos o que usan sus filtros
+(`pedidos`, `detalle_pedidos`, `abono_pedido`, `grupo_pedido`, `grupo_pedido_miembro`, nombre/correo/
+teléfono de `clientes` y `clientes_sin_registro`, `lugares_entrega`, nombre de `producto`) llama
+`VersionDeListasDePedidos.subirAlConfirmar("motivo")` justo después del `UPDATE`/`INSERT`/`DELETE`. Si no,
+la pantalla puede enseñar el saldo o el estado viejo hasta 120 s. Ya lo hacen:
+`PedidosParaEntregarJdbcAdapter` (Entregado), `ClienteServiceImpl.verificarCorreo` y
+`UsuarioVerificacionService` (correo del cliente, que entran por `/auth/`). No hace falta en lo que no sale
+en la tarjeta (el stock de `producto`, códigos de verificación, huérfanos de `clientes_sin_registro`).
+
+El caché se apaga sin tocar código con `pedidos.lista.cache.habilitado=false` (variable de entorno
+`PEDIDOS_LISTA_CACHE_HABILITADO=false` en el deployment). No limpiar "solo la de Ir pagando" ni ninguna
+otra parte: la versión invalida todo junto a propósito (R18).
+
+---
+
 ## Regla — antes de crear un dominio: primero las reglas, después el código
 
 No se modela hasta tener las reglas del dominio escritas y acordadas.
@@ -712,6 +967,7 @@ porque varias no coinciden en el nombre (`Imagen` → `imagenes_copy`, no `image
 | `Imagen` | **`imagenes_copy`** | existe también `imagenes` — es la vieja, **no se usa** |
 | `ProductoImagen` | **`producto_imagen_copy`** | existe también `producto_imagen` — vieja, **no se usa** |
 | `ImagenPresentacion` | `imagen_presentacion` | la columna se llama `url_imagen` pero el campo Java es `nombreArchivo` |
+| `Usuario` | **`usuario_modificacion`** | existe también `usuarios` — una FK a un usuario va a `usuario_modificacion(id)` |
 
 Además, en `imagenes_copy` la columna **`base_64` guarda el NOMBRE DEL ARCHIVO**, no
 base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
@@ -730,10 +986,10 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `ventas` · `detalle_venta` · `detalle_venta_variantes` · `pedidos` · `detalle_pedidos` · `abono_pedido` · `grupo_pedido` (entidad `GrupoPedido`) · `grupo_pedido_miembro` (entidad `GrupoPedidoMiembro`) · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
 
 **Clientes**
-`clientes` · `clientes_sin_registro` · `direcciones`
+`clientes` · `clientes_sin_registro` · `direcciones` · `codigo_postal` (entidad `CodigoPostalGuardado`: códigos postales ya consultados al servicio externo, con municipio, estado y colonias en JSON; dominio `codigopostal`)
 
 **Usuarios, roles y permisos**
-`usuarios` · `usuarios_roles` · `roles` · `permisos` · `usuario_permiso` · `rol_permiso` · `menu` · `submenu` · `usuario_submenu` · `rol_submenu` · `rol_submenu_escritura` · `accion_submenu` · `rol_accion` · `historial_acceso` · `sesion_refresh` · `usuario_modificacion`
+`usuarios` · `usuarios_roles` · `roles` · `permisos` · `usuario_permiso` · `rol_permiso` · `menu` · `submenu` · `usuario_submenu` · `rol_submenu` · `rol_submenu_escritura` · `accion_submenu` · `rol_accion` · `historial_acceso` · `sesion_refresh` · `usuario_modificacion` (entidad `Usuario`) · `preferencia_filtro` (entidad `PreferenciaFiltro`: filtros guardados de cada persona del personal en tienda/buscar y productos/buscar, dominio `preferenciafiltro`)
 
 **Flores eternas**
 `ramo_armado` · `ramo_armado_accesorio` · `ramo_pedido_detalle` · `ramo_pedido_detalle_color` · `accesorio_ramo` · `tipo_flor` · `color_flor` · `cantidad_flor_valida` · `frase_liston_predefinida` · `lugares_entrega` · `lugar_entrega_anillo`
@@ -748,4 +1004,4 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 `promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `mensaje_directo_social` (entidad `MensajeDirectoSocial`) · `mensaje_directo_pausa` (entidad `MensajePausa`) · `tiktok_token` · `qr_destino`
 
 **Configuración y negocio**
-`configuracion_negocio` · `tema_variable` · `gastos_surtir` · `inversion`
+`configuracion_negocio` · `datos_legales_negocio` (sin entidad: `DatosLegalesJdbcAdapter`, una fila con id = 1, dominio `datoslegales`) · `tema_variable` · `tema_variable_bkp_20261001` (respaldo de `tema_variable` antes del diseño Jade, lo crea `migration_tema_jade.sql`; sin entidad) · `gastos_surtir` · `inversion`

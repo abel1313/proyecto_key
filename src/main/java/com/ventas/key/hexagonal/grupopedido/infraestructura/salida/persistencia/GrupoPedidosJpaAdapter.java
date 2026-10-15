@@ -49,6 +49,19 @@ public class GrupoPedidosJpaAdapter implements GrupoPedidosPort {
     }
 
     @Override
+    public void agregar(Integer grupoId, List<Integer> pedidoIds) {
+        GrupoPedido grupo = grupoRepository.findById(grupoId)
+                .orElseThrow(() -> new IllegalStateException("Grupo no encontrado: " + grupoId));
+        for (Integer pedidoId : pedidoIds) {
+            GrupoPedidoMiembro miembro = new GrupoPedidoMiembro();
+            miembro.setGrupo(grupo);
+            miembro.setPedido(pedidoRepository.getReferenceById(pedidoId));
+            grupo.getMiembros().add(miembro);
+        }
+        grupoRepository.save(grupo);
+    }
+
+    @Override
     public Optional<RegistroGrupo> buscar(Integer grupoId) {
         return grupoRepository.findById(grupoId).map(g -> new RegistroGrupo(
                 g.getId(),

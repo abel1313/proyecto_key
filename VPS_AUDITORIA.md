@@ -664,7 +664,7 @@ kubectl exec rabbitmq-0 -n default -- rabbitmqctl list_vhosts
 
 | Dominio | Nginx proxy_pass | App en K8s | `client_max_body_size` |
 |---|---|---|---|
-| `backend.novedades-jade.com.mx` | `51.178.29.99:30010` | proyecto-key back (prod) | ❌ no tiene — pendiente (ver nota abajo) |
+| `backend.novedades-jade.com.mx` | `51.178.29.99:30010` | proyecto-key back (prod) | ✅ `200M` + `large_client_header_buffers 4 32k` (2026-10-07; estaba duplicado, ver PASOS_SUBIDA_2026-10-07.md) |
 | `backend-imagenes.novedades-jade.com.mx` | `127.0.0.1:30096` | micro_imagenes (prod) | ✅ `40m` |
 | `shop.novedades-jade.com.mx` | `127.0.0.1:30001` | front Angular (prod) | — (no recibe uploads) |
 | `qa.backend.novedades-jade.com.mx` | `127.0.0.1:31010` | proyecto-key back (QA) | ✅ `200M` (agregado 2026-08-18) |
@@ -908,6 +908,13 @@ Copia la salida y pégala en Bitwarden. Luego borra el historial: `history -c`
 > (quedan como `secretKeyRef`). El deployment de prod lee **cada variable por separado**: agregar una
 > llave al secret no basta, también hay que darla de alta en el deployment. En QA **no** están en
 > `db-secret`; vienen definidas directo en el deployment de `qa`.
+>
+> ⚠️ La primera vez quedaron **dadas de alta pero vacías** (el patch se corrió con las variables de
+> shell ya vacías) y `printenv | grep -c` decía 2 igual. Se verifica midiendo caracteres:
+> `kubectl exec deploy/proyecto-key-deployment -n default -- sh -c 'echo "key=${#TIKTOK_CLIENT_KEY} secret=${#TIKTOK_CLIENT_SECRET}"'`
+> → `key=18 secret=32`. El back además anota al arrancar qué variables de redes faltan:
+> `kubectl logs deploy/proyecto-key-deployment -n default | grep -i "redes sociales"`.
+> Checklist completo: TIKTOK_SETUP.md, "Checklist para activar TikTok en un ambiente".
 
 #### 🟡 K8s Secrets — proyecto_key_new QA (namespace qa → db-secret)
 > Mismas variables que prod pero con valores de QA (distintas contraseñas/DBs)

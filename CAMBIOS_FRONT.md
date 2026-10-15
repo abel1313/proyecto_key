@@ -68,6 +68,1032 @@ Los `urlImagen` / `imagenUrl` que devuelven los listados (productos, variantes, 
 
 ---
 
+### [BUG-KEY-46] 🆕 Tienda → Buscar: la etiqueta «Deshabilitado» se encimaba con la ✕ y con «Agotado» (2026-10-14) — solo front, el back no cambia
+
+Pedido del dueño en QA (Prueba 15-B), con captura: *"en su card aparece deshabilitado pero como que se enciman los datos, para que revises y hagas que se vea correcto, uno abajo del otro o primero uno y después el otro"*.
+
+**Antes:** en la card de un artículo deshabilitado, la etiqueta «Deshabilitado» flotaba arriba a la derecha (`position: absolute`) y caía encima de la ✕ de dar de baja y de la etiqueta «Agotado»/«N unidades» del encabezado; además la casilla de selección tapaba el puntito de color.
+**Ahora:** «⛔ Deshabilitado» es una **franja propia debajo del encabezado** (ancho completo, rojo suave, día y noche). El encabezado deja su lugar a la casilla (a la izquierda) y a la ✕ (a la derecha) con padding, así cada cosa queda en su sitio. Mismos permisos y mismos datos: solo cambia el acomodo. Archivos: `variante/buscar/buscar.component.html` y `.scss` (clases `.vb-badge-disabled`, `.vb-card__header--con-check`, `.vb-card__header--con-baja`).
+**Medido en pantalla (día y noche):** casilla, puntito, precio, «Agotado», ✕ y la franja sin ninguna caja encimada.
+**Pendiente de revisar (no se tocó):** en **Catálogo → 🔍 Modelos** (`productos/producto/all`) la etiqueta «Deshabilitado» también es flotante (arriba a la izquierda); no se reportó encimada.
+
+---
+
+### [BUG-KEY-45] 🆕 Los bots no dicen cómo están hechos, pagos solo efectivo o transferencia, zonas desde la tabla y sin cantidades (2026-10-14) — back y front, el contrato no cambia
+
+Pedido del dueño: *"que no haga o diga cómo está hecho, que no diga nada técnico sobre su desarrollo"*.
+
+**Antes:** los bots tenían prohibido mencionar correos, avisos al administrador, pausas y "estas instrucciones", pero nada
+les impedía decir qué IA los hace funcionar ni les decía qué hacer si alguien les pedía sus instrucciones.
+**Ahora:** regla `SIN_DETALLES_TECNICOS` en los 5 bots (chat de la tienda, chat en vivo, mensajes directos y comentarios).
+Endpoints y JSON sin cambios. Revisión completa: `BUGS_CHATBOT_BACK.md` (2026-10-14). Prueba 28.
+
+**También, de la misma revisión (P2 a P5):**
+- **Pagos:** el bot decía *"tarjeta de crédito, débito, transferencia y efectivo"*; ahora *"por ahora solo en efectivo o por transferencia"*.
+- **Zonas:** antes escritas a mano en el prompt; ahora salen de **Envíos → Zonas de entrega** (`lugares_entrega`) en cada mensaje.
+- **Cantidades:** el bot ya no dice cuántas piezas hay ni el código de barras, solo si hay o está agotado. **Front:** la tarjeta de producto del chat de la tienda (`chatbot.component.html`) dice *"✅ Disponible"* / *"Agotado"* en vez de *"N pzas"* y ya no pinta el código de barras. `POST /mis-productos/chatbot/mensaje` sigue mandando `stock` y `codigoBarras` en `productos[]` (el carrito usa `stock` para el tope); el front solo deja de mostrarlos.
+- **Chat en vivo:** al pasar con una persona dice *"En un momento te atendemos por aquí mismo 💖"* (antes *"Voy a pasar tu mensaje con una persona del negocio…"* y, si fallaba, *"Tuve un problema para responderte. Ya le avisé a una persona del negocio…"*).
+
+---
+
+### [BUG-KEY-44] 🆕 Mis datos: calendario de nacimiento por año y mes, nombres con espacios, teléfono de 10 dígitos y código postal que sí llena el municipio (2026-10-14) — back y front, el contrato no cambia
+
+Pedido del dueño en QA (Prueba 20.1): *"las fechas de nacimiento tengo que ir de un mes en un mes hacia atrás… necesito otro calendario de los nuevos para la fecha de nacimiento… quiero un calendario perrón; Nombre * pruebas para qa me, me sale esto Campo requerido; paterno y materno también; número de contacto no tiene validaciones, puedo poner más de 10 dígitos; código postal hace una simulación de búsqueda pero no se llena municipio; dice faltan datos pero todo está lleno"*.
+
+**Calendario compartido (`shared/selector-fecha`, ~30 campos de fecha en la app):**
+- **Antes:** solo flechas ‹ › de un mes en un mes. Para llegar a 1985 eran ~500 clics.
+- **Ahora:** en el título del mes, **«octubre ▾»** abre los 12 meses y **«2026 ▾»** abre la lista de años (con scroll, el año activo centrado). Elegir año → meses → día. Con la vista de meses abierta, ‹ › mueven un año. Igual en todos los campos de fecha; lo que guarda (`aaaa-mm-dd`) no cambia.
+- `@Input() modo: 'normal' | 'nacimiento'` (default `normal`). En `nacimiento`: no deja fechas después de hoy (máximo hoy, mínimo 1900-01-01 si no se pasa `min`/`max`), si está vacío **abre directo en los años** (centrado 30 años atrás), no muestra **Hoy**, y arriba trae una caja **"Escríbela"** (`dd/mm/aaaa`, pone las diagonales sola; Enter la confirma). Errores: *"Esa fecha no existe. Revisa el día y el mes."* y *"La fecha de nacimiento no puede ser después de hoy."*. Lo usan **Mis datos**, **ver cliente** (`clientes-mostrar`) y **Ventas → Venta directa** (fecha de nacimiento del cliente nuevo).
+
+**Mis datos (`clietes/mis-datos`):**
+- **Nombres:** antes el patrón era una sola palabra sin espacios y el error decía siempre *"Campo requerido"*, así que *"pruebas para qa me"* salía como si estuviera vacío. Ahora acepta varias palabras con acentos, ü, ñ, apóstrofo, punto y guion (*"María José"*, *"De la Cruz"*, *"O'Neil"*), y si tiene números o símbolos dice *"Solo letras y espacios, por ejemplo «María José» o «De la Cruz»."* (requerido sigue diciendo *"Campo requerido"*). El error sale al escribir, no solo al salir del campo. Al guardar se quitan los espacios de más. Patrón compartido en `clietes/validaciones-cliente.ts` (`PATRON_NOMBRE`).
+- **Número de contacto:** antes dejaba escribir letras y más de 10 dígitos y el error solo salía al salir del campo. Ahora solo deja dígitos y se corta en 10; si lo pegan con espacios, guiones o lada del país, lo limpia (*"+52 55 1234 5678"* y *"521 55 1234 5678"* → `5512345678`; por eso el campo ya no lleva `maxlength`, que lo cortaba antes de limpiarlo). Abajo dice *"Llevas N de 10 dígitos"* hasta completar.
+- **Referencias:** antes era **obligatorio sin marcarse en rojo** (no tenía mensaje): por eso salía *"Faltan datos obligatorios"* con todo lleno. Ahora es opcional y dice *"(opcional)"*. El back nunca lo pidió.
+- **Aviso al guardar:** antes *"Faltan datos obligatorios — Revisa los campos marcados en rojo antes de guardar."*. Ahora dice **cuáles** (*"Revisa estos campos (están en rojo): Calle · Colonia"*; con uno solo, *"Revisa este campo (está en rojo): Calle"*), y al tocar **Entendido** baja al primero. (La pantalla **ver cliente** del admin sigue con el aviso de antes.)
+- **Guardar cambios al primer clic:** antes, con el cursor dentro de un campo vacío, tocar **Guardar cambios** no hacía nada: al salir del campo aparecía su *"Campo requerido"*, la pantalla bajaba ~25 px y el clic caía fuera del botón. Ahora el botón no le quita el foco al campo (`mousedown` sin efecto) y el primer clic siempre guarda o muestra el aviso.
+- **Largo de los campos** (lo preguntó el dueño; no cambió): ni Mis datos ni el back ponen un largo mínimo o máximo a nombres, apellidos, calle o colonia (las entidades `Cliente` y `Direccion` no tienen `length`, así que JPA usa 255). Los avisos rojos nunca fueron por el largo: eran el patrón sin espacios y Referencias.
+- **Código postal:** antes leía `res.codigo_postal.municipio` sin revisar: si el servicio externo fallaba o decía "no existe", solo se veía el spinner y el municipio quedaba vacío. Ahora busca al completar 5 dígitos (o al salir del campo), muestra *"Buscando el municipio…"*, llena **Municipio** y, si hay una sola colonia, también **Colonia**; si hay varias, las sugiere en Colonia (*"Encontramos N colonias: elígela en el campo Colonia."*). Si no existe: *"No encontramos ese código postal. Revisa los 5 dígitos o escribe el municipio tú."*; si el servicio no contesta: *"No pudimos buscar el código postal en este momento. Escribe el municipio tú."*. En **ver cliente** del admin, el mismo texto sale en una ventana informativa.
+
+**Back — `GET /mis-productos/v1/dipomex/getCodigoPostal/{codigoPostal}` (`DopoMexService`):** el JSON de éxito es el mismo (`codigo_postal.municipio`, `.estado`, `.colonias[]`).
+- **Antes:** un código inexistente regresaba 200 con `error: true` o un 500 sin explicación; si el servicio externo no contestaba, la pantalla esperaba sin límite.
+- **Ahora:** primero busca en **nuestra base** (tabla `codigo_postal`); solo si el código no está, o tiene más de un año, le pregunta al servicio externo (máximo 8 segundos) y lo guarda para la próxima. Un código que el servicio dice que no existe **no se guarda**, y lo que el cliente escribe a mano tampoco. Si el servicio externo falla pero el código ya estaba guardado, se responde con lo guardado. Reglas R1–R7 en `hexagonal/codigopostal/README.md`. El JSON y los códigos no cambian para el front (la pantalla sigue igual):
+  - **200** — encontrado, con `codigo_postal.municipio`.
+  - **404** — no son 5 dígitos (*"El código postal debe tener 5 dígitos"*) o no existe (*"No encontramos el código postal 99999"*).
+  - **502** — el servicio externo falló, tardó más de 8 s o rechazó la llave: *"No pudimos buscar el código postal en este momento. Escribe el municipio a mano"*. El log del back dice qué código HTTP contestó el servicio externo (nunca la llave), para saber si hay que renovarla.
+
+**Script:** `migration_codigo_postal.sql` crea la tabla (hay que correrla en QA y luego en prod; sin ella todo sigue funcionando como antes, preguntándole al servicio externo cada vez).
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, 20.1 (pasos 4 a 13 y mapa de impacto del calendario).
+
+---
+
+### [BUG-KEY-43] 🆕 Agregar stock al modelo desde el artículo, pregunta al actualizar el modelo y checks por artículo (2026-10-14) — solo front, el back no cambia
+
+Pedido del dueño en QA (Prueba 20.3): *"si estoy en artículo y ya no tiene stock… debería abrir un modal… ahí puedo poner 10 o 100, pero eso no quiere decir que el artículo… se le vayan a poner esos 10 o 100"*; *"al dar guardar [el modelo] me debe salir cuántos artículos quiero hacer"*; *"el primer artículo con los check de que quiero actualizar… la variante se va a hacer igual que lo que tiene el producto… y solo diferente los check que cambie"*.
+
+**Editar artículo (`tienda/update`, `update-variante`):**
+- **Antes:** pedirle al artículo más de lo libre del modelo mandaba `POST /v1/variantes/guardarConImagenes` y salía el 422 *"El modelo «…» no tiene piezas libres…"*.
+- **Ahora:** si `stockQuePide > stockDisponible.disponible`, **💾 Actualizar artículo** (antes decía *"Actualizar producto"*) no manda nada: abre la ventana **➕ Agregar stock al modelo** y con lo escrito llama a `PUT /v1/stock/producto/{productoId}/ajuste` `{ ajuste }` (el mismo de Agregar artículo, BUG-KEY-30). Usa la respuesta (`IStockDisponible`) para refrescar lo libre; **el artículo no se guarda ni cambia**. Si el `guardarConImagenes` responde **422** de todos modos (lo libre cambió mientras tanto), recarga `GET /v1/stock/producto/{id}` y abre la misma ventana. Botón **➕ Agregar stock al modelo** también en el recuadro de stock (cuando no queda libre o se está pasando).
+- Permiso del front para ofrecerla: admin o escritura en `productos/buscar`, `productos/agregar` o `tienda/venta` — el mismo que pide el back para el `PUT …/ajuste`. Sin él, un aviso dice que lo pida a alguien con permiso de Catálogo.
+- Aviso al guardar: *"¡Artículo actualizado!"* (antes *"¡Variante actualizada!"*).
+
+**Actualizar modelo (`productos/update`, `add.component` en modo Actualizar):**
+- **Antes:** solo *"¡Producto actualizado!"* y regresaba a Modelos (la pregunta de artículos era solo al dar de alta, A1).
+- **Ahora:** al guardar consulta `GET /v1/stock/producto/{id}`; si `articulosQueAunCaben` (o `disponible`) ≥ 1, abre `<app-alta-articulos>` con la pregunta (*"✅ Modelo actualizado"*). Si no, o si esa consulta falla: *"¡Modelo actualizado!"* y regresa a Modelos, como antes. Al cerrar la ventana también regresa a Modelos. En alta, el aviso sin id dice *"¡Modelo guardado!"* (antes *"¡Producto guardado!"*).
+
+**Ventana 🧩 Agregar artículos (`shared/alta-articulos`, la usan Agregar modelo, Actualizar modelo, 🧩 Productos y Agregar artículo):**
+- La pregunta ahora es *"¿Cuántos artículos quieres hacer de este modelo?"* (1 a lo libre) con **Ahora no** / **Continuar**; antes *"¿Quieres agregar sus artículos ahora?"* con **Después** / **Sí, agregar artículos**. `@Input() accion: 'alta' | 'actualizar'` solo cambia el título.
+- Se quitaron las casillas globales *"Usar del modelo en todos los artículos"*. Cada artículo tiene 6 checks **sin marcar** (Foto, Descripción, Color, Marca, Contenido neto, Categoría). **Lo no marcado viaja vacío** (`color: ""`, `palabraClaveId: null`…) y el back lo llena con el del modelo (`buildVariante` → `datoEfectivo` / `categoriaEfectiva`, R2/R3 del dominio `articulo`, sin cambios). Foto no marcada → `usarImagenDelModelo: true` si el modelo tiene foto; marcada → la foto propia en `listImagenes` (`imagenesPropias: true`, como antes). Marcado y vacío no deja guardar.
+- Cada artículo se **pliega y despliega** con su propia línea (▸ Mostrar / ▾ Ocultar) que, plegada, resume *"Talla · Stock · Cambia: …"* y *"⚠️ Falta: …"*. Hasta 3 salen abiertos; con más, los nuevos salen plegados. **Abrir todos / Cerrar todos** y abajo *"A los artículos … les falta algo — Abrir solo esos"*. Solo pantalla: no cambia lo que se manda.
+- E2E: `e2e/support/modelo.ts` ya no espera *"¡Producto guardado!"* (desde el flujo A no salía): espera la ventana y toca **Ahora no**.
+
+Detalle de las reglas: `PLAN_ALTA_MODELO_Y_ARTICULOS.md`, sección 7. Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, 20.3 (y 17.7 / 17.8).
+
+---
+
+### [BUG-KEY-42] 🆕 🧪 Preparar prueba: rifas, códigos de compra y usuarios de prueba (2026-10-14) — back y front
+
+Pedido del dueño: *"ayúdame con el código para dar de alta todas las pruebas que vamos a hacer, para poder hacerlas tal cual"*.
+
+**Back (`/v1/admin/datos-prueba/...`, solo administrador y solo en la base de QA, como antes):**
+- `GET /escenarios` trae una prueba más: `"19"` (*"Errores con su código: rifa con el plazo vencido y código de compra ya usado"*).
+- `POST /preparar/17` y `/preparar/18` además dan de alta un usuario de prueba (`qa.prueba17`, `qa.prueba18`) con su rol (`ROLE_QA_PRUEBA_17/18`) y solo los permisos que pide la prueba. **La contraseña no viaja en la respuesta**: el administrador le pone una con `PUT /v1/usuarios/{id}/resetear-password` (Sistema → Usuarios → Resetear contraseña).
+- `catalogo[].tipo` puede ser ahora `MODELO`, `ARTICULO`, **`RIFA`**, **`CODIGO`** o **`USUARIO`**. En `CODIGO` y `USUARIO`, `codigoBarras` trae lo que se copia (el código de Agregar mi compra o el nombre de usuario); en `RIFA` viene `null`. `modeloId`/`articuloId` vienen en 0 si no es catálogo.
+- `POST /quitar/{prueba}` y `/quitar-todas`: campo nuevo **`otrosDesactivados`** (rifas y usuarios de prueba desactivados). `queSeQuito` ya lo menciona.
+
+**Front (`admin/cache`, recuadro 🧪):** cada dato dice *"modelo"*, *"artículo de"*, *"rifa"*, *"código de"* o *"usuario"* según `tipo`; el botón de copiar dice *"Copiar el código"* / *"Copiar el usuario"*; el aviso de **Quitar** suma las rifas y usuarios desactivados. `ICatalogoPreparado.tipo` e `IPruebaQuitada.otrosDesactivados` en `admin.service.ts`.
+
+**Antes:** la 17.11 y la 18 pedían *"un usuario de prueba con un rol…"* y la 19 *"abre una rifa activa"* / *"un código ya usado"*: había que armarlos a mano. **Ahora:** salen del 🧪.
+
+Detalle: `hexagonal/datosprueba/README.md`, R23.
+
+---
+
+### [BUG-KEY-41] 🆕 Mis pedidos: caché de la lista y filtros más rápidos; aviso claro de stock del artículo (2026-10-14) — solo back, el front no cambia
+
+**1. Poner o quitar un filtro en Mis pedidos (`GET /v1/pedidos/buscar`).**
+
+- **Antes:** después de BUG-KEY-40 el texto ya era rápido, pero cada clic en un filtro volvía a calcular la lista completa (conteo, orden y tarjetas). Además la consulta unía siempre lugares de entrega y clientes y revisaba pedido por pedido si era miembro escondido de un grupo. Regresar a un filtro que ya habías visto lo calculaba otra vez.
+- **Ahora:**
+  - La consulta solo une lo que el filtro usa. Los filtros sin texto quedan ~2× más rápidos (al abrir, con 6 000 pedidos: 123 → 72 ms). Se comprobó en 992 combinaciones de filtros que salen los mismos pedidos, en el mismo orden y con el mismo total.
+  - La respuesta completa se guarda en Redis 120 s, con una **versión** que sube con cualquier cambio de pedidos, abonos, grupos, clientes, lugares o productos. Medido: primera vez ~260 ms, mismo filtro otra vez ~8 ms.
+  - Nunca se ve un dato viejo después de un cambio: la versión sube al confirmar la transacción, y también con cualquier POST/PUT/PATCH/DELETE que responda bien.
+  - Guardar los filtros de la pantalla (`/v1/preferencias-filtro`) no cambia la versión, así que no vacía el caché.
+- **Para el front:** nada. La petición, la respuesta y la paginación (`page`, `size=10`) son las mismas. Si Redis no responde, la lista se calcula como antes, sin error. Detalle: `hexagonal/busquedapedido/README.md`, R18 y R19.
+
+**2. Aviso de stock al darle más stock a un artículo** (`POST /v1/variantes/guardarConImagenes`, desde **Tienda → Buscar → artículo → Actualizar stock** o **Catálogo → 🧩 Agregar producto**).
+
+- **Antes:** 422 con *"Stock insuficiente para el producto 'QA Prueba 20 Agotado' (id=20677). Disponible: 0, Solicitado: 5"*. El mensaje no decía que el stock del artículo sale del stock libre del modelo ni dónde sumárselo.
+- **Ahora:** el mismo 422, con *"El modelo «QA Prueba 20 Agotado» no tiene piezas libres para darle a este artículo: tiene 0 libres y le pides 5 más. Primero súmale stock al modelo en Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock». (Disponible: 0, Solicitado: 5)"*.
+- **Para el front:** nada. Ya muestra el `message` del error tal cual.
+
+**3. 🧪 Preparar prueba 26** (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba): `GET /v1/admin/datos-prueba/escenarios` trae una prueba más (`"26"`, *"Mis pedidos con caché: rápido y sin datos viejos"*). El front pinta los botones de esa lista, así que **no cambia**.
+
+---
+
+### [BUG-KEY-40] 🆕 Mis pedidos: buscar por texto y poner/quitar filtros tardaba muchísimo (2026-10-14) — solo back, el front no cambia
+
+**Qué pasaba:** `GET /v1/pedidos/buscar` con `buscar=…` (nombre, teléfono, correo, artículo) tardaba segundos o minutos según cuántos pedidos hubiera: medido con 6 000 pedidos, **48 segundos** para un nombre. La pantalla vuelve a pedir la lista con cada filtro que se prende o se quita, así que con texto escrito en el buscador **cada clic** esperaba eso. La causa era el SQL del texto (una subconsulta por pedido que reescaneaba sus artículos), no la paginación: el front pide de 10 en 10, espera 400 ms al escribir y descarta respuestas viejas.
+
+**Ahora:** la misma petición, la misma respuesta (mismos pedidos, orden y totales; comprobado contra el SQL anterior en 490 búsquedas), pero el texto se resuelve una vez. Medido con los mismos 6 000 pedidos: nombre **48 102 ms → ~120 ms**, artículo («bolsa», 5 800 coincidencias) ~200 ms; los filtros sin texto no cambian (30–190 ms).
+
+**Para el front:** nada. No cambia el contrato de `/v1/pedidos/buscar` ni de `/v1/pedidos/buscarClientePedido`. Detalle de la regla: `hexagonal/busquedapedido/README.md`, R17.
+
+---
+
+### [BUG-KEY-39] 🆕 El nombre del cliente: primero el de la venta, luego el de la cuenta de quien la hizo (2026-10-13) — solo back, el front no cambia
+
+**Qué fallaba (antes):** una Venta directa **sin registrar al cliente** guarda en el pedido dos cosas: la **cuenta del administrador** que atendió (`clienteId`, el pedido necesita una) y el **nombre escrito** en "nombre del receptor". Mis pedidos ya enseñaba el nombre escrito (`COALESCE(cliente sin registro, nombre receptor, cuenta)`, desde 2026-09-22), pero estas pantallas tomaban **primero la cuenta** y salía el nombre de quien dio de alta el pedido:
+
+| Pantalla | Endpoint | Campo |
+|---|---|---|
+| Entregas por zona (columna **Cliente**) | `GET /v1/entregas-zona/{lugarEntregaId}/pendientes` | `pedidos[].nombreCliente` |
+| Créditos / Abonos (tarjetas de Cuentas por cobrar, Liquidados, Cancelados) | `GET /v1/abonos/reporte/estado-cuenta`, `/v1/abonos/reporte/pagados` y `/v1/abonos/reporte/cancelados` | `cliente` y `telefono` |
+| Detalle del pedido y formularios de cobro (Liquidar, Dar abono), tickets | `GET /v1/pedidos/{id}/detalle` | `clienteNombre`, `clienteTelefono`, `clienteCorreo` |
+| 🔗 Unir con otros pedidos (tarjetas) | `GET /v1/grupos-pedido/candidatos` | `cliente` |
+| Frases de listón pendientes (Flores) | `GET /v1/flores/pedidos/frases-pendientes` | `clienteNombre` |
+
+**Ahora (todas):** primero el **nombre de la venta** (cliente sin registro; si no, el que se escribió como receptor); solo si no hay, el de la **cuenta** de quien hizo el pedido. Es una sola regla en el back: `Utils/CompradorDelPedido`. El front **no cambia**: lee los mismos campos y trae el valor correcto.
+
+**Qué cambia además (el front lo ve):**
+- 🔗 **Unir:** el buscador (`GET /v1/grupos-pedido/candidatos?buscar=…`) ahora **también busca por el nombre escrito en la venta** (`nombre_receptor`). Antes un pedido sin cliente registrado solo se encontraba por el nombre de la cuenta del admin.
+- **Correos y comprobantes:** el correo/teléfono del comprador es el del **cliente sin registro** si la venta lo trae (aunque no tenga datos), y solo si no hay, el de la cuenta. Antes, con las dos cosas en el pedido, el aviso de **Entregas por zona** y el **comprobante de abono** se mandaban a la cuenta del admin. Si la venta solo trae la cuenta del admin (como en la Prueba 21), siguen llegándole a él.
+- Un pedido que el cliente hace desde su cuenta no cambia: sin cliente sin registro y, si puso un receptor, la card ya enseñaba ese receptor (el detalle ahora también; en el detalle sigue el renglón **Recibe:** aparte).
+
+**Cómo se prueba:** **🧪 Preparar prueba 21** crea tres pedidos vendidos así (cuenta del admin + nombre escrito «Prueba 21 P1/P2/P3») → `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 21, 21.1 y 21.3.
+
+---
+
+### [BUG-KEY-38] 🆕 Listas desplegables que salían en blanco, chat de día y "$" de Reportes (2026-10-13) — solo front
+
+Reporte del dueño: *"vi unos select que cuando salían todas las opciones aparecía en blanco y no se veían"*.
+
+**Medido** con los 5 diseños de Personalización, de día y de noche (skill `revision-colores`):
+con los 4 diseños de estilo Clásico (Clásico, Jade profundo elevado, Neutros cálidos, Teal), **de noche
+11 de 12 listas tenían contraste 1.1–1.2** (lo legible es 4.5 o más). El menú salía blanco y las
+opciones con letra casi blanca. Jade y los colores de fábrica salían bien.
+
+**Causa:** el menú de opciones de un `<select>` lo dibuja el navegador y toma su fondo, su letra y su
+`color-scheme` de tres lugares distintos. Un parche global (y 4 por pantalla) forzaba el menú claro,
+mientras la regla de `<option>` le ponía la letra clara del tema y el fondo del campo
+(`rgba(255,255,255,0.05)` en esos diseños).
+
+**Antes → después:**
+| Qué | Antes | Después |
+|---|---|---|
+| Menú de opciones de cualquier `select` (y `datalist`) | Fondo, letra y esquema de lugares distintos | Trío `--menu-bg` / `--menu-text` / `--menu-scheme`: fondo sólido, letra que contrasta y esquema del mismo lado |
+| Panel de `p-dropdown` (Venta directa, cobro en Mis pedidos, Agregar venta, detalle de producto) | `--card-bg` / `--app-text` | El mismo trío |
+| Campo cerrado del `select` en estilo Clásico de noche | Blanco con letra oscura (parche) | Con los colores del campo, igual que los demás campos |
+| Parches de `venta-directa`, `venta-variante`, `gestion-lugares`, `entregas-zona` | Forzaban el menú blanco | Quitados |
+| Login y Registro | Parche propio | **Igual** (se quedan con su diseño a propósito) |
+| "Asistente Virtual" y ✕ en el encabezado del chat, de día en Jade | Letra casi blanca sobre encabezado claro (1.12) | Letra del encabezado (`--card-header-text`) |
+| "$" verde de las tarjetas de Reportes, de día | `--pk-success` (2.65) | `--pk-success-to` (el mismo verde, más oscuro) |
+
+**Cómo se calcula el trío:** `TemaService.derivarColoresMenu()` lo saca de los colores ya aplicados (el
+campo encima del fondo de la página, la letra del campo o negro/blanco si no contrasta, y el esquema
+según qué tan claro es el fondo). Se recalcula al cargar Personalización, al previsualizar y al cambiar
+de día a noche. Sin endpoints ni filas nuevas en `tema_variable`.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 23 (23.5 y 23.6).
+
+---
+
+### [BUG-KEY-37] 🆕 🧪 Preparar prueba N: los pedidos, modelos y artículos de cada prueba de QA con un botón (2026-10-13)
+
+Pedido del dueño: *"genera los scripts para generar las pruebas que necesitas; si necesitas varios
+pedidos, los agregas, y yo hago las pruebas en pedidos… cada prueba así hay que hacerla para no perder
+tiempo en generar pedidos"*.
+
+**Endpoints nuevos** (solo `ROLE_ADMIN`, ya cubiertos por `/v1/admin/datos-prueba/**` en SecurityConfig):
+
+| Request | Response |
+|---|---|
+| `GET /mis-productos/v1/admin/datos-prueba/escenarios` | 200. Las pruebas van en **`lista`** (no en `data`): `[{ prueba: "12", titulo: "…" }, { prueba: "14-QA", … }, …]`. Hoy: 12, 14-QA, 15, 16, 17, 18, 20, 21, 22 y 24 |
+| `POST /mis-productos/v1/admin/datos-prueba/preparar/{prueba}` (sin body; `{prueba}` va con `encodeURIComponent`) | **201** con `data: { prueba, titulo, pedidos: [...], catalogo: [...], siguientePaso, error: null }` (detalle abajo) |
+| `POST /mis-productos/v1/admin/datos-prueba/quitar/{prueba}` (sin body) | **200** con `data: { prueba, titulo, pedidosCancelados, pedidosSinCancelar, modelosDadosDeBaja, error }`. Quita lo de esa prueba sin volver a crearlo (pedidos cancelados, modelos dados de baja; nada se borra) |
+| `POST /mis-productos/v1/admin/datos-prueba/quitar-todas` (sin body) | **200**. Una por prueba en **`lista`**, con la misma forma que la de arriba; la que falló trae `error` y las demás se quitan. `mensaje`: *"5 pedidos cancelados y 2 modelos dados de baja"* |
+| `POST /mis-productos/v1/admin/datos-prueba/preparar-todas` (sin body) | **201**. Una por prueba en **`lista`**, en el orden de `escenarios`. La que falló trae `error` con el motivo (y `pedidos`/`catalogo` vacíos); las demás quedan listas. `mensaje`: *"Todas las pruebas quedaron listas"* o *"8 pruebas listas, 2 con error"* |
+
+Cada prueba preparada:
+```
+{ prueba: "17", titulo: "Filtros de Tienda, precio $100 y Venta directa",
+  pedidos:  [ { clave: "K4", pedidoId: 1180, queEs: "💳 Ir pagando sin dinero", cliente: "Prueba 24 K4" } ],
+  catalogo: [ { clave: "Art-A", tipo: "ARTICULO",  // o "MODELO"
+                modeloId: 812, articuloId: 2301,
+                nombre: "QA Prueba 17 Art-A #2098000123", codigoBarras: "2098000123",
+                queEs: "Artículo de $100 con stock 10" } ],
+  siguientePaso: "17.1: Tienda → busca …",   // puede ser null
+  error: null,                                // solo en preparar-todas, cuando esa prueba falló
+  queSeQuito: "Se quitó lo de antes: 2 pedidos cancelados y 1 modelo dado de baja." }   // null si no había nada
+```
+
+- **403** fuera de `inventario_key_qa` (prod), en los dos POST: `mensaje` *"Los datos de prueba solo se pueden generar en la base de QA…: no se hizo nada"*.
+- **400** si la prueba no existe: *"No hay datos para preparar la prueba 99. Se pueden preparar: 12, 14-QA, 15, 16, 17, 18, 20, 21, 22, 24"*.
+
+**Qué cambió respecto a la primera versión (mismo día):** antes solo creaba **pedidos** (pruebas 16, 20,
+21, 22 y 24) y la respuesta no traía `catalogo` ni `error`. Ahora también da de alta los **modelos y
+artículos** que pide cada prueba, ya en su estado (Art-A de $100, Art-200, uno con descuento, M-OFF
+deshabilitado, M-0 sin stock libre, artículos viejos deshabilitados que guardan stock, un modelo
+agotado), y existe `preparar-todas`. Al terminar se limpia la caché del catálogo, para que Tienda
+muestre lo recién creado. El dueño pidió: *"me refiero a los artículos, que ya estén los pedidos de las
+pruebas como los pedí"*.
+
+Cada llamada crea **datos nuevos**: un modelo "QA Prueba N #…" con un artículo ($150, stock 30, marca
+"Prueba QA", código `2098…`) y los pedidos de esa prueba, con la observación `[DATOS DE PRUEBA]`. Pasan
+por los mismos servicios que la pantalla (carrito del cliente, venta directa, abono, ✖ Cancelar). Los 🕓
+Pendientes son de un cliente con cuenta, **"Cliente Prueba QA"** (`cliente.prueba.qa@ejemplo.invalid`).
+
+**Front:** en **Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba**, sección **"Preparar una prueba"**:
+el botón **🧪 Preparar todas las pruebas** (pide confirmación), un botón **🧪 Preparar prueba N** por
+cada prueba (con su título al lado) y, al terminar, un recuadro por prueba: los modelos y artículos
+(clave, nombre y el código de barras, que se copia al tocarlo), los pedidos creados con enlace a
+`/pedidos/mis-pedidos?pedidoId=N` (abre el detalle) y el siguiente paso. La que falló sale en rojo con
+su `error`.
+
+**Nombre exacto en la venta y reiniciar (2026-10-13, tercera pasada)** — pedido del dueño: *"en la venta se pone
+el nombre exacto de la prueba para que coincida en todos lados… y si sale mal, en el mismo código eliminar lo que se
+metió y volverlo a meter"*.
+
+| Qué | Antes | Después |
+|---|---|---|
+| Cliente de cada pedido de prueba | "Cliente Prueba QA 001" (sin cuenta) o "Cliente Prueba QA" (con cuenta), el mismo para todos | **Uno por prueba y clave**: «Prueba 24 K4», «Prueba 24 K6», «Prueba 16 A»… Es lo que se ve en la tarjeta del pedido y lo que busca Mis pedidos / 🔗 Unir (3 letras o más: «Prueba 24» trae los de esa prueba) |
+| Nombre de los modelos | "QA Prueba 17 Art-A #2098000123" | **"QA Prueba 17 Art-A"** (sin número; el código de barras `2098…` los distingue) |
+| Tocar **🧪 Preparar prueba N** otra vez | Creaba datos nuevos y dejaba los viejos (modelos repetidos, pedidos que se acumulaban) | **Reinicia**: primero quita lo de esa prueba (pedidos cancelados con el servicio real, el stock regresa; modelos y artículos dados de baja) y luego la crea. La respuesta trae `queSeQuito` |
+| Quitar sin volver a crear | No existía | `POST …/quitar/{prueba}` y `POST …/quitar-todas`; en pantalla **🗑 Quitar** por prueba y **🗑 Quitar todas** (con confirmación) |
+
+Un Contado entregado o un Ir pagando ya pagado se cancela como **devolución** (su venta queda "Devuelta") y un
+pedido que está en un grupo también se cancela. Un pedido que no se pueda cancelar no detiene a los demás
+(`pedidosSinCancelar`). Los pedidos cancelados no salen en Mis pedidos al abrir (se ven con ❌ Cancelado). Nada se
+borra de la base.
+
+**Front:** el recuadro de cada prueba muestra `«Prueba 24 K4»` junto al número del pedido y una línea
+**♻️ Se quitó lo de antes: …** cuando reinició; al quitar, esa prueba sale de la lista guardada.
+
+**Botones legibles (2026-10-13, cuarta pasada) — solo front, sin cambios de contrato:** el dueño no sabía cuál botón
+tocar porque los **🧪 Preparar prueba N** se veían apagados. No lo estaban: `.pk-btn--secondary` usaba letra
+`--app-text-muted` y de día daba contraste 2.3 a 2.8 en 3 de los 5 diseños. Ahora usa `--app-text` (10.7 a 15 en los
+5 diseños, de día y de noche) y el secundario desactivado se apaga (`opacity: .5`). Afecta a las 7 pantallas que lo
+usan (Alta de artículos, Datos de prueba, Agregar artículo, Ruleta pública, Boletos de rifa, Home y Página no
+disponible). El panel además dice: *"Toca el botón con el número de la prueba que vas a hacer"*.
+
+**Lo que se guarda (2026-10-13, segunda pasada):** la lista de pruebas preparadas se **recuerda en el
+navegador** (`localStorage`, clave `cache:pruebas-preparadas`), una entrada por prueba con la hora en que
+se preparó. Antes se perdía al cambiar de pantalla y con ella los números de los pedidos: el dueño
+no encontraba "K4", que es solo el **nombre de la clave en el documento de pruebas** (el pedido no la
+lleva escrita; su nota `[DATOS DE PRUEBA]` no se muestra en ninguna pantalla). Preparar una prueba otra
+vez **reemplaza solo esa**; las demás se quedan. Cada pedido trae **copiar número** (para pegarlo en un
+buscador) y hay un botón **🧹 Quitar la lista** (solo la quita de la pantalla, no borra nada de la base).
+Sin cambios de contrato: el back responde igual.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md` ("🧪 Preparar prueba", "Antes de todo" paso 5, y el "Antes
+de empezar" de 12, 14-QA, 15, 16, 17, 18, 20, 21, 22 y 24). Reglas R16 a R19 en
+`hexagonal/datosprueba/README.md`; cómo agregar otra prueba: skill `preparar-prueba`.
+
+---
+
+### [BUG-KEY-36] 🆕 Colores de noche (Jade) y botón "📍 Dirección" en la tarjeta de pedido (2026-10-13) — solo front + 1 script de texto
+
+Reporte del dueño: la ventana de cancelar se veía fea de noche; los submenús del menú lateral de noche
+se veían azules o negros y al pasar el mouse se ponían negros; los fondos de los filtros se veían mal;
+y en la tarjeta de pedido había dos botones con "Entrega" (📍 Entrega y 📦 Entregar).
+
+**Antes → después (sin cambios de endpoints):**
+| Qué | Antes | Después |
+|---|---|---|
+| Menú lateral de noche | Dos comentarios sin cerrar en `styles.scss` (bloque de noche) se tragaban variables: `--sb-text-active`, `--sb-bg-item` y las de las cards quedaban sin valor → submenús en azul/negro y hover negro | Comentarios cerrados; los submenús usan el color del menú y el hover el fondo de "seleccionado" |
+| Cards de noche | `--card-bg` no existía de noche | Definido (`#232532`) |
+| Ventana "¿Por qué cancelas este pedido?" | Botones de motivo con colores fijos | Usan los colores del tema (`--card-body-bg`, `--app-text`, hover `--app-tint`) |
+| Casillas de filtro (Tienda, Modelos) en Jade | La regla de etiquetas de Jade las pintaba encima | Excluidas de esa regla: se ven con su fondo de filtro |
+| Botón de la tarjeta de pedido | **📍 Entrega** | **📍 Dirección** (abre lo mismo: a quién, dónde y cuándo se entrega). Ventana: *"📍 Dirección y fecha de entrega — Pedido #N"* |
+
+Permiso: la clave sigue siendo `editar-entrega` (nadie gana ni pierde acceso). Script
+`migration_accion_editar_entrega_direccion.sql` solo cambia su texto en Gestión de roles a
+*"Dirección (📍 en la tarjeta)"*; no hay que volver a entrar.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-13.md`, Prueba 23.
+
+---
+
+### [BUG-KEY-35] 🆕 Mis pedidos: 🕓 Pendiente en el bloque Pago y vista de inicio sin cancelados (2026-10-13)
+
+Pedido del dueño: *"como no hay un filtro de Pendientes aparecen siempre y no deberían; debería ir en
+Pagos, donde está Falta pagar, Pagado…"* y *"todo lo que se pueda filtrar se tiene que hacer"*.
+
+**`GET /v1/pedidos/buscar` — qué cambia:**
+| Parámetro | Antes | Después |
+|---|---|---|
+| `estado=PENDIENTE` | Nombre viejo: equivalía a `FALTA_PAGAR` | **Solo** los 🕓 Pendientes (lo pidió el cliente desde su cuenta y nadie lo ha cobrado ni apartado) |
+| `estado=FALTA_PAGAR` | Incluía los Pendientes | **Ya no** los incluye: Apartados, Ir pagando y lo demás que deba |
+| `estado=POR_COBRAR` | = `FALTA_PAGAR` | Igual (= `FALTA_PAGAR`, ahora sin Pendientes) |
+| `estado=SIN_TERMINAR` | Todo menos pagado **y** entregado | Además **sin cancelados** |
+| `forma=PENDIENTE` | Botón de Forma de cobro | Se sigue aceptando (filtros guardados), trae lo mismo que `estado=PENDIENTE` |
+
+**Front:** el botón 🕓 Pendiente pasa de Forma de cobro al bloque **Pago** (permiso `filtro-por-cobrar`,
+el mismo de 💰 Falta pagar). Un filtro guardado con `formas: ['PENDIENTE']` se pasa solo a
+`estados: ['PENDIENTE']` al leerlo. El aviso de la vista de inicio dice que tampoco salen los cancelados.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`, Prueba 22. Regla R16 en `hexagonal/busquedapedido/README.md`.
+
+---
+
+### [BUG-KEY-34] 🆕 La fecha de entrega de Entregas por zona no salía en Mis pedidos (2026-10-13)
+
+Reporte del dueño: *"cuando busco los pedidos por zona y les pongo la fecha, no me aparece en pedidos la
+fecha en la que se va a entregar; y en pedidos hay una que dice fecha pero no sé de qué es"*.
+
+**Back — sin cambio de comportamiento:** `POST /v1/entregas-zona/{lugarEntregaId}/programar` **ya**
+guardaba fecha, hora y punto de encuentro en cada pedido de la lista (`fecha_recogida`,
+`hora_recogida`, `punto_encuentro`), tuviera correo o no. En las cards llegan como `pedido.fechaEntrega`
+(`yyyy-MM-dd`) y `pedido.horaEntrega`; en el detalle como `fechaRecogida`, `horaRecogida`,
+`puntoEncuentro`.
+
+**Back — campo nuevo (aditivo):** `GET /v1/entregas-zona/{lugarEntregaId}/pendientes`, en cada
+elemento de `pedidos[]`:
+```json
+{ "pedidoId": 1159, "nombreCliente": "…", "correo": "…", "total": 450.0,
+  "fechaPedido": "2026-10-10",
+  "fechaEntrega": "2026-10-18",   // nuevo: día ya programado; null si todavía no
+  "horaEntrega": "10:00" }        // nuevo: null si todavía no
+```
+`fechaPedido` es **cuándo se hizo el pedido** (el rango de la pantalla filtra por esta), no la entrega.
+
+**Front — qué fallaba y qué cambia:**
+- **Antes:** la card de Mis pedidos enseñaba la fecha de entrega solo si el pedido **debía dinero**
+  (`estado_pedido` distinto de Entregado/PAGADO). Un pedido ya pagado que faltaba entregar —justo los
+  que lista Entregas por zona— la escondía, aunque se le acabara de programar.
+- **Después:** se enseña mientras **falte entregar** (`pedido.entregado !== true`, y en un grupo
+  `grupo.entregadoGrupo !== true`), igual que el filtro "Fecha de entrega" del back. Un pedido de zona
+  sin fecha dice *"Se entrega: Sin fecha todavía · Zona"*.
+- Etiquetas: card **"Pedido hecho el"** (antes "Pedido") y **"Se entrega el"** (antes "Entrega");
+  detalle **"🕒 Pedido hecho el …"** (antes solo 🕒) y **"Se entrega el:"** (antes "Llega el:");
+  Entregas por zona: columnas **"Pedido hecho el"** (antes "Fecha") y **"Se entrega el"** (nueva). Al
+  avisar, el mensaje dice que la fecha quedó guardada en todos los pedidos, no solo en los que tienen correo.
+
+Pruebas: `PRUEBAS_PENDIENTES_2026-10-07.md`, Prueba 21.
+
+---
+
+### [BUG-KEY-33] 🆕 Cliente que no podía pedir, grupo que no cambiaba de forma de cobro, modelo agotado y vista de inicio de Mis pedidos (2026-10-13)
+
+**1. Datos del cliente: la caché no se borraba al guardar (corrige un ciclo en el carrito)**
+- **Antes:** `GET /v1/clientes/buscarPorIdCliente/{id}` se guarda en Redis 10 minutos (`clienteCache`)
+  y **ningún guardado la borraba**. El cliente llenaba sus datos, el back los guardaba bien, pero el
+  carrito (que revisa `datosCompletos`) y **Mis datos** seguían leyendo la copia vacía hasta 10 minutos
+  después: *"lo lleno, lo guardo y me vuelve a pedir lo mismo"*.
+- **Ahora:** cualquier cambio del cliente borra `clienteCache`: guardar o editar (`/v1/clientes/save`,
+  `/update`), el alta automática al verificar el correo, verificar o cambiar el correo y las dos
+  preferencias de correo. El contrato no cambia.
+- **Front (ya hecho):** el carrito y las otras 5 pantallas que pedían completar datos (detalle de
+  producto, Tienda → Buscar, Mis pedidos, Flores, Favoritos) mandan a
+  **`/clientes/mis-datos?volver=<pantalla>`** en vez de **Nuevo cliente** (`/clientes/agregar`), que
+  pedía el correo otra vez con el formulario vacío. Mis datos dice qué falta y, al guardar con
+  `datosCompletos = true`, regresa a `volver` (solo rutas de la app). El teléfono pasó a obligatorio en
+  el formulario (el back ya lo exigía). El aviso "Completa tu perfil" del carrito llevaba a
+  `/mis-datos`, que no existe (caía en la página 404).
+
+**2. `POST /v1/pedidos/savePedido` con un cliente que no existe**
+- **Antes:** `Exception` simple → con BUG-KEY-32 salía **500** *"Error interno del servidor"*.
+- **Ahora:** **404** *"No se encontró el cliente del pedido"* (y *"No se encontró el usuario"* al
+  confirmar). Los rechazos por correo sin verificar o datos incompletos siguen igual (400).
+
+**3. `PUT /v1/productos/update` — modelo agotado**
+- **Antes:** **400** *"El stock no debe de ser 0"* también al **editar**: un modelo que vendió todo
+  (stock 0) ya no se podía guardar en **Actualizar Modelo** (la pantalla manda el stock real).
+- **Ahora:** stock 0 solo se rechaza al **dar de alta** un modelo nuevo (`POST /save` sin id ni
+  código existente). Además, *"El codigo de barras … ya esta en uso por otro producto"* sale **409** y
+  los 400 propios salen con su texto (antes todo llegaba como 400 *"No se guardo el producto: …"*).
+
+**4. 🆕 `PUT /v1/grupos-pedido/{grupoId}/tipo` — cambiar la forma de cobro del grupo completo (R20)**
+
+Permiso: la acción `cambiar-tipo` de Mis pedidos (la misma de 🔁 Cambiar forma de cobro).
+```json
+{ "tipoPedido": "FIADO", "monto": 100, "metodoPago": "EFECTIVO", "montoDado": 200, "nota": "texto" }
+```
+- `tipoPedido`: `APARTADO` o `FIADO` (Ir pagando). `monto` opcional, solo Ir pagando: entra como
+  abono del grupo en el mismo paso (se reparte del más viejo al más nuevo, R6).
+- **200** → `data`: `{ grupo, tipoAnterior, pedidosCambiados: [1159, 1160], abono: AbonoGrupoResponse | null }`.
+- **400** con `mensaje`: el grupo ya es esa forma; *"Un Apartado es sin dinero…"* (el grupo ya tiene
+  dinero, o se manda `monto`); *"Un grupo no se pasa a contado…"* (`NORMAL`: para eso está
+  💵 Pagar el grupo completo / Cobrar el grupo); *"El pedido N ya se cobró de contado: sepáralo…"*;
+  el monto excede lo que debe el grupo; el grupo ya se deshizo.
+- **404** el grupo no existe. Todo o nada: si uno falla, ninguno cambia.
+- **`PUT /v1/pedidos/{id}/tipo` a un pedido unido** — antes: **400** *"…deshaz el grupo antes de
+  cambiar su forma de cobro"*; ahora: **409** *"…su forma de cobro se cambia para todo el grupo"*. El
+  detalle del pedido ya manda a este endpoint cuando el pedido está unido.
+
+**5. `GET /v1/pedidos/buscar` — nuevo valor `estado=SIN_TERMINAR` (R15)**
+- Todo **menos** lo ya pagado **y** entregado (los cancelados sí salen). Se cruza con Y con los demás
+  filtros. **Mis pedidos lo manda sola al abrir** (sin filtros ni texto) y deja de mandarlo en cuanto se
+  pone cualquier filtro o se escribe algo. Antes la pantalla abría con todos, también los ya terminados.
+
+---
+
+### [BUG-KEY-32] 🆕 Errores con su código HTTP correcto, y 404 de verdad en el front (2026-10-08)
+
+**Por qué:** casi todos los controllers viejos tenían un `catch (Exception e)` que contestaba **400** a
+cualquier falla: "no existe", "ya está duplicado", "la rifa ya cerró", "se cayó la base"… todo era 400.
+Y un endpoint contestaba **200** cuando fallaba. Se quitaron 102 de esos `catch` en 27 controllers: ahora
+cada error sale por `ExceptionGlobal` con el código que le toca.
+
+**Lo que NO cambia:** el body sigue siendo `{ mensaje, code, data: null }` y el **texto de `mensaje` es el
+mismo de antes**. Toda pantalla que muestra `err.error.mensaje` sigue mostrando lo mismo. Lo único
+distinto en el body: `code` ahora es igual al status (antes los `catch` ponían `code: 404` aunque el
+status fuera 400).
+
+| Situación | Antes | Ahora |
+|---|---|---|
+| No existe (pedido, cliente, gasto, concursante, rifa, venta, rol, submenú, código de "Agregar mi compra"…) | 400 | **404** |
+| Falta un dato o viene mal escrito | 400 | 400 (igual) |
+| Duplicado (el cliente ya está en la rifa, clave de un color de Personalización repetida) | 400 | **409** |
+| El estado no lo deja: rifa sorteada o inactiva, plazo de registro cerrado, código de compra ya usado o vencido, venta que ya tiene cliente, quitarle a ROLE_ADMIN "Gestión de roles", dar una acción sin poder VER la pantalla, borrar el último menú, habilitar un borrador de carga rápida sin código real | 400 | **409** |
+| Stock insuficiente al guardar artículos (`guardarConImagenes`) | **404** (se lanzaba como "no encontrado") | **422** |
+| Falla el micro de imágenes al subir (carga rápida, guardar artículo con fotos) | 400 | **502** |
+| "Agregar mi compra" con un código de otra persona (el correo no coincide) | 400 | **403** |
+| Falla de base de datos | 400 con el texto técnico | **500** *"No se pudo guardar el cambio. Intenta de nuevo en unos minutos."* |
+| Error inesperado | 400 con el texto técnico | **500** *"Error interno del servidor"* |
+
+**El 200 que era error — `GET /v1/variantes/imagenes/{varianteId}`**
+- **Antes:** si algo fallaba contestaba **200 con lista vacía**: la pantalla decía que el artículo no
+  tenía fotos aunque sí las tuviera.
+- **Ahora:** contesta el error con su código. Si el micro de imágenes no responde **no** es error: el
+  back ya manda las URLs que tiene en la base. Quién lo usa: **Boletos de rifa** (ya muestra el error con
+  "reintentar") y la galería de **Flores** (`flores-imagen.service`, su `catchError` sigue regresando `[]`).
+
+**Endpoints afectados** (el código cambia solo cuando hay error; con éxito todo es igual):
+`/v1/abonos` (registrar, ver, cancelar, transferir) · `/v1/boletoRifa` (10) · `/v1/carga-imagenes` (4) ·
+`/v1/clientes/{id}` (correo, verificación, preferencias) · `/v1/clientes-sin-registro` (3) ·
+`/v1/concursante` (5) · `/v1/configurarRifa/{id}` (3) · `/v1/configurarRifaVariante` (4) ·
+`/v1/entregas-zona` (2) · `/v1/favoritos` (4) · `/v1/flores` (validar cantidad, precio, fechas) ·
+`/v1/flores/pedidos` (5) · `/v1/ganadorRifa` (4) · `/v1/gastos` (5) · `/v1/lugares-entrega` (anillos y costo) ·
+`/v1/pedidos` (savePedido, confirmar, detalle, entrega, tipo, notificar, delete, quitar detalle) ·
+`/v1/productos/admin/habilitar-lote` · `/v1/promociones` (4) · `/v1/ramos-armados` (3) ·
+`/v1/redes-sociales/tiktok` (2) · `/v1/reportes/ventas` (mensual, por cliente) · `/v1/resenas` (5) ·
+`/v1/rifa/registrar` · `/v1/roles/{rolId}/...` (6) · `/v1/submenu/porMenu/{menuId}` ·
+`/v1/usuarios/{id}/submenus/{id}` · `/v1/variantes` (guardarConImagenes, imagenes/{id}, admin/habilitar-lote) ·
+`/v1/ventas` (reclamar, asignarCliente, buscar). Sin `catch` pero con la excepción equivocada: el
+alta de un color en `/v1/tema-variable` con clave repetida pasa de 400 a **409**; `/v1/menu` y
+`/v1/submenu` al borrar el último menú, de 400 a **409**; `/v1/qr-destino` sigue en 400 (sus
+validaciones son de datos).
+
+**Lo que se dejó igual a propósito**
+- `AuthController` (login, refresh, registro, recuperar contraseña): sus `catch` siguen. Contestan
+  mensajes genéricos para no decir si un usuario existe o no.
+- `GET /v1/reportes/ventas/mensual` con una fecha mal escrita sigue en **400** (el `catch` se dejó solo
+  para el error de formato de fecha).
+- Un `RuntimeException` simple sigue saliendo **400**: muchas validaciones de negocio viejas se lanzan
+  así. Pasarlo a 500 haría que un "no hay stock" se viera como falla del servidor; esas se van
+  cambiando a su excepción propia cuando se toca cada servicio.
+
+**Front — qué revisar:** ninguna pantalla depende del 400 de estos endpoints (las que miran el status
+son de dominios hexagonales que no cambiaron: `grupo-pedido` 400, `detalle-pedido` 409 del combo,
+`boletos-rifa` 409 de participación, buscadores 404/400 de productos). Sin cambios obligatorios.
+
+**Front — 404 de verdad (soft 404)**
+- **Antes:** el servidor del front contestaba **200** a cualquier URL (así funciona una app de Angular)
+  y la pantalla "no disponible" salía con 200. Google lo marca como *soft 404*.
+- **Ahora:** hay una URL fija **`/no-encontrada`** que nginx (`default.conf`) sirve con **status 404**
+  y la misma app. Si alguien abre directo una ruta que no existe (link roto, Google), la app lo manda a
+  `/no-encontrada` → el navegador recibe 404. Navegando dentro de la app no recarga nada. La pantalla
+  lleva `noindex`. Ver la ficha de un artículo que no existe → *"Este producto ya no está
+  disponible."* + `noindex` (antes un visitante veía *"No pudimos abrir este producto desde un enlace
+  directo"*, porque el respaldo `getOne` es solo de admin). Ruleta pública de una rifa que no existe →
+  la misma pantalla 404, dejando el link en la barra.
+- **Home y la pantalla 404 rediseñadas:** ya no cargan una foto de pantalla completa (Home bajaba
+  `tulipanes.jpg`, 3.1 MB). Ahora: logo de la tienda (7–18 KB en WebP) y textos con los colores de
+  Personalización, legibles de día y de noche.
+
+---
+
+### [BUG-KEY-31] 🆕 Revisión antes de QA: permisos de los filtros de Tienda y ajuste de stock sin perder movimientos (2026-10-08)
+
+**1. `GET /v1/variantes/admin/filtrar` — quién puede usarlo (corrección de autorización)**
+- **Antes:** pedía tener alguna pantalla de Catálogo (Modelos, Agregar modelo, Agregar artículo) o
+  Gestionar promociones. Un rol con los filtros de admin de **Tienda → Buscar** en Gestión de roles
+  (con/sin stock, imágenes, habilitados, código, fecha) pero sin esas pantallas veía el filtro y al
+  usarlo recibía **403**. Desde BUG-KEY-27 también le pasaba al filtrar solo por talla, color, marca o
+  precio (la pantalla manda todo junto por `admin/filtrar` cuando el rol tiene algún filtro de admin).
+- **Ahora:** además de lo de antes, entra quien tenga cualquiera de esas 9 acciones de `tienda/buscar`
+  (`filtro-con-stock`, `filtro-sin-stock`, `filtro-con-imagenes`, `filtro-sin-imagenes`,
+  `filtro-habilitados`, `filtro-no-habilitados`, `filtro-codigo-generado`, `filtro-codigo-real`,
+  `filtro-fecha-creacion`). La respuesta no trae costos (mismos campos que el catálogo). El front no
+  cambia. Los demás `/v1/variantes/admin/**` siguen igual.
+
+**2. `PUT /v1/stock/producto/{productoId}/ajuste` — 400 nuevo**
+- Si entre que se leyó el stock y se guardó otra operación movió el stock del modelo (editar un
+  pedido, otro ajuste), ya no lo pisa: responde **400** con `mensaje` *"El stock del modelo cambió
+  mientras lo ajustabas (una venta o la edición de un pedido). No se guardó nada: vuelve a
+  intentarlo."*. Antes escribía el total calculado y el otro movimiento se perdía. El front ya muestra
+  `err.error.mensaje` en "No se cambió el stock"; no requiere cambios.
+
+---
+
+### [BUG-KEY-30] 🆕 Agregar artículo: todos los modelos, habilitar, agregar stock al momento (2026-10-08)
+
+**1. Buscador de modelos** — `GET /mis-productos/v1/productos/buscarNombreOrCodigoBarra?nombre=…&todos=true`
+- Param nuevo opcional `todos` (default `false`). Con `true` y el permiso **"Ver todos los modelos"**
+  (`tienda/venta` → `ver-todos-los-modelos`, migración `migration_accion_tienda_venta_ver_todos.sql`)
+  trae también los modelos **sin stock, deshabilitados y dados de baja**. Sin el permiso se ignora.
+- El admin los veía todos desde antes (con o sin `todos`): para él no cambia nada.
+- Para quien no es admin y tiene el permiso, cada modelo trae además `habilitado` (`"1"`/`"0"`), `marca`
+  y `contenido` (nunca costos).
+
+**2. Disponibilidad del modelo** — `GET /mis-productos/v1/stock/producto/{productoId}` (sin cambios en URL)
+- Campos nuevos: `habilitado` (bool), `conFoto` (bool), `articulosQueAunCaben` (int, nunca negativo).
+- `mensaje` dice ahora "artículos" donde decía "modelos".
+- **Ojo, la respuesta NO viene envuelta en `data`** (siempre fue así). El front leía `r.data` →
+  `undefined`, y por eso el recuadro "Stock total del modelo / Repartido / Libre" **nunca aparecía** en
+  Agregar artículo. Corregido en el front (lee el cuerpo directo).
+
+**3. Agregar (+) o quitar (−) stock al modelo, al momento** — `PUT /mis-productos/v1/stock/producto/{productoId}/ajuste`
+- Body: `{ "ajuste": 5 }`. Response: la disponibilidad igual que el GET, ya con el ajuste.
+- **400** con mensaje si `ajuste` es 0/null (*"Escribe cuánto stock agregar (+) o quitar (−) al modelo"*),
+  si deja el modelo en negativo (*"No se puede quitar 4: el modelo solo tiene 3"*) o por debajo de lo
+  repartido (*"No se puede dejar el modelo en 9: ya tiene 10 repartidos en sus artículos"*).
+- **404** si el modelo no existe. **403** sin Editar en Modelos, Agregar modelo o Agregar artículo (el mismo
+  permiso que ya pedía el ajuste dentro del guardado del artículo).
+- El ajuste dentro de `guardarConImagenes` (`ajusteStockModelo`, 2026-10-06) **sigue funcionando igual**.
+
+**4. Habilitar el modelo** — `PUT /mis-productos/v1/productos/{id}/habilitar?habilitar=true` (el de siempre,
+permiso **Habilitar** de Catálogo → 🔍 Modelos). Solo el modelo: sus artículos quedan como estaban.
+
+**Front (Agregar artículo, `tienda/venta`):** etiquetas ⛔ Deshabilitado / Sin stock / Sin foto en el
+buscador; al elegir un modelo deshabilitado, aviso con **✅ Habilitar modelo** (y no deja guardar artículos
+hasta habilitarlo); "Puedes hacer hasta N artículos más"; botón **Guardar en el modelo** junto al campo de
+stock y, al agregar, *"¿Deseas agregar los artículos de una vez?"* → ventana 🧩 Agregar artículos; botón
+**🧩 Agregar varios artículos de una vez** cuando hay stock libre.
+
+---
+
+### [BUG-KEY-29] 🆕 Agregar artículos de un modelo en un solo paso (flujo A) — foto propia o la del modelo (2026-10-08)
+
+**Request:** `POST /mis-productos/v1/variantes/guardarConImagenes` (el de siempre) — cada elemento acepta
+**dos campos opcionales nuevos**:
+
+| Campo | Tipo | Qué hace |
+|---|---|---|
+| `imagenesPropias` | `boolean` | `true`: las fotos de `listImagenes` son **solo de ese artículo**. Si no viene (o `false`), igual que siempre: todas las fotos del request las llevan todos los artículos del request (Agregar artículo con varias tallas) |
+| `usarImagenDelModelo` | `boolean` | `true`: el artículo apunta a la **foto principal del modelo**, sin volver a subirla. Si el modelo no tiene foto, el artículo queda sin foto (no falla) |
+
+**Response:** sin cambios (lista de artículos guardados).
+
+**Posibles errores nuevos:**
+- **400** *"No se pudieron subir todas las fotos (se mandaron N y llegaron M). Intenta de nuevo"* — solo
+  cuando algún elemento trae `imagenesPropias: true` y el micro de imágenes devolvió menos fotos de las
+  enviadas. No se guarda ningún artículo.
+- Los de siempre: stock del modelo insuficiente (400), todos vacíos (404).
+
+**Diferencia clave:** antes no había forma de que cada artículo de un mismo guardado tuviera su propia foto,
+ni de reusar la foto del modelo sin subirla otra vez. Si se da de baja un artículo que usa la foto del
+modelo, la foto **no** se borra (el modelo la sigue usando).
+
+**Front:** componente compartido `<app-alta-articulos>` (`shared/alta-articulos`). Lo abren:
+- **Catálogo → Agregar modelo**, al guardar un modelo **nuevo** (no al actualizar): pregunta
+  *"¿Quieres agregar sus artículos ahora?"* → **Sí, agregar artículos** / **Después**.
+- **Catálogo → 🔍 Modelos → 🧩 Productos** (tarjeta del modelo): va directo a los formularios.
+  **Reemplaza** la ventana "Inicializar variantes" (`POST /v1/variantes/inicializarDesdeProducto`, que
+  sigue existiendo pero el front ya no la llama).
+
+Color nuevo de Personalización: `--modal-backdrop` (velo detrás de la ventana), migración
+`migration_tema_modal.sql`. Sin correrla, se usa el valor de `styles.scss`.
+
+---
+
+### [BUG-KEY-28] 🆕 Datos del cliente en Venta directa: mínimo 3 letras, correo y teléfono válidos (2026-10-08)
+
+**1. Cliente sin registro** — `POST /mis-productos/v1/clientes-sin-registro` (sin cambios en URL ni body)
+- **Antes:** guardaba lo que llegara (había clientes con nombre `"a"`).
+- **Ahora** responde **400** con el motivo si:
+  - `nombre_persona` tiene menos de 3 letras → *"El nombre debe tener al menos 3 letras"*
+  - `segundo_nombre`, `apeido_Paterno` o `apeido_Materno` **vienen llenos** con menos de 3 letras →
+    *"El apellido paterno debe tener al menos 3 letras (o dejalo vacio)"* (y equivalentes)
+  - `correo_Electronico` viene lleno y no tiene forma de correo → *"El correo no es valido"*
+  - `numero_Telefonico` viene lleno y no son 10 dígitos (se aceptan espacios, guiones, paréntesis y
+    `+52` adelante) → *"El telefono debe tener 10 digitos"*
+- Vacío en los opcionales sigue siendo válido. Las letras con acento y la ñ cuentan como letras; los
+  números y espacios no.
+
+**2. Venta directa** — `POST /mis-productos/v1/ventas/save` (el de 💰 Cobrar, sin cambios en el body)
+- `nombreReceptor` (quién recibe) lleno con menos de 3 letras → **400** *"El nombre de quien recibe debe
+  tener al menos 3 letras (o déjalo vacío)"*. Si viene vacío, igual que antes.
+- Si llega el cliente embebido (`clienteSinRegistroDto`, camino viejo), se valida igual que en el punto 1.
+
+**Front:** las mismas reglas en el formulario (`shared/validadores-persona.ts`), con el aviso debajo de
+cada campo; el botón **Guardar cliente** y **💰 Cobrar** se apagan mientras haya un dato mal.
+
+---
+
+### [BUG-KEY-27] 🆕 Tienda → Buscar: los filtros se combinan y el precio es el que se cobra (2026-10-08)
+
+**Request:** `GET /mis-productos/v1/variantes/admin/filtrar` — params **nuevos opcionales**:
+`talla`, `color`, `marca` (iguales, sin importar mayúsculas), `precioMin`, `precioMax`.
+
+**Diferencias clave:**
+- **Antes**, con un filtro de admin (Con stock, Habilitadas, fechas…) y uno del catálogo (talla, precio…)
+  a la vez, el front hacía **dos búsquedas distintas** y la segunda pisaba a la primera: por eso "Con
+  stock" + "Habilitadas" dejaba un solo resultado. **Ahora** todo va en **una sola** llamada a
+  `admin/filtrar` y al quitar un filtro se vuelve a buscar con los que quedan.
+- **Precio mín/máx** (aquí y en `GET /v1/variantes/buscar-filtrado`): **antes** comparaba el precio normal;
+  **ahora** compara el **precio que se cobra** — el de descuento si el artículo tiene "Usar descuento"
+  activo y es menor, si no el precio de venta (el del artículo o, si no tiene, el del modelo). Así
+  "mín 100, máx 100" encuentra lo que la tarjeta dice $100.
+- La caché de `admin/filtrar` ahora distingue también fechas, talla, color, marca y precio (antes dos
+  búsquedas con distinta fecha podían devolver el mismo resultado guardado).
+
+**Front:** en el escritorio de Tienda → Buscar, cada cambio de filtro (o al quitarlo) vuelve a buscar con
+todos los que quedan; si una respuesta vieja llega tarde se descarta. El precio espera a que dejes de
+escribir. En Venta directa, después de cobrar se vuelve a buscar para que el stock se vea al día.
+
+---
+
+### [BUG-KEY-26] 🆕 Pedido 🕓 Pendiente: filtro propio, pasarlo a Apartado / Ir pagando y Entregas por zona (2026-10-07)
+
+**1. Filtro de Mis pedidos** — `GET /mis-productos/v1/pedidos/buscar?formaCobro=PENDIENTE`
+- Valor nuevo `PENDIENTE` en `formaCobro`: el pedido que el cliente hizo desde su cuenta y nadie cobró ni
+  pasó a Apartado / Ir pagando (en la base: `tipo_pedido = NORMAL` y `estado_pedido = 'Pendiente'`).
+- **Cambia `CONTADO`:** antes traía también los Pendientes; ahora solo los contado ya cobrados. Un filtro
+  guardado con `CONTADO` + `FALTA_PAGAR` ahora da 0 (antes eran los Pendientes).
+
+**2. Cambiar forma de cobro** — `PUT /mis-productos/v1/pedidos/{id}/tipo` (el de siempre, sin cambios en el body)
+- Pendiente → `APARTADO` / `FIADO`: ahora el `estado_pedido` también cambia. **Antes** se quedaba
+  `'Pendiente'`, y el cancelador automático (8:00 a. m., `Pendiente` con fecha de recogida vencida hace
+  2 días) lo cancelaba aunque ya fuera Apartado; tampoco salía como Apartado en Créditos / Abonos.
+- Pendiente → `FIADO` con `monto` (adelanto): **antes** 400 *"es de tipo NORMAL y no tiene saldo que
+  cobrar"*; **ahora** registra el abono.
+- Un contado ya cobrado (`PAGADO`/`Entregado`) sigue sin aceptar cobro en el cambio (igual que antes).
+
+**3. Entregas por zona** — `GET /mis-productos/v1/entregas-zona/...` (sin cambios en URL ni response)
+- **Antes:** solo pedidos `Pendiente` y `APARTADO`.
+- **Ahora:** todos los de la zona que **no se han entregado** (`entregado = 0`) y no están cancelados:
+  también Ir pagando que no se ha llevado y Pagados que faltan por entregar. Siguen fuera los ramos.
+  Al programar, el correo también les llega a ellos.
+
+**Front:** opción "🕓 Pendiente" en Forma de cobro (mismo permiso que Contado, `filtro-normal`),
+etiqueta "🕓 Pendiente" en la card, el formulario 🔁 dice "Ahora está como 🕓 Pendiente…", y el ícono
+ⓘ (`<app-ayuda-opciones>`) en cada bloque de filtros y en Entregas por zona, visible solo con
+**Ayuda contextual** (o admin). Textos fijos en el código.
+
+---
+
+### [BUG-KEY-25] 🆕 Zonas de entrega: "Recoger en tienda" solo en una fila, y sin envío/horas/día (2026-10-07)
+
+**Request:** `POST /mis-productos/v1/lugares-entrega/save` y `PUT /mis-productos/v1/lugares-entrega/update/{id}`. Sin cambios en URL ni body.
+**Antes:** se podía prender `esRecogerEnTienda` en cualquier zona ("El estanco" con envío y horas extra)
+y en varias a la vez; el Carrito le pedía al cliente fecha de recogida para un lugar que no es el local.
+**Después:**
+- Si otra fila ya es la de recoger en tienda → **400** con `mensaje`: *"\"Local Tejupilco\" ya es la fila de recoger en tienda. Solo puede haber una: apágala ahí primero o edita esa."*
+- La fila con `esRecogerEnTienda: true` se guarda con `costoEnvio`, `horasExtraAnticipacion` y `diaEntregaSemanal` en `null` (no aplican al local).
+**Front:** en **Envíos → Zonas de entrega**, al prender el interruptor se esconden Envío, Horas extra,
+Día de entrega y los anillos, y sale una nota que explica que esa fila es el local.
+
+**También (solo front, mismo día):** se quitó de Zonas de entrega el select **"Sin día fijo / Lunes…"**
+(`diaEntregaSemanal`). Solo prellenaba la fecha del viaje en Entregas por zona y podía no coincidir con la
+fecha que se escoge ahí (la fecha ya dice el día). El front manda `diaEntregaSemanal: null` al guardar y
+ya no usa `fechaSugerida` de `GET /v1/entregas-zona/...`. El back no cambia: la columna y `fechaSugerida`
+siguen existiendo (para zonas viejas que aún no se editan).
+
+---
+
+### [BUG-KEY-24] 🆕 Agregar producto: la categoría del modelo pasa al artículo (2026-10-07)
+
+**Request:** los listados y búsquedas de modelos de siempre (`GET /mis-productos/v1/productos/obtenerProductos`,
+`/buscarNombreOrCodigoBarra`…). Sin cambios en URL ni params.
+**Response (solo admin):** cada producto trae un campo nuevo:
+```json
+{ "idProducto": 418, "nombre": "Bolsa", "palabraClave": { "id": 7, "nombre": "BOLSAS" } }
+```
+`palabraClave` viene `null` si el modelo no tiene categoría. El cliente (no admin) no lo recibe.
+**Front:** en **Catálogo → Agregar producto** (`tienda/venta`), al elegir el modelo la **Categoría** ya
+sale llena con la del modelo (editable), igual que color, marca, descripción y contenido. Si se cambia
+de modelo y nadie la tocó, se pone la del nuevo.
+**Diferencia clave:** antes la casilla salía **vacía** aunque el modelo tuviera categoría. Al guardar el
+back sí se la ponía al artículo si iba vacía, pero en pantalla parecía que no la tenía.
+
+---
+
+### [BUG-KEY-23] 🆕 Habilitar artículos en lote: el stock se ajusta a lo libre del modelo (2026-10-07)
+
+**Request:** el de siempre para habilitar/deshabilitar artículos en lote. Sin cambios en URL ni body.
+**Response:** el texto puede cambiar al habilitar: *"Variantes habilitadas. Se ajustó el stock a lo
+que quedaba libre del modelo: Bolsa M ROJA de 3 a 1."* Sin ajustes, el de siempre.
+**Diferencia clave:** antes un artículo viejo deshabilitado volvía con su stock aunque el modelo ya no
+tuviera libre (quedaba descuadrado). Deshabilitar sigue dejándolo en 0.
+
+---
+
+### [BUG-KEY-22] ✅ HOTFIX prod: 🧩 Productos del modelo respondía 400 y no decía cuánto stock quedaba (2026-10-07)
+
+**En prod desde el 2026-10-07** (back `282a530`, front `161c0d4f`; validado por el dueño).
+**Causa real del 400:** no era el stock. Tomcat rechazaba la petición (encabezados de más de 8 KB por
+el token del admin) antes de llegar a la app: nginx registraba `400 435` y el front, sin `mensaje` en
+la respuesta, mostraba *"Error al crear variantes — Intenta de nuevo"*. Arreglo:
+`server.max-http-request-header-size: 64KB` en el back. Lo de abajo se subió en el mismo hotfix.
+
+**Request:** `POST /mis-productos/v1/variantes/inicializarDesdeProducto` (multipart: `request` + `files[]`). Sin cambios.
+
+**Qué fallaba (antes):** en **Catálogo → 🔍 Modelos → 🧩 Productos**, la ventana decía "Stock disponible"
+con el stock **total** del modelo y dejaba pedir hasta ese número. El back resta el stock que ya tienen
+los artículos habilitados del modelo y rechazaba con *"Stock insuficiente para crear 2 variantes del
+producto 123. Stock disponible: 0"*. Caso real: modelo con 3, en la Tienda se veía 1 artículo, pedir 2
+fallaba; los otros artículos con stock existían pero **sin foto**, y sin foto no salen en la Tienda.
+Además, si se elegían fotos sin marcar "Misma imagen para todas", el back las **descartaba sin avisar**
+y los artículos nacían sin foto.
+
+**Después:**
+- La ventana pide `GET /v1/variantes/porProducto/{id}` y muestra *"Stock del modelo: 3 · En sus
+  artículos: 3 · Puedes crear: 0"*; no deja pedir más de lo que se puede. Con 0, no abre: explica y
+  manda a buscar los artículos con el filtro **Sin imágenes** de la Tienda.
+- Fotos elegidas sin marcar "Misma imagen para todas" → no deja seguir (antes se perdían).
+- **404** con mensaje nuevo: *"No alcanza el stock para crear 2 artículo(s): el modelo tiene 3 y sus
+  artículos ya tienen 3 (2 sin foto: no salen en la tienda, búscalos con el filtro "Sin imágenes").
+  Puedes crear 0. Sube el stock del modelo o quítale stock a un artículo."*
+- `IVarianteDto` (front) suma `habilitado`, que el back ya mandaba.
+
+---
+
+### [BUG-KEY-21] 🆕 Personalización: 2 colores nuevos para los filtros (2026-10-07)
+
+**Request:** `GET /mis-productos/v1/tema-variable/activo` (sin cambios en la URL ni en los parámetros).
+
+**Response:** después de correr `migration_tema_filtros.sql` trae **2 filas más**, grupo `Formularios`:
+
+| `clave` | Para qué | `valorClaro` | `valorOscuro` |
+|---|---|---|---|
+| `filtros-panel-bg` | Fondo del recuadro de búsqueda y filtros (Tienda y Catálogo → Modelos) | `rgba(255,255,255,0.70)` | `#1c1e2c` |
+| `filtro-bg` | Fondo de cada filtro (casillas, fechas y precio) | `rgba(45,117,96,0.10)` | `rgba(91,185,154,0.14)` |
+
+**Diferencia clave:** el front las aplica como `--filtros-panel-bg` y `--filtro-bg`, igual que las
+demás filas (`TemaService`). Sin el script, el front usa los mismos valores de `styles.scss`, así que
+se ve igual; solo que no se pueden cambiar desde Personalización.
+
+**Antes / después en pantalla:** el recuadro de Tienda y de Catálogo → Modelos estaba transparente
+(la regla de encabezados del 2026-10-06 lo borraba); ahora tiene fondo. Ver Prueba 13 de
+`GUIA_DE_PRUEBAS_QA.md`.
+
+---
+
+### [BUG-KEY-20] 🆕 Datos legales del negocio y aceptación de Términos en el registro
+**Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migración:** `migration_datos_legales.sql`
+(**antes** del deploy del back: la entidad `Usuario` ya mapea `acepto_terminos` y sin la columna falla el login).
+Sale de `LEGAL_PLAN_DE_ACCION.md` (puntos 4, 5, 6, 7, 8, 13 y 16).
+
+**1. Endpoints nuevos** (dominio `datoslegales`)
+
+| Request | Quién | Response |
+|---|---|---|
+| `GET /mis-productos/v1/datos-legales` | **Público** (sin sesión) | `{ data: { nombreResponsable, rfc, domicilio, telefono, correo, horarioAtencion, faltan: string[], completos: boolean } }` |
+| `PUT /mis-productos/v1/datos-legales` | ROLE_ADMIN o Escritura en `admin/negocio` | Body: los 6 campos (todos opcionales, vacío = sin capturar). Response igual al GET |
+
+- `faltan` = lo que falta para la LFPC 76 bis III: `"Nombre del responsable"`, `"Domicilio"`, `"Teléfono"`, `"Correo"`.
+- `telefono` se guarda solo con 10 dígitos (acepta espacios, guiones, paréntesis y +52 al escribirlo).
+- **400** con `mensaje`: `"El RFC no es válido: deben ser 13 caracteres (persona física) o 12 (empresa), como viene en tu constancia"`,
+  `"El teléfono tiene que tener 10 dígitos"`, `"El correo no es válido"`, `"<campo> no puede pasar de N caracteres"`.
+- **403** sin el permiso en el PUT.
+
+**2. `POST /mis-productos/v1/auth/registrar` — campo nuevo opcional `aceptoTerminos`**
+- `true` → se guarda `acepto_terminos = 1` y la fecha. `false` → **400** `"Debes aceptar los Términos y condiciones para registrarte"`.
+- **Omitido** (front de antes) → se registra igual, sin aceptación de Términos (compatible).
+- El límite de registros por IP **ya existía** (mismo rate limit del login; apagado en QA a propósito).
+
+**3. Bots (chat de la tienda, chat en vivo, Instagram, Facebook):** nueva regla en el prompt
+(`ChatbotBase.SIN_PROMESAS`): solo decir de un producto lo que está en el catálogo; no decir "original",
+"100% piel", "garantizado", "el más barato" ni efectos en la salud si no está escrito; no prometer
+descuentos, regalos, meses sin intereses ni fechas. No cambia ningún endpoint.
+
+**Front que lo usa:** `legal/datos-legales.service.ts` (GET cacheado, sin spinner), pie de página
+(`app.component.html`, contacto), Términos y Aviso de privacidad (textos nuevos), Configuración del negocio
+(sección "Datos legales"), registro (aviso corto + casilla de Términos), ticket (`shared/ticket.util.ts`:
+encabezado con los datos y "Abonos sin intereses (CAT 0%)"), Venta directa y Carrito (aviso de Ir pagando y
+Apartado), SEO (`shared/seo/seo.service.ts`, sitemap, robots, `noindex` en "Página no disponible").
+
+---
+
+### [BUG-KEY-19] 🆕 La entrega va aparte del pago: Entregado / Falta entregar, 📦 Entregar y filtros Pago + Entrega
+**Fecha:** 2026-10-07 · **Ramas:** `dev` (sube a `qa` junto con todo) · **Migraciones:** `migration_entrega_pedido.sql`
+(**antes** del deploy del back: la entidad `Pedido` ya mapea las columnas nuevas) y `migration_accion_gastos_admin.sql`.
+Volver a entrar después (permisos en el JWT). Reglas: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §11 (E1–E10),
+dominio `hexagonal/entrega/README.md`.
+
+**Qué cambia en una línea:** `estado_pedido` sigue diciendo **solo el pago** (Pagado / Falta pagar /
+Cancelado). La entrega vive en una columna nueva, `pedidos.entregado` (+ `fecha_entregado`). La card
+muestra las dos etiquetas: verde lo hecho, rojo lo que falta.
+
+**1. Endpoints nuevos** (dominio `entrega`)
+
+| Request | Qué hace | Permiso (acción de `pedidos/mis-pedidos`) |
+|---|---|---|
+| `POST /mis-productos/v1/pedidos/{pedidoId}/entrega` | Marca entregado el pedido, o **todo su grupo** si está unido | `entregar` |
+| `DELETE /mis-productos/v1/pedidos/{pedidoId}/entrega` | Regresa a "Falta entregar" (por si se marcó por error) | `regresar-entrega` |
+
+- Sin body. **200** → `{ mensaje, data: { pedidos: [12, 13], entregado: true|false } }` (`pedidos` = los que cambiaron).
+- **400** con `mensaje` (el front lo muestra tal cual):
+  - Apartado o contado sin pagar: `"El pedido 12 todavía no está pagado (falta $150.00): primero se cobra y después se entrega"` (en grupo: `"El pedido 12 del grupo …"`). **Ir pagando sí se entrega sin estar pagado** (E8).
+  - Cancelado: `"El pedido 12 está cancelado: no se puede entregar"`. Ya entregado: `"El pedido 12 ya está entregado"`.
+  - Regresar uno que no está entregado: `"El pedido 12 no está entregado"`. Pedido inexistente: `"No existe el pedido 12"`.
+- **403** si la persona no tiene la acción. De arranque solo ROLE_ADMIN tiene las dos; se reparten en Gestión de roles.
+
+**2. Campo nuevo `entregado` en las respuestas**
+- Cards de `GET /v1/pedidos/buscar`, las listas de pedidos del admin y del cliente (`IPedidoQuery`) y el
+  detalle `GET /v1/pedidos/{id}` (`PedidoDetalleResponse`, también lo usa Créditos / Abonos): `entregado: boolean`.
+- Card de un grupo: `grupo.entregadoGrupo: boolean` — `true` solo si **todos** los pedidos vivos (no
+  cancelados) del grupo están entregados. La card del titular usa este, no el `entregado` del titular.
+
+**3. Filtro de estado partido en dos bloques** (`GET /mis-productos/v1/pedidos/buscar?estado=…`, mismo parámetro)
+
+| Bloque | Valores nuevos | Significa |
+|---|---|---|
+| Pago | `FALTA_PAGAR`, `PAGADO`, `CANCELADO` | lo que dice la etiqueta de pago de la card |
+| Entrega | `FALTA_ENTREGAR`, `ENTREGADO` | `pedidos.entregado` (los cancelados no entran en ninguno) |
+
+- Dentro de un bloque se suman (OR); entre bloques se cruzan (AND): `estado=PAGADO&estado=FALTA_ENTREGAR` = ya pagaron y no se lo han llevado.
+- **Compatibilidad:** `PENDIENTE` y `POR_COBRAR` (filtros guardados viejos) se aceptan y valen `FALTA_PAGAR`.
+- **Antes / después:**
+  - `ENTREGADO` **antes** = contado cobrado (estado). **Ahora** = se lo llevó, de cualquier forma de cobro.
+  - Un Apartado sin abonos **antes** caía en "Pendiente" (como contado sin cobrar). **Ahora** es "Falta pagar".
+  - El orden "Entrega más próxima" y "espera entrega" ahora miran `entregado`, no el estado del pago.
+- Grupos (R14): Falta pagar / Pagado por el saldo del grupo; Falta entregar si **algún** pedido vivo no está entregado.
+
+**4. `POST /mis-productos/v1/ventas/save` (venta directa) — campo nuevo opcional `entregado` en `VentaDirectaRequest`**
+- Contado: `entregado: false` = "Pagado · falta entregar". Omitido o `true` = entregado, como hasta hoy.
+- Ir pagando (`FIADO`): `entregado: false` = "todavía no se lo lleva". Omitido o `true` = se lo llevó, como hasta hoy.
+- Apartado: se ignora, nace siempre en Falta entregar.
+- El front viejo (que no manda el campo) se comporta igual que antes.
+
+**5. Cancelar un Ir pagando** (`PUT /v1/abonos/{pedidoId}/cancelar` y cancelar desde Mis pedidos)
+- **Antes:** un Ir pagando cancelado **nunca** regresaba el stock (se suponía que se lo llevó).
+- **Después:** si `entregado = false` el stock **sí** regresa y el mensaje es
+  `"Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $X"`.
+  Si ya se lo llevó, igual que antes (`"FIADO cancelado. Stock NO devuelto (producto entregado)…"`).
+  Los Ir pagando que ya existían quedan como entregados (migración), así que para ellos no cambia nada.
+
+**6. Agregar artículo: ajustar el stock del modelo** (`POST /mis-productos/v1/variantes/guardarConImagenes`)
+- Campo nuevo opcional en cada `VarianteDetalle`: `ajusteStockModelo: number` (+3 sube, −2 baja). Se
+  toma el primero distinto de 0 por modelo. Se aplica **antes** de validar el stock repartido y en la
+  **misma transacción** que el artículo: si el artículo no se guarda, el modelo no cambia.
+- **400** `"No tienes permiso para cambiar el stock del modelo. Pídele a alguien con permiso de editar modelos"`
+  si no es ROLE_ADMIN ni tiene Escritura en Modelos, Agregar modelo o Nuevo producto.
+- **400** `"No se puede dejar el modelo en 8: ya tiene 10 repartidos en sus artículos"` si se baja de más.
+- Sin el campo (o en 0), igual que antes.
+
+**7. Gestión de roles** (`migration_entrega_pedido.sql`, solo cambian textos y orden; las claves no)
+- Acciones nuevas: `entregar` (orden 21) y `regresar-entrega` (22), categoría "Tarjeta de pedido".
+- Filtros: `filtro-por-cobrar` → "Falta pagar (💰)", `filtro-pagados`, `filtro-cancelados` en
+  "Filtros — pago"; `filtro-pendientes` → "Falta entregar (📦)", `filtro-entregados` en "Filtros — entrega".
+- `migration_accion_gastos_admin.sql`: el administrador recibe `agregar-gasto`, `editar-gasto` y
+  `eliminar-gasto` de `gastos/buscar`. **Antes:** el admin no veía el botón de agregar gasto (le faltaba la acción).
+
+**Front que lo usa:** `pedidos/entrega/entrega.ts` (etiquetas y "¿Ya se lo llevó?"), `PedidosService.entregar/regresarEntrega`,
+Mis pedidos (dos etiquetas, 📦 Entregar, ↺, filtros Pago y Entrega), Detalle del pedido, Grupo, Créditos / Abonos,
+Venta directa, Venta por artículo (Ir pagando) y Agregar artículo (`ajusteStockModelo`).
+
+---
+
+### [BUG-KEY-18] ✅ Permisos de Mis pedidos al día en Gestión de roles (filtros nuevos y cobro desde la card)
+**Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Migración:** `migration_accion_pedidos_filtros_y_cobro.sql` (correrla con el deploy y volver a entrar)
+
+Ningún endpoint cambia. Cambia el catálogo de acciones de `pedidos/mis-pedidos` que viaja en el JWT
+(`pantallasAcciones`, el front lo lee con `tieneAccion('pedidos/mis-pedidos', clave)`).
+
+**Acciones nuevas** (solo ROLE_ADMIN de arranque), una por opción o por bloque de ⚙️ Filtros:
+
+| Clave | Qué esconde si no se tiene |
+|---|---|
+| `filtro-pendientes`, `filtro-por-cobrar`, `filtro-entregados` | Esa opción del bloque **Estado** |
+| `filtro-dinero` | Bloque **Dinero** (Debe dinero, Sin abonos, Saldo a favor) |
+| `filtro-fecha-entrega` | Bloque **Fecha de entrega** |
+| `filtro-lugar` | Bloque **Dónde se entrega** (buscador de lugar + Recoge / Envío) |
+| `filtro-unidos-otros` | Bloque **Unidos y otros** (Solo unidos, Sin unir, Ramos, Con promoción) |
+| `filtro-registrado` · `filtro-total` | Rango de fechas · rango de montos |
+
+- Un filtro **guardado** de un bloque que la persona ya no tiene **no se aplica** al cargar (no lo
+  vería en el panel ni podría quitarlo).
+- **Antes:** esos bloques los veía cualquiera que entrara a la lista de administrador y no se podían
+  quitar por rol. **Después:** se quitan desde Gestión de roles. El administrador ve lo mismo que antes
+  **solo si la migración ya corrió y volvió a entrar**; si el front llega primero, esos bloques no salen.
+- Etiquetas que cambian (misma clave): `filtro-normal` → "Filtro: Contado", `abonar` → "Abonar y
+  liquidar (tarjeta y detalle)" (también gobierna Liquidar / Dar abono / Abonar al grupo de la card),
+  `cobrar` → "Cobrar de contado", `unir-pedidos` → "Unir y separar pedidos".
+
+---
+
+### [BUG-KEY-17] ✅ Revisión de filtros de pedidos y detalle del pedido: 4 fallas del back
+**Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Front:** sí cambia (`detalle-pedido` manda `detalleId` en el botón −)
+
+**1. Filtros de Mis pedidos con pedidos unidos** (`GET /mis-productos/v1/pedidos/buscar`, mismo request y response).
+- **Antes:** de un grupo solo sale la card del titular (con el total y el "Falta" del grupo), pero los
+  filtros miraban **solo al titular**. Un abono al grupo liquida primero al pedido más viejo, así que
+  el titular quedaba Pagado y el grupo **desaparecía de "Por cobrar" y "Debe dinero"** aunque siguiera
+  debiendo, y **salía en "Pagado"**. Buscar el nombre, teléfono o artículo del **otro** cliente del
+  grupo no encontraba nada (su pedido no sale en la lista y el titular no coincidía).
+- **Después (R14 de `busquedapedido`):** la card del titular se filtra por lo que muestra, el grupo:
+  estado, dinero (debe / sin abonos / saldo a favor), total (el del grupo), fecha de entrega (espera
+  entrega mientras el grupo deba) y "Los que más deben". El texto, "Ramos" y "Con promoción" buscan en
+  todos los pedidos del grupo. Buscar el **número exacto** de un pedido del grupo sigue abriendo ese
+  pedido solo.
+
+**2. Orden "Entrega más próxima".**
+- **Antes:** salían primero los pedidos **ya entregados** de hace meses (su fecha era la más vieja).
+- **Después:** primero lo que falta entregar, de la fecha más vieja (atrasados) a la más lejana;
+  después lo entregado, pagado, cancelado o sin fecha, del más reciente al más viejo.
+
+**3. "⇄ Cambiar" todas las piezas por un artículo que ya está en el pedido** (`PUT .../articulos/{detalleId}`, mismo body).
+- **Antes:** la línea se convertía en el artículo nuevo y quedaban **dos líneas iguales** (ej. "Blusa ×2" y "Blusa ×1").
+- **Después:** si el artículo nuevo ya está como línea normal al **mismo precio**, se suma a esa línea y
+  la vieja sale ("Blusa ×3"). Con otro precio (uno a precio normal y otro con descuento) siguen siendo
+  dos líneas, a propósito. Igual al elegir "Quitar la promoción" en el aviso del combo.
+
+**4. Botón "−" (quitar una pieza)** — `DELETE /mis-productos/v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=1&detalleId={id}`.
+- **Antes:** el back elegía la línea por **modelo** (`productoId`): con dos tallas del mismo modelo
+  quitaba la primera que encontraba, no la que se tocó; con el mismo artículo en promoción y suelto,
+  el "−" de la línea suelta podía contestar "es parte de una promoción". Además `cantidad` 0 o
+  negativa se aceptaba (una negativa **sumaba** piezas sin revisar stock).
+- **Después:** parámetro nuevo **`detalleId`** (opcional) = el `id` de la línea del detalle. Con él se
+  quita esa línea exacta; si la línea no es de ese `productoId` → 400. Sin él funciona como antes
+  (compatible con el front que está en prod). `cantidad` menor a 1 → **400** `"La cantidad a quitar tiene que ser al menos 1"`.
+- **Front:** `pedidosService.eliminarDetalle(pedidoId, productoId, detalleId)` manda `item.id`.
+
+---
+
+### [BUG-KEY-16] ✅ Fix: "⇄ Cambiar" en una línea con varias piezas sacaba todas del pedido
+**Fecha:** 2026-10-06 · **Ramas:** `dev` y `qa` · **Front:** sí cambia (`detalle-pedido` pregunta cuántas)
+
+**Antes:** el front siempre mandaba `cantidad: 1` y el back trataba `cantidad` como "piezas de la
+línea nueva": con 3 blusas en la línea, ⇄ regresaba las **3** al stock, la línea pasaba al artículo
+nuevo con **1** pieza y las otras 2 blusas desaparecían del pedido (el total bajaba sin que nadie lo
+pidiera). Hallado en QA 2026-10-06.
+
+**Después** (`PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}`, mismo body):
+- `cantidad` = **cuántas piezas de esa línea se cambian**, 1 a 1 por el artículo nuevo. `null` = todas (igual que antes).
+- **Todas** (`cantidad` = las de la línea, o `null`) → la línea se convierte en el artículo nuevo, como antes.
+- **Menos** (ej. 1 de 3) → la línea vieja se queda con 2, **solo 1** regresa al stock, y el artículo
+  nuevo entra como línea aparte con 1 pieza (si ya estaba en el pedido como línea normal al mismo
+  precio, se suma a esa). El total se recalcula como siempre (R7/R9).
+- **Más** de las que tiene la línea → **400** `"'X' tiene 2 pieza(s) en el pedido: no se pueden cambiar 3. Para sumar mas, usa Agregar articulo"`.
+- **Línea de promoción** con `cantidad` menor a la de la línea → **400** `"... es parte de una promocion: se cambia la linea completa (N pieza(s)), no una parte"`. En una promoción el front manda siempre la línea completa.
+- `cantidad` 0 o negativa → 400 (como antes).
+
+**Front (`detalle-pedido`):** si la línea tiene más de 1 pieza y no es de promoción, al elegir el
+artículo nuevo pregunta *"¿Cuántas piezas cambias?"* (1 a N, arranca en 1). Con 1 pieza, o en una
+promoción, cambia directo la línea completa. El reintento del combo (409) manda la misma cantidad.
+
+---
+
+### [BUG-KEY-15] ✅ Fix: "Cambiar / Agregar artículo" del pedido ofrecía artículos sin stock y dados de baja
+**Fecha:** 2026-10-06 · **Ramas:** `dev` (falta `qa`) · **Front:** sí cambia (`detalle-pedido` usa el endpoint nuevo)
+
+**Antes:** el buscador de **⇄ Cambiar** y **➕ Agregar artículo** del detalle de pedido usaba
+`GET /v1/variantes/buscar`, que **para el administrador** trae también lo sin stock y lo dado de baja
+(es el buscador de Tienda, donde sí se administran) y además guarda caché, así que el stock que se
+veía podía ser viejo. Se elegía uno de esos y el back lo rechazaba al guardar ("ya no está a la
+venta" / "Stock insuficiente"). Hallado en QA 2026-10-06.
+
+**Después:** endpoint propio, solo lo que se puede vender ahora:
+
+`GET /mis-productos/v1/variantes/para-pedido?termino=blusa&pagina=1&size=20`
+- Permiso: acción `pedidos/mis-pedidos` → `agregar-articulo` **o** `cambiar-articulo` (las mismas de los botones). Sin ellas, 403.
+- Solo artículos con **stock > 0 en el artículo y en su modelo**, **artículo y modelo habilitados**, y que no sean de catálogo interno. **No** exige imagen (en mostrador se vende sin foto).
+- Busca en nombre del modelo, marca, categoría y código de barras. Mismo orden que la búsqueda de admin (código exacto primero).
+- **Sin caché** (el stock cambia con cada venta).
+- `termino` con menos de 3 caracteres → `t: []` (no busca).
+- Sin resultados → **200 con `t: []`** (no 404, a diferencia de `/buscar`).
+- Response: el mismo `PginaDto<VarianteResumenDto>` de `/buscar` (`pagina`, `totalPaginas`, `totalRegistros`, `t: [...]`).
+
+`/v1/variantes/buscar` no cambia (Tienda lo sigue usando igual).
+
+**Front (`detalle-pedido`):** además el buscador ya no busca con cada letra: espera 400 ms después de la
+última tecla, con menos de 3 letras no sale al back y limpia la lista, y descarta respuestas viejas
+(`switchMap` con `catchError` adentro). Reglas completas: skill `buscadores`.
+
+**Pendiente al mezclar con la rama `feature/tema-jade-articulo`:** agregar el alias
+`/v2/articulos/para-pedido` (esa rama ya sirve `/v1/variantes` y `/v2/articulos` desde el mismo controller,
+así que sale solo; falta la regla de SecurityConfig con la ruta v2).
+
+---
+
+### [BUG-KEY-14] ✅ Fix: agregar un artículo a un pedido no sumaba al total (y un pedido Pagado seguía Pagado)
+**Fecha:** 2026-10-01 · **Ramas:** `dev` y `qa` · **Front:** no requiere cambios
+
+**Endpoints afectados** (mismo contrato, cambia el resultado):
+- `POST /mis-productos/v1/pedidos/{pedidoId}/articulos` (agregar)
+- `PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}` con `modo: "QUITAR_PROMOCION"`
+- `DELETE /mis-productos/v1/pedidos/{pedidoId}/promociones/{promocionId}`
+
+**Antes:** el artículo agregado sí se guardaba como línea del pedido, pero `totalPedido` se
+calculaba sin él (y al quitar una promoción, se seguía sumando lo borrado). En un pedido a crédito
+eso dejaba el estado mal: un pedido de $100 Pagado con $150 recibía un artículo de $300 y seguía
+diciendo **Total $100 · PAGADO**, con la venta de Reportes recreada por $100. Hallado en QA
+2026-10-01 (Prueba 4, caso 2).
+
+**Después:** `totalPedido` sale de todas las líneas que tiene el pedido en ese momento, y el estado
+se ajusta con eso: el mismo caso queda **Total $400 · pagado $150 · APARTADO/FIADO** (debe $250).
+El response (`PedidoArticulosResponse`) y `GET /v1/pedidos/{id}/detalle` ya traen esos valores;
+la pantalla de detalle no cambia nada.
+
+**Pedidos que ya quedaron mal antes del fix:** su `totalPedido` guardado no incluye el artículo
+agregado. Se corrige solo con cualquier edición posterior de artículos (quitar con −, agregar,
+cambiar), porque todas recalculan el total desde las líneas.
+
+---
+
 ### [BUG-KEY-02] ✅ Fix: búsqueda de pedidos — endpoint migrado a query param
 **Fecha:** 2026-06-05  
 **Archivos corregidos:** `PedidoController.java:92`, `PedidoServiceImpl.java:250`
@@ -20396,14 +21422,6 @@ dos**, cualquier otro monto lo rechaza con el mensaje que dice cuáles valen.
 
 # HOTFIX — el precio con descuento solo se cobra cuando el admin lo elige (2026-09-29)
 
-> ⚠️ **Qué quedó en prod (`main`) y qué solo en `qa`/`dev`.** Por decisión del dueño, a prod solo
-> subió lo de la tabla del carrito y el precio: card con el precio venta, carrito al precio normal
-> con "Otro precio" + check "Usar", y 💲 por artículo (`PUT /v1/precios/articulo/{id}`). Estas
-> partes están **solo en `qa`/`dev`** y suben a prod con el flujo normal: el botón "Otro precio"
-> del detalle del pedido, el bot de comentarios sin descuento, `savePedido` con descuento solo para
-> el admin (y su mensaje de error sin revelarlo), el campo `precioPropio` y
-> `DELETE /v1/precios/articulo/{id}` ("Usar el del producto").
-
 **Regla del dueño:** al dar de alta un producto se capturan precio costo, precio venta y precio
 descuento. **Siempre se cobra y se muestra el precio venta.** El precio descuento es para cuando el
 dueño decide dárselo a alguien en el momento (por ejemplo, un cliente que se lleva varias piezas),
@@ -20479,6 +21497,163 @@ Si el artículo ya estaba en el carrito cuando se le cambia el precio, la línea
 **Carritos guardados antes del deploy:** el carrito vive en el `localStorage` del navegador. Una
 línea que se agregó antes del hotfix conserva la rebaja con que entró y no tiene "Otro precio" —
 conviene vaciar el carrito una vez después del deploy.
+
+## 🔗 Unir pedidos: buscador y agregar a un grupo que ya existe (2026-09-30, dev)
+
+**Antes:** para unir se escribían los números a mano ("102, 105") y no se validaban hasta presionar
+Unir. Una vez unidos no se podía sumar otro pedido: el botón desaparecía y el back respondía
+`"...ya esta en el grupo #N: deshaz ese grupo primero"`.
+
+**Ahora:** un buscador que solo muestra los que sí se pueden unir, y un botón **➕ Agregar pedidos**
+en el grupo activo. Mismas reglas que unir (R18 en `hexagonal/grupopedido/README.md`).
+
+### `GET /v1/grupos-pedido/candidatos?pedidoId=101&buscar=12&pagina=0` — buscador
+- `pedidoId`: el pedido que se está viendo. Si ya está en un grupo, se usa la forma de cobro del
+  grupo; si no, la del pedido.
+- `buscar`: número de pedido (**desde 1 dígito**, "empieza con") o nombre del cliente (**desde 3
+  letras**, "contiene"). Vacío = todos. Con 1 o 2 letras → **400** con el motivo en `mensaje`.
+- `pagina`: desde 0. Siempre de **10 en 10**, del pedido más nuevo al más viejo.
+
+Solo salen pedidos con la **misma forma de cobro**, que no estén cancelados ni cobrados de contado
+(`Entregado`), que no estén en un grupo activo y que no sean el mismo `pedidoId`. Un pedido a
+crédito ya `PAGADO` sí sale (regla R2).
+
+Response `data`:
+```json
+{ "pedidos": [ { "pedidoId": 128, "cliente": "Carla Méndez", "tipoPedido": "FIADO",
+                 "estadoPedido": "FIADO", "total": 250.0, "pagado": 50.0, "saldo": 200.0,
+                 "fecha": "2026-09-22T10:00:00" } ],
+  "pagina": 0, "hayMas": true }
+```
+Scroll infinito: al llegar abajo se pide `pagina + 1` con el mismo `buscar` y se agrega a la lista
+mientras `hayMas` sea `true`.
+- 400 `"No existe el pedido #N"` si `pedidoId` no existe.
+- Permiso: acción `unir-pedidos` de `pedidos/mis-pedidos` (no basta con `abonar`).
+
+### `POST /v1/grupos-pedido/{grupoId}/pedidos` — agregar a un grupo que ya existe
+Request: `{ "pedidoIds": [128, 129] }`. Response `data` = **Grupo** actualizado (ya con los nuevos).
+- No mueve dinero: lo que el pedido ya tenía abonado **cuenta para el grupo** (sube `pagadoGrupo`)
+  y queda escrito en sus observaciones, igual que "Se agregaron al grupo #N los pedidos #…" en los
+  que ya estaban. Quién recoge no cambia.
+- 400 si el grupo ya se separó, si no se manda ninguno, si alguno ya está en este grupo, no
+  existe, está cancelado o cobrado de contado, o está en otro grupo.
+- 400 **distinta forma de cobro**: igual que al unir, `data` trae el tipo de cada uno (el del grupo
+  va con el `pedidoId` del titular).
+- Permiso: `unir-pedidos`.
+
+### En el front
+- El campo de texto se cambió por el buscador en "Unir con otros pedidos" y en "Agregar pedidos".
+  Los elegidos quedan como etiquetas con ✕, y el botón dice cuántos se van a unir o agregar.
+- El encabezado del grupo dice cuántos pedidos tiene ("4 pedidos") y la sección de artículos se
+  titula "🔗 4 pedidos unidos".
+- Cada pedido unido se ve en una sola fila (número, cliente, cuántos artículos, total) y sus
+  artículos se abren con clic.
+
+### Pruebas E2E fuera del deploy de QA
+Las pruebas de `e2e/` ya no corren solas en GitHub (se quitó el job del workflow de QA): se corren a
+mano con `npm run test:ver` o `npm run test:ui`, que se ven en vivo.
+
+---
+
+## 🔒 El precio con descuento ya no viaja en las listas: se pide uno por uno (2026-09-30, dev)
+
+**Antes:** `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto/.../paginado/resumen` traían
+`precioRebaja` de **todo** el catálogo cuando quien preguntaba era admin. Aunque la pantalla lo
+tapara con 👁, el monto quedaba en el navegador (respuesta de red, memoria y el `localStorage` del
+carrito).
+
+**Después:** `VarianteResumenDto` **ya no trae `precioRebaja`**, ni para el admin. El descuento se
+pide solo cuando se necesita:
+
+**`GET /mis-productos/v1/precios/articulo/{varianteId}/descuento`**
+
+```json
+{ "varianteId": 7, "precioRebaja": 350.0, "tieneDescuento": true }
+```
+
+- `precioRebaja` es el descuento **cobrable**: > 0 y menor al normal. Si no hay (incluido el caso
+  "descuento = normal", el default al dar de alta), llega `0` con `tieneDescuento: false`.
+- 403 sin `ROLE_ADMIN` ni la acción `cambiar-precio` de `tienda/buscar`.
+- 400 si el artículo no existe.
+
+Quién lo usa en el front:
+- **Carrito:** 👁 lo pide y lo muestra; 🙈 lo borra de la página. "Usar" lo pide al marcarse.
+  El carrito ya no guarda `precioOtro`: la línea solo guarda `usaOtroPrecio` y el `precio` que
+  se cobra (que ya está a la vista en la tabla).
+- **Detalle del pedido → "Otro precio":** lo pide al dar clic; si no hay descuento avisa.
+- **💲 de la card:** lo pide al abrirse para llenar la caja.
+
+`precioNormal`, `usarDescuento` y `precioPropio` siguen llegando al admin en las listas: no son
+secretos (el normal es el precio de lista).
+
+## 🔒 Caché de artículos por rol: el precio con descuento se filtraba a clientes (2026-09-30, dev)
+
+**Antes:** cuatro búsquedas de artículos se guardaban en la caché (Redis) con una clave que no
+distinguía admin de cliente: `GET /mis-productos/v1/variantes/buscar-filtrado`,
+`/v1/variantes/porProducto/{id}/paginado/resumen`, el filtro de admin y el de sin stock/deshabilitadas.
+La respuesta sí cambia según el rol (`precioRebaja`, `precioPropio`, `precioNormal` y `usarDescuento`
+solo para admin), así que el primero en llegar decidía lo que veían todos:
+- si llegaba primero un cliente, el admin recibía la lista **sin** descuento y el carrito mostraba "—";
+- si llegaba primero el admin, un cliente recibía `precioRebaja` en la respuesta.
+
+**Después:** la clave de las cuatro lleva el rol, igual que ya la llevaban `/buscar` y la lista de
+modelos. No cambia ningún request ni response.
+
+## Vender un artículo con descuento — checks "Precio venta" / "Precio descuento" (2026-09-29, dev/qa)
+
+En el 💲 de la card el admin elige, para **un** artículo, si se vende a su precio venta o a su
+precio con descuento. Con "Precio descuento" el artículo **cambia de precio para todos** (tienda,
+carrito, chatbot y pedidos de clientes) hasta que se vuelva a elegir "Precio venta". En el carrito,
+desmarcar "Usar" en esa línea cobra el normal **solo en esa venta**, sin cambiar el artículo.
+
+**Migración obligatoria antes del deploy:** `migration_usar_descuento_variante.sql` (agrega
+`variantes.usar_descuento TINYINT(1) NOT NULL DEFAULT 0`). Sin ella el back falla en cualquier
+consulta de artículos. No cambia ningún precio: todos nacen en 0.
+
+**`PUT /mis-productos/v1/precios/articulo/{varianteId}`** — body con campo nuevo `usarDescuento`:
+
+```json
+{ "precioVenta": 200, "precioRebaja": 150, "usarDescuento": true }
+```
+
+- `usarDescuento: true` → el artículo se vende a `precioRebaja`. Tiene que ser > 0 y **menor** a
+  `precioVenta`, si no: **400** *"Para vender este artículo con descuento, el precio con descuento
+  tiene que ser mayor a 0 y menor al normal ($200.00)"*.
+- `usarDescuento: false` o sin el campo → se vende a `precioVenta` (como antes). El `precioRebaja`
+  se guarda igual y sigue disponible para elegirlo en una venta con "Usar".
+
+Respuesta (campos nuevos `usarDescuento` y `precioACobrar`):
+
+```json
+{ "varianteId": 7, "precioVenta": 200.0, "precioRebaja": 150.0, "propio": true,
+  "usarDescuento": true, "precioACobrar": 150.0, "vendeBajoCosto": false }
+```
+
+`DELETE /v1/precios/articulo/{varianteId}` ("Usar el del producto") también apaga `usarDescuento`.
+
+**Cambia el significado de `precio` en `GET /v1/variantes/buscar`, `buscar-filtrado` y `porProducto`:**
+
+| Campo | Antes | Ahora |
+|---|---|---|
+| `precio` | el precio normal | **al que se vende**: el descuento si `usarDescuento`, si no el normal. Para todos |
+| `precioNormal` (nuevo, solo admin) | — | el precio normal, para cobrarlo en una venta puntual |
+| `usarDescuento` (nuevo, solo admin) | — | `true` si el artículo se vende al descuento |
+| `precioRebaja` (solo admin) | sin cambio | sin cambio |
+
+Para un cliente `precioNormal` y `usarDescuento` llegan `null`: su precio es `precio` y ya trae el
+descuento si está activo.
+
+**`savePedido` antes/después:** antes, con token de cliente, un `precioUnitario` igual a la rebaja
+respondía 400. Ahora se acepta **si ese artículo tiene `usarDescuento`** (es su precio de lista).
+Sin `usarDescuento` sigue igual: la rebaja solo la puede cobrar el admin. La venta de mostrador no
+cambió (ya aceptaba normal y rebaja).
+
+**Chatbot:** dice el precio al que se vende (el descuento si está activo). Una rebaja sin activar
+sigue sin anunciarse.
+
+**Front — carrito:** un artículo con `usarDescuento` entra al descuento con "Usar" ya marcado;
+desmarcarlo cobra `precioNormal` en esa línea. `actualizarPrecios()` recibe también `usarDescuento`
+para que una línea ya en el carrito tome lo que se eligió en la card.
 
 ---
 
@@ -21250,6 +22425,214 @@ Request `{ "pedidoTitularId": 123 }` → `data` = **Grupo**. 400 si ese pedido n
 
 ---
 
+### Fix: Unir pedidos — sincronización estado_pedido con tipo_pedido (2026-09-29)
+
+**Problema:** Al cambiar la forma de cobro de un pedido unido (Apartado ↔ Ir pagando), solo se
+actualizaba `tipo_pedido`, dejando `estado_pedido` desfasado. En los grupos, esto hacía que los
+miembros mostraran estados inconsistentes: el título del grupo decía "Ir pagando" pero la tabla
+mostraba "Apartado".
+
+**Solución:**
+- **Backend (`PedidoServiceImpl.cambiarTipoPedido`):** Si `estado_pedido` coincide con el tipo
+  anterior, ahora también se actualiza al nuevo tipo. Si diferían (ej. estado = "Pendiente"), se
+  mantiene sin cambios.
+  ```java
+  if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+      pedido.setEstadoPedido(tipoNuevo);
+  }
+  pedido.setTipoPedido(tipoNuevo);
+  ```
+- **Tests nuevos:** `CambiarTipoPedidoTest` con dos casos: estado que copia el tipo (FIADO→APARTADO)
+  y estado distinto al tipo (Pendiente se ignora).
+- **Backfill SQL:** `backfill_estado_pedido_tipo.sql` repara órdenes abiertas con tipo/estado
+  desfasado. Idempotente (solo toca lo necesario). **Debe ejecutarse en `inventario_key_qa` antes
+  de producción**.
+
+**Frontend — Cambios de UI:**
+- **Selector "Cambiar quién recoge":** rediseñado como una tarjeta limpia con:
+  - Avatar circular con la inicial del titular (fondo con gradiente de marca)
+  - Nombre y número de pedido en texto más pequeño
+  - Selector oculto debajo (sin los controles nativos del navegador)
+  - Icono de chevron-down de la app en la esquina del select
+  - **Responsive:** en móvil (< 575px) el selector expande a ancho completo
+- **Etiquetas de estado:** cada pedido en la tabla ahora muestra un badge con el estado en texto
+  legible y color semántico:
+  - `APARTADO`, `FIADO` → color de marca (azul, `.gp-estado--abierto`)
+  - `PAGADO` → verde éxito (`.gp-estado--ok`)
+  - `CANCELADO` → rojo peligro (`.gp-estado--cancelado`)
+  - `ENTREGADO` → verde éxito (mismo que pagado)
+- **Funciones TypeScript nuevas:**
+  - `inicial(nombre)`: extrae la primera letra para el avatar
+  - `etiquetaEstado(codigo)`: mapea APARTADO→"Apartado", FIADO→"Ir pagando", PAGADO→"Pagado",
+    ENTREGADO→"Entregado", CANCELADO→"Cancelado"
+  - `claseEstado(codigo)`: retorna la clase CSS para colorear (abierto/ok/cancelado)
+  - `candidatosRecoger` (getter): ahora devuelve `{ pedidoId, cliente }[]` en lugar de solo IDs,
+    para que el HTML pueda mostrar el nombre del cliente
+
+**No hay cambios en endpoints.** Todo es corrección de lógica interna (backend) y cosmético (UI).
+
+#### Checklist QA
+- [ ] Aplicar `backfill_estado_pedido_tipo.sql` en `inventario_key_qa`
+- [ ] Verificar que no haya pedidos unidos con tipo/estado desfasado (SELECT al final del script)
+- [ ] Cambiar forma de cobro en un pedido unido, verificar que el grupo se actualiza
+- [ ] En la tabla de miembros, confirmar que los estados muestran colores y textos legibles
+- [ ] Selector "Cambiar quién recoge": comprobar en desktop y móvil que es accesible
+
+
+---
+
+## 💵 Editar artículos de un pedido a crédito: el estado sigue a los abonos de ESE pedido (2026-09-29)
+
+**No hay endpoints nuevos ni campos nuevos.** Cambia el comportamiento de los que ya existen:
+
+- `POST /v1/pedidos/{id}/articulos` (agregar)
+- `PUT /v1/pedidos/{id}/articulos/{detalleId}` (cambiar)
+- `DELETE /v1/pedidos/{id}/promociones/{promocionId}` (quitar promoción)
+- `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=N` (quitar producto, botón viejo)
+
+**Antes:** solo se recalculaba `totalPedido`. El estado se quedaba como estaba:
+- Un pedido Apartado / Ir pagando cuyo nuevo total ya quedaba cubierto por sus abonos **no pasaba a
+  Pagado**.
+- Un pedido **Pagado** al que se le cambiaba algo por un artículo más caro **seguía diciendo
+  Pagado** aunque debiera, y su venta registrada conservaba los artículos viejos.
+- El botón viejo de quitar producto dejaba quitar el último y el pedido quedaba en $0.
+
+**Ahora** (solo pedidos a crédito; los de contado no cambian):
+- Abonos ≥ total nuevo → `estadoPedido = PAGADO` y se crea la venta.
+- Estaba PAGADO y ahora debe → regresa a `APARTADO` / `FIADO` y se borra la venta.
+- Estaba PAGADO y sigue cubierto → sigue PAGADO; la venta se rehace con los artículos nuevos
+  (queda con la fecha de la edición).
+- **La cuenta es solo de ese pedido.** Si está en un grupo, el dinero que le sobre **no** se pasa a
+  los otros pedidos del grupo.
+- Abonado > total → **saldo a favor del cliente** = `totalPagado − totalPedido`. El back no lo
+  devuelve solo; la pantalla debería mostrarlo (pendiente en el front: "Saldo a favor del cliente $X").
+
+**Quitar el último producto** con `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}` ahora
+responde **400** con el mensaje `"'<nombre>' es el ultimo articulo del pedido #<id>. Para regresar
+todo, cancela el pedido"`. Para regresar todo se usa cancelar (`PUT /v1/abonos/{pedidoId}/cancelar`
+en crédito), que devuelve stock y en su mensaje dice el saldo a favor del cliente.
+
+**Qué debe hacer el front tras editar:** volver a leer el pedido (ya lo hace) — el `estadoPedido`
+puede haber cambiado a `PAGADO` o de `PAGADO` a `APARTADO`/`FIADO`.
+
+#### Checklist QA
+- [ ] Pedido Apartado $200 con $50 abonados: quitar un producto de $100 → debe $50, sigue Apartado.
+- [ ] Pedido Apartado $200 con $150 abonados: quitar un producto de $100 → queda **Pagado**, saldo a favor $50.
+- [ ] Pedido Pagado: cambiar un producto por uno más caro → regresa a Apartado y debe la diferencia.
+- [ ] Quitar el último producto con el botón viejo → mensaje "cancela el pedido".
+- [ ] En un grupo, lo anterior sobre un pedido no cambia el saldo de los otros pedidos.
+
+---
+
+## 🧭 Bloque 1 (2026-09-30): Contado en la venta, fechas en la card, "Cómo llegar"
+
+Plan completo en `PLAN_PEDIDOS_VENTAS_ENTREGA.md` (secciones 6.1, 6.3 y V1).
+
+### 1. Venta directa — botón "Contado" (solo front)
+**Antes:** las formas de cobro eran "Apartado" e "Ir pagando"; para regresar a contado había que
+volver a picar el botón activo, así que parecía que había que recargar la pantalla.
+**Ahora:** arriba de "Forma de pago" hay tres botones: **Contado · Apartado · Ir pagando**. Sin cambio
+de contrato.
+
+### 2. Lista de pedidos del admin — campos nuevos en `pedido`
+Endpoints: los dos que arman la lista del admin (`buscarTodosLosPedidos` y la búsqueda por texto de
+Mis pedidos). Campos nuevos dentro de `pedido`:
+```json
+{ "fechaEntrega": "2026-10-04", "horaEntrega": "10:00", "recogeEnLocal": false }
+```
+- `fechaEntrega` (`yyyy-MM-dd` o `null`): día de entrega / día que pasa por él (`pedidos.fecha_recogida`).
+- `horaEntrega` (texto o `null`): la hora que puso "Entregas por zona".
+- `recogeEnLocal` (boolean): sin lugar de entrega, o con un lugar marcado "recoger en tienda".
+
+**Card:** "Fecha" pasa a **"Pedido"** (cuándo se hizo). Nueva fila **"Entrega: sáb 4 oct, 10:00 ·
+Zacazonapan"** o **"Recoge en el local: …"** cuando hay fecha, con **"⚠ Atrasado N días"** si ya pasó.
+La fila (y el atraso) solo sale en pedidos que **todavía esperan entrega**: no en Entregado, cancelado
+ni PAGADO. Motivo: la venta de mostrador de contado guarda hoy como `fecha_recogida` y no tiene lugar,
+así que sin ese filtro cada venta de mostrador diría "Recoge en el local: hoy". PAGADO queda fuera hasta
+que exista el paso "Entregado" para créditos.
+
+Solo la lista del **admin** trae estos campos; la lista del cliente (`findPedidoPorId2`) no, así que el
+cliente todavía no ve la fila "Entrega".
+
+### 3. Detalle del pedido — `recogeEnLocal` y "Cómo llegar"
+`GET /v1/pedidos/{id}/detalle` trae `recogeEnLocal` (boolean), misma regla que arriba.
+
+**Antes:** "Cómo llegar" nunca llevaba al local, y si "Entregas por zona" programó el viaje con el
+punto de encuentro **solo escrito** (sin marcarlo en el mapa) mandaba a las coordenadas de la **casa
+del cliente**.
+**Ahora**, en este orden:
+1. Punto del viaje marcado en el mapa → ruta a ese punto.
+2. Punto del viaje solo escrito → búsqueda de ese texto en Maps.
+3. `recogeEnLocal` → ruta al **local** (latitud/longitud de `GET /v1/negocio/contactos`, las mismas del
+   login). Si el local no tiene ubicación: el **admin** ve el botón deshabilitado + "Falta configurar la
+   ubicación del local en Administración → Negocio"; el **cliente** no ve botón (el aviso es una
+   instrucción para el admin).
+4. A domicilio → coordenadas del cliente, o su dirección escrita.
+
+#### Checklist QA
+- [ ] Venta: elegir Apartado, luego Contado, luego Ir pagando, luego Contado: cambian sin recargar.
+- [ ] Mis pedidos: la card dice "Pedido: …"; un pedido con viaje programado muestra "Entrega: …".
+- [ ] Un pedido con fecha pasada y sin entregar muestra "⚠ Atrasado N días".
+- [ ] Detalle de un pedido "recoge en el local": "Cómo llegar" abre la ruta al local.
+- [ ] Detalle de un pedido de zona con punto solo escrito: busca el punto, no la casa del cliente.
+- [ ] Una venta de mostrador de contado (Entregado) NO muestra la fila "Recoge en el local".
+- [ ] Local sin ubicación: el admin ve el aviso; el cliente no ve botón ni aviso.
+
+---
+
+## 💾 Bloque 2 (2026-09-29): filtros guardados en la base (tienda/buscar y productos/buscar)
+
+Plan: `PLAN_PEDIDOS_VENTAS_ENTREGA.md`, secciones 8 y 8.1. Dominio hexagonal `preferenciafiltro`.
+
+**Antes:** los filtros se recordaban solo en memoria (`VarianteService.filtrosCache`,
+`ProductoService.prodFiltrosCache`): se perdían al recargar, cerrar sesión o cambiar de dispositivo.
+**Ahora:** cada persona del **personal** tiene los suyos guardados, uno por pantalla. Los **clientes no**.
+Se guardan solo los filtros (casillas, talla, color, marca, precio, fechas), **nunca** el texto buscado
+ni la página.
+
+⚠️ Requiere correr `migration_preferencia_filtro.sql` (tabla `preferencia_filtro`). Sin ella la pantalla
+sigue funcionando con la memoria, como antes, y los endpoints responden 500.
+
+### Endpoints — `/v1/preferencias-filtro/{pantalla}`
+`{pantalla}` = `tienda-buscar` | `productos-buscar`. Permiso: ver esa pantalla, y no ser cliente
+(`ROLE_USUARIO`).
+
+**`GET`** → lo guardado:
+```json
+{ "data": { "pantalla": "tienda-buscar", "filtros": { "mostrarConStock": true, "fechaDesde": "" },
+            "actualizado": "2026-09-30T10:00:00" } }
+```
+- 204: nunca guardó filtros en esa pantalla.
+
+**`PUT`** body `{ "filtros": { ... } }` → crea o reemplaza; responde igual que el GET.
+- 204: se mandó `{ "filtros": {} }` (equivale a borrar).
+
+**`DELETE`** → 204. Es lo que hace "Limpiar filtros".
+
+Errores (mensaje en `mensaje`):
+- 400: pantalla desconocida, `filtros` no es un objeto, o mide más de 2000 caracteres.
+- 403: es cliente, o no tiene permiso de ver esa pantalla.
+
+### Front
+- `shared/preferencia-filtro.service.ts`: `obtener()` al entrar, `guardar()` al aplicar un filtro (espera
+  800 ms y manda solo el último cambio), `borrar()` en "Limpiar". Para un cliente o un visitante no
+  hace ninguna petición. No muestra el spinner global (está en `skipUrls` del interceptor).
+- Al entrar a la pantalla manda la **memoria** si hay (navegar dentro de la app, igual que antes); si
+  no, lo guardado en la base. En tienda/buscar los filtros de admin solo se aplican si todavía tiene
+  permiso de verlos.
+
+#### Checklist QA
+- [ ] Admin en tienda/buscar: marcar "Con stock", recargar (F5) → sigue marcado y la lista filtrada.
+- [ ] Lo mismo con talla/color/marca/precio (filtros del catálogo).
+- [ ] productos/buscar: marcar filtros y fechas, cerrar sesión, volver a entrar → siguen puestos.
+- [ ] "Limpiar filtros" y recargar → ya no aparecen.
+- [ ] Otro usuario del personal no ve los filtros del primero.
+- [ ] Cliente en la tienda: sus filtros NO se guardan (en la pestaña Red no hay peticiones a
+      `/v1/preferencias-filtro`).
+- [ ] El texto del buscador y la página NO se restauran, solo los filtros.
+
+---
+
 ## 🎵 Conectar TikTok desde Publicar en redes (2026-09-30)
 
 **Antes:** la cuenta de TikTok se conectaba a mano (armar la URL de autorización, copiar el `code`
@@ -21324,3 +22707,164 @@ Body `{ "code", "redirectUri" }`. El `redirectUri` tiene que ser **idéntico** a
 - [ ] **Quitar acceso** → Cancelar → no cambia nada.
 - [ ] En TikTok tocar "Cancelar" → "No se conectó TikTok. No se cambió nada."
 - [ ] Recargar `/tiktok/callback` después de conectar → no marca error ni vuelve a mandar el code.
+
+---
+
+## 📦 Apartado es sin dinero (2026-10-01)
+
+Regla del dueño: un **Apartado** es el pedido que el cliente pide por Facebook, un live o un mensaje,
+y no ha dado nada. Se paga **completo** al recogerlo. Si el cliente da cualquier cosa (enganche,
+transferencia, un familiar que trae $100), el pedido es **Ir pagando** (`FIADO`). Detalle en la skill
+`reglas-pedidos` 2.1 y `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §10.6.
+
+### Qué cambia en el back
+
+| Endpoint | Antes | Ahora |
+|---|---|---|
+| `POST /v1/abonos/{pedidoId}` | Un Apartado aceptaba cualquier abono hasta el saldo | En un Apartado solo se acepta **el saldo completo**. Menos → **400** `"Un Apartado se paga completo al recogerlo: debe $X. Para dar un abono, cambia el pedido a Ir pagando"`. Ir pagando sigue igual |
+| `POST /v1/grupos-pedido/{grupoId}/abonos` | Igual que arriba, repartido | En un grupo de Apartados solo se acepta **el saldo completo del grupo**. Menos → **400** `"Un Apartado se paga completo al recogerlo: el grupo debe $X. Para dar un adelanto, los pedidos tienen que pasar a Ir pagando"` |
+| `PUT /v1/pedidos/{id}/tipo` (Cambiar forma de cobro) | Se podía pasar a Apartado cobrando algo, o un Ir pagando con abonos | Pasar a `APARTADO` con `monto` > 0, o un pedido que ya tiene abonos → **400** `"Un Apartado es sin dinero: si el cliente ya dio algo, el pedido es Ir pagando"`. Al pasar a Apartado o Ir pagando, el tipo cambia **antes** del cobro: un Apartado → Ir pagando con `monto` registra el adelanto ya como Ir pagando |
+| `POST /v1/abonos/{pedidoId}/transferir` | El pedido nuevo nacía Apartado | El pedido nuevo nace **Ir pagando** (`FIADO`): ya trae dinero. `estadoPedido` del response: `FIADO` o `PAGADO` |
+
+Los Apartados que **ya** tenían abonos siguen pudiendo liquidarse pagando el saldo exacto.
+
+### Qué cambia en el front
+- **Detalle del pedido:** en un Apartado, "💳 Registrar abono" abre con el monto completo y una nota.
+  Si se escribe menos, aviso *"Un Apartado se paga completo"* con botón **🔁 Cambiar a Ir pagando**,
+  que abre Cambiar forma de cobro con Ir pagando marcado y el monto en "¿Cobra algo ahora?".
+- **Cambiar forma de cobro:** Apartado sale deshabilitado si el pedido ya tiene dinero; al elegir
+  Apartado no aparece "¿Cobra algo ahora?". Ayudas: Apartado *"Sin dinero: lo paga completo al
+  recogerlo"*, Ir pagando *"Ya dio algo y va abonando"*.
+- **Créditos / Abonos:** igual que el detalle; el aviso ofrece **Ir al pedido**.
+- **Pedidos unidos (Apartados):** el botón dice **💵 Pagar el grupo completo**, abre con el saldo del
+  grupo y no acepta menos.
+- **Venta:** con Apartado elegido, escribir un enganche lo pasa solo a **Ir pagando** con la nota
+  *"Un Apartado es sin dinero: como te dio $X, queda como Ir pagando"*.
+
+#### Checklist QA
+Casos detallados en `PRUEBAS_QA_2026-10-01.md`, **Prueba 7**.
+
+---
+
+## 🧪 Datos de prueba en QA: modelos, artículos y pedidos con un botón (2026-10-01)
+
+**Dónde:** **Sistema → 🗑️ Limpiar caché** (`admin/cache`), sección nueva **🧪 Datos de prueba**,
+visible solo para administradores. Reglas completas: `hexagonal/datosprueba/README.md` (R1–R15).
+
+**Qué hace:** crea en la base de QA hasta 20 000 modelos con 1 a 4 artículos cada uno y hasta 3 000
+pedidos aleatorios (contado, Apartado, Apartado pagado, Ir pagando con abonos), **en segundo plano**.
+Todo queda con marca **"Prueba QA"** y código de barras `2098` + 9 dígitos; los pedidos, con la
+observación `[DATOS DE PRUEBA]` y a nombre de "Cliente Prueba QA NNN". Los pedidos pasan por la venta
+directa y el abono reales (mismas reglas, mismo stock). No sale ningún correo ni WhatsApp.
+
+**Solo QA:** el back le pregunta a MySQL el nombre de la base y fuera de `inventario_key_qa` se niega.
+**Solo ROLE_ADMIN:** no basta con la pantalla de caché.
+
+### Endpoints
+
+**`POST /mis-productos/v1/admin/datos-prueba/generar`** — arranca y regresa de inmediato.
+
+Request (todo opcional; sin body = 20 000 modelos, 1 a 4 artículos, 1 000 pedidos):
+```json
+{ "modelos": 20000, "articulosMin": 1, "articulosMax": 4, "pedidos": 1000, "semilla": 2026 }
+```
+Response **202**: `{ "data": <avance>, "mensaje": "Se empezaron a generar los datos de prueba en segundo plano" }`
+
+- **400** — fuera de los topes: modelos 1–20 000, artículos por modelo 1–4 (mín ≤ máx), pedidos 0–3 000.
+- **403** — no eres administrador, o la base no es `inventario_key_qa` (mensaje: *"Los datos de prueba solo se pueden generar en la base de QA…"*).
+- **409** — ya hay una corrida en curso.
+
+**`GET /mis-productos/v1/admin/datos-prueba/avance`** — cómo va (consultarlo cada pocos segundos mientras `estado = EN_CURSO`).
+```json
+{ "data": {
+  "estado": "EN_CURSO",            // SIN_CORRER | EN_CURSO | TERMINADO | FALLO
+  "fase": "Creando modelos y artículos",
+  "modelosPedidos": 20000, "modelosCreados": 8500, "articulosCreados": 21240,
+  "pedidosPedidos": 1000, "pedidosCreados": 0, "pedidosConError": 0,
+  "ultimoError": null,              // texto del último pedido que falló
+  "aviso": null,                    // p. ej. "QA no tiene imágenes para reusar…"
+  "inicio": "2026-10-01T10:00:00", "fin": null } }
+```
+
+**`POST /mis-productos/v1/admin/datos-prueba/dar-de-baja`** — baja lógica de los modelos y artículos
+de prueba (habilitado 0, stock 0) y quita sus ligas de imagen. No borra ninguna imagen ni toca nada
+real; los pedidos de prueba se quedan como historial.
+Response **200**: `{ "data": 50080, "mensaje": "50080 artículos de prueba dados de baja (y sus modelos)" }`
+- **403** — igual que arriba. **409** — hay una corrida en curso.
+
+### Medido antes de entregar
+Contra MySQL 8 local con el esquema de las entidades más los NOT NULL reales de `producto`:
+**20 000 modelos, 50 080 artículos y 1 000 pedidos en 53 s, 0 errores.** En QA puede tardar más (la
+base está en otra máquina). La prueba de integración corrió dos veces seguidas en MySQL y en H2.
+
+---
+
+## 🔎 Lista de pedidos del administrador con todos los filtros (2026-10-06)
+
+Dominio hexagonal `busquedapedido` (reglas R1–R13 en su `README.md`). Pedido por el dueño: *"necesito
+más filtros… que muestre todos los filtros posibles y búsqueda por nombre"*. Ramas: `dev` (falta `qa`).
+
+**Antes** (`GET /v1/pedidos/buscarClientePedido`, se queda funcionando sin cambios):
+- El texto buscaba nombre/teléfono/correo del cliente, pero **no el nombre de quien recibe**, que es
+  el que a veces muestra la card. Tampoco artículos.
+- Solo había filtro de lugar, forma de cobro (Normal/Apartado/Ir pagando) y estado Pagado/Cancelado.
+- Ordenaba por `fecha_pedido` **sin hora**: con varios pedidos el mismo día, al pasar de página uno
+  se repetía y otro no salía. El front reordenaba por número solo dentro de la página.
+- El buscador del front mandaba una petición por cada tecla, sin mínimo de letras, y una respuesta
+  vieja que llegaba tarde pisaba a la nueva.
+
+**Ahora:** `GET /mis-productos/v1/pedidos/buscar` — solo `ROLE_ADMIN` (igual que `buscarClientePedido`).
+
+| Parámetro | Valores | Notas |
+|---|---|---|
+| `buscar` | texto | Nombre (cliente con cuenta, sin registro, **quien recibe**), teléfono, correo, nombre o código de barras de un artículo. Sin acentos ni mayúsculas. Con letras: **mínimo 3** (si no, 400). Solo número o `#120`: número de pedido **exacto** desde 1 dígito (con 3+ dígitos también teléfonos y códigos). Un miembro oculto de un grupo sale si se busca su número exacto. |
+| `formaCobro` (repetible) | `CONTADO`, `APARTADO`, `IR_PAGANDO` | O entre ellos |
+| `estado` (repetible) | `PENDIENTE`, `POR_COBRAR`, `PAGADO`, `ENTREGADO`, `CANCELADO` | Como los dice la card. `POR_COBRAR` = Apartado/Ir pagando abierto; `PAGADO` = Apartado/Ir pagando liquidado; `ENTREGADO` = contado cobrado; `PENDIENTE` = contado sin cobrar |
+| `dinero` (repetible) | `CON_SALDO`, `SIN_ABONOS`, `SALDO_A_FAVOR` | Solo Apartado / Ir pagando. Saldo a favor = pagó más de lo que vale, o Apartado cancelado con dinero, o pedido pagado y cancelado (devolución). Un Ir pagando cancelado que debía **no** (deuda incobrable) |
+| `totalDesde`, `totalHasta` | número | Total de **ese** pedido (no el del grupo). No negativos, desde ≤ hasta |
+| `registroDesde`, `registroHasta` | `yyyy-mm-dd` | Día de registro, los dos incluidos |
+| `entrega` | `HOY`, `MANANA`, `ESTA_SEMANA`, `ATRASADOS` | Fecha de entrega/recogida, solo de los que **esperan entrega** (no Entregados, Pagados ni Cancelados). "Hoy" es hoy en México |
+| `lugarEntregaId` | id | Un lugar |
+| `modoEntrega` | `RECOGE_EN_TIENDA`, `ENVIO` | Recoge = sin lugar o lugar "recoger en tienda" |
+| `unidos` | `SOLO_UNIDOS`, `SIN_UNIR` | De un grupo solo sale el titular, como siempre |
+| `soloRamos`, `soloConPromocion` | `true` | |
+| `orden` | `RECIENTES` (default), `ANTIGUOS`, `ENTREGA_PROXIMA`, `MAYOR_SALDO` | Siempre desempata por número: las páginas ya no repiten ni brincan |
+| `pagina` | desde `0` | default 0 |
+| `tamano` | 1–50 | default 10 |
+
+Filtros distintos se combinan con **Y**; las opciones de un mismo filtro, con **O**. Las listas se
+mandan repetidas (`estado=PAGADO&estado=CANCELADO`) o separadas por coma. Mayúsculas o minúsculas da igual.
+
+**Response 200:**
+```json
+{ "data": {
+    "list": [ /* las mismas cards de buscarClientePedido: { cliente: {...}, pedido: {... grupo} } */ ],
+    "totalPaginas": 3,
+    "totalRegistros": 27,
+    "pagina": 0
+} }
+```
+`list` y `totalPaginas` se llaman igual que antes (`IPageable`); `totalRegistros` y `pagina` son nuevos.
+Ya viene **ordenado**: el front no debe reordenar.
+
+**400** con `mensaje` en palabras del dueño: texto de 1–2 letras, fechas o totales al revés, un valor que
+no existe (el mensaje dice cuáles valen, ej. `"ENVIADO" no es un valor de estado. Valen: PENDIENTE, POR_COBRAR, ...`).
+**403** si no es administrador.
+
+### Filtros guardados para esta pantalla
+`/v1/preferencias-filtro/pedidos-mis-pedidos` (mismo contrato que `tienda-buscar`, ver Bloque 2).
+Permiso: ver `pedidos/mis-pedidos`. El front guarda todos los filtros y el orden; **no** el texto ni la página.
+No requiere migración (la columna `pantalla` es texto).
+
+### Front (`mis-pedidos`, solo admin)
+- Buscador: espera 400 ms después de la última tecla, no sale con 1–2 letras (avisa), y descarta
+  respuestas viejas (`switchMap` con `catchError` adentro).
+- Botón **⚙️ Filtros** con contador de activos, que esconde/muestra el panel (cada navegador recuerda).
+- Selector **Ordenar**.
+- Las 5 opciones que ya existían siguen pidiendo su acción de Gestión de roles (`filtro-normal`,
+  `filtro-apartado`, `filtro-fiado`, `filtro-pagados`, `filtro-cancelados`); las nuevas no piden permiso
+  extra (la lista ya es solo de administrador). "Normal" ahora dice **Contado**.
+- Resumen "Buscando: … · N pedidos" y botón **Quitar filtros**.
+- Abrir un pedido por su número (link desde Créditos / Abonos o desde otro pedido del grupo) busca
+  **sin** los filtros puestos, para que siempre lo encuentre.
+- La vista del cliente (no admin) no cambia.

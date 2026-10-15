@@ -69,6 +69,16 @@ artículo **nuevo** trae vacíos se toman del producto base (`ArticuloDeAlta.dat
 trae se respeta. Un artículo que ya existe no hereda: vaciarle un campo es una edición.
 Reportado como *"creo el producto base con categoría y los artículos no se llenan con esa info"*.
 
+**Aplica a toda alta de artículos, no solo a "Agregar producto" (2026-09-30):**
+
+| Alta | Qué hereda del modelo |
+|---|---|
+| "Agregar producto" (`guardarConImagenes`) | lo que llegue vacío: color, marca, descripción, contenido neto, categoría. Además la pantalla los **precarga** al elegir el modelo, a la vista y editables |
+| "Crear artículos" desde Modelos (`inicializarDesdeProducto`) | color, marca, descripción, contenido neto y categoría. Antes nacían vacíos |
+| Carga desde Excel | color, marca, descripción, contenido neto y (desde hoy) categoría |
+
+Nunca se heredan talla, presentación ni stock: son del artículo.
+
 ### R3 — Lo que el artículo hereda no se le pregunta
 
 Código de barras, nombre, precios y categoría **vienen del modelo**. La pantalla de alta no los

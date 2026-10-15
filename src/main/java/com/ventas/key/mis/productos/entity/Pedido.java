@@ -106,6 +106,22 @@ public class Pedido extends BaseId{
     @Column(name = "total_pagado")
     private Double totalPagado = 0.0;
 
+    /**
+     * El cliente ya se lo llevo (2026-10-06, dominio {@code entrega}). Va aparte del pago:
+     * {@code estadoPedido} sigue diciendo solo el pago. Requiere migration_entrega_pedido.sql.
+     */
+    @Column(name = "entregado", nullable = false)
+    private boolean entregado;
+
+    @Column(name = "fecha_entregado")
+    private LocalDateTime fechaEntregado;
+
+    /** Marca o desmarca la entrega con su fecha. */
+    public void marcarEntregado(boolean entregado) {
+        this.entregado = entregado;
+        this.fechaEntregado = entregado ? LocalDateTime.now() : null;
+    }
+
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<DetallePedido> detalles;

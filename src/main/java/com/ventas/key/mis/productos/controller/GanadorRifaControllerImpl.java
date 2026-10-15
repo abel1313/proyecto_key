@@ -34,53 +34,31 @@ public class GanadorRifaControllerImpl extends AbstractController<
 
     @PostMapping("/sortear/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<SorteoResultadoDto>> sortear(@PathVariable int configurarRifaId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ganadorRifaService.sortear(configurarRifaId)));
-        } catch (Exception e) {
-            log.error("Error en sorteo rifa={}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ganadorRifaService.sortear(configurarRifaId)));
     }
 
     @PostMapping("/continuarVariante/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<SorteoEstadoDto>> continuarVariante(
             @PathVariable int configurarRifaId,
             @RequestParam String modo) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(
-                    ganadorRifaService.continuarVariante(configurarRifaId, modo)));
-        } catch (Exception e) {
-            log.error("Error al continuar variante rifa={}: {}", configurarRifaId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(
+                ganadorRifaService.continuarVariante(configurarRifaId, modo)));
     }
 
     @GetMapping("/estado/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<SorteoEstadoDto>> obtenerEstado(
             @PathVariable int configurarRifaId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(ganadorRifaService.obtenerEstado(configurarRifaId)));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(ganadorRifaService.obtenerEstado(configurarRifaId)));
     }
 
     @PostMapping("/reiniciar/{configurarRifaId}")
     public ResponseEntity<ResponseGeneric<String>> reiniciar(
             @PathVariable int configurarRifaId,
             @RequestParam(defaultValue = "false") boolean completo) {
-        try {
-            ganadorRifaService.reiniciar(configurarRifaId, completo);
-            String msg = completo
-                    ? "Rifa reiniciada completamente (concursantes eliminados)"
-                    : "Rifa reiniciada (concursantes conservados)";
-            return ResponseEntity.ok(new ResponseGeneric<>(msg));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        ganadorRifaService.reiniciar(configurarRifaId, completo);
+        String msg = completo
+                ? "Rifa reiniciada completamente (concursantes eliminados)"
+                : "Rifa reiniciada (concursantes conservados)";
+        return ResponseEntity.ok(new ResponseGeneric<>(msg));
     }
 }

@@ -16,11 +16,13 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArti
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso.ModoCambio;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CatalogoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.MovimientoStockPort;
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PagoTrasEdicionPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PedidoArticuloPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PromocionDePedidoPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,6 +58,7 @@ class EditarArticulosServiceTest {
     private CatalogoArticuloPort catalogo;
     private MovimientoStockPort stock;
     private PromocionDePedidoPort promociones;
+    private PagoTrasEdicionPort pagos;
     private EditarArticulosService service;
 
     private static final int PEDIDO = 501;
@@ -72,7 +76,8 @@ class EditarArticulosServiceTest {
         catalogo = mock(CatalogoArticuloPort.class);
         stock = mock(MovimientoStockPort.class);
         promociones = mock(PromocionDePedidoPort.class);
-        service = new EditarArticulosService(pedidos, catalogo, stock, promociones);
+        pagos = mock(PagoTrasEdicionPort.class);
+        service = new EditarArticulosService(pedidos, catalogo, stock, promociones, pagos);
     }
 
     // ───────────────────────── armado del escenario ─────────────────────────
@@ -124,6 +129,31 @@ class EditarArticulosServiceTest {
 
         verify(stock).descontar(PANTALON_HOMBRE, 2);
         verify(pedidos).agregarLinea(PEDIDO, PANTALON_HOMBRE, 2, 400.0);
+    }
+
+    @Test
+    @DisplayName("despues de editar, el estado se ajusta a los abonos con el total ya guardado (R9)")
+    void editarAjustaElEstadoDespuesDelTotal() {
+        conPedido(new PedidoEditable(PEDIDO, "APARTADO", 100.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, null, null, null));
+
+        InOrder orden = inOrder(pedidos, pagos);
+        orden.verify(pedidos).guardarTotal(eq(PEDIDO), anyDouble());
+        orden.verify(pagos).ajustarTrasEditar(PEDIDO);
+    }
+
+    @Test
+    @DisplayName("si la edicion se rechaza, el estado de pago no se toca (R9)")
+    void edicionRechazadaNoAjusta() {
+        conPedido(new PedidoEditable(PEDIDO, "APARTADO", 100.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        assertThatThrownBy(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, 1.0)))
+                .isInstanceOf(PrecioNoCobrableException.class);
+
+        verify(pagos, never()).ajustarTrasEditar(anyInt());
     }
 
     @Test
@@ -263,6 +293,140 @@ class EditarArticulosServiceTest {
         verify(stock).devolver(CARTERA, 2);
         verify(stock).descontar(PANTALON_HOMBRE, 2);
         verify(pedidos).cambiarArticulo(3, PANTALON_HOMBRE, 400.0);
+    }
+
+    @Test
+    @DisplayName("R10: cambiar 1 de 3 piezas deja 2 de la vieja y agrega 1 de la nueva aparte")
+    void cambiarUnaDeTres() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 3, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, 1, null, ModoCambio.VALIDAR));
+
+        // Solo regresa al stock la pieza que sale, no las 3.
+        verify(stock).devolver(CARTERA, 1);
+        verify(pedidos).cambiarCantidad(3, 2);
+        verify(stock).descontar(PANTALON_HOMBRE, 1);
+        verify(pedidos).agregarLinea(PEDIDO, PANTALON_HOMBRE, 1, 400.0);
+        // La linea vieja NO se convierte en el articulo nuevo.
+        verify(pedidos, never()).cambiarArticulo(anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("R10: cambio parcial por un articulo que ya esta en el pedido suma a su linea")
+    void cambioParcialSumaALaLineaExistente() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(3, CARTERA, 2, 500, null),
+                linea(4, PANTALON_HOMBRE, 1, 400, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, 1, null, ModoCambio.VALIDAR));
+
+        verify(pedidos).cambiarCantidad(3, 1);
+        verify(pedidos).cambiarCantidad(4, 2);
+        verify(pedidos, never()).agregarLinea(anyInt(), anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("R10: cambiar todas las piezas convierte la linea, como antes")
+    void cambiarTodasLasPiezas() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 2, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, 2, null, ModoCambio.VALIDAR));
+
+        verify(stock).devolver(CARTERA, 2);
+        verify(stock).descontar(PANTALON_HOMBRE, 2);
+        verify(pedidos).cambiarArticulo(3, PANTALON_HOMBRE, 400.0);
+        verify(pedidos, never()).agregarLinea(anyInt(), anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("R6: cambiar todas las piezas por un articulo que ya esta al mismo precio suma a su linea, no la duplica")
+    void cambioCompletoSumaALaLineaExistente() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(3, CARTERA, 2, 500, null),
+                linea(4, PANTALON_HOMBRE, 1, 400, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, 2, null, ModoCambio.VALIDAR));
+
+        verify(stock).devolver(CARTERA, 2);
+        verify(stock).descontar(PANTALON_HOMBRE, 2);
+        verify(pedidos).cambiarCantidad(4, 3);
+        verify(pedidos).borrarLineas(List.of(linea(3, CARTERA, 2, 500, null)));
+        verify(pedidos, never()).cambiarArticulo(anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("R6: si el articulo que ya esta tiene otro precio, el cambio completo convierte la linea")
+    void cambioCompletoConOtroPrecioNoSeSuma() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(3, CARTERA, 1, 500, null),
+                linea(4, PANTALON_HOMBRE, 1, 350, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 10);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, null, 400.0, ModoCambio.VALIDAR));
+
+        verify(pedidos).cambiarArticulo(3, PANTALON_HOMBRE, 400.0);
+        verify(pedidos, never()).borrarLineas(any());
+    }
+
+    @Test
+    @DisplayName("R6: quitar la promocion para meter un articulo que ya estaba suelto lo suma a esa linea")
+    void quitarPromocionSumaALaLineaSuelta() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(1, PANTALON_DAMA, 1, 300, PROMO),
+                linea(2, PERFUME, 1, 200, PROMO),
+                linea(5, PANTALON_HOMBRE, 1, 400, null))));
+        conPromocionDeDamaYPerfume();
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        service.cambiar(PEDIDO, 1, new CambiarArticulo(PANTALON_HOMBRE, null, null, ModoCambio.QUITAR_PROMOCION));
+
+        verify(pedidos).cambiarCantidad(5, 2);
+        verify(pedidos, never()).agregarLinea(anyInt(), anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("R10: no se pueden cambiar mas piezas de las que tiene la linea")
+    void masPiezasDeLasQueHay() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 2, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        assertThatThrownBy(() -> service.cambiar(PEDIDO, 3,
+                new CambiarArticulo(PANTALON_HOMBRE, 3, null, ModoCambio.VALIDAR)))
+                .isInstanceOf(EdicionPedidoException.class)
+                .hasMessageContaining("tiene 2 pieza(s)");
+        verify(stock, never()).devolver(anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("R10: en una promocion no se cambia solo una parte de la linea")
+    void promocionNoSeParte() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(
+                linea(1, PANTALON_DAMA, 2, 300, PROMO),
+                linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 10);
+
+        assertThatThrownBy(() -> service.cambiar(PEDIDO, 1,
+                new CambiarArticulo(PANTALON_HOMBRE, 1, null, ModoCambio.VALIDAR)))
+                .isInstanceOf(EdicionPedidoException.class)
+                .hasMessageContaining("se cambia la linea completa");
+        verify(stock, never()).devolver(anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("R10: sin stock del nuevo, el cambio parcial no toca la linea vieja")
+    void cambioParcialSinStock() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 3, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, null, 0);
+
+        assertThatThrownBy(() -> service.cambiar(PEDIDO, 3,
+                new CambiarArticulo(PANTALON_HOMBRE, 1, null, ModoCambio.VALIDAR)))
+                .isInstanceOf(StockInsuficienteException.class);
+        verify(stock, never()).devolver(anyInt(), anyInt());
+        verify(pedidos, never()).cambiarCantidad(anyInt(), anyInt());
     }
 
     @Test

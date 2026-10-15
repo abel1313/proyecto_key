@@ -16,6 +16,19 @@ import java.util.Optional;
 @Repository
 public interface IVarianteRepository extends BaseRepository<Variantes, Integer> {
 
+    /**
+     * El precio al que se vende el articulo, el mismo que muestra la tarjeta
+     * (Variantes.precioACobrar): el descuento si el admin lo activo y es menor al normal, si no el
+     * normal (el del articulo si tiene precio propio, si no el del modelo). Los filtros de precio lo
+     * usan para que "min 100 / max 100" encuentre lo que en pantalla dice $100 (QA 2026-10-08).
+     */
+    String PRECIO_A_COBRAR = "(CASE WHEN v.usarDescuento = TRUE"
+            + " AND (CASE WHEN v.precioVenta IS NOT NULL THEN v.precioRebaja ELSE p.precioRebaja END) > 0"
+            + " AND (CASE WHEN v.precioVenta IS NOT NULL THEN v.precioRebaja ELSE p.precioRebaja END) < COALESCE(v.precioVenta, p.precioVenta)"
+            + " THEN (CASE WHEN v.precioVenta IS NOT NULL THEN v.precioRebaja ELSE p.precioRebaja END)"
+            + " ELSE COALESCE(v.precioVenta, p.precioVenta) END)";
+
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT v FROM Variantes v WHERE v.id = :id")
     Optional<Variantes> findByIdWithLock(@Param("id") Integer id);
@@ -198,6 +211,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                    AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
+          AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
+          AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
+          AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+          AND (:precioMin IS NULL OR """ + PRECIO_A_COBRAR + """
+           >= :precioMin)
+          AND (:precioMax IS NULL OR """ + PRECIO_A_COBRAR + """
+           <= :precioMax)
           AND p.esCatalogoInterno = false
         ORDER BY
           CASE
@@ -235,6 +255,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                    AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR v.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR v.fechaCreacion <= :fechaHasta)
+          AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
+          AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
+          AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+          AND (:precioMin IS NULL OR """ + PRECIO_A_COBRAR + """
+           >= :precioMin)
+          AND (:precioMax IS NULL OR """ + PRECIO_A_COBRAR + """
+           <= :precioMax)
           AND p.esCatalogoInterno = false
         """)
     Page<Variantes> buscarVariantesAdmin(@Param("nombreOCodigo") String nombreOCodigo,
@@ -244,7 +271,52 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                           @Param("codigoGenerado") Boolean codigoGenerado,
                                           @Param("fechaDesde") java.time.LocalDateTime fechaDesde,
                                           @Param("fechaHasta") java.time.LocalDateTime fechaHasta,
+                                          @Param("talla") String talla,
+                                          @Param("color") String color,
+                                          @Param("marca") String marca,
+                                          @Param("precioMin") Double precioMin,
+                                          @Param("precioMax") Double precioMax,
                                           Pageable pageable);
+
+    // Buscador de "Agregar / Cambiar articulo" en el detalle de un pedido (QA 2026-10-06): solo lo
+    // que se puede vender ahora. Antes usaba /buscar, que para el admin trae tambien los articulos
+    // sin stock y los deshabilitados: se elegian y el back los rechazaba al guardar. Stock > 0 en el
+    // articulo Y en el modelo porque el pedido descuenta de los dos (ArticuloDisponible.disponible).
+    // No exige imagen: en mostrador se vende aunque el articulo no tenga foto.
+    @Query(value = """
+        SELECT v FROM Variantes v
+        JOIN FETCH v.producto p
+        LEFT JOIN FETCH p.codigoBarras cb
+        LEFT JOIN FETCH v.palabraClave pc
+        WHERE v.stock > 0 AND p.stock > 0 AND v.habilitado = '1' AND p.habilitado = '1'
+          AND p.esCatalogoInterno = false
+          AND (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
+        ORDER BY
+          CASE
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) = LOWER(:termino) THEN 0
+            WHEN LOWER(p.nombre) = LOWER(:termino) THEN 1
+            WHEN cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT(:termino, '%')) THEN 2
+            WHEN LOWER(p.nombre) LIKE LOWER(CONCAT(:termino, '%')) THEN 3
+            ELSE 4
+          END,
+          v.id DESC
+        """,
+        countQuery = """
+        SELECT COUNT(v) FROM Variantes v
+        JOIN v.producto p
+        LEFT JOIN p.codigoBarras cb
+        LEFT JOIN v.palabraClave pc
+        WHERE v.stock > 0 AND p.stock > 0 AND v.habilitado = '1' AND p.habilitado = '1'
+          AND p.esCatalogoInterno = false
+          AND (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :termino, '%'))
+               OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
+               OR (cb IS NOT NULL AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
+        """)
+    Page<Variantes> buscarVariantesParaPedido(@Param("termino") String termino, Pageable pageable);
 
     // Catalogo publico con filtros: mismas restricciones de visibilidad que findConStockYImagenPublico
     // (stock>0, producto y variante habilitados, con imagen) + termino/precioMin/precioMax/talla/
@@ -266,8 +338,10 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
                OR (cb IS NOT NULL
                    AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
-          AND (:precioMin IS NULL OR COALESCE(v.precioVenta, p.precioVenta) >= :precioMin)
-          AND (:precioMax IS NULL OR COALESCE(v.precioVenta, p.precioVenta) <= :precioMax)
+          AND (:precioMin IS NULL OR """ + PRECIO_A_COBRAR + """
+           >= :precioMin)
+          AND (:precioMax IS NULL OR """ + PRECIO_A_COBRAR + """
+           <= :precioMax)
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
@@ -285,8 +359,10 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :termino, '%')))
                OR (cb IS NOT NULL
                    AND LOWER(cb.codigoBarras) LIKE LOWER(CONCAT('%', :termino, '%'))))
-          AND (:precioMin IS NULL OR COALESCE(v.precioVenta, p.precioVenta) >= :precioMin)
-          AND (:precioMax IS NULL OR COALESCE(v.precioVenta, p.precioVenta) <= :precioMax)
+          AND (:precioMin IS NULL OR """ + PRECIO_A_COBRAR + """
+           >= :precioMin)
+          AND (:precioMax IS NULL OR """ + PRECIO_A_COBRAR + """
+           <= :precioMax)
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))

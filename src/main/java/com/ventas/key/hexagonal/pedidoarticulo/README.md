@@ -102,6 +102,23 @@ segunda. Dos líneas de lo mismo con distinto precio son imposibles de explicar 
 La excepción es una línea de promoción: esa se deja quieta y se crea una línea nueva a precio
 normal (por R5 una y otra no son lo mismo aunque sean la misma variante).
 
+Aplica también al **cambiar** (2026-10-06): si el artículo nuevo ya está como línea normal al mismo
+precio, lo que entra se suma a esa línea — tanto al cambiar una parte (R10) como la línea completa,
+y al elegir "Quitar la promoción". Antes el cambio completo convertía la línea y quedaban dos líneas
+de lo mismo. La regla vive en `PedidoEditable.lineaDondeSumar()`.
+
+### R10 — Cambiar es pieza por pieza (2026-10-06)
+
+`cantidad` en el cambio dice **cuántas piezas de la línea** se cambian por el artículo nuevo, 1 a 1
+(`null` = todas). Si son todas, la línea se convierte en el nuevo artículo. Si son menos, la línea
+vieja se queda con el resto, solo lo que sale regresa al stock y el nuevo entra aparte como si se
+agregara (R6). No se cambian más piezas de las que hay, y una línea de promoción se cambia completa
+(partirla dejaría piezas del combo sueltas a precio promocional, R4). La regla vive en
+`ArticuloDePedido.piezasACambiar()`.
+
+Antes `cantidad` era "piezas de la línea nueva" y el front mandaba siempre 1: con 3 piezas, las 3
+viejas salían del pedido y entraba 1 nueva.
+
 ### R7 — El total lo recalcula el back, siempre
 
 Después de cualquier edición, `totalPedido` se recalcula sumando los subtotales que quedaron. No
@@ -112,6 +129,28 @@ arrastraría para siempre.
 quedar pagado de más — eso es una devolución, una decisión de negocio, y este dominio no la
 inventa solo. Se informa en el response (`saldo` puede dar negativo) para que la pantalla lo
 muestre.
+
+### R9 — Después de editar, el estado queda como dicen los abonos de ESE pedido (2026-09-29)
+
+Después de cualquier edición (agregar, cambiar, quitar promoción, y también el botón viejo de
+quitar producto `DELETE /v1/pedidos/{id}/detalle/{productoId}`), si el pedido es a crédito
+(Apartado / Ir pagando):
+
+- Si lo abonado **cubre** el total nuevo → queda **PAGADO** y se crea su venta.
+- Si estaba PAGADO y **ya no** lo cubre (se cambió por algo más caro) → regresa a Apartado / Ir
+  pagando y se borra su venta; se vuelve a crear cuando termine de pagar.
+- Si estaba PAGADO y lo **sigue** cubriendo → su venta se rehace con los artículos nuevos (la de
+  antes tenía los artículos viejos). Efecto: la venta queda con la fecha de la edición.
+- Lo que sobre (abonado > total) es **saldo a favor de ese cliente**. **Nunca** se pasa a otros
+  pedidos del grupo: la cuenta es por pedido, porque en un grupo pueden ser clientes distintos.
+
+Pedidos de contado no se tocan. Lo implementa `AbonoServiceImpl.ajustarTrasEditarArticulos` (vía
+`PagoTrasEdicionPort`), que es el mismo servicio que crea y borra ventas de crédito.
+
+**Quitar el último producto se rechaza también en el botón viejo** (antes dejaba el pedido en $0).
+Si el cliente regresa todo, se **cancela** el pedido: eso devuelve stock, registra el motivo y el
+mensaje de cancelación dice el saldo a favor del cliente. En un grupo, cancelar un pedido no toca
+a los demás (R8 de `grupopedido`).
 
 ### R8 — Cada botón, su permiso
 
@@ -136,7 +175,8 @@ Del checklist de `_plantilla/README.md` — las que cambiaron el diseño:
 quiere nada, se cancela (que además registra el motivo). Quitar la última línea se rechaza.
 
 **¿Se puede editar un pedido ya pagado?** Sí, y es el caso común: se apartó, se pagó, y al
-entregarlo el cliente cambia una talla. Por eso R7 no toca `totalPagado`.
+entregarlo el cliente cambia una talla. Por eso R7 no toca `totalPagado`, y R9 ajusta el estado y la
+venta después.
 
 **¿Cambiar a la misma variante?** Se rechaza en vez de hacer un no-op: pedirlo significa que
 quien lo mandó cree que está cambiando algo, y un 200 silencioso lo deja creyendo eso.

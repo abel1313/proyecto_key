@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.ventas.key.mis.productos.Utils.TextoNormalizado;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -88,5 +89,12 @@ public class Producto  extends BaseId{
         if (this.fechaCreacion == null) {
             this.fechaCreacion = LocalDateTime.now();
         }
+        normalizarTextos();
+    }
+
+    @PreUpdate
+    private void normalizarTextos() {
+        this.color = TextoNormalizado.mayusculas(this.color);
+        this.marca = TextoNormalizado.mayusculas(this.marca);
     }
 }

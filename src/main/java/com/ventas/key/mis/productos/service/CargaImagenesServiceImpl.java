@@ -10,6 +10,8 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.ProductoImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.VarianteImagen;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
+import com.ventas.key.mis.productos.exeption.ExceptionServicioExterno;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
@@ -196,7 +198,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
 
         List<ImagenDto> microImagenes = imageneClienteDisco.save(builder.build());
         if (microImagenes == null || microImagenes.isEmpty()) {
-            throw new ExceptionDataNotFound("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
+            throw new ExceptionServicioExterno("No se pudo subir la imagen al servicio de imagenes, intenta de nuevo");
         }
         return microImagenes.get(0);
     }
@@ -319,12 +321,12 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
 
         if (Boolean.TRUE.equals(req.getHabilitar())) {
             if (esBorrador(producto)) {
-                throw new ExceptionDataNotFound(
+                throw new ExceptionOperacionNoPermitida(
                         "No se puede habilitar el producto " + productoId
                                 + ": todavia tiene un codigo de barras autogenerado, asigna el codigo real primero");
             }
             if (producto.getEstadoImagen() != EstadoCargaImagen.EXITOSO) {
-                throw new ExceptionDataNotFound(
+                throw new ExceptionOperacionNoPermitida(
                         "No se puede habilitar el producto " + productoId
                                 + ": la imagen todavia no termina de subirse correctamente (estadoImagen="
                                 + producto.getEstadoImagen() + ")");
@@ -371,7 +373,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
                 .orElseThrow(() -> new ExceptionDataNotFound("No existe el producto borrador con id: " + productoId));
 
         if (!esBorrador(producto)) {
-            throw new ExceptionDataNotFound(
+            throw new ExceptionOperacionNoPermitida(
                     "El producto " + productoId + " ya tiene codigo de barras real asignado, no se puede "
                             + "descartar como borrador (usa el borrado normal de productos si es lo que buscas)");
         }

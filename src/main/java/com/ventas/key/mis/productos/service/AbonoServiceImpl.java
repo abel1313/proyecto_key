@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.service;
 import com.ventas.key.hexagonal.articulo.dominio.modelo.ArticuloAVender;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.Utils.CacheNames;
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.models.NotificacionRequest;
@@ -69,6 +70,12 @@ public class AbonoServiceImpl implements IAbonoService {
         if (request.getMonto() > saldoPendiente) {
             throw new RuntimeException(
                 String.format("El monto $%.2f excede el saldo pendiente de $%.2f", request.getMonto(), saldoPendiente));
+        }
+        // Un Apartado es sin dinero: solo se acepta el pago completo. Un adelanto es Ir pagando.
+        if ("APARTADO".equals(pedido.getTipoPedido()) && saldoPendiente - request.getMonto() > 0.01) {
+            throw new RuntimeException(String.format(
+                "Un Apartado se paga completo al recogerlo: debe $%.2f. Para dar un abono, cambia el pedido a Ir pagando",
+                saldoPendiente));
         }
 
         String metodoPago = request.getMetodoPago() != null ? request.getMetodoPago() : "EFECTIVO";
@@ -252,12 +259,15 @@ public class AbonoServiceImpl implements IAbonoService {
         }
 
         boolean esFiado = "FIADO".equals(pedido.getTipoPedido());
+        // Desde 2026-10-06 la entrega se guarda aparte (dominio entrega): un Ir pagando que
+        // "todavia no se lo lleva" tiene la mercancia en la tienda y al cancelarlo SI regresa.
+        boolean fiadoSeLoLlevo = esFiado && pedido.isEntregado();
         boolean stockDevuelto = false;
 
-        // FIADO activo (aun no pagado) ya entrego la mercancia -- no se le exige regresarla
-        // solo por dejar de pagar (queda como deuda incobrable). PAGADO si regresa stock
-        // porque es una devolucion real (el cliente esta regresando algo que ya tenia).
-        if (!esFiado || esDevolucion) {
+        // FIADO activo que ya se llevo la mercancia -- no se le exige regresarla solo por dejar
+        // de pagar (queda como deuda incobrable). PAGADO si regresa stock porque es una
+        // devolucion real (el cliente esta regresando algo que ya tenia).
+        if (!fiadoSeLoLlevo || esDevolucion) {
             for (DetallePedido dp : pedido.getDetalles()) {
                 Variantes v = dp.getVariante();
                 int stockAntes = v.getStock();
@@ -289,8 +299,10 @@ public class AbonoServiceImpl implements IAbonoService {
 
         String msg = esDevolucion
                 ? String.format("Pedido pagado cancelado (devolución). Stock devuelto. Monto a reembolsar: $%.2f", totalPagado)
-                : esFiado
+                : fiadoSeLoLlevo
                     ? String.format("FIADO cancelado. Stock NO devuelto (producto entregado). Deuda incobrable: $%.2f", totalPendiente)
+                : esFiado
+                    ? String.format("Ir pagando cancelado. Stock devuelto (no se lo había llevado). Saldo a favor del cliente: $%.2f", totalPagado)
                     : String.format("APARTADO cancelado. Stock devuelto. Saldo a favor del cliente: $%.2f", totalPagado);
 
         log.info("Pedido {} cancelado — tipo: {}, stock devuelto: {}", pedidoId, pedido.getTipoPedido(), stockDevuelto);
@@ -367,7 +379,7 @@ public class AbonoServiceImpl implements IAbonoService {
         prod.setStock(prod.getStock() - request.getCantidad());
         productosRepository.save(prod);
 
-        // Crear nuevo pedido APARTADO
+        // El pedido nuevo ya nace con dinero, asi que es Ir pagando: un Apartado es sin dinero.
         DetallePedido detalle = new DetallePedido();
         detalle.setCantidad(request.getCantidad());
         detalle.setPrecioUnitario(request.getPrecioUnitario());
@@ -376,8 +388,8 @@ public class AbonoServiceImpl implements IAbonoService {
         detalle.setVariante(variante);
 
         Pedido nuevoPedido = new Pedido();
-        nuevoPedido.setTipoPedido("APARTADO");
-        nuevoPedido.setEstadoPedido("APARTADO");
+        nuevoPedido.setTipoPedido("FIADO");
+        nuevoPedido.setEstadoPedido("FIADO");
         nuevoPedido.setTotalPedido(totalNuevo);
         nuevoPedido.setTotalPagado(0.0);
         nuevoPedido.setCliente(origen.getCliente());
@@ -411,7 +423,7 @@ public class AbonoServiceImpl implements IAbonoService {
             estadoFinal = "PAGADO";
             crearVentaDesdePedido(savedPedido, "EFECTIVO", request.getUsuarioId());
         } else {
-            estadoFinal = "APARTADO";
+            estadoFinal = "FIADO";
         }
 
         pedidoRepository.save(savedPedido);
@@ -422,6 +434,25 @@ public class AbonoServiceImpl implements IAbonoService {
 
         log.info("Transferencia pedido {} → nuevo pedido {}, monto: {}", pedidoIdOrigen, savedPedido.getId(), montoTransferido);
         return new TransferirAbonoResponse(savedPedido.getId(), totalNuevo, montoTransferido, saldoPendiente, estadoFinal, msg);
+    }
+
+    @Override
+    @Transactional
+    public void ajustarTrasEditarArticulos(int pedidoId, Integer usuarioId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+        if (!TIPOS_CREDITO.contains(pedido.getTipoPedido()) || "cancelado".equals(pedido.getEstadoPedido())) {
+            return;
+        }
+        if ("PAGADO".equals(pedido.getEstadoPedido())) {
+            // La venta se creo con los articulos de antes de la edicion. Se borra y, si los abonos
+            // siguen cubriendo el total, ajustarEstadoALosAbonos la vuelve a crear con los de ahora.
+            ventaRepository.findByPedidoId(pedidoId).ifPresent(ventaRepository::delete);
+            ventaRepository.flush();
+            pedido.setEstadoPedido(pedido.getTipoPedido());
+            pedidoRepository.save(pedido);
+        }
+        ajustarEstadoALosAbonos(pedidoId, usuarioId);
     }
 
     @Override
@@ -523,22 +554,21 @@ public class AbonoServiceImpl implements IAbonoService {
         return r;
     }
 
+    // Comprador de la venta primero y la cuenta del admin solo si no hay (2026-10-13: estaba al
+    // revés). Ver CompradorDelPedido; vale también para a quién se le manda el comprobante.
     private String nombreCliente(Pedido p) {
-        if (p.getCliente() != null) return p.getCliente().getNombrePersona();
-        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getNombrePersona();
-        return "Sin nombre";
+        String nombre = CompradorDelPedido.nombre(p);
+        return nombre != null ? nombre : "Sin nombre";
     }
 
     private String telefonoCliente(Pedido p) {
-        if (p.getCliente() != null) return p.getCliente().getNumeroTelefonico();
-        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getNumeroTelefonico();
-        return "";
+        String telefono = CompradorDelPedido.telefono(p);
+        return telefono != null ? telefono : "";
     }
 
     private String correoCliente(Pedido p) {
-        if (p.getCliente() != null) return p.getCliente().getCorreoElectronico();
-        if (p.getClienteSinRegistro() != null) return p.getClienteSinRegistro().getCorreoElectronico();
-        return "";
+        String correo = CompradorDelPedido.correo(p);
+        return correo != null ? correo : "";
     }
 
     private void enviarNotificaciones(NotificacionRequest notif, Cliente cliente, String correo, String telefono,

@@ -32,7 +32,7 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
     // 'cancelado'. Esta consulta solo AMPLIA lo que ve la pantalla: no toca ventas, reportes,
     // dashboard ni el auto-cancelador (ese usa su propio metodo con 'Pendiente' literal).
     @Query("SELECT p FROM Pedido p WHERE p.lugarEntrega.id = :lugarEntregaId " +
-           "AND p.estadoPedido IN ('Pendiente', 'APARTADO') " +
+           "AND p.entregado = false AND LOWER(p.estadoPedido) <> 'cancelado' " +
            "AND p.fechaPedido BETWEEN :desde AND :hasta " +
            "AND NOT EXISTS (SELECT 1 FROM RamoPedidoDetalle r WHERE r.pedido = p)")
     List<Pedido> findPendientesDeZonaEnRango(@Param("lugarEntregaId") Integer lugarEntregaId,
@@ -98,6 +98,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'producto', dp.producto_id,
@@ -134,6 +136,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
                               'nombre_producto', pro.nombre,
@@ -172,6 +176,8 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -221,10 +227,15 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'nombreReceptor', p.nombre_receptor,
           'lugarEntregaId', le.id,
           'lugarEntregaNombre', le.nombre,
           'urlFacebook', p.url_facebook,
+          'fechaEntrega', DATE_FORMAT(p.fecha_recogida, '%Y-%m-%d'),
+          'horaEntrega', p.hora_recogida,
+          'recogeEnLocal', IF(le.id IS NULL OR le.es_recoger_en_tienda = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -331,10 +342,15 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
           'estado_pedido', p.estado_pedido,
           'tipoPedido', p.tipo_pedido,
           'totalPagado', p.total_pagado,
+
+          'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'nombreReceptor', p.nombre_receptor,
           'lugarEntregaId', le.id,
           'lugarEntregaNombre', le.nombre,
           'urlFacebook', p.url_facebook,
+          'fechaEntrega', DATE_FORMAT(p.fecha_recogida, '%Y-%m-%d'),
+          'horaEntrega', p.hora_recogida,
+          'recogeEnLocal', IF(le.id IS NULL OR le.es_recoger_en_tienda = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
           'detalles', JSON_ARRAYAGG(
             JSON_OBJECT(
               'nombre_producto', pro.nombre,
@@ -369,4 +385,48 @@ public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
                                         Pageable pegable);
 
 
+
+    /**
+     * Ids de los pedidos que se pueden unir con uno de forma de cobro {@code tipo} (grupopedido,
+     * buscador de "Unir pedidos"): misma forma de cobro, no cancelados, no cobrados de contado y
+     * fuera de cualquier grupo activo. Numero: empieza con lo escrito. Texto: nombre del cliente, el de
+     * la cuenta o el que se escribio en la venta (nombre del receptor), que es el que enseña la card
+     * (2026-10-13: antes no buscaba por este ultimo y no aparecia lo que se escribio en la venta).
+     */
+    @Query(value = """
+        SELECT p.id FROM pedidos p
+        LEFT JOIN clientes c ON c.id = p.cliente_id
+        LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+        WHERE COALESCE(p.tipo_pedido, 'NORMAL') = :tipo
+          AND COALESCE(p.estado_pedido, '') NOT IN ('cancelado', 'Entregado')
+          AND p.id <> :excluir
+          AND NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro m JOIN grupo_pedido g ON g.id = m.grupo_id
+                          WHERE g.activo = 1 AND m.pedido_id = p.id)
+          AND (:buscar = ''
+               OR (:buscar REGEXP '^[0-9]+$' AND CAST(p.id AS CHAR) LIKE CONCAT(:buscar, '%'))
+               OR c.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR p.nombre_receptor LIKE CONCAT('%', :buscar, '%'))
+        ORDER BY p.id DESC
+        """,
+        countQuery = """
+        SELECT COUNT(*) FROM pedidos p
+        LEFT JOIN clientes c ON c.id = p.cliente_id
+        LEFT JOIN clientes_sin_registro csr ON csr.id = p.cliente_sin_registro_id
+        WHERE COALESCE(p.tipo_pedido, 'NORMAL') = :tipo
+          AND COALESCE(p.estado_pedido, '') NOT IN ('cancelado', 'Entregado')
+          AND p.id <> :excluir
+          AND NOT EXISTS (SELECT 1 FROM grupo_pedido_miembro m JOIN grupo_pedido g ON g.id = m.grupo_id
+                          WHERE g.activo = 1 AND m.pedido_id = p.id)
+          AND (:buscar = ''
+               OR (:buscar REGEXP '^[0-9]+$' AND CAST(p.id AS CHAR) LIKE CONCAT(:buscar, '%'))
+               OR c.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR csr.nombre_persona LIKE CONCAT('%', :buscar, '%')
+               OR p.nombre_receptor LIKE CONCAT('%', :buscar, '%'))
+        """,
+        nativeQuery = true)
+    Page<Integer> candidatosParaUnir(@Param("tipo") String tipo,
+                                     @Param("excluir") Integer excluir,
+                                     @Param("buscar") String buscar,
+                                     Pageable pageable);
 }

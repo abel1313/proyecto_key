@@ -31,25 +31,13 @@ public class RolesController extends AbstractController<
     @PostMapping("/{rolId}/submenus/{submenuId}")
     public ResponseEntity<ResponseGeneric<Roles>> agregarSubmenu(
             @PathVariable Integer rolId, @PathVariable Integer submenuId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarSubmenu(rolId, submenuId)));
-        } catch (Exception e) {
-            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarSubmenu(rolId, submenuId)));
     }
 
     @DeleteMapping("/{rolId}/submenus/{submenuId}")
     public ResponseEntity<ResponseGeneric<Roles>> quitarSubmenu(
             @PathVariable Integer rolId, @PathVariable Integer submenuId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarSubmenu(rolId, submenuId)));
-        } catch (Exception e) {
-            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarSubmenu(rolId, submenuId)));
     }
 
     // Fase 2 de permisos de accion: ademas de VER la pantalla (arriba), puede ESCRIBIR en ella
@@ -57,25 +45,13 @@ public class RolesController extends AbstractController<
     @PostMapping("/{rolId}/submenus/{submenuId}/escritura")
     public ResponseEntity<ResponseGeneric<Roles>> agregarSubmenuEscritura(
             @PathVariable Integer rolId, @PathVariable Integer submenuId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarSubmenuEscritura(rolId, submenuId)));
-        } catch (Exception e) {
-            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarSubmenuEscritura(rolId, submenuId)));
     }
 
     @DeleteMapping("/{rolId}/submenus/{submenuId}/escritura")
     public ResponseEntity<ResponseGeneric<Roles>> quitarSubmenuEscritura(
             @PathVariable Integer rolId, @PathVariable Integer submenuId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarSubmenuEscritura(rolId, submenuId)));
-        } catch (Exception e) {
-            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarSubmenuEscritura(rolId, submenuId)));
     }
 
     // Fase 3 de permisos (piloto en Modelos): acciones puntuales dentro de una pantalla (ej.
@@ -84,24 +60,12 @@ public class RolesController extends AbstractController<
     @PostMapping("/{rolId}/acciones/{accionId}")
     public ResponseEntity<ResponseGeneric<Roles>> agregarAccion(
             @PathVariable Integer rolId, @PathVariable Integer accionId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarAccion(rolId, accionId)));
-        } catch (Exception e) {
-            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarAccion(rolId, accionId)));
     }
 
     @DeleteMapping("/{rolId}/acciones/{accionId}")
     public ResponseEntity<ResponseGeneric<Roles>> quitarAccion(
             @PathVariable Integer rolId, @PathVariable Integer accionId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarAccion(rolId, accionId)));
-        } catch (Exception e) {
-            ResponseGeneric<Roles> error = new ResponseGeneric<>((Roles) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.quitarAccion(rolId, accionId)));
     }
 }

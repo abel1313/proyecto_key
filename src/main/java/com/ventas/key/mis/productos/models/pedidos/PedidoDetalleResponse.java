@@ -17,6 +17,8 @@ public class PedidoDetalleResponse {
     private Double totalPedido;
     private Double totalPagado;
     private Double saldoPendiente;
+    /** Ya se lo llevo (aparte del pago, dominio entrega 2026-10-06). */
+    private Boolean entregado;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaPedido;
@@ -58,6 +60,8 @@ public class PedidoDetalleResponse {
     private String referencias;
     private Integer lugarEntregaId;
     private String lugarEntregaNombre;
+    /** Sin lugar de entrega o con un lugar marcado como "recoger en tienda": "Cómo llegar" lleva al local. */
+    private Boolean recogeEnLocal;
     private String urlFacebook;
 
     private String clienteNombre;

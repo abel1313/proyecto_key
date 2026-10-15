@@ -26,6 +26,16 @@ public class RegistroService {
 
     @Transactional
     public Usuario registrarUsuario(String username, String rawPassword, String email, boolean aceptoPrivacidad) throws Exception {
+        return registrarUsuario(username, rawPassword, email, aceptoPrivacidad, null);
+    }
+
+    /**
+     * {@code aceptoTerminos}: true = se guarda con fecha; false = se rechaza; null = front de antes
+     * que no lo manda (se registra igual y queda sin aceptación de Términos).
+     */
+    @Transactional
+    public Usuario registrarUsuario(String username, String rawPassword, String email, boolean aceptoPrivacidad,
+                                    Boolean aceptoTerminos) throws Exception {
         if (usuarioRepository.existsByUsername(username)) {
             throw new RuntimeException("El nombre de usuario ya está en uso");
         }
@@ -33,6 +43,9 @@ public class RegistroService {
         // no depende de quien lo llame para garantizar que nunca se registre sin aceptar.
         if (!aceptoPrivacidad) {
             throw new RuntimeException("Debes aceptar el aviso de privacidad para registrarte");
+        }
+        if (Boolean.FALSE.equals(aceptoTerminos)) {
+            throw new RuntimeException("Debes aceptar los Términos y condiciones para registrarte");
         }
 
         Roles rol = rolRepository.findByNombreRol("ROLE_USUARIO")
@@ -46,6 +59,10 @@ public class RegistroService {
         nuevo.setRoles(rol);
         nuevo.setAceptoPrivacidad(true);
         nuevo.setFechaAceptoPrivacidad(LocalDateTime.now());
+        if (Boolean.TRUE.equals(aceptoTerminos)) {
+            nuevo.setAceptoTerminos(true);
+            nuevo.setFechaAceptoTerminos(LocalDateTime.now());
+        }
 
         try {
             return usuarioRepository.save(nuevo);

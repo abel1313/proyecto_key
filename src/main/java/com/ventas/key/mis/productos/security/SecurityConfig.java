@@ -115,6 +115,17 @@ public class SecurityConfig {
                         + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ACCION + clave };
     }
 
+    /** Cualquiera de varias acciones de la misma pantalla (o admin). */
+    private static String[] acciones(String ruta, String... claves) {
+        String[] authorities = new String[claves.length + 1];
+        authorities[0] = "ROLE_ADMIN";
+        for (int i = 0; i < claves.length; i++) {
+            authorities[i + 1] = JwtAuthenticationFilter.PREFIJO_AUTORIDAD_PANTALLA + ruta
+                    + JwtAuthenticationFilter.SUFIJO_AUTORIDAD_ACCION + claves[i];
+        }
+        return authorities;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         log.info("SecurityConfig cargado");
@@ -157,6 +168,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/qr-destinos/**").hasAnyAuthority(pantalla("qr"))
                         .requestMatchers("/v1/qr-destinos/**").hasAnyAuthority(pantallaEscribir("qr"))
 
+                        // ── Filtros guardados (dominio preferenciafiltro) ─────────────────
+                        // Basta con VER la pantalla: guardar tus filtros no cambia datos del negocio.
+                        // Que no sea cliente se revisa en el servicio (un cliente puede tener
+                        // "tienda/buscar"). Una pantalla desconocida pasa y el servicio responde 400.
+                        .requestMatchers("/v1/preferencias-filtro/tienda-buscar").hasAnyAuthority(pantalla("tienda/buscar"))
+                        .requestMatchers("/v1/preferencias-filtro/productos-buscar").hasAnyAuthority(pantalla("productos/buscar"))
+                        .requestMatchers("/v1/preferencias-filtro/pedidos-mis-pedidos").hasAnyAuthority(pantalla("pedidos/mis-pedidos"))
+                        .requestMatchers("/v1/preferencias-filtro/**").authenticated()
+
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/contactos").permitAll()
@@ -165,6 +185,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/imagenes/*/imagen").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/v3/imagenes/*/imagen").permitAll()
+                        // Datos legales del negocio (LFPC 76 bis III): los lee cualquiera (pie de página,
+                        // Términos, Aviso de privacidad); los cambia quien escribe en Configuración del negocio.
+                        .requestMatchers(HttpMethod.GET, "/v1/datos-legales").permitAll()
+                        .requestMatchers("/v1/datos-legales/**", "/v1/datos-legales").hasAnyAuthority(pantallaEscribir("admin/negocio"))
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/**").hasAnyAuthority(pantalla("admin/negocio"))
                         .requestMatchers("/v1/negocio/**").hasAnyAuthority(pantallaEscribir("admin/negocio"))
                         .requestMatchers(HttpMethod.GET, "/v1/presentacion/**").hasAnyAuthority(pantalla("admin/presentacion"))
@@ -249,12 +273,34 @@ public class SecurityConfig {
                         // Stock disponible: cuanto queda libre para armar modelos. Nunca publico --
                         // expone el inventario real del negocio, que no es asunto del cliente.
                         // El reporte de descuadres va aparte porque es diagnostico de datos rotos.
+                        // Agregar/quitar stock al modelo desde Agregar articulo (2026-10-08): el mismo
+                        // permiso que ya pedia el ajuste dentro del guardado del articulo (B1) y que
+                        // actualizar el modelo.
+                        .requestMatchers(HttpMethod.PUT, "/v1/stock/producto/*/ajuste")
+                                .hasAnyAuthority(pantallaEscribir("productos/buscar", "productos/agregar", "tienda/venta"))
                         .requestMatchers(HttpMethod.GET, "/v1/stock/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar"))
                         .requestMatchers(HttpMethod.GET, "/v1/stock/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "tienda/update"))
 
+                        // Buscador del detalle de pedido: lo usa quien puede agregar o cambiar
+                        // articulos de un pedido. Va antes del GET /v1/variantes/** publico.
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/para-pedido")
+                                .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "agregar-articulo"),
+                                        accion("pedidos/mis-pedidos", "cambiar-articulo")))
+                        // Filtros de Tienda → Buscar (2026-10-08): quien tiene en Gestión de roles alguno de
+                        // los filtros de admin de Tienda (stock, imágenes, habilitados, código, fecha) busca
+                        // por admin/filtrar aunque no tenga las pantallas de Catálogo. Antes la pantalla le
+                        // ofrecía el filtro y aquí le tocaba 403. Mismos datos que el catálogo público (sin
+                        // costos). /v2/articulos va en espejo para cuando llegue el renombrado.
+                        .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/filtrar", "/v2/articulos/admin/filtrar")
+                                .hasAnyAuthority(unir(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
+                                        "admin/promociones"),
+                                        acciones("tienda/buscar", "filtro-con-stock", "filtro-sin-stock",
+                                                "filtro-con-imagenes", "filtro-sin-imagenes", "filtro-habilitados",
+                                                "filtro-no-habilitados", "filtro-codigo-generado", "filtro-codigo-real",
+                                                "filtro-fecha-creacion")))
                         .requestMatchers(HttpMethod.GET, "/v1/variantes/admin/**")
                                 .hasAnyAuthority(pantalla("productos/buscar", "productos/agregar", "tienda/venta",
                                         "admin/promociones"))
@@ -285,8 +331,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/v1/variantes/deleteBy/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "eliminar"))
                         // Cambiar precio normal / con descuento desde la tarjeta de Tienda (💲).
-                        // Desde 2026-09-29 es por articulo. Ver migration_accion_tienda_cambiar_precio.sql.
+                        // Desde 2026-09-29 es por articulo (PUT) y DELETE lo regresa al del
+                        // producto. Ver migration_accion_tienda_cambiar_precio.sql.
                         .requestMatchers(HttpMethod.PUT, "/v1/precios/**")
+                                .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/precios/**")
+                                .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
+                        // Consultar el precio con descuento de un articulo (R9): ya no viaja en las
+                        // listas de la tienda. Lo pide el carrito del admin (👁 / "Usar"), el detalle
+                        // del pedido ("Otro precio") y el 💲 al abrirse.
+                        .requestMatchers(HttpMethod.GET, "/v1/precios/**")
                                 .hasAnyAuthority(accion("tienda/buscar", "cambiar-precio"))
                         // Catalogos de flores y Administrar ramos armados suben fotos de sus
                         // variantes via /v1/variantes/guardarConImagenes (mismo endpoint generico de
@@ -337,6 +391,9 @@ public class SecurityConfig {
                         // logueado podia buscar y ver los pedidos de cualquier otro cliente
                         // (encontrado 2026-08-27, junto con la misma IDOR en findPedido/**).
                         .requestMatchers(HttpMethod.GET, "/v1/pedidos/buscarClientePedido").hasRole("ADMIN")
+                        // La lista con todos los filtros (dominio busquedapedido, 2026-10-06): misma
+                        // busqueda global que buscarClientePedido, mismo permiso.
+                        .requestMatchers(HttpMethod.GET, "/v1/pedidos/buscar").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/notificar").hasRole("ADMIN")
@@ -366,6 +423,13 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-articulo"))
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/promociones/*")
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "quitar-promocion"))
+                        // Entrega aparte del pago (2026-10-06, dominio hexagonal entrega):
+                        // 📦 Entregar y regresarlo a "Falta entregar" son acciones separadas
+                        // (regresar es solo admin por default). Antes del catch-all.
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/entrega")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "entregar"))
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/*/entrega")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "regresar-entrega"))
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/**").hasRole("ADMIN")
 
@@ -377,6 +441,13 @@ public class SecurityConfig {
                         // Cobrar el grupo de contado confirma cada pedido igual que
                         // PUT /v1/pedidos/confirmar/{id}, que es solo ADMIN: mismo nivel aqui.
                         .requestMatchers(HttpMethod.POST, "/v1/grupos-pedido/*/cobrar-contado").hasRole("ADMIN")
+                        // Cambiar la forma de cobro del grupo completo (R20): el mismo permiso que
+                        // "🔁 Cambiar forma de cobro" de un pedido suelto (PUT /v1/pedidos/*/tipo).
+                        .requestMatchers(HttpMethod.PUT, "/v1/grupos-pedido/*/tipo")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "cambiar-tipo"))
+                        // El buscador de "Unir pedidos" solo le sirve a quien puede unir.
+                        .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/candidatos")
+                                .hasAnyAuthority(accion("pedidos/mis-pedidos", "unir-pedidos"))
                         .requestMatchers(HttpMethod.GET, "/v1/grupos-pedido/**")
                                 .hasAnyAuthority(unir(accion("pedidos/mis-pedidos", "unir-pedidos"),
                                         accion("pedidos/mis-pedidos", "abonar")))
@@ -555,6 +626,10 @@ public class SecurityConfig {
                                 .hasAnyAuthority(pantalla("admin/reconciliacion-imagenes"))
                         .requestMatchers("/v1/admin/reconciliacion/**")
                                 .hasAnyAuthority(pantallaEscribir("admin/reconciliacion-imagenes"))
+                        // Generador de datos de prueba (dominio datosprueba): llena la base de QA con
+                        // miles de modelos y pedidos. Solo ADMIN, no basta con la pantalla de cache
+                        // (R2). Ademas el servicio se niega fuera de inventario_key_qa (R1).
+                        .requestMatchers("/v1/admin/datos-prueba/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/admin/**").hasAnyAuthority(pantalla("admin/cache"))
                         .requestMatchers("/v1/admin/**").hasAnyAuthority(pantallaEscribir("admin/cache"))
 

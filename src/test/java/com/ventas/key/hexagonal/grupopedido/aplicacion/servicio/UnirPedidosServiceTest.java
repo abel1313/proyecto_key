@@ -255,4 +255,70 @@ class UnirPedidosServiceTest {
         verify(grupos).cambiarTitular(30, 2);
         assertThatThrownBy(() -> service.cambiarTitular(30, 9, USUARIO)).hasMessageContaining("pedidos del grupo");
     }
+
+    // ── Agregar a un grupo que ya existe (R18) ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("agregar suma el pedido al grupo y anota lo que ya traia abonado")
+    void agregar() {
+        PedidoDelGrupo p1 = fiado(1, 10_000, 0, 1);
+        PedidoDelGrupo p2 = fiado(2, 20_000, 0, 2);
+        PedidoDelGrupo p3 = fiado(3, 15_000, 5_000, 3);
+        when(grupos.buscar(30)).thenReturn(
+                Optional.of(new RegistroGrupo(30, 1, true, LocalDateTime.now(), null, List.of(1, 2))),
+                Optional.of(new RegistroGrupo(30, 1, true, LocalDateTime.now(), null, List.of(1, 2, 3))));
+        when(pedidos.buscar(List.of(1, 2))).thenReturn(List.of(p1, p2));
+        when(pedidos.buscar(List.of(3))).thenReturn(List.of(p3));
+        when(pedidos.buscar(List.of(1, 2, 3))).thenReturn(List.of(p1, p2, p3));
+        when(grupos.gruposActivosDe(List.of(3))).thenReturn(Map.of());
+
+        GrupoPedidos g = service.agregar(30, List.of(3, 3), USUARIO);
+
+        verify(grupos).agregar(30, List.of(3));
+        assertThat(g.pedidos()).hasSize(3);
+        assertThat(g.totalCentavos()).isEqualTo(45_000);
+        assertThat(g.pagadoCentavos()).isEqualTo(5_000);
+        assertThat(g.saldoCentavos()).isEqualTo(40_000);
+        verify(bitacora).anotar(eq(3), contains("($50.00) cuenta para el grupo"));
+        verify(bitacora).anotar(eq(1), contains("Se agregaron al grupo #30 los pedidos #3"));
+        verify(bitacora).anotar(eq(2), contains("Se agregaron al grupo #30 los pedidos #3"));
+        verify(abonos, never()).abonar(anyInt(), anyLong(), anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("agregar uno de otra forma de cobro no guarda nada")
+    void agregarOtroTipo() {
+        grupoGuardado(30, true, fiado(1, 10_000, 0, 1), fiado(2, 20_000, 0, 2));
+        when(pedidos.buscar(List.of(3))).thenReturn(List.of(
+                new PedidoDelGrupo(3, "APARTADO", "APARTADO", 5_000, 0, LocalDateTime.now(), "C3")));
+        when(grupos.gruposActivosDe(anyList())).thenReturn(Map.of());
+
+        assertThatThrownBy(() -> service.agregar(30, List.of(3), USUARIO))
+                .isInstanceOf(PedidosDeDistintoTipoException.class);
+        verify(grupos, never()).agregar(anyInt(), anyList());
+        verify(bitacora, never()).anotar(anyInt(), anyString());
+    }
+
+    @Test
+    @DisplayName("el buscador usa la forma de cobro del grupo si el pedido ya esta en uno")
+    void candidatosDelGrupo() {
+        when(grupos.grupoActivoDe(1)).thenReturn(Optional.of(30));
+        grupoGuardado(30, true, new PedidoDelGrupo(1, "APARTADO", "APARTADO", 1, 0, LocalDateTime.now(), "C1"),
+                new PedidoDelGrupo(2, "APARTADO", "APARTADO", 1, 0, LocalDateTime.now(), "C2"));
+        PedidosDelGrupoPort.PaginaDePedidos pagina = new PedidosDelGrupoPort.PaginaDePedidos(List.of(), false);
+        when(pedidos.candidatos("APARTADO", 1, "12", 0, 10)).thenReturn(pagina);
+
+        assertThat(service.candidatos(1, "12", 0, 10)).isSameAs(pagina);
+    }
+
+    @Test
+    @DisplayName("el buscador usa la forma de cobro del pedido si no esta en un grupo")
+    void candidatosSuelto() {
+        when(grupos.grupoActivoDe(5)).thenReturn(Optional.empty());
+        when(pedidos.buscar(List.of(5))).thenReturn(List.of(fiado(5, 1, 0, 1)));
+        PedidosDelGrupoPort.PaginaDePedidos pagina = new PedidosDelGrupoPort.PaginaDePedidos(List.of(), true);
+        when(pedidos.candidatos("FIADO", 5, "ana", 2, 10)).thenReturn(pagina);
+
+        assertThat(service.candidatos(5, "ana", 2, 10)).isSameAs(pagina);
+    }
 }

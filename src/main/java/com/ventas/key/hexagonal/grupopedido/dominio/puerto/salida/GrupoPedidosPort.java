@@ -17,6 +17,9 @@ public interface GrupoPedidosPort {
     /** Crea el grupo con sus pedidos y devuelve su id. */
     Integer crear(Integer pedidoTitularId, List<Integer> pedidoIds, String nota, Integer usuarioId);
 
+    /** Suma pedidos a un grupo que ya existe (R18). */
+    void agregar(Integer grupoId, List<Integer> pedidoIds);
+
     Optional<RegistroGrupo> buscar(Integer grupoId);
 
     Optional<Integer> grupoActivoDe(Integer pedidoId);

@@ -1,11 +1,14 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.GrupoPedidos;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.ConsultarGruposCasoUso;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.GrupoEnListaResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
+import com.ventas.key.mis.productos.Utils.CompradorDelPedido;
 import com.ventas.key.mis.productos.entity.*;
 import com.ventas.key.mis.productos.entity.DetalleVentaVariante;
 import com.ventas.key.mis.productos.entity.MesesIntereses;
@@ -205,7 +208,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     public Pedido savePedido(@RequestBody PedidosDTOPedido requestG, BindingResult result) throws Exception {
 
         Cliente cliente = this.iClienteRepository.findById(requestG.getCliente().getId())
-                .orElseThrow(() -> new Exception("Ocurrio un erro al buscar al cliente"));
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró el cliente del pedido"));
         if (!Boolean.TRUE.equals(cliente.getCorreoVerificado())) {
             throw new RuntimeException("Debes verificar tu correo antes de generar un pedido");
         }
@@ -391,7 +394,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Double precioNormal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
         Double precioDescuento = variante != null ? variante.precioDescuento() : prod.getPrecioRebaja();
         double normal = precioNormal != null ? precioNormal : 0.0;
-        double rebaja = precioDescuento != null ? precioDescuento : 0.0;
+        // La rebaja solo la puede dar el admin (hotfix 2026-09-29): es un descuento que decide en
+        // el momento, no un precio de lista. Para un cliente no existe, ni en el mensaje de error.
+        // Salvo que el admin la haya activado en la card (R8): ahi ES el precio de lista.
+        boolean puedeRebaja = AuthenticationUtils.isAdminContext()
+                || (variante != null && variante.cobraConDescuento());
+        double rebaja = puedeRebaja && precioDescuento != null ? precioDescuento : 0.0;
 
         boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
         // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
@@ -462,9 +470,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         UsuarioDto usr = iUsuarioRepository.findUserByIdCliente(requestG.getCliente().getId())
-                .orElseThrow(() -> new Exception("Ocurrio un error al buscar el usuario"));
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró el usuario"));
         Usuario u = this.iUsuarioRepository.findById((int) usr.getIdUsuario())
-                .orElseThrow(() -> new Exception("Ocurrio un error al buscar el usuario"));
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontró el usuario"));
 
         Venta venta = new Venta();
         venta.setEstadoVenta("Entregado");
@@ -624,7 +632,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         // FIADO activo ya entrego la mercancia al cliente (igual que en AbonoServiceImpl.cancelarPedido) --
         // no se le devuelve el stock solo por dejar de pagar, queda como deuda incobrable. Si ya es una
         // devolucion (PAGADO/Entregado) si se devuelve, porque el cliente esta regresando algo que ya tenia.
-        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion;
+        // Desde 2026-10-06 la entrega va aparte: un Ir pagando que todavia no se lo lleva tiene la
+        // mercancia en la tienda, asi que al cancelarlo si regresa stock.
+        boolean esFiadoActivo = "FIADO".equals(pedido.getTipoPedido()) && !esDevolucion
+                && pedido.isEntregado();
 
         if (!esFiadoActivo) {
             pedido.getDetalles().forEach(detalle -> {
@@ -668,7 +679,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Transactional
     @Override
-    public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad) {
+    public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad, Integer detalleId) {
+        // Una cantidad negativa sumaba piezas a la linea sin revisar stock y bajaba el inventario.
+        if (cantidad < 1) {
+            throw new RuntimeException("La cantidad a quitar tiene que ser al menos 1");
+        }
         Pedido pedido = iPedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
@@ -679,10 +694,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             throw new RuntimeException("No se puede modificar un pedido cancelado");
         }
 
+        // Con detalleId se quita esa linea exacta. Solo con el producto se tomaba la primera de ese
+        // modelo: con dos tallas del mismo modelo (o el mismo articulo en promocion y suelto) se
+        // quitaba la que no era.
         DetallePedido detalle = pedido.getDetalles().stream()
-                .filter(d -> d.getProducto().getId().equals(productoId))
+                .filter(d -> detalleId != null ? d.getId().equals(detalleId) : d.getProducto().getId().equals(productoId))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
+        if (!detalle.getProducto().getId().equals(productoId)) {
+            throw new RuntimeException("La linea " + detalleId + " del pedido #" + pedidoId + " no es de ese producto");
+        }
 
         // Una promocion es un combo: o esta completa, o no esta (R4 del dominio pedidoarticulo).
         // Hasta el 2026-09-22 este boton dejaba sacar una linea suelta de una promocion, y el
@@ -697,6 +718,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                     detalle.getPromocion().getDescripcion(),
                     pedidoId,
                     detalle.getPromocion().getId()));
+        }
+
+        if (cantidad >= detalle.getCantidad() && pedido.getDetalles().size() == 1) {
+            throw new RuntimeException(String.format(
+                    "'%s' es el ultimo articulo del pedido #%d. Para regresar todo, cancela el pedido",
+                    detalle.getProducto().getNombre(), pedidoId));
         }
 
         Producto prod = iProductoRepository.findByIdWithLock(productoId)
@@ -735,6 +762,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setTotalPedido(nuevoTotal);
         iPedidoRepository.save(pedido);
 
+        // La cuenta es solo de este pedido: si lo abonado ya cubre el total nuevo queda PAGADO, y lo
+        // que sobre es saldo a favor de su cliente (no se pasa a otros pedidos del grupo).
+        iAbonoService.ajustarTrasEditarArticulos(pedidoId,
+                AuthenticationUtils.currentUsuarioOpt().map(Usuario::getId).orElse(null));
+
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -768,6 +800,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setTotalPedido(totalPedido);
         resp.setTotalPagado(totalPagado);
         resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
+        resp.setEntregado(pedido.isEntregado());
         resp.setFechaPedido(pedido.getFechaPedido());
         resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
                 ? pedido.getFechaHoraRegistro()
@@ -790,15 +823,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             resp.setLugarEntregaId(pedido.getLugarEntrega().getId());
             resp.setLugarEntregaNombre(pedido.getLugarEntrega().getNombre());
         }
+        resp.setRecogeEnLocal(pedido.getLugarEntrega() == null
+                || Boolean.TRUE.equals(pedido.getLugarEntrega().getEsRecogerEnTienda()));
 
-        if (pedido.getCliente() != null) {
-            resp.setClienteNombre(pedido.getCliente().getNombrePersona());
-            resp.setClienteTelefono(pedido.getCliente().getNumeroTelefonico());
-            resp.setClienteCorreo(pedido.getCliente().getCorreoElectronico());
-        } else if (pedido.getClienteSinRegistro() != null) {
-            resp.setClienteNombre(pedido.getClienteSinRegistro().getNombrePersona());
-            resp.setClienteTelefono(pedido.getClienteSinRegistro().getNumeroTelefonico());
-            resp.setClienteCorreo(pedido.getClienteSinRegistro().getCorreoElectronico());
+        // El nombre de la venta primero (cliente sin registro, luego el que se escribió como receptor) y
+        // la cuenta de quien la hizo solo si no hay: el mismo orden que la card de Mis pedidos (2026-10-13:
+        // estaba al revés y el detalle enseñaba al admin). Ver CompradorDelPedido.
+        if (pedido.getClienteSinRegistro() != null || pedido.getCliente() != null) {
+            resp.setClienteNombre(CompradorDelPedido.nombre(pedido));
+            resp.setClienteTelefono(CompradorDelPedido.telefono(pedido));
+            resp.setClienteCorreo(CompradorDelPedido.correo(pedido));
         }
 
         // metodoPago/montoDado solo existen para ventas NORMAL al contado (vienen de la Venta
@@ -913,9 +947,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      * porque la unica alternativa era cancelar y rehacer el pedido entero, devolviendo y
      * volviendo a descontar todo el stock.
      *
-     * <p><b>El cobro se hace ANTES de cambiar el tipo</b>, y no al reves: registrarAbono() exige
+     * <p><b>Al pasar a contado, el cobro se hace ANTES de cambiar el tipo</b>: registrarAbono() exige
      * que el pedido sea de credito, asi que si primero se pasara a NORMAL el abono quedaria
-     * rechazado y el pago no se registraria en ningun lado.
+     * rechazado. Al pasar a Apartado / Ir pagando es al reves: primero el tipo (ver abajo).
      *
      * <p>Se delega en registrarAbono() en vez de escribir el cobro aca: ahi ya viven la
      * validacion del monto contra el saldo, el paso a PAGADO, la creacion de la venta al
@@ -923,6 +957,20 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      */
     @Transactional
     public PedidoDetalleResponse cambiarTipoPedido(int pedidoId, CambiarTipoPedidoRequest request) {
+        return cambiarTipo(pedidoId, request, false);
+    }
+
+    @Override
+    @Transactional
+    public void cambiarTipoDentroDeGrupo(int pedidoId, String tipoNuevo, String nota) {
+        CambiarTipoPedidoRequest request = new CambiarTipoPedidoRequest();
+        request.setTipoPedido(tipoNuevo);
+        request.setNota(nota);
+        cambiarTipo(pedidoId, request, true);
+    }
+
+    /** @param delGrupo el cambio lo pide el grupo completo (R20), que ya valido que se puede */
+    private PedidoDetalleResponse cambiarTipo(int pedidoId, CambiarTipoPedidoRequest request, boolean delGrupo) {
         Pedido pedido = iPedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
 
@@ -943,15 +991,48 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (tipoNuevo.equals(pedido.getTipoPedido())) {
             throw new RuntimeException("El pedido " + pedidoId + " ya es de tipo " + tipoNuevo);
         }
-        // Un grupo exige que todos sus pedidos tengan la misma forma de cobro (grupopedido R9).
-        if (iGrupoPedidoMiembroRepository.estaEnGrupoActivo(pedidoId)) {
-            throw new RuntimeException("El pedido " + pedidoId + " esta unido con otros pedidos: "
-                    + "deshaz el grupo antes de cambiar su forma de cobro");
+        // Un grupo exige que todos sus pedidos tengan la misma forma de cobro (grupopedido R3, R9):
+        // uno solo no se cambia; se cambia el grupo completo (R20, PUT /v1/grupos-pedido/{id}/tipo).
+        if (!delGrupo && iGrupoPedidoMiembroRepository.estaEnGrupoActivo(pedidoId)) {
+            throw new ExceptionOperacionNoPermitida("El pedido " + pedidoId + " esta unido con otros pedidos: "
+                    + "su forma de cobro se cambia para todo el grupo");
+        }
+
+        // Un Apartado es sin dinero: si el cliente ya dio algo, o da algo ahora, es Ir pagando.
+        if ("APARTADO".equals(tipoNuevo)) {
+            double yaPagado = contadoYaEntregado || pedido.getTotalPagado() == null ? 0.0 : pedido.getTotalPagado();
+            if (request.traeCobro() || yaPagado > 0.01) {
+                throw new RuntimeException("Un Apartado es sin dinero: si el cliente ya dio algo, "
+                        + "el pedido es Ir pagando");
+            }
         }
 
         String tipoOriginal = pedido.getTipoPedido();
+        // El pedido que el cliente hizo desde su cuenta: contado que nadie ha cobrado. Si el
+        // cliente pide pasarlo a Ir pagando y deja un adelanto, ese adelanto si se cobra.
+        boolean enLineaSinCobrar = "NORMAL".equals(tipoOriginal) && "Pendiente".equalsIgnoreCase(pedido.getEstadoPedido());
         if (contadoYaEntregado) {
             reabrirContadoComoCredito(pedido, tipoNuevo, request.getNota());
+        }
+
+        if (request.traeCobro() && !contadoYaEntregado && !enLineaSinCobrar && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
+            throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + tipoOriginal
+                    + " y no tiene saldo que cobrar");
+        }
+
+        // Si pasa a Apartado o Ir pagando, el tipo cambia ANTES de cobrar: un Apartado solo acepta
+        // el pago completo, y el adelanto que se da al pasarlo a Ir pagando ya es de Ir pagando.
+        if (TIPOS_CREDITO_PEDIDO.contains(tipoNuevo) && !tipoNuevo.equals(pedido.getTipoPedido())) {
+            // El pedido que el cliente hizo desde su cuenta nace 'Pendiente' (no es copia del tipo).
+            // Antes el estado se quedaba 'Pendiente' al pasarlo a Apartado: Entregas por zona lo
+            // seguia viendo como pedido en linea y el cancelador automatico (que busca 'Pendiente')
+            // lo cancelaba aunque el cliente hubiera pedido que se lo apartaran (2026-10-07).
+            if ((tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido()))
+                    || enLineaSinCobrar) {
+                pedido.setEstadoPedido(tipoNuevo);
+            }
+            pedido.setTipoPedido(tipoNuevo);
+            iPedidoRepository.save(pedido);
         }
 
         double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
@@ -970,10 +1051,6 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         if (request.traeCobro()) {
-            if (!TIPOS_CREDITO_PEDIDO.contains(pedido.getTipoPedido())) {
-                throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + pedido.getTipoPedido()
-                        + " y no tiene saldo que cobrar");
-            }
             AbonoRequest abono = new AbonoRequest();
             abono.setMonto(request.getMonto());
             abono.setMetodoPago(request.getMetodoPago());
@@ -989,6 +1066,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             pedido = iPedidoRepository.findById(pedidoId).orElseThrow();
         }
 
+        // Mientras el pedido sigue abierto, estadoPedido es copia del tipo (así se crea en
+        // VentaServiceImpl). Si no se mueve junto, el grupo de pedidos muestra el tipo viejo.
+        if (tipoOriginal != null && tipoOriginal.equals(pedido.getEstadoPedido())) {
+            pedido.setEstadoPedido(tipoNuevo);
+        }
         pedido.setTipoPedido(tipoNuevo);
         iPedidoRepository.save(pedido);
         log.info("Pedido {} cambio de {} a {} — cobro en el cambio: {}",

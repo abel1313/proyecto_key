@@ -1,5 +1,8 @@
 package com.ventas.key.mis.productos;
 
+import com.ventas.key.mis.productos.exeption.ExceptionServicioExterno;
+import com.ventas.key.mis.productos.exeption.ExceptionSinPermiso;
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
@@ -39,6 +42,27 @@ public class ExceptionGlobal {
     public ResponseEntity<ResponseGeneric<Void>> duplicado(ExceptionDuplicado ex) {
         log.warn("Recurso duplicado: {}", ex.getMessage());
         return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    // El estado actual no deja hacerlo (borrar el único menú, habilitar un borrador sin código real…).
+    @ExceptionHandler(ExceptionOperacionNoPermitida.class)
+    public ResponseEntity<ResponseGeneric<Void>> operacionNoPermitida(ExceptionOperacionNoPermitida ex) {
+        log.warn("Operación no permitida: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    // Sesión válida, pero ese recurso no es suyo (reclamar una compra hecha con otro correo).
+    @ExceptionHandler(ExceptionSinPermiso.class)
+    public ResponseEntity<ResponseGeneric<Void>> sinPermiso(ExceptionSinPermiso ex) {
+        log.warn("Sin permiso sobre el recurso: {}", ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    // Falló otro servicio (micro de imágenes, redes sociales): no es culpa de los datos del usuario.
+    @ExceptionHandler(ExceptionServicioExterno.class)
+    public ResponseEntity<ResponseGeneric<Void>> servicioExterno(ExceptionServicioExterno ex) {
+        log.error("Falló un servicio externo: {}", ex.getMessage());
+        return build(HttpStatus.BAD_GATEWAY, ex.getMessage());
     }
 
     @ExceptionHandler(ExceptionStockInsuficiente.class)

@@ -1,5 +1,8 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
+import com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -36,16 +39,16 @@ public class RifaServiceImpl extends CrudAbstractServiceImpl<Rifa, List<Rifa>, O
     @Override
     public Rifa registrar(Rifa rifa, boolean forzar) throws Exception {
         if (rifa.getConfigurarRifa() == null || rifa.getConfigurarRifa().getId() == null) {
-            throw new Exception("Debe indicar la configuración de rifa");
+            throw new ExceptionErrorInesperado("Debe indicar la configuración de rifa");
         }
         ConfigurarRifa config = iConfigurarRifaRepository.findById(rifa.getConfigurarRifa().getId())
-                .orElseThrow(() -> new Exception("Configuración de rifa no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de rifa no encontrada"));
 
         if (!Boolean.TRUE.equals(config.getActiva())) {
-            throw new Exception("Esta rifa ya fue sorteada o está inactiva");
+            throw new ExceptionOperacionNoPermitida("Esta rifa ya fue sorteada o está inactiva");
         }
         if (!forzar && LocalDateTime.now().isAfter(config.getFechaHoraLimite())) {
-            throw new Exception("El plazo de registro ha cerrado el " + config.getFechaHoraLimite());
+            throw new ExceptionOperacionNoPermitida("El plazo de registro ha cerrado el " + config.getFechaHoraLimite());
         }
         return save(rifa);
     }
@@ -58,7 +61,7 @@ public class RifaServiceImpl extends CrudAbstractServiceImpl<Rifa, List<Rifa>, O
     @Override
     public List<Rifa> buscarPorRangoDeHora(String inicio, String fin, String palabraRifa) throws Exception {
         if (!validarRangoHoras(inicio, fin)) {
-            throw new Exception("La hora inicio es mayor a la hora fin");
+            throw new ExceptionErrorInesperado("La hora inicio es mayor a la hora fin");
         }
         LocalDate hoy = LocalDate.now();
         LocalDateTime horaInicioRifa = hoy.atTime(LocalTime.parse(inicio));

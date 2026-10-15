@@ -13,5 +13,9 @@ public class EntregaZonaPendienteDto {
     private String nombreCliente;
     private String correo;
     private Double total;
+    /** Cuándo se hizo el pedido (el rango de la pantalla filtra por esta). */
     private LocalDate fechaPedido;
+    /** Día y hora de entrega ya programados en esta pantalla; null si todavía no (2026-10-13). */
+    private LocalDate fechaEntrega;
+    private String horaEntrega;
 }

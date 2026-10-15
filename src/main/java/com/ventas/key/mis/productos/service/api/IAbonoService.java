@@ -25,4 +25,11 @@ public interface IAbonoService {
      * si ya no (se movio dinero a otro pedido) vuelve a Apartado / Ir pagando y se borra la venta.
      */
     void ajustarEstadoALosAbonos(int pedidoId, Integer usuarioId);
+
+    /**
+     * Despues de editar los articulos de un pedido a credito: si ya estaba PAGADO su venta se
+     * rehace con los articulos nuevos, y el estado queda como corresponde a los abonos. La cuenta
+     * es solo de ese pedido; lo que sobre es saldo a favor de su cliente.
+     */
+    void ajustarTrasEditarArticulos(int pedidoId, Integer usuarioId);
 }

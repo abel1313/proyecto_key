@@ -2,6 +2,7 @@ package com.ventas.key.mis.productos.service;
 
 import com.ventas.key.mis.productos.entity.TemaVariable;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
+import com.ventas.key.mis.productos.exeption.ExceptionDuplicado;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.models.PginaDto;
@@ -57,7 +58,7 @@ public class TemaVariableServiceImpl extends CrudAbstractServiceImpl<
         boolean choca = repository.findByClaveIgnoreCase(clave.trim()).stream()
                 .anyMatch(v -> !v.getId().equals(idPropio));
         if (choca) {
-            throw new ExceptionOperacionNoPermitida("Ya existe una variable con la clave \"" + clave + "\".");
+            throw new ExceptionDuplicado("Ya existe una variable con la clave \"" + clave + "\".");
         }
     }
 }

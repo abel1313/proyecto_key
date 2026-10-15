@@ -21,16 +21,16 @@ public class CambiarPrecioArticuloService implements CambiarPrecioArticuloCasoUs
 
     @Override
     @Transactional
-    public PreciosDeArticulo cambiar(Integer varianteId, Double precioVenta, Double precioRebaja) {
+    public PreciosDeArticulo cambiar(Integer varianteId, Double precioVenta, Double precioRebaja, boolean usarDescuento) {
         PreciosDeArticulo antes = buscar(varianteId);
-        PreciosDeArticulo despues = antes.conPrecios(precioVenta, precioRebaja);
+        PreciosDeArticulo despues = antes.conPrecios(precioVenta, precioRebaja, usarDescuento);
 
         precios.guardar(despues);
         catalogo.catalogoCambio();
 
-        log.info("Precio del articulo {} ('{}'): normal {} -> {}, descuento {} -> {}",
+        log.info("Precio del articulo {} ('{}'): normal {} -> {}, descuento {} -> {}, vender con descuento {} -> {}",
                 varianteId, antes.nombre(), antes.precioVenta(), despues.precioVenta(),
-                antes.precioRebaja(), despues.precioRebaja());
+                antes.precioRebaja(), despues.precioRebaja(), antes.usarDescuento(), despues.usarDescuento());
         return despues;
     }
 

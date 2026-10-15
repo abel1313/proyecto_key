@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.service;
 
+import org.springframework.cache.annotation.CacheEvict;
+import com.ventas.key.hexagonal.busquedapedido.infraestructura.cache.VersionDeListasDePedidos;
 import com.ventas.key.mis.productos.entity.Cliente;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.exeption.ExceptionCodigoInvalido;
@@ -35,6 +37,7 @@ public class UsuarioVerificacionService {
     private final IClienteRepository clienteRepository;
     private final EmailService emailService;
     private final ClienteServiceImpl clienteService;
+    private final VersionDeListasDePedidos versionDeListas;
 
     @Transactional
     public void enviarCodigoVerificacion(String usernameOEmail) {
@@ -80,6 +83,7 @@ public class UsuarioVerificacionService {
      * esta misma transaccion antes de lanzar, y con el rollback por defecto el incremento se
      * perderia y el limite nunca aplicaria.
      */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional(noRollbackFor = ExceptionCodigoInvalido.class)
     public void verificarCorreo(String usernameOEmail, String codigo) {
         Usuario usuario = buscarPorUsernameOEmail(usernameOEmail);
@@ -194,6 +198,7 @@ public class UsuarioVerificacionService {
     // correo pendiente ya quedo en conflicto, el metodo limpia ese estado (setCorreoPendiente a
     // null, etc.) y guarda ANTES de lanzar la excepcion -- sin esto en la lista, el rollback
     // automatico de RuntimeException deshacia esa limpieza y la cuenta quedaba atascada igual.
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional(noRollbackFor = {ExceptionCodigoInvalido.class, ExceptionDuplicado.class})
     public void confirmarCambioCorreo(Usuario usuario, String codigo) {
         if (usuario.getCorreoPendiente() == null) {
@@ -242,6 +247,8 @@ public class UsuarioVerificacionService {
         // campo para nada (encontrado 2026-09-05, hotfix urgente en prod).
         if (usuario.getCliente() != null) {
             clienteRepository.actualizarCorreoElectronico(usuario.getCliente().getId(), usuario.getEmail());
+            // El correo sale en la tarjeta de Mis pedidos y un UPDATE directo no avisa al caché (R18 de busquedapedido)
+            versionDeListas.subirAlConfirmar("correo del cliente " + usuario.getCliente().getId());
         }
     }
 
@@ -256,6 +263,7 @@ public class UsuarioVerificacionService {
      * Lleva el mismo noRollbackFor porque, al ser una llamada interna, la anotacion de la variante
      * que recibe el Usuario no la aplica el proxy — la que manda es la de este punto de entrada.
      */
+    @CacheEvict(value = "clienteCache", allEntries = true)
     @Transactional(noRollbackFor = {ExceptionCodigoInvalido.class, ExceptionDuplicado.class})
     public void confirmarCambioCorreo(String usernameActual, String codigo) {
         confirmarCambioCorreo(buscarPorUsernameOEmail(usernameActual), codigo);

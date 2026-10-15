@@ -81,6 +81,16 @@ public class VarianteController extends AbstractController<
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, size)));
     }
 
+    // Buscador de "Agregar / Cambiar articulo" del detalle de pedido: solo articulos con stock y
+    // habilitados (articulo y modelo), sin cache. Minimo 3 caracteres; sin resultados -> t: [].
+    @GetMapping("/para-pedido")
+    public ResponseEntity<ResponseGeneric<PginaDto<List<VarianteResumenDto>>>> buscarParaPedido(
+            @RequestParam(required = false) String termino,
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarParaPedido(termino, pagina, size)));
+    }
+
     // Catalogo publico con filtros combinables. A diferencia de /v1/buscar (que hace cascada
     // codigo -> palabra clave -> nombre y truena si no hay resultados), este endpoint combina
     // termino + precio/talla/color/marca con AND y simplemente devuelve lista vacia si no matchea.
@@ -106,13 +116,7 @@ public class VarianteController extends AbstractController<
 
     @PostMapping("/guardarConImagenes")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> guardarConImagenes(@RequestBody List<VarianteDetalle> detalles) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
-        } catch (Exception e) {
-            log.error("Error al guardar variantes con imágenes: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
     }
 
     /**
@@ -126,13 +130,10 @@ public class VarianteController extends AbstractController<
 
     @GetMapping("/imagenes/{varianteId}")
     public ResponseEntity<ResponseGeneric<List<ImagenUpdateDto>>> getImagenesV2(@PathVariable Integer varianteId) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
-        } catch (Exception e) {
-            log.error("Error obteniendo imagenes de varianteId={}: {}", varianteId, e.getMessage(), e);
-            List<ImagenUpdateDto> vacio = List.of();
-            return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(vacio));
-        }
+        // Antes un error respondía 200 con la lista vacía y la pantalla decía "no tiene imágenes"
+        // aunque las tuviera. Ahora el error sale con su código (ExceptionGlobal). Si el micro no
+        // contesta, el servicio ya manda las URLs de la BD: eso no es error.
+        return ResponseEntity.ok(new ResponseGeneric<List<ImagenUpdateDto>>(sGenerico.getImagenesPorVarianteV2(varianteId)));
     }
 
     @GetMapping("/imagenes/{varianteId}/paginado")
@@ -206,10 +207,18 @@ public class VarianteController extends AbstractController<
             // comentario ahi para el motivo (codigo de barras al azar de la carga rapida).
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
+            // Los del catalogo (talla/color/marca/precio), opcionales: Tienda los combina con los de
+            // admin en una sola busqueda. El precio es el que muestra la tarjeta (precio a cobrar).
+            @RequestParam(required = false) String talla,
+            @RequestParam(required = false) String color,
+            @RequestParam(required = false) String marca,
+            @RequestParam(required = false) Double precioMin,
+            @RequestParam(required = false) Double precioMax,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, pagina, size)));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta,
+                talla, color, marca, precioMin, precioMax, pagina, size)));
     }
 
     // Faltaba: el front (Tienda → Buscar) llama esto para el toggle individual de una sola
@@ -233,17 +242,11 @@ public class VarianteController extends AbstractController<
     @PutMapping("/admin/habilitar-lote")
     public ResponseEntity<ResponseGeneric<String>> habilitarDeshabilitarVariantesLote(
             @Validated @RequestBody HabilitarLoteRequest request) {
-        try {
-            String diagnostico = sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
-            String mensaje = (request.isHabilitar()
-                    ? "Variantes habilitadas correctamente. "
-                    : "Variantes deshabilitadas correctamente. ") + diagnostico;
-            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
-        } catch (Exception e) {
-            log.error("Error al habilitar/deshabilitar variantes en lote: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        String diagnostico = sGenerico.habilitarDeshabilitarVariantesLote(request.getIds(), request.isHabilitar());
+        String mensaje = (request.isHabilitar()
+                ? "Variantes habilitadas correctamente. "
+                : "Variantes deshabilitadas correctamente. ") + diagnostico;
+        return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
     }
 
     @GetMapping("/admin/diagnostico-imagenes/{varianteId}")

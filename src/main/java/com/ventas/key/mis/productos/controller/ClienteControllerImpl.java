@@ -252,17 +252,11 @@ public class ClienteControllerImpl extends AbstractController<
         if (!AuthenticationUtils.isAdminContext() && !esDueno) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
         }
-        try {
-            boolean enviado = sGenerico.solicitarCambioCorreo(id, request.getCorreoNuevo());
-            String mensaje = enviado
-                    ? "Codigo enviado al correo nuevo"
-                    : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
-            return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
-        } catch (Exception e) {
-            log.error("Error al solicitar cambio de correo de clienteId={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        boolean enviado = sGenerico.solicitarCambioCorreo(id, request.getCorreoNuevo());
+        String mensaje = enviado
+                ? "Codigo enviado al correo nuevo"
+                : "Ya tienes un codigo vigente enviado a ese correo, revisa tu bandeja";
+        return ResponseEntity.ok(new ResponseGeneric<>(mensaje));
     }
 
     @Operation(summary = "Enviar codigo de verificacion de correo", description = "Genera un codigo de 6 digitos (expira en 15 minutos) y lo envia al correo registrado del cliente.")
@@ -283,14 +277,8 @@ public class ClienteControllerImpl extends AbstractController<
         if (!AuthenticationUtils.isAdminContext() && !esDueno) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
         }
-        try {
-            sGenerico.enviarCodigoVerificacionCorreo(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo registrado"));
-        } catch (Exception e) {
-            log.error("Error al enviar codigo de verificacion a clienteId={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        sGenerico.enviarCodigoVerificacionCorreo(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Codigo enviado al correo registrado"));
     }
 
     @Operation(summary = "Verificar correo con codigo", description = "Valida el codigo de 6 digitos enviado al correo del cliente. Si es correcto y no expiro, marca el correo como verificado.")
@@ -301,14 +289,8 @@ public class ClienteControllerImpl extends AbstractController<
     @PostMapping("/{id}/verificar-correo")
     public ResponseEntity<ResponseGeneric<String>> verificarCorreo(
             @PathVariable Integer id, @Valid @RequestBody VerificarCorreoRequest request) {
-        try {
-            sGenerico.verificarCorreo(id, request.getCodigo());
-            return ResponseEntity.ok(new ResponseGeneric<>("Correo verificado correctamente"));
-        } catch (Exception e) {
-            log.error("Error al verificar correo de clienteId={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        sGenerico.verificarCorreo(id, request.getCodigo());
+        return ResponseEntity.ok(new ResponseGeneric<>("Correo verificado correctamente"));
     }
 
     @Operation(summary = "Resetear verificacion de correo (solo ADMIN)", description = "Regresa el correo del cliente a 'no verificado' y borra cualquier codigo pendiente. Pensado para pruebas/soporte, no para el flujo normal del cliente.")
@@ -319,14 +301,8 @@ public class ClienteControllerImpl extends AbstractController<
     })
     @DeleteMapping("/{id}/verificacion-correo")
     public ResponseEntity<ResponseGeneric<String>> resetVerificacionCorreo(@PathVariable Integer id) {
-        try {
-            sGenerico.resetVerificacionCorreo(id);
-            return ResponseEntity.ok(new ResponseGeneric<>("Verificacion de correo reseteada"));
-        } catch (Exception e) {
-            log.error("Error al resetear verificacion de correo de clienteId={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        sGenerico.resetVerificacionCorreo(id);
+        return ResponseEntity.ok(new ResponseGeneric<>("Verificacion de correo reseteada"));
     }
 
     @Operation(summary = "Activar/desactivar correos no transaccionales", description = "Correo de seguimiento de pedido y alerta de stock de favoritos. No afecta el ticket de compra ni los codigos de verificacion/reset, que siguen enviandose siempre. Solo el dueno del registro o un ADMIN pueden cambiarla.")
@@ -344,17 +320,7 @@ public class ClienteControllerImpl extends AbstractController<
         if (!AuthenticationUtils.isAdminContext() && !esDueno) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
         }
-        try {
-            return ResponseEntity.ok(sGenerico.actualizarPreferenciaCorreo(id, request.isRecibirCorreos()));
-        } catch (Exception e) {
-            // Pasar la excepcion completa (no solo e.getMessage()) -- si no, SLF4J nunca imprime
-            // el stacktrace ni la cadena de "Caused by", y un mensaje generico como "Could not
-            // commit JPA transaction" (2026-09-04, clienteId=23) se queda sin forma de saber la
-            // causa real.
-            log.error("Error al actualizar preferencia de correo de clienteId={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(sGenerico.actualizarPreferenciaCorreo(id, request.isRecibirCorreos()));
     }
 
     @Operation(summary = "Activar/desactivar correos de promociones", description = "Checkbox independiente del de preferencias-correo -- controla solo si el cliente recibe el correo cuando el admin envia una promocion nueva. Solo el dueno del registro o un ADMIN pueden cambiarla.")
@@ -372,12 +338,6 @@ public class ClienteControllerImpl extends AbstractController<
         if (!AuthenticationUtils.isAdminContext() && !esDueno) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
         }
-        try {
-            return ResponseEntity.ok(sGenerico.actualizarPreferenciaPromociones(id, request.isRecibirPromociones()));
-        } catch (Exception e) {
-            log.error("Error al actualizar preferencia de promociones de clienteId={}: {}", id, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ResponseGeneric<>(null, e.getMessage()));
-        }
+        return ResponseEntity.ok(sGenerico.actualizarPreferenciaPromociones(id, request.isRecibirPromociones()));
     }
 }

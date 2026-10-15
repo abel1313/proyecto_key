@@ -1,6 +1,7 @@
 package com.ventas.key.mis.productos.entity;
 
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
+import com.ventas.key.mis.productos.Utils.TextoNormalizado;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -54,4 +55,10 @@ public class LugarEntrega extends BaseId {
     // por EntregaZonaServiceImpl para sugerir la fecha al programar la entrega de la semana.
     @Column(name = "dia_entrega_semanal")
     private Integer diaEntregaSemanal;
+
+    @PrePersist
+    @PreUpdate
+    private void normalizarNombre() {
+        this.nombre = TextoNormalizado.oracion(this.nombre);
+    }
 }

@@ -146,6 +146,13 @@ public class Usuario implements UserDetails {
     @Column(name = "fecha_acepto_privacidad")
     private LocalDateTime fechaAceptoPrivacidad;
 
+    /** Aceptación de los Términos al registrarse (migration_datos_legales.sql). Cuentas de antes: false. */
+    @Column(name = "acepto_terminos", nullable = false)
+    private Boolean aceptoTerminos = Boolean.FALSE;
+
+    @Column(name = "fecha_acepto_terminos")
+    private LocalDateTime fechaAceptoTerminos;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();

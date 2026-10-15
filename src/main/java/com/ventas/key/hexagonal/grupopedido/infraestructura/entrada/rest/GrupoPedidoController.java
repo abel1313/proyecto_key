@@ -1,11 +1,16 @@
 package com.ventas.key.hexagonal.grupopedido.infraestructura.entrada.rest;
 
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.CambiarFormaDeCobroGrupoCasoUso;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CambioFormaCobroGrupoResponse;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CambiarFormaCobroGrupoRequest;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoNoEncontradoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoPedidoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.excepcion.PedidosDeDistintoTipoException;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada.UnirPedidosCasoUso;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AbonoGrupoRequest;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AgregarPedidosRequest;
+import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CandidatosResponse;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.AbonoGrupoResponse;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.CambiarTitularRequest;
 import com.ventas.key.hexagonal.grupopedido.infraestructura.dto.SeparacionResponse;
@@ -30,6 +35,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
@@ -51,13 +57,39 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class GrupoPedidoController {
 
+    private static final int TAMANO_PAGINA = 10;
+
     private final UnirPedidosCasoUso casoUso;
+    private final CambiarFormaDeCobroGrupoCasoUso cambiarFormaDeCobro;
     private final CacheService cacheService;
 
     @PostMapping
     public ResponseEntity<Object> unir(@RequestBody UnirPedidosRequest request) {
         return ejecutar(true, () -> GrupoPedidosResponse.de(
                 casoUso.unir(request.getPedidoIds(), request.getPedidoTitularId(), request.getNota(), usuarioActual())));
+    }
+
+    /** Suma pedidos a un grupo que ya existe (R18). */
+    @PostMapping("/{grupoId}/pedidos")
+    public ResponseEntity<Object> agregar(@PathVariable Integer grupoId, @RequestBody AgregarPedidosRequest request) {
+        return ejecutar(true, () -> GrupoPedidosResponse.de(
+                casoUso.agregar(grupoId, request.getPedidoIds(), usuarioActual())));
+    }
+
+    /**
+     * Buscador de "Unir pedidos": los que se pueden unir con {@code pedidoId} (o con su grupo), de
+     * 10 en 10. {@code buscar} = numero de pedido (desde 1 digito) o nombre del cliente (desde 3 letras).
+     */
+    @GetMapping("/candidatos")
+    public ResponseEntity<Object> candidatos(@RequestParam Integer pedidoId,
+                                             @RequestParam(required = false, defaultValue = "") String buscar,
+                                             @RequestParam(required = false, defaultValue = "0") int pagina) {
+        String termino = buscar.trim();
+        if (!termino.isEmpty() && !termino.matches("\\d+") && termino.length() < 3) {
+            return error(HttpStatus.BAD_REQUEST, "Escribe al menos 3 letras del nombre, o el numero de pedido");
+        }
+        return ejecutar(false, () -> CandidatosResponse.de(
+                casoUso.candidatos(pedidoId, termino, pagina, TAMANO_PAGINA), Math.max(0, pagina)));
     }
 
     @GetMapping("/{grupoId}")
@@ -80,6 +112,22 @@ public class GrupoPedidoController {
                         request.getMontoDado() == null ? null : centavos(request.getMontoDado()),
                         request.getNota()),
                 usuarioActual())));
+    }
+
+    /**
+     * Cambia la forma de cobro de todos los pedidos del grupo (R20). Si el cliente deja dinero
+     * (solo Ir pagando), entra como abono del grupo en el mismo paso.
+     */
+    @PutMapping("/{grupoId}/tipo")
+    public ResponseEntity<Object> cambiarFormaDeCobro(@PathVariable Integer grupoId,
+                                                      @RequestBody CambiarFormaCobroGrupoRequest request) {
+        long monto = centavos(request.getMonto());
+        AbonoAlGrupo cobro = monto > 0
+                ? new AbonoAlGrupo(monto, request.getMetodoPago(),
+                        request.getMontoDado() == null ? null : centavos(request.getMontoDado()), request.getNota())
+                : null;
+        return ejecutar(true, () -> CambioFormaCobroGrupoResponse.de(cambiarFormaDeCobro.cambiar(
+                grupoId, request.getTipoPedido(), cobro, request.getNota(), usuarioActual())));
     }
 
     /** Confirma de una vez los pedidos de contado del grupo que falten (R11). */

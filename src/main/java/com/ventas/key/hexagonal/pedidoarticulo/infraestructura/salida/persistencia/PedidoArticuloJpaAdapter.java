@@ -10,6 +10,7 @@ import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -52,7 +53,15 @@ public class PedidoArticuloJpaAdapter implements PedidoArticuloPort {
         linea.setSubTotal(precioUnitario * cantidad);
         // promocion queda null a proposito: lo que se agrega va a precio de catalogo (R5).
 
-        return detalleRepository.save(linea).getId();
+        DetallePedido guardada = detalleRepository.save(linea);
+        // El pedido ya se leyo en esta misma peticion (para validar que este abierto), asi que su
+        // lista de lineas esta en memoria y no se vuelve a pedir a la base: si no se agrega aqui,
+        // releerlo para sacar el total no ve la linea nueva y el total se queda como estaba.
+        // Fue el bug de QA 2026-10-01: pedido de $100 pagado, entra uno de $300 y seguia en $100.
+        if (Hibernate.isInitialized(pedido.getDetalles()) && pedido.getDetalles() != null) {
+            pedido.getDetalles().add(guardada);
+        }
+        return guardada.getId();
     }
 
     @Override
@@ -79,7 +88,16 @@ public class PedidoArticuloJpaAdapter implements PedidoArticuloPort {
 
     @Override
     public void borrarLineas(List<ArticuloDePedido> lineas) {
-        lineas.forEach(l -> detalleRepository.deleteById(l.detalleId()));
+        lineas.forEach(l -> {
+            DetallePedido linea = linea(l.detalleId());
+            // Mismo motivo que en agregarLinea: la lista en memoria del pedido tambien tiene que
+            // soltarla, o el total la sigue sumando aunque ya se haya borrado.
+            Pedido pedido = linea.getPedido();
+            if (pedido != null && Hibernate.isInitialized(pedido.getDetalles()) && pedido.getDetalles() != null) {
+                pedido.getDetalles().remove(linea);
+            }
+            detalleRepository.delete(linea);
+        });
     }
 
     @Override

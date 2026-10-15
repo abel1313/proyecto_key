@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.grupopedido.dominio.puerto.entrada;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.AbonoAlGrupo;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.GrupoPedidos;
 import com.ventas.key.hexagonal.grupopedido.dominio.modelo.Reparto;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.PedidosDelGrupoPort;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,20 @@ import java.util.Optional;
 public interface UnirPedidosCasoUso {
 
     GrupoPedidos unir(List<Integer> pedidoIds, Integer pedidoTitularId, String nota, Integer usuarioId);
+
+    /**
+     * Suma pedidos a un grupo que ya existe (R18). Mismas reglas que unir para los que entran; lo
+     * que ya tenian abonado pasa a ser del grupo, sin mover dinero.
+     */
+    GrupoPedidos agregar(Integer grupoId, List<Integer> pedidoIds, Integer usuarioId);
+
+    /**
+     * Los pedidos que se pueden unir con {@code pedidoId} (o con su grupo, si ya esta en uno):
+     * misma forma de cobro, abiertos y fuera de otro grupo.
+     *
+     * @param buscar numero de pedido (desde 1 digito) o nombre del cliente (desde 3 letras); vacio = todos
+     */
+    PedidosDelGrupoPort.PaginaDePedidos candidatos(Integer pedidoId, String buscar, int pagina, int tamano);
 
     GrupoPedidos consultar(Integer grupoId);
 

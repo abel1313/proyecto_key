@@ -164,13 +164,7 @@ public class UsuarioController extends AbstractController<
             @PathVariable Integer usuarioId,
             @PathVariable Integer submenuId,
             @RequestParam(defaultValue = "true") boolean concedido) {
-        try {
-            return ResponseEntity.ok(new ResponseGeneric<>(usu.agregarSubmenuUsuario(usuarioId, submenuId, concedido)));
-        } catch (Exception e) {
-            ResponseGeneric<UsuarioSubmenu> error = new ResponseGeneric<>((UsuarioSubmenu) null);
-            error.setMensaje(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-        }
+        return ResponseEntity.ok(new ResponseGeneric<>(usu.agregarSubmenuUsuario(usuarioId, submenuId, concedido)));
     }
 
     @DeleteMapping("/{usuarioId}/submenus/{submenuId}")
