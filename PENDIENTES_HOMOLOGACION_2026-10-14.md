@@ -167,3 +167,15 @@ petición, aunque la misma URL abre bien en el navegador y en Productos → Busc
 caché del navegador); Compartir imagen la pide con `fetch` sin esas cabeceras; si una imagen no carga se
 muestra 📦 y se esconde el botón "Imagen" de esa tarjeta. Sin probar contra QA desde aquí (no hay salida
 a ese host): hay que verlo en QA.
+
+### Aprobadas por el dueño (2026-10-15): se quedan como están
+`productos/agregar`, `tienda/venta`, `tienda/cargar-excel`, `lugares-entrega`, `entregas-zona`,
+`rifas/agregar`, `rifas/mes`, `rifas/boletos`, `admin/hashtags`, `admin/negocio`,
+`admin/diagnostico-imagenes`.
+
+### Buscadores de Tienda y Modelos (2026-10-15)
+Eran la excepción: su recuadro de búsqueda/filtros no tenía franja de header como las demás cards.
+Ahora el título y el carrito van en una franja con `--card-header-bg` (Personalización), pegada a los
+bordes del recuadro, y el buscador y los filtros quedan en el cuerpo. Regla en `styles.scss`
+("BUSCADORES DE TIENDA Y MODELOS"). ✅ local; Tienda vista en captura (día y noche). Modelos usa las
+mismas clases (`pl-header`), sin captura propia.
