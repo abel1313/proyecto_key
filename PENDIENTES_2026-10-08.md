@@ -17,7 +17,7 @@ Leyenda: 👤 lo haces tú · 🛠 lo hago yo (código) · ❓ falta que decidas
 | [ ] | **Meta:** aceptar la invitación de evaluador de *Jade Castañeda* (sigue "Pendiente": mientras no se acepte, sus cuentas no cuentan como "con rol" y los mensajes directos no llegan) | `ALTA_NEGOCIO_META_TIKTOK.md` §8 y §11 |
 | [ ] | **Meta:** poner `https://shop.novedades-jade.com.mx/eliminar-datos` en el panel de la app | `ALTA_NEGOCIO_META_TIKTOK.md` (línea "Pendiente en el panel de Meta") |
 | [ ] | **Legal:** los datos que solo tú tienes (SAT, facturación, rifas, línea del negocio…) y las dudas de la sección "Dudas que necesito que me contestes" | `LEGAL_PLAN_DE_ACCION.md` |
-| [ ] | Confirmar si ya se revocó la llave vieja de AWS en IAM (anotado el 2026-06-09) | `PENDIENTES.md` §3 |
+| [x] | AWS ya no se usa; llave vieja fuera del repositorio (2026-10-15; falta solo desactivarla en IAM si sigue activa) | `PENDIENTES.md` §3 |
 | [ ] | Confirmar si ya se volvieron a subir las fotos de los productos 266, 270, 272 y 273 (anotado el 2026-06-09) | `PENDIENTES.md` §2 |
 
 ---

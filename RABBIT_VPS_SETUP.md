@@ -22,13 +22,13 @@ kubectl get namespaces
 # QA
 kubectl create secret generic rabbitmq-secret \
   --from-literal=username=admin \
-  --from-literal=password=RabbitPassword#2026 \
+  --from-literal=password=<TU_PASSWORD_DE_RABBIT> \
   -n qa
 
 # PROD
 kubectl create secret generic rabbitmq-secret \
   --from-literal=username=admin \
-  --from-literal=password=RabbitPassword#2026 \
+  --from-literal=password=<TU_PASSWORD_DE_RABBIT> \
   -n default
 ```
 
@@ -152,13 +152,13 @@ kubectl get pods -n default | grep rabbitmq
 # QA
 kubectl set env deployment/proyecto-key-deployment \
   RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPassword#2026 \
+  RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n qa
 
 # PROD
 kubectl set env deployment/proyecto-key-deployment \
   RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPassword#2026 \
+  RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n default
 ```
 
@@ -174,13 +174,13 @@ kubectl set env deployment/proyecto-key-deployment \
 # QA
 kubectl set env deployment/<nombre-deployment-imagenes> \
   RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPassword#2026 \
+  RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n qa
 
 # PROD
 kubectl set env deployment/<nombre-deployment-imagenes> \
   RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPassword#2026 \
+  RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n default
 ```
 

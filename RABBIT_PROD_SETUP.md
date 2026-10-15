@@ -47,13 +47,13 @@ Contiene:
 - `StatefulSet` con `namespace: default` ✅
 - `Service` con `namespace: qa` ⚠️ — **VER ALERTA ABAJO**
 - imagen: `rabbitmq:3.13-management`
-- credenciales: user=`admin` / pass=`RabbitQALuvianos#2026`
+- credenciales: user=`admin` / pass=`<TU_PASSWORD_DE_RABBIT>`
 - PVC: 2Gi
 - Service: ClusterIP puertos 5672 y 15672
 
 ### B) Creds agregadas al secret `db-secret`
 - key: `rabbitmq-username` = `admin`
-- key: `rabbitmq-password` = `RabbitQALuvianos#2026`
+- key: `rabbitmq-password` = `<TU_PASSWORD_DE_RABBIT>`
 
 ### C) Env vars agregadas a los deployments
 - `proyecto-key-deployment`: `RABBITMQ_USERNAME` + `RABBITMQ_PASSWORD` desde `db-secret`
@@ -154,4 +154,4 @@ Ambas apps arrancaron correctamente con RabbitMQ configurado.
 
 - El nombre del Service DEBE ser exactamente `rabbitmq` en `namespace: default`
 - En QA el env var se llama `SPRING_RABBITMQ_USERNAME`, en prod es `RABBITMQ_USERNAME` — distintos
-- Credenciales prod: `admin` / `RabbitQALuvianos#2026` (mismas que QA por ahora)
+- Credenciales prod: `admin` / `<TU_PASSWORD_DE_RABBIT>` (mismas que QA por ahora)
