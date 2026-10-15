@@ -31,11 +31,9 @@ Solo hay que re-subir estas imágenes manualmente desde el panel admin.
 
 ---
 
-## 3. Credenciales AWS — revocar en IAM
+## 3. Credenciales AWS
 
-BUG-IMG-08: las credenciales antiguas de AWS (`AKIASKOXZG7C5JKLWERJ`) siguen activas.
-Entrar a consola AWS → IAM → Usuarios → desactivar/borrar esa access key.
-No se puede hacer desde código.
+Resuelto 2026-10-15: AWS ya no se usa (el almacenamiento de imágenes es en disco). Se limpiaron las variables del código y el repositorio; ver `SEGURIDAD_CREDENCIALES_2026-10-15.md`.
 
 ---
 

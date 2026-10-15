@@ -31,7 +31,7 @@ El StatefulSet los lee con `secretKeyRef` en lugar de poner la password en texto
 kind: Secret
 data:
   username: YWRtaW4=          # base64 de "admin"
-  password: UmFiYml0UFJPRCMy  # base64 de la password real
+  password: <BASE64_DE_LA_PASSWORD>  # base64 de la password real
 ```
 
 Para ver la password real de un Secret ya creado:
@@ -152,7 +152,7 @@ password: Rabbit   →     RABBITMQ_DEFAULT_PASS    →    [Rabbit los usa para 
 | Spring profile / YML | `application-qa.yml` | `application-docker.yml` |
 | Nombre env var usuario en Spring | `SPRING_RABBITMQ_USERNAME` | `RABBITMQ_USERNAME` |
 | Nombre env var password en Spring | `SPRING_RABBITMQ_PASSWORD` | `RABBITMQ_PASSWORD` |
-| Password de Rabbit | `RabbitQALuvianos#2026` | `RabbitPROD#2026` |
+| Password de Rabbit | `<TU_PASSWORD_DE_RABBIT>` | `<TU_PASSWORD_DE_RABBIT>` |
 
 > El nombre de la variable cambia entre QA y PROD porque cada YML de Spring
 > usa un nombre distinto: `${SPRING_RABBITMQ_USERNAME}` vs `${RABBITMQ_USERNAME}`.
@@ -169,11 +169,11 @@ password: Rabbit   →     RABBITMQ_DEFAULT_PASS    →    [Rabbit los usa para 
 │                                                              │
 │  [Secret: rabbitmq-secret]                                   │
 │    username = admin          ─────────────────────────────►  │
-│    password = RabbitPROD#2026 ────────────────────────────►  │
+│    password = <TU_PASSWORD_DE_RABBIT> ────────────────────────────►  │
 │                                                    ▼         │
 │  [StatefulSet: rabbitmq → Pod rabbitmq-0]                    │
 │    RABBITMQ_DEFAULT_USER = admin    (lee del Secret)         │
-│    RABBITMQ_DEFAULT_PASS = RabbitPROD#2026                   │
+│    RABBITMQ_DEFAULT_PASS = <TU_PASSWORD_DE_RABBIT>                   │
 │         │                                                    │
 │         ▼                                                    │
 │    [PVC: rabbitmq-data 5Gi]  ← colas y mensajes persisten   │
@@ -230,7 +230,7 @@ kubectl get pvc -n qa | grep rabbitmq
 # SPRING_RABBITMQ_* es lo que lee application-qa.yml
 kubectl set env deployment/proyecto-key-deployment \
   SPRING_RABBITMQ_USERNAME=admin \
-  SPRING_RABBITMQ_PASSWORD=RabbitQALuvianos#2026 \
+  SPRING_RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n qa
 ```
 
@@ -242,7 +242,7 @@ kubectl get deployments -n qa
 # Reemplazar <nombre-imagenes> con el nombre real
 kubectl set env deployment/<nombre-imagenes> \
   SPRING_RABBITMQ_USERNAME=admin \
-  SPRING_RABBITMQ_PASSWORD=RabbitQALuvianos#2026 \
+  SPRING_RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n qa
 ```
 
@@ -290,7 +290,7 @@ kubectl get pvc -n default | grep rabbitmq
 # RABBITMQ_* es lo que lee application-docker.yml
 kubectl set env deployment/proyecto-key-deployment \
   RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPROD#2026 \
+  RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n default
 ```
 
@@ -302,7 +302,7 @@ kubectl get deployments -n default
 # Reemplazar <nombre-imagenes> con el nombre real
 kubectl set env deployment/<nombre-imagenes> \
   RABBITMQ_USERNAME=admin \
-  RABBITMQ_PASSWORD=RabbitPROD#2026 \
+  RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   -n default
 ```
 
@@ -372,7 +372,7 @@ echo -n "NuevaPassword#2027" | base64
 2. Actualizar el secret.yaml con el nuevo valor:
 ```yaml
 data:
-  password: TnVldmFQYXNzd29yZCMyMDI3  # NuevaPassword#2027
+  password: <BASE64_DE_LA_PASSWORD>  # NuevaPassword#2027
 ```
 
 3. Aplicar el cambio en K8s:
@@ -422,7 +422,7 @@ kubectl patch secret rabbitmq-secret -n default \
 | Namespace | `qa` | `default` |
 | Secret | `k8s/qa/secret.yaml` | `k8s/prod/secret.yaml` |
 | Manifest | `k8s/qa/rabbitmq.yaml` | `k8s/prod/rabbitmq.yaml` |
-| Password Rabbit | `RabbitQALuvianos#2026` | `RabbitPROD#2026` |
+| Password Rabbit | `<TU_PASSWORD_DE_RABBIT>` | `<TU_PASSWORD_DE_RABBIT>` |
 | Env var usuario (Spring) | `SPRING_RABBITMQ_USERNAME` | `RABBITMQ_USERNAME` |
 | Env var password (Spring) | `SPRING_RABBITMQ_PASSWORD` | `RABBITMQ_PASSWORD` |
 | Spring YML activo | `application-qa.yml` | `application-docker.yml` |
