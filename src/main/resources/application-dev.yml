@@ -66,7 +66,6 @@ cookie:
   secure: false  # true en producción (requiere HTTPS)
 
 api:
-#  imagenes: http://k8s-default-imagenes-65ff6abba3-120698284f8297cf.elb.us-east-1.amazonaws.com/mis-productos
   imagenes: http://localhost:9096/mis-productos
   #imagenes: https://backend-imagenes.novedades-jade.com.mx/mis-productos
   cors_angular: http://localhost:4200

@@ -26,7 +26,7 @@ spec:
         - name: RABBITMQ_DEFAULT_USER
           value: "admin"
         - name: RABBITMQ_DEFAULT_PASS
-          value: "RabbitQALuvianos#2026"
+          value: "<TU_PASSWORD_DE_RABBIT>"
         resources:
           requests:
             memory: "128Mi"

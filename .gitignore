@@ -39,3 +39,6 @@ application-prod.properties
 .vscode/
 CUMPLIMIENTO_LEGAL_TIENDA.md
 PLAN_PEDIDOS_VENTAS_ENTREGA.md
+
+# Secrets de Kubernetes: nunca al repositorio (es público). Usar secret.example.yaml como plantilla.
+k8s/*/secret.yaml

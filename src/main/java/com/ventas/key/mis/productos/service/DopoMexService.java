@@ -6,6 +6,7 @@ import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
 import com.ventas.key.mis.productos.exeption.ExceptionServicioExterno;
 import com.ventas.key.mis.productos.service.api.IDopoMexService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -21,14 +22,19 @@ public class DopoMexService implements IDopoMexService {
     /** Lo más que se espera al servicio de códigos postales antes de decirle al cliente que lo escriba a mano. */
     private static final Duration TIEMPO_MAXIMO = Duration.ofSeconds(8);
 
-    private static final String API_KEY = "32512a7e5d843f4faa0b3e572a608c874d3076f7";
-    private static final String API_KEY_COPO_MEX = "0be7515c-3fcc-404f-a201-6cc0404d7574";
-    private WebClient webClient;
-    private WebClient webClientCopaMex;
+    /**
+     * Llave de DipoMex. Viene de la variable de entorno DIPOMEX_API_KEY (Kubernetes), nunca del código:
+     * el repositorio es público y la llave escrita aquí quedó en el historial (2026-10-15).
+     */
+    private final String apiKey;
+    private final WebClient webClient;
 
-    public DopoMexService(WebClient.Builder builder) {
+    public DopoMexService(WebClient.Builder builder, @Value("${DIPOMEX_API_KEY:}") String apiKey) {
+        this.apiKey = apiKey;
         this.webClient = builder.baseUrl("https://api.tau.com.mx/dipomex/v1/").build();
-        this.webClientCopaMex = builder.baseUrl("https://api.copomex.com/query/").build();
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("DIPOMEX_API_KEY no está definida: el código postal no llenará el municipio y se pedirá a mano");
+        }
     }
 
     /**
@@ -50,7 +56,7 @@ public class DopoMexService implements IDopoMexService {
                         .path("codigo_postal")
                         .queryParam("cp", codigoPostal)
                         .build())
-                .header("APIKEY", API_KEY)
+                .header("APIKEY", apiKey == null ? "" : apiKey)
                 .retrieve()
                 .bodyToMono(CodigoPostalResponse.class)
                 .timeout(TIEMPO_MAXIMO)
@@ -71,17 +77,5 @@ public class DopoMexService implements IDopoMexService {
                     return new ExceptionServicioExterno(
                             "No pudimos buscar el código postal en este momento. Escribe el municipio a mano");
                 });
-    }
-
-
-    public Mono<Object> getCodigoPostal2(String codigoPostal) {
-        return webClientCopaMex.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/info_cp/" + codigoPostal)
-                        .queryParam("token", API_KEY_COPO_MEX)
-                        .build())
-                .retrieve()
-                .bodyToMono(Object.class); // Puedes reemplazar Object con tu clase modelo si ya la tienes
-
     }
 }
