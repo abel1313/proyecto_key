@@ -268,7 +268,7 @@ image:
 
 auth:
   username: admin
-  password: "RabbitQALuvianos#2026"      # Cambia esto por una contraseña segura
+  password: "<TU_PASSWORD_DE_RABBIT>"      # Cambia esto por una contraseña segura
   erlangCookie: "erlang-cookie-qa-secreto-2026"
   # erlangCookie: necesario si en el futuro escalaras a múltiples nodos de Rabbit.
   # Debe ser una cadena aleatoria y mantenerse igual entre upgrades.
@@ -349,7 +349,7 @@ image:
 # --- CREDENCIALES ---
 auth:
   username: admin
-  password: "RabbitPROD#2026"     # OBLIGATORIO: cambia esto antes de ejecutar
+  password: "<TU_PASSWORD_DE_RABBIT>"     # OBLIGATORIO: cambia esto antes de ejecutar
   erlangCookie: "erlang-cookie-prod-secreto-diferente-2026"
   # El erlangCookie de prod DEBE ser diferente al de QA
 
@@ -397,7 +397,7 @@ ls -la ~/helm/
 Si los ves, el PASO 3 está terminado. Continúa al PASO 4.
 
 > **Nota sobre las contraseñas:** la contraseña que pusiste aquí
-> (`RabbitQA#2026` y `RabbitPROD#2026`) deberá ser exactamente la misma
+> (`<TU_PASSWORD_DE_RABBIT>` y `<TU_PASSWORD_DE_RABBIT>`) deberá ser exactamente la misma
 > que configures en el PASO 6 como variable de entorno `SPRING_RABBITMQ_PASSWORD`
 > en tus deployments. Si no coinciden, Spring Boot no podrá conectarse a RabbitMQ.
 
@@ -440,7 +440,7 @@ spec:
         - name: RABBITMQ_DEFAULT_USER
           value: "admin"
         - name: RABBITMQ_DEFAULT_PASS
-          value: "RabbitQALuvianos#2026"
+          value: "<TU_PASSWORD_DE_RABBIT>"
         resources:
           requests:
             memory: "128Mi"
@@ -538,7 +538,7 @@ spec:
         - name: RABBITMQ_DEFAULT_USER
           value: "admin"
         - name: RABBITMQ_DEFAULT_PASS
-          value: "RabbitPROD#2026"
+          value: "<TU_PASSWORD_DE_RABBIT>"
         resources:
           requests:
             memory: "256Mi"
@@ -627,7 +627,7 @@ kubectl set env deployment/proyecto-key-deployment -n qa \
   SPRING_RABBITMQ_HOST=rabbitmq \
   SPRING_RABBITMQ_PORT=5672 \
   SPRING_RABBITMQ_USERNAME=admin \
-  SPRING_RABBITMQ_PASSWORD=RabbitQALuvianos#2026 \
+  SPRING_RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   SPRING_RABBITMQ_VIRTUAL_HOST=/
 
 # En micro_imagenes (ajusta el nombre del deployment según lo que viste arriba)
@@ -635,7 +635,7 @@ kubectl set env deployment/imagenes-deployment -n qa \
   SPRING_RABBITMQ_HOST=rabbitmq \
   SPRING_RABBITMQ_PORT=5672 \
   SPRING_RABBITMQ_USERNAME=admin \
-  SPRING_RABBITMQ_PASSWORD=RabbitQALuvianos#2026 \
+  SPRING_RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   SPRING_RABBITMQ_VIRTUAL_HOST=/
 ```
 
@@ -648,14 +648,14 @@ kubectl set env deployment/proyecto-key-deployment -n default \
   SPRING_RABBITMQ_HOST=rabbitmq \
   SPRING_RABBITMQ_PORT=5672 \
   SPRING_RABBITMQ_USERNAME=admin \
-  SPRING_RABBITMQ_PASSWORD=RabbitPROD#2026 \
+  SPRING_RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   SPRING_RABBITMQ_VIRTUAL_HOST=/
 
 kubectl set env deployment/<nombre-deployment-imagenes> -n default \
   SPRING_RABBITMQ_HOST=rabbitmq \
   SPRING_RABBITMQ_PORT=5672 \
   SPRING_RABBITMQ_USERNAME=admin \
-  SPRING_RABBITMQ_PASSWORD=RabbitPROD#2026 \
+  SPRING_RABBITMQ_PASSWORD=<TU_PASSWORD_DE_RABBIT> \
   SPRING_RABBITMQ_VIRTUAL_HOST=/
 ```
 
@@ -752,8 +752,8 @@ kubectl port-forward svc/rabbitmq 15673:15672 -n default
 ```
 
 Luego abre en tu navegador:
-- QA:   `http://localhost:15672`  → usuario: `admin` / contraseña: `RabbitQA#2026`
-- PROD: `http://localhost:15673`  → usuario: `admin` / contraseña: `RabbitPROD#2026`
+- QA:   `http://localhost:15672`  → usuario: `admin` / contraseña: `<TU_PASSWORD_DE_RABBIT>`
+- PROD: `http://localhost:15673`  → usuario: `admin` / contraseña: `<TU_PASSWORD_DE_RABBIT>`
 
 > El port-forward es temporal. Se cierra cuando cierras la terminal.
 > Para el día a día de desarrollo es suficiente.
