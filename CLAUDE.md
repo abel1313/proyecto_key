@@ -655,7 +655,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
-| `migration_renombre_producto_etiquetas.sql` | ⏳ pendiente (primero QA) | ⏳ pendiente | 2026-10-20 |
+| `migration_renombre_producto_etiquetas.sql` | ✅ corrida | ✅ corrida | 2026-10-20 |
 | `migration_sesion_refresh_gracia.sql` (ventana de gracia del refresh token: `jti_anterior`, `rotado_en`) | ✅ corrida (2 columnas verificadas) | ⏳ pendiente | 2026-10-14 |
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ✅ corrida (0 filas, nada que reparar) | 2026-09-29 / prod 2026-09-30 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
