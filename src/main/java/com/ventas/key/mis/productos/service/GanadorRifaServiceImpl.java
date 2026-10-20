@@ -137,7 +137,7 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         resultado.setRifaTerminada(rifaTerminada);
 
         messagingTemplate.convertAndSend("/topic/ruleta", resultado);
-        log.info("Sorteo rifa={} variante={} palabraClave={} giro={}/{} esGanador={}",
+        log.info("Sorteo rifa={} articulo={} palabraClave={} giro={}/{} esGanador={}",
                 configurarRifaId, varianteActual.getOrden(), varianteActual.getPalabraClave(),
                 giroActual, varianteActual.getGiroGanador(), esGanador);
         return resultado;

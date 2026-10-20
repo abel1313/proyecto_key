@@ -539,7 +539,7 @@ public class ProductosServiceImpl extends
                         }
                     }
                     iVarianteImagenRepository.saveAll(varianteImagenes);
-                    log.info("Se asignaron {} imágenes a {} variantes del producto {}", microImagenes.size(), variantes.size(), prodExistenteNoOpt.getId());
+                    log.info("Se asignaron {} imágenes a {} artículos del producto {}", microImagenes.size(), variantes.size(), prodExistenteNoOpt.getId());
                 }
             }
 

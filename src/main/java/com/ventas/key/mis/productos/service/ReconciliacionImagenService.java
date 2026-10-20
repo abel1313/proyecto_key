@@ -98,7 +98,7 @@ public class ReconciliacionImagenService {
             }
             resultado.setEnProceso(false);
             ultimoResultado = resultado;
-            log.info("Reconciliacion completada: {} productos, {} variantes, {} reparados, {} faltantes en disco",
+            log.info("Reconciliacion completada: {} productos, {} artículos, {} reparados, {} faltantes en disco",
                     resultado.getProductosRevisados(), resultado.getVariantesRevisadas(),
                     resultado.getReparados().size(), resultado.getFaltantesEnDisco().size());
         } catch (Exception e) {
@@ -155,8 +155,8 @@ public class ReconciliacionImagenService {
                 req.setImagenId(rel.getImagen().getId());
                 aReenviar.add(req);
             } else {
-                resultado.getFaltantesEnDisco().add("VARIANTE id=" + variante.getId() + " | " + nombreArchivo);
-                log.warn("Archivo faltante en disco - VARIANTE id={} archivo={}", variante.getId(), nombreArchivo);
+                resultado.getFaltantesEnDisco().add("ARTÍCULO id=" + variante.getId() + " | " + nombreArchivo);
+                log.warn("Archivo faltante en disco - ARTÍCULO id={} archivo={}", variante.getId(), nombreArchivo);
             }
         }
 
@@ -164,11 +164,11 @@ public class ReconciliacionImagenService {
             try {
                 imagenProductoClienteVPS.saveAll(aReenviar);
                 aReenviar.forEach(r -> resultado.getReparados().add(
-                        "VARIANTE id=" + variante.getId() + " imagenId=" + r.getImagenId()));
+                        "ARTÍCULO id=" + variante.getId() + " imagenId=" + r.getImagenId()));
                 resultado.setVariantesRevisadas(resultado.getVariantesRevisadas() + aReenviar.size());
-                log.info("Re-enviadas {} imagenes de la variante {}", aReenviar.size(), variante.getId());
+                log.info("Re-enviadas {} imagenes del artículo {}", aReenviar.size(), variante.getId());
             } catch (Exception e) {
-                log.error("Error re-enviando imagenes de la variante {}: {}", variante.getId(), e.getMessage());
+                log.error("Error re-enviando imagenes del artículo {}: {}", variante.getId(), e.getMessage());
             }
         }
     }

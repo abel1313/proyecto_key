@@ -460,7 +460,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private List<VarianteImagen> filtrarRelacionesConImagen(List<VarianteImagen> relaciones, Integer varianteId) {
         List<VarianteImagen> validas = relaciones.stream().filter(vi -> vi.getImagen() != null).toList();
         if (validas.size() < relaciones.size()) {
-            log.warn("varianteId={} tiene {} relacion(es) variante_imagen huerfana(s) (imagen_id nulo/inexistente), se omiten",
+            log.warn("articuloId={} tiene {} relacion(es) variante_imagen huerfana(s) (imagen_id nulo/inexistente), se omiten",
                     varianteId, relaciones.size() - validas.size());
         }
         return validas;
@@ -494,13 +494,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         try {
             existentesList = imageneClienteDisco.verificarExistentes(ids);
         } catch (Exception e) {
-            log.warn("Error verificando existencia en micro para varianteId={}: {}", varianteId, e.getMessage());
+            log.warn("Error verificando existencia en micro para articuloId={}: {}", varianteId, e.getMessage());
             existentesList = List.of();
         }
         // Micro sin responder: se mandan todas igual. Una URL que quizá falle es mejor que un
         // carrusel vacío — el navegador se salta la rota y las buenas se siguen viendo.
         if (existentesList.isEmpty()) {
-            log.warn("verificarExistentes vacío para varianteId={}, se mandan todas las URLs", varianteId);
+            log.warn("verificarExistentes vacío para articuloId={}, se mandan todas las URLs", varianteId);
         }
         Set<Long> aMostrar = existentesList.isEmpty() ? Set.copyOf(ids) : Set.copyOf(existentesList);
 
@@ -541,14 +541,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         try {
             existentesList = imageneClienteDisco.verificarExistentes(imagenIds);
         } catch (Exception e) {
-            log.warn("Error verificando imágenes en micro para varianteId={}: {}", varianteId, e.getMessage());
+            log.warn("Error verificando imágenes en micro para articuloId={}: {}", varianteId, e.getMessage());
             existentesList = List.of();
         }
 
         // Si la verificación devuelve vacío, usar BD local como fallback (consistente con el listado).
         List<VarianteImagen> conImagen;
         if (existentesList.isEmpty()) {
-            log.warn("verificarExistentes vacío para varianteId={} (paginado), usando BD local como fallback", varianteId);
+            log.warn("verificarExistentes vacío para articuloId={} (paginado), usando BD local como fallback", varianteId);
             conImagen = todas;
         } else {
             Set<Long> existentes = new HashSet<>(existentesList);
