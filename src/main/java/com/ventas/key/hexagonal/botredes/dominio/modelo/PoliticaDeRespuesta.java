@@ -1,5 +1,7 @@
 package com.ventas.key.hexagonal.botredes.dominio.modelo;
 
+import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -24,7 +26,15 @@ public final class PoliticaDeRespuesta {
                     + "|\\b(mand|envi)(é|e|o|amos|aré|aremos)\\s+(un\\s+)?(correo|mail|e-?mail|aviso)"
                     + "|\\b(notifiqu|notific)(é|e|amos|aré|ado)\\b"
                     + "|\\bbot\\s+en\\s+pausa\\b|\\bpausad[oa]\\b"
-                    + "|\\binstrucciones\\b|\\bprompt\\b",
+                    + "|\\binstrucciones\\b|\\bprompt\\b"
+                    // P1 (2026-10-20): el mismo filtro lo usan ahora el chat de la tienda y el chat en vivo.
+                    // Lista con FRASES, no palabras sueltas, para no detener respuestas normales.
+                    + "|\\bopen\\s?ai\\b|\\bchat\\s?gpt\\b|\\bgpt-?\\d\\w*\\b|\\bdeep\\s?seek\\b"
+                    + "|\\bmodelo\\s+de\\s+lenguaje\\b|\\bmis\\s+instrucciones\\b"
+                    + "|\\bc[oó]digo\\s+de\\s+barras\\b"
+                    // Cantidad exacta en existencia: "quedan 3", "solo queda 1", "tenemos 5 piezas".
+                    + "|\\bquedan?\\s+(solo\\s+|únicamente\\s+|apenas\\s+)?\\d+\\b"
+                    + "|\\b(tenemos|hay)\\s+\\d+\\s+(piezas|pzas|unidades)\\b",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private static final Pattern SALUDO_AL_INICIO = Pattern.compile(
@@ -99,7 +109,19 @@ public final class PoliticaDeRespuesta {
     }
 
     public static boolean mencionaAlgoInterno(String texto) {
-        return texto != null && ALGO_INTERNO.matcher(texto).find();
+        return queMenciona(texto).isPresent();
+    }
+
+    /**
+     * La frase que hizo saltar el filtro, para dejarla en el log y revisar si fue una falsa alarma.
+     * Solo devuelve el fragmento que coincidió, nunca el mensaje completo del cliente.
+     */
+    public static Optional<String> queMenciona(String texto) {
+        if (texto == null) {
+            return Optional.empty();
+        }
+        Matcher m = ALGO_INTERNO.matcher(texto);
+        return m.find() ? Optional.of(m.group()) : Optional.empty();
     }
 
     /** Foto, audio o sticker sin texto: el bot no los puede leer. */

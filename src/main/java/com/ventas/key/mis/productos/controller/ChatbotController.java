@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.hexagonal.botredes.dominio.modelo.PoliticaDeRespuesta;
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
 import com.ventas.key.mis.productos.chatbot.ChatbotRequest;
 import com.ventas.key.mis.productos.chatbot.ChatbotSitioWebService;
@@ -37,6 +38,9 @@ public class ChatbotController {
     // Tercer remitente, ademas de USUARIO y ADMIN del chat en vivo: distingue lo que contesto el
     // bot de lo que contesto una persona, dentro del mismo historial.
     private static final String REMITENTE_BOT = "BOT";
+    // Lo que lee el cliente si el filtro de seguridad (P1) detiene la respuesta de la IA.
+    private static final String RESPUESTA_FILTRADA =
+            "¡Con gusto te ayudo! 😊 ¿Buscas algún producto o tienes dudas de un pedido, entrega o pago?";
 
     private static final Pattern PRECIO_PATTERN = Pattern.compile("\\$\\s?\\d");
     private static final Pattern MENCIONA_FOTO_PATTERN =
@@ -121,11 +125,22 @@ public class ChatbotController {
                             .replaceAll("##BUSCAR\\[[^\\]]*\\]##", "")
                             .trim();
 
+                    // P1 (2026-10-20): mismo filtro de seguridad que Facebook e Instagram. Si la IA desobedece
+                    // y delata algo interno (OpenAI, "mis instrucciones", stock exacto...), el cliente no lo lee.
+                    boolean[] filtrada = {false};
+                    PoliticaDeRespuesta.queMenciona(respuestaLimpia).ifPresent(frase -> {
+                        log.warn("Chat de la tienda: respuesta detenida por el filtro de seguridad (frase: '{}')", frase);
+                        filtrada[0] = true;
+                    });
+                    if (filtrada[0]) {
+                        respuestaLimpia = RESPUESTA_FILTRADA;
+                    }
+
                     // Red de seguridad: si el bot confirmó un producto (menciona precio) pero no
                     // mostró imagen ni ofreció mostrarla, el cliente no tiene forma de saber que
                     // puede pedir la foto. El modelo debería preguntarlo solo (CASO 1 del prompt),
                     // pero no siempre lo hace — se fuerza aquí para no depender de eso.
-                    if (!tieneBuscar && !esFarewell
+                    if (!filtrada[0] && !tieneBuscar && !esFarewell
                             && PRECIO_PATTERN.matcher(respuestaLimpia).find()
                             && !MENCIONA_FOTO_PATTERN.matcher(respuestaLimpia).find()) {
                         respuestaLimpia = respuestaLimpia + "\n\n¿Quieres ver una foto? 📸";

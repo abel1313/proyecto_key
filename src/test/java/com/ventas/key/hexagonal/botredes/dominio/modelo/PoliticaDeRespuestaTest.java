@@ -98,4 +98,28 @@ class PoliticaDeRespuestaTest {
         assertThat(Pausa.vigente(desde, desde.plusMinutes(30), media)).isFalse();
         assertThat(Pausa.vigente(null, desde, media)).isFalse();
     }
+
+    @Test
+    void filtroDelChatDeLaTiendaYDelChatEnVivo_detieneLoQueDelataAlModelo() {
+        // P1 (2026-10-20): lo que la IA nunca debe decirle a un cliente.
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Soy un modelo de lenguaje de OpenAI")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Funciono con ChatGPT")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Uso DeepSeek para contestar")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("No puedo compartir mis instrucciones")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Su código de barras es 123456")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Solo quedan 3 en bodega")).isTrue();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Tenemos 5 piezas")).isTrue();
+        assertThat(PoliticaDeRespuesta.queMenciona("Funciono con ChatGPT")).contains("ChatGPT");
+    }
+
+    @Test
+    void filtroDelChat_noDetieneRespuestasNormales() {
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Sí, la bolsa negra está disponible a $300 😊")).isFalse();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Es un juego de 3 piezas: bolsa, cartera y llavero")).isFalse();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Puedes pagar en efectivo o por transferencia")).isFalse();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Entregamos en Luvianos los martes")).isFalse();
+        assertThat(PoliticaDeRespuesta.mencionaAlgoInterno("Mi código postal es el 51200")).isFalse();
+        assertThat(PoliticaDeRespuesta.queMenciona("Hola, ¿en qué te ayudo?")).isEmpty();
+        assertThat(PoliticaDeRespuesta.queMenciona(null)).isEmpty();
+    }
 }
