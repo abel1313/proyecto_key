@@ -55,7 +55,7 @@ public class PublicacionSocialService {
     public PublicacionSocialDto publicarEnFacebook(PublicarFacebookRequest request, MultipartFile imagenNueva) {
         Variantes variante = varianteRepository.findById(request.getVarianteId())
                 .orElseThrow(() -> new ExceptionDataNotFound(
-                        "No existe la variante con id " + request.getVarianteId()));
+                        "No existe el artículo con id " + request.getVarianteId()));
 
         byte[] bytesImagen = null;
         String contentType = null;
@@ -134,7 +134,7 @@ public class PublicacionSocialService {
     public PublicacionSocialDto publicarEnInstagram(PublicarInstagramRequest request) {
         Variantes variante = varianteRepository.findById(request.getVarianteId())
                 .orElseThrow(() -> new ExceptionDataNotFound(
-                        "No existe la variante con id " + request.getVarianteId()));
+                        "No existe el artículo con id " + request.getVarianteId()));
 
         Long imagenId = request.getImagenId() != null ? request.getImagenId() : imagenPrincipalDe(variante.getId());
 
@@ -196,7 +196,7 @@ public class PublicacionSocialService {
             return null;
         }
         return varianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id " + varianteId));
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo con id " + varianteId));
     }
 
     private byte[] leerBytes(MultipartFile video, String etiqueta) {
@@ -301,7 +301,7 @@ public class PublicacionSocialService {
                 ImagenDto imagen = imagenPort.getOne(p.getImagenId());
                 if (imagen == null || imagen.getImagen() == null) {
                     throw new ExceptionErrorInesperado(
-                            "La variante " + p.getVariante().getId() + " no tiene una imagen disponible para publicar");
+                            "El artículo " + p.getVariante().getId() + " no tiene una imagen disponible para publicar");
                 }
                 bytes = imagen.getImagen();
                 contentType = imagen.getContentType();
@@ -349,7 +349,7 @@ public class PublicacionSocialService {
         List<VarianteImagen> imagenes = varianteImagenRepository.findByVarianteIdIn(List.of(varianteId));
         if (imagenes.isEmpty()) {
             throw new ExceptionErrorInesperado(
-                    "La variante " + varianteId + " no tiene ninguna imagen guardada");
+                    "El artículo " + varianteId + " no tiene ninguna imagen guardada");
         }
         // La query ya ordena principal=true primero.
         return imagenes.get(0).getImagen().getId();

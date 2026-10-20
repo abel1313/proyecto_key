@@ -50,7 +50,7 @@ public class ResenaServiceImpl {
         }
         Cliente cliente = clienteActual();
         Variantes variante = iVarianteRepository.findById(dto.getVarianteId())
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + dto.getVarianteId()));
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo con id: " + dto.getVarianteId()));
 
         if (iResenaRepository.existsByCliente_IdAndVariante_Id(cliente.getId(), variante.getId())) {
             throw new RuntimeException("Ya dejaste una resena para este producto, puedes editarla en vez de crear otra");

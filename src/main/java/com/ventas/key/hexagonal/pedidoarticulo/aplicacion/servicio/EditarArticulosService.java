@@ -273,7 +273,7 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
                 .orElseThrow(() -> ArticuloNoEncontradoException.enCatalogo(varianteId));
         if (!articulo.modeloHabilitado()) {
             throw new EdicionPedidoException("'" + articulo.nombre()
-                    + "' ya no está a la venta: el producto está deshabilitado o dado de baja");
+                    + "' ya no está a la venta: el modelo está deshabilitado o dado de baja");
         }
         if (!articulo.habilitado()) {
             throw new EdicionPedidoException("'" + articulo.nombre()

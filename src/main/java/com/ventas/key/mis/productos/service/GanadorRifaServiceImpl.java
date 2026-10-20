@@ -64,12 +64,12 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
                 .findByConfigurarRifaIdOrderByOrdenAsc(configurarRifaId);
 
         if (variantes.isEmpty()) {
-            throw new RuntimeException("La rifa no tiene variantes configuradas");
+            throw new RuntimeException("La rifa no tiene artículos configurados");
         }
 
         long ganadoresDeclarados = iGanadorRifaRepository.countGanadoresByRifaId(configurarRifaId);
         if (ganadoresDeclarados >= variantes.size()) {
-            throw new RuntimeException("Todas las variantes ya fueron sorteadas");
+            throw new RuntimeException("Todos los artículos ya fueron sorteados");
         }
 
         ConfigurarRifaVariante varianteActual = variantes.get((int) ganadoresDeclarados);
@@ -82,7 +82,7 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
                         configurarRifaId, varianteActual.getPalabraClave());
 
         if (elegibles.isEmpty()) {
-            throw new RuntimeException("No hay concursantes elegibles para la variante con palabraClave='"
+            throw new RuntimeException("No hay concursantes elegibles para el artículo con palabraClave='"
                     + varianteActual.getPalabraClave() + "'");
         }
 
@@ -154,7 +154,7 @@ public class GanadorRifaServiceImpl extends CrudAbstractServiceImpl<GanadorRifa,
         long ganadoresDeclarados = iGanadorRifaRepository.countGanadoresByRifaId(configurarRifaId);
 
         if (ganadoresDeclarados >= variantes.size()) {
-            throw new RuntimeException("No hay siguiente variante");
+            throw new RuntimeException("No hay siguiente artículo");
         }
 
         ConfigurarRifaVariante varianteAnterior = variantes.get((int) ganadoresDeclarados - 1);

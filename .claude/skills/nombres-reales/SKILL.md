@@ -62,7 +62,7 @@ Rutas de los repos: back `/home/user/proyecto_key` (o `proyecto_key_new`), front
 | Tienda | Tienda | `tienda/buscar` |
 | Catálogo | Modelos | `productos/buscar` |
 | Catálogo | Agregar modelo | `productos/agregar` |
-| Catálogo | Agregar producto | `tienda/venta` |
+| Catálogo | Agregar artículo (antes "Agregar producto"; cambia al correr `migration_renombre_articulo_etiquetas.sql`) | `tienda/venta` |
 | Catálogo | Carga rápida de imágenes | `carga-imagenes` |
 | Catálogo | Cargar Excel | `tienda/cargar-excel` |
 | Catálogo | Categorías | `palabras-clave` |
@@ -75,7 +75,7 @@ Rutas de los repos: back `/home/user/proyecto_key` (o `proyecto_key_new`), front
 | Ventas | Gastos | `gastos/buscar` |
 | Reportes | Dashboard | `dashboard` |
 | Reportes | Reportes de ventas | `reportes` |
-| Rifas | Rifa de productos | `rifas/agregar` |
+| Rifas | Rifa de artículos (antes "Rifa de productos"; cambia al correr `migration_renombre_articulo_etiquetas.sql`) | `rifas/agregar` |
 | Rifas | Rifa mensual | `rifas/mes` |
 | Rifas | Ver rifas activas | `rifas/buscar` |
 | Rifas | Boletos de rifa | `rifas/boletos` |

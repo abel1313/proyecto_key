@@ -80,10 +80,10 @@ public class ConfigurarRifaVarianteService {
         }
 
         Variantes variante = iVarianteRepository.findById(req.getVarianteId())
-                .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado"));
 
         if (variante.getStock() < 1) {
-            throw new ExceptionErrorInesperado("La variante no tiene stock disponible");
+            throw new ExceptionErrorInesperado("El artículo no tiene stock disponible");
         }
 
         variante.setStock(variante.getStock() - 1);
@@ -110,9 +110,9 @@ public class ConfigurarRifaVarianteService {
             iVarianteRepository.save(anterior);
 
             Variantes nueva = iVarianteRepository.findById(req.getVarianteId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada"));
+                    .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado"));
             if (nueva.getStock() < 1) {
-                throw new ExceptionErrorInesperado("La variante no tiene stock disponible");
+                throw new ExceptionErrorInesperado("El artículo no tiene stock disponible");
             }
             nueva.setStock(nueva.getStock() - 1);
             iVarianteRepository.save(nueva);
@@ -137,7 +137,7 @@ public class ConfigurarRifaVarianteService {
             allEntries = true)
     public void eliminar(Integer id) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
-                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de artículo no encontrada"));
 
         Variantes variante = crv.getVariante();
         variante.setStock(variante.getStock() + crv.getStockReservado());
@@ -167,7 +167,7 @@ public class ConfigurarRifaVarianteService {
             allEntries = true)
     public ConfigurarRifaVarianteDto editar(Integer id, ConfigurarRifaVarianteEditarRequest req) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
-                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de artículo no encontrada"));
 
         if (req.getGiroGanador() != null) {
             if (req.getGiroGanador() < 1) {
@@ -196,9 +196,9 @@ public class ConfigurarRifaVarianteService {
             iVarianteRepository.save(anterior);
 
             Variantes nueva = iVarianteRepository.findById(req.getVarianteId())
-                    .orElseThrow(() -> new ExceptionDataNotFound("Variante no encontrada"));
+                    .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado"));
             if (nueva.getStock() < 1) {
-                throw new ExceptionErrorInesperado("La variante no tiene stock disponible");
+                throw new ExceptionErrorInesperado("El artículo no tiene stock disponible");
             }
             nueva.setStock(nueva.getStock() - 1);
             iVarianteRepository.save(nueva);
@@ -216,7 +216,7 @@ public class ConfigurarRifaVarianteService {
     @Transactional
     public ConfigurarRifaVarianteDto actualizarPalabraClave(Integer id, String nuevaPalabraClave) {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
-                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de variante no encontrada"));
+                .orElseThrow(() -> new ExceptionDataNotFound("Configuración de artículo no encontrada"));
 
         if (iConfigurarRifaVarianteRepository.existsByConfigurarRifaIdAndPalabraClave(
                 crv.getConfigurarRifa().getId(), nuevaPalabraClave.toUpperCase().trim())) {

@@ -187,6 +187,17 @@ Formato de cada entrada:
 - [ ] Rol con solo `tienda/buscar:filtro-sin-stock` (sin pantallas de Catálogo) → `admin/filtrar` 200; sin ningún filtro de admin ni pantalla de Catálogo → 403; `/v1/variantes/admin/sin-stock` con solo el filtro → sigue 403
 - [ ] Ajuste con el stock igual al leído → guarda; si otra operación lo cambió en medio → 400 "El stock del modelo cambió mientras lo ajustabas…" y no escribe ni limpia cachés *(UPDATE comprobado en MySQL el 2026-10-08)*
 - [ ] Modelo con `stock` NULL → se toma como 0 y el ajuste +5 guarda 5
+### 2026-10-08 — Renombre variante → artículo, retomado (rama `rename/variante-a-articulo`)
+**Dónde:** `migration_renombre_articulo_etiquetas.sql`; front: textos de buscadores y pantallas (`RENOMBRE_VARIANTE_A_ARTICULO.md` §1.1) y `e2e/`
+**Tipo:** MySQL (script) · e2e (front)
+**Debe comprobar:**
+- [ ] Script en base con los textos de las migraciones: menú `tienda/venta` → "Agregar artículo"; ninguna etiqueta/descripción/categoría con "variante"; "de la variante" → "del artículo" (nunca "de el"); claves (`crear-variantes`) y `rol_accion` sin cambios *(comprobado en base desechable el 2026-10-08, dos corridas y con safe updates)*
+- [ ] Segunda corrida → 0 filas cambiadas
+- [ ] Un test que recorra los `.html` y falle si un texto visible (texto, `title`, `placeholder`, `alt`, `aria-label`) dice "variante"
+- [ ] e2e: los buscadores de Venta directa, detalle de pedido y Modelos se encuentran por su placeholder nuevo; Tienda → Buscar sigue con "Buscar nombre o código…"
+- [ ] Mensajes del back (§1.3): modelo deshabilitado al vender o editar un pedido → "…el modelo está deshabilitado…"; precio inválido sin rebaja → "(normal, este artículo no tiene rebaja cargada)"; crear artículos sin stock libre → "Stock insuficiente en el modelo 'X'…"; cancelar un Ir pagando que ya se llevó → "Ir pagando cancelado. Stock NO devuelto (el cliente ya se llevó los artículos)…"
+- [ ] Script con la fila de Rifas: `rifas/agregar` → "Rifa de artículos" en `nombre`, `descripcion` y en el `descripcion_escritura` compartido de Rifas *(comprobado en base desechable el 2026-10-08)*
+- [ ] Script, segunda pasada: explicaciones de Diagnóstico de imágenes, Categorías, Reportes de ventas y Publicar en redes; permiso 💲 (`cambiar-precio`) con la explicación por artículo (233 caracteres, cabe en 255); `tema_variable.filtros-panel-bg` → "(Tienda y Modelos)"; "variante oscura" de los colores **no** cambia *(comprobado en base desechable el 2026-10-08)*
 
 ### 2026-10-08 — Agregar artículo: todos los modelos, habilitar y agregar stock al momento
 **Dónde:** `DisponibilidadStock.conAjuste()/articulosQueAunCaben()`, `AjustarStockModeloService`, `ConsultarStockJpaAdapter` (habilitado y foto), `GuardarStockModeloJpaAdapter`, `StockController` (`PUT /v1/stock/producto/{id}/ajuste`), `ProductosServiceImpl.findNombreOrCodigoBarra(…, todos)`, `AuthenticationUtils.tieneAccion()/puedeVerTodosLosModelos()`, `SecurityConfig`, `migration_accion_tienda_venta_ver_todos.sql`; front `variante/agregar`
@@ -368,6 +379,22 @@ Formato de cada entrada:
 - [ ] Consulta para revisar en QA/prod lo que nació (contenido neto y categoría del modelo contra el artículo):
       `SELECT v.id, v.contenido_neto, p.contenido_neto, v.palabra_clave_id, p.palabra_clave_id FROM variantes v JOIN producto p ON p.id = v.producto_id ORDER BY v.id DESC LIMIT 5;`
 
+### 2026-10-06 — Renombre variante → artículo: rutas `/v2/articulos` en espejo de `/v1/variantes`
+**Dónde:** `VarianteController`, `ConfigurarRifaVarianteController`, `GanadorRifaControllerImpl.continuarVariante`,
+`ProductosControllerImpl` (reporte sin artículos, compartir imágenes), `ResenaController`, `SecurityConfig`
+**Tipo:** controller (MockMvc con seguridad real)
+**Debe comprobar:**
+- [ ] Para cada `requestMatchers` que contiene `/v1/variantes`, la misma regla contiene `/v2/articulos` (recorrer la configuración, no a mano).
+- [ ] `GET /v2/articulos/para-pedido` sin token → 401; con token sin `agregar-articulo` ni `cambiar-articulo` → 403; igual que `/v1/variantes/para-pedido`.
+- [ ] `GET /v2/articulos/getAll` y `/getOne/1` sin token → 401 (no públicos), igual que en `/v1`.
+- [ ] `GET /v2/articulos/buscar?termino=bol` sin token → 200 con el mismo cuerpo que `/v1/variantes/buscar?termino=bol`.
+- [ ] `GET /v2/articulos/5/producto-id` y `/v1/variantes/variante/5/producto-id` → mismo `productoId`.
+- [ ] `PUT /v2/articulos/5/habilitar` con un rol sin la acción `habilitar` → 403.
+- [ ] `DELETE /v2/articulos/deleteBy/5` con la acción `eliminar` → 200 `"Artículo eliminado correctamente"`.
+- [ ] `/v2/configurarRifaArticulo/porRifa/1` sin pantalla de rifas → 403; con ella → mismo cuerpo que `/v1/configurarRifaVariante/porRifa/1`.
+- [ ] `GET /v1/productos/admin/sin-articulos/reporte` sin la acción `descargar-excel` → 403; con ella → archivo `productos_sin_articulos.xlsx`.
+- [ ] La app arranca sin "Ambiguous mapping" (las dos rutas de `producto-id` y la doble ruta de clase).
+
 ### 2026-10-06 — Permisos de Mis pedidos al día (`migration_accion_pedidos_filtros_y_cobro.sql`)
 **Dónde:** catálogo `accion_submenu` / `rol_accion` de `pedidos/mis-pedidos` · `GET /v1/accion-submenu/**`
 **Tipo:** MySQL (script sobre esquema real) + controller del catálogo
@@ -420,3 +447,7 @@ Formato de cada entrada:
 | `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |
 | `ChatbotComentariosTest.conProductoLeDaAlBotLosDatosDeEseProductoConElPrecioNormalNuncaLaRebaja` | `dev` | 2026-10-14 | Espera que la ficha del producto que ve el bot diga *"2 piezas"*. Por pedido del dueño (P4 de la revisión de prompts) el bot ya no ve cuántas piezas hay: la ficha dice *"Disponibilidad: sí hay"*. El resto del test (nombre, color, precio $350, la rebaja que no se anuncia) sigue igual. Compila; solo falla esa línea. |
 | `BuscarPedidosControllerTest` (ajustado, **no** falla) | `dev` | 2026-10-14 | No es una falla: el controller recibe ahora el caché (`ListasDePedidosEnCache`) y el test se tuvo que tocar **solo para que compile** (se le pasa un caché apagado). Si no compila, el Dockerfile (`-DskipTests` sí compila los tests) rompe el deploy. `src/test/resources/application.properties` lleva `pedidos.lista.cache.habilitado=false` para que ningún test dependa de Redis. |
+| `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. |
+| `VarianteStockDevolucionTest.habilitar_articuloViejoConStock_siAlcanzaNoSeToca` | `rename/variante-a-articulo` | 2026-10-08 | Espera "Variantes habilitadas correctamente."; con el renombrado el mensaje dice "Artículos habilitados correctamente." Solo cambia el texto, el stock se comporta igual. |
+| `ArticuloAVenderTest` (`productoDeshabilitado`, `soloModelo`, `productoPrimero`) | `rename/variante-a-articulo` | 2026-10-08 | Esperan "…el producto está deshabilitado…"; ahora dice "…el **modelo** está deshabilitado…" (§1.3 de `RENOMBRE_VARIANTE_A_ARTICULO.md`). La regla no cambió. |
+| `EditarArticulosServiceTest.productoDeshabilitadoNo` | `rename/variante-a-articulo` | 2026-10-08 | Igual: espera "el producto está deshabilitado o dado de baja"; ahora "el modelo…". |
