@@ -78,16 +78,16 @@ public record DisponibilidadStock(
      */
     public DisponibilidadStock conAjuste(int ajuste) {
         if (ajuste == 0) {
-            throw new AjusteStockInvalidoException("Escribe cuánto stock agregar (+) o quitar (−) al modelo");
+            throw new AjusteStockInvalidoException("Escribe cuánto stock agregar (+) o quitar (−) al producto");
         }
         int nuevo = stockTotal + ajuste;
         if (nuevo < 0) {
             throw new AjusteStockInvalidoException(String.format(
-                    "No se puede quitar %d: el modelo solo tiene %d", -ajuste, stockTotal));
+                    "No se puede quitar %d: el producto solo tiene %d", -ajuste, stockTotal));
         }
         if (nuevo < enVariantes) {
             throw new AjusteStockInvalidoException(String.format(
-                    "No se puede dejar el modelo en %d: ya tiene %d repartidos en sus artículos", nuevo, enVariantes));
+                    "No se puede dejar el producto en %d: ya tiene %d repartidos en sus artículos", nuevo, enVariantes));
         }
         return new DisponibilidadStock(productoId, nombreProducto, nuevo, enVariantes, variantesActivas,
                 enVariantesDeBaja, modeloHabilitado, modeloConFoto);

@@ -99,7 +99,7 @@ public class ConfigurarRifaVarianteService {
         crv.setStockReservado(1);
 
         ConfigurarRifaVariante guardada = iConfigurarRifaVarianteRepository.save(crv);
-        log.info("Variante {} agregada a rifa {} con palabraClave={}", variante.getId(), rifa.getId(), crv.getPalabraClave());
+        log.info("Artículo {} agregado a rifa {} con palabraClave={}", variante.getId(), rifa.getId(), crv.getPalabraClave());
         return toDto(guardada);
     }
 
@@ -126,7 +126,7 @@ public class ConfigurarRifaVarianteService {
         crv.setPermitirNuevos(req.isPermitirNuevos());
 
         ConfigurarRifaVariante guardada = iConfigurarRifaVarianteRepository.save(crv);
-        log.info("Variante {} actualizada (re-test, rifa de prueba {}) con palabraClave={}",
+        log.info("Artículo {} actualizado (re-test, rifa de prueba {}) con palabraClave={}",
                 guardada.getVariante().getId(), guardada.getConfigurarRifa().getId(), guardada.getPalabraClave());
         return toDto(guardada);
     }
@@ -144,7 +144,7 @@ public class ConfigurarRifaVarianteService {
         iVarianteRepository.save(variante);
 
         iConfigurarRifaVarianteRepository.delete(crv);
-        log.info("Variante {} eliminada de rifa {}, stock restaurado", variante.getId(), crv.getConfigurarRifa().getId());
+        log.info("Artículo {} eliminado de rifa {}, stock restaurado", variante.getId(), crv.getConfigurarRifa().getId());
     }
 
     public List<ConfigurarRifaVarianteDto> listarPorRifa(Integer rifaId) {
@@ -325,7 +325,7 @@ public class ConfigurarRifaVarianteService {
         List<Long> ids = iVarianteImagenRepository.findImagenIdsConPrincipalByVarianteId(varianteId)
                 .stream().map(f -> (Long) f[0]).filter(Objects::nonNull).toList();
         if (ids.isEmpty()) {
-            log.info("Premio {} (variante {}) sin fotos en BD", premioId, varianteId);
+            log.info("Premio {} (artículo {}) sin fotos en BD", premioId, varianteId);
             return List.of();
         }
         return ids.stream().map(id -> endpointImagenes + "v1/imagenes/file/" + id).toList();

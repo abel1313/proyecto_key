@@ -16,7 +16,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Mis Productos API")
-                        .description("Microservicio de gestión de productos de tienda de ropa (bolsas, pantalones, faldas). Incluye catálogo, variantes, clientes, pedidos, chatbot y autenticación JWT.")
+                        .description("Microservicio de gestión de productos de tienda de ropa (bolsas, pantalones, faldas). Incluye catálogo, artículos, clientes, pedidos, chatbot y autenticación JWT.")
                         .version("1.0.0"))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
                 .components(new Components()

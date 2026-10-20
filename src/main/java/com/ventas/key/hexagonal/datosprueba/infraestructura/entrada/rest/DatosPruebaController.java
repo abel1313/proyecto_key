@@ -59,7 +59,7 @@ public class DatosPruebaController {
     public ResponseEntity<ResponseGeneric<Integer>> darDeBaja() {
         int articulos = casoUso.darDeBaja();
         return ResponseEntity.ok(new ResponseGeneric<>(articulos,
-                articulos + " artículos de prueba dados de baja (y sus modelos)"));
+                articulos + " artículos de prueba dados de baja (y sus productos)"));
     }
 
     @ExceptionHandler(AmbienteNoPermitidoException.class)

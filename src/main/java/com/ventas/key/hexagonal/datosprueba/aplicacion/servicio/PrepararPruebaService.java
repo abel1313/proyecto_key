@@ -209,8 +209,8 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
         ArticuloGuardado a = modeloNuevo(e, "Productos", 0, 150.0, List.of(new ArticuloDePrueba("M", "Negro", 1))).get(0);
         escenarios.stockDelModelo(a.id(), 3);
         return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(),
-                List.of(dato("M3", CatalogoPreparado.MODELO, a, "Modelo con stock 3 y un artículo con stock 1 con foto")),
-                "Catálogo → 🔍 Modelos → escribe \"QA Prueba 14\" → 🧩 Productos. Sigue la 14-QA desde el paso 1.", null);
+                List.of(dato("M3", CatalogoPreparado.MODELO, a, "Producto con stock 3 y un artículo con stock 1 con foto")),
+                "Catálogo → 🔍 Productos → escribe \"QA Prueba 14\" → 🧩 Artículos. Sigue la 14-QA desde el paso 1.", null);
     }
 
     /**
@@ -228,11 +228,11 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
         escenarios.articuloDeshabilitadoConStock(m10.get(1).id(), 3);
         escenarios.stockDelModelo(m10.get(0).id(), 10);
         return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(), List.of(
-                dato("M5", CatalogoPreparado.MODELO, m5.get(0), "Modelo con stock 5: talla CH habilitada con 4"),
+                dato("M5", CatalogoPreparado.MODELO, m5.get(0), "Producto con stock 5: talla CH habilitada con 4"),
                 dato("M5-baja", CatalogoPreparado.ARTICULO, m5.get(1), "Talla M deshabilitada que guarda 3 (al habilitarla debe quedar en 1)"),
-                dato("M10", CatalogoPreparado.MODELO, m10.get(0), "Modelo con stock 10 y otra categoría: talla CH habilitada con 4"),
+                dato("M10", CatalogoPreparado.MODELO, m10.get(0), "Producto con stock 10 y otra categoría: talla CH habilitada con 4"),
                 dato("M10-baja", CatalogoPreparado.ARTICULO, m10.get(1), "Talla M deshabilitada que guarda 3 (al habilitarla se queda con 3)")),
-                "Paso 3: Tienda → filtro No habilitadas → escribe \"QA Prueba 15\". Pasos 2b y 2c: Agregar producto con \"QA Prueba 15 M5\" y \"QA Prueba 15 M10\".", null);
+                "Paso 3: Tienda → filtro No habilitadas → escribe \"QA Prueba 15\". Pasos 2b y 2c: Agregar artículo con \"QA Prueba 15 M5\" y \"QA Prueba 15 M10\".", null);
     }
 
     /**
@@ -267,11 +267,11 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
         escenarios.habilitarModelo(off.id(), false);
         ArticuloGuardado cero = modeloNuevo(e, "M-0", 0, 150.0, List.of(new ArticuloDePrueba("M", "Negro", 4))).get(0);
         return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(), List.of(
-                dato("M-OFF", CatalogoPreparado.MODELO, off, "Modelo deshabilitado (su artículo sigue habilitado)"),
-                dato("M-0", CatalogoPreparado.MODELO, cero, "Modelo habilitado con stock 4, todo repartido en su artículo: libre 0"),
+                dato("M-OFF", CatalogoPreparado.MODELO, off, "Producto deshabilitado (su artículo sigue habilitado)"),
+                dato("M-0", CatalogoPreparado.MODELO, cero, "Producto habilitado con stock 4, todo repartido en su artículo: libre 0"),
                 usuarioDePrueba(e, List.of("tienda/venta"), List.of(new AccionDePantalla("tienda/venta", "ver-todos-los-modelos")),
-                        "Rol con 🧩 Agregar producto y \"Ver todos los modelos\", sin \"Habilitar\" de Modelos (18.1 paso 3 y 18.2 paso 6)")),
-                "Catálogo → 🧩 Agregar producto → escribe \"QA Prueba 18 M-OFF\" y \"QA Prueba 18 M-0\". Sigue la 18.1. "
+                        "Rol con 🧩 Agregar artículo y \"Ver todos los productos\", sin \"Habilitar\" de Productos (18.1 paso 3 y 18.2 paso 6)")),
+                "Catálogo → 🧩 Agregar artículo → escribe \"QA Prueba 18 M-OFF\" y \"QA Prueba 18 M-0\". Sigue la 18.1. "
                         + "Para los pasos con otro rol: Sistema → Usuarios → \"qa.prueba18\" → Resetear contraseña.", null);
     }
 
@@ -344,8 +344,8 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
         return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(
                 pedido(e, "P1", p1, "🕓 Pendiente, $150"),
                 pedido(e, "P2", p2, "🕓 Pendiente, $150")),
-                List.of(dato("Agotado", CatalogoPreparado.MODELO, agotado, "Modelo con stock 0 (agotado), para la 20.3")),
-                "20.2: abre P1 → 🔗 Unir con otros pedidos → escribe \"Prueba 20 P2\" → Unir 2 pedidos. 20.3: Catálogo → 🔍 Modelos → \"QA Prueba 20 Agotado\".",
+                List.of(dato("Agotado", CatalogoPreparado.MODELO, agotado, "Producto con stock 0 (agotado), para la 20.3")),
+                "20.2: abre P1 → 🔗 Unir con otros pedidos → escribe \"Prueba 20 P2\" → Unir 2 pedidos. 20.3: Catálogo → 🔍 Productos → \"QA Prueba 20 Agotado\".",
                 null);
     }
 

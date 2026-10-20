@@ -72,7 +72,7 @@ public class PublicacionSocialService {
                 throw new ExceptionErrorInesperado("No se pudo leer la imagen enviada: " + e.getMessage());
             }
             contentType = imagenNueva.getContentType();
-            log.info("Publicando en Facebook con imagen ad-hoc (sin guardar en galería), varianteId={}, bytes={}",
+            log.info("Publicando en Facebook con imagen ad-hoc (sin guardar en galería), articuloId={}, bytes={}",
                     variante.getId(), bytesImagen.length);
         } else {
             imagenId = request.getImagenId() != null ? request.getImagenId() : imagenPrincipalDe(variante.getId());
@@ -234,7 +234,7 @@ public class PublicacionSocialService {
         p.setScheduledPublishTime(scheduledPublishTime);
         p.setEstado("PROGRAMADA");
         PublicacionSocial guardada = publicacionSocialRepository.save(p);
-        log.info("Publicación programada: plataforma={}, tipo={}, varianteId={}, para={}",
+        log.info("Publicación programada: plataforma={}, tipo={}, articuloId={}, para={}",
                 p.getPlataforma(), p.getTipoPublicacion(), varianteIdDe(p), scheduledPublishTime);
         return PublicacionSocialDto.from(guardada);
     }
@@ -285,7 +285,7 @@ public class PublicacionSocialService {
         p.setEstado("PUBLICADA");
         p.setFechaPublicacion(LocalDateTime.now());
         p.setContenidoBytes(null); // ya no hace falta, no dejar el blob ocupando espacio
-        log.info("Publicación ejecutada: plataforma={}, tipo={}, varianteId={}, id={}",
+        log.info("Publicación ejecutada: plataforma={}, tipo={}, articuloId={}, id={}",
                 p.getPlataforma(), p.getTipoPublicacion(), varianteIdDe(p), resultId);
     }
 

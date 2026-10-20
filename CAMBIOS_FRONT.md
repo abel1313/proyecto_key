@@ -1345,6 +1345,22 @@ PUT  /productos/update    (cuando se envía imagenPrincipalId)
 
 ---
 
+## RENOMBRADO DE TEXTOS: «modelo» → «producto» — 2026-10-20
+
+**No cambia ningún contrato.** Rutas, campos JSON (`modelos`, `modeloId`, `tipo: "MODELO"`) y claves de
+permiso siguen igual. Solo cambian textos que ve el usuario.
+
+| Antes (texto visible) | Después |
+|---|---|
+| «Modelos», «Agregar modelo», «Actualizar modelo» | «Productos», «Agregar producto», «Actualizar producto» |
+| Mensajes del back que decían «modelo» (stock, disponibilidad, datos de prueba) | Dicen «producto» |
+| Nombres de menú/acciones en Gestión de roles (BD) | Los cambia `migration_renombre_producto_etiquetas.sql` |
+
+Vocabulario: **Producto** = base que agrupa; **Artículo** = lo que se vende. El cliente final sigue viendo
+«producto». Ningún consumidor del JSON se afecta.
+
+---
+
 ## ENDPOINTS MIGRADOS
 
 ---

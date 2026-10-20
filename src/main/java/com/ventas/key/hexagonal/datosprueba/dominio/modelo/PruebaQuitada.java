@@ -30,7 +30,7 @@ public record PruebaQuitada(String prueba, String titulo, int pedidosCancelados,
         }
         StringBuilder texto = new StringBuilder("Se quitó lo de antes: ");
         texto.append(pedidosCancelados).append(pedidosCancelados == 1 ? " pedido cancelado" : " pedidos cancelados");
-        texto.append(" y ").append(modelosDadosDeBaja).append(modelosDadosDeBaja == 1 ? " modelo dado de baja" : " modelos dados de baja");
+        texto.append(" y ").append(modelosDadosDeBaja).append(modelosDadosDeBaja == 1 ? " producto dado de baja" : " productos dados de baja");
         if (otrosDesactivados > 0) {
             texto.append("; ").append(otrosDesactivados)
                     .append(otrosDesactivados == 1 ? " rifa o usuario de prueba desactivado" : " rifas o usuarios de prueba desactivados");

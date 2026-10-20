@@ -1,3 +1,7 @@
+> ⚠️ **OBSOLETO desde 2026-10-20.** Este documento define *Modelo agrupa, Producto se vende* (julio). Hoy es al revés de
+> como se escribe: la variante se llama **Artículo** y el agrupador se llama **Producto**. Vocabulario vigente:
+> `RENOMBRE_MODELO_A_PRODUCTO.md` y la sección "Renombrado modelo → producto" del `CLAUDE.md`. Se conserva como historial.
+
 # Taxonomía de nombres — para el equipo de BACK
 
 **Fecha:** 2026-07-16

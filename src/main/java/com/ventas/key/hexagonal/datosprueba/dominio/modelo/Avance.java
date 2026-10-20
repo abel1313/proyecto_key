@@ -41,7 +41,7 @@ public record Avance(
     }
 
     public Avance conCatalogo(int modelos, int articulos) {
-        return new Avance(estado, "Creando modelos y artículos", modelosPedidos, modelos, articulos, pedidosPedidos,
+        return new Avance(estado, "Creando productos y artículos", modelosPedidos, modelos, articulos, pedidosPedidos,
                 pedidosCreados, pedidosConError, ultimoError, aviso, inicio, fin);
     }
 

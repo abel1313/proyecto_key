@@ -36,13 +36,13 @@ public class StockBajoService {
 
         List<Variantes> bajas = iVarianteRepository.findConStockBajo(umbral);
         if (bajas.isEmpty()) {
-            log.info("StockBajoService: sin variantes en o por debajo del umbral ({})", umbral);
+            log.info("StockBajoService: sin artículos en o por debajo del umbral ({})", umbral);
             return;
         }
 
         List<Usuario> admins = iUsuarioRepository.findByRoles_NombreRolAndEnabledTrue("ROLE_ADMIN");
         if (admins.isEmpty()) {
-            log.warn("StockBajoService: {} variantes bajas pero no hay ningun ADMIN activo a quien avisar", bajas.size());
+            log.warn("StockBajoService: {} artículos bajos pero no hay ningun ADMIN activo a quien avisar", bajas.size());
             return;
         }
 
@@ -51,7 +51,7 @@ public class StockBajoService {
             if (admin.getEmail() == null || admin.getEmail().isBlank()) continue;
             emailService.enviarAlertaStockBajo(admin.getEmail(), lineas, umbral);
         }
-        log.info("StockBajoService: {} variantes bajas, avisado a {} admin(es)", bajas.size(), admins.size());
+        log.info("StockBajoService: {} artículos bajos, avisado a {} admin(es)", bajas.size(), admins.size());
     }
 
     private String formatearLinea(Variantes v) {

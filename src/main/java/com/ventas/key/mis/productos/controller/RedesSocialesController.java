@@ -60,7 +60,7 @@ public class RedesSocialesController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam(required = false) MultipartFile imagenNueva) {
 
-        log.info("Publicar en Facebook - varianteId={}, imagenId={}, imagenNueva={}",
+        log.info("Publicar en Facebook - articuloId={}, imagenId={}, imagenNueva={}",
                 varianteId, imagenId, imagenNueva != null && !imagenNueva.isEmpty());
 
         PublicarFacebookRequest request = new PublicarFacebookRequest();
@@ -78,7 +78,7 @@ public class RedesSocialesController {
         description = "Sube un video junto con la descripción a POST /{page-id}/videos de la Graph API. " +
                 "A diferencia de la foto, el catálogo no guarda video de variantes -- el archivo es " +
                 "obligatorio en cada llamada, nunca se persiste en el microservicio de imágenes. " +
-                "varianteId es OPCIONAL -- el video no depende de un producto del catálogo; si se manda, solo " +
+                "varianteId es OPCIONAL -- el video no depende de un artículo del catálogo; si se manda, solo " +
                 "queda registrado en el historial para saber a qué variante se asoció esa publicación. " +
                 "Si scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro propio job a esa " +
                 "hora; si no, publica de inmediato."
@@ -90,7 +90,7 @@ public class RedesSocialesController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
-        log.info("Publicar video en Facebook - varianteId={}, bytes={}", varianteId, video.getSize());
+        log.info("Publicar video en Facebook - articuloId={}, bytes={}", varianteId, video.getSize());
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarVideoEnFacebook(
                 varianteId, descripcion, scheduledPublishTime, video);
@@ -101,7 +101,7 @@ public class RedesSocialesController {
         summary = "Publicar un Reel en la página de Facebook",
         description = "Sube el video con subida reanudable (POST /{page-id}/video_reels, varios pasos absorbidos " +
                 "aqui) y publica un Reel. Sin validar duracion/proporcion/peso -- lo que Facebook rechace lo " +
-                "rechaza con su propio error. varianteId es OPCIONAL -- el Reel no depende de un producto del " +
+                "rechaza con su propio error. varianteId es OPCIONAL -- el Reel no depende de un artículo del " +
                 "catálogo; si se manda, solo queda registrado en el historial. Si scheduledPublishTime viene, se " +
                 "guarda como PROGRAMADA y la publica nuestro propio job a esa hora (no el scheduler nativo de " +
                 "Meta, por consistencia con Instagram/TikTok que no lo tienen); si no, publica de inmediato. El " +
@@ -114,7 +114,7 @@ public class RedesSocialesController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
-        log.info("Publicar Reel en Facebook - varianteId={}, bytes={}", varianteId, video.getSize());
+        log.info("Publicar Reel en Facebook - articuloId={}, bytes={}", varianteId, video.getSize());
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnFacebook(
                 varianteId, descripcion, scheduledPublishTime, video);
@@ -134,7 +134,7 @@ public class RedesSocialesController {
     public ResponseEntity<ResponseGeneric<PublicacionSocialDto>> publicarEnInstagram(
             @RequestBody PublicarInstagramRequest request) {
 
-        log.info("Publicar en Instagram - varianteId={}, imagenId={}", request.getVarianteId(), request.getImagenId());
+        log.info("Publicar en Instagram - articuloId={}, imagenId={}", request.getVarianteId(), request.getImagenId());
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarEnInstagram(request);
         return ResponseEntity.ok(new ResponseGeneric<>(publicacion));
@@ -213,7 +213,7 @@ public class RedesSocialesController {
                 "el celular. No es Direct Post: el scope video.publish que se necesitaría para auto-publicar no " +
                 "está disponible sin pasar la auditoría de TikTok. Sin validar duración/proporción/peso -- lo " +
                 "que TikTok rechace lo rechaza con su propio error. varianteId es OPCIONAL -- el video no " +
-                "depende de un producto del catálogo; si se manda, solo queda registrado en el historial. Si " +
+                "depende de un artículo del catálogo; si se manda, solo queda registrado en el historial. Si " +
                 "scheduledPublishTime viene, se guarda como PROGRAMADA y la publica (sube el borrador) nuestro " +
                 "propio job a esa hora; si no, sube de inmediato. El archivo es obligatorio en cada llamada, " +
                 "nunca se persiste."
@@ -225,7 +225,7 @@ public class RedesSocialesController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
-        log.info("Publicar en TikTok - varianteId={}, bytes={}", varianteId, video.getSize());
+        log.info("Publicar en TikTok - articuloId={}, bytes={}", varianteId, video.getSize());
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarEnTikTok(
                 varianteId, descripcion, scheduledPublishTime, video);
@@ -237,7 +237,7 @@ public class RedesSocialesController {
         description = "Sube el video con subida reanudable (varios pasos con la Graph API, absorbidos aqui) y " +
                 "publica un Reel. El video se manda tal cual llega -- sin validar duracion/proporcion/peso, " +
                 "vertical u horizontal, lo que Instagram rechace lo rechaza con su propio error. varianteId es " +
-                "OPCIONAL -- el Reel no depende de un producto del catálogo; si se manda, solo queda registrado " +
+                "OPCIONAL -- el Reel no depende de un artículo del catálogo; si se manda, solo queda registrado " +
                 "en el historial. Si scheduledPublishTime viene, se guarda como PROGRAMADA y la publica nuestro " +
                 "propio job (Instagram no tiene programación nativa); si no, publica de inmediato. El archivo es " +
                 "obligatorio en cada llamada, nunca se persiste."
@@ -249,7 +249,7 @@ public class RedesSocialesController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledPublishTime,
             @RequestParam MultipartFile video) {
 
-        log.info("Publicar Reel en Instagram - varianteId={}, bytes={}", varianteId, video.getSize());
+        log.info("Publicar Reel en Instagram - articuloId={}, bytes={}", varianteId, video.getSize());
 
         PublicacionSocialDto publicacion = publicacionSocialService.publicarReelEnInstagram(
                 varianteId, descripcion, scheduledPublishTime, video);

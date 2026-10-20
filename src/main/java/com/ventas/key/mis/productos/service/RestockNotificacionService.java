@@ -43,7 +43,7 @@ public class RestockNotificacionService {
                 emailService.enviarAlertaStock(correo, cliente.getNombrePersona(), nombreProducto, detalleVariante);
             }
         } catch (Exception e) {
-            log.warn("No se pudo notificar restock de variante id={}: {}", variante.getId(), e.getMessage());
+            log.warn("No se pudo notificar restock de artículo id={}: {}", variante.getId(), e.getMessage());
         }
     }
 

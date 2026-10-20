@@ -168,9 +168,9 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
                 log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
             }
 
-            log.info("Carga rapida OK productoId={} varianteId={} imagenId={}", productoId, varianteId, imagenSubida.getId());
+            log.info("Carga rapida OK productoId={} articuloId={} imagenId={}", productoId, varianteId, imagenSubida.getId());
         } catch (Exception e) {
-            log.error("Carga rapida fallo productoId={} varianteId={} archivo={}: {}",
+            log.error("Carga rapida fallo productoId={} articuloId={} archivo={}: {}",
                     productoId, varianteId, nombreArchivo, e.getMessage(), e);
             iProductosRepository.findById(productoId).ifPresent(producto -> {
                 producto.setEstadoImagen(EstadoCargaImagen.FALLIDO);
@@ -363,7 +363,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
             }
         }
         iVarianteRepository.saveAll(variantes);
-        log.info("Carga rapida: se sincronizaron {} variantes del producto {}", variantes.size(), producto.getId());
+        log.info("Carga rapida: se sincronizaron {} artículos del producto {}", variantes.size(), producto.getId());
     }
 
     @Override
@@ -413,7 +413,7 @@ public class CargaImagenesServiceImpl implements ICargaImagenService {
         } catch (Exception e) {
             log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
         }
-        log.info("Se descarto el borrador productoId={} (variantes={}, imagenes={})", productoId, varianteIds.size(), imagenIds.size());
+        log.info("Se descarto el borrador productoId={} (artículos={}, imagenes={})", productoId, varianteIds.size(), imagenIds.size());
     }
 
     private void reemplazarCodigoBarrasPlaceholder(Producto producto, String codigoBarrasReal) {

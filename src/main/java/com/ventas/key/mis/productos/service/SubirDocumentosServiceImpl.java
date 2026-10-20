@@ -109,7 +109,7 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                             varianteRepository.save(variante);
                         }
 
-                        log.info("Fila {}: producto '{}' actualizado, stock {} → {}, {} variante(s) nueva(s).",
+                        log.info("Fila {}: producto '{}' actualizado, stock {} → {}, {} artículo(s) nuevo(s).",
                                 i + 1, producto.getNombre(), stockAnterior, producto.getStock(), stockNuevo);
                         insertados++;
                         continue;
@@ -148,7 +148,7 @@ public class SubirDocumentosServiceImpl implements ISubirDocumentosService {
                         varianteRepository.save(variante);
                     }
 
-                    log.info("Fila {}: producto '{}' insertado con {} variante(s).", i + 1, producto.getNombre(), stockNuevo);
+                    log.info("Fila {}: producto '{}' insertado con {} artículo(s).", i + 1, producto.getNombre(), stockNuevo);
                     insertados++;
 
                 } catch (Exception e) {

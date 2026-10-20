@@ -86,7 +86,7 @@ public class PrepararPruebaController {
         long conError = todas.stream().filter(q -> q.error() != null).count();
         int pedidos = todas.stream().mapToInt(PruebaQuitada::pedidosCancelados).sum();
         int modelos = todas.stream().mapToInt(PruebaQuitada::modelosDadosDeBaja).sum();
-        String mensaje = pedidos + " pedidos cancelados y " + modelos + " modelos dados de baja"
+        String mensaje = pedidos + " pedidos cancelados y " + modelos + " productos dados de baja"
                 + (conError == 0 ? "" : " (" + conError + " pruebas con error)");
         return ResponseEntity.ok(new ResponseGeneric<>(todas, mensaje));
     }

@@ -263,8 +263,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
             String detalleSinFoto = sinFoto == 0 ? ""
                     : String.format(" (%d sin foto: no salen en la tienda, búscalos con el filtro \"Sin imágenes\")", sinFoto);
             throw new ExceptionDataNotFound(String.format(
-                    "No alcanza el stock para crear %d artículo(s): el modelo tiene %d y sus artículos ya tienen %d%s. "
-                            + "Puedes crear %d. Sube el stock del modelo o quítale stock a un artículo.",
+                    "No alcanza el stock para crear %d artículo(s): el producto tiene %d y sus artículos ya tienen %d%s. "
+                            + "Puedes crear %d. Sube el stock del producto o quítale stock a un artículo.",
                     requestVarianteDto.getCantidadVariantes(), producto.getStock(), stockEnVariantes,
                     detalleSinFoto, Math.max(stockDisponible, 0)));
         }
@@ -460,7 +460,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     private List<VarianteImagen> filtrarRelacionesConImagen(List<VarianteImagen> relaciones, Integer varianteId) {
         List<VarianteImagen> validas = relaciones.stream().filter(vi -> vi.getImagen() != null).toList();
         if (validas.size() < relaciones.size()) {
-            log.warn("varianteId={} tiene {} relacion(es) variante_imagen huerfana(s) (imagen_id nulo/inexistente), se omiten",
+            log.warn("articuloId={} tiene {} relacion(es) variante_imagen huerfana(s) (imagen_id nulo/inexistente), se omiten",
                     varianteId, relaciones.size() - validas.size());
         }
         return validas;
@@ -494,13 +494,13 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         try {
             existentesList = imageneClienteDisco.verificarExistentes(ids);
         } catch (Exception e) {
-            log.warn("Error verificando existencia en micro para varianteId={}: {}", varianteId, e.getMessage());
+            log.warn("Error verificando existencia en micro para articuloId={}: {}", varianteId, e.getMessage());
             existentesList = List.of();
         }
         // Micro sin responder: se mandan todas igual. Una URL que quizá falle es mejor que un
         // carrusel vacío — el navegador se salta la rota y las buenas se siguen viendo.
         if (existentesList.isEmpty()) {
-            log.warn("verificarExistentes vacío para varianteId={}, se mandan todas las URLs", varianteId);
+            log.warn("verificarExistentes vacío para articuloId={}, se mandan todas las URLs", varianteId);
         }
         Set<Long> aMostrar = existentesList.isEmpty() ? Set.copyOf(ids) : Set.copyOf(existentesList);
 
@@ -541,14 +541,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         try {
             existentesList = imageneClienteDisco.verificarExistentes(imagenIds);
         } catch (Exception e) {
-            log.warn("Error verificando imágenes en micro para varianteId={}: {}", varianteId, e.getMessage());
+            log.warn("Error verificando imágenes en micro para articuloId={}: {}", varianteId, e.getMessage());
             existentesList = List.of();
         }
 
         // Si la verificación devuelve vacío, usar BD local como fallback (consistente con el listado).
         List<VarianteImagen> conImagen;
         if (existentesList.isEmpty()) {
-            log.warn("verificarExistentes vacío para varianteId={} (paginado), usando BD local como fallback", varianteId);
+            log.warn("verificarExistentes vacío para articuloId={} (paginado), usando BD local como fallback", varianteId);
             conImagen = todas;
         } else {
             Set<Long> existentes = new HashSet<>(existentesList);
@@ -748,7 +748,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         }
         if (!puedeActualizarModelo()) {
             throw new ExceptionErrorInesperado(
-                    "No tienes permiso para cambiar el stock del modelo. Pídele a alguien con permiso de editar modelos");
+                    "No tienes permiso para cambiar el stock del producto. Pídele a alguien con permiso de editar productos");
         }
         for (Map.Entry<Integer, Integer> e : ajustes.entrySet()) {
             Producto producto = iProductosRepository.findById(e.getKey())
@@ -759,7 +759,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                     .filter(v -> v.getHabilitado() == '1').mapToInt(Variantes::getStock).sum();
             if (nuevo < repartido) {
                 throw new ExceptionErrorInesperado(String.format(
-                        "No se puede dejar el modelo en %d: ya tiene %d repartidos en sus artículos", nuevo, repartido));
+                        "No se puede dejar el producto en %d: ya tiene %d repartidos en sus artículos", nuevo, repartido));
             }
             producto.setStock(nuevo);
             iProductosRepository.save(producto);
@@ -834,8 +834,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 // "Stock insuficiente para el producto ... id=..." no decia que hacer). El final
                 // "Disponible: X, Solicitado: Y" se queda igual: lo revisan las pruebas.
                 throw new ExceptionStockInsuficiente(String.format(
-                        "El modelo «%s» no tiene piezas libres para darle a este artículo: tiene %d libres y le pides %d más. "
-                                + "Primero súmale stock al modelo en Catálogo → Modelos → ✏️ Actualizar → «Actualizar stock». "
+                        "El producto «%s» no tiene piezas libres para darle a este artículo: tiene %d libres y le pides %d más. "
+                                + "Primero súmale stock al producto en Catálogo → Productos → ✏️ Actualizar → «Actualizar stock». "
                                 + "(Disponible: %d, Solicitado: %d)",
                         producto.getNombre(), Math.max(stockDisponible, 0), stockSolicitado, stockDisponible, stockSolicitado));
             }
@@ -1238,7 +1238,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
         if (!habilitar) return "Artículos deshabilitados correctamente.";
         return ajustados.isEmpty() ? "Artículos habilitados correctamente."
-                : "Artículos habilitados. Se ajustó el stock a lo que quedaba libre del modelo: "
+                : "Artículos habilitados. Se ajustó el stock a lo que quedaba libre del producto: "
                         + String.join("; ", ajustados) + ".";
     }
 

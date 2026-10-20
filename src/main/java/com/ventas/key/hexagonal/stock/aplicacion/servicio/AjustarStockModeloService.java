@@ -33,7 +33,7 @@ public class AjustarStockModeloService implements AjustarStockModeloCasoUso {
         DisponibilidadStock ajustado = actual.conAjuste(ajuste);
         if (!guardarStock.guardarStockTotal(productoId, actual.stockTotal(), ajustado.stockTotal())) {
             throw new AjusteStockInvalidoException(
-                    "El stock del modelo cambió mientras lo ajustabas (una venta o la edición de un pedido). "
+                    "El stock del producto cambió mientras lo ajustabas (una venta o la edición de un pedido). "
                             + "No se guardó nada: vuelve a intentarlo.");
         }
         avisarCambio.stockCambio(productoId);

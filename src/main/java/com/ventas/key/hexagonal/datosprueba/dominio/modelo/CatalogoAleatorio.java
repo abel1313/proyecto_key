@@ -99,7 +99,7 @@ public final class CatalogoAleatorio {
 
         String nombre = tipo + " " + estilo + " QA-" + numero;
         String descripcion = tipo + " " + estilo + ", color " + colorBase.toLowerCase()
-                + ". Modelo de prueba generado para QA.";
+                + ". Producto de prueba generado para QA.";
 
         int cuantos = articulosMin + rnd.nextInt(articulosMax - articulosMin + 1);
         List<ArticuloDePrueba> articulos = articulos(cat, colorBase, cuantos, rnd);

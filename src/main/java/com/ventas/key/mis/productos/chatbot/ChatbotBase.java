@@ -706,7 +706,7 @@ public abstract class ChatbotBase {
             return sb.toString();
 
         } catch (Exception e) {
-            log.error("Error consultando variantes para chatbot", e);
+            log.error("Error consultando artículos para chatbot", e);
             return "Catálogo temporalmente no disponible.";
         }
     }
