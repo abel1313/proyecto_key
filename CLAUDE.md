@@ -653,7 +653,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
 | `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
 | `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
-| `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ cuando la rama llegue a `dev`/`qa` | ⏳ cuando la rama llegue a `main` | — |
+| `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ **falta correrla** (la rama ya está en `qa` desde 2026-10-20) | ⏳ cuando la rama llegue a `main` | — |
 | `migration_codigo_postal.sql` | ✅ corrida (tabla `codigo_postal` creada) | ⏳ pendiente (cuando el dominio `codigopostal` llegue a `main`) | qa 2026-10-14 (antes, probada 2 veces en base desechable) |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`

@@ -1,9 +1,9 @@
 # Renombre variante → artículo — qué se movió y cómo probarlo
 
-**Rama:** `rename/variante-a-articulo` en el back (`proyecto_key`) y en el front
-(`producto_venta_online`). Las dos salen de `dev` (2026-10-06) y el 2026-10-08 se les volvió a traer
-todo lo de `dev` (sección 1.1). **No está en `dev`, `qa` ni `main`**:
-se junta a `dev` cuando la apruebes, y de ahí sigue el flujo normal.
+**Estado (2026-10-20):** la rama `rename/variante-a-articulo` ya se juntó a **`qa`** (back y front,
+merge `--no-ff`, se resolvieron los choques con lo que `qa` traía). **No está en `dev` ni en `main`**:
+se juntará a `dev` cuando la apruebes. ⏳ Falta correr en QA `migration_renombre_articulo_etiquetas.sql`
+(§2 punto 3) antes de las pruebas R18–R19 (menú y Gestión de roles).
 
 Reglas que se siguieron: skill `renombrar` y `CLAUDE.md` → "Renombrado en curso".
 
