@@ -631,7 +631,7 @@ contraseña la primera vez).
 
 ❌ **Está mal si:** sale "No tienes permiso" o la lista se queda vacía con error.
 
-- [x] 17.1 · [x] 17.2 · [x] 17.3 · [x] 17.4 · [x] 17.5 · [x] 17.6 · [x] 17.7 · [x] 17.8 · [x] 17.9 · [ ] 17.10 · [ ] 17.11 — **Prueba 17 terminada**
+- [x] 17.1 · [x] 17.2 · [x] 17.3 · [x] 17.4 · [x] 17.5 · [x] 17.6 · [x] 17.7 · [x] 17.8 · [x] 17.9 · [x] 17.10 · [x] 17.11 — **Prueba 17 terminada**
 
 ---
 
@@ -713,7 +713,7 @@ deshabilitado, el stock agregado se reparte solo a algún artículo, o el recuad
 
 💬 Notas:
 
-- [ ] 18.1 · [ ] 18.2 · [ ] 18.3 · [ ] 18.4 — **Prueba 18 terminada**
+- [x] 18.1 · [x] 18.2 · [x] 18.3 · [x] 18.4 — **Prueba 18 terminada**
 
 ---
 
@@ -875,7 +875,7 @@ con letras que no se leen**; "Asistente Virtual" no se ve de día.
 
 💬 Notas:
 
-- [ ] 23.1 · [ ] 23.2 · [ ] 23.3 · [ ] 23.4 · [ ] 23.5 · [ ] 23.6 — **Prueba 23 terminada**
+- [x] 23.1 · [x] 23.2 · [x] 23.3 · [x] 23.4 · [x] 23.5 · [x] 23.6 — **Prueba 23 terminada**
 
 ---
 
@@ -970,7 +970,7 @@ letra o pantalla deja de cargar.
 
 💬 Notas:
 
-- [ ] **Prueba 13 terminada**
+- [x] **Prueba 13 terminada** (2026-10-15)
 
 ---
 
@@ -1257,7 +1257,7 @@ obligatorios"* sale sin decir cuál; el código postal no dice nada cuando no lo
 flechas ‹ › siguen moviendo un mes.
 
 - [x] **20.1 — datos personales (pasos 1 a 13)** ✅ 2026-10-14: *"ya quedó lo de los datos personales"*.
-- [ ] **20.1 — pasos 14 a 16** (generar el pedido, volver a ver Mis datos y la otra cuenta): sin confirmar.
+- [x] **20.1 — pasos 14 a 16** ✅ 2026-10-15 (generar el pedido, volver a ver Mis datos y la otra cuenta): sin confirmar.
 
 💬 *"por qué no vamos guardando [los códigos postales] en nuestra base en una tabla y primero vamos a la base nuestra a buscar y si no está entonces vamos al externo, y además si hay error como pasó ahorita pues se escribe como ahora para no detener porque falle algo"* · *"R1 y R7 me parecen correctos"* · *"tardó un poco en redirigir al carrito"* (2026-10-14)
 ↳ Hecho (solo en local, sin subir): dominio `codigopostal` con las reglas R1 a R7 (`hexagonal/codigopostal/README.md`) y la tabla `codigo_postal` (`migration_codigo_postal.sql`). El código sigue respondiendo igual para la pantalla. Se comprueba en la **Prueba 27**. Lo de la tardanza: no pude medirlo; lo más probable es que QA acababa de reiniciarse por el despliegue; si se repite, F12 → Red y el tiempo de la llamada `save`.
@@ -1672,7 +1672,7 @@ pregunte al servicio de afuera (y se guarde); y que si algo falla, el cliente pu
 **❌ Está mal si…** el municipio no se llena con un código que sí existe; un código guardado sale distinto de la primera vez
 (colonias o acentos); un código inventado (99999) queda guardado; la consulta del paso 4 no devuelve filas.
 
-- [ ] **Prueba 27 terminada**
+- [x] **Prueba 27 terminada** (2026-10-15)
 
 ---
 
@@ -1699,7 +1699,7 @@ atendiendo normal.
 persona; da un número de piezas o un código de barras; ofrece pago con tarjeta; nombra una zona que no está en Zonas de
 entrega; o deja de contestar preguntas normales de productos.
 
-- [ ] **Prueba 28 terminada**
+- [x] **Prueba 28 terminada** (2026-10-15)
 
 ---
 
@@ -1731,7 +1731,7 @@ QA** (subir reinicia el servidor y corta la corrida).
 
 💬 Notas:
 
-- [ ] **Prueba 6 terminada**
+- [x] **Prueba 6 terminada** (2026-10-15)
 
 ---
 
