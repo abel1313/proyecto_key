@@ -569,6 +569,24 @@ clave. **Cualquier buscador nuevo con `switchMap` tiene que llevarlo.**
 
 ---
 
+## Renombrado: `modelo` → `producto` en pantalla (2026-10-20)
+
+**Vocabulario vigente:** **Producto** = el producto base que agrupa (entidad `Producto`, tabla `producto`);
+**Artículo** = lo que se vende (entidad `Variantes`, tabla `variantes`). El cliente final sigue leyendo
+«producto» para lo que compra.
+
+**Alcance: solo textos visibles** (pantallas del front, mensajes del back, nombres de menú y de acciones
+en la BD). **No** se renombran: tablas, rutas, clases, campos JSON (`modelos`, `modeloId`, `tipo:"MODELO"`),
+claves de permiso (`ver-todos-los-modelos`, `crear-variantes`; viajan en el JWT) ni la carpeta
+`dominio/modelo` (es el «modelo» de la arquitectura, no del negocio).
+
+Los nombres de Gestión de roles salen de `submenu`/`accion_submenu`: los cambia
+`migration_renombre_producto_etiquetas.sql` (idempotente, crea respaldos `*_bkp_modelo_producto`).
+No cambia claves de permiso, así que no hace falta volver a entrar; basta recargar la pantalla.
+Detalle completo en `RENOMBRE_MODELO_A_PRODUCTO.md`.
+
+---
+
 ## Renombrado en curso: `variante` → `artículo` (2026-09-22)
 
 **El nombre real del negocio es "artículo", no "variante".** `variante` fue un nombre técnico que se
@@ -637,6 +655,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
+| `migration_renombre_producto_etiquetas.sql` | ⏳ pendiente (primero QA) | ⏳ pendiente | 2026-10-20 |
 | `migration_sesion_refresh_gracia.sql` (ventana de gracia del refresh token: `jti_anterior`, `rotado_en`) | ✅ corrida (2 columnas verificadas) | ⏳ pendiente | 2026-10-14 |
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ✅ corrida (0 filas, nada que reparar) | 2026-09-29 / prod 2026-09-30 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |

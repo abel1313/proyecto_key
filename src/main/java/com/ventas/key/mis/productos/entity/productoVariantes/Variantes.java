@@ -13,17 +13,18 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Variantes = lo que el usuario final ve como "PRODUCTO" en la app.
+ * Variantes = lo que el admin ve como "ARTICULO" en la app (desde 2026-10-20; el cliente final lo ve como
+ * "producto", a proposito).
  *
  * Es la unidad vendible: tiene talla, color, marca, stock, precio y codigo de barras. El cliente
- * final solo navega variantes -- nunca ve un {@link com.ventas.key.mis.productos.entity.Producto},
- * que se le muestra como "MODELO".
+ * final solo navega articulos -- nunca ve un {@link com.ventas.key.mis.productos.entity.Producto},
+ * que al admin se le muestra como "PRODUCTO" (el producto base).
  *
- * Regla de oro: el Modelo agrupa, el Producto se vende. Asi que un ticket que dice "el producto
- * no tiene stock" o "no encuentro el producto en el buscador" habla de esta clase, no de Producto.
+ * Regla de oro: el Producto agrupa, el Articulo se vende. Un ticket que dice "el articulo no tiene stock"
+ * habla de esta clase; uno que dice "el producto no tiene stock libre" habla de Producto.
  *
- * Los nombres de la API no cambian por esto (sigue siendo /variantes/v1/..., varianteId, etc.):
- * la traduccion vive solo en la capa de presentacion del front. Ver TAXONOMIA_NOMBRES_BACK.md.
+ * Los nombres de clases, tablas y rutas /v1/variantes no cambian (conviven con /v2/articulos); solo cambia
+ * lo que se lee en pantalla. Ver RENOMBRE_MODELO_A_PRODUCTO.md y RENOMBRE_VARIANTE_A_ARTICULO.md.
  */
 @Entity
 @Table(name = "variantes")

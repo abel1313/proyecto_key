@@ -20,10 +20,10 @@ public record PlanDeDatos(int modelos, int articulosMin, int articulosMax, int p
 
     public PlanDeDatos {
         if (modelos < 1 || modelos > MAX_MODELOS) {
-            throw new PlanInvalidoException("Los modelos van de 1 a " + MAX_MODELOS + " por corrida; se pidieron " + modelos);
+            throw new PlanInvalidoException("Los productos van de 1 a " + MAX_MODELOS + " por corrida; se pidieron " + modelos);
         }
         if (articulosMin < 1 || articulosMax > MAX_ARTICULOS_POR_MODELO || articulosMin > articulosMax) {
-            throw new PlanInvalidoException("Los artículos por modelo van de 1 a " + MAX_ARTICULOS_POR_MODELO
+            throw new PlanInvalidoException("Los artículos por producto van de 1 a " + MAX_ARTICULOS_POR_MODELO
                     + " (mínimo " + articulosMin + ", máximo " + articulosMax + ")");
         }
         if (pedidos < 0 || pedidos > MAX_PEDIDOS) {

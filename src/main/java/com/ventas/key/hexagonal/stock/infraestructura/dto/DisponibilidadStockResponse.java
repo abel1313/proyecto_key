@@ -48,7 +48,7 @@ public record DisponibilidadStockResponse(
     private static String mensajeDe(DisponibilidadStock d) {
         if (d.estaDescuadrado()) {
             return String.format(
-                    "Este modelo está descuadrado: tiene %d en total pero sus %d artículos suman %d.",
+                    "Este producto está descuadrado: tiene %d en total pero sus %d artículos suman %d.",
                     d.stockTotal(), d.variantesActivas(), d.enVariantes());
         }
         if (d.disponible() == 0) {

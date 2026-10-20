@@ -45,9 +45,9 @@ public class MovimientoStockJpaAdapter implements MovimientoStockPort {
         if (variante.getProducto() != null) {
             Producto producto = productoRepository.findByIdWithLock(variante.getProducto().getId())
                     .orElseThrow(() -> new IllegalStateException(
-                            "Modelo no encontrado al mover stock: " + variante.getProducto().getId()));
+                            "Producto no encontrado al mover stock: " + variante.getProducto().getId()));
             int actual = producto.getStock() != null ? producto.getStock() : 0;
-            producto.setStock(noNegativo(actual + delta, "modelo " + producto.getId()));
+            producto.setStock(noNegativo(actual + delta, "producto " + producto.getId()));
             productoRepository.save(producto);
         }
     }

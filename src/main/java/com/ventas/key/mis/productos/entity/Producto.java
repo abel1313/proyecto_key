@@ -8,17 +8,16 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * Producto = lo que el usuario final ve como "MODELO" en la app.
+ * Producto = el producto BASE que el admin ve como "PRODUCTO" en la app (antes "MODELO", hasta 2026-10-20).
  *
- * Es solo el agrupador (nombre, precios base, categoria) -- NO se vende directamente, no tiene
- * stock ni codigo de barras: eso vive en
- * {@link com.ventas.key.mis.productos.entity.productoVariantes.Variantes}, que al usuario se le
- * muestra como "PRODUCTO".
+ * Es solo el agrupador (nombre, precios base, stock total, categoria) -- NO se vende directamente ni tiene
+ * talla/color: eso vive en {@link com.ventas.key.mis.productos.entity.productoVariantes.Variantes}, que al
+ * admin se le muestra como "ARTICULO" (y al cliente final como "producto", a proposito).
  *
- * Regla de oro: el Modelo agrupa, el Producto se vende. "El modelo tiene 5 productos" = un
- * Producto con 5 Variantes. Las pantallas de esta entidad son admin-only.
+ * Regla de oro: el Producto agrupa, el Articulo se vende. "El producto tiene 5 articulos" = un Producto con
+ * 5 Variantes. Las pantallas de esta entidad son admin-only.
  *
- * Los nombres de la API no cambian por esto. Ver TAXONOMIA_NOMBRES_BACK.md.
+ * Los nombres de la API, tablas y clases no cambian por esto. Ver RENOMBRE_MODELO_A_PRODUCTO.md.
  */
 @Entity
 @Table(name = "producto")

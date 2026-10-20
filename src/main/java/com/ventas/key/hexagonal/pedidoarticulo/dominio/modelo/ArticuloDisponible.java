@@ -45,7 +45,7 @@ public record ArticuloDisponible(
     /** Cual de los dos se queda corto, para que el error diga donde mirar. */
     public String detalleDelFaltante(int cantidad) {
         return String.format(
-                "Solicitado: %d. Disponible: %d (articulo: %d, modelo: %d)",
+                "Solicitado: %d. Disponible: %d (articulo: %d, producto: %d)",
                 cantidad, disponible(), stockVariante, stockProducto);
     }
 }
