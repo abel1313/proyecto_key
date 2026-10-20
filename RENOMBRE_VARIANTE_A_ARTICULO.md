@@ -203,6 +203,29 @@ donde decía "producto" y en realidad era el modelo (en la misma frase que "art�
 - El correo diario de stock bajo ya decía "Estos artículos están en o por debajo…".
 - Los mensajes del back de `ProductosServiceImpl` y del Excel hablan del modelo: correcto.
 
+### 1.4 Segundo barrido (notas del dueño, 2026-10-20)
+
+Después de fusionar la rama a `qa` y correr el script, el dueño vio tres cosas:
+
+| # | Nota | Causa | Qué se hizo |
+|---|---|---|---|
+| N1 | Gestión de roles → Tienda sigue diciendo **"Tarjeta de variante"** y **"Habilitar / deshabilitar variante"**, y sus ℹ️ hablan de "variante" | **No es código**: el front no tiene esos textos (solo un comentario), los pinta tal cual vienen de `accion_submenu` (`GET /v1/accion-submenu/getAll` lee la tabla en cada carga, sin caché, y nada en el back vuelve a escribir esos textos al arrancar). El script **sí** los cubre: se corrió completo en un MySQL 8.0 de prueba con las mismas migraciones que los siembran (`migration_accion_tienda_*`, `migration_accion_submenu_categoria`, `migration_fix_orden_escanear_tienda`…), con `--safe-updates`, y quedaron "Tarjeta de artículo" / "Habilitar / deshabilitar artículo". Así que en `inventario_key_qa` el script **no llegó a aplicarse completo**: lo más probable es que se corriera sin base elegida (el script no lleva `USE`: el primer `UPDATE` falla con *Error 1046 No database selected* y Workbench se detiene ahí), o con **Ctrl+Enter** (corre solo la sentencia donde está el cursor), o en otra base | El script ahora empieza con `SELECT DATABASE() AS base_en_uso;` y explica cómo correrlo completo. Hay que **volver a correrlo** (es idempotente) y revisar que sus 4 consultas de verificación salgan vacías |
+| N2 | En Sistema → 🗂️ Menús y submenús **no hay ningún ℹ️** | **Esa pantalla nunca tuvo ℹ️**: la explicación solo se veía entrando a ✏️ (el cuadro "Qué es esta pantalla…") o con el ℹ️ de Gestión de roles. La prueba R19-3c de este documento pedía un ℹ️ que no existía | Se agregó el **ℹ️** junto al nombre de cada pantalla en Menús y submenús (`gestion-menu.component`), igual al de Gestión de roles. Solo sale si la pantalla tiene explicación (si no, sigue el ⚠️) |
+| N3 | Otro barrido de "variante" en todo lo que se lee | Front: ninguna pantalla, `title`, `placeholder`, aviso ni ayuda dice "variante" (solo un comentario de `gestion-roles.component.ts`, corregido). Back: mensajes al usuario, chatbot y correos ya dicen "artículo"; quedan solo logs y Swagger. Base: lo que siembran las migraciones lo cubre el script | El script agrega: reemplazo de **"VARIANTE/VARIANTES" en mayúsculas** (por si alguna fila se escribió así) y la concordancia **"…buscar artículos pero no le aparece el botón para edit**arlas**" → "editarlos"** (ℹ️ del ✏️ Editar de Tienda → Buscar) |
+
+**Lo que queda con "variante" a propósito:** nombres de tablas que se muestran como dato técnico
+(Reconciliación de imágenes: `variante_imagen`; Diagnóstico: la URL `…/{varianteId}`), campos del
+contrato (`varianteId`), claves (`crear-variantes`, `carritoVariante`), rutas y clases, logs y Swagger,
+y "variante oscura" en los colores de Personalización (ahí significa "tono").
+
+⚠️ **Si se vuelve a correr alguna migración vieja que siembra acciones** (`migration_accion_tienda_habilitar_compartir.sql`,
+`migration_accion_tienda_carrito.sql`, `migration_accion_tienda_filtros_publicos.sql`,
+`migration_accion_submenu_categoria.sql`, `migration_fix_orden_escanear_tienda.sql`,
+`migration_submenu_tienda_buscar_descripcion_escritura.sql`, `migration_descripcion_submenu.sql`…), puede
+volver a escribir "variante" (las que traen `NOT EXISTS` no duplican, pero las que hacen `UPDATE … SET`
+sí pisan el texto). No se reescribieron; si pasa, basta volver a correr
+`migration_renombre_articulo_etiquetas.sql`.
+
 ---
 
 ## 2. Orden para subirlo (importante)
@@ -446,11 +469,11 @@ recargar la pantalla (no hace falta volver a entrar).
 
 | # | Haz esto | Debes ver |
 |---|---|---|
-| 1 | Las consultas del final del script | Las tres primeras **vacías**; la última devuelve **Agregar artículo** y **Rifa de artículos** |
+| 1 | Las consultas del final del script | La primera dice la base (`inventario_key_qa`); las **cuatro** de verificación **vacías**; la última devuelve **Agregar artículo** y **Rifa de artículos** |
 | 2 | Sistema → 🛡️ Gestión de roles → un rol → Catálogo | La pantalla **Agregar artículo** (antes "Agregar producto") |
 | 3 | En la misma pantalla → Tienda → Buscar | Categoría **"Tarjeta de artículo"**; "Habilitar / deshabilitar artículo"; las ℹ️ dicen "artículo" |
 | 3b | En la misma pantalla → Tienda → Buscar → ℹ️ de "Cambiar precio (💲…)" | "…de ese artículo (solo de ese). También deja ver el precio con descuento (👁)…" |
-| 3c | Sistema → 🗂️ Menús y submenús → ℹ️ de Categorías, Reportes de ventas, Publicar en redes y Diagnóstico de imágenes | Dicen "artículos" donde antes decían "productos" |
+| 3c | Sistema → 🗂️ Menús y submenús → ℹ️ junto al nombre (existe desde el 2026-10-20) de Categorías, Reportes de ventas, Publicar en redes y Diagnóstico de imágenes | Dicen "artículos" donde antes decían "productos" |
 | 3d | Sistema → 🎨 Personalización → Formularios | "Fondo del recuadro de búsqueda y filtros (Tienda y Modelos)" |
 | 4 | En la misma pantalla → Catálogo → Modelos | "Crear artículos desde el modelo (🧩 "Artículos" en la tarjeta)", "Descargar Excel sin artículos (📥 …)" |
 | 5 | Con un rol que ya tenía esos permisos, entra a Modelos y a Tienda → Buscar | Los mismos botones que antes (el script no cambia permisos) |
@@ -480,4 +503,23 @@ Solo cambian textos: lo que hace cada pantalla tiene que ser **igual que antes**
 | 13 | Créditos / Abonos → cancelar un Ir pagando que ya se llevó | Aviso "El cliente ya se llevó los artículos…" |
 | 14 | **Tienda → Buscar sin sesión**, ficha, Favoritos, carrito | **Igual que antes** (siguen diciendo "producto") |
 
-- [ ] R1 · [ ] R2 · [ ] R3 · [ ] R4 · [ ] R5 · [ ] R6 · [ ] R7 · [ ] R8 · [ ] R9 · [ ] R10 · [ ] R11 · [ ] R12 · [ ] R13 · [ ] R14 · [ ] R15 · [ ] R16 · [ ] R17 · [ ] R18 · [ ] R19 · [ ] R20
+### 🔴 R21 — Segundo barrido (notas del dueño, 2026-10-20)
+
+**Antes de empezar:** en MySQL Workbench, doble clic en `inventario_key_qa` (que quede en negritas),
+abrir `migration_renombre_articulo_etiquetas.sql` y correrlo **completo** con ⚡ (Ctrl+Shift+Enter, sin
+nada seleccionado). Esperar el deploy del front y del back de `qa`. En QA: `Ctrl + Shift + R`.
+
+| # | Dónde (menú → pantalla) | Haz esto | Debes ver |
+|---|---|---|---|
+| 1 | Workbench, resultado del script | Mira las pestañas de resultados | 1ª: `base_en_uso = inventario_key_qa`. Luego **cuatro vacías** ("submenu con variante", "accion con variante", "editarlas", "color con Productos"). Última: 2 filas, **Agregar artículo** y **Rifa de artículos** |
+| 2 | Sistema → 🛡️ Gestión de roles | Elige **ROLE_ADMIN** → busca la pantalla **Tienda / Buscar** | El grupo se llama **"Tarjeta de artículo"**; el permiso dice **"Habilitar / deshabilitar artículo"** |
+| 3 | Mismo lugar | ℹ️ de "Habilitar / deshabilitar artículo", de "Compartir imagen", de "Agregar al carrito (➕)" | "…en la tarjeta de cada **artículo**…" (ninguna dice "variante") |
+| 4 | Mismo lugar | ℹ️ del checkbox **✏️ Editar** de Tienda / Buscar | "…cada tarjeta de **artículo**… puede ver y buscar **artículos** pero no le aparece el botón para **editarlos**" |
+| 5 | Sistema → 🗂️ Menús y submenús | Elige el grupo **Catálogo** | Junto al nombre de cada pantalla con explicación hay un **ℹ️**; el de **Categorías** dice "…buscar **modelos y artículos**…" |
+| 6 | Mismo lugar, grupo **Reportes** → ℹ️ de **Reportes de ventas** | — | "…por fecha/**artículo**/vendedor…" |
+| 7 | Grupo **Marketing** → ℹ️ de **Publicar en redes** · grupo **Sistema** → ℹ️ de **Diagnóstico de imágenes** | — | "Publicar **artículos**/promociones…" · "…la imagen de un modelo o de un **artículo**…" |
+| 8 | Workbench | Corre el script otra vez | No cambia nada (todas las verificaciones siguen vacías) |
+
+⛔ No puede pasar: que un rol gane o pierda un permiso (el script solo cambia textos).
+
+- [ ] R1 · [ ] R2 · [ ] R3 · [ ] R4 · [ ] R5 · [ ] R6 · [ ] R7 · [ ] R8 · [ ] R9 · [ ] R10 · [ ] R11 · [ ] R12 · [ ] R13 · [ ] R14 · [ ] R15 · [ ] R16 · [ ] R17 · [ ] R18 · [ ] R19 · [ ] R20 · [ ] R21

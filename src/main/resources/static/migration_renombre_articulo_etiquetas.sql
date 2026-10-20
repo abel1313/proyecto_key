@@ -28,6 +28,14 @@
 
 SET NAMES utf8mb4;
 
+-- ── 0. ¿Estás en la base correcta? (2026-10-20) ──────────────────────────────
+-- Tiene que decir inventario_key_qa (dev/qa) o inventario_key (prod). Si dice NULL, el script NO hace
+-- nada: el primer UPDATE falla con "Error 1046: No database selected" y MySQL Workbench se detiene
+-- ahí. Haz doble clic en la base (que quede en negritas) o corre antes: USE inventario_key_qa;
+-- Y córrelo COMPLETO con el rayo ⚡ "Execute (All or Selection)" (Ctrl+Shift+Enter) sin nada
+-- seleccionado; el rayo con cursor (Ctrl+Enter) corre solo UNA sentencia.
+SELECT DATABASE() AS base_en_uso;
+
 -- ── Diagnóstico ANTES (opcional): lo que se va a cambiar ─────────────────────
 -- SELECT 'submenu' AS tabla, id, ruta, nombre, descripcion, descripcion_escritura
 --   FROM submenu
@@ -264,7 +272,22 @@ UPDATE accion_submenu SET categoria = REPLACE(categoria, 'Variante', 'Artículo'
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'variantes', 'artículos') WHERE id > 0 AND categoria LIKE '%variantes%';
 UPDATE accion_submenu SET categoria = REPLACE(categoria, 'variante', 'artículo') WHERE id > 0 AND categoria LIKE '%variante%';
 
--- ── Verificación DESPUÉS: las tres primeras tienen que salir VACÍAS ─────────
+-- ── 3. Segundo barrido (2026-10-20) ───────────────────────────────────────────
+-- Por si alguna fila quedó escrita en MAYÚSCULAS (REPLACE distingue mayúsculas y el LIKE de la
+-- verificación no, así que saldría en la verificación sin que el reemplazo la tocara).
+UPDATE submenu SET nombre = REPLACE(REPLACE(nombre, 'VARIANTES', 'ARTÍCULOS'), 'VARIANTE', 'ARTÍCULO') WHERE id > 0 AND BINARY nombre LIKE BINARY '%VARIANTE%';
+UPDATE submenu SET descripcion = REPLACE(REPLACE(descripcion, 'VARIANTES', 'ARTÍCULOS'), 'VARIANTE', 'ARTÍCULO') WHERE id > 0 AND BINARY descripcion LIKE BINARY '%VARIANTE%';
+UPDATE submenu SET descripcion_escritura = REPLACE(REPLACE(descripcion_escritura, 'VARIANTES', 'ARTÍCULOS'), 'VARIANTE', 'ARTÍCULO') WHERE id > 0 AND BINARY descripcion_escritura LIKE BINARY '%VARIANTE%';
+UPDATE accion_submenu SET etiqueta = REPLACE(REPLACE(etiqueta, 'VARIANTES', 'ARTÍCULOS'), 'VARIANTE', 'ARTÍCULO') WHERE id > 0 AND BINARY etiqueta LIKE BINARY '%VARIANTE%';
+UPDATE accion_submenu SET descripcion = REPLACE(REPLACE(descripcion, 'VARIANTES', 'ARTÍCULOS'), 'VARIANTE', 'ARTÍCULO') WHERE id > 0 AND BINARY descripcion LIKE BINARY '%VARIANTE%';
+UPDATE accion_submenu SET categoria = REPLACE(REPLACE(categoria, 'VARIANTES', 'ARTÍCULOS'), 'VARIANTE', 'ARTÍCULO') WHERE id > 0 AND BINARY categoria LIKE BINARY '%VARIANTE%';
+
+-- Concordancia: "buscar variantes … para editarlas" quedaba "buscar artículos … para editarlas"
+-- (Tienda → Buscar, ℹ️ del checkbox ✏️ Editar).
+UPDATE submenu SET descripcion_escritura = REPLACE(descripcion_escritura, 'artículos pero no le aparece el botón para editarlas', 'artículos pero no le aparece el botón para editarlos')
+ WHERE id > 0 AND descripcion_escritura LIKE '%artículos pero no le aparece el botón para editarlas%';
+
+-- ── Verificación DESPUÉS: las cuatro primeras tienen que salir VACÍAS ─────────
 SELECT 'submenu con variante' AS revisar, id, ruta, nombre, descripcion, descripcion_escritura
   FROM submenu
  WHERE nombre IN ('Agregar producto', 'Rifa de productos')
@@ -281,6 +304,10 @@ SELECT 'accion con variante' AS revisar, a.id, s.ruta, a.clave, a.etiqueta, a.ca
     OR CONCAT_WS(' ', a.etiqueta, a.descripcion) LIKE '%"Productos"%'
     OR CONCAT_WS(' ', a.etiqueta, a.descripcion) LIKE '%sin productos%'
     OR (a.clave = 'cambiar-precio' AND a.descripcion LIKE '%para todos sus artículos%');
+
+-- Esta también tiene que salir VACÍA (concordancia del segundo barrido)
+SELECT 'editarlas' AS revisar, id, ruta, descripcion_escritura FROM submenu
+ WHERE descripcion_escritura LIKE '%artículos pero no le aparece el botón para editarlas%';
 
 -- Esta también tiene que salir VACÍA
 SELECT 'color con Productos' AS revisar, clave, etiqueta FROM tema_variable

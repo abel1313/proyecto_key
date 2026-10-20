@@ -16,6 +16,16 @@ Formato de cada entrada:
 
 ---
 
+### 2026-10-20 — Segundo barrido variante → artículo (script de etiquetas + ℹ️ en Menús y submenús)
+**Dónde:** `migration_renombre_articulo_etiquetas.sql` (secciones 0 y 3) · front `GestionMenuComponent.verDescripcion()` + ℹ️ en `gestion-menu.component.html`
+**Tipo:** MySQL (script en base desechable) · front (componente)
+**Debe comprobar:**
+- [ ] Base con las migraciones que siembran Tienda (`migration_accion_tienda_*`, `migration_accion_submenu_categoria`, `migration_fix_orden_escanear_tienda`) → tras el script: categoría "Tarjeta de artículo", etiqueta "Habilitar / deshabilitar artículo"; con `--safe-updates`, dos corridas, la 2ª no cambia nada (se probó a mano el 2026-10-20 en MySQL 8.0.46)
+- [ ] Fila con "Prueba VARIANTE" / "TARJETA DE VARIANTES" → "Prueba ARTÍCULO" / "TARJETA DE ARTÍCULOS"
+- [ ] descripcion_escritura de tienda/buscar termina en "…para editarlos" (no "editarlas")
+- [ ] Sin base elegida → el script se detiene en el primer UPDATE con Error 1046 (y la 1ª consulta dice `base_en_uso = NULL`)
+- [ ] Menús y submenús: submenú con `descripcion` → sale ℹ️ y abre Swal con título "icono + nombre" y la descripción; sin `descripcion` → no sale ℹ️, sí ⚠️
+
 ### 2026-10-14 — Ningún bot dice cómo está hecho (`SIN_DETALLES_TECNICOS`)
 **Dónde:** `ChatbotBase.SIN_DETALLES_TECNICOS`, `REGLAS_DE_RESPETO`, `promptBase()`, `IDENTIDAD_COMENTARIOS`
 **Tipo:** unitario (texto del prompt) · e2e manual (Prueba 28)
