@@ -593,9 +593,12 @@ No se abre un PR "de renombrado" ni se barre el repo entero.
 
 - **Nombres de tablas y columnas** (`variantes`, `variante_imagen`, `producto_id`…). Eso necesita
   migración coordinada con los 13 FKs.
-- **Rutas de endpoints** (`/v1/variantes/buscar`, `/v1/variantes/porProducto/{id}`). Cambiarlas
-  rompe el front en producción; cuando toque, se hace como `/v2/articulos/...` con el `/v1/`
-  conviviendo, siguiendo la estrategia de versionado de arriba.
+- **Quitar las rutas viejas** (`/v1/variantes/...`). Desde 2026-10-06 (rama
+  `rename/variante-a-articulo`) existe `/v2/articulos/...` conviviendo con `/v1/variantes/...` (mismo
+  controller, mismas reglas de seguridad en espejo) y el front de esa rama ya llama a `/v2`. Las `/v1`
+  se quedan hasta que el front de prod deje de usarlas. **Toda regla nueva de `/v1/variantes` en
+  `SecurityConfig` va también con `/v2/articulos`**: si no, la ruta `/v2` cae en el GET público.
+  Inventario y pruebas: `RENOMBRE_VARIANTE_A_ARTICULO.md`.
 - **Nombres de clases y DTOs** (`Variantes`, `VarianteDto`, `VarianteServiceImpl`) mientras las rutas
   sigan diciendo `variantes` — que el código y la URL se llamen distinto confunde más de lo que ayuda.
 - **Campos de request/response** (`varianteId`, `variantes: []`). Son contrato con el front.
@@ -650,7 +653,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
 | `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
 | `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
-| `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ⏳ cuando la rama llegue a `dev`/`qa` | ⏳ cuando la rama llegue a `main` | — |
+| `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ✅ corrida (2026-10-20; versión con segundo barrido) | ⏳ cuando la rama llegue a `main` | qa 2026-10-20 |
 | `migration_codigo_postal.sql` | ✅ corrida (tabla `codigo_postal` creada) | ⏳ pendiente (cuando el dominio `codigopostal` llegue a `main`) | qa 2026-10-14 (antes, probada 2 veces en base desechable) |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`

@@ -47,7 +47,7 @@ class ChatbotPromptFotosTest {
 
         // Escalar a una persona y el catalogo son de este canal: la seccion nueva no los tapa.
         assertThat(prompt).contains("##HUMANO##");
-        assertThat(prompt).contains("CATÁLOGO ACTUAL (variantes disponibles con stock):");
+        assertThat(prompt).contains("CATÁLOGO ACTUAL (artículos disponibles con stock):");
         // Y lo que se arreglo antes (negar shorts que si hay) sigue en la base.
         assertThat(prompt).contains("\"sorth\" = short");
     }
@@ -60,6 +60,6 @@ class ChatbotPromptFotosTest {
 
         assertThat(prompt).contains("¿Quieres ver una foto?");
         assertThat(prompt).contains("##BUSCAR[término,offset]##");
-        assertThat(prompt).contains("CATÁLOGO ACTUAL (variantes disponibles con stock):");
+        assertThat(prompt).contains("CATÁLOGO ACTUAL (artículos disponibles con stock):");
     }
 }

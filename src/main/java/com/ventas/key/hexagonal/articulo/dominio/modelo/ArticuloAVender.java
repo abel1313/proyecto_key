@@ -35,7 +35,7 @@ public record ArticuloAVender(
 
     public void exigirQueSePuedaVender(int cantidad) {
         if (!modeloHabilitado) {
-            throw ArticuloNoVendibleException.deshabilitado(nombre, "el producto");
+            throw ArticuloNoVendibleException.deshabilitado(nombre, "el modelo");
         }
         if (stockModelo < cantidad) {
             throw ArticuloNoVendibleException.sinStock(nombre, stockModelo, cantidad);

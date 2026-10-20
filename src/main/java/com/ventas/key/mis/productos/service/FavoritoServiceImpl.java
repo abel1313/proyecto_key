@@ -46,7 +46,7 @@ public class FavoritoServiceImpl {
             return;
         }
         Variantes variante = iVarianteRepository.findById(varianteId)
-                .orElseThrow(() -> new ExceptionDataNotFound("No existe la variante con id: " + varianteId));
+                .orElseThrow(() -> new ExceptionDataNotFound("No existe el artículo con id: " + varianteId));
 
         Favorito favorito = new Favorito();
         favorito.setCliente(cliente);

@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 public class TransferirAbonoRequest {
-    @NotNull(message = "La variante destino es obligatoria")
+    @NotNull(message = "El artículo destino es obligatorio")
     private Integer nuevaVarianteId;
 
     @NotNull @Positive(message = "La cantidad debe ser mayor a 0")

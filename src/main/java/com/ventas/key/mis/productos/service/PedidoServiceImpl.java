@@ -646,7 +646,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
                 if (detalle.getVariante() != null) {
                     Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                            .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                            .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
                     int stockAntes = variante.getStock();
                     variante.setStock(variante.getStock() + detalle.getCantidad());
                     iVarianteRepository.save(variante);
@@ -700,9 +700,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         DetallePedido detalle = pedido.getDetalles().stream()
                 .filter(d -> detalleId != null ? d.getId().equals(detalleId) : d.getProducto().getId().equals(productoId))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("El producto no existe en este pedido"));
+                .orElseThrow(() -> new RuntimeException("El artículo no existe en este pedido"));
         if (!detalle.getProducto().getId().equals(productoId)) {
-            throw new RuntimeException("La linea " + detalleId + " del pedido #" + pedidoId + " no es de ese producto");
+            throw new RuntimeException("La linea " + detalleId + " del pedido #" + pedidoId + " no es de ese modelo");
         }
 
         // Una promocion es un combo: o esta completa, o no esta (R4 del dominio pedidoarticulo).
@@ -734,7 +734,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             iProductoRepository.save(prod);
             if (detalle.getVariante() != null) {
                 Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                        .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
                 variante.setStock(variante.getStock() + detalle.getCantidad());
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);
@@ -746,7 +746,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             iProductoRepository.save(prod);
             if (detalle.getVariante() != null) {
                 Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                        .orElseThrow(() -> new RuntimeException("Variante no encontrada al devolver stock"));
+                        .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
                 variante.setStock(variante.getStock() + cantidad);
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);
