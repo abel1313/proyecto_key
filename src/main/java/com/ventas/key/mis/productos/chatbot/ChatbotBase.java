@@ -1,6 +1,10 @@
 package com.ventas.key.mis.productos.chatbot;
 
 import com.ventas.key.hexagonal.botredes.dominio.modelo.PoliticaDeRespuesta;
+import com.ventas.key.hexagonal.iarespaldo.dominio.modelo.CircuitoDeProveedores;
+import com.ventas.key.hexagonal.iarespaldo.dominio.modelo.PoliticaDeRespaldoIa;
+import com.ventas.key.hexagonal.iarespaldo.dominio.modelo.ProveedorIa;
+import com.ventas.key.hexagonal.iarespaldo.dominio.modelo.TipoDeFallo;
 import com.ventas.key.mis.productos.entity.LugarEntrega;
 import com.ventas.key.mis.productos.entity.PalabraClave;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
@@ -16,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.text.Normalizer;
@@ -46,6 +51,34 @@ public abstract class ChatbotBase {
 
     @Value("${openai.model:gpt-4o-mini}")
     protected String model;
+
+    @Value("${openai.url:https://api.openai.com/v1}")
+    protected String openaiUrl;
+
+    // Modelo de respaldo (2026-10-20): si OpenAI se queda sin saldo o no contesta, se prueba este.
+    // Todo sale de variables de entorno; sin DEEPSEEK_API_KEY no hay respaldo y todo funciona como antes.
+    @Value("${DEEPSEEK_API_KEY:}")
+    protected String respaldoApiKey;
+
+    @Value("${DEEPSEEK_URL:https://api.deepseek.com}")
+    protected String respaldoUrl;
+
+    @Value("${DEEPSEEK_MODEL:deepseek-chat}")
+    protected String respaldoModelo;
+
+    /** Cuánto descansa un proveedor sin saldo o con la llave mala antes de volver a probarlo. */
+    @Value("${IA_PAUSA_MINUTOS:10}")
+    protected long iaPausaMinutos;
+
+    // Compartido entre los 4 canales: si OpenAI falló en el chat de la tienda, el chat en vivo ya lo sabe.
+    private static final CircuitoDeProveedores CIRCUITO = new CircuitoDeProveedores();
+    /** Solo para pruebas: el descanso de los modelos es compartido y una prueba afectaba a la siguiente. */
+    static void reiniciarCircuitoIa() {
+        CIRCUITO.reiniciar();
+    }
+
+    private final java.util.concurrent.ConcurrentHashMap<String, WebClient> clientesIa =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     protected final IVarianteRepository varianteRepository;
     protected final IPalabraClaveRepository palabraClaveRepository;
@@ -500,26 +533,92 @@ public abstract class ChatbotBase {
     }
 
     protected Mono<String> llamarOpenAI(List<Map<String, String>> mensajes) {
+        ProveedorIa principal = new ProveedorIa("openai",
+                openaiUrl == null ? "https://api.openai.com/v1" : openaiUrl, openaiApiKey, model);
+        ProveedorIa respaldo = new ProveedorIa("deepseek", respaldoUrl, respaldoApiKey, respaldoModelo);
+        return probarProveedor(PoliticaDeRespaldoIa.ordenDePrueba(principal, respaldo), 0, mensajes, null);
+    }
+
+    /**
+     * Prueba los modelos en orden. Pasa al siguiente solo si el fallo no es nuestro (sin saldo, límite,
+     * servidor caído, sin respuesta). Nunca imprime la llave ni el cuerpo del error: el de OpenAI trae
+     * un pedazo de la llave.
+     */
+    private Mono<String> probarProveedor(List<ProveedorIa> orden, int i, List<Map<String, String>> mensajes,
+                                         Throwable ultimoError) {
+        if (i >= orden.size()) {
+            return Mono.error(ultimoError != null ? ultimoError
+                    : new IllegalStateException("Ningún modelo de IA disponible"));
+        }
+        ProveedorIa p = orden.get(i);
+        boolean hayRespaldo = orden.size() > 1;
+        boolean esElUltimo = i == orden.size() - 1;
+        // Un modelo que acaba de fallar descansa para no esperarlo en cada mensaje; el último siempre se prueba.
+        if (hayRespaldo && !esElUltimo && !CIRCUITO.disponible(p, java.time.Instant.now())) {
+            return probarProveedor(orden, i + 1, mensajes, ultimoError);
+        }
+        return llamarProveedor(p, mensajes)
+                .doOnNext(r -> {
+                    if (hayRespaldo) {
+                        CIRCUITO.registrarExito(p);
+                    }
+                    if (i > 0) {
+                        log.warn("IA: contestó el respaldo {} (modelo {})", p.nombre(), p.modelo());
+                    }
+                })
+                .onErrorResume(e -> {
+                    Integer status = null;
+                    String cuerpo = null;
+                    if (e instanceof WebClientResponseException w) {
+                        status = w.getStatusCode().value();
+                        cuerpo = w.getResponseBodyAsString();
+                    }
+                    TipoDeFallo fallo = PoliticaDeRespaldoIa.clasificar(status, cuerpo);
+                    if (!fallo.cambiaDeProveedor() || !hayRespaldo) {
+                        return Mono.error(e);
+                    }
+                    long pausa = iaPausaMinutos > 0 ? iaPausaMinutos : 10;
+                    boolean primeraVez = CIRCUITO.registrarFallo(p, fallo, java.time.Duration.ofMinutes(pausa),
+                            java.time.Instant.now());
+                    if (primeraVez) {
+                        log.error("IA: {} falló ({}, HTTP {}). Se pasa al respaldo y {} descansa un rato. "
+                                + "Revisa el saldo y la llave de {}", p.nombre(), fallo, status, p.nombre(), p.nombre());
+                    } else {
+                        log.warn("IA: {} sigue fallando ({}, HTTP {})", p.nombre(), fallo, status);
+                    }
+                    return probarProveedor(orden, i + 1, mensajes, e);
+                });
+    }
+
+    private Mono<String> llamarProveedor(ProveedorIa p, List<Map<String, String>> mensajes) {
         Map<String, Object> body = Map.of(
-                "model", model,
+                "model", p.modelo(),
                 "messages", mensajes,
                 "max_tokens", 500,
                 "temperature", 0.7
         );
+        WebClient cliente = clientesIa.computeIfAbsent(p.urlBase(), u -> WebClient.builder().baseUrl(u).build());
 
-        return webClient.post()
+        return cliente.post()
                 .uri("/chat/completions")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + openaiApiKey)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + p.apiKey())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .timeout(Duration.ofSeconds(20))
                 .map(response -> {
-                    if (response == null) throw new RuntimeException("Sin respuesta de OpenAI");
+                    if (response == null) throw new IllegalStateException("Sin respuesta de " + p.nombre());
                     List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+                    if (choices == null || choices.isEmpty()) {
+                        throw new IllegalStateException("Respuesta vacía de " + p.nombre());
+                    }
                     Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                    return (String) message.get("content");
+                    String contenido = message == null ? null : (String) message.get("content");
+                    if (contenido == null || contenido.isBlank()) {
+                        throw new IllegalStateException("Respuesta vacía de " + p.nombre());
+                    }
+                    return contenido;
                 });
     }
 

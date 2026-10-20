@@ -238,7 +238,7 @@ porque se hará más adelante"*. Sobre P1 preguntó cómo se corrige (abajo).
 
 | # | Estado | Qué quedó |
 |---|---|---|
-| P1 | ❓ Explicado, sin hacer | Ver "Cómo se corregiría P1" |
+| P1 | ✅ Hecho en rama `feature/p1-filtro-chat` (2026-10-20), falta QA | `PoliticaDeRespuesta.queMenciona()` ahora lo usan también el chat de la tienda (`ChatbotController`) y el chat en vivo (`ChatVivoBotService`); lista ampliada con OpenAI, ChatGPT, DeepSeek, "modelo de lenguaje", "mis instrucciones", "código de barras" y cantidades. Prueba 28 |
 | P2 | ✅ Corregido | `politicasTienda()`: *"Pagos: por ahora solo en efectivo o por transferencia. No se paga con tarjeta… No ofrezcas meses sin intereses."* |
 | P3 | ✅ Corregido | `textoDeEntregas()` lee `lugares_entrega` (Envíos → Zonas de entrega) en cada mensaje: las zonas en orden alfabético, la fila de "recoger en tienda" como el local, y *"Solo menciona estos lugares"*. Sin zonas o si falla la lectura, no nombra lugares y ofrece que una persona confirme. El repositorio entra por campo (`@Autowired(required = false)`) para no cambiar los constructores de los 4 canales |
 | P4 | ✅ Corregido | La IA ya no recibe cuántas piezas hay (catálogo: *"disponible"*; ficha del producto en comentarios: *"Disponibilidad: sí hay / agotado"*) y regla `SIN_DATOS_INTERNOS`: nunca decir cantidad ni código de barras. El código de barras sigue en el catálogo de la IA solo para que `##BUSCAR##` traiga el producto exacto (BUG-CB-01). Front: la tarjeta del chat de la tienda dice *"✅ Disponible"* / *"Agotado"* en vez de *"N pzas"* y ya no pinta el código de barras |

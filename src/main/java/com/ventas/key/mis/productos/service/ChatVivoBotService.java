@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.botredes.dominio.modelo.PoliticaDeRespuesta;
 import com.ventas.key.mis.productos.chatbot.ChatbotBlockService;
 import com.ventas.key.mis.productos.chatbot.ChatbotChatVivoService;
 import com.ventas.key.mis.productos.entity.ChatMensaje;
@@ -264,6 +265,18 @@ public class ChatVivoBotService {
 
         boolean pideHumano = cruda != null && cruda.contains(ChatbotChatVivoService.MARCA_HUMANO);
         String texto = limpiarMarcadores(cruda);
+        String motivoEscalado = "el cliente pidió una persona";
+
+        // P1 (2026-10-20): mismo filtro de seguridad que Facebook e Instagram. Si la IA delata algo
+        // interno, el cliente no lo lee: se le dice que en un momento lo atienden y pasa a una persona.
+        Optional<String> frase = PoliticaDeRespuesta.queMenciona(texto);
+        if (frase.isPresent()) {
+            log.warn("Chat en vivo: respuesta del asistente detenida por el filtro de seguridad en la sesión {} (frase: '{}')",
+                    sesionId, frase.get());
+            texto = AVISO_LIMITE;
+            pideHumano = true;
+            motivoEscalado = "el filtro de seguridad detuvo la respuesta del asistente";
+        }
 
         if (texto.isBlank()) {
             // El modelo contestó sólo con marcadores. Mejor un texto propio que un globo vacío.
@@ -274,8 +287,8 @@ public class ChatVivoBotService {
 
         if (pideHumano) {
             sesionService.cambiarModo(sesionId, IChatSesionService.MODO_HUMANO);
-            notificacionService.notificarEscalado(sesionId, nombreUsuario, "el cliente pidió una persona", pregunta);
-            log.info("Chat en vivo: sesión {} escalada porque el cliente pidió una persona", sesionId);
+            notificacionService.notificarEscalado(sesionId, nombreUsuario, motivoEscalado, pregunta);
+            log.info("Chat en vivo: sesión {} escalada ({})", sesionId, motivoEscalado);
             return;
         }
 
