@@ -636,6 +636,27 @@ espejean el contrato del back todavía no.
 
 ---
 
+---
+
+## Paso a producción del 2026-10-15 (hecho)
+
+- **Back:** `qa` → `main` (merge `--no-ff`), deploy verde. **Front:** `qa` → `master`, deploy verde.
+- **SQL en `inventario_key`:** los 10 scripts del paso corridos (1–7 antes del deploy, 8–10 —diseño Jade— después del back y antes del front).
+- **Todos los usuarios tuvieron que volver a entrar** (los permisos viajan en el JWT).
+- Plan y bitácora: `PLAN_PASO_A_PROD_2026-10-15.md` y `PROD_SQL_2026-10-15.md`.
+
+## Regla — credenciales: nunca en el repositorio (2026-10-15)
+
+`proyecto_key` y `producto_venta_online` son **repositorios públicos**. Una contraseña o llave escrita en cualquier archivo
+queda a la vista de todos y en el historial, aunque se borre después.
+
+- Las llaves y contraseñas viven en **variables de entorno de Kubernetes** (`kubectl set env`) o en el Secret, nunca en código ni en `.md`.
+- `k8s/*/secret.yaml` está en `.gitignore`; en el repo solo van las plantillas `secret.example.yaml`.
+- **DipoMex:** variable `DIPOMEX_API_KEY` (la lee `DopoMexService`). Sin ella el código postal se pide a mano.
+- **RabbitMQ:** el micro de imágenes tiene **dos juegos** de variables (`RABBITMQ_*` y `SPRING_RABBITMQ_*`): al cambiar la contraseña hay que cambiar los dos.
+- AWS ya no se usa. Procedimiento de rotación y bitácora: `SEGURIDAD_CREDENCIALES_2026-10-15.md`.
+- Gitleaks (`gitleaks detect --source . --redact`) antes de un cambio grande; falsos positivos conocidos en ese documento.
+
 ## Migraciones ya corridas — registro
 
 Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
@@ -656,24 +677,24 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
 | `migration_renombre_producto_etiquetas.sql` | ✅ corrida | ✅ corrida | 2026-10-20 |
-| `migration_sesion_refresh_gracia.sql` (ventana de gracia del refresh token: `jti_anterior`, `rotado_en`) | ✅ corrida (2 columnas verificadas) | ⏳ pendiente | 2026-10-14 |
+| `migration_sesion_refresh_gracia.sql` (ventana de gracia del refresh token: `jti_anterior`, `rotado_en`) | ✅ corrida (2 columnas verificadas) | ✅ corrida en prod (2026-10-15) | 2026-10-14 |
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ✅ corrida (0 filas, nada que reparar) | 2026-09-29 / prod 2026-09-30 |
 | `migration_preferencia_filtro.sql` | ✅ corrida | ✅ corrida | 2026-09-29 |
 | `migration_precio_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 (hotfix, antes del deploy) |
 | `migration_usar_descuento_variante.sql` | ✅ corrida | ✅ corrida | 2026-09-29 / prod 2026-09-30 |
 | `migration_accion_pedidos_filtros_y_cobro.sql` (permisos de ⚙️ Filtros y del cobro desde la card) | ✅ corrida (verificación sin_admin = 0) | ✅ corrida antes que el front (sin_admin = 0; las claves no cambian, solo textos — ver nota) | 2026-10-06 |
-| `migration_tema_jade.sql` (diseño Jade por default) | ✅ corrida (estilo = jade, respaldo con 39 filas) | ⏳ pendiente (cuando Jade llegue a `main`) | qa 2026-10-07 |
+| `migration_tema_jade.sql` (diseño Jade por default) | ✅ corrida (estilo = jade, respaldo con 39 filas) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `datos_prueba_qa_catalogo.sql` (datos de prueba) | ⏳ pendiente | 🚫 nunca | 2026-09-29 |
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
-| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ⏳ pendiente — **antes** del deploy del back a `main` | qa 2026-10-07 |
-| `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ⏳ pendiente | qa 2026-10-07 |
-| `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ⏳ pendiente — **antes** del deploy del back a `main` (sin ella falla el login) | qa 2026-10-07 |
-| `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ⏳ pendiente (junto con Jade) | qa 2026-10-07 |
-| `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ⏳ pendiente (junto con Jade) | qa 2026-10-08 |
-| `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ⏳ pendiente | qa 2026-10-08 |
+| `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
+| `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
+| `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
+| `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
+| `migration_tema_modal.sql` (velo detrás de una ventana abierta, en Personalización → Página) | ✅ corrida (1 fila `modal-backdrop`) | ✅ corrida en prod (2026-10-15) | qa 2026-10-08 |
+| `migration_accion_tienda_venta_ver_todos.sql` (permiso "Ver todos los modelos" en Agregar artículo) | ✅ corrida (1 acción con ROLE_ADMIN) | ✅ corrida en prod (2026-10-15) | qa 2026-10-08 |
 | `migration_renombre_articulo_etiquetas.sql` (solo en la rama `rename/variante-a-articulo`: menú "Agregar artículo" y textos de Gestión de roles sin "variante") | ✅ corrida (2026-10-20; versión con segundo barrido) | ⏳ cuando la rama llegue a `main` | qa 2026-10-20 |
-| `migration_codigo_postal.sql` | ✅ corrida (tabla `codigo_postal` creada) | ⏳ pendiente (cuando el dominio `codigopostal` llegue a `main`) | qa 2026-10-14 (antes, probada 2 veces en base desechable) |
+| `migration_codigo_postal.sql` | ✅ corrida (tabla `codigo_postal` creada) | ✅ corrida en prod (2026-10-15) | qa 2026-10-14 (antes, probada 2 veces en base desechable) |
 
 ### Pendiente para prod — lista de lo que hay que correr cuando `dev`/`qa` suban a `main`
 
@@ -690,6 +711,8 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 6 | `migration_tema_modal.sql` | Igual que la 5: sin ella el velo detrás de la ventana 🧩 Agregar artículos funciona (sale de `styles.scss`), solo no aparece en Personalización. Agrega 1 fila. Ya corrida en QA (2026-10-08) | 2026-10-08 |
 | 7 | `migration_accion_tienda_venta_ver_todos.sql` | Sin ella solo el admin ve en Agregar artículo los modelos sin stock, deshabilitados o dados de baja (los demás roles no pueden recibir el permiso). Agrega 1 acción y se la da al admin. Ya corrida en QA (2026-10-08) | 2026-10-08 |
 | 8 | `migration_accion_editar_entrega_direccion.sql` | Solo cambia el **texto** del permiso `editar-entrega` en Gestión de roles a *"Dirección (📍 en la tarjeta)"*, para que diga lo mismo que el botón de la tarjeta (antes "📍 Entrega", se confundía con "📦 Entregar"). Sin ella todo funciona; solo el nombre en Gestión de roles queda viejo. No cambia claves ni quién tiene el permiso: **no hace falta volver a entrar**. **Falta correrla en QA** (se corre cuando el front con el botón "Dirección" esté en QA) | 2026-10-13 |
+| 9 | `migration_codigo_postal.sql` | Crea la tabla `codigo_postal`: sin ella falla la consulta de códigos postales. Ya corrida en QA (2026-10-14) | 2026-10-14 |
+| 10 | `migration_sesion_refresh_gracia.sql` | Agrega `jti_anterior` y `rotado_en` a `sesion_refresh`: **sin ellas fallan el login y la renovación de sesión**. Ya corrida en QA (2026-10-14) | 2026-10-14 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
