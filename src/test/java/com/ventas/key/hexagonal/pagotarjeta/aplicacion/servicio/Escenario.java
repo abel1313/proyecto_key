@@ -41,7 +41,7 @@ class Escenario {
         for (int i = 0; i < aceptaMsi.length; i++) {
             arts.add(new ArticuloACobrar(100 + i, "Artículo " + i, aceptaMsi[i]));
         }
-        return new PedidoACobrar(id, 50, tipo, new BigDecimal(total), false, null, arts);
+        return new PedidoACobrar(id, 50, tipo, new BigDecimal(total), false, false, null, arts);
     }
 
     static class RelojFalso extends Clock {
@@ -193,7 +193,7 @@ class Escenario {
             if (marcarPagadoFalla) throw new IllegalStateException("el pedido no se pudo actualizar");
             intentosPagados.add(intentoId);
             PedidoACobrar p = pedidos.porId.get(pedidoId);
-            pedidos.porId.put(pedidoId, new PedidoACobrar(p.pedidoId(), p.clienteId(), p.tipo(), p.total(), true,
+            pedidos.porId.put(pedidoId, new PedidoACobrar(p.pedidoId(), p.clienteId(), p.tipo(), p.total(), true, false,
                     p.pagadoPorIntentoId() != null ? p.pagadoPorIntentoId() : intentoId, p.articulos()));
         }
         @Override public void registrarDevolucion(Integer pedidoId, Long intentoId, BigDecimal monto, String hechaPor, String clave) {

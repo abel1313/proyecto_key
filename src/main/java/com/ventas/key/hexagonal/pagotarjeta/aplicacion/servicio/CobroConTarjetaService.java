@@ -90,6 +90,9 @@ public class CobroConTarjetaService
     public IntentoDePago iniciar(Integer pedidoId, CanalDePago canal, int cuotas, String iniciadoPor) {
         PedidoACobrar pedido = pedidos.buscar(pedidoId)
                 .orElseThrow(() -> PagoConTarjetaException.pedidoNoExiste(pedidoId));
+        if (pedido.cancelado()) {
+            throw PagoConTarjetaException.pedidoCancelado(pedidoId);
+        }
         if (pedido.pagado()) {
             throw PagoConTarjetaException.pedidoYaPagado(pedidoId);
         }

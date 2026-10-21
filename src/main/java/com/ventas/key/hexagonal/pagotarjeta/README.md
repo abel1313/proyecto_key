@@ -49,8 +49,14 @@ Freno: 3 rechazos del mismo pedido en 2 horas (cancelar no cuenta).
 - Capa web: comprobar que quien consulta/cancela es el dueño (`clienteId` del intento) o admin; devolver solo admin; `CobroNoCreado`→502, `ConflictoDeConcurrencia`→409, resto→400; el webhook valida la firma (T5).
 - Límite honesto: la API vigente de la terminal (Point) quizá no permita buscar por `external_reference`; confirmarlo antes de escribir ese adaptador.
 
+## Adaptador del pedido (hecho): `PedidoCobroAdapter`
+- Lee: `tipo_pedido` NORMAL=Contado, APARTADO, FIADO=Ir pagando; pagado = estado PAGADO/Entregado; cancelado nunca se cobra; la casilla MSI sale de `COALESCE(variantes.acepta_msi, producto.acepta_msi)`.
+- `marcarPagado` (idempotente): pedido PAGADO con su total pagado + venta con forma de pago tarjeta (comisión según los meses; si no hay fila de esos meses en `pagos_y_meses` usa tarjeta de contado y avisa en el log) + si fue en la **terminal** queda también entregado; si fue **en línea**, queda Pagado y falta entregar.
+- `registrarDevolucion` solo deja bitácora: el registro vive en `pago_tarjeta_devolucion`; regresar mercancía/stock es decisión aparte.
+- Supuestos a confirmar con datos de QA: la fila 2 de `pagos_y_meses` es "tarjeta de contado" (la misma que usa `AbonoServiceImpl`); `Venta.usuario` es el usuario que inició el cobro (`iniciadoPor` = username).
+
 ## Falta
-Adaptador del pedido (marcar pagado + crear venta), pasarela real de la terminal y de Checkout Pro, controllers + permisos, `CAMBIOS_FRONT.md`, front.
+Pasarela real de la terminal y de Checkout Pro, controllers + permisos, `CAMBIOS_FRONT.md`, front.
 
 ## ⚠️ Fuera de esta rama
 `MercadoPagoController.simularPago` (`@Profile("dev")` en un método se ignora) existe también en producción (solo ADMIN). Hotfix pendiente de decisión del dueño.

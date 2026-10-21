@@ -42,6 +42,10 @@ public class PagoConTarjetaException extends RuntimeException {
         return new PagoConTarjetaException("El pedido " + pedidoId + " ya está pagado");
     }
 
+    public static PagoConTarjetaException pedidoCancelado(Integer pedidoId) {
+        return new PagoConTarjetaException("El pedido " + pedidoId + " está cancelado y no se puede cobrar");
+    }
+
     /** T3 */
     public static PagoConTarjetaException tarjetaNoPermitida(TipoDeCobro tipo) {
         String motivo = switch (tipo) {

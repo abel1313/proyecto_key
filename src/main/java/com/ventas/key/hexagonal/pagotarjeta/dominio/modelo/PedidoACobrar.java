@@ -13,6 +13,7 @@ import java.util.List;
  *                  el dueño o un administrador
  * @param total     T2: lo calcula el back; el front nunca manda el monto a cobrar
  * @param pagado    true si el pedido ya esta Pagado (no se vuelve a cobrar)
+ * @param cancelado true si el pedido esta cancelado (jamas se cobra)
  * @param pagadoPorIntentoId el cobro que lo dejo pagado (null si se pago por otra via o no esta pagado);
  *                  permite distinguir "ya lo pague yo" (idempotencia) de "otro cobro lo pago" (doble pago)
  */
@@ -22,6 +23,7 @@ public record PedidoACobrar(
         TipoDeCobro tipo,
         BigDecimal total,
         boolean pagado,
+        boolean cancelado,
         Long pagadoPorIntentoId,
         List<ArticuloACobrar> articulos) {
 }
