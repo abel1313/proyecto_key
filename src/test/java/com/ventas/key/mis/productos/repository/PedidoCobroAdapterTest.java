@@ -57,8 +57,19 @@ class PedidoCobroAdapterTest {
         em.createNativeQuery("ALTER TABLE variantes ADD COLUMN IF NOT EXISTS acepta_msi TINYINT NULL").executeUpdate();
 
         TipoPago tipo = new TipoPago();
-        tipo.setFormaPago("Tarjeta");
+        tipo.setFormaPago("Tarjeta Debito");
         em.persist(tipo);
+        TipoPago credito = new TipoPago();
+        credito.setFormaPago("Tarjeta credito");
+        em.persist(credito);
+        MesesIntereses tresMeses = new MesesIntereses();
+        tresMeses.setMeses("3");
+        tresMeses.setDescripcion("Pago tarjeta de crédito a 3 meses sin intereses");
+        em.persist(tresMeses);
+        PagosYMeses formaTres = new PagosYMeses();
+        formaTres.setTipoPago(credito);
+        formaTres.setMesesIntereses(tresMeses);
+        em.persist(formaTres);
         MesesIntereses contado = new MesesIntereses();
         contado.setMeses("1");
         contado.setDescripcion("Contado");
@@ -185,6 +196,28 @@ class PedidoCobroAdapterTest {
         assertThat(venta.getTotalVenta()).isEqualTo(450.0);
         assertThat(venta.getDetalles()).hasSize(1);
         assertThat(venta.getDetalles().get(0).getGanancia()).isEqualTo(350.0);
+    }
+
+    @Test
+    void aMesesSinIntereses_laVentaUsaLaFormaDePagoDeCreditoConEsosMeses() {
+        Pedido p = pedido("NORMAL", "PENDIENTE", articulo(true));
+        IntentoDePago i = intento(p.getId(), CanalDePago.TERMINAL, 3);
+        adaptador.marcarPagado(p.getId(), i.id());
+        em.flush();
+        em.clear();
+        var venta = ventas.findByPedidoId(p.getId()).orElseThrow();
+        assertThat(venta.getPagosYMeses().getMesesIntereses().getMeses()).isEqualTo("3");
+        assertThat(venta.getPagosYMeses().getTipoPago().getFormaPago()).isEqualTo("Tarjeta credito");
+    }
+
+    @Test
+    void siNoHayFilaDeEsosMeses_seRegistraComoTarjetaDeContado() {
+        Pedido p = pedido("NORMAL", "PENDIENTE", articulo(true));
+        IntentoDePago i = intento(p.getId(), CanalDePago.TERMINAL, 6);
+        adaptador.marcarPagado(p.getId(), i.id());
+        em.flush();
+        em.clear();
+        assertThat(ventas.findByPedidoId(p.getId()).orElseThrow().getPagosYMeses().getMesesIntereses().getMeses()).isEqualTo("1");
     }
 
     @Test

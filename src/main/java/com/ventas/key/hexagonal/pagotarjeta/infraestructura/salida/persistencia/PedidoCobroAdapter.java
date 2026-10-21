@@ -201,8 +201,10 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
     }
 
     /**
-     * La fila de {@code pagos_y_meses} de tarjeta con esos meses (misma forma de pago que la de "tarjeta de
-     * contado"). Si no existe (la comision no queda exacta), se usa tarjeta de contado y se avisa en el log:
+     * La forma de pago del catalogo {@code pagos_y_meses}. De contado (1 pago) se usa la fila 2, que es la que ya
+     * usa el cobro de abonos (en QA: "Tarjeta Debito" y "Tarjeta credito" a 1 pago llevan la misma comision, asi
+     * que no importa cual de las dos sea). A meses sin intereses se busca la fila de tarjeta de CREDITO con
+     * esos meses. Si no existe (la comision no queda exacta), se usa la de contado y se avisa en el log:
      * registrar el pago importa mas que la comision.
      */
     private PagosYMeses formaDePago(int cuotas) {
@@ -211,13 +213,15 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
         if (cuotas <= 1) {
             return contado;
         }
-        for (PagosYMeses candidata : pagosYMeses.findByTipoPago_Id(contado.getTipoPago().getId())) {
+        for (PagosYMeses candidata : pagosYMeses.findAll()) {
+            String forma = candidata.getTipoPago().getFormaPago();
+            boolean esCredito = forma != null && forma.toLowerCase(java.util.Locale.ROOT).replace("é", "e").contains("credito");
             Integer plazo = PlanesMsiJdbcAdapter.interpretar(candidata.getMesesIntereses().getMeses());
-            if (plazo != null && plazo == cuotas) {
+            if (esCredito && plazo != null && plazo == cuotas) {
                 return candidata;
             }
         }
-        log.warn("No hay forma de pago de tarjeta a {} meses en pagos_y_meses; se registra como tarjeta de contado", cuotas);
+        log.warn("No hay forma de pago de tarjeta de crédito a {} meses en pagos_y_meses; se registra como tarjeta de contado", cuotas);
         return contado;
     }
 

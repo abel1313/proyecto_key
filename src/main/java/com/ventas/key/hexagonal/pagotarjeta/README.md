@@ -53,7 +53,7 @@ Freno: 3 rechazos del mismo pedido en 2 horas (cancelar no cuenta).
 - Lee: `tipo_pedido` NORMAL=Contado, APARTADO, FIADO=Ir pagando; pagado = estado PAGADO/Entregado; cancelado nunca se cobra; la casilla MSI sale de `COALESCE(variantes.acepta_msi, producto.acepta_msi)`.
 - `marcarPagado` (idempotente): pedido PAGADO con su total pagado + venta con forma de pago tarjeta (comisión según los meses; si no hay fila de esos meses en `pagos_y_meses` usa tarjeta de contado y avisa en el log) + si fue en la **terminal** queda también entregado; si fue **en línea**, queda Pagado y falta entregar.
 - `registrarDevolucion` solo deja bitácora: el registro vive en `pago_tarjeta_devolucion`; regresar mercancía/stock es decisión aparte.
-- Supuestos a confirmar con datos de QA: la fila 2 de `pagos_y_meses` es "tarjeta de contado" (la misma que usa `AbonoServiceImpl`); `Venta.usuario` es el usuario que inició el cobro (`iniciadoPor` = username).
+- Datos de QA verificados (2026-10-21): fila 2 = Tarjeta Débito a 1 pago (la misma que usa `AbonoServiceImpl`), fila 3 = Tarjeta crédito a 1 pago (misma comisión 3.5), fila 4 = Tarjeta crédito a 3 meses (4.69). Hoy solo existe el plan de 3 meses; para 6, 9 y 12 faltan filas en `pagos_y_meses`. Los meses se buscan solo en tarjeta de crédito. `Venta.usuario` es el usuario que inició el cobro (`iniciadoPor` = username).
 
 ## Falta
 Pasarela real de la terminal y de Checkout Pro, controllers + permisos, `CAMBIOS_FRONT.md`, front.
