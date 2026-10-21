@@ -9,6 +9,7 @@ import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.EstadoIntento;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.IntentoDePago;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.PedidoACobrar;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.ReglasMsi;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.ResultadoAplicacion;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.CancelarCobroCasoUso;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.ConfirmarCobroCasoUso;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.ExpirarCobrosVencidosCasoUso;
@@ -20,6 +21,9 @@ import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PasarelaDePago
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PedidoACobrarPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PlanesMsiPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.TransaccionPort;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -58,6 +62,8 @@ public class CobroConTarjetaService
         implements IniciarCobroCasoUso, ConfirmarCobroCasoUso, CancelarCobroCasoUso, ExpirarCobrosVencidosCasoUso,
                    ReconciliarCobrosCasoUso {
 
+    private static final Logger log = LoggerFactory.getLogger(CobroConTarjetaService.class);
+
     /** Rechazos del mismo pedido que activan el freno (regla heredada de la terminal actual). */
     static final int MAX_RECHAZOS = 3;
     static final Duration VENTANA_DE_RECHAZOS = Duration.ofHours(2);
@@ -92,6 +98,9 @@ public class CobroConTarjetaService
                 .orElseThrow(() -> PagoConTarjetaException.pedidoNoExiste(pedidoId));
         if (pedido.cancelado()) {
             throw PagoConTarjetaException.pedidoCancelado(pedidoId);
+        }
+        if (pedido.enGrupo()) {
+            throw PagoConTarjetaException.pedidoEnGrupo(pedidoId);
         }
         if (pedido.pagado()) {
             throw PagoConTarjetaException.pedidoYaPagado(pedidoId);
@@ -208,9 +217,11 @@ public class CobroConTarjetaService
     }
 
     /**
-     * T4. La pasarela cobro. Si el pedido ya lo pago otro cobro (doble pago) o su total cambio desde
-     * que se inicio, el dinero NO se aplica: queda COBRADO_SIN_APLICAR para devolverlo. Si no, el pedido
-     * se marca pagado y el intento queda aprobado en UNA transaccion (los dos o ninguno).
+     * T4. La pasarela cobro. Dentro de UNA transaccion el adaptador bloquea el pedido, lo revisa de nuevo y lo
+     * marca pagado; el intento queda APROBADO. Si el pedido ya no admite el pago (ya lo pago otro cobro o el
+     * efectivo, se cancelo, cambio de forma de cobro, tiene abonos o su total cambio) el dinero NO se aplica:
+     * queda COBRADO_SIN_APLICAR para devolverlo. La decision la toma la respuesta del adaptador (con el pedido
+     * bloqueado), no una lectura previa que otro proceso pudo dejar vieja.
      */
     private IntentoDePago aprobar(IntentoDePago intento, Instant ahora) {
         PedidoACobrar pedido = pedidos.buscar(intento.pedidoId())
@@ -218,17 +229,58 @@ public class CobroConTarjetaService
         boolean loPagoOtro = pedido.pagado() && !Objects.equals(pedido.pagadoPorIntentoId(), intento.id());
         boolean cambioElTotal = !pedido.pagado() && pedido.total().compareTo(intento.monto()) != 0;
         if (loPagoOtro || cambioElTotal) {
+            log.warn("Cobro {} del pedido {} aprobado pero sin aplicar (otro lo pago: {}, cambio el total: {}): por devolver",
+                    intento.id(), intento.pedidoId(), loPagoOtro, cambioElTotal);
             return guardarOReleer(intento.cobradoSinAplicar(ahora));
         }
         try {
-            return transaccion.ejecutar(() -> {
-                if (!pedido.pagado()) {
-                    actualizarPedido.marcarPagado(intento.pedidoId(), intento.id());
-                }
-                return intentos.guardar(intento.aprobado(ahora));
+            IntentoDePago resultado = transaccion.ejecutar(() -> {
+                ResultadoAplicacion r = pedido.pagado()
+                        ? ResultadoAplicacion.APLICADO                    // ya lo pago este mismo cobro
+                        : actualizarPedido.marcarPagado(intento.pedidoId(), intento.id());
+                return intentos.guardar(r == ResultadoAplicacion.APLICADO
+                        ? intento.aprobado(ahora) : intento.cobradoSinAplicar(ahora));
             });
+            if (resultado.estado() == EstadoIntento.APROBADO) {
+                liberarOtrosActivos(resultado);
+            } else {
+                log.warn("Cobro {} del pedido {} aprobado pero el pedido ya no admite el pago: por devolver",
+                        intento.id(), intento.pedidoId());
+            }
+            return resultado;
         } catch (ConflictoDeConcurrencia e) {
             return buscar(intento.id());                            // la transaccion se deshizo; otro ya lo resolvio
+        } catch (PagoConTarjetaException.NoSePudoAplicar e) {
+            // Faltan datos para registrar la venta (usuario, catalogo de pago...). El dinero SI se cobro: no se
+            // deja el cobro "en proceso" para siempre, queda por devolver y con el motivo en el log.
+            log.error("No se pudo aplicar el cobro {} al pedido {}: {}", intento.id(), intento.pedidoId(), e.getMessage(), e);
+            return guardarOReleer(intento.cobradoSinAplicar(ahora));
+        }
+    }
+
+    /**
+     * Ya se cobro el pedido: si habia otro cobro activo (por ejemplo uno de terminal abierto mientras el de
+     * linea vencia), se cancela en la pasarela para que el cliente no pueda pagar otra vez. Si ya se cobro,
+     * confirmar() lo deja COBRADO_SIN_APLICAR. Nunca debe tumbar el cobro que si se aplico.
+     */
+    private void liberarOtrosActivos(IntentoDePago aplicado) {
+        try {
+            intentos.activoDelPedido(aplicado.pedidoId())
+                    .filter(otro -> !Objects.equals(otro.id(), aplicado.id()))
+                    .ifPresent(otro -> {
+                        try {
+                            if (otro.idExterno() != null) {
+                                pasarela.cancelar(otro.idExterno());
+                            }
+                            guardarOReleer(otro.cancelado(reloj.instant()));
+                        } catch (RuntimeException e) {
+                            log.warn("No se pudo cancelar el cobro {} que sigue activo en el pedido {} ya pagado: {}",
+                                    otro.id(), aplicado.pedidoId(), e.getMessage());
+                            confirmar(otro.id());
+                        }
+                    });
+        } catch (RuntimeException e) {
+            log.error("No se pudo liberar los otros cobros activos del pedido {}: {}", aplicado.pedidoId(), e.getMessage());
         }
     }
 
@@ -307,6 +359,7 @@ public class CobroConTarjetaService
                 }
             } catch (RuntimeException e) {
                 // Un cobro con problemas no debe detener a los demas; se reintenta en la siguiente corrida.
+                log.error("expirarVencidos: no se pudo resolver el cobro {}: {}", candidato.id(), e.getMessage());
             }
         }
         return resueltos;
@@ -325,6 +378,7 @@ public class CobroConTarjetaService
                 }
             } catch (RuntimeException e) {
                 // Se reintenta en la siguiente corrida; un cobro con problemas no detiene a los demas.
+                log.error("reconciliar: no se pudo resolver el cobro {}: {}", perdido.id(), e.getMessage());
             }
         }
         return aplicados;

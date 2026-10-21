@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.repository;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.CanalDePago;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.IntentoDePago;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.PedidoACobrar;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.ResultadoAplicacion;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.TipoDeCobro;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia.IntentosDePagoJpaAdapter;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia.PedidoCobroAdapter;
@@ -183,14 +184,16 @@ class PedidoCobroAdapterTest {
         Pedido p = pedido("NORMAL", "PENDIENTE", articulo(false));
         IntentoDePago i = intento(p.getId(), CanalDePago.TERMINAL, 1);
 
-        adaptador.marcarPagado(p.getId(), i.id());
-        adaptador.marcarPagado(p.getId(), i.id());                       // repetirlo no duplica nada
+        assertThat(adaptador.marcarPagado(p.getId(), i.id())).isEqualTo(ResultadoAplicacion.APLICADO);
+        assertThat(adaptador.marcarPagado(p.getId(), i.id())).isEqualTo(ResultadoAplicacion.NO_APLICABLE);   // ya pagado: no se duplica
         em.flush();
         em.clear();
 
         Pedido leido = pedidos.findById(p.getId()).orElseThrow();
-        assertThat(leido.getEstadoPedido()).isEqualTo("PAGADO");
-        assertThat(leido.getTotalPagado()).isEqualTo(450.0);
+        // un contado cobrado se guarda como 'Entregado' en estado_pedido (el PAGO) y su total_pagado se queda en 0,
+        // como la venta de mostrador: es lo que esperan grupos, entregas y reportes
+        assertThat(leido.getEstadoPedido()).isEqualTo("Entregado");
+        assertThat(leido.getTotalPagado()).isEqualTo(0.0);
         assertThat(leido.isEntregado()).isTrue();
         var venta = ventas.findByPedidoId(p.getId()).orElseThrow();
         assertThat(venta.getTotalVenta()).isEqualTo(450.0);
@@ -228,8 +231,8 @@ class PedidoCobroAdapterTest {
         em.flush();
         em.clear();
         Pedido leido = pedidos.findById(p.getId()).orElseThrow();
-        assertThat(leido.getEstadoPedido()).isEqualTo("PAGADO");
-        assertThat(leido.isEntregado()).isFalse();
+        assertThat(leido.getEstadoPedido()).isEqualTo("Entregado");
+        assertThat(leido.isEntregado()).isFalse();                       // Pagado, falta entregar
         assertThat(ventas.findByPedidoId(p.getId())).isPresent();
     }
 
@@ -246,5 +249,65 @@ class PedidoCobroAdapterTest {
         em.flush();
         em.clear();
         assertThat(adaptador.buscar(p.getId()).orElseThrow().pagadoPorIntentoId()).isEqualTo(i.id());
+    }
+
+    // ── Hallazgos del revisor: el pedido se revisa de nuevo, ya bloqueado, antes de marcarlo ──
+
+    private ResultadoAplicacion aplicarA(Pedido p) {
+        IntentoDePago i = intento(p.getId(), CanalDePago.TERMINAL, 1);
+        ResultadoAplicacion r = adaptador.marcarPagado(p.getId(), i.id());
+        em.flush();
+        em.clear();
+        return r;
+    }
+
+    @Test
+    void unPedidoCanceladoNoSeRevive() {
+        Pedido p = pedido("NORMAL", "cancelado", articulo(false));
+        assertThat(aplicarA(p)).isEqualTo(ResultadoAplicacion.NO_APLICABLE);
+        assertThat(pedidos.findById(p.getId()).orElseThrow().getEstadoPedido()).isEqualTo("cancelado");
+        assertThat(ventas.findByPedidoId(p.getId())).isEmpty();
+    }
+
+    @Test
+    void unPedidoQueCambioAIrPagandoOYaTieneAbonosNoRecibeElPago() {
+        Variantes v = articulo(false);
+        Pedido fiado = pedido("FIADO", "FIADO", v);
+        assertThat(aplicarA(fiado)).isEqualTo(ResultadoAplicacion.NO_APLICABLE);
+
+        Pedido conAbono = pedido("NORMAL", "PENDIENTE", v);
+        conAbono.setTotalPagado(100.0);
+        pedidos.save(conAbono);
+        em.flush();
+        em.clear();
+        assertThat(aplicarA(conAbono)).isEqualTo(ResultadoAplicacion.NO_APLICABLE);
+        assertThat(ventas.findByPedidoId(conAbono.getId())).isEmpty();
+    }
+
+    @Test
+    void siElTotalDelPedidoCambioNoSeMarcaPagado() {
+        Pedido p = pedido("NORMAL", "PENDIENTE", articulo(false));
+        IntentoDePago i = intento(p.getId(), CanalDePago.TERMINAL, 1);          // cobro de 450.00
+        Pedido editado = pedidos.findById(p.getId()).orElseThrow();
+        editado.setTotalPedido(600.0);                                          // se agrego un articulo despues
+        pedidos.save(editado);
+        em.flush();
+        em.clear();
+        assertThat(adaptador.marcarPagado(p.getId(), i.id())).isEqualTo(ResultadoAplicacion.NO_APLICABLE);
+    }
+
+    @Test
+    void sinElUsuarioQueCobro_avisaConUnaExcepcionDeDatosYNoDejaNadaAMedias() {
+        Pedido p = pedido("NORMAL", "PENDIENTE", articulo(false));
+        IntentoDePago i = intentos.guardar(IntentoDePago.nuevo(p.getId(), null, CanalDePago.TERMINAL,
+                new BigDecimal("450.00"), 1, "nadie", Instant.now()));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> adaptador.marcarPagado(p.getId(), i.id()))
+                .isInstanceOf(com.ventas.key.hexagonal.pagotarjeta.dominio.excepcion.PagoConTarjetaException.NoSePudoAplicar.class);
+    }
+
+    @Test
+    void marcaSiElPedidoEstaEnUnGrupoActivo() {
+        Pedido p = pedido("NORMAL", "PENDIENTE", articulo(false));
+        assertThat(adaptador.buscar(p.getId()).orElseThrow().enGrupo()).isFalse();
     }
 }

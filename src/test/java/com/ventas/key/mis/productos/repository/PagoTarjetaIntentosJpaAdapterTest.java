@@ -30,6 +30,7 @@ class PagoTarjetaIntentosJpaAdapterTest {
     @Autowired private IntentosDePagoJpaAdapter adaptador;
     @Autowired private IPedidoRepository pedidos;
     @Autowired private EntityManager em;
+    @Autowired private IPagoTarjetaIntentoRepository repositorio;
 
     /** Fuerza ir a la base de verdad: sin esto, buscar() sale del cache de la sesion y no prueba nada. */
     private void vaciarCache() {
@@ -108,5 +109,16 @@ class PagoTarjetaIntentosJpaAdapterTest {
         IntentoDePago expirado = adaptador.guardar(adaptador.buscar(viejo.id()).orElseThrow().expirado(Instant.now()));
         assertThat(adaptador.perdidosDesde(Instant.now().minus(Duration.ofHours(1))))
                 .extracting(IntentoDePago::id).contains(expirado.id());
+    }
+
+    @Test
+    void existsPorPedidoYEstado_sirveParaBloquearCancelarOCambiarTipoDeUnPedidoConCobro() {
+        Integer pedidoId = pedido();
+        IntentoDePago i = adaptador.guardar(nuevo(pedidoId, Instant.now()));
+        java.util.List<String> bloqueantes = java.util.List.of("CREADO", "ENVIADO", "APROBADO", "COBRADO_SIN_APLICAR", "DEVUELTO_PARCIAL");
+        assertThat(repositorio.existsByPedidoIdAndEstadoIn(pedidoId, bloqueantes)).isTrue();          // activo
+        vaciarCache();
+        adaptador.guardar(adaptador.buscar(i.id()).orElseThrow().cancelado(Instant.now()));
+        assertThat(repositorio.existsByPedidoIdAndEstadoIn(pedidoId, bloqueantes)).isFalse();         // cancelado: ya no bloquea
     }
 }

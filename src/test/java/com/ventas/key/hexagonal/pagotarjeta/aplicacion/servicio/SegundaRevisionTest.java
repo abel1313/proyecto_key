@@ -217,4 +217,52 @@ class SegundaRevisionTest {
         assertThat(e.intentos.buscar(i.id()).orElseThrow().estado()).isEqualTo(EstadoIntento.APROBADO);
         assertThat(e.cobro.reconciliar()).isEqualTo(0);
     }
+
+    // ── Tercera revision (agente revisor): hallazgos reproducidos ─────────
+
+    @Test
+    void siElPedidoYaNoAdmiteElPagoCuandoSeBloquea_queda_cobradoSinAplicar_yNoAprobado() {
+        Escenario e = nuevo();
+        IntentoDePago i = e.cobro.iniciar(1, CanalDePago.TERMINAL, 1, "admin");
+        e.pedidoActualizado.noAplicable = true;                                // cancelado / abonado / ya pagado en efectivo
+        e.pasarela.respuesta = EstadoExterno.APROBADO;
+        assertThat(e.cobro.confirmar(i.id()).estado()).isEqualTo(EstadoIntento.COBRADO_SIN_APLICAR);
+        assertThat(e.pedidoActualizado.intentosPagados).isEmpty();
+    }
+
+    @Test
+    void siFaltanDatosParaLaVenta_elCobroNoQuedaEnProcesoParaSiempre_quedaPorDevolver() {
+        Escenario e = nuevo();
+        IntentoDePago i = e.cobro.iniciar(1, CanalDePago.TERMINAL, 1, "admin");
+        e.pedidoActualizado.faltanDatos = true;
+        e.pasarela.respuesta = EstadoExterno.APROBADO;
+        assertThat(e.cobro.confirmar(i.id()).estado()).isEqualTo(EstadoIntento.COBRADO_SIN_APLICAR);
+        // y el pedido queda libre de cobros activos
+        assertThat(e.intentos.activoDelPedido(1)).isEmpty();
+    }
+
+    @Test
+    void unPedidoEnGrupoNoSeCobraConTarjeta() {
+        Escenario e = nuevo();
+        e.pedidos.agregar(new com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.PedidoACobrar(
+                8, 50, TipoDeCobro.CONTADO, new BigDecimal("450"), false, false, true, null, java.util.List.of()));
+        assertThatThrownBy(() -> e.cobro.iniciar(8, CanalDePago.TERMINAL, 1, "admin")).hasMessageContaining("grupo");
+        assertThat(e.pasarela.cobrosCreados).isZero();
+    }
+
+    @Test
+    void alAplicarUnaAprobacionTardia_seCancelaElOtroCobroQueSeguiaActivo() {
+        Escenario e = nuevo();
+        IntentoDePago a = e.cobro.iniciar(1, CanalDePago.EN_LINEA, 1, "cliente");
+        e.pasarela.respuesta = EstadoExterno.PENDIENTE;
+        e.reloj.avanzarMinutos(31);
+        assertThat(e.cobro.confirmar(a.id()).estado()).isEqualTo(EstadoIntento.EXPIRADO);
+        IntentoDePago b = e.cobro.iniciar(1, CanalDePago.TERMINAL, 1, "admin");   // en la terminal, mientras A estaba vencido
+
+        e.pasarela.respuesta = EstadoExterno.APROBADO;                           // pero A si se cobro
+        // solo A responde aprobado; B queda pendiente en la pasarela falsa (respuesta global): se simula con el orden
+        assertThat(e.cobro.confirmar(a.id()).estado()).isEqualTo(EstadoIntento.APROBADO);
+        assertThat(e.intentos.buscar(b.id()).orElseThrow().estado()).isEqualTo(EstadoIntento.CANCELADO);
+        assertThat(e.pasarela.cancelaciones).isGreaterThanOrEqualTo(1);
+    }
 }

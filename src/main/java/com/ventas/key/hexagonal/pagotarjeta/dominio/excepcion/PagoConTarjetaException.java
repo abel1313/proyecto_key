@@ -27,6 +27,16 @@ public class PagoConTarjetaException extends RuntimeException {
         }
     }
 
+    /**
+     * Faltan datos para registrar el pago en el pedido (el usuario que cobro, el catalogo de formas de pago).
+     * Es un problema de datos, no un fallo pasajero: el dinero ya se cobro y queda por devolver.
+     */
+    public static final class NoSePudoAplicar extends PagoConTarjetaException {
+        public NoSePudoAplicar(String mensaje) {
+            super(mensaje);
+        }
+    }
+
     /** Otro proceso modifico el mismo cobro a la vez (polling, webhook, otro admin). */
     public static final class ConflictoDeConcurrencia extends PagoConTarjetaException {
         public ConflictoDeConcurrencia() {
@@ -44,6 +54,11 @@ public class PagoConTarjetaException extends RuntimeException {
 
     public static PagoConTarjetaException pedidoCancelado(Integer pedidoId) {
         return new PagoConTarjetaException("El pedido " + pedidoId + " está cancelado y no se puede cobrar");
+    }
+
+    public static PagoConTarjetaException pedidoEnGrupo(Integer pedidoId) {
+        return new PagoConTarjetaException("El pedido " + pedidoId + " está unido a otros en un grupo. "
+                + "El grupo no se cobra con tarjeta todavía: sepáralo o cóbralo en efectivo");
     }
 
     /** T3 */

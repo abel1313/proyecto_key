@@ -70,8 +70,8 @@ class CobroConTarjetaServiceTest {
         Escenario e = nuevo();
         assertThatThrownBy(() -> e.cobro.iniciar(99, CanalDePago.TERMINAL, 1, "admin"))
                 .hasMessageContaining("No existe el pedido 99");
-        e.pedidos.agregar(new PedidoACobrar(5, 50, TipoDeCobro.CONTADO, new BigDecimal("100"), true, false, null, List.of()));
-        e.pedidos.agregar(new PedidoACobrar(6, 50, TipoDeCobro.CONTADO, new BigDecimal("100"), false, true, null, List.of()));
+        e.pedidos.agregar(new PedidoACobrar(5, 50, TipoDeCobro.CONTADO, new BigDecimal("100"), true, false, false, null, List.of()));
+        e.pedidos.agregar(new PedidoACobrar(6, 50, TipoDeCobro.CONTADO, new BigDecimal("100"), false, true, false, null, List.of()));
         assertThatThrownBy(() -> e.cobro.iniciar(6, CanalDePago.TERMINAL, 1, "admin")).hasMessageContaining("cancelado");
         assertThatThrownBy(() -> e.cobro.iniciar(5, CanalDePago.TERMINAL, 1, "admin")).hasMessageContaining("ya está pagado");
     }

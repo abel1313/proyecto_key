@@ -38,6 +38,7 @@ import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
 import com.ventas.key.mis.productos.repository.IDetallePedidoRepository;
 import com.ventas.key.mis.productos.repository.ILugarEntregaRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
+import com.ventas.key.mis.productos.repository.IPagoTarjetaIntentoRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
 import com.ventas.key.mis.productos.repository.IPromocionRepository;
@@ -111,6 +112,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
     }
     @Autowired private IVentaRepository iVentaRepository;
+    // Cobros con tarjeta (dominio pagotarjeta). Puede faltar en pruebas unitarias: entonces no se revisa.
+    @Autowired(required = false) private IPagoTarjetaIntentoRepository iPagoTarjetaIntentoRepository;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private IGrupoPedidoMiembroRepository iGrupoPedidoMiembroRepository;
     @Autowired private ConsultarGruposCasoUso consultarGrupos;
@@ -605,11 +608,29 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         return prod.getStock() != null ? prod.getStock() : 0;
     }
 
+    /**
+     * Un pedido con un cobro de tarjeta en proceso, o ya cobrado y no devuelto del todo, no se cancela ni cambia de
+     * forma de cobro por esta via: el dinero esta en la tarjeta del cliente y regresarlo es una devolucion en
+     * Mercado Pago (dominio pagotarjeta). Si no, el pedido quedaria sin cobro y la tarjeta cobrada.
+     */
+    private void exigirSinCobroConTarjeta(int pedidoId, String queSeIntenta) {
+        if (iPagoTarjetaIntentoRepository == null) {
+            return;
+        }
+        if (iPagoTarjetaIntentoRepository.existsByPedidoIdAndEstadoIn(pedidoId,
+                java.util.List.of("CREADO", "ENVIADO", "APROBADO", "COBRADO_SIN_APLICAR", "DEVUELTO_PARCIAL"))) {
+            throw new RuntimeException("El pedido " + pedidoId + " tiene un cobro con tarjeta en proceso o sin devolver por "
+                    + "completo, así que no se puede " + queSeIntenta + " todavía. Primero hay que cancelar el cobro "
+                    + "o devolver el dinero de la tarjeta");
+        }
+    }
+
     @Transactional
     @Override
     public void deletePedidoById(int id, String motivo) {
         Pedido pedido = iPedidoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+        exigirSinCobroConTarjeta(id, "cancelar");
 
         if ("cancelado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("No se puede cancelar un pedido en estado: " + pedido.getEstadoPedido());
@@ -973,6 +994,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private PedidoDetalleResponse cambiarTipo(int pedidoId, CambiarTipoPedidoRequest request, boolean delGrupo) {
         Pedido pedido = iPedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
+        exigirSinCobroConTarjeta(pedidoId, "cambiar su forma de cobro");
 
         String tipoNuevo = request.getTipoPedido() != null ? request.getTipoPedido().toUpperCase() : null;
         if (tipoNuevo == null || !Set.of("NORMAL", "APARTADO", "FIADO").contains(tipoNuevo)) {

@@ -77,7 +77,13 @@ public class PasarelaSimuladaAdapter implements PasarelaDePagoPort {
 
     @Override
     public EstadoExterno consultar(String idExterno) {
-        return cobro(idExterno).estadoActual(reloj.instant(), demora);
+        Cobro c = cobros.get(idExterno);
+        if (c == null) {
+            // Tras reiniciar el pod la memoria se pierde. Como la real ante un cobro que no conoce: ya no se puede
+            // cobrar, asi el pedido no queda bloqueado para siempre.
+            return EstadoExterno.CANCELADO;
+        }
+        return c.estadoActual(reloj.instant(), demora);
     }
 
     @Override

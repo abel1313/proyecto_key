@@ -41,7 +41,7 @@ class Escenario {
         for (int i = 0; i < aceptaMsi.length; i++) {
             arts.add(new ArticuloACobrar(100 + i, "Artículo " + i, aceptaMsi[i]));
         }
-        return new PedidoACobrar(id, 50, tipo, new BigDecimal(total), false, false, null, arts);
+        return new PedidoACobrar(id, 50, tipo, new BigDecimal(total), false, false, false, null, arts);
     }
 
     static class RelojFalso extends Clock {
@@ -186,15 +186,22 @@ class Escenario {
         final Set<Long> intentosPagados = new LinkedHashSet<>();
         int llamadasMarcarPagado = 0;
         boolean marcarPagadoFalla = false;
+        /** Faltan datos para registrar la venta (problema de datos, no pasajero). */
+        boolean faltanDatos = false;
+        /** El pedido, ya bloqueado, no admite el pago (cancelado, abonado...). */
+        boolean noAplicable = false;
         final Map<String, BigDecimal> devueltos = new LinkedHashMap<>();
         PedidoActualizadoFalso(PedidosFalsos pedidos) { this.pedidos = pedidos; }
-        @Override public void marcarPagado(Integer pedidoId, Long intentoId) {
+        @Override public ResultadoAplicacion marcarPagado(Integer pedidoId, Long intentoId) {
             llamadasMarcarPagado++;
             if (marcarPagadoFalla) throw new IllegalStateException("el pedido no se pudo actualizar");
-            intentosPagados.add(intentoId);
+            if (faltanDatos) throw new PagoConTarjetaException.NoSePudoAplicar("No existe el usuario");
             PedidoACobrar p = pedidos.porId.get(pedidoId);
-            pedidos.porId.put(pedidoId, new PedidoACobrar(p.pedidoId(), p.clienteId(), p.tipo(), p.total(), true, false,
+            if (noAplicable || p.pagado() || p.cancelado()) return ResultadoAplicacion.NO_APLICABLE;
+            intentosPagados.add(intentoId);
+            pedidos.porId.put(pedidoId, new PedidoACobrar(p.pedidoId(), p.clienteId(), p.tipo(), p.total(), true, false, false,
                     p.pagadoPorIntentoId() != null ? p.pagadoPorIntentoId() : intentoId, p.articulos()));
+            return ResultadoAplicacion.APLICADO;
         }
         @Override public void registrarDevolucion(Integer pedidoId, Long intentoId, BigDecimal monto, String hechaPor, String clave) {
             devueltos.putIfAbsent(clave, monto);

@@ -3,7 +3,9 @@ package com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.ArticuloACobrar;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.CanalDePago;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.EstadoIntento;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.excepcion.PagoConTarjetaException;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.PedidoACobrar;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.ResultadoAplicacion;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.TipoDeCobro;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.ActualizarPedidoPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PedidoACobrarPort;
@@ -18,6 +20,7 @@ import com.ventas.key.mis.productos.entity.Pedido;
 import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.entity.Venta;
 import com.ventas.key.mis.productos.repository.IDetallePagoRepository;
+import com.ventas.key.mis.productos.repository.IGrupoPedidoMiembroRepository;
 import com.ventas.key.mis.productos.repository.IPagoTarjetaIntentoRepository;
 import com.ventas.key.mis.productos.repository.IPagosYMesesRepository;
 import com.ventas.key.mis.productos.repository.IPedidoRepository;
@@ -25,14 +28,20 @@ import com.ventas.key.mis.productos.repository.IUsuarioRepository;
 import com.ventas.key.mis.productos.repository.IVentaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -70,10 +79,13 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
     private final IDetallePagoRepository detallesPago;
     private final IUsuarioRepository usuarios;
     private final JdbcTemplate jdbc;
+    private final IGrupoPedidoMiembroRepository grupos;
+    private final EntityManager em;
 
     public PedidoCobroAdapter(IPedidoRepository pedidos, IVentaRepository ventas, IPagoTarjetaIntentoRepository intentos,
                               IPagosYMesesRepository pagosYMeses, IDetallePagoRepository detallesPago,
-                              IUsuarioRepository usuarios, JdbcTemplate jdbc) {
+                              IUsuarioRepository usuarios, JdbcTemplate jdbc,
+                              IGrupoPedidoMiembroRepository grupos, EntityManager em) {
         this.pedidos = pedidos;
         this.ventas = ventas;
         this.intentos = intentos;
@@ -81,11 +93,15 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
         this.detallesPago = detallesPago;
         this.usuarios = usuarios;
         this.jdbc = jdbc;
+        this.grupos = grupos;
+        this.em = em;
     }
 
     // ── PedidoACobrarPort ─────────────────────────────────────────────────
 
+    /** Transaccional (solo lectura): las lineas del pedido son LAZY y los trabajos programados no traen sesion. */
     @Override
+    @Transactional(readOnly = true)
     public Optional<PedidoACobrar> buscar(Integer pedidoId) {
         return pedidos.findById(pedidoId).map(this::aDominio);
     }
@@ -97,17 +113,19 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
         Long pagadoPor = pagado ? intentoQuePago(p.getId()) : null;
         BigDecimal total = BigDecimal.valueOf(p.getTotalPedido() == null ? 0.0 : p.getTotalPedido())
                 .setScale(2, RoundingMode.HALF_UP);
+        List<DetallePedido> lineas = p.getDetalles() == null ? List.of() : p.getDetalles();
+        Set<Integer> aceptan = variantesQueAceptanMsi(lineas.stream()
+                .map(d -> d.getVariante() != null ? d.getVariante().getId() : null)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet()));
         List<ArticuloACobrar> articulos = new ArrayList<>();
-        if (p.getDetalles() != null) {
-            for (DetallePedido d : p.getDetalles()) {
-                Integer varianteId = d.getVariante() != null ? d.getVariante().getId() : null;
-                String nombre = d.getProducto() != null ? d.getProducto().getNombre() : "Artículo";
-                articulos.add(new ArticuloACobrar(varianteId, nombre, varianteId != null && aceptaMsi(varianteId)));
-            }
+        for (DetallePedido d : lineas) {
+            Integer varianteId = d.getVariante() != null ? d.getVariante().getId() : null;
+            String nombre = d.getProducto() != null ? d.getProducto().getNombre() : "Artículo";
+            articulos.add(new ArticuloACobrar(varianteId, nombre, varianteId != null && aceptan.contains(varianteId)));
         }
         Integer clienteId = p.getCliente() != null ? p.getCliente().getId() : null;
         return new PedidoACobrar(p.getId(), clienteId, tipoDeCobro(p.getTipoPedido()), total, pagado, cancelado,
-                pagadoPor, articulos);
+                grupos.estaEnGrupoActivo(p.getId()), pagadoPor, articulos);
     }
 
     static TipoDeCobro tipoDeCobro(String tipoPedido) {
@@ -124,28 +142,50 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
                 .stream().findFirst().map(i -> i.getId().longValue()).orElse(null);
     }
 
-    private boolean aceptaMsi(Integer varianteId) {
-        List<Integer> r = jdbc.queryForList(
-                "SELECT COALESCE(v.acepta_msi, p.acepta_msi) FROM variantes v "
-                        + "JOIN producto p ON p.id = v.producto_id WHERE v.id = ?", Integer.class, varianteId);
-        return !r.isEmpty() && r.get(0) != null && r.get(0) == 1;
+    /**
+     * Una sola consulta para todos los articulos del pedido. Si la columna {@code acepta_msi} todavia no existe
+     * (la migracion no se ha corrido en ese ambiente) nadie acepta MSI: se puede cobrar de contado y no truena.
+     */
+    private Set<Integer> variantesQueAceptanMsi(Collection<Integer> varianteIds) {
+        if (varianteIds.isEmpty()) {
+            return Set.of();
+        }
+        String marcas = String.join(",", java.util.Collections.nCopies(varianteIds.size(), "?"));
+        try {
+            return new HashSet<>(jdbc.queryForList(
+                    "SELECT v.id FROM variantes v JOIN producto p ON p.id = v.producto_id "
+                            + "WHERE v.id IN (" + marcas + ") AND COALESCE(v.acepta_msi, p.acepta_msi) = 1",
+                    Integer.class, varianteIds.toArray()));
+        } catch (DataAccessException e) {
+            log.warn("No se pudo leer acepta_msi (¿falta migration_pago_tarjeta.sql?): {}", e.getMessage());
+            return Set.of();
+        }
     }
 
     // ── ActualizarPedidoPort ──────────────────────────────────────────────
 
     @Override
-    public void marcarPagado(Integer pedidoId, Long intentoId) {
-        Pedido pedido = pedidos.findById(pedidoId)
-                .orElseThrow(() -> new IllegalStateException("No existe el pedido " + pedidoId));
+    public ResultadoAplicacion marcarPagado(Integer pedidoId, Long intentoId) {
+        // Se BLOQUEA la fila del pedido y se refresca: con la sesion abierta de la peticion (OSIV) la entidad
+        // pudo quedar vieja, y sin el candado un pago en efectivo simultaneo podria pasar por encima.
+        Pedido pedido = em.find(Pedido.class, pedidoId, LockModeType.PESSIMISTIC_WRITE);
+        if (pedido == null) {
+            throw new PagoConTarjetaException.NoSePudoAplicar("No existe el pedido " + pedidoId);
+        }
+        em.refresh(pedido);
         PagoTarjetaIntento intento = intentos.findById(IntentosDePagoJpaAdapter.aId(intentoId))
-                .orElseThrow(() -> new IllegalStateException("No existe el cobro " + intentoId));
-        String estado = pedido.getEstadoPedido() == null ? "" : pedido.getEstadoPedido().trim().toUpperCase();
-        if (PAGADOS.contains(estado)) {
-            return;                                                 // idempotente: ya esta pagado
+                .orElseThrow(() -> new PagoConTarjetaException.NoSePudoAplicar("No existe el cobro " + intentoId));
+
+        String motivo = motivoPorElQueNoAplica(pedido, intento);
+        if (motivo != null) {
+            log.warn("Cobro {} no se aplica al pedido {}: {}", intentoId, pedidoId, motivo);
+            return ResultadoAplicacion.NO_APLICABLE;
         }
 
-        pedido.setTotalPagado(pedido.getTotalPedido());
-        pedido.setEstadoPedido("PAGADO");
+        // Un contado cobrado se guarda como 'Entregado' en estado_pedido (dice el PAGO, no la entrega: la
+        // entrega fisica va aparte en la columna entregado) y su total_pagado se queda en 0, igual que la venta
+        // de mostrador. Es lo que esperan el resto del sistema, los grupos, las entregas y los reportes.
+        pedido.setEstadoPedido("Entregado");
         if (CanalDePago.valueOf(intento.getCanal()) == CanalDePago.TERMINAL) {
             pedido.marcarEntregado(true);                           // el cliente esta en el local y se lo lleva
         }
@@ -154,11 +194,26 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
         if (ventas.findByPedidoId(pedidoId).isEmpty()) {
             ventas.save(crearVenta(pedido, intento));
         }
+        return ResultadoAplicacion.APLICADO;
+    }
+
+    /** Null si el pedido admite el pago; si no, por que no (con el pedido ya bloqueado y refrescado). */
+    private String motivoPorElQueNoAplica(Pedido pedido, PagoTarjetaIntento intento) {
+        String estado = pedido.getEstadoPedido() == null ? "" : pedido.getEstadoPedido().trim().toUpperCase();
+        if ("CANCELADO".equals(estado)) return "el pedido está cancelado";
+        if (PAGADOS.contains(estado)) return "el pedido ya estaba pagado";
+        if (tipoDeCobro(pedido.getTipoPedido()) != TipoDeCobro.CONTADO) return "el pedido cambió de forma de cobro";
+        if (pedido.getTotalPagado() != null && pedido.getTotalPagado() > 0.005) return "el pedido ya tiene dinero abonado";
+        BigDecimal total = BigDecimal.valueOf(pedido.getTotalPedido() == null ? 0.0 : pedido.getTotalPedido())
+                .setScale(2, RoundingMode.HALF_UP);
+        if (total.compareTo(intento.getMonto()) != 0) return "el total del pedido cambió (" + total + " contra " + intento.getMonto() + ")";
+        return null;
     }
 
     private Venta crearVenta(Pedido pedido, PagoTarjetaIntento intento) {
         Usuario usuario = usuarios.findByUsername(intento.getIniciadoPor())
-                .orElseThrow(() -> new IllegalStateException("No existe el usuario " + intento.getIniciadoPor()));
+                .orElseThrow(() -> new PagoConTarjetaException.NoSePudoAplicar(
+                        "No existe el usuario " + intento.getIniciadoPor() + " para registrar la venta"));
         PagosYMeses forma = formaDePago(intento.getCuotas());
         MesesIntereses meses = forma.getMesesIntereses();
         double tasa = (meses.getTarifaTerminal() != null ? meses.getTarifaTerminal().getTarifa() / 100.0 : 0.0)
@@ -181,7 +236,8 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
 
         List<DetalleVentaVariante> detalles = new ArrayList<>();
         for (DetallePedido dp : pedido.getDetalles()) {
-            double costo = dp.getVariante().getProducto().getPrecioCosto();
+            Double costoRegistrado = dp.getVariante().getProducto().getPrecioCosto();
+            double costo = costoRegistrado != null ? costoRegistrado : 0.0;
             double subTotal = dp.getSubTotal();
             DetalleVentaVariante dvv = new DetalleVentaVariante();
             dvv.setCantidad(dp.getCantidad());
@@ -209,7 +265,8 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
      */
     private PagosYMeses formaDePago(int cuotas) {
         PagosYMeses contado = pagosYMeses.findById(PAGOS_TARJETA_CONTADO)
-                .orElseThrow(() -> new IllegalStateException("Catálogo de pago no encontrado: " + PAGOS_TARJETA_CONTADO));
+                .orElseThrow(() -> new PagoConTarjetaException.NoSePudoAplicar(
+                        "Catálogo de pago no encontrado: " + PAGOS_TARJETA_CONTADO));
         if (cuotas <= 1) {
             return contado;
         }

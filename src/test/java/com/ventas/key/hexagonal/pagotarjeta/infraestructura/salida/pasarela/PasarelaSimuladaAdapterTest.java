@@ -83,4 +83,9 @@ class PasarelaSimuladaAdapterTest {
         pasarela.devolver(id, BigDecimal.TEN, "dev-7-0.00");
         assertThatThrownBy(() -> pasarela.devolver("sim-404", BigDecimal.TEN, "x")).hasMessageContaining("desconocido");
     }
+
+    @Test
+    void tras_reiniciar_unCobroDesconocidoSeDaPorCancelado_yNoBloqueaElPedidoParaSiempre() {
+        assertThat(pasarela.consultar("sim-99")).isEqualTo(EstadoExterno.CANCELADO);
+    }
 }

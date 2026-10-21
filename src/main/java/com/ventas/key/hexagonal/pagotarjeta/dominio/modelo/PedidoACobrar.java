@@ -14,6 +14,7 @@ import java.util.List;
  * @param total     T2: lo calcula el back; el front nunca manda el monto a cobrar
  * @param pagado    true si el pedido ya esta Pagado (no se vuelve a cobrar)
  * @param cancelado true si el pedido esta cancelado (jamas se cobra)
+ * @param enGrupo   true si esta en un grupo de pedidos unidos (el grupo se cobra aparte; hoy no se cobra con tarjeta)
  * @param pagadoPorIntentoId el cobro que lo dejo pagado (null si se pago por otra via o no esta pagado);
  *                  permite distinguir "ya lo pague yo" (idempotencia) de "otro cobro lo pago" (doble pago)
  */
@@ -24,6 +25,7 @@ public record PedidoACobrar(
         BigDecimal total,
         boolean pagado,
         boolean cancelado,
+        boolean enGrupo,
         Long pagadoPorIntentoId,
         List<ArticuloACobrar> articulos) {
 }
