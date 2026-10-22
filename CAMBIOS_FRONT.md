@@ -22982,9 +22982,13 @@ misma solicitud no devuelve dos veces. **Devolver no cambia el pedido ni la vent
 | 500 | Error interno: **consultar el estado del cobro antes de reintentar** |
 
 ### Qué cambia en rutas viejas
-- `PUT /v1/pedidos/{id}/tipo` y la cancelación de un pedido (`DELETE /v1/pedidos/...`) ahora responden error si el pedido
-  tiene un cobro con tarjeta en proceso o sin devolver por completo: "…tiene un cobro con tarjeta… Primero hay que cancelar el
-  cobro o devolver el dinero".
+- `PUT /v1/pedidos/{id}/tipo`, la cancelación de un pedido (`DELETE /v1/pedidos/delete/{id}`) y el cobro en efectivo
+  (`PUT /v1/pedidos/confirmar/{id}`) ahora responden **400** con el mensaje si el pedido tiene un cobro con tarjeta en proceso o
+  sin devolver por completo: "…tiene un cobro con tarjeta… Primero hay que cancelar el cobro o devolver el dinero". Solo pasa con
+  el módulo encendido (`pagos.tarjeta.habilitado`); apagado, esas rutas se comportan exactamente como antes.
+- Un **cliente** solo puede cancelar el cobro que él mismo hizo en línea; el de la terminal lo cancela el administrador (404 para el cliente).
+- `GET /v1/pagos-tarjeta/{id}` solo vacía las cachés cuando el cobro cambia de estado (se puede consultar cada ~3 s sin costo).
+- Leer siempre el **status HTTP** (401/403/404/409/502…): en los 401/403 que arma SecurityConfig el campo `code` del cuerpo no coincide (comportamiento de siempre).
 - Un contado cobrado con tarjeta queda con `estadoPedido = "Entregado"` (es el **pago**) y `entregado` según el canal; así lo
   esperan Mis pedidos, grupos y reportes.
 

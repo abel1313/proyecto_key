@@ -114,6 +114,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired private IVentaRepository iVentaRepository;
     // Cobros con tarjeta (dominio pagotarjeta). Puede faltar en pruebas unitarias: entonces no se revisa.
     @Autowired(required = false) private IPagoTarjetaIntentoRepository iPagoTarjetaIntentoRepository;
+    // Sin la propiedad (produccion sin la migracion corrida) NO se consulta la tabla de cobros: la revision no existe.
+    @org.springframework.beans.factory.annotation.Value("${pagos.tarjeta.habilitado:false}")
+    private boolean pagoTarjetaHabilitado;
     @Autowired private IAbonoRepository iAbonoRepository;
     @Autowired private IGrupoPedidoMiembroRepository iGrupoPedidoMiembroRepository;
     @Autowired private ConsultarGruposCasoUso consultarGrupos;
@@ -440,6 +443,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         Pedido pedido = this.iPedidoRepository.findById(id)
                 .orElseThrow(() -> new GenericException(500, "El pedido no existe"));
 
+        exigirSinCobroConTarjeta(id, "cobrar en efectivo");      // no se cobra dos veces: efectivo y tarjeta a la vez
         if ("Entregado".equals(pedido.getEstadoPedido())) {
             throw new RuntimeException("El pedido ya fue confirmado");
         }
@@ -614,7 +618,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      * Mercado Pago (dominio pagotarjeta). Si no, el pedido quedaria sin cobro y la tarjeta cobrada.
      */
     private void exigirSinCobroConTarjeta(int pedidoId, String queSeIntenta) {
-        if (iPagoTarjetaIntentoRepository == null) {
+        if (!pagoTarjetaHabilitado || iPagoTarjetaIntentoRepository == null) {
             return;
         }
         if (iPagoTarjetaIntentoRepository.existsByPedidoIdAndEstadoIn(pedidoId,

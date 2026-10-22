@@ -37,6 +37,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -202,5 +203,33 @@ class PagoTarjetaControllerTest {
         when(planes.mesesPara(10)).thenReturn(List.of(3));
         mvc.perform(get("/v1/pagos-tarjeta/pedido/10/meses")).andExpect(status().isOk()).andExpect(jsonPath("$.data[0]").value(3));
         mvc.perform(get("/v1/pagos-tarjeta/pedido/11/meses")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void consultarElEstadoSinCambioNoVaciaLasCaches_soloCuandoElCobroCambia() throws Exception {
+        entrar("ROLE_USER", 5);
+        IntentoDePago enProceso = intento(1L, 10, 5).enviado("ext", AHORA);
+        when(intentos.buscar(1L)).thenReturn(Optional.of(enProceso));
+        when(confirmar.confirmar(1L)).thenReturn(enProceso);                        // sigue igual
+        mvc.perform(get("/v1/pagos-tarjeta/1")).andExpect(status().isOk());
+        mvc.perform(get("/v1/pagos-tarjeta/1")).andExpect(status().isOk());
+        verify(cache, never()).evictAll();
+
+        when(confirmar.confirmar(1L)).thenReturn(enProceso.aprobado(AHORA));       // ahora si cambio
+        mvc.perform(get("/v1/pagos-tarjeta/1")).andExpect(status().isOk());
+        verify(cache, times(1)).evictAll();
+    }
+
+    @Test
+    void unClienteNoCancelaElCobroDeLaTerminalAunqueSeaDeSuPedido() throws Exception {
+        entrar("ROLE_USER", 5);
+        IntentoDePago deTerminal = IntentoDePago.nuevo(10, 5, CanalDePago.TERMINAL, new BigDecimal("450"), 1, "admin", AHORA).conId(3L);
+        when(intentos.buscar(3L)).thenReturn(Optional.of(deTerminal));
+        mvc.perform(post("/v1/pagos-tarjeta/3/cancelar")).andExpect(status().isNotFound());
+        verify(cancelar, never()).cancelar(3L);
+
+        entrar("ROLE_ADMIN", null);                                                  // el admin si puede
+        when(cancelar.cancelar(3L)).thenReturn(deTerminal.cancelado(AHORA));
+        mvc.perform(post("/v1/pagos-tarjeta/3/cancelar")).andExpect(status().isOk());
     }
 }

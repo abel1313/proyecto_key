@@ -89,16 +89,27 @@ public class PagoTarjetaController {
     /** Estado del cobro. Le pregunta a la pasarela y aplica el resultado: la pantalla lo llama mientras {@code enProceso}. */
     @GetMapping("/{intentoId}")
     public ResponseEntity<Object> estado(@PathVariable Long intentoId) {
-        return ejecutar(true, () -> {
-            exigirCobroPropio(intentoId);
-            return CobroResponse.de(confirmar.confirmar(intentoId));
+        // Se consulta cada ~3 s: solo se vacian las caches si el cobro REALMENTE cambio de estado.
+        boolean[] cambio = {false};
+        ResponseEntity<Object> r = ejecutar(false, () -> {
+            IntentoDePago antes = exigirCobroPropio(intentoId);
+            IntentoDePago despues = confirmar.confirmar(intentoId);
+            cambio[0] = antes.estado() != despues.estado();
+            return CobroResponse.de(despues);
         });
+        if (cambio[0]) {
+            cacheService.evictAll();
+        }
+        return r;
     }
 
     @PostMapping("/{intentoId}/cancelar")
     public ResponseEntity<Object> cancelar(@PathVariable Long intentoId) {
         return ejecutar(true, () -> {
-            exigirCobroPropio(intentoId);
+            IntentoDePago intento = exigirCobroPropio(intentoId);
+            if (intento.canal() == CanalDePago.TERMINAL && !AuthenticationUtils.isAdminContext()) {
+                throw new NoEncontrado();                          // el cobro de la terminal lo cancela el admin, no el cliente
+            }
             return CobroResponse.de(cancelar.cancelar(intentoId));
         });
     }
@@ -123,9 +134,10 @@ public class PagoTarjetaController {
         exigirDueño(pedido.clienteId());
     }
 
-    private void exigirCobroPropio(Long intentoId) {
+    private IntentoDePago exigirCobroPropio(Long intentoId) {
         IntentoDePago intento = intentos.buscar(intentoId).orElseThrow(NoEncontrado::new);
         exigirDueño(intento.clienteId());
+        return intento;
     }
 
     /** Admin siempre; un cliente solo si el dueño es el. Un pedido sin dueño registrado (null) es solo del admin. */

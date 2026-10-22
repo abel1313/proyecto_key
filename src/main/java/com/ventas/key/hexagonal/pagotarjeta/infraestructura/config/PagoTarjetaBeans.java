@@ -22,7 +22,9 @@ import java.time.Clock;
  * <p>[Hexagonal: composicion] Los servicios son clases de Java puro (sin Spring) y aqui se conectan.
  * TODO el modulo (servicios, controller, trabajos programados) existe solo con
  * {@code pagos.tarjeta.habilitado=true}: sin esa propiedad no se crea nada, asi que llevar el codigo a un
- * ambiente donde todavia no esta la migracion o la pasarela (produccion) no cambia nada ni puede tronar el arranque.
+ * ambiente donde todavia no esta la migracion o la pasarela (produccion) no cambia nada ni puede tronar el arranque. Las revisiones que hace PedidoServiceImpl
+ * (cancelar o cambiar de forma de cobro un pedido con tarjeta) tambien dependen de esta propiedad, para no consultar una tabla
+ * que todavia no existe.
  */
 @Configuration
 @ConditionalOnProperty(name = "pagos.tarjeta.habilitado", havingValue = "true")
