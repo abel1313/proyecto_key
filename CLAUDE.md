@@ -676,6 +676,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_grupo_pedido.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo.sql` | ✅ corrida | ✅ corrida | 2026-09-23 |
 | `migration_mensaje_directo_mid.sql` | ✅ corrida | ✅ corrida | 2026-09-24 |
+| `migration_pago_tarjeta.sql` (rama `feature/pago-tarjeta`: tablas `pago_tarjeta_intento` y `pago_tarjeta_devolucion` + casilla `acepta_msi` en `producto` y `variantes`) | ✅ corrida y verificada en QA (2026-10-21, versión con `estado`/`confirmada_en` en la devolución) | ⏳ después de validar en QA | 2026-10-21 |
 | `migration_renombre_producto_etiquetas.sql` | ✅ corrida | ✅ corrida | 2026-10-20 |
 | `migration_sesion_refresh_gracia.sql` (ventana de gracia del refresh token: `jti_anterior`, `rotado_en`) | ✅ corrida (2 columnas verificadas) | ✅ corrida en prod (2026-10-15) | 2026-10-14 |
 | `backfill_estado_pedido_tipo.sql` | ✅ corrida | ✅ corrida (0 filas, nada que reparar) | 2026-09-29 / prod 2026-09-30 |
@@ -1017,7 +1018,7 @@ porque varias no coinciden en el nombre (`Imagen` → `imagenes_copy`, no `image
 Además, en `imagenes_copy` la columna **`base_64` guarda el NOMBRE DEL ARCHIVO**, no
 base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 
-### Inventario (81 tablas, `inventario_key_qa` al 2026-09-18)
+### Inventario (83 tablas, `inventario_key_qa` al 2026-10-21)
 
 **Productos y catálogo**
 `producto` · `variantes` · `codigo_barras` · `palabra_clave` · `lotes_productos` · `favorito` · `resena`
@@ -1044,6 +1045,9 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 
 **Chat**
 `chat_sesion` · `chat_mensaje`
+
+**Pago con tarjeta** (rama `feature/pago-tarjeta`)
+`pago_tarjeta_intento` (entidad `PagoTarjetaIntento`) · `pago_tarjeta_devolucion` (entidad `PagoTarjetaDevolucion`)
 
 **Marketing y redes**
 `promociones` · `promocion_detalle` · `cinta_promocion` · `hashtags_default` · `publicacion_social` · `comentario_social` · `comentario_pausa` · `mensaje_directo_social` (entidad `MensajeDirectoSocial`) · `mensaje_directo_pausa` (entidad `MensajePausa`) · `tiktok_token` · `qr_destino`

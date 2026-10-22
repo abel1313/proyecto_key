@@ -146,3 +146,14 @@ tiktok:
   client-key: ${TIKTOK_CLIENT_KEY:}
   client-secret: ${TIKTOK_CLIENT_SECRET:}
 
+
+# Cobro con tarjeta (dominio hexagonal pagotarjeta, rama feature/pago-tarjeta). SIN estas dos lineas el modulo no existe.
+# La pasarela "simulada" NUNCA mueve dinero: el resultado depende de los centavos del total
+# (.01 rechazada, .02 nunca contesta, .03 cancelada, otro = aprobada a los ~4 s).
+pagos:
+  tarjeta:
+    habilitado: true
+    pasarela: simulada
+    simulada:
+      segundos: 4
+    msi-minimo: 300
