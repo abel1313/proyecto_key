@@ -215,6 +215,12 @@ public class SecurityConfig {
                                 "/v1/auth/enviar-codigo-verificacion", "/v1/auth/verificar-correo").permitAll()
                         .requestMatchers("/v1/auth/logout").permitAll()
 
+                        // ── Cobro con tarjeta (dominio hexagonal pagotarjeta) ──────────────
+                        // Devolver, solo administrador. El resto exige sesion; el controller comprueba que el
+                        // pedido o cobro es del cliente (o que es admin) y responde 404 si no.
+                        .requestMatchers(HttpMethod.POST, "/v1/pagos-tarjeta/*/devolver").hasRole("ADMIN")
+                        .requestMatchers("/v1/pagos-tarjeta/**").authenticated()
+
                         // ── Webhook MercadoPago (llamada sin auth desde MP) ────────────────
                         .requestMatchers("/v1/mp/webhook").permitAll()
 

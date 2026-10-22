@@ -22916,3 +22916,88 @@ correctamente."`). Ningún código del front compara esos textos.
 front. Al revés, el front llamaría `/v2/...` a un back que no las tiene → 404.
 
 **Respuestas posibles:** las mismas que la ruta vieja (200/201/204, 401/403 por permisos, 404 si no existe).
+
+---
+
+## 💳 Cobro con tarjeta: terminal del local y tienda en línea (2026-10-22, rama `feature/pago-tarjeta`)
+
+**Estado:** back listo para probar en QA **solo con la pasarela simulada** (no mueve dinero). La terminal real y
+Checkout Pro todavía no están conectados. Solo en `dev`/`qa` (en `main` el módulo está apagado:
+`pagos.tarjeta.habilitado`). Las reglas completas: `hexagonal/pagotarjeta/README.md`.
+
+**Cuándo se cobra con tarjeta:** pedido de **contado** sin pagar, ya sea que el cliente llegue al local (la terminal la
+maneja el administrador) o que haga el pedido y pague él mismo desde la tienda. **Apartado e Ir pagando nunca** aceptan
+tarjeta (400 con el motivo). Un pedido unido en un **grupo** tampoco se cobra con tarjeta todavía (400).
+
+Todas las rutas llevan `/mis-productos/v1/pagos-tarjeta` y exigen sesión. Respuesta: `ResponseGeneric` con `data`.
+
+### `GET /v1/pagos-tarjeta/pedido/{pedidoId}/meses`
+Meses sin intereses que se pueden ofrecer hoy para ese pedido. `data` = lista de números (ej. `[3]`); **vacía = solo de
+contado**. Hoy el catálogo solo tiene el plan de 3 meses. Se ofrecen solo si **todos** los artículos aceptan MSI, el total es
+de al menos $300 y el plan existe como tarjeta de crédito.
+
+### `POST /v1/pagos-tarjeta`
+```json
+{ "pedidoId": 123, "canal": "TERMINAL", "cuotas": 1 }
+```
+- `canal`: `TERMINAL` (**solo administrador**; con un cliente responde 404) o `EN_LINEA`.
+- `cuotas`: 1 = de contado; 3 = meses sin intereses (se valida contra el pedido; **nunca** se manda monto: el back usa el total del pedido).
+- Quién cobra sale del token, no del body.
+
+`data` (igual en todas las rutas de esta sección):
+```json
+{ "id": 7, "pedidoId": 123, "canal": "TERMINAL", "monto": 450.00, "cuotas": 1,
+  "estado": "ENVIADO", "estadoTexto": "en proceso", "enProceso": true,
+  "venceEn": "2026-10-22T18:10:00Z", "devuelto": 0.00, "restanteADevolver": 450.00 }
+```
+`estado`: `CREADO`, `ENVIADO` (en proceso), `APROBADO`, `RECHAZADO`, `CANCELADO`, `EXPIRADO` (vencido),
+`COBRADO_SIN_APLICAR` (se cobró pero el pedido ya no admitía el pago: **hay que devolver**), `DEVUELTO_PARCIAL`, `DEVUELTO`.
+Mostrar `estadoTexto` tal cual. `venceEn` en UTC: 10 min en terminal, 30 min en línea.
+
+### `GET /v1/pagos-tarjeta/{intentoId}`
+Le pregunta a la pasarela y aplica el resultado. **La pantalla lo consulta cada ~3 s mientras `enProceso` sea true** y deja
+de consultar con cualquier otro estado. Es seguro llamarlo muchas veces (no repite efectos).
+Cuando `estado = APROBADO` el pedido ya quedó pagado: en la **terminal** queda también **entregado**; **en línea** queda
+pagado y **falta entregar**. La venta se crea sola.
+
+### `POST /v1/pagos-tarjeta/{intentoId}/cancelar`
+Cancela un cobro en proceso. Si la pasarela ya lo había cobrado responde **400** con "El cobro ya se aprobó…" y el pedido
+queda pagado. Si no se sabe si el cobro llegó a Mercado Pago: 400 "NO lo vuelvas a intentar todavía…" (el sistema lo
+vuelve a buscar solo).
+
+### `POST /v1/pagos-tarjeta/{intentoId}/devolver` (solo administrador)
+Body opcional `{ "monto": 100.00 }`; sin body o sin monto = todo lo que falte. Máximo lo cobrado, con centavos. Repetir la
+misma solicitud no devuelve dos veces. **Devolver no cambia el pedido ni la venta ni el inventario** (decisión pendiente del dueño).
+
+### Códigos de respuesta
+| Código | Cuándo |
+|---|---|
+| 200 | Éxito |
+| 400 | Regla rota; `mensaje` está en palabras del dueño (Apartado, ya pagado, MSI no permitido, rechazos, etc.) |
+| 401 | Sin sesión |
+| 403 | `devolver` sin ser administrador (SecurityConfig) |
+| 404 | El pedido o cobro no existe **o no es del cliente que pregunta** (a propósito no se distingue) |
+| 409 | El cobro cambió justo ahora por otra operación: volver a consultar su estado |
+| 502 | Mercado Pago rechazó crear el cobro (no se cobró nada; se puede reintentar) |
+| 500 | Error interno: **consultar el estado del cobro antes de reintentar** |
+
+### Qué cambia en rutas viejas
+- `PUT /v1/pedidos/{id}/tipo` y la cancelación de un pedido (`DELETE /v1/pedidos/...`) ahora responden error si el pedido
+  tiene un cobro con tarjeta en proceso o sin devolver por completo: "…tiene un cobro con tarjeta… Primero hay que cancelar el
+  cobro o devolver el dinero".
+- Un contado cobrado con tarjeta queda con `estadoPedido = "Entregado"` (es el **pago**) y `entregado` según el canal; así lo
+  esperan Mis pedidos, grupos y reportes.
+
+### Probar en QA sin dinero (pasarela simulada) — por los centavos del total del pedido
+| Total | Resultado |
+|---|---|
+| termina en `.01` | rechazada |
+| termina en `.02` | nunca contesta (se ve "en proceso" hasta que vence o se cancela) |
+| termina en `.03` | cancelada en la terminal |
+| cualquier otro | aprobada a los ~4 segundos |
+
+### Pendiente en el front y el back (para MSI y operación)
+- **Casilla "Acepta meses sin intereses"** en producto y en artículo (apagada por default; hoy las columnas existen en la base
+  pero **no hay endpoint para editarlas**): falta el endpoint y el checkbox.
+- Pantalla del cobro (botón "Cobrar con tarjeta", estados, cancelar) en el detalle del pedido y en la tienda.
+- Lista/alerta de cobros `COBRADO_SIN_APLICAR` (dinero por devolver).
