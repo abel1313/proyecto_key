@@ -23002,6 +23002,16 @@ vuelve a buscar solo).
 Body opcional `{ "monto": 100.00 }`; sin body o sin monto = todo lo que falte. Máximo lo cobrado, con centavos. Repetir la
 misma solicitud no devuelve dos veces. **Devolver no cambia el pedido ni la venta ni el inventario** (decisión pendiente del dueño).
 
+### Un solo camino para la terminal (2026-10-28)
+La terminal se cobra ahora por `/v1/pagos-tarjeta` (canal `TERMINAL`). El camino anterior (`POST /v1/mp/iniciar`, `/estado`, `/cancelar`) sigue
+existiendo para **cobros de grupo**, **venta directa** y los ambientes donde el módulo está apagado; mientras convivan:
+- `POST /v1/pagos-tarjeta` responde **400** si el mismo pedido tiene un cobro del camino anterior todavía en la terminal
+  (`mp_payment_intent` en `OPEN`): *«El pedido N tiene un cobro en la terminal todavía en proceso por el camino anterior…»*.
+- `POST /v1/mp/iniciar` falla con el mismo tipo de mensaje si el pedido ya tiene un cobro nuevo en proceso o sin devolver por completo.
+- **Cómo sabe el front si usar el módulo nuevo:** `GET /v1/pagos-tarjeta/pedido/{id}/meses`; si responde **404** el módulo está apagado en
+  ese ambiente (o el pedido no es del usuario) y se usa el camino anterior.
+- Con el módulo nuevo, al `APROBADO` el pedido ya quedó Pagado y **Entregado** (terminal): el front **no** debe llamar a `PUT /v1/pedidos/confirmar/{id}`.
+
 ### Códigos de respuesta
 | Código | Cuándo |
 |---|---|

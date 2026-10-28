@@ -75,6 +75,12 @@ public class PagoConTarjetaException extends RuntimeException {
         return new CasillaMsiNoDisponible();
     }
 
+    /** Un cobro de la terminal por el camino anterior (/v1/mp) sigue en proceso: no se cobra por los dos a la vez. */
+    public static PagoConTarjetaException cobroPorElCaminoAnterior(Integer pedidoId) {
+        return new PagoConTarjetaException("El pedido " + pedidoId + " tiene un cobro en la terminal todavía en proceso "
+                + "por el camino anterior. Cancélalo o espera a que termine antes de cobrar con tarjeta aquí");
+    }
+
     public static PagoConTarjetaException pedidoYaPagado(Integer pedidoId) {
         return new PagoConTarjetaException("El pedido " + pedidoId + " ya está pagado");
     }

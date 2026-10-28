@@ -34,7 +34,7 @@ Reglas, principios y contratos: `src/main/java/com/ventas/key/hexagonal/pagotarj
 **Orden aprobado:**
 1. Anotar todo (este documento, `PLAN_PRECIO_POR_CANTIDAD.md`, skill `reglas-pedidos`).
 2. Casilla de meses en producto y artículo (back + front + chips MSI).
-3. Botones de cobrar con tarjeta (terminal y en línea) funcionando con la pasarela **simulada**.
+3. ✅ (2026-10-28, ramas `feature/cobro-tarjeta` back y front) Botones de cobrar con tarjeta (terminal y en línea) funcionando con la pasarela **simulada**; los dos caminos de la terminal se rechazan entre sí; `venta-directa` y los grupos siguen por el camino anterior.
 4. Pendientes de seguridad: bloquear abonos / agregar artículos / unir en grupo con cobro activo; pool de hilos de `@Scheduled`; mensaje claro si se enciende sin pasarela; freno iniciar→cancelar; lista de `COBRADO_SIN_APLICAR`; hotfix de `simular-pago` en producción (decisión del dueño).
 5. Precio por cantidad.
 6. **Al final:** adaptador real de la terminal (`PointClient`, `external_reference`, reembolso), Checkout Pro (`external_reference`, `expiration_date_to`, tope de cuotas, `back_urls`), webhook con firma (T5), filas de 6/9/12 meses en `pagos_y_meses` con tarifas reales, migración en producción y llevar a `main` por cherry-pick.
