@@ -218,6 +218,8 @@ public class SecurityConfig {
                         // ── Cobro con tarjeta (dominio hexagonal pagotarjeta) ──────────────
                         // Devolver, solo administrador. El resto exige sesion; el controller comprueba que el
                         // pedido o cobro es del cliente (o que es admin) y responde 404 si no.
+                        // Casilla "Acepta meses sin intereses" de productos y articulos (solo administrador).
+                        .requestMatchers("/v1/acepta-msi/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/v1/pagos-tarjeta/*/devolver").hasRole("ADMIN")
                         .requestMatchers("/v1/pagos-tarjeta/**").authenticated()
 

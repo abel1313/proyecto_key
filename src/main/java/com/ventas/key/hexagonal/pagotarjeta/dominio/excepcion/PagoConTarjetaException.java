@@ -48,6 +48,33 @@ public class PagoConTarjetaException extends RuntimeException {
         return new PagoConTarjetaException("No existe el pedido " + pedidoId);
     }
 
+    /** El producto o artículo no existe (el controller responde 404). */
+    public static final class NoExiste extends PagoConTarjetaException {
+        NoExiste(String mensaje) {
+            super(mensaje);
+        }
+    }
+
+    /** La base de ese ambiente todavía no tiene las columnas de migration_pago_tarjeta.sql (el controller responde 409). */
+    public static final class CasillaMsiNoDisponible extends PagoConTarjetaException {
+        CasillaMsiNoDisponible() {
+            super("La casilla de meses sin intereses todavía no está disponible en este ambiente "
+                    + "(falta correr migration_pago_tarjeta.sql)");
+        }
+    }
+
+    public static PagoConTarjetaException productoNoExiste(Integer productoId) {
+        return new NoExiste("No existe el producto " + productoId);
+    }
+
+    public static PagoConTarjetaException articuloNoExiste(Integer varianteId) {
+        return new NoExiste("No existe el artículo " + varianteId);
+    }
+
+    public static PagoConTarjetaException casillaMsiNoDisponible() {
+        return new CasillaMsiNoDisponible();
+    }
+
     public static PagoConTarjetaException pedidoYaPagado(Integer pedidoId) {
         return new PagoConTarjetaException("El pedido " + pedidoId + " ya está pagado");
     }

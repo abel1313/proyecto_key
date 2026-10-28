@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.pagotarjeta.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.pagotarjeta.dominio.excepcion.PagoConTarjetaException;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.OfertaDeMeses;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.PedidoACobrar;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.ReglasMsi;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.OfrecerPlanesCasoUso;
@@ -27,9 +28,14 @@ public class OfrecerPlanesService implements OfrecerPlanesCasoUso {
 
     @Override
     public List<Integer> mesesPara(Integer pedidoId) {
+        return ofertaPara(pedidoId).meses();
+    }
+
+    @Override
+    public OfertaDeMeses ofertaPara(Integer pedidoId) {
         PedidoACobrar pedido = pedidos.buscar(pedidoId)
                 .orElseThrow(() -> PagoConTarjetaException.pedidoNoExiste(pedidoId));
-        return ReglasMsi.mesesOfrecidos(pedido.tipo(), pedido.total(), pedido.articulos(),
+        return ReglasMsi.ofertaDeMeses(pedido.tipo(), pedido.total(), pedido.articulos(),
                 planes.planes(), planes.minimoParaMsi());
     }
 }

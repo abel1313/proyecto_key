@@ -20,6 +20,7 @@ import com.ventas.key.mis.productos.entity.Usuario;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.config.PagoTarjetaBeans;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.config.PagoTarjetaConfig;
+import com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia.AceptaMsiJdbcAdapter;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia.DevolucionesJpaAdapter;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia.IntentosDePagoJpaAdapter;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.salida.persistencia.PedidoCobroAdapter;
@@ -57,7 +58,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({PagoTarjetaFlujoCompletoTest.PasarelaDePrueba.class, PagoTarjetaBeans.class, PagoTarjetaConfig.class,
         IntentosDePagoJpaAdapter.class, DevolucionesJpaAdapter.class, TransaccionSpringAdapter.class,
-        PlanesMsiJdbcAdapter.class, PedidoCobroAdapter.class})
+        PlanesMsiJdbcAdapter.class, PedidoCobroAdapter.class, AceptaMsiJdbcAdapter.class})
 class PagoTarjetaFlujoCompletoTest {
 
     @TestConfiguration

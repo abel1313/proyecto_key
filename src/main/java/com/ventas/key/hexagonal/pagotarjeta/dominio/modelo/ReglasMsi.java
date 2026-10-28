@@ -50,6 +50,36 @@ public final class ReglasMsi {
                 .toList();
     }
 
+    /**
+     * Igual que {@link #mesesOfrecidos}, pero cuando no hay meses dice <b>por qué</b> (tipo de pedido, mínimo de
+     * compra, qué artículos no los aceptan o que no hay planes activos). Los plazos son exactamente los mismos.
+     */
+    public static OfertaDeMeses ofertaDeMeses(TipoDeCobro tipo, BigDecimal total, List<ArticuloACobrar> articulos,
+                                              List<PlanMsi> planes, BigDecimal minimo) {
+        if (tipo == null || !tipo.admiteMsi()) {
+            return OfertaDeMeses.sinMeses("Este tipo de pedido se paga en efectivo o transferencia: "
+                    + "no admite meses sin intereses");
+        }
+        if (articulos == null || articulos.isEmpty()) {
+            return OfertaDeMeses.sinMeses("El pedido no tiene artículos");
+        }
+        BigDecimal piso = minimo != null ? minimo : MINIMO_POR_DEFECTO;
+        if (total == null || total.compareTo(piso) < 0) {
+            return OfertaDeMeses.sinMeses("La compra debe ser de al menos " + pesos(piso)
+                    + " para ofrecer meses sin intereses");
+        }
+        List<String> sinMsi = articulos.stream().filter(a -> !a.aceptaMsi()).map(ArticuloACobrar::nombre).toList();
+        if (!sinMsi.isEmpty()) {
+            return OfertaDeMeses.sinMeses("Este artículo no acepta meses sin intereses, por eso el pedido se paga "
+                    + "de contado: " + String.join(", ", sinMsi), sinMsi);
+        }
+        List<Integer> meses = mesesOfrecidos(tipo, total, articulos, planes, minimo);
+        if (meses.isEmpty()) {
+            return OfertaDeMeses.sinMeses("No hay planes de meses sin intereses activos");
+        }
+        return OfertaDeMeses.con(meses);
+    }
+
     /** Valida las cuotas pedidas (1 = contado) y explica con claridad por que no se puede. */
     public static void validarCuotas(int cuotas, TipoDeCobro tipo, BigDecimal total, List<ArticuloACobrar> articulos,
                                      List<PlanMsi> planes, BigDecimal minimo) {
