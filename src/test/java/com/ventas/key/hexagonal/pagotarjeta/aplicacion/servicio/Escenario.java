@@ -55,8 +55,10 @@ class Escenario {
 
     static class PedidosFalsos implements PedidoACobrarPort {
         final Map<Integer, PedidoACobrar> porId = new HashMap<>();
+        final java.util.Set<Integer> conCobroDelCaminoAnterior = new java.util.HashSet<>();
         void agregar(PedidoACobrar p) { porId.put(p.pedidoId(), p); }
         @Override public Optional<PedidoACobrar> buscar(Integer id) { return Optional.ofNullable(porId.get(id)); }
+        @Override public boolean hayCobroEnProcesoPorElCaminoAnterior(Integer id) { return conCobroDelCaminoAnterior.contains(id); }
     }
 
     /** Imita la base: version optimista, un solo activo por pedido, activo mas reciente primero. */

@@ -12,4 +12,12 @@ import java.util.Optional;
 public interface PedidoACobrarPort {
 
     Optional<PedidoACobrar> buscar(Integer pedidoId);
+
+    /**
+     * ¿Hay un cobro de la terminal en proceso por el camino ANTERIOR ({@code /v1/mp})? Mientras los dos caminos
+     * convivan, un pedido no se cobra por los dos a la vez (doble cobro). Por defecto no (ambientes sin ese camino).
+     */
+    default boolean hayCobroEnProcesoPorElCaminoAnterior(Integer pedidoId) {
+        return false;
+    }
 }

@@ -142,6 +142,19 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
                 .stream().findFirst().map(i -> i.getId().longValue()).orElse(null);
     }
 
+    /** Un cobro del camino anterior (mp_payment_intent, estado OPEN) sigue esperando la terminal. */
+    @Override
+    public boolean hayCobroEnProcesoPorElCaminoAnterior(Integer pedidoId) {
+        try {
+            Integer abiertos = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM mp_payment_intent WHERE pedido_id = ? AND estado = 'OPEN'", Integer.class, pedidoId);
+            return abiertos != null && abiertos > 0;
+        } catch (DataAccessException e) {
+            log.warn("No se pudo revisar el camino anterior de la terminal (¿falta mp_payment_intent?): {}", e.getMessage());
+            return false;
+        }
+    }
+
     /**
      * Una sola consulta para todos los articulos del pedido. Si la columna {@code acepta_msi} todavia no existe
      * (la migracion no se ha corrido en ese ambiente) nadie acepta MSI: se puede cobrar de contado y no truena.

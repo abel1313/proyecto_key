@@ -85,6 +85,11 @@ entidades JPA**: `Producto` y `Variantes` no mapean esas columnas a propósito, 
 sin catálogo (`Unknown column`). Sin la columna solo falla esta casilla, con 409 y un mensaje claro. `GET /pedido/{id}/meses` ahora responde
 `{meses, motivo, articulosSinMeses}` (`OfertaDeMeses`, `ReglasMsi.ofertaDeMeses`) para poder explicar por qué no hay meses.
 
+## Dos caminos para la terminal (2026-10-28)
+Mientras no se retire `/v1/mp`, `PedidoACobrarPort.hayCobroEnProcesoPorElCaminoAnterior` (consulta `mp_payment_intent` en `OPEN`) hace que
+`CobroConTarjetaService.iniciar` rechace el pedido, y `MercadoPagoService.iniciarPago` rechaza el pedido si ya tiene un cobro nuevo en
+proceso o sin devolver. Los grupos y la venta directa siguen por el camino anterior hasta que el módulo nuevo los soporte.
+
 ## Falta
 Pasarela real de la terminal y de Checkout Pro (al final, necesita datos de Mercado Pago), front del cobro y de la casilla.
 

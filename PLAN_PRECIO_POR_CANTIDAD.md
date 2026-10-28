@@ -32,7 +32,16 @@ La cantidad se cuenta **por producto completo** (un pantalón talla 28 y otro ta
 2. **Total, abonos y grupos** dependen de `totalPedido` (`AbonoServiceImpl`, `grupopedido`): si el total cambia al editar, cambian saldos y el estado Pagado.
 3. **Ganancia** se calcula con `sub_total` (`PedidoServiceImpl` ~L494-504).
 4. **Precio desactualizado** en el front (`venta-directa` ~L955).
-5. **Decidir con el dueño:** qué pasa con un Apartado hecho con regla vigente si la regla cambia; si la regla aplica también a ventas del admin con precio manual (💲); cómo se reparte el descuento entre tallas distintas con precio distinto.
+5. ~~Decidir con el dueño~~ **Decidido 2026-10-28** (ver abajo).
+
+## Decisiones del dueño (2026-10-28)
+1. **Orden:** primero los botones de cobro con tarjeta (paso 3) y la seguridad (paso 4); esto es el paso 5.
+2. **Precio manual gana:** un artículo con precio manual (💲) o con descuento activo se cobra a ese precio y **no entra** al paquete.
+3. **Pedido ya hecho:** el total queda **congelado al precio del día en que se hizo el pedido** (Apartado, Ir pagando o contado). Cambiar o quitar la regla después no mueve saldos, abonos ni grupos ya registrados.
+4. **Tallas con precios distintos:** solo cuentan para el paquete las piezas **con el mismo precio** (las del precio normal del producto suman juntas; una talla con precio propio queda fuera).
+5. Los números de los ejemplos (paquete de 2 = $375, "desde 3 a $150") son solo ejemplos: cada producto lleva su propia regla configurada por el dueño (él mencionó también $370; se confirma al configurarla).
+
+**Consecuencia para el diseño:** al **editar la cantidad** de un pedido existente no se recalcula con la regla vigente; se usa la regla **congelada en la línea** (se guarda el marcador de la regla aplicada). Hay que decidir al programar qué pasa si se agregan piezas a un pedido con regla ya aplicada (recalcular solo con la regla que tenía el pedido).
 
 ## Pruebas (tabla con números)
 Las de arriba en el dominio, más recorrer carrito → pedido → abono → grupo → venta y comprobar que total, saldo y ganancia coinciden.
