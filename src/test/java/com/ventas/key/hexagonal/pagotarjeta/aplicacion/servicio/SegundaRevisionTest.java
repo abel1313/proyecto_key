@@ -265,4 +265,24 @@ class SegundaRevisionTest {
         assertThat(e.intentos.buscar(b.id()).orElseThrow().estado()).isEqualTo(EstadoIntento.CANCELADO);
         assertThat(e.pasarela.cancelaciones).isGreaterThanOrEqualTo(1);
     }
+
+    // ── Los dos caminos de la terminal no cobran el mismo pedido a la vez ─────────────────
+
+    @Test
+    void noSeCobraConElModuloNuevoSiElCaminoAnteriorTieneUnCobroEnProceso() {
+        Escenario e = new Escenario();
+        e.pedidos.agregar(Escenario.pedido(1, TipoDeCobro.CONTADO, "450", true));
+        e.pedidos.conCobroDelCaminoAnterior.add(1);
+        assertThatThrownBy(() -> e.cobro.iniciar(1, CanalDePago.TERMINAL, 1, "admin"))
+                .isInstanceOf(PagoConTarjetaException.class)
+                .hasMessageContaining("camino anterior");
+        assertThat(e.intentos.porId).isEmpty();           // no se creó ningún cobro ni se tocó la pasarela
+    }
+
+    @Test
+    void sinCobroDelCaminoAnteriorElCobroNuevoSigueFuncionando() {
+        Escenario e = new Escenario();
+        e.pedidos.agregar(Escenario.pedido(2, TipoDeCobro.CONTADO, "450", true));
+        assertThat(e.cobro.iniciar(2, CanalDePago.TERMINAL, 1, "admin").estado().estaActivo()).isTrue();
+    }
 }

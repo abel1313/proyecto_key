@@ -108,6 +108,10 @@ public class CobroConTarjetaService
         if (!pedido.tipo().admiteTarjeta()) {                       // T3
             throw PagoConTarjetaException.tarjetaNoPermitida(pedido.tipo());
         }
+        // Mientras convivan los dos caminos de la terminal, no se cobra el mismo pedido por los dos a la vez.
+        if (pedidos.hayCobroEnProcesoPorElCaminoAnterior(pedidoId)) {
+            throw PagoConTarjetaException.cobroPorElCaminoAnterior(pedidoId);
+        }
         // Decidido con el dueño (2026-10-21): la tarjeta se usa cuando el cliente llega al local (terminal) o cuando
         // hace el pedido y paga el mismo desde la tienda (en linea). Un pedido de contado sin pagar admite
         // los dos canales; no hay forma de cobro aparte para "en linea".

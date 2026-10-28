@@ -46,6 +46,14 @@ public class MercadoPagoService {
     @Value("${mercadopago.sandbox:false}")
     private boolean sandbox;
 
+    // Mientras convivan este camino (/v1/mp) y el modulo nuevo de cobro con tarjeta (/v1/pagos-tarjeta), un pedido no
+    // se cobra por los dos a la vez. Solo se revisa con el modulo encendido (si no, la tabla nueva no existe).
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ventas.key.mis.productos.repository.IPagoTarjetaIntentoRepository iPagoTarjetaIntentoRepository;
+
+    @Value("${pagos.tarjeta.habilitado:false}")
+    private boolean pagoTarjetaHabilitado;
+
     private final PedidoServiceImpl pedidoService;
     private final IPedidoRepository iPedidoRepository;
     private final IMpPaymentIntentRepository intentRepository;
@@ -77,6 +85,13 @@ public class MercadoPagoService {
 
     public String iniciarPago(PagoMPRequest request) throws MPException, MPApiException {
         log.info("Iniciando pago - pedidoId: {} monto: {} cuotas: {}", request.getPedidoId(), request.getTotalMonto(), request.getCuotas());
+
+        if (pagoTarjetaHabilitado && iPagoTarjetaIntentoRepository != null
+                && iPagoTarjetaIntentoRepository.existsByPedidoIdAndEstadoIn(request.getPedidoId(),
+                        List.of("CREADO", "ENVIADO", "APROBADO", "COBRADO_SIN_APLICAR", "DEVUELTO_PARCIAL"))) {
+            throw new RuntimeException("El pedido " + request.getPedidoId() + " ya tiene un cobro con tarjeta en proceso "
+                    + "o sin devolver por completo (cobro nuevo). Revísalo o cancélalo antes de cobrar otra vez.");
+        }
 
         LocalDateTime desde = LocalDateTime.now().minusHours(VENTANA_HORAS);
         long intentosFallidos = intentRepository.countIntentosFallidosRecientes(
