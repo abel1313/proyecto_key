@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.pagotarjeta.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.excepcion.PagoConTarjetaException;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.CanalDePago;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.IntentoDePago;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.OfertaDeMeses;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.PedidoACobrar;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.modelo.TipoDeCobro;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.CancelarCobroCasoUso;
@@ -200,9 +201,19 @@ class PagoTarjetaControllerTest {
     @Test
     void losMesesDisponiblesSoloLosVeSuDueño() throws Exception {
         entrar("ROLE_USER", 5);
-        when(planes.mesesPara(10)).thenReturn(List.of(3));
-        mvc.perform(get("/v1/pagos-tarjeta/pedido/10/meses")).andExpect(status().isOk()).andExpect(jsonPath("$.data[0]").value(3));
+        when(planes.ofertaPara(10)).thenReturn(OfertaDeMeses.con(List.of(3)));
+        mvc.perform(get("/v1/pagos-tarjeta/pedido/10/meses")).andExpect(status().isOk()).andExpect(jsonPath("$.data.meses[0]").value(3));
         mvc.perform(get("/v1/pagos-tarjeta/pedido/11/meses")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void sinMesesElEndpointExplicaPorQueYQueArticulosLoImpiden() throws Exception {
+        entrar("ROLE_USER", 5);
+        when(planes.ofertaPara(10)).thenReturn(OfertaDeMeses.sinMeses("Este artículo no acepta meses sin intereses", List.of("Bolsa tote")));
+        mvc.perform(get("/v1/pagos-tarjeta/pedido/10/meses")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.meses").isEmpty())
+                .andExpect(jsonPath("$.data.motivo").value("Este artículo no acepta meses sin intereses"))
+                .andExpect(jsonPath("$.data.articulosSinMeses[0]").value("Bolsa tote"));
     }
 
     @Test

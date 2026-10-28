@@ -68,4 +68,54 @@ class ReglasMsiTest {
         assertThatThrownBy(() -> ReglasMsi.validarCuotas(3, TipoDeCobro.APARTADO, new BigDecimal("450"), SI, PLANES, null))
                 .hasMessageContaining("no los admite");
     }
+
+    // ── ofertaDeMeses: lo mismo que mesesOfrecidos, pero explicando por qué ──────────────
+
+    private OfertaDeMeses oferta(TipoDeCobro tipo, String total, List<ArticuloACobrar> arts) {
+        return ReglasMsi.ofertaDeMeses(tipo, new BigDecimal(total), arts, PLANES, new BigDecimal("300"));
+    }
+
+    @Test
+    void laOfertaTraeLosMismosPlazosQueMesesOfrecidos_yNingunMotivo() {
+        OfertaDeMeses o = oferta(TipoDeCobro.CONTADO, "450", SI);
+        assertThat(o.meses()).containsExactly(3, 6, 12);
+        assertThat(o.motivo()).isNull();
+        assertThat(o.articulosSinMeses()).isEmpty();
+        assertThat(o.hayMeses()).isTrue();
+    }
+
+    @Test
+    void siUnArticuloNoAcepta_dicePorQueYCualEs() {
+        OfertaDeMeses o = oferta(TipoDeCobro.CONTADO, "450", MIXTO);
+        assertThat(o.meses()).isEmpty();
+        assertThat(o.articulosSinMeses()).containsExactly("Falda");
+        assertThat(o.motivo()).contains("Este artículo no acepta meses sin intereses").contains("Falda").contains("de contado");
+    }
+
+    @Test
+    void bajoElMinimo_dicePorQueConElMonto() {
+        OfertaDeMeses o = oferta(TipoDeCobro.CONTADO, "299.99", SI);
+        assertThat(o.meses()).isEmpty();
+        assertThat(o.motivo()).contains("al menos").contains("300");
+        assertThat(o.articulosSinMeses()).isEmpty();
+    }
+
+    @Test
+    void apartadoEIrPagando_nuncaTienenMeses_yLoDice() {
+        assertThat(oferta(TipoDeCobro.APARTADO, "900", SI).motivo()).contains("efectivo o transferencia");
+        assertThat(oferta(TipoDeCobro.IR_PAGANDO, "900", SI).hayMeses()).isFalse();
+    }
+
+    @Test
+    void sinPlanesActivos_dicePorQue() {
+        OfertaDeMeses o = ReglasMsi.ofertaDeMeses(TipoDeCobro.CONTADO, new BigDecimal("450"), SI,
+                List.of(new PlanMsi(3, false, BigDecimal.ONE)), new BigDecimal("300"));
+        assertThat(o.meses()).isEmpty();
+        assertThat(o.motivo()).contains("No hay planes");
+    }
+
+    @Test
+    void pedidoSinArticulos_noOfreceMeses() {
+        assertThat(oferta(TipoDeCobro.CONTADO, "450", List.of()).motivo()).contains("no tiene artículos");
+    }
 }

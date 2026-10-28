@@ -22932,9 +22932,42 @@ tarjeta (400 con el motivo). Un pedido unido en un **grupo** tampoco se cobra co
 Todas las rutas llevan `/mis-productos/v1/pagos-tarjeta` y exigen sesión. Respuesta: `ResponseGeneric` con `data`.
 
 ### `GET /v1/pagos-tarjeta/pedido/{pedidoId}/meses`
-Meses sin intereses que se pueden ofrecer hoy para ese pedido. `data` = lista de números (ej. `[3]`); **vacía = solo de
-contado**. Hoy el catálogo solo tiene el plan de 3 meses. Se ofrecen solo si **todos** los artículos aceptan MSI, el total es
-de al menos $300 y el plan existe como tarjeta de crédito.
+Meses sin intereses que se pueden ofrecer hoy para ese pedido, **y si no hay, por qué** (2026-10-28).
+`GET /mis-productos/v1/pagos-tarjeta/pedido/{pedidoId}/meses`
+
+**Response** (`ResponseGeneric`): `data` = `{ meses, motivo, articulosSinMeses }`
+- `meses`: lista de plazos, ej. `[3, 6]`. **Vacía = solo de contado.**
+- `motivo`: texto para mostrar cuando `meses` viene vacía (en `null` cuando sí hay meses). Ej.: *"Este artículo no acepta meses sin
+  intereses, por eso el pedido se paga de contado: Falda midi"*, *"La compra debe ser de al menos $300 para ofrecer meses sin
+  intereses"*, *"Este tipo de pedido se paga en efectivo o transferencia: no admite meses sin intereses"*.
+- `articulosSinMeses`: nombres de los artículos que impiden los meses (vacía si el motivo es otro).
+
+**Qué cambia respecto a antes:** `data` era una lista de números (`[3]`) y ahora es un objeto; los plazos pasaron a `data.meses`.
+Todavía ninguna pantalla lo consumía. Reglas: se ofrecen solo si **todos** los artículos aceptan MSI, el total es de al menos $300 y el
+plan existe como tarjeta de crédito. Hoy el catálogo solo tiene el plan de 3 meses (6, 9 y 12 requieren filas en `pagos_y_meses`).
+
+### Casilla "Acepta meses sin intereses" (solo administrador, 2026-10-28)
+Un producto la tiene **apagada por default** y aplica a todos sus artículos. Un artículo puede **heredar** la del producto
+(`propio = null`) o tener la suya (`true` / `false`); manda la del artículo si la tiene. Solo existe donde corre el módulo de
+tarjeta (`pagos.tarjeta.habilitado=true`) y la base tiene la migración `migration_pago_tarjeta.sql`. Todas requieren **ADMIN**; un
+usuario sin ese rol recibe 404.
+
+| Request | Para qué |
+|---|---|
+| `GET /mis-productos/v1/acepta-msi/producto/{productoId}` | `data = { aceptaMsi }` del producto |
+| `PUT /mis-productos/v1/acepta-msi/producto/{productoId}` body `{ "aceptaMsi": true \| false }` | Cambia la casilla del producto. `null` **no** se admite (400) |
+| `GET /mis-productos/v1/acepta-msi/articulo/{varianteId}` | `data = { propio, heredaDelProducto, delProducto, efectivo }` |
+| `PUT /mis-productos/v1/acepta-msi/articulo/{varianteId}` body `{ "aceptaMsi": true \| false \| null }` | `null` = que el artículo vuelva a heredar. Responde lo mismo que el GET |
+| `GET /mis-productos/v1/acepta-msi/articulos?ids=12,13,14` | `data = { "12": true, "13": false }` valor **efectivo** (con herencia) para pintar el chip «MSI» en las listas. Máximo 500 ids |
+
+Errores: 404 (producto o artículo no existe / no eres admin), 400 (datos inválidos), **409** si en ese ambiente falta la migración
+(`"La casilla de meses sin intereses todavía no está disponible en este ambiente…"`; el front debe ocultar la casilla o mostrar ese texto),
+500 inesperado.
+
+**Importante para el front:** el producto y el artículo **no traen** este campo en sus respuestas ni en lo que guardan
+(`/productos/save`, `/variantes/guardarConImagenes` no cambian). Se lee y se cambia **solo** con estos endpoints: al abrir el
+formulario se pide el `GET`, y al guardar el producto o artículo se manda aparte el `PUT`. Es a propósito: así un ambiente sin la
+columna no se cae.
 
 ### `POST /v1/pagos-tarjeta`
 ```json
@@ -23001,7 +23034,7 @@ misma solicitud no devuelve dos veces. **Devolver no cambia el pedido ni la vent
 | cualquier otro | aprobada a los ~4 segundos |
 
 ### Pendiente en el front y el back (para MSI y operación)
-- **Casilla "Acepta meses sin intereses"** en producto y en artículo (apagada por default; hoy las columnas existen en la base
-  pero **no hay endpoint para editarlas**): falta el endpoint y el checkbox.
+- **Casilla "Acepta meses sin intereses"** en producto y en artículo: ✅ endpoints listos (ver arriba, 2026-10-28); falta el checkbox
+  y el chip «MSI» en el front.
 - Pantalla del cobro (botón "Cobrar con tarjeta", estados, cancelar) en el detalle del pedido y en la tienda.
 - Lista/alerta de cobros `COBRADO_SIN_APLICAR` (dinero por devolver).

@@ -1,8 +1,10 @@
 package com.ventas.key.hexagonal.pagotarjeta.infraestructura.config;
 
 import com.ventas.key.hexagonal.pagotarjeta.aplicacion.servicio.CobroConTarjetaService;
+import com.ventas.key.hexagonal.pagotarjeta.aplicacion.servicio.ConfigurarAceptaMsiService;
 import com.ventas.key.hexagonal.pagotarjeta.aplicacion.servicio.DevolverCobroService;
 import com.ventas.key.hexagonal.pagotarjeta.aplicacion.servicio.OfrecerPlanesService;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.AceptaMsiPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.ActualizarPedidoPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.DevolucionesPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.IntentosDePagoPort;
@@ -48,5 +50,10 @@ public class PagoTarjetaBeans {
     @Bean
     public OfrecerPlanesService ofrecerPlanesService(PedidoACobrarPort pedidos, PlanesMsiPort planes) {
         return new OfrecerPlanesService(pedidos, planes);
+    }
+
+    @Bean
+    public ConfigurarAceptaMsiService configurarAceptaMsiService(AceptaMsiPort casillas) {
+        return new ConfigurarAceptaMsiService(casillas);
     }
 }

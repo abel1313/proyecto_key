@@ -60,12 +60,12 @@ public class PagoTarjetaController {
     private final PedidoACobrarPort pedidos;
     private final CacheService cacheService;
 
-    /** Meses sin intereses que se pueden ofrecer para ese pedido (vacio = solo de contado). */
+    /** Meses sin intereses para ese pedido: {meses, motivo, articulosSinMeses} (meses vacio = solo de contado, y dice por que). */
     @GetMapping("/pedido/{pedidoId}/meses")
     public ResponseEntity<Object> meses(@PathVariable Integer pedidoId) {
         return ejecutar(false, () -> {
             exigirPedidoPropio(pedidoId);
-            return ofrecerPlanes.mesesPara(pedidoId);
+            return ofrecerPlanes.ofertaPara(pedidoId);
         });
     }
 
