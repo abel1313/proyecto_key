@@ -162,14 +162,26 @@ solo admin por default, configurable en Gestión de roles. Reglas E1–E10: `PLA
 | Regla | Estado |
 |---|---|
 | Solo en el local, pagando con tarjeta en la terminal; se elige el plazo al cobrar | ✅ (hoy aplica a toda la venta de contado; no hay casilla por artículo ni mínimo) |
-| Mínimo de compra **$300** para ofrecer MSI (configurable) | 🔮 decidido, sin programar |
-| Casilla **"Acepta meses sin intereses"** por producto (aplica a todos sus artículos) y por artículo, **apagada** por defecto | 🔮 decidido, sin programar |
-| Solo se ofrece MSI si **todos** los artículos de la venta lo aceptan; si no, aviso "Este artículo no acepta meses sin intereses" | 🔮 decidido, sin programar |
+| Mínimo de compra **$300** para ofrecer MSI (configurable, `pagos.tarjeta.msi-minimo`) | ✅ en el módulo `pagotarjeta` (QA, pasarela simulada) |
+| Casilla **"Acepta meses sin intereses"** por producto (aplica a todos sus artículos) y por artículo (hereda del producto / sí / no), **apagada** por defecto. Columnas `producto.acepta_msi` y `variantes.acepta_msi` ya en QA; la casilla en pantalla se programa el 2026-10-28 en la rama `feature/msi-casilla` | 🛠️ en construcción (plan aprobado 2026-10-28) |
+| Solo se ofrece MSI si **todos** los artículos de la venta lo aceptan; si no, aviso que diga **cuál artículo** no acepta meses sin intereses (y se paga normal) | ✅ la regla; 🛠️ el aviso con el artículo |
 | Pantalla para activar / desactivar planes (3, 6, 9, 12) con su comisión | 🔮 decidido, sin programar |
 | Apartado al recogerlo: MSI si cumple lo anterior | 🔮 |
 | Ir pagando: **nunca** MSI | regla |
 
-Detalle: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` 6.8, 7.2, 7.3 (Bloque 6).
+Detalle: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` 6.8, 7.2, 7.3 (Bloque 6) y `PLAN_PAGO_TARJETA.md` (plan actualizado 2026-10-28).
+
+### 3.1 Precio por cantidad (decidido 2026-10-28, 🔮 sin programar; plan en `PLAN_PRECIO_POR_CANTIDAD.md`)
+
+Palabras del dueño: un pantalón de $200; "si te llevas 2 salen en $375; si se llevan 3, 375 + 200; si 4, 375 + 375", y "de 3 en adelante cada uno a $150". En el pedido el mismo artículo va en **una sola fila** con cantidad y subtotal.
+
+| Regla | Estado |
+|---|---|
+| Se configura **por producto** y es una sola regla activa | 🔮 |
+| Dos tipos: **PAQUETE** (cada N cuestan $X, lo que sobra a precio normal) y **DESDE** (de N en adelante cada uno vale $Y) | 🔮 |
+| La cantidad se cuenta por **producto completo** (tallas y colores suman) | 🔮 |
+| El back calcula el precio; el subtotal queda congelado en la línea (lo vendido no se recalcula) | 🔮 |
+| Orden: se hace **después** de tarjeta y meses | decidido |
 
 ---
 

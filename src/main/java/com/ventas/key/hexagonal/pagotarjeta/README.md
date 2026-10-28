@@ -78,8 +78,15 @@ El revisor reprodujo 12 fallas con pruebas contra el servicio y los adaptadores 
 - `registrarDevolucion` solo deja bitácora: el registro vive en `pago_tarjeta_devolucion`; regresar mercancía/stock es decisión aparte.
 - Datos de QA verificados (2026-10-21): fila 2 = Tarjeta Débito a 1 pago (la misma que usa `AbonoServiceImpl`), fila 3 = Tarjeta crédito a 1 pago (misma comisión 3.5), fila 4 = Tarjeta crédito a 3 meses (4.69). Hoy solo existe el plan de 3 meses; para 6, 9 y 12 faltan filas en `pagos_y_meses`. Los meses se buscan solo en tarjeta de crédito. `Venta.usuario` es el usuario que inició el cobro (`iniciadoPor` = username).
 
+## Casilla de meses sin intereses (2026-10-28)
+`ConfigurarAceptaMsiCasoUso` / `ConfigurarAceptaMsiService` / `AceptaMsiPort` / `AceptaMsiJdbcAdapter` / `AceptaMsiController`
+(`/v1/acepta-msi`, solo ADMIN). Lee y guarda `producto.acepta_msi` y `variantes.acepta_msi` (NULL = hereda) con **SQL directo, no con las
+entidades JPA**: `Producto` y `Variantes` no mapean esas columnas a propósito, porque un ambiente sin la migración (producción) se quedaría
+sin catálogo (`Unknown column`). Sin la columna solo falla esta casilla, con 409 y un mensaje claro. `GET /pedido/{id}/meses` ahora responde
+`{meses, motivo, articulosSinMeses}` (`OfertaDeMeses`, `ReglasMsi.ofertaDeMeses`) para poder explicar por qué no hay meses.
+
 ## Falta
-Pasarela real de la terminal y de Checkout Pro, controllers + permisos, `CAMBIOS_FRONT.md`, front.
+Pasarela real de la terminal y de Checkout Pro (al final, necesita datos de Mercado Pago), front del cobro y de la casilla.
 
 ## ⚠️ Fuera de esta rama
 `MercadoPagoController.simularPago` (`@Profile("dev")` en un método se ignora) existe también en producción (solo ADMIN). Hotfix pendiente de decisión del dueño.
