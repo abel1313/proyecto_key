@@ -181,6 +181,9 @@ Palabras del dueño: un pantalón de $200; "si te llevas 2 salen en $375; si se 
 | Dos tipos: **PAQUETE** (cada N cuestan $X, lo que sobra a precio normal) y **DESDE** (de N en adelante cada uno vale $Y) | 🔮 |
 | La cantidad se cuenta por **producto completo** (tallas y colores suman) | 🔮 |
 | El back calcula el precio; el subtotal queda congelado en la línea (lo vendido no se recalcula) | 🔮 |
+| Un artículo con **precio manual (💲) o descuento activo** se cobra a ese precio y no entra al paquete | decidido 2026-10-28 |
+| El total de un pedido ya hecho **queda congelado** al precio del día; cambiar la regla después no mueve saldos ni abonos | decidido 2026-10-28 |
+| Si un producto tiene tallas con precios distintos, solo cuentan para el paquete las piezas **del mismo precio** | decidido 2026-10-28 |
 | Orden: se hace **después** de tarjeta y meses | decidido |
 
 ---
