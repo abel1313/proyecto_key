@@ -220,6 +220,9 @@ public class SecurityConfig {
                         // pedido o cobro es del cliente (o que es admin) y responde 404 si no.
                         // Casilla "Acepta meses sin intereses" de productos y articulos (solo administrador).
                         .requestMatchers("/v1/acepta-msi/**").hasRole("ADMIN")
+                        // Aviso (webhook) de Mercado Pago del pago en linea: sin sesion; se valida su firma x-signature
+                        // dentro del controller (sin firma valida responde 401 y no hace nada).
+                        .requestMatchers(HttpMethod.POST, "/v1/pagos-tarjeta/webhook").permitAll()
                         .requestMatchers(HttpMethod.POST, "/v1/pagos-tarjeta/*/devolver").hasRole("ADMIN")
                         .requestMatchers("/v1/pagos-tarjeta/**").authenticated()
 

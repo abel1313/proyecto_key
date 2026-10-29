@@ -130,6 +130,7 @@ pagos:
   tarjeta:
     habilitado: true
     pasarela: simulada
+    pasarela-en-linea: simulada
     simulada:
       segundos: 4
     msi-minimo: 300

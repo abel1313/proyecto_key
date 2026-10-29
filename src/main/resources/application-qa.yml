@@ -154,6 +154,14 @@ pagos:
   tarjeta:
     habilitado: true
     pasarela: simulada
+    # Pago EN LINEA: "simulada" (de mentira, como siempre) o "checkout" (Checkout Pro de Mercado Pago, con el access
+    # token de mercadopago.access-token; en QA debe ser el de PRUEBA). Se cambia con la variable PAGOS_PASARELA_EN_LINEA
+    # en Kubernetes, sin tocar codigo. La terminal sigue siendo la simulada.
+    pasarela-en-linea: ${PAGOS_PASARELA_EN_LINEA:simulada}
+    checkout:
+      front-url: https://qa.shop.novedades-jade.com.mx
+      notificacion-url: https://qa.backend.novedades-jade.com.mx/mis-productos/v1/pagos-tarjeta/webhook
+      webhook-secret: ${MP_WEBHOOK_SECRET:}
     simulada:
       segundos: 4
     msi-minimo: 300

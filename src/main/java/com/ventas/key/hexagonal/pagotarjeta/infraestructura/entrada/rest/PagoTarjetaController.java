@@ -9,6 +9,7 @@ import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.DevolverCobro
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.IniciarCobroCasoUso;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.entrada.OfrecerPlanesCasoUso;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.IntentosDePagoPort;
+import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PasarelaDePagoPort;
 import com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PedidoACobrarPort;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.entrada.rest.dto.CobroResponse;
 import com.ventas.key.hexagonal.pagotarjeta.infraestructura.entrada.rest.dto.DevolverCobroRequest;
@@ -59,6 +60,7 @@ public class PagoTarjetaController {
     private final IntentosDePagoPort intentos;
     private final PedidoACobrarPort pedidos;
     private final CacheService cacheService;
+    private final PasarelaDePagoPort pasarela;
 
     /** Meses sin intereses para ese pedido: {meses, motivo, articulosSinMeses} (meses vacio = solo de contado, y dice por que). */
     @GetMapping("/pedido/{pedidoId}/meses")
@@ -82,7 +84,7 @@ public class PagoTarjetaController {
             exigirPedidoPropio(request.pedidoId());
             Usuario usuario = AuthenticationUtils.currentUsuario();
             int cuotas = request.cuotas() == null ? 1 : request.cuotas();
-            return CobroResponse.de(iniciar.iniciar(request.pedidoId(), canal, cuotas, usuario.getUsername()));
+            return conUrl(iniciar.iniciar(request.pedidoId(), canal, cuotas, usuario.getUsername()));
         });
     }
 
@@ -95,7 +97,7 @@ public class PagoTarjetaController {
             IntentoDePago antes = exigirCobroPropio(intentoId);
             IntentoDePago despues = confirmar.confirmar(intentoId);
             cambio[0] = antes.estado() != despues.estado();
-            return CobroResponse.de(despues);
+            return conUrl(despues);
         });
         if (cambio[0]) {
             cacheService.evictAll();
@@ -125,6 +127,13 @@ public class PagoTarjetaController {
             return CobroResponse.de(devolver.devolver(intentoId, request != null ? request.monto() : null,
                     usuario.getUsername()));
         });
+    }
+
+    /** Mientras un cobro en linea sigue esperando, el front necesita saber a donde mandar al cliente a pagar. */
+    private CobroResponse conUrl(IntentoDePago i) {
+        String url = i.canal() == CanalDePago.EN_LINEA && i.estado().estaActivo() && i.idExterno() != null
+                ? pasarela.urlDePago(i.idExterno()).orElse(null) : null;
+        return CobroResponse.de(i, url);
     }
 
     // ── Autorizacion ──────────────────────────────────────────────────────
