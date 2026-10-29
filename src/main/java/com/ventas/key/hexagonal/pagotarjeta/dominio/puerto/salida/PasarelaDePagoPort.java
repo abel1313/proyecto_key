@@ -40,4 +40,12 @@ public interface PasarelaDePagoPort {
     void cancelar(String idExterno);
 
     void devolver(String idExterno, BigDecimal monto, String claveIdempotencia);
+
+    /**
+     * Donde debe ir el cliente a pagar (Checkout Pro). Vacio = el cobro no se paga en una pagina externa
+     * (terminal, pasarela simulada).
+     */
+    default Optional<String> urlDePago(String idExterno) {
+        return Optional.empty();
+    }
 }
