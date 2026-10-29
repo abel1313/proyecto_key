@@ -62,6 +62,10 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Autowired private EmailService emailService;
     @Autowired private WhatsappService whatsappService;
     @Autowired private ILugarEntregaRepository iLugarEntregaRepository;
+    // Con el modulo nuevo de tarjeta encendido, la venta con tarjeta NO se da por pagada al crearla: queda un pedido
+    // Pendiente y es el cobro aprobado el que lo marca Pagado y crea la Venta. Apagado = comportamiento de siempre.
+    @org.springframework.beans.factory.annotation.Value("${pagos.tarjeta.habilitado:false}")
+    private boolean pagoTarjetaHabilitado;
 
     public VentaServiceImpl(
             final IVentaRepository iVentaRepository,
@@ -293,6 +297,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             return respCredito;
         }
 
+        if (pagoTarjetaHabilitado && requiereTerminal(pagosYMeses, mesesIntereses)) {
+            return crearPedidoPendienteParaCobro(request, cliente, clienteSinRegistro, detallesPedido,
+                    totalPedidoCalc, pagosYMeses, mesesIntereses);
+        }
+
         double totalVenta    = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
         double gananciaTotal = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getGanancia).sum();
 
@@ -347,19 +356,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             venta.setCorreoReclamo(clienteSinRegistro.getCorreoElectronico());
         }
 
-        // Efectivo nunca requiere terminal, sin importar el tarifaTerminal que tenga enlazado su
-        // mesesIntereses -- antes se decidia SOLO con "tarifaTerminal.getId() != 3", un id fijo
-        // que asumia que la fila "sin terminal" de tarifa_terminal siempre cae en el id 3. Eso
-        // depende del orden en que se sembro esa tabla en cada ambiente (no hay migracion que la
-        // siembre igual en dev/qa/prod) -- si en QA la fila "N/A" no quedo en el id 3, "Efectivo"
-        // terminaba pidiendo terminal de Mercado Pago igual (reportado en QA 2026-09-02: "elegi
-        // efectivo pero marca que por mercado"). formaPago ya es la etiqueta real que el admin le
-        // puso a esta forma de pago, no depende de ningun id de otra tabla.
-        boolean esEfectivo = pagosYMeses.getTipoPago() != null
-                && "efectivo".equalsIgnoreCase(
-                        pagosYMeses.getTipoPago().getFormaPago() == null ? null : pagosYMeses.getTipoPago().getFormaPago().trim());
-        boolean requiereTerminal = !esEfectivo
-                && mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
+        boolean requiereTerminal = requiereTerminal(pagosYMeses, mesesIntereses);
         Venta saved = iVentaRepository.save(venta);
         if (codigoReclamo != null) {
             emailService.enviarCodigoReclamoVenta(clienteSinRegistro.getCorreoElectronico(), codigoReclamo);
@@ -384,6 +381,65 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
                 "Comprobante de compra — Novedades Jade", respVenta);
         return respVenta;
+    }
+
+    /**
+     * Efectivo nunca requiere terminal, sin importar el tarifaTerminal que tenga enlazado su mesesIntereses -- antes se
+     * decidia SOLO con "tarifaTerminal.getId() != 3", un id fijo que asumia que la fila "sin terminal" de
+     * tarifa_terminal siempre cae en el id 3. Eso depende del orden en que se sembro esa tabla en cada ambiente (no hay
+     * migracion que la siembre igual en dev/qa/prod) -- si en QA la fila "N/A" no quedo en el id 3, "Efectivo"
+     * terminaba pidiendo terminal de Mercado Pago igual (reportado en QA 2026-09-02: "elegi efectivo pero marca que por
+     * mercado"). formaPago ya es la etiqueta real que el admin le puso a esta forma de pago, no depende de ningun id.
+     */
+    private static boolean requiereTerminal(PagosYMeses pagosYMeses, MesesIntereses mesesIntereses) {
+        boolean esEfectivo = pagosYMeses.getTipoPago() != null
+                && "efectivo".equalsIgnoreCase(
+                        pagosYMeses.getTipoPago().getFormaPago() == null ? null : pagosYMeses.getTipoPago().getFormaPago().trim());
+        return !esEfectivo
+                && mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
+    }
+
+    /**
+     * Venta con tarjeta con el modulo nuevo: solo se crea el pedido (Pendiente, sin dinero, sin entregar y SIN Venta).
+     * Si la tarjeta se rechaza o se cancela no queda nada pagado; al aprobarse, PedidoCobroAdapter.marcarPagado lo
+     * deja Pagado y Entregado y crea la Venta. El stock ya se descontó arriba (igual que un pedido del cliente).
+     */
+    private VentaDirectaResponse crearPedidoPendienteParaCobro(VentaDirectaRequest request, Cliente cliente,
+            ClienteSinRegistro clienteSinRegistro, List<DetallePedido> detallesPedido, double total,
+            PagosYMeses pagosYMeses, MesesIntereses mesesIntereses) {
+        Pedido pedido = new Pedido();
+        pedido.setTipoPedido("NORMAL");
+        pedido.setEstadoPedido("Pendiente");
+        pedido.marcarEntregado(false);
+        pedido.setCliente(cliente);
+        pedido.setClienteSinRegistro(clienteSinRegistro);
+        pedido.setObservaciones(request.getObservaciones() != null ? request.getObservaciones() : "");
+        pedido.setNombreReceptor(request.getNombreReceptor());
+        pedido.setDireccionEntrega(request.getDireccionEntrega());
+        pedido.setLatitud(request.getLatitud());
+        pedido.setLongitud(request.getLongitud());
+        pedido.setReferencias(request.getReferencias());
+        pedido.setLugarEntrega(resolveLugarEntrega(request.getLugarEntregaId()));
+        pedido.setUrlFacebook(request.getUrlFacebook());
+        pedido.setFechaPedido(LocalDate.now());
+        pedido.setFechaHoraRegistro(LocalDateTime.now());
+        pedido.setFechaRecogida(request.getFechaEntrega() != null ? request.getFechaEntrega() : LocalDate.now());
+        pedido.setTotalPedido(total);
+        pedido.setTotalPagado(0.0);
+        detallesPedido.forEach(dp -> dp.setPedido(pedido));
+        pedido.setDetalles(detallesPedido);
+        Pedido guardado = iPedidoRepository.save(pedido);
+        cacheService.evictAll();
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
+        } catch (Exception e) {
+            log.warn("No se pudo avisar a Rabbit para invalidar cache (no bloquea la operacion): {}", e.getMessage());
+        }
+        VentaDirectaResponse resp = new VentaDirectaResponse(
+                null, pagosYMeses.getTipoPago().getFormaPago(), true, total, null,
+                mesesIntereses.getDescripcion(), null, guardado.getId(), null, null, null);
+        resp.setCobroConModuloNuevo(true);
+        return resp;
     }
 
     // El precio/subtotal que manda el request en una linea normal (sin promocionId) debe

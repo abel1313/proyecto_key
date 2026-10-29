@@ -23012,6 +23012,24 @@ existiendo para **cobros de grupo**, **venta directa** y los ambientes donde el 
   ese ambiente (o el pedido no es del usuario) y se usa el camino anterior.
 - Con el módulo nuevo, al `APROBADO` el pedido ya quedó Pagado y **Entregado** (terminal): el front **no** debe llamar a `PUT /v1/pedidos/confirmar/{id}`.
 
+### Venta directa con tarjeta y módulo nuevo (2026-10-29)
+
+**Request:** el mismo de siempre, `POST /mis-productos/v1/ventas/venta-directa` (el que ya usa `venta-directa`), con `pagosYMesesId` de una forma de **tarjeta**.
+
+**Qué cambia (solo con `pagos.tarjeta.habilitado=true`; apagado, todo igual que antes):**
+- **Antes:** la venta nacía ya pagada y entregada (pedido «Entregado» + Venta) y *después* se mandaba la terminal. Si la tarjeta fallaba, la venta ya estaba registrada como pagada.
+- **Ahora:** con tarjeta solo se crea un **pedido Pendiente** (sin dinero, sin entregar, sin Venta; el stock sí se descuenta). La Venta la crea el cobro aprobado, que deja el pedido Pagado y Entregado.
+
+**Response (solo lo que el front consume):**
+```json
+{ "pedidoId": 77, "ventaId": null, "totalVenta": 400.0, "requiereTerminal": true, "cobroConModuloNuevo": true }
+```
+- `cobroConModuloNuevo=true` → el front **no** usa `/v1/mp`: cobra con `GET /v1/pagos-tarjeta/pedido/{pedidoId}/meses` (ofrecer meses si aplican) y `POST /v1/pagos-tarjeta` (`canal` terminal), igual que Mis pedidos.
+- Ojo: aquí `pedidoId` viene con valor aunque **no** sea Apartado ni Ir pagando; el front revisa `cobroConModuloNuevo` antes de interpretar `pedidoId` como crédito.
+- Si la tarjeta se rechaza o se cancela, el pedido queda Pendiente: reintentar, cobrar en efectivo desde Mis pedidos o cancelar el pedido (`DELETE /mis-productos/v1/pedidos/delete/{id}?motivo=…`, el de siempre, que regresa el stock).
+- Efectivo, Apartado e Ir pagando: respuesta y comportamiento sin cambios.
+- No se envía el ticket por correo en este paso (el pedido aún no está pagado); el front imprime el ticket al aprobarse.
+
 ### Códigos de respuesta
 | Código | Cuándo |
 |---|---|
