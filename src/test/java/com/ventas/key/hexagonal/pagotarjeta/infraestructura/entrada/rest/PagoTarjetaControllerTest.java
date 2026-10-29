@@ -57,6 +57,8 @@ class PagoTarjetaControllerTest {
     private final IntentosDePagoPort intentos = mock(IntentosDePagoPort.class);
     private final PedidoACobrarPort pedidos = mock(PedidoACobrarPort.class);
     private final CacheService cache = mock(CacheService.class);
+    private final com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PasarelaDePagoPort pasarela =
+            mock(com.ventas.key.hexagonal.pagotarjeta.dominio.puerto.salida.PasarelaDePagoPort.class);
     private MockMvc mvc;
 
     private static final Instant AHORA = Instant.parse("2026-10-22T18:00:00Z");
@@ -64,7 +66,7 @@ class PagoTarjetaControllerTest {
     @BeforeEach
     void preparar() {
         mvc = MockMvcBuilders.standaloneSetup(
-                new PagoTarjetaController(iniciar, confirmar, cancelar, devolver, planes, intentos, pedidos, cache)).build();
+                new PagoTarjetaController(iniciar, confirmar, cancelar, devolver, planes, intentos, pedidos, cache, pasarela)).build();
         when(pedidos.buscar(10)).thenReturn(Optional.of(pedido(10, 5)));          // pedido del cliente 5
         when(pedidos.buscar(11)).thenReturn(Optional.of(pedido(11, 6)));          // pedido del cliente 6
         when(pedidos.buscar(12)).thenReturn(Optional.of(pedido(12, null)));       // pedido sin cliente registrado

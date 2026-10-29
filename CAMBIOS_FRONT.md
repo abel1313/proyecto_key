@@ -23030,6 +23030,22 @@ existiendo para **cobros de grupo**, **venta directa** y los ambientes donde el 
 - Efectivo, Apartado e Ir pagando: respuesta y comportamiento sin cambios.
 - No se envía el ticket por correo en este paso (el pedido aún no está pagado); el front imprime el ticket al aprobarse.
 
+### Pago en línea real con Mercado Pago (Checkout Pro) — 2026-10-29
+
+Solo cuando el back tiene `pagos.tarjeta.pasarela-en-linea=checkout` (QA con credenciales de prueba; producción no hasta nueva orden). Con la pasarela simulada nada de esto aparece y todo sigue como antes.
+
+**`POST /mis-productos/v1/pagos-tarjeta` (`canal: "EN_LINEA"`) y `GET /mis-productos/v1/pagos-tarjeta/{intentoId}`** — el response suma un campo:
+```json
+{ "id": 15, "pedidoId": 40, "estado": "ENVIADO", "enProceso": true, "urlPago": "https://www.mercadopago.com.mx/checkout/v1/redirect?pref_id=..." }
+```
+- `urlPago` solo viene en cobros **en línea** que siguen esperando pago. Con él, el front **no pregunta por polling**: manda al cliente a esa dirección (`window.location.href`). Con la pasarela simulada no viene y se sigue como antes (polling cada 3 s).
+- Al terminar (o cancelar) el pago, Mercado Pago regresa al cliente a **`{front}/pedidos/pago-resultado?external_reference=<intentoId>&status=...&payment_id=...`**. Esa pantalla **no se fía de la dirección**: toma solo `external_reference` y pregunta `GET /v1/pagos-tarjeta/{intentoId}` (404 = no existe o no es suyo). Aprobado = pedido Pagado, falta entregar.
+- Lo que antes no existía: el back recibe además el aviso (webhook) de Mercado Pago en `POST /v1/pagos-tarjeta/webhook` (público, **solo Mercado Pago**; exige firma `x-signature` válida, si no responde 401). El front nunca lo llama.
+- Devolver (`POST /v1/pagos-tarjeta/{id}/devolver`, admin) hace un reembolso real en Mercado Pago; repetir la misma devolución no reembolsa dos veces.
+- Solo tarjeta (se excluyen efectivo en tienda, cajero y transferencia). Los meses sin intereses los ofrece el back (regla de siempre: todos los artículos aceptan MSI y mínimo $300) y se mandan a Mercado Pago como máximo de cuotas.
+- Qué cambia respecto a la versión anterior: antes el cobro en línea era simulado y se aprobaba solo; ahora el cliente paga en la página segura de Mercado Pago (los datos de la tarjeta nunca pasan por nuestro sistema).
+- Códigos: 502 = Mercado Pago no aceptó crear el cobro (se puede reintentar); 500 = no se sabe si se creó, **consultar el estado antes de reintentar**; 404 = cobro/pedido ajeno.
+
 ### Códigos de respuesta
 | Código | Cuándo |
 |---|---|
