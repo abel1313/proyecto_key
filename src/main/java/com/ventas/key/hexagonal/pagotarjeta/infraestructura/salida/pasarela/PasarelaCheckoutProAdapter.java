@@ -42,6 +42,8 @@ public class PasarelaCheckoutProAdapter implements PasarelaDePagoPort {
     private final String urlRegreso;
     private final String urlNotificacion;
     private final String urlRedireccion;
+    private final boolean sandbox;
+    private final java.util.Map<String, String> urlsPorPreferencia = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Autowired
     public PasarelaCheckoutProAdapter(
@@ -49,12 +51,14 @@ public class PasarelaCheckoutProAdapter implements PasarelaDePagoPort {
             @Value("${pagos.tarjeta.checkout.front-url}") String frontUrl,
             @Value("${pagos.tarjeta.checkout.notificacion-url}") String urlNotificacion,
             @Value("${pagos.tarjeta.checkout.redirect-url:https://www.mercadopago.com.mx/checkout/v1/redirect?pref_id=}")
-            String urlRedireccion) {
+            String urlRedireccion,
+            @Value("${pagos.tarjeta.checkout.sandbox:false}") boolean sandbox) {
         this.api = api;
         this.reloj = reloj;
         this.urlRegreso = frontUrl.replaceAll("/+$", "") + "/pedidos/pago-resultado";
         this.urlNotificacion = urlNotificacion;
         this.urlRedireccion = urlRedireccion;
+        this.sandbox = sandbox;
     }
 
     static boolean esDeEstaPasarela(String idExterno) {
@@ -112,7 +116,14 @@ public class PasarelaCheckoutProAdapter implements PasarelaDePagoPort {
     public Optional<String> urlDePago(String idExterno) {
         if (!esDeEstaPasarela(idExterno)) return Optional.empty();
         String preferencia = preferenciaId(idExterno);
-        return "sin-preferencia".equals(preferencia) ? Optional.empty() : Optional.of(urlRedireccion + preferencia);
+        if ("sin-preferencia".equals(preferencia)) return Optional.empty();
+        // La direccion la da Mercado Pago (init_point); armarla a mano era adivinar y fallaba. Solo si no la da, la de config.
+        String url = urlsPorPreferencia.get(preferencia);
+        if (url == null) {
+            url = api.urlDePago(preferencia, sandbox).orElse(urlRedireccion + preferencia);
+            urlsPorPreferencia.put(preferencia, url);
+        }
+        return Optional.of(url);
     }
 
     static EstadoExterno estadoDe(List<MercadoPagoCheckoutApi.Pago> pagos) {

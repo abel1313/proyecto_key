@@ -93,6 +93,19 @@ public class MercadoPagoCheckoutSdk implements MercadoPagoCheckoutApi {
     }
 
     @Override
+    public Optional<String> urlDePago(String preferenciaId, boolean sandbox) {
+        try {
+            Preference p = new PreferenceClient().get(preferenciaId, opciones());
+            log.info("Preferencia {}: init_point={} sandbox_init_point={}", preferenciaId, p.getInitPoint(), p.getSandboxInitPoint());
+            String url = sandbox ? p.getSandboxInitPoint() : p.getInitPoint();
+            return url == null || url.isBlank() ? Optional.empty() : Optional.of(url);
+        } catch (MPApiException | MPException e) {
+            log.warn("No se pudo obtener la dirección de pago de la preferencia {}", preferenciaId, e);
+            return Optional.empty();
+        }
+    }
+
+    @Override
     public List<Pago> pagosPorReferencia(String referencia) {
         try {
             MPSearchRequest busqueda = MPSearchRequest.builder().limit(30).offset(0)

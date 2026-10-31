@@ -54,9 +54,10 @@ Todos los pods deben quedar `Running` y `1/1`. Para **volver a lo de mentira** (
 
 ## Cosas que se confirman en esta primera prueba (no se pudieron verificar sin credenciales)
 
-- Que la página de Mercado Pago de **prueba** abra con la dirección que arma el sistema
-  (`pagos.tarjeta.checkout.redirect-url`). Si abre pero no deja pagar con el comprador de prueba, hay que usar la
-  dirección `sandbox_init_point` que devuelve la preferencia: avísame y se cambia.
+- Que la página de Mercado Pago de **prueba** abra. La dirección de pago ya NO se arma a mano: la da Mercado Pago al
+  crear el cobro (`init_point`). Si con cuentas de prueba hace falta la variante sandbox, se activa sin tocar código con
+  `kubectl set env deployment/proyecto-key-deployment -n qa PAGOS_TARJETA_CHECKOUT_SANDBOX=true`. En el log del pod
+  aparece `Preferencia ...: init_point=... sandbox_init_point=...` para ver las dos.
 - Que solo aparezca **tarjeta** (se excluyen efectivo en tienda, cajero y transferencia) y los meses sin
   intereses que ofrece Mercado Pago para esa tarjeta de prueba.
 - Que el aviso (webhook) llegue: en los logs del pod debe verse `Webhook de pago ...: cobro N queda APROBADO`. Aunque no
