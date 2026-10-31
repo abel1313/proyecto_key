@@ -21,6 +21,12 @@ public interface MercadoPagoCheckoutApi {
      */
     String crearPreferencia(Preferencia preferencia);
 
+    /**
+     * La direccion a la que se manda al cliente a pagar, tal como la devuelve Mercado Pago para esa preferencia
+     * ({@code init_point}, o {@code sandbox_init_point} con {@code sandbox=true}). Vacio si no se pudo obtener.
+     */
+    Optional<String> urlDePago(String preferenciaId, boolean sandbox);
+
     /** Pagos hechos contra esa referencia externa (el id del intento), del mas reciente al mas viejo. */
     List<Pago> pagosPorReferencia(String referencia);
 

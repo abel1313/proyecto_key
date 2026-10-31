@@ -42,7 +42,7 @@ class PasarelaCheckoutProAdapterTest {
         api = mock(MercadoPagoCheckoutApi.class);
         pasarela = new PasarelaCheckoutProAdapter(api, Clock.fixed(AHORA, ZoneOffset.UTC),
                 "https://qa.shop.test/", "https://qa.back.test/mis-productos/v1/pagos-tarjeta/webhook",
-                "https://mp.test/redirect?pref_id=");
+                "https://mp.test/redirect?pref_id=", false);
     }
 
     private static IntentoDePago intento(long id, int cuotas) {
@@ -142,9 +142,14 @@ class PasarelaCheckoutProAdapterTest {
     }
 
     @Test
-    @DisplayName("url de pago: la de Mercado Pago con el id de la preferencia; un cobro simulado no tiene")
+    @DisplayName("url de pago: la que da Mercado Pago; si no la da, la de configuración; un cobro simulado no tiene")
     void urlDePago() {
-        assertThat(pasarela.urlDePago("co:15:PREF-1")).contains("https://mp.test/redirect?pref_id=PREF-1");
+        when(api.urlDePago("PREF-1", false)).thenReturn(Optional.of("https://mp.test/init?pref_id=PREF-1"));
+        assertThat(pasarela.urlDePago("co:15:PREF-1")).contains("https://mp.test/init?pref_id=PREF-1");
+
+        when(api.urlDePago("PREF-2", false)).thenReturn(Optional.empty());
+        assertThat(pasarela.urlDePago("co:16:PREF-2")).contains("https://mp.test/redirect?pref_id=PREF-2");
+
         assertThat(pasarela.urlDePago("sim-15")).isEmpty();
     }
 
