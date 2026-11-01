@@ -1,6 +1,12 @@
 package com.ventas.key.hexagonal.graficasventas.infraestructura.entrada.rest;
 
 import com.ventas.key.hexagonal.graficasventas.dominio.excepcion.GraficasVentasException;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.DineroPorCobrar;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CasoPorCobrar;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EstadoDePedidos;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.TramoPorCobrar;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ParteDelTotal;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.PuntoMensual;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentasPorFormaDePago;
@@ -64,5 +70,44 @@ class GraficasVentasControllerTest {
         mvc.perform(get("/v1/dashboard/graficas/ventas-gastos-mensual?meses=99"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.mensaje").value("Los meses a mostrar deben ser de 1 a 24."));
+    }
+
+    @Test
+    @DisplayName("por cobrar: total, tramos y los más antiguos")
+    void porCobrar() throws Exception {
+        when(graficas.dineroPorCobrar()).thenReturn(new DineroPorCobrar(700.0, 2,
+                List.of(new TramoPorCobrar("0 a 7 días", 1, 200.0), new TramoPorCobrar("Más de 30 días", 1, 500.0)),
+                List.of(new CasoPorCobrar(5, "Ana López", "Ir pagando", 500.0, 45))));
+        mvc.perform(get("/v1/dashboard/graficas/por-cobrar"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(700.0))
+                .andExpect(jsonPath("$.data.tramos[1].etiqueta").value("Más de 30 días"))
+                .andExpect(jsonPath("$.data.masAntiguos[0].cliente").value("Ana López"))
+                .andExpect(jsonPath("$.data.masAntiguos[0].dias").value(45));
+    }
+
+    @Test
+    @DisplayName("capital parado: 60 días por defecto; días inválidos dan 400")
+    void capitalParado() throws Exception {
+        when(graficas.capitalParado(60)).thenReturn(new CapitalParado(60, 1, 3, 300.0, List.of()));
+        mvc.perform(get("/v1/dashboard/graficas/capital-parado")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.capital").value(300.0)).andExpect(jsonPath("$.data.piezas").value(3));
+        verify(graficas).capitalParado(60);
+
+        when(graficas.capitalParado(3)).thenThrow(GraficasVentasException.diasInvalidos(7, 365));
+        mvc.perform(get("/v1/dashboard/graficas/capital-parado?dias=3")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("Los días a revisar deben ser de 7 a 365."));
+    }
+
+    @Test
+    @DisplayName("pedidos por estado: 90 días por defecto, con atrasados y las seis categorías")
+    void pedidosPorEstado() throws Exception {
+        when(graficas.pedidosPorEstado(90)).thenReturn(EstadoDePedidos.de(LocalDate.of(2026, 8, 17), LocalDate.of(2026, 11, 15),
+                java.util.Map.of(CategoriaPedido.PENDIENTE, 4), 2));
+        mvc.perform(get("/v1/dashboard/graficas/pedidos-por-estado")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.atrasados").value(2))
+                .andExpect(jsonPath("$.data.activos").value(4))
+                .andExpect(jsonPath("$.data.estados.length()").value(6))
+                .andExpect(jsonPath("$.data.estados[0].etiqueta").value("Pendiente de pago"));
     }
 }
