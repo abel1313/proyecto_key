@@ -23082,3 +23082,47 @@ Solo cuando el back tiene `pagos.tarjeta.pasarela-en-linea=checkout` (QA con cre
   y el chip «MSI» en el front.
 - Pantalla del cobro (botón "Cobrar con tarjeta", estados, cancelar) en el detalle del pedido y en la tienda.
 - Lista/alerta de cobros `COBRADO_SIN_APLICAR` (dinero por devolver).
+
+## 🔎 Revisión de ventas — pestaña nueva en Reportes (2026-11-01, rama `feature/revision-ventas`)
+
+Solo **administrador**, solo lectura. Avisa de pedidos, ventas, abonos, stock y cobros con tarjeta que no cuadran.
+
+**Request:** `GET /mis-productos/v1/reportes/revision-ventas?desde=2026-08-01&hasta=2026-10-31` — `desde` y `hasta` son opcionales (`yyyy-MM-dd`); sin ellas, últimos 90 días. La parte de stock y de cobros con tarjeta no depende de las fechas.
+
+**Response (`data`):**
+```json
+{
+  "desde": "2026-08-03", "hasta": "2026-11-01", "generadoEn": "2026-11-01T18:00:00Z",
+  "totalHallazgos": 3, "todoEnOrden": false,
+  "tipos": [
+    { "codigo": "PAGADO_SIN_VENTA", "titulo": "Pedido pagado que no tiene venta", "explicacion": "…", "gravedad": "ALTA", "total": 1,
+      "ejemplos": [ { "pedidoId": 2, "ventaId": null, "articuloId": null, "detalle": "Pedido #2 (Entregado) por $300.00 no tiene venta." } ] }
+  ],
+  "noRevisados": ["COBRO_TARJETA_SIN_APLICAR"]
+}
+```
+- `tipos` trae **un renglón por cada tipo que sí se pudo revisar**, con `total: 0` si está bien. `ejemplos` trae hasta 50 casos (los más recientes primero); `total` es el número real. `gravedad` es `ALTA` o `MEDIA`.
+- `noRevisados`: tipos que no se pudieron revisar en ese ambiente (p. ej. producción sin la tabla del cobro con tarjeta). Hay que mostrarlo, no esconderlo.
+- Qué cambia respecto a lo anterior: es un endpoint nuevo; no cambia ningún reporte existente.
+- `400` si `desde` es posterior a `hasta` (mensaje en `mensaje`); `500` si falla la consulta. `403` si el usuario no es administrador.
+- Permiso de la pestaña: acción `reporte-revision` en la pantalla `reportes` (migración `migration_accion_reporte_revision.sql`, solo ROLE_ADMIN). Hay que **volver a iniciar sesión** para que el token la traiga.
+
+## 📊 Gráficas del Dashboard: cómo te pagan y ventas/gastos por mes (2026-11-01, rama `feature/revision-ventas`)
+
+Solo administrador (todo `/v1/dashboard/**` ya lo es). Solo lectura. Las ventas **«Devuelta» no cuentan** y la ganancia neta es **ganancia − gastos** (igual que las tarjetas del Dashboard).
+
+**1) `GET /mis-productos/v1/dashboard/graficas/ventas-por-forma-pago?desde=2026-11-01&hasta=2026-11-15`** — fechas opcionales (`yyyy-MM-dd`); sin ellas, del día 1 del mes a hoy.
+```json
+{ "desde": "2026-11-01", "hasta": "2026-11-15", "total": 4000.0, "comisionTotal": 81.2,
+  "formas": [ { "forma": "Tarjeta crédito", "ventas": 3, "total": 2000.0, "porcentaje": 50.0, "comision": 81.2 } ] }
+```
+- `formas` viene de la que más vendió a la que menos y vacío si no hubo ventas. `porcentaje` va de 0 a 100 con un decimal. `comision` = lo que se queda la terminal (tarifa + IVA de la terminal); 0 en efectivo.
+- Una venta sin forma de pago registrada sale como `"Sin forma de pago registrada"`.
+- `400` si `desde` es posterior a `hasta`.
+
+**2) `GET /mis-productos/v1/dashboard/graficas/ventas-gastos-mensual?meses=12`** — `meses` de 1 a 24 (default 12).
+```json
+[ { "mes": "2026-10", "numeroVentas": 12, "ventas": 8000.0, "ganancia": 2500.0, "gastos": 900.0, "gananciaNeta": 1600.0 } ]
+```
+- Siempre vienen **todos** los meses seguidos, del más viejo al actual; un mes sin movimiento trae ceros. `400` si `meses` está fuera de 1–24.
+- Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia `/v1/dashboard/resumen`.
