@@ -45,6 +45,21 @@ public class GraficasVentasController {
         return responder(() -> graficas.ventasYGastosPorMes(meses).stream().map(GraficasResponse.Mes::de).toList());
     }
 
+    @GetMapping("/por-cobrar")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.PorCobrar>> porCobrar() {
+        return responder(() -> GraficasResponse.PorCobrar.de(graficas.dineroPorCobrar()));
+    }
+
+    @GetMapping("/capital-parado")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.Parado>> capitalParado(@RequestParam(defaultValue = "60") int dias) {
+        return responder(() -> GraficasResponse.Parado.de(graficas.capitalParado(dias)));
+    }
+
+    @GetMapping("/pedidos-por-estado")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.PedidosPorEstado>> pedidosPorEstado(@RequestParam(defaultValue = "90") int dias) {
+        return responder(() -> GraficasResponse.PedidosPorEstado.de(graficas.pedidosPorEstado(dias)));
+    }
+
     private <T> ResponseEntity<ResponseGeneric<T>> responder(Supplier<T> consulta) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(consulta.get()));
