@@ -44,3 +44,31 @@ Reglas, principios y contratos: `src/main/java/com/ventas/key/hexagonal/pagotarj
 **Datos que el dueño debe conseguir (solo para el paso 6; nunca por chat, van como secretos en Kubernetes):** credenciales de prueba y producción de Mercado Pago, usuarios y tarjetas de prueba, Checkout Pro habilitado, modelo y `device-id` de la terminal de producción, URL y secreto del webhook, tarifas reales por plan.
 
 **Decisiones del dueño aún abiertas:** quién paga la comisión (la fórmula actual copia la de ventas y puede estar mal); si devolver afecta pedido/venta/stock; qué se hace con `COBRADO_SIN_APLICAR`; planes de meses habilitados; entrega del pago en línea (a dónde y cuándo).
+
+## 🟡 PENDIENTE — Pago en línea con Mercado Pago real (anotado 2026-11-01)
+
+**Estado:** el código está terminado y subido a `dev` y `qa` (Checkout Pro, webhook con firma, reembolso, enrutador por canal; `PASOS_MERCADO_PAGO_QA.md`). **La prueba real en QA falla** con la pantalla de Mercado Pago *"Algo salió mal… Una de las partes con la que intentas hacer el pago es de prueba"*. El dueño decidió dejarlo en pausa y retomarlo después.
+
+**Qué se descartó (probado el 2026-10-31/11-01):**
+- El token es de un usuario de prueba vendedor (`TESTUSER…`, `site_id` MLM) y crea cobros sin problema.
+- Nuestra preferencia (JSON del SDK de Java) es idéntica a las que se crearon a mano con `curl`. Se probaron 13 variantes (cada campo suelto, todos juntos, título con raya larga, `installments` 1 y 3, tipos excluidos, vencimiento, `binary_mode`, `back_urls`, `notification_url`): **todas abren la pantalla "¿Cómo quieres pagar?"**.
+- La dirección `init_point` que da Mercado Pago es la misma que armábamos a mano (`www.mercadopago.com.mx/checkout/v1/redirect?pref_id=…`).
+- No es la sesión del navegador: falla también en ventana privada y sin haber abierto Mercado Pago.
+- Dato que quedó sin explicar: el cobro de la app termina en `…/payment-option-form/?&p=<hash>` y las pruebas a mano en `…/payment-option-form/?preference-id=…`.
+- El `GET /checkout/preferences/{id}` da **403** con este token (también para los cobros hechos a mano): por eso falla la consulta de la dirección y se usa la de respaldo. No es la causa del error.
+
+**Hipótesis más probable (no confirmada):** el tipo de credencial. Una página de soporte de Mercado Pago (leída solo en el resultado de búsqueda; el dominio de la documentación está bloqueado desde el entorno del asistente) dice que este error suele venir de usar las "credenciales de prueba" o `sandbox_init_point`, y que para probar Checkout Pro hay que crear la preferencia con el **Access Token de producción de la cuenta de prueba vendedora** y pagar con la cuenta de prueba **compradora**.
+
+**Cuando se retome (en este orden):**
+1. Pagar un cobro hecho a mano (`curl`) con el comprador de prueba (tarjeta de prueba o "Ingresar con mi cuenta"). Si falla ahí también, es el tipo de credencial/cuenta, no el código.
+2. Entrar a Mercado Pago Developers **con el usuario de prueba vendedor** (en ventana privada, nunca con la cuenta real), crear una aplicación ahí y usar **sus credenciales de producción** como `ACCESS_TOKE_MERCADO_PAGO` en `qa`.
+3. Si sigue igual: crear un comprador nuevo con `POST /users/test_user` usando el mismo token (usuario y contraseña NO se pegan en chat), o abrir consulta con el soporte de Mercado Pago Developers.
+4. Permitir los dominios `www.mercadopago.com.mx` y `www.mercadopago.com` en la red de la sesión del asistente para leer la documentación oficial.
+
+**Pendientes de código (menores):** no consultar la preferencia (403): tomar `init_point` de la respuesta al crearla; dejar en el log la dirección que se entrega al navegador.
+
+**Estado de QA mientras tanto:** las variables `ACCESS_TOKE_MERCADO_PAGO` (token de prueba), `MP_WEBHOOK_SECRET` y `PAGOS_PASARELA_EN_LINEA=checkout` están cargadas en el deployment `proyecto-key-deployment` (namespace `qa`). Para que el pago en línea de QA vuelva a funcionar con la pasarela simulada:
+`kubectl set env deployment/proyecto-key-deployment -n qa PAGOS_PASARELA_EN_LINEA=simulada`
+(Ojo: el token de la terminal vieja `/v1/mp` en QA también quedó reemplazado por el de prueba.)
+
+**Sigue pendiente de fondo (sin tocar):** terminal real (modelo y device-id), reembolsos reales, tarifas 6/9/12, producción (credenciales, webhook en modo producción, migración `migration_pago_tarjeta.sql`).
