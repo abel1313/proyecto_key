@@ -1,6 +1,9 @@
 package com.ventas.key.hexagonal.graficasventas.infraestructura.salida.persistencia;
 
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.FormaDePagoVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.SaldoPendiente;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentasDelMes;
 import com.ventas.key.hexagonal.graficasventas.dominio.puerto.salida.GraficasPort;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -10,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +87,84 @@ public class GraficasJdbcAdapter implements GraficasPort {
                 },
                 java.sql.Date.valueOf(desde), java.sql.Date.valueOf(hasta));
         return resultado;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SaldoPendiente> saldosPendientes() {
+        // Mismo criterio que la tarjeta «Por cobrar» del Dashboard (estado APARTADO o FIADO), sin los saldos de un centavo o menos.
+        return jdbc.query(
+                "SELECT p.id AS pedido_id, p.tipo_pedido AS tipo, p.fecha_pedido AS fecha_del_pedido, "
+                        + "(COALESCE(p.total_pedido, 0) - COALESCE(p.total_pagado, 0)) AS saldo, "
+                        + "COALESCE(NULLIF(TRIM(CONCAT(COALESCE(c.nombre_persona, ''), ' ', COALESCE(c.apeido_paterno, ''))), ''), "
+                        + "NULLIF(TRIM(CONCAT(COALESCE(s.nombre_persona, ''), ' ', COALESCE(s.apeido_paterno, ''))), ''), "
+                        + "'Cliente sin nombre') AS cliente "
+                        + "FROM pedidos p "
+                        + "LEFT JOIN clientes c ON c.id = p.cliente_id "
+                        + "LEFT JOIN clientes_sin_registro s ON s.id = p.cliente_sin_registro_id "
+                        + "WHERE p.estado_pedido IN ('APARTADO', 'FIADO') "
+                        + "AND (COALESCE(p.total_pedido, 0) - COALESCE(p.total_pagado, 0)) > 0.01 "
+                        + "AND p.fecha_pedido IS NOT NULL",
+                (rs, n) -> new SaldoPendiente(rs.getInt("pedido_id"), rs.getString("cliente"), rs.getString("tipo"),
+                        rs.getDouble("saldo"), rs.getDate("fecha_del_pedido").toLocalDate()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ArticuloParado> articulosSinMovimiento(LocalDate corte) {
+        return jdbc.query(
+                "SELECT v.id AS articulo_id, p.nombre AS nombre, v.talla AS talla, v.color AS color, v.stock AS stock, "
+                        + "COALESCE(p.precio_costo, 0) AS costo, u.ultima AS ultima_venta "
+                        + "FROM variantes v JOIN producto p ON p.id = v.producto_id "
+                        + "LEFT JOIN (SELECT variante_id, MAX(fecha_venta) AS ultima FROM detalle_venta_variantes GROUP BY variante_id) u "
+                        + "ON u.variante_id = v.id "
+                        + "WHERE v.habilitado = '1' AND p.habilitado = '1' AND p.es_catalogo_interno = 0 AND v.stock > 0 "
+                        + "AND (v.fecha_creacion IS NULL OR v.fecha_creacion < ?) "
+                        + "AND (u.ultima IS NULL OR u.ultima < ?)",
+                (rs, n) -> new ArticuloParado(rs.getInt("articulo_id"), nombreDelArticulo(rs), rs.getInt("stock"),
+                        rs.getDouble("costo"), rs.getDate("ultima_venta") == null ? null : rs.getDate("ultima_venta").toLocalDate()),
+                inicio(corte), java.sql.Date.valueOf(corte));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<CategoriaPedido, Integer> pedidosPorCategoria(LocalDate desdeTerminados) {
+        Map<CategoriaPedido, Integer> resultado = new EnumMap<>(CategoriaPedido.class);
+        jdbc.query(
+                "SELECT categoria, COUNT(*) AS pedidos FROM ("
+                        + "SELECT CASE "
+                        + "WHEN UPPER(COALESCE(p.estado_pedido, '')) = 'CANCELADO' THEN 'CANCELADO' "
+                        + "WHEN UPPER(COALESCE(p.estado_pedido, '')) IN ('ENTREGADO', 'PAGADO') AND p.entregado = TRUE THEN 'ENTREGADO' "
+                        + "WHEN UPPER(COALESCE(p.estado_pedido, '')) IN ('ENTREGADO', 'PAGADO') THEN 'PAGADO_POR_ENTREGAR' "
+                        + "WHEN p.tipo_pedido = 'APARTADO' THEN 'APARTADO' "
+                        + "WHEN p.tipo_pedido = 'FIADO' THEN 'IR_PAGANDO' "
+                        + "ELSE 'PENDIENTE' END AS categoria, p.fecha_pedido AS fecha_del_pedido FROM pedidos p) t "
+                        + "WHERE categoria IN ('PENDIENTE', 'APARTADO', 'IR_PAGANDO', 'PAGADO_POR_ENTREGAR') OR fecha_del_pedido >= ? "
+                        + "GROUP BY categoria",
+                rs -> {
+                    resultado.put(CategoriaPedido.valueOf(rs.getString("categoria")), rs.getInt("pedidos"));
+                },
+                java.sql.Date.valueOf(desdeTerminados));
+        return resultado;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int pedidosAtrasados(LocalDate hoy) {
+        Integer total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM pedidos p WHERE p.fecha_recogida IS NOT NULL AND p.fecha_recogida < ? "
+                        + "AND p.entregado = FALSE AND UPPER(COALESCE(p.estado_pedido, '')) <> 'CANCELADO'",
+                Integer.class, java.sql.Date.valueOf(hoy));
+        return total == null ? 0 : total;
+    }
+
+    private static String nombreDelArticulo(java.sql.ResultSet rs) throws java.sql.SQLException {
+        StringBuilder sb = new StringBuilder(rs.getString("nombre") != null ? rs.getString("nombre") : "Artículo");
+        String talla = rs.getString("talla");
+        String color = rs.getString("color");
+        if (talla != null && !talla.isBlank()) sb.append(" talla ").append(talla);
+        if (color != null && !color.isBlank()) sb.append(' ').append(color);
+        return sb.toString();
     }
 
     private static Timestamp inicio(LocalDate dia) {

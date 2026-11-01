@@ -23126,3 +23126,30 @@ Solo administrador (todo `/v1/dashboard/**` ya lo es). Solo lectura. Las ventas 
 ```
 - Siempre vienen **todos** los meses seguidos, del más viejo al actual; un mes sin movimiento trae ceros. `400` si `meses` está fuera de 1–24.
 - Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia `/v1/dashboard/resumen`.
+
+## 📊 Más gráficas del Dashboard: por cobrar, capital parado y pedidos por estado (2026-11-01, rama `feature/graficas-2`)
+
+Solo administrador (`/v1/dashboard/**`). Solo lectura.
+
+**1) `GET /mis-productos/v1/dashboard/graficas/por-cobrar`** — lo que te deben (estado APARTADO o FIADO con saldo; el `total` es el de la tarjeta «Por cobrar»).
+```json
+{ "total": 700.0, "pedidos": 2,
+  "tramos": [ { "etiqueta": "0 a 7 días", "pedidos": 1, "saldo": 200.0 }, { "etiqueta": "8 a 30 días", "pedidos": 0, "saldo": 0.0 }, { "etiqueta": "Más de 30 días", "pedidos": 1, "saldo": 500.0 } ],
+  "masAntiguos": [ { "pedidoId": 5, "cliente": "Ana López", "tipo": "Ir pagando", "saldo": 500.0, "dias": 45 } ] }
+```
+Siempre 3 tramos en ese orden. `masAntiguos` = hasta 8, del que más tiempo lleva al menos. `tipo` ya viene en palabras del dueño («Apartado» / «Ir pagando»).
+
+**2) `GET /mis-productos/v1/dashboard/graficas/capital-parado?dias=60`** — `dias` de 7 a 365 (default 60); `400` fuera de rango.
+```json
+{ "dias": 60, "articulos": 3, "piezas": 14, "capital": 880.0,
+  "mayores": [ { "articuloId": 17, "nombre": "Bolsa talla U Café", "stock": 10, "costo": 50.0, "capital": 500.0, "ultimaVenta": null, "diasSinVender": null } ] }
+```
+Mercancía habilitada con stock sin ventas en `dias` días (y con más de esos días en el catálogo), a **costo** (`stock × precio_costo` del modelo). `mayores` = hasta 10 con más capital. `ultimaVenta`/`diasSinVender` `null` = nunca se ha vendido.
+
+**3) `GET /mis-productos/v1/dashboard/graficas/pedidos-por-estado?dias=90`** — `dias` de 7 a 365 (default 90).
+```json
+{ "desde": "2026-08-17", "hasta": "2026-11-15", "activos": 6, "atrasados": 3,
+  "estados": [ { "codigo": "PENDIENTE", "etiqueta": "Pendiente de pago", "activo": true, "pedidos": 4 } ] }
+```
+Siempre las 6 categorías en este orden: PENDIENTE, APARTADO, IR_PAGANDO, PAGADO_POR_ENTREGAR, ENTREGADO, CANCELADO (con 0 si no hay). Los **abiertos** (`activo: true`) se cuentan todos sin importar su fecha; ENTREGADO y CANCELADO solo los de los últimos `dias` días. `atrasados` = sin entregar y sin cancelar con fecha de recogida ya pasada.
+- Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia ninguno existente.

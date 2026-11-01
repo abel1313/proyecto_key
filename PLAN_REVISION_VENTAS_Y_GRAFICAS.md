@@ -41,15 +41,15 @@ deben salir) + `mvn test` completo. Front: `ng build`; pruebas manuales en `TEST
 **solo ROLE_ADMIN**, no se da a los demás roles con "Ver reportes"); el endpoint además exige ADMIN en `SecurityConfig`.
 
 ## ETAPA 2 — Gráficas nuevas (por orden de valor; cada una con su plan breve antes de programar)
-**Hechas el 2026-11-01 (rama `feature/revision-ventas`, sin subir):** la 1 (ventas por forma de pago, con comisión) y la 2 (ventas, gastos y ganancia neta por mes), en el **Dashboard**. Dominio `hexagonal/graficasventas`.
+**Hechas el 2026-11-01:** (subidas a dev y qa)  la 1 (ventas por forma de pago, con comisión) y la 2 (ventas, gastos y ganancia neta por mes), en el **Dashboard**. Dominio `hexagonal/graficasventas`. **Segunda tanda (rama `feature/graficas-2`, sin subir):** 3 (por cobrar), 5 (pedidos por estado) y 6 (capital parado).
 
 1. ✅ **Ventas por forma de pago** (dona): efectivo, tarjeta, transferencia; contado contra meses; **comisión de tarjeta**
    (lo que se queda la terminal) usando `detalle_pago` / `ventas.ganancia_total`.
 2. ✅ **Ventas, gastos y ganancia neta por mes** (barras + línea, 12 meses): `ventas`, `gastos_surtir`.
-3. **Dinero por cobrar por antigüedad** (barras 0–7, 8–30, 31+ días) de Ir pagando y Apartados.
+3. ✅ **Dinero por cobrar por antigüedad** (barras 0–7, 8–30, 31+ días) de Ir pagando y Apartados.
 4. **Cuadre del día**: cobrado hoy en efectivo / tarjeta / transferencia + abonos, contra lo vendido.
-5. **Pedidos por estado** (embudo): pendientes, pagados por entregar, entregados, cancelados, atrasados.
-6. **Capital parado**: artículos con stock y sin ventas en 60 días.
+5. ✅ **Pedidos por estado** (embudo): pendientes, pagados por entregar, entregados, cancelados, atrasados.
+6. ✅ **Capital parado**: artículos con stock y sin ventas en 60 días.
 7. **Ventas por día de la semana y por hora** (mapa de calor): cuándo vender o hacer lives.
 8. **Clientes nuevos contra recurrentes** y top clientes.
 9. **Entregas por zona** (`lugares_entrega`).

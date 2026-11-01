@@ -14,4 +14,8 @@ public class GraficasVentasException extends RuntimeException {
     public static GraficasVentasException mesesInvalidos(int minimo, int maximo) {
         return new GraficasVentasException("Los meses a mostrar deben ser de " + minimo + " a " + maximo + ".");
     }
+
+    public static GraficasVentasException diasInvalidos(int minimo, int maximo) {
+        return new GraficasVentasException("Los días a revisar deben ser de " + minimo + " a " + maximo + ".");
+    }
 }

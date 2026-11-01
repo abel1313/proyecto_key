@@ -1,7 +1,15 @@
 package com.ventas.key.hexagonal.graficasventas.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.graficasventas.dominio.excepcion.GraficasVentasException;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CasoCapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CasoPorCobrar;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.DineroPorCobrar;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EstadoDePedidos;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.FormaDePagoVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.SaldoPendiente;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.TramoPorCobrar;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ParteDelTotal;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.PuntoMensual;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentasDelMes;
@@ -10,6 +18,7 @@ import com.ventas.key.hexagonal.graficasventas.dominio.puerto.entrada.ConsultarG
 import com.ventas.key.hexagonal.graficasventas.dominio.puerto.salida.GraficasPort;
 
 import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -28,6 +37,11 @@ public class ConsultarGraficasService implements ConsultarGraficasCasoUso {
 
     public static final int MESES_MINIMO = 1;
     public static final int MESES_MAXIMO = 24;
+    public static final int DIAS_MINIMO = 7;
+    public static final int DIAS_MAXIMO = 365;
+    /** Cuántos casos concretos se muestran en las listas de «a quién cobrarle» y «qué está parado». */
+    public static final int CASOS_A_MOSTRAR = 8;
+    public static final int ARTICULOS_PARADOS_A_MOSTRAR = 10;
     private static final ZoneId ZONA = ZoneId.of("America/Mexico_City");
 
     private final GraficasPort puerto;
@@ -87,5 +101,64 @@ public class ConsultarGraficasService implements ConsultarGraficasCasoUso {
     private static double redondear(double valor, int decimales) {
         double f = Math.pow(10, decimales);
         return Math.round(valor * f) / f;
+    }
+
+    @Override
+    public DineroPorCobrar dineroPorCobrar() {
+        LocalDate hoy = hoy();
+        List<SaldoPendiente> saldos = puerto.saldosPendientes();
+        double[] sumas = new double[3];
+        int[] cuentas = new int[3];
+        List<CasoPorCobrar> casos = new ArrayList<>();
+        for (SaldoPendiente s : saldos) {
+            long dias = Math.max(0, ChronoUnit.DAYS.between(s.fechaPedido(), hoy));
+            int tramo = dias <= 7 ? 0 : dias <= 30 ? 1 : 2;
+            sumas[tramo] += s.saldo();
+            cuentas[tramo]++;
+            casos.add(new CasoPorCobrar(s.pedidoId(), s.cliente(), "APARTADO".equals(s.tipo()) ? "Apartado" : "Ir pagando",
+                    redondear(s.saldo(), 2), dias));
+        }
+        casos.sort(Comparator.comparingLong(CasoPorCobrar::dias).reversed().thenComparing(Comparator.comparingDouble(CasoPorCobrar::saldo).reversed()));
+        List<TramoPorCobrar> tramos = List.of(
+                new TramoPorCobrar("0 a 7 días", cuentas[0], redondear(sumas[0], 2)),
+                new TramoPorCobrar("8 a 30 días", cuentas[1], redondear(sumas[1], 2)),
+                new TramoPorCobrar("Más de 30 días", cuentas[2], redondear(sumas[2], 2)));
+        double total = sumas[0] + sumas[1] + sumas[2];
+        return new DineroPorCobrar(redondear(total, 2), saldos.size(), tramos, casos.stream().limit(CASOS_A_MOSTRAR).toList());
+    }
+
+    @Override
+    public CapitalParado capitalParado(int dias) {
+        validarDias(dias);
+        LocalDate hoy = hoy();
+        List<ArticuloParado> parados = puerto.articulosSinMovimiento(hoy.minusDays(dias));
+        List<CasoCapitalParado> casos = new ArrayList<>();
+        int piezas = 0;
+        double capital = 0;
+        for (ArticuloParado a : parados) {
+            double valor = a.stock() * a.costo();
+            piezas += a.stock();
+            capital += valor;
+            Long sinVender = a.ultimaVenta() == null ? null : ChronoUnit.DAYS.between(a.ultimaVenta(), hoy);
+            casos.add(new CasoCapitalParado(a.articuloId(), a.nombre(), a.stock(), redondear(a.costo(), 2), redondear(valor, 2),
+                    a.ultimaVenta(), sinVender));
+        }
+        casos.sort(Comparator.comparingDouble(CasoCapitalParado::capital).reversed());
+        return new CapitalParado(dias, parados.size(), piezas, redondear(capital, 2),
+                casos.stream().limit(ARTICULOS_PARADOS_A_MOSTRAR).toList());
+    }
+
+    @Override
+    public EstadoDePedidos pedidosPorEstado(int dias) {
+        validarDias(dias);
+        LocalDate hoy = hoy();
+        LocalDate desde = hoy.minusDays(dias);
+        return EstadoDePedidos.de(desde, hoy, puerto.pedidosPorCategoria(desde), puerto.pedidosAtrasados(hoy));
+    }
+
+    private static void validarDias(int dias) {
+        if (dias < DIAS_MINIMO || dias > DIAS_MAXIMO) {
+            throw GraficasVentasException.diasInvalidos(DIAS_MINIMO, DIAS_MAXIMO);
+        }
     }
 }
