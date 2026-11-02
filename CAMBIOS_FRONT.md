@@ -23106,6 +23106,11 @@ Solo **administrador**, solo lectura. Avisa de pedidos, ventas, abonos, stock y 
 - Qué cambia respecto a lo anterior: es un endpoint nuevo; no cambia ningún reporte existente.
 - `400` si `desde` es posterior a `hasta` (mensaje en `mensaje`); `500` si falla la consulta. `403` si el usuario no es administrador.
 - Permiso de la pestaña: acción `reporte-revision` en la pantalla `reportes` (migración `migration_accion_reporte_revision.sql`, solo ROLE_ADMIN). Hay que **volver a iniciar sesión** para que el token la traiga.
+- **Tres alertas nuevas (2026-11-02), gravedad `MEDIA`, sin cambio de contrato** (el front ya pinta cualquier `codigo` que llegue; solo aumenta `tipos`):
+  - `VENDIDO_BAJO_COSTO`: renglón de venta (dentro de `desde`/`hasta`) cuyo precio de venta es menor a su costo (se ignoran costos en 0). Ejemplo trae `ventaId`. Puede ser una promoción a propósito.
+  - `ARTICULO_SIN_PRECIO`: artículo habilitado con stock > 0 y sin precio de venta (o en 0). Trae `articuloId`. No depende de fechas.
+  - `PEDIDO_PAGADO_SIN_ENTREGAR`: pedido en estado PAGADO, sin marcar entregado, de hace más de 14 días. Trae `pedidoId`. No depende de fechas.
+  - Quedan fuera por ahora: «artículo sin foto» (hay que decidir cómo revisarlo contra el micro de imágenes) y «deuda vencida» (falta definir cuántos días es vencida).
 
 ## 📊 Gráficas del Dashboard: cómo te pagan y ventas/gastos por mes (2026-11-01, rama `feature/revision-ventas`)
 

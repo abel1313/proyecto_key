@@ -33,23 +33,23 @@ class HallazgosJdbcAdapterTest {
     void preparar() {
         jdbc = new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:mem:rev" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1", "sa", ""));
         jdbc.execute("CREATE TABLE pedidos (id INT PRIMARY KEY, estado_pedido VARCHAR(30), tipo_pedido VARCHAR(10), "
-                + "total_pedido DOUBLE, total_pagado DOUBLE, fecha_pedido DATE)");
+                + "total_pedido DOUBLE, total_pagado DOUBLE, fecha_pedido DATE, entregado BOOLEAN DEFAULT TRUE)");
         jdbc.execute("CREATE TABLE detalle_pedidos (id INT PRIMARY KEY, pedido_id INT, sub_total DOUBLE)");
         jdbc.execute("CREATE TABLE ventas (id INT PRIMARY KEY, pedido_id INT NULL, total_venta DOUBLE, fecha_venta TIMESTAMP)");
-        jdbc.execute("CREATE TABLE detalle_venta_variantes (id INT PRIMARY KEY, venta_id INT, sub_total DOUBLE)");
+        jdbc.execute("CREATE TABLE detalle_venta_variantes (id INT PRIMARY KEY, venta_id INT, sub_total DOUBLE, precio_unitario DOUBLE, precio_costo DOUBLE, cantidad INT, fecha_venta DATE)");
         jdbc.execute("CREATE TABLE abono_pedido (id INT PRIMARY KEY, pedido_id INT, monto DOUBLE)");
         jdbc.execute("CREATE TABLE producto (id INT PRIMARY KEY, nombre VARCHAR(80), stock INT, habilitado CHAR(1), es_catalogo_interno TINYINT)");
-        jdbc.execute("CREATE TABLE variantes (id INT PRIMARY KEY, producto_id INT, stock INT, habilitado CHAR(1), talla VARCHAR(10), color VARCHAR(30))");
+        jdbc.execute("CREATE TABLE variantes (id INT PRIMARY KEY, producto_id INT, stock INT, habilitado CHAR(1), talla VARCHAR(10), color VARCHAR(30), precio_venta DOUBLE)");
 
         // Pedidos (fecha dentro de la ventana salvo el 6)
-        jdbc.update("INSERT INTO pedidos VALUES (1, 'Entregado', 'NORMAL', 450, 0, '2026-10-10')");     // pagado, con venta: bien
-        jdbc.update("INSERT INTO pedidos VALUES (2, 'Entregado', 'NORMAL', 300, 0, '2026-10-12')");     // pagado SIN venta
-        jdbc.update("INSERT INTO pedidos VALUES (3, 'PAGADO', 'FIADO', 200, 200, '2026-10-05')");       // pagado a abonos, con venta: bien
-        jdbc.update("INSERT INTO pedidos VALUES (4, 'FIADO', 'FIADO', 400, 100, '2026-10-06')");        // 100 = abonos: bien
-        jdbc.update("INSERT INTO pedidos VALUES (5, 'FIADO', 'FIADO', 400, 100, '2026-10-07')");        // dice 100, abonos 60: MAL
-        jdbc.update("INSERT INTO pedidos VALUES (6, 'Entregado', 'NORMAL', 100, 0, '2026-08-01')");     // sin venta pero fuera de fechas
-        jdbc.update("INSERT INTO pedidos VALUES (7, 'CANCELADO', 'FIADO', 999, 50, '2026-10-08')");     // cancelado: no se revisa
-        jdbc.update("INSERT INTO pedidos VALUES (8, 'Pendiente', 'NORMAL', 500, 0, '2026-10-09')");     // total 500, artículos 400: MAL
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (1, 'Entregado', 'NORMAL', 450, 0, '2026-10-10')");     // pagado, con venta: bien
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (2, 'Entregado', 'NORMAL', 300, 0, '2026-10-12')");     // pagado SIN venta
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (3, 'PAGADO', 'FIADO', 200, 200, '2026-10-05')");       // pagado a abonos, con venta: bien
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (4, 'FIADO', 'FIADO', 400, 100, '2026-10-06')");        // 100 = abonos: bien
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (5, 'FIADO', 'FIADO', 400, 100, '2026-10-07')");        // dice 100, abonos 60: MAL
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (6, 'Entregado', 'NORMAL', 100, 0, '2026-08-01')");     // sin venta pero fuera de fechas
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (7, 'CANCELADO', 'FIADO', 999, 50, '2026-10-08')");     // cancelado: no se revisa
+        jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (8, 'Pendiente', 'NORMAL', 500, 0, '2026-10-09')");     // total 500, artículos 400: MAL
         jdbc.update("INSERT INTO detalle_pedidos VALUES (1, 1, 450), (2, 2, 300), (3, 3, 200), (4, 4, 400), (5, 5, 400), "
                 + "(6, 7, 1), (7, 8, 200), (8, 8, 200)");
         jdbc.update("INSERT INTO abono_pedido VALUES (1, 3, 150), (2, 3, 50), (3, 4, 100), (4, 5, 60), (5, 7, 10)");
@@ -60,7 +60,7 @@ class HallazgosJdbcAdapterTest {
         jdbc.update("INSERT INTO ventas VALUES (3, NULL, 99, '2026-10-15 12:00:00')");                  // sin pedido
         jdbc.update("INSERT INTO ventas VALUES (4, 4, 500, '2026-10-16 12:00:00')");                    // total 500, artículos 300: MAL
         jdbc.update("INSERT INTO ventas VALUES (5, 6, 77, '2026-09-01 12:00:00')");                     // sin detalle y fuera de fechas
-        jdbc.update("INSERT INTO detalle_venta_variantes VALUES (1, 1, 450), (2, 2, 200), (3, 4, 300)");
+        jdbc.update("INSERT INTO detalle_venta_variantes (id, venta_id, sub_total) VALUES (1, 1, 450), (2, 2, 200), (3, 4, 300)");
 
         // Stock
         jdbc.update("INSERT INTO producto VALUES (1, 'Pantalón', 5, '1', 0)");
@@ -68,13 +68,30 @@ class HallazgosJdbcAdapterTest {
         jdbc.update("INSERT INTO producto VALUES (3, 'Modelo negativo', -2, '1', 0)");
         jdbc.update("INSERT INTO producto VALUES (4, 'Interno', 0, '1', 1)");                            // catálogo interno: no cuenta
         jdbc.update("INSERT INTO producto VALUES (5, 'Deshabilitado', 0, '0', 0)");                      // modelo apagado: no cuenta
-        jdbc.update("INSERT INTO variantes VALUES (10, 1, 2, '1', 'M', 'Rojo')");                        // bien
-        jdbc.update("INSERT INTO variantes VALUES (11, 1, -1, '1', 'L', 'Azul')");                       // stock negativo
-        jdbc.update("INSERT INTO variantes VALUES (20, 2, 3, '1', '14', 'AZUL MARINO')");                // con stock, modelo en 0: MAL
-        jdbc.update("INSERT INTO variantes VALUES (21, 2, 0, '1', '16', 'AZUL MARINO')");                // sin stock: bien
-        jdbc.update("INSERT INTO variantes VALUES (22, 2, 4, '0', '18', 'AZUL MARINO')");                // apagado: no cuenta
-        jdbc.update("INSERT INTO variantes VALUES (40, 4, 5, '1', 'U', 'Negro')");
-        jdbc.update("INSERT INTO variantes VALUES (50, 5, 4, '1', 'U', 'Negro')");
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (10, 1, 2, '1', 'M', 'Rojo')");                        // bien
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (11, 1, -1, '1', 'L', 'Azul')");                       // stock negativo
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (20, 2, 3, '1', '14', 'AZUL MARINO')");                // con stock, modelo en 0: MAL
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (21, 2, 0, '1', '16', 'AZUL MARINO')");                // sin stock: bien
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (22, 2, 4, '0', '18', 'AZUL MARINO')");                // apagado: no cuenta
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (40, 4, 5, '1', 'U', 'Negro')");
+        jdbc.update("INSERT INTO variantes (id, producto_id, stock, habilitado, talla, color) VALUES (50, 5, 4, '1', 'U', 'Negro')");
+
+        // Alertas extra: precios, costos y pedidos viejos
+        jdbc.update("UPDATE variantes SET precio_venta = 100");
+        jdbc.update("UPDATE variantes SET precio_venta = NULL WHERE id = 10");                           // con stock y sin precio: MAL
+        jdbc.update("UPDATE variantes SET precio_venta = 0 WHERE id = 21");                              // sin stock: no cuenta
+        jdbc.update("INSERT INTO detalle_venta_variantes VALUES (10, 90, 150, 150, 100, 1, '2026-10-10')");  // gana: bien
+        jdbc.update("INSERT INTO detalle_venta_variantes VALUES (11, 90, 60, 50, 100, 2, '2026-10-20')");   // vendió a 50, costó 100: MAL
+        jdbc.update("INSERT INTO detalle_venta_variantes VALUES (12, 90, 60, 50, 100, 2, '2026-08-20')");   // bajo costo pero fuera de fechas
+        jdbc.update("INSERT INTO detalle_venta_variantes VALUES (13, 90, 0, 0, 0, 1, '2026-10-20')");       // regalo sin costo: no cuenta
+        LocalDate hoy = LocalDate.now();
+        jdbc.update("INSERT INTO pedidos VALUES (20, 'PAGADO', 'NORMAL', 300, 300, ?, FALSE)", hoy.minusDays(30));  // pagado sin entregar hace 30 días: MAL
+        jdbc.update("INSERT INTO pedidos VALUES (21, 'PAGADO', 'NORMAL', 300, 300, ?, FALSE)", hoy.minusDays(3));   // reciente: bien
+        jdbc.update("INSERT INTO pedidos VALUES (22, 'PAGADO', 'NORMAL', 300, 300, ?, TRUE)", hoy.minusDays(30));   // ya entregado: bien
+        jdbc.update("INSERT INTO ventas VALUES (40, 20, 300, ?)", hoy.minusDays(30).atStartOfDay());
+        jdbc.update("INSERT INTO ventas VALUES (41, 21, 300, ?)", hoy.minusDays(3).atStartOfDay());
+        jdbc.update("INSERT INTO ventas VALUES (42, 22, 300, ?)", hoy.minusDays(30).atStartOfDay());
+        jdbc.update("INSERT INTO pedidos VALUES (23, 'CANCELADO', 'NORMAL', 300, 0, ?, FALSE)", hoy.minusDays(30)); // cancelado: no cuenta
 
         adaptador = new HallazgosJdbcAdapter(jdbc);
     }
@@ -175,6 +192,29 @@ class HallazgosJdbcAdapterTest {
     }
 
     @Test
+    @DisplayName("vendido bajo costo: solo el renglón 11 (el 12 está fuera de fechas y el 13 no tiene costo)")
+    void vendidoBajoCosto() {
+        BusquedaDeHallazgos r = buscar(TipoHallazgo.VENDIDO_BAJO_COSTO);
+        assertThat(r.total()).isEqualTo(1);
+        assertThat(r.ejemplos()).extracting(Hallazgo::ventaId).containsExactly(90);
+        assertThat(r.ejemplos().get(0).detalle()).contains("$50.00").contains("$100.00");
+    }
+
+    @Test
+    @DisplayName("artículo sin precio: solo el 10 (el 21 no tiene stock)")
+    void articuloSinPrecio() {
+        BusquedaDeHallazgos r = buscar(TipoHallazgo.ARTICULO_SIN_PRECIO);
+        assertThat(r.ejemplos()).extracting(Hallazgo::articuloId).containsExactly(10);
+    }
+
+    @Test
+    @DisplayName("pedido pagado sin entregar: solo el 20 (el 21 es reciente, el 22 ya se entregó, el 23 está cancelado)")
+    void pagadoSinEntregar() {
+        BusquedaDeHallazgos r = buscar(TipoHallazgo.PEDIDO_PAGADO_SIN_ENTREGAR);
+        assertThat(r.ejemplos()).extracting(Hallazgo::pedidoId).containsExactly(20);
+    }
+
+    @Test
     @DisplayName("todas las consultas son de solo lectura: no cambian ningún dato")
     void soloLee() {
         int antes = jdbc.queryForObject("SELECT COUNT(*) FROM pedidos", Integer.class)
@@ -191,6 +231,6 @@ class HallazgosJdbcAdapterTest {
                 + jdbc.queryForObject("SELECT COUNT(*) FROM ventas", Integer.class)
                 + jdbc.queryForObject("SELECT COALESCE(SUM(stock), 0) FROM variantes", Integer.class);
         assertThat(despues).isEqualTo(antes);
-        assertThat(List.of(TipoHallazgo.values())).hasSize(8);
+        assertThat(List.of(TipoHallazgo.values())).hasSize(11);
     }
 }

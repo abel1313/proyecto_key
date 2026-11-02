@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.revisionventas.aplicacion.servicio;
 import com.ventas.key.hexagonal.revisionventas.dominio.excepcion.RevisionVentasException;
 import com.ventas.key.hexagonal.revisionventas.dominio.modelo.BusquedaDeHallazgos;
 import com.ventas.key.hexagonal.revisionventas.dominio.modelo.Hallazgo;
+import com.ventas.key.hexagonal.revisionventas.dominio.modelo.Gravedad;
 import com.ventas.key.hexagonal.revisionventas.dominio.modelo.HallazgosDeUnTipo;
 import com.ventas.key.hexagonal.revisionventas.dominio.modelo.ResultadoRevision;
 import com.ventas.key.hexagonal.revisionventas.dominio.modelo.TipoHallazgo;
@@ -94,6 +95,8 @@ class RevisarVentasServiceTest {
         ArgumentCaptor<TipoHallazgo> pedidos = ArgumentCaptor.forClass(TipoHallazgo.class);
         servicio.revisar(null, null);
         verify(puerto, org.mockito.Mockito.times(TipoHallazgo.values().length)).buscar(pedidos.capture(), any(), any(), anyInt());
-        assertThat(pedidos.getAllValues().get(pedidos.getAllValues().size() - 1)).isEqualTo(TipoHallazgo.VENTA_SIN_PEDIDO);
+        List<TipoHallazgo> orden = pedidos.getAllValues();
+        assertThat(orden.get(orden.size() - 1).gravedad()).isEqualTo(Gravedad.MEDIA);
+        assertThat(orden.subList(0, 7)).allMatch(t -> t.gravedad() == Gravedad.ALTA);
     }
 }
