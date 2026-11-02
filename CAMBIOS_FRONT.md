@@ -23200,3 +23200,26 @@ Pedidos no cancelados por lugar de entrega, del que tiene más al que menos; sin
 - Solo aplica con `pagos.tarjeta.habilitado=true`; con el módulo apagado todo se comporta igual que antes.
 - Qué hacer en pantalla: mostrar el `mensaje` tal cual; el administrador debe cancelar el cobro (Mis pedidos → cobro en proceso) o devolverlo antes de editar.
 - Abonos no cambian: solo existen en Apartado / Ir pagando, que nunca tienen cobro con tarjeta.
+
+
+## 📈 Dashboard: comparativo del mes y ganancia por producto (2026-11-02, rama `feature/dashboard-comparativo`)
+
+Solo lectura, mismo permiso que el resto de `/v1/dashboard/**` (pantalla `dashboard`). Dos endpoints nuevos; no cambia ninguno existente.
+
+**1) `GET /mis-productos/v1/dashboard/graficas/comparativo-mes`** — este mes hasta hoy contra el mes anterior hasta el mismo día (si el anterior es más corto, hasta su último día).
+```json
+{ "data": { "hastaElDia": 15,
+  "actual":   { "desde": "2026-11-01", "hasta": "2026-11-15", "numeroVentas": 12, "ventas": 6000.0, "ganancia": 2400.0, "gastos": 400.0, "gananciaNeta": 2000.0 },
+  "anterior": { "desde": "2026-10-01", "hasta": "2026-10-15", "numeroVentas": 10, "ventas": 4000.0, "ganancia": 1600.0, "gastos": 0.0,   "gananciaNeta": 1600.0 },
+  "cambio":   { "numeroVentas": 20.0, "ventas": 50.0, "ganancia": 50.0, "gastos": null, "gananciaNeta": 25.0 } } }
+```
+- `cambio` es el porcentaje contra el mes anterior; **`null` cuando el anterior fue 0** (no se puede comparar; mostrar «sin dato»). En `gastos`, un cambio negativo es lo bueno.
+- Las ventas con estado «Devuelta» no cuentan. `500` si falla la consulta.
+
+**2) `GET /mis-productos/v1/dashboard/graficas/ganancia-por-producto?dias=90&limite=10`** — `dias` de 7 a 365 (contando hoy), `limite` de 1 a 20.
+```json
+{ "data": { "desde": "2026-08-18", "hasta": "2026-11-15", "gananciaTotal": 1700.0, "gananciaDeLosMejores": 850.0, "porcentajeDeLosMejores": 50.0,
+  "productos": [ { "productoId": 1, "nombre": "BOLSA LUCIA", "piezas": 4, "vendido": 1400.0, "ganancia": 700.0, "margen": 50.0 } ] } }
+```
+- Suma por **producto (modelo)**, todos sus artículos juntos; del que más ganancia dejó al que menos. `margen` = ganancia entre vendido, en %. `gananciaTotal` es la de TODOS los productos, no solo los de la lista.
+- `400` con `mensaje` si `dias` o `limite` están fuera de rango; sin ventas devueltas.

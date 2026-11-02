@@ -75,6 +75,17 @@ public class GraficasVentasController {
         return responder(() -> GraficasResponse.Entregas.de(graficas.entregasPorZona(dias)));
     }
 
+    @GetMapping("/comparativo-mes")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.Comparativo>> comparativoMes() {
+        return responder(() -> GraficasResponse.Comparativo.de(graficas.comparativoDelMes()));
+    }
+
+    @GetMapping("/ganancia-por-producto")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.GananciaProductos>> gananciaPorProducto(
+            @RequestParam(defaultValue = "90") int dias, @RequestParam(defaultValue = "10") int limite) {
+        return responder(() -> GraficasResponse.GananciaProductos.de(graficas.gananciaPorProducto(dias, limite)));
+    }
+
     private <T> ResponseEntity<ResponseGeneric<T>> responder(Supplier<T> consulta) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(consulta.get()));

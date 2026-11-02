@@ -4,6 +4,7 @@ import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CompraDeCliente;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ProductoRentable;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentaPorDiaYHora;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ZonaDeEntrega;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.FormaDePagoVentas;
@@ -249,5 +250,32 @@ public class GraficasJdbcAdapter implements GraficasPort {
 
     private static Timestamp finExclusivo(LocalDate dia) {
         return Timestamp.valueOf(dia.plusDays(1).atStartOfDay());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductoRentable> gananciaPorProducto(LocalDate desde, LocalDate hasta, int limite) {
+        return jdbc.query(
+                "SELECT * FROM (SELECT p.id AS producto_id, p.nombre AS nombre, COALESCE(SUM(d.cantidad), 0) AS piezas, "
+                        + "COALESCE(SUM(d.sub_total), 0) AS vendido, COALESCE(SUM(d.ganancia), 0) AS ganancia "
+                        + "FROM detalle_venta_variantes d "
+                        + "JOIN ventas v ON v.id = d.venta_id "
+                        + "JOIN variantes a ON a.id = d.variante_id "
+                        + "JOIN producto p ON p.id = a.producto_id "
+                        + "WHERE d.fecha_venta BETWEEN ? AND ? AND v.estado_venta <> 'Devuelta' "
+                        + "GROUP BY p.id, p.nombre) t ORDER BY ganancia DESC, producto_id LIMIT ?",
+                (rs, n) -> new ProductoRentable(rs.getInt("producto_id"), rs.getString("nombre"), rs.getInt("piezas"),
+                        rs.getDouble("vendido"), rs.getDouble("ganancia"), 0.0),
+                java.sql.Date.valueOf(desde), java.sql.Date.valueOf(hasta), limite);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public double gananciaTotalDeRenglones(LocalDate desde, LocalDate hasta) {
+        Double total = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(d.ganancia), 0) FROM detalle_venta_variantes d JOIN ventas v ON v.id = d.venta_id "
+                        + "WHERE d.fecha_venta BETWEEN ? AND ? AND v.estado_venta <> 'Devuelta'",
+                Double.class, java.sql.Date.valueOf(desde), java.sql.Date.valueOf(hasta));
+        return total == null ? 0.0 : total;
     }
 }
