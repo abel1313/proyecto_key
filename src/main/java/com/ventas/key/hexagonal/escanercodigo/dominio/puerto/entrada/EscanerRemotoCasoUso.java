@@ -11,6 +11,12 @@ public interface EscanerRemotoCasoUso {
     /** La PC abre una conexión para que un celular le mande códigos de barras. {@code origen} = IP (o usuario) de la PC. */
     SesionAbierta abrir(String origen);
 
+    /**
+     * El canal de una CUENTA: la PC y el celular de la misma persona (los dos con sesión iniciada) se encuentran solos, sin QR. Devuelve
+     * la conexión vigente de ese usuario o abre una nueva; si vence, la siguiente llamada abre otra y los dos lados convergen en ella.
+     */
+    String idDelCanal(String usuario);
+
     /** Cómo va la conexión (para reutilizar la que ya estaba enlazada en lugar de pedir otro QR). */
     EstadoDeSesion estado(String sesionId);
 

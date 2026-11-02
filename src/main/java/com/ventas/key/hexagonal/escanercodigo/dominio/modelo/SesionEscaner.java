@@ -151,15 +151,19 @@ public final class SesionEscaner {
     public synchronized LecturaDeCodigos leer(long desde, Instant ahora) {
         exigirVigente(ahora);
         ultimaActividad = ahora;
-        return lecturaDespuesDe(desde, ahora);
+        return lecturaDespuesDe(normalizar(desde), ahora);
     }
 
     /**
      * La PC deja la pregunta abierta. Si ya hay un código más nuevo que {@code desde} se contesta al instante; si no, se contesta en
      * cuanto el celular mande uno. Preguntar cuenta como actividad (E7).
      */
-    public EsperaDeCodigos esperar(long desde, Instant ahora) {
+    public EsperaDeCodigos esperar(long desdePedido, Instant ahora) {
         CompletableFuture<LecturaDeCodigos> futuro = new CompletableFuture<>();
+        long desde;
+        synchronized (this) {
+            desde = normalizar(desdePedido);
+        }
         Espera espera = new Espera(desde, futuro);
         LecturaDeCodigos yaHay = null;
         Espera desplazada = null;
@@ -219,6 +223,14 @@ public final class SesionEscaner {
 
     public synchronized EstadoDeSesion estado(Instant ahora) {
         return new EstadoDeSesion(estaVigente(ahora), celularConectado(ahora), secuencia, venceEn);
+    }
+
+    /**
+     * Si la PC pide «después del N» y esta conexión va en un número menor (la anterior venció y se abrió otra de la misma cuenta, que
+     * empieza de nuevo), el N ya no sirve: se pide desde el principio de la nueva, o se saltaría sus primeros códigos.
+     */
+    private long normalizar(long desde) {
+        return desde > secuencia ? 0 : desde;
     }
 
     private boolean celularConectado(Instant ahora) {

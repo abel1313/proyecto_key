@@ -28,6 +28,8 @@ class SesionesEscanerEnMemoriaTest {
         memoria.guardar(new SesionEscaner("d", "usuario:ana", T0));
         assertThat(memoria.vigentes(T0)).isEqualTo(4);
         assertThat(memoria.vigentesAnonimas(T0, "usuario:")).isEqualTo(3);              // la del personal no cuenta para el cupo anónimo
+        assertThat(memoria.buscarVigentePorOrigen("usuario:ana", T0)).map(SesionEscaner::id).contains("d");
+        assertThat(memoria.buscarVigentePorOrigen("usuario:beto", T0)).isEmpty();
         memoria.eliminar("d");
         memoria.eliminar("a");
         assertThat(memoria.vigentesDe("1.1.1.1", T0)).isEqualTo(1);

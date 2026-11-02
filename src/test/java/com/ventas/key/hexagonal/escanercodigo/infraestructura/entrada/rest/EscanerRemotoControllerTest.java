@@ -100,6 +100,50 @@ class EscanerRemotoControllerTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pendiente)).andExpect(status().isGone());
     }
 
+    private static void iniciarSesionComo(String usuario) {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(usuario, null, java.util.List.of()));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void cerrarSesion() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    @DisplayName("canal de la cuenta: el celular manda y la PC (misma cuenta, sin QR) recibe; el celular avisa si la PC no lo pedía")
+    void canalDeLaCuenta() throws Exception {
+        iniciarSesionComo("ana");
+        // el celular manda sin que la PC pregunte: se guarda pero nadie lo pedía → data:false
+        mvc.perform(post("/v1/escaner/canal/latido")).andExpect(status().isOk());
+        mvc.perform(post("/v1/escaner/canal/codigos").contentType(MediaType.APPLICATION_JSON).content("{\"codigo\":\"7501230000001\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data").value(false));
+
+        // la PC deja la pregunta abierta (desde = lo último que ya vio) y el celular manda otro: data:true y la PC lo recibe
+        var pendiente = mvc.perform(get("/v1/escaner/canal/codigos?desde=1&esperar=true"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted()).andReturn();
+        mvc.perform(post("/v1/escaner/canal/codigos").contentType(MediaType.APPLICATION_JSON).content("{\"codigo\":\"7501230000002\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data").value(true));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(pendiente)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.codigos[0].codigo").value("7501230000002"))
+                .andExpect(jsonPath("$.data.celularConectado").value(true));
+        mvc.perform(get("/v1/escaner/canal")).andExpect(jsonPath("$.data.celularConectado").value(true));
+    }
+
+    @Test
+    @DisplayName("canal de la cuenta: cada cuenta tiene el suyo (los códigos de una no llegan a otra) y sin sesión da 410")
+    void canalAisladoPorCuenta() throws Exception {
+        iniciarSesionComo("ana");
+        mvc.perform(post("/v1/escaner/canal/latido")).andExpect(status().isOk());
+        mvc.perform(post("/v1/escaner/canal/codigos").contentType(MediaType.APPLICATION_JSON).content("{\"codigo\":\"7501230000001\"}")).andExpect(status().isOk());
+
+        iniciarSesionComo("beto");
+        leer("/v1/escaner/canal/codigos?desde=0").andExpect(jsonPath("$.data.codigos").isEmpty());
+
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        mvc.perform(get("/v1/escaner/canal")).andExpect(status().isGone());
+    }
+
     @Test
     @DisplayName("la IP de la PC: la de más a la derecha de X-Forwarded-For, y las IPv6 agrupadas por /48")
     void ip() {

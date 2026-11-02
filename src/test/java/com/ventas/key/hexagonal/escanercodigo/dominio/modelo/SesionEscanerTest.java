@@ -194,6 +194,15 @@ class SesionEscanerTest {
     }
 
     @Test
+    @DisplayName("E12: si la PC pide «después del 5» pero esta conexión (nueva, de la misma cuenta) va en 1, se le dan sus códigos desde el principio")
+    void desdeMayorQueLaSecuenciaSeNormaliza() throws Exception {
+        SesionEscaner nueva = nueva();
+        nueva.registrar("PRIMERO-1", T0);
+        assertThat(nueva.leer(5, T0.plusSeconds(1)).codigos()).extracting(CodigoEscaneado::codigo).containsExactly("PRIMERO-1");
+        assertThat(nueva.esperar(5, T0.plusSeconds(2)).futuro().get().codigos()).hasSize(1);        // no se queda esperando para siempre
+    }
+
+    @Test
     @DisplayName("E5: cerrar avisa a quien esperaba (conexión terminada) y ya no acepta códigos")
     void cerrada() {
         SesionEscaner s = nueva();
