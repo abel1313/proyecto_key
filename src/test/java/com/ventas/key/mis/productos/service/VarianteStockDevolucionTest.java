@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionStockInsuficiente;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
@@ -175,7 +176,7 @@ class VarianteStockDevolucionTest {
         String mensaje = service.habilitarDeshabilitarVariantesLote(ids, true);
 
         assertEquals(3, viejo.getStock());
-        assertEquals("Variantes habilitadas correctamente.", mensaje);
+        assertEquals("Artículos habilitados correctamente.", mensaje);
     }
 
     /**
@@ -243,7 +244,8 @@ class VarianteStockDevolucionTest {
         when(iVarianteRepository.findByProductoId(100)).thenReturn(List.of(a, b));
         when(iVarianteRepository.findAllById(any())).thenReturn(List.of(a));
 
-        ExceptionDataNotFound e = assertThrows(ExceptionDataNotFound.class,
+        // Falta de stock = ExceptionStockInsuficiente (422); el mensaje termina en «Disponible: X, Solicitado: Y».
+        ExceptionStockInsuficiente e = assertThrows(ExceptionStockInsuficiente.class,
                 () -> service.guardarConImagenes(List.of(edicion(1, 7))));
 
         assertTrue(e.getMessage().contains("Disponible: 0, Solicitado: 2"), e.getMessage());

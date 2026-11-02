@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.ExceptionGlobal;
 import com.ventas.key.mis.productos.entity.Roles;
 import com.ventas.key.mis.productos.exeption.ExceptionOperacionNoPermitida;
 import com.ventas.key.mis.productos.service.RolesServiceImpl;
@@ -24,10 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // service -> 200 con el body correcto, o 400 con el mensaje de la excepcion), no la logica de
 // negocio en si (esa ya la cubre RolesServiceImplTest).
 //
-// El patron try/catch -> 400 con e.getMessage() en "mensaje" se repite igual en casi todos los
-// controllers de este proyecto (ver AbstractController y los controllers custom) -- este test
-// deja probado una vez que ese patron funciona como se espera para el caso mas nuevo/fragil
-// (Fase 3, agregado 2026-08-27).
+// Una operacion que el estado actual no permite (ExceptionOperacionNoPermitida) sale como 409 con
+// el mensaje en "mensaje": la traduce ExceptionGlobal (commit d56c681, "Codigos HTTP correctos"),
+// no el controller -- por eso aqui se registra ese manejador en el MockMvc.
 @ExtendWith(MockitoExtension.class)
 class RolesControllerTest {
 
@@ -37,7 +37,8 @@ class RolesControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new RolesController(service)).build();
+        // Con el manejador global REAL: el controller ya no atrapa la excepción, la traduce ExceptionGlobal (409).
+        mockMvc = MockMvcBuilders.standaloneSetup(new RolesController(service)).setControllerAdvice(new ExceptionGlobal()).build();
     }
 
     private Roles rolConId(Integer id, String nombreRol) {
@@ -59,12 +60,12 @@ class RolesControllerTest {
     }
 
     @Test
-    void quitarSubmenu_siElServiceRechazaPorPantallaProtegida_devuelve400ConElMensaje() throws Exception {
+    void quitarSubmenu_siElServiceRechazaPorPantallaProtegida_devuelve409ConElMensaje() throws Exception {
         when(service.quitarSubmenu(1, 30)).thenThrow(
                 new ExceptionOperacionNoPermitida("No se le puede quitar a ROLE_ADMIN el acceso a \"Gestión de roles\""));
 
         mockMvc.perform(delete("/v1/roles/{rolId}/submenus/{submenuId}", 1, 30))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value("No se le puede quitar a ROLE_ADMIN el acceso a \"Gestión de roles\""));
     }
 
@@ -79,12 +80,12 @@ class RolesControllerTest {
     }
 
     @Test
-    void agregarSubmenuEscritura_siElServiceRechazaPorFaltarVer_devuelve400ConElMensaje() throws Exception {
+    void agregarSubmenuEscritura_siElServiceRechazaPorFaltarVer_devuelve409ConElMensaje() throws Exception {
         when(service.agregarSubmenuEscritura(1, 10)).thenThrow(
                 new ExceptionOperacionNoPermitida("\"ROLE_EMPLEADO\" primero necesita poder VER \"Modelos\" antes de poder escribir en ella."));
 
         mockMvc.perform(post("/v1/roles/{rolId}/submenus/{submenuId}/escritura", 1, 10))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value(
                         "\"ROLE_EMPLEADO\" primero necesita poder VER \"Modelos\" antes de poder escribir en ella."));
     }
@@ -110,12 +111,12 @@ class RolesControllerTest {
     }
 
     @Test
-    void agregarAccion_siElServiceRechazaPorFaltarVer_devuelve400ConElMensaje() throws Exception {
+    void agregarAccion_siElServiceRechazaPorFaltarVer_devuelve409ConElMensaje() throws Exception {
         when(service.agregarAccion(1, 100)).thenThrow(
                 new ExceptionOperacionNoPermitida("\"ROLE_EMPLEADO\" primero necesita poder VER \"Modelos\" antes de poder usar la acción \"Habilitar\"."));
 
         mockMvc.perform(post("/v1/roles/{rolId}/acciones/{accionId}", 1, 100))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.mensaje").value(
                         "\"ROLE_EMPLEADO\" primero necesita poder VER \"Modelos\" antes de poder usar la acción \"Habilitar\"."));
     }
