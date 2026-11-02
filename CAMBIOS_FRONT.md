@@ -23232,3 +23232,21 @@ Solo lectura, mismo permiso que el resto de `/v1/dashboard/**` (pantalla `dashbo
 **Ahora:** al iniciar un cobro, si ese pedido ya tuvo **8 cobros creados en la última hora** (cualquier estado, cancelados incluidos), el back contesta `400` con `mensaje`: «Se iniciaron y cancelaron muchos cobros de este pedido en poco tiempo. Por seguridad, espera un rato antes de intentar de nuevo». Pasada la hora se libera. Una o dos equivocaciones no se frenan.
 - Endpoint: el mismo `POST /mis-productos/v1/pagos-tarjeta` (iniciar cobro); sin campos nuevos. Basta con mostrar el `mensaje`.
 - El freno de 3 rechazos en 2 horas sigue igual.
+
+
+## 📱 Escanear el código de barras con el celular y recibirlo en la PC (2026-11-02, rama `feature/escaner-celular`)
+
+Endpoints nuevos, **públicos** (sin token: el buscador de la tienda también los usa y el celular normalmente no tiene sesión). Base: `/mis-productos/v1/escaner/sesiones`. Todos responden `{ data: … }`; los de error traen `mensaje`.
+
+| Request | Para qué | Response (`data`) |
+|---|---|---|
+| `POST /v1/escaner/sesiones` | La PC abre la conexión | `{ "id": "9f2c…(32 hex)", "venceEn": "2026-11-02T13:30:00Z" }` |
+| `POST /v1/escaner/sesiones/{id}/codigos` body `{ "codigo": "7501234567890" }` | El celular manda lo escaneado | `true` |
+| `GET /v1/escaner/sesiones/{id}/codigos?desde=0` | La PC pregunta si llegó algo | `{ "ultimaSecuencia": 1, "codigos": [ { "secuencia": 1, "codigo": "7501234567890" } ] }` |
+| `DELETE /v1/escaner/sesiones/{id}` | La PC cierra (también es válido si ya no existe) | `true` |
+
+- En la siguiente pregunta la PC manda `desde=<ultimaSecuencia>` para recibir solo lo nuevo.
+- La conexión dura **30 minutos** y se libera sola a los **2 minutos sin que la PC pregunte** (`410` después). Código válido: 3 a 100 caracteres imprimibles (ASCII), sin saltos de línea.
+- Errores: `400` código inválido · `410` la conexión no existe, venció o la cerró la PC · `429` demasiadas conexiones (máx. 10 por IP y 2000 en total) o más de 30 códigos por minuto · `500` fallo inesperado.
+- Qué cambia respecto a lo anterior: nada existente; es una función nueva. Hasta ahora el código de barras solo se podía escanear con la cámara del mismo equipo (botón 📷).
+- Front: componente compartido `<app-escaner-celular (codigo)="…">` (botón «📱», QR, sondeo cada 1.5 s, de 1 en 1) y página pública `/escaner/:id` que abre el celular.
