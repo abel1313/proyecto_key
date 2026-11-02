@@ -59,6 +59,7 @@ class EditarArticulosServiceTest {
     private MovimientoStockPort stock;
     private PromocionDePedidoPort promociones;
     private PagoTrasEdicionPort pagos;
+    private com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CobroConTarjetaPort cobros;
     private EditarArticulosService service;
 
     private static final int PEDIDO = 501;
@@ -77,7 +78,8 @@ class EditarArticulosServiceTest {
         stock = mock(MovimientoStockPort.class);
         promociones = mock(PromocionDePedidoPort.class);
         pagos = mock(PagoTrasEdicionPort.class);
-        service = new EditarArticulosService(pedidos, catalogo, stock, promociones, pagos);
+        cobros = mock(com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CobroConTarjetaPort.class);
+        service = new EditarArticulosService(pedidos, catalogo, stock, promociones, pagos, cobros);
     }
 
     // ───────────────────────── armado del escenario ─────────────────────────
@@ -129,6 +131,22 @@ class EditarArticulosServiceTest {
 
         verify(stock).descontar(PANTALON_HOMBRE, 2);
         verify(pedidos).agregarLinea(PEDIDO, PANTALON_HOMBRE, 2, 400.0);
+    }
+
+    @Test
+    @DisplayName("con un cobro de tarjeta en proceso o sin devolver no se agrega, cambia ni quita nada")
+    void conCobroConTarjetaNoSeEdita() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+        when(cobros.tieneCobroConTarjeta(PEDIDO)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, null)))
+                .isInstanceOf(EdicionPedidoException.class).hasMessageContaining("cobro con tarjeta");
+        assertThatThrownBy(() -> service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, null, null, null)))
+                .isInstanceOf(EdicionPedidoException.class).hasMessageContaining("cobro con tarjeta");
+
+        verify(stock, never()).descontar(anyInt(), anyInt());
+        verify(pagos, never()).ajustarTrasEditar(anyInt());
     }
 
     @Test

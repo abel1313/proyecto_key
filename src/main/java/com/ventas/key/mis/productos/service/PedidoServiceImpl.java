@@ -705,6 +705,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     @Override
     public void eliminarDetallePedido(int pedidoId, int productoId, int cantidad, Integer detalleId) {
+        exigirSinCobroConTarjeta(pedidoId, "quitar artículos");
         // Una cantidad negativa sumaba piezas a la linea sin revisar stock y bajaba el inventario.
         if (cantidad < 1) {
             throw new RuntimeException("La cantidad a quitar tiene que ser al menos 1");

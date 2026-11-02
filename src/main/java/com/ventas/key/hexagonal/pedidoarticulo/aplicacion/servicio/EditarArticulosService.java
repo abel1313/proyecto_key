@@ -13,6 +13,7 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PedidoEditable;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PromocionDelPedido;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CatalogoArticuloPort;
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CobroConTarjetaPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.MovimientoStockPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PagoTrasEdicionPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PedidoArticuloPort;
@@ -47,6 +48,7 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     private final MovimientoStockPort stock;
     private final PromocionDePedidoPort promociones;
     private final PagoTrasEdicionPort pagos;
+    private final CobroConTarjetaPort cobrosConTarjeta;
 
     // ─────────────────────────── Agregar ───────────────────────────
 
@@ -257,6 +259,11 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
                 .orElseThrow(() -> new ArticuloNoEncontradoException("Pedido no encontrado: " + pedidoId));
         if (pedido.estaCerrado()) {
             throw new PedidoCerradoException(pedidoId, pedido.motivoDelCierre());
+        }
+        if (cobrosConTarjeta.tieneCobroConTarjeta(pedidoId)) {
+            throw new EdicionPedidoException("El pedido " + pedidoId + " tiene un cobro con tarjeta en proceso o sin devolver "
+                    + "por completo: no se pueden editar sus articulos todavia. Primero hay que cancelar el cobro o devolver "
+                    + "el dinero de la tarjeta");
         }
         return pedido;
     }
