@@ -23234,19 +23234,25 @@ Solo lectura, mismo permiso que el resto de `/v1/dashboard/**` (pantalla `dashbo
 - El freno de 3 rechazos en 2 horas sigue igual.
 
 
-## 📱 Escanear el código de barras con el celular y recibirlo en la PC (2026-11-02, rama `feature/escaner-celular`)
+## 📱 Escanear el código de barras con el celular y recibirlo en la PC (2026-11-02, rama `feature/escaner-celular` → versión rápida en `fix/escaner-revision2`)
 
-Endpoints nuevos, **públicos** (sin token: el buscador de la tienda también los usa y el celular normalmente no tiene sesión). Base: `/mis-productos/v1/escaner/sesiones`. Todos responden `{ data: … }`; los de error traen `mensaje`.
+Endpoints **públicos** (sin token: el buscador de la tienda también los usa y el celular normalmente no tiene sesión). Base: `/mis-productos/v1/escaner/sesiones`. Todos responden `{ data: … }`; los de error traen `mensaje`.
+
+**Qué cambia respecto a la primera versión (el dueño la probó y era lenta):** ya no hay un QR por cada código. La PC se enlaza UNA vez con el celular (QR → página ligera `/escaner.html`, sin Angular, con la cámara siempre lista) y la recuerda; después «📱» solo dice «Escanea ahora» y el código llega en milisegundos (la PC deja una pregunta abierta en el servidor en lugar de consultar cada 1.5 s). La conexión ya no se cierra al recibir un código: dura hasta 12 h, o hasta 5 min sin actividad.
 
 | Request | Para qué | Response (`data`) |
 |---|---|---|
-| `POST /v1/escaner/sesiones` | La PC abre la conexión | `{ "id": "9f2c…(32 hex)", "venceEn": "2026-11-02T13:30:00Z" }` |
-| `POST /v1/escaner/sesiones/{id}/codigos` body `{ "codigo": "7501234567890" }` | El celular manda lo escaneado | `true` |
-| `GET /v1/escaner/sesiones/{id}/codigos?desde=0` | La PC pregunta si llegó algo | `{ "ultimaSecuencia": 1, "codigos": [ { "secuencia": 1, "codigo": "7501234567890" } ] }` |
-| `DELETE /v1/escaner/sesiones/{id}` | La PC cierra (también es válido si ya no existe) | `true` |
+| `POST /v1/escaner/sesiones` | La PC abre la conexión (primera vez) | `{ "id": "9f2c…(32 hex)", "venceEn": "2026-11-03T00:00:00Z" }` |
+| `GET /v1/escaner/sesiones/{id}` | La PC pregunta si su conexión sigue y si el celular está conectado | `{ "vigente": true, "celularConectado": true, "ultimaSecuencia": 3, "venceEn": "…" }` (`410` si ya no existe) |
+| `POST /v1/escaner/sesiones/{id}/latido` | El celular avisa que sigue ahí (cada ~15 s) | `true` |
+| `POST /v1/escaner/sesiones/{id}/codigos` body `{ "codigo": "7501234567890" }` | El celular manda lo escaneado | `true` si la PC lo estaba esperando; `false` si se guardó pero nadie lo pedía en ese momento (el celular avisa «pulsa 📱 en la computadora») |
+| `GET /v1/escaner/sesiones/{id}/codigos?desde=3&esperar=true` | La PC deja la pregunta abierta: se contesta **en cuanto llega un código** (o a los 25 s con lista vacía: hay que volver a preguntar) | `{ "ultimaSecuencia": 4, "celularConectado": true, "codigos": [ { "secuencia": 4, "codigo": "7501234567890" } ] }` |
+| `GET /v1/escaner/sesiones/{id}/codigos?desde=3` | Lo mismo pero sin esperar (contesta al instante) | igual |
+| `DELETE /v1/escaner/sesiones/{id}` | «Usar otro celular» (también es válido si ya no existe) | `true` |
 
-- En la siguiente pregunta la PC manda `desde=<ultimaSecuencia>` para recibir solo lo nuevo.
-- La conexión dura **30 minutos** y se libera sola a los **2 minutos sin que la PC pregunte** (`410` después). Código válido: 3 a 100 caracteres imprimibles (ASCII), sin saltos de línea.
-- Errores: `400` código inválido · `410` la conexión no existe, venció o la cerró la PC · `429` demasiadas conexiones (máx. 10 por IP y 2000 en total) o más de 30 códigos por minuto · `500` fallo inesperado.
-- Qué cambia respecto a lo anterior: nada existente; es una función nueva. Hasta ahora el código de barras solo se podía escanear con la cámara del mismo equipo (botón 📷).
-- Front: componente compartido `<app-escaner-celular (codigo)="…">` (botón «📱», QR, sondeo cada 1.5 s, de 1 en 1) y página pública `/escaner/:id` que abre el celular.
+- La PC manda `desde=<ultimaSecuencia>` para recibir solo lo nuevo. Si el celular se conecta mientras la PC espera, la pregunta se contesta al instante con la lista vacía y `celularConectado: true` (así la pantalla pasa sola del QR a «Escanea ahora»).
+- Código válido: 3 a 100 caracteres imprimibles (ASCII), sin saltos de línea. Máx. 30 códigos por minuto por conexión. Máx. 3 preguntas abiertas a la vez por conexión.
+- La página del celular manda un código solo cuando es un escaneo nuevo: si sigue enfrente de la cámara no lo repite; si lo retira y lo vuelve a acercar (≥1 s) sí.
+- Errores: `400` código inválido · `410` la conexión no existe, venció o la cerró la PC · `429` demasiadas conexiones (máx. 10 por IP —las IPv6 por /48— o por usuario si hay sesión, y 2000 anónimas en total) o demasiados códigos por minuto · `500` fallo inesperado.
+- El QR lleva `https://<tienda>/escaner.html#id=<id>&api=<dirección del servidor>` (en el `#` para que no viaje a ningún servidor). La página solo manda al servidor si su dirección es de `*.novedades-jade.com.mx`.
+- Front: componente compartido `<app-escaner-celular (codigo)="…">` (botón «📱») + página estática `src/assets/escaner/escaner.html` (se publica en la raíz, ver `angular.json`).

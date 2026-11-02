@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.escanercodigo.infraestructura.entrada.rest.dto;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.CodigoEscaneado;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EstadoDeSesion;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.LecturaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionAbierta;
 
@@ -25,9 +26,15 @@ public final class EscanerResponse {
         }
     }
 
-    public record Lectura(long ultimaSecuencia, List<Codigo> codigos) {
+    public record Lectura(long ultimaSecuencia, boolean celularConectado, List<Codigo> codigos) {
         public static Lectura de(LecturaDeCodigos l) {
-            return new Lectura(l.ultimaSecuencia(), l.codigos().stream().map(Codigo::de).toList());
+            return new Lectura(l.ultimaSecuencia(), l.celularConectado(), l.codigos().stream().map(Codigo::de).toList());
+        }
+    }
+
+    public record Estado(boolean vigente, boolean celularConectado, long ultimaSecuencia, Instant venceEn) {
+        public static Estado de(EstadoDeSesion e) {
+            return new Estado(e.vigente(), e.celularConectado(), e.ultimaSecuencia(), e.venceEn());
         }
     }
 

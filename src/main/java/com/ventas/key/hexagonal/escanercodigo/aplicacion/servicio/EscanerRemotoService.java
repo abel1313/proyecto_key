@@ -1,6 +1,8 @@
 package com.ventas.key.hexagonal.escanercodigo.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.excepcion.EscanerException;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EsperaDeCodigos;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EstadoDeSesion;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.LecturaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionAbierta;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionEscaner;
@@ -21,6 +23,8 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
 
     public static final int MAXIMO_TOTAL = 2000;
     public static final int MAXIMO_POR_ORIGEN = 10;
+    /** Los orígenes de personal con sesión se escriben «usuario:nombre». */
+    public static final String PREFIJO_USUARIO = "usuario:";
 
     private final SesionesEscanerPort sesiones;
     private final Clock reloj;
@@ -36,11 +40,13 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
     public synchronized SesionAbierta abrir(String origen) {   // synchronized: contar y guardar sin que otra solicitud se cuele en medio
         Instant ahora = reloj.instant();
         String de = origen == null || origen.isBlank() ? "desconocido" : origen;
-        if (sesiones.vigentes(ahora) >= MAXIMO_TOTAL) {
-            throw new EscanerException.DemasiadasSolicitudes("Hay demasiadas conexiones con celulares abiertas. Intenta en unos minutos.");
-        }
         if (sesiones.vigentesDe(de, ahora) >= MAXIMO_POR_ORIGEN) {
             throw new EscanerException.DemasiadasSolicitudes("Ya tienes varias conexiones con celulares abiertas. Cierra alguna o espera unos minutos.");
+        }
+        // El cupo total es de las conexiones ANÓNIMAS: las del personal con sesión (origen «usuario:…») cuentan solo en su propio límite,
+        // así que nadie desde fuera puede dejarlas sin servicio llenando el cupo global.
+        if (!de.startsWith(PREFIJO_USUARIO) && sesiones.vigentesAnonimas(ahora, PREFIJO_USUARIO) >= MAXIMO_TOTAL) {
+            throw new EscanerException.DemasiadasSolicitudes("Hay demasiadas conexiones con celulares abiertas. Intenta en unos minutos.");
         }
         SesionEscaner nueva = new SesionEscaner(generadorDeIds.get(), de, ahora);
         sesiones.guardar(nueva);
@@ -48,8 +54,23 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
     }
 
     @Override
-    public void enviar(String sesionId, String codigo) {
-        encontrar(sesionId).registrar(codigo, reloj.instant());
+    public boolean enviar(String sesionId, String codigo) {
+        return encontrar(sesionId).enviar(codigo, reloj.instant()).laPcLoEsperaba();
+    }
+
+    @Override
+    public EstadoDeSesion estado(String sesionId) {
+        return encontrar(sesionId).estado(reloj.instant());
+    }
+
+    @Override
+    public void latido(String sesionId) {
+        encontrar(sesionId).latido(reloj.instant());
+    }
+
+    @Override
+    public EsperaDeCodigos esperar(String sesionId, long desde) {
+        return encontrar(sesionId).esperar(Math.max(0, desde), reloj.instant());
     }
 
     @Override
