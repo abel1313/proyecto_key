@@ -2,6 +2,7 @@ package com.ventas.key.hexagonal.escanercodigo.infraestructura.entrada.rest;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.excepcion.EscanerException;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EsperaDeCodigos;
+import com.ventas.key.hexagonal.escanercodigo.aplicacion.servicio.EscanerRemotoService;
 import com.ventas.key.hexagonal.escanercodigo.dominio.puerto.entrada.EscanerRemotoCasoUso;
 import com.ventas.key.hexagonal.escanercodigo.infraestructura.entrada.rest.dto.EscanerResponse;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -191,9 +192,9 @@ public class EscanerRemotoController {
     private static String origenDe(HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken) && auth.getName() != null) {
-            return "usuario:" + auth.getName();
+            return EscanerRemotoService.PREFIJO_USUARIO + auth.getName();
         }
-        return ipDe(request);
+        return EscanerRemotoService.PREFIJO_IP + ipDe(request);
     }
 
     /**

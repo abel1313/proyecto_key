@@ -23262,10 +23262,11 @@ Para quien tiene sesión (administrador, personal): la PC y el celular de la **m
 
 | Request | Para qué | Response (`data`) |
 |---|---|---|
-| `GET /v1/escaner/canal` | ¿Está conectado el celular de mi cuenta? | `{ "vigente": true, "celularConectado": true, "ultimaSecuencia": 3, "venceEn": "…" }` |
-| `GET /v1/escaner/canal/codigos?desde=3&esperar=true` | La PC deja la pregunta abierta (igual que con QR: contesta al llegar un código, o a los 25 s vacía) | `{ "ultimaSecuencia": 4, "celularConectado": true, "codigos": [ { "secuencia": 4, "codigo": "…" } ] }` |
+| `GET /v1/escaner/canal` | ¿Está conectado el celular de mi cuenta? | `{ "vigente": true, "celularConectado": true, "ultimaSecuencia": 3, "venceEn": "…", "epoca": 123456 }` |
+| `GET /v1/escaner/canal/codigos?desde=3&esperar=true` | La PC deja la pregunta abierta (igual que con QR: contesta al llegar un código, o a los 25 s vacía) | `{ "ultimaSecuencia": 4, "celularConectado": true, "epoca": 123456, "codigos": [ { "secuencia": 4, "codigo": "…" } ] }` |
 | `POST /v1/escaner/canal/latido` | El celular avisa que sigue conectado (cada ~15 s) | `true` |
 | `POST /v1/escaner/canal/codigos` body `{ "codigo": "…" }` | El celular manda un código | `true` si alguna pantalla de la PC lo estaba esperando; `false` si no (el celular avisa «la computadora no tiene abierta una pantalla con código de barras») |
 
+- `epoca` cambia cuando la conexión se rehace en el servidor (venció y se abrió otra de la cuenta): si cambia, pedir de nuevo con `desde=0`.
 - `401` sin sesión. Los códigos de una cuenta nunca llegan a otra. Si la conexión vence, la siguiente llamada abre otra sola (sin QR).
 - Front: `EscanerReceptorService` (cada `<app-escaner-celular>` se registra como receptora mientras exista; el código llega a la última registrada) y la pantalla del celular `/escaner-celular` (menú lateral «📱 Escáner», con sesión). Sin sesión (visitante) sigue el QR.

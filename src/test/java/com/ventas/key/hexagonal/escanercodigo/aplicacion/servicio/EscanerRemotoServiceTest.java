@@ -32,8 +32,9 @@ class EscanerRemotoServiceTest {
         @Override public Optional<SesionEscaner> buscarVigentePorOrigen(String origen, Instant ahora) {
             return mapa.values().stream().filter(s -> s.origen().equals(origen) && s.estaVigente(ahora)).findFirst();
         }
-        @Override public int vigentesAnonimas(Instant ahora, String prefijo) {
-            return (int) mapa.values().stream().filter(s -> !s.origen().startsWith(prefijo) && s.estaVigente(ahora)).count();
+        @Override public int vigentesAnonimas(Instant ahora, String... prefijos) {
+            return (int) mapa.values().stream()
+                    .filter(s -> java.util.Arrays.stream(prefijos).noneMatch(s.origen()::startsWith) && s.estaVigente(ahora)).count();
         }
         @Override public int vigentesDe(String origen, Instant ahora) {
             return (int) mapa.values().stream().filter(s -> s.origen().equals(origen) && s.estaVigente(ahora)).count();
@@ -146,6 +147,31 @@ class EscanerRemotoServiceTest {
         assertThat(servicio.enviar(celular, "7501234567890")).isTrue();
         assertThatThrownBy(() -> servicio.idDelCanal(null)).isInstanceOf(EscanerException.SesionNoDisponible.class);
         assertThatThrownBy(() -> servicio.idDelCanal(" ")).isInstanceOf(EscanerException.SesionNoDisponible.class);
+    }
+
+    @Test
+    @DisplayName("el canal de la cuenta NO se confunde con una conexión por QR, aunque su origen se parezca (usuario:ana, o un visitante que falsifique «canal:ana»)")
+    void canalAisladoDeLosOrigenesDeQr() {
+        SesionAbierta porQrDeLaCuenta = servicio.abrir(EscanerRemotoService.PREFIJO_USUARIO + "ana");
+        SesionAbierta falsa = servicio.abrir(EscanerRemotoService.PREFIJO_IP + "canal:ana");     // lo que pasaría con X-Forwarded-For: canal:ana
+        String canal = servicio.idDelCanal("ana");
+        assertThat(canal).isNotEqualTo(porQrDeLaCuenta.id()).isNotEqualTo(falsa.id());
+        assertThat(servicio.idDelCanal("ana")).isEqualTo(canal);
+
+        // lo que manda el visitante por SU conexión nunca llega al canal de la cuenta
+        servicio.enviar(falsa.id(), "ROBADO-111");
+        assertThat(servicio.leer(canal, 0).codigos()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("la época cambia cuando el canal de la cuenta se rehace, para que la PC pida desde el principio de la nueva")
+    void epocaCambiaAlRehacerseElCanal() {
+        String vieja = servicio.idDelCanal("ana");
+        int epocaVieja = servicio.estado(vieja).epoca();
+        servicio.cerrar(vieja);
+        String nueva = servicio.idDelCanal("ana");
+        assertThat(servicio.estado(nueva).epoca()).isNotEqualTo(epocaVieja);
+        assertThat(servicio.leer(nueva, 0).epoca()).isEqualTo(servicio.estado(nueva).epoca());
     }
 
     @Test
