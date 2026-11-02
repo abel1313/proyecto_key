@@ -29,6 +29,9 @@ class EscanerRemotoServiceTest {
         @Override public Optional<SesionEscaner> buscar(String id) { return Optional.ofNullable(mapa.get(id)); }
         @Override public void eliminar(String id) { mapa.remove(id); }
         @Override public int vigentes(Instant ahora) { return (int) mapa.values().stream().filter(s -> s.estaVigente(ahora)).count(); }
+        @Override public Optional<SesionEscaner> buscarVigentePorOrigen(String origen, Instant ahora) {
+            return mapa.values().stream().filter(s -> s.origen().equals(origen) && s.estaVigente(ahora)).findFirst();
+        }
         @Override public int vigentesAnonimas(Instant ahora, String prefijo) {
             return (int) mapa.values().stream().filter(s -> !s.origen().startsWith(prefijo) && s.estaVigente(ahora)).count();
         }
@@ -129,6 +132,30 @@ class EscanerRemotoServiceTest {
         assertThat(servicio.enviar(s.id(), "7501234567890")).isFalse();
         servicio.esperar(s.id(), 1);
         assertThat(servicio.enviar(s.id(), "7501234567891")).isTrue();
+    }
+
+    @Test
+    @DisplayName("canal de la cuenta: la PC y el celular de la misma persona caen en la misma conexión; otra cuenta tiene la suya")
+    void canalDeLaCuenta() {
+        String pc = servicio.idDelCanal("ana");
+        String celular = servicio.idDelCanal("ana");
+        assertThat(celular).isEqualTo(pc);
+        assertThat(servicio.idDelCanal("beto")).isNotEqualTo(pc);
+
+        servicio.esperar(pc, 0);
+        assertThat(servicio.enviar(celular, "7501234567890")).isTrue();
+        assertThatThrownBy(() -> servicio.idDelCanal(null)).isInstanceOf(EscanerException.SesionNoDisponible.class);
+        assertThatThrownBy(() -> servicio.idDelCanal(" ")).isInstanceOf(EscanerException.SesionNoDisponible.class);
+    }
+
+    @Test
+    @DisplayName("canal de la cuenta: si la conexión se cierra, la siguiente llamada abre otra y los dos lados vuelven a coincidir (sin QR)")
+    void canalSeRecuperaSolo() {
+        String vieja = servicio.idDelCanal("ana");
+        servicio.cerrar(vieja);
+        String pc = servicio.idDelCanal("ana");
+        assertThat(pc).isNotEqualTo(vieja);
+        assertThat(servicio.idDelCanal("ana")).isEqualTo(pc);
     }
 
     @Test

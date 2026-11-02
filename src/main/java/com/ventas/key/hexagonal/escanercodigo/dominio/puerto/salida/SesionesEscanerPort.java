@@ -24,6 +24,9 @@ public interface SesionesEscanerPort {
     /** Conexiones vigentes en total. */
     int vigentes(Instant ahora);
 
+    /** La conexión vigente de ese origen exacto, si hay (para el canal de una cuenta: a lo más una). */
+    Optional<SesionEscaner> buscarVigentePorOrigen(String origen, Instant ahora);
+
     /** Conexiones vigentes cuyo origen NO empieza con {@code prefijoDeUsuario} (las del personal con sesión no cuentan). */
     int vigentesAnonimas(Instant ahora, String prefijoDeUsuario);
 

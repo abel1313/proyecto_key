@@ -23256,3 +23256,16 @@ Endpoints **públicos** (sin token: el buscador de la tienda también los usa y 
 - Errores: `400` código inválido · `410` la conexión no existe, venció o la cerró la PC · `429` demasiadas conexiones (máx. 10 por IP —las IPv6 por /48— o por usuario si hay sesión, y 2000 anónimas en total) o demasiados códigos por minuto · `500` fallo inesperado.
 - El QR lleva `https://<tienda>/escaner.html#id=<id>&api=<dirección del servidor>` (en el `#` para que no viaje a ningún servidor). La página solo manda al servidor si su dirección es de `*.novedades-jade.com.mx`.
 - Front: componente compartido `<app-escaner-celular (codigo)="…">` (botón «📱») + página estática `src/assets/escaner/escaner.html` (se publica en la raíz, ver `angular.json`).
+
+### Canal de la CUENTA (sin QR; con sesión iniciada) — `feature/escaner-por-cuenta`
+Para quien tiene sesión (administrador, personal): la PC y el celular de la **misma cuenta** se encuentran solos. Estos endpoints **exigen sesión** (Bearer); el servidor usa el usuario de la sesión, no hay id. Base: `/mis-productos/v1/escaner/canal`.
+
+| Request | Para qué | Response (`data`) |
+|---|---|---|
+| `GET /v1/escaner/canal` | ¿Está conectado el celular de mi cuenta? | `{ "vigente": true, "celularConectado": true, "ultimaSecuencia": 3, "venceEn": "…" }` |
+| `GET /v1/escaner/canal/codigos?desde=3&esperar=true` | La PC deja la pregunta abierta (igual que con QR: contesta al llegar un código, o a los 25 s vacía) | `{ "ultimaSecuencia": 4, "celularConectado": true, "codigos": [ { "secuencia": 4, "codigo": "…" } ] }` |
+| `POST /v1/escaner/canal/latido` | El celular avisa que sigue conectado (cada ~15 s) | `true` |
+| `POST /v1/escaner/canal/codigos` body `{ "codigo": "…" }` | El celular manda un código | `true` si alguna pantalla de la PC lo estaba esperando; `false` si no (el celular avisa «la computadora no tiene abierta una pantalla con código de barras») |
+
+- `401` sin sesión. Los códigos de una cuenta nunca llegan a otra. Si la conexión vence, la siguiente llamada abre otra sola (sin QR).
+- Front: `EscanerReceptorService` (cada `<app-escaner-celular>` se registra como receptora mientras exista; el código llega a la última registrada) y la pantalla del celular `/escaner-celular` (menú lateral «📱 Escáner», con sesión). Sin sesión (visitante) sigue el QR.

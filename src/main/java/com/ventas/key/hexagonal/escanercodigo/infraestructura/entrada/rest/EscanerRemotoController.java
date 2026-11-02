@@ -60,6 +60,10 @@ public class EscanerRemotoController {
     @GetMapping("/sesiones/{id}/codigos")
     public DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leer(
             @PathVariable String id, @RequestParam(defaultValue = "0") long desde, @RequestParam(defaultValue = "false") boolean esperar) {
+        return leerOEsperar(id, desde, esperar);
+    }
+
+    private DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leerOEsperar(String id, long desde, boolean esperar) {
         DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> resultado = new DeferredResult<>(ESPERA_MAXIMA_MS);
         if (!esperar) {
             resultado.setResult(responder(() -> EscanerResponse.Lectura.de(escaner.leer(id, desde))));
@@ -92,6 +96,53 @@ public class EscanerRemotoController {
             escaner.latido(id);
             return Boolean.TRUE;
         });
+    }
+
+    // ─────────── Canal de la CUENTA (con sesión iniciada): la PC y el celular de la misma persona se encuentran solos, sin QR ───────────
+
+    /** ¿Está conectado el celular de mi cuenta? */
+    @GetMapping("/canal")
+    public ResponseEntity<ResponseGeneric<EscanerResponse.Estado>> estadoDelCanal() {
+        return responder(() -> EscanerResponse.Estado.de(escaner.estado(escaner.idDelCanal(usuarioActual()))));
+    }
+
+    /** La PC de mi cuenta deja la pregunta abierta (igual que con una conexión por QR). */
+    @GetMapping("/canal/codigos")
+    public DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leerDelCanal(
+            @RequestParam(defaultValue = "0") long desde, @RequestParam(defaultValue = "false") boolean esperar) {
+        String id;
+        try {
+            id = escaner.idDelCanal(usuarioActual());
+        } catch (RuntimeException e) {
+            DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> r = new DeferredResult<>();
+            r.setResult(aRespuesta(e));
+            return r;
+        }
+        return leerOEsperar(id, desde, esperar);
+    }
+
+    /** El celular de mi cuenta avisa que sigue ahí. */
+    @PostMapping("/canal/latido")
+    public ResponseEntity<ResponseGeneric<Boolean>> latidoDelCanal() {
+        return responder(() -> {
+            escaner.latido(escaner.idDelCanal(usuarioActual()));
+            return Boolean.TRUE;
+        });
+    }
+
+    /** El celular de mi cuenta manda un código. {@code data} = si la PC lo estaba esperando. */
+    @PostMapping("/canal/codigos")
+    public ResponseEntity<ResponseGeneric<Boolean>> enviarAlCanal(@RequestBody EscanerResponse.EnviarCodigo cuerpo) {
+        return responder(() -> escaner.enviar(escaner.idDelCanal(usuarioActual()), cuerpo == null ? null : cuerpo.codigo()));
+    }
+
+    /** El usuario con sesión; sin sesión no se tiene canal (el servidor ya exige sesión en estas rutas, esto es la red de seguridad). */
+    private static String usuarioActual() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken || auth.getName() == null) {
+            return null;
+        }
+        return auth.getName();
     }
 
     @DeleteMapping("/sesiones/{id}")
