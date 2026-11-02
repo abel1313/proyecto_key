@@ -23187,3 +23187,16 @@ Solo clientes **registrados**; no cuenta lo devuelto ni las ventas hechas al pro
 ```
 Pedidos no cancelados por lugar de entrega, del que tiene más al que menos; sin lugar sale como `"Sin lugar de entrega"`. `recogerEnTienda: true` para el lugar «recoger en tienda».
 - Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia ninguno existente.
+
+
+## 🔒 Pedido con cobro de tarjeta: ya no se edita ni se une a un grupo (2026-11-02, rama `feature/seguridad-cobro-tarjeta`)
+
+**Antes (qué fallaba):** mientras un pedido tenía un cobro con tarjeta en proceso (o cobrado y sin devolver), el administrador podía agregarle, cambiarle o quitarle artículos, o unirlo a un grupo. El total cambiaba con el dinero ya en la tarjeta del cliente y el cobro quedaba «por devolver».
+
+**Ahora:** esas operaciones se rechazan con un mensaje claro hasta que el cobro se cancele o se devuelva. No hay endpoints nuevos ni campos nuevos; solo cambia que estos endpoints ya existentes pueden contestar error:
+- `POST /mis-productos/v1/pedidos/{pedidoId}/articulos`, `PUT .../articulos/{detalleId}` y `DELETE .../promociones/{promocionId}` (agregar, cambiar, quitar artículo o promoción) → `400` con `mensaje`: «El pedido N tiene un cobro con tarjeta en proceso o sin devolver por completo: no se pueden editar sus articulos todavia…».
+- `DELETE` de un renglón del pedido (flujo anterior) → error con el mismo sentido.
+- `POST /mis-productos/v1/grupos-pedido` (unir) y `POST /mis-productos/v1/grupos-pedido/{grupoId}/pedidos` (agregar a un grupo) → `400` con `mensaje`: «El pedido N tiene un cobro con tarjeta … no se puede unir a un grupo todavía…».
+- Solo aplica con `pagos.tarjeta.habilitado=true`; con el módulo apagado todo se comporta igual que antes.
+- Qué hacer en pantalla: mostrar el `mensaje` tal cual; el administrador debe cancelar el cobro (Mis pedidos → cobro en proceso) o devolverlo antes de editar.
+- Abonos no cambian: solo existen en Apartado / Ir pagando, que nunca tienen cobro con tarjeta.

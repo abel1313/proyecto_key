@@ -50,6 +50,7 @@ class UnirPedidosServiceTest {
     private ConfirmarPedidoPort confirmar;
     private AbonosDelGrupoPort abonosDelGrupo;
     private EstadoDePagoPort estadoDePago;
+    private com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.CobroConTarjetaPort cobros;
     private UnirPedidosService service;
 
     private static final Integer USUARIO = 7;
@@ -63,7 +64,8 @@ class UnirPedidosServiceTest {
         confirmar = mock(ConfirmarPedidoPort.class);
         abonosDelGrupo = mock(AbonosDelGrupoPort.class);
         estadoDePago = mock(EstadoDePagoPort.class);
-        service = new UnirPedidosService(pedidos, grupos, abonos, bitacora, confirmar, abonosDelGrupo, estadoDePago);
+        cobros = mock(com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.CobroConTarjetaPort.class);
+        service = new UnirPedidosService(pedidos, grupos, abonos, bitacora, confirmar, abonosDelGrupo, estadoDePago, cobros);
     }
 
     private static PedidoDelGrupo fiado(int id, long total, long pagado, int dia) {
@@ -92,6 +94,18 @@ class UnirPedidosServiceTest {
         assertThat(g.saldoCentavos()).isEqualTo(30_000);
         verify(bitacora).anotar(eq(1), contains("grupo #30"));
         verify(bitacora).anotar(eq(2), contains("recoge la hermana"));
+    }
+
+    @Test
+    @DisplayName("un pedido con cobro de tarjeta en proceso o sin devolver no se une: no se guarda nada")
+    void unirConCobroConTarjeta() {
+        when(cobros.tieneCobroConTarjeta(2)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.unir(List.of(1, 2), 1, null, USUARIO))
+                .isInstanceOf(com.ventas.key.hexagonal.grupopedido.dominio.excepcion.GrupoPedidoException.class)
+                .hasMessageContaining("pedido 2").hasMessageContaining("cobro con tarjeta");
+        verify(grupos, never()).crear(any(), anyList(), any(), any());
+        verify(bitacora, never()).anotar(anyInt(), anyString());
     }
 
     @Test

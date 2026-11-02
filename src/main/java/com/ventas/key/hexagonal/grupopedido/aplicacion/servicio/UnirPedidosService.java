@@ -20,6 +20,7 @@ import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonoPedidoPor
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.AbonosDelGrupoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.EstadoDePagoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.BitacoraPedidoPort;
+import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.CobroConTarjetaPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.ConfirmarPedidoPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.GrupoPedidosPort;
 import com.ventas.key.hexagonal.grupopedido.dominio.puerto.salida.PedidosDelGrupoPort;
@@ -55,6 +56,7 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
     private final ConfirmarPedidoPort confirmar;
     private final AbonosDelGrupoPort abonosDelGrupo;
     private final EstadoDePagoPort estadoDePago;
+    private final CobroConTarjetaPort cobrosConTarjeta;
 
     @Override
     @Transactional
@@ -62,6 +64,7 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
         List<Integer> distintos = pedidoIds == null ? List.of()
                 : List.copyOf(new LinkedHashSet<>(pedidoIds.stream().filter(java.util.Objects::nonNull).toList()));
 
+        exigirSinCobroConTarjeta(distintos);
         UnionDePedidos.validar(distintos, pedidos.buscar(distintos), pedidoTitularId,
                 grupos.gruposActivosDe(distintos));
 
@@ -76,6 +79,17 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
         return consultar(grupoId);
     }
 
+    /** Un pedido con cobro de tarjeta en proceso o sin devolver no entra a un grupo: el grupo no se cobra con tarjeta. */
+    private void exigirSinCobroConTarjeta(List<Integer> pedidoIds) {
+        for (Integer id : pedidoIds) {
+            if (cobrosConTarjeta.tieneCobroConTarjeta(id)) {
+                throw new GrupoPedidoException("El pedido " + id + " tiene un cobro con tarjeta en proceso o sin devolver por "
+                        + "completo, así que no se puede unir a un grupo todavía. Primero hay que cancelar el cobro o "
+                        + "devolver el dinero de la tarjeta");
+            }
+        }
+    }
+
     @Override
     @Transactional
     public GrupoPedidos agregar(Integer grupoId, List<Integer> pedidoIds, Integer usuarioId) {
@@ -84,6 +98,7 @@ public class UnirPedidosService implements UnirPedidosCasoUso {
                 : List.copyOf(new LinkedHashSet<>(pedidoIds.stream().filter(java.util.Objects::nonNull).toList()));
         List<PedidoDelGrupo> encontrados = pedidos.buscar(nuevos);
 
+        exigirSinCobroConTarjeta(nuevos);
         UnionDePedidos.validarAgregado(grupo, nuevos, encontrados, grupos.gruposActivosDe(nuevos));
 
         grupos.agregar(grupoId, nuevos);
