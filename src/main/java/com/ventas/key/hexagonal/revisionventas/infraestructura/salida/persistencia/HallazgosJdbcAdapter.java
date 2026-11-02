@@ -45,6 +45,11 @@ public class HallazgosJdbcAdapter implements HallazgosPort {
     private static final ParametrosPorFecha FECHA_DE_LA_VENTA =
             (d, h) -> new Object[]{Timestamp.valueOf(d.atStartOfDay()), Timestamp.valueOf(h.plusDays(1).atStartOfDay())};
 
+    /** Días que un pedido pagado puede esperar sin entregarse antes de avisar. */
+    static final int DIAS_PARA_AVISAR_SIN_ENTREGAR = 14;
+    private static final ParametrosPorFecha PEDIDO_VIEJO =
+            (d, h) -> new Object[]{Date.valueOf(LocalDate.now().minusDays(DIAS_PARA_AVISAR_SIN_ENTREGAR))};
+
     private final JdbcTemplate jdbc;
     private final Map<TipoHallazgo, Consulta> consultas = new EnumMap<>(TipoHallazgo.class);
 
@@ -133,6 +138,33 @@ public class HallazgosJdbcAdapter implements HallazgosPort {
                 FECHA_DE_LA_VENTA, "venta_id",
                 (rs, n) -> new Hallazgo(TipoHallazgo.VENTA_SIN_PEDIDO, null, rs.getInt("venta_id"), null,
                         "Venta #" + rs.getInt("venta_id") + " por " + pesos(rs.getDouble("monto")) + " no está ligada a ningún pedido.")));
+
+        consultas.put(TipoHallazgo.VENDIDO_BAJO_COSTO, new Consulta(
+                "SELECT d.id AS detalle_id, d.venta_id AS venta_id, d.precio_unitario AS precio, d.precio_costo AS costo, d.cantidad AS cantidad "
+                        + "FROM detalle_venta_variantes d "
+                        + "WHERE d.precio_costo > 0 AND d.precio_unitario < d.precio_costo AND d.fecha_venta BETWEEN ? AND ?",
+                FECHA_DEL_PEDIDO, "detalle_id",
+                (rs, n) -> new Hallazgo(TipoHallazgo.VENDIDO_BAJO_COSTO, null, rs.getInt("venta_id"), null,
+                        "Venta #" + rs.getInt("venta_id") + ": " + rs.getInt("cantidad") + " pieza(s) a " + pesos(rs.getDouble("precio"))
+                                + " cada una, pero costaron " + pesos(rs.getDouble("costo")) + ".")));
+
+        consultas.put(TipoHallazgo.ARTICULO_SIN_PRECIO, new Consulta(
+                "SELECT v.id AS articulo_id, p.id AS modelo_id, p.nombre AS nombre, v.talla AS talla, v.color AS color, v.stock AS stock_articulo "
+                        + "FROM variantes v JOIN producto p ON p.id = v.producto_id "
+                        + "WHERE v.habilitado = '1' AND p.habilitado = '1' AND p.es_catalogo_interno = 0 "
+                        + "AND v.stock > 0 AND (v.precio_venta IS NULL OR v.precio_venta <= 0)",
+                SIN_FECHAS, "articulo_id",
+                (rs, n) -> new Hallazgo(TipoHallazgo.ARTICULO_SIN_PRECIO, null, null, rs.getInt("articulo_id"),
+                        nombreDelArticulo(rs) + " (artículo #" + rs.getInt("articulo_id") + "): tiene " + rs.getInt("stock_articulo")
+                                + " pieza(s) y no tiene precio de venta.")));
+
+        consultas.put(TipoHallazgo.PEDIDO_PAGADO_SIN_ENTREGAR, new Consulta(
+                "SELECT p.id AS pedido_id, p.total_pedido AS monto, p.fecha_pedido AS fecha FROM pedidos p "
+                        + "WHERE UPPER(p.estado_pedido) = 'PAGADO' AND p.entregado = FALSE AND p.fecha_pedido <= ?",
+                PEDIDO_VIEJO, "pedido_id",
+                (rs, n) -> new Hallazgo(TipoHallazgo.PEDIDO_PAGADO_SIN_ENTREGAR, rs.getInt("pedido_id"), null, null,
+                        "Pedido #" + rs.getInt("pedido_id") + " por " + pesos(rs.getDouble("monto")) + " (del " + rs.getDate("fecha")
+                                + ") está pagado y sigue sin entregarse.")));
     }
 
     @Override

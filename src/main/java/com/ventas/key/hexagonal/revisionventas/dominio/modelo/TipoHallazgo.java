@@ -34,7 +34,16 @@ public enum TipoHallazgo {
                     + "Hay que subirle el stock al modelo."),
     VENTA_SIN_PEDIDO(Gravedad.MEDIA,
             "Venta que no está ligada a ningún pedido",
-            "La venta no tiene pedido: no se puede ver el detalle de entrega ni los datos del cliente desde el pedido.");
+            "La venta no tiene pedido: no se puede ver el detalle de entrega ni los datos del cliente desde el pedido."),
+    VENDIDO_BAJO_COSTO(Gravedad.MEDIA,
+            "Artículo vendido por debajo de su costo",
+            "En una venta el precio al que se vendió es menor a lo que costó el artículo: esa venta dejó pérdida. Puede ser una promoción a propósito."),
+    ARTICULO_SIN_PRECIO(Gravedad.MEDIA,
+            "Artículo con piezas pero sin precio",
+            "El artículo está habilitado y tiene stock pero no tiene precio de venta: en la tienda saldría en $0 o no se podría vender."),
+    PEDIDO_PAGADO_SIN_ENTREGAR(Gravedad.MEDIA,
+            "Pedido pagado que lleva semanas sin entregarse",
+            "El pedido está pagado desde hace más de 14 días y todavía no se marca como entregado: hay que entregarlo o avisarle al cliente.");
 
     private final Gravedad gravedad;
     private final String titulo;
