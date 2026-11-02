@@ -33,7 +33,9 @@ class ChatbotComentariosTest {
 
         String instrucciones = facebook.instruccionesSobreProducto(variante, true);
 
-        assertThat(instrucciones).contains("Bolsa Lucía", "color: negro", "Precio: $350 MXN", "2 piezas");
+        // Disponibilidad en palabras, sin cantidades (commit 1e799bf: «Bots: … sin cantidades»).
+        assertThat(instrucciones).contains("Bolsa Lucía", "color: negro", "Precio: $350 MXN", "Disponibilidad: sí hay");
+        assertThat(instrucciones).doesNotContain("piezas");
         assertThat(instrucciones).doesNotContain("$300", "descuento");
         assertThat(instrucciones).contains("ÚNICAMENTE ##ESCALAR##");
         assertThat(instrucciones).contains("No digas que eres un asistente automático");
