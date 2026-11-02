@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,17 +19,23 @@ class SesionEscanerTest {
         return new SesionEscaner("abc", "1.2.3.4", T0);
     }
 
+    /** Mantiene viva la conexión como lo hace el celular (señal cada minuto) hasta ese momento. */
+    private static void mantenerViva(SesionEscaner s, long hastaSegundos) {
+        for (long seg = 60; seg <= hastaSegundos; seg += 60) {
+            s.latido(T0.plusSeconds(seg));
+        }
+    }
+
     @Test
-    @DisplayName("E1: vale 30 minutos y después ya no recibe ni entrega")
+    @DisplayName("E1: dura como máximo 12 horas, aunque siga activa")
     void vigencia() {
         SesionEscaner s = nueva();
-        for (int min = 1; min <= 29; min++) {
-            s.leer(0, T0.plusSeconds(min * 60L));          // la PC sigue preguntando (si no, E7 la libera antes)
-        }
-        assertThat(s.estaVigente(T0.plusSeconds(29 * 60))).isTrue();
-        assertThat(s.estaVigente(T0.plusSeconds(30 * 60))).isFalse();
-        assertThatThrownBy(() -> s.registrar("7501234567890", T0.plusSeconds(31 * 60))).isInstanceOf(EscanerException.SesionNoDisponible.class);
-        assertThatThrownBy(() -> s.leer(0, T0.plusSeconds(31 * 60))).isInstanceOf(EscanerException.SesionNoDisponible.class);
+        mantenerViva(s, 12 * 3600 - 60);
+        assertThat(s.estaVigente(T0.plusSeconds(12 * 3600 - 30))).isTrue();
+        s.latido(T0.plusSeconds(12 * 3600 - 30));
+        assertThat(s.estaVigente(T0.plusSeconds(12 * 3600))).isFalse();
+        assertThatThrownBy(() -> s.registrar("7501234567890", T0.plusSeconds(12 * 3600 + 1))).isInstanceOf(EscanerException.SesionNoDisponible.class);
+        assertThatThrownBy(() -> s.leer(0, T0.plusSeconds(12 * 3600 + 1))).isInstanceOf(EscanerException.SesionNoDisponible.class);
     }
 
     @Test
@@ -72,26 +80,128 @@ class SesionEscanerTest {
     }
 
     @Test
-    @DisplayName("E7: si la PC no pregunta en 2 minutos la conexión se libera; preguntar la mantiene")
+    @DisplayName("E7: sin ninguna actividad en 5 minutos se libera; cualquier señal (PC o celular) la mantiene")
     void inactividad() {
         SesionEscaner abandonada = nueva();
-        assertThat(abandonada.estaVigente(T0.plusSeconds(119))).isTrue();
-        assertThat(abandonada.estaVigente(T0.plusSeconds(121))).isFalse();
+        assertThat(abandonada.estaVigente(T0.plusSeconds(299))).isTrue();
+        assertThat(abandonada.estaVigente(T0.plusSeconds(301))).isFalse();
 
-        SesionEscaner consultada = nueva();
-        for (int seg = 60; seg <= 600; seg += 60) {
-            consultada.leer(0, T0.plusSeconds(seg));       // la PC sigue preguntando
-        }
-        assertThat(consultada.estaVigente(T0.plusSeconds(650))).isTrue();
-        assertThat(consultada.estaVigente(T0.plusSeconds(600 + 125))).isFalse();   // dejó de preguntar
+        SesionEscaner conLatidos = nueva();
+        mantenerViva(conLatidos, 1800);
+        assertThat(conLatidos.estaVigente(T0.plusSeconds(1800 + 200))).isTrue();
+        assertThat(conLatidos.estaVigente(T0.plusSeconds(1800 + 301))).isFalse();     // dejó de dar señal
+
+        SesionEscaner laPcPregunta = nueva();
+        for (int seg = 60; seg <= 900; seg += 60) laPcPregunta.leer(0, T0.plusSeconds(seg));
+        assertThat(laPcPregunta.estaVigente(T0.plusSeconds(1000))).isTrue();
     }
 
     @Test
-    @DisplayName("E5: cerrada, ya no acepta códigos")
+    @DisplayName("E8: el celular está «conectado» 45 segundos después de su última señal; mandar un código también cuenta")
+    void celularConectado() {
+        SesionEscaner s = nueva();
+        assertThat(s.estado(T0).celularConectado()).isFalse();
+        s.latido(T0.plusSeconds(10));
+        assertThat(s.estado(T0.plusSeconds(54)).celularConectado()).isTrue();
+        assertThat(s.estado(T0.plusSeconds(56)).celularConectado()).isFalse();
+        s.registrar("7501234567890", T0.plusSeconds(100));
+        assertThat(s.leer(0, T0.plusSeconds(110)).celularConectado()).isTrue();
+    }
+
+    @Test
+    @DisplayName("E9: la pregunta abierta se contesta en cuanto llega el código, y solo con los más nuevos que su «desde»")
+    void preguntaAbierta() throws Exception {
+        SesionEscaner s = nueva();
+        s.registrar("VIEJO-1", T0);                                     // ya estaba antes de preguntar
+        var espera = s.esperar(1, T0.plusSeconds(1));
+        assertThat(espera.futuro()).isNotDone();
+
+        s.registrar("NUEVO-2", T0.plusSeconds(2));
+
+        var lectura = espera.futuro().get();
+        assertThat(lectura.codigos()).extracting(CodigoEscaneado::codigo).containsExactly("NUEVO-2");
+        assertThat(lectura.ultimaSecuencia()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("E9: si ya hay algo más nuevo, se contesta al instante; cancelar quita la pregunta; una pregunta no se cuela con códigos viejos")
+    void preguntaAbiertaCasos() throws Exception {
+        SesionEscaner s = nueva();
+        s.registrar("UNO-111", T0);
+        assertThat(s.esperar(0, T0.plusSeconds(1)).futuro()).isCompleted();
+
+        var cancelada = s.esperar(1, T0.plusSeconds(2));
+        cancelada.cancelar().run();
+        s.registrar("DOS-222", T0.plusSeconds(3));
+        assertThat(cancelada.futuro()).isNotDone();                         // la quitaron: no se le avisa
+
+        var dosEsperas = new CompletableFuture<?>[]{s.esperar(2, T0.plusSeconds(4)).futuro(), s.esperar(1, T0.plusSeconds(4)).futuro()};
+        assertThat(dosEsperas[1]).isCompleted();                          // «desde 1» ya tiene el DOS-222
+        s.registrar("TRES-333", T0.plusSeconds(5));
+        assertThat(dosEsperas[0]).isCompleted();
+    }
+
+    @Test
+    @DisplayName("E9: cuando el celular se conecta (primer latido) la pregunta abierta se contesta sin códigos pero con «conectado»; los latidos siguientes no")
+    void latidoAvisaAlConectarse() throws Exception {
+        SesionEscaner s = nueva();
+        var espera = s.esperar(0, T0.plusSeconds(1));
+        assertThat(espera.futuro()).isNotDone();
+
+        s.latido(T0.plusSeconds(5));                                    // el celular acaba de abrir la página
+        var lectura = espera.futuro().get();
+        assertThat(lectura.celularConectado()).isTrue();
+        assertThat(lectura.codigos()).isEmpty();
+
+        var otra = s.esperar(0, T0.plusSeconds(6));
+        s.latido(T0.plusSeconds(20));                                   // ya estaba conectado: no hay nada nuevo que avisar
+        assertThat(otra.futuro()).isNotDone();
+    }
+
+    @Test
+    @DisplayName("E10: máximo 3 preguntas abiertas; con una más, la más vieja se contesta vacía")
+    void esperasMaximas() {
+        SesionEscaner s = nueva();
+        var primera = s.esperar(0, T0.plusSeconds(1));
+        s.esperar(0, T0.plusSeconds(2));
+        s.esperar(0, T0.plusSeconds(3));
+        assertThat(primera.futuro()).isNotDone();
+
+        var cuarta = s.esperar(0, T0.plusSeconds(4));
+        assertThat(primera.futuro()).isCompleted();                     // la más vieja se liberó (vacía)
+        assertThat(primera.futuro().join().codigos()).isEmpty();
+        assertThat(cuarta.futuro()).isNotDone();
+    }
+
+    @Test
+    @DisplayName("E11: al mandar un código se sabe si la PC lo estaba esperando (pregunta abierta, o una hace menos de 3 s)")
+    void laPcLoEsperaba() {
+        SesionEscaner nadiePidio = nueva();
+        assertThat(nadiePidio.enviar("AAA111", T0.plusSeconds(1)).laPcLoEsperaba()).isFalse();
+
+        SesionEscaner conPregunta = nueva();
+        conPregunta.esperar(0, T0.plusSeconds(1));
+        assertThat(conPregunta.enviar("AAA111", T0.plusSeconds(10)).laPcLoEsperaba()).isTrue();          // había una pregunta abierta
+
+        SesionEscaner entreDosPreguntas = nueva();
+        var p = entreDosPreguntas.esperar(0, T0.plusSeconds(1));
+        p.cancelar().run();                                                                               // acaba una pregunta y aún no empieza la siguiente
+        assertThat(entreDosPreguntas.enviar("AAA111", T0.plusSeconds(2)).laPcLoEsperaba()).isTrue();      // dentro del margen de 3 s
+
+        SesionEscaner laPcSeFue = nueva();
+        laPcSeFue.esperar(0, T0.plusSeconds(1)).cancelar().run();
+        assertThat(laPcSeFue.enviar("AAA111", T0.plusSeconds(30)).laPcLoEsperaba()).isFalse();            // pasó el margen: nadie lo pide
+    }
+
+    @Test
+    @DisplayName("E5: cerrar avisa a quien esperaba (conexión terminada) y ya no acepta códigos")
     void cerrada() {
         SesionEscaner s = nueva();
+        var espera = s.esperar(0, T0);
         s.cerrar();
         assertThat(s.estaVigente(T0)).isFalse();
+        assertThatThrownBy(() -> espera.futuro().get()).isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(EscanerException.SesionNoDisponible.class);
         assertThatThrownBy(() -> s.registrar("7501234567890", T0)).isInstanceOf(EscanerException.SesionNoDisponible.class);
     }
 }

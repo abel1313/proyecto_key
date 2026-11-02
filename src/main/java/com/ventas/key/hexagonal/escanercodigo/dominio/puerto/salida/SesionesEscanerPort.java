@@ -24,6 +24,9 @@ public interface SesionesEscanerPort {
     /** Conexiones vigentes en total. */
     int vigentes(Instant ahora);
 
+    /** Conexiones vigentes cuyo origen NO empieza con {@code prefijoDeUsuario} (las del personal con sesión no cuentan). */
+    int vigentesAnonimas(Instant ahora, String prefijoDeUsuario);
+
     /** Conexiones vigentes abiertas desde ese origen (la IP de la PC). */
     int vigentesDe(String origen, Instant ahora);
 

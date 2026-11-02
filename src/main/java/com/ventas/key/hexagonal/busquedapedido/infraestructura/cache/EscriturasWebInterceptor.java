@@ -18,14 +18,15 @@ import java.util.Set;
  * la version de las listas de Mis pedidos al terminar, por si cambio algo con SQL directo que el
  * listener de JPA no ve. Se excluyen solo las que seguro no tocan pedidos y pasan a cada rato: guardar
  * los filtros (se guarda en cada clic de filtro y si no, el cache no serviria nunca), entrar o renovar la
- * sesion y el chatbot.
+ * sesion, el chatbot y el escaner de codigos con el celular (publico: no toca pedidos y, si no, un anonimo podria
+ * invalidar el cache con DELETE sin parar).
  */
 @Configuration
 @RequiredArgsConstructor
 public class EscriturasWebInterceptor implements HandlerInterceptor, WebMvcConfigurer {
 
     private static final Set<String> LEEN = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
-    private static final List<String> NO_TOCAN_PEDIDOS = List.of("/v1/preferencias-filtro", "/auth/", "/chatbot/");
+    private static final List<String> NO_TOCAN_PEDIDOS = List.of("/v1/preferencias-filtro", "/auth/", "/chatbot/", "/v1/escaner/");
 
     private final VersionDeListasDePedidos version;
 
