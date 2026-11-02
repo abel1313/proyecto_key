@@ -3,6 +3,10 @@ package com.ventas.key.hexagonal.graficasventas.aplicacion.servicio;
 import com.ventas.key.hexagonal.graficasventas.dominio.excepcion.GraficasVentasException;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ComparativoDelMes;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.GananciaPorProducto;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.PeriodoDeVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ProductoRentable;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CeldaDeCalor;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClientesDelNegocio;
@@ -57,6 +61,7 @@ public class ConsultarGraficasService implements ConsultarGraficasCasoUso {
     public static final int CASOS_A_MOSTRAR = 8;
     public static final int ARTICULOS_PARADOS_A_MOSTRAR = 10;
     public static final int CLIENTES_A_MOSTRAR = 10;
+    public static final int PRODUCTOS_MAXIMO = 20;
     public static final int MESES_CLIENTES_MAXIMO = 12;
     private static final String[] DIAS = {"Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"};
     private static final ZoneId ZONA = ZoneId.of("America/Mexico_City");
@@ -109,6 +114,51 @@ public class ConsultarGraficasService implements ConsultarGraficasCasoUso {
                     redondear(g, 2), redondear(v.ganancia() - g, 2)));
         }
         return serie;
+    }
+
+    @Override
+    public ComparativoDelMes comparativoDelMes() {
+        LocalDate hoy = hoy();
+        YearMonth esteMes = YearMonth.from(hoy);
+        YearMonth mesAnterior = esteMes.minusMonths(1);
+        int dia = hoy.getDayOfMonth();
+        LocalDate finAnterior = mesAnterior.atDay(Math.min(dia, mesAnterior.lengthOfMonth()));
+        return new ComparativoDelMes(dia,
+                periodo(esteMes.atDay(1), hoy),
+                periodo(mesAnterior.atDay(1), finAnterior));
+    }
+
+    private PeriodoDeVentas periodo(LocalDate desde, LocalDate hasta) {
+        double ventas = 0, ganancia = 0;
+        int numero = 0;
+        for (VentasDelMes v : puerto.ventasPorMes(desde, hasta).values()) {
+            numero += v.numeroVentas();
+            ventas += v.ventas();
+            ganancia += v.ganancia();
+        }
+        double gastos = puerto.gastosPorMes(desde, hasta).values().stream().mapToDouble(Double::doubleValue).sum();
+        return new PeriodoDeVentas(desde.toString(), hasta.toString(), numero, redondear(ventas, 2), redondear(ganancia, 2),
+                redondear(gastos, 2), redondear(ganancia - gastos, 2));
+    }
+
+    @Override
+    public GananciaPorProducto gananciaPorProducto(int dias, int limite) {
+        if (dias < DIAS_MINIMO || dias > DIAS_MAXIMO) {
+            throw GraficasVentasException.diasInvalidos(DIAS_MINIMO, DIAS_MAXIMO);
+        }
+        if (limite < 1 || limite > PRODUCTOS_MAXIMO) {
+            throw GraficasVentasException.limiteInvalido(1, PRODUCTOS_MAXIMO);
+        }
+        LocalDate hasta = hoy();
+        LocalDate desde = hasta.minusDays(dias - 1L);
+        List<ProductoRentable> crudos = puerto.gananciaPorProducto(desde, hasta, limite);
+        List<ProductoRentable> productos = crudos.stream()
+                .map(p -> new ProductoRentable(p.productoId(), p.nombre(), p.piezas(), redondear(p.vendido(), 2),
+                        redondear(p.ganancia(), 2), p.vendido() > 0 ? redondear(p.ganancia() * 100.0 / p.vendido(), 1) : 0.0))
+                .toList();
+        double deLosMejores = productos.stream().mapToDouble(ProductoRentable::ganancia).sum();
+        return new GananciaPorProducto(desde, hasta, redondear(puerto.gananciaTotalDeRenglones(desde, hasta), 2),
+                redondear(deLosMejores, 2), productos);
     }
 
     private LocalDate hoy() {

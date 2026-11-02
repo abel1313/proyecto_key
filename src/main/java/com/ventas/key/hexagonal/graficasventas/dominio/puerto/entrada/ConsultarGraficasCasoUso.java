@@ -1,6 +1,8 @@
 package com.ventas.key.hexagonal.graficasventas.dominio.puerto.entrada;
 
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ComparativoDelMes;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.GananciaPorProducto;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClientesDelNegocio;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EntregasPorZona;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MapaDeVentas;
@@ -53,4 +55,10 @@ public interface ConsultarGraficasCasoUso {
 
     /** A dónde van los pedidos no cancelados de los últimos {@code dias} días contando hoy (de 7 a 365). */
     EntregasPorZona entregasPorZona(int dias);
+
+    /** Este mes hasta hoy contra el mes anterior hasta el mismo día: ventas, ganancia, gastos y ganancia neta. */
+    ComparativoDelMes comparativoDelMes();
+
+    /** Los {@code limite} productos que más ganancia dejaron en los últimos {@code dias} días contando hoy (días de 7 a 365, límite de 1 a 20). */
+    GananciaPorProducto gananciaPorProducto(int dias, int limite);
 }

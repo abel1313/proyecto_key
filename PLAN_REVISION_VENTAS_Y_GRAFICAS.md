@@ -43,7 +43,7 @@ deben salir) + `mvn test` completo. Front: `ng build`; pruebas manuales en `TEST
 **solo ROLE_ADMIN**, no se da a los demás roles con "Ver reportes"); el endpoint además exige ADMIN en `SecurityConfig`.
 
 ## ETAPA 2 — Gráficas nuevas (por orden de valor; cada una con su plan breve antes de programar)
-**Hechas el 2026-11-01:** (subidas a dev y qa)  la 1 (ventas por forma de pago, con comisión) y la 2 (ventas, gastos y ganancia neta por mes), en el **Dashboard**. Dominio `hexagonal/graficasventas`. **Segunda tanda (subida):** 3 (por cobrar), 5 (pedidos por estado) y 6 (capital parado). **Tercera tanda (rama `feature/graficas-3`, sin subir):** 7 (ventas por día y hora), 8 (clientes nuevos/recurrentes y top) y 9 (entregas por zona). **Quedan:** 4 (cuadre del día, necesita ventas nuevas) y 10 (salud del cobro con tarjeta, espera Mercado Pago).
+**Hechas el 2026-11-01:** (subidas a dev y qa)  la 1 (ventas por forma de pago, con comisión) y la 2 (ventas, gastos y ganancia neta por mes), en el **Dashboard**. Dominio `hexagonal/graficasventas`. **Segunda tanda (subida):** 3 (por cobrar), 5 (pedidos por estado) y 6 (capital parado). **Tercera tanda (rama `feature/graficas-3`, sin subir):** 7 (ventas por día y hora), 8 (clientes nuevos/recurrentes y top) y 9 (entregas por zona). **Agregadas el 2026-11-02 (rama `feature/dashboard-comparativo`):** comparativo del mes contra el anterior (mismos días) y ganancia por producto. **Quedan:** 4 (cuadre del día, necesita ventas nuevas) y 10 (salud del cobro con tarjeta, espera Mercado Pago).
 
 1. ✅ **Ventas por forma de pago** (dona): efectivo, tarjeta, transferencia; contado contra meses; **comisión de tarjeta**
    (lo que se queda la terminal) usando `detalle_pago` / `ventas.ganancia_total`.

@@ -4,6 +4,7 @@ import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CompraDeCliente;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ProductoRentable;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentaPorDiaYHora;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ZonaDeEntrega;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.FormaDePagoVentas;
@@ -62,4 +63,13 @@ public interface GraficasPort {
 
     /** Pedidos no cancelados entre las dos fechas, por lugar de entrega (sin lugar = «Sin lugar de entrega»). */
     List<ZonaDeEntrega> pedidosPorZona(LocalDate desde, LocalDate hasta);
+
+    /**
+     * Ganancia por producto (modelo) de los renglones vendidos entre las dos fechas (ventas devueltas no cuentan), del que más al que
+     * menos ganancia dejó, hasta {@code limite} productos.
+     */
+    List<ProductoRentable> gananciaPorProducto(LocalDate desde, LocalDate hasta, int limite);
+
+    /** Ganancia de todos los renglones vendidos entre las dos fechas (ventas devueltas no cuentan). */
+    double gananciaTotalDeRenglones(LocalDate desde, LocalDate hasta);
 }
