@@ -23110,7 +23110,8 @@ Solo **administrador**, solo lectura. Avisa de pedidos, ventas, abonos, stock y 
   - `VENDIDO_BAJO_COSTO`: renglón de venta (dentro de `desde`/`hasta`) cuyo precio de venta es menor a su costo (se ignoran costos en 0). Ejemplo trae `ventaId`. Puede ser una promoción a propósito.
   - `ARTICULO_SIN_PRECIO`: artículo habilitado con stock > 0 y sin precio de venta (o en 0). Trae `articuloId`. No depende de fechas.
   - `PEDIDO_PAGADO_SIN_ENTREGAR`: pedido en estado PAGADO, sin marcar entregado, de hace más de 14 días. Trae `pedidoId`. No depende de fechas.
-  - Quedan fuera por ahora: «artículo sin foto» (hay que decidir cómo revisarlo contra el micro de imágenes) y «deuda vencida» (falta definir cuántos días es vencida).
+  - `DEUDA_VENCIDA` (gravedad `MEDIA`): pedido **Ir pagando** (no cancelado) que todavía debe dinero y cuyo último abono —o el pedido, si nunca abonó— es de hace **más de 30 días**. Trae `pedidoId`. Un Apartado no cuenta (no tiene dinero). No depende de fechas. Sin cambio de contrato.
+  - Queda fuera por ahora: «artículo sin foto» (hay que decidir cómo revisarlo contra el micro de imágenes).
 
 ## 📊 Gráficas del Dashboard: cómo te pagan y ventas/gastos por mes (2026-11-01, rama `feature/revision-ventas`)
 

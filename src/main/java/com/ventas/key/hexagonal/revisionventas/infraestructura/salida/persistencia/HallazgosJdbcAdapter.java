@@ -50,6 +50,11 @@ public class HallazgosJdbcAdapter implements HallazgosPort {
     private static final ParametrosPorFecha PEDIDO_VIEJO =
             (d, h) -> new Object[]{Date.valueOf(LocalDate.now().minusDays(DIAS_PARA_AVISAR_SIN_ENTREGAR))};
 
+    /** Días sin abonar para que una deuda de Ir pagando cuente como vencida. */
+    static final int DIAS_PARA_DEUDA_VENCIDA = 30;
+    private static final ParametrosPorFecha DEUDA_VIEJA =
+            (d, h) -> new Object[]{Date.valueOf(LocalDate.now().minusDays(DIAS_PARA_DEUDA_VENCIDA))};
+
     private final JdbcTemplate jdbc;
     private final Map<TipoHallazgo, Consulta> consultas = new EnumMap<>(TipoHallazgo.class);
 
@@ -165,6 +170,18 @@ public class HallazgosJdbcAdapter implements HallazgosPort {
                 (rs, n) -> new Hallazgo(TipoHallazgo.PEDIDO_PAGADO_SIN_ENTREGAR, rs.getInt("pedido_id"), null, null,
                         "Pedido #" + rs.getInt("pedido_id") + " por " + pesos(rs.getDouble("monto")) + " (del " + rs.getDate("fecha")
                                 + ") está pagado y sigue sin entregarse.")));
+
+        consultas.put(TipoHallazgo.DEUDA_VENCIDA, new Consulta(
+                "SELECT p.id AS pedido_id, COALESCE(p.total_pedido, 0) - COALESCE(p.total_pagado, 0) AS debe, "
+                        + "COALESCE(a.ultimo, p.fecha_pedido) AS desde_cuando FROM pedidos p "
+                        + "LEFT JOIN (SELECT pedido_id, MAX(fecha_pago) AS ultimo FROM abono_pedido GROUP BY pedido_id) a ON a.pedido_id = p.id "
+                        + "WHERE p.tipo_pedido = 'FIADO' AND UPPER(COALESCE(p.estado_pedido, '')) <> 'CANCELADO' "
+                        + "AND COALESCE(p.total_pedido, 0) - COALESCE(p.total_pagado, 0) > 0.01 "
+                        + "AND COALESCE(a.ultimo, p.fecha_pedido) <= ?",
+                DEUDA_VIEJA, "pedido_id",
+                (rs, n) -> new Hallazgo(TipoHallazgo.DEUDA_VENCIDA, rs.getInt("pedido_id"), null, null,
+                        "Pedido #" + rs.getInt("pedido_id") + " (Ir pagando) debe " + pesos(rs.getDouble("debe"))
+                                + " y no abona desde el " + rs.getDate("desde_cuando") + ".")));
     }
 
     @Override
