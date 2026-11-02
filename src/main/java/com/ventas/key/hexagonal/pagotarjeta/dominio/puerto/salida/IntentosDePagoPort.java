@@ -31,6 +31,9 @@ public interface IntentosDePagoPort {
     /** Cuantos intentos RECHAZADOS tuvo el pedido desde {@code desde}. Cancelar no cuenta. */
     long rechazadosDesde(Integer pedidoId, Instant desde);
 
+    /** Cuantos intentos de cobro se crearon para el pedido desde {@code desde}, en cualquier estado (cancelados incluidos). */
+    long creadosDesde(Integer pedidoId, Instant desde);
+
     /** Intentos RECHAZADO, CANCELADO o EXPIRADO que cambiaron desde {@code desde} (para reconciliarlos). */
     List<IntentoDePago> perdidosDesde(Instant desde);
 

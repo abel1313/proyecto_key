@@ -110,6 +110,11 @@ public class PagoConTarjetaException extends RuntimeException {
                 + "en proceso. Espera a que termine o cancélalo antes de intentar otro");
     }
 
+    public static PagoConTarjetaException demasiadosIntentos() {
+        return new PagoConTarjetaException("Se iniciaron y cancelaron muchos cobros de este pedido en poco tiempo. "
+                + "Por seguridad, espera un rato antes de intentar de nuevo");
+    }
+
     public static PagoConTarjetaException demasiadosRechazos() {
         return new PagoConTarjetaException("Se rechazaron varios intentos de pago de este pedido. "
                 + "Por seguridad, espera unas horas antes de intentar de nuevo");

@@ -26,6 +26,8 @@ public interface IPagoTarjetaIntentoRepository extends BaseRepository<PagoTarjet
 
     List<PagoTarjetaIntento> findByPedidoIdAndEstadoInOrderByIdAsc(Integer pedidoId, Collection<String> estados);
 
+    long countByPedidoIdAndCreadoEnGreaterThanEqual(Integer pedidoId, LocalDateTime desde);
+
     boolean existsByPedidoIdAndEstadoIn(Integer pedidoId, Collection<String> estados);
 
     Optional<PagoTarjetaIntento> findFirstByIdExterno(String idExterno);

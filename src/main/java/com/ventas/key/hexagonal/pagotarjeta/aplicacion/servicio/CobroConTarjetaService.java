@@ -67,6 +67,12 @@ public class CobroConTarjetaService
     /** Rechazos del mismo pedido que activan el freno (regla heredada de la terminal actual). */
     static final int MAX_RECHAZOS = 3;
     static final Duration VENTANA_DE_RECHAZOS = Duration.ofHours(2);
+    /**
+     * Freno aparte para iniciar→cancelar→iniciar: cancelar no cuenta como rechazo (el cajero se equivoca y reintenta), pero
+     * repetirlo sin parar sobrecarga la pasarela y puede ocultar un abuso. Se cuentan los cobros creados, de cualquier estado.
+     */
+    static final int MAX_INTENTOS_CREADOS = 8;
+    static final Duration VENTANA_DE_INTENTOS = Duration.ofHours(1);
     /** Cuanto tiempo atras se vuelve a preguntar por cobros que se dieron por perdidos. */
     static final Duration VENTANA_DE_RECONCILIACION = Duration.ofHours(24);
 
@@ -132,6 +138,9 @@ public class CobroConTarjetaService
         Instant ahora = reloj.instant();
         if (intentos.rechazadosDesde(pedidoId, ahora.minus(VENTANA_DE_RECHAZOS)) >= MAX_RECHAZOS) {
             throw PagoConTarjetaException.demasiadosRechazos();
+        }
+        if (intentos.creadosDesde(pedidoId, ahora.minus(VENTANA_DE_INTENTOS)) >= MAX_INTENTOS_CREADOS) {
+            throw PagoConTarjetaException.demasiadosIntentos();
         }
 
         ReglasMsi.validarCuotas(cuotas, pedido.tipo(), pedido.total(), pedido.articulos(),   // M1 a M6

@@ -23223,3 +23223,12 @@ Solo lectura, mismo permiso que el resto de `/v1/dashboard/**` (pantalla `dashbo
 ```
 - Suma por **producto (modelo)**, todos sus artículos juntos; del que más ganancia dejó al que menos. `margen` = ganancia entre vendido, en %. `gananciaTotal` es la de TODOS los productos, no solo los de la lista.
 - `400` con `mensaje` si `dias` o `limite` están fuera de rango; sin ventas devueltas.
+
+
+## 🛑 Cobro con tarjeta: freno al iniciar y cancelar sin parar (2026-11-02, rama `feature/freno-y-tareas`)
+
+**Antes:** cancelar un cobro no contaba como rechazo, así que se podía iniciar y cancelar el cobro de un mismo pedido sin límite (sobrecarga a la pasarela y puede ocultar un abuso).
+
+**Ahora:** al iniciar un cobro, si ese pedido ya tuvo **8 cobros creados en la última hora** (cualquier estado, cancelados incluidos), el back contesta `400` con `mensaje`: «Se iniciaron y cancelaron muchos cobros de este pedido en poco tiempo. Por seguridad, espera un rato antes de intentar de nuevo». Pasada la hora se libera. Una o dos equivocaciones no se frenan.
+- Endpoint: el mismo `POST /mis-productos/v1/pagos-tarjeta` (iniciar cobro); sin campos nuevos. Basta con mostrar el `mensaje`.
+- El freno de 3 rechazos en 2 horas sigue igual.

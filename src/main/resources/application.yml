@@ -1,6 +1,12 @@
 spring:
   profiles:
     active: dev
+  task:
+    scheduling:
+      # Los trabajos programados (cobros con tarjeta, correos, imagenes, rifas...) compartian UN solo hilo: si uno tarda (p. ej. una
+      # pasarela lenta), los demas esperan. Con varios hilos uno lento ya no frena a los otros.
+      pool:
+        size: 4
   cache:
     type: simple
   jpa:

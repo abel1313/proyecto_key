@@ -111,6 +111,9 @@ class Escenario {
                     .filter(i -> i.pedidoId().equals(pedidoId) && i.estado().estaActivo())
                     .reduce((a, b) -> b);
         }
+        @Override public long creadosDesde(Integer pedidoId, Instant desde) {
+            return porId.values().stream().filter(i -> i.pedidoId().equals(pedidoId) && !i.creadoEn().isBefore(desde)).count();
+        }
         @Override public long rechazadosDesde(Integer pedidoId, Instant desde) {
             return porId.values().stream()
                     .filter(i -> i.pedidoId().equals(pedidoId) && i.estado() == EstadoIntento.RECHAZADO

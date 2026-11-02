@@ -98,6 +98,11 @@ public class IntentosDePagoJpaAdapter implements IntentosDePagoPort {
     }
 
     @Override
+    public long creadosDesde(Integer pedidoId, Instant desde) {
+        return repositorio.countByPedidoIdAndCreadoEnGreaterThanEqual(pedidoId, aLocal(desde));
+    }
+
+    @Override
     public List<IntentoDePago> perdidosDesde(Instant desde) {
         return repositorio.findByEstadoInAndActualizadoEnGreaterThanEqualOrderByActualizadoEnAsc(PERDIDOS, aLocal(desde))
                 .stream().map(IntentosDePagoJpaAdapter::aDominio).toList();
