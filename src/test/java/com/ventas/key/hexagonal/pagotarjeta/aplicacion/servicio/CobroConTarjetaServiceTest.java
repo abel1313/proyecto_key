@@ -125,6 +125,28 @@ class CobroConTarjetaServiceTest {
         assertThat(iniciarEnTerminal(e).estado()).isEqualTo(EstadoIntento.ENVIADO);
     }
 
+    @Test
+    void iniciarYCancelarSinParar_seFrenaAlOctavoYSeLiberaPasadaUnaHora() {
+        Escenario e = nuevo();
+        for (int n = 0; n < 8; n++) {
+            IntentoDePago i = iniciarEnTerminal(e);
+            assertThat(e.cobro.cancelar(i.id()).estado()).isEqualTo(EstadoIntento.CANCELADO);
+        }
+        assertThatThrownBy(() -> iniciarEnTerminal(e)).hasMessageContaining("muchos cobros");
+        e.reloj.avanzarMinutos(61);
+        assertThat(iniciarEnTerminal(e).estado()).isEqualTo(EstadoIntento.ENVIADO);
+    }
+
+    @Test
+    void unaEquivocacionOdosYCancelar_noSeFrena() {
+        Escenario e = nuevo();
+        for (int n = 0; n < 3; n++) {
+            IntentoDePago i = iniciarEnTerminal(e);
+            e.cobro.cancelar(i.id());
+        }
+        assertThat(iniciarEnTerminal(e).estado()).isEqualTo(EstadoIntento.ENVIADO);
+    }
+
     // ── Cobro dudoso ──────────────────────────────────────────────────────
 
     @Test
