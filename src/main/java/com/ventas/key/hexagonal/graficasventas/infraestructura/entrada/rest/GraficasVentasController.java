@@ -60,6 +60,21 @@ public class GraficasVentasController {
         return responder(() -> GraficasResponse.PedidosPorEstado.de(graficas.pedidosPorEstado(dias)));
     }
 
+    @GetMapping("/cuando-se-vende")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.CuandoSeVende>> cuandoSeVende(@RequestParam(defaultValue = "90") int dias) {
+        return responder(() -> GraficasResponse.CuandoSeVende.de(graficas.cuandoSeVende(dias)));
+    }
+
+    @GetMapping("/clientes")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.Clientes>> clientes(@RequestParam(defaultValue = "6") int meses) {
+        return responder(() -> GraficasResponse.Clientes.de(graficas.clientes(meses)));
+    }
+
+    @GetMapping("/entregas-por-zona")
+    public ResponseEntity<ResponseGeneric<GraficasResponse.Entregas>> entregasPorZona(@RequestParam(defaultValue = "90") int dias) {
+        return responder(() -> GraficasResponse.Entregas.de(graficas.entregasPorZona(dias)));
+    }
+
     private <T> ResponseEntity<ResponseGeneric<T>> responder(Supplier<T> consulta) {
         try {
             return ResponseEntity.ok(new ResponseGeneric<>(consulta.get()));

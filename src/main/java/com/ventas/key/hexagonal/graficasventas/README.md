@@ -22,12 +22,23 @@ Los números de las gráficas del Dashboard. **Solo lee.** Plan y siguientes gr�
   sin cancelar y con `fecha_recogida` ya pasada. Siempre salen las seis categorías (con 0).
 - ⚠️ Pedidos viejos con `estado_pedido` Entregado y `entregado = false` (anteriores a la columna `entregado`) saldrían como «falta entregar»/«atrasados».
 
+- **Cuándo se vende:** ventas (sin devueltas) de los últimos N días contando hoy (7–365, default 90), por día de la semana (1 = lunes … 7 = domingo)
+  y hora local (0–23). Las celdas suman todas las semanas del periodo. «Mejor día» y «mejor hora» = los de más dinero. La venta de mostrador SÍ cuenta aquí.
+- **Clientes:** solo ventas a **clientes registrados**, sin devueltas y **sin las ventas hechas al propio perfil de cliente de quien vende**
+  (`clientes.usuario_id = ventas.usuario_id`: es el «cliente» de mostrador cuando se vende sin cliente). Un cliente es **nuevo** en el mes en que está su
+  primera compra de toda su historia y **recurrente** en los meses siguientes. De 1 a 12 meses (default 6), todos seguidos. Top 10 del periodo por dinero.
+- **Entregas por zona:** pedidos no cancelados de los últimos N días (7–365, default 90) por `lugares_entrega.nombre`; sin lugar = «Sin lugar de entrega».
+  Del lugar con más pedidos al que menos (empate: por nombre).
+
 ## Endpoints (solo administrador: todo `/v1/dashboard/**` ya lo exige en `SecurityConfig`)
 - `GET /v1/dashboard/graficas/ventas-por-forma-pago?desde=&hasta=`
 - `GET /v1/dashboard/graficas/ventas-gastos-mensual?meses=12`
 - `GET /v1/dashboard/graficas/por-cobrar`
 - `GET /v1/dashboard/graficas/capital-parado?dias=60`
 - `GET /v1/dashboard/graficas/pedidos-por-estado?dias=90`
+- `GET /v1/dashboard/graficas/cuando-se-vende?dias=90`
+- `GET /v1/dashboard/graficas/clientes?meses=6`
+- `GET /v1/dashboard/graficas/entregas-por-zona?dias=90`
 
 ## Dónde está cada cosa
 `dominio/modelo` (resultados), `dominio/puerto/{entrada,salida}`, `aplicacion/servicio/ConsultarGraficasService` (Java puro: fechas por
