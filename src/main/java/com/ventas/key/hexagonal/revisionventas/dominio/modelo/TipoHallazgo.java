@@ -43,7 +43,10 @@ public enum TipoHallazgo {
             "El artículo está habilitado y tiene stock pero no tiene precio de venta: en la tienda saldría en $0 o no se podría vender."),
     PEDIDO_PAGADO_SIN_ENTREGAR(Gravedad.MEDIA,
             "Pedido pagado que lleva semanas sin entregarse",
-            "El pedido está pagado desde hace más de 14 días y todavía no se marca como entregado: hay que entregarlo o avisarle al cliente.");
+            "El pedido está pagado desde hace más de 14 días y todavía no se marca como entregado: hay que entregarlo o avisarle al cliente."),
+    DEUDA_VENCIDA(Gravedad.MEDIA,
+            "Ir pagando con deuda y sin abonos hace más de 30 días",
+            "El pedido todavía debe dinero y su último abono (o el pedido, si nunca abonó) es de hace más de 30 días: hay que cobrarle al cliente.");
 
     private final Gravedad gravedad;
     private final String titulo;

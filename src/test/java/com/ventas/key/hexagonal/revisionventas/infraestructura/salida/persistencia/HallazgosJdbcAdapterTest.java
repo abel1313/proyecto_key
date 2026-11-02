@@ -37,7 +37,7 @@ class HallazgosJdbcAdapterTest {
         jdbc.execute("CREATE TABLE detalle_pedidos (id INT PRIMARY KEY, pedido_id INT, sub_total DOUBLE)");
         jdbc.execute("CREATE TABLE ventas (id INT PRIMARY KEY, pedido_id INT NULL, total_venta DOUBLE, fecha_venta TIMESTAMP)");
         jdbc.execute("CREATE TABLE detalle_venta_variantes (id INT PRIMARY KEY, venta_id INT, sub_total DOUBLE, precio_unitario DOUBLE, precio_costo DOUBLE, cantidad INT, fecha_venta DATE)");
-        jdbc.execute("CREATE TABLE abono_pedido (id INT PRIMARY KEY, pedido_id INT, monto DOUBLE)");
+        jdbc.execute("CREATE TABLE abono_pedido (id INT PRIMARY KEY, pedido_id INT, monto DOUBLE, fecha_pago DATE)");
         jdbc.execute("CREATE TABLE producto (id INT PRIMARY KEY, nombre VARCHAR(80), stock INT, habilitado CHAR(1), es_catalogo_interno TINYINT)");
         jdbc.execute("CREATE TABLE variantes (id INT PRIMARY KEY, producto_id INT, stock INT, habilitado CHAR(1), talla VARCHAR(10), color VARCHAR(30), precio_venta DOUBLE)");
 
@@ -52,7 +52,7 @@ class HallazgosJdbcAdapterTest {
         jdbc.update("INSERT INTO pedidos (id, estado_pedido, tipo_pedido, total_pedido, total_pagado, fecha_pedido) VALUES (8, 'Pendiente', 'NORMAL', 500, 0, '2026-10-09')");     // total 500, artículos 400: MAL
         jdbc.update("INSERT INTO detalle_pedidos VALUES (1, 1, 450), (2, 2, 300), (3, 3, 200), (4, 4, 400), (5, 5, 400), "
                 + "(6, 7, 1), (7, 8, 200), (8, 8, 200)");
-        jdbc.update("INSERT INTO abono_pedido VALUES (1, 3, 150), (2, 3, 50), (3, 4, 100), (4, 5, 60), (5, 7, 10)");
+        jdbc.update("INSERT INTO abono_pedido (id, pedido_id, monto) VALUES (1, 3, 150), (2, 3, 50), (3, 4, 100), (4, 5, 60), (5, 7, 10)");
 
         // Ventas
         jdbc.update("INSERT INTO ventas VALUES (1, 1, 450, '2026-10-10 12:00:00')");                    // bien
@@ -92,6 +92,17 @@ class HallazgosJdbcAdapterTest {
         jdbc.update("INSERT INTO ventas VALUES (41, 21, 300, ?)", hoy.minusDays(3).atStartOfDay());
         jdbc.update("INSERT INTO ventas VALUES (42, 22, 300, ?)", hoy.minusDays(30).atStartOfDay());
         jdbc.update("INSERT INTO pedidos VALUES (23, 'CANCELADO', 'NORMAL', 300, 0, ?, FALSE)", hoy.minusDays(30)); // cancelado: no cuenta
+
+        jdbc.update("UPDATE abono_pedido SET fecha_pago = CURRENT_DATE WHERE fecha_pago IS NULL");   // abonos de arriba: recientes
+        // Deuda vencida (Ir pagando con saldo y sin abonar hace más de 30 días)
+        jdbc.update("INSERT INTO pedidos VALUES (30, 'FIADO', 'FIADO', 400, 100, ?, TRUE)", hoy.minusDays(90));   // último abono hace 40 días: MAL
+        jdbc.update("INSERT INTO abono_pedido VALUES (30, 30, 100, ?)", hoy.minusDays(40));
+        jdbc.update("INSERT INTO pedidos VALUES (31, 'FIADO', 'FIADO', 400, 100, ?, TRUE)", hoy.minusDays(90));   // abonó hace 5 días: bien
+        jdbc.update("INSERT INTO abono_pedido VALUES (31, 31, 100, ?)", hoy.minusDays(5));
+        jdbc.update("INSERT INTO pedidos VALUES (32, 'FIADO', 'FIADO', 400, 0, ?, TRUE)", hoy.minusDays(45));     // nunca abonó, pedido de hace 45 días: MAL
+        jdbc.update("INSERT INTO pedidos VALUES (33, 'FIADO', 'FIADO', 400, 400, ?, TRUE)", hoy.minusDays(90));   // ya pagó todo: bien
+        jdbc.update("INSERT INTO abono_pedido VALUES (33, 33, 400, ?)", hoy.minusDays(80));
+        jdbc.update("INSERT INTO pedidos VALUES (34, 'APARTADO', 'APARTADO', 400, 0, ?, TRUE)", hoy.minusDays(90)); // Apartado no es deuda: bien
 
         adaptador = new HallazgosJdbcAdapter(jdbc);
     }
@@ -215,6 +226,14 @@ class HallazgosJdbcAdapterTest {
     }
 
     @Test
+    @DisplayName("deuda vencida: el 30 (abono hace 40 días) y el 32 (nunca abonó); no el 31, el 33 ni el Apartado 34")
+    void deudaVencida() {
+        BusquedaDeHallazgos r = buscar(TipoHallazgo.DEUDA_VENCIDA);
+        assertThat(r.ejemplos()).extracting(Hallazgo::pedidoId).containsExactlyInAnyOrder(30, 32);
+        assertThat(r.ejemplos()).extracting(Hallazgo::detalle).anyMatch(d -> d.contains("debe $300.00"));
+    }
+
+    @Test
     @DisplayName("todas las consultas son de solo lectura: no cambian ningún dato")
     void soloLee() {
         int antes = jdbc.queryForObject("SELECT COUNT(*) FROM pedidos", Integer.class)
@@ -231,6 +250,6 @@ class HallazgosJdbcAdapterTest {
                 + jdbc.queryForObject("SELECT COUNT(*) FROM ventas", Integer.class)
                 + jdbc.queryForObject("SELECT COALESCE(SUM(stock), 0) FROM variantes", Integer.class);
         assertThat(despues).isEqualTo(antes);
-        assertThat(List.of(TipoHallazgo.values())).hasSize(11);
+        assertThat(List.of(TipoHallazgo.values())).hasSize(12);
     }
 }

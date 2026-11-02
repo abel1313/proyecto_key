@@ -28,7 +28,7 @@ fecha; stock y cobros se revisan siempre completos). Cada tipo devuelve el total
 | `ARTICULO_CON_STOCK_SIN_MODELO` | Se ve con stock en la tienda pero el pedido lo rechaza ("Disponible: 0") | Artículo habilitado con `stock > 0` cuyo modelo (habilitado) tiene `stock < 1` — el caso de *Great Jeans talla 14* del 2026-10-31 | Alta |
 | `COBRO_TARJETA_SIN_APLICAR` | Se cobró con tarjeta y no quedó aplicado al pedido | `pago_tarjeta_intento.estado = COBRADO_SIN_APLICAR`, o APROBADO con pedido no pagado. Si la tabla no existe (producción sin la migración) se omite y se avisa | Alta |
 
-**Agregadas el 2026-11-02 (gravedad Media):** `VENDIDO_BAJO_COSTO` (precio de venta < costo en el renglón), `ARTICULO_SIN_PRECIO` (habilitado, con stock y sin precio) y `PEDIDO_PAGADO_SIN_ENTREGAR` (PAGADO, sin entregar, más de 14 días). **Pendientes de definir:** artículo sin foto y deuda vencida (¿cuántos días es «vencida»?).
+**Agregadas el 2026-11-02 (gravedad Media):** `VENDIDO_BAJO_COSTO` (precio de venta < costo en el renglón), `ARTICULO_SIN_PRECIO` (habilitado, con stock y sin precio) y `PEDIDO_PAGADO_SIN_ENTREGAR` (PAGADO, sin entregar, más de 14 días). **Agregada el 2026-11-02 (el dueño decidió 30 días):** `DEUDA_VENCIDA` (Ir pagando con saldo y sin abonar hace más de 30 días). **Pendiente de definir:** artículo sin foto.
 
 **Fuera de la v1 a propósito (falsas alarmas probables, se decide con el dueño):**
 - *Total de venta ≠ total del pedido:* si se edita un pedido ya pagado, "lo vendido no se recalcula" (R4), así que puede
