@@ -1,6 +1,9 @@
 package com.ventas.key.hexagonal.graficasventas.dominio.puerto.entrada;
 
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClientesDelNegocio;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EntregasPorZona;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MapaDeVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.DineroPorCobrar;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EstadoDePedidos;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.PuntoMensual;
@@ -38,4 +41,16 @@ public interface ConsultarGraficasCasoUso {
      * de los últimos {@code dias} días (de 7 a 365).
      */
     EstadoDePedidos pedidosPorEstado(int dias);
+
+    /** Cuándo se vende: por día de la semana y hora, en los últimos {@code dias} días contando hoy (de 7 a 365). Ventas devueltas no cuentan. */
+    MapaDeVentas cuandoSeVende(int dias);
+
+    /**
+     * Quién te compra en los últimos {@code meses} meses (de 1 a 12, el actual incluido): clientes nuevos contra recurrentes por mes y los
+     * 10 que más compraron.
+     */
+    ClientesDelNegocio clientes(int meses);
+
+    /** A dónde van los pedidos no cancelados de los últimos {@code dias} días contando hoy (de 7 a 365). */
+    EntregasPorZona entregasPorZona(int dias);
 }

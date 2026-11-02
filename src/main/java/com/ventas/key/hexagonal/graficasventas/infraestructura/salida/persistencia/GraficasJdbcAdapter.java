@@ -2,6 +2,10 @@ package com.ventas.key.hexagonal.graficasventas.infraestructura.salida.persisten
 
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CompraDeCliente;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentaPorDiaYHora;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ZonaDeEntrega;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.FormaDePagoVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.SaldoPendiente;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentasDelMes;
@@ -165,6 +169,78 @@ public class GraficasJdbcAdapter implements GraficasPort {
         if (talla != null && !talla.isBlank()) sb.append(" talla ").append(talla);
         if (color != null && !color.isBlank()) sb.append(' ').append(color);
         return sb.toString();
+    }
+
+    /** Ventas hechas al propio perfil de cliente de quien vende (mostrador sin cliente): no son un cliente real. */
+    private static final String NO_ES_MOSTRADOR =
+            "AND NOT EXISTS (SELECT 1 FROM clientes cu WHERE cu.id = v.cliente_id AND cu.usuario_id = v.usuario_id) ";
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VentaPorDiaYHora> ventasPorDiaYHora(LocalDate desde, LocalDate hasta) {
+        return jdbc.query(
+                "SELECT CAST(v.fecha_venta AS DATE) AS dia, EXTRACT(HOUR FROM v.fecha_venta) AS hora, COUNT(*) AS ventas, "
+                        + "COALESCE(SUM(v.total_venta), 0) AS total FROM ventas v "
+                        + "WHERE v.fecha_venta >= ? AND v.fecha_venta < ? AND v.estado_venta <> 'Devuelta' "
+                        + "GROUP BY CAST(v.fecha_venta AS DATE), EXTRACT(HOUR FROM v.fecha_venta)",
+                (rs, n) -> new VentaPorDiaYHora(rs.getDate("dia").toLocalDate(), rs.getInt("hora"), rs.getInt("ventas"), rs.getDouble("total")),
+                inicio(desde), finExclusivo(hasta));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Integer, LocalDate> primerasCompras() {
+        Map<Integer, LocalDate> resultado = new HashMap<>();
+        jdbc.query(
+                "SELECT v.cliente_id AS cliente_id, MIN(v.fecha_venta) AS primera FROM ventas v "
+                        + "WHERE v.cliente_id IS NOT NULL AND v.estado_venta <> 'Devuelta' " + NO_ES_MOSTRADOR
+                        + "GROUP BY v.cliente_id",
+                rs -> {
+                    resultado.put(rs.getInt("cliente_id"), rs.getTimestamp("primera").toLocalDateTime().toLocalDate());
+                });
+        return resultado;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CompraDeCliente> comprasPorClienteYMes(LocalDate desde, LocalDate hasta) {
+        return jdbc.query(
+                "SELECT v.cliente_id AS cliente_id, EXTRACT(YEAR FROM v.fecha_venta) AS anio, EXTRACT(MONTH FROM v.fecha_venta) AS mes, "
+                        + "COUNT(*) AS ventas, COALESCE(SUM(v.total_venta), 0) AS total FROM ventas v "
+                        + "WHERE v.cliente_id IS NOT NULL AND v.fecha_venta >= ? AND v.fecha_venta < ? AND v.estado_venta <> 'Devuelta' "
+                        + NO_ES_MOSTRADOR
+                        + "GROUP BY v.cliente_id, EXTRACT(YEAR FROM v.fecha_venta), EXTRACT(MONTH FROM v.fecha_venta)",
+                (rs, n) -> new CompraDeCliente(rs.getInt("cliente_id"), YearMonth.of(rs.getInt("anio"), rs.getInt("mes")),
+                        rs.getInt("ventas"), rs.getDouble("total")),
+                inicio(desde), finExclusivo(hasta));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClienteVentas> mejoresClientes(LocalDate desde, LocalDate hasta, int limite) {
+        return jdbc.query(
+                "SELECT v.cliente_id AS cliente_id, "
+                        + "COALESCE(NULLIF(TRIM(CONCAT(COALESCE(c.nombre_persona, ''), ' ', COALESCE(c.apeido_paterno, ''))), ''), 'Cliente sin nombre') AS nombre, "
+                        + "COUNT(*) AS ventas, COALESCE(SUM(v.total_venta), 0) AS total "
+                        + "FROM ventas v JOIN clientes c ON c.id = v.cliente_id "
+                        + "WHERE v.fecha_venta >= ? AND v.fecha_venta < ? AND v.estado_venta <> 'Devuelta' " + NO_ES_MOSTRADOR
+                        + "GROUP BY v.cliente_id, c.nombre_persona, c.apeido_paterno "
+                        + "ORDER BY SUM(v.total_venta) DESC LIMIT ?",
+                (rs, n) -> new ClienteVentas(rs.getInt("cliente_id"), rs.getString("nombre"), rs.getInt("ventas"), rs.getDouble("total")),
+                inicio(desde), finExclusivo(hasta), limite);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ZonaDeEntrega> pedidosPorZona(LocalDate desde, LocalDate hasta) {
+        return jdbc.query(
+                "SELECT COALESCE(le.nombre, 'Sin lugar de entrega') AS zona, COALESCE(le.es_recoger_en_tienda, FALSE) AS recoger, "
+                        + "COUNT(*) AS pedidos, COALESCE(SUM(p.total_pedido), 0) AS total "
+                        + "FROM pedidos p LEFT JOIN lugares_entrega le ON le.id = p.lugar_entrega_id "
+                        + "WHERE p.fecha_pedido BETWEEN ? AND ? AND UPPER(COALESCE(p.estado_pedido, '')) <> 'CANCELADO' "
+                        + "GROUP BY COALESCE(le.nombre, 'Sin lugar de entrega'), COALESCE(le.es_recoger_en_tienda, FALSE)",
+                (rs, n) -> new ZonaDeEntrega(rs.getString("zona"), rs.getBoolean("recoger"), rs.getInt("pedidos"), rs.getDouble("total")),
+                java.sql.Date.valueOf(desde), java.sql.Date.valueOf(hasta));
     }
 
     private static Timestamp inicio(LocalDate dia) {
