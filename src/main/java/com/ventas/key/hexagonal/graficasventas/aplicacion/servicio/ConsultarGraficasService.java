@@ -3,6 +3,17 @@ package com.ventas.key.hexagonal.graficasventas.aplicacion.servicio;
 import com.ventas.key.hexagonal.graficasventas.dominio.excepcion.GraficasVentasException;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CeldaDeCalor;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClientesDelNegocio;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CompraDeCliente;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EntregasPorZona;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MapaDeVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MesDeClientes;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ParteDeEntregas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.TotalDeDia;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentaPorDiaYHora;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ZonaDeEntrega;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CasoCapitalParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CasoPorCobrar;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.DineroPorCobrar;
@@ -23,6 +34,9 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +56,9 @@ public class ConsultarGraficasService implements ConsultarGraficasCasoUso {
     /** Cuántos casos concretos se muestran en las listas de «a quién cobrarle» y «qué está parado». */
     public static final int CASOS_A_MOSTRAR = 8;
     public static final int ARTICULOS_PARADOS_A_MOSTRAR = 10;
+    public static final int CLIENTES_A_MOSTRAR = 10;
+    public static final int MESES_CLIENTES_MAXIMO = 12;
+    private static final String[] DIAS = {"Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"};
     private static final ZoneId ZONA = ZoneId.of("America/Mexico_City");
 
     private final GraficasPort puerto;
@@ -160,5 +177,96 @@ public class ConsultarGraficasService implements ConsultarGraficasCasoUso {
         if (dias < DIAS_MINIMO || dias > DIAS_MAXIMO) {
             throw GraficasVentasException.diasInvalidos(DIAS_MINIMO, DIAS_MAXIMO);
         }
+    }
+
+    @Override
+    public MapaDeVentas cuandoSeVende(int dias) {
+        validarDias(dias);
+        LocalDate hasta = hoy();
+        LocalDate desde = hasta.minusDays(dias - 1L);
+        Map<Integer, double[]> celdas = new HashMap<>();          // clave = día*100 + hora → {ventas, total}
+        double[] ventasDia = new double[8];
+        double[] totalDia = new double[8];
+        double[] totalHora = new double[24];
+        int ventas = 0;
+        double total = 0;
+        for (VentaPorDiaYHora v : puerto.ventasPorDiaYHora(desde, hasta)) {
+            int dia = v.dia().getDayOfWeek().getValue();
+            double[] c = celdas.computeIfAbsent(dia * 100 + v.hora(), k -> new double[2]);
+            c[0] += v.ventas();
+            c[1] += v.total();
+            ventasDia[dia] += v.ventas();
+            totalDia[dia] += v.total();
+            totalHora[v.hora()] += v.total();
+            ventas += v.ventas();
+            total += v.total();
+        }
+        List<CeldaDeCalor> lista = new ArrayList<>();
+        celdas.forEach((k, c) -> lista.add(new CeldaDeCalor(k / 100, k % 100, (int) c[0], redondear(c[1], 2))));
+        lista.sort(Comparator.comparingInt(CeldaDeCalor::diaSemana).thenComparingInt(CeldaDeCalor::hora));
+        List<TotalDeDia> porDia = new ArrayList<>();
+        Integer mejorDia = null;
+        for (int d = 1; d <= 7; d++) {
+            porDia.add(new TotalDeDia(d, DIAS[d - 1], (int) ventasDia[d], redondear(totalDia[d], 2)));
+            if (totalDia[d] > 0 && (mejorDia == null || totalDia[d] > totalDia[mejorDia])) mejorDia = d;
+        }
+        Integer mejorHora = null;
+        for (int h = 0; h < 24; h++) {
+            if (totalHora[h] > 0 && (mejorHora == null || totalHora[h] > totalHora[mejorHora])) mejorHora = h;
+        }
+        return new MapaDeVentas(desde, hasta, ventas, redondear(total, 2), lista, porDia, mejorDia, mejorHora);
+    }
+
+    @Override
+    public ClientesDelNegocio clientes(int meses) {
+        if (meses < MESES_MINIMO || meses > MESES_CLIENTES_MAXIMO) {
+            throw GraficasVentasException.mesesInvalidos(MESES_MINIMO, MESES_CLIENTES_MAXIMO);
+        }
+        YearMonth ultimo = YearMonth.from(hoy());
+        YearMonth primero = ultimo.minusMonths(meses - 1L);
+        LocalDate desde = primero.atDay(1);
+        LocalDate hasta = ultimo.atEndOfMonth();
+
+        Map<Integer, LocalDate> primeras = puerto.primerasCompras();
+        List<CompraDeCliente> compras = puerto.comprasPorClienteYMes(desde, hasta);
+
+        Map<YearMonth, double[]> acumulado = new HashMap<>();     // {nuevos, recurrentes, totalNuevos, totalRecurrentes}
+        Set<Integer> distintos = new HashSet<>();
+        Set<Integer> nuevosDelPeriodo = new HashSet<>();
+        double total = 0;
+        for (CompraDeCliente c : compras) {
+            LocalDate primera = primeras.get(c.clienteId());
+            boolean esNuevo = primera == null || YearMonth.from(primera).equals(c.mes());   // sin historial = su primera compra es esta
+            double[] a = acumulado.computeIfAbsent(c.mes(), k -> new double[4]);
+            if (esNuevo) { a[0]++; a[2] += c.total(); nuevosDelPeriodo.add(c.clienteId()); }
+            else { a[1]++; a[3] += c.total(); }
+            distintos.add(c.clienteId());
+            total += c.total();
+        }
+        List<MesDeClientes> porMes = new ArrayList<>();
+        for (YearMonth mes = primero; !mes.isAfter(ultimo); mes = mes.plusMonths(1)) {
+            double[] a = acumulado.getOrDefault(mes, new double[4]);
+            porMes.add(new MesDeClientes(mes.toString(), (int) a[0], (int) a[1], redondear(a[2], 2), redondear(a[3], 2)));
+        }
+        List<ClienteVentas> mejores = puerto.mejoresClientes(desde, hasta, CLIENTES_A_MOSTRAR).stream()
+                .map(c -> new ClienteVentas(c.clienteId(), c.nombre(), c.ventas(), redondear(c.total(), 2))).toList();
+        return new ClientesDelNegocio(meses, distintos.size(), nuevosDelPeriodo.size(), redondear(total, 2), porMes, mejores);
+    }
+
+    @Override
+    public EntregasPorZona entregasPorZona(int dias) {
+        validarDias(dias);
+        LocalDate hasta = hoy();
+        LocalDate desde = hasta.minusDays(dias - 1L);
+        List<ZonaDeEntrega> crudas = puerto.pedidosPorZona(desde, hasta);
+        int pedidos = crudas.stream().mapToInt(ZonaDeEntrega::pedidos).sum();
+        double total = crudas.stream().mapToDouble(ZonaDeEntrega::total).sum();
+        List<ParteDeEntregas> partes = new ArrayList<>();
+        for (ZonaDeEntrega z : crudas) {
+            partes.add(new ParteDeEntregas(z.zona(), z.recogerEnTienda(), z.pedidos(), redondear(z.total(), 2),
+                    pedidos > 0 ? redondear(z.pedidos() * 100.0 / pedidos, 1) : 0.0));
+        }
+        partes.sort(Comparator.comparingInt(ParteDeEntregas::pedidos).reversed().thenComparing(ParteDeEntregas::zona));
+        return new EntregasPorZona(desde, hasta, pedidos, redondear(total, 2), partes);
     }
 }

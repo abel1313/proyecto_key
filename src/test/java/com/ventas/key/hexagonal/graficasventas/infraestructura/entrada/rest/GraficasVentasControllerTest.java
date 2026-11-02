@@ -7,6 +7,14 @@ import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CasoPorCobrar;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EstadoDePedidos;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.TramoPorCobrar;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClientesDelNegocio;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EntregasPorZona;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MapaDeVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CeldaDeCalor;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.TotalDeDia;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MesDeClientes;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ParteDeEntregas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ParteDelTotal;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.PuntoMensual;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentasPorFormaDePago;
@@ -109,5 +117,37 @@ class GraficasVentasControllerTest {
                 .andExpect(jsonPath("$.data.activos").value(4))
                 .andExpect(jsonPath("$.data.estados.length()").value(6))
                 .andExpect(jsonPath("$.data.estados[0].etiqueta").value("Pendiente de pago"));
+    }
+
+    @Test
+    @DisplayName("cuándo se vende: 90 días por defecto, con celdas, días y el mejor día y hora")
+    void cuandoSeVende() throws Exception {
+        when(graficas.cuandoSeVende(90)).thenReturn(new MapaDeVentas(LocalDate.of(2026, 8, 18), LocalDate.of(2026, 11, 15), 4, 1000.0,
+                List.of(new CeldaDeCalor(3, 18, 1, 600.0)), List.of(new TotalDeDia(3, "Miércoles", 1, 600.0)), 3, 18));
+        mvc.perform(get("/v1/dashboard/graficas/cuando-se-vende")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mejorDia").value(3)).andExpect(jsonPath("$.data.mejorHora").value(18))
+                .andExpect(jsonPath("$.data.celdas[0].hora").value(18)).andExpect(jsonPath("$.data.porDia[0].nombre").value("Miércoles"));
+    }
+
+    @Test
+    @DisplayName("clientes: 6 meses por defecto, con nuevos, recurrentes y los mejores")
+    void clientes() throws Exception {
+        when(graficas.clientes(6)).thenReturn(new ClientesDelNegocio(6, 3, 2, 920.0,
+                List.of(new MesDeClientes("2026-11", 1, 1, 500.0, 70.0)), List.of(new ClienteVentas(2, "Luis Pérez", 1, 500.0))));
+        mvc.perform(get("/v1/dashboard/graficas/clientes")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clientes").value(3)).andExpect(jsonPath("$.data.nuevos").value(2))
+                .andExpect(jsonPath("$.data.recurrentes").value(1))
+                .andExpect(jsonPath("$.data.porMes[0].mes").value("2026-11"))
+                .andExpect(jsonPath("$.data.mejores[0].nombre").value("Luis Pérez"));
+    }
+
+    @Test
+    @DisplayName("entregas por zona: 90 días por defecto")
+    void entregasPorZona() throws Exception {
+        when(graficas.entregasPorZona(90)).thenReturn(new EntregasPorZona(LocalDate.of(2026, 8, 18), LocalDate.of(2026, 11, 15), 4, 420.0,
+                List.of(new ParteDeEntregas("Centro", false, 2, 300.0, 50.0))));
+        mvc.perform(get("/v1/dashboard/graficas/entregas-por-zona")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pedidos").value(4)).andExpect(jsonPath("$.data.zonas[0].zona").value("Centro"))
+                .andExpect(jsonPath("$.data.zonas[0].porcentaje").value(50.0));
     }
 }

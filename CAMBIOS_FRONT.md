@@ -23153,3 +23153,31 @@ Mercancía habilitada con stock sin ventas en `dias` días (y con más de esos d
 ```
 Siempre las 6 categorías en este orden: PENDIENTE, APARTADO, IR_PAGANDO, PAGADO_POR_ENTREGAR, ENTREGADO, CANCELADO (con 0 si no hay). Los **abiertos** (`activo: true`) se cuentan todos sin importar su fecha; ENTREGADO y CANCELADO solo los de los últimos `dias` días. `atrasados` = sin entregar y sin cancelar con fecha de recogida ya pasada.
 - Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia ninguno existente.
+
+## 📊 Tercera tanda de gráficas del Dashboard: cuándo se vende, clientes y entregas por zona (2026-11-02, rama `feature/graficas-3`)
+
+Solo administrador (`/v1/dashboard/**`). Solo lectura.
+
+**1) `GET /mis-productos/v1/dashboard/graficas/cuando-se-vende?dias=90`** — `dias` de 7 a 365 contando hoy (default 90); `400` fuera de rango. Ventas devueltas no cuentan; la venta de mostrador sí.
+```json
+{ "desde": "2026-08-18", "hasta": "2026-11-15", "ventas": 4, "total": 1000.0, "mejorDia": 3, "mejorHora": 18,
+  "porDia": [ { "diaSemana": 1, "nombre": "Lunes", "ventas": 3, "total": 400.0 } ],
+  "celdas": [ { "diaSemana": 3, "hora": 18, "ventas": 1, "total": 600.0 } ] }
+```
+`diaSemana`: 1 = lunes … 7 = domingo. `hora`: 0–23, hora local. `porDia` trae siempre los 7 días; `celdas` solo las combinaciones con ventas (sumando todas las semanas). `mejorDia`/`mejorHora` = los de más dinero, `null` si no hubo ventas.
+
+**2) `GET /mis-productos/v1/dashboard/graficas/clientes?meses=6`** — `meses` de 1 a 12 (default 6, el actual incluido); `400` fuera de rango.
+```json
+{ "meses": 6, "clientes": 3, "nuevos": 2, "recurrentes": 1, "total": 920.0,
+  "porMes": [ { "mes": "2026-11", "nuevos": 1, "recurrentes": 1, "totalNuevos": 500.0, "totalRecurrentes": 70.0 } ],
+  "mejores": [ { "clienteId": 2, "nombre": "Luis Pérez", "ventas": 1, "total": 500.0 } ] }
+```
+Solo clientes **registrados**; no cuenta lo devuelto ni las ventas hechas al propio perfil de quien vende (mostrador). Un cliente es **nuevo** en el mes de su primera compra (de toda su historia) y **recurrente** después. `porMes` trae todos los meses seguidos, con ceros donde no hubo. `mejores` = hasta 10 por dinero en el periodo.
+
+**3) `GET /mis-productos/v1/dashboard/graficas/entregas-por-zona?dias=90`** — `dias` de 7 a 365 (default 90).
+```json
+{ "desde": "2026-08-18", "hasta": "2026-11-15", "pedidos": 4, "total": 420.0,
+  "zonas": [ { "zona": "Centro", "recogerEnTienda": false, "pedidos": 2, "total": 300.0, "porcentaje": 50.0 } ] }
+```
+Pedidos no cancelados por lugar de entrega, del que tiene más al que menos; sin lugar sale como `"Sin lugar de entrega"`. `recogerEnTienda: true` para el lugar «recoger en tienda».
+- Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia ninguno existente.

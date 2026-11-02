@@ -1,6 +1,9 @@
 package com.ventas.key.hexagonal.graficasventas.infraestructura.entrada.rest.dto;
 
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CapitalParado;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClientesDelNegocio;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EntregasPorZona;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.MapaDeVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.DineroPorCobrar;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.EstadoDePedidos;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.PuntoMensual;
@@ -63,6 +66,45 @@ public final class GraficasResponse {
         public static PedidosPorEstado de(EstadoDePedidos e) {
             return new PedidosPorEstado(e.desde(), e.hasta(), e.activos(), e.atrasados(),
                     e.estados().stream().map(c -> new Conteo(c.codigo(), c.etiqueta(), c.activo(), c.pedidos())).toList());
+        }
+    }
+
+    public record Celda(int diaSemana, int hora, int ventas, double total) {
+    }
+
+    public record Dia(int diaSemana, String nombre, int ventas, double total) {
+    }
+
+    public record CuandoSeVende(LocalDate desde, LocalDate hasta, int ventas, double total, Integer mejorDia, Integer mejorHora,
+                                List<Dia> porDia, List<Celda> celdas) {
+        public static CuandoSeVende de(MapaDeVentas m) {
+            return new CuandoSeVende(m.desde(), m.hasta(), m.ventas(), m.total(), m.mejorDia(), m.mejorHora(),
+                    m.porDia().stream().map(d -> new Dia(d.diaSemana(), d.nombre(), d.ventas(), d.total())).toList(),
+                    m.celdas().stream().map(c -> new Celda(c.diaSemana(), c.hora(), c.ventas(), c.total())).toList());
+        }
+    }
+
+    public record MesClientes(String mes, int nuevos, int recurrentes, double totalNuevos, double totalRecurrentes) {
+    }
+
+    public record MejorCliente(int clienteId, String nombre, int ventas, double total) {
+    }
+
+    public record Clientes(int meses, int clientes, int nuevos, int recurrentes, double total, List<MesClientes> porMes, List<MejorCliente> mejores) {
+        public static Clientes de(ClientesDelNegocio c) {
+            return new Clientes(c.meses(), c.clientes(), c.nuevos(), c.recurrentes(), c.total(),
+                    c.porMes().stream().map(m -> new MesClientes(m.mes(), m.nuevos(), m.recurrentes(), m.totalNuevos(), m.totalRecurrentes())).toList(),
+                    c.mejores().stream().map(m -> new MejorCliente(m.clienteId(), m.nombre(), m.ventas(), m.total())).toList());
+        }
+    }
+
+    public record Zona(String zona, boolean recogerEnTienda, int pedidos, double total, double porcentaje) {
+    }
+
+    public record Entregas(LocalDate desde, LocalDate hasta, int pedidos, double total, List<Zona> zonas) {
+        public static Entregas de(EntregasPorZona e) {
+            return new Entregas(e.desde(), e.hasta(), e.pedidos(), e.total(),
+                    e.zonas().stream().map(z -> new Zona(z.zona(), z.recogerEnTienda(), z.pedidos(), z.total(), z.porcentaje())).toList());
         }
     }
 }

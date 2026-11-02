@@ -2,6 +2,10 @@ package com.ventas.key.hexagonal.graficasventas.dominio.puerto.salida;
 
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ArticuloParado;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CategoriaPedido;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ClienteVentas;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.CompraDeCliente;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentaPorDiaYHora;
+import com.ventas.key.hexagonal.graficasventas.dominio.modelo.ZonaDeEntrega;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.FormaDePagoVentas;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.SaldoPendiente;
 import com.ventas.key.hexagonal.graficasventas.dominio.modelo.VentasDelMes;
@@ -41,4 +45,21 @@ public interface GraficasPort {
 
     /** Pedidos sin entregar y sin cancelar con fecha de recogida anterior a {@code hoy}. */
     int pedidosAtrasados(LocalDate hoy);
+
+    /** Ventas (sin devueltas) entre las dos fechas, por fecha y hora local. */
+    List<VentaPorDiaYHora> ventasPorDiaYHora(LocalDate desde, LocalDate hasta);
+
+    /**
+     * Fecha de la primera compra de cada cliente registrado en toda su historia (sin devueltas ni ventas a su propio perfil de vendedor).
+     */
+    Map<Integer, LocalDate> primerasCompras();
+
+    /** Compras de clientes registrados por cliente y mes entre las dos fechas (mismos criterios que {@link #primerasCompras()}). */
+    List<CompraDeCliente> comprasPorClienteYMes(LocalDate desde, LocalDate hasta);
+
+    /** Los {@code limite} clientes que más compraron entre las dos fechas (mismos criterios), del que más al que menos. */
+    List<ClienteVentas> mejoresClientes(LocalDate desde, LocalDate hasta, int limite);
+
+    /** Pedidos no cancelados entre las dos fechas, por lugar de entrega (sin lugar = «Sin lugar de entrega»). */
+    List<ZonaDeEntrega> pedidosPorZona(LocalDate desde, LocalDate hasta);
 }
