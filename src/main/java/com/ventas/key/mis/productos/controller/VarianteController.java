@@ -8,6 +8,8 @@ import com.ventas.key.mis.productos.models.FiltrosDisponiblesDto;
 import com.ventas.key.mis.productos.models.HabilitarLoteRequest;
 import com.ventas.key.mis.productos.models.ImagenUpdateDto;
 import com.ventas.key.mis.productos.models.PginaDto;
+import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.models.ImagenDTO;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
 import com.ventas.key.mis.productos.models.VarianteResumenDto;
@@ -123,6 +125,13 @@ public class VarianteController extends AbstractController<
     @PostMapping("/guardarConImagenes")
     public ResponseEntity<ResponseGeneric<List<Variantes>>> guardarConImagenes(@RequestBody List<VarianteDetalle> detalles) {
         return ResponseEntity.ok(new ResponseGeneric<List<Variantes>>(sGenerico.guardarConImagenes(detalles)));
+    }
+
+    /** Agrega fotos a un articulo existente sin tocar sus demas datos (boton "Agregar foto" de Buscar). Devuelve cuantas se agregaron. */
+    @PostMapping("/{varianteId}/imagenes")
+    public ResponseEntity<ResponseGeneric<Integer>> agregarImagenes(@PathVariable Integer varianteId,
+                                                                      @RequestBody List<ImagenDTO> imagenes) throws ExceptionDataNotFound {
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.agregarImagenes(varianteId, imagenes)));
     }
 
     /**

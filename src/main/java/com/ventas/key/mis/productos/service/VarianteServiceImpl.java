@@ -649,6 +649,28 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     }
 
     /**
+     * Agrega fotos a un articulo que ya existe SIN tocar nada mas de el (ni stock, ni precio, ni datos): es lo que usa el boton
+     * "Agregar foto" de las tarjetas de Buscar cuando el articulo no tiene imagen. Si no hay fotos en la peticion, no hace nada.
+     */
+    @Transactional
+    public int agregarImagenes(Integer varianteId, List<ImagenDTO> imagenes) throws ExceptionDataNotFound {
+        if (imagenes == null || imagenes.isEmpty()) {
+            return 0;
+        }
+        Variantes variante = iVarianteRepository.findById(varianteId)
+                .orElseThrow(() -> new ExceptionDataNotFound("No se encontro el articulo"));
+        VarianteDetalle solo = new VarianteDetalle();
+        solo.setListImagenes(imagenes);
+        List<Long> ids = subirImagenes(List.of(solo));
+        if (ids.isEmpty()) {
+            return 0;
+        }
+        vincularImagenes(variante, ids);
+        evictAllCaches();
+        return ids.size();
+    }
+
+    /**
      * Que fotos subidas le tocan a cada articulo del alta, en el mismo orden que {@code detalles}.
      *
      * <p>{@code subidas} son los ids que devolvio el micro, en el orden en que se mandaron (todas las

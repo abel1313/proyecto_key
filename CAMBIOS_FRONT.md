@@ -23327,3 +23327,14 @@ Antes `/ws` no revisaba nada: un anónimo se suscribía a `/topic/chat.admin` y 
 | Registro: `userName` | cualquier texto de 3-100 caracteres | no puede llevar `< > " ' & \``. `400` con el mensaje |
 | `POST /v1/clientes/save` (nombre, segundo nombre, apellidos) | cualquier texto | no pueden llevar `< > " \``. `400` |
 | Frase personalizada del listón (flores) | cualquier texto; se metía sin escapar en el correo al dueño | máximo 120 caracteres y sin `<` ni `>` (`400`); el correo la escapa |
+## 📷 Agregar foto a un artículo desde Buscar (2026-11-03, rama `feature/foto-en-buscar`)
+
+Nuevo endpoint que **solo suma fotos** a un artículo existente (no toca stock, precio ni datos; `guardarConImagenes` exigía mandar el artículo completo).
+
+| Request | Response (`data`) |
+|---|---|
+| `POST /mis-productos/v2/articulos/{id}/imagenes` (también `/v1/variantes/{id}/imagenes`) body `[ { "base64": "…sin prefijo data:", "extension": "image/jpeg", "nombreImagen": "foto.jpg" } ]` | cuántas fotos se agregaron (`0` si el body venía vacío) |
+
+- Mismo permiso que guardar un artículo (escritura de `tienda/buscar`, `productos/buscar`, etc.). `404`/mensaje si el artículo no existe.
+- Las ya vinculadas no se duplican; se vacía la caché de listados.
+- Front: en las tarjetas de **Tienda → Buscar** sin imagen (o con imagen que no cargó) aparece **📷 Agregar foto** (quien puede actualizar artículos). El cuadro deja elegir foto de la computadora o tomarla con el celular de la cuenta (📱 Escáner → 📷 Tomar foto); al llegar se sube y la lista se recarga.
