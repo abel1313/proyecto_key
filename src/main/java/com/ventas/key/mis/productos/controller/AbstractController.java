@@ -39,6 +39,9 @@ public abstract class AbstractController<
         ListResponse,
         TipoDato> {
 
+    /** Registros maximos que un listado genérico entrega por página. */
+    protected static final int MAXIMO_POR_PAGINA = 1000;
+
     protected final ServiceG sGenerico;
 
     protected AbstractController(final ServiceG sGenerico) {
@@ -75,7 +78,8 @@ public abstract class AbstractController<
             @Parameter(description = "Numero de pagina (base 0)") @RequestParam int page,
             @Parameter(description = "Registros por pagina") @RequestParam int size) {
         try {
-            return ResponseEntity.ok(new ResponseGeneric<ListResponse>(this.sGenerico.findAll(page, size)));
+            // Tope: ?size=1000000 en un listado publico dejaba al servidor armando millones de filas (auditoria de seguridad 2026-11-03).
+            return ResponseEntity.ok(new ResponseGeneric<ListResponse>(this.sGenerico.findAll(Math.max(page, 0), Math.min(Math.max(size, 1), MAXIMO_POR_PAGINA))));
         } catch (Exception e) {
             log.error("Error al obtener listado: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

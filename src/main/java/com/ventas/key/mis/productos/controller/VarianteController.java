@@ -51,6 +51,11 @@ public class VarianteController extends AbstractController<
         super(sGenerico);
     }
 
+    /** Tope de registros por pagina en los listados publicos (auditoria de seguridad 2026-11-03: ?size=1000000). */
+    private static int tope(int size) {
+        return Math.min(Math.max(size, 1), 200);
+    }
+
     // getAll, getOne, save, update y delete NO se declaran aqui: los publica AbstractController
     // y ya salen bajo /v1/variantes y /v2/articulos por el @RequestMapping de esta clase. Declararlos otra vez
     // arranca en "Ambiguous mapping" y la app no levanta.
@@ -77,7 +82,7 @@ public class VarianteController extends AbstractController<
             @PathVariable Integer productoId,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginado(productoId, pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginado(productoId, pagina, tope(size))));
     }
 
     @GetMapping("/buscar")
@@ -86,7 +91,7 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
 
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantes(termino, pagina, tope(size))));
     }
 
     // Buscador de "Agregar / Cambiar articulo" del detalle de pedido: solo articulos con stock y
@@ -114,7 +119,7 @@ public class VarianteController extends AbstractController<
             @RequestParam(defaultValue = "10") int size) {
 
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantesPublicoFiltrado(
-                termino, precioMin, precioMax, talla, color, marca, pagina, size)));
+                termino, precioMin, precioMax, talla, color, marca, pagina, tope(size))));
     }
 
     @GetMapping("/filtros-disponibles")
@@ -156,7 +161,7 @@ public class VarianteController extends AbstractController<
             @PathVariable Integer varianteId,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getImagenesPorVariantePaginado(varianteId, pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.getImagenesPorVariantePaginado(varianteId, pagina, tope(size))));
     }
 
     @GetMapping("/porProducto/{productoId}/paginado/resumen")
@@ -164,7 +169,7 @@ public class VarianteController extends AbstractController<
             @PathVariable Integer productoId,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, size)));
+        return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarPorProductoPaginadoResumen(productoId, pagina, tope(size))));
     }
 
     /** @deprecated Usar DELETE /tienda/v1/imagenes */

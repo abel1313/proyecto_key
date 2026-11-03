@@ -109,6 +109,7 @@ chat:
   forzar-notificacion: true
 
 facebook:
+  permitir-sin-firma: true   # solo desarrollo: sin FACEBOOK_APP_SECRET se acepta el webhook sin firma
   page-id: asdasd
   page-access-token: asdasd
   api-version: v25.0

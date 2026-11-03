@@ -31,7 +31,7 @@ public class ProductosControllerImpl {
     public ResponseEntity<PginaDto<List<ProductoDTO>>> obtenerProductos(
             @RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "1") int page) {
         log.info("obtener productos cahce size {} page {}", size, page);
-        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getAll(size,page) );
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.getAll(Math.min(Math.max(size, 1), 200), page) );
     }
 
     @GetMapping("buscarNombreOrCodigoBarra")
@@ -43,7 +43,7 @@ public class ProductosControllerImpl {
             // "ver-todos-los-modelos" en tienda/venta, o admin). Sin el permiso no cambia nada.
             @RequestParam(defaultValue = "false") boolean todos) {
         log.info("buscarNombreOrCodigoBarras {} page {} nombre {} todos {}", size, page, nombre, todos);
-        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(size,page,nombre,todos) );
+        return ResponseEntity.status(HttpStatus.OK).body(this.pServiceImpl.findNombreOrCodigoBarra(Math.min(Math.max(size, 1), 200), page, nombre, todos) );
     }
 
     @PostMapping("save")

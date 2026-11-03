@@ -72,8 +72,10 @@ seguridad:
   # probar comodo; al terminar la tanda de correcciones de seguridad hay que quitarlo.
   # Consecuencia a tener presente: el camino del 429 NO se ejercita en QA, se estrena en prod.
   rate-limit-habilitado: false
+  # El front ya manda X-Requested-With en /auth/refresh y /auth/logout: sin este header se rechaza (otro sitio ya no puede forzar un logout).
+  exigir-header-refresh: true
   cors:
-    origenes-permitidos: https://qa.shop.novedades-jade.com.mx,https://venta-bolsas-online.netlify.app
+    origenes-permitidos: https://qa.shop.novedades-jade.com.mx
 
 cookie:
   secure: true
@@ -101,10 +103,10 @@ app:
 
 springdoc:
   swagger-ui:
-    enabled: true
+    enabled: false
     path: /swagger-ui.html
   api-docs:
-    enabled: true
+    enabled: false
     path: /v3/api-docs
 
 reconciliacion:
