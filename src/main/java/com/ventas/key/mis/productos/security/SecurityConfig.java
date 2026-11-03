@@ -159,6 +159,8 @@ public class SecurityConfig {
 
                         // ── Chatbot (público para todos los visitantes) ───────────────────
                         .requestMatchers("/v1/chatbot/**").permitAll()
+                        // Escanear un código de barras con el celular y recibirlo en la PC (tambien lo usa el buscador publico de la tienda)
+                        .requestMatchers("/v1/escaner/**").permitAll()
 
                         // ── Destinos del generador de QR ──────────────────────────────────
                         // Cuelgan del permiso de la pantalla "Código QR de la tienda" (ruta 'qr')
