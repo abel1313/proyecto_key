@@ -105,6 +105,27 @@ class ChatbotInfoCompletaTest {
         assertThat(admin).extracting(m -> m.get("codigoBarras")).containsExactly("7501234567890", "7509999999999");
     }
 
+    @Test
+    @DisplayName("un articulo recien creado entra al catalogo del bot por lo que escribio el cliente, aunque no este en los primeros 1000")
+    void coincidenciasConLoPedido() {
+        when(varianteRepository.buscarCoincidenciasParaChatbot(eq("producto1"), any(Pageable.class)))
+                .thenReturn(List.of(variante(7, "producto1", "1027202661697")));
+        String cliente = servicio.coincidenciasConLoPedido(List.of("tienes este producto producto1"), false);
+        assertThat(cliente).contains("producto1").contains("disponible").doesNotContain("1027202661697");
+        String admin = servicio.coincidenciasConLoPedido(List.of("tienes este producto producto1"), true);
+        assertThat(admin).contains("1027202661697");
+        verify(varianteRepository, org.mockito.Mockito.never()).buscarCoincidenciasParaChatbot(eq("tienes"), any(Pageable.class));
+        verify(varianteRepository, org.mockito.Mockito.never()).buscarCoincidenciasParaChatbot(eq("producto"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("sin coincidencias no agrega nada y una falla de la consulta no tumba al bot")
+    void sinCoincidencias() {
+        assertThat(servicio.coincidenciasConLoPedido(List.of("hola"), false)).isEmpty();
+        when(varianteRepository.buscarCoincidenciasParaChatbot(anyString(), any(Pageable.class))).thenThrow(new RuntimeException("bd"));
+        assertThat(servicio.coincidenciasConLoPedido(List.of("short rojo"), false)).isEmpty();
+    }
+
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> productos(Map<String, Object> busqueda) {
         return (List<Map<String, Object>>) busqueda.get("productos");

@@ -763,6 +763,62 @@ public abstract class ChatbotBase {
         return obtenerContextoVariantes(categoria, false);
     }
 
+    private static final java.util.Set<String> PALABRAS_SIN_VALOR = java.util.Set.of(
+            "tienes", "tiene", "tienen", "hay", "este", "esta", "esto", "ese", "esa", "eso", "los", "las", "una", "uno", "unos", "unas",
+            "del", "que", "con", "por", "para", "como", "cual", "cuales", "quiero", "quisiera", "busco", "producto", "productos",
+            "articulo", "articulos", "foto", "fotos", "imagen", "imagenes", "precio", "cuanto", "cuesta", "hola", "buenas", "tardes",
+            "dias", "noches", "favor", "gracias", "muestrame", "mostrar", "ver", "tienda", "disponible", "disponibles");
+
+    /**
+     * Los articulos que coinciden con lo que el cliente acaba de escribir (y con su mensaje anterior), para sumarlos SIEMPRE al catalogo del
+     * modelo. El catalogo general es solo la primera pagina de 1000 articulos sin orden: un articulo nuevo podia no entrar y el bot decia "no
+     * encontre ese producto" aunque estuviera a la venta (reportado 2026-11-03 con "producto1"). Cadena vacia si nada coincide o si falla.
+     */
+    protected String coincidenciasConLoPedido(List<String> mensajesDelCliente, boolean conCodigoBarras) {
+        if (mensajesDelCliente == null || mensajesDelCliente.isEmpty()) return "";
+        try {
+            java.util.Set<String> terminos = new java.util.LinkedHashSet<>();
+            for (String mensaje : mensajesDelCliente) {
+                if (mensaje == null) continue;
+                for (String palabra : normalizar(mensaje).split("[^a-z0-9]+")) {
+                    if (palabra.length() >= 3 && !PALABRAS_SIN_VALOR.contains(palabra)) terminos.add(palabra);
+                }
+            }
+            List<String> elegidos = terminos.stream()
+                    .sorted(java.util.Comparator.comparingInt(String::length).reversed())
+                    .limit(4).toList();
+            java.util.Map<Integer, Variantes> encontrados = new java.util.LinkedHashMap<>();
+            for (String termino : elegidos) {
+                for (Variantes v : varianteRepository.buscarCoincidenciasParaChatbot(termino, PageRequest.of(0, 10))) {
+                    encontrados.putIfAbsent(v.getId(), v);
+                    if (encontrados.size() >= 20) break;
+                }
+                if (encontrados.size() >= 20) break;
+            }
+            if (encontrados.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder("\nARTÍCULOS QUE COINCIDEN CON LO QUE ESCRIBIÓ EL CLIENTE (están disponibles con stock; si piden uno de estos, SÍ lo tenemos):\n");
+            for (Variantes v : encontrados.values()) {
+                sb.append("- ").append(v.getProducto().getNombre());
+                if (conCodigoBarras && v.getProducto().getCodigoBarras() != null
+                        && v.getProducto().getCodigoBarras().getCodigoBarras() != null
+                        && !v.getProducto().getCodigoBarras().getCodigoBarras().isBlank()) {
+                    sb.append(" [cód. barras: ").append(v.getProducto().getCodigoBarras().getCodigoBarras()).append("]");
+                }
+                if (v.getMarca() != null && !v.getMarca().isBlank()) sb.append(" (").append(v.getMarca()).append(")");
+                if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) sb.append(", presentación: ").append(v.getPresentacion());
+                if (v.getTalla() != null && !v.getTalla().isBlank()) sb.append(", talla: ").append(v.getTalla());
+                if (v.getColor() != null && !v.getColor().isBlank()) sb.append(", color: ").append(v.getColor());
+                Double precio = v.precioACobrar();
+                if (precio != null) sb.append(", precio: $").append(String.format("%.0f", precio)).append(" MXN");
+                sb.append(", disponible\n");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("No se pudieron buscar coincidencias para el chatbot: {}", e.getMessage());
+            return "";
+        }
+    }
+
     /** {@code conCodigoBarras}: el catalogo que ve el modelo lleva el codigo de barras solo cuando quien pregunta esta autorizado (por defecto el ADMIN). */
     protected String obtenerContextoVariantes(String categoria, boolean conCodigoBarras) {
         try {
