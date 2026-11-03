@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.controller;
 
+import com.ventas.key.mis.productos.config.ChatAutorizacion;
 import com.ventas.key.mis.productos.entity.ChatMensaje;
 import com.ventas.key.mis.productos.entity.ChatSesion;
 import com.ventas.key.mis.productos.models.chat.*;
@@ -26,6 +27,7 @@ public class ChatWebSocketController {
     private final IChatNotificacionService notificacionService;
     private final ChatVivoBotService botService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatAutorizacion autorizacion;
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
@@ -33,7 +35,9 @@ public class ChatWebSocketController {
                                    IChatMensajeService mensajeService,
                                    IChatNotificacionService notificacionService,
                                    ChatVivoBotService botService,
-                                   SimpMessagingTemplate messagingTemplate) {
+                                   SimpMessagingTemplate messagingTemplate,
+                                   ChatAutorizacion autorizacion) {
+        this.autorizacion = autorizacion;
         this.sesionService = sesionService;
         this.mensajeService = mensajeService;
         this.notificacionService = notificacionService;
@@ -51,7 +55,10 @@ public class ChatWebSocketController {
     public void conectar(@Payload ChatConectarRequest request, SimpMessageHeaderAccessor accessor) {
         log.info("[WS] /chat.conectar recibido — tempId={}, nombreUsuario={}, usuarioId={}", request.getTempId(), request.getNombreUsuario(), request.getUsuarioId());
         String ip = extraerIp(accessor);
-        String sesionId = sesionService.conectar(ip, request.getNombreUsuario(), request.getUsuarioId());
+        // El usuarioId NO se toma del mensaje (lo puede inventar cualquiera y se colaba en la conversacion de otro cliente): es el del token con el
+        // que se abrio la conexion; un visitante sin sesion entra como anonimo.
+        Integer usuarioId = autorizacion.idDe(accessor.getUser() instanceof org.springframework.security.core.Authentication a ? a : null);
+        String sesionId = sesionService.conectar(ip, request.getNombreUsuario(), usuarioId);
 
         String nombre = sesionId != null ? resolverNombre(request.getNombreUsuario()) : "Visitante";
 
@@ -80,7 +87,13 @@ public class ChatWebSocketController {
      * Publica en: /topic/chat.admin (MENSAJE)
      */
     @MessageMapping("/chat.mensaje")
-    public void mensaje(@Payload ChatMensajeRequest request) {
+    public void mensaje(@Payload ChatMensajeRequest request, SimpMessageHeaderAccessor accessor) {
+        // Solo el dueno de la conversacion (o el administrador del chat) escribe en ella.
+        org.springframework.security.core.Authentication auth = accessor.getUser() instanceof org.springframework.security.core.Authentication a ? a : null;
+        if (!autorizacion.puedeUsarSesion(auth, sesionService.buscarSesion(request.getSesionId()).orElse(null))) {
+            log.warn("[WS] /chat.mensaje rechazado: la sesion {} no es de este usuario", request.getSesionId());
+            return;
+        }
         log.info("[WS] /chat.mensaje recibido — sesionId={}, contenido={}", request.getSesionId(), request.getContenido());
         // Reabre la sesion si el scheduler ya la habia cerrado por silencio. Antes se exigia estado
         // ACTIVA y el mensaje se descartaba sin avisarle a nadie: el cliente lo veia enviado y al

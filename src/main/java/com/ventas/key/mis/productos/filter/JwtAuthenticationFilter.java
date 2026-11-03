@@ -155,7 +155,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * memoria (mismo objeto que dejó {@code userDetails}), sin volver a tocar la BD para
      * Usuario/Roles -- solo la query de excepciones de usuario_submenu.
      */
-    private Collection<? extends GrantedAuthority> autoridadesConPantallas(UserDetails userDetails) {
+    public Collection<? extends GrantedAuthority> autoridadesConPantallas(UserDetails userDetails) {
         List<GrantedAuthority> authorities = new ArrayList<>(userDetails.getAuthorities());
         if (userDetails instanceof Usuario usuario && usuario.getId() != null) {
             try {

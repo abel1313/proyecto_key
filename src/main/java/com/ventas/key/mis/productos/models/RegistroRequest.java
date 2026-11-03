@@ -3,6 +3,7 @@ package com.ventas.key.mis.productos.models;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -11,6 +12,8 @@ public class RegistroRequest {
 
     @NotBlank(message = "El nombre de usuario es obligatorio")
     @Size(min = 3, max = 100, message = "El nombre de usuario debe tener entre 3 y 100 caracteres")
+    // Sin signos de HTML: el nombre de usuario se muestra al administrador (avisos, tablas) y un <img onerror=…> ejecutaba script en su sesion.
+    @Pattern(regexp = "^[^<>\"'&`]*$", message = "El nombre de usuario no puede llevar los signos < > \" ' & `")
     private String userName;
 
     @NotBlank(message = "La contrasena es obligatoria")

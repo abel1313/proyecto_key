@@ -79,6 +79,13 @@ public class ClienteControllerImpl extends AbstractController<
     })
     @Override
     public ResponseEntity<ResponseGeneric<Cliente>> save(Cliente requestG, BindingResult result) {
+        // Los nombres se muestran al administrador (avisos, tickets, listas): sin signos de HTML.
+        for (String texto : new String[]{requestG.getNombrePersona(), requestG.getSegundoNombre(), requestG.getApeidoPaterno(), requestG.getApeidoMaterno()}) {
+            if (texto != null && texto.matches("(?s).*[<>\"`].*")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ResponseGeneric<>(null, "Los nombres no pueden llevar los signos < > \" `"));
+            }
+        }
         Integer usuarioIdSolicitado = requestG.getUsuario() != null ? requestG.getUsuario().getId() : null;
         if (!AuthenticationUtils.isAdminContext()
                 && (usuarioIdSolicitado == null
@@ -289,6 +296,13 @@ public class ClienteControllerImpl extends AbstractController<
     @PostMapping("/{id}/verificar-correo")
     public ResponseEntity<ResponseGeneric<String>> verificarCorreo(
             @PathVariable Integer id, @Valid @RequestBody VerificarCorreoRequest request) {
+        // Solo el dueno del registro (o un ADMIN): antes cualquier usuario con sesion podia probar codigos contra el id de otro cliente.
+        Usuario actual = AuthenticationUtils.currentUsuario();
+        boolean esDueno = actual.getCliente() != null && actual.getCliente().getId() != null
+                && actual.getCliente().getId().intValue() == id.intValue();
+        if (!AuthenticationUtils.isAdminContext() && !esDueno) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseGeneric<>(null, "No autorizado"));
+        }
         sGenerico.verificarCorreo(id, request.getCodigo());
         return ResponseEntity.ok(new ResponseGeneric<>("Correo verificado correctamente"));
     }

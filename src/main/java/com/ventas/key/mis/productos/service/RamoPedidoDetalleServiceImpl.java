@@ -194,7 +194,7 @@ public class RamoPedidoDetalleServiceImpl {
         if ("PENDIENTE_VALIDACION".equals(guardado.getFraseListonEstado())) {
             String asunto = "Frase nueva por aprobar - pedido #" + pedido.getId();
             String html = "<p>Un cliente pidio una frase personalizada de liston nueva:</p>"
-                    + "<h3>\"" + guardado.getFraseListonPersonalizada() + "\"</h3>"
+                    + "<h3>\"" + org.springframework.web.util.HtmlUtils.htmlEscape(guardado.getFraseListonPersonalizada()) + "\"</h3>"
                     + "<p>Pedido #" + pedido.getId() + ". Entra a la bandeja de frases pendientes "
                     + "para ponerle precio y aprobarla o rechazarla.</p>";
             emailService.enviarTicket(adminEmail, asunto, html);
@@ -351,7 +351,13 @@ public class RamoPedidoDetalleServiceImpl {
             detalle.setFraseListonPrecioAsignado(frase.getPrecio());
             detalle.setAnticipoRequerido(false);
         } else if (dto.getFraseListonPersonalizada() != null && !dto.getFraseListonPersonalizada().isBlank()) {
-            detalle.setFraseListonPersonalizada(dto.getFraseListonPersonalizada());
+            // Texto libre de un cliente que luego ve el administrador (bandeja, correo): largo acotado y sin etiquetas.
+            String frase = dto.getFraseListonPersonalizada().trim();
+            if (frase.length() > 120 || frase.matches(".*[<>].*")) {
+                throw new com.ventas.key.mis.productos.exeption.ExceptionErrorInesperado(
+                        "La frase del liston puede tener hasta 120 caracteres y no puede llevar los signos < ni >");
+            }
+            detalle.setFraseListonPersonalizada(frase);
             detalle.setFraseListonEstado("PENDIENTE_VALIDACION");
             detalle.setAnticipoRequerido(true);
         } else {
@@ -402,7 +408,7 @@ public class RamoPedidoDetalleServiceImpl {
         if (Boolean.TRUE.equals(dto.getAprobar()) && guardado.getCorreoContacto() != null) {
             String asunto = "Tu frase de liston ya tiene precio - pedido #" + guardado.getPedido().getId();
             String html = "<p>Tu frase personalizada de liston ya fue revisada:</p>"
-                    + "<h3>\"" + guardado.getFraseListonPersonalizada() + "\"</h3>"
+                    + "<h3>\"" + org.springframework.web.util.HtmlUtils.htmlEscape(guardado.getFraseListonPersonalizada()) + "\"</h3>"
                     + "<p>Precio: $" + guardado.getFraseListonPrecioAsignado() + "</p>"
                     + "<p>Ya puedes pagar el anticipo del 50% para que empecemos a armar tu ramo.</p>";
             emailService.enviarTicket(guardado.getCorreoContacto(), asunto, html);

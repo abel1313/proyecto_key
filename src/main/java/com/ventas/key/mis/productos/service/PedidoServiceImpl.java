@@ -221,9 +221,28 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (!Boolean.TRUE.equals(cliente.getDatosCompletos())) {
             throw new RuntimeException("Debes completar tus datos (nombre, apellido paterno, telefono) antes de generar un pedido");
         }
+        // El cliente, el estado y el tipo del pedido los manda el front, y el front no es de confiar: quien no es administrador solo puede pedir A SU
+        // NOMBRE, y solo en los estados/tipos que usa el cliente (Pendiente; APARTADO con anticipo en flores). Antes un usuario comun podia crear
+        // pedidos a nombre de otro cliente (le llegaba el correo), ya "Entregado"/"Pagado" o como FIADO (auditoria de seguridad 2026-11-03).
+        String estadoPedido = requestG.getEstadoPedido();
+        String tipoSolicitado = requestG.getTipoPedido();
+        if (!AuthenticationUtils.isAdminContext()) {
+            Usuario actual = AuthenticationUtils.currentUsuario();
+            boolean esSuyo = actual.getCliente() != null && actual.getCliente().getId() != null
+                    && actual.getCliente().getId().equals(cliente.getId());
+            if (!esSuyo) {
+                throw new com.ventas.key.mis.productos.exeption.ExceptionSinPermiso("No puedes generar pedidos a nombre de otro cliente");
+            }
+            if (!"Pendiente".equals(estadoPedido) && !"APARTADO".equals(estadoPedido)) {
+                estadoPedido = "Pendiente";
+            }
+            if (tipoSolicitado != null && !"NORMAL".equals(tipoSolicitado) && !"APARTADO".equals(tipoSolicitado)) {
+                tipoSolicitado = "NORMAL";
+            }
+        }
         Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
-        pedido.setEstadoPedido(requestG.getEstadoPedido());
+        pedido.setEstadoPedido(estadoPedido);
         pedido.setFechaPedido(requestG.getFechaPedido());
         pedido.setFechaHoraRegistro(LocalDateTime.now());
         pedido.setObservaciones(requestG.getObservaciones());
@@ -236,7 +255,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setLugarEntrega(lugarEntrega);
         pedido.setFechaRecogida(resolverFechaRecogida(lugarEntrega, requestG.getFechaRecogida()));
         pedido.setUrlFacebook(requestG.getUrlFacebook());
-        String tipoPedido = requestG.getTipoPedido() != null ? requestG.getTipoPedido() : "NORMAL";
+        String tipoPedido = tipoSolicitado != null ? tipoSolicitado : "NORMAL";
         pedido.setTipoPedido(tipoPedido);
         pedido.setTotalPagado(0.0);
 

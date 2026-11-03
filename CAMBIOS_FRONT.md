@@ -23285,3 +23285,45 @@ Mismo canal de la cuenta del escáner (exige sesión). El celular toma la foto y
 - Las conexiones públicas por QR **no** reciben fotos (no tienen ruta de fotos; si el servicio se invoca con una de ellas responde `403`).
 - Diferencia respecto a lo anterior: `GET …/canal/codigos` sin `acepta` se comporta exactamente igual; el campo `fotos` es nuevo.
 - Front: componente compartido `<app-foto-celular (foto)="…">` (botón «📱 Foto del celular») y en el celular «📷 Tomar foto» / «📸 Cámara del celular» con vista previa y «Enviar a la computadora».
+
+
+## 🔒 Cierre de endpoints heredados y del código de verificación (2026-11-03, auditoría de seguridad, rama `fix/seguridad-crud-heredado`)
+
+Corregía una fuga: los endpoints genéricos que `Pedidos` y `Clientes` heredan de `AbstractController` estaban abiertos a **cualquier usuario con sesión**.
+
+| Antes | Después |
+|---|---|
+| `GET /v1/pedidos/getAll`, `/getOne/{id}`: cualquier cliente con sesión veía todos los pedidos (dirección, mapa, receptor, totales) | solo `ROLE_ADMIN` (`403` al resto) |
+| `POST /v1/pedidos/save`, `PUT /v1/pedidos/update/{id}`, `DELETE /v1/pedidos/delete`: guardaban un Pedido crudo sin validar precios ni estado | cerrados para todos (`403`). La única puerta de alta es `POST /v1/pedidos/savePedido` |
+| `GET /v1/clientes/getAll`, `/getOne/{id}`: cualquier cliente con sesión veía todos los clientes (nombre, correo, teléfono, direcciones) | solo quien tiene la pantalla Clientes (`clientes/buscar`) |
+| `PUT /v1/clientes/update/{id}`: guardaba un Cliente crudo sin revisar dueño | solo con permiso de **Editar** en Clientes |
+| `codigoVerificacion` y `codigoVerificacionExpira` salían en el JSON del Cliente (`buscarPorIdCliente`, etc.): el cliente leía su propio código y "verificaba" un correo ajeno | ya **no salen**. `correoPendiente` sigue saliendo |
+| `POST /v1/clientes/{id}/verificar-correo` lo podía llamar cualquiera con sesión sobre cualquier `{id}` y sin límite de intentos | solo el dueño del registro o un admin (`403`), y tras **5 códigos incorrectos en 15 min** se bloquea ese cliente un rato |
+
+- El front **no usa** ninguno de los endpoints cerrados (revisado: usa `savePedido`, `findPedido`, `buscarPorIdCliente`, `/v1/clientes/save`, `buscar`). Si alguna pantalla recibe `403` en estas rutas, avisar.
+- El front no lee `codigoVerificacion` en ningún lado (revisado).
+
+
+## 🔒 Chat en vivo (WebSocket) con autenticación (2026-11-03, auditoría de seguridad)
+
+Antes `/ws` no revisaba nada: un anónimo se suscribía a `/topic/chat.admin` y leía todas las conversaciones, contestaba como ADMIN por `/app/chat.admin.responder`, y mandaba un `usuarioId` ajeno en `/app/chat.conectar` para colarse en el chat de otro cliente.
+
+| Antes | Después |
+|---|---|
+| SUBSCRIBE `/topic/chat.admin`, SEND `/app/chat.admin.*`: cualquiera | solo `ROLE_ADMIN` o la pantalla **admin/chat** (responder pide además **Editar** en esa pantalla) |
+| `/app/chat.conectar` usaba el `usuarioId` del mensaje | **se ignora**: el id sale del token del CONNECT. Sin token = visitante anónimo |
+| SUBSCRIBE `/topic/chat.usuario.{sesionId}` y SEND `/app/chat.mensaje` de cualquier sesión | solo el dueño de la conversación o el admin del chat. Las anónimas se protegen con su UUID, como antes |
+| cualquier otro `/topic/**` | se niega |
+
+- **El front debe mandar `Authorization: Bearer <accessToken>` en el CONNECT de STOMP** (`connectHeaders`). El panel del admin ya lo hacía; el chat del cliente ahora lo manda también y en cada reconexión (`beforeConnect`, el token dura 15 min). Si falta o venció, el chat funciona como visitante anónimo (el historial por usuario deja de enlazarse).
+- Un mensaje no autorizado se descarta en silencio (no hay respuesta de error en STOMP).
+
+
+## 🔒 Validaciones de texto y `savePedido` (2026-11-03, auditoría de seguridad)
+
+| Dónde | Antes | Después |
+|---|---|---|
+| `POST /v1/pedidos/savePedido` (quien **no** es admin) | aceptaba cualquier `cliente.id`, `estadoPedido` y `tipoPedido` que mandara el front: pedidos a nombre de otro cliente, "Entregado"/"Pagado" o FIADO | `403` si el cliente no es el suyo; el estado solo puede ser `Pendiente` o `APARTADO` (flores con anticipo) y el tipo `NORMAL` o `APARTADO`; lo demás se vuelve `Pendiente`/`NORMAL`. El admin sigue igual |
+| Registro: `userName` | cualquier texto de 3-100 caracteres | no puede llevar `< > " ' & \``. `400` con el mensaje |
+| `POST /v1/clientes/save` (nombre, segundo nombre, apellidos) | cualquier texto | no pueden llevar `< > " \``. `400` |
+| Frase personalizada del listón (flores) | cualquier texto; se metía sin escapar en el correo al dueño | máximo 120 caracteres y sin `<` ni `>` (`400`); el correo la escapa |

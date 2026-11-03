@@ -406,6 +406,12 @@ public class SecurityConfig {
                         //    propiedad en ClienteControllerImpl; busqueda y baja solo ADMIN) ──
                         .requestMatchers(HttpMethod.GET, "/v1/clientes/buscar").hasAnyAuthority(pantalla("clientes/buscar"))
                         .requestMatchers(HttpMethod.DELETE, "/v1/clientes/**").hasAnyAuthority(pantallaEscribir("clientes/buscar"))
+                        // CRUD heredado de AbstractController: devolvia a CUALQUIER usuario con sesion todos los clientes (nombre, correo,
+                        // telefono, direcciones) con getAll?size=100000 / getOne/{id}, y update/{id} guardaba un Cliente crudo sin revisar
+                        // dueno. El front no los usa (usa buscar, buscarPorIdCliente y save, que si revisan al dueno): quedan para quien
+                        // tiene la pantalla Clientes.
+                        .requestMatchers(HttpMethod.GET, "/v1/clientes/getAll", "/v1/clientes/getOne/**").hasAnyAuthority(pantalla("clientes/buscar"))
+                        .requestMatchers(HttpMethod.PUT, "/v1/clientes/update/**").hasAnyAuthority(pantallaEscribir("clientes/buscar"))
                         .requestMatchers("/v1/clientes/**").authenticated()
 
                         // ── Cliente sin registro (alta + verificacion de correo, solo ADMIN
@@ -424,6 +430,14 @@ public class SecurityConfig {
                         // La lista con todos los filtros (dominio busquedapedido, 2026-10-06): misma
                         // busqueda global que buscarClientePedido, mismo permiso.
                         .requestMatchers(HttpMethod.GET, "/v1/pedidos/buscar").hasRole("ADMIN")
+                        // CRUD heredado de AbstractController (PedidoController): getAll/getOne devolvian TODOS los pedidos (direccion, lat/long,
+                        // receptor, totales) a cualquier usuario con sesion, y save/update/delete guardaban un Pedido crudo SIN pasar por
+                        // savePedido (que es lo que valida precios y estados): un cliente podia marcar su pedido como pagado o con total 1.
+                        // El front solo usa savePedido, findPedido, detalle y los endpoints propios, asi que se cierran.
+                        .requestMatchers(HttpMethod.GET,    "/v1/pedidos/getAll", "/v1/pedidos/getOne/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/save").denyAll()
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/update/**").denyAll()
+                        .requestMatchers(HttpMethod.DELETE, "/v1/pedidos/delete").denyAll()
                         .requestMatchers(HttpMethod.GET,    "/v1/pedidos/**").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/savePedido").authenticated()
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/notificar").hasRole("ADMIN")
