@@ -4,6 +4,17 @@ Pedido del dueño (2026-11-02): *"estoy en la PC dando de alta productos y neces
 el celular lo escanee y llegue solo a la PC. Que sea en todo lo que tenga código de barras (buscador de la tienda, buscar
 productos, alta…), de 1 en 1."*
 
+## Canal de la CUENTA (2026-11-02): sin QR para quien tiene sesión
+Pedido del dueño: *«en la PC estoy en Agregar; desde el celular entro normal como administrador, me voy al escáner, escaneo y se pasa a la pantalla que esté en la PC»*.
+- La PC y el celular de la MISMA cuenta (los dos con sesión iniciada) se encuentran solos: `GET/POST /v1/escaner/canal/**` (exigen sesión) resuelven el usuario
+  de la sesión y usan SU conexión (`idDelCanal`: la vigente de `usuario:<nombre>` o una nueva). No hay QR, id ni nada que recordar; si la conexión vence
+  (5 min sin actividad, 12 h) la siguiente llamada abre otra y los dos lados vuelven a coincidir solos.
+- Cada pantalla de la PC con un campo de código de barras se registra como receptora (`EscanerReceptorService`); mientras haya una, la PC deja una pregunta
+  abierta en `/canal/codigos?esperar=true`. El celular abre `/escaner-celular` (cámara siempre lista) y manda cada código a `/canal/codigos`; llega a la
+  pantalla que esté a la vista. Si la PC no tiene ninguna pantalla con código, `POST /canal/codigos` responde `false` y el celular avisa.
+- E12: si la PC pide «después del N» y la conexión nueva de la cuenta va en un número menor, se pide desde el principio de la nueva (no se salta códigos).
+- Las conexiones por QR (`/sesiones/**`, públicas) siguen para el visitante de la tienda sin sesión.
+
 ## Cómo funciona (versión rápida, 2026-11-02)
 El dueño probó la primera versión: *«hace lo que pedí pero es muy lento: revisar el QR, ir a la página, que cargue, escanear»*. Ahora:
 1. **La PRIMERA vez** la PC pulsa **«📱»** → `POST /v1/escaner/sesiones` → sale un QR a **`/escaner.html`** (página ligera, sin Angular) con el id de la
@@ -34,6 +45,7 @@ cualquier proxy.
 | E7 | Sin ninguna actividad en 5 minutos (ni la PC pregunta, ni el celular manda señal o códigos) se libera sola |
 | E8 | El celular está «conectado» si mandó señal de vida en los últimos 45 segundos |
 | E10 | Máximo 3 preguntas abiertas a la vez por conexión; con una más, la más vieja se contesta vacía (no se acumulan hilos ni preguntas huérfanas) |
+| E12 | Si la PC pide «después del N» pero la conexión (nueva) va en un número menor, se normaliza a 0 |
 | E11 | Al mandar un código se sabe si la PC lo estaba esperando (pregunta abierta, o una hace menos de 3 s). `POST .../codigos` responde `true`/`false`; con `false` el celular dice «la computadora no lo está pidiendo: pulsa 📱» en vez de «enviado» |
 | E9 | La pregunta abierta se contesta al llegar un código, o cuando el celular se conecta por primera vez (para que la PC pase de «QR» a «escanea ahora») |
 

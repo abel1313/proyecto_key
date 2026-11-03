@@ -48,6 +48,11 @@ public class SesionesEscanerEnMemoria implements SesionesEscanerPort {
     }
 
     @Override
+    public Optional<SesionEscaner> buscarVigentePorOrigen(String origen, Instant ahora) {
+        return porId.values().stream().filter(s -> s.origen().equals(origen) && s.estaVigente(ahora)).findFirst();
+    }
+
+    @Override
     public int vigentesAnonimas(Instant ahora, String prefijoDeUsuario) {
         return (int) porId.values().stream().filter(s -> !s.origen().startsWith(prefijoDeUsuario) && s.estaVigente(ahora)).count();
     }

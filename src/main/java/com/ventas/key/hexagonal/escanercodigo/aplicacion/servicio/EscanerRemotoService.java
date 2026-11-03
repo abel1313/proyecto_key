@@ -59,6 +59,20 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
     }
 
     @Override
+    public synchronized String idDelCanal(String usuario) {
+        if (usuario == null || usuario.isBlank()) {
+            throw new EscanerException.SesionNoDisponible();
+        }
+        Instant ahora = reloj.instant();
+        String origen = PREFIJO_USUARIO + usuario;
+        return sesiones.buscarVigentePorOrigen(origen, ahora).map(SesionEscaner::id).orElseGet(() -> {
+            SesionEscaner nueva = new SesionEscaner(generadorDeIds.get(), origen, ahora);
+            sesiones.guardar(nueva);
+            return nueva.id();
+        });
+    }
+
+    @Override
     public EstadoDeSesion estado(String sesionId) {
         return encontrar(sesionId).estado(reloj.instant());
     }
