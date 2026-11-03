@@ -3,7 +3,6 @@ package com.ventas.key.hexagonal.escanercodigo.infraestructura.salida.memoria;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionEscaner;
 import com.ventas.key.hexagonal.escanercodigo.dominio.puerto.salida.SesionesEscanerPort;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -14,10 +13,12 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * [Hexagonal: Driven Adapter] [Clean: Frameworks & Drivers]
  *
+ * <p>Se arma en {@code EscanerCodigoBeans} (no es {@code @Component}) para que el módulo no dependa de un bean {@code Clock} del resto de la aplicación: producción
+ * no lo tiene y la aplicación no arrancaba.
+ *
  * <p>Las conexiones viven en la memoria del servidor: duran 30 minutos y no hace falta guardarlas. Funciona con UNA copia de
  * la aplicación (igual que el chat en vivo); con varias habría que guardarlas en Redis.
  */
-@Component
 public class SesionesEscanerEnMemoria implements SesionesEscanerPort {
 
     private final ConcurrentMap<String, SesionEscaner> porId = new ConcurrentHashMap<>();
