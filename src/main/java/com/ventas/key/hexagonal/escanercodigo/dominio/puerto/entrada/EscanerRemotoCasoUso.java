@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.escanercodigo.dominio.puerto.entrada;
 
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.Acepta;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EsperaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EstadoDeSesion;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.LecturaDeCodigos;
@@ -29,8 +30,20 @@ public interface EscanerRemotoCasoUso {
     /** La PC pregunta, sin esperar, si llegó algo después de {@code desde}. */
     LecturaDeCodigos leer(String sesionId, long desde);
 
+    /** Igual, respetando lo que la pantalla sabe recibir. */
+    LecturaDeCodigos leer(String sesionId, long desde, Acepta acepta);
+
     /** La PC deja la pregunta abierta: se contesta en cuanto llegue un código después de {@code desde}. */
     EsperaDeCodigos esperar(String sesionId, long desde);
+
+    /** Igual, diciendo qué sabe recibir la pantalla (códigos, fotos o las dos). */
+    EsperaDeCodigos esperar(String sesionId, long desde, Acepta acepta);
+
+    /**
+     * El celular manda una FOTO (JPEG en base64 con encabezado data:). Solo el canal de la cuenta las acepta; una conexión por QR (pública) lanza
+     * {@code FotoNoPermitida}. Devuelve si la PC la estaba esperando.
+     */
+    boolean enviarFoto(String sesionId, String foto);
 
     /** La PC ya no necesita la conexión. Cerrar una que ya no existe no es error. */
     void cerrar(String sesionId);

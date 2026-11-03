@@ -44,6 +44,12 @@ class EscanerSeguridadRealTest {
         return jwtUtil.generateToken(u, 1L);
     }
 
+    private String tokenAdminDe(String usuario) {
+        UserDetails u = new User(usuario, "x", List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN")));
+        when(userDetailsService.loadUserByUsername(usuario)).thenReturn(u);
+        return jwtUtil.generateToken(u, 1L);
+    }
+
     @Test
     @DisplayName("sin sesión, el canal de la cuenta contesta 401")
     void sinSesion() throws Exception {
@@ -75,5 +81,30 @@ class EscanerSeguridadRealTest {
         MvcResult r = mvc.perform(get("/v1/escaner/canal/codigos?desde=0").header("Authorization", auth))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(r)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("fotos: sin sesión 401; con sesión llegan a la pregunta que las acepta; la conexión pública de QR no tiene ruta de fotos")
+    void fotos() throws Exception {
+        String foto = "{\"foto\":\"data:image/jpeg;base64," + "A".repeat(500) + "\"}";
+        mvc.perform(post("/v1/escaner/canal/fotos").contentType(MediaType.APPLICATION_JSON).content(foto)).andExpect(status().isUnauthorized());
+
+        String sinPermiso = "Bearer " + tokenDe("dani");
+        mvc.perform(post("/v1/escaner/canal/fotos").header("Authorization", sinPermiso).contentType(MediaType.APPLICATION_JSON).content(foto))
+                .andExpect(status().isForbidden());
+        String auth = "Bearer " + tokenAdminDe("carla");
+        MvcResult pendiente = mvc.perform(get("/v1/escaner/canal/codigos?desde=0&esperar=true&acepta=codigo,foto").header("Authorization", auth))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(post("/v1/escaner/canal/fotos").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON).content(foto))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data").value(true));
+        mvc.perform(asyncDispatch(pendiente)).andExpect(status().isOk()).andExpect(jsonPath("$.data.fotos[0].foto").exists());
+
+        mvc.perform(post("/v1/escaner/canal/fotos").header("Authorization", auth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"foto\":\"hola\"}")).andExpect(status().isBadRequest());
+
+        String idQr = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(mvc.perform(post("/v1/escaner/sesiones")).andReturn().getResponse().getContentAsString()).at("/data/id").asText();
+        mvc.perform(post("/v1/escaner/sesiones/" + idQr + "/fotos").contentType(MediaType.APPLICATION_JSON).content(foto))
+                .andExpect(result -> org.assertj.core.api.Assertions.assertThat(result.getResponse().getStatus()).isNotEqualTo(200));
     }
 }

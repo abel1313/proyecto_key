@@ -21,6 +21,20 @@ public class EscanerException extends RuntimeException {
         }
     }
 
+    /** La foto no es un JPEG válido o es demasiado grande. */
+    public static class FotoInvalida extends EscanerException {
+        public FotoInvalida() {
+            super("La foto no es válida o es demasiado grande. Tiene que ser un JPEG de menos de 500 KB.");
+        }
+    }
+
+    /** Las fotos solo viajan por el canal de la cuenta (con sesión), no por las conexiones públicas por QR. */
+    public static class FotoNoPermitida extends EscanerException {
+        public FotoNoPermitida() {
+            super("Las fotos solo se pueden mandar con tu sesión iniciada.");
+        }
+    }
+
     /** Se está pidiendo o mandando demasiado seguido. */
     public static class DemasiadasSolicitudes extends EscanerException {
         public DemasiadasSolicitudes(String mensaje) {

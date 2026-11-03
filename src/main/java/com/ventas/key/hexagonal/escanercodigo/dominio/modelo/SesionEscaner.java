@@ -33,6 +33,8 @@ import java.util.regex.Pattern;
  *   <li>E10: máximo 3 preguntas abiertas a la vez por conexión (la más vieja se contesta vacía).</li>
  *   <li>E11: al mandar un código se sabe si la PC lo estaba esperando (pregunta abierta, o una hace menos de 3 s); si no, el celular avisa
  *       «la computadora no lo está pidiendo» en lugar de decir «enviado».</li>
+ *   <li>E13: FOTOS (solo en el canal de la cuenta): JPEG en base64 de hasta 700 000 caracteres (~500 KB), máximo 10 por minuto; se guardan las últimas 3 y
+ *       duran 5 minutos (nadie las recibe después). Una foto solo se entrega a una pregunta que diga que sabe recibir fotos ({@link Acepta}).</li>
  *   <li>E9: la PC puede dejar una pregunta abierta y se le contesta en cuanto llega un código (sin esperar a la siguiente consulta),
  *       o en cuanto el celular se conecta (para que la PC cambie de «QR» a «escanea ahora»).</li>
  * </ul>
@@ -50,10 +52,20 @@ public final class SesionEscaner {
     public static final Duration MARGEN_ENTRE_PREGUNTAS = Duration.ofSeconds(3);
     public static final int CODIGOS_GUARDADOS = 20;
     public static final int CODIGOS_POR_MINUTO = 30;
+    public static final int FOTOS_GUARDADAS = 3;
+    public static final int FOTOS_POR_MINUTO = 10;
+    public static final int FOTO_MAXIMA_CARACTERES = 700_000;
+    public static final Duration FOTO_VIGENCIA = Duration.ofMinutes(5);
+    private static final String ENCABEZADO_FOTO = "data:image/jpeg;base64,";
+    private static final Pattern BASE64 = Pattern.compile("^[A-Za-z0-9+/]+={0,2}$");
     private static final Pattern CODIGO_VALIDO = Pattern.compile("^[\\x20-\\x7E]{3,100}$");
 
     /** Una pregunta abierta de la PC. */
-    private record Espera(long desde, CompletableFuture<LecturaDeCodigos> futuro) {
+    private record Espera(long desde, Acepta acepta, CompletableFuture<LecturaDeCodigos> futuro) {
+    }
+
+    /** Una foto guardada con su hora, para que caduque. */
+    private record FotoGuardada(FotoRecibida foto, Instant creada) {
     }
 
     private final String id;
@@ -61,9 +73,12 @@ public final class SesionEscaner {
     private final Instant venceEn;
     private Instant ultimaActividad;
     private Instant ultimoLatido;
-    private Instant ultimaPregunta;
+    private Instant ultimaPreguntaConCodigos;
+    private Instant ultimaPreguntaConFotos;
     private final Deque<CodigoEscaneado> codigos = new ArrayDeque<>();
     private final Deque<Instant> recientes = new ArrayDeque<>();
+    private final Deque<Instant> fotosRecientes = new ArrayDeque<>();
+    private final Deque<FotoGuardada> fotos = new ArrayDeque<>();
     private final List<Espera> esperando = new ArrayList<>();
     private long secuencia;
     private boolean cerrada;
@@ -136,13 +151,13 @@ public final class SesionEscaner {
             }
             for (Iterator<Espera> it = esperando.iterator(); it.hasNext(); ) {
                 Espera e = it.next();
-                if (secuencia > e.desde()) {
+                if (hayNuevo(e.desde(), e.acepta(), ahora)) {
                     aAvisar.add(e);
-                    lecturas.add(lecturaDespuesDe(e.desde(), ahora));
+                    lecturas.add(lecturaDespuesDe(e.desde(), e.acepta(), ahora));
                     it.remove();
                 }
             }
-            esperaba = !aAvisar.isEmpty() || (ultimaPregunta != null && ahora.isBefore(ultimaPregunta.plus(MARGEN_ENTRE_PREGUNTAS)));
+            esperaba = !aAvisar.isEmpty() || dentroDelMargen(ultimaPreguntaConCodigos, ahora);
         }
         for (int i = 0; i < aAvisar.size(); i++) {
             aAvisar.get(i).futuro().complete(lecturas.get(i));
@@ -152,9 +167,14 @@ public final class SesionEscaner {
 
     /** La PC pregunta qué códigos llegaron después del {@code desde} que ya vio (0 la primera vez), sin esperar. */
     public synchronized LecturaDeCodigos leer(long desde, Instant ahora) {
+        return leer(desde, ahora, Acepta.SOLO_CODIGOS);
+    }
+
+    /** Igual, respetando lo que la pantalla sabe recibir (así una respuesta por tiempo agotado no adelanta el contador sin las fotos). */
+    public synchronized LecturaDeCodigos leer(long desde, Instant ahora, Acepta acepta) {
         exigirVigente(ahora);
         ultimaActividad = ahora;
-        return lecturaDespuesDe(normalizar(desde), ahora);
+        return lecturaDespuesDe(normalizar(desde), acepta, ahora);
     }
 
     /**
@@ -162,25 +182,31 @@ public final class SesionEscaner {
      * cuanto el celular mande uno. Preguntar cuenta como actividad (E7).
      */
     public EsperaDeCodigos esperar(long desdePedido, Instant ahora) {
+        return esperar(desdePedido, ahora, Acepta.SOLO_CODIGOS);
+    }
+
+    /** Igual, diciendo qué sabe recibir la pantalla de la PC (códigos, fotos o las dos). */
+    public EsperaDeCodigos esperar(long desdePedido, Instant ahora, Acepta acepta) {
         CompletableFuture<LecturaDeCodigos> futuro = new CompletableFuture<>();
         long desde;
         synchronized (this) {
             desde = normalizar(desdePedido);
         }
-        Espera espera = new Espera(desde, futuro);
+        Espera espera = new Espera(desde, acepta, futuro);
         LecturaDeCodigos yaHay = null;
         Espera desplazada = null;
         LecturaDeCodigos lecturaDesplazada = null;
         synchronized (this) {
             exigirVigente(ahora);
             ultimaActividad = ahora;
-            ultimaPregunta = ahora;
-            if (secuencia > desde) {
-                yaHay = lecturaDespuesDe(desde, ahora);
+            if (acepta.codigos()) ultimaPreguntaConCodigos = ahora;
+            if (acepta.fotos()) ultimaPreguntaConFotos = ahora;
+            if (hayNuevo(desde, acepta, ahora)) {
+                yaHay = lecturaDespuesDe(desde, acepta, ahora);
             } else {
                 if (esperando.size() >= ESPERAS_MAXIMAS) {
                     desplazada = esperando.remove(0);                       // E10: la más vieja se libera
-                    lecturaDesplazada = lecturaDespuesDe(desplazada.desde(), ahora);
+                    lecturaDesplazada = lecturaDespuesDe(desplazada.desde(), desplazada.acepta(), ahora);
                 }
                 esperando.add(espera);
             }
@@ -214,7 +240,7 @@ public final class SesionEscaner {
             if (!yaEstabaConectado) {
                 for (Espera e : esperando) {
                     aAvisar.add(e);
-                    lecturas.add(lecturaDespuesDe(e.desde(), ahora));
+                    lecturas.add(lecturaDespuesDe(e.desde(), e.acepta(), ahora));
                 }
                 esperando.clear();
             }
@@ -240,14 +266,93 @@ public final class SesionEscaner {
         return ultimoLatido != null && ahora.isBefore(ultimoLatido.plus(CELULAR_CONECTADO));
     }
 
-    private LecturaDeCodigos lecturaDespuesDe(long desde, Instant ahora) {
+    /** ¿Hay algo más nuevo que {@code desde} de lo que esa pantalla sabe recibir? (una foto no despierta a quien solo recibe códigos, ni al revés). */
+    private boolean hayNuevo(long desde, Acepta acepta, Instant ahora) {
+        if (acepta.codigos() && codigos.stream().anyMatch(c -> c.secuencia() > desde)) {
+            return true;
+        }
+        return acepta.fotos() && fotos.stream().anyMatch(f -> f.foto().secuencia() > desde && vigente(f, ahora));
+    }
+
+    private LecturaDeCodigos lecturaDespuesDe(long desde, Acepta acepta, Instant ahora) {
         List<CodigoEscaneado> nuevos = new ArrayList<>();
-        for (CodigoEscaneado c : codigos) {
-            if (c.secuencia() > desde) {
-                nuevos.add(c);
+        if (acepta.codigos()) {
+            for (CodigoEscaneado c : codigos) {
+                if (c.secuencia() > desde) {
+                    nuevos.add(c);
+                }
             }
         }
-        return new LecturaDeCodigos(secuencia, nuevos, celularConectado(ahora), epoca());
+        List<FotoRecibida> nuevasFotos = new ArrayList<>();
+        if (acepta.fotos()) {
+            for (FotoGuardada f : fotos) {
+                if (f.foto().secuencia() > desde && vigente(f, ahora)) {
+                    nuevasFotos.add(f.foto());
+                }
+            }
+        }
+        return new LecturaDeCodigos(secuencia, nuevos, celularConectado(ahora), epoca(), nuevasFotos);
+    }
+
+    private static boolean vigente(FotoGuardada f, Instant ahora) {
+        return ahora.isBefore(f.creada().plus(FOTO_VIGENCIA));
+    }
+
+    private static boolean dentroDelMargen(Instant ultima, Instant ahora) {
+        return ultima != null && ahora.isBefore(ultima.plus(MARGEN_ENTRE_PREGUNTAS));
+    }
+
+    /**
+     * El celular manda una FOTO (solo el canal de la cuenta). Se valida que sea un JPEG en base64 de tamaño razonable (E13); se guardan las últimas 3 y
+     * se avisa a la pregunta abierta que sepa recibir fotos. Devuelve si la PC la estaba esperando (si no, el celular avisa «esa pantalla no recibe fotos»).
+     */
+    public boolean enviarFoto(String contenido, Instant ahora) {
+        FotoRecibida nueva;
+        List<Espera> aAvisar = new ArrayList<>();
+        List<LecturaDeCodigos> lecturas = new ArrayList<>();
+        boolean esperaba;
+        synchronized (this) {
+            exigirVigente(ahora);
+            while (!fotosRecientes.isEmpty() && fotosRecientes.peekFirst().isBefore(ahora.minusSeconds(60))) {
+                fotosRecientes.removeFirst();
+            }
+            if (fotosRecientes.size() >= FOTOS_POR_MINUTO) {
+                throw new EscanerException.DemasiadasSolicitudes("Se están mandando fotos demasiado rápido. Espera un momento.");
+            }
+            fotosRecientes.addLast(ahora);          // el intento cuenta aunque la foto resulte inválida (no se puede abusar con envíos rechazados)
+            if (!fotoValida(contenido)) {
+                throw new EscanerException.FotoInvalida();
+            }
+            fotos.removeIf(f -> !vigente(f, ahora));   // las vencidas se liberan (no esperan a que alguien lea)
+            ultimaActividad = ahora;
+            ultimoLatido = ahora;
+            nueva = new FotoRecibida(++secuencia, contenido);
+            fotos.addLast(new FotoGuardada(nueva, ahora));
+            while (fotos.size() > FOTOS_GUARDADAS) {
+                fotos.removeFirst();
+            }
+            for (Iterator<Espera> it = esperando.iterator(); it.hasNext(); ) {
+                Espera e = it.next();
+                if (e.acepta().fotos() && hayNuevo(e.desde(), e.acepta(), ahora)) {
+                    aAvisar.add(e);
+                    lecturas.add(lecturaDespuesDe(e.desde(), e.acepta(), ahora));
+                    it.remove();
+                }
+            }
+            esperaba = !aAvisar.isEmpty() || dentroDelMargen(ultimaPreguntaConFotos, ahora);
+        }
+        for (int i = 0; i < aAvisar.size(); i++) {
+            aAvisar.get(i).futuro().complete(lecturas.get(i));
+        }
+        return esperaba;
+    }
+
+    private static boolean fotoValida(String contenido) {
+        if (contenido == null || contenido.length() > FOTO_MAXIMA_CARACTERES || !contenido.startsWith(ENCABEZADO_FOTO)) {
+            return false;
+        }
+        String datos = contenido.substring(ENCABEZADO_FOTO.length());
+        return datos.length() >= 100 && BASE64.matcher(datos).matches();
     }
 
     private void exigirVigente(Instant ahora) {

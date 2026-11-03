@@ -2,6 +2,7 @@ package com.ventas.key.hexagonal.escanercodigo.infraestructura.entrada.rest.dto;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.CodigoEscaneado;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EstadoDeSesion;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.FotoRecibida;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.LecturaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionAbierta;
 
@@ -26,9 +27,16 @@ public final class EscanerResponse {
         }
     }
 
-    public record Lectura(long ultimaSecuencia, boolean celularConectado, int epoca, List<Codigo> codigos) {
+    public record Foto(long secuencia, String foto) {
+        static Foto de(FotoRecibida f) {
+            return new Foto(f.secuencia(), f.foto());
+        }
+    }
+
+    public record Lectura(long ultimaSecuencia, boolean celularConectado, int epoca, List<Codigo> codigos, List<Foto> fotos) {
         public static Lectura de(LecturaDeCodigos l) {
-            return new Lectura(l.ultimaSecuencia(), l.celularConectado(), l.epoca(), l.codigos().stream().map(Codigo::de).toList());
+            return new Lectura(l.ultimaSecuencia(), l.celularConectado(), l.epoca(), l.codigos().stream().map(Codigo::de).toList(),
+                    l.fotos().stream().map(Foto::de).toList());
         }
     }
 
@@ -39,5 +47,8 @@ public final class EscanerResponse {
     }
 
     public record EnviarCodigo(String codigo) {
+    }
+
+    public record EnviarFoto(String foto) {
     }
 }

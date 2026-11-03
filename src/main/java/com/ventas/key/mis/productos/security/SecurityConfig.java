@@ -167,6 +167,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/chatbot/**").permitAll()
                         // Escanear un código de barras con el celular y recibirlo en la PC (tambien lo usa el buscador publico de la tienda)
                         // El canal de la CUENTA (PC y celular de la misma persona, sin QR) exige sesion iniciada; el resto del escaner es publico.
+                        // Las FOTOS pesan (hasta ~500 KB cada una): solo el administrador (quien da de alta productos) puede mandarlas.
+                        .requestMatchers(HttpMethod.POST, "/v1/escaner/canal/fotos").hasRole("ADMIN")
                         .requestMatchers("/v1/escaner/canal/**").authenticated()
                         .requestMatchers("/v1/escaner/**").permitAll()
 
