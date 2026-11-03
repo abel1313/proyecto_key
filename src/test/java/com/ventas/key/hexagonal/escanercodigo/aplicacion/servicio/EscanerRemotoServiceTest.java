@@ -29,6 +29,9 @@ class EscanerRemotoServiceTest {
         @Override public Optional<SesionEscaner> buscar(String id) { return Optional.ofNullable(mapa.get(id)); }
         @Override public void eliminar(String id) { mapa.remove(id); }
         @Override public int vigentes(Instant ahora) { return (int) mapa.values().stream().filter(s -> s.estaVigente(ahora)).count(); }
+        @Override public int vigentesAnonimas(Instant ahora, String prefijo) {
+            return (int) mapa.values().stream().filter(s -> !s.origen().startsWith(prefijo) && s.estaVigente(ahora)).count();
+        }
         @Override public int vigentesDe(String origen, Instant ahora) {
             return (int) mapa.values().stream().filter(s -> s.origen().equals(origen) && s.estaVigente(ahora)).count();
         }
@@ -78,12 +81,54 @@ class EscanerRemotoServiceTest {
     }
 
     @Test
+    @DisplayName("E6 con solicitudes simultáneas: 50 hilos de la misma PC abren exactamente 10 conexiones")
+    void limitePorOrigenConcurrente() throws Exception {
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(50);
+        var salida = new java.util.concurrent.CountDownLatch(1);
+        var buenas = new AtomicInteger();
+        var rechazadas = new AtomicInteger();
+        java.util.List<java.util.concurrent.Future<?>> tareas = new java.util.ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            tareas.add(pool.submit(() -> {
+                salida.await();
+                try { servicio.abrir("7.7.7.7"); buenas.incrementAndGet(); }
+                catch (EscanerException.DemasiadasSolicitudes e) { rechazadas.incrementAndGet(); }
+                return null;
+            }));
+        }
+        salida.countDown();
+        for (var t : tareas) t.get();
+        pool.shutdown();
+        assertThat(buenas.get()).isEqualTo(EscanerRemotoService.MAXIMO_POR_ORIGEN);
+        assertThat(rechazadas.get()).isEqualTo(40);
+    }
+
+    @Test
     @DisplayName("E6: máximo 2000 conexiones en total")
     void limiteTotal() {
         for (int i = 0; i < EscanerRemotoService.MAXIMO_TOTAL; i++) {
             puerto.guardar(new SesionEscaner("x" + i, "o" + i, Instant.parse("2026-11-02T12:00:00Z")));
         }
         assertThatThrownBy(() -> servicio.abrir("9.9.9.9")).isInstanceOf(EscanerException.DemasiadasSolicitudes.class);
+    }
+
+    @Test
+    @DisplayName("E6: el cupo total es de las conexiones anónimas; el personal con sesión (usuario:…) sigue pudiendo abrir")
+    void cupoTotalNoBloqueaAlPersonal() {
+        for (int i = 0; i < EscanerRemotoService.MAXIMO_TOTAL; i++) {
+            puerto.guardar(new SesionEscaner("x" + i, "anonimo" + i, Instant.parse("2026-11-02T12:00:00Z")));
+        }
+        assertThatThrownBy(() -> servicio.abrir("9.9.9.9")).isInstanceOf(EscanerException.DemasiadasSolicitudes.class);
+        assertThat(servicio.abrir("usuario:ana").id()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("enviar dice si la PC lo estaba esperando")
+    void enviarDiceSiLoEsperaban() {
+        SesionAbierta s = servicio.abrir("1.1.1.1");
+        assertThat(servicio.enviar(s.id(), "7501234567890")).isFalse();
+        servicio.esperar(s.id(), 1);
+        assertThat(servicio.enviar(s.id(), "7501234567891")).isTrue();
     }
 
     @Test
