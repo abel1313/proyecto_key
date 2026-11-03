@@ -20,7 +20,12 @@ public class ChatbotSitioWebService extends ChatbotBase {
     }
 
     public Mono<String> chat(ChatbotRequest request) {
-        List<Map<String, String>> mensajes = construirMensajes(request);
+        return chat(request, false);
+    }
+
+    /** {@code infoCompleta}: quien pregunta es alguien que el negocio autoriza a ver el nombre exacto y el codigo de barras (por defecto el ADMIN). */
+    public Mono<String> chat(ChatbotRequest request, boolean infoCompleta) {
+        List<Map<String, String>> mensajes = construirMensajes(request, infoCompleta);
         mensajes.add(Map.of("role", "user", "content", request.getMensaje()));
         return llamarOpenAIConversacion(mensajes);
     }
@@ -32,7 +37,11 @@ public class ChatbotSitioWebService extends ChatbotBase {
      * modelo se autocorrija usando el producto que ya se venía discutiendo.
      */
     public Mono<String> forzarMostrarImagen(ChatbotRequest request, String respuestaFallida) {
-        List<Map<String, String>> mensajes = construirMensajes(request);
+        return forzarMostrarImagen(request, respuestaFallida, false);
+    }
+
+    public Mono<String> forzarMostrarImagen(ChatbotRequest request, String respuestaFallida, boolean infoCompleta) {
+        List<Map<String, String>> mensajes = construirMensajes(request, infoCompleta);
         mensajes.add(Map.of("role", "user", "content", request.getMensaje()));
         mensajes.add(Map.of("role", "assistant", "content", respuestaFallida));
         mensajes.add(Map.of("role", "system", "content", """
@@ -45,9 +54,28 @@ public class ChatbotSitioWebService extends ChatbotBase {
         return llamarOpenAIConversacion(mensajes);
     }
 
-    private List<Map<String, String>> construirMensajes(ChatbotRequest request) {
+    /** Lo que se le dice al modelo segun quien pregunta. El cliente nunca recibe codigos de barras: ni en el catalogo que ve el modelo ni en su respuesta. */
+    static final String REGLA_CLIENTE_SIN_CODIGOS = """
+
+            CÓDIGOS DE BARRAS:
+            - Quien te escribe es un cliente: NUNCA escribas códigos de barras en tu respuesta, ni los digas aunque te los pida.
+            - Si el cliente te da un código de barras, úsalo solo como término de ##BUSCAR[...]## cuando pida ver el producto.
+            """;
+
+    static final String REGLA_ADMIN_INFO_COMPLETA = """
+
+            QUIEN TE ESCRIBE ES UN ADMINISTRADOR DEL NEGOCIO (no un cliente):
+            - Cuando pregunte por un producto, di si lo tenemos y da el NOMBRE EXACTO tal como está en el catálogo y su CÓDIGO DE BARRAS
+              (el que viene en "cód. barras") escrito en texto para que lo pueda copiar.
+            - Puede haber VARIOS artículos que coincidan con lo que pidió (por ejemplo varios shorts rojos): lista TODOS los que coincidan,
+              uno por línea, con nombre, código de barras, precio y existencia si los tienes. No te quedes con uno solo.
+            - No le preguntes si quiere ver una foto a menos que la pida. Si no está en el catálogo, dilo claro.
+            """;
+
+    private List<Map<String, String>> construirMensajes(ChatbotRequest request, boolean infoCompleta) {
         String categoria = detectarCategoriaEnConversacion(request.getMensaje(), mensajesPreviosDelCliente(request));
-        String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria);
+        String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria, infoCompleta)
+                + (infoCompleta ? REGLA_ADMIN_INFO_COMPLETA : REGLA_CLIENTE_SIN_CODIGOS);
 
         List<Map<String, String>> mensajes = new ArrayList<>();
         mensajes.add(Map.of("role", "system", "content", sistemPrompt));
