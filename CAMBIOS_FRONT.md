@@ -23338,3 +23338,12 @@ Nuevo endpoint que **solo suma fotos** a un artículo existente (no toca stock, 
 - Mismo permiso que guardar un artículo (escritura de `tienda/buscar`, `productos/buscar`, etc.). `404`/mensaje si el artículo no existe.
 - Las ya vinculadas no se duplican; se vacía la caché de listados.
 - Front: en las tarjetas de **Tienda → Buscar** sin imagen (o con imagen que no cargó) aparece **📷 Agregar foto** (quien puede actualizar artículos). El cuadro deja elegir foto de la computadora o tomarla con el celular de la cuenta (📱 Escáner → 📷 Tomar foto); al llegar se sube y la lista se recarga.
+
+## 🤖 Hotfix bots: info completa solo al admin y no prometer fotos que no hay (2026-11-03)
+
+**Código de barras y nombre exacto (chat de la tienda, `POST /v1/chatbot/mensaje` y `GET /v1/chatbot/buscar`):**
+- Si quien escribe tiene sesión con un rol de la lista `chatbot.info-completa.roles` (por defecto solo `ROLE_ADMIN`; se cambia con la variable de entorno `CHATBOT_INFO_COMPLETA_ROLES` o la propiedad `chatbot.info-completa.roles`, roles separados por coma), el bot le contesta con el **nombre exacto del catálogo y el código de barras en texto para copiar**, y lista **todos** los artículos que coincidan (p. ej. varios shorts rojos), sin preguntar si quiere foto.
+- Un cliente o visitante **nunca** recibe códigos de barras: ni el modelo los ve en el catálogo ni van en las tarjetas (`productos[].codigoBarras` ya no sale para ellos). Antes salían en el JSON de cada tarjeta.
+- El front debe mandar el `Authorization` normal (el interceptor ya lo hace) para que el admin sea reconocido.
+
+**Fotos (`##BUSCAR##`):** cada tarjeta lleva `tieneImagen`. Si el cliente pide ver un producto y **ninguno** tiene foto, la respuesta es *«Por ahora ese producto no tiene foto cargada 📷…»* y `productos` viene vacío (antes salía «aquí tienes la imagen» con una tarjeta vacía con una cámara). Si no se encontró nada: *«No encontré ese producto para mostrártelo…»*. Las tarjetas sin foto no se mandan (tampoco en «Ver más»).

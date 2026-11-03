@@ -90,6 +90,10 @@ public abstract class ChatbotBase {
     @Autowired(required = false)
     protected ILugarEntregaRepository lugarEntregaRepository;
 
+    // Para saber si un articulo tiene foto antes de decirle al cliente "aqui tienes la imagen". Opcional por la misma razon que arriba.
+    @Autowired(required = false)
+    protected com.ventas.key.mis.productos.repository.IVarianteImagenRepository varianteImagenRepository;
+
     protected final WebClient webClient = WebClient.builder()
             .baseUrl("https://api.openai.com/v1")
             .build();
@@ -625,6 +629,15 @@ public abstract class ChatbotBase {
     private static final int CHATBOT_PAGE_SIZE = 2;
 
     public Map<String, Object> buscarProductos(String query, int offset) {
+        return buscarProductos(query, offset, false);
+    }
+
+    /**
+     * {@code infoCompleta}: solo para quien el negocio autoriza (por defecto el ADMIN) las tarjetas llevan el codigo de barras. A un cliente
+     * jamas se le manda (antes salia en el JSON de cada tarjeta). Cada tarjeta lleva {@code tieneImagen}: el controlador no promete una foto
+     * que no existe.
+     */
+    public Map<String, Object> buscarProductos(String query, int offset, boolean infoCompleta) {
         int pagina = offset / CHATBOT_PAGE_SIZE;
         Page<Variantes> page = varianteRepository.buscarParaChatbot(
                 query.trim(), PageRequest.of(pagina, CHATBOT_PAGE_SIZE));
@@ -639,7 +652,8 @@ public abstract class ChatbotBase {
             p.put("precio", v.precioACobrar());
             p.put("stock", v.getStock());
             p.put("descripcion", v.getDescripcion());
-            if (v.getProducto().getCodigoBarras() != null) {
+            p.put("tieneImagen", varianteTieneImagen(v.getId()));
+            if (infoCompleta && v.getProducto().getCodigoBarras() != null) {
                 p.put("codigoBarras", v.getProducto().getCodigoBarras().getCodigoBarras());
             }
             return p;
@@ -651,6 +665,17 @@ public abstract class ChatbotBase {
         result.put("busquedaQuery", query.trim());
         result.put("busquedaOffset", offset + page.getNumberOfElements());
         return result;
+    }
+
+    /** Sin repositorio (pruebas) se asume que si hay foto, que es el comportamiento de antes. */
+    private boolean varianteTieneImagen(Integer varianteId) {
+        if (varianteImagenRepository == null || varianteId == null) return true;
+        try {
+            return varianteImagenRepository.existsByVarianteId(varianteId);
+        } catch (Exception e) {
+            log.warn("No se pudo comprobar la foto del articulo {}: {}", varianteId, e.getMessage());
+            return true;
+        }
     }
 
     // Categoria (palabra_clave) mencionada en el mensaje del cliente -- ej. "tienes bolsas?"
@@ -735,6 +760,11 @@ public abstract class ChatbotBase {
     // reconozca el producto por nombre (ej. "tienes perfumes?") y confirme precio/stock; el
     // detalle fino solo hace falta una vez que ya se acoto a una categoria.
     protected String obtenerContextoVariantes(String categoria) {
+        return obtenerContextoVariantes(categoria, false);
+    }
+
+    /** {@code conCodigoBarras}: el catalogo que ve el modelo lleva el codigo de barras solo cuando quien pregunta esta autorizado (por defecto el ADMIN). */
+    protected String obtenerContextoVariantes(String categoria, boolean conCodigoBarras) {
         try {
             List<Variantes> variantes = (categoria != null)
                     ? varianteRepository.buscarParaChatbotPorCategoria(
@@ -753,7 +783,7 @@ public abstract class ChatbotBase {
             for (Variantes v : variantes) {
                 sb.append("- ").append(v.getProducto().getNombre());
 
-                if (v.getProducto().getCodigoBarras() != null
+                if (conCodigoBarras && v.getProducto().getCodigoBarras() != null
                         && v.getProducto().getCodigoBarras().getCodigoBarras() != null
                         && !v.getProducto().getCodigoBarras().getCodigoBarras().isBlank()) {
                     sb.append(" [cód. barras: ").append(v.getProducto().getCodigoBarras().getCodigoBarras()).append("]");

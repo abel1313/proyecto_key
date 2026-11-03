@@ -14,11 +14,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,6 +42,27 @@ public class ChatbotController {
     // Tercer remitente, ademas de USUARIO y ADMIN del chat en vivo: distingue lo que contesto el
     // bot de lo que contesto una persona, dentro del mismo historial.
     private static final String REMITENTE_BOT = "BOT";
+
+    /**
+     * Quien recibe la informacion completa del catalogo (nombre exacto y codigo de barras para copiar). Por defecto solo el ADMIN; el negocio lo
+     * ajusta con {@code chatbot.info-completa.roles} (roles separados por coma, p. ej. {@code ROLE_ADMIN,ROLE_VENDEDOR}). Un cliente o un
+     * visitante sin sesion nunca la recibe.
+     */
+    @Value("${chatbot.info-completa.roles:ROLE_ADMIN}")
+    private String rolesConInfoCompleta;
+
+    private boolean tieneInfoCompleta() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getAuthorities() == null) {
+            return false;
+        }
+        java.util.Set<String> permitidos = java.util.Arrays.stream(rolesConInfoCompleta.split(","))
+                .map(String::trim).filter(r -> !r.isEmpty()).collect(java.util.stream.Collectors.toSet());
+        return auth.getAuthorities().stream().anyMatch(a -> permitidos.contains(a.getAuthority()));
+    }
+
+    static final String SIN_FOTO = "Por ahora ese producto no tiene foto cargada 📷. Si quieres te digo su precio y existencias, o te busco algo parecido.";
+    static final String SIN_RESULTADOS_PARA_MOSTRAR = "No encontré ese producto para mostrártelo 😕. ¿Me das otro nombre o una descripción?";
     // Lo que lee el cliente si el filtro de seguridad (P1) detiene la respuesta de la IA.
     private static final String RESPUESTA_FILTRADA =
             "¡Con gusto te ayudo! 😊 ¿Buscas algún producto o tienes dudas de un pedido, entrega o pago?";
@@ -65,6 +90,8 @@ public class ChatbotController {
 
         String ip = obtenerIp(httpRequest);
         log.info("Chatbot - IP: {}, longitud mensaje: {}", ip, request.getMensaje().length());
+        // Se decide AQUI, en el hilo de la peticion: dentro de la cadena reactiva ya no hay SecurityContext.
+        final boolean infoCompleta = tieneInfoCompleta();
 
         // --- IP bloqueada por 30 horas ---
         if (blockService.estaBloqueado(ip)) {
@@ -100,13 +127,13 @@ public class ChatbotController {
         }
         blockService.registrarMensaje(ip);
 
-        return chatbotService.chat(request)
+        return chatbotService.chat(request, infoCompleta)
                 .flatMap(respuesta -> {
                     boolean tieneBuscarInicial = respuesta.contains("##BUSCAR[");
                     boolean pideImagen = MENCIONA_FOTO_PATTERN.matcher(request.getMensaje()).find();
                     if (!tieneBuscarInicial && pideImagen) {
                         log.warn("Chatbot no uso ##BUSCAR## pese a pedido de imagen (IP {}), reintentando", ip);
-                        return chatbotService.forzarMostrarImagen(request, respuesta);
+                        return chatbotService.forzarMostrarImagen(request, respuesta, infoCompleta);
                     }
                     return Mono.just(respuesta);
                 })
@@ -140,7 +167,7 @@ public class ChatbotController {
                     // mostró imagen ni ofreció mostrarla, el cliente no tiene forma de saber que
                     // puede pedir la foto. El modelo debería preguntarlo solo (CASO 1 del prompt),
                     // pero no siempre lo hace — se fuerza aquí para no depender de eso.
-                    if (!filtrada[0] && !tieneBuscar && !esFarewell
+                    if (!filtrada[0] && !tieneBuscar && !esFarewell && !infoCompleta
                             && PRECIO_PATTERN.matcher(respuestaLimpia).find()
                             && !MENCIONA_FOTO_PATTERN.matcher(respuestaLimpia).find()) {
                         respuestaLimpia = respuestaLimpia + "\n\n¿Quieres ver una foto? 📸";
@@ -166,9 +193,19 @@ public class ChatbotController {
                     }
 
                     if (tieneBuscar && buscarQuery != null && !buscarQuery.isBlank()) {
-                        Map<String, Object> busqueda = chatbotService.buscarProductos(buscarQuery, buscarOffset);
-                        result.put("productos", busqueda.get("productos"));
-                        result.put("hayMas", busqueda.get("hayMas"));
+                        Map<String, Object> busqueda = chatbotService.buscarProductos(buscarQuery, buscarOffset, infoCompleta);
+                        List<Map<String, Object>> encontrados = productosDe(busqueda);
+                        List<Map<String, Object>> conFoto = soloConFoto(encontrados);
+                        if (conFoto.isEmpty()) {
+                            // El modelo dijo "aqui tienes la imagen" pero no hay nada que mostrar: no se manda una tarjeta vacia con una camara,
+                            // se le dice la verdad al cliente (reportado 2026-11-03).
+                            result.put("respuesta", encontrados.isEmpty() ? SIN_RESULTADOS_PARA_MOSTRAR : SIN_FOTO);
+                            result.put("productos", List.of());
+                            result.put("hayMas", false);
+                        } else {
+                            result.put("productos", conFoto);
+                            result.put("hayMas", busqueda.get("hayMas"));
+                        }
                         result.put("busquedaQuery", busqueda.get("busquedaQuery"));
                         result.put("busquedaOffset", busqueda.get("busquedaOffset"));
                     }
@@ -208,7 +245,20 @@ public class ChatbotController {
     public ResponseEntity<Map<String, Object>> buscar(
             @RequestParam String q,
             @RequestParam(defaultValue = "0") int offset) {
-        return ResponseEntity.ok(chatbotService.buscarProductos(q, offset));
+        Map<String, Object> busqueda = new HashMap<>(chatbotService.buscarProductos(q, offset, tieneInfoCompleta()));
+        busqueda.put("productos", soloConFoto(productosDe(busqueda)));
+        return ResponseEntity.ok(busqueda);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> productosDe(Map<String, Object> busqueda) {
+        Object productos = busqueda.get("productos");
+        return productos instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
+    }
+
+    /** Las tarjetas sin foto no se mandan: el cliente veria un cuadro vacio con una camara. */
+    private static List<Map<String, Object>> soloConFoto(List<Map<String, Object>> productos) {
+        return productos.stream().filter(p -> !Boolean.FALSE.equals(p.get("tieneImagen"))).toList();
     }
 
     // Guarda el ida y vuelta del chatbot en las mismas tablas del chat en vivo (chat_sesion /
