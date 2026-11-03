@@ -53,8 +53,9 @@ public class SesionesEscanerEnMemoria implements SesionesEscanerPort {
     }
 
     @Override
-    public int vigentesAnonimas(Instant ahora, String prefijoDeUsuario) {
-        return (int) porId.values().stream().filter(s -> !s.origen().startsWith(prefijoDeUsuario) && s.estaVigente(ahora)).count();
+    public int vigentesAnonimas(Instant ahora, String... prefijosDeCuenta) {
+        return (int) porId.values().stream()
+                .filter(s -> java.util.Arrays.stream(prefijosDeCuenta).noneMatch(s.origen()::startsWith) && s.estaVigente(ahora)).count();
     }
 
     @Override

@@ -77,6 +77,9 @@ public final class SesionEscaner {
 
     public String id() { return id; }
 
+    /** Cambia cuando la conexión se rehace (otra conexión, otro id); la PC la usa para saber que debe pedir desde el principio. */
+    public int epoca() { return id.hashCode(); }
+
     /** De dónde se abrió (la IP o el usuario de la PC), solo para limitar cuántas conexiones abiertas tiene cada uno. */
     public String origen() { return origen; }
 
@@ -222,7 +225,7 @@ public final class SesionEscaner {
     }
 
     public synchronized EstadoDeSesion estado(Instant ahora) {
-        return new EstadoDeSesion(estaVigente(ahora), celularConectado(ahora), secuencia, venceEn);
+        return new EstadoDeSesion(estaVigente(ahora), celularConectado(ahora), secuencia, venceEn, epoca());
     }
 
     /**
@@ -244,7 +247,7 @@ public final class SesionEscaner {
                 nuevos.add(c);
             }
         }
-        return new LecturaDeCodigos(secuencia, nuevos, celularConectado(ahora));
+        return new LecturaDeCodigos(secuencia, nuevos, celularConectado(ahora), epoca());
     }
 
     private void exigirVigente(Instant ahora) {

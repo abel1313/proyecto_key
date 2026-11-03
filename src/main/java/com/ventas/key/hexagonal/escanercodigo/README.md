@@ -88,3 +88,16 @@ se corta sola a los 35 s si la conexión quedó colgada; (10) si la conexión «
 versión (`/escaner-lib/0.1.5/`) para que no se quede en caché un año al actualizarlo; pruebas del tiempo de espera de la pregunta abierta, E10 y E11.
 **Sin hacer (anotado):** el filtro JWT consulta la BD en cada pregunta de 25 s cuando el usuario tiene sesión (carga mínima); cada despliegue del back borra las
 conexiones (están en memoria), así que después de desplegar hay que volver a escanear el QR una vez.
+
+## Cuarta revisión independiente (2026-11-02): el canal de la cuenta
+- **ALTA, corregido:** `GET /v1/escaner/canal/codigos` contestaba 401 aun con token válido. Un `DeferredResult` pasa por los filtros una segunda vez (dispatch ASYNC), donde el
+  filtro JWT no corre y, al ser STATELESS, no hay contexto guardado: la PC nunca recibía el código y se gastaba un refresh por intento. Regla nueva al inicio de
+  `SecurityConfig`: `.dispatcherTypeMatchers(ASYNC, ERROR).permitAll()` (el primer pase ya autorizó). **Prueba con la cadena de seguridad REAL**
+  (`EscanerSeguridadRealTest`: `@SpringBootTest` + `MockMvc` + token firmado con `JwtUtil` + `asyncDispatch`): estaba en rojo y ahora pasa. Las pruebas con `standaloneSetup` no lo podían ver.
+- **ALTA/MEDIA, corregido:** el canal de la cuenta podía caer en una conexión ajena o falsificada (origen `usuario:<nombre>` también lo producían las conexiones por QR de alguien con sesión, y un
+  visitante podía falsificar `X-Forwarded-For: usuario:ana`). Ahora los orígenes llevan prefijo exclusivo: `ip:` (visitante), `usuario:` (QR de alguien con sesión), `canal:` (canal de la cuenta);
+  `idDelCanal` solo busca `canal:<usuario>`, y el visitante nunca puede fabricar ese origen.
+- **MEDIA, corregido:** con 4 o más receptoras de la cuenta se desplazaban unas a otras sin fin (ir y venir de peticiones): si una respuesta vacía llega en menos de 1 s, el front espera 1.5 s antes de repetir.
+- **MEDIA, corregido:** varias pestañas de la misma cuenta recibían el código todas; ahora solo escucha la pestaña que se ve y se usó por última vez (liderazgo por `localStorage`). Dos PCs distintas con la misma cuenta
+  sí recibirían las dos (anotado: una cuenta compartida por varias cajas mezcla sus escaneos).
+- **BAJA, corregido:** al rehacerse la conexión de la cuenta se podían saltar sus primeros códigos: la lectura trae una `epoca` y la PC pide desde el principio de la nueva cuando cambia.

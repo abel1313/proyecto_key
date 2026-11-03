@@ -23,8 +23,14 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
 
     public static final int MAXIMO_TOTAL = 2000;
     public static final int MAXIMO_POR_ORIGEN = 10;
-    /** Los orígenes de personal con sesión se escriben «usuario:nombre». */
+    /**
+     * Los orígenes llevan un prefijo que dice de dónde vienen, para que ninguno pueda hacerse pasar por otro (p. ej. un visitante que falsifique
+     * X-Forwarded-For con «canal:ana»): {@code ip:} visitante sin sesión, {@code usuario:} conexión por QR abierta por alguien con sesión (cuenta para
+     * su propio límite) y {@code canal:} el canal de la cuenta (el celular y la PC de la misma persona, sin QR).
+     */
+    public static final String PREFIJO_IP = "ip:";
     public static final String PREFIJO_USUARIO = "usuario:";
+    public static final String PREFIJO_CANAL = "canal:";
 
     private final SesionesEscanerPort sesiones;
     private final Clock reloj;
@@ -45,7 +51,8 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
         }
         // El cupo total es de las conexiones ANÓNIMAS: las del personal con sesión (origen «usuario:…») cuentan solo en su propio límite,
         // así que nadie desde fuera puede dejarlas sin servicio llenando el cupo global.
-        if (!de.startsWith(PREFIJO_USUARIO) && sesiones.vigentesAnonimas(ahora, PREFIJO_USUARIO) >= MAXIMO_TOTAL) {
+        if (!de.startsWith(PREFIJO_USUARIO) && !de.startsWith(PREFIJO_CANAL)
+                && sesiones.vigentesAnonimas(ahora, PREFIJO_USUARIO, PREFIJO_CANAL) >= MAXIMO_TOTAL) {
             throw new EscanerException.DemasiadasSolicitudes("Hay demasiadas conexiones con celulares abiertas. Intenta en unos minutos.");
         }
         SesionEscaner nueva = new SesionEscaner(generadorDeIds.get(), de, ahora);
@@ -64,7 +71,7 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
             throw new EscanerException.SesionNoDisponible();
         }
         Instant ahora = reloj.instant();
-        String origen = PREFIJO_USUARIO + usuario;
+        String origen = PREFIJO_CANAL + usuario;
         return sesiones.buscarVigentePorOrigen(origen, ahora).map(SesionEscaner::id).orElseGet(() -> {
             SesionEscaner nueva = new SesionEscaner(generadorDeIds.get(), origen, ahora);
             sesiones.guardar(nueva);

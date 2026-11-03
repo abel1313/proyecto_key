@@ -151,6 +151,12 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
 
+                        // ── Despacho ASINCRONO ────────────────────────────────────────────
+                        // Un endpoint que devuelve DeferredResult (la pregunta abierta del escaner del celular, ver hexagonal/escanercodigo) pasa por
+                        // los filtros una segunda vez (dispatch ASYNC) donde el filtro JWT -un OncePerRequestFilter- no corre y, al ser STATELESS, no
+                        // hay contexto guardado: sin esta regla contestaba 401 aun con token valido. Es seguro: el primer pase (REQUEST) ya autorizo.
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC, jakarta.servlet.DispatcherType.ERROR).permitAll()
+
                         // ── Preflight CORS ────────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
