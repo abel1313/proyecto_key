@@ -23270,3 +23270,18 @@ Para quien tiene sesión (administrador, personal): la PC y el celular de la **m
 - `epoca` cambia cuando la conexión se rehace en el servidor (venció y se abrió otra de la cuenta): si cambia, pedir de nuevo con `desde=0`.
 - `401` sin sesión. Los códigos de una cuenta nunca llegan a otra. Si la conexión vence, la siguiente llamada abre otra sola (sin QR).
 - Front: `EscanerReceptorService` (cada `<app-escaner-celular>` se registra como receptora mientras exista; el código llega a la última registrada) y la pantalla del celular `/escaner-celular` (menú lateral «📱 Escáner», con sesión). Sin sesión (visitante) sigue el QR.
+
+
+## 📷 Foto del celular → pantalla de la PC (2026-11-03, rama `feature/fotos-celular`)
+
+Mismo canal de la cuenta del escáner (exige sesión). El celular toma la foto y llega a «Nuevo producto», «Agregar artículo» o «Actualizar artículo», que ya tenían «Elegir foto / Tomar foto»; llega como si fuera una elegida de la galería (se **agrega** a las que ya hay).
+
+| Request | Para qué | Response (`data`) |
+|---|---|---|
+| `POST /mis-productos/v1/escaner/canal/fotos` body `{ "foto": "data:image/jpeg;base64,…" }` | El celular manda la foto (JPEG ≤ ~700 000 caracteres; el front la reduce a 1280 px) | `true` si alguna pantalla de la PC la esperaba; `false` si se guardó pero nadie la pedía |
+| `GET /mis-productos/v1/escaner/canal/codigos?desde=N&esperar=true&acepta=codigo,foto` | La PC deja la pregunta abierta diciendo qué sabe recibir (`codigo`, `foto` o ambos; por defecto `codigo`, como antes) | igual que antes **más** `fotos: [ { secuencia, foto } ]` (vacío si no pidió `foto`) |
+
+- `400` foto no válida (no es JPEG base64 o es demasiado grande) · `401` sin sesión · `403` si la cuenta no es administrador (mandar fotos exige rol ADMIN) · `429` más de 10 envíos por minuto (los rechazados también cuentan).
+- Las conexiones públicas por QR **no** reciben fotos (no tienen ruta de fotos; si el servicio se invoca con una de ellas responde `403`).
+- Diferencia respecto a lo anterior: `GET …/canal/codigos` sin `acepta` se comporta exactamente igual; el campo `fotos` es nuevo.
+- Front: componente compartido `<app-foto-celular (foto)="…">` (botón «📱 Foto del celular») y en el celular «📷 Tomar foto» / «📸 Cámara del celular» con vista previa y «Enviar a la computadora».

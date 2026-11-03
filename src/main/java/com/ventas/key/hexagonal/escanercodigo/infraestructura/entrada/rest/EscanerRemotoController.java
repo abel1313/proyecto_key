@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.escanercodigo.infraestructura.entrada.rest;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.excepcion.EscanerException;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.Acepta;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EsperaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.aplicacion.servicio.EscanerRemotoService;
 import com.ventas.key.hexagonal.escanercodigo.dominio.puerto.entrada.EscanerRemotoCasoUso;
@@ -61,24 +62,24 @@ public class EscanerRemotoController {
     @GetMapping("/sesiones/{id}/codigos")
     public DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leer(
             @PathVariable String id, @RequestParam(defaultValue = "0") long desde, @RequestParam(defaultValue = "false") boolean esperar) {
-        return leerOEsperar(id, desde, esperar);
+        return leerOEsperar(id, desde, esperar, Acepta.SOLO_CODIGOS);
     }
 
-    private DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leerOEsperar(String id, long desde, boolean esperar) {
+    private DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leerOEsperar(String id, long desde, boolean esperar, Acepta acepta) {
         DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> resultado = new DeferredResult<>(ESPERA_MAXIMA_MS);
         if (!esperar) {
-            resultado.setResult(responder(() -> EscanerResponse.Lectura.de(escaner.leer(id, desde))));
+            resultado.setResult(responder(() -> EscanerResponse.Lectura.de(escaner.leer(id, desde, acepta))));
             return resultado;
         }
         EsperaDeCodigos espera;
         try {
-            espera = escaner.esperar(id, desde);
+            espera = escaner.esperar(id, desde, acepta);
         } catch (RuntimeException e) {
             resultado.setResult(aRespuesta(e));
             return resultado;
         }
         resultado.onCompletion(() -> espera.cancelar().run());   // la PC se fue o ya se contestó: se quita la pregunta abierta
-        resultado.onTimeout(() -> resultado.setResult(responder(() -> EscanerResponse.Lectura.de(escaner.leer(id, desde)))));
+        resultado.onTimeout(() -> resultado.setResult(responder(() -> EscanerResponse.Lectura.de(escaner.leer(id, desde, acepta)))));
         espera.futuro().whenComplete((lectura, error) -> resultado.setResult(error == null
                 ? ResponseEntity.ok(new ResponseGeneric<>(EscanerResponse.Lectura.de(lectura)))
                 : aRespuesta(error)));
@@ -110,7 +111,8 @@ public class EscanerRemotoController {
     /** La PC de mi cuenta deja la pregunta abierta (igual que con una conexión por QR). */
     @GetMapping("/canal/codigos")
     public DeferredResult<ResponseEntity<ResponseGeneric<EscanerResponse.Lectura>>> leerDelCanal(
-            @RequestParam(defaultValue = "0") long desde, @RequestParam(defaultValue = "false") boolean esperar) {
+            @RequestParam(defaultValue = "0") long desde, @RequestParam(defaultValue = "false") boolean esperar,
+            @RequestParam(defaultValue = "codigo") String acepta) {
         String id;
         try {
             id = escaner.idDelCanal(usuarioActual());
@@ -119,7 +121,7 @@ public class EscanerRemotoController {
             r.setResult(aRespuesta(e));
             return r;
         }
-        return leerOEsperar(id, desde, esperar);
+        return leerOEsperar(id, desde, esperar, aceptaDe(acepta));
     }
 
     /** El celular de mi cuenta avisa que sigue ahí. */
@@ -135,6 +137,25 @@ public class EscanerRemotoController {
     @PostMapping("/canal/codigos")
     public ResponseEntity<ResponseGeneric<Boolean>> enviarAlCanal(@RequestBody EscanerResponse.EnviarCodigo cuerpo) {
         return responder(() -> escaner.enviar(escaner.idDelCanal(usuarioActual()), cuerpo == null ? null : cuerpo.codigo()));
+    }
+
+    /** El celular de mi cuenta manda una FOTO (JPEG en base64). {@code data} = si la PC la estaba esperando. */
+    @PostMapping("/canal/fotos")
+    public ResponseEntity<ResponseGeneric<Boolean>> enviarFotoAlCanal(@RequestBody EscanerResponse.EnviarFoto cuerpo) {
+        return responder(() -> escaner.enviarFoto(escaner.idDelCanal(usuarioActual()), cuerpo == null ? null : cuerpo.foto()));
+    }
+
+    /** {@code acepta=codigo,foto}: qué sabe recibir la pantalla. Lo desconocido se ignora; vacío = solo códigos. */
+    static Acepta aceptaDe(String valor) {
+        boolean codigos = false, fotos = false;
+        for (String parte : (valor == null ? "" : valor).split(",")) {
+            switch (parte.trim()) {
+                case "codigo" -> codigos = true;
+                case "foto" -> fotos = true;
+                default -> { }
+            }
+        }
+        return codigos || fotos ? new Acepta(codigos, fotos) : Acepta.SOLO_CODIGOS;
     }
 
     /** El usuario con sesión; sin sesión no se tiene canal (el servidor ya exige sesión en estas rutas, esto es la red de seguridad). */
@@ -167,6 +188,9 @@ public class EscanerRemotoController {
         Throwable causa = falla instanceof CompletionException && falla.getCause() != null ? falla.getCause() : falla;
         if (causa instanceof EscanerException.SesionNoDisponible) {
             return error(HttpStatus.GONE, causa.getMessage());
+        }
+        if (causa instanceof EscanerException.FotoNoPermitida) {
+            return error(HttpStatus.FORBIDDEN, causa.getMessage());
         }
         if (causa instanceof EscanerException.DemasiadasSolicitudes) {
             return error(HttpStatus.TOO_MANY_REQUESTS, causa.getMessage());

@@ -46,6 +46,7 @@ cualquier proxy.
 | E8 | El celular está «conectado» si mandó señal de vida en los últimos 45 segundos |
 | E10 | Máximo 3 preguntas abiertas a la vez por conexión; con una más, la más vieja se contesta vacía (no se acumulan hilos ni preguntas huérfanas) |
 | E12 | Si la PC pide «después del N» pero la conexión (nueva) va en un número menor, se normaliza a 0 |
+| E13 | **Fotos** (solo canal de la cuenta, con sesión): JPEG en base64 con encabezado `data:image/jpeg;base64,` de hasta 700 000 caracteres (~500 KB); se guardan las últimas 3, duran 5 min, máx. 10 por minuto. Una foto solo completa preguntas abiertas que declaran `acepta=foto` (`GET /canal/codigos?acepta=codigo,foto`), así una pantalla sin dónde ponerla no la «gasta». Una conexión por QR (pública) responde `FotoNoPermitida` (403) y ni siquiera tiene ruta de fotos |
 | E11 | Al mandar un código se sabe si la PC lo estaba esperando (pregunta abierta, o una hace menos de 3 s). `POST .../codigos` responde `true`/`false`; con `false` el celular dice «la computadora no lo está pidiendo: pulsa 📱» en vez de «enviado» |
 | E9 | La pregunta abierta se contesta al llegar un código, o cuando el celular se conecta por primera vez (para que la PC pase de «QR» a «escanea ahora») |
 

@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.escanercodigo.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.excepcion.EscanerException;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.Acepta;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EsperaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.EstadoDeSesion;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.LecturaDeCodigos;
@@ -95,8 +96,27 @@ public class EscanerRemotoService implements EscanerRemotoCasoUso {
     }
 
     @Override
+    public EsperaDeCodigos esperar(String sesionId, long desde, Acepta acepta) {
+        return encontrar(sesionId).esperar(Math.max(0, desde), reloj.instant(), acepta == null ? Acepta.SOLO_CODIGOS : acepta);
+    }
+
+    @Override
+    public boolean enviarFoto(String sesionId, String foto) {
+        SesionEscaner sesion = encontrar(sesionId);
+        if (!sesion.origen().startsWith(PREFIJO_CANAL)) {   // las conexiones por QR son públicas: no reciben fotos
+            throw new EscanerException.FotoNoPermitida();
+        }
+        return sesion.enviarFoto(foto, reloj.instant());
+    }
+
+    @Override
     public LecturaDeCodigos leer(String sesionId, long desde) {
         return encontrar(sesionId).leer(Math.max(0, desde), reloj.instant());
+    }
+
+    @Override
+    public LecturaDeCodigos leer(String sesionId, long desde, Acepta acepta) {
+        return encontrar(sesionId).leer(Math.max(0, desde), reloj.instant(), acepta == null ? Acepta.SOLO_CODIGOS : acepta);
     }
 
     @Override

@@ -213,4 +213,88 @@ class SesionEscanerTest {
                 .hasCauseInstanceOf(EscanerException.SesionNoDisponible.class);
         assertThatThrownBy(() -> s.registrar("7501234567890", T0)).isInstanceOf(EscanerException.SesionNoDisponible.class);
     }
+
+    // ───────── E13: fotos ─────────
+
+    private static String foto(int caracteres) {
+        return "data:image/jpeg;base64," + "A".repeat(caracteres);
+    }
+
+    @Test
+    @DisplayName("E13: una foto válida llega a la pregunta que sabe recibir fotos y no a la que solo recibe códigos")
+    void fotoSoloALaQueLaAcepta() throws Exception {
+        SesionEscaner s = nueva();
+        EsperaDeCodigos soloCodigos = s.esperar(0, T0, Acepta.SOLO_CODIGOS);
+        EsperaDeCodigos conFotos = s.esperar(0, T0, new Acepta(true, true));
+        assertThat(s.enviarFoto(foto(1000), T0.plusSeconds(1))).isTrue();
+        assertThat(soloCodigos.futuro()).isNotDone();
+        LecturaDeCodigos l = conFotos.futuro().get();
+        assertThat(l.fotos()).hasSize(1);
+        assertThat(l.fotos().get(0).foto()).isEqualTo(foto(1000));
+        assertThat(l.codigos()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("E13: sin pantalla que reciba fotos, se guarda pero avisa que nadie la esperaba")
+    void fotoSinNadieEsperando() {
+        SesionEscaner s = nueva();
+        s.esperar(0, T0, Acepta.SOLO_CODIGOS);
+        assertThat(s.enviarFoto(foto(100), T0.plusSeconds(1))).isFalse();
+    }
+
+    @Test
+    @DisplayName("E13: la pregunta que llega después recibe la foto guardada (máximo 3, 5 minutos)")
+    void fotoGuardadaYVence() throws Exception {
+        SesionEscaner s = nueva();
+        for (int i = 0; i < 4; i++) {
+            s.enviarFoto(foto(100 + i), T0.plusSeconds(i));
+        }
+        LecturaDeCodigos l = s.esperar(0, T0.plusSeconds(10), new Acepta(false, true)).futuro().get();
+        assertThat(l.fotos()).hasSize(3);
+        assertThat(l.fotos().get(0).foto()).isEqualTo(foto(101));
+        s.latido(T0.plusSeconds(200));
+        s.latido(T0.plusSeconds(400));
+        LecturaDeCodigos vieja = s.esperar(0, T0.plusSeconds(400), new Acepta(false, true)).futuro().getNow(null);
+        assertThat(vieja).as("pasaron más de 5 minutos desde las fotos").isNull();
+    }
+
+    @Test
+    @DisplayName("E13: rechaza lo que no es JPEG en base64, o pasa de 700 000 caracteres")
+    void fotoInvalida() {
+        SesionEscaner s = nueva();
+        for (String mala : new String[]{null, "", "hola", "data:image/png;base64,AAAA", "data:image/jpeg;base64,", "data:image/jpeg;base64,@@@@",
+                foto(700_000)}) {
+            assertThatThrownBy(() -> s.enviarFoto(mala, T0)).as("«%.30s»", mala).isInstanceOf(EscanerException.FotoInvalida.class);
+        }
+    }
+
+    @Test
+    @DisplayName("E13: máximo 10 fotos por minuto")
+    void fotoLimitePorMinuto() {
+        SesionEscaner s = nueva();
+        for (int i = 0; i < 10; i++) {
+            s.enviarFoto(foto(100), T0.plusSeconds(i));
+        }
+        assertThatThrownBy(() -> s.enviarFoto(foto(100), T0.plusSeconds(11))).isInstanceOf(EscanerException.DemasiadasSolicitudes.class);
+        s.enviarFoto(foto(100), T0.plusSeconds(75));
+    }
+
+    @Test
+    @DisplayName("E13: los envíos inválidos también cuentan para el límite por minuto")
+    void fotoInvalidaTambienCuenta() {
+        SesionEscaner s = nueva();
+        for (int i = 0; i < 10; i++) {
+            assertThatThrownBy(() -> s.enviarFoto("basura", T0)).isInstanceOf(EscanerException.FotoInvalida.class);
+        }
+        assertThatThrownBy(() -> s.enviarFoto("basura", T0)).isInstanceOf(EscanerException.DemasiadasSolicitudes.class);
+    }
+
+    @Test
+    @DisplayName("E13: leer respetando «acepta» devuelve la foto y no adelanta el contador sin ella")
+    void leerConAceptaFotos() {
+        SesionEscaner s = nueva();
+        s.enviarFoto(foto(100), T0);
+        assertThat(s.leer(0, T0.plusSeconds(1), new Acepta(false, true)).fotos()).hasSize(1);
+        assertThat(s.leer(0, T0.plusSeconds(1)).fotos()).isEmpty();
+    }
 }

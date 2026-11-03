@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.escanercodigo.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.escanercodigo.dominio.excepcion.EscanerException;
+import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.Acepta;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.LecturaDeCodigos;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionAbierta;
 import com.ventas.key.hexagonal.escanercodigo.dominio.modelo.SesionEscaner;
@@ -191,5 +192,19 @@ class EscanerRemotoServiceTest {
             servicio.abrir(null);
         }
         assertThatThrownBy(() -> servicio.abrir("")).isInstanceOf(EscanerException.DemasiadasSolicitudes.class);
+    }
+
+    @Test
+    @DisplayName("E13: las fotos solo viajan por el canal de la cuenta; una conexión por QR responde FotoNoPermitida")
+    void fotosSoloPorElCanal() {
+        String foto = "data:image/jpeg;base64," + "A".repeat(200);
+        String qr = servicio.abrir("ip:1.2.3.4").id();
+        assertThatThrownBy(() -> servicio.enviarFoto(qr, foto)).isInstanceOf(EscanerException.FotoNoPermitida.class);
+        String qrUsuario = servicio.abrir("usuario:ana").id();
+        assertThatThrownBy(() -> servicio.enviarFoto(qrUsuario, foto)).isInstanceOf(EscanerException.FotoNoPermitida.class);
+        String canal = servicio.idDelCanal("ana");
+        servicio.esperar(canal, 0, new Acepta(true, true));
+        assertThat(servicio.enviarFoto(canal, foto)).isTrue();
+        assertThatThrownBy(() -> servicio.enviarFoto("no-existe", foto)).isInstanceOf(EscanerException.SesionNoDisponible.class);
     }
 }
