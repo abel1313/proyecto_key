@@ -86,6 +86,27 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
 
     Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
 
+    /**
+     * Articulos a la venta que coinciden con una palabra que escribio el cliente (nombre del modelo, marca, presentacion o codigo de barras).
+     * El catalogo general que ve el chatbot se corta en 1000 articulos sin orden, asi que uno recien creado podia quedar fuera ("no encontre
+     * producto1" teniendolo con stock, reportado 2026-11-03): estas coincidencias se agregan siempre, sin depender de ese corte.
+     */
+    @Query("""
+            SELECT v FROM Variantes v
+              JOIN v.producto p
+              LEFT JOIN p.codigoBarras cb
+            WHERE v.stock > 0
+              AND v.habilitado = '1'
+              AND p.habilitado = '1'
+              AND p.esCatalogoInterno = false
+              AND ( LOWER(p.nombre) LIKE LOWER(CONCAT('%', :t, '%'))
+                 OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :t, '%'))
+                 OR LOWER(v.presentacion) LIKE LOWER(CONCAT('%', :t, '%'))
+                 OR cb.codigoBarras LIKE CONCAT('%', :t, '%') )
+            ORDER BY v.id DESC
+            """)
+    List<Variantes> buscarCoincidenciasParaChatbot(@Param("t") String termino, Pageable pageable);
+
     @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")
     Page<Variantes> findVariantesSinStockDeshabilitadas(Pageable pageable);
 

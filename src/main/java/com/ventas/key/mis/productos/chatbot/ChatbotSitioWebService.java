@@ -74,7 +74,12 @@ public class ChatbotSitioWebService extends ChatbotBase {
 
     private List<Map<String, String>> construirMensajes(ChatbotRequest request, boolean infoCompleta) {
         String categoria = detectarCategoriaEnConversacion(request.getMensaje(), mensajesPreviosDelCliente(request));
+        List<String> loQueEscribio = new ArrayList<>();
+        List<String> previos = mensajesPreviosDelCliente(request);
+        if (!previos.isEmpty()) loQueEscribio.add(previos.get(previos.size() - 1));
+        loQueEscribio.add(request.getMensaje());
         String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria, infoCompleta)
+                + coincidenciasConLoPedido(loQueEscribio, infoCompleta)
                 + (infoCompleta ? REGLA_ADMIN_INFO_COMPLETA : REGLA_CLIENTE_SIN_CODIGOS);
 
         List<Map<String, String>> mensajes = new ArrayList<>();
