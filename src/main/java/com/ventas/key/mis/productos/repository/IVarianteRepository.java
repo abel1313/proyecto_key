@@ -84,7 +84,17 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
            "ORDER BY v.stock ASC")
     List<Variantes> findConStockBajo(@Param("umbral") int umbral);
 
-    Page<Variantes> findByStockGreaterThanAndProductoHabilitado(int stock, char habilitado, Pageable pageable);
+    // Antes era un metodo derivado y metia al catalogo del chatbot articulos DADOS DE BAJA y los productos
+    // "sombra" de uso interno (flores eternas): el bot los ofrecia a los clientes (auditoria 2026-11-04).
+    @Query(value = "SELECT v FROM Variantes v JOIN v.producto p " +
+                   "WHERE v.stock > :stock AND p.habilitado = :habilitado AND v.habilitado = '1' " +
+                   "AND p.esCatalogoInterno = false",
+           countQuery = "SELECT COUNT(v) FROM Variantes v JOIN v.producto p " +
+                        "WHERE v.stock > :stock AND p.habilitado = :habilitado AND v.habilitado = '1' " +
+                        "AND p.esCatalogoInterno = false")
+    Page<Variantes> findByStockGreaterThanAndProductoHabilitado(@Param("stock") int stock,
+                                                                @Param("habilitado") char habilitado,
+                                                                Pageable pageable);
 
     /**
      * Articulos a la venta que coinciden con una palabra que escribio el cliente (nombre del modelo, marca, presentacion o codigo de barras).
@@ -102,10 +112,13 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
               AND ( LOWER(p.nombre) LIKE LOWER(CONCAT('%', :t, '%'))
                  OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :t, '%'))
                  OR LOWER(v.presentacion) LIKE LOWER(CONCAT('%', :t, '%'))
-                 OR cb.codigoBarras LIKE CONCAT('%', :t, '%') )
+                 OR cb.codigoBarras = :t
+                 OR (:parcial = TRUE AND cb.codigoBarras LIKE CONCAT('%', :t, '%')) )
             ORDER BY v.id DESC
             """)
-    List<Variantes> buscarCoincidenciasParaChatbot(@Param("t") String termino, Pageable pageable);
+    List<Variantes> buscarCoincidenciasParaChatbot(@Param("t") String termino,
+                                                   @Param("parcial") boolean codigoParcial,
+                                                   Pageable pageable);
 
     @Query("SELECT v FROM Variantes v WHERE v.stock = 0 AND v.producto.habilitado <> '1'")
     Page<Variantes> findVariantesSinStockDeshabilitadas(Pageable pageable);
@@ -136,6 +149,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
               LEFT JOIN p.palabraClave ppc
             WHERE v.stock > :stock
               AND p.habilitado = :habilitado
+              AND v.habilitado = '1'
+              AND p.esCatalogoInterno = false
               AND ( LOWER(vpc.nombre) = LOWER(:nombre)
                  OR (vpc IS NULL AND LOWER(ppc.nombre) = LOWER(:nombre)) )
             """)
@@ -438,7 +453,8 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                    "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
-                   "OR (v.producto.codigoBarras IS NOT NULL AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))",
+                   "OR (v.producto.codigoBarras IS NOT NULL AND (v.producto.codigoBarras.codigoBarras = :q " +
+                   "OR (:parcial = TRUE AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))))",
            countQuery = "SELECT COUNT(v) FROM Variantes v LEFT JOIN v.palabraClave pc " +
                         "WHERE v.stock > 0 AND v.producto.habilitado = '1' AND v.habilitado = '1' " +
                         "AND v.producto.esCatalogoInterno = false " +
@@ -446,6 +462,9 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                         "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
-                        "OR (v.producto.codigoBarras IS NOT NULL AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))")
-    Page<Variantes> buscarParaChatbot(@Param("q") String q, Pageable pageable);
+                        "OR (v.producto.codigoBarras IS NOT NULL AND (v.producto.codigoBarras.codigoBarras = :q " +
+                   "OR (:parcial = TRUE AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))))")
+    // codigoParcial: solo para quien puede ver codigos de barras (admin). A un cliente solo le coincide el codigo COMPLETO: con LIKE se podia
+    // reconstruir un codigo digito por digito probando /v1/chatbot/buscar?q=7501, q=75012... (auditoria 2026-11-04).
+    Page<Variantes> buscarParaChatbot(@Param("q") String q, @Param("parcial") boolean codigoParcial, Pageable pageable);
 }

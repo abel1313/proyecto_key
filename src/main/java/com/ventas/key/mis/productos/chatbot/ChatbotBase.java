@@ -470,6 +470,14 @@ public abstract class ChatbotBase {
     private static final String INICIO_COMENTARIO =
             "Empieza siempre con un saludo corto (\"¡Hola!\"). No digas que eres un asistente automático ni un bot.\n";
 
+    /**
+     * El precio que se le dice a quien pregunta. Al CLIENTE solo el precio de venta NORMAL: jamas el de rebaja/descuento (regla del dueño
+     * 2026-11-04, aunque lo pregunte). Quien tiene {@code infoCompleta} (admin) ve el que realmente se cobra, descuento incluido.
+     */
+    static Double precioParaMostrar(Variantes v, boolean infoCompleta) {
+        return infoCompleta ? v.precioACobrar() : v.precioNormal();
+    }
+
     static String descripcionDelProducto(Variantes v) {
         StringBuilder sb = new StringBuilder("- ").append(v.getProducto().getNombre());
         agregar(sb, "presentación", v.getPresentacion());
@@ -479,7 +487,7 @@ public abstract class ChatbotBase {
         agregar(sb, "contenido", v.getContenidoNeto());
         // El precio al que se vende: el normal, o el descuento solo si el dueño lo activó en la
         // card (R8). Una rebaja sin activar no se anuncia: si el bot la dice, el cliente llega pidiéndola.
-        Double precio = v.precioACobrar();
+        Double precio = precioParaMostrar(v, false);
         if (precio != null) {
             sb.append("\n- Precio: $").append(String.format("%.0f", precio)).append(" MXN");
         }
@@ -640,7 +648,7 @@ public abstract class ChatbotBase {
     public Map<String, Object> buscarProductos(String query, int offset, boolean infoCompleta) {
         int pagina = offset / CHATBOT_PAGE_SIZE;
         Page<Variantes> page = varianteRepository.buscarParaChatbot(
-                query.trim(), PageRequest.of(pagina, CHATBOT_PAGE_SIZE));
+                query.trim(), infoCompleta, PageRequest.of(pagina, CHATBOT_PAGE_SIZE));
 
         List<Map<String, Object>> productos = page.getContent().stream().map(v -> {
             Map<String, Object> p = new HashMap<>();
@@ -649,8 +657,13 @@ public abstract class ChatbotBase {
             p.put("marca", v.getMarca());
             p.put("talla", v.getTalla());
             p.put("color", v.getColor());
-            p.put("precio", v.precioACobrar());
-            p.put("stock", v.getStock());
+            p.put("precio", precioParaMostrar(v, infoCompleta));
+            // La cantidad exacta solo para quien tiene info completa; al cliente solo "disponible" (cualquiera podia recorrer
+            // GET /v1/chatbot/buscar y leer el stock de todo el catalogo, auditoria 2026-11-04).
+            if (infoCompleta) {
+                p.put("stock", v.getStock());
+            }
+            p.put("disponible", v.getStock() > 0);
             p.put("descripcion", v.getDescripcion());
             p.put("tieneImagen", varianteTieneImagen(v.getId()));
             if (infoCompleta && v.getProducto().getCodigoBarras() != null) {
@@ -789,7 +802,7 @@ public abstract class ChatbotBase {
                     .limit(4).toList();
             java.util.Map<Integer, Variantes> encontrados = new java.util.LinkedHashMap<>();
             for (String termino : elegidos) {
-                for (Variantes v : varianteRepository.buscarCoincidenciasParaChatbot(termino, PageRequest.of(0, 10))) {
+                for (Variantes v : varianteRepository.buscarCoincidenciasParaChatbot(termino, conCodigoBarras, PageRequest.of(0, 10))) {
                     encontrados.putIfAbsent(v.getId(), v);
                     if (encontrados.size() >= 20) break;
                 }
@@ -808,9 +821,9 @@ public abstract class ChatbotBase {
                 if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) sb.append(", presentación: ").append(v.getPresentacion());
                 if (v.getTalla() != null && !v.getTalla().isBlank()) sb.append(", talla: ").append(v.getTalla());
                 if (v.getColor() != null && !v.getColor().isBlank()) sb.append(", color: ").append(v.getColor());
-                Double precio = v.precioACobrar();
+                Double precio = precioParaMostrar(v, conCodigoBarras);
                 if (precio != null) sb.append(", precio: $").append(String.format("%.0f", precio)).append(" MXN");
-                sb.append(", disponible\n");
+                sb.append(conCodigoBarras ? ", existencias: " + v.getStock() : ", disponible").append("\n");
             }
             return sb.toString();
         } catch (Exception e) {
@@ -867,12 +880,12 @@ public abstract class ChatbotBase {
                     }
                 }
 
-                Double precioVenta = v.precioACobrar();
+                Double precioVenta = precioParaMostrar(v, conCodigoBarras);
                 if (precioVenta != null) {
                     sb.append(", precio: $").append(String.format("%.0f", precioVenta)).append(" MXN");
                 }
 
-                sb.append(", disponible");
+                sb.append(conCodigoBarras ? ", existencias: " + v.getStock() : ", disponible");
 
                 if (detallado) {
                     // La descripcion se captura en la variante ("Agregar producto") O en el modelo
