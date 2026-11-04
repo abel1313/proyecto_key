@@ -821,6 +821,12 @@ public abstract class ChatbotBase {
                 if (v.getPresentacion() != null && !v.getPresentacion().isBlank()) sb.append(", presentación: ").append(v.getPresentacion());
                 if (v.getTalla() != null && !v.getTalla().isBlank()) sb.append(", talla: ").append(v.getTalla());
                 if (v.getColor() != null && !v.getColor().isBlank()) sb.append(", color: ").append(v.getColor());
+                // La descripcion tambien se busca: "buscando a nemo" estaba solo ahi y el bot decia que no lo teniamos (reportado 2026-11-04).
+                String desc = (v.getDescripcion() != null && !v.getDescripcion().isBlank()) ? v.getDescripcion() : v.getProducto().getDescripcion();
+                if (desc != null && !desc.isBlank()) {
+                    String corta = desc.replaceAll("\\s+", " ").trim();
+                    sb.append(", descripción: ").append(corta.length() > 160 ? corta.substring(0, 160) + "…" : corta);
+                }
                 Double precio = precioParaMostrar(v, conCodigoBarras);
                 if (precio != null) sb.append(", precio: $").append(String.format("%.0f", precio)).append(" MXN");
                 sb.append(conCodigoBarras ? ", existencias: " + v.getStock() : ", disponible").append("\n");

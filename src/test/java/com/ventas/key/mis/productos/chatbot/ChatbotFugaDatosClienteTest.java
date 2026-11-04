@@ -123,6 +123,16 @@ class ChatbotFugaDatosClienteTest {
     }
 
     @Test
+    @DisplayName("la descripcion va en las coincidencias, para que el bot sepa que 'buscando a nemo' si lo tenemos")
+    void coincidenciasLlevanLaDescripcion() {
+        Variantes v = conRebajaActiva();
+        v.setDescripcion("Termo 32oz buscando a nemo");
+        when(repo.buscarCoincidenciasParaChatbot(anyString(), anyBoolean(), any(Pageable.class))).thenReturn(List.of(v));
+        assertThat(servicio.coincidenciasConLoPedido(List.of("tienes un termo buscando a nemo"), false))
+                .contains("descripción: Termo 32oz buscando a nemo");
+    }
+
+    @Test
     @DisplayName("comentarios publicos: el precio que se anuncia es el normal")
     void comentarios() {
         assertThat(ChatbotBase.descripcionDelProducto(conRebajaActiva())).contains("$400").doesNotContain("300");
