@@ -92,7 +92,7 @@ class ChatbotInfoCompletaTest {
     @Test
     @DisplayName("las tarjetas llevan el codigo solo si es info completa, y siempre dicen si hay foto")
     void tarjetas() {
-        when(varianteRepository.buscarParaChatbot(anyString(), any(Pageable.class)))
+        when(varianteRepository.buscarParaChatbot(anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(variante(1, "Short rojo", "7501234567890"), variante(2, "Short rojo B", "7509999999999"))));
         when(imagenes.existsByVarianteId(1)).thenReturn(true);
         when(imagenes.existsByVarianteId(2)).thenReturn(false);
@@ -108,21 +108,21 @@ class ChatbotInfoCompletaTest {
     @Test
     @DisplayName("un articulo recien creado entra al catalogo del bot por lo que escribio el cliente, aunque no este en los primeros 1000")
     void coincidenciasConLoPedido() {
-        when(varianteRepository.buscarCoincidenciasParaChatbot(eq("producto1"), any(Pageable.class)))
+        when(varianteRepository.buscarCoincidenciasParaChatbot(eq("producto1"), org.mockito.ArgumentMatchers.anyBoolean(), any(Pageable.class)))
                 .thenReturn(List.of(variante(7, "producto1", "1027202661697")));
         String cliente = servicio.coincidenciasConLoPedido(List.of("tienes este producto producto1"), false);
         assertThat(cliente).contains("producto1").contains("disponible").doesNotContain("1027202661697");
         String admin = servicio.coincidenciasConLoPedido(List.of("tienes este producto producto1"), true);
         assertThat(admin).contains("1027202661697");
-        verify(varianteRepository, org.mockito.Mockito.never()).buscarCoincidenciasParaChatbot(eq("tienes"), any(Pageable.class));
-        verify(varianteRepository, org.mockito.Mockito.never()).buscarCoincidenciasParaChatbot(eq("producto"), any(Pageable.class));
+        verify(varianteRepository, org.mockito.Mockito.never()).buscarCoincidenciasParaChatbot(eq("tienes"), org.mockito.ArgumentMatchers.anyBoolean(), any(Pageable.class));
+        verify(varianteRepository, org.mockito.Mockito.never()).buscarCoincidenciasParaChatbot(eq("producto"), org.mockito.ArgumentMatchers.anyBoolean(), any(Pageable.class));
     }
 
     @Test
     @DisplayName("sin coincidencias no agrega nada y una falla de la consulta no tumba al bot")
     void sinCoincidencias() {
         assertThat(servicio.coincidenciasConLoPedido(List.of("hola"), false)).isEmpty();
-        when(varianteRepository.buscarCoincidenciasParaChatbot(anyString(), any(Pageable.class))).thenThrow(new RuntimeException("bd"));
+        when(varianteRepository.buscarCoincidenciasParaChatbot(anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any(Pageable.class))).thenThrow(new RuntimeException("bd"));
         assertThat(servicio.coincidenciasConLoPedido(List.of("short rojo"), false)).isEmpty();
     }
 

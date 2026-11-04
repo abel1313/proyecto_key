@@ -22,11 +22,10 @@ public final class PoliticaDeRespuesta {
     private static final String FRASES_INTERNAS_COMUNES =
             "##"
                     + "|\\bescal(ar|o|é|e|aré|amos|ado|ada|ando)\\b"
-                    + "|\\badministrador(a)?\\b|\\badmin\\b"
                     + "|\\b(mand|envi)(é|e|o|amos|aré|aremos)\\s+(un\\s+)?(correo|mail|e-?mail|aviso)"
                     + "|\\b(notifiqu|notific)(é|e|amos|aré|ado)\\b"
                     + "|\\bbot\\s+en\\s+pausa\\b|\\bpausad[oa]\\b"
-                    + "|\\binstrucciones\\b|\\bprompt\\b"
+                    + "|\\bprompt\\b"
                     // P1 (2026-10-20): el mismo filtro lo usan ahora el chat de la tienda y el chat en vivo.
                     // Lista con FRASES, no palabras sueltas, para no detener respuestas normales.
                     + "|\\bopen\\s?ai\\b|\\bchat\\s?gpt\\b|\\bgpt-?\\d\\w*\\b|\\bdeep\\s?seek\\b"
@@ -36,7 +35,10 @@ public final class PoliticaDeRespuesta {
     // el bot SÍ se los da (pedido del dueño 2026-11-03), así que a él no se le aplican (2026-11-04: el
     // filtro detenía la respuesta del bot a un admin y salía el saludo genérico).
     private static final String FRASES_SOLO_PARA_CLIENTE =
-            "|\\bc[oó]digo\\s+de\\s+barras\\b"
+            // "administrador" e "instrucciones" delatan el funcionamiento interno ante un cliente, pero a un administrador el bot le puede
+            // contestar "claro, administrador": sin esto se le cambiaba la respuesta por el saludo genérico.
+            "|\\badministrador(a)?\\b|\\badmin\\b|\\binstrucciones\\b"
+                    + "|\\bc[oó]digo\\s+de\\s+barras\\b"
                     // Cantidad exacta en existencia: "quedan 3", "solo queda 1", "tenemos 5 piezas".
                     + "|\\bquedan?\\s+(solo\\s+|únicamente\\s+|apenas\\s+)?\\d+\\b"
                     + "|\\b(tenemos|hay)\\s+\\d+\\s+(piezas|pzas|unidades)\\b";

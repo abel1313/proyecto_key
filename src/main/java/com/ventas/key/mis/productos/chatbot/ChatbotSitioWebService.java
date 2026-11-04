@@ -78,7 +78,9 @@ public class ChatbotSitioWebService extends ChatbotBase {
         List<String> previos = mensajesPreviosDelCliente(request);
         if (!previos.isEmpty()) loQueEscribio.add(previos.get(previos.size() - 1));
         loQueEscribio.add(request.getMensaje());
-        String sistemPrompt = promptBase() + obtenerContextoVariantes(categoria, infoCompleta)
+        // Al administrador no se le aplica "nunca digas piezas ni código de barras": contradice la regla de abajo y el modelo se negaba.
+        String base = infoCompleta ? promptBase().replace(SIN_DATOS_INTERNOS, "") : promptBase();
+        String sistemPrompt = base + obtenerContextoVariantes(categoria, infoCompleta)
                 + coincidenciasConLoPedido(loQueEscribio, infoCompleta)
                 + (infoCompleta ? REGLA_ADMIN_INFO_COMPLETA : REGLA_CLIENTE_SIN_CODIGOS);
 
