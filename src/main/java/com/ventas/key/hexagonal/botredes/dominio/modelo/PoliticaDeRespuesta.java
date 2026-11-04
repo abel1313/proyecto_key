@@ -19,7 +19,7 @@ public final class PoliticaDeRespuesta {
     // Frases que delatan cómo funciona el bot por dentro. El cliente nunca debe leer que "le
     // mandamos un correo a la dueña" ni que "se escaló" su pregunta (pedido del dueño 2026-09-24).
     // No incluye "correo" suelto: la tienda puede dar su correo de contacto.
-    private static final Pattern ALGO_INTERNO = Pattern.compile(
+    private static final String FRASES_INTERNAS_COMUNES =
             "##"
                     + "|\\bescal(ar|o|é|e|aré|amos|ado|ada|ando)\\b"
                     + "|\\badministrador(a)?\\b|\\badmin\\b"
@@ -30,11 +30,23 @@ public final class PoliticaDeRespuesta {
                     // P1 (2026-10-20): el mismo filtro lo usan ahora el chat de la tienda y el chat en vivo.
                     // Lista con FRASES, no palabras sueltas, para no detener respuestas normales.
                     + "|\\bopen\\s?ai\\b|\\bchat\\s?gpt\\b|\\bgpt-?\\d\\w*\\b|\\bdeep\\s?seek\\b"
-                    + "|\\bmodelo\\s+de\\s+lenguaje\\b|\\bmis\\s+instrucciones\\b"
-                    + "|\\bc[oó]digo\\s+de\\s+barras\\b"
+                    + "|\\bmodelo\\s+de\\s+lenguaje\\b|\\bmis\\s+instrucciones\\b";
+
+    // Solo para el CLIENTE: el código de barras y la cantidad exacta en existencia. A un administrador
+    // el bot SÍ se los da (pedido del dueño 2026-11-03), así que a él no se le aplican (2026-11-04: el
+    // filtro detenía la respuesta del bot a un admin y salía el saludo genérico).
+    private static final String FRASES_SOLO_PARA_CLIENTE =
+            "|\\bc[oó]digo\\s+de\\s+barras\\b"
                     // Cantidad exacta en existencia: "quedan 3", "solo queda 1", "tenemos 5 piezas".
                     + "|\\bquedan?\\s+(solo\\s+|únicamente\\s+|apenas\\s+)?\\d+\\b"
-                    + "|\\b(tenemos|hay)\\s+\\d+\\s+(piezas|pzas|unidades)\\b",
+                    + "|\\b(tenemos|hay)\\s+\\d+\\s+(piezas|pzas|unidades)\\b";
+
+    private static final Pattern ALGO_INTERNO = Pattern.compile(
+            FRASES_INTERNAS_COMUNES + FRASES_SOLO_PARA_CLIENTE,
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    private static final Pattern ALGO_INTERNO_PARA_ADMIN = Pattern.compile(
+            FRASES_INTERNAS_COMUNES,
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private static final Pattern SALUDO_AL_INICIO = Pattern.compile(
@@ -117,10 +129,15 @@ public final class PoliticaDeRespuesta {
      * Solo devuelve el fragmento que coincidió, nunca el mensaje completo del cliente.
      */
     public static Optional<String> queMenciona(String texto) {
+        return queMenciona(texto, false);
+    }
+
+    /** {@code paraAdministrador}: quien lee es un administrador, a quien sí se le puede decir el código de barras y las existencias. */
+    public static Optional<String> queMenciona(String texto, boolean paraAdministrador) {
         if (texto == null) {
             return Optional.empty();
         }
-        Matcher m = ALGO_INTERNO.matcher(texto);
+        Matcher m = (paraAdministrador ? ALGO_INTERNO_PARA_ADMIN : ALGO_INTERNO).matcher(texto);
         return m.find() ? Optional.of(m.group()) : Optional.empty();
     }
 

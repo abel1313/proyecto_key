@@ -10,6 +10,16 @@
   - Falta: saber qué pantalla/script los generó (alta-articulos limita por stock libre; parece una llamada manual o un bucle) y tope de `cantidad` en el front.
   - Falta: prueba automática del tope.
 
+## Incidente resuelto (QA, 2026-11-04): micro de imágenes caído
+- Síntoma: Buscar con «Con imágenes» mostraba tarjetas sin foto; `.../imagenes/thumbnail/...` daba 502.
+- Causa: el pod `imagenes-deployment` de QA estaba en CrashLoopBackOff (95 reinicios): RabbitMQ rechazaba el login (`ACCESS_REFUSED`). `SPRING_RABBITMQ_USERNAME` iba vacío (Spring usaba `guest`, que no existe; Rabbit solo tiene `admin`) y la contraseña del secreto `rabbit-imagenes` no coincidía con la de Rabbit. Probable origen: Rabbit se reinició al volver la VPS (OVH) y perdió/cambió credenciales.
+- Arreglo: usuario `admin` en el deployment y contraseña igual en el secreto y en Rabbit; rollout restart.
+- [ ] Confirmar pod estable (0 reinicios) y que el back de QA sigue conectado a Rabbit.
+- [ ] Dejar el usuario de Rabbit en el deployment como `value: admin` explícito (o en el secreto) para que no vuelva a quedar vacío.
+- [ ] Revisar que Rabbit use almacenamiento persistente (si no, pierde usuarios al reiniciar).
+- [ ] Alerta/aviso cuando un pod de QA/prod pase de N reinicios (este llevó 11 h caído sin que nadie lo viera).
+- [ ] Borrar del historial de bash de la VPS las líneas con contraseñas.
+
 ## Seguridad
 - [ ] Pasar a prod seguridad (back main + front master juntos, cherry-pick) — solo con orden explícita.
 - [ ] Confirmar `FACEBOOK_APP_SECRET` en QA y prod.
