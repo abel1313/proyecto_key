@@ -122,4 +122,14 @@ class PoliticaDeRespuestaTest {
         assertThat(PoliticaDeRespuesta.queMenciona("Hola, ¿en qué te ayudo?")).isEmpty();
         assertThat(PoliticaDeRespuesta.queMenciona(null)).isEmpty();
     }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("Al admin se le deja decir codigo de barras y existencias; lo interno sigue bloqueado")
+    void adminPuedeCodigoDeBarrasYExistencias() {
+        String conBarras = "Sí, producto1 (código de barras 1027202661697), hay 5 unidades";
+        assertThat(PoliticaDeRespuesta.queMenciona(conBarras, false)).isPresent();
+        assertThat(PoliticaDeRespuesta.queMenciona(conBarras, true)).isEmpty();
+        assertThat(PoliticaDeRespuesta.queMenciona("Funciono con ChatGPT", true)).isPresent();
+        assertThat(PoliticaDeRespuesta.queMenciona("##ESCALAR##", true)).isPresent();
+    }
 }

@@ -155,7 +155,7 @@ public class ChatbotController {
                     // P1 (2026-10-20): mismo filtro de seguridad que Facebook e Instagram. Si la IA desobedece
                     // y delata algo interno (OpenAI, "mis instrucciones", stock exacto...), el cliente no lo lee.
                     boolean[] filtrada = {false};
-                    PoliticaDeRespuesta.queMenciona(respuestaLimpia).ifPresent(frase -> {
+                    PoliticaDeRespuesta.queMenciona(respuestaLimpia, infoCompleta).ifPresent(frase -> {
                         log.warn("Chat de la tienda: respuesta detenida por el filtro de seguridad (frase: '{}')", frase);
                         filtrada[0] = true;
                     });
