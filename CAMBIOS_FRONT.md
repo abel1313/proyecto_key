@@ -23359,3 +23359,29 @@ Nuevo endpoint que **solo suma fotos** a un artículo existente (no toca stock, 
 | `POST /v1/mp/test/simular-pago/{intentId}` | existía también en producción (`@Profile` en un método no lo apaga) | `404` fuera de los perfiles `dev`, `qa` y `local-qa` |
 | Webhook de Facebook sin `FACEBOOK_APP_SECRET` | aceptaba eventos sin firma | **rechaza** (403). Solo se acepta sin firma con `facebook.permitir-sin-firma=true` (puesto en el YML de dev). **Antes de llevarlo a producción hay que confirmar que `FACEBOOK_APP_SECRET` está configurado ahí** |
 | Listados genéricos `GET …/getAll?size=` | sin tope (`size=1000000`) | tope de 1000 por página en el CRUD genérico; tope de 200 en `/v1/productos/obtenerProductos`, `buscarNombreOrCodigoBarra` y los listados públicos de `/v1/variantes` (`buscar`, `buscar-filtrado`, `porProducto/{id}/paginado`, `imagenes/{id}/paginado`, `paginado/resumen`) |
+
+
+## 🤖 Chat de la tienda: qué ve el cliente y qué ve el administrador (2026-11-04, auditoría de datos del bot; ya en producción)
+
+**Regla del dueño:** al **cliente** (o visitante) el bot solo le da **foto, nombre y precio de venta normal**. Nunca, aunque lo pregunte: precio de rebaja/descuento, costo, cantidad exacta en existencia ni código de barras. Al **administrador** (rol de `chatbot.info-completa.roles`, por defecto `ROLE_ADMIN`) sí: nombre exacto, código de barras, existencias y el precio que realmente se cobra.
+
+### `POST /mis-productos/chatbot/mensaje` y `GET /mis-productos/v1/chatbot/buscar` — tarjetas `productos[]`
+| Campo | Cliente / visitante | Administrador | Antes |
+|---|---|---|---|
+| `precio` | precio de venta **normal** | el que se cobra (con descuento si está activo) | todos veían el de rebaja si estaba activo |
+| `stock` | **no viene** | viene (número) | venía para todos (se podía recorrer `/buscar` y leer el stock de todo el catálogo) |
+| `disponible` | `true` / `false` (**nuevo**) | `true` / `false` | no existía |
+| `codigoBarras` | no viene | viene | igual |
+
+- **Front (ya hecho):** `chatbot.component` usa `disponible` para el texto *«✅ Disponible» / «Agotado»* y para deshabilitar **Agregar**. Para el tope del carrito usa `stock` si viene y, si no, 99 cuando `disponible` (el pedido valida el stock real).
+- **Código de barras copiable:** en el texto del bot y en la tarjeta del administrador, los números de 8 a 14 dígitos salen como botón; un clic los copia («Copiado ✓»).
+- **Historial (`historial[]`):** máximo **20** mensajes; cada uno con `rol` y `contenido` obligatorios, `contenido` ≤ 1000 caracteres. Si no se cumple: `400`.
+
+### Qué busca el bot
+La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentación, color, descripción** (del artículo y del producto) y **código de barras**. Para el cliente el código de barras solo coincide **completo**; la coincidencia parcial queda solo para el administrador. Solo entran artículos **habilitados**, de producto habilitado y que **no** sean de catálogo interno (antes entraban dados de baja y los de uso interno).
+
+### Respuestas del bot
+- El filtro de seguridad de salida (`PoliticaDeRespuesta`) ya no detiene al administrador por decir «código de barras», cantidades o «administrador»; al cliente sí. Lo interno (`##`, ChatGPT, «instrucciones»…) se bloquea a los dos. Si se detiene, el cliente ve *«¡Con gusto te ayudo! 😊 ¿Buscas algún producto…?»* y el log del back trae `detenida por el filtro de seguridad (frase: '…')`.
+
+### `POST /mis-productos/v2/articulos/guardarConImagenes`
+- Tope de **200 artículos** por llamada. Con más: `500` con *«Son demasiados artículos en una sola petición (N). El máximo es 200: guárdalos en tandas más pequeñas»*; no se guarda ninguno.
