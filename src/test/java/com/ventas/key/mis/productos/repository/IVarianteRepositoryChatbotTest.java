@@ -76,6 +76,21 @@ class IVarianteRepositoryChatbotTest {
     }
 
     @Test
+    void coincidenciasTambienBuscanEnDescripcionYColor() {
+        // QA 2026-11-04: "termo ... buscando a nemo" solo decia Nemo en la descripcion y el bot contestaba que no lo teniamos.
+        Variantes termo = articulo("termo", "1025202655819", '1', false);
+        termo.setColor("NEGRO");
+        termo.setDescripcion("Termo 32oz 950mL buscando a nemo");
+        variantes.save(termo);
+        articulo("termo postres", "847280091386", '1', false);
+
+        assertThat(variantes.buscarCoincidenciasParaChatbot("nemo", false, PageRequest.of(0, 5)))
+                .extracting(v -> v.getProducto().getNombre()).containsExactly("termo");
+        assertThat(variantes.buscarCoincidenciasParaChatbot("negro", false, PageRequest.of(0, 5))).hasSize(1);
+        assertThat(variantes.buscarCoincidenciasParaChatbot("termo", false, PageRequest.of(0, 5))).hasSize(2);
+    }
+
+    @Test
     void porCategoriaCompila() {
         assertThat(variantes.buscarParaChatbotPorCategoria(0, '1', "faldas", PageRequest.of(0, 5))).isEmpty();
     }

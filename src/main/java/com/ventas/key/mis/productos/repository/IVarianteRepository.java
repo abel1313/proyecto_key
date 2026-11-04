@@ -97,7 +97,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                                                 Pageable pageable);
 
     /**
-     * Articulos a la venta que coinciden con una palabra que escribio el cliente (nombre del modelo, marca, presentacion o codigo de barras).
+     * Articulos a la venta que coinciden con una palabra que escribio el cliente (nombre del modelo, marca, presentacion, color, descripcion o codigo de barras).
      * El catalogo general que ve el chatbot se corta en 1000 articulos sin orden, asi que uno recien creado podia quedar fuera ("no encontre
      * producto1" teniendolo con stock, reportado 2026-11-03): estas coincidencias se agregan siempre, sin depender de ese corte.
      */
@@ -112,6 +112,9 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
               AND ( LOWER(p.nombre) LIKE LOWER(CONCAT('%', :t, '%'))
                  OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :t, '%'))
                  OR LOWER(v.presentacion) LIKE LOWER(CONCAT('%', :t, '%'))
+                 OR LOWER(v.color) LIKE LOWER(CONCAT('%', :t, '%'))
+                 OR LOWER(v.descripcion) LIKE LOWER(CONCAT('%', :t, '%'))
+                 OR LOWER(p.descripcion) LIKE LOWER(CONCAT('%', :t, '%'))
                  OR cb.codigoBarras = :t
                  OR (:parcial = TRUE AND cb.codigoBarras LIKE CONCAT('%', :t, '%')) )
             ORDER BY v.id DESC
@@ -452,6 +455,9 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                    "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v) " +
                    "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.descripcion) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.producto.descripcion) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.color) LIKE LOWER(CONCAT('%', :q, '%')) " +
                    "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
                    "OR (v.producto.codigoBarras IS NOT NULL AND (v.producto.codigoBarras.codigoBarras = :q " +
                    "OR (:parcial = TRUE AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))))",
@@ -461,6 +467,9 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                         "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v) " +
                         "AND (LOWER(v.producto.nombre) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR LOWER(v.marca) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.descripcion) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.producto.descripcion) LIKE LOWER(CONCAT('%', :q, '%')) " +
+                   "OR LOWER(v.color) LIKE LOWER(CONCAT('%', :q, '%')) " +
                         "OR (pc IS NOT NULL AND LOWER(pc.nombre) LIKE LOWER(CONCAT('%', :q, '%'))) " +
                         "OR (v.producto.codigoBarras IS NOT NULL AND (v.producto.codigoBarras.codigoBarras = :q " +
                    "OR (:parcial = TRUE AND v.producto.codigoBarras.codigoBarras LIKE CONCAT('%', :q, '%')))))")
