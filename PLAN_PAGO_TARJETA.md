@@ -45,6 +45,15 @@ Reglas, principios y contratos: `src/main/java/com/ventas/key/hexagonal/pagotarj
 
 **Decisiones del dueño aún abiertas:** quién paga la comisión (la fórmula actual copia la de ventas y puede estar mal); si devolver afecta pedido/venta/stock; qué se hace con `COBRADO_SIN_APLICAR`; planes de meses habilitados; entrega del pago en línea (a dónde y cuándo).
 
+## ⏸️ PAUSADO por el dueño hasta que él diga (2026-11-04)
+
+Se retomó la prueba real con cuentas de prueba y **sigue el mismo error**. Lo que quedó verificado hoy:
+- El token de `ACCESS_TOKE_MERCADO_PAGO` en QA es de un usuario de prueba **vendedor** (`TESTUSER5043…`, ID 3358460924, México / `MLM`): coincide con el Vendedor del panel de *Cuentas de prueba*. El Comprador de prueba es `TESTUSER1018…` (ID 3358460926, México). Las dos cuentas son de México y de prueba.
+- El error *«Una de las partes con la que intentas hacer el pago es de prueba»* sale **al pulsar «Pagar»** (el formulario sí abre), también con el cobro hecho a mano. Eso apunta a quién ve Mercado Pago como pagador (correo, tarjeta o sesión real mezclados con vendedor de prueba), no a nuestro código: nuestra preferencia no manda correo de comprador.
+- **Falta saber** (el dueño no lo ha contestado): qué correo y qué tarjeta puso en el formulario, y si pagó como invitado o iniciando sesión con el comprador de prueba.
+- Pasos para cuando se retome: ventana de incógnito nueva; iniciar sesión **solo** con el Comprador de prueba (usuario completo y contraseña del panel; código de verificación = últimos 6 dígitos de su ID); abrir ahí el `init_point` de un cobro hecho con `curl`; pagar con tarjeta de prueba del panel, titular `APRO` y el correo del comprador de prueba. Si falla igual: abrir caso en soporte de Mercado Pago Developers con el `pref_id` (texto del caso ya redactado en la conversación del 2026-11-04) o abrir a la sesión del asistente el acceso de red a `www.mercadopago.com.mx` y `www.mercadopago.com` para leer la documentación.
+- Las contraseñas de las cuentas de prueba **no** se anotan aquí ni se pegan en el chat.
+
 ## 🟡 PENDIENTE — Pago en línea con Mercado Pago real (anotado 2026-11-01)
 
 **Estado:** el código está terminado y subido a `dev` y `qa` (Checkout Pro, webhook con firma, reembolso, enrutador por canal; `PASOS_MERCADO_PAGO_QA.md`). **La prueba real en QA falla** con la pantalla de Mercado Pago *"Algo salió mal… Una de las partes con la que intentas hacer el pago es de prueba"*. El dueño decidió dejarlo en pausa y retomarlo después.

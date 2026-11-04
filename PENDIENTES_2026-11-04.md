@@ -42,3 +42,6 @@
 ## Validaciones del dueño en QA
 - [ ] Escáner y fotos con celular real.
 - [ ] Bot con `chatbot.info-completa.roles` en QA; búsqueda "producto1".
+
+## Mercado Pago (pausado por el dueño hasta que diga)
+- [ ] Ver el detalle y los pasos en `PLAN_PAGO_TARJETA.md`, sección «PAUSADO por el dueño (2026-11-04)».
