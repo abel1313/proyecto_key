@@ -60,6 +60,9 @@ import java.util.stream.Collectors;
 public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List<Variantes>, Optional<Variantes>, Integer, PginaDto<List<Variantes>>>
         implements IVarianteService {
 
+    /** Tope de articulos en una sola llamada a guardarConImagenes (un alta real son pocas tallas/colores). */
+    private static final int MAXIMO_ARTICULOS_POR_ALTA = 200;
+
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
     private final IProductosRepository iProductosRepository;
@@ -599,6 +602,14 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
 
     @Transactional
     public List<Variantes> guardarConImagenes(List<VarianteDetalle> detalles) throws ExceptionDataNotFound {
+        // Un alta real son unas cuantas tallas/colores. Llegaban lotes de miles de articulos
+        // identicos (QA, productoId 265, stock 5 cada uno) que saturaban la transaccion.
+        if (detalles != null && detalles.size() > MAXIMO_ARTICULOS_POR_ALTA) {
+            throw new ExceptionErrorInesperado(
+                    "Son demasiados articulos en una sola peticion (" + detalles.size()
+                            + "). El maximo es " + MAXIMO_ARTICULOS_POR_ALTA
+                            + ": guardalos en tandas mas pequenas");
+        }
         // Antes de nada: sacar los articulos que no describen nada (R1 del dominio `articulo`).
         // La pantalla de alta tiene el formulario base y la seccion de varias tallas, y son
         // independientes; si alguien llena el base, agrega 2 tallas y despues vacia el base, el
