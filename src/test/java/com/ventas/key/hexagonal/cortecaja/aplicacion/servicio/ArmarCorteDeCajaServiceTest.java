@@ -27,7 +27,7 @@ class ArmarCorteDeCajaServiceTest {
 
     private static PedidoPorCobrar pedido(int id, String total, String pagado, Integer zonaId, String zona) {
         return new PedidoPorCobrar(id, "Cliente " + id, 1, new BigDecimal(total), new BigDecimal(pagado),
-                new BigDecimal(pagado).signum() > 0 ? 1 : 0, LocalDate.of(2026, 11, 1), "Pendiente", false, zonaId, zona, null);
+                new BigDecimal(pagado).signum() > 0 ? 1 : 0, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 8), "Pendiente", false, zonaId, zona, null);
     }
 
     private static CorteDeCaja armar(Integer zonaId, PedidoPorCobrar... pedidos) {

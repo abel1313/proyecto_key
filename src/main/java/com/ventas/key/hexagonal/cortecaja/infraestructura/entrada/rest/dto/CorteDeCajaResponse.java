@@ -21,7 +21,7 @@ public record CorteDeCajaResponse(Instant generado, double total, double totalPe
     }
 
     public record Pedido(int pedidoId, String cliente, int articulos, double total, double pagado, int pagos, boolean dioAnticipo,
-                         double saldo, LocalDate fechaPedido, String estado, boolean entregado, Ganancia ganancia) {
+                         double saldo, LocalDate fechaPedido, LocalDate fechaEntrega, String estado, boolean entregado, Ganancia ganancia) {
     }
 
     /** costo; precio normal y su ganancia; con descuento y su ganancia. {@code hayDescuento} = algún artículo tiene descuento. */
@@ -44,7 +44,7 @@ public record CorteDeCajaResponse(Instant generado, double total, double totalPe
 
     private static Pedido pedido(PedidoPorCobrar p) {
         return new Pedido(p.pedidoId(), p.cliente(), p.articulos(), p.total().doubleValue(), p.pagado().doubleValue(), p.pagos(),
-                p.dioAnticipo(), p.saldo().doubleValue(), p.fechaPedido(), p.estado(), p.entregado(), ganancia(p.montos()));
+                p.dioAnticipo(), p.saldo().doubleValue(), p.fechaPedido(), p.fechaEntrega(), p.estado(), p.entregado(), ganancia(p.montos()));
     }
 
     private static Ganancia ganancia(MontosDeGanancia m) {

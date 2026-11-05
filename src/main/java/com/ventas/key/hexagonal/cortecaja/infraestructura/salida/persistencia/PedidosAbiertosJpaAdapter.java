@@ -62,10 +62,10 @@ public class PedidosAbiertosJpaAdapter implements PedidosAbiertosPort {
             jpql.append(")");
         }
         if (filtro.desde() != null) {
-            jpql.append(" AND p.fechaPedido >= :desde");
+            jpql.append(" AND p.fechaRecogida >= :desde");
         }
         if (filtro.hasta() != null) {
-            jpql.append(" AND p.fechaPedido <= :hasta");
+            jpql.append(" AND p.fechaRecogida <= :hasta");
         }
         var consulta = entityManager.createQuery(jpql.toString(), Pedido.class).setMaxResults(MAXIMO_PEDIDOS + 1);
         if (!filtro.zonasReales().isEmpty()) {
@@ -129,6 +129,7 @@ public class PedidosAbiertosJpaAdapter implements PedidosAbiertosPort {
                 dinero(p.getTotalPagado()),
                 pagos,
                 p.getFechaPedido(),
+                p.getFechaRecogida(),
                 p.getEstadoPedido(),
                 p.isEntregado(),
                 zona == null ? null : zona.getId(),
