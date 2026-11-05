@@ -23422,11 +23422,13 @@ La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentac
 | Param | Valores | Por defecto | Qué hace |
 |---|---|---|---|
 | `zonaId` | id de zona (`/v1/lugares-entrega`) | todas | Una sola zona; sin él salen todas y «Sin zona» al final |
-| `desde`, `hasta` | `yyyy-MM-dd` | sin límite | **Fecha del pedido**, ambos extremos incluidos. `desde > hasta` → `400` *«La fecha «desde» no puede ser después de «hasta».»* |
+| `desde`, `hasta` | `yyyy-MM-dd` | sin límite | **Fecha de entrega** (`fecha_recogida`, la que se programa en Entregas por zona), ambos extremos incluidos. **Un pedido sin fecha de entrega NO sale cuando se manda `desde` o `hasta`** (antes filtraba por la fecha en que se hizo el pedido, 2026-11-05). `desde > hasta` → `400` *«La fecha «desde» no puede ser después de «hasta».»* |
 | `pago` | `POR_COBRAR` · `PAGADOS` · `TODOS` | `POR_COBRAR` | Por saldo: con algo por cobrar, ya pagados completos, o todos |
 | `entrega` | `SIN_ENTREGAR` · `ENTREGADOS` · `TODOS` | `SIN_ENTREGAR` | Según si el pedido ya se entregó |
 
 Los **cancelados nunca** entran. Más de 3000 pedidos → `400` *«Son más de 3000 pedidos. Acota las fechas o elige una zona.»*
+
+**Campo nuevo por pedido (2026-11-05):** `fechaEntrega` (`yyyy-MM-dd`, o `null` si no tiene). `fechaPedido` sigue viniendo pero ya no es la que filtra. Pantalla: los campos dicen «Entrega desde / Entrega hasta» y cada tarjeta muestra «Entrega dd MMM» o «Sin fecha de entrega».
 
 **Campos nuevos del response:** en el total y en cada zona `totalPedidos` (suma de totales) y `totalPagado`; `total`/`subtotal` siguen siendo **lo que falta por cobrar**; en cada pedido `entregado` (boolean).
 

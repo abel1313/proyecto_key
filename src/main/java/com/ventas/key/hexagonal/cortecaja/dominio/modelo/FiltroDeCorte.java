@@ -12,8 +12,8 @@ import java.util.Set;
  *
  * @param zonas  las zonas de entrega que entran (varias a la vez); vacío = todas. El id {@link #SIN_ZONA} (0) agrega «Sin zona»
  *               (pedidos que se recogen en tienda)
- * @param desde  primer día de la FECHA DEL PEDIDO; {@code null} = sin límite
- * @param hasta  último día de la fecha del pedido; {@code null} = sin límite
+ * @param desde  primer día de la FECHA DE ENTREGA (la que se programa en Entregas por zona); un pedido sin fecha de entrega no entra cuando hay fechas; {@code null} = sin límite
+ * @param hasta  último día de la fecha de entrega; {@code null} = sin límite
  * @param pago   cuáles según su pago
  * @param entrega cuáles según su entrega
  */

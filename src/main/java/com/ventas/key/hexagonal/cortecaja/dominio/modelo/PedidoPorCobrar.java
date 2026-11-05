@@ -19,6 +19,7 @@ public record PedidoPorCobrar(
         BigDecimal pagado,
         int pagos,
         LocalDate fechaPedido,
+        LocalDate fechaEntrega,
         String estado,
         boolean entregado,
         Integer zonaId,
