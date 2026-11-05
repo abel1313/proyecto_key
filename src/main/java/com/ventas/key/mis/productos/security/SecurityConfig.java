@@ -614,7 +614,7 @@ public class SecurityConfig {
 
                         // ── Reportes de ventas ───────────────────────────────────────────
                         // Revisión de ventas (alertas de cosas raras en pedidos, ventas, abonos y stock): solo administrador.
-                        .requestMatchers(HttpMethod.GET, "/v1/reportes/revision-ventas").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/v1/reportes/revision-ventas", "/v1/reportes/corte-caja").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/**").hasAnyAuthority(pantalla("reportes"))
                         .requestMatchers("/v1/reportes/**").hasAnyAuthority(pantallaEscribir("reportes"))
 

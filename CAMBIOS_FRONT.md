@@ -23385,3 +23385,28 @@ La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentac
 
 ### `POST /mis-productos/v2/articulos/guardarConImagenes`
 - Tope de **200 artículos** por llamada. Con más: `500` con *«Son demasiados artículos en una sola petición (N). El máximo es 200: guárdalos en tandas más pequeñas»*; no se guarda ninguno.
+
+
+## 🧾 Corte de caja por zona de entrega (2026-11-05, solo administrador; en `dev` y `qa`)
+
+**`GET /mis-productos/v1/reportes/corte-caja`** (opcional `?zonaId=3`): solo `ROLE_ADMIN` (un cliente recibe `403`). Solo lectura. Los pedidos **sin entregar, sin cancelar y con algo por cobrar**, por zona de entrega, con subtotal por zona y total general. Los pedidos sin zona salen en la zona **«Sin zona»** (`zonaId: null`) al final.
+
+**Response (`response`):**
+```json
+{
+  "generado": "2026-11-05T15:00:00Z", "total": 600.0, "cantidadPedidos": 4, "articulos": 6,
+  "ganancia": { "costo": 140.0, "ventaNormal": 300.0, "gananciaNormal": 160.0, "conDescuento": 260.0, "gananciaConDescuento": 120.0, "hayDescuento": true },
+  "zonas": [{
+    "zonaId": 1, "zona": "Luvianos", "subtotal": 450.0, "cantidad": 2, "articulos": 3, "ganancia": { "...": "igual que arriba" },
+    "pedidos": [{
+      "pedidoId": 12, "cliente": "María López", "articulos": 2, "total": 200.0, "pagado": 0.0, "pagos": 0, "dioAnticipo": false,
+      "saldo": 200.0, "fechaPedido": "2026-11-01", "estado": "Pendiente",
+      "ganancia": { "costo": 80.0, "ventaNormal": 200.0, "gananciaNormal": 120.0, "conDescuento": 160.0, "gananciaConDescuento": 80.0, "hayDescuento": true }
+    }]
+  }]
+}
+```
+- **Tabla:** Pedido · Cliente · Artículos · Total · Pagos («1 pago (anticipo $100)» si `pagos = 1`, «N pagos» si más, «sin pagos» si 0) · Por cobrar (`saldo`).
+- **`ganancia` (costo y ganancia): va en el pedido, la zona y el total; el front la muestra solo al desplegarla.** `conDescuento` = igual a `ventaNormal` si ningún artículo tiene descuento (`hayDescuento: false`: no mostrar esa columna repetida).
+- El **costo** es el costo actual del producto (no se guarda en el pedido); la ganancia de pedidos viejos cambia si el costo cambia.
+- `500` con `mensaje` si algo falla; nada más cambia.
