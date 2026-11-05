@@ -22926,3 +22926,66 @@ front. Al revés, el front llamaría `/v2/...` a un back que no las tiene → 40
 - El front debe mandar el `Authorization` normal (el interceptor ya lo hace) para que el admin sea reconocido.
 
 **Fotos (`##BUSCAR##`):** cada tarjeta lleva `tieneImagen`. Si el cliente pide ver un producto y **ninguno** tiene foto, la respuesta es *«Por ahora ese producto no tiene foto cargada 📷…»* y `productos` viene vacío (antes salía «aquí tienes la imagen» con una tarjeta vacía con una cámara). Si no se encontró nada: *«No encontré ese producto para mostrártelo…»*. Las tarjetas sin foto no se mandan (tampoco en «Ver más»).
+
+
+## 🔒 Seguridad, segunda tanda (2026-11-03 noche; el tope de size, simular-pago y Facebook son código y llegan a producción con el merge; el YML de QA no)
+
+| Qué | Antes | Después |
+|---|---|---|
+| `POST /v1/auth/refresh` y `/v1/auth/logout` (**solo QA** por ahora) | cualquiera podía forzarlos desde otro sitio | exigen el header `X-Requested-With: XMLHttpRequest`. El front ya lo manda; **producción lo enciende cuando el front de prod esté confirmado** (`seguridad.exigir-header-refresh=true` en el YML de prod) |
+| CORS de QA | incluía `venta-bolsas-online.netlify.app` con credenciales | solo `https://qa.shop.novedades-jade.com.mx` |
+| Swagger en QA | `/swagger-ui.html` y `/v3/api-docs` abiertos | apagados (`springdoc.*.enabled=false`) |
+| `POST /v1/mp/test/simular-pago/{intentId}` | existía también en producción (`@Profile` en un método no lo apaga) | `404` fuera de los perfiles `dev`, `qa` y `local-qa` |
+| Webhook de Facebook sin `FACEBOOK_APP_SECRET` | aceptaba eventos sin firma | **rechaza** (403). Solo se acepta sin firma con `facebook.permitir-sin-firma=true` (puesto en el YML de dev). **Antes de llevarlo a producción hay que confirmar que `FACEBOOK_APP_SECRET` está configurado ahí** |
+| Listados genéricos `GET …/getAll?size=` | sin tope (`size=1000000`) | tope de 1000 por página en el CRUD genérico; tope de 200 en `/v1/productos/obtenerProductos`, `buscarNombreOrCodigoBarra` y los listados públicos de `/v1/variantes` (`buscar`, `buscar-filtrado`, `porProducto/{id}/paginado`, `imagenes/{id}/paginado`, `paginado/resumen`) |
+
+
+## 🤖 Chat de la tienda: qué ve el cliente y qué ve el administrador (2026-11-04, auditoría de datos del bot; ya en producción)
+
+**Regla del dueño:** al **cliente** (o visitante) el bot solo le da **foto, nombre y precio de venta normal**. Nunca, aunque lo pregunte: precio de rebaja/descuento, costo, cantidad exacta en existencia ni código de barras. Al **administrador** (rol de `chatbot.info-completa.roles`, por defecto `ROLE_ADMIN`) sí: nombre exacto, código de barras, existencias y el precio que realmente se cobra.
+
+### `POST /mis-productos/chatbot/mensaje` y `GET /mis-productos/v1/chatbot/buscar` — tarjetas `productos[]`
+| Campo | Cliente / visitante | Administrador | Antes |
+|---|---|---|---|
+| `precio` | precio de venta **normal** | el que se cobra (con descuento si está activo) | todos veían el de rebaja si estaba activo |
+| `stock` | **no viene** | viene (número) | venía para todos (se podía recorrer `/buscar` y leer el stock de todo el catálogo) |
+| `disponible` | `true` / `false` (**nuevo**) | `true` / `false` | no existía |
+| `codigoBarras` | no viene | viene | igual |
+
+- **Front (ya hecho):** `chatbot.component` usa `disponible` para el texto *«✅ Disponible» / «Agotado»* y para deshabilitar **Agregar**. Para el tope del carrito usa `stock` si viene y, si no, 99 cuando `disponible` (el pedido valida el stock real).
+- **Código de barras copiable:** en el texto del bot y en la tarjeta del administrador, los números de 8 a 14 dígitos salen como botón; un clic los copia («Copiado ✓»).
+- **Historial (`historial[]`):** máximo **20** mensajes; cada uno con `rol` y `contenido` obligatorios, `contenido` ≤ 1000 caracteres. Si no se cumple: `400`.
+
+### Qué busca el bot
+La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentación, color, descripción** (del artículo y del producto) y **código de barras**. Para el cliente el código de barras solo coincide **completo**; la coincidencia parcial queda solo para el administrador. Solo entran artículos **habilitados**, de producto habilitado y que **no** sean de catálogo interno (antes entraban dados de baja y los de uso interno).
+
+### Respuestas del bot
+- El filtro de seguridad de salida (`PoliticaDeRespuesta`) ya no detiene al administrador por decir «código de barras», cantidades o «administrador»; al cliente sí. Lo interno (`##`, ChatGPT, «instrucciones»…) se bloquea a los dos. Si se detiene, el cliente ve *«¡Con gusto te ayudo! 😊 ¿Buscas algún producto…?»* y el log del back trae `detenida por el filtro de seguridad (frase: '…')`.
+
+### `POST /mis-productos/v2/articulos/guardarConImagenes`
+- Tope de **200 artículos** por llamada. Con más: `500` con *«Son demasiados artículos en una sola petición (N). El máximo es 200: guárdalos en tandas más pequeñas»*; no se guarda ninguno.
+
+
+## 🧾 Corte de caja por zona de entrega (2026-11-05, solo administrador; en `dev` y `qa`)
+
+**`GET /mis-productos/v1/reportes/corte-caja`** (opcional `?zonaId=3`): solo `ROLE_ADMIN` (un cliente recibe `403`). Solo lectura. Los pedidos **sin entregar, sin cancelar y con algo por cobrar**, por zona de entrega, con subtotal por zona y total general. Los pedidos sin zona salen en la zona **«Sin zona»** (`zonaId: null`) al final.
+
+**Response (`response`):**
+```json
+{
+  "generado": "2026-11-05T15:00:00Z", "total": 600.0, "cantidadPedidos": 4, "articulos": 6,
+  "ganancia": { "costo": 140.0, "ventaNormal": 300.0, "gananciaNormal": 160.0, "conDescuento": 260.0, "gananciaConDescuento": 120.0, "hayDescuento": true },
+  "zonas": [{
+    "zonaId": 1, "zona": "Luvianos", "subtotal": 450.0, "cantidad": 2, "articulos": 3, "ganancia": { "...": "igual que arriba" },
+    "pedidos": [{
+      "pedidoId": 12, "cliente": "María López", "articulos": 2, "total": 200.0, "pagado": 0.0, "pagos": 0, "dioAnticipo": false,
+      "saldo": 200.0, "fechaPedido": "2026-11-01", "estado": "Pendiente",
+      "ganancia": { "costo": 80.0, "ventaNormal": 200.0, "gananciaNormal": 120.0, "conDescuento": 160.0, "gananciaConDescuento": 80.0, "hayDescuento": true }
+    }]
+  }]
+}
+```
+- **Tabla:** Pedido · Cliente · Artículos · Total · Pagos («1 pago (anticipo $100)» si `pagos = 1`, «N pagos» si más, «sin pagos» si 0) · Por cobrar (`saldo`).
+- **`ganancia` (costo y ganancia): va en el pedido, la zona y el total; el front la muestra solo al desplegarla.** `conDescuento` = igual a `ventaNormal` si ningún artículo tiene descuento (`hayDescuento: false`: no mostrar esa columna repetida).
+- El **costo** es el costo actual del producto (no se guarda en el pedido); la ganancia de pedidos viejos cambia si el costo cambia.
+- `500` con `mensaje` si algo falla; nada más cambia.

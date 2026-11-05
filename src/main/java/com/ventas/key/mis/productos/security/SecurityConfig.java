@@ -588,6 +588,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/gastos/**").hasAnyAuthority(pantallaEscribir("gastos/buscar"))
 
                         // ── Reportes de ventas ───────────────────────────────────────────
+                        // Corte de caja (pedidos por zona con costo y ganancia): solo administrador.
+                        .requestMatchers(HttpMethod.GET, "/v1/reportes/corte-caja").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/**").hasAnyAuthority(pantalla("reportes"))
                         .requestMatchers("/v1/reportes/**").hasAnyAuthority(pantallaEscribir("reportes"))
 
