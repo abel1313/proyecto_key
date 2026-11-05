@@ -688,6 +688,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `limpiar_datos_prueba_qa_catalogo.sql` (quita lo anterior) | cuando se quiera | 🚫 nunca | — |
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
 | `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
+| `migration_submenu_corte_caja.sql` (pantalla «🧾 Corte de caja» del menú, grupo Reportes, solo ROLE_ADMIN) | ✅ corrida en QA por el dueño (2026-11-05; probada 2 veces en base desechable con `MigracionSubmenuCorteCajaTest`) | ⏳ pendiente (correrla **antes** de llevar el front del corte a `master`) | qa 2026-11-05 |
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
@@ -713,6 +714,7 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 8 | `migration_accion_editar_entrega_direccion.sql` | Solo cambia el **texto** del permiso `editar-entrega` en Gestión de roles a *"Dirección (📍 en la tarjeta)"*, para que diga lo mismo que el botón de la tarjeta (antes "📍 Entrega", se confundía con "📦 Entregar"). Sin ella todo funciona; solo el nombre en Gestión de roles queda viejo. No cambia claves ni quién tiene el permiso: **no hace falta volver a entrar**. **Falta correrla en QA** (se corre cuando el front con el botón "Dirección" esté en QA) | 2026-10-13 |
 | 9 | `migration_codigo_postal.sql` | Crea la tabla `codigo_postal`: sin ella falla la consulta de códigos postales. Ya corrida en QA (2026-10-14) | 2026-10-14 |
 | 10 | `migration_sesion_refresh_gracia.sql` | Agrega `jti_anterior` y `rotado_en` a `sesion_refresh`: **sin ellas fallan el login y la renovación de sesión**. Ya corrida en QA (2026-10-14) | 2026-10-14 |
+| 11 | `migration_submenu_corte_caja.sql` | Da de alta la pantalla `reportes/corte-caja` en `submenu` (mismo grupo que «Reportes de ventas») y se la da solo a `ROLE_ADMIN`. Sin ella el menú no muestra «🧾 Corte de caja» y el guard del front manda a `/tienda/buscar`; el endpoint `GET /v1/reportes/corte-caja` funciona igual. Requiere que el back del corte (`hexagonal/cortecaja`) y el front estén en prod. Ya corrida en QA (2026-11-05). **Después de correrla: volver a entrar** (las pantallas viajan en el JWT) | 2026-11-05 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
