@@ -61,7 +61,7 @@ import static org.mockito.Mockito.verify;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(JdbcTemplateAutoConfiguration.class)
-@Import({CatalogoPruebaJdbcAdapter.class, PedidosPruebaVentaAdapter.class, AmbienteMysqlAdapter.class,
+@Import({com.ventas.key.mis.productos.service.BloqueoStock.class, CatalogoPruebaJdbcAdapter.class, PedidosPruebaVentaAdapter.class, AmbienteMysqlAdapter.class,
         GenerarDatosPruebaService.class, VentaServiceImpl.class, AbonoServiceImpl.class,
         DatosPruebaIntegracionTest.Config.class})
 class DatosPruebaIntegracionTest {

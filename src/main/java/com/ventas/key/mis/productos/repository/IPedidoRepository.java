@@ -13,6 +13,11 @@ import java.util.List;
 @Repository
 public interface IPedidoRepository extends BaseRepository<Pedido,Integer>{
 
+    /** Bloquea el pedido para cambiarle el estado (cancelar, quitar articulos): dos cancelaciones a la vez no pueden devolver el stock dos veces. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Pedido p WHERE p.id = :id")
+    java.util.Optional<Pedido> findByIdWithLock(@org.springframework.data.repository.query.Param("id") Integer id);
+
     List<Pedido> findByEstadoPedidoAndFechaRecogidaIsNotNullAndFechaRecogidaLessThanEqual(
             String estadoPedido, LocalDate fecha);
 

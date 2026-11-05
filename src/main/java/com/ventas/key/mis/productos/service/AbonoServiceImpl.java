@@ -45,6 +45,7 @@ public class AbonoServiceImpl implements IAbonoService {
     private final EmailService emailService;
     private final WhatsappService whatsappService;
     private final RestockNotificacionService restockNotificacionService;
+    private final BloqueoStock bloqueoStock;
 
     @Override
     @Transactional
@@ -234,7 +235,8 @@ public class AbonoServiceImpl implements IAbonoService {
             CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
             allEntries = true)
     public CancelarAbonoResponse cancelarPedido(int pedidoId, CancelarAbonoRequest request) {
-        Pedido pedido = pedidoRepository.findById(pedidoId)
+        // Con bloqueo: una segunda cancelacion simultanea espera aqui y luego ve "cancelado".
+        Pedido pedido = pedidoRepository.findByIdWithLock(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
 
         if (!TIPOS_CREDITO.contains(pedido.getTipoPedido())) {
@@ -269,12 +271,12 @@ public class AbonoServiceImpl implements IAbonoService {
         // devolucion real (el cliente esta regresando algo que ya tenia).
         if (!fiadoSeLoLlevo || esDevolucion) {
             for (DetallePedido dp : pedido.getDetalles()) {
-                Variantes v = dp.getVariante();
+                Variantes v = bloqueoStock.bloquear(dp.getVariante());
                 int stockAntes = v.getStock();
                 v.setStock(v.getStock() + dp.getCantidad());
                 varianteRepository.save(v);
                 restockNotificacionService.notificarSiRestock(v, stockAntes);
-                Producto prod = dp.getProducto();
+                Producto prod = bloqueoStock.bloquear(dp.getProducto());
                 prod.setStock(prod.getStock() + dp.getCantidad());
                 productosRepository.save(prod);
             }
@@ -363,7 +365,7 @@ public class AbonoServiceImpl implements IAbonoService {
 
         Variantes variante = varianteRepository.findByIdWithLock(request.getNuevaVarianteId())
                 .orElseThrow(() -> new RuntimeException("Artículo no encontrado: " + request.getNuevaVarianteId()));
-        Producto modelo = variante.getProducto();
+        Producto modelo = bloqueoStock.bloquear(variante.getProducto());
         ArticuloAVender.deArticulo(
                 ArticuloAVender.nombreVisible(modelo.getNombre(), variante.getTalla(), variante.getColor()),
                 modelo.getHabilitado() == '1', modelo.getStock() != null ? modelo.getStock() : 0,

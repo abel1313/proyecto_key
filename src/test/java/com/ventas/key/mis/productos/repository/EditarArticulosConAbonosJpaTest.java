@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(AbonoServiceImpl.class)
+@Import({AbonoServiceImpl.class, com.ventas.key.mis.productos.service.BloqueoStock.class})
 class EditarArticulosConAbonosJpaTest {
 
     @Autowired private IPedidoRepository pedidoRepository;

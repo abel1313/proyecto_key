@@ -39,6 +39,7 @@ public class ConfigurarRifaVarianteService {
     private final IConfigurarRifaRepository iConfigurarRifaRepository;
     private final IVarianteRepository iVarianteRepository;
     private final IVarianteImagenRepository iVarianteImagenRepository;
+    private final BloqueoStock bloqueoStock;
 
     @Value("${api.imagenes}")
     private String endpointImagenes;
@@ -79,7 +80,7 @@ public class ConfigurarRifaVarianteService {
             return actualizarExistente(existente.get(), req);
         }
 
-        Variantes variante = iVarianteRepository.findById(req.getVarianteId())
+        Variantes variante = iVarianteRepository.findByIdWithLock(req.getVarianteId())
                 .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado"));
 
         if (variante.getStock() < 1) {
@@ -105,11 +106,11 @@ public class ConfigurarRifaVarianteService {
 
     private ConfigurarRifaVarianteDto actualizarExistente(ConfigurarRifaVariante crv, ConfigurarRifaVarianteRequest req) {
         if (!crv.getVariante().getId().equals(req.getVarianteId())) {
-            Variantes anterior = crv.getVariante();
+            Variantes anterior = bloqueoStock.bloquear(crv.getVariante());
             anterior.setStock(anterior.getStock() + crv.getStockReservado());
             iVarianteRepository.save(anterior);
 
-            Variantes nueva = iVarianteRepository.findById(req.getVarianteId())
+            Variantes nueva = iVarianteRepository.findByIdWithLock(req.getVarianteId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado"));
             if (nueva.getStock() < 1) {
                 throw new ExceptionErrorInesperado("El artículo no tiene stock disponible");
@@ -139,7 +140,7 @@ public class ConfigurarRifaVarianteService {
         ConfigurarRifaVariante crv = iConfigurarRifaVarianteRepository.findById(id)
                 .orElseThrow(() -> new ExceptionDataNotFound("Configuración de artículo no encontrada"));
 
-        Variantes variante = crv.getVariante();
+        Variantes variante = bloqueoStock.bloquear(crv.getVariante());
         variante.setStock(variante.getStock() + crv.getStockReservado());
         iVarianteRepository.save(variante);
 
@@ -191,11 +192,11 @@ public class ConfigurarRifaVarianteService {
             crv.setPalabraClave(nueva);
         }
         if (req.getVarianteId() != null && !req.getVarianteId().equals(crv.getVariante().getId())) {
-            Variantes anterior = crv.getVariante();
+            Variantes anterior = bloqueoStock.bloquear(crv.getVariante());
             anterior.setStock(anterior.getStock() + crv.getStockReservado());
             iVarianteRepository.save(anterior);
 
-            Variantes nueva = iVarianteRepository.findById(req.getVarianteId())
+            Variantes nueva = iVarianteRepository.findByIdWithLock(req.getVarianteId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado"));
             if (nueva.getStock() < 1) {
                 throw new ExceptionErrorInesperado("El artículo no tiene stock disponible");

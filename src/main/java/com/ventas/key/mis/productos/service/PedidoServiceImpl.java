@@ -97,6 +97,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     private final IColorFlorRepository iColorFlorRepository;
 
     @Autowired private CacheService cacheService;
+    @Autowired private BloqueoStock bloqueoStock;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private IVarianteImagenRepository iVarianteImagenRepository;
 
@@ -265,16 +266,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             if (mpa.getVarianteId() != null) {
                 variante = iVarianteRepository.findByIdWithLock(mpa.getVarianteId())
                         .orElseThrow(() -> new RuntimeException("Artículo no encontrado: " + mpa.getVarianteId()));
-                prod = this.iProductoRepository.findByIdWithLock(variante.getProducto().getId())
-                        .orElseThrow(() -> new RuntimeException("Producto no encontrado para el artículo: " + mpa.getVarianteId()));
+                // findByIdWithLock aqui esperaba el bloqueo pero devolvia el producto que ya trajo el articulo (valor viejo).
+                prod = bloqueoStock.bloquear(variante.getProducto());
                 articuloAVender(prod, variante).exigirQueSePuedaVender(mpa.getCantidad());
 
                 variante.setStock(variante.getStock() - mpa.getCantidad());
                 iVarianteRepository.save(variante);
                 sincronizarStockColorFlor(variante);
             } else {
-                prod = this.iProductoRepository.findByIdWithLock(mpa.getProducto().getId())
-                        .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId()));
+                prod = bloqueoStock.bloquear(this.iProductoRepository.findById(mpa.getProducto().getId())
+                        .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + mpa.getProducto().getId())));
                 ArticuloAVender.soloModelo(prod.getNombre(), prod.getHabilitado() == '1', stockDe(prod))
                         .exigirQueSePuedaVender(mpa.getCantidad());
             }
@@ -627,7 +628,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     @Override
     public void deletePedidoById(int id, String motivo) {
-        Pedido pedido = iPedidoRepository.findById(id)
+        // Con bloqueo: una segunda cancelacion simultanea espera aqui y luego ve "cancelado".
+        Pedido pedido = iPedidoRepository.findByIdWithLock(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
         if ("cancelado".equals(pedido.getEstadoPedido())) {
@@ -658,14 +660,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         if (!esFiadoActivo) {
             pedido.getDetalles().forEach(detalle -> {
-                Producto prod = iProductoRepository.findByIdWithLock(detalle.getProducto().getId())
-                        .orElseThrow(() -> new RuntimeException("Producto no encontrado al devolver stock"));
+                // Orden de bloqueo igual que en las ventas: articulo -> producto. Los dos vienen del pedido (EAGER):
+                // se bloquean y se releen, si no se pisaba lo que vendio otra caja mientras tanto.
+                Variantes varianteBloqueada = bloqueoStock.bloquear(detalle.getVariante());
+                Producto prod = bloqueoStock.bloquear(detalle.getProducto());
                 prod.setStock(prod.getStock() + detalle.getCantidad());
                 iProductoRepository.save(prod);
 
-                if (detalle.getVariante() != null) {
-                    Variantes variante = iVarianteRepository.findById(detalle.getVariante().getId())
-                            .orElseThrow(() -> new RuntimeException("Artículo no encontrado al devolver stock"));
+                if (varianteBloqueada != null) {
+                    Variantes variante = varianteBloqueada;
                     int stockAntes = variante.getStock();
                     variante.setStock(variante.getStock() + detalle.getCantidad());
                     iVarianteRepository.save(variante);
@@ -703,7 +706,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (cantidad < 1) {
             throw new RuntimeException("La cantidad a quitar tiene que ser al menos 1");
         }
-        Pedido pedido = iPedidoRepository.findById(pedidoId)
+        Pedido pedido = iPedidoRepository.findByIdWithLock(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
         if ("Entregado".equals(pedido.getEstadoPedido())) {
@@ -745,8 +748,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
                     detalle.getProducto().getNombre(), pedidoId));
         }
 
-        Producto prod = iProductoRepository.findByIdWithLock(productoId)
-                .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+        // articulo -> producto, bloqueados y releidos (vienen del pedido por EAGER).
+        bloqueoStock.bloquear(detalle.getVariante());
+        Producto prod = bloqueoStock.bloquear(detalle.getProducto());
 
         if (cantidad >= detalle.getCantidad()) {
             prod.setStock(prod.getStock() + detalle.getCantidad());
