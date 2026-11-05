@@ -15,6 +15,16 @@ public record CorteDeZona(Integer zonaId, String zona, List<PedidoPorCobrar> ped
         pedidos = List.copyOf(pedidos);
     }
 
+    /** La suma de los totales de los pedidos de la zona. */
+    public BigDecimal totalPedidos() {
+        return pedidos.stream().map(PedidoPorCobrar::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** Lo ya pagado de los pedidos de la zona. */
+    public BigDecimal totalPagado() {
+        return pedidos.stream().map(PedidoPorCobrar::pagado).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     /** La suma de lo que falta por cobrar en esta zona. */
     public BigDecimal subtotal() {
         return pedidos.stream().map(PedidoPorCobrar::saldo).reduce(BigDecimal.ZERO, BigDecimal::add);

@@ -15,7 +15,15 @@ public record CorteDeCaja(Instant generado, List<CorteDeZona> zonas) {
         zonas = List.copyOf(zonas);
     }
 
-    /** La suma de todas las zonas (incluido «Sin zona»). */
+    public BigDecimal totalPedidos() {
+        return zonas.stream().map(CorteDeZona::totalPedidos).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal totalPagado() {
+        return zonas.stream().map(CorteDeZona::totalPagado).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** Lo que falta por cobrar, de todas las zonas (incluido «Sin zona»). */
     public BigDecimal total() {
         return zonas.stream().map(CorteDeZona::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     }

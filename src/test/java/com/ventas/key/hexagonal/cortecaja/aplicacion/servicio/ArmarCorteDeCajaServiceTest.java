@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.cortecaja.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.cortecaja.dominio.modelo.CorteDeCaja;
+import com.ventas.key.hexagonal.cortecaja.dominio.modelo.FiltroDeCorte;
 import com.ventas.key.hexagonal.cortecaja.dominio.modelo.PedidoPorCobrar;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,11 +27,23 @@ class ArmarCorteDeCajaServiceTest {
 
     private static PedidoPorCobrar pedido(int id, String total, String pagado, Integer zonaId, String zona) {
         return new PedidoPorCobrar(id, "Cliente " + id, 1, new BigDecimal(total), new BigDecimal(pagado),
-                new BigDecimal(pagado).signum() > 0 ? 1 : 0, LocalDate.of(2026, 11, 1), "Pendiente", zonaId, zona, null);
+                new BigDecimal(pagado).signum() > 0 ? 1 : 0, LocalDate.of(2026, 11, 1), "Pendiente", false, zonaId, zona, null);
     }
 
     private static CorteDeCaja armar(Integer zonaId, PedidoPorCobrar... pedidos) {
-        return new ArmarCorteDeCajaService(() -> List.of(pedidos), RELOJ).armar(zonaId);
+        return armarCon(new FiltroDeCorte(zonaId == null ? null : java.util.Set.of(zonaId), null, null, FiltroDeCorte.Pago.POR_COBRAR, FiltroDeCorte.Entrega.SIN_ENTREGAR), pedidos);
+    }
+
+    /** El puerto devuelve lo que se le da: zona, fechas y entrega los resuelve el adaptador (probado aparte contra H2). */
+    private static CorteDeCaja armarCon(FiltroDeCorte filtro, PedidoPorCobrar... pedidos) {
+        return new ArmarCorteDeCajaService(f -> {
+            List<PedidoPorCobrar> r = new java.util.ArrayList<>();
+            for (PedidoPorCobrar p : pedidos) {
+                boolean entra = f.todasLasZonas() || (p.zonaId() == null ? f.incluyeSinZona() : f.zonasReales().contains(p.zonaId()));
+                if (entra) r.add(p);
+            }
+            return r;
+        }, RELOJ).armar(filtro);
     }
 
     @Test
@@ -117,5 +130,72 @@ class ArmarCorteDeCajaServiceTest {
                 pedido(1, "0.10", "0", LUVIANOS, "Luvianos"),
                 pedido(2, "0.20", "0", LUVIANOS, "Luvianos"));
         assertThat(corte.total()).isEqualByComparingTo("0.30");
+    }
+
+    @Test
+    @DisplayName("Filtro «Pagados»: solo los pedidos sin saldo, con su total y lo pagado")
+    void soloPagados() {
+        CorteDeCaja corte = armarCon(new FiltroDeCorte(null, null, null, FiltroDeCorte.Pago.PAGADOS, FiltroDeCorte.Entrega.TODOS),
+                pedido(1, "500", "500", LUVIANOS, "Luvianos"),
+                pedido(2, "300", "0", LUVIANOS, "Luvianos"));
+        assertThat(corte.zonas().get(0).pedidos()).extracting(PedidoPorCobrar::pedidoId).containsExactly(1);
+        assertThat(corte.total()).isEqualByComparingTo("0");           // nada por cobrar
+        assertThat(corte.totalPedidos()).isEqualByComparingTo("500");
+        assertThat(corte.totalPagado()).isEqualByComparingTo("500");
+    }
+
+    @Test
+    @DisplayName("Filtro «Todos»: pagados y no pagados juntos; por cobrar, pagado y total cuadran")
+    void todos() {
+        CorteDeCaja corte = armarCon(new FiltroDeCorte(null, null, null, FiltroDeCorte.Pago.TODOS, FiltroDeCorte.Entrega.TODOS),
+                pedido(1, "500", "500", LUVIANOS, "Luvianos"),
+                pedido(2, "300", "100", LUVIANOS, "Luvianos"));
+        assertThat(corte.cantidadPedidos()).isEqualTo(2);
+        assertThat(corte.totalPedidos()).isEqualByComparingTo("800");
+        assertThat(corte.totalPagado()).isEqualByComparingTo("600");
+        assertThat(corte.total()).isEqualByComparingTo("200");
+        assertThat(corte.zonas().get(0).subtotal()).isEqualByComparingTo("200");
+    }
+
+    @Test
+    @DisplayName("Fechas al revés: error claro")
+    void fechasInvertidas() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new FiltroDeCorte(null, LocalDate.of(2026, 11, 10), LocalDate.of(2026, 11, 1), null, null))
+                .isInstanceOf(com.ventas.key.hexagonal.cortecaja.dominio.excepcion.CorteDeCajaException.FechasInvalidas.class)
+                .hasMessageContaining("desde");
+    }
+
+    @Test
+    @DisplayName("Sin elegir nada el filtro es el de siempre: por cobrar y sin entregar")
+    void filtroPorDefecto() {
+        FiltroDeCorte f = new FiltroDeCorte(null, null, null, null, null);
+        assertThat(f.pago()).isEqualTo(FiltroDeCorte.Pago.POR_COBRAR);
+        assertThat(f.entrega()).isEqualTo(FiltroDeCorte.Entrega.SIN_ENTREGAR);
+    }
+
+    @Test
+    @DisplayName("Varias zonas a la vez: Tejupilco y luego Zacazonapan; el total suma todo lo filtrado")
+    void variasZonasEnElFiltro() {
+        int zacazonapan = 3;
+        PedidoPorCobrar[] todos = {
+                pedido(1, "100", "0", LUVIANOS, "Luvianos"),
+                pedido(2, "250", "0", TEJUPILCO, "Tejupilco"),
+                pedido(3, "50", "0", TEJUPILCO, "Tejupilco"),
+                pedido(4, "400", "0", zacazonapan, "Zacazonapan"),
+                pedido(5, "10", "0", null, null)};
+
+        CorteDeCaja soloTeju = armarCon(new FiltroDeCorte(java.util.Set.of(TEJUPILCO), null, null, null, null), todos);
+        assertThat(soloTeju.zonas()).extracting(z -> z.zona()).containsExactly("Tejupilco");
+        assertThat(soloTeju.total()).isEqualByComparingTo("300");
+
+        CorteDeCaja tejuYZaca = armarCon(new FiltroDeCorte(java.util.Set.of(TEJUPILCO, zacazonapan), null, null, null, null), todos);
+        assertThat(tejuYZaca.zonas()).extracting(z -> z.zona()).containsExactly("Tejupilco", "Zacazonapan");
+        assertThat(tejuYZaca.zonas().get(0).subtotal()).isEqualByComparingTo("300");
+        assertThat(tejuYZaca.zonas().get(1).subtotal()).isEqualByComparingTo("400");
+        assertThat(tejuYZaca.total()).isEqualByComparingTo("700");
+
+        CorteDeCaja conSinZona = armarCon(new FiltroDeCorte(java.util.Set.of(TEJUPILCO, FiltroDeCorte.SIN_ZONA), null, null, null, null), todos);
+        assertThat(conSinZona.zonas()).extracting(z -> z.zona()).containsExactly("Tejupilco", null);
+        assertThat(conSinZona.total()).isEqualByComparingTo("310");
     }
 }
