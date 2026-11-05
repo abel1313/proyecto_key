@@ -23410,3 +23410,8 @@ La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentac
 - **`ganancia` (costo y ganancia): va en el pedido, la zona y el total; el front la muestra solo al desplegarla.** `conDescuento` = igual a `ventaNormal` si ningún artículo tiene descuento (`hayDescuento: false`: no mostrar esa columna repetida).
 - El **costo** es el costo actual del producto (no se guarda en el pedido); la ganancia de pedidos viejos cambia si el costo cambia.
 - `500` con `mensaje` si algo falla; nada más cambia.
+
+### 🧾 Corte de caja como opción del menú (2026-11-05)
+- **Pantalla propia:** ruta del front `reportes/corte-caja` (abre Reportes directo en la pestaña del corte), opción **«🧾 Corte de caja»** dentro del grupo **Reportes** del menú lateral. La pestaña dentro de Reportes sigue existiendo.
+- **Requiere correr en cada base** (QA y luego producción): `src/main/resources/static/migration_submenu_corte_caja.sql` (idempotente). Crea la fila de `submenu` con ruta `reportes/corte-caja`, en el mismo grupo que «Reportes de ventas», y la da **solo a `ROLE_ADMIN`**. Sin esa fila el token no trae la pantalla y el menú no la muestra. Después hay que **volver a iniciar sesión** (la lista de pantallas va dentro del token).
+- El endpoint no cambia: `GET /v1/reportes/corte-caja`, solo `ROLE_ADMIN`.

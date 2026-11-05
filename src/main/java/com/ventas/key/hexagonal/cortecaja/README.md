@@ -19,3 +19,6 @@ Pantalla **solo para el administrador** (Reportes → Corte de caja). Plan y dec
 | Lectura de datos | `infraestructura/salida/persistencia/PedidosAbiertosJpaAdapter` |
 | Endpoint y JSON | `infraestructura/entrada/rest/` |
 | Pruebas | `ArmarCorteDeCajaServiceTest`, `PedidosAbiertosJpaAdapterTest` (H2), `CorteDeCajaSoloAdminTest` (seguridad real) |
+
+## Menú
+Pantalla `reportes/corte-caja` (fila de `submenu` por `migration_submenu_corte_caja.sql`, solo `ROLE_ADMIN`, solo lectura). Además sigue la pestaña dentro de Reportes. Probada con `MigracionSubmenuCorteCajaTest`.
