@@ -23,6 +23,7 @@ public class CatalogoArticuloJpaAdapter implements CatalogoArticuloPort {
 
     private final IVarianteRepository varianteRepository;
     private final IProductosRepository productoRepository;
+    private final com.ventas.key.mis.productos.service.BloqueoStock bloqueoStock;
 
     @Override
     public Optional<ArticuloDisponible> leerParaEditar(Integer varianteId) {
@@ -35,11 +36,10 @@ public class CatalogoArticuloJpaAdapter implements CatalogoArticuloPort {
         // findByIdWithLock y no findById: bloquea la fila del producto para el resto de la
         // transaccion, para que dos ediciones simultaneas del mismo modelo no lean las dos el
         // mismo stock y crean las dos que alcanza. Es como ya lo lee la creacion de pedidos.
-        Producto producto = productoRepository.findByIdWithLock(v.getProducto().getId())
-                .orElse(null);
-        if (producto == null) {
-            return Optional.empty();
-        }
+        // OJO: findByIdWithLock devolvia el producto que ya trajo el articulo (EAGER) con su valor viejo. Se bloquean
+        // y releen los dos, en el orden articulo -> producto.
+        bloqueoStock.bloquear(v);
+        Producto producto = bloqueoStock.bloquear(v.getProducto());
 
         return Optional.of(new ArticuloDisponible(
                 v.getId(),

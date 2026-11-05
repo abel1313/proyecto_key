@@ -58,6 +58,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     private final ErrorGenerico errorGenerico;
 
     @Autowired private CacheService cacheService;
+    @Autowired private BloqueoStock bloqueoStock;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private EmailService emailService;
     @Autowired private WhatsappService whatsappService;
@@ -195,7 +196,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             Variantes variante = iVarianteRepository.findByIdWithLock(item.getVarianteId())
                     .orElseThrow(() -> new ExceptionDataNotFound("Artículo no encontrado: " + item.getVarianteId()));
 
-            Producto prod = variante.getProducto();
+            // El producto vino por EAGER sin bloqueo (y en MySQL, de la foto de la transaccion): se bloquea y se relee.
+            Producto prod = bloqueoStock.bloquear(variante.getProducto());
 
             ArticuloAVender.deArticulo(
                     ArticuloAVender.nombreVisible(prod.getNombre(), variante.getTalla(), variante.getColor()),

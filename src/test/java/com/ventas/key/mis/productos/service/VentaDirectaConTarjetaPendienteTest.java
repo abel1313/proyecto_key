@@ -65,6 +65,8 @@ class VentaDirectaConTarjetaPendienteTest {
                 mock(com.ventas.key.mis.productos.errores.ErrorGenerico.class));
         ReflectionTestUtils.setField(servicio, "cacheService", mock(com.ventas.key.mis.productos.service.CacheService.class));
         ReflectionTestUtils.setField(servicio, "rabbitTemplate", mock(RabbitTemplate.class));
+        // Sin BD: el bloqueo devuelve la misma entidad.
+        ReflectionTestUtils.setField(servicio, "bloqueoStock", mock(BloqueoStock.class, inv -> inv.getArgument(0)));
 
         when(usuarios.findById(1)).thenReturn(Optional.of(new Usuario()));
         when(clientes.findById(5)).thenReturn(Optional.of(new Cliente()));

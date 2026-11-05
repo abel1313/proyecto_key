@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import({PedidoArticuloJpaAdapter.class, AbonoServiceImpl.class})
+@Import({PedidoArticuloJpaAdapter.class, AbonoServiceImpl.class, com.ventas.key.mis.productos.service.BloqueoStock.class})
 class PedidoArticuloJpaAdapterTest {
 
     @Autowired private PedidoArticuloJpaAdapter adapter;

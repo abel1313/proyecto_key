@@ -24,6 +24,7 @@ public class MovimientoStockJpaAdapter implements MovimientoStockPort {
 
     private final IVarianteRepository varianteRepository;
     private final IProductosRepository productoRepository;
+    private final com.ventas.key.mis.productos.service.BloqueoStock bloqueoStock;
 
     @Override
     public void descontar(Integer varianteId, int cantidad) {
@@ -36,16 +37,15 @@ public class MovimientoStockJpaAdapter implements MovimientoStockPort {
     }
 
     private void mover(Integer varianteId, int delta) {
-        Variantes variante = varianteRepository.findById(varianteId)
-                .orElseThrow(() -> new IllegalStateException("Articulo no encontrado al mover stock: " + varianteId));
+        // articulo -> producto, bloqueados y releidos: el pedido que se edita ya los trajo a la sesion (EAGER).
+        Variantes variante = bloqueoStock.bloquear(varianteRepository.findById(varianteId)
+                .orElseThrow(() -> new IllegalStateException("Articulo no encontrado al mover stock: " + varianteId)));
 
         variante.setStock(noNegativo(variante.getStock() + delta, "articulo " + varianteId));
         varianteRepository.save(variante);
 
         if (variante.getProducto() != null) {
-            Producto producto = productoRepository.findByIdWithLock(variante.getProducto().getId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Producto no encontrado al mover stock: " + variante.getProducto().getId()));
+            Producto producto = bloqueoStock.bloquear(variante.getProducto());
             int actual = producto.getStock() != null ? producto.getStock() : 0;
             producto.setStock(noNegativo(actual + delta, "producto " + producto.getId()));
             productoRepository.save(producto);
