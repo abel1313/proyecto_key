@@ -161,7 +161,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // ── Documentación / herramientas externas ─────────────────────────
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/v1/dipomex/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // Consulta de codigo postal: solo GET (revision de seguridad 2026-11-05: antes aceptaba cualquier metodo sin sesion).
+                        .requestMatchers(HttpMethod.GET, "/v1/dipomex/**").permitAll()
 
                         // ── Chatbot (público para todos los visitantes) ───────────────────
                         .requestMatchers("/v1/chatbot/**").permitAll()
@@ -190,6 +192,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/preferencias-filtro/**").authenticated()
 
                         // ── Estado del negocio e imágenes de presentación (GET público) ──
+                        // Vista previa para compartir un artículo (WhatsApp/Facebook): pública, solo lectura, sin datos internos.
+                        .requestMatchers(HttpMethod.GET, "/v1/compartir/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/estado").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/contactos").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/negocio/redes-sociales/publico").permitAll()
@@ -398,7 +402,9 @@ public class SecurityConfig {
                         .requestMatchers("/v1/imagenes/**").hasRole("ADMIN")
 
                         // ── Usuarios (gestion de cuentas/roles/permisos: solo ADMIN) ──────
-                        .requestMatchers("/v1/usuarios/buscarClientePorIdUsuario/**").permitAll()
+                        // Antes publico: devolvia el id de cliente de CUALQUIER usuario. El front solo lo llama con sesion y con el id propio; el controlador
+                        // ademas exige que sea el mismo usuario o un administrador (revision de seguridad 2026-11-05).
+                        .requestMatchers(HttpMethod.GET, "/v1/usuarios/buscarClientePorIdUsuario/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/v1/usuarios/**").hasAnyAuthority(pantalla("usuarios/buscar"))
                         .requestMatchers("/v1/usuarios/**").hasAnyAuthority(pantallaEscribir("usuarios/buscar"))
 
@@ -579,7 +585,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/flores/pedidos/frases-pendientes").hasAnyAuthority(pantalla("flores/frases"))
                         .requestMatchers("/v1/flores/pedidos/**").authenticated()
                         // Motor de calculo (validar cantidad / cotizar precio): publico, solo lectura/calculo.
-                        .requestMatchers("/v1/flores/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/flores/validar-cantidad", "/v1/flores/calcular-precio", "/v1/flores/fechas-disponibles").permitAll()
+                        // Cualquier otra ruta bajo /v1/flores/ queda cerrada (antes era permitAll para TODOS los metodos y rutas: una ruta nueva nacia publica).
+                        .requestMatchers("/v1/flores/**").denyAll()
 
                         // ── Cinta de promociones (letrero corrido; el GET /activos lo pinta
                         //    la tienda para CUALQUIER visitante, incluso sin login -- si exigiera
@@ -666,7 +674,6 @@ public class SecurityConfig {
                         .requestMatchers("/v1/documentos/**").hasAnyAuthority(pantallaEscribir("tienda/cargar-excel"))
 
                         // ── Admin (gestión interna del servidor) ──────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/v1/admin/test-rabbit").permitAll()
                         // Reconciliacion de imagenes ya tiene su propia pantalla en el catalogo
                         // (admin/reconciliacion-imagenes) -- antes vivia bajo admin/cache, asi que
                         // dar solo ese permiso especifico no alcanzaba para usarla.

@@ -111,6 +111,12 @@ public class UsuarioController extends AbstractController<
 
     @GetMapping("/buscarClientePorIdUsuario/{idUsuario}")
     public ResponseEntity<Integer> existeClientePorIdUsuario(@PathVariable int idUsuario) {
+        // Solo el propio usuario o un administrador (revision de seguridad 2026-11-05).
+        if (!com.ventas.key.mis.productos.Utils.AuthenticationUtils.isAdminContext()
+                && com.ventas.key.mis.productos.Utils.AuthenticationUtils.currentUsuarioOpt()
+                        .map(u -> u.getId() != null && u.getId() == idUsuario).orElse(false) == false) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build();
+        }
         return ResponseEntity.ok(usu.existeClientePorIdUsuario(idUsuario));
     }
 

@@ -77,6 +77,11 @@ public class ChatSeguridadInterceptor implements ChannelInterceptor {
     }
 
     private boolean suscripcionPermitida(Authentication auth, String destino) {
+        // El simple broker de Spring trata '*', '{' y '?' como PATRON: "/topic/chat.usuario.*" recibiria los mensajes de TODAS las
+        // conversaciones. Un destino con comodines nunca es de una sola conversacion: se rechaza antes de revisar nada mas.
+        if (destino.indexOf('*') >= 0 || destino.indexOf('{') >= 0 || destino.indexOf('?') >= 0) {
+            return false;
+        }
         if (destino.equals(TOPIC_ADMIN)) {
             return autorizacion.puedeVerPanelAdmin(auth);
         }
