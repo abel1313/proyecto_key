@@ -13,7 +13,8 @@ import java.time.Clock;
 public class CorteDeCajaBeans {
 
     @Bean
-    public ArmarCorteDeCajaCasoUso armarCorteDeCajaCasoUso(PedidosAbiertosPort pedidos, Clock reloj) {
-        return new ArmarCorteDeCajaService(pedidos, reloj);
+    public ArmarCorteDeCajaCasoUso armarCorteDeCajaCasoUso(PedidosAbiertosPort pedidos) {
+        // Su propio reloj: producción no tiene un bean Clock en el resto de la aplicación (ver EscanerCodigoBeans).
+        return new ArmarCorteDeCajaService(pedidos, Clock.systemDefaultZone());
     }
 }
