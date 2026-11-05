@@ -1,5 +1,7 @@
 package com.ventas.key.hexagonal.cortecaja.infraestructura.salida.persistencia;
 
+import com.ventas.key.hexagonal.cortecaja.dominio.excepcion.CorteDeCajaException;
+import com.ventas.key.hexagonal.cortecaja.dominio.modelo.FiltroDeCorte;
 import com.ventas.key.hexagonal.cortecaja.dominio.modelo.MontosDeGanancia;
 import com.ventas.key.hexagonal.cortecaja.dominio.modelo.PedidoPorCobrar;
 import com.ventas.key.hexagonal.cortecaja.dominio.puerto.salida.PedidosAbiertosPort;
@@ -21,7 +23,7 @@ import java.util.Map;
 /**
  * [Hexagonal: Driven Adapter] [Clean: Interface Adapter]
  *
- * <p>Lee los pedidos sin entregar y sin cancelar, con sus piezas, sus pagos y su costo. Solo {@code SELECT}. Las entidades JPA viven en
+ * <p>Lee los pedidos sin cancelar de la zona, fechas y entrega pedidas, con sus piezas, sus pagos y su costo. Solo {@code SELECT}. Las entidades JPA viven en
  * {@code mis/productos/entity}; el dominio no las ve.
  *
  * <p>El costo es el costo ACTUAL del producto (no se guarda en el pedido): si cambia después, la ganancia de pedidos viejos cambia con él
@@ -33,16 +35,52 @@ public class PedidosAbiertosJpaAdapter implements PedidosAbiertosPort {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /** Más pedidos que esto no se suman de una vez: se pide acotar fechas o zona. */
+    static final int MAXIMO_PEDIDOS = 3000;
+
     @Override
     @Transactional(readOnly = true)
-    public List<PedidoPorCobrar> sinEntregar() {
-        List<Pedido> pedidos = entityManager.createQuery(
-                        "SELECT p FROM Pedido p LEFT JOIN FETCH p.lugarEntrega "
-                                + "WHERE p.entregado = false "
-                                + "AND LOWER(COALESCE(p.estadoPedido, '')) NOT IN ('cancelado', 'entregado') "
-                                + "AND COALESCE(p.totalPedido, 0) - COALESCE(p.totalPagado, 0) > 0.005",
-                        Pedido.class)
-                .getResultList();
+    public List<PedidoPorCobrar> buscar(FiltroDeCorte filtro) {
+        StringBuilder jpql = new StringBuilder("SELECT p FROM Pedido p LEFT JOIN FETCH p.lugarEntrega WHERE LOWER(COALESCE(p.estadoPedido, '')) <> 'cancelado'");
+        if (filtro.entrega() == FiltroDeCorte.Entrega.SIN_ENTREGAR) {
+            jpql.append(" AND p.entregado = false AND LOWER(COALESCE(p.estadoPedido, '')) <> 'entregado'");
+        } else if (filtro.entrega() == FiltroDeCorte.Entrega.ENTREGADOS) {
+            jpql.append(" AND (p.entregado = true OR LOWER(COALESCE(p.estadoPedido, '')) = 'entregado')");
+        }
+        if (!filtro.todasLasZonas()) {
+            boolean reales = !filtro.zonasReales().isEmpty();
+            jpql.append(" AND (");
+            if (reales) {
+                jpql.append("p.lugarEntrega.id IN :zonas");
+            }
+            if (reales && filtro.incluyeSinZona()) {
+                jpql.append(" OR ");
+            }
+            if (filtro.incluyeSinZona()) {
+                jpql.append("p.lugarEntrega IS NULL");
+            }
+            jpql.append(")");
+        }
+        if (filtro.desde() != null) {
+            jpql.append(" AND p.fechaPedido >= :desde");
+        }
+        if (filtro.hasta() != null) {
+            jpql.append(" AND p.fechaPedido <= :hasta");
+        }
+        var consulta = entityManager.createQuery(jpql.toString(), Pedido.class).setMaxResults(MAXIMO_PEDIDOS + 1);
+        if (!filtro.zonasReales().isEmpty()) {
+            consulta.setParameter("zonas", filtro.zonasReales());
+        }
+        if (filtro.desde() != null) {
+            consulta.setParameter("desde", filtro.desde());
+        }
+        if (filtro.hasta() != null) {
+            consulta.setParameter("hasta", filtro.hasta());
+        }
+        List<Pedido> pedidos = consulta.getResultList();
+        if (pedidos.size() > MAXIMO_PEDIDOS) {
+            throw new CorteDeCajaException.DemasiadosPedidos(MAXIMO_PEDIDOS);
+        }
         if (pedidos.isEmpty()) {
             return List.of();
         }
@@ -92,6 +130,7 @@ public class PedidosAbiertosJpaAdapter implements PedidosAbiertosPort {
                 pagos,
                 p.getFechaPedido(),
                 p.getEstadoPedido(),
+                p.isEntregado(),
                 zona == null ? null : zona.getId(),
                 zona == null ? null : zona.getNombre(),
                 montos(renglones));

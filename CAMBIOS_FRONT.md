@@ -23415,3 +23415,21 @@ La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentac
 - **Pantalla propia:** ruta del front `reportes/corte-caja` (abre Reportes directo en la pestaña del corte), opción **«🧾 Corte de caja»** dentro del grupo **Reportes** del menú lateral. La pestaña dentro de Reportes sigue existiendo.
 - **Requiere correr en cada base** (QA y luego producción): `src/main/resources/static/migration_submenu_corte_caja.sql` (idempotente). Crea la fila de `submenu` con ruta `reportes/corte-caja`, en el mismo grupo que «Reportes de ventas», y la da **solo a `ROLE_ADMIN`**. Sin esa fila el token no trae la pantalla y el menú no la muestra. Después hay que **volver a iniciar sesión** (la lista de pantallas va dentro del token).
 - El endpoint no cambia: `GET /v1/reportes/corte-caja`, solo `ROLE_ADMIN`.
+
+### 🧾 Corte de caja v2: filtros y ojito (2026-11-05) — reemplaza lo anterior de este endpoint
+**`GET /mis-productos/v1/reportes/corte-caja`** (solo `ROLE_ADMIN`) ahora recibe filtros, todos opcionales:
+
+| Param | Valores | Por defecto | Qué hace |
+|---|---|---|---|
+| `zonaId` | id de zona (`/v1/lugares-entrega`) | todas | Una sola zona; sin él salen todas y «Sin zona» al final |
+| `desde`, `hasta` | `yyyy-MM-dd` | sin límite | **Fecha del pedido**, ambos extremos incluidos. `desde > hasta` → `400` *«La fecha «desde» no puede ser después de «hasta».»* |
+| `pago` | `POR_COBRAR` · `PAGADOS` · `TODOS` | `POR_COBRAR` | Por saldo: con algo por cobrar, ya pagados completos, o todos |
+| `entrega` | `SIN_ENTREGAR` · `ENTREGADOS` · `TODOS` | `SIN_ENTREGAR` | Según si el pedido ya se entregó |
+
+Los **cancelados nunca** entran. Más de 3000 pedidos → `400` *«Son más de 3000 pedidos. Acota las fechas o elige una zona.»*
+
+**Campos nuevos del response:** en el total y en cada zona `totalPedidos` (suma de totales) y `totalPagado`; `total`/`subtotal` siguen siendo **lo que falta por cobrar**; en cada pedido `entregado` (boolean).
+
+**Front (ya hecho):** la pantalla **no arma el corte al abrir**: se elige zona, fechas, pago y entrega y se pulsa **Buscar**. **Costo y ganancia van ocultos** (columna «Ganancia» con `••••`) hasta que el administrador pulsa el **ojito 👁 «Ver costo y ganancia»**; se vuelven a ocultar en cada búsqueda y al salir de la pestaña. «Copiar corte» nunca incluye costo ni ganancia.
+- **Varias zonas a la vez (2026-11-05):** `zonaId` puede repetirse (`?zonaId=3&zonaId=5`); salen **todas las elegidas** y el total suma todo lo filtrado. `zonaId=0` agrega los pedidos **sin zona** (se recogen en tienda). Sin ningún `zonaId`: todas. La pantalla muestra una casilla por zona del catálogo (`/v1/lugares-entrega/getAll`) y una más «Sin zona».
+- **Se refleja lo que cambie:** el corte se calcula con los datos de ese momento; si un pedido cambia de zona, de pago o de entrega, el siguiente **Buscar** ya lo trae distinto.

@@ -20,6 +20,7 @@ public record PedidoPorCobrar(
         int pagos,
         LocalDate fechaPedido,
         String estado,
+        boolean entregado,
         Integer zonaId,
         String zona,
         MontosDeGanancia montos) {
@@ -44,7 +45,7 @@ public record PedidoPorCobrar(
         return resta.signum() < 0 ? BigDecimal.ZERO.setScale(2) : resta.setScale(2, RoundingMode.HALF_UP);
     }
 
-    /** ¿Entra al corte? Solo si todavía se debe algo: un pedido ya pagado no tiene nada que cobrar. */
+    /** ¿Todavía se debe algo? Un pedido ya pagado no tiene nada que cobrar. */
     public boolean tieneSaldo() {
         return saldo().compareTo(TOLERANCIA) > 0;
     }

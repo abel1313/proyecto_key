@@ -13,13 +13,15 @@ import java.util.List;
  * El JSON del corte de caja. Los montos van en número (pesos con centavos). El objeto {@code ganancia} (costo y ganancia) va en el pedido,
  * en la zona y en el total: todo este endpoint es solo de administrador.
  */
-public record CorteDeCajaResponse(Instant generado, double total, int cantidadPedidos, int articulos, Ganancia ganancia, List<Zona> zonas) {
+public record CorteDeCajaResponse(Instant generado, double total, double totalPedidos, double totalPagado, int cantidadPedidos, int articulos,
+                                  Ganancia ganancia, List<Zona> zonas) {
 
-    public record Zona(Integer zonaId, String zona, double subtotal, int cantidad, int articulos, Ganancia ganancia, List<Pedido> pedidos) {
+    public record Zona(Integer zonaId, String zona, double subtotal, double totalPedidos, double totalPagado, int cantidad, int articulos,
+                       Ganancia ganancia, List<Pedido> pedidos) {
     }
 
     public record Pedido(int pedidoId, String cliente, int articulos, double total, double pagado, int pagos, boolean dioAnticipo,
-                         double saldo, LocalDate fechaPedido, String estado, Ganancia ganancia) {
+                         double saldo, LocalDate fechaPedido, String estado, boolean entregado, Ganancia ganancia) {
     }
 
     /** costo; precio normal y su ganancia; con descuento y su ganancia. {@code hayDescuento} = algún artículo tiene descuento. */
@@ -28,19 +30,21 @@ public record CorteDeCajaResponse(Instant generado, double total, int cantidadPe
     }
 
     public static CorteDeCajaResponse de(CorteDeCaja corte) {
-        return new CorteDeCajaResponse(corte.generado(), corte.total().doubleValue(), corte.cantidadPedidos(),
+        return new CorteDeCajaResponse(corte.generado(), corte.total().doubleValue(), corte.totalPedidos().doubleValue(),
+                corte.totalPagado().doubleValue(), corte.cantidadPedidos(),
                 corte.zonas().stream().mapToInt(CorteDeZona::articulos).sum(), ganancia(corte.montos()),
                 corte.zonas().stream().map(CorteDeCajaResponse::zona).toList());
     }
 
     private static Zona zona(CorteDeZona z) {
-        return new Zona(z.zonaId(), z.zonaId() == null ? "Sin zona" : z.zona(), z.subtotal().doubleValue(), z.cantidad(), z.articulos(),
+        return new Zona(z.zonaId(), z.zonaId() == null ? "Sin zona" : z.zona(), z.subtotal().doubleValue(), z.totalPedidos().doubleValue(),
+                z.totalPagado().doubleValue(), z.cantidad(), z.articulos(),
                 ganancia(z.montos()), z.pedidos().stream().map(CorteDeCajaResponse::pedido).toList());
     }
 
     private static Pedido pedido(PedidoPorCobrar p) {
         return new Pedido(p.pedidoId(), p.cliente(), p.articulos(), p.total().doubleValue(), p.pagado().doubleValue(), p.pagos(),
-                p.dioAnticipo(), p.saldo().doubleValue(), p.fechaPedido(), p.estado(), ganancia(p.montos()));
+                p.dioAnticipo(), p.saldo().doubleValue(), p.fechaPedido(), p.estado(), p.entregado(), ganancia(p.montos()));
     }
 
     private static Ganancia ganancia(MontosDeGanancia m) {
