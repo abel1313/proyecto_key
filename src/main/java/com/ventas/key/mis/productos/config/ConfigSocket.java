@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -17,6 +18,18 @@ public class ConfigSocket implements WebSocketMessageBrokerConfigurer {
 
     @Value("${api.cors_angular}")
     private String corsAngular;
+
+    private final ChatSeguridadInterceptor seguridadChat;
+
+    public ConfigSocket(ChatSeguridadInterceptor seguridadChat) {
+        this.seguridadChat = seguridadChat;
+    }
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(seguridadChat);
+    }
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         log.info("Se ejecutan los cors desde cofig socket {}",corsAngular);

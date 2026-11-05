@@ -23013,3 +23013,195 @@ Los **cancelados nunca** entran. Más de 3000 pedidos → `400` *«Son más de 3
 - **Varias zonas a la vez (2026-11-05):** `zonaId` puede repetirse (`?zonaId=3&zonaId=5`); salen **todas las elegidas** y el total suma todo lo filtrado. `zonaId=0` agrega los pedidos **sin zona** (se recogen en tienda). Sin ningún `zonaId`: todas. La pantalla muestra una casilla por zona del catálogo (`/v1/lugares-entrega/getAll`) y una más «Sin zona».
 - **Se refleja lo que cambie:** el corte se calcula con los datos de ese momento; si un pedido cambia de zona, de pago o de entrega, el siguiente **Buscar** ya lo trae distinto.
 - **Paginación y ojitos (2026-11-05, solo front):** el endpoint sigue devolviendo **todos** los pedidos del filtro (tope 3000) y los totales (`total`, `totalPedidos`, `totalPagado`, `ganancia`) **siempre son de todo lo filtrado**. La pantalla parte cada tabla de zona en páginas de 10/25/50/100 filas **en pantalla** (cambiar de página no llama al servidor, no hay caché). Ojitos 👁 solo para administrador: uno por **fila** (costo y ganancia de ese pedido), uno al **final de cada tabla** (total de esa zona), uno en el **encabezado de cada zona** (todas sus filas y su total), uno para el **total del corte** y uno arriba, «Ver todo». Todo vuelve a ocultarse en cada búsqueda y al salir de la pestaña.
+Solo administrador (`/v1/dashboard/**`). Solo lectura.
+
+**1) `GET /mis-productos/v1/dashboard/graficas/por-cobrar`** — lo que te deben (estado APARTADO o FIADO con saldo; el `total` es el de la tarjeta «Por cobrar»).
+```json
+{ "total": 700.0, "pedidos": 2,
+  "tramos": [ { "etiqueta": "0 a 7 días", "pedidos": 1, "saldo": 200.0 }, { "etiqueta": "8 a 30 días", "pedidos": 0, "saldo": 0.0 }, { "etiqueta": "Más de 30 días", "pedidos": 1, "saldo": 500.0 } ],
+  "masAntiguos": [ { "pedidoId": 5, "cliente": "Ana López", "tipo": "Ir pagando", "saldo": 500.0, "dias": 45 } ] }
+```
+Siempre 3 tramos en ese orden. `masAntiguos` = hasta 8, del que más tiempo lleva al menos. `tipo` ya viene en palabras del dueño («Apartado» / «Ir pagando»).
+
+**2) `GET /mis-productos/v1/dashboard/graficas/capital-parado?dias=60`** — `dias` de 7 a 365 (default 60); `400` fuera de rango.
+```json
+{ "dias": 60, "articulos": 3, "piezas": 14, "capital": 880.0,
+  "mayores": [ { "articuloId": 17, "nombre": "Bolsa talla U Café", "stock": 10, "costo": 50.0, "capital": 500.0, "ultimaVenta": null, "diasSinVender": null } ] }
+```
+Mercancía habilitada con stock sin ventas en `dias` días (y con más de esos días en el catálogo), a **costo** (`stock × precio_costo` del modelo). `mayores` = hasta 10 con más capital. `ultimaVenta`/`diasSinVender` `null` = nunca se ha vendido.
+
+**3) `GET /mis-productos/v1/dashboard/graficas/pedidos-por-estado?dias=90`** — `dias` de 7 a 365 (default 90).
+```json
+{ "desde": "2026-08-17", "hasta": "2026-11-15", "activos": 6, "atrasados": 3,
+  "estados": [ { "codigo": "PENDIENTE", "etiqueta": "Pendiente de pago", "activo": true, "pedidos": 4 } ] }
+```
+Siempre las 6 categorías en este orden: PENDIENTE, APARTADO, IR_PAGANDO, PAGADO_POR_ENTREGAR, ENTREGADO, CANCELADO (con 0 si no hay). Los **abiertos** (`activo: true`) se cuentan todos sin importar su fecha; ENTREGADO y CANCELADO solo los de los últimos `dias` días. `atrasados` = sin entregar y sin cancelar con fecha de recogida ya pasada.
+- Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia ninguno existente.
+
+## 📊 Tercera tanda de gráficas del Dashboard: cuándo se vende, clientes y entregas por zona (2026-11-02, rama `feature/graficas-3`)
+
+Solo administrador (`/v1/dashboard/**`). Solo lectura.
+
+**1) `GET /mis-productos/v1/dashboard/graficas/cuando-se-vende?dias=90`** — `dias` de 7 a 365 contando hoy (default 90); `400` fuera de rango. Ventas devueltas no cuentan; la venta de mostrador sí.
+```json
+{ "desde": "2026-08-18", "hasta": "2026-11-15", "ventas": 4, "total": 1000.0, "mejorDia": 3, "mejorHora": 18,
+  "porDia": [ { "diaSemana": 1, "nombre": "Lunes", "ventas": 3, "total": 400.0 } ],
+  "celdas": [ { "diaSemana": 3, "hora": 18, "ventas": 1, "total": 600.0 } ] }
+```
+`diaSemana`: 1 = lunes … 7 = domingo. `hora`: 0–23, hora local. `porDia` trae siempre los 7 días; `celdas` solo las combinaciones con ventas (sumando todas las semanas). `mejorDia`/`mejorHora` = los de más dinero, `null` si no hubo ventas.
+
+**2) `GET /mis-productos/v1/dashboard/graficas/clientes?meses=6`** — `meses` de 1 a 12 (default 6, el actual incluido); `400` fuera de rango.
+```json
+{ "meses": 6, "clientes": 3, "nuevos": 2, "recurrentes": 1, "total": 920.0,
+  "porMes": [ { "mes": "2026-11", "nuevos": 1, "recurrentes": 1, "totalNuevos": 500.0, "totalRecurrentes": 70.0 } ],
+  "mejores": [ { "clienteId": 2, "nombre": "Luis Pérez", "ventas": 1, "total": 500.0 } ] }
+```
+Solo clientes **registrados**; no cuenta lo devuelto ni las ventas hechas al propio perfil de quien vende (mostrador). Un cliente es **nuevo** en el mes de su primera compra (de toda su historia) y **recurrente** después. `porMes` trae todos los meses seguidos, con ceros donde no hubo. `mejores` = hasta 10 por dinero en el periodo.
+
+**3) `GET /mis-productos/v1/dashboard/graficas/entregas-por-zona?dias=90`** — `dias` de 7 a 365 (default 90).
+```json
+{ "desde": "2026-08-18", "hasta": "2026-11-15", "pedidos": 4, "total": 420.0,
+  "zonas": [ { "zona": "Centro", "recogerEnTienda": false, "pedidos": 2, "total": 300.0, "porcentaje": 50.0 } ] }
+```
+Pedidos no cancelados por lugar de entrega, del que tiene más al que menos; sin lugar sale como `"Sin lugar de entrega"`. `recogerEnTienda: true` para el lugar «recoger en tienda».
+- Qué cambia respecto a lo anterior: son endpoints nuevos; no cambia ninguno existente.
+
+
+## 🔒 Pedido con cobro de tarjeta: ya no se edita ni se une a un grupo (2026-11-02, rama `feature/seguridad-cobro-tarjeta`)
+
+**Antes (qué fallaba):** mientras un pedido tenía un cobro con tarjeta en proceso (o cobrado y sin devolver), el administrador podía agregarle, cambiarle o quitarle artículos, o unirlo a un grupo. El total cambiaba con el dinero ya en la tarjeta del cliente y el cobro quedaba «por devolver».
+
+**Ahora:** esas operaciones se rechazan con un mensaje claro hasta que el cobro se cancele o se devuelva. No hay endpoints nuevos ni campos nuevos; solo cambia que estos endpoints ya existentes pueden contestar error:
+- `POST /mis-productos/v1/pedidos/{pedidoId}/articulos`, `PUT .../articulos/{detalleId}` y `DELETE .../promociones/{promocionId}` (agregar, cambiar, quitar artículo o promoción) → `400` con `mensaje`: «El pedido N tiene un cobro con tarjeta en proceso o sin devolver por completo: no se pueden editar sus articulos todavia…».
+- `DELETE` de un renglón del pedido (flujo anterior) → error con el mismo sentido.
+- `POST /mis-productos/v1/grupos-pedido` (unir) y `POST /mis-productos/v1/grupos-pedido/{grupoId}/pedidos` (agregar a un grupo) → `400` con `mensaje`: «El pedido N tiene un cobro con tarjeta … no se puede unir a un grupo todavía…».
+- Solo aplica con `pagos.tarjeta.habilitado=true`; con el módulo apagado todo se comporta igual que antes.
+- Qué hacer en pantalla: mostrar el `mensaje` tal cual; el administrador debe cancelar el cobro (Mis pedidos → cobro en proceso) o devolverlo antes de editar.
+- Abonos no cambian: solo existen en Apartado / Ir pagando, que nunca tienen cobro con tarjeta.
+
+
+## 📈 Dashboard: comparativo del mes y ganancia por producto (2026-11-02, rama `feature/dashboard-comparativo`)
+
+Solo lectura, mismo permiso que el resto de `/v1/dashboard/**` (pantalla `dashboard`). Dos endpoints nuevos; no cambia ninguno existente.
+
+**1) `GET /mis-productos/v1/dashboard/graficas/comparativo-mes`** — este mes hasta hoy contra el mes anterior hasta el mismo día (si el anterior es más corto, hasta su último día).
+```json
+{ "data": { "hastaElDia": 15,
+  "actual":   { "desde": "2026-11-01", "hasta": "2026-11-15", "numeroVentas": 12, "ventas": 6000.0, "ganancia": 2400.0, "gastos": 400.0, "gananciaNeta": 2000.0 },
+  "anterior": { "desde": "2026-10-01", "hasta": "2026-10-15", "numeroVentas": 10, "ventas": 4000.0, "ganancia": 1600.0, "gastos": 0.0,   "gananciaNeta": 1600.0 },
+  "cambio":   { "numeroVentas": 20.0, "ventas": 50.0, "ganancia": 50.0, "gastos": null, "gananciaNeta": 25.0 } } }
+```
+- `cambio` es el porcentaje contra el mes anterior; **`null` cuando el anterior fue 0** (no se puede comparar; mostrar «sin dato»). En `gastos`, un cambio negativo es lo bueno.
+- Las ventas con estado «Devuelta» no cuentan. `500` si falla la consulta.
+
+**2) `GET /mis-productos/v1/dashboard/graficas/ganancia-por-producto?dias=90&limite=10`** — `dias` de 7 a 365 (contando hoy), `limite` de 1 a 20.
+```json
+{ "data": { "desde": "2026-08-18", "hasta": "2026-11-15", "gananciaTotal": 1700.0, "gananciaDeLosMejores": 850.0, "porcentajeDeLosMejores": 50.0,
+  "productos": [ { "productoId": 1, "nombre": "BOLSA LUCIA", "piezas": 4, "vendido": 1400.0, "ganancia": 700.0, "margen": 50.0 } ] } }
+```
+- Suma por **producto (modelo)**, todos sus artículos juntos; del que más ganancia dejó al que menos. `margen` = ganancia entre vendido, en %. `gananciaTotal` es la de TODOS los productos, no solo los de la lista.
+- `400` con `mensaje` si `dias` o `limite` están fuera de rango; sin ventas devueltas.
+
+
+## 🛑 Cobro con tarjeta: freno al iniciar y cancelar sin parar (2026-11-02, rama `feature/freno-y-tareas`)
+
+**Antes:** cancelar un cobro no contaba como rechazo, así que se podía iniciar y cancelar el cobro de un mismo pedido sin límite (sobrecarga a la pasarela y puede ocultar un abuso).
+
+**Ahora:** al iniciar un cobro, si ese pedido ya tuvo **8 cobros creados en la última hora** (cualquier estado, cancelados incluidos), el back contesta `400` con `mensaje`: «Se iniciaron y cancelaron muchos cobros de este pedido en poco tiempo. Por seguridad, espera un rato antes de intentar de nuevo». Pasada la hora se libera. Una o dos equivocaciones no se frenan.
+- Endpoint: el mismo `POST /mis-productos/v1/pagos-tarjeta` (iniciar cobro); sin campos nuevos. Basta con mostrar el `mensaje`.
+- El freno de 3 rechazos en 2 horas sigue igual.
+
+
+## 📱 Escanear el código de barras con el celular y recibirlo en la PC (2026-11-02, rama `feature/escaner-celular` → versión rápida en `fix/escaner-revision2`)
+
+Endpoints **públicos** (sin token: el buscador de la tienda también los usa y el celular normalmente no tiene sesión). Base: `/mis-productos/v1/escaner/sesiones`. Todos responden `{ data: … }`; los de error traen `mensaje`.
+
+**Qué cambia respecto a la primera versión (el dueño la probó y era lenta):** ya no hay un QR por cada código. La PC se enlaza UNA vez con el celular (QR → página ligera `/escaner.html`, sin Angular, con la cámara siempre lista) y la recuerda; después «📱» solo dice «Escanea ahora» y el código llega en milisegundos (la PC deja una pregunta abierta en el servidor en lugar de consultar cada 1.5 s). La conexión ya no se cierra al recibir un código: dura hasta 12 h, o hasta 5 min sin actividad.
+
+| Request | Para qué | Response (`data`) |
+|---|---|---|
+| `POST /v1/escaner/sesiones` | La PC abre la conexión (primera vez) | `{ "id": "9f2c…(32 hex)", "venceEn": "2026-11-03T00:00:00Z" }` |
+| `GET /v1/escaner/sesiones/{id}` | La PC pregunta si su conexión sigue y si el celular está conectado | `{ "vigente": true, "celularConectado": true, "ultimaSecuencia": 3, "venceEn": "…" }` (`410` si ya no existe) |
+| `POST /v1/escaner/sesiones/{id}/latido` | El celular avisa que sigue ahí (cada ~15 s) | `true` |
+| `POST /v1/escaner/sesiones/{id}/codigos` body `{ "codigo": "7501234567890" }` | El celular manda lo escaneado | `true` si la PC lo estaba esperando; `false` si se guardó pero nadie lo pedía en ese momento (el celular avisa «pulsa 📱 en la computadora») |
+| `GET /v1/escaner/sesiones/{id}/codigos?desde=3&esperar=true` | La PC deja la pregunta abierta: se contesta **en cuanto llega un código** (o a los 25 s con lista vacía: hay que volver a preguntar) | `{ "ultimaSecuencia": 4, "celularConectado": true, "codigos": [ { "secuencia": 4, "codigo": "7501234567890" } ] }` |
+| `GET /v1/escaner/sesiones/{id}/codigos?desde=3` | Lo mismo pero sin esperar (contesta al instante) | igual |
+| `DELETE /v1/escaner/sesiones/{id}` | «Usar otro celular» (también es válido si ya no existe) | `true` |
+
+- La PC manda `desde=<ultimaSecuencia>` para recibir solo lo nuevo. Si el celular se conecta mientras la PC espera, la pregunta se contesta al instante con la lista vacía y `celularConectado: true` (así la pantalla pasa sola del QR a «Escanea ahora»).
+- Código válido: 3 a 100 caracteres imprimibles (ASCII), sin saltos de línea. Máx. 30 códigos por minuto por conexión. Máx. 3 preguntas abiertas a la vez por conexión.
+- La página del celular manda un código solo cuando es un escaneo nuevo: si sigue enfrente de la cámara no lo repite; si lo retira y lo vuelve a acercar (≥1 s) sí.
+- Errores: `400` código inválido · `410` la conexión no existe, venció o la cerró la PC · `429` demasiadas conexiones (máx. 10 por IP —las IPv6 por /48— o por usuario si hay sesión, y 2000 anónimas en total) o demasiados códigos por minuto · `500` fallo inesperado.
+- El QR lleva `https://<tienda>/escaner.html#id=<id>&api=<dirección del servidor>` (en el `#` para que no viaje a ningún servidor). La página solo manda al servidor si su dirección es de `*.novedades-jade.com.mx`.
+- Front: componente compartido `<app-escaner-celular (codigo)="…">` (botón «📱») + página estática `src/assets/escaner/escaner.html` (se publica en la raíz, ver `angular.json`).
+
+### Canal de la CUENTA (sin QR; con sesión iniciada) — `feature/escaner-por-cuenta`
+Para quien tiene sesión (administrador, personal): la PC y el celular de la **misma cuenta** se encuentran solos. Estos endpoints **exigen sesión** (Bearer); el servidor usa el usuario de la sesión, no hay id. Base: `/mis-productos/v1/escaner/canal`.
+
+| Request | Para qué | Response (`data`) |
+|---|---|---|
+| `GET /v1/escaner/canal` | ¿Está conectado el celular de mi cuenta? | `{ "vigente": true, "celularConectado": true, "ultimaSecuencia": 3, "venceEn": "…", "epoca": 123456 }` |
+| `GET /v1/escaner/canal/codigos?desde=3&esperar=true` | La PC deja la pregunta abierta (igual que con QR: contesta al llegar un código, o a los 25 s vacía) | `{ "ultimaSecuencia": 4, "celularConectado": true, "epoca": 123456, "codigos": [ { "secuencia": 4, "codigo": "…" } ] }` |
+| `POST /v1/escaner/canal/latido` | El celular avisa que sigue conectado (cada ~15 s) | `true` |
+| `POST /v1/escaner/canal/codigos` body `{ "codigo": "…" }` | El celular manda un código | `true` si alguna pantalla de la PC lo estaba esperando; `false` si no (el celular avisa «la computadora no tiene abierta una pantalla con código de barras») |
+
+- `epoca` cambia cuando la conexión se rehace en el servidor (venció y se abrió otra de la cuenta): si cambia, pedir de nuevo con `desde=0`.
+- `401` sin sesión. Los códigos de una cuenta nunca llegan a otra. Si la conexión vence, la siguiente llamada abre otra sola (sin QR).
+- Front: `EscanerReceptorService` (cada `<app-escaner-celular>` se registra como receptora mientras exista; el código llega a la última registrada) y la pantalla del celular `/escaner-celular` (menú lateral «📱 Escáner», con sesión). Sin sesión (visitante) sigue el QR.
+
+
+## 📷 Foto del celular → pantalla de la PC (2026-11-03, rama `feature/fotos-celular`)
+
+Mismo canal de la cuenta del escáner (exige sesión). El celular toma la foto y llega a «Nuevo producto», «Agregar artículo» o «Actualizar artículo», que ya tenían «Elegir foto / Tomar foto»; llega como si fuera una elegida de la galería (se **agrega** a las que ya hay).
+
+| Request | Para qué | Response (`data`) |
+|---|---|---|
+| `POST /mis-productos/v1/escaner/canal/fotos` body `{ "foto": "data:image/jpeg;base64,…" }` | El celular manda la foto (JPEG ≤ ~700 000 caracteres; el front la reduce a 1280 px) | `true` si alguna pantalla de la PC la esperaba; `false` si se guardó pero nadie la pedía |
+| `GET /mis-productos/v1/escaner/canal/codigos?desde=N&esperar=true&acepta=codigo,foto` | La PC deja la pregunta abierta diciendo qué sabe recibir (`codigo`, `foto` o ambos; por defecto `codigo`, como antes) | igual que antes **más** `fotos: [ { secuencia, foto } ]` (vacío si no pidió `foto`) |
+
+- `400` foto no válida (no es JPEG base64 o es demasiado grande) · `401` sin sesión · `403` si la cuenta no es administrador (mandar fotos exige rol ADMIN) · `429` más de 10 envíos por minuto (los rechazados también cuentan).
+- Las conexiones públicas por QR **no** reciben fotos (no tienen ruta de fotos; si el servicio se invoca con una de ellas responde `403`).
+- Diferencia respecto a lo anterior: `GET …/canal/codigos` sin `acepta` se comporta exactamente igual; el campo `fotos` es nuevo.
+- Front: componente compartido `<app-foto-celular (foto)="…">` (botón «📱 Foto del celular») y en el celular «📷 Tomar foto» / «📸 Cámara del celular» con vista previa y «Enviar a la computadora».
+
+
+## 🔒 Cierre de endpoints heredados y del código de verificación (2026-11-03, auditoría de seguridad, rama `fix/seguridad-crud-heredado`)
+
+Corregía una fuga: los endpoints genéricos que `Pedidos` y `Clientes` heredan de `AbstractController` estaban abiertos a **cualquier usuario con sesión**.
+
+| Antes | Después |
+|---|---|
+| `GET /v1/pedidos/getAll`, `/getOne/{id}`: cualquier cliente con sesión veía todos los pedidos (dirección, mapa, receptor, totales) | solo `ROLE_ADMIN` (`403` al resto) |
+| `POST /v1/pedidos/save`, `PUT /v1/pedidos/update/{id}`, `DELETE /v1/pedidos/delete`: guardaban un Pedido crudo sin validar precios ni estado | cerrados para todos (`403`). La única puerta de alta es `POST /v1/pedidos/savePedido` |
+| `GET /v1/clientes/getAll`, `/getOne/{id}`: cualquier cliente con sesión veía todos los clientes (nombre, correo, teléfono, direcciones) | solo quien tiene la pantalla Clientes (`clientes/buscar`) |
+| `PUT /v1/clientes/update/{id}`: guardaba un Cliente crudo sin revisar dueño | solo con permiso de **Editar** en Clientes |
+| `codigoVerificacion` y `codigoVerificacionExpira` salían en el JSON del Cliente (`buscarPorIdCliente`, etc.): el cliente leía su propio código y "verificaba" un correo ajeno | ya **no salen**. `correoPendiente` sigue saliendo |
+| `POST /v1/clientes/{id}/verificar-correo` lo podía llamar cualquiera con sesión sobre cualquier `{id}` y sin límite de intentos | solo el dueño del registro o un admin (`403`), y tras **5 códigos incorrectos en 15 min** se bloquea ese cliente un rato |
+
+- El front **no usa** ninguno de los endpoints cerrados (revisado: usa `savePedido`, `findPedido`, `buscarPorIdCliente`, `/v1/clientes/save`, `buscar`). Si alguna pantalla recibe `403` en estas rutas, avisar.
+- El front no lee `codigoVerificacion` en ningún lado (revisado).
+
+
+## 🔒 Chat en vivo (WebSocket) con autenticación (2026-11-03, auditoría de seguridad)
+
+Antes `/ws` no revisaba nada: un anónimo se suscribía a `/topic/chat.admin` y leía todas las conversaciones, contestaba como ADMIN por `/app/chat.admin.responder`, y mandaba un `usuarioId` ajeno en `/app/chat.conectar` para colarse en el chat de otro cliente.
+
+| Antes | Después |
+|---|---|
+| SUBSCRIBE `/topic/chat.admin`, SEND `/app/chat.admin.*`: cualquiera | solo `ROLE_ADMIN` o la pantalla **admin/chat** (responder pide además **Editar** en esa pantalla) |
+| `/app/chat.conectar` usaba el `usuarioId` del mensaje | **se ignora**: el id sale del token del CONNECT. Sin token = visitante anónimo |
+| SUBSCRIBE `/topic/chat.usuario.{sesionId}` y SEND `/app/chat.mensaje` de cualquier sesión | solo el dueño de la conversación o el admin del chat. Las anónimas se protegen con su UUID, como antes |
+| cualquier otro `/topic/**` | se niega |
+
+- **El front debe mandar `Authorization: Bearer <accessToken>` en el CONNECT de STOMP** (`connectHeaders`). El panel del admin ya lo hacía; el chat del cliente ahora lo manda también y en cada reconexión (`beforeConnect`, el token dura 15 min). Si falta o venció, el chat funciona como visitante anónimo (el historial por usuario deja de enlazarse).
+- Un mensaje no autorizado se descarta en silencio (no hay respuesta de error en STOMP).
+
+
+## 🔒 Validaciones de texto y `savePedido` (2026-11-03, auditoría de seguridad)
+
+| Dónde | Antes | Después |
+|---|---|---|
+| `POST /v1/pedidos/savePedido` (quien **no** es admin) | aceptaba cualquier `cliente.id`, `estadoPedido` y `tipoPedido` que mandara el front: pedidos a nombre de otro cliente, "Entregado"/"Pagado" o FIADO | `403` si el cliente no es el suyo; el estado solo puede ser `Pendiente` o `APARTADO` (flores con anticipo) y el tipo `NORMAL` o `APARTADO`; lo demás se vuelve `Pendiente`/`NORMAL`. El admin sigue igual |
+| Registro: `userName` | cualquier texto de 3-100 caracteres | no puede llevar `< > " ' & \``. `400` con el mensaje |
+| `POST /v1/clientes/save` (nombre, segundo nombre, apellidos) | cualquier texto | no pueden llevar `< > " \``. `400` |
+| Frase personalizada del listón (flores) | cualquier texto; se metía sin escapar en el correo al dueño | máximo 120 caracteres y sin `<` ni `>` (`400`); el correo la escapa |

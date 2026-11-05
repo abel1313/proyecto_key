@@ -1,0 +1,121 @@
+package com.ventas.key.mis.productos.security;
+
+import com.ventas.key.mis.productos.jwt.JwtUtil;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+
+/**
+ * Matriz de autorización con la seguridad REAL (noche del 2026-11-05).
+ *
+ * <p>Qué comprueba, sin tocar datos: (1) sin sesión, nada interno responde algo que no sea 401/403; (2) una clienta común
+ * (ROLE_USUARIO, sin pantallas ni acciones) recibe 403 en todo lo que es del administrador o de una pantalla del panel.
+ * La seguridad se evalúa antes de llegar al controlador, así que no importa que el recurso no exista.
+ *
+ * <p>NO sustituye a la prueba de "acceso entre cuentas" (una clienta pidiendo el pedido de otra), que vive en el
+ * controlador y necesita datos: está en la lista de pendientes de {@code AUDITORIA_SEGURIDAD_2026-11-05.md}.
+ */
+@SpringBootTest(classes = com.ventas.key.mis.productos.MisProductosApplication.class)
+@AutoConfigureMockMvc
+class AutorizacionPorEndpointTest {
+
+    @Autowired private MockMvc mvc;
+    @Autowired private JwtUtil jwtUtil;
+    @MockBean private com.ventas.key.mis.productos.service.UsuarioDetailsService userDetailsService;
+
+    private record Ruta(HttpMethod metodo, String path) {
+        @Override public String toString() { return metodo + " " + path; }
+    }
+
+    /** Del administrador o de una pantalla del panel: sin sesión 401/403 y con ROLE_USUARIO 403. */
+    static Stream<Ruta> soloPanel() {
+        return Stream.of(
+                new Ruta(HttpMethod.GET, "/v1/reportes/diario"),
+                new Ruta(HttpMethod.GET, "/v1/reportes/revision-ventas"),
+                new Ruta(HttpMethod.GET, "/v1/reportes/corte-caja"),
+                new Ruta(HttpMethod.GET, "/v1/dashboard/resumen"),
+                new Ruta(HttpMethod.GET, "/v1/usuarios/roles"),
+                new Ruta(HttpMethod.GET, "/v1/usuarios/permisos"),
+                new Ruta(HttpMethod.PUT, "/v1/usuarios/1/rol/2"),
+                new Ruta(HttpMethod.GET, "/v1/admin/cache/algo"),
+                new Ruta(HttpMethod.POST, "/v1/admin/datos-prueba/generar"),
+                new Ruta(HttpMethod.GET, "/actuator/caches"),
+                new Ruta(HttpMethod.DELETE, "/actuator/caches"),
+                new Ruta(HttpMethod.GET, "/v1/documentos/algo"),
+                new Ruta(HttpMethod.GET, "/v1/pedidos/buscar"),
+                new Ruta(HttpMethod.GET, "/v1/pedidos/buscarClientePedido"),
+                new Ruta(HttpMethod.POST, "/v1/pedidos/save"),
+                new Ruta(HttpMethod.PUT, "/v1/pedidos/update/1"),
+                new Ruta(HttpMethod.DELETE, "/v1/pedidos/delete"),
+                new Ruta(HttpMethod.POST, "/v1/pedidos/1/notificar"),
+                new Ruta(HttpMethod.GET, "/v1/clientes/buscar"),
+                new Ruta(HttpMethod.DELETE, "/v1/clientes/1"),
+                new Ruta(HttpMethod.GET, "/v1/imagenes/cache/algo"),
+                new Ruta(HttpMethod.POST, "/v1/imagenes/algo"),
+                new Ruta(HttpMethod.GET, "/v1/chat/admin/conversaciones"),
+                new Ruta(HttpMethod.GET, "/v1/admin/reconciliacion/algo"));
+    }
+
+    /** Piden sesión iniciada (el controlador revisa luego que sea de la dueña): sin sesión 401/403. */
+    static Stream<Ruta> soloConSesion() {
+        return Stream.of(
+                new Ruta(HttpMethod.GET, "/v1/pedidos/1"),
+                new Ruta(HttpMethod.POST, "/v1/pedidos/savePedido"),
+                new Ruta(HttpMethod.PUT, "/v1/pedidos/1/entrega"),
+                new Ruta(HttpMethod.GET, "/v1/chat/historial/usuario/1"),
+                new Ruta(HttpMethod.GET, "/v1/chat/historial/cliente/1"),
+                new Ruta(HttpMethod.GET, "/v1/clientes/1"));
+    }
+
+    private String token(String usuario, String... roles) {
+        UserDetails u = new User(usuario, "x", java.util.Arrays.stream(roles).map(SimpleGrantedAuthority::new).toList());
+        when(userDetailsService.loadUserByUsername(usuario)).thenReturn(u);
+        return "Bearer " + jwtUtil.generateToken(u, 1L);
+    }
+
+    private int codigo(Ruta r, String auth) throws Exception {
+        var req = request(r.metodo(), r.path()).contentType("application/json").content("{}");
+        if (auth != null) req.header("Authorization", auth);
+        return mvc.perform(req).andReturn().getResponse().getStatus();
+    }
+
+    @ParameterizedTest(name = "sin sesión: {0}")
+    @MethodSource("soloPanel")
+    @DisplayName("panel: sin sesión responde 401 o 403")
+    void panelSinSesion(Ruta r) throws Exception {
+        assertThat(codigo(r, null)).as(r.toString()).isIn(401, 403);
+    }
+
+    @ParameterizedTest(name = "clienta: {0}")
+    @MethodSource("soloPanel")
+    @DisplayName("panel: una clienta común recibe 403")
+    void panelConClientaComun(Ruta r) throws Exception {
+        assertThat(codigo(r, token("clienta", "ROLE_USUARIO"))).as(r.toString()).isEqualTo(403);
+    }
+
+    @ParameterizedTest(name = "sin sesión: {0}")
+    @MethodSource("soloConSesion")
+    @DisplayName("con sesión: sin sesión responde 401 o 403")
+    void soloConSesionSinSesion(Ruta r) throws Exception {
+        assertThat(codigo(r, null)).as(r.toString()).isIn(401, 403);
+    }
+
+
+}

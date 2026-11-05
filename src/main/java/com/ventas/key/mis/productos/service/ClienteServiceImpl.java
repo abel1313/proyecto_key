@@ -191,8 +191,37 @@ implements IClienteService {
         emailService.enviarCodigoVerificacion(destino, codigo);
     }
 
+    /** Intentos fallidos de codigo por cliente: tras 5 en 15 minutos se bloquea (un codigo de 6 digitos se adivina en minutos si no hay limite). */
+    private static final int INTENTOS_MAXIMOS_CODIGO = 5;
+    private static final java.time.Duration VENTANA_INTENTOS_CODIGO = java.time.Duration.ofMinutes(15);
+    private final java.util.concurrent.ConcurrentHashMap<Integer, IntentosCodigo> intentosCodigo = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record IntentosCodigo(int fallos, LocalDateTime desde) { }
+
+    private void exigirIntentosDisponibles(Integer clienteId) {
+        IntentosCodigo i = intentosCodigo.get(clienteId);
+        if (i == null) return;
+        if (LocalDateTime.now().isAfter(i.desde().plus(VENTANA_INTENTOS_CODIGO))) {
+            intentosCodigo.remove(clienteId);
+            return;
+        }
+        if (i.fallos() >= INTENTOS_MAXIMOS_CODIGO) {
+            throw new RuntimeException("Demasiados intentos con un codigo incorrecto. Solicita un codigo nuevo en unos minutos");
+        }
+    }
+
+    private void registrarFalloDeCodigo(Integer clienteId) {
+        intentosCodigo.merge(clienteId, new IntentosCodigo(1, LocalDateTime.now()),
+                (a, b) -> new IntentosCodigo(a.fallos() + 1, a.desde()));
+        if (intentosCodigo.size() > 5000) {   // no crece sin limite
+            LocalDateTime limite = LocalDateTime.now().minus(VENTANA_INTENTOS_CODIGO);
+            intentosCodigo.values().removeIf(v -> v.desde().isBefore(limite));
+        }
+    }
+
     @CacheEvict(value = "clienteCache", allEntries = true)
     public void verificarCorreo(Integer clienteId, String codigo) {
+        exigirIntentosDisponibles(clienteId);
         Cliente cliente = iClienteRepository.findById(clienteId)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
         boolean hayCorreoPendiente = cliente.getCorreoPendiente() != null && !cliente.getCorreoPendiente().isBlank();
@@ -200,12 +229,14 @@ implements IClienteService {
             return;
         }
         if (cliente.getCodigoVerificacion() == null || !cliente.getCodigoVerificacion().equals(codigo)) {
+            registrarFalloDeCodigo(clienteId);
             throw new RuntimeException("Codigo de verificacion invalido");
         }
         if (cliente.getCodigoVerificacionExpira() == null
                 || LocalDateTime.now().isAfter(cliente.getCodigoVerificacionExpira())) {
             throw new RuntimeException("El codigo de verificacion expiro, solicita uno nuevo");
         }
+        intentosCodigo.remove(clienteId);
         // Mismo chequeo que solicitarCambioCorreo, repetido aqui porque el correo pendiente ya
         // pudo quedar en conflicto ANTES de ese fix, o alguien mas tomo ese correo mientras el
         // codigo seguia vigente -- sin esto, confirmar revienta el commit igual (hotfix
