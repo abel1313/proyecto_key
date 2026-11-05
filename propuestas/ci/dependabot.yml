@@ -1,0 +1,14 @@
+# PROPUESTA — para activarla se copia a .github/dependabot.yml
+# Dependabot abre solo un aviso (pull request) cuando una librería tiene una versión nueva o un hueco de seguridad conocido.
+version: 2
+updates:
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "monthly" }
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule: { interval: "monthly" }

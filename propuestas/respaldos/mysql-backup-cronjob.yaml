@@ -1,0 +1,36 @@
+# PROPUESTA — NO se aplica solo. Respaldo diario de MySQL: volcado comprimido y cifrado, subido fuera del servidor.
+# Antes de aplicarla: crear el Secret `respaldo-mysql` (MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, GPG_PUBLIC_KEY,
+# RCLONE_CONFIG) y elegir dónde se guardan las copias (otro proveedor distinto al VPS). Sin contraseñas en este archivo.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: respaldo-mysql
+spec:
+  schedule: "30 3 * * *"          # todos los días a las 3:30 am
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: respaldo
+              image: mysql:8        # para mysqldump; el resto lo hace el script
+              envFrom: [{ secretRef: { name: respaldo-mysql } }]
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail      # si mysqldump falla, el Job falla (sin esto saldría verde con un archivo vacío)
+                  F=/tmp/inventario_key_$(date +%F).sql.gz
+                  mysqldump -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
+                    --single-transaction --routines --triggers inventario_key | gzip > "$F"
+                  test "$(stat -c %s "$F")" -gt 1024        # un volcado de menos de 1 KB es un volcado roto
+                  # >>> FALTA (decisión tuya: dónde se guardan las copias): cifrar con gpg y subir con rclone a un proveedor
+                  # distinto del VPS, y llamar al heartbeat de Uptime Kuma. Mientras no esté, este Job NO respalda nada
+                  # y se queda en ROJO a propósito para que nadie crea que ya hay respaldo.
+                  echo "ERROR: falta configurar el destino externo de las copias" >&2
+                  exit 1
+              resources: { limits: { memory: 512Mi } }

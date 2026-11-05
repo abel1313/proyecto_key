@@ -34,6 +34,8 @@ spring:
 # que si esto queda vacío simplemente no muestra el logo (mismo fallback de ícono+texto de antes).
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  # URL pública de la tienda (front) para el enlace de las vistas previas al compartir (/v1/compartir). Vacío = sin redirección.
+  tienda-base-url: ${APP_TIENDA_BASE_URL:}
 
 server:
   port: 9091
