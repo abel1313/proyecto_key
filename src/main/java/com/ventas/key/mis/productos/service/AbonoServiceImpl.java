@@ -28,6 +28,10 @@ import java.util.Set;
 @Slf4j
 public class AbonoServiceImpl implements IAbonoService {
 
+    /** Por campo (no por constructor) para no cambiar cómo se arma en las pruebas; puede ser null fuera de Spring. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CacheService cacheService;
+
     private static final Set<String> TIPOS_CREDITO = Set.of("APARTADO", "FIADO");
 
     // IDs del catálogo pagos_y_meses — efectivo=1, transferencia=62, tarjeta débito=2
@@ -235,6 +239,7 @@ public class AbonoServiceImpl implements IAbonoService {
             CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
             allEntries = true)
     public CancelarAbonoResponse cancelarPedido(int pedidoId, CancelarAbonoRequest request) {
+        if (cacheService != null) cacheService.evictAllDespuesDelCommit();   // el @CacheEvict corre antes del commit: se repite ya confirmado
         // Con bloqueo: una segunda cancelacion simultanea espera aqui y luego ve "cancelado".
         Pedido pedido = pedidoRepository.findByIdWithLock(pedidoId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoId));
@@ -348,6 +353,7 @@ public class AbonoServiceImpl implements IAbonoService {
             CacheNames.VARIANTES, CacheNames.VARIANTES_NOMBRE, CacheNames.VARIANTES_CODIGO_BARRAS},
             allEntries = true)
     public TransferirAbonoResponse transferirAbono(int pedidoIdOrigen, TransferirAbonoRequest request) {
+        if (cacheService != null) cacheService.evictAllDespuesDelCommit();
         Pedido origen = pedidoRepository.findById(pedidoIdOrigen)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado: " + pedidoIdOrigen));
 
