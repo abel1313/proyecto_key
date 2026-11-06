@@ -62,10 +62,10 @@ public class PedidosAbiertosJpaAdapter implements PedidosAbiertosPort {
             jpql.append(")");
         }
         if (filtro.desde() != null) {
-            jpql.append(" AND p.fechaRecogida >= :desde");
+            jpql.append(" AND COALESCE(p.fechaRecogida, p.fechaPedido) >= :desde");
         }
         if (filtro.hasta() != null) {
-            jpql.append(" AND p.fechaRecogida <= :hasta");
+            jpql.append(" AND COALESCE(p.fechaRecogida, p.fechaPedido) <= :hasta");
         }
         var consulta = entityManager.createQuery(jpql.toString(), Pedido.class).setMaxResults(MAXIMO_PEDIDOS + 1);
         if (!filtro.zonasReales().isEmpty()) {

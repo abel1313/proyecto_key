@@ -23001,7 +23001,7 @@ La búsqueda de lo que escribe el cliente compara con **nombre, marca, presentac
 | Param | Valores | Por defecto | Qué hace |
 |---|---|---|---|
 | `zonaId` | id de zona (`/v1/lugares-entrega`) | todas | Una sola zona; sin él salen todas y «Sin zona» al final |
-| `desde`, `hasta` | `yyyy-MM-dd` | sin límite | **Fecha de entrega** (`fecha_recogida`, la que se programa en Entregas por zona), ambos extremos incluidos. **Un pedido sin fecha de entrega NO sale cuando se manda `desde` o `hasta`** (antes filtraba por la fecha en que se hizo el pedido, 2026-11-05). Cada pedido trae el campo nuevo `fechaEntrega` (`yyyy-MM-dd` o `null`). `desde > hasta` → `400` *«La fecha «desde» no puede ser después de «hasta».»* |
+| `desde`, `hasta` | `yyyy-MM-dd` | sin límite | **Fecha de entrega** (`fecha_recogida`, la que se programa en Entregas por zona), ambos extremos incluidos. **Si el pedido no tiene fecha de entrega, cuenta la fecha en que se vendió** (`COALESCE(fecha_recogida, fecha_pedido)`, 2026-11-06). Cada pedido trae el campo nuevo `fechaEntrega` (`yyyy-MM-dd` o `null`). `desde > hasta` → `400` *«La fecha «desde» no puede ser después de «hasta».»* |
 | `pago` | `POR_COBRAR` · `PAGADOS` · `TODOS` | `POR_COBRAR` | Por saldo: con algo por cobrar, ya pagados completos, o todos |
 | `entrega` | `SIN_ENTREGAR` · `ENTREGADOS` · `TODOS` | `SIN_ENTREGAR` | Según si el pedido ya se entregó |
 
