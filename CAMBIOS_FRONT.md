@@ -23455,3 +23455,40 @@ Los **cancelados nunca** entran. Más de 3000 pedidos → `400` *«Son más de 3
 | `GET /v1/admin/test-rabbit` | Regla pública sin controlador | Regla eliminada. |
 | Chat en vivo (STOMP) | Suscribirse a `/topic/chat.usuario.*` o `/topic/chat.inicio.*` recibía **todas** las conversaciones (el broker trata `*` como patrón) | Cualquier suscripción con `*`, `{` o `?` se rechaza. El chat normal (propio `tempId` y propia sesión) no cambia. |
 | Stock en ventas, pedidos y cancelaciones | Dos operaciones a la vez podían perder una resta o dar deadlock (error 500) | Se bloquea y se vuelve a leer la fila antes de tocar el stock (`BloqueoStock`), con orden pedido → artículo → producto. No cambia ningún contrato; en caso de choque extremo una operación puede responder `500` y se reintenta. |
+
+### 🏷️ Grupos de precio por cantidad (2026-11-07, en `dev` y `qa`; Fase 1 de `PLAN_CAMPANAS_Y_PRECIOS.md`)
+**Qué es:** un grupo junta productos con un **mínimo de piezas**; cuando la venta lleva ese mínimo (sumando las piezas de TODOS los productos del grupo), cada producto del grupo que lleva la venta se cobra a **su precio de promoción**. Las piezas **solo se suman dentro del mismo grupo**. Un producto está en **un solo grupo**. Gana el precio **más bajo** (un descuento a mano más bajo se respeta; no se suman). Aplica también en Apartado.
+
+**Requiere correr** `migration_grupo_precio_cantidad.sql` (crea las dos tablas y la pantalla `productos/grupos-precio` solo para `ROLE_ADMIN`; **volver a entrar** después). Sin ella `/v1/grupos-precio-cantidad` responde 500 y todo lo demás sigue como antes (sin grupos no hay precio de grupo).
+
+**Administración — solo `ROLE_ADMIN`** (cliente → 403): `/mis-productos/v1/grupos-precio-cantidad`
+| Request | Qué hace |
+|---|---|
+| `GET /v1/grupos-precio-cantidad` | `lista[]` de grupos |
+| `GET /v1/grupos-precio-cantidad/{id}` | un grupo |
+| `GET /v1/grupos-precio-cantidad/producto/{productoId}` | el grupo del producto; `data: null` si no está en ninguno |
+| `POST /v1/grupos-precio-cantidad` | crea |
+| `PUT /v1/grupos-precio-cantidad/{id}` | reemplaza nombre, mínimo, fechas, activo y **toda** la lista de productos |
+| `PUT /v1/grupos-precio-cantidad/{id}/activo` `{ "activo": false }` | enciende o apaga |
+| `DELETE /v1/grupos-precio-cantidad/{id}` | borra el grupo (sus productos vuelven a precio normal) |
+
+Cuerpo de `POST` y `PUT`:
+```json
+{ "nombre": "Bolsas de Navidad", "minimoPiezas": 3, "fechaInicio": "2026-12-01", "fechaFin": "2026-12-31", "activo": true,
+  "productos": [ { "productoId": 12, "precioPromocion": 200.0 }, { "productoId": 15, "precioPromocion": 270.0 } ] }
+```
+Respuesta (un grupo): `data: { id, nombre, minimoPiezas, fechaInicio, fechaFin, activo, vigente, productos: [ { productoId, nombre, precioPromocion } ] }`. `vigente` = activo **y** dentro de sus fechas hoy (los dos extremos incluidos). Las fechas son opcionales (`null` = sin límite).
+Errores: `400` con el mensaje en palabras del dueño (nombre vacío, mínimo menor a 2, «desde» después de «hasta», sin productos, precio ≤ 0, producto repetido, **«X» ya está en el grupo «Y». Un producto solo puede estar en un grupo.**, el producto ya no existe) · `409` si la base rechaza un producto repetido · `403` cliente · `401` sin sesión.
+
+**Cálculo para mostrar — con sesión (cliente o admin):** `POST /mis-productos/v1/precio-cantidad/calcular`
+```json
+{ "lineas": [ { "productoId": 12, "cantidad": 1 }, { "productoId": 15, "cantidad": 2 } ] }
+```
+→ `data: { precios: [ { productoId, precioPromocion, grupoId, grupo, minimoPiezas, piezasDelGrupo } ] }`. **Solo trae los productos a los que les toca**; lo que no aparece se cobra a su precio normal. `productoId` es el del **producto** (varios artículos —talla, color— del mismo producto se suman). No guarda nada.
+
+**Lo que cambia al GUARDAR (el back decide, nunca confía en el front):**
+- `POST /v1/ventas/save` (Venta directa) y `POST /v1/pedidos/savePedido` (carrito): el back calcula los grupos con **todo** lo que lleva la venta/pedido (las líneas con `promocionId`, o sea combos, **no** cuentan). Si el grupo juntó el mínimo, la línea se cobra a su precio de grupo **aunque el front mande el precio normal** (si manda uno menor ya válido, por ejemplo la rebaja, se queda ese). El `precioUnitario`/`subTotal` guardados y el total del pedido ya traen el precio de grupo.
+- Un precio de grupo mandado por el front **solo se acepta si la venta de verdad juntó el mínimo**; si no, `precio no es valido: llego X y los precios de catalogo son Y`.
+- **Front (ya hecho en QA):** Venta directa y la pantalla del carrito llaman a `calcular` cada vez que cambia el carrito, muestran el precio normal tachado, el ahorro y el total, y mandan el precio de grupo en el request. Pantalla nueva **Catálogo → Grupos de precio por cantidad** (`productos/grupos-precio`).
+
+**Todavía NO cubre (siguiente paso, «Fase 1b»):** editar un pedido **ya guardado** (agregar, quitar o cambiar artículos desde Mis pedidos / `EditarArticulosService`) **no recalcula** el precio de grupo. Un pedido que se hizo con precio de grupo y al que luego se le quitan piezas conserva ese precio, y mandar el precio de grupo en una edición se rechaza como «precio no válido». También falta el ahorro en el ticket impreso.

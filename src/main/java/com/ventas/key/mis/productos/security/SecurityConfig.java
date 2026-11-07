@@ -623,6 +623,10 @@ public class SecurityConfig {
                         // ── Reportes de ventas ───────────────────────────────────────────
                         // Revisión de ventas (alertas de cosas raras en pedidos, ventas, abonos y stock): solo administrador.
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/revision-ventas", "/v1/reportes/corte-caja").hasRole("ADMIN")
+                        // Grupos de precio por cantidad (2026-11-07): la configuración solo la hace el administrador.
+                        .requestMatchers("/v1/grupos-precio-cantidad/**").hasRole("ADMIN")
+                        // Calcula a qué productos les toca su precio de grupo; con sesión (carrito del cliente y Venta directa del admin).
+                        .requestMatchers(HttpMethod.POST, "/v1/precio-cantidad/calcular").authenticated()
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/**").hasAnyAuthority(pantalla("reportes"))
                         .requestMatchers("/v1/reportes/**").hasAnyAuthority(pantallaEscribir("reportes"))
 

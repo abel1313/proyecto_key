@@ -7,6 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import com.ventas.key.hexagonal.preciocantidad.dominio.modelo.LineaPorCantidad;
+import com.ventas.key.hexagonal.preciocantidad.dominio.modelo.PrecioDeGrupo;
+import com.ventas.key.hexagonal.preciocantidad.dominio.puerto.entrada.CalcularPreciosPorCantidadCasoUso;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -59,6 +62,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
     @Autowired private CacheService cacheService;
     @Autowired private BloqueoStock bloqueoStock;
+    /** Precio por cantidad (grupos). Opcional: sin el, todo se cobra como antes. */
+    @Autowired(required = false) private CalcularPreciosPorCantidadCasoUso preciosPorCantidad;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private EmailService emailService;
     @Autowired private WhatsappService whatsappService;
@@ -187,6 +192,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         List<DetallePedido> detallesPedido = new ArrayList<>();
         List<DetalleVentaVariante> detallesVenta = new ArrayList<>();
 
+        // Precio por cantidad: con TODO lo que lleva la venta (las piezas solo se suman dentro del mismo grupo).
+        Map<Integer, PrecioDeGrupo> preciosDeGrupo = preciosDeGrupoDeLaVenta(request.getDetalles());
+
         for (var item : request.getDetalles()) {
             if (item.getCantidad() == null || item.getCantidad() <= 0) {
                 throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0 para el artículo id "
@@ -211,8 +219,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             // Lineas sin promocionId deben cobrarse al precio de catalogo — un descuento en
             // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request
             // podia traer cualquier precio.
+            double precioLinea = item.getPrecioVenta() == null ? 0.0 : item.getPrecioVenta();
             if (item.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, variante, item.getPrecioVenta());
+                PrecioDeGrupo grupo = preciosDeGrupo.get(prod.getId());
+                validarPrecioCatalogo(prod, variante, item.getPrecioVenta(), grupo);
+                // Si la venta junta el minimo del grupo, se cobra su precio de grupo aunque el front mande el normal (gana el mas bajo).
+                precioLinea = precioAplicado(precioLinea, grupo);
             }
 
             prod.setStock(prod.getStock() - item.getCantidad());
@@ -225,7 +237,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             // confirme. El subtotal, en cambio, no lo validaba nadie: con promocionId el
             // request podia traer el precio unitario correcto y un subTotal de 1, y como el
             // total de la venta se arma sumando subtotales, la venta entera quedaba en 1.
-            double subTotal    = item.getPrecioVenta() * item.getCantidad();
+            double subTotal    = precioLinea * item.getCantidad();
             double costoTotal  = precioCosto * item.getCantidad();
             double comision    = subTotal * (tasaTarifa + tasaIva);
             double ganancia    = subTotal - costoTotal - comision;
@@ -240,7 +252,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             dp.setProducto(prod);
             dp.setVariante(variante);
             dp.setCantidad(item.getCantidad());
-            dp.setPrecioUnitario(item.getPrecioVenta());
+            dp.setPrecioUnitario(precioLinea);
             dp.setSubTotal(subTotal);
             dp.setPromocion(promocion);
             detallesPedido.add(dp);
@@ -248,7 +260,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             DetalleVentaVariante dvv = new DetalleVentaVariante();
             dvv.setVariante(variante);
             dvv.setCantidad(item.getCantidad());
-            dvv.setPrecioUnitario(item.getPrecioVenta());
+            dvv.setPrecioUnitario(precioLinea);
             dvv.setSubTotal(subTotal);
             dvv.setPrecioCosto(precioCosto);
             dvv.setGanancia(ganancia);
@@ -461,6 +473,10 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
      * porque ya no se usa el del request -- se calcula (ver mas arriba).
      */
     private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario) {
+        validarPrecioCatalogo(prod, variante, precioUnitario, null);
+    }
+
+    private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario, PrecioDeGrupo grupo) {
         if (precioUnitario == null) {
             throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
@@ -473,15 +489,41 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
         // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
         boolean esRebaja = rebaja > 0 && Math.abs(precioUnitario - rebaja) <= 0.01;
+        // El precio de grupo solo es valido si la venta junto el minimo del grupo (la lista de grupos viene calculada del back).
+        boolean esGrupo = grupo != null && Math.abs(precioUnitario - grupo.precio().doubleValue()) <= 0.01;
 
-        if (!esNormal && !esRebaja) {
+        if (!esNormal && !esRebaja && !esGrupo) {
             String validos = rebaja > 0
                     ? String.format("%.2f (normal) o %.2f (rebaja)", normal, rebaja)
                     : String.format("%.2f", normal);
+            if (grupo != null) {
+                validos += String.format(" o %.2f (precio de grupo)", grupo.precio().doubleValue());
+            }
             throw new RuntimeException(String.format(
                     "El precio de %s no es valido: llego %.2f y los precios de catalogo son %s",
                     prod.getNombre(), precioUnitario, validos));
         }
+    }
+
+    /** Los precios de grupo que le tocan a esta venta, por producto. Las lineas de una promocion (combo) no cuentan. */
+    private Map<Integer, PrecioDeGrupo> preciosDeGrupoDeLaVenta(List<com.ventas.key.mis.productos.models.DetalleVentaDto> detalles) {
+        if (preciosPorCantidad == null || detalles == null) {
+            return Map.of();
+        }
+        List<LineaPorCantidad> lineas = new ArrayList<>();
+        for (var item : detalles) {
+            if (item.getPromocionId() != null || item.getVarianteId() == null || item.getCantidad() == null || item.getCantidad() <= 0) {
+                continue;
+            }
+            iVarianteRepository.findById(item.getVarianteId())
+                    .ifPresent(v -> lineas.add(new LineaPorCantidad(v.getProducto().getId(), item.getCantidad())));
+        }
+        return preciosPorCantidad.calcular(lineas);
+    }
+
+    /** Gana el precio mas bajo: el de grupo solo se usa si es menor al que llego. */
+    private static double precioAplicado(double precio, PrecioDeGrupo grupo) {
+        return grupo != null && grupo.precio().doubleValue() < precio - 0.005 ? grupo.precio().doubleValue() : precio;
     }
 
     // Agrupa las lineas de la venta que traen promocionId y valida cada combo contra

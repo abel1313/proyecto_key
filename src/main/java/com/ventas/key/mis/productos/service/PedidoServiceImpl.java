@@ -62,6 +62,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.ventas.key.hexagonal.preciocantidad.dominio.modelo.LineaPorCantidad;
+import com.ventas.key.hexagonal.preciocantidad.dominio.modelo.PrecioDeGrupo;
+import com.ventas.key.hexagonal.preciocantidad.dominio.puerto.entrada.CalcularPreciosPorCantidadCasoUso;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -99,6 +102,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
     @Autowired private CacheService cacheService;
     @Autowired private BloqueoStock bloqueoStock;
+    /** Precio por cantidad (grupos). Opcional: sin el, todo se cobra como antes. */
+    @Autowired(required = false) private CalcularPreciosPorCantidadCasoUso preciosPorCantidad;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private IVarianteImagenRepository iVarianteImagenRepository;
 
@@ -261,6 +266,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         pedido.setTotalPagado(0.0);
 
         List<DetallePedido> detallePedido = new ArrayList<>();
+        // Precio por cantidad: con TODO lo que lleva el pedido (las piezas solo se suman dentro del mismo grupo).
+        Map<Integer, PrecioDeGrupo> preciosDeGrupo = preciosDeGrupoDelPedido(requestG.getDetalles());
+
         for (var mpa : requestG.getDetalles()) {
             if (mpa.getCantidad() == null || mpa.getCantidad() <= 0) {
                 throw new RuntimeException("La cantidad es obligatoria y debe ser mayor a 0");
@@ -289,8 +297,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             // Lineas sin promocionId deben pagar el precio de catalogo — el precio con descuento
             // solo es valido dentro de una promocion (validada aparte en validarLineasDePromocion).
             // Sin este chequeo, el front (o cualquiera con el token) podia mandar cualquier precio.
+            double precioLinea = mpa.getPrecioUnitario() == null ? 0.0 : mpa.getPrecioUnitario();
             if (mpa.getPromocionId() == null) {
-                validarPrecioCatalogo(prod, variante, mpa.getPrecioUnitario());
+                PrecioDeGrupo grupo = preciosDeGrupo.get(prod.getId());
+                validarPrecioCatalogo(prod, variante, mpa.getPrecioUnitario(), grupo);
+                // Si el pedido junta el minimo del grupo, se cobra su precio de grupo aunque el front mande el normal (gana el mas bajo).
+                precioLinea = precioAplicado(precioLinea, grupo);
             }
 
             prod.setStock(prod.getStock() - mpa.getCantidad());
@@ -298,13 +310,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());
-            dta.setPrecioUnitario(mpa.getPrecioUnitario());
+            dta.setPrecioUnitario(precioLinea);
             // El subtotal se CALCULA, no se lee del request. El precio unitario si viene del
             // front, pero pasa por validarPrecioCatalogo (linea sin promocion) o por
             // validarLineasDePromocion (linea con promocion). El subtotal no lo validaba nadie:
             // con promocionId el request podia traer el precio correcto y un subTotal de 1, y
             // como totalPedido se arma sumando subtotales, el pedido entero quedaba en 1.
-            dta.setSubTotal(mpa.getPrecioUnitario() * mpa.getCantidad());
+            dta.setSubTotal(precioLinea * mpa.getCantidad());
             dta.setPedido(pedido);
             dta.setProducto(prod);
             dta.setVariante(variante);
@@ -413,6 +425,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
      * porque ya no se usa el del request -- se calcula (ver savePedido).
      */
     private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario) {
+        validarPrecioCatalogo(prod, variante, precioUnitario, null);
+    }
+
+    private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario, PrecioDeGrupo grupo) {
         if (precioUnitario == null) {
             throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
@@ -430,15 +446,45 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         boolean esNormal = Math.abs(precioUnitario - normal) <= 0.01;
         // Una rebaja en 0 significa "este producto no tiene rebaja", no "sale gratis".
         boolean esRebaja = rebaja > 0 && Math.abs(precioUnitario - rebaja) <= 0.01;
+        // El precio de grupo solo es valido si el pedido junto el minimo del grupo (se calcula en el back).
+        boolean esGrupo = grupo != null && Math.abs(precioUnitario - grupo.precio().doubleValue()) <= 0.01;
 
-        if (!esNormal && !esRebaja) {
+        if (!esNormal && !esRebaja && !esGrupo) {
             String validos = rebaja > 0
                     ? String.format("%.2f (normal) o %.2f (rebaja)", normal, rebaja)
                     : String.format("%.2f", normal);
+            if (grupo != null) {
+                validos += String.format(" o %.2f (precio de grupo)", grupo.precio().doubleValue());
+            }
             throw new RuntimeException(String.format(
                     "El precio de %s no es valido: llego %.2f y los precios de catalogo son %s",
                     prod.getNombre(), precioUnitario, validos));
         }
+    }
+
+    /** Los precios de grupo que le tocan a este pedido, por producto. Las lineas de una promocion (combo) no cuentan. */
+    private Map<Integer, PrecioDeGrupo> preciosDeGrupoDelPedido(List<com.ventas.key.mis.productos.models.pedidos.DetallePedidosDTOPedido> detalles) {
+        if (preciosPorCantidad == null || detalles == null) {
+            return Map.of();
+        }
+        List<LineaPorCantidad> lineas = new ArrayList<>();
+        for (var mpa : detalles) {
+            if (mpa.getPromocionId() != null || mpa.getCantidad() == null || mpa.getCantidad() <= 0) {
+                continue;
+            }
+            if (mpa.getVarianteId() != null) {
+                iVarianteRepository.findById(mpa.getVarianteId())
+                        .ifPresent(v -> lineas.add(new LineaPorCantidad(v.getProducto().getId(), mpa.getCantidad())));
+            } else if (mpa.getProducto() != null) {
+                lineas.add(new LineaPorCantidad(mpa.getProducto().getId(), mpa.getCantidad()));
+            }
+        }
+        return preciosPorCantidad.calcular(lineas);
+    }
+
+    /** Gana el precio mas bajo: el de grupo solo se usa si es menor al que llego. */
+    private static double precioAplicado(double precio, PrecioDeGrupo grupo) {
+        return grupo != null && grupo.precio().doubleValue() < precio - 0.005 ? grupo.precio().doubleValue() : precio;
     }
 
     // Agrupa las lineas del pedido que traen promocionId y valida cada combo contra
