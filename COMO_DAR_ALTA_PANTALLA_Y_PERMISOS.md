@@ -76,6 +76,16 @@ sidebar sigue siendo HTML estático):
 Si das de alta el Submenu y no tocás el navbar, la pantalla queda protegida pero invisible —
 nadie ve el link para entrar (hay que conocer la URL de memoria).
 
+> ⚠️ **Se olvidó una vez (2026-11-07):** al dar de alta «Grupos de precio por cantidad» se hizo la fila en `submenu` y el permiso, pero no la línea del navbar, y el dueño corrió la migración y no veía el menú. **Al dar de alta una pantalla, el paso del navbar (y de `GROUP_ROUTES` en `navbar.component.ts`) va en el mismo cambio que la migración.** El nombre que se ve en el menú lateral es el del HTML del navbar, **no** el de la tabla `submenu` (ej.: la tabla dice «Modelos»; el menú dice «🔍 Productos»).
+
+> 📝 **PENDIENTE decidido por el dueño (2026-11-07): que el menú lateral salga de la base de datos y se quite del navbar.** Hoy el sidebar es HTML escrito a mano y la base solo guarda el permiso. Para hacerlo automático:
+> 1. Igualar primero los nombres e íconos de la tabla `submenu` con los del menú real (hoy no coinciden) y su orden;
+> 2. El navbar lee los grupos y pantallas del catálogo (`menu` / `submenu`) y pinta solo las que el token trae en `pantallas`;
+> 3. Las opciones que **no son pantallas** (abrir/cerrar negocio, avisos, chat, botones que dependen de una acción, items públicos) se quedan aparte, a mano;
+> 4. Probar con todos los roles (administrador, empleado, cliente) antes y después: el menú que ve cada uno debe ser el mismo que hoy, salvo lo nuevo;
+> 5. Documentar en `CAMBIOS_FRONT.md` y actualizar este documento (la sección 2.b desaparece).
+> Hacerlo como tarea aparte, no mezclado con otros cambios.
+
 ### 2.c — Gate del back
 En `SecurityConfig.java`, agregar algo como:
 ```java
