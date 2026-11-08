@@ -237,7 +237,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 double catalogo = precioDeCatalogo(prod, variante);
                 if (precioCampana != null && precioCampana.doubleValue() <= precioLinea + 0.005) {
                     precioLinea = precioCampana.doubleValue();
-                    if (precioLinea < catalogo - 0.005) {
+                    // La campana se compara contra el precio NORMAL (el que ofrece Venta directa), no contra la rebaja: asi coincide con el front.
+                    if (precioLinea < precioNormalDeLinea(prod, variante) - 0.005) {
                         origenDescuento = com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA;
                     }
                 } else if (grupo != null && precioLinea <= grupo.precio().doubleValue() + 0.005 && precioLinea < catalogo - 0.005) {
@@ -274,7 +275,10 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             // Si la linea se cobra con precio de grupo o de campana, se recuerda el que tenia antes (se registra al guardar el pedido).
             // El "antes" es el de catalogo aunque el front ya mande el precio bajado.
             if (origenDescuento != null) {
-                dp.setPrecioAntesDeGrupo(Math.max(item.getPrecioVenta(), precioDeCatalogo(prod, variante)));
+                // El de campana se compara contra el normal; el de grupo, contra el de catalogo (el mas bajo).
+                double base = origenDescuento == com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA
+                        ? precioNormalDeLinea(prod, variante) : precioDeCatalogo(prod, variante);
+                dp.setPrecioAntesDeGrupo(Math.max(item.getPrecioVenta(), base));
                 dp.setOrigenDelDescuento(origenDescuento);
             }
             dp.setSubTotal(subTotal);
@@ -598,6 +602,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         return lista;
     }
 
+    /** El precio normal del articulo (el de la linea en Venta directa); la base para decidir el precio de campana y lo que suma a la meta. */
+    private static double precioNormalDeLinea(Producto prod, Variantes variante) {
+        Double normal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
+        return normal != null ? normal : 0.0;
+    }
+
     /** El precio mas bajo "de catalogo" del articulo: la rebaja si existe y es menor, si no el normal. */
     private static double precioDeCatalogo(Producto prod, Variantes variante) {
         Double normal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
@@ -629,7 +639,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 var v = iVarianteRepository.findById(item.getVarianteId()).orElse(null);
                 if (v != null) {
                     lineas.add(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea(v.getProducto().getId(),
-                            item.getCantidad(), java.math.BigDecimal.valueOf(precioDeCatalogo(v.getProducto(), v))));
+                            item.getCantidad(), java.math.BigDecimal.valueOf(precioNormalDeLinea(v.getProducto(), v))));
                 }
             }
             var c = request.getCampana();

@@ -23666,3 +23666,10 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Diferencia con «Escáner»:** la foto aquí NO se manda como imagen (esa es para fotos de productos): se **lee** y se manda como código. Solo acepta UUID (solo o dentro de la liga `…/codigo-campana/<uuid>`); códigos de barras y otros QR se ignoran.
 **Back:** sin cambios (el canal ya acepta el UUID). Sin migración (el menú «Escáner» es fijo en el front, no una fila de la base).
 
+---
+
+## Corrección: «Precio desactualizado» al cobrar un juguete con rebaja en una campaña (2026-11-08)
+
+**Qué pasaba:** un producto con rebaja menor que su precio de campaña (ej. CROSS BODY: normal $620, rebaja $600, campaña $610) hacía que Venta directa mandara $610 (el front compara contra el normal) y el back lo rechazara con «El precio de CROSS BODY no es valido: llego 610.00 y los precios de catalogo son 620.00 (normal) o 600.00 (rebaja)», porque comparaba la campaña contra el más bajo (la rebaja).
+**Ahora:** la base de la campaña (para el precio y para lo que suma a la meta) es el **precio normal** de la línea, igual que en el front. Con campaña se cobra $610 y el ticket marca «Precio de campaña» con el normal ($620) tachado. La rebaja manual ($600) se sigue aceptando si se manda. Sin cambios en el front ni en los contratos.
+
