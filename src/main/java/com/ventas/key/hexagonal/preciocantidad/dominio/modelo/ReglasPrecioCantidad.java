@@ -55,6 +55,26 @@ public final class ReglasPrecioCantidad {
         return resultado;
     }
 
+    /**
+     * G6 con el pedido ya guardado: vuelve a decidir el precio de cada línea con lo que lleva el pedido AHORA. Si el grupo junta el mínimo, la
+     * línea se cobra a su precio de grupo (y se recuerda el precio de antes); si ya no lo junta, regresa a ese precio de antes. Las líneas de
+     * un combo no se tocan.
+     *
+     * @param grupos los precios de grupo que le tocan hoy al pedido ({@link #calcular}, hecho solo con las líneas que no son de combo)
+     */
+    public static java.util.List<PrecioRepreciado> repreciar(java.util.List<LineaDePrecio> lineas, Map<Integer, PrecioDeGrupo> grupos) {
+        java.util.List<PrecioRepreciado> resultado = new java.util.ArrayList<>();
+        for (LineaDePrecio l : lineas) {
+            if (l.esDePromocion()) {
+                continue;
+            }
+            BigDecimal base = l.precioBase();
+            BigDecimal nuevo = precioACobrar(base, grupos == null ? null : grupos.get(l.productoId()));
+            resultado.add(new PrecioRepreciado(l.detalleId(), nuevo, nuevo.compareTo(base) < 0 ? base : null));
+        }
+        return resultado;
+    }
+
     /** G: gana el precio más bajo; los descuentos no se suman. */
     public static BigDecimal precioACobrar(BigDecimal precioBase, PrecioDeGrupo grupo) {
         if (grupo == null) {

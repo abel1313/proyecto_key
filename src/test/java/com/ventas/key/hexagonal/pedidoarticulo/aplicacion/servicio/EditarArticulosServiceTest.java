@@ -628,4 +628,71 @@ class EditarArticulosServiceTest {
         // tiene que verse, no corregirse solo.
         assertThat(conAbonos.totalPagado()).isEqualTo(800.0);
     }
+
+    // ───────────────────── Precio por cantidad (grupos, Fase 1b) ─────────────────────
+
+    @Test
+    @DisplayName("agregar: tras la edicion se vuelve a decidir el precio por cantidad ANTES de guardar el total")
+    void agregarReprecia() {
+        var precios = mock(com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "preciosPorCantidad", precios);
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, null));
+
+        var orden = inOrder(precios, pedidos, pagos);
+        orden.verify(precios).repreciar(PEDIDO);
+        orden.verify(pedidos).guardarTotal(eq(PEDIDO), anyDouble());
+        orden.verify(pagos).ajustarTrasEditar(PEDIDO);
+    }
+
+    @Test
+    @DisplayName("si el front manda el precio de grupo, no se rechaza: la linea entra a su precio normal y el de grupo lo pone repreciar")
+    void elPrecioDeGrupoNoSeRechazaPeroTampocoSeGuardaTalCual() {
+        var precios = mock(com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "preciosPorCantidad", precios);
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+        when(precios.esPrecioDeGrupo(PANTALON_HOMBRE, 320.0)).thenReturn(true);
+
+        service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, 320.0));
+
+        verify(pedidos).agregarLinea(PEDIDO, PANTALON_HOMBRE, 1, 400.0);   // normal, no 320
+    }
+
+    @Test
+    @DisplayName("un precio inventado sigue rechazado aunque haya grupos")
+    void unPrecioInventadoSigueRechazado() {
+        var precios = mock(com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "preciosPorCantidad", precios);
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        assertThatThrownBy(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, 1.0)))
+                .isInstanceOf(com.ventas.key.hexagonal.pedidoarticulo.dominio.excepcion.PrecioNoCobrableException.class);
+        verify(pedidos, never()).agregarLinea(anyInt(), anyInt(), anyInt(), anyDouble());
+    }
+
+    @Test
+    @DisplayName("cambiar una linea normal de articulo: se olvida el precio de antes que se recordaba (era de otro articulo)")
+    void cambiarOlvidaElPrecioDeAntes() {
+        var precios = mock(com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "preciosPorCantidad", precios);
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+
+        service.cambiar(PEDIDO, 3, new CambiarArticulo(PANTALON_HOMBRE, null, null, null));
+
+        verify(precios).olvidarPrecioDeAntes(3);
+        verify(precios).repreciar(PEDIDO);
+    }
+
+    @Test
+    @DisplayName("sin el servicio de grupos todo se edita como antes")
+    void sinGruposTodoComoAntes() {
+        conPedido(new PedidoEditable(PEDIDO, "Pendiente", 0.0, List.of(linea(3, CARTERA, 1, 500, null))));
+        enCatalogo(PANTALON_HOMBRE, 400.0, 350.0, 5);
+        assertThatCode(() -> service.agregar(PEDIDO, new AgregarArticulo(PANTALON_HOMBRE, 1, null))).doesNotThrowAnyException();
+    }
 }

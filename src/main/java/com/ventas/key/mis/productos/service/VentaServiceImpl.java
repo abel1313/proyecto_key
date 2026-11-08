@@ -64,6 +64,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Autowired private BloqueoStock bloqueoStock;
     /** Precio por cantidad (grupos). Opcional: sin el, todo se cobra como antes. */
     @Autowired(required = false) private CalcularPreciosPorCantidadCasoUso preciosPorCantidad;
+    /** El precio de antes de las lineas cobradas con precio de grupo (para regresarlas si el pedido se edita). */
+    @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
+    @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private EmailService emailService;
     @Autowired private WhatsappService whatsappService;
@@ -194,6 +197,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         // Precio por cantidad: con TODO lo que lleva la venta (las piezas solo se suman dentro del mismo grupo).
         Map<Integer, PrecioDeGrupo> preciosDeGrupo = preciosDeGrupoDeLaVenta(request.getDetalles());
+        // Campaña vigente: el back decide quién es recurrente y qué juguetes bajan; Ir pagando nunca lleva precio de campaña.
+        var decisionCampana = decidirCampana(request, cliente, clienteSinRegistro, tipoPedido);
 
         for (var item : request.getDetalles()) {
             if (item.getCantidad() == null || item.getCantidad() <= 0) {
@@ -220,11 +225,24 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             // mostrador ya tiene su via oficial (Promociones); sin este chequeo, el request
             // podia traer cualquier precio.
             double precioLinea = item.getPrecioVenta() == null ? 0.0 : item.getPrecioVenta();
+            com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio origenDescuento = null;
             if (item.getPromocionId() == null) {
                 PrecioDeGrupo grupo = preciosDeGrupo.get(prod.getId());
-                validarPrecioCatalogo(prod, variante, item.getPrecioVenta(), grupo);
+                java.math.BigDecimal precioCampana = decisionCampana.precioDe(prod.getId());
+                validarPrecioCatalogo(prod, variante, item.getPrecioVenta(), grupo, precioCampana);
                 // Si la venta junta el minimo del grupo, se cobra su precio de grupo aunque el front mande el normal (gana el mas bajo).
                 precioLinea = precioAplicado(precioLinea, grupo);
+                // Precio de campana (solo recurrente y solo Contado/Apartado): tambien gana el mas bajo. Si el front ya mando el precio bajado
+                // (el de grupo o el de campana), igual se registra el "antes" de catalogo.
+                double catalogo = precioDeCatalogo(prod, variante);
+                if (precioCampana != null && precioCampana.doubleValue() <= precioLinea + 0.005) {
+                    precioLinea = precioCampana.doubleValue();
+                    if (precioLinea < catalogo - 0.005) {
+                        origenDescuento = com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA;
+                    }
+                } else if (grupo != null && precioLinea <= grupo.precio().doubleValue() + 0.005 && precioLinea < catalogo - 0.005) {
+                    origenDescuento = com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.GRUPO;
+                }
             }
 
             prod.setStock(prod.getStock() - item.getCantidad());
@@ -253,6 +271,12 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             dp.setVariante(variante);
             dp.setCantidad(item.getCantidad());
             dp.setPrecioUnitario(precioLinea);
+            // Si la linea se cobra con precio de grupo o de campana, se recuerda el que tenia antes (se registra al guardar el pedido).
+            // El "antes" es el de catalogo aunque el front ya mande el precio bajado.
+            if (origenDescuento != null) {
+                dp.setPrecioAntesDeGrupo(Math.max(item.getPrecioVenta(), precioDeCatalogo(prod, variante)));
+                dp.setOrigenDelDescuento(origenDescuento);
+            }
             dp.setSubTotal(subTotal);
             dp.setPromocion(promocion);
             detallesPedido.add(dp);
@@ -297,6 +321,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             detallesPedido.forEach(dp -> dp.setPedido(pedido));
             pedido.setDetalles(detallesPedido);
             Pedido savedPedido = iPedidoRepository.save(pedido);
+            recordarPreciosAntesDeGrupo(detallesPedido);
+            registrarCompraDeCampana(decisionCampana, savedPedido.getId(), "FIADO".equals(tipoPedido)
+                    ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.IR_PAGANDO : com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.APARTADO);
             cacheService.evictAll();
             try {
                 rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -313,7 +340,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         if (pagoTarjetaHabilitado && requiereTerminal(pagosYMeses, mesesIntereses)) {
             return crearPedidoPendienteParaCobro(request, cliente, clienteSinRegistro, detallesPedido,
-                    totalPedidoCalc, pagosYMeses, mesesIntereses);
+                    totalPedidoCalc, pagosYMeses, mesesIntereses, decisionCampana);
         }
 
         double totalVenta    = detallesVenta.stream().mapToDouble(DetalleVentaVariante::getSubTotal).sum();
@@ -342,6 +369,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
         pedido.setDetalles(detallesPedido);
         iPedidoRepository.save(pedido);
+        recordarPreciosAntesDeGrupo(detallesPedido);
+        registrarCompraDeCampana(decisionCampana, pedido.getId(), com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO);
 
         // Crear Venta vinculada al Pedido
         Venta venta = new Venta();
@@ -420,7 +449,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
      */
     private VentaDirectaResponse crearPedidoPendienteParaCobro(VentaDirectaRequest request, Cliente cliente,
             ClienteSinRegistro clienteSinRegistro, List<DetallePedido> detallesPedido, double total,
-            PagosYMeses pagosYMeses, MesesIntereses mesesIntereses) {
+            PagosYMeses pagosYMeses, MesesIntereses mesesIntereses,
+            com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decisionCampana) {
         Pedido pedido = new Pedido();
         pedido.setTipoPedido("NORMAL");
         pedido.setEstadoPedido("Pendiente");
@@ -443,6 +473,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         detallesPedido.forEach(dp -> dp.setPedido(pedido));
         pedido.setDetalles(detallesPedido);
         Pedido guardado = iPedidoRepository.save(pedido);
+        recordarPreciosAntesDeGrupo(detallesPedido);
+        registrarCompraDeCampana(decisionCampana, guardado.getId(), com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO);
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -477,6 +509,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     }
 
     private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario, PrecioDeGrupo grupo) {
+        validarPrecioCatalogo(prod, variante, precioUnitario, grupo, null);
+    }
+
+    private void validarPrecioCatalogo(Producto prod, Variantes variante, Double precioUnitario, PrecioDeGrupo grupo,
+                                       java.math.BigDecimal precioCampana) {
         if (precioUnitario == null) {
             throw new RuntimeException("Falta el precio de " + prod.getNombre());
         }
@@ -492,12 +529,18 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         // El precio de grupo solo es valido si la venta junto el minimo del grupo (la lista de grupos viene calculada del back).
         boolean esGrupo = grupo != null && Math.abs(precioUnitario - grupo.precio().doubleValue()) <= 0.01;
 
-        if (!esNormal && !esRebaja && !esGrupo) {
+        // El precio de campana solo es valido si el back decidio que esta venta lo lleva (cliente recurrente, campana vigente, Contado o Apartado).
+        boolean esCampana = precioCampana != null && Math.abs(precioUnitario - precioCampana.doubleValue()) <= 0.01;
+
+        if (!esNormal && !esRebaja && !esGrupo && !esCampana) {
             String validos = rebaja > 0
                     ? String.format("%.2f (normal) o %.2f (rebaja)", normal, rebaja)
                     : String.format("%.2f", normal);
             if (grupo != null) {
                 validos += String.format(" o %.2f (precio de grupo)", grupo.precio().doubleValue());
+            }
+            if (precioCampana != null) {
+                validos += String.format(" o %.2f (precio de campana)", precioCampana.doubleValue());
             }
             throw new RuntimeException(String.format(
                     "El precio de %s no es valido: llego %.2f y los precios de catalogo son %s",
@@ -519,6 +562,88 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                     .ifPresent(v -> lineas.add(new LineaPorCantidad(v.getProducto().getId(), item.getCantidad())));
         }
         return preciosPorCantidad.calcular(lineas);
+    }
+
+    /** El precio mas bajo "de catalogo" del articulo: la rebaja si existe y es menor, si no el normal. */
+    private static double precioDeCatalogo(Producto prod, Variantes variante) {
+        Double normal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
+        Double rebaja = variante != null ? variante.precioDescuento() : prod.getPrecioRebaja();
+        double n = normal != null ? normal : 0.0;
+        double r = rebaja != null ? rebaja : 0.0;
+        return r > 0 && r < n ? r : n;
+    }
+
+    /**
+     * Pregunta a la campana vigente que juguetes bajan en esta venta. Sin campana (o sin las tablas) devuelve NINGUNA y la venta sigue igual.
+     * Una falla de la campana nunca tira la venta: se registra y se cobra normal.
+     */
+    private com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decidirCampana(
+            VentaDirectaRequest request, Cliente cliente, ClienteSinRegistro sinRegistro, String tipoPedido) {
+        var ninguna = com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana.NINGUNA;
+        if (campanas == null) {
+            return ninguna;
+        }
+        try {
+            var cobro = "FIADO".equals(tipoPedido) ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.IR_PAGANDO
+                    : "APARTADO".equals(tipoPedido) ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.APARTADO
+                    : com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO;
+            var lineas = new ArrayList<com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea>();
+            for (var item : request.getDetalles()) {
+                if (item.getPromocionId() != null || item.getVarianteId() == null || item.getCantidad() == null || item.getCantidad() <= 0) {
+                    continue;
+                }
+                var v = iVarianteRepository.findById(item.getVarianteId()).orElse(null);
+                if (v != null) {
+                    lineas.add(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea(v.getProducto().getId(),
+                            item.getCantidad(), java.math.BigDecimal.valueOf(precioDeCatalogo(v.getProducto(), v))));
+                }
+            }
+            var c = request.getCampana();
+            String nombre = cliente != null ? String.join(" ", Optional.ofNullable(cliente.getNombrePersona()).orElse(""),
+                    Optional.ofNullable(cliente.getApeidoPaterno()).orElse("")).trim()
+                    : sinRegistro != null ? String.join(" ", Optional.ofNullable(sinRegistro.getNombrePersona()).orElse(""),
+                    Optional.ofNullable(sinRegistro.getApeidoPaterno()).orElse("")).trim() : "";
+            String correo = cliente != null ? cliente.getCorreoElectronico() : sinRegistro != null ? sinRegistro.getCorreoElectronico() : null;
+            String telefono = cliente != null ? cliente.getNumeroTelefonico() : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : null;
+            return campanas.decidir(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana(
+                    c == null ? null : c.getCodigo(), c != null && c.isRecurrenteManual(), c != null && c.isAceptaPrivacidad(), cobro,
+                    new com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente(nombre, correo, telefono), lineas));
+        } catch (RuntimeException e) {
+            log.warn("La campana no pudo decidir precios; se cobra normal: {}", e.getMessage());
+            return ninguna;
+        }
+    }
+
+    /** Al cerrar la venta: liga el pedido a la persona y le manda su codigo. Nunca hace caer la venta. */
+    private void registrarCompraDeCampana(com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decision, Integer pedidoId,
+                                          com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro cobro) {
+        if (campanas == null || decision == null || !decision.hayCampana() || pedidoId == null) {
+            return;
+        }
+        try {
+            campanas.registrarCompra(decision, pedidoId, cobro);
+        } catch (RuntimeException e) {
+            log.warn("No se pudo registrar la compra en la campana del pedido {}: {}", pedidoId, e.getMessage());
+        }
+    }
+
+    /** Registra el precio de antes de las lineas cobradas con precio de grupo. Va DESPUES de guardar el pedido: hasta entonces las lineas no tienen id. */
+    private void recordarPreciosAntesDeGrupo(List<DetallePedido> detalles) {
+        if (preciosBaseDeLinea == null || detalles == null) {
+            return;
+        }
+        Map<Integer, java.math.BigDecimal> grupo = new LinkedHashMap<>();
+        Map<Integer, java.math.BigDecimal> campana = new LinkedHashMap<>();
+        for (DetallePedido d : detalles) {
+            if (d.getId() != null && d.getPrecioAntesDeGrupo() != null) {
+                var destino = d.getOrigenDelDescuento() == com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA ? campana : grupo;
+                destino.put(d.getId(), java.math.BigDecimal.valueOf(d.getPrecioAntesDeGrupo()));
+            }
+        }
+        preciosBaseDeLinea.guardar(grupo, com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.GRUPO);
+        if (!campana.isEmpty()) {
+            preciosBaseDeLinea.guardar(campana, com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA);
+        }
     }
 
     /** Gana el precio mas bajo: el de grupo solo se usa si es menor al que llego. */

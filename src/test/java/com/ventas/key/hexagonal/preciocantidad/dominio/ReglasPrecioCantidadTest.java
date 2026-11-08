@@ -113,4 +113,58 @@ class ReglasPrecioCantidadTest {
         assertThatThrownBy(() -> grupo(1, 2, m(1, "200"), m(1, "180"))).hasMessageContaining("repetido");
         assertThatThrownBy(() -> m(1, "0")).hasMessageContaining("mayor a cero");
     }
+
+    // ── Pedido ya guardado: se vuelve a calcular (Fase 1b) ─────────────────────
+
+    private static com.ventas.key.hexagonal.preciocantidad.dominio.modelo.LineaDePrecio linea(int detalle, int producto, String actual, String sinGrupo, boolean combo) {
+        return new com.ventas.key.hexagonal.preciocantidad.dominio.modelo.LineaDePrecio(detalle, producto, new BigDecimal(actual),
+                sinGrupo == null ? null : new BigDecimal(sinGrupo), combo);
+    }
+
+    private static Map<Integer, PrecioDeGrupo> grupoVigente(int minimo, MiembroDeGrupo... m) {
+        return ReglasPrecioCantidad.calcular(List.of(grupo(1, minimo, m)), lineas(1, minimo), HOY).isEmpty() ? Map.of()
+                : ReglasPrecioCantidad.calcular(List.of(grupo(1, minimo, m)), lineas(m[0].productoId(), minimo), HOY);
+    }
+
+    @Test
+    void alEditar_siElGrupoYaNoJuntaElMinimo_laLineaRegresaAlPrecioQueTeniaAntes() {
+        // Se cobro a $200 (precio de grupo) y antes valia $250.
+        var lineas = List.of(linea(10, 1, "200", "250", false));
+        var r = ReglasPrecioCantidad.repreciar(lineas, Map.of());
+        assertThat(r).hasSize(1);
+        assertThat(r.get(0).precioNuevo()).isEqualByComparingTo("250");
+        assertThat(r.get(0).precioSinGrupoNuevo()).as("ya no se cobra con grupo: se borra la marca").isNull();
+    }
+
+    @Test
+    void alEditar_siElGrupoJuntaElMinimo_laLineaPasaAlPrecioDeGrupo_yRecuerdaElDeAntes() {
+        var g = grupoVigente(2, m(1, "200"));
+        var r = ReglasPrecioCantidad.repreciar(List.of(linea(10, 1, "250", null, false)), g);
+        assertThat(r.get(0).precioNuevo()).isEqualByComparingTo("200");
+        assertThat(r.get(0).precioSinGrupoNuevo()).isEqualByComparingTo("250");
+    }
+
+    @Test
+    void alEditar_unaRebajaMasBajaQueElGrupoSeRespeta_yNoSeMarcaComoDeGrupo() {
+        var g = grupoVigente(2, m(1, "200"));
+        var r = ReglasPrecioCantidad.repreciar(List.of(linea(10, 1, "180", null, false)), g);
+        assertThat(r.get(0).precioNuevo()).isEqualByComparingTo("180");
+        assertThat(r.get(0).precioSinGrupoNuevo()).isNull();
+    }
+
+    @Test
+    void alEditar_laLineaQueSeCobroConGrupoSobreUnaRebaja_regresaALaRebaja_noAlNormal() {
+        // Base 220 (rebaja del administrador), precio de grupo 200: al bajar del minimo regresa a 220.
+        var r = ReglasPrecioCantidad.repreciar(List.of(linea(10, 1, "200", "220", false)), Map.of());
+        assertThat(r.get(0).precioNuevo()).isEqualByComparingTo("220");
+    }
+
+    @Test
+    void alEditar_lasLineasDeUnComboNoSeTocan_yLasQueNuncaSeCobraronConGrupoSeQuedan() {
+        var g = grupoVigente(2, m(1, "200"));
+        var r = ReglasPrecioCantidad.repreciar(List.of(linea(10, 1, "90", null, true), linea(11, 2, "300", null, false)), g);
+        assertThat(r).extracting(x -> x.detalleId()).containsExactly(11);
+        assertThat(r.get(0).precioNuevo()).isEqualByComparingTo("300");
+        assertThat(r.get(0).precioSinGrupoNuevo()).isNull();
+    }
 }

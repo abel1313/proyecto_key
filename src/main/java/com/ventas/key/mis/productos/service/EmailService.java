@@ -243,6 +243,32 @@ public class EmailService {
     }
 
     /**
+     * Manda a una persona su código de cliente de campaña (UUID en texto) y la liga a la página que dibuja su QR. El pie lleva el aviso de
+     * privacidad en corto: qué se guarda, para qué y cómo pedir que se borre.
+     * @return true si el envío fue exitoso, false si falló (no lanza excepción).
+     */
+    /** El nombre del cliente y de la campana los escribe una persona: se escapan antes de ir dentro del HTML del correo. */
+    private static String escaparHtmlCampana(String texto) {
+        return texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
+        String base = frontendBaseUrl == null ? "" : frontendBaseUrl.replaceAll("/+$", "");
+        String liga = base + "/codigo-campana/" + uuid;
+        String saludo = nombre == null || nombre.isBlank() ? "Hola" : "Hola " + escaparHtmlCampana(nombre.trim());
+        String asunto = "Tu código de cliente — Novedades Jade";
+        String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", gracias por tu compra"
+                + (nombreCampana == null || nombreCampana.isBlank() ? "" : " en «" + escaparHtmlCampana(nombreCampana) + "»")
+                + ". Este es tu código personal de cliente: enséñalo (o su QR) cuando compres para llevar los precios de campaña "
+                + "cuando juntes la meta.</p>"
+                + cajaCodigo(uuid)
+                + "<p style=\"margin:0 0 8px;\">Tu QR: <a href=\"" + liga + "\">" + liga + "</a></p>"
+                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Guardamos tu nombre, correo, teléfono y tus compras en la campaña solo para "
+                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, responde a este correo.</p>";
+        return enviarTicket(destinatario, asunto, html);
+    }
+
+    /**
      * Avisa al ganador de una rifa que ganó un premio.
      * @return true si el envío fue exitoso, false si falló (no lanza excepción).
      */

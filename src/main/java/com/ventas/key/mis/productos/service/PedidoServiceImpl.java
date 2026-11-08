@@ -104,6 +104,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired private BloqueoStock bloqueoStock;
     /** Precio por cantidad (grupos). Opcional: sin el, todo se cobra como antes. */
     @Autowired(required = false) private CalcularPreciosPorCantidadCasoUso preciosPorCantidad;
+    /** Vuelve a decidir el precio por cantidad de las lineas de un pedido ya guardado (al quitar piezas). Opcional: sin el, todo como antes. */
+    @Autowired(required = false) private com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort repreciarPorCantidad;
+    /** El precio de antes de las lineas cobradas con precio de grupo (para regresarlas si el pedido se edita). */
+    @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
+    @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.salida.PreciosDeCampanaEnPedidoPort preciosDeCampana;
+    @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private IVarianteImagenRepository iVarianteImagenRepository;
 
@@ -311,6 +317,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             DetallePedido dta = new DetallePedido();
             dta.setCantidad(mpa.getCantidad());
             dta.setPrecioUnitario(precioLinea);
+            // Si la linea se cobra con precio de grupo, se recuerda el que tenia antes (se registra al guardar el pedido).
+            if (mpa.getPromocionId() == null && mpa.getPrecioUnitario() != null && precioLinea < mpa.getPrecioUnitario() - 0.005) {
+                dta.setPrecioAntesDeGrupo(mpa.getPrecioUnitario());
+            }
             // El subtotal se CALCULA, no se lee del request. El precio unitario si viene del
             // front, pero pasa por validarPrecioCatalogo (linea sin promocion) o por
             // validarLineasDePromocion (linea con promocion). El subtotal no lo validaba nadie:
@@ -334,6 +344,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         double totalPedido = detallePedido.stream().mapToDouble(DetallePedido::getSubTotal).sum();
         pedido.setTotalPedido(totalPedido);
         Pedido saved = this.iPedidoRepository.save(pedido);
+        recordarPreciosAntesDeGrupo(detallePedido);
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -480,6 +491,20 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             }
         }
         return preciosPorCantidad.calcular(lineas);
+    }
+
+    /** Registra el precio de antes de las lineas cobradas con precio de grupo. Va DESPUES de guardar el pedido: hasta entonces las lineas no tienen id. */
+    private void recordarPreciosAntesDeGrupo(List<DetallePedido> detalles) {
+        if (preciosBaseDeLinea == null || detalles == null) {
+            return;
+        }
+        Map<Integer, java.math.BigDecimal> bases = new LinkedHashMap<>();
+        for (DetallePedido d : detalles) {
+            if (d.getId() != null && d.getPrecioAntesDeGrupo() != null) {
+                bases.put(d.getId(), java.math.BigDecimal.valueOf(d.getPrecioAntesDeGrupo()));
+            }
+        }
+        preciosBaseDeLinea.guardar(bases);
     }
 
     /** Gana el precio mas bajo: el de grupo solo se usa si es menor al que llego. */
@@ -851,6 +876,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             iDetallePedidoRepository.save(detalle);
         }
 
+        // Precio por cantidad (grupos de precio): con lo que queda en el pedido, las lineas regresan a su precio de antes si el grupo ya no
+        // junta su minimo (o pasan al de grupo si lo junta). Va ANTES de recalcular el total.
+        if (repreciarPorCantidad != null) {
+            repreciarPorCantidad.repreciar(pedidoId);
+        }
+
         // El detalle que se quito/redujo ya no debe seguir contando en el total del pedido --
         // sin este recalculo, totalPedido se quedaba con el valor de antes de la edicion.
         double nuevoTotal = pedido.getDetalles().stream().mapToDouble(DetallePedido::getSubTotal).sum();
@@ -895,6 +926,14 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setTotalPedido(totalPedido);
         resp.setTotalPagado(totalPagado);
         resp.setSaldoPendiente(Math.max(0.0, totalPedido - totalPagado));
+        // El front avisa antes de pasar a Ir pagando: «con Ir pagando no entra el descuento de campaña».
+        if (preciosDeCampana != null && preciosDeCampana.tiene(pedido.getId())) {
+            resp.setTieneJuguetesConPrecioDeCampana(true);
+        }
+        // Solo el administrador ve si el pedido tiene un codigo de campana (para el boton de reenviarlo); el cliente no.
+        if (campanas != null && AuthenticationUtils.isAdminContext() && campanas.pedidoTieneCodigo(pedido.getId())) {
+            resp.setTieneCodigoDeCampana(true);
+        }
         resp.setEntregado(pedido.isEntregado());
         resp.setFechaPedido(pedido.getFechaPedido());
         resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
@@ -1114,6 +1153,15 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (request.traeCobro() && !contadoYaEntregado && !enLineaSinCobrar && !TIPOS_CREDITO_PEDIDO.contains(tipoOriginal)) {
             throw new RuntimeException("El pedido " + pedidoId + " es de tipo " + tipoOriginal
                     + " y no tiene saldo que cobrar");
+        }
+
+        // Con Ir pagando no entra el descuento de campana: los juguetes con precio de campana regresan a su precio de antes (y el total sube).
+        // Apartado y Contado lo conservan. Va antes de cobrar para que el saldo ya sea el correcto.
+        if ("FIADO".equals(tipoNuevo) && preciosDeCampana != null && preciosDeCampana.restaurar(pedidoId)) {
+            String registro = String.format("[%s] Con Ir pagando no entra el descuento de campaña: los juguetes regresaron a su precio normal.", LocalDate.now());
+            String previas = pedido.getObservaciones();
+            pedido.setObservaciones(previas == null || previas.isBlank() ? registro : previas + "\n" + registro);
+            iPedidoRepository.save(pedido);
         }
 
         // Si pasa a Apartado o Ir pagando, el tipo cambia ANTES de cobrar: un Apartado solo acepta

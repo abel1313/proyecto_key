@@ -17,6 +17,10 @@ public class PedidoDetalleResponse {
     private Double totalPedido;
     private Double totalPagado;
     private Double saldoPendiente;
+    /** Solo viene (en true) si alguna línea se cobró con precio de campaña: pasarlo a Ir pagando la regresa a su precio normal. */
+    private Boolean tieneJuguetesConPrecioDeCampana;
+    /** Solo para el administrador y solo en true: el pedido está ligado a una persona con código de campaña (se le puede reenviar). */
+    private Boolean tieneCodigoDeCampana;
     /** Ya se lo llevo (aparte del pago, dominio entrega 2026-10-06). */
     private Boolean entregado;
 

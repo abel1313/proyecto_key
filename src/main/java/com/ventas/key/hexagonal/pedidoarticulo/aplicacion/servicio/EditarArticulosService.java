@@ -50,6 +50,10 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
     private final PagoTrasEdicionPort pagos;
     private final CobroConTarjetaPort cobrosConTarjeta;
 
+    /** Precio por cantidad (grupos de precio): tras cada edicion se vuelve a decidir el precio de las lineas. Opcional: sin el, todo como antes. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort preciosPorCantidad;
+
     // ─────────────────────────── Agregar ───────────────────────────
 
     @Override
@@ -153,6 +157,10 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
         } else {
             pedidos.cambiarArticulo(linea.detalleId(), nuevo.varianteId(), precio);
             pedidos.cambiarCantidad(linea.detalleId(), cantidad);
+            // Otro articulo, otro precio: el "precio de antes" que se recordaba (si la linea estaba con precio de grupo) ya no le corresponde.
+            if (preciosPorCantidad != null) {
+                preciosPorCantidad.olvidarPrecioDeAntes(linea.detalleId());
+            }
         }
 
         log.info("Pedido {}: la linea {} paso del articulo {} al {}",
@@ -295,6 +303,11 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
             return articulo.precios().porDefecto();
         }
         if (!articulo.precios().admite(precioPedido)) {
+            // El front puede mostrar el precio de grupo; no se rechaza, pero tampoco se guarda tal cual: la linea entra a su precio normal y
+            // preciosPorCantidad.repreciar() le pone el de grupo solo si el pedido de verdad junta el minimo.
+            if (preciosPorCantidad != null && preciosPorCantidad.esPrecioDeGrupo(articulo.varianteId(), precioPedido)) {
+                return articulo.precios().porDefecto();
+            }
             throw new PrecioNoCobrableException(articulo.precios(), precioPedido);
         }
         return precioPedido;
@@ -320,6 +333,10 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
      * arrastra para siempre cualquier descuadre que ya viniera de antes.
      */
     private PedidoEditable recalcular(Integer pedidoId) {
+        // Precio por cantidad: con lo que lleva el pedido AHORA, cada linea vuelve a su precio normal o pasa al de grupo (G6).
+        if (preciosPorCantidad != null) {
+            preciosPorCantidad.repreciar(pedidoId);
+        }
         PedidoEditable actualizado = pedidos.buscarPedido(pedidoId)
                 .orElseThrow(() -> new ArticuloNoEncontradoException("Pedido no encontrado: " + pedidoId));
         pedidos.guardarTotal(pedidoId, actualizado.total());

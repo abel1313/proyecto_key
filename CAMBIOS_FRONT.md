@@ -23491,4 +23491,97 @@ Errores: `400` con el mensaje en palabras del dueño (nombre vacío, mínimo men
 - Un precio de grupo mandado por el front **solo se acepta si la venta de verdad juntó el mínimo**; si no, `precio no es valido: llego X y los precios de catalogo son Y`.
 - **Front (ya hecho en QA):** Venta directa y la pantalla del carrito llaman a `calcular` cada vez que cambia el carrito, muestran el precio normal tachado, el ahorro y el total, y mandan el precio de grupo en el request. Pantalla nueva **Catálogo → Grupos de precio por cantidad** (`productos/grupos-precio`).
 
-**Todavía NO cubre (siguiente paso, «Fase 1b»):** editar un pedido **ya guardado** (agregar, quitar o cambiar artículos desde Mis pedidos / `EditarArticulosService`) **no recalcula** el precio de grupo. Un pedido que se hizo con precio de grupo y al que luego se le quitan piezas conserva ese precio, y mandar el precio de grupo en una edición se rechaza como «precio no válido». También falta el ahorro en el ticket impreso.
+**Fase 1b (2026-11-07): editar un pedido ya guardado SÍ recalcula el precio de grupo.** Requiere correr `migration_precio_base_linea_grupo.sql` (tabla `detalle_pedido_precio_grupo`; sin ella todo funciona como en la Fase 1 y al editar no se recalcula).
+- Después de **cada** edición de artículos: `POST /v1/pedidos/{id}/articulos` (agregar), `PUT /v1/pedidos/{id}/articulos/{detalleId}` (cambiar), `DELETE /v1/pedidos/{id}/promociones/{promocionId}` (quitar un combo) y `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=&detalleId=` (quitar piezas), el back vuelve a decidir el precio de cada línea **con lo que lleva el pedido en ese momento**: si el grupo junta su mínimo, las líneas de sus productos pasan al precio de grupo; si ya no lo junta, **regresan al precio que tenían antes** (el normal, o la rebaja que ya tenían). Las líneas de un combo no se tocan.
+- El total del pedido se recalcula con esos precios y el estado de pago se ajusta a los abonos como siempre (Apartado ↔ PAGADO).
+- Si queda **la misma pieza en dos líneas al mismo precio** (la que ya estaba con precio de grupo y la recién agregada), se **juntan en una sola línea** con la cantidad sumada.
+- **Front:** no manda el precio de grupo al editar. Si lo manda, el back no lo rechaza pero la línea entra a su precio normal y el de grupo lo pone el recálculo. La respuesta de la edición ya trae los precios y el total nuevos: hay que **pintar lo que responde**, no calcular en el front.
+- Un pedido hecho **antes** de correr esta migración, con precio de grupo, no recuerda su precio anterior: al editarlo se queda con el precio que tiene.
+- No lo cubre todavía: crear un pedido nuevo a partir de «Transferir abono» (una sola línea) no calcula precio de grupo.
+
+
+---
+
+## 🎁 Campañas — configuración (entrega 1, 2026-11-07, rama de trabajo; aún sin subir)
+
+Una **campaña** es un evento con fechas (Reyes, roscas…) con sus juguetes y un **precio de campaña** por juguete. En esta entrega solo se **configura**; todavía no cambia ningún precio en la venta.
+
+**Requiere correr** `migration_campana.sql` (tablas `campana` y `campana_producto` y la pantalla `productos/campanas`, solo `ROLE_ADMIN`; **volver a entrar**).
+
+**Todo es solo `ROLE_ADMIN`** (cliente → 403): `/mis-productos/v1/campanas`
+
+| Request | Qué hace |
+|---|---|
+| `GET /v1/campanas` | `lista[]` de campañas (más nueva primero) |
+| `GET /v1/campanas/{id}` | una campaña |
+| `GET /v1/campanas/activa` | la **vigente hoy** (encendida y dentro de fechas); `data: null` y `mensaje: "No hay campaña activa"` si no hay. El front de Venta directa solo muestra lo de campaña si esto trae datos |
+| `POST /v1/campanas` | crea (**nace apagada**, aunque se mande otra cosa) |
+| `PUT /v1/campanas/{id}` | reemplaza nombre, fechas, meta y **toda** la lista de precios; **no** cambia si está encendida |
+| `PUT /v1/campanas/{id}/activar` | la enciende y **apaga las demás** (una sola a la vez) |
+| `PUT /v1/campanas/{id}/apagar` | la apaga |
+| `POST /v1/campanas/{id}/duplicar` | copia apagada «Copia de …» con los mismos juguetes y precios |
+| `DELETE /v1/campanas/{id}` | la borra |
+
+**Body de `POST` / `PUT`:**
+```json
+{ "nombre": "Reyes 2027", "fechaInicio": "2026-12-20", "fechaFin": "2027-01-06", "metaMonto": 1500,
+  "precios": [ { "productoId": 12, "precio": 199.5 } ] }
+```
+**Response (cada campaña):** `id, nombre, fechaInicio, fechaFin, activa, vigente, metaMonto, productos[{ productoId, nombre, precio }]`. `vigente` = `activa` y hoy dentro de las fechas (extremos incluidos).
+
+Errores: `400` con el mensaje en palabras del dueño (sin nombre, fechas al revés, meta negativa, precio ≤ 0, producto repetido, **sin ningún juguete**, producto que ya no existe); `409` si la base rechaza un producto repetido; `500` genérico.
+
+
+---
+
+## 🎁 Campañas — código de cliente y precio de campaña en Venta directa (entrega 2, 2026-11-07, rama de trabajo; aún sin subir)
+
+**Requiere correr** `migration_campana_personas.sql` (después de `migration_campana.sql`). Sin ella la campaña **se ignora** en las ventas.
+
+**Reglas (las decide el back, el front solo muestra y manda):**
+- Solo existe algo de campaña en pantalla si `GET /v1/campanas/activa` trae datos (encendida y dentro de fechas) **y** el carrito tiene algún juguete de esa campaña (`productos[].productoId`).
+- Cliente **recurrente** = el administrador marcó el check «Cliente recurrente», **o** el cliente trae un código válido y `acumulado en la campaña + lo del ticket sin los juguetes de la campaña ≥ metaMonto`. Meta 0 = solo a mano.
+- Precio: Contado y Apartado → precio de campaña (si es más bajo que el que ya llevaba: gana el más bajo contra rebaja y precio de grupo); **Ir pagando → precio normal**. En Apartado el precio queda congelado en el pedido.
+- Un código **solo vale si es de ese cliente**: coincide el correo o el teléfono del cliente de la venta (mayúsculas, espacios y formato del teléfono no importan). Código ajeno o inexistente → se cobra normal, sin error.
+- Solo suman hacia la meta las compras de **Contado** (pagadas), sin contar los juguetes de la campaña. Apartado e Ir pagando no suman. Un pedido **Pendiente** (tarjeta sin aprobar) o **cancelado** tampoco suma: se descuenta solo, tanto en «Verificar» como en el reporte.
+- Si el cliente acepta el aviso de privacidad (`aceptaPrivacidad`) y tiene correo o teléfono, se le crea su código (UUID, el mismo para siempre) y, si tiene correo, se le manda por correo con la liga de su QR. Sin aceptar, no se guarda nada.
+
+### `POST /mis-productos/v1/campanas/personas/verificar` (ROLE_ADMIN) — el botón «Verificar»
+**Request:** `{ "codigo": "…uuid…", "correo": "ana@mail.com", "telefono": "7221234567" }` (los datos del **cliente elegido en la venta**; basta uno de los dos).
+**Response (`data`):** `{ "estado": "OK" | "NO_COINCIDE" | "NO_EXISTE", "nombre": "Ana", "acumulado": 1000, "meta": 1500, "falta": 500 }` — montos solo con `OK`; `NO_COINCIDE` = el código existe pero es de otra persona.
+`429` «Demasiados intentos con códigos…» (15 por usuario cada 10 minutos).
+
+### `POST /v1/ventas/save` (venta directa) — campo nuevo opcional `campana`
+```json
+{ "...": "igual que siempre",
+  "campana": { "codigo": "…uuid o vacío…", "recurrenteManual": false, "aceptaPrivacidad": true } }
+```
+- Los precios de los juguetes pueden mandarse **normales o ya con el precio de campaña**; el back valida y recalcula. Un precio de campaña que el back **no** decidió (cliente no recurrente, Ir pagando, sin campaña) se rechaza con el error de precio de siempre.
+- La respuesta no cambia (el total ya trae el precio de campaña).
+
+### `DELETE /v1/campanas/personas/{id}` (ROLE_ADMIN) — «Eliminar datos de esta persona»
+Borra a la persona y sus ligas con pedidos; los pedidos no se tocan.
+
+### Página pública `/codigo-campana/:uuid` (front)
+Solo dibuja el QR del UUID; sin datos personales, sin sesión.
+
+---
+
+## 🎁 Campañas — Ir pagando, reporte, borrar datos y reenviar código (entrega 3, 2026-11-07, rama de trabajo; aún sin subir)
+
+### Cambiar un pedido a **Ir pagando**: los juguetes con precio de campaña regresan a su precio normal
+**Antes:** un pedido con juguetes a precio de campaña (Contado o Apartado) se podía pasar a Ir pagando y se quedaba con el descuento.
+**Ahora:** `PUT /v1/pedidos/{id}/tipo` (el de siempre) con `FIADO` regresa cada línea con precio de campaña a su precio de antes, **sube el total** y deja una nota en `observaciones` («Con Ir pagando no entra el descuento de campaña…»). Todo en el mismo paso, antes de cobrar el enganche (el saldo ya es el correcto). Pasar a Apartado o a Contado **conserva** el precio de campaña. También aplica al cambio de **todo un grupo** de pedidos unidos.
+**Para avisar antes de confirmar:** `GET /v1/pedidos/{id}/detalle` trae `tieneJuguetesConPrecioDeCampana: true` (el campo **solo viene en true**; si no, no aparece) cuando alguna línea lleva precio de campaña. El front muestra «Con Ir pagando no entra el descuento de campaña: los juguetes regresan a su precio normal y el total sube» antes de confirmar el cambio a Ir pagando.
+Lo que se agregue después a un pedido entra a precio normal; el grupo de precio por cantidad **no** deshace un precio de campaña al editar.
+
+### `GET /mis-productos/v1/campanas/{id}/reporte` (ROLE_ADMIN)
+**Response (`data`):** `{ campanaId, campana, meta, totalPersonas, llegaronALaMeta, totalAcumulado, personas: [{ personaId, codigo, nombre, correo, telefono, acumulado, pedidos, llegoALaMeta }] }` — la que más lleva, primero. `acumulado` = compras de **Contado** sin los juguetes de la campaña. `400` si la campaña ya no existe. Sin `migration_campana_personas.sql` sale vacío.
+
+### `DELETE /mis-productos/v1/campanas/personas/{personaId}` (ROLE_ADMIN) — «Eliminar datos de esta persona»
+Ya documentado arriba; se usa desde el reporte. Borra a la persona y sus ligas; los pedidos no se tocan.
+
+### Reenviar el código desde Mis pedidos
+`GET /v1/pedidos/{id}/detalle` trae, **solo para el administrador y solo en true**, `tieneCodigoDeCampana` cuando el pedido está ligado a una persona con código. Con eso el front muestra el botón **«Enviar código de campaña»**.
+`POST /mis-productos/v1/campanas/pedidos/{pedidoId}/enviar-codigo` (ROLE_ADMIN) → `200 «Código enviado»`; `404` «Este pedido no tiene un código de campaña.»; `400` «La persona de este pedido no dejó correo…».
+(Esta ruta quedó bajo `/v1/campanas` y no bajo `/v1/pedidos` para quedar en la regla de administrador.)
