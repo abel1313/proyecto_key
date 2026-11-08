@@ -23657,3 +23657,12 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Ahora:** llega **uno**: «Tu compra y tu código de cliente», con el código para «Agregar mi compra» arriba y debajo el bloque «🎁 Tu código de cliente de la campaña» (código, QR incrustado, adjunto `codigo-jade.png`, liga de respaldo y aviso de privacidad). Si la venta no es de campaña, el correo es el de siempre. En Apartado, Ir pagando, cliente registrado y cobro con tarjeta sigue llegando «Tu código de cliente» solo (no hay correo de «Agrega tu compra»). Si el correo único falla, el de campaña se manda aparte.
 **Front:** sin cambios.
 
+---
+
+## Pantalla nueva del celular: «🎁 Escáner QR» (2026-11-08)
+
+**Para qué:** igual que «📱 Escáner» (códigos de barras → pantalla abierta en la PC), pero para el **QR del código de cliente** de una campaña. Menú nuevo **«Escáner QR»** (con sesión, bajo «Escáner»), ruta `/escaner-qr`.
+**Cómo funciona:** en el celular (mismo usuario que la PC) se abre «Escáner QR»; se apunta la cámara al QR del cliente, o se mete una **foto del QR** («📸 Foto del QR» con la cámara del celular, o «🖼️ Elegir de la galería»). La página lee el QR y manda el **código (UUID) a la PC**, que lo escribe en el campo «Código del cliente» de Venta directa (campaña vigente) y llena los datos del cliente.
+**Diferencia con «Escáner»:** la foto aquí NO se manda como imagen (esa es para fotos de productos): se **lee** y se manda como código. Solo acepta UUID (solo o dentro de la liga `…/codigo-campana/<uuid>`); códigos de barras y otros QR se ignoran.
+**Back:** sin cambios (el canal ya acepta el UUID). Sin migración (el menú «Escáner» es fijo en el front, no una fila de la base).
+

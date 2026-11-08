@@ -57,6 +57,12 @@ Con un cliente ya elegido pega el código de **otra persona** → pregunta «¿C
 En **Venta directa** con la campaña vigente: escanea un **código de barras** de producto con el celular (📱) → entra al buscador de artículos **como siempre**. Escanea el **QR** del cliente con el mismo celular → entra al campo de campaña. Repite en **Buscar producto** y **Agregar artículo** (sin campo de campaña): los códigos de barras entran como siempre.
 **⛔** Que un código de barras caiga en el campo de campaña o que el QR caiga en el buscador estando el campo de campaña en pantalla. (Si el celular es Android y no lee QR con la cámara, anótalo: la imagen del QR y el lector USB sí sirven.)
 
+## 🔴 PRUEBA PENDIENTE — 8b «Escáner QR» del celular (menú nuevo)
+En la **PC**: Venta directa con la campaña vigente (se ve el bloque «🎁 Campaña»). En el **celular** (mismo usuario): menú **🎁 Escáner QR**.
+**Pasos:** (1) apunta la cámara al QR del correo (o de la página del QR en otra pantalla); (2) toca «📸 Foto del QR» y fotografía ese QR; (3) toca «🖼️ Elegir de la galería» y elige una captura del QR.
+**✅** En los tres casos el celular dice «✔ Enviado» y en la PC el campo «Código del cliente» se llena solo y se carga el cliente («✓ Es de … · lleva $X»). Con la PC en otra pantalla, el celular dice «La computadora no tiene abierta Venta directa con una campaña vigente».
+**⛔** Que un código de barras escaneado aquí llegue al buscador; que la foto llegue como imagen; que «📱 Escáner» (códigos de barras) deje de llevar los códigos al buscador.
+
 ## 🔴 PRUEBA PENDIENTE — 9 Ticket
 Haz una venta de Contado con precio de campaña (2 juguetes + 1 bolsa) e **imprime el ticket**.
 **✅** Los juguetes con «🎁 Precio de campaña» y el total normal **tachado** debajo del renglón; la bolsa sin marca. Luego, en **Mis pedidos** abre ese pedido → **Imprimir ticket**: igual marcado. Un pedido sin campaña: ticket **idéntico al de antes**.
