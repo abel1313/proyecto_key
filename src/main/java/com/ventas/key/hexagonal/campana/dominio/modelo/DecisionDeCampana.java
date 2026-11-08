@@ -8,7 +8,14 @@ import java.util.Map;
  * campaña viene y a qué persona se liga la compra ({@code candidata} = persona nueva que se guardará al cerrar la venta).
  */
 public record DecisionDeCampana(Integer campanaId, String nombreCampana, Map<Integer, BigDecimal> preciosPorProducto, PersonaCampana persona,
-                                PersonaCampana candidata, BigDecimal ticketSinJuguetes, boolean recurrente) {
+                                PersonaCampana candidata, BigDecimal ticketSinJuguetes, boolean recurrente,
+                                Integer clienteId, Integer clienteSinRegistroId) {
+
+    /** Sin el cliente de la venta. */
+    public DecisionDeCampana(Integer campanaId, String nombreCampana, Map<Integer, BigDecimal> preciosPorProducto, PersonaCampana persona,
+                             PersonaCampana candidata, BigDecimal ticketSinJuguetes, boolean recurrente) {
+        this(campanaId, nombreCampana, preciosPorProducto, persona, candidata, ticketSinJuguetes, recurrente, null, null);
+    }
 
     public static final DecisionDeCampana NINGUNA =
             new DecisionDeCampana(null, null, Map.of(), null, null, BigDecimal.ZERO, false);

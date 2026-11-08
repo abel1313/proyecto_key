@@ -23585,3 +23585,48 @@ Ya documentado arriba; se usa desde el reporte. Borra a la persona y sus ligas; 
 `GET /v1/pedidos/{id}/detalle` trae, **solo para el administrador y solo en true**, `tieneCodigoDeCampana` cuando el pedido está ligado a una persona con código. Con eso el front muestra el botón **«Enviar código de campaña»**.
 `POST /mis-productos/v1/campanas/pedidos/{pedidoId}/enviar-codigo` (ROLE_ADMIN) → `200 «Código enviado»`; `404` «Este pedido no tiene un código de campaña.»; `400` «La persona de este pedido no dejó correo…».
 (Esta ruta quedó bajo `/v1/campanas` y no bajo `/v1/pedidos` para quedar en la regla de administrador.)
+
+---
+
+## 🎁 Campañas — el QR llena al cliente, la meta suma lo pagado por fechas, renglones para el ticket (2026-11-08, rama de trabajo; aún sin subir)
+
+**Requiere correr** `migration_campana_persona_cliente.sql` (agrega `cliente_id` y `cliente_sin_registro_id` a `campana_persona`; solo agrega). **Si el back sube antes que la migración**, la campaña se apaga sola (sin códigos ni descuento) y las ventas siguen normales; al correrla vuelve en menos de un minuto.
+
+### Cambia: la meta (qué se suma)
+**Antes:** solo las compras de **Contado** hechas con el código, sin contar los juguetes de la campaña, guardadas al vender.
+**Ahora:** **todo lo PAGADO** (juguetes incluidos) **entre la fecha de inicio y la de fin de la campaña** (los dos días incluidos); lo anterior a la fecha de inicio **no cuenta**. Se calcula al momento, no se guarda:
+- **Contado:** el total de la venta (fecha de venta dentro del rango), si no está devuelta, cancelada ni pendiente.
+- **Apartado / Ir pagando:** lo **abonado** dentro del rango (por la fecha del abono); un pedido cancelado no suma.
+- Cuentan los pedidos **ligados al código** y también los del **mismo cliente** (si es un cliente registrado), aunque se hayan hecho sin mostrar el QR.
+- En la venta que se está haciendo, **el ticket de hoy suma solo si es Contado** (lo que se paga ahora). En Apartado / Ir pagando no suma hasta que se abone.
+- `acumulado` en «Verificar», en `buscar-por-codigo` y en el reporte usa el mismo cálculo.
+
+### `POST /mis-productos/v1/campanas/personas/buscar-por-codigo` (ROLE_ADMIN) — escanear el QR
+**Request:** `{ "codigo": "…uuid…" }` (el que sale del QR, escrito, pegado, escaneado o leído de una imagen).
+**Response (`data`):**
+```json
+{ "valido": true, "clienteId": 7, "clienteSinRegistroId": null, "nombre": "Ana López", "correo": "ana@mail.com",
+  "telefono": "7221234567", "acumulado": 930, "meta": 1500, "falta": 570 }
+```
+- `valido: false` → el código no existe (los demás campos vienen vacíos): sin descuento.
+- `clienteId` / `clienteSinRegistroId`: el cliente de la **primera compra** de esa persona. El front **selecciona a ese cliente** (si viene `clienteId`, como cliente registrado; si viene `clienteSinRegistroId`, como cliente sin registro con esos datos). Pueden venir **los dos en null** en códigos creados antes de esta versión: entonces solo se muestran los datos y se deja elegir al cliente a mano (el código se valida por correo o teléfono como antes). Se rellenan solos en su siguiente compra.
+- `acumulado` / `meta` / `falta`: de la **campaña vigente** (0 si no hay).
+- `429` «Demasiados intentos…» (15 por usuario cada 10 minutos).
+- Con la venta, el código ahora también vale si el `clienteId` o `clienteSinRegistroId` de la venta es el de la persona.
+
+### Cambia: «Cliente recurrente» marcado a mano **no crea QR**
+Si se marca la casilla y la persona no existía, **no se crea persona ni se manda correo**. Si ya existía una persona con esos datos, solo se liga el pedido a ella.
+
+### Cambia: el correo con el código
+Sale **hasta que la venta se confirma** (después del commit): si la venta se revierte, no sale un código de una persona que no se guardó.
+
+### `POST /v1/ventas/save` — respuesta con `renglones[]` (para el ticket)
+La respuesta (`VentaDirectaResponse`) trae ahora, además de lo de siempre:
+```json
+"renglones": [ { "nombre": "Muñeca bici", "cantidad": 2, "precioNormal": 500, "precioCobrado": 400, "conDescuentoDeCampana": true },
+               { "nombre": "Bolsa negra", "cantidad": 1, "precioNormal": 500, "precioCobrado": 500 } ]
+```
+Los renglones son **los que cobró el back** (no los de la pantalla). `conDescuentoDeCampana` / `conDescuentoDeGrupo` solo vienen en `true` cuando aplica. El ticket impreso después de guardar debe usar estos renglones.
+
+### `GET /v1/pedidos/{id}/detalle` — cada `detalles[]` puede traer
+`precioNormal` y `conPrecioDeCampana: true` **solo** en las líneas cobradas con precio de campaña (el precio de antes del descuento). Para pintar el normal tachado y «Precio de campaña» en el ticket de Mis pedidos. Las demás líneas no traen esos campos.

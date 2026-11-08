@@ -3,6 +3,8 @@ package com.ventas.key.hexagonal.campana.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.campana.dominio.excepcion.CampanaInvalidaException;
 import com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente;
 import com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso;
+import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.BuscarPorCodigoRequest;
+import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.BuscarPorCodigoResponse;
 import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.VerificarCodigoRequest;
 import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.VerificarCodigoResponse;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -38,6 +40,20 @@ public class CampanaPersonaController {
             return ResponseEntity.ok(new ResponseGeneric<>(VerificarCodigoResponse.de(v)));
         } catch (CampanaInvalidaException e) {
             return error(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+        }
+    }
+
+    /** Escanear el QR: devuelve a quién pertenece el código para llenar los datos del cliente de la venta. */
+    @PostMapping("/buscar-por-codigo")
+    public ResponseEntity<ResponseGeneric<BuscarPorCodigoResponse>> buscarPorCodigo(@RequestBody BuscarPorCodigoRequest request, Authentication auth) {
+        try {
+            var c = participar.buscarPorCodigo(auth == null ? null : auth.getName(), request.codigo());
+            return ResponseEntity.ok(new ResponseGeneric<>(BuscarPorCodigoResponse.de(c)));
+        } catch (CampanaInvalidaException e) {
+            ResponseGeneric<BuscarPorCodigoResponse> r = new ResponseGeneric<>((BuscarPorCodigoResponse) null);
+            r.setCode(HttpStatus.TOO_MANY_REQUESTS.value());
+            r.setMensaje(e.getMessage());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(r);
         }
     }
 

@@ -1004,6 +1004,12 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         // pedido de diez articulos haria diez viajes a la base solo para las miniaturas.
         Map<Integer, Long> imagenPorVariante = resolverImagenesDe(pedido);
 
+        // Lineas cobradas con precio de campana y el precio que tenian antes (vacio si no hay campanas o falta la tabla).
+        Map<Integer, java.math.BigDecimal> preciosDeCampanaPorLinea = preciosBaseDeLinea == null || pedido.getDetalles() == null
+                ? Map.of()
+                : preciosBaseDeLinea.leer(pedido.getDetalles().stream().map(DetallePedido::getId).toList(),
+                        com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA);
+
         List<DetalleItemResponse> detalles = pedido.getDetalles().stream().map(dp -> {
             DetalleItemResponse item = new DetalleItemResponse();
             item.setId(dp.getId());
@@ -1033,6 +1039,11 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             if (dp.getPromocion() != null) {
                 item.setPromocionId(dp.getPromocion().getId());
                 item.setPromocionDescripcion(dp.getPromocion().getDescripcion());
+            }
+            java.math.BigDecimal precioAntes = preciosDeCampanaPorLinea.get(dp.getId());
+            if (precioAntes != null) {
+                item.setPrecioNormal(precioAntes.doubleValue());
+                item.setConPrecioDeCampana(true);
             }
             return item;
         }).toList();

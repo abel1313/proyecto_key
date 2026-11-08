@@ -31,4 +31,9 @@ public class DetalleItemResponse {
     // de flores eternas, que va incluido en el precio de las flores) -- el front la agrupa o la
     // esconde en vez de mostrarla como renglon suelto. false/ausente en cualquier otra linea.
     private Boolean esLineaInterna;
+
+    // Solo vienen cuando la linea se cobro con precio de campana (back 2026-11-08): el precio que tenia antes del descuento y la marca,
+    // para que el ticket muestre el normal tachado y «Precio de campana». Ausentes en cualquier otra linea.
+    private Double precioNormal;
+    private Boolean conPrecioDeCampana;
 }

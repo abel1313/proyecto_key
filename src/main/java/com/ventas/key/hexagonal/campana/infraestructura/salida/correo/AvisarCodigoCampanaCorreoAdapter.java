@@ -24,6 +24,21 @@ public class AvisarCodigoCampanaCorreoAdapter implements AvisarCodigoCampanaPort
         if (persona.correo() == null) {
             return;
         }
+        // Dentro de una venta, el correo sale hasta que la venta se confirma: si se revierte, no sale un código de una persona que no se guardó.
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            mandar(persona, nombreCampana);
+                        }
+                    });
+            return;
+        }
+        mandar(persona, nombreCampana);
+    }
+
+    private void mandar(PersonaCampana persona, String nombreCampana) {
         try {
             if (!email.enviarCodigoCampana(persona.correo(), persona.nombre(), nombreCampana, persona.uuid())) {
                 log.warn("No se pudo mandar el código de campaña a la persona {}", persona.id());

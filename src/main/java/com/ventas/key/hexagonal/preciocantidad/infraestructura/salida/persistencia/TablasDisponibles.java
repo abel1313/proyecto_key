@@ -55,4 +55,38 @@ public class TablasDisponibles {
         }
         return hay;
     }
+
+    /**
+     * ¿Ya existe esta COLUMNA? Igual que {@link #existe}: conexión aparte, se recuerda si existe y se vuelve a mirar cada minuto si no. Sirve para que un
+     * código que ya usa una columna nueva no rompa la venta si todavía no se corrió la migración que la crea.
+     */
+    public boolean existeColumna(String tabla, String columna) {
+        String clave = tabla + "." + columna;
+        if (Boolean.TRUE.equals(existentes.get(clave))) {
+            return true;
+        }
+        long ahora = System.currentTimeMillis();
+        Long antes = ultimaRevision.get(clave);
+        if (antes != null && ahora - antes < REVISAR_CADA_MS) {
+            return false;
+        }
+        ultimaRevision.put(clave, ahora);
+        boolean hay = false;
+        try (Connection c = dataSource.getConnection()) {
+            for (String t : new String[]{tabla, tabla.toUpperCase()}) {
+                for (String col : new String[]{columna, columna.toUpperCase()}) {
+                    try (ResultSet rs = c.getMetaData().getColumns(c.getCatalog(), null, t, col)) {
+                        hay = hay || rs.next();
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            log.warn("No se pudo revisar si existe la columna {}: {}", clave, e.getMessage());
+        }
+        existentes.put(clave, hay);
+        if (!hay) {
+            log.warn("La columna {} no existe: esa parte de las campañas no se aplica (falta correr su migracion)", clave);
+        }
+        return hay;
+    }
 }

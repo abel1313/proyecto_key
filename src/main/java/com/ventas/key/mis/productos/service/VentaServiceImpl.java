@@ -335,6 +335,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                     null, null, null);
             enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
                     "Pedido registrado — Novedades Jade", respCredito);
+            respCredito.setRenglones(renglonesDelTicket(detallesPedido));
             return respCredito;
         }
 
@@ -423,6 +424,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         );
         enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
                 "Comprobante de compra — Novedades Jade", respVenta);
+        respVenta.setRenglones(renglonesDelTicket(detallesPedido));
         return respVenta;
     }
 
@@ -485,6 +487,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 null, pagosYMeses.getTipoPago().getFormaPago(), true, total, null,
                 mesesIntereses.getDescripcion(), null, guardado.getId(), null, null, null);
         resp.setCobroConModuloNuevo(true);
+        resp.setRenglones(renglonesDelTicket(detallesPedido));
         return resp;
     }
 
@@ -564,6 +567,26 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         return preciosPorCantidad.calcular(lineas);
     }
 
+    /** Los renglones tal como los cobro el back, para que el ticket muestre el precio normal y el de campana sin adivinar nada. */
+    private static List<VentaDirectaResponse.Renglon> renglonesDelTicket(List<DetallePedido> detalles) {
+        List<VentaDirectaResponse.Renglon> lista = new ArrayList<>();
+        for (DetallePedido d : detalles) {
+            VentaDirectaResponse.Renglon r = new VentaDirectaResponse.Renglon();
+            String base = d.getProducto() != null ? d.getProducto().getNombre() : "Artículo";
+            r.setNombre(d.getVariante() != null
+                    ? ArticuloAVender.nombreVisible(base, d.getVariante().getTalla(), d.getVariante().getColor()) : base);
+            r.setCantidad(d.getCantidad());
+            r.setPrecioCobrado(d.getPrecioUnitario());
+            r.setPrecioNormal(d.getPrecioAntesDeGrupo() != null ? d.getPrecioAntesDeGrupo() : d.getPrecioUnitario());
+            boolean campana = d.getOrigenDelDescuento() == com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA;
+            boolean grupo = d.getPrecioAntesDeGrupo() != null && !campana;
+            r.setConDescuentoDeCampana(campana ? Boolean.TRUE : null);
+            r.setConDescuentoDeGrupo(grupo ? Boolean.TRUE : null);
+            lista.add(r);
+        }
+        return lista;
+    }
+
     /** El precio mas bajo "de catalogo" del articulo: la rebaja si existe y es menor, si no el normal. */
     private static double precioDeCatalogo(Producto prod, Variantes variante) {
         Double normal = variante != null ? variante.precioNormal() : prod.getPrecioVenta();
@@ -607,7 +630,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             String telefono = cliente != null ? cliente.getNumeroTelefonico() : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : null;
             return campanas.decidir(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana(
                     c == null ? null : c.getCodigo(), c != null && c.isRecurrenteManual(), c != null && c.isAceptaPrivacidad(), cobro,
-                    new com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente(nombre, correo, telefono), lineas));
+                    new com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente(nombre, correo, telefono,
+                            cliente != null ? cliente.getId() : null, sinRegistro != null ? sinRegistro.getId() : null), lineas));
         } catch (RuntimeException e) {
             log.warn("La campana no pudo decidir precios; se cobra normal: {}", e.getMessage());
             return ninguna;

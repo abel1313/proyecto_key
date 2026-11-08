@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.campana.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.campana.dominio.modelo.Campana;
+import com.ventas.key.hexagonal.campana.dominio.modelo.ClienteDeCodigo;
 import com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente;
 import com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro;
@@ -60,15 +61,21 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
             persona = personas.porUuid(s.codigo().trim().toLowerCase()).filter(p -> p.coincideCon(s.contacto())).orElse(null);
         }
 
+        // "Sin juguetes": solo sirve para lo que se anota en la liga del pedido. Para la meta TODO suma (juguetes incluidos).
         BigDecimal sinJuguetes = BigDecimal.ZERO;
+        BigDecimal totalTicket = BigDecimal.ZERO;
         for (SolicitudDeCampana.Linea l : s.lineas()) {
+            BigDecimal importe = l.precioBase().multiply(BigDecimal.valueOf(l.cantidad()));
+            totalTicket = totalTicket.add(importe);
             if (campana.precioDe(l.productoId()).isEmpty()) {
-                sinJuguetes = sinJuguetes.add(l.precioBase().multiply(BigDecimal.valueOf(l.cantidad())));
+                sinJuguetes = sinJuguetes.add(importe);
             }
         }
-        BigDecimal acumulado = persona == null ? BigDecimal.ZERO : personas.acumulado(campana.id(), persona.id());
+        // Lo que lleva de la campaña = lo PAGADO entre su fecha de inicio y de fin. Lo de este ticket solo cuenta si se paga ahora (Contado).
+        BigDecimal acumulado = persona == null ? BigDecimal.ZERO : personas.acumulado(campana, persona);
+        BigDecimal ticketQueSuma = s.cobro() == FormaDeCobro.CONTADO ? totalTicket : BigDecimal.ZERO;
         boolean recurrente = persona != null
-                ? ReglasCampana.califica(acumulado, sinJuguetes, campana.metaMonto(), s.recurrenteManual())
+                ? ReglasCampana.califica(acumulado, ticketQueSuma, campana.metaMonto(), s.recurrenteManual())
                 : s.recurrenteManual();
 
         Map<Integer, BigDecimal> precios = new HashMap<>();
@@ -83,17 +90,20 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         }
 
         // Quien compra con sus datos y acepta el aviso de privacidad tiene (o recibe) su código, para acumular hacia la meta.
+        // Con la casilla «Cliente recurrente» marcada a mano NO se crea persona ni QR (a quien ya se conoce no hace falta); si ya existía
+        // una persona con esos datos, solo se liga la compra a ella.
         PersonaCampana candidata = null;
         if (persona == null && s.aceptaPrivacidad() && s.contacto() != null && s.contacto().tieneDatos()) {
             Optional<PersonaCampana> existente = personas.porContacto(s.contacto().correo(), s.contacto().telefono());
             if (existente.isPresent()) {
                 persona = existente.get();
-            } else {
+            } else if (!s.recurrenteManual()) {
                 candidata = new PersonaCampana(null, nuevoCodigo.get(), s.contacto().nombre(), s.contacto().correo(),
-                        s.contacto().telefono(), true);
+                        s.contacto().telefono(), true, s.contacto().clienteId(), s.contacto().clienteSinRegistroId());
             }
         }
-        return new DecisionDeCampana(campana.id(), campana.nombre(), precios, persona, candidata, sinJuguetes, recurrente);
+        return new DecisionDeCampana(campana.id(), campana.nombre(), precios, persona, candidata, sinJuguetes, recurrente,
+                s.contacto() == null ? null : s.contacto().clienteId(), s.contacto() == null ? null : s.contacto().clienteSinRegistroId());
     }
 
     @Override
@@ -109,6 +119,10 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         }
         if (persona == null) {
             return;
+        }
+        if (!nueva) {
+            // Una persona anterior al ligado con el cliente: se le anota el cliente de esta compra (si todavía no lo tenía).
+            personas.completarCliente(persona.id(), d.clienteId(), d.clienteSinRegistroId());
         }
         BigDecimal monto = cobro == FormaDeCobro.CONTADO ? d.ticketSinJuguetes() : BigDecimal.ZERO;
         personas.ligarPedido(d.campanaId(), persona.id(), pedidoId, monto);
@@ -136,8 +150,24 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         if (!p.get().coincideCon(contacto)) {
             return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.NO_COINCIDE, "", BigDecimal.ZERO, meta);
         }
-        BigDecimal acumulado = vigente.isPresent() ? personas.acumulado(vigente.get().id(), p.get().id()) : BigDecimal.ZERO;
+        BigDecimal acumulado = vigente.isPresent() ? personas.acumulado(vigente.get(), p.get()) : BigDecimal.ZERO;
         return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.OK, p.get().nombre(), acumulado, meta);
+    }
+
+    @Override
+    public ClienteDeCodigo buscarPorCodigo(String quien, String codigo) {
+        limite.registrar(quien);
+        if (codigo == null || codigo.isBlank() || !personas.disponible()) {
+            return ClienteDeCodigo.invalido();
+        }
+        Optional<PersonaCampana> p = personas.porUuid(codigo.trim().toLowerCase());
+        if (p.isEmpty()) {
+            return ClienteDeCodigo.invalido();
+        }
+        Optional<Campana> vigente = activa.vigente();
+        BigDecimal acumulado = vigente.isPresent() ? personas.acumulado(vigente.get(), p.get()) : BigDecimal.ZERO;
+        BigDecimal meta = vigente.map(Campana::metaMonto).orElse(BigDecimal.ZERO);
+        return new ClienteDeCodigo(true, p.get(), acumulado, meta);
     }
 
     @Override

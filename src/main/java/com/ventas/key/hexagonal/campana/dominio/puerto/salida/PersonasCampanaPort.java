@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.campana.dominio.puerto.salida;
 
+import com.ventas.key.hexagonal.campana.dominio.modelo.Campana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.PersonaCampana;
 
 import com.ventas.key.hexagonal.campana.dominio.modelo.ResumenDePersona;
@@ -21,8 +22,20 @@ public interface PersonasCampanaPort {
 
     PersonaCampana guardar(PersonaCampana persona);
 
-    /** Lo que esta persona suma hacia la meta de esa campaña (compras pagadas, sin los juguetes de la campaña). */
+    /** Lo que esta persona suma hacia la meta de esa campaña (compras ligadas, pagadas, que no estén canceladas ni pendientes). */
     BigDecimal acumulado(int campanaId, int personaId);
+
+    /**
+     * Lo PAGADO por esta persona entre la fecha de inicio y la de fin de la campaña (contado y abonos; todo suma, juguetes incluidos): sus pedidos
+     * ligados más los de su cliente. Por defecto, lo ligado; el adaptador de base de datos lo calcula por fechas.
+     */
+    default BigDecimal acumulado(Campana campana, PersonaCampana persona) {
+        return acumulado(campana.id(), persona.id());
+    }
+
+    /** Rellena a qué cliente pertenece la persona si todavía no lo sabe. Por defecto no hace nada. */
+    default void completarCliente(int personaId, Integer clienteId, Integer clienteSinRegistroId) {
+    }
 
     /** Liga un pedido a la persona dentro de la campaña, con lo que suma hacia la meta (0 si todavía no está pagado). */
     void ligarPedido(int campanaId, int personaId, int pedidoId, BigDecimal monto);

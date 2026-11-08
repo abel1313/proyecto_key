@@ -32,6 +32,14 @@ public class CampanaPersonaEntidad extends BaseId {
     @Column(nullable = false)
     private boolean consentimiento;
 
+    /** Cliente registrado al que pertenece el código (migration_campana_persona_cliente.sql). */
+    @Column(name = "cliente_id")
+    private Integer clienteId;
+
+    /** Cliente sin registro de la primera compra. Puede quedar vacío si se borró (ON DELETE SET NULL). */
+    @Column(name = "cliente_sin_registro_id")
+    private Integer clienteSinRegistroId;
+
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 }

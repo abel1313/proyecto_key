@@ -16,6 +16,28 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-08 — Campañas: el QR llena al cliente, la meta suma lo pagado por fechas, la casilla manual no crea QR, renglones para el ticket
+**Dónde:** `ParticiparEnCampanaService.decidir/registrarCompra/buscarPorCodigo` · `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)/completarCliente/resumen` ·
+`CampanaPersonaController` `POST /v1/campanas/personas/buscar-por-codigo` · `VentaServiceImpl.decidirCampana/renglonesDelTicket` · `PedidoServiceImpl.getDetallePedido` (precioNormal, conPrecioDeCampana) ·
+`AvisarCodigoCampanaCorreoAdapter.enviar` (afterCommit) · `migration_campana_persona_cliente.sql`
+**Tipo:** unitario (servicio con puertos simulados) · MySQL (SQL nativo y migración) · controller (URL y status) · integración (venta)
+**Debe comprobar:**
+- [ ] `acumulado` (MySQL, campaña 1-dic a 31-dic, cliente 7): contado $500 (5-dic) + $120 ligado por `campana_persona_pedido` sin cliente_id + $60 (31-dic 18:00) + abonos de Apartado $100 (10-dic) y $150 (20-dic) = **$930**; NO cuentan: contado del 20-nov ($900), cancelado ($300), Pendiente de tarjeta ($400), venta Devuelta ($200), pedido de otro cliente ($700), abono del 30-nov ($80). (Ya se comprobó a mano con estos datos en MySQL 8 el 2026-11-08.)
+- [ ] Contado que pasa a Apartado/Ir pagando (la venta se borra y se registra un abono): no se cuenta doble
+- [ ] Meta = acumulado + total del ticket SOLO si la venta es Contado; en Apartado / Ir pagando el ticket de hoy no suma
+- [ ] Código escaneado válido → `buscar-por-codigo` devuelve `valido=true`, `clienteId` o `clienteSinRegistroId`, nombre/correo/teléfono, acumulado y meta; código inexistente → `valido=false`; más de 15 intentos en 10 min → 429
+- [ ] Persona anterior al ligado (cliente_id y cliente_sin_registro_id en NULL): `buscar-por-codigo` valido pero sin ids; en su siguiente compra `completarCliente` rellena el id; `completarCliente` no pisa un id que ya existía
+- [ ] `PersonaCampana.coincideCon`: mismo cliente_id, mismo cliente_sin_registro_id, mismo correo o mismo teléfono (cualquiera basta)
+- [ ] «Cliente recurrente» marcado a mano + cliente sin persona → NO se crea persona ni sale correo; con persona existente por contacto → solo se liga el pedido
+- [ ] Persona nueva (acepta privacidad + datos): se guarda con `cliente_id` / `cliente_sin_registro_id` de la venta; el correo sale DESPUÉS del commit (si la venta se revierte, no sale)
+- [ ] Migración: dos veces sin error; borrar el cliente deja `cliente_id` en NULL (ON DELETE SET NULL); personas viejas quedan en NULL (ya comprobado en MySQL 8 el 2026-11-08)
+- [ ] `VentaDirectaResponse.renglones[]`: línea con precio de campaña → `precioNormal` = el de catálogo, `precioCobrado` = el de campaña, `conDescuentoDeCampana=true`; línea con grupo → `conDescuentoDeGrupo=true`; línea normal sin marcas
+- [ ] `GET /v1/pedidos/{id}/detalle`: línea con origen CAMPANA trae `precioNormal` y `conPrecioDeCampana=true`; las demás no traen esos campos; sin la tabla `detalle_pedido_precio_grupo` el detalle sale igual
+- [ ] Reporte de campaña (`resumen`): lo que lleva cada persona = el mismo cálculo por fechas; solo salen personas con compras ligadas no canceladas ni pendientes
+- [ ] `AutorizacionPorEndpointTest`: agregar la ruta `POST /v1/campanas/personas/buscar-por-codigo` (solo ROLE_ADMIN; sin sesión 401/403; ROLE_USUARIO 403)
+
+---
+
 ### 2026-10-20 — Segundo barrido variante → artículo (script de etiquetas + ℹ️ en Menús y submenús)
 **Dónde:** `migration_renombre_articulo_etiquetas.sql` (secciones 0 y 3) · front `GestionMenuComponent.verDescripcion()` + ℹ️ en `gestion-menu.component.html`
 **Tipo:** MySQL (script en base desechable) · front (componente)
@@ -446,6 +468,8 @@ Formato de cada entrada:
 ---
 
 ## Tests existentes que quedaron viejos
+
+- **2026-11-08 — Campañas:** los tests de campañas escritos el 2026-11-07 (`ParticiparEnCampanaTest`, `CampanaDominioYServiciosTest`, `MigracionCampanaTest`, `MigracionCampanaPersonasTest`, `CampanasJpaTest`, `PersonasCampanaJpaTest`, `PreciosDeCampanaEnPedidoJpaTest`, `VentaDirectaCampanaTest`) se escribieron antes de que el dueño recordara la regla de no escribir tests; se dejan (no se borran) y NO se mantienen. Siguen pasando hoy, pero ya no reflejan la regla nueva de la meta (todo suma, por fechas): `ParticiparEnCampanaTest.porMeta` (usa el acumulado fijo del puerto en memoria, no el cálculo por fechas) y `PersonasCampanaJpaTest` (prueba `acumulado(int,int)` por pedidos ligados, que ya no es el que usa la meta).
 
 | Test | Rama | Desde | Por qué falla |
 |---|---|---|---|

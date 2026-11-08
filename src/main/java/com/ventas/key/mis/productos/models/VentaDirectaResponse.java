@@ -25,6 +25,24 @@ public class VentaDirectaResponse {
     private List<String> erroresEnvio;
     /** true: la venta quedó como pedido Pendiente y se cobra por /v1/pagos-tarjeta (módulo nuevo) con el pedidoId. */
     private Boolean cobroConModuloNuevo;
+    /**
+     * Los renglones tal como los cobro el back (para el ticket): con el precio normal y el precio cobrado. {@code conDescuentoDeCampana} es true
+     * si el descuento fue de la campana.
+     */
+    private List<Renglon> renglones;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class Renglon {
+        private String nombre;
+        private Integer cantidad;
+        private Double precioNormal;
+        private Double precioCobrado;
+        private Boolean conDescuentoDeCampana;
+        private Boolean conDescuentoDeGrupo;
+    }
 
     public VentaDirectaResponse(Integer ventaId, String tipoPago, boolean requiereTerminal, Double totalVenta,
                                 String meses, String descripcionPago, String intentId, Integer pedidoId,

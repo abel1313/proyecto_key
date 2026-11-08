@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.campana.dominio.puerto.entrada;
 
+import com.ventas.key.hexagonal.campana.dominio.modelo.ClienteDeCodigo;
 import com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente;
 import com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro;
@@ -17,6 +18,9 @@ public interface ParticiparEnCampanaCasoUso {
 
     /** El botón «Verificar» de Venta directa. {@code quien} limita los intentos (usuario que pregunta). */
     VerificacionDeCodigo verificar(String quien, String codigo, ContactoCliente contacto);
+
+    /** Escanear el QR: devuelve a quién pertenece el código (para llenar los datos del cliente) y cuánto lleva. {@code quien} limita los intentos. */
+    ClienteDeCodigo buscarPorCodigo(String quien, String codigo);
 
     void eliminarPersona(int personaId);
 
