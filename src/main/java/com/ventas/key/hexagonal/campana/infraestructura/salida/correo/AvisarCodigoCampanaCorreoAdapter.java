@@ -20,8 +20,8 @@ public class AvisarCodigoCampanaCorreoAdapter implements AvisarCodigoCampanaPort
     }
 
     @Override
-    public void enviar(PersonaCampana persona, String nombreCampana) {
-        if (persona.correo() == null) {
+    public void enviar(PersonaCampana persona, String nombreCampana, String correoDestino, boolean primeraVez) {
+        if (correoDestino == null || correoDestino.isBlank()) {
             return;
         }
         // Dentro de una venta, el correo sale hasta que la venta se confirma: si se revierte, no sale un código de una persona que no se guardó.
@@ -30,17 +30,17 @@ public class AvisarCodigoCampanaCorreoAdapter implements AvisarCodigoCampanaPort
                     new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            mandar(persona, nombreCampana);
+                            mandar(persona, nombreCampana, correoDestino, primeraVez);
                         }
                     });
             return;
         }
-        mandar(persona, nombreCampana);
+        mandar(persona, nombreCampana, correoDestino, primeraVez);
     }
 
-    private void mandar(PersonaCampana persona, String nombreCampana) {
+    private void mandar(PersonaCampana persona, String nombreCampana, String correoDestino, boolean primeraVez) {
         try {
-            if (!email.enviarCodigoCampana(persona.correo(), persona.nombre(), nombreCampana, persona.uuid())) {
+            if (!email.enviarCodigoCampana(correoDestino, persona.nombre(), nombreCampana, persona.uuid(), primeraVez)) {
                 log.warn("No se pudo mandar el código de campaña a la persona {}", persona.id());
             }
         } catch (RuntimeException e) {

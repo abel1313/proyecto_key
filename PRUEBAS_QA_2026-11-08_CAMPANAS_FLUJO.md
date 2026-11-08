@@ -25,6 +25,11 @@ Llena nombre, tu correo y teléfono, **marca la casilla** y **Guardar cliente** 
 **✅** Llega el correo «Tu código de cliente» **con el QR dibujado dentro del correo** (y adjunto `codigo-jade.png`); si lo escaneas con el 📱 en Venta directa se llena el cliente. También trae la liga. La liga abre el QR **sin iniciar sesión**, con botones **Descargar imagen** y **Compartir**. En MySQL: `SELECT uuid, nombre, correo, cliente_id, cliente_sin_registro_id FROM campana_persona;` → la persona con **`cliente_sin_registro_id` lleno**.
 **⛔** Que se cree persona sin marcar la casilla.
 
+## 🔴 PRUEBA PENDIENTE — 2b El código sale en cada compra
+Con **el mismo correo** de la prueba 2, haz otra compra con la casilla de privacidad marcada.
+**✅** Llega otro correo «Tu código de cliente», con «Aquí está tu código personal de cliente de nuevo», el **mismo QR** y el adjunto `codigo-jade.png`; abajo dice «Versión de prueba: QR-2» (si no sale, el deploy no ha terminado). En Campañas → **Reporte** cada persona tiene el botón **Ver QR**.
+**⛔** Que no llegue correo en la segunda compra.
+
 ## 🔴 PRUEBA PENDIENTE — 3 «No registrar»
 Otra venta sin cliente → Cobrar → **No registrar** (o Sí → «No registrar y cobrar»).
 **✅** Se cobra a nombre del administrador, sin persona ni correo.

@@ -9,7 +9,14 @@ import java.util.Map;
  */
 public record DecisionDeCampana(Integer campanaId, String nombreCampana, Map<Integer, BigDecimal> preciosPorProducto, PersonaCampana persona,
                                 PersonaCampana candidata, BigDecimal ticketSinJuguetes, boolean recurrente,
-                                Integer clienteId, Integer clienteSinRegistroId) {
+                                Integer clienteId, Integer clienteSinRegistroId, String correoDeLaVenta) {
+
+    /** Sin el correo de la venta (el código se manda al de la persona). */
+    public DecisionDeCampana(Integer campanaId, String nombreCampana, Map<Integer, BigDecimal> preciosPorProducto, PersonaCampana persona,
+                             PersonaCampana candidata, BigDecimal ticketSinJuguetes, boolean recurrente,
+                             Integer clienteId, Integer clienteSinRegistroId) {
+        this(campanaId, nombreCampana, preciosPorProducto, persona, candidata, ticketSinJuguetes, recurrente, clienteId, clienteSinRegistroId, null);
+    }
 
     /** Sin el cliente de la venta. */
     public DecisionDeCampana(Integer campanaId, String nombreCampana, Map<Integer, BigDecimal> preciosPorProducto, PersonaCampana persona,

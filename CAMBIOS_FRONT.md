@@ -23639,3 +23639,13 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Front:** sin cambios (no hay endpoint nuevo ni campo nuevo). El QR del correo se lee igual que el de la página pública (campo de campaña, imagen, 📱 o lector USB).
 **Antes:** el QR solo se veía abriendo la liga. **Después:** se ve en el correo.
 **Si falla dibujar el QR:** el correo sale igual sin la imagen (nunca se pierde el correo ni se rompe la venta).
+
+---
+
+## El correo del código de campaña sale en CADA compra (2026-11-08)
+
+**Antes:** «Tu código de cliente» (con el QR) solo se mandaba cuando la persona se creaba, en su primera compra. Si volvía a comprar con el mismo correo no llegaba otro.
+**Ahora:** sale en **cada compra confirmada** de una persona con código, al correo de la venta (si no trae, al de la persona). El de las compras siguientes dice «Aquí está tu código personal de cliente de nuevo»; trae el mismo QR incrustado y el adjunto `codigo-jade.png`. Sin correo, no se manda (el código existe igual).
+**Si no recuerda con qué correo se registró:** el administrador lo ve en Campañas → Reporte (código de cada persona) y ahí mismo hay un botón **«Ver QR»** que abre la página del QR para mostrarlo o mandarlo por WhatsApp; también puede reenviarlo a otro correo desde Mis pedidos → «🎁 Enviar código de campaña».
+**Front:** botón «Ver QR» por persona en el reporte; sin endpoints ni campos nuevos.
+

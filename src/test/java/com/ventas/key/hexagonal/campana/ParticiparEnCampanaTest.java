@@ -79,7 +79,7 @@ class ParticiparEnCampanaTest {
         campanas.guardar(new Campana(null, "Reyes", LocalDate.of(2026, 12, 20), LocalDate.of(2027, 1, 6), true, d("1500"),
                 List.of(new PrecioDeCampana(1, "Carro", d("200")))));
         servicio = new ParticiparEnCampanaService(new ConsultarCampanaActivaService(campanas, reloj), personas,
-                (persona, campana) -> correos.add(persona.correo() + "|" + campana),
+                (persona, campana, destino, primeraVez) -> correos.add(destino + "|" + campana),
                 new LimiteDeIntentos(reloj, 3, Duration.ofMinutes(10)), () -> "uuid-nuevo");
     }
 
@@ -120,7 +120,7 @@ class ParticiparEnCampanaTest {
         assertThat(servicio.decidir(venta(null, true, true, FormaDeCobro.CONTADO, ana, JUGUETE))).isSameAs(DecisionDeCampana.NINGUNA);
         personas.disponible = true;
         CampanaDominioYServiciosTest.Memoria vacia = new CampanaDominioYServiciosTest.Memoria();
-        var s = new ParticiparEnCampanaService(new ConsultarCampanaActivaService(vacia, reloj), personas, (p, c) -> { },
+        var s = new ParticiparEnCampanaService(new ConsultarCampanaActivaService(vacia, reloj), personas, (p, c, d, n) -> { },
                 new LimiteDeIntentos(reloj, 3, Duration.ofMinutes(1)), () -> "x");
         assertThat(s.decidir(venta(null, true, true, FormaDeCobro.CONTADO, ana, JUGUETE))).isSameAs(DecisionDeCampana.NINGUNA);
     }
@@ -181,11 +181,11 @@ class ParticiparEnCampanaTest {
         assertThat(personas.ligas.get(0)[3]).isEqualTo(d("500"));
         assertThat(correos).containsExactly("ana@mail.com|Reyes");
 
-        // misma persona otra vez: no se crea otro código ni se vuelve a mandar correo
+        // misma persona otra vez: no se crea otro código, pero el correo con su código sale en CADA compra (pedido del dueño 2026-11-08)
         var otra = servicio.decidir(venta(null, false, true, FormaDeCobro.CONTADO, ana, bolsa(1)));
         servicio.registrarCompra(otra, 12, FormaDeCobro.CONTADO);
         assertThat(personas.lista).hasSize(1);
-        assertThat(correos).hasSize(1);
+        assertThat(correos).hasSize(2);
         assertThat(personas.ligas).hasSize(2);
     }
 
@@ -201,7 +201,7 @@ class ParticiparEnCampanaTest {
     @DisplayName("un correo que falla no tira el registro")
     void correoFalla() {
         var s = new ParticiparEnCampanaService(new ConsultarCampanaActivaService(unaCampana(), reloj), personas,
-                (p, c) -> { throw new IllegalStateException("smtp caído"); }, new LimiteDeIntentos(reloj, 3, Duration.ofMinutes(1)), () -> "u1");
+                (p, c, d, n) -> { throw new IllegalStateException("smtp caído"); }, new LimiteDeIntentos(reloj, 3, Duration.ofMinutes(1)), () -> "u1");
         var dec = s.decidir(venta(null, false, true, FormaDeCobro.CONTADO, ana, bolsa(1)));
         s.registrarCompra(dec, 30, FormaDeCobro.CONTADO);
         assertThat(personas.lista).hasSize(1);

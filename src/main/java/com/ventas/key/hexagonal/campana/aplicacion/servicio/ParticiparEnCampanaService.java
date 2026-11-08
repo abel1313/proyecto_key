@@ -103,7 +103,8 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
             }
         }
         return new DecisionDeCampana(campana.id(), campana.nombre(), precios, persona, candidata, sinJuguetes, recurrente,
-                s.contacto() == null ? null : s.contacto().clienteId(), s.contacto() == null ? null : s.contacto().clienteSinRegistroId());
+                s.contacto() == null ? null : s.contacto().clienteId(), s.contacto() == null ? null : s.contacto().clienteSinRegistroId(),
+                s.contacto() == null ? null : s.contacto().correo());
     }
 
     @Override
@@ -126,9 +127,12 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         }
         BigDecimal monto = cobro == FormaDeCobro.CONTADO ? d.ticketSinJuguetes() : BigDecimal.ZERO;
         personas.ligarPedido(d.campanaId(), persona.id(), pedidoId, monto);
-        if (nueva && persona.correo() != null) {
+        // El código sale en el correo de CADA compra (no solo la primera): así la persona siempre lo tiene a la mano. Va al correo de la venta,
+        // y si no trae, al de la persona; sin ninguno no se manda nada (el código existe igual y el administrador lo ve).
+        String destino = d.correoDeLaVenta() != null && !d.correoDeLaVenta().isBlank() ? d.correoDeLaVenta().trim() : persona.correo();
+        if (destino != null && !destino.isBlank()) {
             try {
-                aviso.enviar(persona, d.nombreCampana());
+                aviso.enviar(persona, d.nombreCampana(), destino, nueva);
             } catch (RuntimeException e) {
                 // El correo nunca hace caer la venta; el código existe igual y el administrador lo ve.
             }
@@ -189,7 +193,7 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         if (persona.get().correo() == null) {
             return ResultadoReenvio.SIN_CORREO;
         }
-        aviso.enviar(persona.get(), activa.vigente().map(Campana::nombre).orElse(null));
+        aviso.enviar(persona.get(), activa.vigente().map(Campana::nombre).orElse(null), persona.get().correo(), false);
         return ResultadoReenvio.ENVIADO;
     }
 }

@@ -266,9 +266,14 @@ public class EmailService {
 
     private static final String CID_QR_CODIGO = "qrcodigo";
     /** TEMPORAL (2026-11-08): se imprime en el correo del código para saber qué versión corre en QA. Cambiarla en cada subida y quitarla al terminar. */
-    private static final String MARCA_VERSION_PRUEBA = "QR-1";
+    private static final String MARCA_VERSION_PRUEBA = "QR-2";
 
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
+        return enviarCodigoCampana(destinatario, nombre, nombreCampana, uuid, true);
+    }
+
+    /** @param primeraVez false cuando la persona ya tenía su código: el correo dice «aquí está tu código de nuevo». */
+    public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid, boolean primeraVez) {
         String base = frontendBaseUrl == null ? "" : frontendBaseUrl.replaceAll("/+$", "");
         String liga = base + "/codigo-campana/" + uuid;
         String saludo = nombre == null || nombre.isBlank() ? "Hola" : "Hola " + escaparHtmlCampana(nombre.trim());
@@ -284,8 +289,8 @@ public class EmailService {
         }
         String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", gracias por tu compra"
                 + (nombreCampana == null || nombreCampana.isBlank() ? "" : " en «" + escaparHtmlCampana(nombreCampana) + "»")
-                + ". Este es tu código personal de cliente: enséñalo (o su QR) cuando compres para llevar los precios de campaña "
-                + "cuando juntes la meta.</p>"
+                + ". " + (primeraVez ? "Este es tu código personal de cliente" : "Aquí está tu código personal de cliente de nuevo")
+                + ": enséñalo (o su QR) cuando compres para llevar los precios de campaña cuando juntes la meta.</p>"
                 + cajaCodigo(uuid)
                 + (png == null ? "" : "<p style=\"text-align:center;margin:0 0 8px;\"><img src=\"cid:" + CID_QR_CODIGO
                         + "\" width=\"220\" height=\"220\" alt=\"Tu QR\" style=\"display:inline-block;border:1px solid #e5e7eb;\"></p>")
