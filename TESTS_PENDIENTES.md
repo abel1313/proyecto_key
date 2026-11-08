@@ -27,6 +27,7 @@ Formato de cada entrada:
 - [ ] si el PNG falla, el correo sale sin imagen y devuelve `true`
 - [ ] QA: el correo muestra el QR en Gmail (web y celular); al escanearlo con el 📱 en Venta directa se llena el cliente
 (Comprobado a mano el 2026-11-08 con una prueba temporal que se borró.)
+- [ ] **QUITAR AL TERMINAR:** la constante temporal `MARCA_VERSION_PRUEBA` de `EmailService` y la línea «Versión de prueba: …» del pie del correo del código (sirve para ver qué versión corre en QA; cambiarla en cada subida: QR-1, QR-2…).
 
 ### 2026-11-08 — Campañas: el QR llena al cliente, la meta suma lo pagado por fechas, la casilla manual no crea QR, renglones para el ticket
 **Dónde:** `ParticiparEnCampanaService.decidir/registrarCompra/buscarPorCodigo` · `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)/completarCliente/resumen` ·

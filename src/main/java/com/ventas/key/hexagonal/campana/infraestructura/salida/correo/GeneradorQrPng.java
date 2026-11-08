@@ -23,6 +23,8 @@ public final class GeneradorQrPng {
 
     /** @param px lado aproximado de la imagen en píxeles (el QR se ajusta a módulos enteros). */
     public static byte[] png(String texto, int px) {
+        // El contenedor no tiene pantalla: sin esto algunas JDK intentan cargar el AWT gráfico.
+        System.setProperty("java.awt.headless", "true");
         try {
             BitMatrix m = new QRCodeWriter().encode(texto, BarcodeFormat.QR_CODE, px, px,
                     Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 4));

@@ -265,6 +265,8 @@ public class EmailService {
     }
 
     private static final String CID_QR_CODIGO = "qrcodigo";
+    /** TEMPORAL (2026-11-08): se imprime en el correo del código para saber qué versión corre en QA. Cambiarla en cada subida y quitarla al terminar. */
+    private static final String MARCA_VERSION_PRUEBA = "QR-1";
 
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
         String base = frontendBaseUrl == null ? "" : frontendBaseUrl.replaceAll("/+$", "");
@@ -275,8 +277,10 @@ public class EmailService {
         byte[] png = null;
         try {
             png = com.ventas.key.hexagonal.campana.infraestructura.salida.correo.GeneradorQrPng.png(uuid, 300);
-        } catch (RuntimeException e) {
-            log.warn("No se pudo dibujar el QR del código de campaña: {}", e.getMessage());
+            log.info("Código de campaña [{}]: QR de {} bytes, correo a {}", MARCA_VERSION_PRUEBA, png.length, destinatario);
+        } catch (RuntimeException | LinkageError e) {
+            // LinkageError: un fallo de AWT/ImageIO en el contenedor es un Error, no una excepción: sin esto tumbaría el correo.
+            log.warn("Código de campaña [{}]: NO se pudo dibujar el QR, el correo sale sin imagen: {}", MARCA_VERSION_PRUEBA, e.toString(), e);
         }
         String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", gracias por tu compra"
                 + (nombreCampana == null || nombreCampana.isBlank() ? "" : " en «" + escaparHtmlCampana(nombreCampana) + "»")
@@ -287,7 +291,9 @@ public class EmailService {
                         + "\" width=\"220\" height=\"220\" alt=\"Tu QR\" style=\"display:inline-block;border:1px solid #e5e7eb;\"></p>")
                 + "<p style=\"margin:0 0 8px;\">Si no ves el QR, ábrelo aquí: <a href=\"" + liga + "\">" + liga + "</a></p>"
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Guardamos tu nombre, correo, teléfono y tus compras en la campaña solo para "
-                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>";
+                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>"
+                // TEMPORAL: marca para saber qué versión está corriendo en QA. Cambiarla en cada subida; QUITARLA al terminar (ver TESTS_PENDIENTES.md).
+                + "<p style=\"margin:8px 0 0;color:#9ca3af;font-size:11px;\">Versión de prueba: " + MARCA_VERSION_PRUEBA + "</p>";
         return enviarConImagen(destinatario, asunto, html,
                 png == null ? null : new ImagenCorreo(CID_QR_CODIGO, "codigo-jade.png", png));
     }
