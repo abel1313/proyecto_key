@@ -23630,3 +23630,12 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 
 ### `GET /v1/pedidos/{id}/detalle` — cada `detalles[]` puede traer
 `precioNormal` y `conPrecioDeCampana: true` **solo** en las líneas cobradas con precio de campaña (el precio de antes del descuento). Para pintar el normal tachado y «Precio de campaña» en el ticket de Mis pedidos. Las demás líneas no traen esos campos.
+
+---
+
+## Correo «Tu código de cliente»: ahora trae el QR como imagen (2026-11-08)
+
+**Qué cambia:** el correo del código de campaña (primera compra y «🎁 Enviar código de campaña» de Mis pedidos) ya **no** manda solo el UUID y una liga: ahora trae el **QR dibujado dentro del correo** (imagen incrustada de 220 px) y además como archivo adjunto `codigo-jade.png`, para guardarlo o reenviarlo por WhatsApp. El UUID en texto y la liga a `/codigo-campana/:uuid` siguen como respaldo por si el correo bloquea imágenes.
+**Front:** sin cambios (no hay endpoint nuevo ni campo nuevo). El QR del correo se lee igual que el de la página pública (campo de campaña, imagen, 📱 o lector USB).
+**Antes:** el QR solo se veía abriendo la liga. **Después:** se ve en el correo.
+**Si falla dibujar el QR:** el correo sale igual sin la imagen (nunca se pierde el correo ni se rompe la venta).

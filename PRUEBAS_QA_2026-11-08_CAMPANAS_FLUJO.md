@@ -22,7 +22,7 @@ Apaga la campaña y haz una Venta directa normal **sin cliente** → Cobrar.
 Enciende la campaña. Venta directa, 1 producto (bolsa) **sin cliente** → Cobrar.
 **✅** «¿Registrar los datos del cliente?». **Clic fuera y Esc no la cierran.** Elige **Sí, registrar cliente**: en el modal **clic en el fondo no lo cierra**; aparece la casilla del Aviso de privacidad y el botón **No registrar y cobrar**.
 Llena nombre, tu correo y teléfono, **marca la casilla** y **Guardar cliente** → (si pide verificar el correo puedes omitirlo) → se cobra.
-**✅** Llega el correo «Tu código de cliente» con la liga. La liga abre el QR **sin iniciar sesión**, con botones **Descargar imagen** y **Compartir**. En MySQL: `SELECT uuid, nombre, correo, cliente_id, cliente_sin_registro_id FROM campana_persona;` → la persona con **`cliente_sin_registro_id` lleno**.
+**✅** Llega el correo «Tu código de cliente» **con el QR dibujado dentro del correo** (y adjunto `codigo-jade.png`); si lo escaneas con el 📱 en Venta directa se llena el cliente. También trae la liga. La liga abre el QR **sin iniciar sesión**, con botones **Descargar imagen** y **Compartir**. En MySQL: `SELECT uuid, nombre, correo, cliente_id, cliente_sin_registro_id FROM campana_persona;` → la persona con **`cliente_sin_registro_id` lleno**.
 **⛔** Que se cree persona sin marcar la casilla.
 
 ## 🔴 PRUEBA PENDIENTE — 3 «No registrar»

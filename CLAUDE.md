@@ -672,6 +672,27 @@ hasta volver a correr las migraciones. En prod eso **no debe pasar nunca**:
 5. Después de correr migraciones en prod: **volver a entrar** (las pantallas viajan en el JWT) y comprobar con `SELECT` que existen las pantallas y los permisos de ROLE_ADMIN.
 6. Orden de despliegue: primero la migración, luego el back, luego el front (el back sin la migración sigue vendiendo; el front sin el back no tiene a quién llamarle).
 
+### Receta para correr un `.sql` en el VPS (errores que pasaron el 2026-11-08 y cómo evitarlos)
+
+El 2026-11-08 la migración de QA falló tres veces por el procedimiento, no por el script. Para prod se hace **así**:
+
+1. **El archivo `.sql` NO está en el VPS** (vive en el repo). Hay que llevarlo: `scp migration_xxx.sql ubuntu@vps-da9a48f5:~/` **desde la PC del dueño** (no desde el VPS), o crearlo en el VPS con `cat > ~/migration_xxx.sql <<'EOF' … EOF`.
+   Comprobar que llegó: `ls -l ~/migration_xxx.sql` (que pese más de 0).
+2. **Dos terminales distintas, no mezclar:**
+   - Prompt `ubuntu@vps…$` (bash): aquí van `mysql -u root -p inventario_key < ~/migration_xxx.sql`, `mysqldump`, `kubectl`, `scp`. **Nunca** un `SELECT` aquí.
+   - Prompt `mysql>`: aquí solo SQL (`SELECT …`, `USE …`). **Nunca** escribir `mysql -u root -p …` ahí (da error 1064). Para salir: `exit`.
+3. **La base correcta:** QA = `inventario_key_qa`, prod = `inventario_key` (sin sufijo). Antes de correr, comprobarlo: `mysql -u root -p -e "SELECT DATABASE();" inventario_key`.
+4. Si dice «ya existe», es normal (los scripts son idempotentes): se sigue.
+5. **Verificar siempre** con el `SELECT` de verificación que trae el script al final, y anotar el resultado en el registro de migraciones de este archivo.
+6. En prod: respaldo antes (punto 2 de arriba) y **jamás** la restauración de un dump.
+
+### Qué se subió el 2026-11-08 y qué falta para prod (campañas de juguetes)
+
+- QA ya tiene (back `7008db7`, front `0e96617`, ramas `dev` y `qa`): campañas con código/QR por cliente, meta por fechas, ticket con descuento, modal que no se cierra con campaña.
+- QA ya corrió las migraciones 13 a 16 de la tabla de arriba (verificadas). En prod **ninguna** está corrida: se corren en el orden del punto 3, **solo cuando el dueño ordene** pasar campañas a prod, y después de que las pruebas de `PRUEBAS_QA_2026-11-08_CAMPANAS_FLUJO.md` estén todas en verde.
+- Para prod: migración 16 incluida (antes de subir el back); la categoría «Juguetes» de los productos se pone en prod **solo** con `script_categoria_por_fecha.sql` y solo si el dueño lo ordena (con vista previa y solo a los que están en NULL).
+- Pendiente antes de prod: textos legales (aviso de privacidad y términos) y decidir qué pasa con las devoluciones (entrega 4).
+
 ## Migraciones ya corridas — registro
 
 Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
@@ -711,7 +732,7 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `migration_precio_base_linea_grupo.sql` (tabla `detalle_pedido_precio_grupo`: el precio de antes de las líneas cobradas con precio de grupo; Fase 1b, al editar un pedido se recalcula) | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionPrecioBaseLineaGrupoTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
 | `migration_campana.sql` (campañas: tablas `campana` y `campana_producto` + pantalla «Campañas», solo ROLE_ADMIN, después de «Grupos de precio por cantidad») | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionCampanaTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
 | `migration_campana_personas.sql` (personas con código de campaña: tablas `campana_persona` y `campana_persona_pedido`; requiere `migration_campana.sql`) | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionCampanaPersonasTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
-| `migration_campana_persona_cliente.sql` (columnas `cliente_id` y `cliente_sin_registro_id` en `campana_persona`, con llaves `ON DELETE SET NULL`: a qué cliente pertenece el código, para llenar sus datos al escanear el QR; solo agrega, no borra; requiere `migration_campana_personas.sql`) | ⏳ pendiente (probada 2 veces en MySQL 8 desechable el 2026-11-08) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-08 |
+| `migration_campana_persona_cliente.sql` (columnas `cliente_id` y `cliente_sin_registro_id` en `campana_persona`, con llaves `ON DELETE SET NULL`: a qué cliente pertenece el código, para llenar sus datos al escanear el QR; solo agrega, no borra; requiere `migration_campana_personas.sql`) | ✅ qa ejecutada por el dueño 2026-11-08 (verificado: 2 columnas `cliente_id` y `cliente_sin_registro_id` y 2 llaves `fk_cper_cliente` / `fk_cper_sin_registro`; probada 2 veces en MySQL 8 desechable) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-08 |
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |

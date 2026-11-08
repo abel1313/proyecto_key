@@ -16,6 +16,18 @@ Formato de cada entrada:
 
 ---
 
+
+### 2026-11-08 — Correo del código de campaña con el QR como imagen (incrustada y adjunta)
+**Dónde:** `GeneradorQrPng.png`, `EmailService.enviarCodigoCampana` / `enviarConImagen`
+**Tipo:** unitario (sin Spring; `JavaMailSender` simulado) · e2e manual en QA
+**Debe comprobar:**
+- [ ] `GeneradorQrPng.png(uuid, 300)` → al decodificarlo con el lector de zxing devuelve el mismo UUID
+- [ ] el `MimeMessage` de `enviarCodigoCampana` lleva HTML con `cid:qrcodigo`, una parte `image/png` inline con Content-ID `<qrcodigo>` y un adjunto `codigo-jade.png`
+- [ ] los demás correos (`enviarTicket`, rifa, seguimiento…) salen **idénticos** a antes (sin imagen)
+- [ ] si el PNG falla, el correo sale sin imagen y devuelve `true`
+- [ ] QA: el correo muestra el QR en Gmail (web y celular); al escanearlo con el 📱 en Venta directa se llena el cliente
+(Comprobado a mano el 2026-11-08 con una prueba temporal que se borró.)
+
 ### 2026-11-08 — Campañas: el QR llena al cliente, la meta suma lo pagado por fechas, la casilla manual no crea QR, renglones para el ticket
 **Dónde:** `ParticiparEnCampanaService.decidir/registrarCompra/buscarPorCodigo` · `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)/completarCliente/resumen` ·
 `CampanaPersonaController` `POST /v1/campanas/personas/buscar-por-codigo` · `VentaServiceImpl.decidirCampana/renglonesDelTicket` · `PedidoServiceImpl.getDetallePedido` (precioNormal, conPrecioDeCampana) ·

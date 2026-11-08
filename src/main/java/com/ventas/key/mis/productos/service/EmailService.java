@@ -56,6 +56,13 @@ public class EmailService {
      * @return true si el envío fue exitoso, false si falló (no lanza excepción).
      */
     public boolean enviarTicket(String destinatario, String asunto, String htmlContent) {
+        return enviarConImagen(destinatario, asunto, htmlContent, null);
+    }
+
+    /** Imagen PNG que viaja dentro del correo ({@code <img src="cid:...">}) y también como archivo adjunto. */
+    private record ImagenCorreo(String cid, String nombreArchivo, byte[] png) { }
+
+    private boolean enviarConImagen(String destinatario, String asunto, String htmlContent, ImagenCorreo imagen) {
         if (destinatario == null || destinatario.isBlank()) {
             log.warn("EmailService: destinatario vacío, correo no enviado");
             return false;
@@ -71,6 +78,11 @@ public class EmailService {
             helper.setTo(destinatario);
             helper.setSubject(asunto);
             helper.setText(envolverPlantilla(htmlContent), true);
+            if (imagen != null) {
+                // addInline va DESPUÉS de setText. Incrustada para verla en el correo; adjunta para guardarla o reenviarla.
+                helper.addInline(imagen.cid(), new org.springframework.core.io.ByteArrayResource(imagen.png()), "image/png");
+                helper.addAttachment(imagen.nombreArchivo(), new org.springframework.core.io.ByteArrayResource(imagen.png()), "image/png");
+            }
             mailSender.send(message);
             log.info("Correo enviado a: {}", destinatario);
             return true;
@@ -252,20 +264,32 @@ public class EmailService {
         return texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
+    private static final String CID_QR_CODIGO = "qrcodigo";
+
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
         String base = frontendBaseUrl == null ? "" : frontendBaseUrl.replaceAll("/+$", "");
         String liga = base + "/codigo-campana/" + uuid;
         String saludo = nombre == null || nombre.isBlank() ? "Hola" : "Hola " + escaparHtmlCampana(nombre.trim());
         String asunto = "Tu código de cliente — Novedades Jade";
+        // Un fallo al dibujar el QR no pierde el correo: sale sin la imagen (siguen el UUID y la liga).
+        byte[] png = null;
+        try {
+            png = com.ventas.key.hexagonal.campana.infraestructura.salida.correo.GeneradorQrPng.png(uuid, 300);
+        } catch (RuntimeException e) {
+            log.warn("No se pudo dibujar el QR del código de campaña: {}", e.getMessage());
+        }
         String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", gracias por tu compra"
                 + (nombreCampana == null || nombreCampana.isBlank() ? "" : " en «" + escaparHtmlCampana(nombreCampana) + "»")
                 + ". Este es tu código personal de cliente: enséñalo (o su QR) cuando compres para llevar los precios de campaña "
                 + "cuando juntes la meta.</p>"
                 + cajaCodigo(uuid)
-                + "<p style=\"margin:0 0 8px;\">Tu QR: <a href=\"" + liga + "\">" + liga + "</a></p>"
+                + (png == null ? "" : "<p style=\"text-align:center;margin:0 0 8px;\"><img src=\"cid:" + CID_QR_CODIGO
+                        + "\" width=\"220\" height=\"220\" alt=\"Tu QR\" style=\"display:inline-block;border:1px solid #e5e7eb;\"></p>")
+                + "<p style=\"margin:0 0 8px;\">Si no ves el QR, ábrelo aquí: <a href=\"" + liga + "\">" + liga + "</a></p>"
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Guardamos tu nombre, correo, teléfono y tus compras en la campaña solo para "
-                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, responde a este correo.</p>";
-        return enviarTicket(destinatario, asunto, html);
+                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>";
+        return enviarConImagen(destinatario, asunto, html,
+                png == null ? null : new ImagenCorreo(CID_QR_CODIGO, "codigo-jade.png", png));
     }
 
     /**
