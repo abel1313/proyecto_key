@@ -27,6 +27,8 @@ Formato de cada entrada:
 - [ ] si el PNG falla, el correo sale sin imagen y devuelve `true`
 - [ ] QA: el correo muestra el QR en Gmail (web y celular); al escanearlo con el 📱 en Venta directa se llena el cliente
 (Comprobado a mano el 2026-11-08 con una prueba temporal que se borró.)
+- [ ] **Meta sin contar el ticket actual:** cliente con $1,000 pagados de una meta de $1,500 que compra juguetes → NO baja el precio (aunque el carrito pase de $1,500); con $1,500 ya pagados sí baja; con la casilla «Cliente recurrente» sí. En pantalla: «le faltan $X pagados para el precio de campaña» (no «ya es recurrente»)
+- [ ] Test existente cambiado por la regla nueva: `ParticiparEnCampanaTest.porMeta` (antes sumaba el ticket)
 - [ ] **Precio de campaña con rebaja (CROSS BODY):** producto con normal 620, rebaja 600 y precio de campaña 610 → con cliente recurrente la venta de Contado cobra 610, el «precio de antes» es 620 y sale marcado «Precio de campaña» con el normal tachado; la campaña recibe como base 620 (también para sumar la meta); sin recurrente 610 se rechaza y 620 / 600 se aceptan; Ir pagando 620 (antes el back comparaba contra la rebaja y rechazaba el 610 con «Precio desactualizado»)
 - [ ] **Un solo correo por compra:** venta de Contado con cliente sin registro y correo + campaña → UN correo «Tu compra y tu código de cliente» con el código de «Agregar mi compra» y abajo el bloque de la campaña con QR incrustado y adjunto; sin campaña sigue «Agrega tu compra a tu cuenta» idéntico a antes; si el correo único falla se manda aparte el de campaña; Apartado / Ir pagando / cliente registrado siguen con «Tu código de cliente» solo
 - [ ] Test existente ajustado: `VentaDirectaCampanaTest` (ahora verifica `registrarCompra(..., mandarCorreo)` de 4 parámetros)

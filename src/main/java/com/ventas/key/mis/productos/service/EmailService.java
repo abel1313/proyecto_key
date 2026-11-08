@@ -56,13 +56,55 @@ public class EmailService {
      * @return true si el envío fue exitoso, false si falló (no lanza excepción).
      */
     public boolean enviarTicket(String destinatario, String asunto, String htmlContent) {
-        return enviarConImagen(destinatario, asunto, htmlContent, null);
+        // Los QR del ticket («Síguenos») vienen como imágenes remotas que los correos bloquean: se dibujan aquí y viajan DENTRO del correo.
+        java.util.List<ImagenCorreo> incrustadas = new java.util.ArrayList<>();
+        String html = incrustarQrRemotos(htmlContent, incrustadas);
+        return enviarConImagenes(destinatario, asunto, html, incrustadas);
     }
 
-    /** Imagen PNG que viaja dentro del correo ({@code <img src="cid:...">}) y también como archivo adjunto. */
+    private static final java.util.regex.Pattern QR_REMOTO =
+            java.util.regex.Pattern.compile("https://api\\.qrserver\\.com/v1/create-qr-code/\\?[^\"'\\s>]*?data=([^&\"'\\s>]+)[^\"'\\s>]*");
+
+    /**
+     * Cambia cada QR remoto ({@code https://api.qrserver.com/...data=...}) por una imagen incrustada ({@code cid:}) dibujada con {@code GeneradorQrPng}.
+     * Si algo falla con un QR, se deja la imagen remota como estaba (nunca se pierde el correo). Un HTML sin QR remotos sale igual.
+     */
+    private String incrustarQrRemotos(String html, java.util.List<ImagenCorreo> destino) {
+        if (html == null || !html.contains("api.qrserver.com")) {
+            return html;
+        }
+        java.util.regex.Matcher m = QR_REMOTO.matcher(html);
+        StringBuilder sb = new StringBuilder();
+        java.util.Map<String, String> yaHechos = new java.util.HashMap<>();
+        while (m.find()) {
+            String reemplazo = m.group();
+            try {
+                String dato = java.net.URLDecoder.decode(m.group(1), java.nio.charset.StandardCharsets.UTF_8);
+                String cid = yaHechos.get(dato);
+                if (cid == null) {
+                    cid = "qrsocial" + yaHechos.size();
+                    byte[] png = com.ventas.key.hexagonal.campana.infraestructura.salida.correo.GeneradorQrPng.png(dato, 240);
+                    destino.add(new ImagenCorreo(cid, null, png));
+                    yaHechos.put(dato, cid);
+                }
+                reemplazo = "cid:" + cid;
+            } catch (RuntimeException | LinkageError e) {
+                log.warn("No se pudo incrustar un QR del ticket (se deja la imagen remota): {}", e.toString());
+            }
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(reemplazo));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** Imagen PNG que viaja dentro del correo ({@code <img src="cid:...">}); con {@code nombreArchivo} también va como archivo adjunto. */
     private record ImagenCorreo(String cid, String nombreArchivo, byte[] png) { }
 
     private boolean enviarConImagen(String destinatario, String asunto, String htmlContent, ImagenCorreo imagen) {
+        return enviarConImagenes(destinatario, asunto, htmlContent, imagen == null ? java.util.List.of() : java.util.List.of(imagen));
+    }
+
+    private boolean enviarConImagenes(String destinatario, String asunto, String htmlContent, java.util.List<ImagenCorreo> imagenes) {
         if (destinatario == null || destinatario.isBlank()) {
             log.warn("EmailService: destinatario vacío, correo no enviado");
             return false;
@@ -78,10 +120,12 @@ public class EmailService {
             helper.setTo(destinatario);
             helper.setSubject(asunto);
             helper.setText(envolverPlantilla(htmlContent), true);
-            if (imagen != null) {
-                // addInline va DESPUÉS de setText. Incrustada para verla en el correo; adjunta para guardarla o reenviarla.
+            for (ImagenCorreo imagen : imagenes) {
+                // addInline va DESPUÉS de setText. Incrustada para verla en el correo; con nombre de archivo también adjunta (guardarla o reenviarla).
                 helper.addInline(imagen.cid(), new org.springframework.core.io.ByteArrayResource(imagen.png()), "image/png");
-                helper.addAttachment(imagen.nombreArchivo(), new org.springframework.core.io.ByteArrayResource(imagen.png()), "image/png");
+                if (imagen.nombreArchivo() != null) {
+                    helper.addAttachment(imagen.nombreArchivo(), new org.springframework.core.io.ByteArrayResource(imagen.png()), "image/png");
+                }
             }
             mailSender.send(message);
             log.info("Correo enviado a: {}", destinatario);
@@ -283,7 +327,7 @@ public class EmailService {
 
     private static final String CID_QR_CODIGO = "qrcodigo";
     /** TEMPORAL (2026-11-08): se imprime en el correo del código para saber qué versión corre en QA. Cambiarla en cada subida y quitarla al terminar. */
-    private static final String MARCA_VERSION_PRUEBA = "QR-3";
+    private static final String MARCA_VERSION_PRUEBA = "QR-5";
 
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
         return enviarCodigoCampana(destinatario, nombre, nombreCampana, uuid, true);

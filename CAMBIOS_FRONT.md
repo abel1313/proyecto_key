@@ -23673,3 +23673,19 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Qué pasaba:** un producto con rebaja menor que su precio de campaña (ej. CROSS BODY: normal $620, rebaja $600, campaña $610) hacía que Venta directa mandara $610 (el front compara contra el normal) y el back lo rechazara con «El precio de CROSS BODY no es valido: llego 610.00 y los precios de catalogo son 620.00 (normal) o 600.00 (rebaja)», porque comparaba la campaña contra el más bajo (la rebaja).
 **Ahora:** la base de la campaña (para el precio y para lo que suma a la meta) es el **precio normal** de la línea, igual que en el front. Con campaña se cobra $610 y el ticket marca «Precio de campaña» con el normal ($620) tachado. La rebaja manual ($600) se sigue aceptando si se manda. Sin cambios en el front ni en los contratos.
 
+---
+
+## Corrección: el ticket de la venta que se está haciendo ya NO suma para la meta (2026-11-08)
+
+**Qué pasaba:** con un cliente que llevaba $1,000 pagados de una meta de $1,499, Venta directa decía «ya es recurrente» y bajaba los juguetes a precio de campaña, porque sumaba al avance el ticket de la venta en curso ($1,000 + el carrito ≥ $1,499). Esa compra apenas se está pagando y es la que lo haría llegar: se calificaba a sí misma.
+**Ahora:** solo cuenta lo **ya pagado** (contado de ventas anteriores y abonos, desde el inicio de la campaña). Con $1,000 de $1,499 NO hay descuento en esta venta; el aviso dice «le faltan $499 pagados para el precio de campaña». El descuento entra desde la **siguiente** compra, cuando lo ya pagado llegue a la meta, o a mano con la casilla «Cliente recurrente». El back decide igual que el front (`ParticiparEnCampanaService.decidir`: `califica(acumulado, 0, meta, manual)`).
+**Cambia respecto a la regla anterior:** antes «acumulado + ticket actual ≥ meta»; ahora «acumulado ya pagado ≥ meta».
+
+---
+
+## El ticket por correo ahora tiene diseño y sus QR se ven (2026-11-08)
+
+**Qué pasaba:** el ticket que llegaba por correo era el mismo de la impresora térmica, con clases CSS que un correo no tiene: salía como texto suelto («1x COACH$610.00») sin colores, y los QR de Tienda/WhatsApp/Facebook eran imágenes remotas que el correo bloquea (cuadros rosas).
+**Ahora:** el front rehace el ticket para correo con estilos en línea y tablas, con los colores de la marca: artículos con su importe a la derecha, «🎁 Precio de campaña» en verde con el normal tachado, TOTAL grande sobre fondo verde suave, pago/cambio, agradecimiento y garantía. El back dibuja los QR de «Síguenos» y los manda **incrustados** en el correo, así se ven sin cargar imágenes. Aplica a venta, abonos, liquidación, cancelación y reenvío de comprobante.
+**No cambia:** el ticket que se imprime y el texto de WhatsApp. Endpoints y campos: sin cambios.
+

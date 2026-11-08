@@ -72,11 +72,11 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
                 sinJuguetes = sinJuguetes.add(importe);
             }
         }
-        // Lo que lleva de la campaña = lo PAGADO entre su fecha de inicio y de fin. Lo de este ticket solo cuenta si se paga ahora (Contado).
+        // Lo que lleva de la campaña = lo YA PAGADO entre su fecha de inicio y de fin. El ticket de esta venta NO cuenta: apenas se está pagando y es
+        // justo la compra que lo haría llegar a la meta (pedido del dueño 2026-11-08: con $1,000 de $1,500 no lleva descuento en esta venta).
         BigDecimal acumulado = persona == null ? BigDecimal.ZERO : personas.acumulado(campana, persona);
-        BigDecimal ticketQueSuma = s.cobro() == FormaDeCobro.CONTADO ? totalTicket : BigDecimal.ZERO;
         boolean recurrente = persona != null
-                ? ReglasCampana.califica(acumulado, ticketQueSuma, campana.metaMonto(), s.recurrenteManual())
+                ? ReglasCampana.califica(acumulado, BigDecimal.ZERO, campana.metaMonto(), s.recurrenteManual())
                 : s.recurrenteManual();
 
         Map<Integer, BigDecimal> precios = new HashMap<>();
