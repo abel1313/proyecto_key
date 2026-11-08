@@ -4,8 +4,11 @@ import com.ventas.key.hexagonal.campana.dominio.modelo.ClienteDeCodigo;
 import com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente;
 import com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro;
+import com.ventas.key.hexagonal.campana.dominio.modelo.RegistroDeCompra;
 import com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.VerificacionDeCodigo;
+
+import java.util.Optional;
 
 /** [Hexagonal: Driving Port] Lo que la venta y Venta directa hacen con la campaña vigente. */
 public interface ParticiparEnCampanaCasoUso {
@@ -14,7 +17,15 @@ public interface ParticiparEnCampanaCasoUso {
     DecisionDeCampana decidir(SolicitudDeCampana solicitud);
 
     /** Al cerrar la venta: guarda a la persona nueva, liga el pedido y le manda su código por correo. Nunca hace caer la venta. */
-    void registrarCompra(DecisionDeCampana decision, int pedidoId, FormaDeCobro cobro);
+    default void registrarCompra(DecisionDeCampana decision, int pedidoId, FormaDeCobro cobro) {
+        registrarCompra(decision, pedidoId, cobro, true);
+    }
+
+    /**
+     * Igual que el anterior, pero con {@code mandarCorreo=false} no manda el correo del código (quien llama lo incluye en otro correo, p. ej. el de
+     * «Agrega tu compra a tu cuenta») y devuelve a quién se ligó la compra ({@link Optional#empty()} si no hubo campaña o persona).
+     */
+    Optional<RegistroDeCompra> registrarCompra(DecisionDeCampana decision, int pedidoId, FormaDeCobro cobro, boolean mandarCorreo);
 
     /** El botón «Verificar» de Venta directa. {@code quien} limita los intentos (usuario que pregunta). */
     VerificacionDeCodigo verificar(String quien, String codigo, ContactoCliente contacto);

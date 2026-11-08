@@ -371,7 +371,10 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setDetalles(detallesPedido);
         iPedidoRepository.save(pedido);
         recordarPreciosAntesDeGrupo(detallesPedido);
-        registrarCompraDeCampana(decisionCampana, pedido.getId(), com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO);
+        // Cliente sin registro con correo: sale el correo «Agrega tu compra a tu cuenta»; el codigo de la campana va DENTRO de ese mismo correo (un solo correo).
+        boolean correoUnico = esSinRegistro && clienteSinRegistro.getCorreoElectronico() != null && !clienteSinRegistro.getCorreoElectronico().isBlank();
+        var registroCampana = registrarCompraDeCampana(decisionCampana, pedido.getId(),
+                com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO, !correoUnico);
 
         // Crear Venta vinculada al Pedido
         Venta venta = new Venta();
@@ -403,7 +406,15 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         boolean requiereTerminal = requiereTerminal(pagosYMeses, mesesIntereses);
         Venta saved = iVentaRepository.save(venta);
         if (codigoReclamo != null) {
-            emailService.enviarCodigoReclamoVenta(clienteSinRegistro.getCorreoElectronico(), codigoReclamo);
+            String correoCliente = clienteSinRegistro.getCorreoElectronico();
+            EmailService.CodigoCampanaCorreo deCampana = registroCampana
+                    .map(r -> new EmailService.CodigoCampanaCorreo(r.persona().nombre(), r.nombreCampana(), r.persona().uuid(), r.nueva()))
+                    .orElse(null);
+            boolean salio = emailService.enviarCodigoReclamoVenta(correoCliente, codigoReclamo, deCampana);
+            if (!salio && deCampana != null) {
+                // Si el correo unico no salio, el codigo de la campana no se pierde: se manda aparte.
+                emailService.enviarCodigoCampana(correoCliente, deCampana.nombre(), deCampana.nombreCampana(), deCampana.uuid(), deCampana.primeraVez());
+            }
         }
         cacheService.evictAll();
         try {
@@ -641,13 +652,23 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     /** Al cerrar la venta: liga el pedido a la persona y le manda su codigo. Nunca hace caer la venta. */
     private void registrarCompraDeCampana(com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decision, Integer pedidoId,
                                           com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro cobro) {
+        registrarCompraDeCampana(decision, pedidoId, cobro, true);
+    }
+
+    /** Con {@code mandarCorreo=false} el correo del codigo no sale aparte: quien llama lo mete en otro correo (un solo correo por compra). */
+    private java.util.Optional<com.ventas.key.hexagonal.campana.dominio.modelo.RegistroDeCompra> registrarCompraDeCampana(
+            com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decision, Integer pedidoId,
+            com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro cobro, boolean mandarCorreo) {
         if (campanas == null || decision == null || !decision.hayCampana() || pedidoId == null) {
-            return;
+            return java.util.Optional.empty();
         }
         try {
-            campanas.registrarCompra(decision, pedidoId, cobro);
+            java.util.Optional<com.ventas.key.hexagonal.campana.dominio.modelo.RegistroDeCompra> r =
+                    campanas.registrarCompra(decision, pedidoId, cobro, mandarCorreo);
+            return r == null ? java.util.Optional.empty() : r;
         } catch (RuntimeException e) {
             log.warn("No se pudo registrar la compra en la campana del pedido {}: {}", pedidoId, e.getMessage());
+            return java.util.Optional.empty();
         }
     }
 

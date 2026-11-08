@@ -169,7 +169,7 @@ class VentaDirectaCampanaTest {
         assertThat(d.getPrecioUnitario()).isEqualTo(300.0);
         assertThat(d.getPrecioAntesDeGrupo()).isEqualTo(400.0);
         assertThat(d.getOrigenDelDescuento()).isEqualTo(OrigenDePrecio.CAMPANA);
-        verify(campana).registrarCompra(any(), org.mockito.ArgumentMatchers.eq(77), org.mockito.ArgumentMatchers.eq(FormaDeCobro.CONTADO));
+        verify(campana).registrarCompra(any(), org.mockito.ArgumentMatchers.eq(77), org.mockito.ArgumentMatchers.eq(FormaDeCobro.CONTADO), org.mockito.ArgumentMatchers.eq(true));
     }
 
     @Test
@@ -246,6 +246,6 @@ class VentaDirectaCampanaTest {
         assertThat(s.getValue().lineas()).hasSize(1);
         assertThat(s.getValue().lineas().get(0).precioBase()).isEqualByComparingTo("400");
         assertThat(pedidoGuardado().getTotalPedido()).isEqualTo(300.0);
-        verify(campana).registrarCompra(any(), org.mockito.ArgumentMatchers.eq(77), org.mockito.ArgumentMatchers.eq(FormaDeCobro.APARTADO));
+        verify(campana).registrarCompra(any(), org.mockito.ArgumentMatchers.eq(77), org.mockito.ArgumentMatchers.eq(FormaDeCobro.APARTADO), org.mockito.ArgumentMatchers.eq(true));
     }
 }

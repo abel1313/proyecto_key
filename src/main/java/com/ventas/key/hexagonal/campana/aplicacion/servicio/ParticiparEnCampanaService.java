@@ -6,6 +6,7 @@ import com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente;
 import com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro;
 import com.ventas.key.hexagonal.campana.dominio.modelo.PersonaCampana;
+import com.ventas.key.hexagonal.campana.dominio.modelo.RegistroDeCompra;
 import com.ventas.key.hexagonal.campana.dominio.modelo.PrecioDeCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.ReglasCampana;
 import com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana;
@@ -108,9 +109,9 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
     }
 
     @Override
-    public void registrarCompra(DecisionDeCampana d, int pedidoId, FormaDeCobro cobro) {
+    public Optional<RegistroDeCompra> registrarCompra(DecisionDeCampana d, int pedidoId, FormaDeCobro cobro, boolean mandarCorreo) {
         if (d == null || !d.hayCampana()) {
-            return;
+            return Optional.empty();
         }
         PersonaCampana persona = d.persona();
         boolean nueva = false;
@@ -119,7 +120,7 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
             nueva = true;
         }
         if (persona == null) {
-            return;
+            return Optional.empty();
         }
         if (!nueva) {
             // Una persona anterior al ligado con el cliente: se le anota el cliente de esta compra (si todavía no lo tenía).
@@ -129,14 +130,16 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         personas.ligarPedido(d.campanaId(), persona.id(), pedidoId, monto);
         // El código sale en el correo de CADA compra (no solo la primera): así la persona siempre lo tiene a la mano. Va al correo de la venta,
         // y si no trae, al de la persona; sin ninguno no se manda nada (el código existe igual y el administrador lo ve).
+        // Con mandarCorreo=false quien llama lo incluye en otro correo (un solo correo por compra).
         String destino = d.correoDeLaVenta() != null && !d.correoDeLaVenta().isBlank() ? d.correoDeLaVenta().trim() : persona.correo();
-        if (destino != null && !destino.isBlank()) {
+        if (mandarCorreo && destino != null && !destino.isBlank()) {
             try {
                 aviso.enviar(persona, d.nombreCampana(), destino, nueva);
             } catch (RuntimeException e) {
                 // El correo nunca hace caer la venta; el código existe igual y el administrador lo ve.
             }
         }
+        return Optional.of(new RegistroDeCompra(persona, nueva, d.nombreCampana()));
     }
 
     @Override

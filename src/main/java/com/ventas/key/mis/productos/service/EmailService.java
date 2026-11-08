@@ -244,14 +244,31 @@ public class EmailService {
      * @return true si el envío fue exitoso, false si falló (no lanza excepción).
      */
     public boolean enviarCodigoReclamoVenta(String destinatario, String codigo) {
-        String asunto = "Agrega tu compra a tu cuenta — Novedades Jade";
+        return enviarCodigoReclamoVenta(destinatario, codigo, null);
+    }
+
+    /**
+     * Igual que el anterior; si la venta también es de una campaña, el mismo correo lleva abajo el código de cliente de la campaña con su QR
+     * (un solo correo por compra, no dos).
+     */
+    public boolean enviarCodigoReclamoVenta(String destinatario, String codigo, CodigoCampanaCorreo campana) {
         String html = "<p style=\"margin:0 0 4px;\">Gracias por tu compra. Para que quede asociada a tu "
                 + "cuenta, entra a la app, inicia sesión y captura este código en la sección "
                 + "\"Agregar mi compra\":</p>"
                 + cajaCodigo(codigo)
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Este código solo se puede usar una "
                 + "vez. Si tú no realizaste esta compra, ignora este correo.</p>";
-        return enviarTicket(destinatario, asunto, html);
+        if (campana == null) {
+            return enviarTicket(destinatario, "Agrega tu compra a tu cuenta — Novedades Jade", html);
+        }
+        BloqueCampana bloque = bloqueCodigoCampana(campana.uuid(), destinatario);
+        html += "<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:22px 0;\">"
+                + "<p style=\"margin:0 0 4px;\"><strong>🎁 Tu código de cliente de la campaña"
+                + (campana.nombreCampana() == null || campana.nombreCampana().isBlank() ? "" : " «" + escaparHtmlCampana(campana.nombreCampana()) + "»")
+                + "</strong></p>"
+                + "<p style=\"margin:0 0 4px;\">" + introCodigoCampana(campana.nombre(), campana.nombreCampana(), campana.primeraVez()) + "</p>"
+                + bloque.html();
+        return enviarConImagen(destinatario, "Tu compra y tu código de cliente — Novedades Jade", html, bloque.imagen());
     }
 
     /**
@@ -266,18 +283,21 @@ public class EmailService {
 
     private static final String CID_QR_CODIGO = "qrcodigo";
     /** TEMPORAL (2026-11-08): se imprime en el correo del código para saber qué versión corre en QA. Cambiarla en cada subida y quitarla al terminar. */
-    private static final String MARCA_VERSION_PRUEBA = "QR-2";
+    private static final String MARCA_VERSION_PRUEBA = "QR-3";
 
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
         return enviarCodigoCampana(destinatario, nombre, nombreCampana, uuid, true);
     }
 
-    /** @param primeraVez false cuando la persona ya tenía su código: el correo dice «aquí está tu código de nuevo». */
-    public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid, boolean primeraVez) {
+    /** Lo que lleva el bloque de la campaña cuando va dentro de otro correo (el de «Agrega tu compra a tu cuenta»). */
+    public record CodigoCampanaCorreo(String nombre, String nombreCampana, String uuid, boolean primeraVez) { }
+
+    /** Bloque de la campaña (código en caja, QR, liga de respaldo, aviso de privacidad) más la imagen del QR (null si no se pudo dibujar). */
+    private record BloqueCampana(String html, ImagenCorreo imagen) { }
+
+    private BloqueCampana bloqueCodigoCampana(String uuid, String destinatario) {
         String base = frontendBaseUrl == null ? "" : frontendBaseUrl.replaceAll("/+$", "");
         String liga = base + "/codigo-campana/" + uuid;
-        String saludo = nombre == null || nombre.isBlank() ? "Hola" : "Hola " + escaparHtmlCampana(nombre.trim());
-        String asunto = "Tu código de cliente — Novedades Jade";
         // Un fallo al dibujar el QR no pierde el correo: sale sin la imagen (siguen el UUID y la liga).
         byte[] png = null;
         try {
@@ -287,11 +307,7 @@ public class EmailService {
             // LinkageError: un fallo de AWT/ImageIO en el contenedor es un Error, no una excepción: sin esto tumbaría el correo.
             log.warn("Código de campaña [{}]: NO se pudo dibujar el QR, el correo sale sin imagen: {}", MARCA_VERSION_PRUEBA, e.toString(), e);
         }
-        String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", gracias por tu compra"
-                + (nombreCampana == null || nombreCampana.isBlank() ? "" : " en «" + escaparHtmlCampana(nombreCampana) + "»")
-                + ". " + (primeraVez ? "Este es tu código personal de cliente" : "Aquí está tu código personal de cliente de nuevo")
-                + ": enséñalo (o su QR) cuando compres para llevar los precios de campaña cuando juntes la meta.</p>"
-                + cajaCodigo(uuid)
+        String html = cajaCodigo(uuid)
                 + (png == null ? "" : "<p style=\"text-align:center;margin:0 0 8px;\"><img src=\"cid:" + CID_QR_CODIGO
                         + "\" width=\"220\" height=\"220\" alt=\"Tu QR\" style=\"display:inline-block;border:1px solid #e5e7eb;\"></p>")
                 + "<p style=\"margin:0 0 8px;\">Si no ves el QR, ábrelo aquí: <a href=\"" + liga + "\">" + liga + "</a></p>"
@@ -299,8 +315,23 @@ public class EmailService {
                 + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>"
                 // TEMPORAL: marca para saber qué versión está corriendo en QA. Cambiarla en cada subida; QUITARLA al terminar (ver TESTS_PENDIENTES.md).
                 + "<p style=\"margin:8px 0 0;color:#9ca3af;font-size:11px;\">Versión de prueba: " + MARCA_VERSION_PRUEBA + "</p>";
-        return enviarConImagen(destinatario, asunto, html,
-                png == null ? null : new ImagenCorreo(CID_QR_CODIGO, "codigo-jade.png", png));
+        return new BloqueCampana(html, png == null ? null : new ImagenCorreo(CID_QR_CODIGO, "codigo-jade.png", png));
+    }
+
+    private static String introCodigoCampana(String nombre, String nombreCampana, boolean primeraVez) {
+        return "Gracias por tu compra"
+                + (nombreCampana == null || nombreCampana.isBlank() ? "" : " en «" + escaparHtmlCampana(nombreCampana) + "»")
+                + ". " + (primeraVez ? "Este es tu código personal de cliente" : "Aquí está tu código personal de cliente de nuevo")
+                + ": enséñalo (o su QR) cuando compres para llevar los precios de campaña cuando juntes la meta.";
+    }
+
+    /** @param primeraVez false cuando la persona ya tenía su código: el correo dice «aquí está tu código de nuevo». */
+    public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid, boolean primeraVez) {
+        String saludo = nombre == null || nombre.isBlank() ? "Hola" : "Hola " + escaparHtmlCampana(nombre.trim());
+        BloqueCampana bloque = bloqueCodigoCampana(uuid, destinatario);
+        String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", " + introCodigoCampana(nombre, nombreCampana, primeraVez).substring(0, 1).toLowerCase()
+                + introCodigoCampana(nombre, nombreCampana, primeraVez).substring(1) + "</p>" + bloque.html();
+        return enviarConImagen(destinatario, "Tu código de cliente — Novedades Jade", html, bloque.imagen());
     }
 
     /**

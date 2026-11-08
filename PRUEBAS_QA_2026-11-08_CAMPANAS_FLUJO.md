@@ -30,6 +30,8 @@ Con **el mismo correo** de la prueba 2, haz otra compra con la casilla de privac
 **✅** Llega otro correo «Tu código de cliente», con «Aquí está tu código personal de cliente de nuevo», el **mismo QR** y el adjunto `codigo-jade.png`; abajo dice «Versión de prueba: QR-2» (si no sale, el deploy no ha terminado). En Campañas → **Reporte** cada persona tiene el botón **Ver QR**.
 **⛔** Que no llegue correo en la segunda compra.
 
+**Un solo correo:** con un cliente **sin registro** y correo, en **Contado**, llega **UN** correo «Tu compra y tu código de cliente» (arriba el código de «Agregar mi compra», abajo el QR de la campaña, «Versión de prueba: QR-3»). **⛔** Que lleguen dos.
+
 ## 🔴 PRUEBA PENDIENTE — 3 «No registrar»
 Otra venta sin cliente → Cobrar → **No registrar** (o Sí → «No registrar y cobrar»).
 **✅** Se cobra a nombre del administrador, sin persona ni correo.

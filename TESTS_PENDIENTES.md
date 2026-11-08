@@ -27,6 +27,8 @@ Formato de cada entrada:
 - [ ] si el PNG falla, el correo sale sin imagen y devuelve `true`
 - [ ] QA: el correo muestra el QR en Gmail (web y celular); al escanearlo con el 📱 en Venta directa se llena el cliente
 (Comprobado a mano el 2026-11-08 con una prueba temporal que se borró.)
+- [ ] **Un solo correo por compra:** venta de Contado con cliente sin registro y correo + campaña → UN correo «Tu compra y tu código de cliente» con el código de «Agregar mi compra» y abajo el bloque de la campaña con QR incrustado y adjunto; sin campaña sigue «Agrega tu compra a tu cuenta» idéntico a antes; si el correo único falla se manda aparte el de campaña; Apartado / Ir pagando / cliente registrado siguen con «Tu código de cliente» solo
+- [ ] Test existente ajustado: `VentaDirectaCampanaTest` (ahora verifica `registrarCompra(..., mandarCorreo)` de 4 parámetros)
 - [ ] `registrarCompra` manda el correo del código en **cada** compra confirmada (persona nueva: «primera vez»; existente: «de nuevo»), al correo de la venta o, si no hay, al de la persona; sin ninguno no manda; el correo nunca tira la venta
 - [ ] Test existente que quedó viejo y se ajustó: `ParticiparEnCampanaTest.creaPersona` (ahora la segunda compra de la misma persona **sí** manda correo; el puerto `AvisarCodigoCampanaPort.enviar` tiene 4 parámetros)
 - [ ] **QUITAR AL TERMINAR:** la constante temporal `MARCA_VERSION_PRUEBA` de `EmailService` y la línea «Versión de prueba: …» del pie del correo del código (sirve para ver qué versión corre en QA; cambiarla en cada subida: QR-1, QR-2…).

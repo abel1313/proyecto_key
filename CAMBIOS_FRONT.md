@@ -23649,3 +23649,11 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Si no recuerda con qué correo se registró:** el administrador lo ve en Campañas → Reporte (código de cada persona) y ahí mismo hay un botón **«Ver QR»** que abre la página del QR para mostrarlo o mandarlo por WhatsApp; también puede reenviarlo a otro correo desde Mis pedidos → «🎁 Enviar código de campaña».
 **Front:** botón «Ver QR» por persona en el reporte; sin endpoints ni campos nuevos.
 
+---
+
+## Un solo correo por compra: el QR va dentro de «Agrega tu compra a tu cuenta» (2026-11-08)
+
+**Antes:** en una venta de Contado con cliente sin registro y correo, con campaña vigente llegaban **dos** correos: «Agrega tu compra a tu cuenta» (código de un solo uso para ligar la compra a la cuenta) y «Tu código de cliente» (código de la campaña con su QR). Los dos códigos son UUID y se confundían.
+**Ahora:** llega **uno**: «Tu compra y tu código de cliente», con el código para «Agregar mi compra» arriba y debajo el bloque «🎁 Tu código de cliente de la campaña» (código, QR incrustado, adjunto `codigo-jade.png`, liga de respaldo y aviso de privacidad). Si la venta no es de campaña, el correo es el de siempre. En Apartado, Ir pagando, cliente registrado y cobro con tarjeta sigue llegando «Tu código de cliente» solo (no hay correo de «Agrega tu compra»). Si el correo único falla, el de campaña se manda aparte.
+**Front:** sin cambios.
+
