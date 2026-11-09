@@ -2,6 +2,8 @@ package com.ventas.key.hexagonal.calculoprecio.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.calculoprecio.dominio.excepcion.ProductoSinCalculoException;
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoPrecio;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.ComisionTerminal;
+import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.salida.ComisionesTerminalPort;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.entrada.CalculoPrecioCasoUso;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.salida.CalculosPrecioPort;
 
@@ -16,10 +18,12 @@ public class CalculoPrecioService implements CalculoPrecioCasoUso {
     private static final int MAXIMO_HISTORIAL = 50;
 
     private final CalculosPrecioPort calculos;
+    private final ComisionesTerminalPort comisiones;
     private final Clock reloj;
 
-    public CalculoPrecioService(CalculosPrecioPort calculos, Clock reloj) {
+    public CalculoPrecioService(CalculosPrecioPort calculos, ComisionesTerminalPort comisiones, Clock reloj) {
         this.calculos = calculos;
+        this.comisiones = comisiones;
         this.reloj = reloj;
     }
 
@@ -37,5 +41,10 @@ public class CalculoPrecioService implements CalculoPrecioCasoUso {
     @Override
     public List<CalculoPrecio> historial(int productoId, int maximo) {
         return calculos.historial(productoId, Math.max(1, Math.min(maximo, MAXIMO_HISTORIAL)));
+    }
+
+    @Override
+    public List<ComisionTerminal> comisiones() {
+        return comisiones.listar();
     }
 }

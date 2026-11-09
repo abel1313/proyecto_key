@@ -5,6 +5,7 @@ import com.ventas.key.hexagonal.calculoprecio.dominio.excepcion.ProductoSinCalcu
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoPrecio;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.entrada.CalculoPrecioCasoUso;
 import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.CalculoPrecioResponse;
+import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.ComisionTerminalResponse;
 import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.GuardarCalculoPrecioRequest;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -56,6 +57,13 @@ public class CalculoPrecioController {
                                                                             @RequestParam(defaultValue = "10") int max) {
         List<CalculoPrecioResponse> lista = casoUso.historial(productoId, max).stream().map(CalculoPrecioResponse::de).toList();
         return ResponseEntity.ok(new ResponseGeneric<>(lista, "Historial de cálculos de precio"));
+    }
+
+    /** Las comisiones de terminal que ya están dadas de alta (forma de pago + plan, tarifa e IVA en %): la calculadora deja elegir una. */
+    @GetMapping("/comisiones")
+    public ResponseEntity<ResponseGeneric<ComisionTerminalResponse>> comisiones() {
+        List<ComisionTerminalResponse> lista = casoUso.comisiones().stream().map(ComisionTerminalResponse::de).toList();
+        return ResponseEntity.ok(new ResponseGeneric<>(lista, "Comisiones de terminal"));
     }
 
     @ExceptionHandler(CalculoPrecioInvalidoException.class)

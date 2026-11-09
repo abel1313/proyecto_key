@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.calculoprecio.dominio.puerto.entrada;
 
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoPrecio;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.ComisionTerminal;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,4 +14,7 @@ public interface CalculoPrecioCasoUso {
     Optional<CalculoPrecio> ultimo(int productoId);
 
     List<CalculoPrecio> historial(int productoId, int maximo);
+
+    /** Comisiones de terminal ya dadas de alta (para elegir una en la calculadora). */
+    List<ComisionTerminal> comisiones();
 }
