@@ -26,6 +26,7 @@ Formato de cada entrada:
 - [ ] `ultimo` devuelve el más reciente (por fecha y luego id); sin cálculos → 204
 - [ ] `historial` respeta el máximo (tope 50) y viene del más nuevo al más viejo
 - [ ] la migración corre dos veces seguidas y al borrar el producto se borran sus cálculos
+- [ ] `GET /v1/calculos-precio/comisiones` → una fila por cada forma de pago + plan con tarifa de terminal; `totalPct` = tarifa + IVA (IVA 0 si el plan no tiene)
 - [ ] `/v1/calculos-precio/**`: sin sesión 401/403 y con rol no administrador 403 (ya está en `AutorizacionPorEndpointTest`)
 (Comprobado a mano el 2026-11-09 con una prueba temporal que se borró; `AutorizacionPorEndpointTest` en verde con las 3 rutas nuevas.)
 

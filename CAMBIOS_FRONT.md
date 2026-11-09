@@ -23710,6 +23710,9 @@ Migración: `migration_calculo_precio.sql` (tabla `producto_calculo_precio`). To
 - `GET /mis-productos/v1/calculos-precio/producto/{productoId}/ultimo` → 200 con el mismo objeto de arriba; **204** si el producto nunca tuvo un cálculo.
 - `GET /mis-productos/v1/calculos-precio/producto/{productoId}?max=10` → `ResponseGeneric.lista`, del más nuevo al más viejo (máximo 50).
 
+### Comisiones de terminal (para elegir en la calculadora)
+`GET /mis-productos/v1/calculos-precio/comisiones` → `ResponseGeneric.lista` = `[ { pagosYMesesId, descripcion, tarifaPct, ivaPct, totalPct } ]`. Sale del catálogo de pagos que **ya usa el cobro con tarjeta** (forma de pago + plan, con su tarifa e IVA de terminal); `totalPct` = tarifa + IVA, igual que al registrar la venta. La calculadora deja elegir una (por defecto «sin comisión») y manda su `totalPct` como `comisionPct` y su `descripcion` como `comisionDescripcion`.
+
 **Fórmulas del back:** costo total = compra + transporte + otros · comisión = precio cobrado × comisión % · ganancia real = cobrado − costo total − comisión · margen real = ganancia ÷ cobrado.
 **Cambia respecto a antes:** antes la calculadora no guardaba nada; ahora, al pulsar «Usar este precio» y guardar el producto, el front manda este cálculo.
 
