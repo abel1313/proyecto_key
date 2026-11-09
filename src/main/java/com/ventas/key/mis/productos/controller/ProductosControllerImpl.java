@@ -103,12 +103,14 @@ public class ProductosControllerImpl {
             // practica cuando hay muchos productos. fechaDesde=fechaHasta=hoy = "solo hoy".
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
+            // Categoria (palabra clave) del producto, sin importar mayusculas. Omitida = todas.
+            @RequestParam(required = false) String categoria,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "1") int page) {
         log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} codigoGenerado={} fechaDesde={} fechaHasta={} page={} size={}",
                 nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, page, size);
         return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, size, page));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, categoria, size, page));
     }
 
     @PutMapping("{id}/habilitar")
