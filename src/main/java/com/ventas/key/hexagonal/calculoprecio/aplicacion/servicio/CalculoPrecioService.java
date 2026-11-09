@@ -3,6 +3,8 @@ package com.ventas.key.hexagonal.calculoprecio.aplicacion.servicio;
 import com.ventas.key.hexagonal.calculoprecio.dominio.excepcion.ProductoSinCalculoException;
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoPrecio;
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.ComisionTerminal;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.FiltroCalculos;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.PaginaCalculos;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.salida.ComisionesTerminalPort;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.entrada.CalculoPrecioCasoUso;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.salida.CalculosPrecioPort;
@@ -16,6 +18,7 @@ import java.util.Optional;
 public class CalculoPrecioService implements CalculoPrecioCasoUso {
 
     private static final int MAXIMO_HISTORIAL = 50;
+    private static final int MAXIMO_POR_PAGINA = 100;
 
     private final CalculosPrecioPort calculos;
     private final ComisionesTerminalPort comisiones;
@@ -46,5 +49,10 @@ public class CalculoPrecioService implements CalculoPrecioCasoUso {
     @Override
     public List<ComisionTerminal> comisiones() {
         return comisiones.listar();
+    }
+
+    @Override
+    public PaginaCalculos listarUltimos(FiltroCalculos filtro, int pagina, int tamano) {
+        return calculos.ultimosPorProducto(filtro == null ? new FiltroCalculos(null, null, null) : filtro, Math.max(1, pagina), Math.max(1, Math.min(tamano, MAXIMO_POR_PAGINA)));
     }
 }

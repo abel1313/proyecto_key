@@ -23710,6 +23710,11 @@ Migración: `migration_calculo_precio.sql` (tabla `producto_calculo_precio`). To
 - `GET /mis-productos/v1/calculos-precio/producto/{productoId}/ultimo` → 200 con el mismo objeto de arriba; **204** si el producto nunca tuvo un cálculo.
 - `GET /mis-productos/v1/calculos-precio/producto/{productoId}?max=10` → `ResponseGeneric.lista`, del más nuevo al más viejo (máximo 50).
 
+### Ver lo calculado en todos los productos (listado)
+`GET /mis-productos/v1/calculos-precio?nombre=carro&desde=2026-11-01&hasta=2026-11-30&page=1&size=20` (todos los filtros opcionales; `desde` y `hasta` incluidos, yyyy-MM-dd; página desde 1, máximo 100 por página).
+**Response:** `ResponseGeneric.data` = `{ pagina, totalPaginas, totalRegistros, items: [ { calculo: {…el mismo objeto de «Guardar un cálculo»…}, nombreProducto, precioVentaActual, precioCambio } ] }`.
+Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no salen), del más reciente al más viejo. `precioCambio` = true cuando el precio de venta de hoy ya no es el que se cobró en ese cálculo (se cambió el precio después).
+
 ### Comisiones de terminal (para elegir en la calculadora)
 `GET /mis-productos/v1/calculos-precio/comisiones` → `ResponseGeneric.lista` = `[ { pagosYMesesId, descripcion, tarifaPct, ivaPct, totalPct } ]`. Sale del catálogo de pagos que **ya usa el cobro con tarjeta** (forma de pago + plan, con su tarifa e IVA de terminal); `totalPct` = tarifa + IVA, igual que al registrar la venta. La calculadora deja elegir una (por defecto «sin comisión») y manda su `totalPct` como `comisionPct` y su `descripcion` como `comisionDescripcion`.
 

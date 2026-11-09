@@ -1,14 +1,21 @@
 package com.ventas.key.hexagonal.calculoprecio.infraestructura.salida.persistencia;
 
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoDeProducto;
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoPrecio;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.FiltroCalculos;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.PaginaCalculos;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.salida.CalculosPrecioPort;
 import com.ventas.key.mis.productos.entity.ProductoCalculoPrecioEntidad;
 import com.ventas.key.mis.productos.repository.IProductoCalculoPrecioRepository;
 import com.ventas.key.mis.productos.repository.IProductosRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,6 +67,18 @@ public class CalculosPrecioJpaAdapter implements CalculosPrecioPort {
     @Transactional(readOnly = true)
     public List<CalculoPrecio> historial(int productoId, int maximo) {
         return repositorio.findByProductoIdOrderByFechaDescIdDesc(productoId, PageRequest.of(0, maximo)).stream().map(this::aDominio).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaginaCalculos ultimosPorProducto(FiltroCalculos f, int pagina, int tamano) {
+        LocalDateTime desde = (f.desde() != null ? f.desde() : LocalDate.of(2000, 1, 1)).atStartOfDay();
+        LocalDateTime hasta = (f.hasta() != null ? f.hasta() : LocalDate.of(2999, 12, 31)).plusDays(1).atStartOfDay();
+        Page<Object[]> p = repositorio.ultimosPorProducto(f.nombre(), desde, hasta, PageRequest.of(pagina - 1, tamano));
+        List<CalculoDeProducto> items = p.getContent().stream().map(fila -> new CalculoDeProducto(
+                aDominio((ProductoCalculoPrecioEntidad) fila[0]), (String) fila[1],
+                fila[2] == null ? null : BigDecimal.valueOf(((Number) fila[2]).doubleValue()).setScale(2, java.math.RoundingMode.HALF_UP))).toList();
+        return new PaginaCalculos(items, p.getTotalElements(), pagina, tamano);
     }
 
     private CalculoPrecio aDominio(ProductoCalculoPrecioEntidad e) {
