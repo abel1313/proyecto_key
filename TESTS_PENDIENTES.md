@@ -32,6 +32,20 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-09 — Listado de lo calculado en todos los productos (`GET /v1/calculos-precio`)
+**Dónde:** `CalculosPrecioJpaAdapter.ultimosPorProducto`, `IProductoCalculoPrecioRepository.ultimosPorProducto`, `CalculoPrecioController.listar`
+**Tipo:** JPA (H2) · unitario del servicio (tope de tamaño de página) · controller
+**Debe comprobar:**
+- [ ] solo sale el último cálculo (el de id mayor) de cada producto; productos sin cálculo no salen; orden del más reciente al más viejo
+- [ ] filtro `nombre` sin importar mayúsculas; `desde`/`hasta` incluyen todo el día de los dos extremos
+- [ ] páginas: `totalPaginas` y `totalRegistros` bien; `size` mayor a 100 se recorta a 100; `page` menor a 1 cuenta como 1
+- [ ] `precioCambio` es true cuando el precio de venta de hoy ≠ el cobrado del último cálculo
+- [ ] sin sesión 401/403 y con rol no administrador 403 (ya está en `AutorizacionPorEndpointTest`)
+(Comprobado a mano el 2026-11-09 con una prueba JPA temporal que se borró.)
+
+---
+
+
 
 
 ### 2026-11-08 — Correo del código de campaña con el QR como imagen (incrustada y adjunta)

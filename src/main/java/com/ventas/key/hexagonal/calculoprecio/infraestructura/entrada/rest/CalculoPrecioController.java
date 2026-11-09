@@ -4,13 +4,16 @@ import com.ventas.key.hexagonal.calculoprecio.dominio.excepcion.CalculoPrecioInv
 import com.ventas.key.hexagonal.calculoprecio.dominio.excepcion.ProductoSinCalculoException;
 import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.CalculoPrecio;
 import com.ventas.key.hexagonal.calculoprecio.dominio.puerto.entrada.CalculoPrecioCasoUso;
+import com.ventas.key.hexagonal.calculoprecio.dominio.modelo.FiltroCalculos;
 import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.CalculoPrecioResponse;
+import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.PaginaCalculosResponse;
 import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.ComisionTerminalResponse;
 import com.ventas.key.hexagonal.calculoprecio.infraestructura.dto.GuardarCalculoPrecioRequest;
 import com.ventas.key.mis.productos.Utils.AuthenticationUtils;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -42,6 +46,20 @@ public class CalculoPrecioController {
                 r.nota(), null, null);
         String usuario = AuthenticationUtils.currentUsuarioOpt().map(u -> u.getUsername()).orElse(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(new ResponseGeneric<>(CalculoPrecioResponse.de(casoUso.guardar(c, usuario))));
+    }
+
+    /**
+     * Lo calculado en todos los productos: el último cálculo de cada uno, del más reciente al más viejo.
+     * Filtros opcionales: {@code nombre} (parte del nombre del producto), {@code desde} y {@code hasta} (yyyy-MM-dd, incluidos). Página desde 1.
+     */
+    @GetMapping
+    public ResponseEntity<ResponseGeneric<PaginaCalculosResponse>> listar(
+            @RequestParam(required = false) String nombre,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        PaginaCalculosResponse r = PaginaCalculosResponse.de(casoUso.listarUltimos(new FiltroCalculos(nombre, desde, hasta), page, size));
+        return ResponseEntity.ok(new ResponseGeneric<>(r, "Últimos cálculos de precio"));
     }
 
     /** 204 si el producto nunca tuvo un cálculo. */
