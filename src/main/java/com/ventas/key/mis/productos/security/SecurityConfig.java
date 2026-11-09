@@ -607,6 +607,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/v1/gastos/**").hasAnyAuthority(pantalla("gastos/buscar"))
                         .requestMatchers("/v1/gastos/**").hasAnyAuthority(pantallaEscribir("gastos/buscar"))
 
+                        // Cálculos de precio de un producto (2026-11-09): guardar y consultar lo que se calculó; solo administrador.
+                        .requestMatchers("/v1/calculos-precio/**").hasRole("ADMIN")
                         // ── Reportes de ventas ───────────────────────────────────────────
                         // Corte de caja (pedidos por zona con costo y ganancia): solo administrador.
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/corte-caja").hasRole("ADMIN")

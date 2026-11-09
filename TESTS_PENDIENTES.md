@@ -445,6 +445,36 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-09 — Listado de lo calculado en todos los productos (`GET /v1/calculos-precio`)
+**Dónde:** `CalculosPrecioJpaAdapter.ultimosPorProducto`, `IProductoCalculoPrecioRepository.ultimosPorProducto`, `CalculoPrecioController.listar`
+**Tipo:** JPA (H2) · unitario del servicio (tope de tamaño de página) · controller
+**Debe comprobar:**
+- [ ] solo sale el último cálculo (el de id mayor) de cada producto; productos sin cálculo no salen; orden del más reciente al más viejo
+- [ ] filtro `nombre` sin importar mayúsculas; `desde`/`hasta` incluyen todo el día de los dos extremos
+- [ ] páginas: `totalPaginas` y `totalRegistros` bien; `size` mayor a 100 se recorta a 100; `page` menor a 1 cuenta como 1
+- [ ] `precioCambio` es true cuando el precio de venta de hoy ≠ el cobrado del último cálculo
+- [ ] sin sesión 401/403 y con rol no administrador 403 (ya está en `AutorizacionPorEndpointTest`)
+(Comprobado a mano el 2026-11-09 con una prueba JPA temporal que se borró.)
+
+---
+
+### 2026-11-09 — Historial de cálculos de precio de un producto (calculadora de precio)
+**Dónde:** `CalculoPrecio` (dominio), `CalculoPrecioService`, `CalculosPrecioJpaAdapter`, `POST /v1/calculos-precio`, `GET /v1/calculos-precio/producto/{id}/ultimo` y `/producto/{id}`, `migration_calculo_precio.sql`
+**Tipo:** unitario (dominio y servicio con puerto simulado) · MySQL (migración y consultas) · controller (status)
+**Debe comprobar:**
+- [ ] `CalculoPrecio`: compra 100 + transporte 15, comisión 3.6 %, cobrado 150 → costo total 115, comisión $5.40, ganancia real $29.60, margen real 19.73 %
+- [ ] rechaza: compra 0, margen ≥ 100, comisión > 50, precio calculado o cobrado ≤ 0, nota > 300 letras
+- [ ] `guardar` con un producto que no existe → `ProductoSinCalculoException` (404); con producto → sella usuario y fecha
+- [ ] `ultimo` devuelve el más reciente (por fecha y luego id); sin cálculos → 204
+- [ ] `historial` respeta el máximo (tope 50) y viene del más nuevo al más viejo
+- [ ] la migración corre dos veces seguidas y al borrar el producto se borran sus cálculos
+- [ ] `GET /v1/calculos-precio/comisiones` → una fila por cada forma de pago + plan con tarifa de terminal; `totalPct` = tarifa + IVA (IVA 0 si el plan no tiene)
+- [ ] `/v1/calculos-precio/**`: sin sesión 401/403 y con rol no administrador 403 (ya está en `AutorizacionPorEndpointTest`)
+(Comprobado a mano el 2026-11-09 con una prueba temporal que se borró; `AutorizacionPorEndpointTest` en verde con las 3 rutas nuevas.)
+
+---
+
+
 ## Tests existentes que quedaron viejos
 
 | Test | Rama | Desde | Por qué falla |

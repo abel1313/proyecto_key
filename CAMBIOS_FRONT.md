@@ -23205,3 +23205,35 @@ Antes `/ws` no revisaba nada: un anónimo se suscribía a `/topic/chat.admin` y 
 | Registro: `userName` | cualquier texto de 3-100 caracteres | no puede llevar `< > " ' & \``. `400` con el mensaje |
 | `POST /v1/clientes/save` (nombre, segundo nombre, apellidos) | cualquier texto | no pueden llevar `< > " \``. `400` |
 | Frase personalizada del listón (flores) | cualquier texto; se metía sin escapar en el correo al dueño | máximo 120 caracteres y sin `<` ni `>` (`400`); el correo la escapa |
+
+---
+
+## Calculadora de precio: se guarda lo que se calculó de cada producto (2026-11-09)
+
+**Para qué:** saber después, de un producto, cuánto fue su transporte, qué comisión y margen se usaron, qué precio calculó la calculadora y cuál se cobra de verdad (calculó $120 y se cobra $150).
+Migración: `migration_calculo_precio.sql` (tabla `producto_calculo_precio`). Todo es **solo ROLE_ADMIN**. Sin la migración, la calculadora funciona igual y el guardado del cálculo responde error (el front lo ignora y el producto se guarda normal).
+
+### Guardar un cálculo (un registro nuevo del historial)
+**Request:** `POST /mis-productos/v1/calculos-precio`
+```json
+{ "productoId": 625, "costoCompra": 100, "transporte": 15, "otros": 0, "comisionPct": 3.6, "comisionDescripcion": "Contado",
+  "margenPct": 30, "precioCalculado": 173.19, "precioCobrado": 180, "actualizoPrecioCompra": true, "nota": "viaje de noviembre" }
+```
+`transporte`, `otros`, `comisionPct`, `comisionDescripcion`, `margenPct`, `actualizoPrecioCompra` y `nota` son opcionales (0 / false / vacío). No se manda ganancia ni margen real: **se calculan en el back**.
+**Response (201):** `ResponseGeneric.data` = `{ id, productoId, costoCompra, transporte, otros, costoTotal, comisionPct, comisionDescripcion, margenPct, precioCalculado, precioCobrado, gananciaReal, margenReal, actualizoPrecioCompra, nota, usuario, fecha }`.
+**Errores:** 400 con mensaje en palabras del dueño (compra en 0, margen ≥ 100, comisión > 50 %, precios en 0, nota larga); 404 si el producto no existe (por eso se guarda **después** de guardar el producto).
+
+### Último cálculo / historial de un producto
+- `GET /mis-productos/v1/calculos-precio/producto/{productoId}/ultimo` → 200 con el mismo objeto de arriba; **204** si el producto nunca tuvo un cálculo.
+- `GET /mis-productos/v1/calculos-precio/producto/{productoId}?max=10` → `ResponseGeneric.lista`, del más nuevo al más viejo (máximo 50).
+
+### Ver lo calculado en todos los productos (listado)
+`GET /mis-productos/v1/calculos-precio?nombre=carro&desde=2026-11-01&hasta=2026-11-30&page=1&size=20` (todos los filtros opcionales; `desde` y `hasta` incluidos, yyyy-MM-dd; página desde 1, máximo 100 por página).
+**Response:** `ResponseGeneric.data` = `{ pagina, totalPaginas, totalRegistros, items: [ { calculo: {…el mismo objeto de «Guardar un cálculo»…}, nombreProducto, precioVentaActual, precioCambio } ] }`.
+Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no salen), del más reciente al más viejo. `precioCambio` = true cuando el precio de venta de hoy ya no es el que se cobró en ese cálculo (se cambió el precio después).
+
+### Comisiones de terminal (para elegir en la calculadora)
+`GET /mis-productos/v1/calculos-precio/comisiones` → `ResponseGeneric.lista` = `[ { pagosYMesesId, descripcion, tarifaPct, ivaPct, totalPct } ]`. Sale del catálogo de pagos que **ya usa el cobro con tarjeta** (forma de pago + plan, con su tarifa e IVA de terminal); `totalPct` = tarifa + IVA, igual que al registrar la venta. La calculadora deja elegir una (por defecto «sin comisión») y manda su `totalPct` como `comisionPct` y su `descripcion` como `comisionDescripcion`.
+
+**Fórmulas del back:** costo total = compra + transporte + otros · comisión = precio cobrado × comisión % · ganancia real = cobrado − costo total − comisión · margen real = ganancia ÷ cobrado.
+**Cambia respecto a antes:** antes la calculadora no guardaba nada; ahora, al pulsar «Usar este precio» y guardar el producto, el front manda este cálculo.

@@ -715,6 +715,7 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 9 | `migration_codigo_postal.sql` | Crea la tabla `codigo_postal`: sin ella falla la consulta de códigos postales. Ya corrida en QA (2026-10-14) | 2026-10-14 |
 | 10 | `migration_sesion_refresh_gracia.sql` | Agrega `jti_anterior` y `rotado_en` a `sesion_refresh`: **sin ellas fallan el login y la renovación de sesión**. Ya corrida en QA (2026-10-14) | 2026-10-14 |
 | 11 | `migration_submenu_corte_caja.sql` | Da de alta la pantalla `reportes/corte-caja` en `submenu` (mismo grupo que «Reportes de ventas») y se la da solo a `ROLE_ADMIN`. Sin ella el menú no muestra «🧾 Corte de caja» y el guard del front manda a `/tienda/buscar`; el endpoint `GET /v1/reportes/corte-caja` funciona igual. Requiere que el back del corte (`hexagonal/cortecaja`) y el front estén en prod. Ya corrida en QA (2026-11-05). **Después de correrla: volver a entrar** (las pantallas viajan en el JWT) | 2026-11-05 |
+| 12 | `migration_calculo_precio.sql` | Crea `producto_calculo_precio` (historial de cálculos de precio por producto: costos por pieza, comisión de tarjeta elegida, margen, precio calculado y precio cobrado; se borra sola si se borra el producto). Sin ella la calculadora de precio funciona igual y solo no se guarda el historial | 2026-11-09 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
