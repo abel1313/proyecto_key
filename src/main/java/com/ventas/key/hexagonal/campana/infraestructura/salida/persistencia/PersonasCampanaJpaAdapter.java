@@ -114,15 +114,20 @@ public class PersonasCampanaJpaAdapter implements PersonasCampanaPort {
         java.time.LocalDateTime hastaExcl = campana.fechaFin().plusDays(1).atStartOfDay();
 
         BigDecimal contado = suma(em.createNativeQuery(
-                "SELECT COALESCE(SUM(v.total_venta), 0) FROM ventas v JOIN pedidos p ON p.id = v.pedido_id "
+                // LEAST(venta, total del pedido hoy): si se devolvió UN artículo de un pedido ya pagado, el pedido baja su total pero la venta conserva su
+                // monto; con el tope, el acumulado baja lo devuelto. Si el pedido creció después de pagar, solo cuenta lo que se pagó (el monto de la venta).
+                "SELECT COALESCE(SUM(LEAST(v.total_venta, p.total_pedido)), 0) FROM ventas v JOIN pedidos p ON p.id = v.pedido_id "
               + "WHERE " + PEDIDOS_DE_LA_PERSONA + " AND p.tipo_pedido NOT IN ('APARTADO','FIADO') "
               + "AND LOWER(p.estado_pedido) NOT IN ('pendiente','cancelado') AND v.estado_venta <> 'Devuelta' "
               + "AND v.fecha_venta >= :desde AND v.fecha_venta < :hasta"), persona, desde, hastaExcl);
 
         BigDecimal credito = suma(em.createNativeQuery(
-                "SELECT COALESCE(SUM(a.monto), 0) FROM abono_pedido a JOIN pedidos p ON p.id = a.pedido_id "
+                // Por pedido: lo abonado, sin pasar del total que el pedido tiene hoy (si se devolvió un artículo, lo abonado de más es saldo a favor, no compra).
+                "SELECT COALESCE(SUM(LEAST(t.abonado, t.total)), 0) FROM ("
+              + "SELECT p.id AS pedido, p.total_pedido AS total, SUM(a.monto) AS abonado FROM abono_pedido a JOIN pedidos p ON p.id = a.pedido_id "
               + "WHERE " + PEDIDOS_DE_LA_PERSONA + " AND p.tipo_pedido IN ('APARTADO','FIADO') "
-              + "AND LOWER(p.estado_pedido) <> 'cancelado' AND a.fecha_pago >= :desde AND a.fecha_pago < :hasta"), persona,
+              + "AND LOWER(p.estado_pedido) <> 'cancelado' AND a.fecha_pago >= :desde AND a.fecha_pago < :hasta "
+              + "GROUP BY p.id, p.total_pedido) t"), persona,
                 campana.fechaInicio().atStartOfDay(), hastaExcl);
         return contado.add(credito).setScale(2, java.math.RoundingMode.HALF_UP);
     }

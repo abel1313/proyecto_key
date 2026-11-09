@@ -32,6 +32,21 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-09 — Campañas: el acumulado baja con devoluciones parciales y abonos de más
+**Dónde:** `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)` (consulta nativa de contado y de abonos)
+**Tipo:** JPA (H2) · e2e manual en QA
+**Debe comprobar:**
+- [ ] Contado de $1,000 entregado → cuenta 1,000; se devuelve UN artículo de $400 (el pedido baja a $600) → cuenta 600
+- [ ] pedido que creció después de pagar (total 1,500, venta 1,000) → solo cuenta lo pagado (1,000)
+- [ ] devolución completa (pedido cancelado y venta «Devuelta») → cuenta 0
+- [ ] Ir pagando con abonos 300 + 200 y total 900 → cuenta 500; si el total baja a 350 (se devolvió un artículo) → cuenta 350; si se cancela → 0
+- [ ] si por una devolución el acumulado baja de la meta, en la siguiente venta el cliente ya NO es recurrente (precio normal) y vuelve a serlo al juntar la meta; el reporte de la campaña muestra «Falta»
+- [ ] lo ya vendido a precio de campaña no se modifica
+(Comprobado a mano el 2026-11-09 con una prueba JPA temporal que se borró; las 25 pruebas existentes de campañas siguen en verde.)
+
+---
+
+
 ### 2026-11-09 — Listado de lo calculado en todos los productos (`GET /v1/calculos-precio`)
 **Dónde:** `CalculosPrecioJpaAdapter.ultimosPorProducto`, `IProductoCalculoPrecioRepository.ultimosPorProducto`, `CalculoPrecioController.listar`
 **Tipo:** JPA (H2) · unitario del servicio (tope de tamaño de página) · controller

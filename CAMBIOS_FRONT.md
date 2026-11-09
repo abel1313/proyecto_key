@@ -23721,3 +23721,10 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 **Fórmulas del back:** costo total = compra + transporte + otros · comisión = precio cobrado × comisión % · ganancia real = cobrado − costo total − comisión · margen real = ganancia ÷ cobrado.
 **Cambia respecto a antes:** antes la calculadora no guardaba nada; ahora, al pulsar «Usar este precio» y guardar el producto, el front manda este cálculo.
 
+---
+
+## Campañas: las devoluciones parciales y los abonos de más ya no cuentan para la meta (2026-11-09)
+
+**Qué pasaba:** al devolver UN artículo de un pedido ya pagado, el pedido bajaba su total pero la venta conservaba su monto, y el acumulado de la persona en la campaña no bajaba. La devolución completa (pedido cancelado, venta «Devuelta») ya restaba bien.
+**Ahora:** el acumulado cuenta, por cada pedido, lo pagado **sin pasar del total que el pedido tiene hoy** (contado: el menor entre la venta y el total del pedido; Apartado/Ir pagando: lo abonado, con tope en el total del pedido). Si el acumulado baja de la meta, en la siguiente venta el cliente deja de ser recurrente hasta volver a juntarla. Sin cambios de endpoints ni de campos; el reporte de la campaña («Lleva», «Llegó/Falta») ya usa el valor nuevo. Lo ya vendido a precio de campaña no se ajusta.
+
