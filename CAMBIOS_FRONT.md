@@ -23689,3 +23689,27 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Ahora:** el front rehace el ticket para correo con estilos en línea y tablas, con los colores de la marca: artículos con su importe a la derecha, «🎁 Precio de campaña» en verde con el normal tachado, TOTAL grande sobre fondo verde suave, pago/cambio, agradecimiento y garantía. El back dibuja los QR de «Síguenos» y los manda **incrustados** en el correo, así se ven sin cargar imágenes. Aplica a venta, abonos, liquidación, cancelación y reenvío de comprobante.
 **No cambia:** el ticket que se imprime y el texto de WhatsApp. Endpoints y campos: sin cambios.
 
+---
+
+## Calculadora de precio: se guarda lo que se calculó de cada producto (2026-11-09)
+
+**Para qué:** saber después, de un producto, cuánto fue su transporte, qué comisión y margen se usaron, qué precio calculó la calculadora y cuál se cobra de verdad (calculó $120 y se cobra $150).
+Migración: `migration_calculo_precio.sql` (tabla `producto_calculo_precio`). Todo es **solo ROLE_ADMIN**. Sin la migración, la calculadora funciona igual y el guardado del cálculo responde error (el front lo ignora y el producto se guarda normal).
+
+### Guardar un cálculo (un registro nuevo del historial)
+**Request:** `POST /mis-productos/v1/calculos-precio`
+```json
+{ "productoId": 625, "costoCompra": 100, "transporte": 15, "otros": 0, "comisionPct": 3.6, "comisionDescripcion": "Contado",
+  "margenPct": 30, "precioCalculado": 173.19, "precioCobrado": 180, "actualizoPrecioCompra": true, "nota": "viaje de noviembre" }
+```
+`transporte`, `otros`, `comisionPct`, `comisionDescripcion`, `margenPct`, `actualizoPrecioCompra` y `nota` son opcionales (0 / false / vacío). No se manda ganancia ni margen real: **se calculan en el back**.
+**Response (201):** `ResponseGeneric.data` = `{ id, productoId, costoCompra, transporte, otros, costoTotal, comisionPct, comisionDescripcion, margenPct, precioCalculado, precioCobrado, gananciaReal, margenReal, actualizoPrecioCompra, nota, usuario, fecha }`.
+**Errores:** 400 con mensaje en palabras del dueño (compra en 0, margen ≥ 100, comisión > 50 %, precios en 0, nota larga); 404 si el producto no existe (por eso se guarda **después** de guardar el producto).
+
+### Último cálculo / historial de un producto
+- `GET /mis-productos/v1/calculos-precio/producto/{productoId}/ultimo` → 200 con el mismo objeto de arriba; **204** si el producto nunca tuvo un cálculo.
+- `GET /mis-productos/v1/calculos-precio/producto/{productoId}?max=10` → `ResponseGeneric.lista`, del más nuevo al más viejo (máximo 50).
+
+**Fórmulas del back:** costo total = compra + transporte + otros · comisión = precio cobrado × comisión % · ganancia real = cobrado − costo total − comisión · margen real = ganancia ÷ cobrado.
+**Cambia respecto a antes:** antes la calculadora no guardaba nada; ahora, al pulsar «Usar este precio» y guardar el producto, el front manda este cálculo.
+
