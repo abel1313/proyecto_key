@@ -55,7 +55,7 @@ Nuevo producto / Actualizar producto → junto a «Precio de venta» → **🧮 
 
 **No inventar información**: ni precios de mercado, ni costos de compra, ni fabricantes, códigos de barras, modelos o porcentajes de aumento por temporada. Distinguir siempre entre (A) lo que dio el dueño, (B) lo comprobado en fuentes externas y (C) estimaciones/cálculos. Es preferible decir que no se encontró un dato antes que inventarlo.
 
-## 8. PROMPT MAESTRO (texto original del dueño, para pegarlo en un asistente)
+## 8. PROMPT MAESTRO — versión 1 (texto original del dueño, para pegarlo en un asistente)
 
 # PROMPT MAESTRO — CÁLCULO DE PRECIOS PARA JUGUETES DE NOVEDADES JADE
 
@@ -278,3 +278,49 @@ La estrategia debe equilibrar tres objetivos:
 Quiero que actúes como un asesor comercial y financiero práctico, que trabaje con números reales, fuentes verificables y cálculos transparentes.
 
 **REGLA FINAL: Es preferible decirme que no encontraste un precio o que no puedes confirmar un dato, antes que inventar información para completar una respuesta.**
+
+
+---
+
+## 9. Mejoras para la versión 2 (revisión del 2026-11-09)
+
+Observaciones al prompt original y cómo quedan resueltas. **Calculadora v2** = rama `hotfix/calculadora-precio-v2` del front (ya hecha, sin subir hasta aprobación).
+
+| # | Observación | Qué se hizo en la calculadora v2 | Qué se agrega al prompt v2 |
+|---|---|---|---|
+| 1 | Margen ≠ recargo: 30 % de margen equivale a subirle 42.86 % al costo | Aviso «un margen de 30 % equivale a subirle 42.86 % al costo» | Aclaración en la sección de fórmulas |
+| 2 | Faltaban costos en «otros gastos» | Campos de **merma %** (sobre la compra) y **comisión de tarjeta %** (sobre el precio: `PV = CT / (1 − M − k)`); «otros gastos» ahora nombra bolsa, etiqueta, empaque, IVA | Lista de costos a preguntar |
+| 3 | Sin regla cuando el mercado queda debajo de costo + margen | Campo **precio que viste en otras tiendas** (lo escribe el dueño): muestra ganancia/pérdida al igualarlo y sugiere bajar margen, no venderlo o ir en paquete | Regla de decisión |
+| 4 | Sesgo de comparar con tiendas grandes en línea; no se confirma «original» con fotos | Aviso en el campo del mercado | Aceptar «no confirmable» como respuesta normal |
+| 5 | Transporte compartido sin método de reparto | Ayuda de transporte con dos formas: **por piezas** (parejo) o **por valor** (el caro carga más) | Método de reparto |
+| 6 | No calculaba el precio de campaña | Campo **precio de campaña (cliente recurrente)**: muestra ganancia/margen o pérdida | Calcular también el precio de campaña |
+| 7 | Faltaban cantidad de piezas y qué hacer con lo que sobre después del 6 de enero | (solo prompt) | Preguntar piezas y plan de liquidación |
+| 8 | En juguetes baratos el % deja poco en pesos | Campo **ganancia mínima por pieza ($)**: avisa y da el precio mínimo que la alcanza | Pedir ganancia mínima |
+| 9 | El formato largo por juguete no sirve para decenas | (solo prompt) | Modo tabla resumida |
+
+### PROMPT MAESTRO — versión 2 (lo que cambia respecto a la versión 1)
+
+Se usa el texto de la sección 8 completo, con estos agregados:
+
+- **En §3 (fórmulas):** «El margen es sobre el precio de venta, no sobre el costo: 30 % de margen equivale a subirle 42.86 % al costo. Muestra siempre ambos.» Y: «Si cobro comisión de terminal (k, % del precio), usa `PV = CT / (1 − M − k)`.»
+- **En §2 (qué calcular):** añadir «9. Merma estimada por pieza», «10. Comisión de tarjeta», «11. Ganancia mínima en pesos por pieza (yo te la digo)», «12. Precio de campaña para cliente recurrente y su ganancia».
+- **Nuevo §3 bis — Reparto de transporte:** «Reparte el transporte entre los juguetes por **valor de compra** (gasto del viaje × compra de la pieza ÷ compra total del viaje); si te digo que son piezas muy distintas en tamaño, repártelo por volumen. Pregúntame el gasto total y el valor total del viaje.»
+- **Nuevo §3 ter — Si el mercado queda abajo:** «Si el precio de mercado verificable queda por debajo de mi costo total + margen mínimo, no me lo ocultes: dime cuánto ganaría igualándolo y propón una de estas opciones: bajar el margen hasta un mínimo que yo te indique, no venderlo, o venderlo dentro de un paquete. Nunca recomiendes vender bajo el costo total salvo que yo lo pida como gancho.»
+- **En §5 (internet):** «Las tiendas grandes en línea tienen otros costos y promociones; indícalo cuando compares. Si no puedes confirmar que un juguete es original, di “no confirmable” — es una respuesta válida.»
+- **En §8 (cómo trabajamos):** «Pregúntame cuántas piezas compré de cada juguete y qué hacer con lo que sobre después del 6 de enero (liquidación y a qué precio mínimo). Para más de 10 juguetes usa una **tabla resumida** (una fila por juguete: costo total, precio recomendado, ganancia, margen, precio de campaña, observación) y el formato largo solo para los dudosos.»
+- **Regla final:** se mantiene igual.
+
+## 10. Cómo se usa la calculadora v2 (explicación final)
+
+1. **Abrir:** Nuevo producto o Actualizar producto → junto a «Precio de venta» → «🧮 Calcular precio».
+2. **Bloque 1 – lo que cuesta cada pieza:** costo de compra (viene del formulario), transporte por pieza (puedes calcularlo por piezas o por valor), otros gastos en pesos, merma % y comisión de tarjeta %. Abajo sale el **costo total real**: es el piso, nada por debajo de eso es ganancia.
+3. **Bloque 2 – cuánto quieres ganar:** margen 20/25/30/35 % u otro (se muestra su equivalente de recargo), ganancia mínima por pieza en pesos y redondeo $1/$5/$10.
+4. **Bloque 3 – resultado:** precio exacto, redondeado, «Precio que voy a cobrar» (editable), ganancia y margen reales, avisos de pérdida o de quedar bajo tu ganancia mínima, tabla de márgenes, y —opcional— comparación con el precio de otras tiendas y con el precio de campaña.
+5. **Cerrar o Usar:** «Usar este precio» lo escribe en «Precio de venta»; «Cerrar» no cambia nada.
+6. **Búsqueda de precios en internet:** fuera de la app, con el prompt v2 en un asistente, un juguete a la vez; el precio de mercado que encuentres lo capturas tú en la calculadora.
+
+### Debe comprobar (v2, además de lo de la sección 6)
+- Comisión 3.6 %, costo $115, margen 30 % → exacto **$173.19**, ganancia $51.96, margen 30 %.
+- Merma 3 % sobre compra $100 suma $3 al costo; transporte por valor: $600 × $100 ÷ $4,000 = $15.
+- Ganancia mínima $20 con precio que deja menos → aviso naranja con el precio mínimo; precio de mercado bajo el costo → aviso de pérdida; precio de campaña bajo el costo → aviso de pérdida.
+- Los campos nuevos son opcionales: sin llenarlos el resultado es idéntico al de la v1 (C 100 + F 15, 30 % → $164.29).
