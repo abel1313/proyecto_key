@@ -23728,3 +23728,18 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 **Qué pasaba:** al devolver UN artículo de un pedido ya pagado, el pedido bajaba su total pero la venta conservaba su monto, y el acumulado de la persona en la campaña no bajaba. La devolución completa (pedido cancelado, venta «Devuelta») ya restaba bien.
 **Ahora:** el acumulado cuenta, por cada pedido, lo pagado **sin pasar del total que el pedido tiene hoy** (contado: el menor entre la venta y el total del pedido; Apartado/Ir pagando: lo abonado, con tope en el total del pedido). Si el acumulado baja de la meta, en la siguiente venta el cliente deja de ser recurrente hasta volver a juntarla. Sin cambios de endpoints ni de campos; el reporte de la campaña («Lleva», «Llegó/Falta») ya usa el valor nuevo. Lo ya vendido a precio de campaña no se ajusta.
 
+## Filtro por categoría en Tienda → Buscar y Productos → Buscar (2026-11-09)
+
+**Qué cambia:** las dos pantallas ganan el filtro **Categoría** (nombres en MAYÚSCULAS). La primera vez que se entra se elige solo **JUGUETES** (si existe) para ver primero los juguetes; si se escribe algo en el buscador, la búsqueda es en **todas** las categorías. Elegir otra o dejarla vacía (todas) se recuerda en el filtro guardado de la pantalla.
+
+**Request nuevos parámetros (todos opcionales; sin ellos todo responde igual que antes):**
+- `GET /mis-productos/v1/variantes/buscar-filtrado?...&categoria=JUGUETES` (público).
+- `GET /mis-productos/v1/variantes/admin/filtrar?...&categoria=JUGUETES`. Ambos también en `/v2/articulos/...`.
+- `GET /mis-productos/v1/productos/admin/filtrar?...&categoria=JUGUETES` (palabra clave del producto).
+
+**Categoría efectiva (artículos):** la del artículo si la tiene; si no, la de su producto. Sin distinguir mayúsculas.
+
+**Response nuevo:** `GET /mis-productos/v1/variantes/filtros-disponibles` agrega `categorias: string[]` (MAYÚSCULAS, sin repetidos, solo de lo que se ve en la tienda). El front usa esa lista para el selector.
+
+**Diferencia clave:** antes no había forma de filtrar por categoría en esas dos pantallas.
+

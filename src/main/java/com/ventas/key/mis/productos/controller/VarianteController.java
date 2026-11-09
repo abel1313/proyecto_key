@@ -115,11 +115,13 @@ public class VarianteController extends AbstractController<
             @RequestParam(required = false) String talla,
             @RequestParam(required = false) String color,
             @RequestParam(required = false) String marca,
+            // Categoría (palabra clave) en cualquier mayúscula; vacío = todas. Cuenta la del artículo o, si no tiene, la de su producto.
+            @RequestParam(required = false) String categoria,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
 
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.buscarVariantesPublicoFiltrado(
-                termino, precioMin, precioMax, talla, color, marca, pagina, tope(size))));
+                termino, precioMin, precioMax, talla, color, marca, categoria, pagina, tope(size))));
     }
 
     @GetMapping("/filtros-disponibles")
@@ -234,11 +236,12 @@ public class VarianteController extends AbstractController<
             @RequestParam(required = false) String marca,
             @RequestParam(required = false) Double precioMin,
             @RequestParam(required = false) Double precioMax,
+            @RequestParam(required = false) String categoria,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(new ResponseGeneric<>(sGenerico.filtrarVariantesAdmin(
                 nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta,
-                talla, color, marca, precioMin, precioMax, pagina, size)));
+                talla, color, marca, precioMin, precioMax, categoria, pagina, size)));
     }
 
     // Faltaba: el front (Tienda → Buscar) llama esto para el toggle individual de una sola

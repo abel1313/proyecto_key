@@ -135,8 +135,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // si otra variante ya había matcheado por código. Reusa los métodos ya probados del
         // filtro de admin/público (mismo patrón OR).
         PginaDto<List<VarianteResumenDto>> resultado = AuthenticationUtils.isAdminContext()
-                ? filtrarVariantesAdmin(termino, null, null, null, null, null, null, null, null, null, null, null, page, size)
-                : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, page, size);
+                ? filtrarVariantesAdmin(termino, null, null, null, null, null, null, null, null, null, null, null, null, page, size)
+                : buscarVariantesPublicoFiltrado(termino, null, null, null, null, null, null, page, size);
 
         if (resultado.getT().isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron artículos con la búsqueda: \"" + termino + "\"");
@@ -1133,11 +1133,11 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     @Cacheable(value = "variantesProductoCache",
             // La llave lleva TODOS los filtros: antes no llevaba las fechas y dos rangos distintos
             // devolvian el mismo resultado guardado (2026-10-08).
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #talla + ':' + #color + ':' + #marca + ':' + #precioMin + ':' + #precioMax + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #talla + ':' + #color + ':' + #marca + ':' + #precioMin + ':' + #precioMax + ':' + #categoria + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> filtrarVariantesAdmin(String nombreOCodigo, Boolean conStock,
             Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
             LocalDate fechaHasta, String talla, String color, String marca, Double precioMin, Double precioMax,
-            int pagina, int size) {
+            String categoria, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
         // Mismo criterio que ProductosServiceImpl.filtrarProductosAdmin: dia calendario expandido
@@ -1148,7 +1148,7 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
         // de admin en una sola busqueda (antes cada grupo ignoraba al otro, QA 2026-10-08).
         Page<Variantes> page = iVarianteRepository.buscarVariantesAdmin(texto, conStock, conImagenes, habilitado,
                 codigoGenerado, desde, hasta, blankToNull(talla), blankToNull(color), blankToNull(marca),
-                precioMin, precioMax, pageable);
+                precioMin, precioMax, blankToNull(categoria), pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
@@ -1188,12 +1188,12 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
     // precioRebaja/precioNormal solo para el admin. Sin eso, el primero en llegar decide que ven
     // todos: un cliente recibia el descuento oculto que un admin cacheo antes, o al reves.
     @Cacheable(value = "variantesProductoCache",
-            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
+            key = "'publico-filtro:' + #termino + ':' + #precioMin + ':' + #precioMax + ':' + #talla + ':' + #color + ':' + #marca + ':' + #categoria + ':' + #pagina + ':' + #size + ':' + T(com.ventas.key.mis.productos.Utils.AuthenticationUtils).isAdminContext()")
     public PginaDto<List<VarianteResumenDto>> buscarVariantesPublicoFiltrado(String termino, Double precioMin,
-            Double precioMax, String talla, String color, String marca, int pagina, int size) {
+            Double precioMax, String talla, String color, String marca, String categoria, int pagina, int size) {
         Pageable pageable = PageRequest.of(pagina - 1, size);
         Page<Variantes> page = iVarianteRepository.buscarVariantesPublicoFiltrado(
-                blankToNull(termino), precioMin, precioMax, blankToNull(talla), blankToNull(color), blankToNull(marca), pageable);
+                blankToNull(termino), precioMin, precioMax, blankToNull(talla), blankToNull(color), blankToNull(marca), blankToNull(categoria), pageable);
         PginaDto<List<VarianteResumenDto>> resultado = new PginaDto<>();
         resultado.setPagina(pagina);
         resultado.setTotalPaginas(page.getTotalPages());
@@ -1228,7 +1228,8 @@ public class VarianteServiceImpl extends CrudAbstractServiceImpl<Variantes, List
                 iVarianteRepository.findColoresDisponiblesPublico(),
                 iVarianteRepository.findMarcasDisponiblesPublico(),
                 precioMin,
-                precioMax);
+                precioMax,
+                iVarianteRepository.findCategoriasDisponiblesPublico());
     }
 
     @Transactional

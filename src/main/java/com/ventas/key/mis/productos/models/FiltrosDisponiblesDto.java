@@ -15,4 +15,6 @@ public class FiltrosDisponiblesDto {
     private List<String> marcas;
     private Double precioMin;
     private Double precioMax;
+    /** Categorías (en MAYÚSCULAS) con productos visibles; el selector de Tienda y Productos las lista. */
+    private List<String> categorias;
 }

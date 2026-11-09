@@ -230,6 +230,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
         JOIN FETCH v.producto p
         LEFT JOIN FETCH p.codigoBarras cb
         LEFT JOIN FETCH v.palabraClave pc
+        LEFT JOIN p.palabraClave ppc
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
                OR (cb IS NOT NULL
@@ -253,6 +254,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+          AND (:categoria IS NULL OR UPPER(COALESCE(pc.nombre, ppc.nombre)) = UPPER(:categoria))
           AND (:precioMin IS NULL OR """ + PRECIO_A_COBRAR + """
            >= :precioMin)
           AND (:precioMax IS NULL OR """ + PRECIO_A_COBRAR + """
@@ -274,6 +276,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
         JOIN v.producto p
         LEFT JOIN p.codigoBarras cb
         LEFT JOIN v.palabraClave pc
+        LEFT JOIN p.palabraClave ppc
         WHERE (:nombreOCodigo IS NULL
                OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombreOCodigo, '%'))
                OR (cb IS NOT NULL
@@ -297,6 +300,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+          AND (:categoria IS NULL OR UPPER(COALESCE(pc.nombre, ppc.nombre)) = UPPER(:categoria))
           AND (:precioMin IS NULL OR """ + PRECIO_A_COBRAR + """
            >= :precioMin)
           AND (:precioMax IS NULL OR """ + PRECIO_A_COBRAR + """
@@ -315,6 +319,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                           @Param("marca") String marca,
                                           @Param("precioMin") Double precioMin,
                                           @Param("precioMax") Double precioMax,
+                                          @Param("categoria") String categoria,
                                           Pageable pageable);
 
     // Buscador de "Agregar / Cambiar articulo" en el detalle de un pedido (QA 2026-10-06): solo lo
@@ -369,6 +374,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
         JOIN FETCH v.producto p
         LEFT JOIN FETCH p.codigoBarras cb
         LEFT JOIN FETCH v.palabraClave pc
+        LEFT JOIN p.palabraClave ppc
         WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false
           AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
           AND (:termino IS NULL
@@ -384,12 +390,14 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+          AND (:categoria IS NULL OR UPPER(COALESCE(pc.nombre, ppc.nombre)) = UPPER(:categoria))
         """,
         countQuery = """
         SELECT COUNT(v) FROM Variantes v
         JOIN v.producto p
         LEFT JOIN p.codigoBarras cb
         LEFT JOIN v.palabraClave pc
+        LEFT JOIN p.palabraClave ppc
         WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false
           AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v)
           AND (:termino IS NULL
@@ -405,6 +413,7 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
           AND (:talla IS NULL OR LOWER(v.talla) = LOWER(:talla))
           AND (:color IS NULL OR LOWER(v.color) = LOWER(:color))
           AND (:marca IS NULL OR LOWER(v.marca) = LOWER(:marca))
+          AND (:categoria IS NULL OR UPPER(COALESCE(pc.nombre, ppc.nombre)) = UPPER(:categoria))
         """)
     Page<Variantes> buscarVariantesPublicoFiltrado(@Param("termino") String termino,
                                                      @Param("precioMin") Double precioMin,
@@ -412,7 +421,17 @@ public interface IVarianteRepository extends BaseRepository<Variantes, Integer> 
                                                      @Param("talla") String talla,
                                                      @Param("color") String color,
                                                      @Param("marca") String marca,
+                                                     @Param("categoria") String categoria,
                                                      Pageable pageable);
+
+    // Categorias (palabra clave) del catalogo visible al publico, en MAYUSCULAS y sin repetir. Categoria efectiva = la del articulo y, si no tiene, la de su
+    // producto (una categoria puesta solo en el producto tambien cuenta).
+    @Query("SELECT DISTINCT UPPER(COALESCE(pc.nombre, ppc.nombre)) FROM Variantes v JOIN v.producto p "
+         + "LEFT JOIN v.palabraClave pc LEFT JOIN p.palabraClave ppc "
+         + "WHERE v.stock > 0 AND p.habilitado = '1' AND v.habilitado = '1' AND p.esCatalogoInterno = false "
+         + "AND EXISTS (SELECT 1 FROM VarianteImagen vi WHERE vi.variante = v) "
+         + "AND COALESCE(pc.nombre, ppc.nombre) IS NOT NULL ORDER BY UPPER(COALESCE(pc.nombre, ppc.nombre))")
+    java.util.List<String> findCategoriasDisponiblesPublico();
 
     // Valores disponibles para poblar los filtros en el front (solo del catalogo visible al publico).
     @Query("SELECT DISTINCT v.talla FROM Variantes v WHERE v.stock > 0 AND v.producto.habilitado = '1' " +

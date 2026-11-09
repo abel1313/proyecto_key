@@ -16,6 +16,17 @@ Formato de cada entrada:
 
 ---
 
+
+### 2026-11-09 — Filtro por categoría en Tienda → Buscar y Productos → Buscar
+**Dónde:** `GET /v1/variantes/buscar-filtrado`, `GET /v1/variantes/admin/filtrar` (y `/v2/articulos/...`), `GET /v1/variantes/filtros-disponibles` (nuevo `categorias`), `GET /v1/productos/admin/filtrar` (nuevo `categoria`); `IVarianteRepository`, `IProductosRepository.buscarProductosAdmin`.
+**Tipo:** JPA (H2) + controller.
+**Debe comprobar:**
+- Variantes: la categoría efectiva es la de la variante y, si no tiene, la de su producto; el conteo de la página coincide con la lista; sin `categoria` el resultado es idéntico al de antes; mayúsculas/minúsculas no importan.
+- `filtros-disponibles` trae `categorias` en MAYÚSCULAS, sin repetidos, solo de lo que se ve en la tienda.
+- Productos: `admin/filtrar?categoria=JUGUETES` solo trae productos con esa palabra clave; sin el parámetro, igual que antes.
+- Las llaves de caché incluyen `categoria` (dos categorías distintas no comparten resultado).
+**Tests existentes que quedaron viejos:** `IProductosRepositoryBorradorTest` llamaba a `buscarProductosAdmin` con 8 argumentos; se le agregó el `null` de `categoria` solo para que compile.
+
 ### 2026-11-09 — Historial de cálculos de precio de un producto (calculadora de precio)
 **Dónde:** `CalculoPrecio` (dominio), `CalculoPrecioService`, `CalculosPrecioJpaAdapter`, `POST /v1/calculos-precio`, `GET /v1/calculos-precio/producto/{id}/ultimo` y `/producto/{id}`, `migration_calculo_precio.sql`
 **Tipo:** unitario (dominio y servicio con puerto simulado) · MySQL (migración y consultas) · controller (status)
