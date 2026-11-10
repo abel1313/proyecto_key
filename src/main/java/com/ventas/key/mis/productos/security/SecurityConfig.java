@@ -623,6 +623,8 @@ public class SecurityConfig {
                         // ── Reportes de ventas ───────────────────────────────────────────
                         // Revisión de ventas (alertas de cosas raras en pedidos, ventas, abonos y stock): solo administrador.
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/revision-ventas", "/v1/reportes/corte-caja").hasRole("ADMIN")
+                        // Reporte por categoría / por productos elegidos (2026-11-10): trae costo y ganancia; HECHO EN DURO solo para administrador (pendiente: acción del menú).
+                        .requestMatchers("/v1/reportes/ventas/por-categoria/**").hasRole("ADMIN")
                         // Grupos de precio por cantidad (2026-11-07): la configuración solo la hace el administrador.
                         .requestMatchers("/v1/grupos-precio-cantidad/**").hasRole("ADMIN")
                         // Campañas (2026-11-07): configuración, activar, duplicar y consulta de la vigente; solo administrador.

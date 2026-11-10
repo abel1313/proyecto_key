@@ -32,4 +32,9 @@ public interface IProductoCalculoPrecioRepository extends JpaRepository<Producto
             + "and c.fecha >= :desde and c.fecha < :hasta")
     Page<Object[]> ultimosPorProducto(@Param("nombre") String nombre, @Param("desde") LocalDateTime desde,
                                       @Param("hasta") LocalDateTime hasta, Pageable pageable);
+
+    /** El último cálculo (el de id mayor) de cada uno de estos productos. */
+    @Query("select c from ProductoCalculoPrecioEntidad c where c.productoId in :ids "
+            + "and c.id = (select max(x.id) from ProductoCalculoPrecioEntidad x where x.productoId = c.productoId)")
+    List<ProductoCalculoPrecioEntidad> ultimosDe(@Param("ids") java.util.Collection<Integer> ids);
 }
