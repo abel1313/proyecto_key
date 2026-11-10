@@ -47,6 +47,7 @@ public class PdfReporteGenerador {
     private static final float TAM = 6.4f;
     private static final float PAD = 3f;
     private static final float ALTO_BANDA = 74f;
+    private static final float ALTO_TITULOS = 24f;
 
     private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DecimalFormatSymbols US = DecimalFormatSymbols.getInstance(Locale.US);
@@ -132,7 +133,7 @@ public class PdfReporteGenerador {
         TotalesReporte t = r.totales();
         float gap = 8f;
         float alto = 40f;
-        int n = 6;
+        int n = 8;
         float w = (ancho - 2 * MARGEN - gap * (n - 1)) / n;
         float top0 = y - 4;
         String[][] tarjetas = {
@@ -140,18 +141,43 @@ public class PdfReporteGenerador {
                 {"PIEZAS VENDIDAS", fmt(t.piezas()), fmt(t.piezasPorVender()) + " en stock por vender", null},
                 {"TOTAL VENDIDO", dinero(t.total()), "Costo " + dinero(t.costo()), null},
                 {"GANANCIA VENDIDA", dinero(t.gananciaVendida()), t.margenRealPct() == null ? "" : pct(t.margenRealPct()) + " real", "v"},
-                {"GANANCIA POR VENDER", dinero(t.gananciaPorVender()), "Si se vende todo el stock", null},
-                {"GANANCIA TOTAL", dinero(t.gananciaTotal()), "Vendida + por vender", "v"}};
+                {"FLETE LLEVAMOS", dinero(t.fleteVendido()), "En stock: " + dinero(t.fleteEnStock()), null},
+                {"TOTAL CON PRECIO VENTA", dinero(t.gananciaTotal()), "Vendida + por vender " + dinero(t.gananciaPorVender()), "v"},
+                {"TOTAL CON REBAJA", dinero(t.gananciaTotalRebaja()), "Vendida + por vender " + dinero(t.gananciaPorVenderRebaja()), "v"},
+                {"TOTAL CON CAMPAÑA", dinero(t.gananciaTotalCampana()), "Vendida + por vender " + dinero(t.gananciaPorVenderCampana()), "v"}};
         for (int i = 0; i < n; i++) {
             float cx = MARGEN + i * (w + gap);
             rect(cs, cx, top0 - alto, w, alto, VERDE_SUAVE);
             rect(cs, cx, top0 - alto, 3, alto, VERDE);
-            texto(cs, negrita, 6.5f, cx + 9, top0 - 11, TEXTO_SUAVE, tarjetas[i][0]);
+            texto(cs, negrita, 6.3f, cx + 8, top0 - 11, TEXTO_SUAVE, tarjetas[i][0]);
             Color colorValor = tarjetas[i][3] == null ? TEXTO : (esNegativo(tarjetas[i][1]) ? ROJO : VERDE);
-            texto(cs, negrita, 14, cx + 9, top0 - 26, colorValor, tarjetas[i][1]);
-            texto(cs, normal, 6.5f, cx + 9, top0 - 36, TEXTO_SUAVE, tarjetas[i][2]);
+            texto(cs, negrita, 13, cx + 8, top0 - 26, colorValor, tarjetas[i][1]);
+            texto(cs, normal, 6.3f, cx + 8, top0 - 36, TEXTO_SUAVE, tarjetas[i][2]);
         }
-        return top0 - alto - 14;
+        // Leyenda: cómo leer las columnas.
+        float ly = top0 - alto - 10;
+        for (String linea : partir(normal, ColumnasReporte.LEYENDA, 6.8f, ancho - 2 * MARGEN)) {
+            texto(cs, normal, 6.8f, MARGEN, ly, TEXTO_SUAVE, linea);
+            ly -= 9;
+        }
+        return ly - 6;
+    }
+
+    /** Parte un texto largo en renglones que quepan en el ancho dado. */
+    private List<String> partir(PDFont fuente, String texto, float tam, float ancho) throws IOException {
+        List<String> out = new java.util.ArrayList<>();
+        StringBuilder actual = new StringBuilder();
+        for (String palabra : limpiar(fuente, texto).split(" ")) {
+            String prueba = actual.length() == 0 ? palabra : actual + " " + palabra;
+            if (fuente.getStringWidth(prueba) / 1000f * tam > ancho && actual.length() > 0) {
+                out.add(actual.toString());
+                actual = new StringBuilder(palabra);
+            } else {
+                actual = new StringBuilder(prueba);
+            }
+        }
+        if (actual.length() > 0) out.add(actual.toString());
+        return out;
     }
 
     /** Las hojas siguientes llevan solo una franja delgada con el nombre del negocio. */
@@ -173,14 +199,19 @@ public class PdfReporteGenerador {
     /** Dibuja una fila (títulos, datos o totales) y devuelve la «y» donde queda su borde de abajo. */
     private float fila(PDPageContentStream cs, List<Columna> cols, float[] x, float y, Contenido contenido, ColorDe colorDe, PDFont fuente,
                        Color fondo, Color colorTexto, boolean titulos, boolean totales) throws IOException {
-        float abajo = y - ALTO_FILA;
-        if (fondo != null) rect(cs, x[0], abajo, x[cols.size()] - x[0], ALTO_FILA, fondo);
+        float alto = titulos ? ALTO_TITULOS : ALTO_FILA;
+        float abajo = y - alto;
+        if (fondo != null) rect(cs, x[0], abajo, x[cols.size()] - x[0], alto, fondo);
         if (totales) linea(cs, x[0], y, x[cols.size()], y, VERDE, 1.2f);
         else linea(cs, x[0], abajo, x[cols.size()], abajo, LINEA, 0.4f);
         for (int i = 0; i < cols.size(); i++) {
             Columna c = cols.get(i);
             String t = contenido.de(c);
             if (t == null || t.isEmpty()) continue;
+            if (titulos) {
+                titulo(cs, fuente, limpiar(fuente, t), x[i], x[i + 1], abajo, color(colorDe, c, colorTexto));
+                continue;
+            }
             t = ajustar(fuente, limpiar(fuente, t), x[i + 1] - x[i] - 2 * PAD);
             float w = fuente.getStringWidth(t) / 1000f * TAM;
             float px;
@@ -196,6 +227,33 @@ public class PdfReporteGenerador {
             cs.endText();
         }
         return abajo;
+    }
+
+    private static Color color(ColorDe colorDe, Columna c, Color colorTexto) {
+        return colorDe != null && colorDe.de(c) != null ? colorDe.de(c) : colorTexto;
+    }
+
+    /** Título de columna centrado; si no cabe en un renglón se parte en dos por el espacio más cercano al centro. */
+    private void titulo(PDPageContentStream cs, PDFont fuente, String t, float x0, float x1, float abajo, Color color) throws IOException {
+        float ancho = x1 - x0 - 2 * PAD;
+        String[] lineas = {t, ""};
+        if (fuente.getStringWidth(t) / 1000f * TAM > ancho) {
+            int mejor = -1;
+            for (int i = 0; i < t.length(); i++) if (t.charAt(i) == ' ' && (mejor < 0 || Math.abs(i - t.length() / 2) < Math.abs(mejor - t.length() / 2))) mejor = i;
+            if (mejor > 0) { lineas = new String[]{t.substring(0, mejor), t.substring(mejor + 1)}; }
+        }
+        float baseY = lineas[1].isEmpty() ? abajo + ALTO_TITULOS / 2 - 2.2f : abajo + ALTO_TITULOS - 9.5f;
+        for (int k = 0; k < 2; k++) {
+            if (lineas[k].isEmpty()) continue;
+            String l = ajustar(fuente, lineas[k], ancho);
+            float w = fuente.getStringWidth(l) / 1000f * TAM;
+            cs.setNonStrokingColor(color);
+            cs.beginText();
+            cs.setFont(fuente, TAM);
+            cs.newLineAtOffset(x0 + (x1 - x0 - w) / 2, baseY - k * 8.5f);
+            cs.showText(l);
+            cs.endText();
+        }
     }
 
     /** Rojo si hay pérdida, ámbar en «SIN FLETE», gris si el producto no se vendió. */
@@ -241,7 +299,7 @@ public class PdfReporteGenerador {
         float[] pesos = new float[n];
         float suma = 0;
         for (int i = 0; i < n; i++) {
-            pesos[i] = i == 0 ? 3.0f : i == 1 ? 2.0f : i == 2 ? 1.5f : (i == 11 || i == 16 || i == 17) ? 2.3f : (i == 6 || i == 7) ? 2.1f : 1.8f;
+            pesos[i] = i == 0 ? 2.8f : i == 1 ? 1.9f : i == 2 ? 1.9f : 1.6f;
             suma += pesos[i];
         }
         float[] x = new float[n + 1];
