@@ -16,6 +16,19 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-10 — Reporte por categoría / por productos elegidos (back)
+**Dónde:** `hexagonal/reportecategoria/**` (`ReglasReporte`, `ArmarReporteService`, `LectorVentasJpaAdapter`, `CalculosVigentesJpaAdapter`, `ExcelReporteGenerador`, `PdfReporteGenerador`, `ProcesadorReporteAsincrono`, `ReporteCategoriaController`), `ReporteGeneradoEntidad`, `AsyncConfig` (pool `reportesExecutor`), `SecurityConfig`, `migration_reporte_categoria.sql`, dependencia `org.apache.pdfbox:pdfbox 3.0.3` (Apache).
+**Tipo:** unitario (dominio con puertos simulados) + JPA (H2) + controller/seguridad.
+**Debe comprobar:**
+- [ ] Un producto vendido dos veces en las fechas (cantidad 2 y cantidad 3) sale con **5 piezas** y 2 ventas; la venta «Devuelta» y la de fuera de fechas no cuentan; el último día de las fechas sí.
+- [ ] Filtros: categoría (sin importar mayúsculas), «Otros» (sin categoría), vacío (todo), productos elegidos (suma de piezas) y las 3 vistas (VENDIDOS / NO_VENDIDOS / TODOS); los totales son de todas las filas.
+- [ ] Porcentaje: con cálculo guardado usa el último; sin cálculo calcula (venta − compra) ÷ venta sin flete y marca `sinFlete`; el reporte generado lo **guarda una sola vez** (segunda corrida no duplica); la consulta en pantalla no guarda nada.
+- [ ] Excel con fila de totales; PDF abre y trae las mismas columnas; el archivo queda `LISTO` y se descarga; a los 7 días el job lo borra; 4.º pedido simultáneo → 429.
+- [ ] Diseño: el Excel y el PDF traen la banda con «Novedades Jade», los datos de contacto de «Datos legales» (solo los capturados), quién lo generó y cuándo, las tarjetas de totales, filas alternadas, rojo en pérdida, «SIN FLETE» en ámbar y pie con número de página; el PDF repite el encabezado en cada hoja; un nombre con emoji no rompe el PDF (sale «?»).
+- [ ] Solo ROLE_ADMIN (401/403 para los demás en las 5 rutas); un reporte de otro usuario da 404.
+- [ ] Contra datos reales de QA: el total vendido del reporte «Todas» de un día cuadra con el reporte Diario (ojo: Diario suma `ventas.total_venta`; el reporte suma las líneas por producto).
+**Se probó con prueba temporal en H2 (ya borrada); el proyecto no lleva tests automáticos nuevos.**
+
 ### 2026-11-10 — La compra en curso cuenta para la meta (solo lo que NO son juguetes) + acumulado de cliente sin código
 **Dónde:** `ParticiparEnCampanaService.decidir` y `.acumuladoDelCliente`, `ReglasCampana.califica`, `POST /v1/campanas/personas/acumulado` (admin).
 **Tipo:** unitario (dominio con puertos simulados) + controller.

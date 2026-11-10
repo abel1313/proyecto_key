@@ -161,6 +161,13 @@
             <version>5.2.5</version>
         </dependency>
 
+        <!-- PDF del reporte por categoría (2026-11-10). Apache PDFBox (Apache Software Foundation, licencia Apache 2.0); solo se usa en infraestructura. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
         <!-- Chat en vivo — notificaciones por email -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

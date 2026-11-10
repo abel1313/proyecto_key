@@ -52,4 +52,17 @@ public class AsyncConfig {
         executor.initialize();
         return new DelegatingSecurityContextAsyncTaskExecutor(executor);
     }
+
+    // Reportes generados en segundo plano (reporte por categoria, 2026-11-10): armar el Excel/PDF lee mucho y no debe frenar a nadie.
+    // Dos a la vez y una cola corta; si se llena, la peticion se rechaza con un mensaje claro (el controlador lo avisa).
+    @Bean("reportesExecutor")
+    public Executor reportesExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(10);
+        executor.setThreadNamePrefix("reportes-");
+        executor.initialize();
+        return new DelegatingSecurityContextAsyncTaskExecutor(executor);
+    }
 }
