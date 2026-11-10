@@ -17,6 +17,9 @@ Documento para retomar. Lo de la **Parte A** ya está construido; lo de la **Par
 8. Excel con **Apache POI**; PDF con **Apache PDFBox 3.0.3** (el dueño pidió librerías de Apache; Apache POI solo hace Excel).
 9. **Solo administrador, «hecho en duro»:** `SecurityConfig` (`/v1/reportes/ventas/por-categoria/**` → `hasRole("ADMIN")`) y la pestaña en el front solo con `isAdminService`. **Pendiente configurable:** pasarlo a una pantalla/acción del menú (Gestión de roles) cuando el dueño lo pida, como ya está «Corte de caja».
 
+### Estado de la migración
+`migration_reporte_categoria.sql` **ya corrida en QA (2026-11-10)**. En producción no se ha corrido y **no afecta**: la tabla `reporte_generado` solo la usa el reporte nuevo, que aún no está en producción; correrla ahí antes de subir el reporte.
+
 ### Dónde está
 - Back: `hexagonal/reportecategoria/**`, `ReporteGeneradoEntidad`, `migration_reporte_categoria.sql`, `AsyncConfig.reportesExecutor`, contrato en `CAMBIOS_FRONT.md`.
 - Notas para el siguiente que lo toque: el precio de campaña que se muestra es el de la **campaña más reciente** que trae al producto; «precio de venta» y «rebaja» son los de hoy; el costo vendido usa el costo guardado en cada línea de venta (no el de hoy).
