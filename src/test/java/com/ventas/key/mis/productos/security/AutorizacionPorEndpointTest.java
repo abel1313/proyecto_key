@@ -98,6 +98,7 @@ class AutorizacionPorEndpointTest {
                 new Ruta(HttpMethod.POST, "/v1/pagos-tarjeta/1/devolver"),
                 new Ruta(HttpMethod.POST, "/v1/escaner/canal/fotos"),
                 new Ruta(HttpMethod.GET, "/v1/admin/reconciliacion/algo"),
+                new Ruta(HttpMethod.GET, "/v1/productos/admin/categorias"),
                 // revisión 2026-11-05: rutas que estaban públicas de más
                 new Ruta(HttpMethod.GET, "/v1/flores/cualquier-ruta-nueva"),
                 new Ruta(HttpMethod.DELETE, "/v1/flores/pedidos-borrar"));

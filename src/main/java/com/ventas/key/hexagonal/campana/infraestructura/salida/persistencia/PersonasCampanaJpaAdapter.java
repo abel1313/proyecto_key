@@ -69,6 +69,21 @@ public class PersonasCampanaJpaAdapter implements PersonasCampanaPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<PersonaCampana> porCliente(Integer clienteId, Integer clienteSinRegistroId) {
+        if (clienteId != null) {
+            Optional<CampanaPersonaEntidad> p = personas.findFirstByClienteIdOrderByIdAsc(clienteId);
+            if (p.isPresent()) {
+                return p.map(PersonasCampanaJpaAdapter::aDominio);
+            }
+        }
+        if (clienteSinRegistroId != null) {
+            return personas.findFirstByClienteSinRegistroIdOrderByIdAsc(clienteSinRegistroId).map(PersonasCampanaJpaAdapter::aDominio);
+        }
+        return Optional.empty();
+    }
+
+    @Override
     @Transactional
     public PersonaCampana guardar(PersonaCampana p) {
         CampanaPersonaEntidad e = p.id() == null ? new CampanaPersonaEntidad()
@@ -110,32 +125,53 @@ public class PersonasCampanaJpaAdapter implements PersonasCampanaPort {
         if (campana == null || persona == null || persona.id() == null) {
             return BigDecimal.ZERO;
         }
+        return pagadoEntreFechas(campana, persona.id(), persona.clienteId(), persona.clienteSinRegistroId());
+    }
+
+    /** Lo pagado entre las fechas de la campaña por un cliente que todavía no tiene código (misma cuenta, sin pedidos ligados a una persona). */
+    @Override
+    @Transactional(readOnly = true)
+    public BigDecimal acumuladoDeCliente(Campana campana, Integer clienteId, Integer clienteSinRegistroId) {
+        if (campana == null || (clienteId == null && clienteSinRegistroId == null)) {
+            return BigDecimal.ZERO;
+        }
+        // persona -1: ningún pedido ligado (los ids de persona empiezan en 1); solo cuentan los pedidos del cliente.
+        return pagadoEntreFechas(campana, -1, clienteId, clienteSinRegistroId);
+    }
+
+    private BigDecimal pagadoEntreFechas(Campana campana, int personaId, Integer clienteId, Integer clienteSinRegistroId) {
         java.time.LocalDateTime desde = campana.fechaInicio().atStartOfDay();
         java.time.LocalDateTime hastaExcl = campana.fechaFin().plusDays(1).atStartOfDay();
 
+        // COALESCE: un pedido viejo con tipo o estado en NULL es de contado y está en pie (sin él, «NULL NOT IN (...)» lo dejaba fuera).
         BigDecimal contado = suma(em.createNativeQuery(
                 // LEAST(venta, total del pedido hoy): si se devolvió UN artículo de un pedido ya pagado, el pedido baja su total pero la venta conserva su
                 // monto; con el tope, el acumulado baja lo devuelto. Si el pedido creció después de pagar, solo cuenta lo que se pagó (el monto de la venta).
-                "SELECT COALESCE(SUM(LEAST(v.total_venta, p.total_pedido)), 0) FROM ventas v JOIN pedidos p ON p.id = v.pedido_id "
-              + "WHERE " + PEDIDOS_DE_LA_PERSONA + " AND p.tipo_pedido NOT IN ('APARTADO','FIADO') "
-              + "AND LOWER(p.estado_pedido) NOT IN ('pendiente','cancelado') AND v.estado_venta <> 'Devuelta' "
-              + "AND v.fecha_venta >= :desde AND v.fecha_venta < :hasta"), persona, desde, hastaExcl);
+                "SELECT COALESCE(SUM(LEAST(COALESCE(v.total_venta, 0), COALESCE(p.total_pedido, 0))), 0) FROM ventas v JOIN pedidos p ON p.id = v.pedido_id "
+              + "WHERE " + PEDIDOS_DE_LA_PERSONA + " AND COALESCE(p.tipo_pedido, 'NORMAL') NOT IN ('APARTADO','FIADO') "
+              + "AND LOWER(COALESCE(p.estado_pedido, '')) NOT IN ('pendiente','cancelado') AND COALESCE(v.estado_venta, '') <> 'Devuelta' "
+              + "AND v.fecha_venta >= :desde AND v.fecha_venta < :hasta"), personaId, clienteId, clienteSinRegistroId, desde, hastaExcl);
 
         BigDecimal credito = suma(em.createNativeQuery(
-                // Por pedido: lo abonado, sin pasar del total que el pedido tiene hoy (si se devolvió un artículo, lo abonado de más es saldo a favor, no compra).
-                "SELECT COALESCE(SUM(LEAST(t.abonado, t.total)), 0) FROM ("
-              + "SELECT p.id AS pedido, p.total_pedido AS total, SUM(a.monto) AS abonado FROM abono_pedido a JOIN pedidos p ON p.id = a.pedido_id "
+                // Por pedido: lo abonado DENTRO del rango que todavía cabía en el total que el pedido tiene hoy. Se toma lo abonado hasta el fin de la
+                // campaña (topado al total) menos lo abonado antes del inicio (topado al total): así un abono de más no cuenta aunque los abonos de antes
+                // del inicio ya hubieran cubierto casi todo (antes se topaba solo lo del rango contra el total completo y se contaba de más).
+                "SELECT COALESCE(SUM(GREATEST(LEAST(t.hasta_fin, t.total) - LEAST(t.antes, t.total), 0)), 0) FROM ("
+              + "SELECT p.id AS pedido, COALESCE(p.total_pedido, 0) AS total, "
+              + "SUM(COALESCE(a.monto, 0)) AS hasta_fin, "
+              + "SUM(CASE WHEN a.fecha_pago < :desde THEN COALESCE(a.monto, 0) ELSE 0 END) AS antes "
+              + "FROM abono_pedido a JOIN pedidos p ON p.id = a.pedido_id "
               + "WHERE " + PEDIDOS_DE_LA_PERSONA + " AND p.tipo_pedido IN ('APARTADO','FIADO') "
-              + "AND LOWER(p.estado_pedido) <> 'cancelado' AND a.fecha_pago >= :desde AND a.fecha_pago < :hasta "
-              + "GROUP BY p.id, p.total_pedido) t"), persona,
-                campana.fechaInicio().atStartOfDay(), hastaExcl);
+              + "AND LOWER(COALESCE(p.estado_pedido, '')) NOT IN ('pendiente','cancelado') AND a.fecha_pago < :hasta "
+              + "GROUP BY p.id, p.total_pedido) t"), personaId, clienteId, clienteSinRegistroId, desde, hastaExcl);
         return contado.add(credito).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal suma(jakarta.persistence.Query consulta, PersonaCampana persona, java.time.LocalDateTime desde, java.time.LocalDateTime hasta) {
-        consulta.setParameter("persona", persona.id());
-        consulta.setParameter("cliente", persona.clienteId());
-        consulta.setParameter("sinRegistro", persona.clienteSinRegistroId());
+    private static BigDecimal suma(jakarta.persistence.Query consulta, int personaId, Integer clienteId, Integer clienteSinRegistroId,
+                                   java.time.LocalDateTime desde, java.time.LocalDateTime hasta) {
+        consulta.setParameter("persona", personaId);
+        consulta.setParameter("cliente", clienteId);
+        consulta.setParameter("sinRegistro", clienteSinRegistroId);
         consulta.setParameter("desde", desde);
         consulta.setParameter("hasta", hasta);
         Object r = consulta.getSingleResult();
@@ -167,6 +203,10 @@ public class PersonasCampanaJpaAdapter implements PersonasCampanaPort {
     @Override
     @Transactional
     public void ligarPedido(int campanaId, int personaId, int pedidoId, BigDecimal monto) {
+        // El mismo pedido no se liga dos veces a la misma persona en la misma campaña (si se reintenta el registro, el reporte contaría doble).
+        if (pedidos.existsByCampanaIdAndPersonaIdAndPedidoId(campanaId, personaId, pedidoId)) {
+            return;
+        }
         CampanaPersonaPedidoEntidad e = new CampanaPersonaPedidoEntidad();
         e.setCampanaId(campanaId);
         e.setPersonaId(personaId);
@@ -185,15 +225,20 @@ public class PersonasCampanaJpaAdapter implements PersonasCampanaPort {
     @Override
     @Transactional(readOnly = true)
     public List<ResumenDePersona> resumen(int campanaId) {
-        var campanaEntidad = campanas.findById(campanaId);
+        // La campaña se arma UNA vez y las personas se leen en UNA consulta (antes: un findById por fila).
+        Optional<Campana> campana = campanas.findById(campanaId).map(c -> new Campana(c.getId(), c.getNombre(), c.getFechaInicio(),
+                c.getFechaFin(), c.isActiva(), c.getMetaMonto(), List.of()));
+        List<Object[]> filas = pedidos.resumenPorPersona(campanaId);
+        java.util.Map<Integer, PersonaCampana> porId = new java.util.HashMap<>();
+        personas.findAllById(filas.stream().map(f -> (Integer) f[0]).toList())
+                .forEach(e -> porId.put(e.getId(), aDominio(e)));
         // Las personas con compras ligadas en esta campaña; lo que llevan se calcula igual que para la meta (pagado entre las fechas de la campaña).
-        return pedidos.resumenPorPersona(campanaId).stream()
+        return filas.stream()
+                .filter(f -> porId.containsKey((Integer) f[0]))
                 .map(f -> {
-                    PersonaCampana persona = personas.findById((Integer) f[0]).map(PersonasCampanaJpaAdapter::aDominio).orElseThrow();
-                    BigDecimal llevaPagado = campanaEntidad
-                            .map(c -> acumulado(new Campana(c.getId(), c.getNombre(), c.getFechaInicio(), c.getFechaFin(), c.isActiva(),
-                                    c.getMetaMonto(), List.of()), persona))
-                            .orElse((BigDecimal) f[1]);
+                    PersonaCampana persona = porId.get((Integer) f[0]);
+                    BigDecimal llevaPagado = campana.map(c -> acumulado(c, persona))
+                            .orElse(f[1] == null ? BigDecimal.ZERO : new BigDecimal(f[1].toString()));
                     return new ResumenDePersona(persona, llevaPagado, ((Number) f[2]).longValue());
                 })
                 .toList();

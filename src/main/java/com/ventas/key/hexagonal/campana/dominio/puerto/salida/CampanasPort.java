@@ -20,6 +20,11 @@ public interface CampanasPort {
 
     void eliminar(int id);
 
+    /** ¿La campaña ya tiene compras ligadas (pedidos de personas con código)? Entonces no se borra: se apaga. Por defecto no. */
+    default boolean tieneComprasLigadas(int id) {
+        return false;
+    }
+
     /** Enciende esta campaña y apaga las demás (solo una activa a la vez). */
     void activarSola(int id);
 

@@ -5,7 +5,8 @@ import java.util.List;
 
 /**
  * [Hexagonal: Domain] Cómo va una campaña: cuánto ha juntado cada persona con código y quién ya llegó a la meta. {@code acumulado} es lo que
- * suma hacia la meta (compras de Contado sin los juguetes de la campaña).
+ * suma hacia la meta: TODO lo pagado entre la fecha de inicio y la de fin de la campaña (Contado y abonos de Apartado / Ir pagando, juguetes
+ * incluidos), de sus pedidos ligados y los de su cliente; lo cancelado, pendiente o devuelto no suma.
  */
 public record ReporteDeCampana(int campanaId, String campana, BigDecimal meta, List<Fila> personas) {
 

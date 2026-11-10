@@ -16,6 +16,20 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-10 — Campaña: reglas finales, categorías de productos y UUID en el escáner
+**Dónde:** `ParticiparEnCampanaService.decidir`, `PersonasCampanaJpaAdapter.porCliente/acumuladoDeCliente`, `AdministrarCampanasService.eliminar` + `CampanasJpaAdapter.tieneComprasLigadas` + `CampanaController` (409), `PrecioDeCampana`, `PedidoServiceImpl.cambiarTipo` (restaurar + repreciar + ajustar abonos), `VentaServiceImpl` (campaña en transacción propia / afterCommit, `pedidoId` en contado), `GET /v1/productos/admin/categorias`, `SesionEscaner` / `Acepta` (`uuid`).
+**Tipo:** unitario (puertos simulados) · JPA (H2) · integración con transacciones reales · controller.
+**Debe comprobar:**
+- [ ] Sin código, reconocido por correo / teléfono / clienteId / clienteSinRegistroId con lo pagado ≥ meta → precio de campaña; bajo la meta → normal; sin ningún dato → normal salvo casilla manual; Ir pagando → nunca.
+- [ ] Cliente sin persona: `acumuladoDeCliente` suma solo lo pagado entre fechas de ese cliente; la venta con la cuenta de quien vende (mostrador) no reconoce a nadie.
+- [ ] `DELETE /v1/campanas/{id}` con filas en `campana_persona_pedido` → 409 y el mensaje exacto; sin filas → 200 y se borra; apagar sigue funcionando.
+- [ ] `PrecioDeCampana` 0.004 → «mayor a cero»; 0.005 → 0.01.
+- [ ] Apartado → Ir pagando: restaura, luego reprecia por grupo (sin volver a precio de campaña), total = suma de subtotales y abonos recuadrados; Ir pagando → Apartado no toca precios.
+- [ ] Un fallo de BD en `decidir` o en `registrarCompra` (rollback-only) no revierte la venta; `registrarCompra` corre después del commit en transacción nueva y antes del correo único.
+- [ ] Contado devuelve `pedidoId`; `POST /v1/pedidos/{id}/notificar` manda el ticket de un pedido de contado pagado.
+- [ ] `admin/categorias`: MAYÚSCULAS, sin repetidos, ordenado, incluye deshabilitados y sin artículos, excluye internos; 401/403 sin pantalla (ya está en `AutorizacionPorEndpointTest`).
+- [ ] Escáner: UUID sin pregunta `uuid` → no se entrega y `enviar` = false (también dentro del margen de 3 s); con `acepta=codigo,uuid` → se entrega; códigos normales igual que antes; `aceptaDe("codigo,uuid")`.
+
 
 ### 2026-11-09 — Filtro por categoría en Tienda → Buscar y Productos → Buscar
 **Dónde:** `GET /v1/variantes/buscar-filtrado`, `GET /v1/variantes/admin/filtrar` (y `/v2/articulos/...`), `GET /v1/variantes/filtros-disponibles` (nuevo `categorias`), `GET /v1/productos/admin/filtrar` (nuevo `categoria`); `IVarianteRepository`, `IProductosRepository.buscarProductosAdmin`.

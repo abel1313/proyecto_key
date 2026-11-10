@@ -62,8 +62,15 @@ public class EmailService {
         return enviarConImagenes(destinatario, asunto, html, incrustadas);
     }
 
-    private static final java.util.regex.Pattern QR_REMOTO =
-            java.util.regex.Pattern.compile("https://api\\.qrserver\\.com/v1/create-qr-code/\\?[^\"'\\s>]*?data=([^&\"'\\s>]+)[^\"'\\s>]*");
+    /**
+     * Solo el {@code src} de una imagen (un enlace {@code href} a la misma URL no se toca) y solo el parámetro {@code data} exacto
+     * ({@code ?data=} o {@code &data=} / {@code &amp;data=}; no {@code xdata=}). Nunca se descarga nada: el QR se dibuja aquí.
+     */
+    private static final java.util.regex.Pattern QR_REMOTO = java.util.regex.Pattern.compile(
+            "(?i)(src\\s*=\\s*[\"'])https?://api\\.qrserver\\.com/v1/create-qr-code/?\\?(?:[^\"'\\s>]*?&(?:amp;)?)?data=([^&\"'\\s>]+)[^\"'\\s>]*");
+    /** Tope de QR distintos por correo y de largo del dato: un HTML con cientos de QR no debe trabar el envío. */
+    private static final int MAX_QR_POR_CORREO = 10;
+    private static final int MAX_LARGO_DATO_QR = 1000;
 
     /**
      * Cambia cada QR remoto ({@code https://api.qrserver.com/...data=...}) por una imagen incrustada ({@code cid:}) dibujada con {@code GeneradorQrPng}.
@@ -79,16 +86,23 @@ public class EmailService {
         while (m.find()) {
             String reemplazo = m.group();
             try {
-                String dato = java.net.URLDecoder.decode(m.group(1), java.nio.charset.StandardCharsets.UTF_8);
+                String dato = java.net.URLDecoder.decode(m.group(2).replace("&amp;", "&"), java.nio.charset.StandardCharsets.UTF_8);
                 String cid = yaHechos.get(dato);
                 if (cid == null) {
+                    if (yaHechos.size() >= MAX_QR_POR_CORREO || dato.isEmpty() || dato.length() > MAX_LARGO_DATO_QR) {
+                        throw new IllegalArgumentException("QR fuera de límite (" + dato.length() + " caracteres, " + yaHechos.size() + " ya incrustados)");
+                    }
                     cid = "qrsocial" + yaHechos.size();
                     byte[] png = com.ventas.key.hexagonal.campana.infraestructura.salida.correo.GeneradorQrPng.png(dato, 240);
                     destino.add(new ImagenCorreo(cid, null, png));
                     yaHechos.put(dato, cid);
                 }
-                reemplazo = "cid:" + cid;
-            } catch (RuntimeException | LinkageError e) {
+                reemplazo = m.group(1) + "cid:" + cid;
+            } catch (Throwable e) {
+                // Throwable: un fallo de AWT/ImageIO (AWTError, NoClassDefFoundError...) es un Error y no debe tumbar el correo.
+                if (e instanceof VirtualMachineError vme) {
+                    throw vme;
+                }
                 log.warn("No se pudo incrustar un QR del ticket (se deja la imagen remota): {}", e.toString());
             }
             m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(reemplazo));
@@ -128,7 +142,7 @@ public class EmailService {
                 }
             }
             mailSender.send(message);
-            log.info("Correo enviado a: {}", destinatario);
+            log.info("Correo enviado a: {}", ocultarCorreo(destinatario));
             return true;
         } catch (MessagingException | MailException | UnsupportedEncodingException e) {
             // MailException (ej. MailSendException por timeout/conexion SMTP con OVH) es RuntimeException
@@ -136,9 +150,29 @@ public class EmailService {
             // que el contrato de la clase (ver javadocs) es "nunca lanza excepcion", y en los callers
             // @Transactional (ej. UsuarioVerificacionService.solicitarCambioCorreo) hace rollback del
             // guardado que ya se habia hecho antes de mandar el correo.
-            log.error("Error enviando correo a {}: {}", destinatario, e.getMessage());
+            log.error("Error enviando correo a {}: {}", ocultarCorreo(destinatario), e.getMessage());
             return false;
         }
+    }
+
+    /** Para los logs: «ju***@dominio.com» (sin el correo completo del cliente). */
+    static String ocultarCorreo(String correo) {
+        if (correo == null) {
+            return null;
+        }
+        String c = correo.trim();
+        int arroba = c.indexOf('@');
+        if (arroba <= 0) {
+            return "***";
+        }
+        return c.substring(0, Math.min(2, arroba)) + "***" + c.substring(arroba);
+    }
+
+    private static final java.util.regex.Pattern UUID_VALIDO =
+            java.util.regex.Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+
+    static boolean esUuidValido(String uuid) {
+        return uuid != null && UUID_VALIDO.matcher(uuid.trim()).matches();
     }
 
     /**
@@ -302,6 +336,10 @@ public class EmailService {
                 + cajaCodigo(codigo)
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Este código solo se puede usar una "
                 + "vez. Si tú no realizaste esta compra, ignora este correo.</p>";
+        if (campana != null && !esUuidValido(campana.uuid())) {
+            log.warn("Código de campaña inválido: el correo de la compra sale sin el bloque de campaña");
+            campana = null;
+        }
         if (campana == null) {
             return enviarTicket(destinatario, "Agrega tu compra a tu cuenta — Novedades Jade", html);
         }
@@ -325,6 +363,11 @@ public class EmailService {
         return texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
+    /** El nombre del cliente lo captura una persona (o el propio cliente): escapado antes de ir en el HTML. null = "". */
+    private static String escaparNombre(String nombre) {
+        return nombre == null ? "" : escaparHtmlCampana(nombre);
+    }
+
     private static final String CID_QR_CODIGO = "qrcodigo";
     /** TEMPORAL (2026-11-08): se imprime en el correo del código para saber qué versión corre en QA. Cambiarla en cada subida y quitarla al terminar. */
     private static final String MARCA_VERSION_PRUEBA = "QR-5";
@@ -339,22 +382,30 @@ public class EmailService {
     /** Bloque de la campaña (código en caja, QR, liga de respaldo, aviso de privacidad) más la imagen del QR (null si no se pudo dibujar). */
     private record BloqueCampana(String html, ImagenCorreo imagen) { }
 
-    private BloqueCampana bloqueCodigoCampana(String uuid, String destinatario) {
-        String base = frontendBaseUrl == null ? "" : frontendBaseUrl.replaceAll("/+$", "");
-        String liga = base + "/codigo-campana/" + uuid;
+    private BloqueCampana bloqueCodigoCampana(String uuidRecibido, String destinatario) {
+        // Quien llama ya validó el formato (UUID); se normaliza para que el texto, el QR y la liga digan exactamente lo mismo.
+        String uuid = uuidRecibido.trim().toLowerCase();
+        String base = frontendBaseUrl == null ? "" : frontendBaseUrl.trim().replaceAll("/+$", "");
+        // Sin la URL del front configurada, una liga relativa no abre nada desde el correo: se omite.
+        String liga = base.isEmpty() ? null : base + "/codigo-campana/" + uuid;
         // Un fallo al dibujar el QR no pierde el correo: sale sin la imagen (siguen el UUID y la liga).
         byte[] png = null;
         try {
             png = com.ventas.key.hexagonal.campana.infraestructura.salida.correo.GeneradorQrPng.png(uuid, 300);
-            log.info("Código de campaña [{}]: QR de {} bytes, correo a {}", MARCA_VERSION_PRUEBA, png.length, destinatario);
-        } catch (RuntimeException | LinkageError e) {
-            // LinkageError: un fallo de AWT/ImageIO en el contenedor es un Error, no una excepción: sin esto tumbaría el correo.
+            log.info("Código de campaña [{}]: QR de {} bytes, correo a {}", MARCA_VERSION_PRUEBA, png.length, ocultarCorreo(destinatario));
+        } catch (Throwable e) {
+            // Un fallo de AWT/ImageIO en el contenedor (AWTError, NoClassDefFoundError...) es un Error, no una excepción: sin esto tumbaría el correo.
+            if (e instanceof VirtualMachineError vme) {
+                throw vme;
+            }
+            png = null;
             log.warn("Código de campaña [{}]: NO se pudo dibujar el QR, el correo sale sin imagen: {}", MARCA_VERSION_PRUEBA, e.toString(), e);
         }
         String html = cajaCodigo(uuid)
                 + (png == null ? "" : "<p style=\"text-align:center;margin:0 0 8px;\"><img src=\"cid:" + CID_QR_CODIGO
                         + "\" width=\"220\" height=\"220\" alt=\"Tu QR\" style=\"display:inline-block;border:1px solid #e5e7eb;\"></p>")
-                + "<p style=\"margin:0 0 8px;\">Si no ves el QR, ábrelo aquí: <a href=\"" + liga + "\">" + liga + "</a></p>"
+                + (liga == null ? "" : "<p style=\"margin:0 0 8px;\">Si no ves el QR, ábrelo aquí: <a href=\"" + escaparHtmlCampana(liga) + "\">"
+                        + escaparHtmlCampana(liga) + "</a></p>")
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Guardamos tu nombre, correo, teléfono y tus compras en la campaña solo para "
                 + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>"
                 // TEMPORAL: marca para saber qué versión está corriendo en QA. Cambiarla en cada subida; QUITARLA al terminar (ver TESTS_PENDIENTES.md).
@@ -371,6 +422,10 @@ public class EmailService {
 
     /** @param primeraVez false cuando la persona ya tenía su código: el correo dice «aquí está tu código de nuevo». */
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid, boolean primeraVez) {
+        if (!esUuidValido(uuid)) {
+            log.warn("Código de campaña inválido: no se manda el correo del código");
+            return false;
+        }
         String saludo = nombre == null || nombre.isBlank() ? "Hola" : "Hola " + escaparHtmlCampana(nombre.trim());
         BloqueCampana bloque = bloqueCodigoCampana(uuid, destinatario);
         String html = "<p style=\"margin:0 0 4px;\">" + saludo + ", " + introCodigoCampana(nombre, nombreCampana, primeraVez).substring(0, 1).toLowerCase()
@@ -384,7 +439,7 @@ public class EmailService {
      */
     public boolean enviarNotificacionGanador(String destinatario, String nombreGanador, String premio) {
         String asunto = "¡Ganaste! — Novedades Jade";
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreGanador + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreGanador) + ",</p>"
                 + "<p style=\"margin:0 0 4px;\">🎉 ¡Felicidades! Ganaste en nuestra rifa:</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
                 + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
@@ -404,7 +459,7 @@ public class EmailService {
      */
     public boolean enviarSeguimientoPedido(String destinatario, String nombreCliente, Integer pedidoId, String estado) {
         String asunto = "Tu pedido #" + pedidoId + " — " + estado + " — Novedades Jade";
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreCliente) + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">El estado de tu pedido <strong>#" + pedidoId + "</strong> cambió a:</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
                 + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
@@ -425,7 +480,7 @@ public class EmailService {
     public boolean enviarAlertaStock(String destinatario, String nombreCliente, String nombreProducto, String detalleVariante) {
         String asunto = "¡Ya volvió el stock! — Novedades Jade";
         String detalle = (detalleVariante != null && !detalleVariante.isBlank()) ? " (" + detalleVariante + ")" : "";
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreCliente) + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">Buenas noticias: uno de tus favoritos ya está "
                 + "disponible de nuevo:</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
@@ -448,7 +503,7 @@ public class EmailService {
     public boolean enviarConfirmacionPedido(String destinatario, String nombreCliente, Integer pedidoId, Double total) {
         String asunto = "Recibimos tu pedido #" + pedidoId + " — Novedades Jade";
         String totalStr = total != null ? String.format("$%.2f", total) : "";
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreCliente) + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">¡Recibimos tu pedido! Ya lo estamos preparando.</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
                 + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
@@ -470,7 +525,7 @@ public class EmailService {
     public boolean enviarAvisoNuevoPedido(String destinatarioAdmin, Integer pedidoId, String nombreCliente, Double total) {
         String asunto = "Nuevo pedido #" + pedidoId + " de " + nombreCliente + " — Novedades Jade";
         String totalStr = total != null ? String.format("$%.2f", total) : "";
-        String html = "<p style=\"margin:0 0 12px;\"><strong>" + nombreCliente + "</strong> generó un pedido nuevo:</p>"
+        String html = "<p style=\"margin:0 0 12px;\"><strong>" + escaparNombre(nombreCliente) + "</strong> generó un pedido nuevo:</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
                 + "<span style=\"display:inline-block;background-color:#EAF6F0;color:#00875A;"
                 + "font-size:20px;font-weight:700;padding:12px 26px;border-radius:10px;"
@@ -510,7 +565,7 @@ public class EmailService {
                     + "</div>";
         }
 
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreCliente) + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">Ya tenemos fecha para llevar tu pedido "
                 + "<strong>#" + pedidoId + "</strong> a <strong>" + nombreZona + "</strong>:</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
@@ -538,7 +593,7 @@ public class EmailService {
                 new java.util.Locale("es", "MX")));
         String horaStr = fechaHoraEntrega.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
         String asunto = "Confirmación de entrega de tu ramo — " + fechaStr + " — Novedades Jade";
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreCliente) + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">Tu ramo del pedido <strong>#" + pedidoId + "</strong> "
                 + "quedó programado para:</p>"
                 + "<div style=\"text-align:center;margin:22px 0;\">"
@@ -606,7 +661,7 @@ public class EmailService {
                   + "style=\"display:block;margin:0 auto;max-width:100%;height:auto;border-radius:12px;\">"
                   + "</div>"
                 : "";
-        String html = "<p style=\"margin:0 0 4px;\">Hola " + nombreCliente + ",</p>"
+        String html = "<p style=\"margin:0 0 4px;\">Hola " + escaparNombre(nombreCliente) + ",</p>"
                 + "<p style=\"margin:0 0 12px;\">¡Tenemos una promoción nueva para ti!</p>"
                 + imagenHtml
                 + "<div style=\"text-align:center;margin:22px 0;\">"

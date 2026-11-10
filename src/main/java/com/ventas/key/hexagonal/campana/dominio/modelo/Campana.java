@@ -27,6 +27,10 @@ public record Campana(Integer id, String nombre, LocalDate fechaInicio, LocalDat
             throw new CampanaInvalidaException("La campaña necesita un nombre.");
         }
         nombre = nombre.trim();
+        if (nombre.length() > LARGO_MAXIMO_NOMBRE) {
+            // La columna es VARCHAR(100): sin esto la base lo rechazaba con un mensaje que hablaba de productos repetidos.
+            throw new CampanaInvalidaException("El nombre de la campaña no puede pasar de " + LARGO_MAXIMO_NOMBRE + " letras.");
+        }
         if (fechaInicio == null || fechaFin == null) {
             throw new CampanaInvalidaException("La campaña necesita fecha de inicio y fecha de fin.");
         }
@@ -40,6 +44,9 @@ public record Campana(Integer id, String nombre, LocalDate fechaInicio, LocalDat
             throw new CampanaInvalidaException("La meta de monto no puede ser negativa.");
         }
         metaMonto = metaMonto.setScale(2, java.math.RoundingMode.HALF_UP);
+        if (metaMonto.compareTo(MONTO_MAXIMO) > 0) {
+            throw new CampanaInvalidaException("La meta de monto es demasiado grande.");
+        }
         // Puede quedar sin productos si el catálogo los borró; para guardarla con cambios, el caso de uso exige al menos uno.
         precios = precios == null ? List.of() : precios;
         Set<Integer> vistos = new HashSet<>();
@@ -50,6 +57,12 @@ public record Campana(Integer id, String nombre, LocalDate fechaInicio, LocalDat
         }
         precios = List.copyOf(precios);
     }
+
+    /** Largo de la columna {@code campana.nombre}. */
+    public static final int LARGO_MAXIMO_NOMBRE = 100;
+
+    /** Lo más que cabe en una columna DECIMAL(10,2). */
+    public static final BigDecimal MONTO_MAXIMO = new BigDecimal("99999999.99");
 
     /** ¿Aparece hoy en Venta directa? Encendida y dentro de sus fechas. */
     public boolean vigenteEn(LocalDate hoy) {

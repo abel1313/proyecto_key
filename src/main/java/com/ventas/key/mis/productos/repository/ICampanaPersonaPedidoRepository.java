@@ -24,6 +24,8 @@ public interface ICampanaPersonaPedidoRepository extends JpaRepository<CampanaPe
             + "GROUP BY x.personaId ORDER BY SUM(x.monto) DESC")
     java.util.List<Object[]> resumenPorPersona(@Param("campanaId") Integer campanaId);
 
+    boolean existsByCampanaIdAndPersonaIdAndPedidoId(Integer campanaId, Integer personaId, Integer pedidoId);
+
     @Modifying
     @Query("DELETE FROM CampanaPersonaPedidoEntidad x WHERE x.personaId = :personaId")
     void borrarDePersona(@Param("personaId") Integer personaId);

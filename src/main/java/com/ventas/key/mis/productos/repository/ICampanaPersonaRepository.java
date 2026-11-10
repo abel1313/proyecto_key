@@ -12,4 +12,8 @@ public interface ICampanaPersonaRepository extends JpaRepository<CampanaPersonaE
     Optional<CampanaPersonaEntidad> findFirstByCorreoIgnoreCase(String correo);
 
     Optional<CampanaPersonaEntidad> findFirstByTelefono(String telefono10);
+
+    Optional<CampanaPersonaEntidad> findFirstByClienteIdOrderByIdAsc(Integer clienteId);
+
+    Optional<CampanaPersonaEntidad> findFirstByClienteSinRegistroIdOrderByIdAsc(Integer clienteSinRegistroId);
 }

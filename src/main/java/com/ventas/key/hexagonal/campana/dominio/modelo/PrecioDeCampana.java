@@ -12,10 +12,18 @@ import java.math.RoundingMode;
 public record PrecioDeCampana(int productoId, String nombre, BigDecimal precio) {
 
     public PrecioDeCampana {
+        if (productoId <= 0) {
+            throw new CampanaInvalidaException("Falta elegir el producto de uno de los precios de campaña.");
+        }
+        // Se redondea a centavos ANTES de validar: 0.004 se guardaría como $0.00 (gratis) y debe rechazarse como «mayor a cero».
+        precio = precio == null ? null : precio.setScale(2, RoundingMode.HALF_UP);
         if (precio == null || precio.signum() <= 0) {
             throw new CampanaInvalidaException("El precio de campaña de " + (nombre == null ? "el producto " + productoId : "«" + nombre + "»")
                     + " debe ser mayor a cero.");
         }
-        precio = precio.setScale(2, RoundingMode.HALF_UP);
+        if (precio.compareTo(Campana.MONTO_MAXIMO) > 0) {
+            throw new CampanaInvalidaException("El precio de campaña de " + (nombre == null ? "el producto " + productoId : "«" + nombre + "»")
+                    + " es demasiado grande.");
+        }
     }
 }

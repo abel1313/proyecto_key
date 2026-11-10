@@ -1,5 +1,6 @@
 package com.ventas.key.hexagonal.campana.infraestructura.entrada.rest;
 
+import com.ventas.key.hexagonal.campana.dominio.excepcion.CampanaConComprasLigadasException;
 import com.ventas.key.hexagonal.campana.dominio.excepcion.CampanaInvalidaException;
 import com.ventas.key.hexagonal.campana.dominio.modelo.Campana;
 import com.ventas.key.hexagonal.campana.dominio.puerto.entrada.AdministrarCampanasCasoUso;
@@ -108,11 +109,14 @@ public class CampanaController {
     private ResponseEntity<ResponseGeneric<CampanaResponse>> ejecutar(Supplier<ResponseGeneric<CampanaResponse>> accion) {
         try {
             return ResponseEntity.ok(accion.get());
+        } catch (CampanaConComprasLigadasException e) {
+            // Borrar una campaña con compras ligadas: conflicto con el historial; el front muestra el mensaje y ofrece «Apagar».
+            return error(HttpStatus.CONFLICT, e.getMessage());
         } catch (CampanaInvalidaException e) {
             return error(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (DataIntegrityViolationException e) {
             log.warn("Campaña rechazada por la base: {}", e.getMostSpecificCause().getMessage());
-            return error(HttpStatus.CONFLICT, "No se pudo guardar la campaña: revisa que los productos no estén repetidos.");
+            return error(HttpStatus.CONFLICT, "No se pudo guardar la campaña: revisa que los productos no estén repetidos y que los datos no sean demasiado largos.");
         } catch (RuntimeException e) {
             log.error("Error en campañas", e);
             return error(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo completar la operación con la campaña.");

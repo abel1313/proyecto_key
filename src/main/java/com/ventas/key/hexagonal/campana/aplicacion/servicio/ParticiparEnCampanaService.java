@@ -24,9 +24,15 @@ import java.util.function.Supplier;
 
 /**
  * [Clean: Use Case] La campaña vigente frente a una venta: decide los precios de campaña, registra a la persona al cerrar la venta y verifica
- * códigos. Java puro. Reglas: el código solo vale si es de ESE cliente (correo o teléfono); la meta suma lo acumulado más lo del ticket sin los
- * juguetes de la campaña; solo cuentan las compras de Contado (pagadas); a quien compra con sus datos y acepta el aviso de privacidad se le crea
- * su código.
+ * códigos. Java puro. Reglas vigentes (2026-11-10):
+ * <ul>
+ *   <li>El cliente se reconoce por su código (solo si es de ESE cliente: correo, teléfono o cliente) o, sin código, por su correo, su teléfono o
+ *       su cliente (registrado o sin registro). Sin datos del cliente no hay descuento, salvo la casilla «Cliente recurrente» marcada a mano.</li>
+ *   <li>Para la meta suma TODO lo pagado entre la fecha de inicio y la de fin de la campaña (Contado y abonos de Apartado / Ir pagando, juguetes
+ *       incluidos). La compra en curso NO cuenta para su propio precio.</li>
+ *   <li>Ir pagando nunca lleva precio de campaña.</li>
+ *   <li>A quien compra con sus datos y acepta el aviso de privacidad se le crea su código.</li>
+ * </ul>
  */
 public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
 
@@ -74,8 +80,30 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         }
         // Lo que lleva de la campaña = lo YA PAGADO entre su fecha de inicio y de fin. El ticket de esta venta NO cuenta: apenas se está pagando y es
         // justo la compra que lo haría llegar a la meta (pedido del dueño 2026-11-08: con $1,000 de $1,500 no lleva descuento en esta venta).
-        BigDecimal acumulado = persona == null ? BigDecimal.ZERO : personas.acumulado(campana, persona);
-        boolean recurrente = persona != null
+        // Sin código (o con uno ajeno) el cliente se reconoce igual por su correo, su teléfono o su cliente (registrado o sin registro): regla del
+        // dueño 2026-11-10, «el cliente reconocido sin QR también califica». Solo sirve para el precio; ligar la compra sigue la regla de abajo.
+        ContactoCliente contacto = s.contacto();
+        PersonaCampana reconocida = persona;
+        if (reconocida == null && contacto != null) {
+            if (contacto.tieneDatos()) {
+                reconocida = personas.porContacto(contacto.correo(), contacto.telefono()).orElse(null);
+            }
+            if (reconocida == null) {
+                reconocida = personas.porCliente(contacto.clienteId(), contacto.clienteSinRegistroId()).orElse(null);
+            }
+        }
+        boolean hayCliente = contacto != null && (contacto.clienteId() != null || contacto.clienteSinRegistroId() != null);
+        BigDecimal acumulado;
+        if (reconocida != null) {
+            acumulado = personas.acumulado(campana, reconocida);
+        } else if (hayCliente) {
+            // Cliente conocido que todavía no tiene código: lo pagado por ese cliente entre las fechas de la campaña.
+            acumulado = personas.acumuladoDeCliente(campana, contacto.clienteId(), contacto.clienteSinRegistroId());
+        } else {
+            acumulado = BigDecimal.ZERO;
+        }
+        // Sin datos del cliente (ni código, ni correo, ni teléfono, ni cliente) solo vale la casilla manual.
+        boolean recurrente = reconocida != null || hayCliente
                 ? ReglasCampana.califica(acumulado, BigDecimal.ZERO, campana.metaMonto(), s.recurrenteManual())
                 : s.recurrenteManual();
 

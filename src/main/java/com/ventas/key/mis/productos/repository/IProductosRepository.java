@@ -189,4 +189,12 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
 
     // --- carga rapida de imagenes: estado directo en producto, ver /v1/carga-imagenes/* ---
     List<Producto> findByEstadoImagenOrderByIdDesc(EstadoCargaImagen estadoImagen);
+
+    /**
+     * Nombres de las categorías (palabra clave) asignadas a productos que NO son internos, sin importar si tienen artículos o están
+     * deshabilitados: para el filtro «Categoría» de Productos → Buscar. Quien llama normaliza (mayúsculas, sin repetidos, ordenado).
+     */
+    @Query("SELECT DISTINCT pc.nombre FROM Producto p JOIN p.palabraClave pc "
+            + "WHERE (p.esCatalogoInterno = false OR p.esCatalogoInterno IS NULL) AND pc.nombre IS NOT NULL")
+    List<String> nombresDeCategoriasAsignadas();
 }

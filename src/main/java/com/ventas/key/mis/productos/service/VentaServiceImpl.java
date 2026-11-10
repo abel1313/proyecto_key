@@ -67,6 +67,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     /** El precio de antes de las lineas cobradas con precio de grupo (para regresarlas si el pedido se edita). */
     @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
+    /**
+     * Para que la campaña corra en su PROPIA transacción: un error de base dentro de ella ya no deja la venta marcada rollback-only (antes el
+     * try/catch atrapaba la excepción, pero la confirmación fallaba con UnexpectedRollbackException). Opcional: sin él (pruebas) se corre directo.
+     */
+    @Autowired(required = false) private org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Autowired private RabbitTemplate rabbitTemplate;
     @Autowired private EmailService emailService;
     @Autowired private WhatsappService whatsappService;
@@ -198,7 +203,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         // Precio por cantidad: con TODO lo que lleva la venta (las piezas solo se suman dentro del mismo grupo).
         Map<Integer, PrecioDeGrupo> preciosDeGrupo = preciosDeGrupoDeLaVenta(request.getDetalles());
         // Campaña vigente: el back decide quién es recurrente y qué juguetes bajan; Ir pagando nunca lleva precio de campaña.
-        var decisionCampana = decidirCampana(request, cliente, clienteSinRegistro, tipoPedido);
+        var decisionCampana = decidirCampana(request, cliente, clienteSinRegistro, tipoPedido, usuario);
 
         for (var item : request.getDetalles()) {
             if (item.getCantidad() == null || item.getCantidad() <= 0) {
@@ -228,7 +233,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio origenDescuento = null;
             if (item.getPromocionId() == null) {
                 PrecioDeGrupo grupo = preciosDeGrupo.get(prod.getId());
-                java.math.BigDecimal precioCampana = decisionCampana.precioDe(prod.getId());
+                // Ir pagando nunca lleva precio de campana, aunque la decision trajera alguno (defensa: el back decide, no el request).
+                java.math.BigDecimal precioCampana = "FIADO".equals(tipoPedido) ? null : decisionCampana.precioDe(prod.getId());
                 validarPrecioCatalogo(prod, variante, item.getPrecioVenta(), grupo, precioCampana);
                 // Si la venta junta el minimo del grupo, se cobra su precio de grupo aunque el front mande el normal (gana el mas bajo).
                 precioLinea = precioAplicado(precioLinea, grupo);
@@ -326,8 +332,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             pedido.setDetalles(detallesPedido);
             Pedido savedPedido = iPedidoRepository.save(pedido);
             recordarPreciosAntesDeGrupo(detallesPedido);
-            registrarCompraDeCampana(decisionCampana, savedPedido.getId(), "FIADO".equals(tipoPedido)
-                    ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.IR_PAGANDO : com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.APARTADO);
+            // La compra se registra en la campaña cuando la venta YA se confirmó, en su propia transacción: si falla, la venta queda igual.
+            var cobroCredito = "FIADO".equals(tipoPedido)
+                    ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.IR_PAGANDO : com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.APARTADO;
+            Integer pedidoCredito = savedPedido.getId();
+            despuesDeConfirmar(() -> registrarCompraDeCampana(decisionCampana, pedidoCredito, cobroCredito, true));
             cacheService.evictAll();
             try {
                 rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -377,8 +386,6 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         recordarPreciosAntesDeGrupo(detallesPedido);
         // Cliente sin registro con correo: sale el correo «Agrega tu compra a tu cuenta»; el codigo de la campana va DENTRO de ese mismo correo (un solo correo).
         boolean correoUnico = esSinRegistro && clienteSinRegistro.getCorreoElectronico() != null && !clienteSinRegistro.getCorreoElectronico().isBlank();
-        var registroCampana = registrarCompraDeCampana(decisionCampana, pedido.getId(),
-                com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO, !correoUnico);
 
         // Crear Venta vinculada al Pedido
         Venta venta = new Venta();
@@ -409,17 +416,27 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         boolean requiereTerminal = requiereTerminal(pagosYMeses, mesesIntereses);
         Venta saved = iVentaRepository.save(venta);
-        if (codigoReclamo != null) {
-            String correoCliente = clienteSinRegistro.getCorreoElectronico();
+        // Todo lo de la campaña sale hasta que la venta se confirma (afterCommit), en este orden: 1) registrar la persona y ligar el pedido (en su
+        // propia transacción: un error ahí ya no tira la venta), 2) el correo único «Agrega tu compra a tu cuenta» con el bloque del código. Si la
+        // venta se revierte no llega un código que no existe, y el SMTP no detiene la transacción con el stock bloqueado.
+        Integer pedidoContado = pedido.getId();
+        String correoCliente = codigoReclamo != null ? clienteSinRegistro.getCorreoElectronico() : null;
+        String codigoDelCorreo = codigoReclamo;
+        despuesDeConfirmar(() -> {
+            var registroCampana = registrarCompraDeCampana(decisionCampana, pedidoContado,
+                    com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO, !correoUnico);
+            if (codigoDelCorreo == null) {
+                return;
+            }
             EmailService.CodigoCampanaCorreo deCampana = registroCampana
                     .map(r -> new EmailService.CodigoCampanaCorreo(r.persona().nombre(), r.nombreCampana(), r.persona().uuid(), r.nueva()))
                     .orElse(null);
-            boolean salio = emailService.enviarCodigoReclamoVenta(correoCliente, codigoReclamo, deCampana);
+            boolean salio = emailService.enviarCodigoReclamoVenta(correoCliente, codigoDelCorreo, deCampana);
             if (!salio && deCampana != null) {
                 // Si el correo unico no salio, el codigo de la campana no se pierde: se manda aparte.
                 emailService.enviarCodigoCampana(correoCliente, deCampana.nombre(), deCampana.nombreCampana(), deCampana.uuid(), deCampana.primeraVez());
             }
-        }
+        });
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -434,7 +451,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
                 requiereTerminal ? mesesIntereses.getMeses() : null,
                 mesesIntereses.getDescripcion(),
                 null,
-                null,
+                // El pedido de la venta de contado tambien sale: el front manda el ticket por correo DESPUES de la venta con
+                // POST /v1/pedidos/{pedidoId}/notificar (los renglones reales del back). El front decide credito por el tipo que pidio, no por esto.
+                pedido.getId(),
                 null, null, null
         );
         enviarNotificacionesVenta(request.getNotificacion(), cliente, clienteSinRegistro,
@@ -491,7 +510,11 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
         pedido.setDetalles(detallesPedido);
         Pedido guardado = iPedidoRepository.save(pedido);
         recordarPreciosAntesDeGrupo(detallesPedido);
-        registrarCompraDeCampana(decisionCampana, guardado.getId(), com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO);
+        // Tarjeta pendiente: se liga el pedido (no suma al acumulado mientras este Pendiente) pero el codigo NO se manda aun: la venta no
+        // esta confirmada. El correo corresponde al aprobarse el cobro (ver reporte: falta el gancho en PedidoCobroAdapter.marcarPagado).
+        Integer pedidoPendiente = guardado.getId();
+        despuesDeConfirmar(() -> registrarCompraDeCampana(decisionCampana, pedidoPendiente,
+                com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO, false));
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
@@ -622,47 +645,69 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
      * Una falla de la campana nunca tira la venta: se registra y se cobra normal.
      */
     private com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decidirCampana(
-            VentaDirectaRequest request, Cliente cliente, ClienteSinRegistro sinRegistro, String tipoPedido) {
+            VentaDirectaRequest request, Cliente cliente, ClienteSinRegistro sinRegistro, String tipoPedido, Usuario vendedor) {
         var ninguna = com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana.NINGUNA;
         if (campanas == null) {
             return ninguna;
         }
+        // Venta de mostrador sin datos del cliente: el pedido lleva la cuenta de quien vende. Esa cuenta NO es el cliente: con ella se reconocería
+        // a «quien vende» y sumaría todas sus ventas de mostrador hacia la meta. Se trata como venta sin datos del cliente.
+        if (cliente != null && vendedor != null && cliente.getUsuario() != null && vendedor.getId() != null
+                && vendedor.getId().equals(cliente.getUsuario().getId())) {
+            cliente = null;
+        }
+        Cliente clienteDeLaVenta = cliente;
         try {
-            var cobro = "FIADO".equals(tipoPedido) ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.IR_PAGANDO
-                    : "APARTADO".equals(tipoPedido) ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.APARTADO
-                    : com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO;
-            var lineas = new ArrayList<com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea>();
-            for (var item : request.getDetalles()) {
-                if (item.getPromocionId() != null || item.getVarianteId() == null || item.getCantidad() == null || item.getCantidad() <= 0) {
-                    continue;
-                }
-                var v = iVarianteRepository.findById(item.getVarianteId()).orElse(null);
-                if (v != null) {
-                    lineas.add(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea(v.getProducto().getId(),
-                            item.getCantidad(), java.math.BigDecimal.valueOf(precioNormalDeLinea(v.getProducto(), v))));
-                }
-            }
-            var c = request.getCampana();
-            String nombre = cliente != null ? String.join(" ", Optional.ofNullable(cliente.getNombrePersona()).orElse(""),
-                    Optional.ofNullable(cliente.getApeidoPaterno()).orElse("")).trim()
-                    : sinRegistro != null ? String.join(" ", Optional.ofNullable(sinRegistro.getNombrePersona()).orElse(""),
-                    Optional.ofNullable(sinRegistro.getApeidoPaterno()).orElse("")).trim() : "";
-            String correo = cliente != null ? cliente.getCorreoElectronico() : sinRegistro != null ? sinRegistro.getCorreoElectronico() : null;
-            String telefono = cliente != null ? cliente.getNumeroTelefonico() : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : null;
-            return campanas.decidir(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana(
-                    c == null ? null : c.getCodigo(), c != null && c.isRecurrenteManual(), c != null && c.isAceptaPrivacidad(), cobro,
-                    new com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente(nombre, correo, telefono,
-                            cliente != null ? cliente.getId() : null, sinRegistro != null ? sinRegistro.getId() : null), lineas));
+            // Solo lee; corre en su propia transacción de lectura para que un error de base no marque la venta como rollback-only.
+            return enTransaccionPropia(true, () -> decidirCampanaSinTransaccion(request, clienteDeLaVenta, sinRegistro, tipoPedido));
         } catch (RuntimeException e) {
             log.warn("La campana no pudo decidir precios; se cobra normal: {}", e.getMessage());
             return ninguna;
         }
     }
 
-    /** Al cerrar la venta: liga el pedido a la persona y le manda su codigo. Nunca hace caer la venta. */
-    private void registrarCompraDeCampana(com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decision, Integer pedidoId,
-                                          com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro cobro) {
-        registrarCompraDeCampana(decision, pedidoId, cobro, true);
+    private com.ventas.key.hexagonal.campana.dominio.modelo.DecisionDeCampana decidirCampanaSinTransaccion(
+            VentaDirectaRequest request, Cliente cliente, ClienteSinRegistro sinRegistro, String tipoPedido) {
+        var cobro = "FIADO".equals(tipoPedido) ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.IR_PAGANDO
+                : "APARTADO".equals(tipoPedido) ? com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.APARTADO
+                : com.ventas.key.hexagonal.campana.dominio.modelo.FormaDeCobro.CONTADO;
+        var lineas = new ArrayList<com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea>();
+        for (var item : request.getDetalles()) {
+            if (item.getPromocionId() != null || item.getVarianteId() == null || item.getCantidad() == null || item.getCantidad() <= 0) {
+                continue;
+            }
+            var v = iVarianteRepository.findById(item.getVarianteId()).orElse(null);
+            if (v != null) {
+                lineas.add(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana.Linea(v.getProducto().getId(),
+                        item.getCantidad(), java.math.BigDecimal.valueOf(precioNormalDeLinea(v.getProducto(), v))));
+            }
+        }
+        var c = request.getCampana();
+        String nombre = cliente != null ? String.join(" ", Optional.ofNullable(cliente.getNombrePersona()).orElse(""),
+                Optional.ofNullable(cliente.getApeidoPaterno()).orElse("")).trim()
+                : sinRegistro != null ? String.join(" ", Optional.ofNullable(sinRegistro.getNombrePersona()).orElse(""),
+                Optional.ofNullable(sinRegistro.getApeidoPaterno()).orElse("")).trim() : "";
+        String correo = cliente != null ? cliente.getCorreoElectronico() : sinRegistro != null ? sinRegistro.getCorreoElectronico() : null;
+        String telefono = cliente != null ? cliente.getNumeroTelefonico() : sinRegistro != null ? sinRegistro.getNumeroTelefonico() : null;
+        return campanas.decidir(new com.ventas.key.hexagonal.campana.dominio.modelo.SolicitudDeCampana(
+                c == null ? null : c.getCodigo(), c != null && c.isRecurrenteManual(), c != null && c.isAceptaPrivacidad(), cobro,
+                new com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente(nombre, correo, telefono,
+                        cliente != null ? cliente.getId() : null, sinRegistro != null ? sinRegistro.getId() : null), lineas));
+    }
+
+    /**
+     * Corre {@code accion} en una transacción NUEVA (REQUIRES_NEW): lo que falle ahí se revierte solo ahí y no marca rollback-only la transacción
+     * de la venta. Sin gestor de transacciones (pruebas unitarias) se corre directo.
+     */
+    private <T> T enTransaccionPropia(boolean soloLectura, java.util.function.Supplier<T> accion) {
+        if (transactionManager == null) {
+            return accion.get();
+        }
+        org.springframework.transaction.support.TransactionTemplate tx =
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tx.setReadOnly(soloLectura);
+        return tx.execute(estado -> accion.get());
     }
 
     /** Con {@code mandarCorreo=false} el correo del codigo no sale aparte: quien llama lo mete en otro correo (un solo correo por compra). */
@@ -673,12 +718,35 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             return java.util.Optional.empty();
         }
         try {
+            // En su propia transacción (se llama después de confirmar la venta): un fallo solo queda en el log.
             java.util.Optional<com.ventas.key.hexagonal.campana.dominio.modelo.RegistroDeCompra> r =
-                    campanas.registrarCompra(decision, pedidoId, cobro, mandarCorreo);
+                    enTransaccionPropia(false, () -> campanas.registrarCompra(decision, pedidoId, cobro, mandarCorreo));
             return r == null ? java.util.Optional.empty() : r;
         } catch (RuntimeException e) {
             log.warn("No se pudo registrar la compra en la campana del pedido {}: {}", pedidoId, e.getMessage());
             return java.util.Optional.empty();
+        }
+    }
+
+    /** Corre {@code accion} cuando la transaccion confirma (o ya, si no hay transaccion). Un fallo se registra y no se propaga. */
+    private static void despuesDeConfirmar(Runnable accion) {
+        Runnable segura = () -> {
+            try {
+                accion.run();
+            } catch (RuntimeException e) {
+                log.warn("No se pudo mandar el correo de la venta (la venta ya quedo guardada): {}", e.getMessage());
+            }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            segura.run();
+                        }
+                    });
+        } else {
+            segura.run();
         }
     }
 

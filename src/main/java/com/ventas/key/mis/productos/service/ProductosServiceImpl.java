@@ -686,6 +686,21 @@ public class ProductosServiceImpl extends
         return producto;
     }
 
+    /**
+     * Las categorías asignadas a productos no internos (con o sin artículos, habilitados o no), en MAYÚSCULAS, sin repetidos y ordenadas. Sin caché a
+     * propósito: es una consulta chica y así nunca queda vieja después de asignar una categoría a un producto.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<String> categoriasAsignadas() {
+        java.util.TreeSet<String> nombres = new java.util.TreeSet<>();
+        for (String n : iProductosRepository.nombresDeCategoriasAsignadas()) {
+            if (n != null && !n.isBlank()) {
+                nombres.add(com.ventas.key.mis.productos.Utils.TextoNormalizado.mayusculas(n));
+            }
+        }
+        return List.copyOf(nombres);
+    }
+
     @Cacheable(value = "obtenerProductosCache", key = "'no-habilitados:' + #page + ':' + #size")
     public PginaDto<List<ProductoDTO>> getProductosNoHabilitados(int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
