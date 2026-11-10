@@ -12,12 +12,12 @@ public record CampanaResponse(Integer id, String nombre,
                               @JsonFormat(pattern = "yyyy-MM-dd") LocalDate fechaFin,
                               boolean activa, boolean vigente, double metaMonto, List<Producto> productos) {
 
-    public record Producto(int productoId, String nombre, double precio) {
+    public record Producto(int productoId, String nombre, String codigoBarras, double precio) {
     }
 
     public static CampanaResponse de(Campana c, LocalDate hoy) {
         return new CampanaResponse(c.id(), c.nombre(), c.fechaInicio(), c.fechaFin(), c.activa(), c.vigenteEn(hoy),
                 c.metaMonto().doubleValue(),
-                c.precios().stream().map(p -> new Producto(p.productoId(), p.nombre(), p.precio().doubleValue())).toList());
+                c.precios().stream().map(p -> new Producto(p.productoId(), p.nombre(), p.codigoBarras(), p.precio().doubleValue())).toList());
     }
 }

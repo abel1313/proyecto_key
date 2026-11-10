@@ -7,9 +7,13 @@ import java.math.RoundingMode;
 
 /**
  * [Hexagonal: Domain] [Clean: Entity] Java puro. Un producto de la campaña y el precio al que se cobra cada pieza a quien es recurrente.
- * {@code nombre} es solo para mostrar.
+ * {@code nombre} y {@code codigoBarras} son solo para mostrar (el código identifica al juguete en la pantalla de Campañas; puede ser null).
  */
-public record PrecioDeCampana(int productoId, String nombre, BigDecimal precio) {
+public record PrecioDeCampana(int productoId, String nombre, String codigoBarras, BigDecimal precio) {
+
+    public PrecioDeCampana(int productoId, String nombre, BigDecimal precio) {
+        this(productoId, nombre, null, precio);
+    }
 
     public PrecioDeCampana {
         if (productoId <= 0) {
