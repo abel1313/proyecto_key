@@ -657,6 +657,42 @@ queda a la vista de todos y en el historial, aunque se borre después.
 - AWS ya no se usa. Procedimiento de rotación y bitácora: `SEGURIDAD_CREDENCIALES_2026-10-15.md`.
 - Gitleaks (`gitleaks detect --source . --redact`) antes de un cambio grande; falsos positivos conocidos en ese documento.
 
+## Regla — llevar lo de QA a prod SIN borrar nada (lección del 2026-11-08)
+
+Al copiar prod → QA con un dump completo, QA perdió todo lo que solo existía en QA (tablas, columnas, pantallas del menú y permisos) y el menú de Campañas dejó de salir
+hasta volver a correr las migraciones. En prod eso **no debe pasar nunca**:
+
+1. **Jamás se restaura un dump encima de prod** ni se hace `DROP DATABASE` / `DROP TABLE` / `TRUNCATE` / `DELETE` sin WHERE en `inventario_key`. Prod solo recibe migraciones.
+2. **Antes de tocar prod: respaldo** `mysqldump -u root -p --single-transaction --routines --triggers inventario_key | gzip > ~/prod_antes_$(date +%Y%m%d_%H%M).sql.gz`, y comprobar que pesa megas.
+3. Las migraciones de QA pendientes en prod **no borran datos** (revisado 2026-11-08: 0 DROP/DELETE/TRUNCATE; solo CREATE TABLE IF NOT EXISTS, INSERT ... WHERE NOT EXISTS y ALTER ... ADD COLUMN;
+   `migration_renombre_articulo_etiquetas.sql` solo hace UPDATE de textos del menú). Se corren completas y **en este orden**, cada una antes que el front/back que la usa:
+   las de la lista «Pendiente para prod» de abajo, por número (las 13 a 17 son las del paquete de campaña). `migration_pago_tarjeta.sql` **no** va en el paquete de campaña (cobro con tarjeta sigue solo en QA).
+   `migration_renombre_articulo_etiquetas.sql` solo cuando el front del renombrado (`variante` → `artículo`) llegue a prod.
+4. Los scripts `script_categoria_juguetes_por_fecha.sql`, `datos_prueba_*`, `limpiar_*` y `qa_neutralizar_contactos.sql` **no van a prod** sin orden expresa del dueño; `qa_neutralizar_contactos.sql` **nunca** (borra correos y teléfonos reales).
+5. Después de correr migraciones en prod: **volver a entrar** (las pantallas viajan en el JWT) y comprobar con `SELECT` que existen las pantallas y los permisos de ROLE_ADMIN.
+6. Orden de despliegue: primero la migración, luego el back, luego el front (el back sin la migración sigue vendiendo; el front sin el back no tiene a quién llamarle).
+
+### Receta para correr un `.sql` en el VPS (errores que pasaron el 2026-11-08 y cómo evitarlos)
+
+El 2026-11-08 la migración de QA falló tres veces por el procedimiento, no por el script. Para prod se hace **así**:
+
+1. **El archivo `.sql` NO está en el VPS** (vive en el repo). Hay que llevarlo: `scp migration_xxx.sql ubuntu@vps-da9a48f5:~/` **desde la PC del dueño** (no desde el VPS), o crearlo en el VPS con `cat > ~/migration_xxx.sql <<'EOF' … EOF`.
+   Comprobar que llegó: `ls -l ~/migration_xxx.sql` (que pese más de 0).
+2. **Dos terminales distintas, no mezclar:**
+   - Prompt `ubuntu@vps…$` (bash): aquí van `mysql -u root -p inventario_key < ~/migration_xxx.sql`, `mysqldump`, `kubectl`, `scp`. **Nunca** un `SELECT` aquí.
+   - Prompt `mysql>`: aquí solo SQL (`SELECT …`, `USE …`). **Nunca** escribir `mysql -u root -p …` ahí (da error 1064). Para salir: `exit`.
+3. **La base correcta:** QA = `inventario_key_qa`, prod = `inventario_key` (sin sufijo). Antes de correr, comprobarlo: `mysql -u root -p -e "SELECT DATABASE();" inventario_key`.
+4. Si dice «ya existe», es normal (los scripts son idempotentes): se sigue.
+5. **Verificar siempre** con el `SELECT` de verificación que trae el script al final, y anotar el resultado en el registro de migraciones de este archivo.
+6. En prod: respaldo antes (punto 2 de arriba) y **jamás** la restauración de un dump.
+
+### Paquete de campaña para prod (rama `hotfix/campana-prod`, 2026-11-10)
+
+- Lleva solo: campañas (`hexagonal/campana`), grupos de precio por cantidad Fase 1 y 1b (`hexagonal/preciocantidad`, `RepreciarPorCantidadAdapter`), filtro por categoría, UUID del cliente en el escáner (E14) y el correo único con el QR. **No** lleva cobro con tarjeta / Mercado Pago, corte de caja, dashboards, Revisión de ventas ni chatbot.
+- Migraciones: las 13 a 17 de «Pendiente para prod», en ese orden, **antes** de subir el back (la 17 es obligatoria: sin ella el back de campañas falla al leer personas).
+- La categoría «JUGUETES» de los productos se pone en prod **solo** con `script_categoria_juguetes_por_fecha.sql` y solo si el dueño lo ordena (vista previa, respaldo y solo a los que están en NULL).
+- Pendiente antes de prod: textos legales (aviso de privacidad y términos) y decidir qué pasa con las devoluciones (entrega 4).
+
 ## Migraciones ya corridas — registro
 
 Cuando se corra una migración a mano en un ambiente, anotarla aquí con la fecha, para no volver
@@ -689,6 +725,12 @@ a preguntarse si ya se ejecutó ni correrla dos veces por las dudas.
 | `limpiar_datos_e2e_qa.sql` (da de baja lo que crean las pruebas E2E) | cuando se quiera | 🚫 nunca | — |
 | `migration_entrega_pedido.sql` (entrega aparte del pago, 📦 Entregar) | ✅ corrida (columnas creadas; 846 entregados y 285 en 0; entregar=21 y regresar-entrega=22 con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_submenu_corte_caja.sql` (pantalla «🧾 Corte de caja» del menú, grupo Reportes, solo ROLE_ADMIN) | ✅ corrida en QA por el dueño (2026-11-05; probada 2 veces en base desechable con `MigracionSubmenuCorteCajaTest`) | ⏳ pendiente (correrla **antes** de llevar el front del corte a `master`) | qa 2026-11-05 |
+| `migration_grupo_precio_cantidad.sql` (grupos de precio por cantidad: tablas `grupo_precio_cantidad` y `grupo_precio_cantidad_producto` + pantalla «Grupos de precio por cantidad», solo ROLE_ADMIN) | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionGrupoPrecioCantidadTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
+| `migration_precio_base_linea_grupo.sql` (tabla `detalle_pedido_precio_grupo`: el precio de antes de las líneas cobradas con precio de grupo; Fase 1b, al editar un pedido se recalcula) | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionPrecioBaseLineaGrupoTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
+| `migration_campana.sql` (campañas: tablas `campana` y `campana_producto` + pantalla «Campañas», solo ROLE_ADMIN, después de «Grupos de precio por cantidad») | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionCampanaTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
+| `migration_campana_personas.sql` (personas con código de campaña: tablas `campana_persona` y `campana_persona_pedido`; requiere `migration_campana.sql`) | ✅ qa ejecutada 2026-11-08 (probada 2 veces en H2 con `MigracionCampanaPersonasTest`) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-07 |
+| `migration_campana_persona_cliente.sql` (columnas `cliente_id` y `cliente_sin_registro_id` en `campana_persona`, con llaves `ON DELETE SET NULL`: a qué cliente pertenece el código, para llenar sus datos al escanear el QR; solo agrega, no borra; requiere `migration_campana_personas.sql`) | ✅ qa ejecutada por el dueño 2026-11-08 (verificado: 2 columnas `cliente_id` y `cliente_sin_registro_id` y 2 llaves `fk_cper_cliente` / `fk_cper_sin_registro`; probada 2 veces en MySQL 8 desechable) | ⏳ pendiente (**después** de QA y de la orden del dueño) | qa 2026-11-08 |
+| `script_categoria_juguetes_por_fecha.sql` (NO es migración: pone la categoría JUGUETES a los productos sin categoría dados de alta desde una fecha; con vista previa, respaldo y deshacer) | ✅ corrido en QA | pendiente solo si el dueño lo ordena | 2026-11-09 |
 | `migration_accion_gastos_admin.sql` (admin puede agregar/editar/eliminar gastos) | ✅ corrida (3 acciones con admin) | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_datos_legales.sql` (datos legales del negocio + aceptación de Términos) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
 | `migration_tema_filtros.sql` (fondo del recuadro de filtros y de cada filtro, en Personalización → Formularios) | ✅ corrida | ✅ corrida en prod (2026-10-15) | qa 2026-10-07 |
@@ -716,6 +758,11 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 10 | `migration_sesion_refresh_gracia.sql` | Agrega `jti_anterior` y `rotado_en` a `sesion_refresh`: **sin ellas fallan el login y la renovación de sesión**. Ya corrida en QA (2026-10-14) | 2026-10-14 |
 | 11 | `migration_submenu_corte_caja.sql` | Da de alta la pantalla `reportes/corte-caja` en `submenu` (mismo grupo que «Reportes de ventas») y se la da solo a `ROLE_ADMIN`. Sin ella el menú no muestra «🧾 Corte de caja» y el guard del front manda a `/tienda/buscar`; el endpoint `GET /v1/reportes/corte-caja` funciona igual. Requiere que el back del corte (`hexagonal/cortecaja`) y el front estén en prod. Ya corrida en QA (2026-11-05). **Después de correrla: volver a entrar** (las pantallas viajan en el JWT) | 2026-11-05 |
 | 12 | `migration_calculo_precio.sql` | Crea `producto_calculo_precio` (historial de cálculos de precio por producto: costos por pieza, comisión de tarjeta elegida, margen, precio calculado y precio cobrado; se borra sola si se borra el producto). Sin ella la calculadora de precio funciona igual y solo no se guarda el historial | 2026-11-09 |
+| 13 | `migration_grupo_precio_cantidad.sql` | Crea `grupo_precio_cantidad` y `grupo_precio_cantidad_producto` (un producto en un solo grupo: `producto_id` único; se borra solo si se borra el producto) y da de alta la pantalla `productos/grupos-precio` solo a `ROLE_ADMIN`. Sin ella no existen las tablas y los endpoints `/v1/grupos-precio-cantidad` fallan; el cálculo de precio por cantidad (`/v1/precio-cantidad/calcular`) y las ventas siguen funcionando porque los grupos vienen vacíos. **Después de correrla: volver a entrar** (las pantallas viajan en el JWT) | 2026-11-07 |
+| 14 | `migration_precio_base_linea_grupo.sql` | Crea `detalle_pedido_precio_grupo` (una fila por línea de pedido cobrada con precio de grupo: el precio que tenía antes; se borra sola si se borra la línea). `detalle_pedidos` NO cambia. Sin ella las ventas y las ediciones funcionan como antes, pero al editar un pedido el precio de grupo **no se recalcula**. Requiere `migration_grupo_precio_cantidad.sql` | 2026-11-07 |
+| 15 | `migration_campana.sql` | Crea `campana` y `campana_producto` (un producto no se repite dentro de una campaña; se borra solo si se borra la campaña o el producto) y da de alta la pantalla `productos/campanas` solo a `ROLE_ADMIN`. Sin ella `/v1/campanas` responde 500, pero `GET /v1/campanas/activa` no se usa en ventas todavía y todo lo demás sigue igual (el adaptador revisa si la tabla existe). **Después de correrla: volver a entrar** | 2026-11-07 |
+| 16 | `migration_campana_personas.sql` | Crea `campana_persona` (uuid único, datos de contacto, consentimiento) y `campana_persona_pedido` (qué pedido es de quién y cuánto suma a la meta; se borra solo si se borra la persona, la campaña o el pedido). Requiere la 15. Sin ella la Venta directa **ignora la campaña** (no hay códigos ni precio de campaña) y todo lo demás sigue igual | 2026-11-07 |
+| 17 | `migration_campana_persona_cliente.sql` | Agrega `cliente_id` y `cliente_sin_registro_id` (NULL, con índices y llaves `ON DELETE SET NULL` hacia `clientes` y `clientes_sin_registro`) a `campana_persona`. Solo agrega. Sin ella el back de campañas **falla al leer personas** (la entidad ya pide las columnas): correrla **antes** de subir el back que la usa. Requiere la 16 | 2026-11-08 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
@@ -1014,6 +1061,10 @@ porque varias no coinciden en el nombre (`Imagen` → `imagenes_copy`, no `image
 |---|---|---|
 | `Imagen` | **`imagenes_copy`** | existe también `imagenes` — es la vieja, **no se usa** |
 | `ProductoImagen` | **`producto_imagen_copy`** | existe también `producto_imagen` — vieja, **no se usa** |
+| `GrupoPrecioCantidadEntidad` / `GrupoPrecioCantidadProductoEntidad` | `grupo_precio_cantidad` / `grupo_precio_cantidad_producto` | los nombres coinciden; el dominio vive en `hexagonal/preciocantidad` (las entidades JPA están en `mis/productos/entity` porque el escaneo de JPA solo cubre ese paquete). `producto_id` es único: un producto, un grupo |
+| `CampanaEntidad` / `CampanaProductoEntidad` | `campana` / `campana_producto` | los nombres coinciden; el dominio vive en `hexagonal/campana` (entidades en `mis/productos/entity` por el escaneo de JPA). Una sola campaña encendida a la vez (lo cuida `CampanasJpaAdapter.activarSola`); `(campana_id, producto_id)` único |
+| `CampanaPersonaEntidad` / `CampanaPersonaPedidoEntidad` | `campana_persona` / `campana_persona_pedido` | persona con código (uuid único, teléfono guardado con los últimos 10 dígitos, `cliente_id` / `cliente_sin_registro_id` del cliente de su primera compra) y la liga persona↔pedido↔campaña. La meta ya NO usa el monto de la liga: se calcula al vuelo con lo pagado (ventas de contado y abonos) entre las fechas de la campaña. Ids simples, FKs en la migración |
+| `DetallePedidoPrecioGrupo` | `detalle_pedido_precio_grupo` | el id de la fila es el de la línea (`detalle_pedidos.id`), no se genera. La entidad de la línea (`DetallePedido`) no cambia: lleva un campo `@Transient precioAntesDeGrupo` que solo viaja del cobro al guardado |
 | `ImagenPresentacion` | `imagen_presentacion` | la columna se llama `url_imagen` pero el campo Java es `nombreArchivo` |
 | `Usuario` | **`usuario_modificacion`** | existe también `usuarios` — una FK a un usuario va a `usuario_modificacion(id)` |
 

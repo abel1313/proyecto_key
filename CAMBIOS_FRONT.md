@@ -23237,3 +23237,300 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Fórmulas del back:** costo total = compra + transporte + otros · comisión = precio cobrado × comisión % · ganancia real = cobrado − costo total − comisión · margen real = ganancia ÷ cobrado.
 **Cambia respecto a antes:** antes la calculadora no guardaba nada; ahora, al pulsar «Usar este precio» y guardar el producto, el front manda este cálculo.
+
+---
+
+# 🎁 PAQUETE DE CAMPAÑA EN PRODUCCIÓN (rama `hotfix/campana-prod`, 2026-11-10)
+
+Todo lo de abajo (grupos de precio por cantidad, campañas, código/QR del cliente, correo único con el QR, Escáner QR del celular para el
+código del cliente, filtro por categoría) llega a producción en este paquete. Las notas «rama de trabajo; aún sin subir» de cada sección son
+históricas (de cuando se probó en QA). **No** llegan con este paquete: cobro con tarjeta / Mercado Pago, corte de caja, dashboards, Revisión de
+ventas ni cambios del chatbot. Antes del back se corren las migraciones 13 a 17 de `CLAUDE.md` («Pendiente para prod»).
+
+## 🏷️ Grupos de precio por cantidad (2026-11-07, en `dev` y `qa`; Fase 1 de `PLAN_CAMPANAS_Y_PRECIOS.md`)
+**Qué es:** un grupo junta productos con un **mínimo de piezas**; cuando la venta lleva ese mínimo (sumando las piezas de TODOS los productos del grupo), cada producto del grupo que lleva la venta se cobra a **su precio de promoción**. Las piezas **solo se suman dentro del mismo grupo**. Un producto está en **un solo grupo**. Gana el precio **más bajo** (un descuento a mano más bajo se respeta; no se suman). Aplica también en Apartado.
+
+**Requiere correr** `migration_grupo_precio_cantidad.sql` (crea las dos tablas y la pantalla `productos/grupos-precio` solo para `ROLE_ADMIN`; **volver a entrar** después). Sin ella `/v1/grupos-precio-cantidad` responde 500 y todo lo demás sigue como antes (sin grupos no hay precio de grupo).
+
+**Administración — solo `ROLE_ADMIN`** (cliente → 403): `/mis-productos/v1/grupos-precio-cantidad`
+| Request | Qué hace |
+|---|---|
+| `GET /v1/grupos-precio-cantidad` | `lista[]` de grupos |
+| `GET /v1/grupos-precio-cantidad/{id}` | un grupo |
+| `GET /v1/grupos-precio-cantidad/producto/{productoId}` | el grupo del producto; `data: null` si no está en ninguno |
+| `POST /v1/grupos-precio-cantidad` | crea |
+| `PUT /v1/grupos-precio-cantidad/{id}` | reemplaza nombre, mínimo, fechas, activo y **toda** la lista de productos |
+| `PUT /v1/grupos-precio-cantidad/{id}/activo` `{ "activo": false }` | enciende o apaga |
+| `DELETE /v1/grupos-precio-cantidad/{id}` | borra el grupo (sus productos vuelven a precio normal) |
+
+Cuerpo de `POST` y `PUT`:
+```json
+{ "nombre": "Bolsas de Navidad", "minimoPiezas": 3, "fechaInicio": "2026-12-01", "fechaFin": "2026-12-31", "activo": true,
+  "productos": [ { "productoId": 12, "precioPromocion": 200.0 }, { "productoId": 15, "precioPromocion": 270.0 } ] }
+```
+Respuesta (un grupo): `data: { id, nombre, minimoPiezas, fechaInicio, fechaFin, activo, vigente, productos: [ { productoId, nombre, precioPromocion } ] }`. `vigente` = activo **y** dentro de sus fechas hoy (los dos extremos incluidos). Las fechas son opcionales (`null` = sin límite).
+Errores: `400` con el mensaje en palabras del dueño (nombre vacío, mínimo menor a 2, «desde» después de «hasta», sin productos, precio ≤ 0, producto repetido, **«X» ya está en el grupo «Y». Un producto solo puede estar en un grupo.**, el producto ya no existe) · `409` si la base rechaza un producto repetido · `403` cliente · `401` sin sesión.
+
+**Cálculo para mostrar — con sesión (cliente o admin):** `POST /mis-productos/v1/precio-cantidad/calcular`
+```json
+{ "lineas": [ { "productoId": 12, "cantidad": 1 }, { "productoId": 15, "cantidad": 2 } ] }
+```
+→ `data: { precios: [ { productoId, precioPromocion, grupoId, grupo, minimoPiezas, piezasDelGrupo } ] }`. **Solo trae los productos a los que les toca**; lo que no aparece se cobra a su precio normal. `productoId` es el del **producto** (varios artículos —talla, color— del mismo producto se suman). No guarda nada.
+
+**Lo que cambia al GUARDAR (el back decide, nunca confía en el front):**
+- `POST /v1/ventas/save` (Venta directa) y `POST /v1/pedidos/savePedido` (carrito): el back calcula los grupos con **todo** lo que lleva la venta/pedido (las líneas con `promocionId`, o sea combos, **no** cuentan). Si el grupo juntó el mínimo, la línea se cobra a su precio de grupo **aunque el front mande el precio normal** (si manda uno menor ya válido, por ejemplo la rebaja, se queda ese). El `precioUnitario`/`subTotal` guardados y el total del pedido ya traen el precio de grupo.
+- Un precio de grupo mandado por el front **solo se acepta si la venta de verdad juntó el mínimo**; si no, `precio no es valido: llego X y los precios de catalogo son Y`.
+- **Front (ya hecho en QA):** Venta directa y la pantalla del carrito llaman a `calcular` cada vez que cambia el carrito, muestran el precio normal tachado, el ahorro y el total, y mandan el precio de grupo en el request. Pantalla nueva **Catálogo → Grupos de precio por cantidad** (`productos/grupos-precio`).
+
+**Fase 1b (2026-11-07): editar un pedido ya guardado SÍ recalcula el precio de grupo.** Requiere correr `migration_precio_base_linea_grupo.sql` (tabla `detalle_pedido_precio_grupo`; sin ella todo funciona como en la Fase 1 y al editar no se recalcula).
+- Después de **cada** edición de artículos: `POST /v1/pedidos/{id}/articulos` (agregar), `PUT /v1/pedidos/{id}/articulos/{detalleId}` (cambiar), `DELETE /v1/pedidos/{id}/promociones/{promocionId}` (quitar un combo) y `DELETE /v1/pedidos/{pedidoId}/detalle/{productoId}?cantidad=&detalleId=` (quitar piezas), el back vuelve a decidir el precio de cada línea **con lo que lleva el pedido en ese momento**: si el grupo junta su mínimo, las líneas de sus productos pasan al precio de grupo; si ya no lo junta, **regresan al precio que tenían antes** (el normal, o la rebaja que ya tenían). Las líneas de un combo no se tocan.
+- El total del pedido se recalcula con esos precios y el estado de pago se ajusta a los abonos como siempre (Apartado ↔ PAGADO).
+- Si queda **la misma pieza en dos líneas al mismo precio** (la que ya estaba con precio de grupo y la recién agregada), se **juntan en una sola línea** con la cantidad sumada.
+- **Front:** no manda el precio de grupo al editar. Si lo manda, el back no lo rechaza pero la línea entra a su precio normal y el de grupo lo pone el recálculo. La respuesta de la edición ya trae los precios y el total nuevos: hay que **pintar lo que responde**, no calcular en el front.
+- Un pedido hecho **antes** de correr esta migración, con precio de grupo, no recuerda su precio anterior: al editarlo se queda con el precio que tiene.
+- No lo cubre todavía: crear un pedido nuevo a partir de «Transferir abono» (una sola línea) no calcula precio de grupo.
+
+
+---
+
+## 🎁 Campañas — configuración (entrega 1, 2026-11-07, rama de trabajo; aún sin subir)
+
+Una **campaña** es un evento con fechas (Reyes, roscas…) con sus juguetes y un **precio de campaña** por juguete. En esta entrega solo se **configura**; todavía no cambia ningún precio en la venta.
+
+**Requiere correr** `migration_campana.sql` (tablas `campana` y `campana_producto` y la pantalla `productos/campanas`, solo `ROLE_ADMIN`; **volver a entrar**).
+
+**Todo es solo `ROLE_ADMIN`** (cliente → 403): `/mis-productos/v1/campanas`
+
+| Request | Qué hace |
+|---|---|
+| `GET /v1/campanas` | `lista[]` de campañas (más nueva primero) |
+| `GET /v1/campanas/{id}` | una campaña |
+| `GET /v1/campanas/activa` | la **vigente hoy** (encendida y dentro de fechas); `data: null` y `mensaje: "No hay campaña activa"` si no hay. El front de Venta directa solo muestra lo de campaña si esto trae datos |
+| `POST /v1/campanas` | crea (**nace apagada**, aunque se mande otra cosa) |
+| `PUT /v1/campanas/{id}` | reemplaza nombre, fechas, meta y **toda** la lista de precios; **no** cambia si está encendida |
+| `PUT /v1/campanas/{id}/activar` | la enciende y **apaga las demás** (una sola a la vez) |
+| `PUT /v1/campanas/{id}/apagar` | la apaga |
+| `POST /v1/campanas/{id}/duplicar` | copia apagada «Copia de …» con los mismos juguetes y precios |
+| `DELETE /v1/campanas/{id}` | la borra |
+
+**Body de `POST` / `PUT`:**
+```json
+{ "nombre": "Reyes 2027", "fechaInicio": "2026-12-20", "fechaFin": "2027-01-06", "metaMonto": 1500,
+  "precios": [ { "productoId": 12, "precio": 199.5 } ] }
+```
+**Response (cada campaña):** `id, nombre, fechaInicio, fechaFin, activa, vigente, metaMonto, productos[{ productoId, nombre, precio }]`. `vigente` = `activa` y hoy dentro de las fechas (extremos incluidos).
+
+Errores: `400` con el mensaje en palabras del dueño (sin nombre, fechas al revés, meta negativa, precio ≤ 0, producto repetido, **sin ningún juguete**, producto que ya no existe); `409` si la base rechaza un producto repetido; `500` genérico.
+
+
+---
+
+## 🎁 Campañas — código de cliente y precio de campaña en Venta directa (entrega 2, 2026-11-07, rama de trabajo; aún sin subir)
+
+**Requiere correr** `migration_campana_personas.sql` (después de `migration_campana.sql`). Sin ella la campaña **se ignora** en las ventas.
+
+**Reglas (las decide el back, el front solo muestra y manda):**
+- Solo existe algo de campaña en pantalla si `GET /v1/campanas/activa` trae datos (encendida y dentro de fechas) **y** el carrito tiene algún juguete de esa campaña (`productos[].productoId`).
+- Cliente **recurrente** = el administrador marcó el check «Cliente recurrente», **o** el cliente trae un código válido y `acumulado en la campaña + lo del ticket sin los juguetes de la campaña ≥ metaMonto`. Meta 0 = solo a mano.
+- Precio: Contado y Apartado → precio de campaña (si es más bajo que el que ya llevaba: gana el más bajo contra rebaja y precio de grupo); **Ir pagando → precio normal**. En Apartado el precio queda congelado en el pedido.
+- Un código **solo vale si es de ese cliente**: coincide el correo o el teléfono del cliente de la venta (mayúsculas, espacios y formato del teléfono no importan). Código ajeno o inexistente → se cobra normal, sin error.
+- Solo suman hacia la meta las compras de **Contado** (pagadas), sin contar los juguetes de la campaña. Apartado e Ir pagando no suman. Un pedido **Pendiente** (tarjeta sin aprobar) o **cancelado** tampoco suma: se descuenta solo, tanto en «Verificar» como en el reporte.
+- Si el cliente acepta el aviso de privacidad (`aceptaPrivacidad`) y tiene correo o teléfono, se le crea su código (UUID, el mismo para siempre) y, si tiene correo, se le manda por correo con la liga de su QR. Sin aceptar, no se guarda nada.
+
+### `POST /mis-productos/v1/campanas/personas/verificar` (ROLE_ADMIN) — el botón «Verificar»
+**Request:** `{ "codigo": "…uuid…", "correo": "ana@mail.com", "telefono": "7221234567" }` (los datos del **cliente elegido en la venta**; basta uno de los dos).
+**Response (`data`):** `{ "estado": "OK" | "NO_COINCIDE" | "NO_EXISTE", "nombre": "Ana", "acumulado": 1000, "meta": 1500, "falta": 500 }` — montos solo con `OK`; `NO_COINCIDE` = el código existe pero es de otra persona.
+`429` «Demasiados intentos con códigos…» (15 por usuario cada 10 minutos).
+
+### `POST /v1/ventas/save` (venta directa) — campo nuevo opcional `campana`
+```json
+{ "...": "igual que siempre",
+  "campana": { "codigo": "…uuid o vacío…", "recurrenteManual": false, "aceptaPrivacidad": true } }
+```
+- Los precios de los juguetes pueden mandarse **normales o ya con el precio de campaña**; el back valida y recalcula. Un precio de campaña que el back **no** decidió (cliente no recurrente, Ir pagando, sin campaña) se rechaza con el error de precio de siempre.
+- La respuesta no cambia (el total ya trae el precio de campaña).
+
+### `DELETE /v1/campanas/personas/{id}` (ROLE_ADMIN) — «Eliminar datos de esta persona»
+Borra a la persona y sus ligas con pedidos; los pedidos no se tocan.
+
+### Página pública `/codigo-campana/:uuid` (front)
+Solo dibuja el QR del UUID; sin datos personales, sin sesión.
+
+---
+
+## 🎁 Campañas — Ir pagando, reporte, borrar datos y reenviar código (entrega 3, 2026-11-07, rama de trabajo; aún sin subir)
+
+### Cambiar un pedido a **Ir pagando**: los juguetes con precio de campaña regresan a su precio normal
+**Antes:** un pedido con juguetes a precio de campaña (Contado o Apartado) se podía pasar a Ir pagando y se quedaba con el descuento.
+**Ahora:** `PUT /v1/pedidos/{id}/tipo` (el de siempre) con `FIADO` regresa cada línea con precio de campaña a su precio de antes, **sube el total** y deja una nota en `observaciones` («Con Ir pagando no entra el descuento de campaña…»). Todo en el mismo paso, antes de cobrar el enganche (el saldo ya es el correcto). Pasar a Apartado o a Contado **conserva** el precio de campaña. También aplica al cambio de **todo un grupo** de pedidos unidos.
+**Para avisar antes de confirmar:** `GET /v1/pedidos/{id}/detalle` trae `tieneJuguetesConPrecioDeCampana: true` (el campo **solo viene en true**; si no, no aparece) cuando alguna línea lleva precio de campaña. El front muestra «Con Ir pagando no entra el descuento de campaña: los juguetes regresan a su precio normal y el total sube» antes de confirmar el cambio a Ir pagando.
+Lo que se agregue después a un pedido entra a precio normal; el grupo de precio por cantidad **no** deshace un precio de campaña al editar.
+
+### `GET /mis-productos/v1/campanas/{id}/reporte` (ROLE_ADMIN)
+**Response (`data`):** `{ campanaId, campana, meta, totalPersonas, llegaronALaMeta, totalAcumulado, personas: [{ personaId, codigo, nombre, correo, telefono, acumulado, pedidos, llegoALaMeta }] }` — la que más lleva, primero. `acumulado` = compras de **Contado** sin los juguetes de la campaña. `400` si la campaña ya no existe. Sin `migration_campana_personas.sql` sale vacío.
+
+### `DELETE /mis-productos/v1/campanas/personas/{personaId}` (ROLE_ADMIN) — «Eliminar datos de esta persona»
+Ya documentado arriba; se usa desde el reporte. Borra a la persona y sus ligas; los pedidos no se tocan.
+
+### Reenviar el código desde Mis pedidos
+`GET /v1/pedidos/{id}/detalle` trae, **solo para el administrador y solo en true**, `tieneCodigoDeCampana` cuando el pedido está ligado a una persona con código. Con eso el front muestra el botón **«Enviar código de campaña»**.
+`POST /mis-productos/v1/campanas/pedidos/{pedidoId}/enviar-codigo` (ROLE_ADMIN) → `200 «Código enviado»`; `404` «Este pedido no tiene un código de campaña.»; `400` «La persona de este pedido no dejó correo…».
+(Esta ruta quedó bajo `/v1/campanas` y no bajo `/v1/pedidos` para quedar en la regla de administrador.)
+
+---
+
+## 🎁 Campañas — el QR llena al cliente, la meta suma lo pagado por fechas, renglones para el ticket (2026-11-08, rama de trabajo; aún sin subir)
+
+**Requiere correr** `migration_campana_persona_cliente.sql` (agrega `cliente_id` y `cliente_sin_registro_id` a `campana_persona`; solo agrega). **Si el back sube antes que la migración**, la campaña se apaga sola (sin códigos ni descuento) y las ventas siguen normales; al correrla vuelve en menos de un minuto.
+
+### Cambia: la meta (qué se suma)
+**Antes:** solo las compras de **Contado** hechas con el código, sin contar los juguetes de la campaña, guardadas al vender.
+**Ahora:** **todo lo PAGADO** (juguetes incluidos) **entre la fecha de inicio y la de fin de la campaña** (los dos días incluidos); lo anterior a la fecha de inicio **no cuenta**. Se calcula al momento, no se guarda:
+- **Contado:** el total de la venta (fecha de venta dentro del rango), si no está devuelta, cancelada ni pendiente.
+- **Apartado / Ir pagando:** lo **abonado** dentro del rango (por la fecha del abono); un pedido cancelado no suma.
+- Cuentan los pedidos **ligados al código** y también los del **mismo cliente** (si es un cliente registrado), aunque se hayan hecho sin mostrar el QR.
+- En la venta que se está haciendo, **el ticket de hoy suma solo si es Contado** (lo que se paga ahora). En Apartado / Ir pagando no suma hasta que se abone.
+- `acumulado` en «Verificar», en `buscar-por-codigo` y en el reporte usa el mismo cálculo.
+
+### `POST /mis-productos/v1/campanas/personas/buscar-por-codigo` (ROLE_ADMIN) — escanear el QR
+**Request:** `{ "codigo": "…uuid…" }` (el que sale del QR, escrito, pegado, escaneado o leído de una imagen).
+**Response (`data`):**
+```json
+{ "valido": true, "clienteId": 7, "clienteSinRegistroId": null, "nombre": "Ana López", "correo": "ana@mail.com",
+  "telefono": "7221234567", "acumulado": 930, "meta": 1500, "falta": 570 }
+```
+- `valido: false` → el código no existe (los demás campos vienen vacíos): sin descuento.
+- `clienteId` / `clienteSinRegistroId`: el cliente de la **primera compra** de esa persona. El front **selecciona a ese cliente** (si viene `clienteId`, como cliente registrado; si viene `clienteSinRegistroId`, como cliente sin registro con esos datos). Pueden venir **los dos en null** en códigos creados antes de esta versión: entonces solo se muestran los datos y se deja elegir al cliente a mano (el código se valida por correo o teléfono como antes). Se rellenan solos en su siguiente compra.
+- `acumulado` / `meta` / `falta`: de la **campaña vigente** (0 si no hay).
+- `429` «Demasiados intentos…» (15 por usuario cada 10 minutos).
+- Con la venta, el código ahora también vale si el `clienteId` o `clienteSinRegistroId` de la venta es el de la persona.
+
+### Cambia: «Cliente recurrente» marcado a mano **no crea QR**
+Si se marca la casilla y la persona no existía, **no se crea persona ni se manda correo**. Si ya existía una persona con esos datos, solo se liga el pedido a ella.
+
+### Cambia: el correo con el código
+Sale **hasta que la venta se confirma** (después del commit): si la venta se revierte, no sale un código de una persona que no se guardó.
+
+### `POST /v1/ventas/save` — respuesta con `renglones[]` (para el ticket)
+La respuesta (`VentaDirectaResponse`) trae ahora, además de lo de siempre:
+```json
+"renglones": [ { "nombre": "Muñeca bici", "cantidad": 2, "precioNormal": 500, "precioCobrado": 400, "conDescuentoDeCampana": true },
+               { "nombre": "Bolsa negra", "cantidad": 1, "precioNormal": 500, "precioCobrado": 500 } ]
+```
+Los renglones son **los que cobró el back** (no los de la pantalla). `conDescuentoDeCampana` / `conDescuentoDeGrupo` solo vienen en `true` cuando aplica. El ticket impreso después de guardar debe usar estos renglones.
+
+### `GET /v1/pedidos/{id}/detalle` — cada `detalles[]` puede traer
+`precioNormal` y `conPrecioDeCampana: true` **solo** en las líneas cobradas con precio de campaña (el precio de antes del descuento). Para pintar el normal tachado y «Precio de campaña» en el ticket de Mis pedidos. Las demás líneas no traen esos campos.
+
+---
+
+## Correo «Tu código de cliente»: ahora trae el QR como imagen (2026-11-08)
+
+**Qué cambia:** el correo del código de campaña (primera compra y «🎁 Enviar código de campaña» de Mis pedidos) ya **no** manda solo el UUID y una liga: ahora trae el **QR dibujado dentro del correo** (imagen incrustada de 220 px) y además como archivo adjunto `codigo-jade.png`, para guardarlo o reenviarlo por WhatsApp. El UUID en texto y la liga a `/codigo-campana/:uuid` siguen como respaldo por si el correo bloquea imágenes.
+**Front:** sin cambios (no hay endpoint nuevo ni campo nuevo). El QR del correo se lee igual que el de la página pública (campo de campaña, imagen, 📱 o lector USB).
+**Antes:** el QR solo se veía abriendo la liga. **Después:** se ve en el correo.
+**Si falla dibujar el QR:** el correo sale igual sin la imagen (nunca se pierde el correo ni se rompe la venta).
+
+---
+
+## El correo del código de campaña sale en CADA compra (2026-11-08)
+
+**Antes:** «Tu código de cliente» (con el QR) solo se mandaba cuando la persona se creaba, en su primera compra. Si volvía a comprar con el mismo correo no llegaba otro.
+**Ahora:** sale en **cada compra confirmada** de una persona con código, al correo de la venta (si no trae, al de la persona). El de las compras siguientes dice «Aquí está tu código personal de cliente de nuevo»; trae el mismo QR incrustado y el adjunto `codigo-jade.png`. Sin correo, no se manda (el código existe igual).
+**Si no recuerda con qué correo se registró:** el administrador lo ve en Campañas → Reporte (código de cada persona) y ahí mismo hay un botón **«Ver QR»** que abre la página del QR para mostrarlo o mandarlo por WhatsApp; también puede reenviarlo a otro correo desde Mis pedidos → «🎁 Enviar código de campaña».
+**Front:** botón «Ver QR» por persona en el reporte; sin endpoints ni campos nuevos.
+
+---
+
+## Un solo correo por compra: el QR va dentro de «Agrega tu compra a tu cuenta» (2026-11-08)
+
+**Antes:** en una venta de Contado con cliente sin registro y correo, con campaña vigente llegaban **dos** correos: «Agrega tu compra a tu cuenta» (código de un solo uso para ligar la compra a la cuenta) y «Tu código de cliente» (código de la campaña con su QR). Los dos códigos son UUID y se confundían.
+**Ahora:** llega **uno**: «Tu compra y tu código de cliente», con el código para «Agregar mi compra» arriba y debajo el bloque «🎁 Tu código de cliente de la campaña» (código, QR incrustado, adjunto `codigo-jade.png`, liga de respaldo y aviso de privacidad). Si la venta no es de campaña, el correo es el de siempre. En Apartado, Ir pagando, cliente registrado y cobro con tarjeta sigue llegando «Tu código de cliente» solo (no hay correo de «Agrega tu compra»). Si el correo único falla, el de campaña se manda aparte.
+**Front:** sin cambios.
+
+---
+
+## Pantalla nueva del celular: «🎁 Escáner QR» (2026-11-08)
+
+**Para qué:** igual que «📱 Escáner» (códigos de barras → pantalla abierta en la PC), pero para el **QR del código de cliente** de una campaña. Menú nuevo **«Escáner QR»** (con sesión, bajo «Escáner»), ruta `/escaner-qr`.
+**Cómo funciona:** en el celular (mismo usuario que la PC) se abre «Escáner QR»; se apunta la cámara al QR del cliente, o se mete una **foto del QR** («📸 Foto del QR» con la cámara del celular, o «🖼️ Elegir de la galería»). La página lee el QR y manda el **código (UUID) a la PC**, que lo escribe en el campo «Código del cliente» de Venta directa (campaña vigente) y llena los datos del cliente.
+**Diferencia con «Escáner»:** la foto aquí NO se manda como imagen (esa es para fotos de productos): se **lee** y se manda como código. Solo acepta UUID (solo o dentro de la liga `…/codigo-campana/<uuid>`); códigos de barras y otros QR se ignoran.
+**Back:** sin cambios (el canal ya acepta el UUID). Sin migración (el menú «Escáner» es fijo en el front, no una fila de la base).
+
+---
+
+## Corrección: «Precio desactualizado» al cobrar un juguete con rebaja en una campaña (2026-11-08)
+
+**Qué pasaba:** un producto con rebaja menor que su precio de campaña (ej. CROSS BODY: normal $620, rebaja $600, campaña $610) hacía que Venta directa mandara $610 (el front compara contra el normal) y el back lo rechazara con «El precio de CROSS BODY no es valido: llego 610.00 y los precios de catalogo son 620.00 (normal) o 600.00 (rebaja)», porque comparaba la campaña contra el más bajo (la rebaja).
+**Ahora:** la base de la campaña (para el precio y para lo que suma a la meta) es el **precio normal** de la línea, igual que en el front. Con campaña se cobra $610 y el ticket marca «Precio de campaña» con el normal ($620) tachado. La rebaja manual ($600) se sigue aceptando si se manda. Sin cambios en el front ni en los contratos.
+
+---
+
+## Corrección: el ticket de la venta que se está haciendo ya NO suma para la meta (2026-11-08)
+
+**Qué pasaba:** con un cliente que llevaba $1,000 pagados de una meta de $1,499, Venta directa decía «ya es recurrente» y bajaba los juguetes a precio de campaña, porque sumaba al avance el ticket de la venta en curso ($1,000 + el carrito ≥ $1,499). Esa compra apenas se está pagando y es la que lo haría llegar: se calificaba a sí misma.
+**Ahora:** solo cuenta lo **ya pagado** (contado de ventas anteriores y abonos, desde el inicio de la campaña). Con $1,000 de $1,499 NO hay descuento en esta venta; el aviso dice «le faltan $499 pagados para el precio de campaña». El descuento entra desde la **siguiente** compra, cuando lo ya pagado llegue a la meta, o a mano con la casilla «Cliente recurrente». El back decide igual que el front (`ParticiparEnCampanaService.decidir`: `califica(acumulado, 0, meta, manual)`).
+**Cambia respecto a la regla anterior:** antes «acumulado + ticket actual ≥ meta»; ahora «acumulado ya pagado ≥ meta».
+
+---
+
+## El ticket por correo ahora tiene diseño y sus QR se ven (2026-11-08)
+
+**Qué pasaba:** el ticket que llegaba por correo era el mismo de la impresora térmica, con clases CSS que un correo no tiene: salía como texto suelto («1x COACH$610.00») sin colores, y los QR de Tienda/WhatsApp/Facebook eran imágenes remotas que el correo bloquea (cuadros rosas).
+**Ahora:** el front rehace el ticket para correo con estilos en línea y tablas, con los colores de la marca: artículos con su importe a la derecha, «🎁 Precio de campaña» en verde con el normal tachado, TOTAL grande sobre fondo verde suave, pago/cambio, agradecimiento y garantía. El back dibuja los QR de «Síguenos» y los manda **incrustados** en el correo, así se ven sin cargar imágenes. Aplica a venta, abonos, liquidación, cancelación y reenvío de comprobante.
+**No cambia:** el ticket que se imprime y el texto de WhatsApp. Endpoints y campos: sin cambios.
+
+---
+
+## Campañas: las devoluciones parciales y los abonos de más ya no cuentan para la meta (2026-11-09)
+
+**Qué pasaba:** al devolver UN artículo de un pedido ya pagado, el pedido bajaba su total pero la venta conservaba su monto, y el acumulado de la persona en la campaña no bajaba. La devolución completa (pedido cancelado, venta «Devuelta») ya restaba bien.
+**Ahora:** el acumulado cuenta, por cada pedido, lo pagado **sin pasar del total que el pedido tiene hoy** (contado: el menor entre la venta y el total del pedido; Apartado/Ir pagando: lo abonado, con tope en el total del pedido). Si el acumulado baja de la meta, en la siguiente venta el cliente deja de ser recurrente hasta volver a juntarla. Sin cambios de endpoints ni de campos; el reporte de la campaña («Lleva», «Llegó/Falta») ya usa el valor nuevo. Lo ya vendido a precio de campaña no se ajusta.
+
+## Filtro por categoría en Tienda → Buscar y Productos → Buscar (2026-11-09)
+
+**Qué cambia:** las dos pantallas ganan el filtro **Categoría** (nombres en MAYÚSCULAS). La primera vez que se entra se elige solo **JUGUETES** (si existe) para ver primero los juguetes; si se escribe algo en el buscador, la búsqueda es en **todas** las categorías. Elegir otra o dejarla vacía (todas) se recuerda en el filtro guardado de la pantalla.
+
+**Request nuevos parámetros (todos opcionales; sin ellos todo responde igual que antes):**
+- `GET /mis-productos/v1/variantes/buscar-filtrado?...&categoria=JUGUETES` (público).
+- `GET /mis-productos/v1/variantes/admin/filtrar?...&categoria=JUGUETES`. Ambos también en `/v2/articulos/...`.
+- `GET /mis-productos/v1/productos/admin/filtrar?...&categoria=JUGUETES` (palabra clave del producto).
+
+**Categoría efectiva (artículos):** la del artículo si la tiene; si no, la de su producto. Sin distinguir mayúsculas.
+
+**Response nuevo:** `GET /mis-productos/v1/variantes/filtros-disponibles` agrega `categorias: string[]` (MAYÚSCULAS, sin repetidos, solo de lo que se ve en la tienda). El front usa esa lista para el selector.
+
+**Diferencia clave:** antes no había forma de filtrar por categoría en esas dos pantallas.
+
+
+---
+
+## Campaña: reglas finales (2026-11-10)
+
+**Reconocimiento sin QR.** En `POST /mis-productos/v1/ventas/save` el back reconoce al cliente aunque no traiga código: por **correo**, **teléfono** (últimos 10 dígitos) o **cliente** (`clienteId` registrado o `clienteSinRegistroId`). Si lo pagado entre las fechas de la campaña llega a la meta, los juguetes salen a precio de campaña (Contado/Apartado). La compra en curso no cuenta para su propio precio. Sin ningún dato del cliente no hay descuento, salvo la casilla «Cliente recurrente» (sin cambios). Una venta de mostrador hecha con la cuenta de quien vende (sin datos del cliente) cuenta como «sin datos». Contrato del request y del response: sin cambios.
+
+**`GET /mis-productos/v1/productos/admin/categorias`** (pantalla Productos → Buscar / Agregar producto / Venta, igual que el resto de `admin/**`)
+- Response `200`, arreglo JSON **plano** de strings (no va dentro de `ResponseGeneric`): `["BOLSAS","JUGUETES"]` — nombre de la categoría (palabra clave) en MAYÚSCULAS, sin repetidos, ordenado. Incluye productos sin artículos y deshabilitados; excluye los internos. Sin categorías: `[]`.
+- `401/403`: sin sesión o sin la pantalla. Sin caché: refleja al instante una categoría recién asignada.
+
+**`DELETE /mis-productos/v1/campanas/{id}`**: antes borraba siempre (y en cascada se llevaba el historial del reporte). Ahora, si la campaña ya tiene compras ligadas responde **`409`** con `mensaje`: «Esta campaña ya tiene compras ligadas: apágala en lugar de eliminarla, así se conserva el historial.» (`data: null`). Sin compras ligadas: `200` «Campaña eliminada», como antes. Activar/apagar/duplicar y «Eliminar datos» de una persona: sin cambios.
+
+**Cambio de forma de cobro (`PUT /mis-productos/v1/pedidos/{id}/tipo`)**
+- Apartado (o Contado) → **Ir pagando**: los juguetes regresan a su precio normal (como antes) y **además** se recalcula el precio por cantidad (grupos) de esas líneas; `totalPedido`/`saldoPendiente` del response ya vienen con el total nuevo y lo abonado se vuelve a cuadrar.
+- Ir pagando → Apartado: **no** devuelve el precio de campaña (Ir pagando siempre es precio normal).
+
+**Precio de campaña**: se redondea a centavos antes de validar; `0.004` se rechaza con `400` «… debe ser mayor a cero.».
+
+**`POST /mis-productos/v1/ventas/save` de Contado**: el response ahora trae también `pedidoId` (campo que antes solo venía en Apartado/Ir pagando). Sirve para mandar el ticket por correo DESPUÉS de la venta con `POST /mis-productos/v1/pedidos/{pedidoId}/notificar` body `{ "correo": "...", "ticketHtml": "..." }` (ROLE_ADMIN; `200` «Comprobante enviado correctamente a …», `400` si no salió). Funciona igual para un pedido de contado ya pagado. Decidir crédito por el tipo pedido, no por traer `pedidoId`.
+
+**Escáner del celular (canal)**: `GET /mis-productos/v1/escaner/canal/codigos?...&acepta=codigo,uuid`. Un código con forma de UUID (QR de cliente de campaña) solo se entrega a una pregunta abierta cuyo `acepta` incluya `uuid`; si ninguna lo incluye no se entrega y el envío del celular responde `data: false`. Los demás códigos, como siempre. La ruta vieja `/v1/escaner/sesiones/{id}/codigos` (sin `acepta`) ya no recibe UUID.
+
+**Interno (sin cambio de contrato):** el registro de la compra en la campaña (persona + ligar pedido) se hace después de confirmar la venta, en su propia transacción; un error ahí ya no tira la venta. El correo «Agrega tu compra a tu cuenta» con el bloque del código sigue saliendo igual.
+
+## Campaña: la compra en curso cuenta para la meta, solo lo que NO son juguetes (2026-11-10)
+
+**Qué cambia:** el precio de campaña ya se decide con `lo ya pagado + los artículos de la compra actual que no son juguetes de la campaña` (solo en Contado). Antes la compra en curso no contaba. Apartado e Ir pagando: la compra en curso no suma; Ir pagando sigue siempre a precio normal. El back decide siempre al cobrar; el front lo recalcula en vivo al agregar o quitar artículos.
+
+**Request nuevo:** `POST /mis-productos/v1/campanas/personas/acumulado` (ROLE_ADMIN) con `{ correo?, telefono?, clienteId?, clienteSinRegistroId? }` (todos opcionales).
+**Response:** igual que `/personas/verificar`: `{ data: { estado: "OK" | "NO_EXISTE", nombre, acumulado, meta, falta } }`. `OK` si se reconoce al cliente por correo, teléfono o cliente (acumulado = pagado dentro de las fechas de la campaña); `NO_EXISTE` si no. `429` si se hacen demasiados intentos.
+

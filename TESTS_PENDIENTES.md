@@ -16,6 +16,92 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-10 — La compra en curso cuenta para la meta (solo lo que NO son juguetes) + acumulado de cliente sin código
+**Dónde:** `ParticiparEnCampanaService.decidir` y `.acumuladoDelCliente`, `ReglasCampana.califica`, `POST /v1/campanas/personas/acumulado` (admin).
+**Tipo:** unitario (dominio con puertos simulados) + controller.
+**Debe comprobar:** con $1,000 ya pagado y meta $1,500, una compra de Contado con una bolsa de $500 + un juguete: el juguete baja; solo el juguete: no baja; en Apartado o Ir pagando la compra en curso no suma; con $1,500 ya pagados baja siempre; `acumulado` devuelve OK con lo pagado de un cliente reconocido por correo, teléfono o cliente, y NO_EXISTE si no se le reconoce; solo ROLE_ADMIN.
+**Tests existentes que quedaron viejos:** `ParticiparEnCampanaTest.porMeta` fijaba «la compra en curso no cuenta»; se reescribió con la regla nueva.
+
+### 2026-11-10 — Campaña: reglas finales, categorías de productos y UUID en el escáner
+**Dónde:** `ParticiparEnCampanaService.decidir`, `PersonasCampanaJpaAdapter.porCliente/acumuladoDeCliente`, `AdministrarCampanasService.eliminar` + `CampanasJpaAdapter.tieneComprasLigadas` + `CampanaController` (409), `PrecioDeCampana`, `PedidoServiceImpl.cambiarTipo` (restaurar + repreciar + ajustar abonos), `VentaServiceImpl` (campaña en transacción propia / afterCommit, `pedidoId` en contado), `GET /v1/productos/admin/categorias`, `SesionEscaner` / `Acepta` (`uuid`).
+**Tipo:** unitario (puertos simulados) · JPA (H2) · integración con transacciones reales · controller.
+**Debe comprobar:**
+- [ ] Sin código, reconocido por correo / teléfono / clienteId / clienteSinRegistroId con lo pagado ≥ meta → precio de campaña; bajo la meta → normal; sin ningún dato → normal salvo casilla manual; Ir pagando → nunca.
+- [ ] Cliente sin persona: `acumuladoDeCliente` suma solo lo pagado entre fechas de ese cliente; la venta con la cuenta de quien vende (mostrador) no reconoce a nadie.
+- [ ] `DELETE /v1/campanas/{id}` con filas en `campana_persona_pedido` → 409 y el mensaje exacto; sin filas → 200 y se borra; apagar sigue funcionando.
+- [ ] `PrecioDeCampana` 0.004 → «mayor a cero»; 0.005 → 0.01.
+- [ ] Apartado → Ir pagando: restaura, luego reprecia por grupo (sin volver a precio de campaña), total = suma de subtotales y abonos recuadrados; Ir pagando → Apartado no toca precios.
+- [ ] Un fallo de BD en `decidir` o en `registrarCompra` (rollback-only) no revierte la venta; `registrarCompra` corre después del commit en transacción nueva y antes del correo único.
+- [ ] Contado devuelve `pedidoId`; `POST /v1/pedidos/{id}/notificar` manda el ticket de un pedido de contado pagado.
+- [ ] `admin/categorias`: MAYÚSCULAS, sin repetidos, ordenado, incluye deshabilitados y sin artículos, excluye internos; 401/403 sin pantalla (ya está en `AutorizacionPorEndpointTest`).
+- [ ] Escáner: UUID sin pregunta `uuid` → no se entrega y `enviar` = false (también dentro del margen de 3 s); con `acepta=codigo,uuid` → se entrega; códigos normales igual que antes; `aceptaDe("codigo,uuid")`.
+
+
+### 2026-11-09 — Filtro por categoría en Tienda → Buscar y Productos → Buscar
+**Dónde:** `GET /v1/variantes/buscar-filtrado`, `GET /v1/variantes/admin/filtrar` (y `/v2/articulos/...`), `GET /v1/variantes/filtros-disponibles` (nuevo `categorias`), `GET /v1/productos/admin/filtrar` (nuevo `categoria`); `IVarianteRepository`, `IProductosRepository.buscarProductosAdmin`.
+**Tipo:** JPA (H2) + controller.
+**Debe comprobar:**
+- Variantes: la categoría efectiva es la de la variante y, si no tiene, la de su producto; el conteo de la página coincide con la lista; sin `categoria` el resultado es idéntico al de antes; mayúsculas/minúsculas no importan.
+- `filtros-disponibles` trae `categorias` en MAYÚSCULAS, sin repetidos, solo de lo que se ve en la tienda.
+- Productos: `admin/filtrar?categoria=JUGUETES` solo trae productos con esa palabra clave; sin el parámetro, igual que antes.
+- Las llaves de caché incluyen `categoria` (dos categorías distintas no comparten resultado).
+**Tests existentes que quedaron viejos:** `IProductosRepositoryBorradorTest` llamaba a `buscarProductosAdmin` con 8 argumentos; se le agregó el `null` de `categoria` solo para que compile.
+
+### 2026-11-09 — Campañas: el acumulado baja con devoluciones parciales y abonos de más
+**Dónde:** `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)` (consulta nativa de contado y de abonos)
+**Tipo:** JPA (H2) · e2e manual en QA
+**Debe comprobar:**
+- [ ] Contado de $1,000 entregado → cuenta 1,000; se devuelve UN artículo de $400 (el pedido baja a $600) → cuenta 600
+- [ ] pedido que creció después de pagar (total 1,500, venta 1,000) → solo cuenta lo pagado (1,000)
+- [ ] devolución completa (pedido cancelado y venta «Devuelta») → cuenta 0
+- [ ] Ir pagando con abonos 300 + 200 y total 900 → cuenta 500; si el total baja a 350 (se devolvió un artículo) → cuenta 350; si se cancela → 0
+- [ ] si por una devolución el acumulado baja de la meta, en la siguiente venta el cliente ya NO es recurrente (precio normal) y vuelve a serlo al juntar la meta; el reporte de la campaña muestra «Falta»
+- [ ] lo ya vendido a precio de campaña no se modifica
+(Comprobado a mano el 2026-11-09 con una prueba JPA temporal que se borró; las 25 pruebas existentes de campañas siguen en verde.)
+
+---
+
+
+### 2026-11-08 — Correo del código de campaña con el QR como imagen (incrustada y adjunta)
+**Dónde:** `GeneradorQrPng.png`, `EmailService.enviarCodigoCampana` / `enviarConImagen`
+**Tipo:** unitario (sin Spring; `JavaMailSender` simulado) · e2e manual en QA
+**Debe comprobar:**
+- [ ] `GeneradorQrPng.png(uuid, 300)` → al decodificarlo con el lector de zxing devuelve el mismo UUID
+- [ ] el `MimeMessage` de `enviarCodigoCampana` lleva HTML con `cid:qrcodigo`, una parte `image/png` inline con Content-ID `<qrcodigo>` y un adjunto `codigo-jade.png`
+- [ ] los demás correos (`enviarTicket`, rifa, seguimiento…) salen **idénticos** a antes (sin imagen)
+- [ ] si el PNG falla, el correo sale sin imagen y devuelve `true`
+- [ ] QA: el correo muestra el QR en Gmail (web y celular); al escanearlo con el 📱 en Venta directa se llena el cliente
+(Comprobado a mano el 2026-11-08 con una prueba temporal que se borró.)
+- [ ] **Meta sin contar el ticket actual:** cliente con $1,000 pagados de una meta de $1,500 que compra juguetes → NO baja el precio (aunque el carrito pase de $1,500); con $1,500 ya pagados sí baja; con la casilla «Cliente recurrente» sí. En pantalla: «le faltan $X pagados para el precio de campaña» (no «ya es recurrente»)
+- [ ] Test existente cambiado por la regla nueva: `ParticiparEnCampanaTest.porMeta` (antes sumaba el ticket)
+- [ ] **Precio de campaña con rebaja (CROSS BODY):** producto con normal 620, rebaja 600 y precio de campaña 610 → con cliente recurrente la venta de Contado cobra 610, el «precio de antes» es 620 y sale marcado «Precio de campaña» con el normal tachado; la campaña recibe como base 620 (también para sumar la meta); sin recurrente 610 se rechaza y 620 / 600 se aceptan; Ir pagando 620 (antes el back comparaba contra la rebaja y rechazaba el 610 con «Precio desactualizado»)
+- [ ] **Un solo correo por compra:** venta de Contado con cliente sin registro y correo + campaña → UN correo «Tu compra y tu código de cliente» con el código de «Agregar mi compra» y abajo el bloque de la campaña con QR incrustado y adjunto; sin campaña sigue «Agrega tu compra a tu cuenta» idéntico a antes; si el correo único falla se manda aparte el de campaña; Apartado / Ir pagando / cliente registrado siguen con «Tu código de cliente» solo
+- [ ] Test existente ajustado: `VentaDirectaCampanaTest` (ahora verifica `registrarCompra(..., mandarCorreo)` de 4 parámetros)
+- [ ] `registrarCompra` manda el correo del código en **cada** compra confirmada (persona nueva: «primera vez»; existente: «de nuevo»), al correo de la venta o, si no hay, al de la persona; sin ninguno no manda; el correo nunca tira la venta
+- [ ] Test existente que quedó viejo y se ajustó: `ParticiparEnCampanaTest.creaPersona` (ahora la segunda compra de la misma persona **sí** manda correo; el puerto `AvisarCodigoCampanaPort.enviar` tiene 4 parámetros)
+
+### 2026-11-08 — Campañas: el QR llena al cliente, la meta suma lo pagado por fechas, la casilla manual no crea QR, renglones para el ticket
+**Dónde:** `ParticiparEnCampanaService.decidir/registrarCompra/buscarPorCodigo` · `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)/completarCliente/resumen` ·
+`CampanaPersonaController` `POST /v1/campanas/personas/buscar-por-codigo` · `VentaServiceImpl.decidirCampana/renglonesDelTicket` · `PedidoServiceImpl.getDetallePedido` (precioNormal, conPrecioDeCampana) ·
+`AvisarCodigoCampanaCorreoAdapter.enviar` (afterCommit) · `migration_campana_persona_cliente.sql`
+**Tipo:** unitario (servicio con puertos simulados) · MySQL (SQL nativo y migración) · controller (URL y status) · integración (venta)
+**Debe comprobar:**
+- [ ] `acumulado` (MySQL, campaña 1-dic a 31-dic, cliente 7): contado $500 (5-dic) + $120 ligado por `campana_persona_pedido` sin cliente_id + $60 (31-dic 18:00) + abonos de Apartado $100 (10-dic) y $150 (20-dic) = **$930**; NO cuentan: contado del 20-nov ($900), cancelado ($300), Pendiente de tarjeta ($400), venta Devuelta ($200), pedido de otro cliente ($700), abono del 30-nov ($80). (Ya se comprobó a mano con estos datos en MySQL 8 el 2026-11-08.)
+- [ ] Contado que pasa a Apartado/Ir pagando (la venta se borra y se registra un abono): no se cuenta doble
+- [ ] Meta = acumulado + total del ticket SOLO si la venta es Contado; en Apartado / Ir pagando el ticket de hoy no suma
+- [ ] Código escaneado válido → `buscar-por-codigo` devuelve `valido=true`, `clienteId` o `clienteSinRegistroId`, nombre/correo/teléfono, acumulado y meta; código inexistente → `valido=false`; más de 15 intentos en 10 min → 429
+- [ ] Persona anterior al ligado (cliente_id y cliente_sin_registro_id en NULL): `buscar-por-codigo` valido pero sin ids; en su siguiente compra `completarCliente` rellena el id; `completarCliente` no pisa un id que ya existía
+- [ ] `PersonaCampana.coincideCon`: mismo cliente_id, mismo cliente_sin_registro_id, mismo correo o mismo teléfono (cualquiera basta)
+- [ ] «Cliente recurrente» marcado a mano + cliente sin persona → NO se crea persona ni sale correo; con persona existente por contacto → solo se liga el pedido
+- [ ] Persona nueva (acepta privacidad + datos): se guarda con `cliente_id` / `cliente_sin_registro_id` de la venta; el correo sale DESPUÉS del commit (si la venta se revierte, no sale)
+- [ ] Migración: dos veces sin error; borrar el cliente deja `cliente_id` en NULL (ON DELETE SET NULL); personas viejas quedan en NULL (ya comprobado en MySQL 8 el 2026-11-08)
+- [ ] `VentaDirectaResponse.renglones[]`: línea con precio de campaña → `precioNormal` = el de catálogo, `precioCobrado` = el de campaña, `conDescuentoDeCampana=true`; línea con grupo → `conDescuentoDeGrupo=true`; línea normal sin marcas
+- [ ] `GET /v1/pedidos/{id}/detalle`: línea con origen CAMPANA trae `precioNormal` y `conPrecioDeCampana=true`; las demás no traen esos campos; sin la tabla `detalle_pedido_precio_grupo` el detalle sale igual
+- [ ] Reporte de campaña (`resumen`): lo que lleva cada persona = el mismo cálculo por fechas; solo salen personas con compras ligadas no canceladas ni pendientes
+- [ ] `AutorizacionPorEndpointTest`: agregar la ruta `POST /v1/campanas/personas/buscar-por-codigo` (solo ROLE_ADMIN; sin sesión 401/403; ROLE_USUARIO 403)
+
+---
+
 ### 2026-10-20 — Segundo barrido variante → artículo (script de etiquetas + ℹ️ en Menús y submenús)
 **Dónde:** `migration_renombre_articulo_etiquetas.sql` (secciones 0 y 3) · front `GestionMenuComponent.verDescripcion()` + ℹ️ en `gestion-menu.component.html`
 **Tipo:** MySQL (script en base desechable) · front (componente)
@@ -476,6 +562,8 @@ Formato de cada entrada:
 
 
 ## Tests existentes que quedaron viejos
+
+- **2026-11-08 — Campañas:** los tests de campañas escritos el 2026-11-07 (`ParticiparEnCampanaTest`, `CampanaDominioYServiciosTest`, `MigracionCampanaTest`, `MigracionCampanaPersonasTest`, `CampanasJpaTest`, `PersonasCampanaJpaTest`, `PreciosDeCampanaEnPedidoJpaTest`, `VentaDirectaCampanaTest`) se escribieron antes de que el dueño recordara la regla de no escribir tests; se dejan (no se borran) y NO se mantienen. Siguen pasando hoy, pero ya no reflejan la regla nueva de la meta (todo suma, por fechas): `ParticiparEnCampanaTest.porMeta` (usa el acumulado fijo del puerto en memoria, no el cálculo por fechas) y `PersonasCampanaJpaTest` (prueba `acumulado(int,int)` por pedidos ligados, que ya no es el que usa la meta).
 
 | Test | Rama | Desde | Por qué falla |
 |---|---|---|---|
