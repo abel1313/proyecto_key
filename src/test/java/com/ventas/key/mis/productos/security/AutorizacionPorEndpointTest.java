@@ -55,6 +55,25 @@ class AutorizacionPorEndpointTest {
                 new Ruta(HttpMethod.GET, "/v1/calculos-precio/producto/1/ultimo"),
                 new Ruta(HttpMethod.GET, "/v1/calculos-precio/producto/1"),
                 new Ruta(HttpMethod.GET, "/v1/calculos-precio/comisiones"),
+                new Ruta(HttpMethod.GET, "/v1/grupos-precio-cantidad"),
+                new Ruta(HttpMethod.POST, "/v1/grupos-precio-cantidad"),
+                new Ruta(HttpMethod.PUT, "/v1/grupos-precio-cantidad/1"),
+                new Ruta(HttpMethod.PUT, "/v1/grupos-precio-cantidad/1/activo"),
+                new Ruta(HttpMethod.DELETE, "/v1/grupos-precio-cantidad/1"),
+                new Ruta(HttpMethod.GET, "/v1/grupos-precio-cantidad/producto/1"),
+                new Ruta(HttpMethod.GET, "/v1/campanas"),
+                new Ruta(HttpMethod.POST, "/v1/campanas"),
+                new Ruta(HttpMethod.GET, "/v1/campanas/activa"),
+                new Ruta(HttpMethod.GET, "/v1/campanas/1"),
+                new Ruta(HttpMethod.PUT, "/v1/campanas/1"),
+                new Ruta(HttpMethod.PUT, "/v1/campanas/1/activar"),
+                new Ruta(HttpMethod.PUT, "/v1/campanas/1/apagar"),
+                new Ruta(HttpMethod.POST, "/v1/campanas/1/duplicar"),
+                new Ruta(HttpMethod.DELETE, "/v1/campanas/1"),
+                new Ruta(HttpMethod.POST, "/v1/campanas/personas/verificar"),
+                new Ruta(HttpMethod.DELETE, "/v1/campanas/personas/1"),
+                new Ruta(HttpMethod.GET, "/v1/campanas/1/reporte"),
+                new Ruta(HttpMethod.POST, "/v1/campanas/pedidos/1/enviar-codigo"),
                 new Ruta(HttpMethod.GET, "/v1/dashboard/resumen"),
                 new Ruta(HttpMethod.GET, "/v1/usuarios/roles"),
                 new Ruta(HttpMethod.GET, "/v1/usuarios/permisos"),
@@ -75,7 +94,8 @@ class AutorizacionPorEndpointTest {
                 new Ruta(HttpMethod.GET, "/v1/imagenes/cache/algo"),
                 new Ruta(HttpMethod.POST, "/v1/imagenes/algo"),
                 new Ruta(HttpMethod.GET, "/v1/chat/admin/conversaciones"),
-                new Ruta(HttpMethod.GET, "/v1/admin/reconciliacion/algo"));
+                new Ruta(HttpMethod.GET, "/v1/admin/reconciliacion/algo"),
+                new Ruta(HttpMethod.GET, "/v1/productos/admin/categorias"));
     }
 
     /** Piden sesión iniciada (el controlador revisa luego que sea de la dueña): sin sesión 401/403. */
@@ -86,6 +106,7 @@ class AutorizacionPorEndpointTest {
                 new Ruta(HttpMethod.PUT, "/v1/pedidos/1/entrega"),
                 new Ruta(HttpMethod.GET, "/v1/chat/historial/usuario/1"),
                 new Ruta(HttpMethod.GET, "/v1/chat/historial/cliente/1"),
+                new Ruta(HttpMethod.POST, "/v1/precio-cantidad/calcular"),
                 new Ruta(HttpMethod.GET, "/v1/clientes/1"));
     }
 

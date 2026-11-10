@@ -233,13 +233,13 @@ class CambiarTipoPedidoTest {
     }
 
     @Test
-    @DisplayName("un pedido unido con otros no cambia de forma de cobro hasta deshacer el grupo")
+    @DisplayName("un pedido unido con otros no cambia de forma de cobro solo: se cambia para todo el grupo (R20)")
     void pedidoEnGrupoNoCambia() {
         pedido("FIADO", 1000, 200);
         when(grupoMiembroRepo.estaEnGrupoActivo(PEDIDO_ID)).thenReturn(true);
 
         assertThatThrownBy(() -> service.cambiarTipoPedido(PEDIDO_ID, cambioA("APARTADO")))
-                .hasMessageContaining("deshaz el grupo");
+                .hasMessageContaining("se cambia para todo el grupo");
         verify(abonoService, never()).registrarAbono(anyInt(), any());
     }
 

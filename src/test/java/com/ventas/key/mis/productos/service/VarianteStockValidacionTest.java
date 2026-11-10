@@ -4,6 +4,7 @@ import com.ventas.key.mis.productos.entity.Producto;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.errores.ErrorGenerico;
 import com.ventas.key.mis.productos.exeption.ExceptionDataNotFound;
+import com.ventas.key.mis.productos.exeption.ExceptionStockInsuficiente;
 import com.ventas.key.mis.productos.hexagonal.dominio.port.out.ImagenPort;
 import com.ventas.key.mis.productos.hexagonal.infraestructura.ImageneClienteDisco;
 import com.ventas.key.mis.productos.models.VarianteDetalle;
@@ -144,7 +145,7 @@ class VarianteStockValidacionTest {
         when(varianteRepo.findAllById(anyIterable())).thenReturn(List.of());
 
         assertThatThrownBy(() -> validar(List.of(detalle(null, 3))))
-                .isInstanceOf(ExceptionDataNotFound.class)
+                .isInstanceOf(ExceptionStockInsuficiente.class)
                 .hasMessageContaining("Disponible: 2")
                 .hasMessageContaining("Solicitado: 3");
     }
