@@ -35,6 +35,9 @@ import java.util.regex.Pattern;
  *       «la computadora no lo está pidiendo» en lugar de decir «enviado».</li>
  *   <li>E13: FOTOS (solo en el canal de la cuenta): JPEG en base64 de hasta 700 000 caracteres (~500 KB), máximo 10 por minuto; se guardan las últimas 3 y
  *       duran 5 minutos (nadie las recibe después). Una foto solo se entrega a una pregunta que diga que sabe recibir fotos ({@link Acepta}).</li>
+ *   <li>E14 (2026-11-10): un código con forma de UUID (el QR del cliente de una campaña) solo se entrega a una pregunta cuyo {@link Acepta} diga
+ *       {@code uuid} (Venta directa con el campo «Código del cliente» abierto). Si ninguna lo dice, no se entrega y el envío responde
+ *       {@code false} («la computadora no lo está pidiendo»). Los demás códigos van como siempre a las preguntas que dicen {@code codigo}.</li>
  *   <li>E9: la PC puede dejar una pregunta abierta y se le contesta en cuanto llega un código (sin esperar a la siguiente consulta),
  *       o en cuanto el celular se conecta (para que la PC cambie de «QR» a «escanea ahora»).</li>
  * </ul>
@@ -59,6 +62,13 @@ public final class SesionEscaner {
     private static final String ENCABEZADO_FOTO = "data:image/jpeg;base64,";
     private static final Pattern BASE64 = Pattern.compile("^[A-Za-z0-9+/]+={0,2}$");
     private static final Pattern CODIGO_VALIDO = Pattern.compile("^[\\x20-\\x7E]{3,100}$");
+    /** El mismo UUID exacto que reconoce el front (escaner-receptor.service.ts). */
+    private static final Pattern UUID_EXACTO = Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
+
+    /** ¿Es un código de cliente de campaña (UUID)? (E14) */
+    public static boolean esUuid(String codigo) {
+        return codigo != null && UUID_EXACTO.matcher(codigo.trim()).matches();
+    }
 
     /** Una pregunta abierta de la PC. */
     private record Espera(long desde, Acepta acepta, CompletableFuture<LecturaDeCodigos> futuro) {
@@ -75,6 +85,7 @@ public final class SesionEscaner {
     private Instant ultimoLatido;
     private Instant ultimaPreguntaConCodigos;
     private Instant ultimaPreguntaConFotos;
+    private Instant ultimaPreguntaConUuid;
     private final Deque<CodigoEscaneado> codigos = new ArrayDeque<>();
     private final Deque<Instant> recientes = new ArrayDeque<>();
     private final Deque<Instant> fotosRecientes = new ArrayDeque<>();
@@ -157,7 +168,8 @@ public final class SesionEscaner {
                     it.remove();
                 }
             }
-            esperaba = !aAvisar.isEmpty() || dentroDelMargen(ultimaPreguntaConCodigos, ahora);
+            // E14: un UUID solo cuenta como esperado si alguna pregunta (abierta o de hace un momento) dijo «uuid».
+            esperaba = !aAvisar.isEmpty() || dentroDelMargen(esUuid(limpio) ? ultimaPreguntaConUuid : ultimaPreguntaConCodigos, ahora);
         }
         for (int i = 0; i < aAvisar.size(); i++) {
             aAvisar.get(i).futuro().complete(lecturas.get(i));
@@ -201,6 +213,7 @@ public final class SesionEscaner {
             ultimaActividad = ahora;
             if (acepta.codigos()) ultimaPreguntaConCodigos = ahora;
             if (acepta.fotos()) ultimaPreguntaConFotos = ahora;
+            if (acepta.uuid()) ultimaPreguntaConUuid = ahora;
             if (hayNuevo(desde, acepta, ahora)) {
                 yaHay = lecturaDespuesDe(desde, acepta, ahora);
             } else {
@@ -268,7 +281,7 @@ public final class SesionEscaner {
 
     /** ¿Hay algo más nuevo que {@code desde} de lo que esa pantalla sabe recibir? (una foto no despierta a quien solo recibe códigos, ni al revés). */
     private boolean hayNuevo(long desde, Acepta acepta, Instant ahora) {
-        if (acepta.codigos() && codigos.stream().anyMatch(c -> c.secuencia() > desde)) {
+        if (codigos.stream().anyMatch(c -> c.secuencia() > desde && acepta.recibe(c))) {
             return true;
         }
         return acepta.fotos() && fotos.stream().anyMatch(f -> f.foto().secuencia() > desde && vigente(f, ahora));
@@ -276,11 +289,9 @@ public final class SesionEscaner {
 
     private LecturaDeCodigos lecturaDespuesDe(long desde, Acepta acepta, Instant ahora) {
         List<CodigoEscaneado> nuevos = new ArrayList<>();
-        if (acepta.codigos()) {
-            for (CodigoEscaneado c : codigos) {
-                if (c.secuencia() > desde) {
-                    nuevos.add(c);
-                }
+        for (CodigoEscaneado c : codigos) {
+            if (c.secuencia() > desde && acepta.recibe(c)) {   // E14: un UUID solo a quien dice «uuid»
+                nuevos.add(c);
             }
         }
         List<FotoRecibida> nuevasFotos = new ArrayList<>();

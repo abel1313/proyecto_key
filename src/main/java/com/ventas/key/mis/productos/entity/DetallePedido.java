@@ -40,4 +40,15 @@ public class DetallePedido extends  BaseId{
     @JoinColumn(name = "promocion_id")
     private Promocion promocion;
 
+
+    /**
+     * NO se guarda en esta tabla. Solo viaja del cobro al guardado: si la linea se cobro con precio de grupo, aqui va el precio que tenia
+     * antes, y despues de guardar el pedido se registra en {@code detalle_pedido_precio_grupo} para poder regresarla si el pedido se edita.
+     */
+    @Transient
+    private Double precioAntesDeGrupo;
+
+    /** De dónde vino el descuento de {@link #precioAntesDeGrupo}: grupo de precio por cantidad o campaña. {@code null} = grupo. */
+    @Transient
+    private com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio origenDelDescuento;
 }

@@ -42,4 +42,7 @@ public class VentaDirectaRequest {
      * lo llevan en ese momento, un Apartado no. Un Apartado nunca nace entregado.
      */
     private Boolean entregado;
+
+    /** Campaña vigente: código del cliente, check «Cliente recurrente» y aviso de privacidad. null = sin campaña. */
+    private CampanaVentaRequest campana;
 }
