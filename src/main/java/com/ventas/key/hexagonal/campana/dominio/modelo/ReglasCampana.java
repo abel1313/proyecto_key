@@ -10,8 +10,8 @@ public final class ReglasCampana {
 
     /**
      * ¿Es cliente recurrente? Si el administrador lo marcó a mano, sí (ignora la meta). Si no, cuando lo que lleva acumulado (ya pagado) en la campaña
-     * más {@code ticketSinJuguetes} llega a la meta. Venta directa pasa 0 en {@code ticketSinJuguetes}: la compra que se está haciendo NO cuenta para
-     * calificarse a sí misma. Una meta de 0 significa «sin meta»: solo se es recurrente a mano.
+     * más {@code ticketSinJuguetes} (los artículos de la compra en curso que no son juguetes de la campaña; solo en Contado, 0 en los demás cobros)
+     * llega a la meta. Los juguetes no cuentan para calificarse a sí mismos. Una meta de 0 significa «sin meta»: solo se es recurrente a mano.
      */
     public static boolean califica(BigDecimal acumulado, BigDecimal ticketSinJuguetes, BigDecimal meta, boolean manual) {
         if (manual) {

@@ -29,7 +29,8 @@ import java.util.function.Supplier;
  *   <li>El cliente se reconoce por su código (solo si es de ESE cliente: correo, teléfono o cliente) o, sin código, por su correo, su teléfono o
  *       su cliente (registrado o sin registro). Sin datos del cliente no hay descuento, salvo la casilla «Cliente recurrente» marcada a mano.</li>
  *   <li>Para la meta suma TODO lo pagado entre la fecha de inicio y la de fin de la campaña (Contado y abonos de Apartado / Ir pagando, juguetes
- *       incluidos). La compra en curso NO cuenta para su propio precio.</li>
+ *       incluidos) MÁS los artículos de la compra en curso que no son juguetes de la campaña (solo si es Contado); los juguetes no cuentan para
+ *       calificarse a sí mismos.</li>
  *   <li>Ir pagando nunca lleva precio de campaña.</li>
  *   <li>A quien compra con sus datos y acepta el aviso de privacidad se le crea su código.</li>
  * </ul>
@@ -78,8 +79,9 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
                 sinJuguetes = sinJuguetes.add(importe);
             }
         }
-        // Lo que lleva de la campaña = lo YA PAGADO entre su fecha de inicio y de fin. El ticket de esta venta NO cuenta: apenas se está pagando y es
-        // justo la compra que lo haría llegar a la meta (pedido del dueño 2026-11-08: con $1,000 de $1,500 no lleva descuento en esta venta).
+        // Lo que lleva de la campaña = lo YA PAGADO entre su fecha de inicio y de fin, MÁS (regla del dueño 2026-11-10) los artículos de esta venta que
+        // NO son juguetes de la campaña, solo si la venta es Contado (se paga ahora). Los juguetes no cuentan para calificarse a sí mismos.
+        // Esto reemplaza la regla del 2026-11-08 («la compra en curso no cuenta»).
         // Sin código (o con uno ajeno) el cliente se reconoce igual por su correo, su teléfono o su cliente (registrado o sin registro): regla del
         // dueño 2026-11-10, «el cliente reconocido sin QR también califica». Solo sirve para el precio; ligar la compra sigue la regla de abajo.
         ContactoCliente contacto = s.contacto();
@@ -104,7 +106,7 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         }
         // Sin datos del cliente (ni código, ni correo, ni teléfono, ni cliente) solo vale la casilla manual.
         boolean recurrente = reconocida != null || hayCliente
-                ? ReglasCampana.califica(acumulado, BigDecimal.ZERO, campana.metaMonto(), s.recurrenteManual())
+                ? ReglasCampana.califica(acumulado, s.cobro() == FormaDeCobro.CONTADO ? sinJuguetes : BigDecimal.ZERO, campana.metaMonto(), s.recurrenteManual())
                 : s.recurrenteManual();
 
         Map<Integer, BigDecimal> precios = new HashMap<>();
@@ -187,6 +189,32 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         }
         BigDecimal acumulado = vigente.isPresent() ? personas.acumulado(vigente.get(), p.get()) : BigDecimal.ZERO;
         return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.OK, p.get().nombre(), acumulado, meta);
+    }
+
+    @Override
+    public VerificacionDeCodigo acumuladoDelCliente(String quien, ContactoCliente contacto) {
+        limite.registrar(quien);
+        Optional<Campana> vigente = personas.disponible() ? activa.vigente() : Optional.empty();
+        BigDecimal meta = vigente.map(Campana::metaMonto).orElse(BigDecimal.ZERO);
+        if (vigente.isEmpty() || contacto == null) {
+            return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.NO_EXISTE, "", BigDecimal.ZERO, meta);
+        }
+        Campana campana = vigente.get();
+        PersonaCampana reconocida = null;
+        if (contacto.tieneDatos()) {
+            reconocida = personas.porContacto(contacto.correo(), contacto.telefono()).orElse(null);
+        }
+        if (reconocida == null) {
+            reconocida = personas.porCliente(contacto.clienteId(), contacto.clienteSinRegistroId()).orElse(null);
+        }
+        if (reconocida != null) {
+            return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.OK, reconocida.nombre(), personas.acumulado(campana, reconocida), meta);
+        }
+        if (contacto.clienteId() != null || contacto.clienteSinRegistroId() != null) {
+            BigDecimal a = personas.acumuladoDeCliente(campana, contacto.clienteId(), contacto.clienteSinRegistroId());
+            return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.OK, contacto.nombre(), a, meta);
+        }
+        return new VerificacionDeCodigo(VerificacionDeCodigo.Estado.NO_EXISTE, "", BigDecimal.ZERO, meta);
     }
 
     @Override

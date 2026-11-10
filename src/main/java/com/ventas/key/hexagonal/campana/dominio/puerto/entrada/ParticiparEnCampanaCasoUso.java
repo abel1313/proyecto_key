@@ -30,6 +30,12 @@ public interface ParticiparEnCampanaCasoUso {
     /** El botón «Verificar» de Venta directa. {@code quien} limita los intentos (usuario que pregunta). */
     VerificacionDeCodigo verificar(String quien, String codigo, ContactoCliente contacto);
 
+    /**
+     * Lo que lleva pagado en la campaña vigente un cliente reconocido por su correo, su teléfono o su cliente (registrado o sin registro), SIN código.
+     * Sirve para que Venta directa calcule en vivo si ya llega a la meta; el back vuelve a decidir al cobrar. {@code NO_EXISTE} si no se le reconoce.
+     */
+    VerificacionDeCodigo acumuladoDelCliente(String quien, ContactoCliente contacto);
+
     /** Escanear el QR: devuelve a quién pertenece el código (para llenar los datos del cliente) y cuánto lleva. {@code quien} limita los intentos. */
     ClienteDeCodigo buscarPorCodigo(String quien, String codigo);
 
