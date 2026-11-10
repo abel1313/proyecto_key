@@ -23534,3 +23534,8 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 **Request nuevo:** `POST /mis-productos/v1/campanas/personas/acumulado` (ROLE_ADMIN) con `{ correo?, telefono?, clienteId?, clienteSinRegistroId? }` (todos opcionales).
 **Response:** igual que `/personas/verificar`: `{ data: { estado: "OK" | "NO_EXISTE", nombre, acumulado, meta, falta } }`. `OK` si se reconoce al cliente por correo, teléfono o cliente (acumulado = pagado dentro de las fechas de la campaña); `NO_EXISTE` si no. `429` si se hacen demasiados intentos.
 
+
+## Actualizar producto: quitar la categoría (2026-11-10)
+**Antes (bug):** `PUT /v1/productos/update` ignoraba `palabraClaveId: null`; el producto conservaba su categoría aunque la persona la quitara en la pantalla.
+**Ahora:** el front manda `quitarPalabraClave: true` junto con `palabraClaveId: null` cuando la persona quita la categoría al actualizar; el back entonces deja el producto sin categoría. Sin esa bandera un id nulo sigue significando «no tocar» (carga rápida, imágenes y otras pantallas no mandan el campo). Request: `ProductoDetalle.quitarPalabraClave` (Boolean, opcional). Sin cambios en el response.
+**Artículos:** un artículo sin categoría propia hereda la del producto (regla del dominio `articulo`); para que un artículo quede sin categoría, el producto tampoco debe tenerla.

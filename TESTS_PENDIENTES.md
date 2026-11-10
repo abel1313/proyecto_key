@@ -579,3 +579,9 @@ Formato de cada entrada:
 | `VarianteStockDevolucionTest.habilitar_articuloViejoConStock_siAlcanzaNoSeToca` | `rename/variante-a-articulo` | 2026-10-08 | Espera "Variantes habilitadas correctamente."; con el renombrado el mensaje dice "Artículos habilitados correctamente." Solo cambia el texto, el stock se comporta igual. |
 | `ArticuloAVenderTest` (`productoDeshabilitado`, `soloModelo`, `productoPrimero`) | `rename/variante-a-articulo` | 2026-10-08 | Esperan "…el producto está deshabilitado…"; ahora dice "…el **modelo** está deshabilitado…" (§1.3 de `RENOMBRE_VARIANTE_A_ARTICULO.md`). La regla no cambió. |
 | `EditarArticulosServiceTest.productoDeshabilitadoNo` | `rename/variante-a-articulo` | 2026-10-08 | Igual: espera "el producto está deshabilitado o dado de baja"; ahora "el modelo…". |
+
+### 2026-11-10 — Actualizar producto: quitar la categoría
+**Dónde:** `ProductosServiceImpl.guardarProducto` (rama de producto existente), `ProductoDetalle.quitarPalabraClave`.
+- [ ] Productos → Buscar → Actualizar: quitar la categoría y guardar → al volver a abrir el producto ya no la trae; Productos → Buscar con ese filtro ya no lo lista (limpiar caché).
+- [ ] Actualizar un producto SIN tocar la categoría la conserva; Nuevo producto y la carga rápida de imágenes no cambian.
+- [ ] Un artículo cuyo producto ya no tiene categoría, al guardarlo sin categoría queda sin categoría.
