@@ -25,6 +25,9 @@ Formato de cada entrada:
 - [ ] Porcentaje: con cálculo guardado usa el último; sin cálculo calcula (venta − compra) ÷ venta sin flete y marca `sinFlete`; el reporte generado lo **guarda una sola vez** (segunda corrida no duplica); la consulta en pantalla no guarda nada.
 - [ ] Excel con fila de totales; PDF abre y trae las mismas columnas; el archivo queda `LISTO` y se descarga; a los 7 días el job lo borra; 4.º pedido simultáneo → 429.
 - [ ] Diseño: el Excel y el PDF traen la banda con «Novedades Jade», los datos de contacto de «Datos legales» (solo los capturados), quién lo generó y cuándo, las tarjetas de totales, filas alternadas, rojo en pérdida, «SIN FLETE» en ámbar y pie con número de página; el PDF repite el encabezado en cada hoja; un nombre con emoji no rompe el PDF (sale «?»).
+- [ ] «Por vender» con los 3 precios: un producto con stock 3, compra 100, venta 200, rebaja 180 y campaña 150 da por vender 300 / 240 / 150; sin rebaja o campaña repite el de venta; «Total» = ganancia vendida + el por vender de cada precio; los totales del pie y las tarjetas coinciden con la suma de las filas.
+- [ ] Flete: producto con flete 12.50 por pieza, 5 vendidas y 3 en stock → «Flete en lo vendido» 62.50 y «Flete en stock» 37.50; sin cálculo → «SIN FLETE» y 0; la tarjeta «Flete llevamos» suma todas las filas.
+- [ ] La leyenda «¿Cómo leer las columnas?» sale en pantalla, PDF y Excel.
 - [ ] Solo ROLE_ADMIN (401/403 para los demás en las 5 rutas); un reporte de otro usuario da 404.
 - [ ] Contra datos reales de QA: el total vendido del reporte «Todas» de un día cuadra con el reporte Diario (ojo: Diario suma `ventas.total_venta`; el reporte suma las líneas por producto).
 **Se probó con prueba temporal en H2 (ya borrada); el proyecto no lleva tests automáticos nuevos.**
