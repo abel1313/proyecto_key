@@ -86,18 +86,21 @@ public class ExcelReporteGenerador {
 
             // ── Tarjetas con los totales (cada una ocupa 3 columnas) ──
             TotalesReporte t = r.totales();
-            String[] etq = {"PRODUCTOS", "PIEZAS VENDIDAS", "TOTAL VENDIDO", "GANANCIA VENDIDA", "GANANCIA POR VENDER", "GANANCIA TOTAL"};
-            Object[] val = {(double) t.productos(), (double) t.piezas(), t.total(), t.gananciaVendida(), t.gananciaPorVender(), t.gananciaTotal()};
+            String[] etq = {"PRODUCTOS", "PIEZAS VENDIDAS", "TOTAL VENDIDO", "GANANCIA VENDIDA", "FLETE LLEVAMOS", "TOTAL CON PRECIO VENTA", "TOTAL CON REBAJA", "TOTAL CON CAMPAÑA"};
+            Object[] val = {(double) t.productos(), (double) t.piezas(), t.total(), t.gananciaVendida(), t.fleteVendido(), t.gananciaTotal(), t.gananciaTotalRebaja(), t.gananciaTotalCampana()};
             String[] sub = {t.productosVendidos() + " vendidos · " + t.productosSinVender() + " sin vender", t.piezasPorVender() + " en stock por vender",
                     "Costo $" + String.format(Locale.US, "%,.2f", t.costo()), t.margenRealPct() == null ? "" : String.format(Locale.US, "%.2f%% real", t.margenRealPct()),
-                    "Si se vende todo el stock", "Vendida + por vender"};
+                    "En stock: $" + String.format(Locale.US, "%,.2f", t.fleteEnStock()),
+                    "Vendida + por vender $" + String.format(Locale.US, "%,.2f", t.gananciaPorVender()),
+                    "Vendida + por vender $" + String.format(Locale.US, "%,.2f", t.gananciaPorVenderRebaja()),
+                    "Vendida + por vender $" + String.format(Locale.US, "%,.2f", t.gananciaPorVenderCampana())};
             Row rEtq = hoja.createRow(fila), rVal = hoja.createRow(fila + 1), rSub = hoja.createRow(fila + 2);
             rVal.setHeightInPoints(26);
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < etq.length; i++) {
                 // La columna A (nombre) es ancha: la tarjeta de productos va sola ahí; las demás ocupan 3 columnas cada una.
                 int c0 = i == 0 ? 0 : 1 + (i - 1) * 3;
                 int c1 = i == 0 ? 0 : c0 + 2;
-                boolean verde = i == 3 || i == 5;
+                boolean verde = i == 3 || i >= 5;
                 for (int c = c0; c <= c1 && c <= ult; c++) {
                     rEtq.createCell(c).setCellStyle(est.tarjeta(8, true, SUAVE, false, false));
                     rVal.createCell(c).setCellStyle(est.tarjeta(15, true, verde ? VERDE : TEXTO, true, false));
@@ -115,7 +118,17 @@ public class ExcelReporteGenerador {
                     hoja.addMergedRegion(new CellRangeAddress(fila + 2, fila + 2, c0, Math.min(c1, ult)));
                 }
             }
-            fila += 4;   // 3 renglones de tarjetas + 1 en blanco
+            // Leyenda: cómo leer las columnas.
+            Row rLey = hoja.createRow(fila + 3);
+            rLey.setHeightInPoints(36);
+            Cell ley = rLey.createCell(0);
+            ley.setCellValue(ColumnasReporte.LEYENDA);
+            XSSFCellStyle estLey = est.texto(8, false, SUAVE);
+            estLey.setWrapText(true);
+            estLey.setVerticalAlignment(VerticalAlignment.TOP);
+            ley.setCellStyle(estLey);
+            hoja.addMergedRegion(new CellRangeAddress(fila + 3, fila + 3, 0, Math.min(ult, 15)));
+            fila += 5;   // 3 renglones de tarjetas + la leyenda + 1 en blanco
 
             // ── Tabla ──
             int filaTitulos = fila;

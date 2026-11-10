@@ -58,7 +58,9 @@ public class ArmarReporteService {
             }
             filas.add(new FilaReporte(b, margen, nuevo, flete == null ? BigDecimal.ZERO : flete, sinFlete,
                     ReglasReporte.margenReal(b.ganancia(), b.total()),
-                    ReglasReporte.gananciaPorVender(b.stock(), b.precioCompra(), b.precioVenta())));
+                    ReglasReporte.gananciaPorVender(b.stock(), b.precioCompra(), b.precioVenta()),
+                    ReglasReporte.gananciaPorVender(b.stock(), b.precioCompra(), ReglasReporte.precioConRebaja(b)),
+                    ReglasReporte.gananciaPorVender(b.stock(), b.precioCompra(), ReglasReporte.precioEnCampana(b))));
         }
         if (guardarCalculos && !nuevos.isEmpty()) calculos.guardarGenerados(nuevos, usuario);
 
