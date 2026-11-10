@@ -28,6 +28,7 @@ Formato de cada entrada:
 - [ ] Solo ROLE_ADMIN (401/403 para los demás en las 5 rutas); un reporte de otro usuario da 404.
 - [ ] Contra datos reales de QA: el total vendido del reporte «Todas» de un día cuadra con el reporte Diario (ojo: Diario suma `ventas.total_venta`; el reporte suma las líneas por producto).
 **Se probó con prueba temporal en H2 (ya borrada); el proyecto no lleva tests automáticos nuevos.**
+**Migración `migration_reporte_categoria.sql`: ya corrida en QA (2026-11-10); en producción aún no, y no afecta (la usa solo el reporte nuevo).**
 
 ### 2026-11-10 — La compra en curso cuenta para la meta (solo lo que NO son juguetes) + acumulado de cliente sin código
 **Dónde:** `ParticiparEnCampanaService.decidir` y `.acumuladoDelCliente`, `ReglasCampana.califica`, `POST /v1/campanas/personas/acumulado` (admin).
