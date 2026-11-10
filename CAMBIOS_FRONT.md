@@ -23780,3 +23780,34 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 **Antes (bug):** `PUT /v1/productos/update` ignoraba `palabraClaveId: null`; el producto conservaba su categoría aunque la persona la quitara en la pantalla.
 **Ahora:** el front manda `quitarPalabraClave: true` junto con `palabraClaveId: null` cuando la persona quita la categoría al actualizar; el back entonces deja el producto sin categoría. Sin esa bandera un id nulo sigue significando «no tocar» (carga rápida, imágenes y otras pantallas no mandan el campo). Request: `ProductoDetalle.quitarPalabraClave` (Boolean, opcional). Sin cambios en el response.
 **Artículos:** un artículo sin categoría propia hereda la del producto (regla del dominio `articulo`); para que un artículo quede sin categoría, el producto tampoco debe tenerla.
+
+
+---
+
+## Reporte por categoría / por productos elegidos, Excel y PDF (2026-11-10) — solo ROLE_ADMIN
+
+**Hecho en duro:** solo `ROLE_ADMIN` (`SecurityConfig`: `/v1/reportes/ventas/por-categoria/**`). Pendiente: pasarlo a una pantalla/acción configurable del menú (Gestión de roles) cuando el dueño lo pida. Migración: `migration_reporte_categoria.sql` (tabla `reporte_generado`; sin ella solo falla pedir el Excel/PDF).
+
+**Qué cuenta una venta** (igual que Diario y Mensual, para que los totales cuadren): por su **fecha de venta** entre `desde` y `hasta` (los dos días incluidos) y **sin las «Devuelta»** (las canceladas). Las piezas de varias ventas del mismo producto se **suman**. Los productos del catálogo interno no entran.
+
+**Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
+
+### `GET /mis-productos/v1/reportes/ventas/por-categoria` — el reporte en pantalla (paginado, solo lectura: no guarda nada)
+Params: `desde`, `hasta` (yyyy-MM-dd, obligatorios), `categoria`, `sinCategoria`, `productoIds`, `vista`, `pagina` (desde 1), `size` (máx. 100).
+Response `data`: `{ descripcion, pagina, totalPaginas, totalRegistros, filas[], totales }`.
+Cada fila: `productoId, nombre, codigoBarras, categoria` (null = Otros), `precioCompra, precioVenta, precioRebaja, precioRebajaCampana` (de la campaña más reciente que lo trae; null si nunca estuvo), `piezasVendidas, ventas, totalVendido, costoVendido, gananciaVendida`, `porcentajeCalculado` (% del último cálculo de precio; si no tenía, el margen sobre el precio de venta calculado sin flete), `calculoNuevo`, `porcentajeReal` (ganancia ÷ total vendido; null si no se vendió), `fletePorPieza`, `sinFlete` (true si el cálculo no llevó flete o no hay cálculo), `porVender` (stock), `gananciaPorVender` (stock × (venta − compra)), `gananciaTotal` (vendida + por vender).
+`totales` (de TODAS las filas, no de la página): `productos, productosVendidos, productosSinVender, piezas, total, costo, gananciaVendida, margenRealPct, piezasPorVender, gananciaPorVender, gananciaTotal`.
+Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falta una fecha, la de fin es anterior o la vista no es válida.
+
+### Reporte en segundo plano (Excel y PDF) — asíncrono
+- `POST /v1/reportes/ventas/por-categoria/generar` body `{ desde, hasta, categoria?, sinCategoria?, productoIds?, vista?, formato }` (`formato`: `XLSX` por defecto o `PDF`). **202** al instante con `data: { id, estado: "PENDIENTE", ... }`; el back lo arma en un hilo aparte (no RabbitMQ: producción no lo tiene). 429 si ya hay 3 armándose o la cola está llena.
+- `GET /v1/reportes/ventas/por-categoria/generados` → `lista[]` (mis últimos, del más nuevo al más viejo): `{ id, estado, formato, descripcion, nombreArchivo, error, creado, terminado, expira, bytes }`. `estado`: `PENDIENTE` → `GENERANDO` → `LISTO` o `ERROR` (con `error`). **Nota:** una lista vacía responde `code 404` (convención de `ResponseGeneric`).
+- `GET /v1/reportes/ventas/por-categoria/generados/{id}` → el estado de uno (para preguntar cada 3-5 s hasta `LISTO`). 404 si no es mío.
+- `GET /v1/reportes/ventas/por-categoria/generados/{id}/archivo` → **bytes** (Content-Type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` o `application/pdf`, `Content-Disposition: attachment`). 404 si no existe, no es mío o aún no está `LISTO`.
+- Los reportes **se borran solos a los 7 días** (job nocturno). El archivo se guarda en binario (no base64).
+- **Solo este camino guarda:** al generar el archivo, a los productos sin cálculo de precio se les guarda uno en `producto_calculo_precio` (margen sobre el precio de venta, **sin flete**, nota «Generado por el reporte por categoría · sin flete»). Si el producto ya tiene un cálculo, se usa **el último** (si se actualiza el producto, el cálculo conserva ese último valor). La consulta en pantalla nunca escribe.
+
+**Excel/PDF:** mismas columnas que la pantalla, una fila por producto y **una fila de totales al final** de cada columna. Excel con Apache POI; PDF con Apache PDFBox 3.0.3 (hoja A3 horizontal, el encabezado se repite en cada hoja).
+
+**Diseño del Excel y del PDF (2026-11-10):** banda verde con el nombre del negocio («Novedades Jade»), debajo sus **datos de contacto tomados de «Datos legales»** (responsable, domicilio, teléfono, correo, horario; solo los que estén capturados, nada se inventa), quién lo generó y cuándo, el periodo y los filtros, **tarjetas con los totales** (productos, piezas vendidas, total vendido, ganancia vendida, ganancia por vender, ganancia total), la tabla con encabezado verde y filas alternadas (rojo si hay pérdida, «SIN FLETE» en ámbar, gris si no se vendió) y la fila de totales. PDF: A3 horizontal, encabezado de la tabla repetido en cada hoja y pie «Página X de Y». Excel: filtros en el encabezado, panel congelado, listo para imprimir (horizontal, ajustado al ancho, encabezado repetido, pie con número de página). El pie dice «Uso interno: incluye costos y ganancias».
+
