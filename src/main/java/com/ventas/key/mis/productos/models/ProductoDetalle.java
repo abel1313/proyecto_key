@@ -28,6 +28,8 @@ public class ProductoDetalle {
     private int eliminarStock;
 
     private Integer palabraClaveId;
+    /** Al ACTUALIZAR un producto: true = quitarle la categoría. Sin esto, un palabraClaveId nulo significa «no tocar» (otras pantallas no mandan el campo). */
+    private Boolean quitarPalabraClave;
     private CodigoBarraDetalle codigoBarras;
     private List<ImagenDTO> listImagenes;
     private Long imagenPrincipalId;

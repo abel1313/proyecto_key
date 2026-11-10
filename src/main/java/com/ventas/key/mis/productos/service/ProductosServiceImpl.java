@@ -555,6 +555,9 @@ public class ProductosServiceImpl extends
             prodExistenteNoOpt.setContenido(productoDetalle.getContenido());
             if (productoDetalle.getPalabraClaveId() != null) {
                 prodExistenteNoOpt.setPalabraClave(iPalabraClaveRepository.getReferenceById(productoDetalle.getPalabraClaveId()));
+            } else if (Boolean.TRUE.equals(productoDetalle.getQuitarPalabraClave())) {
+                // Actualizar producto: la persona le quitó la categoría (antes un nulo se ignoraba y la categoría volvía a aparecer).
+                prodExistenteNoOpt.setPalabraClave(null);
             }
 
             // Ajuste de stock contra el stock real de la BD
