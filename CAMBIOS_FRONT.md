@@ -23767,3 +23767,11 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 **Escáner del celular (canal)**: `GET /mis-productos/v1/escaner/canal/codigos?...&acepta=codigo,uuid`. Un código con forma de UUID (QR de cliente de campaña) solo se entrega a una pregunta abierta cuyo `acepta` incluya `uuid`; si ninguna lo incluye no se entrega y el envío del celular responde `data: false`. Los demás códigos, como siempre. La ruta vieja `/v1/escaner/sesiones/{id}/codigos` (sin `acepta`) ya no recibe UUID.
 
 **Interno (sin cambio de contrato):** el registro de la compra en la campaña (persona + ligar pedido) se hace después de confirmar la venta, en su propia transacción; un error ahí ya no tira la venta. El correo «Agrega tu compra a tu cuenta» con el bloque del código sigue saliendo igual.
+
+## Campaña: la compra en curso cuenta para la meta, solo lo que NO son juguetes (2026-11-10)
+
+**Qué cambia:** el precio de campaña ya se decide con `lo ya pagado + los artículos de la compra actual que no son juguetes de la campaña` (solo en Contado). Antes la compra en curso no contaba. Apartado e Ir pagando: la compra en curso no suma; Ir pagando sigue siempre a precio normal. El back decide siempre al cobrar; el front lo recalcula en vivo al agregar o quitar artículos.
+
+**Request nuevo:** `POST /mis-productos/v1/campanas/personas/acumulado` (ROLE_ADMIN) con `{ correo?, telefono?, clienteId?, clienteSinRegistroId? }` (todos opcionales).
+**Response:** igual que `/personas/verificar`: `{ data: { estado: "OK" | "NO_EXISTE", nombre, acumulado, meta, falta } }`. `OK` si se reconoce al cliente por correo, teléfono o cliente (acumulado = pagado dentro de las fechas de la campaña); `NO_EXISTE` si no. `429` si se hacen demasiados intentos.
+

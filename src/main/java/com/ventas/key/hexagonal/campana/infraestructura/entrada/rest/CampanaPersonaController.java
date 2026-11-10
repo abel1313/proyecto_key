@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.campana.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.campana.dominio.excepcion.CampanaInvalidaException;
 import com.ventas.key.hexagonal.campana.dominio.modelo.ContactoCliente;
 import com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso;
+import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.AcumuladoClienteRequest;
 import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.BuscarPorCodigoRequest;
 import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.BuscarPorCodigoResponse;
 import com.ventas.key.hexagonal.campana.infraestructura.entrada.rest.dto.VerificarCodigoRequest;
@@ -37,6 +38,18 @@ public class CampanaPersonaController {
         try {
             var v = participar.verificar(auth == null ? null : auth.getName(), request.codigo(),
                     new ContactoCliente(null, request.correo(), request.telefono()));
+            return ResponseEntity.ok(new ResponseGeneric<>(VerificarCodigoResponse.de(v)));
+        } catch (CampanaInvalidaException e) {
+            return error(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+        }
+    }
+
+    /** Lo que lleva pagado un cliente reconocido SIN código (correo, teléfono o cliente): para el aviso en vivo de Venta directa. */
+    @PostMapping("/acumulado")
+    public ResponseEntity<ResponseGeneric<VerificarCodigoResponse>> acumulado(@RequestBody AcumuladoClienteRequest request, Authentication auth) {
+        try {
+            var v = participar.acumuladoDelCliente(auth == null ? null : auth.getName(),
+                    new ContactoCliente(null, request.correo(), request.telefono(), request.clienteId(), request.clienteSinRegistroId()));
             return ResponseEntity.ok(new ResponseGeneric<>(VerificarCodigoResponse.de(v)));
         } catch (CampanaInvalidaException e) {
             return error(HttpStatus.TOO_MANY_REQUESTS, e.getMessage());

@@ -16,6 +16,13 @@ Formato de cada entrada:
 
 ---
 
+
+### 2026-11-10 — La compra en curso cuenta para la meta (solo lo que NO son juguetes) + acumulado de cliente sin código
+**Dónde:** `ParticiparEnCampanaService.decidir` y `.acumuladoDelCliente`, `ReglasCampana.califica`, `POST /v1/campanas/personas/acumulado` (admin).
+**Tipo:** unitario (dominio con puertos simulados) + controller.
+**Debe comprobar:** con $1,000 ya pagado y meta $1,500, una compra de Contado con una bolsa de $500 + un juguete: el juguete baja; solo el juguete: no baja; en Apartado o Ir pagando la compra en curso no suma; con $1,500 ya pagados baja siempre; `acumulado` devuelve OK con lo pagado de un cliente reconocido por correo, teléfono o cliente, y NO_EXISTE si no se le reconoce; solo ROLE_ADMIN.
+**Tests existentes que quedaron viejos:** `ParticiparEnCampanaTest.porMeta` fijaba «la compra en curso no cuenta»; se reescribió con la regla nueva.
+
 ### 2026-11-10 — Campaña: reglas finales, categorías de productos y UUID en el escáner
 **Dónde:** `ParticiparEnCampanaService.decidir`, `PersonasCampanaJpaAdapter.porCliente/acumuladoDeCliente`, `AdministrarCampanasService.eliminar` + `CampanasJpaAdapter.tieneComprasLigadas` + `CampanaController` (409), `PrecioDeCampana`, `PedidoServiceImpl.cambiarTipo` (restaurar + repreciar + ajustar abonos), `VentaServiceImpl` (campaña en transacción propia / afterCommit, `pedidoId` en contado), `GET /v1/productos/admin/categorias`, `SesionEscaner` / `Acepta` (`uuid`).
 **Tipo:** unitario (puertos simulados) · JPA (H2) · integración con transacciones reales · controller.

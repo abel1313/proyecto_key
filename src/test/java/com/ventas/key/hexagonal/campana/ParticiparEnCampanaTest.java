@@ -135,12 +135,16 @@ class ParticiparEnCampanaTest {
     }
 
     @Test
-    @DisplayName("por meta: solo cuenta lo YA pagado; el ticket de esta venta no se suma a sí mismo (con $1,000 de $1,500 no hay descuento)")
+    @DisplayName("por meta: lo ya pagado + lo que NO son juguetes de esta compra (solo Contado); los juguetes no cuentan para calificarse a sí mismos")
     void porMeta() {
         ana();
         personas.acumulado = d("1000");
-        // 1000 < 1500: aunque lleve bolsas de $500 en este ticket, todavía no es recurrente
-        assertThat(servicio.decidir(venta("abc-123", false, false, FormaDeCobro.CONTADO, ana, JUGUETE, bolsa(1))).precioDe(1)).isNull();
+        // 1000 + bolsa de $500 en este ticket (Contado) = 1500: ya llega, el juguete de ESTE ticket baja
+        assertThat(servicio.decidir(venta("abc-123", false, false, FormaDeCobro.CONTADO, ana, JUGUETE, bolsa(1))).precioDe(1)).isEqualByComparingTo("200");
+        // 1000 y solo el juguete: los juguetes no cuentan para calificarse a sí mismos
+        assertThat(servicio.decidir(venta("abc-123", false, false, FormaDeCobro.CONTADO, ana, JUGUETE)).precioDe(1)).isNull();
+        // en Apartado no se paga ahora: la compra en curso no suma
+        assertThat(servicio.decidir(venta("abc-123", false, false, FormaDeCobro.APARTADO, ana, JUGUETE, bolsa(1))).precioDe(1)).isNull();
         // ya pagó 1500 antes: sí
         personas.acumulado = d("1500");
         assertThat(servicio.decidir(venta("abc-123", false, false, FormaDeCobro.CONTADO, ana, JUGUETE)).precioDe(1)).isEqualByComparingTo("200");
