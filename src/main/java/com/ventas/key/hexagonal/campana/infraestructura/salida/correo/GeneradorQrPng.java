@@ -19,12 +19,21 @@ import java.util.Map;
  */
 public final class GeneradorQrPng {
 
+    static {
+        // El contenedor no tiene pantalla. Va al cargar la clase (antes de tocar AWT): fijarlo después de que AWT ya arrancó no tiene efecto.
+        // Spring Boot ya lo pone en true por defecto; esto solo cubre un arranque sin SpringApplication. No pisa un valor puesto a mano.
+        if (System.getProperty("java.awt.headless") == null) {
+            System.setProperty("java.awt.headless", "true");
+        }
+    }
+
     private GeneradorQrPng() { }
 
     /** @param px lado aproximado de la imagen en píxeles (el QR se ajusta a módulos enteros). */
     public static byte[] png(String texto, int px) {
-        // El contenedor no tiene pantalla: sin esto algunas JDK intentan cargar el AWT gráfico.
-        System.setProperty("java.awt.headless", "true");
+        if (texto == null || texto.isEmpty()) {
+            throw new IllegalArgumentException("No hay texto para el QR");
+        }
         try {
             BitMatrix m = new QRCodeWriter().encode(texto, BarcodeFormat.QR_CODE, px, px,
                     Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 4));

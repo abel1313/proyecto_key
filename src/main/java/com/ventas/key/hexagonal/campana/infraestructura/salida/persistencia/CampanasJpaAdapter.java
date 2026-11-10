@@ -79,6 +79,10 @@ public class CampanasJpaAdapter implements CampanasPort {
             if (producto == null) {
                 throw new CampanaInvalidaException("El producto " + (p.nombre() == null ? p.productoId() : "«" + p.nombre() + "»") + " ya no existe.");
             }
+            if (Boolean.TRUE.equals(producto.getEsCatalogoInterno())) {
+                // Un producto «sombra» (flores eternas) solo existe para ser línea de un pedido: no se ofrece como juguete de campaña.
+                throw new CampanaInvalidaException("El producto «" + producto.getNombre() + "» es interno y no puede estar en una campaña.");
+            }
             CampanaProductoEntidad fila = new CampanaProductoEntidad();
             fila.setCampana(e);
             fila.setProducto(producto);
@@ -92,6 +96,17 @@ public class CampanasJpaAdapter implements CampanasPort {
     @Transactional
     public void eliminar(int id) {
         repositorio.deleteById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean tieneComprasLigadas(int id) {
+        if (!tablas.existe("campana_persona_pedido")) {
+            return false;
+        }
+        Number n = (Number) em.createNativeQuery("SELECT COUNT(*) FROM campana_persona_pedido WHERE campana_id = :id")
+                .setParameter("id", id).getSingleResult();
+        return n != null && n.longValue() > 0;
     }
 
     @Override

@@ -19,7 +19,8 @@ public class VentaDirectaResponse {
     private String meses;
     private String descripcionPago;
     private String intentId;
-    private Integer pedidoId; // solo cuando tipoPedido=APARTADO|FIADO; ventaId será null
+    /** El pedido de la venta: en Apartado / Ir pagando (ventaId null), en Contado (desde 2026-11-10, para mandar el ticket por correo) y en tarjeta Pendiente. */
+    private Integer pedidoId;
     private Boolean correoEnviado;
     private Boolean whatsappEnviado;
     private List<String> erroresEnvio;

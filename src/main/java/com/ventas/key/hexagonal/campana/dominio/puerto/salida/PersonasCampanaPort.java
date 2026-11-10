@@ -20,6 +20,11 @@ public interface PersonasCampanaPort {
     /** Busca por correo o por teléfono (últimos 10 dígitos), para no crear dos códigos a la misma persona. */
     Optional<PersonaCampana> porContacto(String correo, String telefono10);
 
+    /** La persona ligada a este cliente (registrado o sin registro), si hay. Por defecto ninguna. */
+    default Optional<PersonaCampana> porCliente(Integer clienteId, Integer clienteSinRegistroId) {
+        return Optional.empty();
+    }
+
     PersonaCampana guardar(PersonaCampana persona);
 
     /** Lo que esta persona suma hacia la meta de esa campaña (compras ligadas, pagadas, que no estén canceladas ni pendientes). */
@@ -31,6 +36,14 @@ public interface PersonasCampanaPort {
      */
     default BigDecimal acumulado(Campana campana, PersonaCampana persona) {
         return acumulado(campana.id(), persona.id());
+    }
+
+    /**
+     * Lo PAGADO entre la fecha de inicio y la de fin de la campaña por un cliente (registrado o sin registro) que todavía no tiene código: la misma
+     * cuenta que {@link #acumulado(Campana, PersonaCampana)}, solo con los pedidos de ese cliente. Por defecto 0.
+     */
+    default BigDecimal acumuladoDeCliente(Campana campana, Integer clienteId, Integer clienteSinRegistroId) {
+        return BigDecimal.ZERO;
     }
 
     /** Rellena a qué cliente pertenece la persona si todavía no lo sabe. Por defecto no hace nada. */

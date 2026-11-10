@@ -23743,3 +23743,27 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Diferencia clave:** antes no había forma de filtrar por categoría en esas dos pantallas.
 
+
+---
+
+## Campaña: reglas finales (2026-11-10)
+
+**Reconocimiento sin QR.** En `POST /mis-productos/v1/ventas/save` el back reconoce al cliente aunque no traiga código: por **correo**, **teléfono** (últimos 10 dígitos) o **cliente** (`clienteId` registrado o `clienteSinRegistroId`). Si lo pagado entre las fechas de la campaña llega a la meta, los juguetes salen a precio de campaña (Contado/Apartado). La compra en curso no cuenta para su propio precio. Sin ningún dato del cliente no hay descuento, salvo la casilla «Cliente recurrente» (sin cambios). Una venta de mostrador hecha con la cuenta de quien vende (sin datos del cliente) cuenta como «sin datos». Contrato del request y del response: sin cambios.
+
+**`GET /mis-productos/v1/productos/admin/categorias`** (pantalla Productos → Buscar / Agregar producto / Venta, igual que el resto de `admin/**`)
+- Response `200`, arreglo JSON **plano** de strings (no va dentro de `ResponseGeneric`): `["BOLSAS","JUGUETES"]` — nombre de la categoría (palabra clave) en MAYÚSCULAS, sin repetidos, ordenado. Incluye productos sin artículos y deshabilitados; excluye los internos. Sin categorías: `[]`.
+- `401/403`: sin sesión o sin la pantalla. Sin caché: refleja al instante una categoría recién asignada.
+
+**`DELETE /mis-productos/v1/campanas/{id}`**: antes borraba siempre (y en cascada se llevaba el historial del reporte). Ahora, si la campaña ya tiene compras ligadas responde **`409`** con `mensaje`: «Esta campaña ya tiene compras ligadas: apágala en lugar de eliminarla, así se conserva el historial.» (`data: null`). Sin compras ligadas: `200` «Campaña eliminada», como antes. Activar/apagar/duplicar y «Eliminar datos» de una persona: sin cambios.
+
+**Cambio de forma de cobro (`PUT /mis-productos/v1/pedidos/{id}/tipo`)**
+- Apartado (o Contado) → **Ir pagando**: los juguetes regresan a su precio normal (como antes) y **además** se recalcula el precio por cantidad (grupos) de esas líneas; `totalPedido`/`saldoPendiente` del response ya vienen con el total nuevo y lo abonado se vuelve a cuadrar.
+- Ir pagando → Apartado: **no** devuelve el precio de campaña (Ir pagando siempre es precio normal).
+
+**Precio de campaña**: se redondea a centavos antes de validar; `0.004` se rechaza con `400` «… debe ser mayor a cero.».
+
+**`POST /mis-productos/v1/ventas/save` de Contado**: el response ahora trae también `pedidoId` (campo que antes solo venía en Apartado/Ir pagando/tarjeta Pendiente). Sirve para mandar el ticket por correo DESPUÉS de la venta con `POST /mis-productos/v1/pedidos/{pedidoId}/notificar` body `{ "correo": "...", "ticketHtml": "..." }` (ROLE_ADMIN; `200` «Comprobante enviado correctamente a …», `400` si no salió). Funciona igual para un pedido de contado ya pagado. Decidir crédito por el tipo pedido, no por traer `pedidoId`.
+
+**Escáner del celular (canal)**: `GET /mis-productos/v1/escaner/canal/codigos?...&acepta=codigo,uuid`. Un código con forma de UUID (QR de cliente de campaña) solo se entrega a una pregunta abierta cuyo `acepta` incluya `uuid`; si ninguna lo incluye no se entrega y el envío del celular responde `data: false`. Los demás códigos, como siempre. La ruta vieja `/v1/escaner/sesiones/{id}/codigos` (sin `acepta`) ya no recibe UUID.
+
+**Interno (sin cambio de contrato):** el registro de la compra en la campaña (persona + ligar pedido) se hace después de confirmar la venta, en su propia transacción; un error ahí ya no tira la venta. El correo «Agrega tu compra a tu cuenta» con el bloque del código sigue saliendo igual.

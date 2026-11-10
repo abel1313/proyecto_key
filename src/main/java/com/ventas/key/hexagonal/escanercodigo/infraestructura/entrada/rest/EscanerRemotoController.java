@@ -145,17 +145,21 @@ public class EscanerRemotoController {
         return responder(() -> escaner.enviarFoto(escaner.idDelCanal(usuarioActual()), cuerpo == null ? null : cuerpo.foto()));
     }
 
-    /** {@code acepta=codigo,foto}: qué sabe recibir la pantalla. Lo desconocido se ignora; vacío = solo códigos. */
+    /**
+     * {@code acepta=codigo,foto,uuid}: qué sabe recibir la pantalla. {@code uuid} = tiene abierto el campo «Código del cliente» de una campaña (solo
+     * así se le entrega un QR de cliente). Lo desconocido se ignora; vacío = solo códigos.
+     */
     static Acepta aceptaDe(String valor) {
-        boolean codigos = false, fotos = false;
+        boolean codigos = false, fotos = false, uuid = false;
         for (String parte : (valor == null ? "" : valor).split(",")) {
             switch (parte.trim()) {
                 case "codigo" -> codigos = true;
                 case "foto" -> fotos = true;
+                case "uuid" -> uuid = true;
                 default -> { }
             }
         }
-        return codigos || fotos ? new Acepta(codigos, fotos) : Acepta.SOLO_CODIGOS;
+        return codigos || fotos || uuid ? new Acepta(codigos, fotos, uuid) : Acepta.SOLO_CODIGOS;
     }
 
     /** El usuario con sesión; sin sesión no se tiene canal (el servidor ya exige sesión en estas rutas, esto es la red de seguridad). */

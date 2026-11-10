@@ -1168,7 +1168,16 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
 
         // Con Ir pagando no entra el descuento de campana: los juguetes con precio de campana regresan a su precio de antes (y el total sube).
         // Apartado y Contado lo conservan. Va antes de cobrar para que el saldo ya sea el correcto.
-        if ("FIADO".equals(tipoNuevo) && preciosDeCampana != null && preciosDeCampana.restaurar(pedidoId)) {
+        // Al reves (Ir pagando -> Apartado) NO se vuelve a aplicar el precio de campana: Ir pagando siempre se cobra normal (regla del dueno 2026-11-10).
+        boolean preciosRestaurados = "FIADO".equals(tipoNuevo) && preciosDeCampana != null && preciosDeCampana.restaurar(pedidoId);
+        if (preciosRestaurados) {
+            // Las lineas que regresaron a su precio normal vuelven a entrar al precio por cantidad (grupos de precio): si el pedido junta el minimo
+            // de su grupo, pasan a su precio de grupo. Solo recalcula el grupo; el precio de campana no se vuelve a aplicar (sus marcas ya se borraron).
+            if (repreciarPorCantidad != null) {
+                repreciarPorCantidad.repreciar(pedidoId);
+                pedido.setTotalPedido(pedido.getDetalles().stream()
+                        .mapToDouble(d -> d.getSubTotal() == null ? 0.0 : d.getSubTotal()).sum());
+            }
             String registro = String.format("[%s] Con Ir pagando no entra el descuento de campaña: los juguetes regresaron a su precio normal.", LocalDate.now());
             String previas = pedido.getObservaciones();
             pedido.setObservaciones(previas == null || previas.isBlank() ? registro : previas + "\n" + registro);
@@ -1188,6 +1197,13 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             }
             pedido.setTipoPedido(tipoNuevo);
             iPedidoRepository.save(pedido);
+        }
+
+        // El total cambio (precio normal y quiza precio de grupo): lo abonado se vuelve a cuadrar contra el total nuevo (un Apartado que ya estaba
+        // PAGADO deja de estarlo si ahora falta dinero), igual que al editar los articulos del pedido.
+        if (preciosRestaurados) {
+            iAbonoService.ajustarTrasEditarArticulos(pedidoId,
+                    AuthenticationUtils.currentUsuarioOpt().map(Usuario::getId).orElse(null));
         }
 
         double totalPagado = pedido.getTotalPagado() != null ? pedido.getTotalPagado() : 0.0;
