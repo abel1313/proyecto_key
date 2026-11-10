@@ -112,7 +112,6 @@ Formato de cada entrada:
 - [ ] Test existente ajustado: `VentaDirectaCampanaTest` (ahora verifica `registrarCompra(..., mandarCorreo)` de 4 parámetros)
 - [ ] `registrarCompra` manda el correo del código en **cada** compra confirmada (persona nueva: «primera vez»; existente: «de nuevo»), al correo de la venta o, si no hay, al de la persona; sin ninguno no manda; el correo nunca tira la venta
 - [ ] Test existente que quedó viejo y se ajustó: `ParticiparEnCampanaTest.creaPersona` (ahora la segunda compra de la misma persona **sí** manda correo; el puerto `AvisarCodigoCampanaPort.enviar` tiene 4 parámetros)
-- [ ] **QUITAR AL TERMINAR:** la constante temporal `MARCA_VERSION_PRUEBA` de `EmailService` y la línea «Versión de prueba: …» del pie del correo del código (sirve para ver qué versión corre en QA; cambiarla en cada subida: QR-1, QR-2…).
 
 ### 2026-11-08 — Campañas: el QR llena al cliente, la meta suma lo pagado por fechas, la casilla manual no crea QR, renglones para el ticket
 **Dónde:** `ParticiparEnCampanaService.decidir/registrarCompra/buscarPorCodigo` · `PersonasCampanaJpaAdapter.acumulado(Campana, PersonaCampana)/completarCliente/resumen` ·

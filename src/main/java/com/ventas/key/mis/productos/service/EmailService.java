@@ -369,8 +369,6 @@ public class EmailService {
     }
 
     private static final String CID_QR_CODIGO = "qrcodigo";
-    /** TEMPORAL (2026-11-08): se imprime en el correo del código para saber qué versión corre en QA. Cambiarla en cada subida y quitarla al terminar. */
-    private static final String MARCA_VERSION_PRUEBA = "QR-5";
 
     public boolean enviarCodigoCampana(String destinatario, String nombre, String nombreCampana, String uuid) {
         return enviarCodigoCampana(destinatario, nombre, nombreCampana, uuid, true);
@@ -392,14 +390,14 @@ public class EmailService {
         byte[] png = null;
         try {
             png = com.ventas.key.hexagonal.campana.infraestructura.salida.correo.GeneradorQrPng.png(uuid, 300);
-            log.info("Código de campaña [{}]: QR de {} bytes, correo a {}", MARCA_VERSION_PRUEBA, png.length, ocultarCorreo(destinatario));
+            log.info("Código de campaña: QR de {} bytes, correo a {}", png.length, ocultarCorreo(destinatario));
         } catch (Throwable e) {
             // Un fallo de AWT/ImageIO en el contenedor (AWTError, NoClassDefFoundError...) es un Error, no una excepción: sin esto tumbaría el correo.
             if (e instanceof VirtualMachineError vme) {
                 throw vme;
             }
             png = null;
-            log.warn("Código de campaña [{}]: NO se pudo dibujar el QR, el correo sale sin imagen: {}", MARCA_VERSION_PRUEBA, e.toString(), e);
+            log.warn("Código de campaña: NO se pudo dibujar el QR, el correo sale sin imagen: {}", e.toString(), e);
         }
         String html = cajaCodigo(uuid)
                 + (png == null ? "" : "<p style=\"text-align:center;margin:0 0 8px;\"><img src=\"cid:" + CID_QR_CODIGO
@@ -407,9 +405,7 @@ public class EmailService {
                 + (liga == null ? "" : "<p style=\"margin:0 0 8px;\">Si no ves el QR, ábrelo aquí: <a href=\"" + escaparHtmlCampana(liga) + "\">"
                         + escaparHtmlCampana(liga) + "</a></p>")
                 + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">Guardamos tu nombre, correo, teléfono y tus compras en la campaña solo para "
-                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>"
-                // TEMPORAL: marca para saber qué versión está corriendo en QA. Cambiarla en cada subida; QUITARLA al terminar (ver TESTS_PENDIENTES.md).
-                + "<p style=\"margin:8px 0 0;color:#9ca3af;font-size:11px;\">Versión de prueba: " + MARCA_VERSION_PRUEBA + "</p>";
+                + "reconocerte y llevar tu avance. Si quieres que borremos tus datos, avísanos en la tienda o por WhatsApp.</p>";
         return new BloqueCampana(html, png == null ? null : new ImagenCorreo(CID_QR_CODIGO, "codigo-jade.png", png));
     }
 
