@@ -108,6 +108,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired(required = false) private com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.RepreciarPorCantidadPort repreciarPorCantidad;
     /** El precio de antes de las lineas cobradas con precio de grupo (para regresarlas si el pedido se edita). */
     @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
+    /** Guarda a qué tipo de precio se vendió cada línea (venta, rebaja, campaña...). Opcional: sin él la venta sale igual, sin tipo. */
+    @Autowired(required = false) private ClasificadorTipoPrecio clasificadorTipoPrecio;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.salida.PreciosDeCampanaEnPedidoPort preciosDeCampana;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -582,6 +584,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         venta.setPagosYMeses(pagosYMeses);
 
         List<DetalleVentaVariante> det = new ArrayList<>();
+        java.util.Map<Integer, String> origenesDePrecio = clasificadorTipoPrecio == null ? null : clasificadorTipoPrecio.origenesDe(pedido.getDetalles());
         for (DetallePedido dp : pedido.getDetalles()) {
             double precioCosto  = dp.getVariante().getProducto().getPrecioCosto();
             double subTotal     = dp.getSubTotal();
@@ -597,6 +600,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             dvv.setGanancia(ganancia);
             dvv.setFechaVenta(LocalDate.now());
             dvv.setVariante(dp.getVariante());
+            dvv.setTipoPrecio(clasificadorTipoPrecio == null ? null : clasificadorTipoPrecio.deLinea(dp, origenesDePrecio));
             dvv.setVenta(venta);
             det.add(dvv);
         }

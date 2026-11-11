@@ -66,6 +66,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Autowired(required = false) private CalcularPreciosPorCantidadCasoUso preciosPorCantidad;
     /** El precio de antes de las lineas cobradas con precio de grupo (para regresarlas si el pedido se edita). */
     @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
+    /** Guarda a qué tipo de precio se vendió cada línea (venta, rebaja, campaña...). Opcional: sin él la venta sale igual, sin tipo. */
+    @Autowired(required = false) private ClasificadorTipoPrecio clasificadorTipoPrecio;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
     /**
      * Para que la campaña corra en su PROPIA transacción: un error de base dentro de ella ya no deja la venta marcada rollback-only (antes el
@@ -300,6 +302,7 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
             dvv.setGanancia(ganancia);
             dvv.setFechaVenta(LocalDate.now());
             dvv.setPromocion(promocion);
+            dvv.setTipoPrecio(clasificadorTipoPrecio == null ? null : clasificadorTipoPrecio.deLinea(dp, null));
             detallesVenta.add(dvv);
         }
 

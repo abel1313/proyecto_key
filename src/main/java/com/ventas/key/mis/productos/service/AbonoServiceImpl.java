@@ -28,6 +28,10 @@ import java.util.Set;
 @Slf4j
 public class AbonoServiceImpl implements IAbonoService {
 
+    /** Guarda a qué tipo de precio se vendió cada línea (venta, rebaja, campaña...). Opcional: sin él la venta sale igual, sin tipo. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ClasificadorTipoPrecio clasificadorTipoPrecio;
+
     /** Por campo (no por constructor) para no cambiar cómo se arma en las pruebas; puede ser null fuera de Spring. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private CacheService cacheService;
@@ -510,6 +514,7 @@ public class AbonoServiceImpl implements IAbonoService {
                 .orElseThrow(() -> new RuntimeException("Catálogo de pago no encontrado: " + pagosYMesesId));
 
         List<DetalleVentaVariante> detallesVenta = new ArrayList<>();
+        java.util.Map<Integer, String> origenesDePrecio = clasificadorTipoPrecio == null ? null : clasificadorTipoPrecio.origenesDe(pedido.getDetalles());
         for (DetallePedido dp : pedido.getDetalles()) {
             double precioCosto = dp.getVariante().getProducto().getPrecioCosto();
             double subTotal    = dp.getSubTotal();
@@ -523,6 +528,7 @@ public class AbonoServiceImpl implements IAbonoService {
             dvv.setGanancia(ganancia);
             dvv.setFechaVenta(LocalDate.now());
             dvv.setVariante(dp.getVariante());
+            dvv.setTipoPrecio(clasificadorTipoPrecio == null ? null : clasificadorTipoPrecio.deLinea(dp, origenesDePrecio));
             detallesVenta.add(dvv);
         }
 

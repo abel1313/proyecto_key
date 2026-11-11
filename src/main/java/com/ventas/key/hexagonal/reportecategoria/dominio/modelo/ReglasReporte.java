@@ -64,7 +64,9 @@ public final class ReglasReporte {
         long piezas = 0, porVender = 0;
         BigDecimal total = BigDecimal.ZERO, costo = BigDecimal.ZERO, ganV = BigDecimal.ZERO, ganP = BigDecimal.ZERO,
                 ganPRebaja = BigDecimal.ZERO, ganPCampana = BigDecimal.ZERO, fleteV = BigDecimal.ZERO, fleteS = BigDecimal.ZERO,
-                sumCompra = BigDecimal.ZERO, sumVenta = BigDecimal.ZERO, sumRebaja = BigDecimal.ZERO, sumCampana = BigDecimal.ZERO;
+                sumCompra = BigDecimal.ZERO, sumVenta = BigDecimal.ZERO, sumRebaja = BigDecimal.ZERO, sumCampana = BigDecimal.ZERO,
+                mVenta = BigDecimal.ZERO, mRebaja = BigDecimal.ZERO, mCampana = BigDecimal.ZERO, mOtro = BigDecimal.ZERO;
+        long pzVenta = 0, pzRebaja = 0, pzCampana = 0, pzOtro = 0, pzEstimadas = 0;
         for (FilaReporte f : filas) {
             FilaBase b = f.base();
             if (b.piezas() > 0) vendidos++;
@@ -79,13 +81,16 @@ public final class ReglasReporte {
             if (b.precioVenta() != null) sumVenta = sumVenta.add(b.precioVenta());
             if (b.precioRebaja() != null) sumRebaja = sumRebaja.add(b.precioRebaja());
             if (b.precioCampana() != null) sumCampana = sumCampana.add(b.precioCampana());
+            pzVenta += b.piezasVenta(); pzRebaja += b.piezasRebaja(); pzCampana += b.piezasCampana(); pzOtro += b.piezasOtro(); pzEstimadas += b.piezasEstimadas();
+            mVenta = mVenta.add(b.montoVenta()); mRebaja = mRebaja.add(b.montoRebaja()); mCampana = mCampana.add(b.montoCampana()); mOtro = mOtro.add(b.montoOtro());
             fleteV = fleteV.add(fleteDeLoVendido(f));
             fleteS = fleteS.add(fleteEnStock(f));
             ganPCampana = ganPCampana.add(f.gananciaPorVenderCampana());
         }
         return new TotalesReporte(filas.size(), vendidos, filas.size() - vendidos, piezas, escala(total), escala(costo), escala(ganV),
                 margenReal(ganV, total), porVender, escala(ganP), escala(ganV.add(ganP)),
-                escala(ganPRebaja), escala(ganPCampana), escala(ganV.add(ganPRebaja)), escala(ganV.add(ganPCampana)), escala(fleteV), escala(fleteS), escala(sumCompra), escala(sumVenta), escala(sumRebaja), escala(sumCampana));
+                escala(ganPRebaja), escala(ganPCampana), escala(ganV.add(ganPRebaja)), escala(ganV.add(ganPCampana)), escala(fleteV), escala(fleteS), escala(sumCompra), escala(sumVenta), escala(sumRebaja), escala(sumCampana),
+                pzVenta, pzRebaja, pzCampana, pzOtro, escala(mVenta), escala(mRebaja), escala(mCampana), escala(mOtro), pzEstimadas);
     }
 
     private static BigDecimal escala(BigDecimal v) {

@@ -57,7 +57,7 @@ public class PdfReporteGenerador {
 
     public byte[] generar(ReporteCalculado r, EncabezadoReporte enc) {
         PDRectangle hoja = new PDRectangle(PDRectangle.A3.getHeight(), PDRectangle.A3.getWidth());   // horizontal
-        List<Columna> cols = ColumnasReporte.COLUMNAS;
+        List<Columna> cols = ColumnasReporte.columnas(r.filtro().tipo());
         float[] x = posiciones(cols.size(), hoja.getWidth() - 2 * MARGEN);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -133,30 +133,24 @@ public class PdfReporteGenerador {
         TotalesReporte t = r.totales();
         float gap = 8f;
         float alto = 40f;
-        int n = 8;
+        List<TarjetasReporte.Tarjeta> tarjetas = TarjetasReporte.de(r.filtro().tipo(), t);
+        int n = tarjetas.size();
         float w = (ancho - 2 * MARGEN - gap * (n - 1)) / n;
         float top0 = y - 4;
-        String[][] tarjetas = {
-                {"PRODUCTOS", String.valueOf(t.productos()), t.productosVendidos() + " vendidos · " + t.productosSinVender() + " sin vender", null},
-                {"PIEZAS VENDIDAS", fmt(t.piezas()), fmt(t.piezasPorVender()) + " en stock por vender", null},
-                {"TOTAL VENDIDO", dinero(t.total()), "Costo " + dinero(t.costo()), null},
-                {"GANANCIA VENDIDA", dinero(t.gananciaVendida()), t.margenRealPct() == null ? "" : pct(t.margenRealPct()) + " real", "v"},
-                {"FLETE LLEVAMOS", dinero(t.fleteVendido()), "En stock: " + dinero(t.fleteEnStock()), null},
-                {"TOTAL CON PRECIO VENTA", dinero(t.gananciaTotal()), "Vendida + por vender " + dinero(t.gananciaPorVender()), "v"},
-                {"TOTAL CON REBAJA", dinero(t.gananciaTotalRebaja()), "Vendida + por vender " + dinero(t.gananciaPorVenderRebaja()), "v"},
-                {"TOTAL CON CAMPAÑA", dinero(t.gananciaTotalCampana()), "Vendida + por vender " + dinero(t.gananciaPorVenderCampana()), "v"}};
         for (int i = 0; i < n; i++) {
+            TarjetasReporte.Tarjeta tj = tarjetas.get(i);
+            String valor = tj.dinero() ? dinero(tj.valor()) : fmt(tj.valor().longValue());
             float cx = MARGEN + i * (w + gap);
             rect(cs, cx, top0 - alto, w, alto, VERDE_SUAVE);
             rect(cs, cx, top0 - alto, 3, alto, VERDE);
-            texto(cs, negrita, 6.3f, cx + 8, top0 - 11, TEXTO_SUAVE, tarjetas[i][0]);
-            Color colorValor = tarjetas[i][3] == null ? TEXTO : (esNegativo(tarjetas[i][1]) ? ROJO : VERDE);
-            texto(cs, negrita, 13, cx + 8, top0 - 26, colorValor, tarjetas[i][1]);
-            texto(cs, normal, 6.3f, cx + 8, top0 - 36, TEXTO_SUAVE, tarjetas[i][2]);
+            texto(cs, negrita, 6.3f, cx + 8, top0 - 11, TEXTO_SUAVE, tj.etiqueta());
+            Color colorValor = !tj.verde() ? TEXTO : (tj.valor().signum() < 0 ? ROJO : VERDE);
+            texto(cs, negrita, 13, cx + 8, top0 - 26, colorValor, valor);
+            texto(cs, normal, 6.3f, cx + 8, top0 - 36, TEXTO_SUAVE, tj.sub());
         }
         // Leyenda: cómo leer las columnas.
         float ly = top0 - alto - 10;
-        for (String linea : partir(normal, ColumnasReporte.LEYENDA, 6.8f, ancho - 2 * MARGEN)) {
+        for (String linea : partir(normal, ColumnasReporte.leyenda(r.filtro().tipo()), 6.8f, ancho - 2 * MARGEN)) {
             texto(cs, normal, 6.8f, MARGEN, ly, TEXTO_SUAVE, linea);
             ly -= 9;
         }
