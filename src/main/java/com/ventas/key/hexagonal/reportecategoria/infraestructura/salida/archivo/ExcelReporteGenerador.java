@@ -46,7 +46,7 @@ public class ExcelReporteGenerador {
             XSSFSheet hoja = wb.createSheet("Reporte");
             hoja.setDisplayGridlines(false);
             Estilos est = new Estilos(wb);
-            List<Columna> cols = ColumnasReporte.COLUMNAS;
+            List<Columna> cols = ColumnasReporte.columnas(r.filtro().tipo());
             int n = cols.size();
             int ult = n - 1;
 
@@ -86,21 +86,18 @@ public class ExcelReporteGenerador {
 
             // ── Tarjetas con los totales (cada una ocupa 3 columnas) ──
             TotalesReporte t = r.totales();
-            String[] etq = {"PRODUCTOS", "PIEZAS VENDIDAS", "TOTAL VENDIDO", "GANANCIA VENDIDA", "FLETE LLEVAMOS", "TOTAL CON PRECIO VENTA", "TOTAL CON REBAJA", "TOTAL CON CAMPAÑA"};
-            Object[] val = {(double) t.productos(), (double) t.piezas(), t.total(), t.gananciaVendida(), t.fleteVendido(), t.gananciaTotal(), t.gananciaTotalRebaja(), t.gananciaTotalCampana()};
-            String[] sub = {t.productosVendidos() + " vendidos · " + t.productosSinVender() + " sin vender", t.piezasPorVender() + " en stock por vender",
-                    "Costo $" + String.format(Locale.US, "%,.2f", t.costo()), t.margenRealPct() == null ? "" : String.format(Locale.US, "%.2f%% real", t.margenRealPct()),
-                    "En stock: $" + String.format(Locale.US, "%,.2f", t.fleteEnStock()),
-                    "Vendida + por vender $" + String.format(Locale.US, "%,.2f", t.gananciaPorVender()),
-                    "Vendida + por vender $" + String.format(Locale.US, "%,.2f", t.gananciaPorVenderRebaja()),
-                    "Vendida + por vender $" + String.format(Locale.US, "%,.2f", t.gananciaPorVenderCampana())};
+            List<TarjetasReporte.Tarjeta> tarjetas = TarjetasReporte.de(r.filtro().tipo(), t);
+            String[] etq = tarjetas.stream().map(TarjetasReporte.Tarjeta::etiqueta).toArray(String[]::new);
+            String[] sub = tarjetas.stream().map(TarjetasReporte.Tarjeta::sub).toArray(String[]::new);
             Row rEtq = hoja.createRow(fila), rVal = hoja.createRow(fila + 1), rSub = hoja.createRow(fila + 2);
             rVal.setHeightInPoints(26);
+            int span = Math.max(1, Math.min(3, ult / Math.max(1, etq.length - 1)));   // columnas por tarjeta según lo ancha que sea la tabla
             for (int i = 0; i < etq.length; i++) {
                 // La columna A (nombre) es ancha: la tarjeta de productos va sola ahí; las demás ocupan 3 columnas cada una.
-                int c0 = i == 0 ? 0 : 1 + (i - 1) * 3;
-                int c1 = i == 0 ? 0 : c0 + 2;
-                boolean verde = i == 3 || i >= 5;
+                int c0 = i == 0 ? 0 : 1 + (i - 1) * span;
+                int c1 = i == 0 ? 0 : c0 + span - 1;
+                TarjetasReporte.Tarjeta tj = tarjetas.get(i);
+                boolean verde = tj.verde();
                 for (int c = c0; c <= c1 && c <= ult; c++) {
                     rEtq.createCell(c).setCellStyle(est.tarjeta(8, true, SUAVE, false, false));
                     rVal.createCell(c).setCellStyle(est.tarjeta(15, true, verde ? VERDE : TEXTO, true, false));
@@ -108,11 +105,11 @@ public class ExcelReporteGenerador {
                 }
                 rEtq.getCell(c0).setCellValue(etq[i]);
                 Cell v = rVal.getCell(c0);
-                v.setCellValue(val[i] instanceof BigDecimal bd ? bd.doubleValue() : (Double) val[i]);
-                if (i >= 2) v.setCellStyle(est.tarjetaDinero(verde ? (((BigDecimal) val[i]).signum() < 0 ? ROJO : VERDE) : TEXTO));
+                v.setCellValue(tj.valor().doubleValue());
+                if (tj.dinero()) v.setCellStyle(est.tarjetaDinero(verde ? (tj.valor().signum() < 0 ? ROJO : VERDE) : TEXTO));
                 else v.setCellStyle(est.tarjetaEntero());
                 rSub.getCell(c0).setCellValue(sub[i]);
-                if (c1 > c0) {
+                if (Math.min(c1, ult) > c0) {
                     hoja.addMergedRegion(new CellRangeAddress(fila, fila, c0, Math.min(c1, ult)));
                     hoja.addMergedRegion(new CellRangeAddress(fila + 1, fila + 1, c0, Math.min(c1, ult)));
                     hoja.addMergedRegion(new CellRangeAddress(fila + 2, fila + 2, c0, Math.min(c1, ult)));
@@ -122,7 +119,7 @@ public class ExcelReporteGenerador {
             Row rLey = hoja.createRow(fila + 3);
             rLey.setHeightInPoints(36);
             Cell ley = rLey.createCell(0);
-            ley.setCellValue(ColumnasReporte.LEYENDA);
+            ley.setCellValue(ColumnasReporte.leyenda(r.filtro().tipo()));
             XSSFCellStyle estLey = est.texto(8, false, SUAVE);
             estLey.setWrapText(true);
             estLey.setVerticalAlignment(VerticalAlignment.TOP);

@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.reportecategoria.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.reportecategoria.aplicacion.servicio.ArmarReporteService;
 import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.FiltroReporte;
 import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReporteCalculado;
+import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.TipoReporte;
 import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.VistaReporte;
 import com.ventas.key.hexagonal.reportecategoria.infraestructura.config.ProcesadorReporteAsincrono;
 import com.ventas.key.hexagonal.reportecategoria.infraestructura.dto.FilaReporteResponse;
@@ -66,9 +67,10 @@ public class ReporteCategoriaController {
             @RequestParam(defaultValue = "false") boolean sinCategoria,
             @RequestParam(required = false) List<Integer> productoIds,
             @RequestParam(defaultValue = "TODOS") String vista,
+            @RequestParam(defaultValue = "COMPLETO") String tipoReporte,
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "20") int size) {
-        FiltroReporte filtro = filtro(desde, hasta, categoria, sinCategoria, productoIds, vista);
+        FiltroReporte filtro = filtro(desde, hasta, categoria, sinCategoria, productoIds, vista, tipoReporte);
         ReporteCalculado r = armar.armar(filtro, false, null);
         int tam = Math.max(1, Math.min(size, 100));
         int total = r.filas().size();
@@ -83,7 +85,7 @@ public class ReporteCategoriaController {
     @PostMapping("/generar")
     public ResponseEntity<ResponseGeneric<ReporteGeneradoResponse>> generar(@RequestBody GenerarReporteRequest req) {
         if (req == null) throw new IllegalArgumentException("Falta lo que se pide.");
-        FiltroReporte filtro = filtro(req.desde(), req.hasta(), req.categoria(), Boolean.TRUE.equals(req.sinCategoria()), req.productoIds(), req.vista());
+        FiltroReporte filtro = filtro(req.desde(), req.hasta(), req.categoria(), Boolean.TRUE.equals(req.sinCategoria()), req.productoIds(), req.vista(), req.tipoReporte());
         String formato = req.formato() == null || req.formato().isBlank() ? "XLSX" : req.formato().trim().toUpperCase();
         if (!formato.equals("XLSX") && !formato.equals("PDF")) throw new IllegalArgumentException("El formato debe ser XLSX o PDF.");
         String usuario = AuthenticationUtils.currentUsuarioOpt().map(u -> u.getUsername()).orElse("admin");
@@ -101,7 +103,7 @@ public class ReporteCategoriaController {
         e.setExpira(ahora.plusDays(DIAS_VIGENCIA));
         e = repo.save(e);
 
-        String nombre = "reporte-por-categoria-" + filtro.desde() + "_" + filtro.hasta() + (formato.equals("PDF") ? ".pdf" : ".xlsx");
+        String nombre = (filtro.tipo() == TipoReporte.VENTAS ? "reporte-ventas-por-tipo-de-precio-" : "reporte-por-categoria-") + filtro.desde() + "_" + filtro.hasta() + (formato.equals("PDF") ? ".pdf" : ".xlsx");
         procesador.procesar(e.getId(), filtro, formato, usuario, nombre);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ResponseGeneric<>(
                 new ReporteGeneradoResponse(e.getId(), e.getEstado(), formato, e.getDescripcion(), null, null, e.getCreado(), null, e.getExpira(), 0),
@@ -156,14 +158,14 @@ public class ReporteCategoriaController {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(r);
     }
 
-    private static FiltroReporte filtro(LocalDate desde, LocalDate hasta, String categoria, boolean sinCategoria, List<Integer> ids, String vista) {
+    private static FiltroReporte filtro(LocalDate desde, LocalDate hasta, String categoria, boolean sinCategoria, List<Integer> ids, String vista, String tipo) {
         if (ids != null && ids.size() > MAX_PRODUCTOS_ELEGIDOS) throw new IllegalArgumentException("Elige máximo " + MAX_PRODUCTOS_ELEGIDOS + " productos.");
-        return new FiltroReporte(desde, hasta, categoria, sinCategoria, ids, VistaReporte.de(vista));
+        return new FiltroReporte(desde, hasta, categoria, sinCategoria, ids, VistaReporte.de(vista), TipoReporte.de(tipo));
     }
 
     private static String descripcionDe(FiltroReporte f) {
         String que = f.porProductos() ? f.productoIds().size() + " productos elegidos"
                 : f.categoria() != null ? "Categoría " + f.categoria() : f.sinCategoria() ? "Otros (sin categoría)" : "Todas las categorías";
-        return que + " · " + f.desde() + " a " + f.hasta() + " · " + f.vista();
+        return que + " · " + f.desde() + " a " + f.hasta() + " · " + f.vista() + (f.tipo() == TipoReporte.VENTAS ? " · Ventas por tipo de precio" : "");
     }
 }

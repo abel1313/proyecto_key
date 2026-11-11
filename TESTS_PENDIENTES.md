@@ -16,6 +16,16 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-11 — A qué precio se vendió cada línea (`tipo_precio`) y reporte «Ventas» (back)
+**Dónde:** `ClasificadorTipoPrecio`, `DetalleVentaVariante.tipoPrecio`, `VentaServiceImpl`/`PedidoServiceImpl`/`AbonoServiceImpl` (llenan el tipo), `LectorVentasJpaAdapter` (SQL con `COALESCE(tipo_precio, estimación)`), `TipoReporte`, `ColumnasReporte.columnas(tipo)`, `TarjetasReporte`, Excel/PDF, `ReporteCategoriaController` (`tipoReporte`).
+**Tipo:** unitario (`ClasificadorTipoPrecio.clasificar`) + JPA (H2) del lector.
+**Debe comprobar:**
+- [ ] `clasificar`: promoción → PROMOCION; origen CAMPANA/GRUPO → ese; con rebaja (descuento>0 y < normal) cobrado = descuento → REBAJA; cobrado = normal → VENTA; otro monto → OTRO.
+- [ ] Venta directa a precio normal guarda VENTA; a rebaja REBAJA; con precio de campaña CAMPANA; con precio por cantidad GRUPO. Pedido→venta y abono que liquida guardan el mismo tipo que tenía la línea.
+- [ ] Reporte VENTAS: producto con venta 200 / rebaja 180 / campaña 150; líneas exactas VENTA 2@200, CAMPANA 3@150, GRUPO 1@90 y viejas (sin tipo) 4@180→REBAJA, 5@200→VENTA, 6@150→CAMPANA, 7@123→OTRO: piezas y montos por tipo correctos, `piezasEstimadas` = solo las viejas (4+5+6+7 = 22).
+- [ ] Excel y PDF con `tipoReporte=VENTAS`: columnas de piezas y $ por tipo, 8 tarjetas (productos, piezas, total, ganancia, venta, rebaja, campaña, otro), leyenda de «estimado»; con `COMPLETO` quedan idénticos a antes. `tipoReporte` inválido → 400.
+- [ ] Sin la columna `tipo_precio` en la BD fallan las ventas nuevas: correr `migration_tipo_precio_venta.sql` (dos veces, idempotente) **antes** de desplegar.
+
 ### 2026-11-10 — Reporte por categoría / por productos elegidos (back)
 **Dónde:** `hexagonal/reportecategoria/**` (`ReglasReporte`, `ArmarReporteService`, `LectorVentasJpaAdapter`, `CalculosVigentesJpaAdapter`, `ExcelReporteGenerador`, `PdfReporteGenerador`, `ProcesadorReporteAsincrono`, `ReporteCategoriaController`), `ReporteGeneradoEntidad`, `AsyncConfig` (pool `reportesExecutor`), `SecurityConfig`, `migration_reporte_categoria.sql`, dependencia `org.apache.pdfbox:pdfbox 3.0.3` (Apache).
 **Tipo:** unitario (dominio con puertos simulados) + JPA (H2) + controller/seguridad.

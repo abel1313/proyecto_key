@@ -42,6 +42,13 @@ public class DetalleVentaVariante extends BaseId {
     @Column(name = "fecha_venta", nullable = false)
     private LocalDate fechaVenta;
 
+    /**
+     * A qué tipo de precio se vendió la línea: VENTA, REBAJA, CAMPANA, GRUPO, PROMOCION u OTRO (migration_tipo_precio_venta.sql).
+     * Null en las ventas anteriores a esa migración: el reporte las estima comparando el precio cobrado con los precios del producto.
+     */
+    @Column(name = "tipo_precio", length = 12)
+    private String tipoPrecio;
+
     @ManyToOne
     @JoinColumn(name = "promocion_id")
     private Promocion promocion;

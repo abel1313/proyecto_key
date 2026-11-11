@@ -32,18 +32,49 @@ public class LectorVentasJpaAdapter implements LectorVentasPort {
         StringBuilder sql = new StringBuilder("""
                 SELECT p.id, p.nombre, cb.codigo_barras, pk.nombre,
                        p.precio_costo, p.precio_venta, p.precio_rebaja, camp.precio_campana, p.stock,
-                       COALESCE(v.piezas, 0), COALESCE(v.ventas, 0), COALESCE(v.total, 0), COALESCE(v.costo, 0), COALESCE(v.ganancia, 0)
+                       COALESCE(v.piezas, 0), COALESCE(v.ventas, 0), COALESCE(v.total, 0), COALESCE(v.costo, 0), COALESCE(v.ganancia, 0),
+                       COALESCE(v.pz_venta, 0), COALESCE(v.pz_rebaja, 0), COALESCE(v.pz_campana, 0), COALESCE(v.pz_otro, 0),
+                       COALESCE(v.m_venta, 0), COALESCE(v.m_rebaja, 0), COALESCE(v.m_campana, 0), COALESCE(v.m_otro, 0), COALESCE(v.pz_estimadas, 0)
                 FROM producto p
                 LEFT JOIN codigo_barras cb ON cb.id = p.codigo_barras_id
                 LEFT JOIN palabra_clave pk ON pk.id = p.palabra_clave_id
                 LEFT JOIN (
-                    SELECT va.producto_id AS pid, SUM(d.cantidad) AS piezas, COUNT(DISTINCT d.venta_id) AS ventas,
-                           SUM(d.sub_total) AS total, SUM(d.cantidad * d.precio_costo) AS costo, SUM(d.ganancia) AS ganancia
-                    FROM detalle_venta_variantes d
-                    JOIN ventas ve ON ve.id = d.venta_id
-                    JOIN variantes va ON va.id = d.variante_id
-                    WHERE ve.fecha_venta >= :desde AND ve.fecha_venta < :hastaExcl AND COALESCE(ve.estado_venta, '') <> 'Devuelta'
-                    GROUP BY va.producto_id
+                    SELECT t.pid, SUM(t.cantidad) AS piezas, COUNT(DISTINCT t.venta_id) AS ventas,
+                           SUM(t.sub_total) AS total, SUM(t.cantidad * t.precio_costo) AS costo, SUM(t.ganancia) AS ganancia,
+                           SUM(CASE WHEN t.tipo = 'VENTA' THEN t.cantidad ELSE 0 END) AS pz_venta,
+                           SUM(CASE WHEN t.tipo = 'REBAJA' THEN t.cantidad ELSE 0 END) AS pz_rebaja,
+                           SUM(CASE WHEN t.tipo = 'CAMPANA' THEN t.cantidad ELSE 0 END) AS pz_campana,
+                           SUM(CASE WHEN t.tipo NOT IN ('VENTA', 'REBAJA', 'CAMPANA') THEN t.cantidad ELSE 0 END) AS pz_otro,
+                           SUM(CASE WHEN t.tipo = 'VENTA' THEN t.sub_total ELSE 0 END) AS m_venta,
+                           SUM(CASE WHEN t.tipo = 'REBAJA' THEN t.sub_total ELSE 0 END) AS m_rebaja,
+                           SUM(CASE WHEN t.tipo = 'CAMPANA' THEN t.sub_total ELSE 0 END) AS m_campana,
+                           SUM(CASE WHEN t.tipo NOT IN ('VENTA', 'REBAJA', 'CAMPANA') THEN t.sub_total ELSE 0 END) AS m_otro,
+                           SUM(CASE WHEN t.exacto = 0 THEN t.cantidad ELSE 0 END) AS pz_estimadas
+                    FROM (
+                        SELECT va.producto_id AS pid, d.venta_id, d.cantidad, d.sub_total, d.precio_costo, d.ganancia,
+                               CASE WHEN d.tipo_precio IS NULL THEN 0 ELSE 1 END AS exacto,
+                               COALESCE(d.tipo_precio,
+                                   CASE WHEN d.promocion_id IS NOT NULL THEN 'PROMOCION'
+                                        WHEN (CASE WHEN va.precio_venta IS NOT NULL THEN va.precio_rebaja ELSE pr.precio_rebaja END) > 0
+                                             AND (CASE WHEN va.precio_venta IS NOT NULL THEN va.precio_rebaja ELSE pr.precio_rebaja END)
+                                                 < (CASE WHEN va.precio_venta IS NOT NULL THEN va.precio_venta ELSE pr.precio_venta END)
+                                             AND ABS(d.precio_unitario - (CASE WHEN va.precio_venta IS NOT NULL THEN va.precio_rebaja ELSE pr.precio_rebaja END)) < 0.01
+                                             THEN 'REBAJA'
+                                        WHEN ABS(d.precio_unitario - (CASE WHEN va.precio_venta IS NOT NULL THEN va.precio_venta ELSE pr.precio_venta END)) < 0.01 THEN 'VENTA'
+                                        WHEN cpe.precio_campana IS NOT NULL AND ABS(d.precio_unitario - cpe.precio_campana) < 0.01 THEN 'CAMPANA'
+                                        ELSE 'OTRO' END) AS tipo
+                        FROM detalle_venta_variantes d
+                        JOIN ventas ve ON ve.id = d.venta_id
+                        JOIN variantes va ON va.id = d.variante_id
+                        JOIN producto pr ON pr.id = va.producto_id
+                        LEFT JOIN (
+                            SELECT cp.producto_id AS pid, cp.precio_campana AS precio_campana
+                            FROM campana_producto cp
+                            WHERE cp.id = (SELECT MAX(cp2.id) FROM campana_producto cp2 WHERE cp2.producto_id = cp.producto_id)
+                        ) cpe ON cpe.pid = pr.id
+                        WHERE ve.fecha_venta >= :desde AND ve.fecha_venta < :hastaExcl AND COALESCE(ve.estado_venta, '') <> 'Devuelta'
+                    ) t
+                    GROUP BY t.pid
                 ) v ON v.pid = p.id
                 LEFT JOIN (
                     SELECT cp.producto_id AS pid, cp.precio_campana AS precio_campana
@@ -75,7 +106,9 @@ public class LectorVentasJpaAdapter implements LectorVentasPort {
                     dinero(r[4]), dinero(r[5]), dinero(r[6]), dinero(r[7]),
                     r[8] == null ? 0 : ((Number) r[8]).intValue(),
                     ((Number) r[9]).longValue(), ((Number) r[10]).longValue(),
-                    dinero0(r[11]), dinero0(r[12]), dinero0(r[13])));
+                    dinero0(r[11]), dinero0(r[12]), dinero0(r[13]),
+                    ((Number) r[14]).longValue(), ((Number) r[15]).longValue(), ((Number) r[16]).longValue(), ((Number) r[17]).longValue(),
+                    dinero0(r[18]), dinero0(r[19]), dinero0(r[20]), dinero0(r[21]), ((Number) r[22]).longValue()));
         }
         return salida;
     }
