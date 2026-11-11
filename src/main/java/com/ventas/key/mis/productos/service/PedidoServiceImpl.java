@@ -110,6 +110,8 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
     /** Guarda a qué tipo de precio se vendió cada línea (venta, rebaja, campaña...). Opcional: sin él la venta sale igual, sin tipo. */
     @Autowired(required = false) private ClasificadorTipoPrecio clasificadorTipoPrecio;
+    /** Liga cada línea al viaje de compra de donde salieron sus piezas (fletes, fase 2). Opcional y nunca tira la venta. */
+    @Autowired(required = false) private AsignadorDeViajeEnVenta asignadorDeViaje;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.salida.PreciosDeCampanaEnPedidoPort preciosDeCampana;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
     @Autowired private RabbitTemplate rabbitTemplate;
@@ -616,6 +618,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         this.iPedidoRepository.save(pedido);
         notificarSeguimientoPedido(pedido);
         this.vImpl.save(venta);
+        if (asignadorDeViaje != null) {
+            asignadorDeViaje.asignar(venta);
+        }
         cacheService.evictAll();
         try {
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_IMAGENES, RabbitMQConfig.ROUTING_KEY_CACHE_EVICT_ALL, "evict");
