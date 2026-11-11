@@ -23892,3 +23892,8 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 **Request nuevo:** `GET /mis-productos/v1/fletes/{viajeId}/ligas` (solo administrador). Lista en `lista`: `{ ligaId, ventaId, detalleVentaId, fecha, productoId, producto, cantidad, fletePorPieza }` — solo las ligas hechas **a mano** de ese viaje (sin ventas devueltas), de la más nueva a la más vieja (máx. 500). Sin ligas → lista vacía.
 **Deshacer:** `DELETE /mis-productos/v1/fletes/ligas/{ligaId}` (ya existía): 200 con mensaje «Liga deshecha.»; 400 si no existe o no es manual (las automáticas no se tocan).
 **Pantalla:** Catálogo → Fletes → «Ligar ventas anteriores» → tabla «Ligas hechas a mano en este viaje» con botón **↩ Deshacer** (confirma, las piezas vuelven a «sin viaje», el reporte del viaje se recalcula; la venta no cambia).
+
+**Fletes — un solo flete entre el viaje y «Calcular precio» (2026-11-11, solo front, sin cambios de back):**
+- En Productos → Actualizar → «Calcular precio», si el producto está en un viaje, «Transporte por pieza» sale ya puesto con el flete del viaje que se está vendiendo ahora (el más viejo con piezas del producto por vender; si ninguno tiene, el más reciente) y dice «Tomado del viaje X». Nunca pisa lo que ya escribiste.
+- Si cambias ese número, aparece el aviso «el viaje dice $a y aquí pusiste $b». Es solo informativo.
+- Al «Usar este precio» y guardar el producto, si el flete difiere del viaje, se pregunta «¿Actualizar también el viaje?». Con «Sí» se manda `PUT /v1/fletes/{id}` con el viaje leído justo antes y solo el flete por pieza de ese producto cambiado; con «No» el viaje no se toca. Las ventas ya ligadas conservan su copia del flete.
