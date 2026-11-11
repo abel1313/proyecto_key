@@ -206,6 +206,21 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 6. Guarda el viaje. En su tarjeta abre **Ligar ventas anteriores**, elige «Con flete A» y liga **V1** y **V2** (5 piezas): es lo mismo que la prueba de ligar, sin crear ventas a mano.
 ⛔ No puede pasar: productos repetidos, que A, B o C cambien su flete al llenar, o que se mueva algún flete solo al cambiar piezas.
 
+## 4.4 Prueba extra — un solo flete entre el viaje y «Calcular precio»
+
+**Antes de empezar:** haz la prueba 4.3 hasta guardar el viaje con los productos de la prueba F (A trae $20 por pieza). Si no la hiciste, toca «Preparar prueba F» y crea el viaje trayendo la campaña de la prueba.
+
+1. **Productos → Buscar** y abre **Actualizar** de «QA Prueba F Con flete A». Pulsa **🧮 Calcular precio**.
+2. Pon el costo de compra en $60. **Transporte por pieza sale solo en $20**, con «🚚 Tomado del viaje «…». Puedes cambiarlo.
+3. Cambia el transporte a **$30**: aparece el aviso «El viaje … dice $20.00 de flete por pieza y aquí pusiste $30.00. Al guardar el producto te preguntaré…».
+4. Pulsa **Usar este precio** y **Guardar** el producto. Sale **«¿Actualizar también el viaje?»**.
+   - **Sí, actualizar el viaje:** en **Catálogo → Fletes → Editar** el flete por pieza de «Con flete A» ahora es **$30**; los otros productos del viaje no cambian.
+   - **No, dejar el viaje como está:** el flete en el viaje sigue en $20 (el cálculo del producto quedó en $30).
+5. Repite el paso 1 y no cambies el transporte (déjalo en lo que salió): al guardar **no pregunta nada**.
+6. **Varios viajes:** crea otro viaje (Nuevo viaje, sin campaña) con solo «Con flete A» a $25 y fecha posterior. Abre otra vez «Calcular precio» de A: toma el del viaje **más viejo que todavía tiene piezas por vender** (el primero), no el nuevo.
+7. **No pisa lo que escribes:** abre «Calcular precio», escribe tú el transporte antes de que cargue (o bórralo y escribe $18): se queda en $18 y sale el aviso de diferencia.
+⛔ No puede pasar: que el viaje cambie sin que respondas «Sí», que cambien otros productos del viaje, o que cambien el total o la ganancia de las ventas ya ligadas.
+
 ## 5. Cómo ver lo que el sistema anotó (opcional, en MySQL de QA)
 
 ```sql
