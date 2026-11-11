@@ -25,7 +25,8 @@ public enum EscenarioDePrueba {
     P21("21", "La fecha de entrega en Pedidos y en Entregas por zona"),
     P22("22", "🕓 Pendiente en Pago y Mis pedidos sin cancelados al abrir"),
     P24("24", "Unir un Ir pagando que ya tiene dinero"),
-    P26("26", "Mis pedidos con caché: rápido y sin datos viejos");
+    P26("26", "Mis pedidos con caché: rápido y sin datos viejos"),
+    FL("F", "Fletes: productos con y sin flete guardado, una campaña que los trae y ventas anteriores para ligar");
 
     private final String prueba;
     private final String titulo;

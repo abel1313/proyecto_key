@@ -194,6 +194,18 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 3. Pulsa **↩ Deshacer** y confirma: la liga desaparece, la venta vuelve a salir en «Buscar ventas» con sus piezas pendientes y la barra de «recuperado» del viaje baja.
 ⛔ No puede pasar: que aparezcan ligas hechas automáticamente al vender, o que cambie el total o la ganancia de la venta.
 
+## 4.3 Prueba extra — flete guardado, campaña y «Llenar el flete que falta» (con datos listos)
+
+**Antes de empezar:** en **Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba** toca **«Preparar prueba F»**. Crea 6 productos «QA Prueba F …» (A, B y C con flete guardado de $20, $15 y $10 por pieza; D, E y F sin flete guardado), una campaña **apagada** «QA Prueba F Campaña de fletes» con los 6, y dos ventas de «Con flete A» (V1 de 2 piezas y V2 de 3) anteriores a cualquier viaje. No toca tu campaña real. Se puede tocar las veces que quieras: reinicia todo.
+
+1. **Catálogo → Fletes → Nuevo viaje.** Pon flete total $100 y un gasto «gasolina» de $40 que cuenta para cubrir (a cubrir $140).
+2. En «Traer los productos de una campaña» elige la de la prueba F y pulsa **Traer**. Salen los 6 con 1 pieza y costo $60. **A, B y C** llegan con su flete ($20, $15, $10); **D, E y F** con $0 y la marca «sin flete guardado». El aviso dice «3 con su flete guardado y 3 sin flete guardado».
+3. Vuelve a pulsar **Traer**: dice que los 6 ya estaban y no se duplica nada.
+4. Arriba aparece «3 producto(s) sin flete guardado. Faltan por cubrir $…» (cubrir $140 − $45 de A, B y C = **$95**). Pulsa **Llenar el flete que falta**: D, E y F quedan en **$31.67** por pieza y la marca desaparece; A, B y C no cambian.
+5. Prueba el otro camino con un viaje nuevo: trae la campaña y **no** pulses el botón: D, E y F se quedan en $0.
+6. Guarda el viaje. En su tarjeta abre **Ligar ventas anteriores**, elige «Con flete A» y liga **V1** y **V2** (5 piezas): es lo mismo que la prueba de ligar, sin crear ventas a mano.
+⛔ No puede pasar: productos repetidos, que A, B o C cambien su flete al llenar, o que se mueva algún flete solo al cambiar piezas.
+
 ## 5. Cómo ver lo que el sistema anotó (opcional, en MySQL de QA)
 
 ```sql

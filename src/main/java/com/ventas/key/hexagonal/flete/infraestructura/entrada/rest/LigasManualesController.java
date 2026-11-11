@@ -3,6 +3,8 @@ package com.ventas.key.hexagonal.flete.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.flete.dominio.excepcion.ViajeInvalidoException;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.LigarVentasAnterioresCasoUso;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.LigarVentasRequest;
+import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.ConsultarFletesGuardadosCasoUso;
+import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.FleteGuardadoResponse;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.LigaManualResponse;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.LineaSinViajeResponse;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -35,6 +37,7 @@ import java.util.List;
 public class LigasManualesController {
 
     private final LigarVentasAnterioresCasoUso ligar;
+    private final ConsultarFletesGuardadosCasoUso guardados;
 
     /** Las líneas de venta del producto con piezas aún sin ligar a un viaje (hasta 500, de la más vieja a la más nueva). La lista va en {@code lista}. */
     @GetMapping("/ligas/sin-viaje")
@@ -69,6 +72,24 @@ public class LigasManualesController {
         } catch (RuntimeException e) {
             log.error("Error al ligar ventas a un viaje", e);
             throw e;   // la transacción se deshace y no queda nada a medias
+        }
+    }
+
+    /**
+     * Los productos pedidos ({@code productoIds=1,2,3}) con su costo de hoy y el flete por pieza guardado en su último cálculo de precio, para precargar
+     * un viaje. {@code transporte} 0 = sin flete guardado. Los ids que no existen no salen. La lista va en {@code lista}.
+     */
+    @GetMapping("/guardados")
+    public ResponseEntity<ResponseGeneric<FleteGuardadoResponse>> fletesGuardados(@RequestParam List<Integer> productoIds) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(guardados.deProductos(productoIds).stream()
+                    .map(FleteGuardadoResponse::de).toList()));
+        } catch (RuntimeException e) {
+            log.error("Error al leer los fletes guardados de los productos", e);
+            ResponseGeneric<FleteGuardadoResponse> r = new ResponseGeneric<>((FleteGuardadoResponse) null);
+            r.setCode(500);
+            r.setMensaje("No se pudieron leer los fletes guardados.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(r);
         }
     }
 
