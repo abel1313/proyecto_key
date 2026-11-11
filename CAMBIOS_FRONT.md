@@ -23792,6 +23792,24 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+### 2026-11-11 — Fletes: viajes de compra (fase 1, solo registrar) — solo ROLE_ADMIN
+Migración: `migration_flete_lote.sql` (3 tablas + pantalla «Fletes» en Catálogo, ruta `productos/fletes`). **No cambia ventas, stock, costos ni reportes que ya existen.** `SecurityConfig`: `/v1/fletes/**` → `hasRole("ADMIN")`. Errores de las reglas: **400** con `mensaje` en palabras del dueño; conflicto de la base: **409**.
+
+**Un viaje:** `{ id, nombre, fecha (yyyy-MM-dd), fleteTotal, nota, gastos[{ concepto, monto, cuentaParaCubrir }], productos[{ productoId, piezas, costoUnitario, fletePorPieza }] }`. Un producto no se repite dentro del viaje (400).
+
+- `GET /mis-productos/v1/fletes` → `lista[]` de viajes, del más reciente al más viejo (vacía → `code 404`, convención de `ResponseGeneric`).
+- `GET /v1/fletes/{id}` → `data` (400 «Ese viaje ya no existe.»).
+- `POST /v1/fletes` body del viaje → `data` con el viaje guardado.
+- `PUT /v1/fletes/{id}` → reemplaza nombre, fecha, flete, nota y **toda** la lista de gastos y productos.
+- `DELETE /v1/fletes/{id}` → borra el viaje con sus gastos y productos (no cambia stock ni precios).
+- `GET /v1/fletes/por-producto/{productoId}` → `lista[]` de los viajes en los que llegó ese producto (para avisar antes de contar su flete dos veces). Vacía → no está en ninguno.
+
+**Cada viaje de la respuesta trae además, ya calculado:** `gastosTotal`, `costoACubrir` (= flete total + gastos marcados «cuenta para cubrir»), `fleteAsignado` (= Σ flete por pieza × piezas), `faltaAsignar` (= costo a cubrir − flete asignado; nunca negativo), `excedente` (flete repartido de más; es ganancia), `compraTotal` (= Σ costo × piezas, sin flete), `piezasTotal`, `fleteSugeridoPorPieza` (= costo a cubrir ÷ piezas). Cada producto trae `nombre`, `codigoBarras` y `fleteDelRenglon`.
+
+**Calculadora de precio (front):** si el producto ya está en un viaje, avisa «ya tiene su flete registrado» y, si se va a duplicar (transporte > 0 o «Poner también el costo total»), lo dice claro; la casilla de costo total arranca desmarcada. **Diferencia:** antes no existían los viajes; el flete solo se capturaba por producto en la calculadora.
+
+**Nota:** ya existía la tabla `lotes_productos` (precio + stock por producto); es otra cosa y no se toca.
+
 **Campañas: precio de venta y de descuento de cada juguete (2026-11-11):** en la respuesta de campañas (`GET /v1/campanas`, `/v1/campanas/{id}`, y la que devuelven crear/editar), cada elemento de `productos[]` trae además `precioVenta` y `precioRebaja` (el precio con descuento del producto; puede ser `null` o 0 si no tiene). Son **solo para mostrar**: al guardar la campaña el front sigue mandando solo `productoId` y `precio`. Diferencia: antes solo venía el precio de campaña.
 
 **A qué precio se vendió cada cosa + reporte único con inversión y flete (2026-11-11):**

@@ -16,6 +16,16 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-11 — Fletes: viajes de compra, fase 1 (back)
+**Dónde:** `hexagonal/flete/**` (`ViajeDeCompra`, `AdministrarViajesService`, `ViajesJpaAdapter`, `ViajeController`), `CompraLote*Entidad`, `migration_flete_lote.sql`, `SecurityConfig` (`/v1/fletes/**` ADMIN).
+**Tipo:** unitario (reglas del viaje) + JPA (H2) + migración dos veces + permisos (ya en `AutorizacionPorEndpointTest`).
+**Debe comprobar:**
+- [ ] Reglas: flete 100 + gasolina 40 (cuenta) + comida 30 (no cuenta) → costo a cubrir 140; 5 piezas con flete 20 → asignado 100, falta 40, sugerido 28; con 4 piezas a 30 → asignado 120, falta 0, excedente 20.
+- [ ] Validaciones (400 con mensaje): sin nombre, sin fecha, flete negativo, piezas < 1, gasto sin concepto o monto 0, producto repetido en el viaje.
+- [ ] Guardar → leer → actualizar (reemplaza gastos y productos) → listar → `por-producto` → eliminar (cascada: no quedan gastos ni productos).
+- [ ] Migración corre dos veces; la pantalla «Fletes» queda una sola vez, después de «Campañas», solo ROLE_ADMIN; un producto no se repite en un viaje; borrar el viaje borra sus gastos y productos.
+- [ ] `/v1/fletes/**` responde 401/403 a visitante y a roles que no son administrador.
+
 ### 2026-11-11 — A qué precio se vendió cada línea (`tipo_precio`) y reporte único con inversión y flete (back)
 **Dónde:** `ClasificadorTipoPrecio`, `DetalleVentaVariante.tipoPrecio`, `VentaServiceImpl`/`PedidoServiceImpl`/`AbonoServiceImpl` (llenan el tipo), `LectorVentasJpaAdapter` (SQL con `COALESCE(tipo_precio, estimación)`), `TipoReporte`, `ColumnasReporte.columnas(tipo)`, `TarjetasReporte`, Excel/PDF, `ReporteCategoriaController` (`tipoReporte`).
 **Tipo:** unitario (`ClasificadorTipoPrecio.clasificar`) + JPA (H2) del lector.
