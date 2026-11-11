@@ -129,7 +129,8 @@ public class CampanasJpaAdapter implements CampanasPort {
     private Campana aDominio(CampanaEntidad e) {
         List<PrecioDeCampana> precios = e.getProductos().stream()
                 .map(f -> new PrecioDeCampana(f.getProducto().getId(), f.getProducto().getNombre(),
-                        f.getProducto().getCodigoBarras() == null ? null : f.getProducto().getCodigoBarras().getCodigoBarras(), f.getPrecioCampana()))
+                        f.getProducto().getCodigoBarras() == null ? null : f.getProducto().getCodigoBarras().getCodigoBarras(), f.getPrecioCampana(),
+                        f.getProducto().getPrecioVenta(), f.getProducto().getPrecioRebaja()))
                 .toList();
         return new Campana(e.getId(), e.getNombre(), e.getFechaInicio(), e.getFechaFin(), e.isActiva(), e.getMetaMonto(), precios);
     }

@@ -9,7 +9,7 @@ import java.util.List;
  * {@code productoIds} no vacía = solo esos productos (se ignoran categoría y «Otros»).
  */
 public record FiltroReporte(LocalDate desde, LocalDate hasta, String categoria, boolean sinCategoria,
-                            List<Integer> productoIds, VistaReporte vista, TipoReporte tipo) {
+                            List<Integer> productoIds, VistaReporte vista) {
 
     public FiltroReporte {
         if (desde == null || hasta == null) throw new IllegalArgumentException("Falta la fecha de inicio o la de fin.");
@@ -17,7 +17,6 @@ public record FiltroReporte(LocalDate desde, LocalDate hasta, String categoria, 
         categoria = categoria == null || categoria.isBlank() ? null : categoria.trim().toUpperCase(java.util.Locale.ROOT);   // las categorías se guardan en MAYÚSCULAS
         productoIds = productoIds == null ? List.of() : List.copyOf(productoIds);
         vista = vista == null ? VistaReporte.TODOS : vista;
-        tipo = tipo == null ? TipoReporte.COMPLETO : tipo;
         if (categoria != null && sinCategoria) throw new IllegalArgumentException("Elige una categoría o «Otros», no las dos.");
     }
 

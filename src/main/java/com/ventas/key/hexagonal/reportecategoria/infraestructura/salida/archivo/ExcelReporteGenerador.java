@@ -46,7 +46,7 @@ public class ExcelReporteGenerador {
             XSSFSheet hoja = wb.createSheet("Reporte");
             hoja.setDisplayGridlines(false);
             Estilos est = new Estilos(wb);
-            List<Columna> cols = ColumnasReporte.columnas(r.filtro().tipo());
+            List<Columna> cols = ColumnasReporte.COLUMNAS;
             int n = cols.size();
             int ult = n - 1;
 
@@ -86,7 +86,7 @@ public class ExcelReporteGenerador {
 
             // ── Tarjetas con los totales (cada una ocupa 3 columnas) ──
             TotalesReporte t = r.totales();
-            List<TarjetasReporte.Tarjeta> tarjetas = TarjetasReporte.de(r.filtro().tipo(), t);
+            List<TarjetasReporte.Tarjeta> tarjetas = TarjetasReporte.de(t);
             String[] etq = tarjetas.stream().map(TarjetasReporte.Tarjeta::etiqueta).toArray(String[]::new);
             String[] sub = tarjetas.stream().map(TarjetasReporte.Tarjeta::sub).toArray(String[]::new);
             Row rEtq = hoja.createRow(fila), rVal = hoja.createRow(fila + 1), rSub = hoja.createRow(fila + 2);
@@ -119,7 +119,7 @@ public class ExcelReporteGenerador {
             Row rLey = hoja.createRow(fila + 3);
             rLey.setHeightInPoints(36);
             Cell ley = rLey.createCell(0);
-            ley.setCellValue(ColumnasReporte.leyenda(r.filtro().tipo()));
+            ley.setCellValue(ColumnasReporte.LEYENDA);
             XSSFCellStyle estLey = est.texto(8, false, SUAVE);
             estLey.setWrapText(true);
             estLey.setVerticalAlignment(VerticalAlignment.TOP);

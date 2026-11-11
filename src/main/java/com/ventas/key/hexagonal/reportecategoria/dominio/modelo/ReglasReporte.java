@@ -46,6 +46,24 @@ public final class ReglasReporte {
         return f.flete().multiply(BigDecimal.valueOf(f.base().piezas())).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /** Inversión del producto: precio de compra × (piezas vendidas + piezas que siguen en stock). Sin precio de compra = 0. */
+    public static BigDecimal inversion(FilaReporte f) {
+        if (f.base().precioCompra() == null) return BigDecimal.ZERO.setScale(2);
+        long piezas = f.base().piezas() + Math.max(0, f.base().stock());
+        return f.base().precioCompra().multiply(BigDecimal.valueOf(piezas)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** Flete total del producto: el de lo vendido + el de lo que sigue en stock. */
+    public static BigDecimal fleteTotal(FilaReporte f) {
+        return fleteDeLoVendido(f).add(fleteEnStock(f));
+    }
+
+    /** Precio promedio al que se vendió con un tipo de precio: dinero ÷ piezas; null si no se vendió así. */
+    public static BigDecimal precioPromedio(long piezas, BigDecimal monto) {
+        if (piezas <= 0 || monto == null) return null;
+        return monto.divide(BigDecimal.valueOf(piezas), 2, RoundingMode.HALF_UP);
+    }
+
     /** Flete que lleva lo que sigue en stock: flete por pieza × piezas en stock. */
     public static BigDecimal fleteEnStock(FilaReporte f) {
         return f.flete().multiply(BigDecimal.valueOf(Math.max(0, f.base().stock()))).setScale(2, RoundingMode.HALF_UP);
@@ -66,6 +84,7 @@ public final class ReglasReporte {
                 ganPRebaja = BigDecimal.ZERO, ganPCampana = BigDecimal.ZERO, fleteV = BigDecimal.ZERO, fleteS = BigDecimal.ZERO,
                 sumCompra = BigDecimal.ZERO, sumVenta = BigDecimal.ZERO, sumRebaja = BigDecimal.ZERO, sumCampana = BigDecimal.ZERO,
                 mVenta = BigDecimal.ZERO, mRebaja = BigDecimal.ZERO, mCampana = BigDecimal.ZERO, mOtro = BigDecimal.ZERO;
+        BigDecimal inversion = BigDecimal.ZERO;
         long pzVenta = 0, pzRebaja = 0, pzCampana = 0, pzOtro = 0, pzEstimadas = 0;
         for (FilaReporte f : filas) {
             FilaBase b = f.base();
@@ -83,6 +102,7 @@ public final class ReglasReporte {
             if (b.precioCampana() != null) sumCampana = sumCampana.add(b.precioCampana());
             pzVenta += b.piezasVenta(); pzRebaja += b.piezasRebaja(); pzCampana += b.piezasCampana(); pzOtro += b.piezasOtro(); pzEstimadas += b.piezasEstimadas();
             mVenta = mVenta.add(b.montoVenta()); mRebaja = mRebaja.add(b.montoRebaja()); mCampana = mCampana.add(b.montoCampana()); mOtro = mOtro.add(b.montoOtro());
+            inversion = inversion.add(inversion(f));
             fleteV = fleteV.add(fleteDeLoVendido(f));
             fleteS = fleteS.add(fleteEnStock(f));
             ganPCampana = ganPCampana.add(f.gananciaPorVenderCampana());
@@ -90,7 +110,7 @@ public final class ReglasReporte {
         return new TotalesReporte(filas.size(), vendidos, filas.size() - vendidos, piezas, escala(total), escala(costo), escala(ganV),
                 margenReal(ganV, total), porVender, escala(ganP), escala(ganV.add(ganP)),
                 escala(ganPRebaja), escala(ganPCampana), escala(ganV.add(ganPRebaja)), escala(ganV.add(ganPCampana)), escala(fleteV), escala(fleteS), escala(sumCompra), escala(sumVenta), escala(sumRebaja), escala(sumCampana),
-                pzVenta, pzRebaja, pzCampana, pzOtro, escala(mVenta), escala(mRebaja), escala(mCampana), escala(mOtro), pzEstimadas);
+                pzVenta, pzRebaja, pzCampana, pzOtro, escala(mVenta), escala(mRebaja), escala(mCampana), escala(mOtro), pzEstimadas, escala(inversion));
     }
 
     private static BigDecimal escala(BigDecimal v) {
