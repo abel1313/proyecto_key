@@ -479,11 +479,22 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
      * mercado"). formaPago ya es la etiqueta real que el admin le puso a esta forma de pago, no depende de ningun id.
      */
     private static boolean requiereTerminal(PagosYMeses pagosYMeses, MesesIntereses mesesIntereses) {
-        boolean esEfectivo = pagosYMeses.getTipoPago() != null
-                && "efectivo".equalsIgnoreCase(
-                        pagosYMeses.getTipoPago().getFormaPago() == null ? null : pagosYMeses.getTipoPago().getFormaPago().trim());
+        // La TRANSFERENCIA tampoco usa la terminal (2026-11-11: una venta por transferencia intentó cobrar con Mercado Pago y marcó error aunque la venta
+        // sí se guardó): se trata igual que el efectivo, por el nombre de la forma de pago y no por la tarifa que tenga enlazada.
+        boolean esEfectivo = pagosYMeses.getTipoPago() != null && formaDePagoSinTerminal(pagosYMeses.getTipoPago().getFormaPago());
         return !esEfectivo
                 && mesesIntereses.getTarifaTerminal() != null && mesesIntereses.getTarifaTerminal().getId() != 3;
+    }
+
+    /** Efectivo y transferencia (también escrita «trasferencia») no pasan por la terminal de Mercado Pago (sin importar mayúsculas, espacios ni acentos). */
+    static boolean formaDePagoSinTerminal(String formaPago) {
+        if (formaPago == null) {
+            return false;
+        }
+        String n = java.text.Normalizer.normalize(formaPago.trim(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase(java.util.Locale.ROOT);
+        // «Trasferencia» (sin la n) es como está dada de alta en la base: se aceptan las dos escrituras.
+        return n.equals("efectivo") || n.startsWith("transferencia") || n.startsWith("trasferencia");
     }
 
     /**
