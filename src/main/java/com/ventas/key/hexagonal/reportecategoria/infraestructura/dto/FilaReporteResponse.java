@@ -15,7 +15,8 @@ public record FilaReporteResponse(int productoId, String nombre, String codigoBa
                                   BigDecimal gananciaTotal, BigDecimal gananciaTotalRebaja, BigDecimal gananciaTotalCampana,
                                   BigDecimal fleteEnLoVendido, BigDecimal fleteEnStock,
                                   long piezasVenta, BigDecimal montoVenta, long piezasRebaja, BigDecimal montoRebaja,
-                                  long piezasCampana, BigDecimal montoCampana, long piezasOtro, BigDecimal montoOtro, long piezasEstimadas) {
+                                  long piezasCampana, BigDecimal montoCampana, long piezasOtro, BigDecimal montoOtro, long piezasEstimadas,
+                                  BigDecimal inversion, BigDecimal fleteTotal) {
 
     public static FilaReporteResponse de(FilaReporte f) {
         FilaBase b = f.base();
@@ -29,6 +30,8 @@ public record FilaReporteResponse(int productoId, String nombre, String codigoBa
                 com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.fleteDeLoVendido(f),
                 com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.fleteEnStock(f),
                 b.piezasVenta(), b.montoVenta(), b.piezasRebaja(), b.montoRebaja(),
-                b.piezasCampana(), b.montoCampana(), b.piezasOtro(), b.montoOtro(), b.piezasEstimadas());
+                b.piezasCampana(), b.montoCampana(), b.piezasOtro(), b.montoOtro(), b.piezasEstimadas(),
+                com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.inversion(f),
+                com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.fleteTotal(f));
     }
 }
