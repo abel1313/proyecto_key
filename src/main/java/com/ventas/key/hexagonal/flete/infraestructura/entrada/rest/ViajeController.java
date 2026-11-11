@@ -4,6 +4,8 @@ import com.ventas.key.hexagonal.flete.dominio.excepcion.ViajeInvalidoException;
 import com.ventas.key.hexagonal.flete.dominio.modelo.ViajeDeCompra;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.AdministrarViajesCasoUso;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.ConsultarReporteDeViajeCasoUso;
+import com.ventas.key.hexagonal.flete.infraestructura.salida.archivo.ViajeExcelGenerador;
+import com.ventas.key.hexagonal.flete.infraestructura.salida.archivo.ViajePdfGenerador;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.ReporteDeViajeResponse;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.ViajeRequest;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.ViajeResponse;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -37,6 +40,8 @@ public class ViajeController {
 
     private final AdministrarViajesCasoUso viajes;
     private final ConsultarReporteDeViajeCasoUso reportes;
+    private final ViajeExcelGenerador excel;
+    private final ViajePdfGenerador pdf;
 
     @GetMapping
     public ResponseEntity<ResponseGeneric<ViajeResponse>> listar() {
@@ -47,6 +52,36 @@ public class ViajeController {
     @GetMapping("/por-producto/{productoId}")
     public ResponseEntity<ResponseGeneric<ViajeResponse>> deProducto(@PathVariable int productoId) {
         return ejecutar(() -> new ResponseGeneric<>(viajes.deProducto(productoId).stream().map(ViajeResponse::de).toList()));
+    }
+
+    /**
+     * Descarga el reporte del viaje en Excel o PDF ({@code formato=XLSX|PDF}, por defecto XLSX): bytes con su Content-Type y {@code Content-Disposition: attachment}.
+     * Se arma al momento (un viaje es chico). 400 si el formato no es válido o el viaje ya no existe.
+     */
+    @GetMapping("/{id}/reporte/archivo")
+    public ResponseEntity<byte[]> archivo(@PathVariable int id, @RequestParam(defaultValue = "XLSX") String formato) {
+        String f = formato == null ? "XLSX" : formato.trim().toUpperCase();
+        if (!f.equals("XLSX") && !f.equals("PDF")) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            var r = reportes.reporte(id);
+            String quien = com.ventas.key.mis.productos.Utils.AuthenticationUtils.currentUsuarioOpt().map(u -> u.getUsername()).orElse("admin");
+            boolean esPdf = f.equals("PDF");
+            byte[] bytes = esPdf ? pdf.generar(r, "Novedades Jade", quien) : excel.generar(r, "Novedades Jade", quien);
+            String nombre = "reporte-viaje-" + id + (esPdf ? ".pdf" : ".xlsx");
+            return ResponseEntity.ok()
+                    .contentType(esPdf ? org.springframework.http.MediaType.APPLICATION_PDF
+                            : org.springframework.http.MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.attachment()
+                            .filename(nombre, java.nio.charset.StandardCharsets.UTF_8).build().toString())
+                    .body(bytes);
+        } catch (ViajeInvalidoException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (RuntimeException e) {
+            log.error("Error al armar el archivo del viaje", e);
+            return ResponseEntity.status(500).build();
+        }
     }
 
     /** El reporte de todos los viajes (la lista de la pantalla Fletes con su barra de «recuperado»). La lista va en {@code lista}. */

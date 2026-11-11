@@ -16,6 +16,16 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-11 — Fletes entrega 4: reporte del viaje en Excel y PDF (back)
+**Dónde:** `hexagonal/flete/infraestructura/salida/archivo/ViajeExcelGenerador` y `ViajePdfGenerador`, `ViajeController` (`/{id}/reporte/archivo`), `ReporteDeViaje.lineas` (flete recuperado / ya ganancia por venta).
+**Tipo:** unitario (reparto por línea) + archivos (Excel/PDF abren y cuadran con la pantalla).
+**Debe comprobar:**
+- [ ] Excel y PDF de un viaje con ventas: tarjetas, productos y ventas ligadas con su fila TOTAL; los números cuadran con la tarjeta de la pantalla (recuperado, falta, ya ganancia, piezas).
+- [ ] Viaje sin ventas: abre sin error y dice «Todavía no hay ventas ligadas» (PDF) / tabla vacía (Excel).
+- [ ] Viaje con muchas ventas (40+): el PDF sigue en otra hoja con el encabezado repetido y el pie con número de página.
+- [ ] Nombres largos o con emojis no tiran el archivo; `formato` inválido → 400; solo ADMIN (`AutorizacionPorEndpointTest`).
+- [ ] La línea que cruza el tope del costo a cubrir se parte (parte recuperada y parte ganancia).
+
 ### 2026-11-11 — Fletes entrega 3: ligar a mano ventas anteriores (back)
 **Dónde:** `hexagonal/flete/**` (`ReglasLigaManual`, `LigarVentasAnterioresService`, `LigasManualesJdbcAdapter`, `LigasManualesController`).
 **Tipo:** unitario (reglas) + JPA/JDBC (H2) + permisos (ya en `AutorizacionPorEndpointTest`).
