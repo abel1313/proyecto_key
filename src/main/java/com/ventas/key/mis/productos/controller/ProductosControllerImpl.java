@@ -114,12 +114,14 @@ public class ProductosControllerImpl {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             // Categoria (palabra clave) del producto, sin importar mayusculas. Omitida = todas.
             @RequestParam(required = false) String categoria,
+            // true = solo productos SIN categoria ("Otros"). Tiene prioridad sobre `categoria`.
+            @RequestParam(required = false) Boolean sinCategoria,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "1") int page) {
         log.info("Admin: filtrar productos nombreOCodigo={} conStock={} conImagenes={} habilitado={} codigoGenerado={} fechaDesde={} fechaHasta={} page={} size={}",
                 nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, page, size);
         return ResponseEntity.ok(this.pServiceImpl.filtrarProductosAdmin(
-                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, categoria, size, page));
+                nombreOCodigo, conStock, conImagenes, habilitado, codigoGenerado, fechaDesde, fechaHasta, categoria, sinCategoria, size, page));
     }
 
     @PutMapping("{id}/habilitar")

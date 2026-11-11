@@ -7,6 +7,11 @@ el día que se decida. Lo más nuevo va arriba.
 Formato de cada entrada:
 
 ```
+### 2026-11-11 — Fletes entrega 5: filtro «Otros» (sin categoría) en admin/filtrar
+**Dónde:** `ProductosControllerImpl.filtrarProductosAdmin` → `ProductosServiceImpl.filtrarProductosAdmin` → `IProductosRepository.buscarProductosAdmin` (param `sinCategoria`, también en la llave del caché)
+**Tipo:** MySQL/H2 (consulta)
+**Debe comprobar:** `sinCategoria=true` trae solo productos con `palabra_clave_id` nulo; con `categoria=X&sinCategoria=true` gana «Otros»; sin el parámetro el resultado es idéntico al de antes; el total y las páginas coinciden con la lista; cachés no se mezclan entre «Otros» y «Todas».
+
 ### AAAA-MM-DD — Qué se hizo
 **Dónde:** clase.metodo() / endpoint
 **Tipo:** unitario (dominio/servicio con puertos simulados) · MySQL (SQL nativo) · controller (URL y status)

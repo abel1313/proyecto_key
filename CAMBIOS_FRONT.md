@@ -23876,3 +23876,10 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 
 **Totales de las columnas de precios (2026-11-11):** `totales` trae además `sumaCompra`, `sumaVenta`, `sumaRebaja` y `sumaCampana` = la suma de cada columna de precio de **todos** los productos del reporte (no solo de la página). `sumaRebaja` suma la columna tal como se ve (un producto sin rebaja cuenta 0) y `sumaCampana` solo suma los productos que están en una campaña. La fila de totales de la pantalla, del PDF y del Excel ya los muestra debajo de «Compra», «Venta», «Rebaja» y «Rebaja campaña».
 
+
+
+### Fletes entrega 5 (2026-11-11): buscar por categoría y «Otros», agregar una categoría completa, importar un viaje en Campañas
+**Request nuevo (opcional):** `GET /mis-productos/v1/productos/admin/filtrar?sinCategoria=true` — devuelve solo los productos **sin categoría** («Otros»). Gana sobre `categoria` si vienen las dos. Sin el parámetro todo funciona igual que antes (misma respuesta paginada `{ t, pagina, totalPaginas, totalRegistros }`).
+**Pantallas (solo front):**
+- **Catálogo → Fletes → Nuevo/Editar viaje → «Productos que llegaron en el viaje»:** selector de categoría (Todas / **Otros (sin categoría)** / cada categoría) junto al buscador; con categoría elegida se lista aunque no escribas nada, con páginas de 12. Botón **«＋ Agregar los N de esta búsqueda»** trae TODAS las páginas y agrega los que aún no están en el viaje (los que ya estaban se saltan, nunca se duplican) y reparte el flete por igual.
+- **Catálogo → Campañas → catálogo para agregar:** el selector de categoría ahora también tiene **Otros (sin categoría)**, y arriba de la lista un selector **«Importar los productos de un viaje (flete)»** que mete a la campaña todos los productos de ese viaje que no estén ya (cada uno con el mismo precio que tendría si se agregara a mano); después se pueden quitar o agregar a mano como siempre.

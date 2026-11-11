@@ -178,6 +178,15 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 
 ---
 
+## 4.1 Prueba extra — buscar por categoría, «Otros» e importar un viaje en Campañas
+
+1. **Catálogo → Fletes → Nuevo viaje.** En «Productos que llegaron en el viaje» elige una categoría (p. ej. JUGUETES) sin escribir nada: debe listar sus productos, con páginas de 12.
+2. Elige **«Otros (sin categoría)»**: solo salen productos que no tienen categoría.
+3. Agrega un producto a mano y después pulsa **«＋ Agregar los N de esta búsqueda»**: se agregan todos los demás y el aviso dice cuántos se agregaron y cuántos se saltaron (el que ya estaba). No debe haber ningún producto repetido en la tabla.
+4. **Catálogo → Campañas → Editar:** en el selector de categoría del catálogo existe **«Otros (sin categoría)»** y filtra bien.
+5. En el mismo panel, elige un viaje en **«Importar los productos de un viaje (flete)»** y pulsa **Importar**: sus productos entran a la campaña (los que ya estaban no se repiten); quita uno con ✕ y agrega otro a mano: funciona igual que siempre.
+⛔ No puede pasar: productos duplicados, error al importar, «Otros» mostrando productos con categoría.
+
 ## 5. Cómo ver lo que el sistema anotó (opcional, en MySQL de QA)
 
 ```sql
