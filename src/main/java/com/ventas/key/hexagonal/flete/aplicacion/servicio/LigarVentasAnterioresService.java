@@ -2,6 +2,7 @@ package com.ventas.key.hexagonal.flete.aplicacion.servicio;
 
 import com.ventas.key.hexagonal.flete.dominio.excepcion.ViajeInvalidoException;
 import com.ventas.key.hexagonal.flete.dominio.modelo.LigaManual;
+import com.ventas.key.hexagonal.flete.dominio.modelo.LigaManualDelViaje;
 import com.ventas.key.hexagonal.flete.dominio.modelo.LineaSinViaje;
 import com.ventas.key.hexagonal.flete.dominio.modelo.ReglasLigaManual;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.LigarVentasAnterioresCasoUso;
@@ -42,6 +43,11 @@ public class LigarVentasAnterioresService implements LigarVentasAnterioresCasoUs
         ReglasLigaManual.validar(renglon, pendientes, pedidas);
         ligas.guardarManuales(renglon.renglonId(), renglon.fletePorPieza(), pedidas);
         return pedidas.stream().mapToInt(LigaManual::cantidad).sum();
+    }
+
+    @Override
+    public List<LigaManualDelViaje> ligasManualesDelViaje(int viajeId) {
+        return ligas.disponible() ? ligas.ligasManualesDe(viajeId) : List.of();
     }
 
     @Override

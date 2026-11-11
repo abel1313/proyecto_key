@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.flete.dominio.puerto.salida;
 
 import com.ventas.key.hexagonal.flete.dominio.modelo.LigaManual;
+import com.ventas.key.hexagonal.flete.dominio.modelo.LigaManualDelViaje;
 import com.ventas.key.hexagonal.flete.dominio.modelo.LineaSinViaje;
 import com.ventas.key.hexagonal.flete.dominio.modelo.RenglonParaLigar;
 
@@ -26,6 +27,9 @@ public interface LigasManualesPort {
     Map<Integer, Integer> pendientesDe(int productoId, Collection<Integer> detalleVentaIds);
 
     void guardarManuales(int renglonId, BigDecimal fletePorPieza, List<LigaManual> ligas);
+
+    /** Las ligas hechas a mano de este viaje (las de ventas devueltas no se incluyen), de la más nueva a la más vieja. */
+    List<LigaManualDelViaje> ligasManualesDe(int viajeId);
 
     /** Quita una liga hecha a mano (origen MANUAL); false si no existe o no es manual (las automáticas no se tocan). */
     boolean quitarManual(int ligaId);

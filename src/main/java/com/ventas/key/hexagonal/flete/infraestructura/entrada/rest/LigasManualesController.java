@@ -3,6 +3,7 @@ package com.ventas.key.hexagonal.flete.infraestructura.entrada.rest;
 import com.ventas.key.hexagonal.flete.dominio.excepcion.ViajeInvalidoException;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.LigarVentasAnterioresCasoUso;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.LigarVentasRequest;
+import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.LigaManualResponse;
 import com.ventas.key.hexagonal.flete.infraestructura.entrada.rest.dto.LineaSinViajeResponse;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +69,20 @@ public class LigasManualesController {
         } catch (RuntimeException e) {
             log.error("Error al ligar ventas a un viaje", e);
             throw e;   // la transacción se deshace y no queda nada a medias
+        }
+    }
+
+    /** Las ligas hechas a mano de un viaje (para poder deshacerlas). La lista va en {@code lista}. */
+    @GetMapping("/{viajeId}/ligas")
+    public ResponseEntity<ResponseGeneric<LigaManualResponse>> ligasDelViaje(@PathVariable int viajeId) {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(ligar.ligasManualesDelViaje(viajeId).stream().map(LigaManualResponse::de).toList()));
+        } catch (RuntimeException e) {
+            log.error("Error al listar las ligas manuales del viaje {}", viajeId, e);
+            ResponseGeneric<LigaManualResponse> r = new ResponseGeneric<>((LigaManualResponse) null);
+            r.setCode(500);
+            r.setMensaje("No se pudieron cargar las ligas del viaje.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(r);
         }
     }
 
