@@ -1,3 +1,5 @@
+> **Reemplazada por `GUIA_PRUEBAS_FLETES_QA.md`** (explicación completa de cada pantalla y todas las pruebas, con números que cuadran). Este archivo queda solo como referencia de la entrega 1.
+
 # Pruebas en QA — Fletes entrega 1 (2026-11-11)
 
 Requisitos: back y front de QA ya desplegados (GitHub Actions), `migration_flete_lote.sql` ya corrida, y **correr ahora `migration_flete_venta.sql`** en `inventario_key_qa` (después, volver a entrar).

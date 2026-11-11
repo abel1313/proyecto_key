@@ -19,11 +19,15 @@ import java.util.TreeMap;
 public record ReporteDeViaje(ViajeDeCompra viaje, String estado, int piezasCompradas, int piezasVendidas, int piezasRestantes,
                              BigDecimal totalVendido, BigDecimal costoVendido, BigDecimal gananciaVendida,
                              BigDecimal fleteRecuperado, BigDecimal faltaPorCubrir, BigDecimal fleteComoGanancia,
-                             Integer pagadoConVentaId, LocalDateTime pagadoEn, List<Renglon> renglones) {
+                             Integer pagadoConVentaId, LocalDateTime pagadoEn, List<Renglon> renglones, List<Linea> lineas) {
 
     public static final String ABIERTO = "ABIERTO";
     public static final String FLETE_CUBIERTO = "FLETE_CUBIERTO";
     public static final String VENDIDO_POR_COMPLETO = "VENDIDO_POR_COMPLETO";
+
+    /** Una venta ligada al viaje, en el orden en que se recuperó el flete, con la parte del flete que ya fue recuperada y la que ya es ganancia. */
+    public record Linea(VentaLigada venta, BigDecimal fleteRecuperado, BigDecimal fleteComoGanancia) {
+    }
 
     /** Cómo va cada producto del viaje. */
     public record Renglon(int productoId, String nombre, String codigoBarras, int piezasCompradas, int piezasVendidas, int piezasRestantes,
@@ -44,6 +48,7 @@ public record ReporteDeViaje(ViajeDeCompra viaje, String estado, int piezasCompr
         int vendidas = 0;
         Integer pagadoCon = null;
         LocalDateTime pagadoEn = null;
+        List<Linea> lineas = new java.util.ArrayList<>();
         Map<Integer, Integer> piezasPorProducto = new TreeMap<>();
         Map<Integer, BigDecimal> totalPorProducto = new TreeMap<>();
         for (VentaLigada l : orden) {
@@ -52,6 +57,7 @@ public record ReporteDeViaje(ViajeDeCompra viaje, String estado, int piezasCompr
             BigDecimal aRecuperar = fleteLinea.min(falta);
             recuperado = recuperado.add(aRecuperar);
             ganancia = ganancia.add(fleteLinea.subtract(aRecuperar));
+            lineas.add(new Linea(l, esc(aRecuperar), esc(fleteLinea.subtract(aRecuperar))));
             if (pagadoCon == null && tope.signum() > 0 && recuperado.compareTo(tope) >= 0) {
                 pagadoCon = l.ventaId();
                 pagadoEn = l.fechaVenta();
@@ -74,7 +80,7 @@ public record ReporteDeViaje(ViajeDeCompra viaje, String estado, int piezasCompr
                     totalPorProducto.getOrDefault(p.productoId(), BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
         }).toList();
         return new ReporteDeViaje(viaje, estado, compradas, vendidas, restantes, esc(totalVendido), esc(costo), esc(gananciaVentas),
-                esc(recuperado), esc(falta), esc(ganancia), pagadoCon, pagadoEn, renglones);
+                esc(recuperado), esc(falta), esc(ganancia), pagadoCon, pagadoEn, renglones, List.copyOf(lineas));
     }
 
     private static BigDecimal esc(BigDecimal v) {

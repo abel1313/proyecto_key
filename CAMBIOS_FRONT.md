@@ -23792,6 +23792,11 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+### 2026-11-11 — Fletes entrega 4: reporte del viaje en Excel y PDF — solo ROLE_ADMIN
+Sin migración. **`GET /mis-productos/v1/fletes/{id}/reporte/archivo?formato=XLSX|PDF`** (por defecto `XLSX`) → **bytes** (Content-Type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` o `application/pdf`, `Content-Disposition: attachment`, nombre `reporte-viaje-{id}.xlsx|pdf`). Se arma al momento (no es asíncrono: un viaje es chico). **400** si el formato no es XLSX/PDF o el viaje ya no existe; 500 si falla al armarlo. Contenido: banda con el nombre del negocio, datos del viaje, tarjetas (flete total, costo a cubrir, recuperado, falta, piezas, total vendido, ganancia vendida, flete ya ganancia), gastos, tabla de productos (compradas, vendidas, quedan, total vendido) y tabla de **ventas ligadas** en el orden en que se recuperó el flete (flete por pieza, recuperado, ya ganancia, total vendido) con fila de totales.
+**Front:** botones «⬇ Excel» y «⬇ PDF» en cada tarjeta de Fletes (descarga con blob, igual que el reporte por categoría).
+**Diferencia clave:** antes un viaje solo se veía en pantalla; ahora se baja como reporte por flete (no por categoría).
+
 ### 2026-11-11 — Fletes entrega 3: ligar a mano ventas anteriores a un viaje — solo ROLE_ADMIN
 Sin migración nueva (usa `venta_detalle_lote` de la entrega 1; sin ella responde 400 «Falta correr la migración…» al ligar y lista vacía al buscar). `SecurityConfig`: `/v1/fletes/**` → ADMIN.
 - `GET /mis-productos/v1/fletes/ligas/sin-viaje?productoId=&desde=&hasta=` (fechas `yyyy-MM-dd`, opcionales) → `lista[]` de líneas de venta del producto con piezas aún sin ligar, de la más vieja a la más nueva (máx. 500): `{ detalleVentaId, ventaId, fecha, cantidad, pendientes, precioUnitario }`. No salen ventas «Devuelta». Vacía → `code 404`.
