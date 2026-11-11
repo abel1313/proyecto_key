@@ -19,6 +19,7 @@ public record CatalogoPreparado(String clave, String tipo, int modeloId, int art
     public static final String RIFA = "RIFA";
     public static final String CODIGO = "CODIGO";
     public static final String USUARIO = "USUARIO";
+    public static final String CAMPANA = "CAMPANA";
 
     /** Un dato que no es catálogo (rifa, código o usuario). */
     public static CatalogoPreparado otro(String clave, String tipo, String nombre, String paraCopiar, String queEs) {

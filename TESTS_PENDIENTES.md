@@ -7,6 +7,11 @@ el día que se decida. Lo más nuevo va arriba.
 Formato de cada entrada:
 
 ```
+### 2026-11-11 — Fletes: GET /v1/fletes/guardados y escenario de prueba F
+**Dónde:** `LigasManualesController.fletesGuardados` → `ConsultarFletesGuardadosService` → `FletesGuardadosJdbcAdapter` (JOIN producto + codigo_barras + último cálculo por id mayor); `PrepararPruebaService.pruebaFletes`, `EscenariosPruebaAdapter.fleteGuardado/campanaDePrueba/quitarCampanasDeLaPrueba`
+**Tipo:** MySQL (SQL nativo; el escenario usa CURDATE/DATE_ADD) · integración del generador de pruebas
+**Debe comprobar:** el endpoint devuelve el transporte del cálculo con id MAYOR de cada producto (no el primero), 0 si no hay cálculo o la tabla no existe, y omite ids inexistentes; más de 500 ids se parten en lotes; «Preparar prueba F» dos veces deja una sola campaña de prueba (se borra y se vuelve a crear), 6 productos activos y 2 ventas abiertas (las anteriores se cancelan), y NUNCA toca ni enciende la campaña real; en una base sin la migración de campañas el 🧪 dice que falta `migration_campana.sql`. **No se corrió el escenario F contra una base real desde el desarrollo (solo compila): hay que probarlo en QA.**
+
 ### 2026-11-11 — Fletes: GET /v1/fletes/{id}/ligas (ligas manuales del viaje)
 **Dónde:** `LigasManualesController.ligasDelViaje` → `LigasManualesJdbcAdapter.ligasManualesDe`
 **Tipo:** MySQL (SQL nativo con JOIN)
