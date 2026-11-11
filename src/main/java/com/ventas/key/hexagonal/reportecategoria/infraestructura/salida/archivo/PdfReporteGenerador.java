@@ -57,7 +57,7 @@ public class PdfReporteGenerador {
 
     public byte[] generar(ReporteCalculado r, EncabezadoReporte enc) {
         PDRectangle hoja = new PDRectangle(PDRectangle.A3.getHeight(), PDRectangle.A3.getWidth());   // horizontal
-        List<Columna> cols = ColumnasReporte.columnas(r.filtro().tipo());
+        List<Columna> cols = ColumnasReporte.COLUMNAS;
         float[] x = posiciones(cols.size(), hoja.getWidth() - 2 * MARGEN);
 
         try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -133,7 +133,7 @@ public class PdfReporteGenerador {
         TotalesReporte t = r.totales();
         float gap = 8f;
         float alto = 40f;
-        List<TarjetasReporte.Tarjeta> tarjetas = TarjetasReporte.de(r.filtro().tipo(), t);
+        List<TarjetasReporte.Tarjeta> tarjetas = TarjetasReporte.de(t);
         int n = tarjetas.size();
         float w = (ancho - 2 * MARGEN - gap * (n - 1)) / n;
         float top0 = y - 4;
@@ -150,7 +150,7 @@ public class PdfReporteGenerador {
         }
         // Leyenda: cómo leer las columnas.
         float ly = top0 - alto - 10;
-        for (String linea : partir(normal, ColumnasReporte.leyenda(r.filtro().tipo()), 6.8f, ancho - 2 * MARGEN)) {
+        for (String linea : partir(normal, ColumnasReporte.LEYENDA, 6.8f, ancho - 2 * MARGEN)) {
             texto(cs, normal, 6.8f, MARGEN, ly, TEXTO_SUAVE, linea);
             ly -= 9;
         }
@@ -230,8 +230,9 @@ public class PdfReporteGenerador {
     /** Título de columna centrado; si no cabe en un renglón se parte en dos por el espacio más cercano al centro. */
     private void titulo(PDPageContentStream cs, PDFont fuente, String t, float x0, float x1, float abajo, Color color) throws IOException {
         float ancho = x1 - x0 - 2 * PAD;
+        final float TAM_T = 5.6f;   // los títulos van un poco más chicos que los datos: con tantas columnas, así caben palabras como «Inversión» o «Ganancia»
         String[] lineas = {t, ""};
-        if (fuente.getStringWidth(t) / 1000f * TAM > ancho) {
+        if (fuente.getStringWidth(t) / 1000f * TAM_T > ancho) {
             int mejor = -1;
             for (int i = 0; i < t.length(); i++) if (t.charAt(i) == ' ' && (mejor < 0 || Math.abs(i - t.length() / 2) < Math.abs(mejor - t.length() / 2))) mejor = i;
             if (mejor > 0) { lineas = new String[]{t.substring(0, mejor), t.substring(mejor + 1)}; }
@@ -239,11 +240,11 @@ public class PdfReporteGenerador {
         float baseY = lineas[1].isEmpty() ? abajo + ALTO_TITULOS / 2 - 2.2f : abajo + ALTO_TITULOS - 9.5f;
         for (int k = 0; k < 2; k++) {
             if (lineas[k].isEmpty()) continue;
-            String l = ajustar(fuente, lineas[k], ancho);
-            float w = fuente.getStringWidth(l) / 1000f * TAM;
+            String l = ajustar(fuente, lineas[k], ancho, TAM_T);
+            float w = fuente.getStringWidth(l) / 1000f * TAM_T;
             cs.setNonStrokingColor(color);
             cs.beginText();
-            cs.setFont(fuente, TAM);
+            cs.setFont(fuente, TAM_T);
             cs.newLineAtOffset(x0 + (x1 - x0 - w) / 2, baseY - k * 8.5f);
             cs.showText(l);
             cs.endText();
@@ -293,7 +294,7 @@ public class PdfReporteGenerador {
         float[] pesos = new float[n];
         float suma = 0;
         for (int i = 0; i < n; i++) {
-            pesos[i] = i == 0 ? 2.8f : i == 1 ? 1.9f : i == 2 ? 1.9f : 1.6f;
+            pesos[i] = i == 0 ? 2.8f : i == 1 ? 1.5f : i == 2 ? 2.0f : 1.55f;
             suma += pesos[i];
         }
         float[] x = new float[n + 1];
@@ -318,9 +319,13 @@ public class PdfReporteGenerador {
     }
 
     private static String ajustar(PDFont fuente, String t, float ancho) throws IOException {
-        if (fuente.getStringWidth(t) / 1000f * TAM <= ancho) return t;
+        return ajustar(fuente, t, ancho, TAM);
+    }
+
+    private static String ajustar(PDFont fuente, String t, float ancho, float tam) throws IOException {
+        if (fuente.getStringWidth(t) / 1000f * tam <= ancho) return t;
         String corte = t;
-        while (corte.length() > 1 && fuente.getStringWidth(corte + "...") / 1000f * TAM > ancho) corte = corte.substring(0, corte.length() - 1);
+        while (corte.length() > 1 && fuente.getStringWidth(corte + "...") / 1000f * tam > ancho) corte = corte.substring(0, corte.length() - 1);
         return corte + "...";
     }
 
