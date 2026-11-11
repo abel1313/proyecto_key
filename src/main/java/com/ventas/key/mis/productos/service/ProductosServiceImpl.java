@@ -255,8 +255,8 @@ public class ProductosServiceImpl extends
         // filtro de admin): el público fija stock>0 + con imagen + habilitado (tri-state en TRUE
         // en vez de null).
         Page<Producto> resultado = verTodos
-                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, null, null, null, pageable)
-                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, null, null, null, pageable);
+                ? iProductosRepository.buscarProductosAdmin(nombre, null, null, null, null, null, null, null, null, pageable)
+                : iProductosRepository.buscarProductosAdmin(nombre, true, true, true, null, null, null, null, null, pageable);
 
         if (resultado.isEmpty()) {
             throw new ExceptionDataNotFound("No se encontraron productos con la búsqueda: \"" + nombre + "\"");
@@ -738,12 +738,13 @@ public class ProductosServiceImpl extends
     // el filtro elegido) — a diferencia de getAll()/findNombreOrCodigoBarra() que para
     // clientes normales exigen stock>0 + habilitado + con imagen.
     @Cacheable(value = "obtenerProductosCache",
-            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #categoria + ':' + #page + ':' + #size")
+            key = "'filtro:' + #nombreOCodigo + ':' + #conStock + ':' + #conImagenes + ':' + #habilitado + ':' + #codigoGenerado + ':' + #fechaDesde + ':' + #fechaHasta + ':' + #categoria + ':' + #sinCategoria + ':' + #page + ':' + #size")
     public PginaDto<List<ProductoDTO>> filtrarProductosAdmin(String nombreOCodigo, Boolean conStock,
             Boolean conImagenes, Boolean habilitado, Boolean codigoGenerado, LocalDate fechaDesde,
-            LocalDate fechaHasta, String categoria, int size, int page) {
+            LocalDate fechaHasta, String categoria, Boolean sinCategoria, int size, int page) {
         Pageable pageable = PageRequest.of(page - 1, size);
-        String cat = (categoria != null && !categoria.isBlank()) ? categoria.trim() : null;
+        // "Otros" (sinCategoria=true) y una categoria concreta son excluyentes: gana "Otros".
+        String cat = (categoria != null && !categoria.isBlank() && !Boolean.TRUE.equals(sinCategoria)) ? categoria.trim() : null;
         String texto = (nombreOCodigo != null && !nombreOCodigo.isBlank()) ? nombreOCodigo : null;
         // fechaDesde/fechaHasta llegan como dia calendario (sin hora) -- se expanden al rango
         // completo de ese dia para que "buscar el 22/08" incluya todo desde las 00:00:00 hasta
@@ -751,7 +752,7 @@ public class ProductosServiceImpl extends
         LocalDateTime desde = fechaDesde != null ? fechaDesde.atStartOfDay() : null;
         LocalDateTime hasta = fechaHasta != null ? fechaHasta.atTime(LocalTime.MAX) : null;
         Page<Producto> productosPaginados = iProductosRepository.buscarProductosAdmin(
-                texto, conStock, conImagenes, habilitado, codigoGenerado, desde, hasta, cat, pageable);
+                texto, conStock, conImagenes, habilitado, codigoGenerado, desde, hasta, cat, sinCategoria, pageable);
         List<Integer> productoIds = productosPaginados.getContent().stream().map(Producto::getId).toList();
         Map<Integer, Long> imagenes = getPrimerasImagenes(productoIds);
         PginaDto<List<ProductoDTO>> pginaDto = new PginaDto<>();
