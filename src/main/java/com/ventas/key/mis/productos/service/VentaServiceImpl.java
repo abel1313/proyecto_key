@@ -68,6 +68,8 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
     @Autowired(required = false) private com.ventas.key.hexagonal.preciocantidad.dominio.puerto.salida.PreciosBaseDeLineaPort preciosBaseDeLinea;
     /** Guarda a qué tipo de precio se vendió cada línea (venta, rebaja, campaña...). Opcional: sin él la venta sale igual, sin tipo. */
     @Autowired(required = false) private ClasificadorTipoPrecio clasificadorTipoPrecio;
+    /** Liga cada línea al viaje de compra de donde salieron sus piezas (fletes, fase 2). Opcional y nunca tira la venta. */
+    @Autowired(required = false) private AsignadorDeViajeEnVenta asignadorDeViaje;
     @Autowired(required = false) private com.ventas.key.hexagonal.campana.dominio.puerto.entrada.ParticiparEnCampanaCasoUso campanas;
     /**
      * Para que la campaña corra en su PROPIA transacción: un error de base dentro de ella ya no deja la venta marcada rollback-only (antes el
@@ -419,6 +421,9 @@ public class VentaServiceImpl extends CrudAbstractServiceImpl<Venta, List<Venta>
 
         boolean requiereTerminal = requiereTerminal(pagosYMeses, mesesIntereses);
         Venta saved = iVentaRepository.save(venta);
+        if (asignadorDeViaje != null) {
+            asignadorDeViaje.asignar(saved);
+        }
         // Todo lo de la campaña sale hasta que la venta se confirma (afterCommit), en este orden: 1) registrar la persona y ligar el pedido (en su
         // propia transacción: un error ahí ya no tira la venta), 2) el correo único «Agrega tu compra a tu cuenta» con el bloque del código. Si la
         // venta se revierte no llega un código que no existe, y el SMTP no detiene la transacción con el stock bloqueado.

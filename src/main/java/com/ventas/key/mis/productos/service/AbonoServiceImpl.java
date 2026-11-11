@@ -31,6 +31,8 @@ public class AbonoServiceImpl implements IAbonoService {
     /** Guarda a qué tipo de precio se vendió cada línea (venta, rebaja, campaña...). Opcional: sin él la venta sale igual, sin tipo. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ClasificadorTipoPrecio clasificadorTipoPrecio;
+    /** Liga cada línea al viaje de compra de donde salieron sus piezas (fletes, fase 2). Opcional y nunca tira la venta. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false) private AsignadorDeViajeEnVenta asignadorDeViaje;
 
     /** Por campo (no por constructor) para no cambiar cómo se arma en las pruebas; puede ser null fuera de Spring. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -549,6 +551,9 @@ public class AbonoServiceImpl implements IAbonoService {
         venta.setDetalles(detallesVenta);
 
         ventaRepository.save(venta);
+        if (asignadorDeViaje != null) {
+            asignadorDeViaje.asignar(venta);
+        }
         log.info("Venta creada para pedido {} — total: {}, método: {}", pedido.getId(), totalVenta, metodoPago);
     }
 

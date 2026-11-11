@@ -16,6 +16,20 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-11 — Fletes entrega 1: ventas ligadas a viajes y reporte por viaje (back)
+**Dónde:** `hexagonal/flete/**` (`AsignacionDeViaje`, `AsignarViajeAVentaService`, `LigasDeVentaJdbcAdapter`, `ReporteDeViaje`, `ViajesJpaAdapter`), `AsignadorDeViajeEnVenta` (llamado en `VentaServiceImpl`, `PedidoServiceImpl`, `AbonoServiceImpl`, `PedidoCobroAdapter`), `migration_flete_venta.sql`.
+**Tipo:** unitario (reparto y reporte) + JPA/JDBC (H2) + flujos de venta existentes.
+**Debe comprobar:**
+- [ ] Reparto: producto con 10 piezas en 2 viajes (V1 5, V2 5): línea de 3 → 3 de V1; línea de 4 → 2 de V1 y 2 de V2; flete por pieza de cada viaje en cada fila.
+- [ ] Stock anterior a los viajes sale primero: stock 12 con un viaje de 5 → línea de 3 sin fila; línea de 6 → 4 sin viaje y 2 del viaje.
+- [ ] Reporte: V1 (costo a cubrir 100, flete 20/pieza) tras vender 5 → recuperado 100, falta 0, `VENDIDO_POR_COMPLETO`; V2 (cubrir 150, flete 30) tras vender 2 → recuperado 60, falta 90, `ABIERTO`; la línea que cruza el tope se parte (recuperado/ganancia).
+- [ ] Viaje con ventas: no se puede quitar un producto, bajar sus piezas por debajo de lo vendido ni borrar el viaje (400 con mensaje); sí cambiar nombre/flete/gastos y el renglón conserva su id (las ligas siguen).
+- [ ] Venta «Devuelta»: sus piezas regresan al viaje y no cuentan en el reporte.
+- [ ] Sin la tabla `venta_detalle_lote` (migración no corrida): venta directa, pedido, abono que liquida y tarjeta aprobada se guardan igual; el log dice que quedó sin viaje; `GET /v1/fletes/{id}/reporte` responde con 0 vendidas.
+- [ ] Los 4 puntos de venta no cambian de resultado: venta directa contado, pedido cobrado, abono que liquida y cobro con tarjeta aprobado (mismos totales, estado y stock que antes).
+- [ ] Concurrencia: dos ventas del mismo producto a la vez no toman la misma pieza del viaje (bloqueo `FOR UPDATE` por renglón, en orden de producto).
+- [ ] `/v1/fletes/{id}/reporte` solo ADMIN (en `AutorizacionPorEndpointTest`).
+
 ### 2026-11-11 — Fletes: viajes de compra, fase 1 (back)
 **Dónde:** `hexagonal/flete/**` (`ViajeDeCompra`, `AdministrarViajesService`, `ViajesJpaAdapter`, `ViajeController`), `CompraLote*Entidad`, `migration_flete_lote.sql`, `SecurityConfig` (`/v1/fletes/**` ADMIN).
 **Tipo:** unitario (reglas del viaje) + JPA (H2) + migración dos veces + permisos (ya en `AutorizacionPorEndpointTest`).

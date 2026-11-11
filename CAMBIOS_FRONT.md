@@ -23792,6 +23792,19 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+### 2026-11-11 — Fletes entrega 1: cada venta se liga a su viaje + reporte por viaje (solo lectura) — solo ROLE_ADMIN
+Migración: `migration_flete_venta.sql` (tabla `venta_detalle_lote`; correr después de `migration_flete_lote.sql`). **Sin ella nada se rompe**: las ventas siguen y las piezas quedan «sin viaje».
+
+**Qué pasa ahora en el back (sin cambios de contrato en ventas):** al crear una línea de venta (venta directa, pedido cobrado, abono que liquida y cobro con tarjeta aprobado), el sistema toma las piezas así: **primero las que ya había antes de los viajes («sin viaje», no llevan fila), después las del viaje más viejo que aún tenga**, y guarda cuántas piezas salieron de cada viaje y a cuánto flete por pieza. Si la venta se devuelve, sus piezas regresan al viaje. Si algo falla, la venta sigue sin viaje.
+
+**Cambia al editar/borrar un viaje (`PUT`/`DELETE /v1/fletes/{id}`):** el viaje con piezas vendidas **no se puede borrar** ni **quitarle un producto** ni **bajar sus piezas por debajo de lo vendido**: responde **400** con `mensaje` («No puedes quitar «X» del viaje: ya se vendieron N pieza(s)…», «…no puede tener menos de N pieza(s)», «Este viaje ya tiene N pieza(s) vendida(s): no se puede eliminar…»). Antes se borraban y recreaban los renglones; ahora se actualizan en su mismo renglón (el nombre, la fecha, el flete y los gastos sí se pueden cambiar siempre).
+
+**Nuevo: `GET /mis-productos/v1/fletes/{id}/reporte`** → `data`: `{ viajeId, nombre, fecha, estado, fleteTotal, costoACubrir, fleteRecuperado, faltaPorCubrir, fleteComoGanancia, pagadoConVentaId, pagadoEn, piezasCompradas, piezasVendidas, piezasRestantes, totalVendido, costoVendido, gananciaVendida, renglones[{ productoId, nombre, codigoBarras, piezasCompradas, piezasVendidas, piezasRestantes, totalVendido }] }`.
+- `estado`: `ABIERTO`, `FLETE_CUBIERTO` (lo recuperado ya llegó al costo a cubrir) o `VENDIDO_POR_COMPLETO` (ya no quedan piezas).
+- `fleteRecuperado` = lo que lo vendido ya recuperó, con tope en `costoACubrir`; `fleteComoGanancia` = flete de lo vendido **después** de cubrirlo (ya es ganancia). La línea que cruza el tope se parte. Todo se calcula al leer con la historia completa del viaje (orden por fecha de venta, id de venta, id de línea): una devolución o una edición puede mover «desde qué venta se pagó».
+- Las ventas «Devuelta» no cuentan. 400 si el viaje ya no existe.
+**Diferencia clave:** antes un viaje solo registraba piezas y flete; ahora dice cuánto se ha vendido de él, cuánto flete falta por cubrir y cuándo ya es ganancia.
+
 ### 2026-11-11 — Fletes: viajes de compra (fase 1, solo registrar) — solo ROLE_ADMIN
 Migración: `migration_flete_lote.sql` (3 tablas + pantalla «Fletes» en Catálogo, ruta `productos/fletes`). **No cambia ventas, stock, costos ni reportes que ya existen.** `SecurityConfig`: `/v1/fletes/**` → `hasRole("ADMIN")`. Errores de las reglas: **400** con `mensaje` en palabras del dueño; conflicto de la base: **409**.
 

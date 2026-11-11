@@ -82,6 +82,10 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
     private final IGrupoPedidoMiembroRepository grupos;
     private final EntityManager em;
 
+    /** Liga cada línea de la venta al viaje de compra de donde salieron sus piezas (fletes, fase 2). Opcional y nunca tira el cobro. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.ventas.key.mis.productos.service.AsignadorDeViajeEnVenta asignadorDeViaje;
+
     public PedidoCobroAdapter(IPedidoRepository pedidos, IVentaRepository ventas, IPagoTarjetaIntentoRepository intentos,
                               IPagosYMesesRepository pagosYMeses, IDetallePagoRepository detallesPago,
                               IUsuarioRepository usuarios, JdbcTemplate jdbc,
@@ -205,7 +209,10 @@ public class PedidoCobroAdapter implements PedidoACobrarPort, ActualizarPedidoPo
         pedidos.save(pedido);
 
         if (ventas.findByPedidoId(pedidoId).isEmpty()) {
-            ventas.save(crearVenta(pedido, intento));
+            com.ventas.key.mis.productos.entity.Venta nueva = ventas.save(crearVenta(pedido, intento));
+            if (asignadorDeViaje != null) {
+                asignadorDeViaje.asignar(nueva);
+            }
         }
         return ResultadoAplicacion.APLICADO;
     }
