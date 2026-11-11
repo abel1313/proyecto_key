@@ -22,4 +22,9 @@ public class ConsultarReporteDeViajeService implements ConsultarReporteDeViajeCa
         var viaje = viajes.buscar(viajeId).orElseThrow(() -> new ViajeInvalidoException("Ese viaje ya no existe."));
         return ReporteDeViaje.calcular(viaje, ventas.deViaje(viajeId));
     }
+
+    @Override
+    public java.util.List<ReporteDeViaje> todos() {
+        return viajes.listar().stream().map(v -> ReporteDeViaje.calcular(v, ventas.deViaje(v.id()))).toList();
+    }
 }

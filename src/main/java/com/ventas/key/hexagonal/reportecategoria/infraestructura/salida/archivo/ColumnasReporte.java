@@ -36,6 +36,8 @@ final class ColumnasReporte {
             new Columna("Inversión", Tipo.DINERO, com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte::inversion, TotalesReporte::inversion),
             new Columna("Flete", Tipo.DINERO, com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte::fleteTotal, t -> t.fleteVendido().add(t.fleteEnStock())),
             new Columna("¿Flete?", Tipo.TEXTO, f -> f.sinFlete() ? "SIN FLETE" : "Con flete", t -> null),
+            new Columna("Flete real (viajes)", Tipo.DINERO, f -> f.base().fleteReal(), TotalesReporte::fleteReal),
+            new Columna("Piezas sin viaje", Tipo.ENTERO, f -> com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.piezasSinViaje(f.base()), TotalesReporte::piezasSinViaje),
             new Columna("Piezas vendidas", Tipo.ENTERO, f -> f.base().piezas(), TotalesReporte::piezas),
             new Columna("Total vendido", Tipo.DINERO, f -> f.base().total(), TotalesReporte::total),
             new Columna("Ganancia vendida", Tipo.DINERO, f -> f.base().ganancia(), TotalesReporte::gananciaVendida),
@@ -62,7 +64,7 @@ final class ColumnasReporte {
     );
 
     /** Cómo leer las columnas: va en el PDF, el Excel y la pantalla para que no haya dudas. */
-    static final String LEYENDA = "Inversión = precio de compra × (piezas vendidas + piezas en stock). Flete = flete por pieza del último cálculo de precio × esas mismas piezas; «SIN FLETE» = el producto no lo trae capturado. "
+    static final String LEYENDA = "Inversión = precio de compra × (piezas vendidas + piezas en stock). Flete = flete de lo vendido + el de lo que sigue en stock. El de lo vendido es REAL (el de los viajes de compra de donde salieron las piezas: «Flete real (viajes)») más, para las «Piezas sin viaje» (ventas anteriores a los viajes o stock de antes), un ESTIMADO (flete por pieza del último cálculo de precio × esas piezas); el del stock siempre es estimado. «SIN FLETE» = el producto no trae flete capturado. "
             + "Total vendido y ganancia vendida: lo realmente cobrado en el periodo (la ganancia ya descuenta la comisión de tarjeta). "
             + "Normal / rebaja / campaña / otro: a qué precio se vendió (piezas, precio promedio y dinero); queda vacío si ese producto no se vendió así; «otro» = precio por cantidad, promoción u otro monto. "
             + "Las ventas hechas antes de que se guardara el tipo de precio se clasifican comparando lo cobrado con los precios actuales y se cuentan en «Piezas con tipo estimado» (pueden equivocarse si el precio cambió). "

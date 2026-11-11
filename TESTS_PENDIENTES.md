@@ -16,6 +16,16 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-11 — Fletes entrega 2: flete real en el reporte por categoría y reportes de todos los viajes (back)
+**Dónde:** `LectorVentasJpaAdapter` (`fletesReales`), `FilaBase` (`fleteReal`, `piezasConViaje`), `ReglasReporte` (`fleteDeLoVendido`, `piezasSinViaje`), `ColumnasReporte`/`TarjetasReporte`, `FilaReporteResponse`, `ConsultarReporteDeViajeService.todos`, `ViajeController` (`/reportes`).
+**Tipo:** unitario (reglas) + JPA (H2) del lector + Excel/PDF.
+**Debe comprobar:**
+- [ ] Producto con 6 piezas vendidas, 4 de viajes (flete real 80) y 2 sin viaje, flete estimado 10 por pieza: `fleteEnLoVendido` = 80 + 2×10 = 100; `piezasSinViaje` 2; `fleteEnStock` = estimado × stock.
+- [ ] Solo cuenta lo vendido dentro de las fechas del reporte y sin las ventas «Devuelta».
+- [ ] Sin la tabla `venta_detalle_lote` el reporte sigue igual (flete estimado, `fleteReal` 0, `piezasSinViaje` = piezas).
+- [ ] Excel y PDF traen «Flete real (viajes)» y «Piezas sin viaje» con su fila de totales; la tarjeta «Flete» dice «(real $X)».
+- [ ] `GET /v1/fletes/reportes` devuelve un reporte por viaje, mismos números que `/{id}/reporte`; solo ADMIN (en `AutorizacionPorEndpointTest`).
+
 ### 2026-11-11 — Fletes entrega 1: ventas ligadas a viajes y reporte por viaje (back)
 **Dónde:** `hexagonal/flete/**` (`AsignacionDeViaje`, `AsignarViajeAVentaService`, `LigasDeVentaJdbcAdapter`, `ReporteDeViaje`, `ViajesJpaAdapter`), `AsignadorDeViajeEnVenta` (llamado en `VentaServiceImpl`, `PedidoServiceImpl`, `AbonoServiceImpl`, `PedidoCobroAdapter`), `migration_flete_venta.sql`.
 **Tipo:** unitario (reparto y reporte) + JPA/JDBC (H2) + flujos de venta existentes.

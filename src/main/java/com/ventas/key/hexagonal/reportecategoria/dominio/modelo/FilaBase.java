@@ -12,5 +12,6 @@ public record FilaBase(int productoId, String nombre, String codigoBarras, Strin
                        BigDecimal precioCompra, BigDecimal precioVenta, BigDecimal precioRebaja, BigDecimal precioCampana,
                        int stock, long piezas, long ventas, BigDecimal total, BigDecimal costo, BigDecimal ganancia,
                        long piezasVenta, long piezasRebaja, long piezasCampana, long piezasOtro,
-                       BigDecimal montoVenta, BigDecimal montoRebaja, BigDecimal montoCampana, BigDecimal montoOtro, long piezasEstimadas) {
+                       BigDecimal montoVenta, BigDecimal montoRebaja, BigDecimal montoCampana, BigDecimal montoOtro, long piezasEstimadas,
+                       BigDecimal fleteReal, long piezasConViaje) {
 }

@@ -23792,6 +23792,13 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+### 2026-11-11 — Fletes entrega 2: flete REAL en el reporte por categoría y avance de cada viaje — solo ROLE_ADMIN
+Sin migración nueva. Sin `venta_detalle_lote` (migración de la entrega 1) todo sale como antes: flete estimado, `fleteReal` 0 y `piezasSinViaje` = piezas vendidas.
+
+**Reporte por categoría** (`GET /v1/reportes/ventas/por-categoria` y el Excel/PDF): cada fila de `filas[]` trae además `fleteReal` (flete de lo vendido en el periodo que salió de viajes: flete por pieza de cada viaje × piezas) y `piezasSinViaje` (piezas vendidas que no salieron de ningún viaje); `totales` trae `fleteReal` y `piezasSinViaje`. **Cambia `fleteEnLoVendido`** (y por tanto `fleteTotal`, `totales.fleteVendido` y la tarjeta «Flete»): ahora = `fleteReal` + (flete por pieza estimado × `piezasSinViaje`); antes era flete estimado × todas las piezas vendidas. El flete del stock sigue siendo estimado. El Excel/PDF traen dos columnas nuevas después de «¿Flete?»: «Flete real (viajes)» y «Piezas sin viaje».
+
+**Nuevo: `GET /mis-productos/v1/fletes/reportes`** → `lista[]` con el reporte de TODOS los viajes (mismo contenido que `GET /v1/fletes/{id}/reporte`; vacía → `code 404`). La pantalla Fletes lo usa para la barra «Recuperado $X de $Y», «falta», «ya es ganancia», piezas vendidas/restantes, cuándo se cubrió y el detalle por producto. Si falla, la lista se ve sin barras.
+
 ### 2026-11-11 — Fletes entrega 1: cada venta se liga a su viaje + reporte por viaje (solo lectura) — solo ROLE_ADMIN
 Migración: `migration_flete_venta.sql` (tabla `venta_detalle_lote`; correr después de `migration_flete_lote.sql`). **Sin ella nada se rompe**: las ventas siguen y las piezas quedan «sin viaje».
 
