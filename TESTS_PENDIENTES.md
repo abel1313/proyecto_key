@@ -27,6 +27,7 @@ Formato de cada entrada:
 - [ ] Diseño: el Excel y el PDF traen la banda con «Novedades Jade», los datos de contacto de «Datos legales» (solo los capturados), quién lo generó y cuándo, las tarjetas de totales, filas alternadas, rojo en pérdida, «SIN FLETE» en ámbar y pie con número de página; el PDF repite el encabezado en cada hoja; un nombre con emoji no rompe el PDF (sale «?»).
 - [ ] «Por vender» con los 3 precios: un producto con stock 3, compra 100, venta 200, rebaja 180 y campaña 150 da por vender 300 / 240 / 150; sin rebaja o campaña repite el de venta; «Total» = ganancia vendida + el por vender de cada precio; los totales del pie y las tarjetas coinciden con la suma de las filas.
 - [ ] Flete: producto con flete 12.50 por pieza, 5 vendidas y 3 en stock → «Flete en lo vendido» 62.50 y «Flete en stock» 37.50; sin cálculo → «SIN FLETE» y 0; la tarjeta «Flete llevamos» suma todas las filas.
+- [ ] Totales de precios: la fila de totales trae la suma de «Compra», «Venta», «Rebaja» y «Rebaja campaña» de todos los productos (con 3 productos de compra 100/50/30 → 180); en pantalla, PDF y Excel.
 - [ ] La leyenda «¿Cómo leer las columnas?» sale en pantalla, PDF y Excel.
 - [ ] Solo ROLE_ADMIN (401/403 para los demás en las 5 rutas); un reporte de otro usuario da 404.
 - [ ] Contra datos reales de QA: el total vendido del reporte «Todas» de un día cuadra con el reporte Diario (ojo: Diario suma `ventas.total_venta`; el reporte suma las líneas por producto).
