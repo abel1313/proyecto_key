@@ -54,3 +54,52 @@ Documento para retomar. Lo de la **Parte A** ya está construido; lo de la **Par
 5. ¿El lote lleva también otros gastos (bolsas, etiquetas) además del flete?
 
 Orden de entrega sugerido: (1) lotes + asignar flete al dar de alta/actualizar el producto y en la calculadora, (2) marcar el lote en cada artículo y en la línea de venta, (3) reporte de rentabilidad por lote. Solo `dev`/`qa` primero.
+
+---
+
+## Parte B — DECISIONES DEL DUEÑO sobre fletes por lote (2026-11-10) — LISTO PARA RETOMAR
+
+Contexto: el asesor (Fable 5.2, solo lectura) propuso el modelo de lotes y 5 preguntas; el dueño las respondió así. **No se ha construido nada de la Parte B.** Cuando el dueño diga «retomamos», se empieza por la fase 1 con estas reglas.
+
+### Respuestas del dueño (sus palabras, ordenadas)
+1. **¿Cuándo se da por pagado el flete?** El flete se termina **hasta que se llega al total del flete**. Si cada producto se pone con flete, **después de pagado el flete lo que siga es ganancia, aunque la pieza todavía «tenga» flete**.
+2. **¿Cómo se liga cada pieza?** **Cada pieza tiene su propio flete** (el del lote del que vino). No es un flete por producto: es por pieza y por lote.
+3. **Ventas viejas:** el dueño no entendió por qué quedarían «sin flete» (ver la explicación abajo). Pendiente de que le quede claro.
+4. **Flete nuevo y producto viejo:** cuando llega un flete nuevo se registran los productos; si un producto viejo ya tenía el «flete 1», las piezas que llegan en el nuevo viaje se agregan a su stock con el «flete 2». Si en ese flete llegaron más piezas, **todas esas son «flete 2»** y las que quedaban son «flete 1». Eso aplica **mientras el flete aún no se cubre**; si el flete 1 **ya se cumplió**, las piezas viejas que sobren **son solo ganancia** (su flete ya no importa).
+5. **Otros gastos del viaje** (gasolina, comida, bolsas, etiquetas…): que se puedan registrar pero **opcionales**, y que **se puedan calcular** (que sumen al costo del viaje solo si el dueño quiere).
+
+### Cómo queda la regla (interpretación, a confirmar al construir)
+- **Lote** = un viaje de compra: nombre, fecha, **flete total**, gastos opcionales (concepto + monto, cada uno marcable «cuenta para cubrir» sí/no) y nota. «Costo a cubrir» = flete total + los gastos marcados.
+- Cada **pieza** pertenece a un lote y lleva su **flete asignado por pieza** (el que se incluyó al calcular su precio; puede ser el total ÷ piezas o más).
+- **Recuperado del lote** = suma del flete asignado de las piezas **ya vendidas**, **con tope en el costo a cubrir**: `recuperado = min(costo a cubrir, Σ flete de lo vendido)`. **Falta por cubrir** = costo a cubrir − recuperado.
+- **Flete pagado** = falta por cubrir = 0. Desde ahí, el flete asignado de las piezas que sigan vendiéndose **cuenta como ganancia** (aunque su precio lo incluya).
+- Ejemplo: flete total $100; 4 piezas con $50 de flete asignado cada una. Al vender 2 piezas se recuperan $100 → **pagado**. Las otras 2 piezas dejan sus $50 como **ganancia**.
+- **Orden de venta (PEPS):** sale primero la pieza del lote más viejo. Con «flete 1» pendiente y llegada de «flete 2», se agota primero el 1. Si el flete 1 ya está pagado, lo que quede del lote 1 es ganancia pura.
+- Lo que no se vendió de un lote viejo **no se pierde**: sigue con su lote hasta venderse.
+- El precio **no se cambia solo** cuando el flete sube o baja: el sistema avisa y el dueño decide.
+
+### Aclaración de la duda 3 (ventas viejas)
+No quedan «sin flete»: quedan **sin lote**. Las ventas ya hechas guardan el costo y la ganancia de ese día, **pero no guardan de qué viaje de compra salió cada pieza**, y no hay forma confiable de reconstruirlo. Por eso, para esas ventas el reporte sigue mostrando el **flete estimado** que ya muestra hoy (flete por pieza del último cálculo × piezas vendidas). Solo las ventas **nuevas**, hechas después de activar los lotes, se marcan con su lote y su flete real. **Opcional a futuro:** una pantalla para asignar a mano un lote a ventas viejas si el dueño quiere recuperar ese historial.
+
+### Aviso importante antes de construir la fase 2 (ventas)
+La calculadora de precio tiene la casilla «Poner también el costo total en Precio de compra». Si el dueño la marca, el **costo guardado ya incluye el flete**; entonces, al descontar el flete aparte, se contaría **doble**. Antes de tocar el flujo de venta hay que revisar cómo se guarda `precio_costo` en cada línea de venta y decidir si el flete se separa del costo.
+
+### Modelo mínimo propuesto (del asesor, ajustado a las respuestas)
+- `compra_lote`: id, nombre, fecha_compra, flete_total, nota, estado (abierto/cubierto/cerrado).
+- `compra_lote_gasto`: id, lote_id, concepto, monto, cuenta_para_cubrir (opcional).
+- `compra_lote_producto`: id, lote_id, producto_id, variante_id (si aplica), piezas_compradas, piezas_restantes, costo_unitario, flete_por_pieza.
+- `venta_detalle_lote`: detalle_venta_id, lote_producto_id, cantidad, flete_aplicado, flete_contado_como_ganancia (para el reporte histórico).
+- Lote especial «Inventario inicial» (flete $0) para el stock que ya existe hoy.
+- Migración mínima: crear las tablas y cargar el inventario inicial; no se modifica ninguna tabla ni dato existente.
+
+### Fases (solo `dev`/`qa` primero; producción con orden expresa)
+1. **Registrar lotes** (solo juguetes): pantalla para crear el viaje (flete total, gastos opcionales) y los productos/piezas que trajo. No toca ventas.
+2. **Marcar la venta con su lote** (PEPS), guardar el flete aplicado y el que ya cuenta como ganancia; devoluciones regresan la pieza a su lote y liberan su flete.
+3. **Reporte por lote** (y columnas nuevas en el reporte por categoría): costo a cubrir, recuperado, falta por cubrir, estado, ganancia con y sin flete.
+4. Ligar la calculadora de precio al lote y extenderlo a todas las categorías.
+
+### Pendiente por confirmar con el dueño cuando se retome
+- Que el «flete asignado por pieza» sea el que usó al calcular el precio (puede sumar más que el flete total; el exceso es ganancia).
+- ¿Quiere la pantalla opcional para asignar lote a ventas viejas?
+- Si se activa la casilla «poner costo total en Precio de compra», ¿se separa el flete del costo para no contarlo doble?
+

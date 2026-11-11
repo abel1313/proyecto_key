@@ -8,5 +8,6 @@ public record TotalesReporte(int productos, int productosVendidos, int productos
                              long piezasPorVender, BigDecimal gananciaPorVender, BigDecimal gananciaTotal,
                              BigDecimal gananciaPorVenderRebaja, BigDecimal gananciaPorVenderCampana,
                              BigDecimal gananciaTotalRebaja, BigDecimal gananciaTotalCampana,
-                             BigDecimal fleteVendido, BigDecimal fleteEnStock) {
+                             BigDecimal fleteVendido, BigDecimal fleteEnStock,
+                             BigDecimal sumaCompra, BigDecimal sumaVenta, BigDecimal sumaRebaja, BigDecimal sumaCampana) {
 }
