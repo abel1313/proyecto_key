@@ -23792,6 +23792,13 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+**A qué precio se vendió cada cosa + reporte «Ventas» (2026-11-11):**
+- **Qué cambia en el back:** cada línea vendida ahora guarda `tipo_precio` (en `detalle_venta_variantes`): `VENTA` (precio normal), `REBAJA` (precio con descuento), `CAMPANA`, `GRUPO` (precio por cantidad), `PROMOCION` u `OTRO`. Se llena en Venta directa y al convertir Pedido/Abono en venta; **no cambia ningún contrato** del front. Migración: `migration_tipo_precio_venta.sql` (córrela antes de desplegar el back).
+- **Ventas anteriores:** no lo guardaban. El reporte las **clasifica estimando**: compara el precio cobrado con los precios actuales del producto/artículo (rebaja → `REBAJA`, normal → `VENTA`, campaña → `CAMPANA`, otro monto → `OTRO`) y las cuenta en `piezasEstimadas`. Si el precio del producto cambió desde entonces, esa estimación puede equivocarse (por eso se marca).
+- **Request nuevo:** `GET /mis-productos/v1/reportes/ventas/por-categoria?...&tipoReporte=COMPLETO|VENTAS` (por defecto `COMPLETO`, igual que antes) y `POST .../generar` con `tipoReporte` en el body. Inválido → **400** con `mensaje`.
+- **Response (cada fila de `filas[]` y `totales`) trae además:** `piezasVenta`, `montoVenta`, `piezasRebaja`, `montoRebaja`, `piezasCampana`, `montoCampana`, `piezasOtro`, `montoOtro`, `piezasEstimadas` (lo vendido repartido por tipo de precio; `GRUPO` y `PROMOCION` cuentan en «otro»). Siempre vienen, con cualquier `tipoReporte`; el tipo solo cambia las columnas y tarjetas del **Excel/PDF** (el de ventas: producto, piezas, total, ganancia, % real y piezas/$ por venta · rebaja · campaña · otro, más «piezas con tipo estimado»).
+- **Diferencia clave:** antes no se sabía a cómo se vendió cada cosa; ahora el reporte «Ventas» lo dice y suma los 4 tipos.
+
 ### `GET /mis-productos/v1/reportes/ventas/por-categoria` — el reporte en pantalla (paginado, solo lectura: no guarda nada)
 Params: `desde`, `hasta` (yyyy-MM-dd, obligatorios), `categoria`, `sinCategoria`, `productoIds`, `vista`, `pagina` (desde 1), `size` (máx. 100).
 Response `data`: `{ descripcion, pagina, totalPaginas, totalRegistros, filas[], totales }`.

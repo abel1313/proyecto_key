@@ -767,6 +767,7 @@ tabla de arriba. Orden en que se corren en `inventario_key` (prod), **antes** de
 | 16 | `migration_campana_persona_cliente.sql` | Agrega `cliente_id` y `cliente_sin_registro_id` (NULL, con índices y llaves `ON DELETE SET NULL` hacia `clientes` y `clientes_sin_registro`) a `campana_persona`. Solo agrega. Sin ella el back de campañas **falla al leer personas** (la entidad ya pide las columnas): correrla **antes** de subir el back que la usa. Requiere la 15 | 2026-11-08 |
 | 17 | `migration_calculo_precio.sql` | Crea `producto_calculo_precio` (por pieza: compra, transporte, otros, comisión de tarjeta elegida, margen, precio calculado y precio cobrado, casilla de si se actualizó el «Precio de compra», nota, usuario y fecha; se borra sola si se borra el producto). Sin ella la calculadora de precio funciona igual y solo no se guarda el historial | 2026-11-09 |
 | 18 | `migration_reporte_categoria.sql` | Crea `reporte_generado` (reportes Excel/PDF que el administrador pide y el back arma en segundo plano: estado, archivo en binario y vencimiento a 7 días; el job nocturno `ReporteLimpiezaScheduler` borra los vencidos). **Sin ella falla pedir el Excel/PDF**; el reporte en pantalla funciona igual **Ya corrida en QA (2026-11-10).** En producción todavía no se corre y no afecta: la tabla solo la usa el reporte nuevo, que aún no está en producción (correrla ahí cuando el reporte suba) | 2026-11-10 |
+| 19 | `migration_tipo_precio_venta.sql` | Agrega `detalle_venta_variantes.tipo_precio` (VARCHAR 12, NULL): a qué precio se vendió cada línea — `VENTA`, `REBAJA`, `CAMPANA`, `GRUPO`, `PROMOCION` u `OTRO`. Idempotente. **Córrela ANTES de desplegar el back** (la entidad ya mapea la columna: sin ella fallan las ventas nuevas). Las ventas anteriores quedan en NULL y el reporte «Ventas» las estima | 2026-11-11 |
 
 Después de correrlas: **volver a entrar** (los permisos viajan en el JWT) y revisar con las consultas
 de verificación que trae cada script al final.
@@ -1088,7 +1089,7 @@ base64 — nombre heredado de cuando sí se guardaba el binario en la BD.
 *Backups:* `producto_imagen_copy_bkp_20260811` · `variante_imagen_bkp_20260811`
 
 **Ventas y pedidos**
-`ventas` · `detalle_venta` · `detalle_venta_variantes` · `pedidos` · `detalle_pedidos` · `abono_pedido` · `grupo_pedido` (entidad `GrupoPedido`) · `grupo_pedido_miembro` (entidad `GrupoPedidoMiembro`) · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
+`ventas` · `detalle_venta` · `detalle_venta_variantes` (columna `tipo_precio`: a qué precio se vendió la línea) · `pedidos` · `detalle_pedidos` · `abono_pedido` · `grupo_pedido` (entidad `GrupoPedido`) · `grupo_pedido_miembro` (entidad `GrupoPedidoMiembro`) · `detalle_pagos` · `tipo_pago` · `pagos_y_meses` · `meses_intereses` · `iva_terminal` · `tarifa_terminal` · `mp_payment_intent`
 
 **Clientes**
 `clientes` · `clientes_sin_registro` · `direcciones` · `codigo_postal` (entidad `CodigoPostalGuardado`: códigos postales ya consultados al servicio externo, con municipio, estado y colonias en JSON; dominio `codigopostal`)

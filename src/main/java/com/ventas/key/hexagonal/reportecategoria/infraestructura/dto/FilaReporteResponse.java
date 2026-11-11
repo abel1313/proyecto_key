@@ -13,7 +13,9 @@ public record FilaReporteResponse(int productoId, String nombre, String codigoBa
                                   BigDecimal fletePorPieza, boolean sinFlete,
                                   int porVender, BigDecimal gananciaPorVender, BigDecimal gananciaPorVenderRebaja, BigDecimal gananciaPorVenderCampana,
                                   BigDecimal gananciaTotal, BigDecimal gananciaTotalRebaja, BigDecimal gananciaTotalCampana,
-                                  BigDecimal fleteEnLoVendido, BigDecimal fleteEnStock) {
+                                  BigDecimal fleteEnLoVendido, BigDecimal fleteEnStock,
+                                  long piezasVenta, BigDecimal montoVenta, long piezasRebaja, BigDecimal montoRebaja,
+                                  long piezasCampana, BigDecimal montoCampana, long piezasOtro, BigDecimal montoOtro, long piezasEstimadas) {
 
     public static FilaReporteResponse de(FilaReporte f) {
         FilaBase b = f.base();
@@ -25,6 +27,8 @@ public record FilaReporteResponse(int productoId, String nombre, String codigoBa
                 Math.max(0, b.stock()), f.gananciaPorVender(), f.gananciaPorVenderRebaja(), f.gananciaPorVenderCampana(),
                 b.ganancia().add(f.gananciaPorVender()), b.ganancia().add(f.gananciaPorVenderRebaja()), b.ganancia().add(f.gananciaPorVenderCampana()),
                 com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.fleteDeLoVendido(f),
-                com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.fleteEnStock(f));
+                com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReglasReporte.fleteEnStock(f),
+                b.piezasVenta(), b.montoVenta(), b.piezasRebaja(), b.montoRebaja(),
+                b.piezasCampana(), b.montoCampana(), b.piezasOtro(), b.montoOtro(), b.piezasEstimadas());
     }
 }
