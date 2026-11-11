@@ -49,6 +49,20 @@ public class ViajeController {
         return ejecutar(() -> new ResponseGeneric<>(viajes.deProducto(productoId).stream().map(ViajeResponse::de).toList()));
     }
 
+    /** El reporte de todos los viajes (la lista de la pantalla Fletes con su barra de «recuperado»). La lista va en {@code lista}. */
+    @GetMapping("/reportes")
+    public ResponseEntity<ResponseGeneric<ReporteDeViajeResponse>> reportes() {
+        try {
+            return ResponseEntity.ok(new ResponseGeneric<>(reportes.todos().stream().map(ReporteDeViajeResponse::de).toList()));
+        } catch (RuntimeException e) {
+            log.error("Error en los reportes de viajes", e);
+            ResponseGeneric<ReporteDeViajeResponse> r = new ResponseGeneric<>((ReporteDeViajeResponse) null);
+            r.setCode(500);
+            r.setMensaje("No se pudieron armar los reportes de los viajes.");
+            return ResponseEntity.status(500).body(r);
+        }
+    }
+
     /** Cómo va el viaje: flete recuperado, lo que falta, desde qué venta se pagó, lo vendido y lo que queda. Solo lectura. */
     @GetMapping("/{id}/reporte")
     public ResponseEntity<ResponseGeneric<ReporteDeViajeResponse>> reporte(@PathVariable int id) {

@@ -270,3 +270,11 @@ tienda y el chat en vivo no pasan por ese filtro. Para corregirlo:
 Es un cambio chico (2 archivos más la lista) y no cambia nada para el cliente mientras la IA obedezca.
 
 Prueba en QA: `PRUEBAS_PENDIENTES_2026-10-13.md`, **Prueba 28**.
+
+---
+
+## PENDIENTE (anotado 2026-11-11): el chat trata como visitante al administrador cuando su token ya venció
+
+**Qué pasa:** el endpoint del chat (`/v1/chatbot/mensaje` y `/v1/chatbot/buscar`) es público. El admin recibe el nombre exacto y el código de barras **solo si** el back detecta su sesión por el token (`ChatbotController.tieneInfoCompleta()`, rol `ROLE_ADMIN`, ajustable con `chatbot.info-completa.roles`). El token de acceso dura 15 minutos. Si ya venció, `JwtAuthenticationFilter` lo ignora en silencio (no responde 401 en rutas públicas) y el chat trata al admin como visitante: «no puedo darte el código de barras». El front solo renueva el token cuando recibe un 401 (`TokenInterceptor`), y aquí nunca llega, así que sigue así hasta que otra pantalla provoque la renovación.
+**Cómo se comprobó (2026-11-11):** el dueño renovó la sesión (Ctrl+F5 / abrir otra pantalla) y el chat sí le dio el código. No hubo cambio de código; el reglamento del back no cambió.
+**Arreglo propuesto (no hecho):** en el front, antes de mandar un mensaje al chat, si hay sesión y el access token está vencido o por vencer, renovarlo primero (misma función `renovarAccessToken` del interceptor) y luego mandar el mensaje. Solo front; no toca el back ni los permisos. Probar: dejar pasar 15 min, pedir un código de barras como admin → lo da sin recargar.

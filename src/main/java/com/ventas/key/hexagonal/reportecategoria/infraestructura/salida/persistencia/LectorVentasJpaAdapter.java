@@ -25,6 +25,10 @@ public class LectorVentasJpaAdapter implements LectorVentasPort {
     @PersistenceContext
     private EntityManager em;
 
+    /** Sin la migración de ventas-viajes no hay flete real: todo sale con el estimado y el reporte funciona igual. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ventas.key.hexagonal.preciocantidad.infraestructura.salida.persistencia.TablasDisponibles tablas;
+
     @Override
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
@@ -99,6 +103,7 @@ public class LectorVentasJpaAdapter implements LectorVentasPort {
         else if (f.categoria() != null) q.setParameter("categoria", f.categoria());
 
         List<Object[]> filas = q.getResultList();
+        java.util.Map<Integer, Object[]> reales = fletesReales(f);
         List<FilaBase> salida = new ArrayList<>(filas.size());
         for (Object[] r : filas) {
             salida.add(new FilaBase(
@@ -108,9 +113,40 @@ public class LectorVentasJpaAdapter implements LectorVentasPort {
                     ((Number) r[9]).longValue(), ((Number) r[10]).longValue(),
                     dinero0(r[11]), dinero0(r[12]), dinero0(r[13]),
                     ((Number) r[14]).longValue(), ((Number) r[15]).longValue(), ((Number) r[16]).longValue(), ((Number) r[17]).longValue(),
-                    dinero0(r[18]), dinero0(r[19]), dinero0(r[20]), dinero0(r[21]), ((Number) r[22]).longValue()));
+                    dinero0(r[18]), dinero0(r[19]), dinero0(r[20]), dinero0(r[21]), ((Number) r[22]).longValue(),
+                    reales.containsKey(((Number) r[0]).intValue()) ? dinero0(reales.get(((Number) r[0]).intValue())[1]) : BigDecimal.ZERO.setScale(2),
+                    reales.containsKey(((Number) r[0]).intValue()) ? ((Number) reales.get(((Number) r[0]).intValue())[2]).longValue() : 0L));
         }
         return salida;
+    }
+
+    /** Flete REAL de lo vendido en el periodo, por producto: lo guardado al ligar cada venta a su viaje (flete por pieza × piezas). Vacío si no hay migración. */
+    @SuppressWarnings("unchecked")
+    private java.util.Map<Integer, Object[]> fletesReales(FiltroReporte f) {
+        java.util.Map<Integer, Object[]> mapa = new java.util.HashMap<>();
+        if (!tablas.existe("venta_detalle_lote")) {
+            return mapa;
+        }
+        try {
+            Query q = em.createNativeQuery("""
+                    SELECT clp.producto_id, SUM(vdl.cantidad * vdl.flete_por_pieza), SUM(vdl.cantidad)
+                    FROM venta_detalle_lote vdl
+                    JOIN compra_lote_producto clp ON clp.id = vdl.compra_lote_producto_id
+                    JOIN detalle_venta_variantes d ON d.id = vdl.detalle_venta_variante_id
+                    JOIN ventas ve ON ve.id = d.venta_id
+                    WHERE ve.fecha_venta >= :desde AND ve.fecha_venta < :hastaExcl AND COALESCE(ve.estado_venta, '') <> 'Devuelta'
+                    GROUP BY clp.producto_id
+                    """);
+            q.setParameter("desde", f.desde().atStartOfDay());
+            q.setParameter("hastaExcl", f.hasta().plusDays(1).atStartOfDay());
+            for (Object[] r : (List<Object[]>) q.getResultList()) {
+                mapa.put(((Number) r[0]).intValue(), r);
+            }
+        } catch (RuntimeException e) {
+            // El reporte es de lectura: si el flete real no se puede leer, se usa el estimado.
+            mapa.clear();
+        }
+        return mapa;
     }
 
     private static BigDecimal dinero(Object o) {
