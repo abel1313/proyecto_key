@@ -2,6 +2,9 @@ package com.ventas.key.hexagonal.flete.infraestructura.config;
 
 import com.ventas.key.hexagonal.flete.aplicacion.servicio.AdministrarViajesService;
 import com.ventas.key.hexagonal.flete.aplicacion.servicio.AsignarViajeAVentaService;
+import com.ventas.key.hexagonal.flete.aplicacion.servicio.LigarVentasAnterioresService;
+import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.LigarVentasAnterioresCasoUso;
+import com.ventas.key.hexagonal.flete.dominio.puerto.salida.LigasManualesPort;
 import com.ventas.key.hexagonal.flete.aplicacion.servicio.ConsultarReporteDeViajeService;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.AdministrarViajesCasoUso;
 import com.ventas.key.hexagonal.flete.dominio.puerto.entrada.ConsultarReporteDeViajeCasoUso;
@@ -28,5 +31,10 @@ public class FleteBeans {
     @Bean
     public ConsultarReporteDeViajeCasoUso consultarReporteDeViajeCasoUso(ViajesPort viajes, VentasDeViajePort ventas) {
         return new ConsultarReporteDeViajeService(viajes, ventas);
+    }
+
+    @Bean
+    public LigarVentasAnterioresCasoUso ligarVentasAnterioresCasoUso(LigasManualesPort ligas) {
+        return new LigarVentasAnterioresService(ligas);
     }
 }

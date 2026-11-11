@@ -43,3 +43,22 @@ Nota: **esta entrega NO trae todavía el botón «🧪 Preparar prueba»** (los 
 
 ## Prueba 7 — Sin migración no se rompe (opcional, solo si tienes una base sin la tabla)
 Con una base que no tenga `venta_detalle_lote`: las ventas se guardan igual y el reporte del viaje responde con 0 piezas vendidas.
+
+---
+
+# Entrega 3 — ligar ventas anteriores, calculadora y bloque en el producto
+
+## Prueba 8 — Ligar ventas anteriores a un viaje
+**Antes de empezar:** un producto P con un viaje «QA Flete C» de 5 piezas (flete 20 por pieza) y **dos ventas anteriores** de P hechas antes del viaje (o con P sin viaje), de 2 y 4 piezas (si ya tienes ventas viejas de P, sirven).
+**Pasos:** 1. Catálogo → Fletes → en «QA Flete C» toca «Ligar ventas anteriores». 2. Elige el producto P. 3. Toca «Llenar de la más vieja a la más nueva» y «Ligar al viaje».
+**✅ Debe pasar:** salen las ventas de P no devueltas con piezas sin ligar; se ligan máximo las piezas que le quedan al viaje (5); al guardar sale «Listo: se ligaron N pieza(s)»; en la tarjeta del viaje «Vendidas» sube y «Recuperado» crece con $20 por pieza; las ventas no cambian de total ni de ganancia.
+**⛔ No puede pasar:** que deje ligar más piezas de las que tiene la venta o las que le quedan al viaje; que aparezcan ventas devueltas.
+
+## Prueba 9 — Calculadora con el flete del viaje
+**Pasos:** Productos → Buscar → Actualizar el producto P (que está en un viaje) → «🧮 Calcular precio».
+**✅ Debe pasar:** el aviso «🚚 ya tiene su flete registrado» y debajo botones «Usar el flete de un viaje»; al tocar uno, «Transporte por pieza» se llena con el flete de ese viaje. La casilla «Poner también el costo total» arranca desmarcada; si la marcas, el aviso dice que el flete se contará dos veces.
+**⛔ No puede pasar:** que «Usar este precio» cambie el «Precio de compra» sin que marques la casilla.
+
+## Prueba 10 — Bloque «Viajes de compra» en Actualizar producto
+**Pasos:** abre Actualizar del producto P.
+**✅ Debe pasar:** aparece el bloque «🚚 Viajes de compra» con cada viaje (fecha, nombre, piezas, costo y flete por pieza). En un producto que no está en ningún viaje, el bloque no aparece. Es solo lectura.

@@ -23792,6 +23792,15 @@ Trae **el último cálculo de cada producto** (los que nunca tuvieron uno no sal
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+### 2026-11-11 — Fletes entrega 3: ligar a mano ventas anteriores a un viaje — solo ROLE_ADMIN
+Sin migración nueva (usa `venta_detalle_lote` de la entrega 1; sin ella responde 400 «Falta correr la migración…» al ligar y lista vacía al buscar). `SecurityConfig`: `/v1/fletes/**` → ADMIN.
+- `GET /mis-productos/v1/fletes/ligas/sin-viaje?productoId=&desde=&hasta=` (fechas `yyyy-MM-dd`, opcionales) → `lista[]` de líneas de venta del producto con piezas aún sin ligar, de la más vieja a la más nueva (máx. 500): `{ detalleVentaId, ventaId, fecha, cantidad, pendientes, precioUnitario }`. No salen ventas «Devuelta». Vacía → `code 404`.
+- `POST /v1/fletes/{viajeId}/ligar` body `{ productoId, ligas: [{ detalleVentaId, cantidad }] }` → `data` = piezas ligadas. Guarda cada liga con `origen = MANUAL` y el **flete por pieza de ese viaje**; **no cambia la venta** (total, ganancia, stock). **400** con `mensaje` si: no hay ligas, cantidad < 1, línea repetida, la línea no es del producto / está devuelta / ya no tiene piezas por ligar, la cantidad pasa de lo pendiente de la línea, el total pasa de las piezas que le quedan al producto en ese viaje, o el producto no está en el viaje. Todo o nada (una sola transacción).
+- `DELETE /v1/fletes/ligas/{ligaId}` → deshace una liga **manual** (400 si no existe o es automática). Sin pantalla todavía: solo el endpoint.
+**Diferencia clave:** antes las ventas hechas antes de los viajes se quedaban con el flete estimado; ahora se pueden ligar a su viaje y el reporte usa el flete real.
+
+**Front (mismo día):** Fletes → «Ligar ventas anteriores» en cada viaje; calculadora de precio con botones «Usar el flete de un viaje» (solo para calcular el precio; el aviso de duplicado ahora solo salta con la casilla «Poner también el costo total»); Actualizar producto con el bloque de solo lectura «🚚 Viajes de compra».
+
 ### 2026-11-11 — Fletes entrega 2: flete REAL en el reporte por categoría y avance de cada viaje — solo ROLE_ADMIN
 Sin migración nueva. Sin `venta_detalle_lote` (migración de la entrega 1) todo sale como antes: flete estimado, `fleteReal` 0 y `piezasSinViaje` = piezas vendidas.
 
