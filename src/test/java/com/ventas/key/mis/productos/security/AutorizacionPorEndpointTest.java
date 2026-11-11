@@ -68,6 +68,7 @@ class AutorizacionPorEndpointTest {
                 new Ruta(HttpMethod.GET, "/v1/fletes/1/reporte/archivo"),
                 new Ruta(HttpMethod.GET, "/v1/fletes/ligas/sin-viaje"),
                 new Ruta(HttpMethod.POST, "/v1/fletes/1/ligar"),
+                new Ruta(HttpMethod.GET, "/v1/fletes/1/ligas"),
                 new Ruta(HttpMethod.DELETE, "/v1/fletes/ligas/1"),
                 new Ruta(HttpMethod.PUT, "/v1/fletes/1"),
                 new Ruta(HttpMethod.DELETE, "/v1/fletes/1"),

@@ -7,6 +7,11 @@ el día que se decida. Lo más nuevo va arriba.
 Formato de cada entrada:
 
 ```
+### 2026-11-11 — Fletes: GET /v1/fletes/{id}/ligas (ligas manuales del viaje)
+**Dónde:** `LigasManualesController.ligasDelViaje` → `LigasManualesJdbcAdapter.ligasManualesDe`
+**Tipo:** MySQL (SQL nativo con JOIN)
+**Debe comprobar:** devuelve solo `origen='MANUAL'` del viaje pedido, excluye ventas Devueltas, orden más nueva primero; viaje sin ligas → lista vacía; sin la migración de ventas → lista vacía; solo ROLE_ADMIN.
+
 ### 2026-11-11 — Fletes entrega 5: filtro «Otros» (sin categoría) en admin/filtrar
 **Dónde:** `ProductosControllerImpl.filtrarProductosAdmin` → `ProductosServiceImpl.filtrarProductosAdmin` → `IProductosRepository.buscarProductosAdmin` (param `sinCategoria`, también en la llave del caché)
 **Tipo:** MySQL/H2 (consulta)

@@ -187,6 +187,13 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 5. En el mismo panel, elige un viaje en **«Importar los productos de un viaje (flete)»** y pulsa **Importar**: sus productos entran a la campaña (los que ya estaban no se repiten); quita uno con ✕ y agrega otro a mano: funciona igual que siempre.
 ⛔ No puede pasar: productos duplicados, error al importar, «Otros» mostrando productos con categoría.
 
+## 4.2 Prueba extra — deshacer una liga manual
+
+1. En **Catálogo → Fletes**, abre «Ligar ventas anteriores» de un viaje y liga una venta (como en la prueba de ligar).
+2. Debajo aparece la tabla **«Ligas hechas a mano en este viaje»** con esa venta.
+3. Pulsa **↩ Deshacer** y confirma: la liga desaparece, la venta vuelve a salir en «Buscar ventas» con sus piezas pendientes y la barra de «recuperado» del viaje baja.
+⛔ No puede pasar: que aparezcan ligas hechas automáticamente al vender, o que cambie el total o la ganancia de la venta.
+
 ## 5. Cómo ver lo que el sistema anotó (opcional, en MySQL de QA)
 
 ```sql
@@ -203,7 +210,6 @@ ORDER BY v.id DESC LIMIT 20;
 
 ## 6. Lo que todavía NO hace (para que no lo esperes)
 
-- **No hay botón para deshacer una liga manual** en la pantalla (el sistema sí lo permite; si te equivocas, avísame y lo corrijo).
 - **El reporte por categoría no se filtra por viaje**; para ver un viaje usa la tarjeta de Fletes o su Excel/PDF.
 - **Las pruebas todavía no se arman solas** (el botón «🧪 Preparar prueba» no está hecho para fletes): los datos se crean a mano como arriba.
 - **El stock de antes de los viajes es una aproximación:** el sistema no guarda de qué viaje es cada pieza física. Si ajustas el stock a mano o hay piezas que salen sin venta (rifas, bajas), la cuenta de «piezas sin viaje» puede salir distinta de la real.

@@ -1,6 +1,7 @@
 package com.ventas.key.hexagonal.flete.infraestructura.salida.persistencia;
 
 import com.ventas.key.hexagonal.flete.dominio.modelo.LigaManual;
+import com.ventas.key.hexagonal.flete.dominio.modelo.LigaManualDelViaje;
 import com.ventas.key.hexagonal.flete.dominio.modelo.LineaSinViaje;
 import com.ventas.key.hexagonal.flete.dominio.modelo.RenglonParaLigar;
 import com.ventas.key.hexagonal.flete.dominio.puerto.salida.LigasManualesPort;
@@ -114,6 +115,25 @@ public class LigasManualesJdbcAdapter implements LigasManualesPort {
             jdbc.update("INSERT INTO venta_detalle_lote (detalle_venta_variante_id, compra_lote_producto_id, cantidad, flete_por_pieza, origen, fecha_creacion) "
                     + "VALUES (?, ?, ?, ?, 'MANUAL', ?)", l.detalleVentaId(), renglonId, l.cantidad(), fletePorPieza == null ? BigDecimal.ZERO : fletePorPieza, ahora);
         }
+    }
+
+    @Override
+    public List<LigaManualDelViaje> ligasManualesDe(int viajeId) {
+        return jdbc.query("""
+                SELECT vdl.id AS lid, ve.id AS vid, d.id AS did, ve.fecha_venta AS fecha, clp.producto_id AS pid, p.nombre AS producto,
+                       vdl.cantidad AS cantidad, vdl.flete_por_pieza AS flete
+                FROM venta_detalle_lote vdl
+                JOIN compra_lote_producto clp ON clp.id = vdl.compra_lote_producto_id
+                JOIN producto p ON p.id = clp.producto_id
+                JOIN detalle_venta_variantes d ON d.id = vdl.detalle_venta_variante_id
+                JOIN ventas ve ON ve.id = d.venta_id
+                WHERE clp.lote_id = ? AND vdl.origen = 'MANUAL' AND COALESCE(ve.estado_venta, '') <> 'Devuelta'
+                ORDER BY ve.fecha_venta DESC, vdl.id DESC LIMIT 500
+                """, (rs, n) -> {
+            Timestamp f = rs.getTimestamp("fecha");
+            return new LigaManualDelViaje(rs.getInt("lid"), rs.getInt("vid"), rs.getInt("did"), f == null ? null : f.toLocalDateTime(),
+                    rs.getInt("pid"), rs.getString("producto"), rs.getInt("cantidad"), rs.getBigDecimal("flete"));
+        }, viajeId);
     }
 
     @Override
