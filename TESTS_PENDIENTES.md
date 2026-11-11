@@ -16,6 +16,17 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-11 — Fletes entrega 3: ligar a mano ventas anteriores (back)
+**Dónde:** `hexagonal/flete/**` (`ReglasLigaManual`, `LigarVentasAnterioresService`, `LigasManualesJdbcAdapter`, `LigasManualesController`).
+**Tipo:** unitario (reglas) + JPA/JDBC (H2) + permisos (ya en `AutorizacionPorEndpointTest`).
+**Debe comprobar:**
+- [ ] Producto con viaje de 5 piezas y ventas viejas de 3 y 4 piezas (y una devuelta de 2): solo salen las dos no devueltas; el filtro de fechas funciona (día inicial y final incluidos).
+- [ ] Ligar 3 de la línea A y 1 de la B → 4 piezas, filas `MANUAL` con el flete por pieza del viaje; la línea B queda con 3 pendientes; al viaje le queda 1.
+- [ ] Rechazos (400 con mensaje): más de lo pendiente de la línea, más de lo que queda del viaje, línea devuelta, línea repetida, producto que no está en el viaje, lista vacía, cantidad < 1.
+- [ ] Deshacer: solo las manuales; una automática responde 400.
+- [ ] Sin la tabla `venta_detalle_lote`: buscar devuelve lista vacía y ligar responde 400 con el aviso de la migración (nunca 500).
+- [ ] Lo ligado a mano entra en el reporte del viaje y en el flete real del reporte por categoría; las ventas automáticas posteriores respetan lo ya ligado (restantes del renglón).
+
 ### 2026-11-11 — Fletes entrega 2: flete real en el reporte por categoría y reportes de todos los viajes (back)
 **Dónde:** `LectorVentasJpaAdapter` (`fletesReales`), `FilaBase` (`fleteReal`, `piezasConViaje`), `ReglasReporte` (`fleteDeLoVendido`, `piezasSinViaje`), `ColumnasReporte`/`TarjetasReporte`, `FilaReporteResponse`, `ConsultarReporteDeViajeService.todos`, `ViajeController` (`/reportes`).
 **Tipo:** unitario (reglas) + JPA (H2) del lector + Excel/PDF.
