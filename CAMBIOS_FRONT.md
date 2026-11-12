@@ -23551,6 +23551,58 @@ Los renglones son **los que cobró el back** (no los de la pantalla). `conDescue
 
 **Filtro de categoría:** `categoria=JUGUETES` (sin importar mayúsculas) · `sinCategoria=true` = «Otros» (productos sin ninguna categoría) · ninguno = **todo** (con o sin categoría). `productoIds=1,2,3` = solo esos productos (ignora categoría y «Otros»; máx. 500). `vista`: `VENDIDOS` (piezas > 0), `NO_VENDIDOS` (piezas = 0) o `TODOS` (por defecto).
 
+### 2026-11-11 — Fletes entrega 4: reporte del viaje en Excel y PDF — solo ROLE_ADMIN
+Sin migración. **`GET /mis-productos/v1/fletes/{id}/reporte/archivo?formato=XLSX|PDF`** (por defecto `XLSX`) → **bytes** (Content-Type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` o `application/pdf`, `Content-Disposition: attachment`, nombre `reporte-viaje-{id}.xlsx|pdf`). Se arma al momento (no es asíncrono: un viaje es chico). **400** si el formato no es XLSX/PDF o el viaje ya no existe; 500 si falla al armarlo. Contenido: banda con el nombre del negocio, datos del viaje, tarjetas (flete total, costo a cubrir, recuperado, falta, piezas, total vendido, ganancia vendida, flete ya ganancia), gastos, tabla de productos (compradas, vendidas, quedan, total vendido) y tabla de **ventas ligadas** en el orden en que se recuperó el flete (flete por pieza, recuperado, ya ganancia, total vendido) con fila de totales.
+**Front:** botones «⬇ Excel» y «⬇ PDF» en cada tarjeta de Fletes (descarga con blob, igual que el reporte por categoría).
+**Diferencia clave:** antes un viaje solo se veía en pantalla; ahora se baja como reporte por flete (no por categoría).
+
+### 2026-11-11 — Fletes entrega 3: ligar a mano ventas anteriores a un viaje — solo ROLE_ADMIN
+Sin migración nueva (usa `venta_detalle_lote` de la entrega 1; sin ella responde 400 «Falta correr la migración…» al ligar y lista vacía al buscar). `SecurityConfig`: `/v1/fletes/**` → ADMIN.
+- `GET /mis-productos/v1/fletes/ligas/sin-viaje?productoId=&desde=&hasta=` (fechas `yyyy-MM-dd`, opcionales) → `lista[]` de líneas de venta del producto con piezas aún sin ligar, de la más vieja a la más nueva (máx. 500): `{ detalleVentaId, ventaId, fecha, cantidad, pendientes, precioUnitario }`. No salen ventas «Devuelta». Vacía → `code 404`.
+- `POST /v1/fletes/{viajeId}/ligar` body `{ productoId, ligas: [{ detalleVentaId, cantidad }] }` → `data` = piezas ligadas. Guarda cada liga con `origen = MANUAL` y el **flete por pieza de ese viaje**; **no cambia la venta** (total, ganancia, stock). **400** con `mensaje` si: no hay ligas, cantidad < 1, línea repetida, la línea no es del producto / está devuelta / ya no tiene piezas por ligar, la cantidad pasa de lo pendiente de la línea, el total pasa de las piezas que le quedan al producto en ese viaje, o el producto no está en el viaje. Todo o nada (una sola transacción).
+- `DELETE /v1/fletes/ligas/{ligaId}` → deshace una liga **manual** (400 si no existe o es automática). Sin pantalla todavía: solo el endpoint.
+**Diferencia clave:** antes las ventas hechas antes de los viajes se quedaban con el flete estimado; ahora se pueden ligar a su viaje y el reporte usa el flete real.
+
+**Front (mismo día):** Fletes → «Ligar ventas anteriores» en cada viaje; calculadora de precio con botones «Usar el flete de un viaje» (solo para calcular el precio; el aviso de duplicado ahora solo salta con la casilla «Poner también el costo total»); Actualizar producto con el bloque de solo lectura «🚚 Viajes de compra».
+
+### 2026-11-11 — Fletes entrega 2: flete REAL en el reporte por categoría y avance de cada viaje — solo ROLE_ADMIN
+Sin migración nueva. Sin `venta_detalle_lote` (migración de la entrega 1) todo sale como antes: flete estimado, `fleteReal` 0 y `piezasSinViaje` = piezas vendidas.
+
+**Reporte por categoría** (`GET /v1/reportes/ventas/por-categoria` y el Excel/PDF): cada fila de `filas[]` trae además `fleteReal` (flete de lo vendido en el periodo que salió de viajes: flete por pieza de cada viaje × piezas) y `piezasSinViaje` (piezas vendidas que no salieron de ningún viaje); `totales` trae `fleteReal` y `piezasSinViaje`. **Cambia `fleteEnLoVendido`** (y por tanto `fleteTotal`, `totales.fleteVendido` y la tarjeta «Flete»): ahora = `fleteReal` + (flete por pieza estimado × `piezasSinViaje`); antes era flete estimado × todas las piezas vendidas. El flete del stock sigue siendo estimado. El Excel/PDF traen dos columnas nuevas después de «¿Flete?»: «Flete real (viajes)» y «Piezas sin viaje».
+
+**Nuevo: `GET /mis-productos/v1/fletes/reportes`** → `lista[]` con el reporte de TODOS los viajes (mismo contenido que `GET /v1/fletes/{id}/reporte`; vacía → `code 404`). La pantalla Fletes lo usa para la barra «Recuperado $X de $Y», «falta», «ya es ganancia», piezas vendidas/restantes, cuándo se cubrió y el detalle por producto. Si falla, la lista se ve sin barras.
+
+### 2026-11-11 — Fletes entrega 1: cada venta se liga a su viaje + reporte por viaje (solo lectura) — solo ROLE_ADMIN
+Migración: `migration_flete_venta.sql` (tabla `venta_detalle_lote`; correr después de `migration_flete_lote.sql`). **Sin ella nada se rompe**: las ventas siguen y las piezas quedan «sin viaje».
+
+**Qué pasa ahora en el back (sin cambios de contrato en ventas):** al crear una línea de venta (venta directa, pedido cobrado y abono que liquida; en producción no existe todavía el cobro con tarjeta del módulo nuevo, así que ese camino no aplica), el sistema toma las piezas así: **primero las que ya había antes de los viajes («sin viaje», no llevan fila), después las del viaje más viejo que aún tenga**, y guarda cuántas piezas salieron de cada viaje y a cuánto flete por pieza. Si la venta se devuelve, sus piezas regresan al viaje. Si algo falla, la venta sigue sin viaje.
+
+**Cambia al editar/borrar un viaje (`PUT`/`DELETE /v1/fletes/{id}`):** el viaje con piezas vendidas **no se puede borrar** ni **quitarle un producto** ni **bajar sus piezas por debajo de lo vendido**: responde **400** con `mensaje` («No puedes quitar «X» del viaje: ya se vendieron N pieza(s)…», «…no puede tener menos de N pieza(s)», «Este viaje ya tiene N pieza(s) vendida(s): no se puede eliminar…»). Antes se borraban y recreaban los renglones; ahora se actualizan en su mismo renglón (el nombre, la fecha, el flete y los gastos sí se pueden cambiar siempre).
+
+**Nuevo: `GET /mis-productos/v1/fletes/{id}/reporte`** → `data`: `{ viajeId, nombre, fecha, estado, fleteTotal, costoACubrir, fleteRecuperado, faltaPorCubrir, fleteComoGanancia, pagadoConVentaId, pagadoEn, piezasCompradas, piezasVendidas, piezasRestantes, totalVendido, costoVendido, gananciaVendida, renglones[{ productoId, nombre, codigoBarras, piezasCompradas, piezasVendidas, piezasRestantes, totalVendido }] }`.
+- `estado`: `ABIERTO`, `FLETE_CUBIERTO` (lo recuperado ya llegó al costo a cubrir) o `VENDIDO_POR_COMPLETO` (ya no quedan piezas).
+- `fleteRecuperado` = lo que lo vendido ya recuperó, con tope en `costoACubrir`; `fleteComoGanancia` = flete de lo vendido **después** de cubrirlo (ya es ganancia). La línea que cruza el tope se parte. Todo se calcula al leer con la historia completa del viaje (orden por fecha de venta, id de venta, id de línea): una devolución o una edición puede mover «desde qué venta se pagó».
+- Las ventas «Devuelta» no cuentan. 400 si el viaje ya no existe.
+**Diferencia clave:** antes un viaje solo registraba piezas y flete; ahora dice cuánto se ha vendido de él, cuánto flete falta por cubrir y cuándo ya es ganancia.
+
+### 2026-11-11 — Fletes: viajes de compra (fase 1, solo registrar) — solo ROLE_ADMIN
+Migración: `migration_flete_lote.sql` (3 tablas + pantalla «Fletes» en Catálogo, ruta `productos/fletes`). **No cambia ventas, stock, costos ni reportes que ya existen.** `SecurityConfig`: `/v1/fletes/**` → `hasRole("ADMIN")`. Errores de las reglas: **400** con `mensaje` en palabras del dueño; conflicto de la base: **409**.
+
+**Un viaje:** `{ id, nombre, fecha (yyyy-MM-dd), fleteTotal, nota, gastos[{ concepto, monto, cuentaParaCubrir }], productos[{ productoId, piezas, costoUnitario, fletePorPieza }] }`. Un producto no se repite dentro del viaje (400).
+
+- `GET /mis-productos/v1/fletes` → `lista[]` de viajes, del más reciente al más viejo (vacía → `code 404`, convención de `ResponseGeneric`).
+- `GET /v1/fletes/{id}` → `data` (400 «Ese viaje ya no existe.»).
+- `POST /v1/fletes` body del viaje → `data` con el viaje guardado.
+- `PUT /v1/fletes/{id}` → reemplaza nombre, fecha, flete, nota y **toda** la lista de gastos y productos.
+- `DELETE /v1/fletes/{id}` → borra el viaje con sus gastos y productos (no cambia stock ni precios).
+- `GET /v1/fletes/por-producto/{productoId}` → `lista[]` de los viajes en los que llegó ese producto (para avisar antes de contar su flete dos veces). Vacía → no está en ninguno.
+
+**Cada viaje de la respuesta trae además, ya calculado:** `gastosTotal`, `costoACubrir` (= flete total + gastos marcados «cuenta para cubrir»), `fleteAsignado` (= Σ flete por pieza × piezas), `faltaAsignar` (= costo a cubrir − flete asignado; nunca negativo), `excedente` (flete repartido de más; es ganancia), `compraTotal` (= Σ costo × piezas, sin flete), `piezasTotal`, `fleteSugeridoPorPieza` (= costo a cubrir ÷ piezas). Cada producto trae `nombre`, `codigoBarras` y `fleteDelRenglon`.
+
+**Calculadora de precio (front):** si el producto ya está en un viaje, avisa «ya tiene su flete registrado» y, si se va a duplicar (transporte > 0 o «Poner también el costo total»), lo dice claro; la casilla de costo total arranca desmarcada. **Diferencia:** antes no existían los viajes; el flete solo se capturaba por producto en la calculadora.
+
+**Nota:** ya existía la tabla `lotes_productos` (precio + stock por producto); es otra cosa y no se toca.
+
 **Campañas: precio de venta y de descuento de cada juguete (2026-11-11):** en la respuesta de campañas (`GET /v1/campanas`, `/v1/campanas/{id}`, y la que devuelven crear/editar), cada elemento de `productos[]` trae además `precioVenta` y `precioRebaja` (el precio con descuento del producto; puede ser `null` o 0 si no tiene). Son **solo para mostrar**: al guardar la campaña el front sigue mandando solo `productoId` y `precio`. Diferencia: antes solo venía el precio de campaña.
 
 **A qué precio se vendió cada cosa + reporte único con inversión y flete (2026-11-11):**
@@ -23583,3 +23635,26 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 
 **Totales de las columnas de precios (2026-11-11):** `totales` trae además `sumaCompra`, `sumaVenta`, `sumaRebaja` y `sumaCampana` = la suma de cada columna de precio de **todos** los productos del reporte (no solo de la página). `sumaRebaja` suma la columna tal como se ve (un producto sin rebaja cuenta 0) y `sumaCampana` solo suma los productos que están en una campaña. La fila de totales de la pantalla, del PDF y del Excel ya los muestra debajo de «Compra», «Venta», «Rebaja» y «Rebaja campaña».
 
+
+
+### Fletes entrega 5 (2026-11-11): buscar por categoría y «Otros», agregar una categoría completa, importar un viaje en Campañas
+**Request nuevo (opcional):** `GET /mis-productos/v1/productos/admin/filtrar?sinCategoria=true` — devuelve solo los productos **sin categoría** («Otros»). Gana sobre `categoria` si vienen las dos. Sin el parámetro todo funciona igual que antes (misma respuesta paginada `{ t, pagina, totalPaginas, totalRegistros }`).
+**Pantallas (solo front):**
+- **Catálogo → Fletes → Nuevo/Editar viaje → «Productos que llegaron en el viaje»:** selector de categoría (Todas / **Otros (sin categoría)** / cada categoría) junto al buscador; con categoría elegida se lista aunque no escribas nada, con páginas de 12. Botón **«＋ Agregar los N de esta búsqueda»** trae TODAS las páginas y agrega los que aún no están en el viaje (los que ya estaban se saltan, nunca se duplican) y reparte el flete por igual.
+- **Catálogo → Campañas → catálogo para agregar:** el selector de categoría ahora también tiene **Otros (sin categoría)**, y arriba de la lista un selector **«Importar los productos de un viaje (flete)»** que mete a la campaña todos los productos de ese viaje que no estén ya (cada uno con el mismo precio que tendría si se agregara a mano); después se pueden quitar o agregar a mano como siempre.
+
+**Fletes — el flete por pieza sale de lo guardado en «Calcular precio» (2026-11-11):** al agregar productos a un viaje (uno por uno, por categoría o con «Traer los productos de una campaña») cada uno llega con 1 pieza, su costo de compra de hoy y el flete por pieza que YA tiene guardado en su último cálculo de precio. Los que no tienen flete guardado quedan en $0 con la marca «sin flete guardado»; el botón **«Llenar el flete que falta»** reparte lo que todavía falta por cubrir (costo a cubrir − el flete de los demás) solo entre ellos, por pieza; si no se pulsa, quedan en $0 y lo que se venda de ellos es ganancia. Nada se calcula solo al agregar ni al cambiar piezas. Un producto ya agregado nunca se duplica. «Repartir el flete por igual» sigue existiendo y pisa todos.
+**Request nuevo:** `GET /mis-productos/v1/fletes/guardados?productoIds=1,2,3` (solo administrador; el front pide de 300 en 300). Lista en `lista`: `{ productoId, nombre, codigoBarras, precioCosto, stock, transporte }`; `transporte` 0 = sin flete guardado (también si el último cálculo tiene transporte 0). Los ids que no existen no salen.
+**Datos de prueba (solo QA):** Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba → «Preparar prueba F» crea 6 productos (3 con flete guardado, 3 sin), una campaña apagada con ellos y 2 ventas anteriores para ligar.
+
+### Fletes — deshacer ligas manuales (2026-11-11)
+**Request nuevo:** `GET /mis-productos/v1/fletes/{viajeId}/ligas` (solo administrador). Lista en `lista`: `{ ligaId, ventaId, detalleVentaId, fecha, productoId, producto, cantidad, fletePorPieza }` — solo las ligas hechas **a mano** de ese viaje (sin ventas devueltas), de la más nueva a la más vieja (máx. 500). Sin ligas → lista vacía.
+**Deshacer:** `DELETE /mis-productos/v1/fletes/ligas/{ligaId}` (ya existía): 200 con mensaje «Liga deshecha.»; 400 si no existe o no es manual (las automáticas no se tocan).
+**Pantalla:** Catálogo → Fletes → «Ligar ventas anteriores» → tabla «Ligas hechas a mano en este viaje» con botón **↩ Deshacer** (confirma, las piezas vuelven a «sin viaje», el reporte del viaje se recalcula; la venta no cambia).
+
+**Fletes — un solo flete entre el viaje y «Calcular precio» (2026-11-11, solo front, sin cambios de back):**
+- En Productos → Actualizar → «Calcular precio», si el producto está en un viaje, «Transporte por pieza» sale ya puesto con el flete del viaje que se está vendiendo ahora (el más viejo con piezas del producto por vender; si ninguno tiene, el más reciente) y dice «Tomado del viaje X». Nunca pisa lo que ya escribiste.
+- Si cambias ese número, aparece el aviso «el viaje dice $a y aquí pusiste $b». Es solo informativo.
+- Al «Usar este precio» y guardar el producto, si el flete difiere del viaje, se pregunta «¿Actualizar también el viaje?». Con «Sí» se manda `PUT /v1/fletes/{id}` con el viaje leído justo antes y solo el flete por pieza de ese producto cambiado; con «No» el viaje no se toca. Las ventas ya ligadas conservan su copia del flete.
+
+**Fletes — detalle de la card y columna «Piezas» (2026-11-12, solo front):** «Ver productos» en la card de un viaje ahora tiene su propio scroll (encabezado fijo) y un buscador por nombre o código, y ya no se sale de la card. En Editar viaje la columna «Piezas» se llama «Piezas del viaje»: son las que llegaron en ese viaje (sirven para repartir el flete y saber cuántas quedan por vender) y **no cambian el stock** del producto.

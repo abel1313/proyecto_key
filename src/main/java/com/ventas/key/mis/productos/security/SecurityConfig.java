@@ -618,6 +618,7 @@ public class SecurityConfig {
                         .requestMatchers("/v1/grupos-precio-cantidad/**").hasRole("ADMIN")
                         // Campañas (2026-11-07): configuración, activar, duplicar y consulta de la vigente; solo administrador.
                         .requestMatchers("/v1/campanas/**").hasRole("ADMIN")
+                        .requestMatchers("/v1/fletes/**").hasRole("ADMIN")
                         // Calcula a qué productos les toca su precio de grupo; con sesión (carrito del cliente y Venta directa del admin).
                         .requestMatchers(HttpMethod.POST, "/v1/precio-cantidad/calcular").authenticated()
                         .requestMatchers(HttpMethod.GET, "/v1/reportes/**").hasAnyAuthority(pantalla("reportes"))

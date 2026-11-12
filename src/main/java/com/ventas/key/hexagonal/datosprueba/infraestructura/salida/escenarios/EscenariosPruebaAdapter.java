@@ -342,6 +342,41 @@ public class EscenariosPruebaAdapter implements EscenariosPruebaPort {
     }
 
     @Override
+    public void fleteGuardado(int articuloId, double costoCompra, double transporte) {
+        int modelo = modeloDePrueba(articuloId);
+        jdbc.update("INSERT INTO producto_calculo_precio (producto_id, costo_compra, transporte, otros, comision_pct, margen_pct, precio_calculado, precio_cobrado, "
+                + "actualizo_precio_compra, nota, usuario, fecha) VALUES (?, ?, ?, 0, 0, 30, ?, ?, 0, 'Dato de prueba (fletes)', 'qa-prueba', NOW())",
+                modelo, costoCompra, transporte, Math.round((costoCompra + transporte) / 0.7), Math.round((costoCompra + transporte) / 0.7));
+    }
+
+    @Override
+    public int campanaDePrueba(String nombre, List<Integer> articuloIds, double precioCampana) {
+        List<Integer> modelos = new java.util.ArrayList<>();
+        for (int articuloId : articuloIds) {
+            modelos.add(modeloDePrueba(articuloId));
+        }
+        try {
+            jdbc.update("INSERT INTO campana (nombre, fecha_inicio, fecha_fin, activa, meta_monto, fecha_creacion) VALUES (?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 0, 500, NOW())", nombre);
+            Integer id = jdbc.queryForObject("SELECT MAX(id) FROM campana WHERE nombre = ?", Integer.class, nombre);
+            for (int modelo : modelos) {
+                jdbc.update("INSERT INTO campana_producto (campana_id, producto_id, precio_campana) VALUES (?, ?, ?)", id, modelo, precioCampana);
+            }
+            return id == null ? 0 : id;
+        } catch (org.springframework.dao.DataAccessException e) {
+            throw new IllegalStateException("No se pudo crear la campaña de prueba: falta correr migration_campana.sql en esta base (" + e.getMostSpecificCause().getMessage() + ")");
+        }
+    }
+
+    @Override
+    public int quitarCampanasDeLaPrueba(String prueba) {
+        try {
+            return jdbc.update("DELETE FROM campana WHERE activa = 0 AND nombre LIKE ?", NombresDePrueba.prefijoModelos(prueba) + "%");
+        } catch (org.springframework.dao.DataAccessException e) {
+            return 0;   // sin la tabla de campañas no hay nada que quitar
+        }
+    }
+
+    @Override
     public void limpiarCache() {
         catalogoCambio.catalogoCambio();
     }

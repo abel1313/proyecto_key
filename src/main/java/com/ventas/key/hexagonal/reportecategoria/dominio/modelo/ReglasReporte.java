@@ -41,9 +41,18 @@ public final class ReglasReporte {
         return b.precioCampana() != null ? b.precioCampana() : b.precioVenta();
     }
 
-    /** Flete que lleva lo ya vendido: flete por pieza (del último cálculo de precio) × piezas vendidas. */
+    /** Piezas vendidas que no salieron de ningún viaje de compra (ventas anteriores a los viajes o stock de antes): su flete es el ESTIMADO. */
+    public static long piezasSinViaje(FilaBase b) {
+        return Math.max(0, b.piezas() - b.piezasConViaje());
+    }
+
+    /**
+     * Flete que lleva lo ya vendido: el REAL de los viajes (flete por pieza de cada viaje × piezas que salieron de él) más, para las piezas sin viaje,
+     * el ESTIMADO (flete por pieza del último cálculo de precio × esas piezas).
+     */
     public static BigDecimal fleteDeLoVendido(FilaReporte f) {
-        return f.flete().multiply(BigDecimal.valueOf(f.base().piezas())).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal estimado = f.flete().multiply(BigDecimal.valueOf(piezasSinViaje(f.base())));
+        return f.base().fleteReal().add(estimado).setScale(2, RoundingMode.HALF_UP);
     }
 
     /** Inversión del producto: precio de compra × (piezas vendidas + piezas que siguen en stock). Sin precio de compra = 0. */
@@ -85,6 +94,8 @@ public final class ReglasReporte {
                 sumCompra = BigDecimal.ZERO, sumVenta = BigDecimal.ZERO, sumRebaja = BigDecimal.ZERO, sumCampana = BigDecimal.ZERO,
                 mVenta = BigDecimal.ZERO, mRebaja = BigDecimal.ZERO, mCampana = BigDecimal.ZERO, mOtro = BigDecimal.ZERO;
         BigDecimal inversion = BigDecimal.ZERO;
+        BigDecimal fleteReal = BigDecimal.ZERO;
+        long sinViaje = 0;
         long pzVenta = 0, pzRebaja = 0, pzCampana = 0, pzOtro = 0, pzEstimadas = 0;
         for (FilaReporte f : filas) {
             FilaBase b = f.base();
@@ -103,6 +114,8 @@ public final class ReglasReporte {
             pzVenta += b.piezasVenta(); pzRebaja += b.piezasRebaja(); pzCampana += b.piezasCampana(); pzOtro += b.piezasOtro(); pzEstimadas += b.piezasEstimadas();
             mVenta = mVenta.add(b.montoVenta()); mRebaja = mRebaja.add(b.montoRebaja()); mCampana = mCampana.add(b.montoCampana()); mOtro = mOtro.add(b.montoOtro());
             inversion = inversion.add(inversion(f));
+            fleteReal = fleteReal.add(b.fleteReal());
+            sinViaje += piezasSinViaje(b);
             fleteV = fleteV.add(fleteDeLoVendido(f));
             fleteS = fleteS.add(fleteEnStock(f));
             ganPCampana = ganPCampana.add(f.gananciaPorVenderCampana());
@@ -110,7 +123,7 @@ public final class ReglasReporte {
         return new TotalesReporte(filas.size(), vendidos, filas.size() - vendidos, piezas, escala(total), escala(costo), escala(ganV),
                 margenReal(ganV, total), porVender, escala(ganP), escala(ganV.add(ganP)),
                 escala(ganPRebaja), escala(ganPCampana), escala(ganV.add(ganPRebaja)), escala(ganV.add(ganPCampana)), escala(fleteV), escala(fleteS), escala(sumCompra), escala(sumVenta), escala(sumRebaja), escala(sumCampana),
-                pzVenta, pzRebaja, pzCampana, pzOtro, escala(mVenta), escala(mRebaja), escala(mCampana), escala(mOtro), pzEstimadas, escala(inversion));
+                pzVenta, pzRebaja, pzCampana, pzOtro, escala(mVenta), escala(mRebaja), escala(mCampana), escala(mOtro), pzEstimadas, escala(inversion), escala(fleteReal), sinViaje);
     }
 
     private static BigDecimal escala(BigDecimal v) {

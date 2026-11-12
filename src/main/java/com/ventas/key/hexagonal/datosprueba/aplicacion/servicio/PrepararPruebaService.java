@@ -160,6 +160,7 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
         }
         int modelos = escenarios.darDeBajaCatalogoDeLaPrueba(escenario.prueba());
         otros += cuentas.quitarUsuarioDeLaPrueba(escenario.prueba());
+        otros += escenarios.quitarCampanasDeLaPrueba(escenario.prueba());
         PruebaQuitada quitada = new PruebaQuitada(escenario.prueba(), escenario.titulo(), cancelados, sinCancelar, modelos, otros, null);
         log.info("Prueba {} quitada: {} pedidos cancelados, {} sin cancelar, {} modelos dados de baja, {} rifas o usuarios desactivados",
                 escenario.prueba(), cancelados, sinCancelar, modelos, otros);
@@ -180,6 +181,7 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
             case P22 -> prueba22(lineaDeUnArticuloNuevo(escenario), usuarioId);
             case P24 -> prueba24(lineaDeUnArticuloNuevo(escenario), usuarioId);
             case P26 -> prueba26(lineaDeUnArticuloNuevo(escenario), usuarioId);
+            case FL -> pruebaFletes(usuarioId);
         };
         log.info("Prueba {} preparada: pedidos {} catálogo {}", escenario.prueba(), listo.pedidos(), listo.catalogo());
         return listo;
@@ -188,6 +190,44 @@ public class PrepararPruebaService implements PrepararPruebaCasoUso {
     // ── Pruebas que necesitan catálogo (R18) ───────────────────────────────────
 
     /** 12.6 y 12.7: Art-200 ($200) para Venta directa, y una venta de contado y un Ir pagando con abono para los tickets. */
+    /**
+     * Prueba F (fletes): 6 productos de $120 con stock 10 — A, B y C con su flete guardado en «Calcular precio» ($20, $15 y $10 por pieza), D, E y F sin
+     * flete guardado —, una campaña APAGADA con los 6 (para probar «Traer los productos de una campaña») y dos ventas anteriores del producto A
+     * (2 y 3 piezas) que quedan «sin viaje», para probar «Ligar ventas anteriores» y deshacer ligas. El viaje lo crea la persona: es lo que se prueba.
+     */
+    private EscenarioPreparado pruebaFletes(int usuarioId) {
+        EscenarioDePrueba e = EscenarioDePrueba.FL;
+        String[] nombres = {"Con flete A", "Con flete B", "Con flete C", "Sin flete D", "Sin flete E", "Sin flete F"};
+        double[] fletes = {20.0, 15.0, 10.0, 0.0, 0.0, 0.0};
+        List<ArticuloGuardado> articulos = new java.util.ArrayList<>();
+        List<CatalogoPreparado> datos = new java.util.ArrayList<>();
+        for (int i = 0; i < nombres.length; i++) {
+            ArticuloGuardado a = modeloNuevo(e, nombres[i], i, 120.0, List.of(new ArticuloDePrueba("M", "Negro", 10))).get(0);
+            articulos.add(a);
+            if (fletes[i] > 0) {
+                escenarios.fleteGuardado(a.id(), 60.0, fletes[i]);
+            }
+            datos.add(dato(nombres[i].substring(nombres[i].length() - 1), CatalogoPreparado.MODELO, a,
+                    fletes[i] > 0 ? "Producto con flete guardado de $" + (int) fletes[i] + " por pieza (costo $60)" : "Producto SIN flete guardado (costo $60 del catálogo)"));
+        }
+        ArticuloGuardado a = articulos.get(0);
+        // Dos ventas ANTERIORES a cualquier viaje: quedan «sin viaje» y se pueden ligar a mano.
+        int v1 = escenarios.ventaDirecta("NORMAL", e.prueba(), "V1", usuarioId, List.of(new LineaDePedido(a.id(), 2, a.precio())), null, true);
+        int v2 = escenarios.ventaDirecta("NORMAL", e.prueba(), "V2", usuarioId, List.of(new LineaDePedido(a.id(), 3, a.precio())), null, true);
+        String nombreCampana = NombresDePrueba.prefijoModelos(e.prueba()) + "Campaña de fletes";
+        escenarios.campanaDePrueba(nombreCampana, articulos.stream().map(ArticuloGuardado::id).toList(), 99.0);
+        datos.add(CatalogoPreparado.otro("Campaña", CatalogoPreparado.CAMPANA, nombreCampana, nombreCampana,
+                "Campaña APAGADA con los 6 productos (no toca la campaña real): para «Traer los productos de una campaña» en Fletes"));
+        escenarios.limpiarCache();
+        return new EscenarioPreparado(e.prueba(), e.titulo(), List.of(
+                pedido(e, "V1", v1, "🛒 Venta de 2 piezas de «Con flete A», anterior a cualquier viaje (se liga a mano)"),
+                pedido(e, "V2", v2, "🛒 Venta de 3 piezas de «Con flete A», anterior a cualquier viaje (se liga a mano)")),
+                datos,
+                "Catálogo → Fletes → Nuevo viaje: en «Traer los productos de una campaña» elige «" + nombreCampana + "» y pulsa Traer: A, B y C llegan con su flete "
+                        + "guardado y D, E y F con «sin flete guardado». Prueba «Llenar el flete que falta». Luego guarda el viaje y, con «Ligar ventas anteriores» "
+                        + "sobre «Con flete A», liga las ventas «Prueba F V1» y «Prueba F V2».", null);
+    }
+
     private EscenarioPreparado prueba12(int usuarioId) {
         EscenarioDePrueba e = EscenarioDePrueba.P12;
         ArticuloGuardado art200 = modeloNuevo(e, "Art-200", 0, 200.0, List.of(new ArticuloDePrueba("M", "Negro", 12))).get(0);

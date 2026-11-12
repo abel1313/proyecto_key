@@ -7,6 +7,21 @@ el día que se decida. Lo más nuevo va arriba.
 Formato de cada entrada:
 
 ```
+### 2026-11-11 — Fletes: GET /v1/fletes/guardados y escenario de prueba F
+**Dónde:** `LigasManualesController.fletesGuardados` → `ConsultarFletesGuardadosService` → `FletesGuardadosJdbcAdapter` (JOIN producto + codigo_barras + último cálculo por id mayor); `PrepararPruebaService.pruebaFletes`, `EscenariosPruebaAdapter.fleteGuardado/campanaDePrueba/quitarCampanasDeLaPrueba`
+**Tipo:** MySQL (SQL nativo; el escenario usa CURDATE/DATE_ADD) · integración del generador de pruebas
+**Debe comprobar:** el endpoint devuelve el transporte del cálculo con id MAYOR de cada producto (no el primero), 0 si no hay cálculo o la tabla no existe, y omite ids inexistentes; más de 500 ids se parten en lotes; «Preparar prueba F» dos veces deja una sola campaña de prueba (se borra y se vuelve a crear), 6 productos activos y 2 ventas abiertas (las anteriores se cancelan), y NUNCA toca ni enciende la campaña real; en una base sin la migración de campañas el 🧪 dice que falta `migration_campana.sql`. **No se corrió el escenario F contra una base real desde el desarrollo (solo compila): hay que probarlo en QA.**
+
+### 2026-11-11 — Fletes: GET /v1/fletes/{id}/ligas (ligas manuales del viaje)
+**Dónde:** `LigasManualesController.ligasDelViaje` → `LigasManualesJdbcAdapter.ligasManualesDe`
+**Tipo:** MySQL (SQL nativo con JOIN)
+**Debe comprobar:** devuelve solo `origen='MANUAL'` del viaje pedido, excluye ventas Devueltas, orden más nueva primero; viaje sin ligas → lista vacía; sin la migración de ventas → lista vacía; solo ROLE_ADMIN.
+
+### 2026-11-11 — Fletes entrega 5: filtro «Otros» (sin categoría) en admin/filtrar
+**Dónde:** `ProductosControllerImpl.filtrarProductosAdmin` → `ProductosServiceImpl.filtrarProductosAdmin` → `IProductosRepository.buscarProductosAdmin` (param `sinCategoria`, también en la llave del caché)
+**Tipo:** MySQL/H2 (consulta)
+**Debe comprobar:** `sinCategoria=true` trae solo productos con `palabra_clave_id` nulo; con `categoria=X&sinCategoria=true` gana «Otros»; sin el parámetro el resultado es idéntico al de antes; el total y las páginas coinciden con la lista; cachés no se mezclan entre «Otros» y «Todas».
+
 ### AAAA-MM-DD — Qué se hizo
 **Dónde:** clase.metodo() / endpoint
 **Tipo:** unitario (dominio/servicio con puertos simulados) · MySQL (SQL nativo) · controller (URL y status)
@@ -15,6 +30,61 @@ Formato de cada entrada:
 ```
 
 ---
+
+### 2026-11-11 — Fletes entrega 4: reporte del viaje en Excel y PDF (back)
+**Dónde:** `hexagonal/flete/infraestructura/salida/archivo/ViajeExcelGenerador` y `ViajePdfGenerador`, `ViajeController` (`/{id}/reporte/archivo`), `ReporteDeViaje.lineas` (flete recuperado / ya ganancia por venta).
+**Tipo:** unitario (reparto por línea) + archivos (Excel/PDF abren y cuadran con la pantalla).
+**Debe comprobar:**
+- [ ] Excel y PDF de un viaje con ventas: tarjetas, productos y ventas ligadas con su fila TOTAL; los números cuadran con la tarjeta de la pantalla (recuperado, falta, ya ganancia, piezas).
+- [ ] Viaje sin ventas: abre sin error y dice «Todavía no hay ventas ligadas» (PDF) / tabla vacía (Excel).
+- [ ] Viaje con muchas ventas (40+): el PDF sigue en otra hoja con el encabezado repetido y el pie con número de página.
+- [ ] Nombres largos o con emojis no tiran el archivo; `formato` inválido → 400; solo ADMIN (`AutorizacionPorEndpointTest`).
+- [ ] La línea que cruza el tope del costo a cubrir se parte (parte recuperada y parte ganancia).
+
+### 2026-11-11 — Fletes entrega 3: ligar a mano ventas anteriores (back)
+**Dónde:** `hexagonal/flete/**` (`ReglasLigaManual`, `LigarVentasAnterioresService`, `LigasManualesJdbcAdapter`, `LigasManualesController`).
+**Tipo:** unitario (reglas) + JPA/JDBC (H2) + permisos (ya en `AutorizacionPorEndpointTest`).
+**Debe comprobar:**
+- [ ] Producto con viaje de 5 piezas y ventas viejas de 3 y 4 piezas (y una devuelta de 2): solo salen las dos no devueltas; el filtro de fechas funciona (día inicial y final incluidos).
+- [ ] Ligar 3 de la línea A y 1 de la B → 4 piezas, filas `MANUAL` con el flete por pieza del viaje; la línea B queda con 3 pendientes; al viaje le queda 1.
+- [ ] Rechazos (400 con mensaje): más de lo pendiente de la línea, más de lo que queda del viaje, línea devuelta, línea repetida, producto que no está en el viaje, lista vacía, cantidad < 1.
+- [ ] Deshacer: solo las manuales; una automática responde 400.
+- [ ] Sin la tabla `venta_detalle_lote`: buscar devuelve lista vacía y ligar responde 400 con el aviso de la migración (nunca 500).
+- [ ] Lo ligado a mano entra en el reporte del viaje y en el flete real del reporte por categoría; las ventas automáticas posteriores respetan lo ya ligado (restantes del renglón).
+
+### 2026-11-11 — Fletes entrega 2: flete real en el reporte por categoría y reportes de todos los viajes (back)
+**Dónde:** `LectorVentasJpaAdapter` (`fletesReales`), `FilaBase` (`fleteReal`, `piezasConViaje`), `ReglasReporte` (`fleteDeLoVendido`, `piezasSinViaje`), `ColumnasReporte`/`TarjetasReporte`, `FilaReporteResponse`, `ConsultarReporteDeViajeService.todos`, `ViajeController` (`/reportes`).
+**Tipo:** unitario (reglas) + JPA (H2) del lector + Excel/PDF.
+**Debe comprobar:**
+- [ ] Producto con 6 piezas vendidas, 4 de viajes (flete real 80) y 2 sin viaje, flete estimado 10 por pieza: `fleteEnLoVendido` = 80 + 2×10 = 100; `piezasSinViaje` 2; `fleteEnStock` = estimado × stock.
+- [ ] Solo cuenta lo vendido dentro de las fechas del reporte y sin las ventas «Devuelta».
+- [ ] Sin la tabla `venta_detalle_lote` el reporte sigue igual (flete estimado, `fleteReal` 0, `piezasSinViaje` = piezas).
+- [ ] Excel y PDF traen «Flete real (viajes)» y «Piezas sin viaje» con su fila de totales; la tarjeta «Flete» dice «(real $X)».
+- [ ] `GET /v1/fletes/reportes` devuelve un reporte por viaje, mismos números que `/{id}/reporte`; solo ADMIN (en `AutorizacionPorEndpointTest`).
+
+### 2026-11-11 — Fletes entrega 1: ventas ligadas a viajes y reporte por viaje (back)
+**Dónde:** `hexagonal/flete/**` (`AsignacionDeViaje`, `AsignarViajeAVentaService`, `LigasDeVentaJdbcAdapter`, `ReporteDeViaje`, `ViajesJpaAdapter`), `AsignadorDeViajeEnVenta` (llamado en `VentaServiceImpl`, `PedidoServiceImpl`, `AbonoServiceImpl`, `PedidoCobroAdapter`), `migration_flete_venta.sql`.
+**Tipo:** unitario (reparto y reporte) + JPA/JDBC (H2) + flujos de venta existentes.
+**Debe comprobar:**
+- [ ] Reparto: producto con 10 piezas en 2 viajes (V1 5, V2 5): línea de 3 → 3 de V1; línea de 4 → 2 de V1 y 2 de V2; flete por pieza de cada viaje en cada fila.
+- [ ] Stock anterior a los viajes sale primero: stock 12 con un viaje de 5 → línea de 3 sin fila; línea de 6 → 4 sin viaje y 2 del viaje.
+- [ ] Reporte: V1 (costo a cubrir 100, flete 20/pieza) tras vender 5 → recuperado 100, falta 0, `VENDIDO_POR_COMPLETO`; V2 (cubrir 150, flete 30) tras vender 2 → recuperado 60, falta 90, `ABIERTO`; la línea que cruza el tope se parte (recuperado/ganancia).
+- [ ] Viaje con ventas: no se puede quitar un producto, bajar sus piezas por debajo de lo vendido ni borrar el viaje (400 con mensaje); sí cambiar nombre/flete/gastos y el renglón conserva su id (las ligas siguen).
+- [ ] Venta «Devuelta»: sus piezas regresan al viaje y no cuentan en el reporte.
+- [ ] Sin la tabla `venta_detalle_lote` (migración no corrida): venta directa, pedido, abono que liquida y tarjeta aprobada se guardan igual; el log dice que quedó sin viaje; `GET /v1/fletes/{id}/reporte` responde con 0 vendidas.
+- [ ] Los 4 puntos de venta no cambian de resultado: venta directa contado, pedido cobrado, abono que liquida y cobro con tarjeta aprobado (mismos totales, estado y stock que antes).
+- [ ] Concurrencia: dos ventas del mismo producto a la vez no toman la misma pieza del viaje (bloqueo `FOR UPDATE` por renglón, en orden de producto).
+- [ ] `/v1/fletes/{id}/reporte` solo ADMIN (en `AutorizacionPorEndpointTest`).
+
+### 2026-11-11 — Fletes: viajes de compra, fase 1 (back)
+**Dónde:** `hexagonal/flete/**` (`ViajeDeCompra`, `AdministrarViajesService`, `ViajesJpaAdapter`, `ViajeController`), `CompraLote*Entidad`, `migration_flete_lote.sql`, `SecurityConfig` (`/v1/fletes/**` ADMIN).
+**Tipo:** unitario (reglas del viaje) + JPA (H2) + migración dos veces + permisos (ya en `AutorizacionPorEndpointTest`).
+**Debe comprobar:**
+- [ ] Reglas: flete 100 + gasolina 40 (cuenta) + comida 30 (no cuenta) → costo a cubrir 140; 5 piezas con flete 20 → asignado 100, falta 40, sugerido 28; con 4 piezas a 30 → asignado 120, falta 0, excedente 20.
+- [ ] Validaciones (400 con mensaje): sin nombre, sin fecha, flete negativo, piezas < 1, gasto sin concepto o monto 0, producto repetido en el viaje.
+- [ ] Guardar → leer → actualizar (reemplaza gastos y productos) → listar → `por-producto` → eliminar (cascada: no quedan gastos ni productos).
+- [ ] Migración corre dos veces; la pantalla «Fletes» queda una sola vez, después de «Campañas», solo ROLE_ADMIN; un producto no se repite en un viaje; borrar el viaje borra sus gastos y productos.
+- [ ] `/v1/fletes/**` responde 401/403 a visitante y a roles que no son administrador.
 
 ### 2026-11-11 — A qué precio se vendió cada línea (`tipo_precio`) y reporte único con inversión y flete (back)
 **Dónde:** `ClasificadorTipoPrecio`, `DetalleVentaVariante.tipoPrecio`, `VentaServiceImpl`/`PedidoServiceImpl`/`AbonoServiceImpl` (llenan el tipo), `LectorVentasJpaAdapter` (SQL con `COALESCE(tipo_precio, estimación)`), `TipoReporte`, `ColumnasReporte.columnas(tipo)`, `TarjetasReporte`, Excel/PDF, `ReporteCategoriaController` (`tipoReporte`).
@@ -612,3 +682,9 @@ Formato de cada entrada:
 - [ ] Productos → Buscar → Actualizar: quitar la categoría y guardar → al volver a abrir el producto ya no la trae; Productos → Buscar con ese filtro ya no lo lista (limpiar caché).
 - [ ] Actualizar un producto SIN tocar la categoría la conserva; Nuevo producto y la carga rápida de imágenes no cambian.
 - [ ] Un artículo cuyo producto ya no tiene categoría, al guardarlo sin categoría queda sin categoría.
+
+## Fletes · las ventas no se ligaban a los viajes aunque el viaje cubriera todo el stock (2026-11-12)
+Causa (probada en QA vendiendo de una pieza en una pieza): `VentaServiceImpl.saveVentaDirecta` descuenta el stock con JPA (sin flush) y después `LigasDeVentaJdbcAdapter.existenciaActual` lo leía con SQL directo, así que veía el stock de ANTES de la venta; `AsignarViajeAVentaService` suma «cantidad» a esa existencia y da por «sin viaje» `cantidad` piezas de más (pieza 1 = sin viaje, pieza 2 en adelante sí ligaba; una venta de 3 piezas quedaba toda sin viaje).
+Cambio: `LigasDeVentaJdbcAdapter.existenciaActual` hace `em.flush()` antes de leer.
+Debe comprobar (QA, producto cuyo stock = piezas de sus viajes, p. ej. «Con flete B» con 10): vender 1 pieza → ya liga al viaje más viejo (no queda «sin viaje»); vender 3 piezas → las 3 ligan (primero el viaje más viejo, luego el siguiente); reporte por categoría «Piezas sin viaje» = 0; venta de más piezas que las de los viajes → solo el resto queda sin viaje; devolver la venta → las piezas vuelven al viaje. Producto con stock mayor que sus viajes (piezas viejas sin viaje) → esas salen primero, igual que antes.
+Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) responde 409 con el texto «No se pudo guardar el viaje: revisa que los productos no estén repetidos…», que no explica el motivo real.

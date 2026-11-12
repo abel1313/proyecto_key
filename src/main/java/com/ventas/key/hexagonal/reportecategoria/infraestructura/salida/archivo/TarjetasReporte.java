@@ -17,7 +17,7 @@ final class TarjetasReporte {
         return List.of(
                 new Tarjeta("PRODUCTOS", BigDecimal.valueOf(t.productos()), false, t.productosVendidos() + " vendidos · " + t.productosSinVender() + " sin vender", false),
                 new Tarjeta("INVERSIÓN", t.inversion(), true, "Compra × (vendidas + en stock)", false),
-                new Tarjeta("FLETE", t.fleteVendido().add(t.fleteEnStock()), true, "Vendido " + dinero(t.fleteVendido()) + " · stock " + dinero(t.fleteEnStock()), false),
+                new Tarjeta("FLETE", t.fleteVendido().add(t.fleteEnStock()), true, "Vendido " + dinero(t.fleteVendido()) + " (real " + dinero(t.fleteReal()) + ") · stock " + dinero(t.fleteEnStock()), false),
                 new Tarjeta("TOTAL VENDIDO", t.total(), true, t.piezas() + " piezas · costo " + dinero(t.costo()), false),
                 new Tarjeta("GANANCIA VENDIDA", t.gananciaVendida(), true, margen, true),
                 new Tarjeta("A PRECIO NORMAL", t.montoVenta(), true, t.piezasVenta() + " piezas", false),

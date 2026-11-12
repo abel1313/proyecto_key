@@ -45,7 +45,7 @@ class IProductosRepositoryBorradorTest {
 
     private List<Integer> idsFiltroAdmin(Boolean codigoGenerado) {
         return productosRepository
-                .buscarProductosAdmin(null, null, null, null, codigoGenerado, null, null, null, PageRequest.of(0, 50))
+                .buscarProductosAdmin(null, null, null, null, codigoGenerado, null, null, null, null, PageRequest.of(0, 50))
                 .getContent().stream().map(Producto::getId).toList();
     }
 

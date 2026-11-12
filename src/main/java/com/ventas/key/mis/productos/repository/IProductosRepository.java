@@ -113,7 +113,9 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                    AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
-          AND (:categoria IS NULL OR (pk IS NOT NULL AND UPPER(pk.nombre) = UPPER(:categoria)))
+          AND ((:sinCategoria = TRUE AND pk IS NULL)
+               OR ((:sinCategoria IS NULL OR :sinCategoria = FALSE)
+                   AND (:categoria IS NULL OR (pk IS NOT NULL AND UPPER(pk.nombre) = UPPER(:categoria)))))
           AND p.esCatalogoInterno = false
         ORDER BY
           CASE
@@ -147,7 +149,9 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                    AND (cb.codigoBarras IS NULL OR UPPER(cb.codigoBarras) NOT LIKE 'BRD-%')))
           AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde)
           AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta)
-          AND (:categoria IS NULL OR (pk IS NOT NULL AND UPPER(pk.nombre) = UPPER(:categoria)))
+          AND ((:sinCategoria = TRUE AND pk IS NULL)
+               OR ((:sinCategoria IS NULL OR :sinCategoria = FALSE)
+                   AND (:categoria IS NULL OR (pk IS NOT NULL AND UPPER(pk.nombre) = UPPER(:categoria)))))
           AND p.esCatalogoInterno = false
         """)
     Page<Producto> buscarProductosAdmin(@Param("nombreOCodigo") String nombreOCodigo,
@@ -158,6 +162,7 @@ public interface IProductosRepository extends BaseRepository<Producto, Integer> 
                                          @Param("fechaDesde") java.time.LocalDateTime fechaDesde,
                                          @Param("fechaHasta") java.time.LocalDateTime fechaHasta,
                                          @Param("categoria") String categoria,
+                                         @Param("sinCategoria") Boolean sinCategoria,
                                          Pageable pageable);
 
     // --- guardado ---

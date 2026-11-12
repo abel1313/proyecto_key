@@ -90,6 +90,23 @@ public interface EscenariosPruebaPort {
     /** Precio propio del artículo con el mismo caso de uso que la pantalla (💲 de la tarjeta). */
     void precioDelArticulo(int articuloId, double precioVenta, double precioRebaja, boolean usarDescuento);
 
+    // ── Fletes (prueba F) ──
+
+    /**
+     * Deja guardado en el producto de ese artículo un cálculo de precio con su flete por pieza ({@code transporte}), como si se hubiera hecho
+     * «Calcular precio». Solo para productos de prueba.
+     */
+    void fleteGuardado(int articuloId, double costoCompra, double transporte);
+
+    /**
+     * Una campaña APAGADA (no toca la campaña real) con los productos de estos artículos a ese precio de campaña, vigente de hoy a 30 días.
+     * Regresa su id. Falla con un mensaje claro si falta la migración de campañas.
+     */
+    int campanaDePrueba(String nombre, List<Integer> articuloIds, double precioCampana);
+
+    /** Borra las campañas de prueba APAGADAS de esa prueba (su nombre empieza con «QA Prueba {prueba} »). Regresa cuántas. 0 si no hay tabla. */
+    int quitarCampanasDeLaPrueba(String prueba);
+
     /** Que la tienda muestre lo nuevo de inmediato (la misma limpieza que hace guardar un pedido). */
     void limpiarCache();
 }
