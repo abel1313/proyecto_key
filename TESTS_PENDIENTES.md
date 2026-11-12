@@ -685,3 +685,9 @@ Formato de cada entrada:
 - [ ] Productos → Buscar → Actualizar: quitar la categoría y guardar → al volver a abrir el producto ya no la trae; Productos → Buscar con ese filtro ya no lo lista (limpiar caché).
 - [ ] Actualizar un producto SIN tocar la categoría la conserva; Nuevo producto y la carga rápida de imágenes no cambian.
 - [ ] Un artículo cuyo producto ya no tiene categoría, al guardarlo sin categoría queda sin categoría.
+
+## Fletes · las ventas no se ligaban a los viajes aunque el viaje cubriera todo el stock (2026-11-12)
+Causa (probada en QA vendiendo de una pieza en una pieza): `VentaServiceImpl.saveVentaDirecta` descuenta el stock con JPA (sin flush) y después `LigasDeVentaJdbcAdapter.existenciaActual` lo leía con SQL directo, así que veía el stock de ANTES de la venta; `AsignarViajeAVentaService` suma «cantidad» a esa existencia y da por «sin viaje» `cantidad` piezas de más (pieza 1 = sin viaje, pieza 2 en adelante sí ligaba; una venta de 3 piezas quedaba toda sin viaje).
+Cambio: `LigasDeVentaJdbcAdapter.existenciaActual` hace `em.flush()` antes de leer.
+Debe comprobar (QA, producto cuyo stock = piezas de sus viajes, p. ej. «Con flete B» con 10): vender 1 pieza → ya liga al viaje más viejo (no queda «sin viaje»); vender 3 piezas → las 3 ligan (primero el viaje más viejo, luego el siguiente); reporte por categoría «Piezas sin viaje» = 0; venta de más piezas que las de los viajes → solo el resto queda sin viaje; devolver la venta → las piezas vuelven al viaje. Producto con stock mayor que sus viajes (piezas viejas sin viaje) → esas salen primero, igual que antes.
+Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) responde 409 con el texto «No se pudo guardar el viaje: revisa que los productos no estén repetidos…», que no explica el motivo real.
