@@ -4,6 +4,8 @@ import com.ventas.key.hexagonal.flete.dominio.modelo.ParteAsignada;
 import com.ventas.key.hexagonal.flete.dominio.modelo.RenglonDisponible;
 import com.ventas.key.hexagonal.flete.dominio.puerto.salida.LigasDeVentaPort;
 import com.ventas.key.hexagonal.preciocantidad.infraestructura.salida.persistencia.TablasDisponibles;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +24,10 @@ public class LigasDeVentaJdbcAdapter implements LigasDeVentaPort {
 
     private final JdbcTemplate jdbc;
     private final TablasDisponibles tablas;
+
+    /** Para volcar a la base lo que JPA aún tiene pendiente (el descuento de stock) antes de leerlo con SQL directo. */
+    @PersistenceContext
+    private EntityManager em;
 
     public LigasDeVentaJdbcAdapter(JdbcTemplate jdbc, TablasDisponibles tablas) {
         this.jdbc = jdbc;
@@ -61,6 +67,9 @@ public class LigasDeVentaJdbcAdapter implements LigasDeVentaPort {
 
     @Override
     public int existenciaActual(int productoId) {
+        // El stock se descuenta con JPA y no llega a la base hasta el flush: sin esto esta consulta SQL veía el stock de ANTES de la venta, la existencia
+        // salía inflada en «cantidad» y esas piezas se daban por «sin viaje» sin ligarlas a ningún viaje (probado en QA 2026-11-12).
+        em.flush();
         Integer s = jdbc.queryForObject("SELECT stock FROM producto WHERE id = ?", Integer.class, productoId);
         return s == null ? 0 : Math.max(0, s);
     }
