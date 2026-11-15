@@ -39,6 +39,11 @@ public class ClienteSinRegistroImpl extends CrudAbstractServiceImpl<ClienteSinRe
     // Crea el registro ANTES de generar la venta, para poder verificar el correo en ese momento
     // (el flujo anterior lo creaba de un jalon dentro de POST /v1/ventas/save, sin oportunidad
     // de verificar nada antes de guardar el pedido).
+    /** Guarda los cambios de un cliente sin registro que ya existe (por ejemplo, al completarle el correo y el telefono desde un pedido). */
+    public ClienteSinRegistro guardarExistente(ClienteSinRegistro c) {
+        return iClienteSinRegistroRepository.save(c);
+    }
+
     public ClienteSinRegistro crear(ClienteSinRegistroDto dto) {
         validar(dto);
         ClienteSinRegistro c = new ClienteSinRegistro();

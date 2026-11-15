@@ -35,10 +35,20 @@ public class PedidoDatosClienteService {
         this.clientesSinRegistro = clientesSinRegistro;
     }
 
-    /** ¿Este pedido no tiene los datos de un cliente? (sin cliente, o a nombre de una cuenta de administrador, o sin registro vacio). */
+    private static boolean vacio(String t) {
+        return t == null || t.isBlank();
+    }
+
+    /**
+     * ¿Este pedido no tiene los datos de un cliente? Cuando no tiene cliente, o esta a nombre de una cuenta de administrador, o su cliente sin registro
+     * no tiene ni correo ni telefono (solo un nombre): no hay a donde mandarle su ticket ni su codigo.
+     */
     public static boolean sinDatosDelCliente(Pedido p) {
-        if (p == null || p.getClienteSinRegistro() != null) {
+        if (p == null) {
             return false;
+        }
+        if (p.getClienteSinRegistro() != null) {
+            return vacio(p.getClienteSinRegistro().getCorreoElectronico()) && vacio(p.getClienteSinRegistro().getNumeroTelefonico());
         }
         if (p.getCliente() == null) {
             return true;
@@ -59,6 +69,10 @@ public class PedidoDatosClienteService {
         String correo = req.getCorreo() == null ? "" : req.getCorreo().trim();
         if (!correo.isEmpty() && !ContactoCliente.correoValido(correo)) {
             throw new IllegalArgumentException("El correo no es válido. Revisa que tenga la forma nombre@dominio.com");
+        }
+        ClienteSinRegistro existente = pedido.getClienteSinRegistro();
+        if (existente != null) {
+            return completarClienteSinRegistro(pedidoId, pedido, existente, req, correo);
         }
         ClienteSinRegistroDto dto = ClienteSinRegistroDto.builder()
                 .nombre_persona(req.getNombre() == null ? "" : req.getNombre().trim())
@@ -92,6 +106,45 @@ public class PedidoDatosClienteService {
             }
         }
         log.info("Pedido {}: se agregaron los datos del cliente (cliente sin registro {})", pedidoId, csr.getId());
+        return csr;
+    }
+
+    /** El pedido ya tiene un cliente sin registro (solo con nombre): se le completan el correo y el telefono, sin crear otro cliente. */
+    private ClienteSinRegistro completarClienteSinRegistro(int pedidoId, Pedido pedido, ClienteSinRegistro csr, DatosClientePedidoRequest req, String correo) {
+        String telefono = req.getTelefono() == null ? "" : req.getTelefono().trim();
+        if (correo.isEmpty() && telefono.isEmpty()) {
+            throw new IllegalArgumentException("Escribe al menos el correo o el teléfono del cliente");
+        }
+        // Si ya tiene nombre se conserva (lo que se escribe aqui no lo pisa); solo se usa el escrito cuando el cliente no tenia nombre.
+        String nombre = vacio(csr.getNombrePersona()) ? (req.getNombre() == null ? "" : req.getNombre().trim()) : csr.getNombrePersona();
+        String apellido = vacio(csr.getApeidoPaterno()) ? (req.getApellido() == null ? "" : req.getApellido().trim()) : csr.getApeidoPaterno();
+        // Solo se validan el correo y el telefono nuevos: el nombre que el cliente ya tenia se respeta tal cual (aunque no cumpla las 3 letras de un alta nueva).
+        ClienteSinRegistroDto dto = ClienteSinRegistroDto.builder()
+                .nombre_persona("Cliente").segundo_nombre("").apeido_Paterno("").apeido_Materno("")
+                .fecha_Nacimiento("").sexo("").correo_Electronico(correo).numero_Telefonico(telefono).build();
+        try {
+            ClienteSinRegistroImpl.validar(dto);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        csr.setNombrePersona(nombre);
+        csr.setApeidoPaterno(apellido);
+        if (!correo.isEmpty()) {
+            csr.setCorreoElectronico(correo);
+            csr.setCorreoVerificado(false);
+        }
+        if (!telefono.isEmpty()) {
+            csr.setNumeroTelefonico(telefono);
+        }
+        clientesSinRegistro.guardarExistente(csr);
+        if (campanas != null) {
+            try {
+                campanas.ligarClienteSinRegistroALaPersonaDelPedido(pedidoId, csr.getId());
+            } catch (RuntimeException e) {
+                log.warn("No se pudo ligar el cliente a la persona de campaña del pedido {}: {}", pedidoId, e.getMessage());
+            }
+        }
+        log.info("Pedido {}: se completaron los datos del cliente sin registro {}", pedidoId, csr.getId());
         return csr;
     }
 }
