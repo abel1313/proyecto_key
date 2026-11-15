@@ -36,6 +36,11 @@ public record PersonaCampana(Integer id, String uuid, String nombre, String corr
                 clienteId != null ? clienteId : nuevoClienteId, clienteSinRegistroId != null ? clienteSinRegistroId : nuevoSinRegistroId);
     }
 
+    /** Una copia con otro correo (por ejemplo, el que el administrador escribe cuando la persona no tenia). */
+    public PersonaCampana conCorreo(String nuevoCorreo) {
+        return new PersonaCampana(id, uuid, nombre, nuevoCorreo, telefono, consentimiento, clienteId, clienteSinRegistroId);
+    }
+
     /** ¿Estos datos son de esta persona? El mismo cliente, el mismo correo o el mismo teléfono (últimos 10 dígitos). */
     public boolean coincideCon(ContactoCliente c) {
         if (c == null) {

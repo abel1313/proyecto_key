@@ -38,6 +38,19 @@ public class AvisarCodigoCampanaCorreoAdapter implements AvisarCodigoCampanaPort
         mandar(persona, nombreCampana, correoDestino, primeraVez);
     }
 
+    @Override
+    public boolean enviarAhora(PersonaCampana persona, String nombreCampana, String correoDestino, boolean primeraVez) {
+        if (correoDestino == null || correoDestino.isBlank()) {
+            return false;
+        }
+        try {
+            return email.enviarCodigoCampana(correoDestino, persona.nombre(), nombreCampana, persona.uuid(), primeraVez);
+        } catch (RuntimeException e) {
+            log.warn("No se pudo mandar el código de campaña a la persona {}: {}", persona.id(), e.getMessage());
+            return false;
+        }
+    }
+
     private void mandar(PersonaCampana persona, String nombreCampana, String correoDestino, boolean primeraVez) {
         try {
             if (!email.enviarCodigoCampana(correoDestino, persona.nombre(), nombreCampana, persona.uuid(), primeraVez)) {
