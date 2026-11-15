@@ -81,13 +81,16 @@ public class RepreciarPorCantidadAdapter implements RepreciarPorCantidadPort {
         // Una linea con precio de campana no la toca el grupo (al pasar a Ir pagando es la campana la que la regresa): se trata como un combo.
         Map<Integer, BigDecimal> deCampana = preciosBase.leer(lineas.stream().map(DetallePedido::getId).toList(),
                 com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA);
+        // Una linea con precio puesto a mano por el administrador tampoco la toca el grupo: se trata como un combo.
+        Map<Integer, BigDecimal> manuales = preciosBase.leer(lineas.stream().map(DetallePedido::getId).toList(),
+                com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.MANUAL);
         if (deGrupo.isEmpty() && recordados.isEmpty()) {
             return;   // sin grupos y sin lineas cobradas con precio de grupo: nada que recalcular
         }
 
         List<LineaDePrecio> entrada = new ArrayList<>();
         for (DetallePedido d : lineas) {
-            entrada.add(new LineaDePrecio(d.getId(), productoId(d), dinero(d.getPrecioUnitario()), recordados.get(d.getId()), d.getPromocion() != null || deCampana.containsKey(d.getId())));
+            entrada.add(new LineaDePrecio(d.getId(), productoId(d), dinero(d.getPrecioUnitario()), recordados.get(d.getId()), d.getPromocion() != null || deCampana.containsKey(d.getId()) || manuales.containsKey(d.getId())));
         }
         Map<Integer, DetallePedido> porId = new HashMap<>();
         lineas.forEach(d -> porId.put(d.getId(), d));
@@ -160,6 +163,13 @@ public class RepreciarPorCantidadAdapter implements RepreciarPorCantidadPort {
                 .flatMap(g -> g.miembro(productoId))
                 .map(m -> Math.abs(m.precioPromocion().doubleValue() - precio) <= 0.01)
                 .orElse(false);
+    }
+
+    @Override
+    @Transactional
+    public void fijarPrecioManual(Integer detalleId, double precioDeAntes) {
+        preciosBase.guardar(Map.of(detalleId, BigDecimal.valueOf(precioDeAntes).setScale(2, RoundingMode.HALF_UP)),
+                com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.MANUAL);
     }
 
     @Override

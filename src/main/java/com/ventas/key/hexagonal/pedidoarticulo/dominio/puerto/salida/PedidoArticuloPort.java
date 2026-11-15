@@ -31,6 +31,9 @@ public interface PedidoArticuloPort {
     /** Cambia a que articulo apunta una linea, con su precio. Conserva la promocion de la linea. */
     void cambiarArticulo(Integer detalleId, Integer varianteNuevaId, double precioUnitario);
 
+    /** Cambia solo el precio unitario de una linea (el subtotal se recalcula). Devuelve el precio que tenia antes. */
+    double cambiarPrecio(Integer detalleId, double precioUnitario);
+
     void borrarLineas(List<ArticuloDePedido> lineas);
 
     /** Guarda el total recalculado. No toca lo ya pagado (R7). */

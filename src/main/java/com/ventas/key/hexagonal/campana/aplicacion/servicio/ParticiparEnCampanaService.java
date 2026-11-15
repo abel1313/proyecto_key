@@ -255,4 +255,48 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
         aviso.enviar(persona.get(), activa.vigente().map(Campana::nombre).orElse(null), persona.get().correo(), false);
         return ResultadoReenvio.ENVIADO;
     }
+
+    @Override
+    public ResultadoEnvio enviarCodigoDePedido(int pedidoId, String correo, String nombre, String telefono) {
+        Optional<Campana> vigente = personas.disponible() ? activa.vigente() : Optional.empty();
+        if (vigente.isEmpty()) {
+            return ResultadoEnvio.SIN_CAMPANA;
+        }
+        String escrito = correo == null || correo.isBlank() ? null : correo.trim().toLowerCase();
+        if (escrito != null && !ContactoCliente.correoValido(escrito)) {
+            return ResultadoEnvio.CORREO_INVALIDO;
+        }
+        Campana campana = vigente.get();
+        Optional<PersonaCampana> deLaCompra = personas.dePedido(pedidoId);
+        PersonaCampana persona;
+        boolean primeraVez = false;
+        if (deLaCompra.isPresent()) {
+            persona = deLaCompra.get();
+            if (persona.correo() == null && escrito != null) {
+                persona = personas.guardar(persona.conCorreo(escrito));
+            }
+        } else {
+            if (escrito == null) {
+                return ResultadoEnvio.FALTA_CORREO;
+            }
+            String telefono10 = ContactoCliente.ultimos10(telefono);
+            // Si esos datos ya son de una persona con codigo, se usa la misma (nunca dos codigos a una persona).
+            Optional<PersonaCampana> existente = personas.porContacto(escrito, telefono10);
+            if (existente.isPresent()) {
+                persona = existente.get();
+            } else {
+                if (nombre == null || nombre.isBlank()) {
+                    return ResultadoEnvio.FALTA_NOMBRE;
+                }
+                persona = personas.guardar(new PersonaCampana(null, nuevoCodigo.get(), nombre, escrito, telefono10, true, null, null));
+                primeraVez = true;
+            }
+            personas.ligarPedido(campana.id(), persona.id(), pedidoId, BigDecimal.ZERO);
+        }
+        String destino = escrito != null ? escrito : persona.correo();
+        if (destino == null || destino.isBlank()) {
+            return ResultadoEnvio.FALTA_CORREO;
+        }
+        return aviso.enviarAhora(persona, campana.nombre(), destino, primeraVez) ? ResultadoEnvio.ENVIADO : ResultadoEnvio.NO_SE_PUDO_ENVIAR;
+    }
 }

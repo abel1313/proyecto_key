@@ -23903,3 +23903,18 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 ## Campañas: stock de cada juguete + Fletes: piezas = stock al agregar (2026-11-12)
 - **`GET /mis-productos/v1/campanas` y demás respuestas de campaña:** cada elemento de `productos[]` trae ahora `stock` (entero, piezas que hay HOY del producto; solo para mostrar, no se guarda ni reserva nada). Los demás campos no cambian. El front lo pinta como «Stock: N» (rojo y «agotado» si es 0).
 - **Fletes (solo front, sin cambio de contrato):** al agregar productos a un viaje por categoría o importando una campaña, cada producto entra con **su stock actual como piezas** (antes entraba con 1). Los de stock 0 **no** entran automático (aviso con el número omitido); se agregan uno por uno con el buscador y se escribe cuántas piezas fueron. Las piezas del viaje **no cambian el stock**.
+
+## Pedidos: cambiar solo el precio de un artículo + enviar el código de campaña (QR) desde el pedido (2026-11-15)
+**1. Cambiar solo el precio de una línea — solo ROLE_ADMIN**
+- **Request:** `PUT /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}/precio` con `{ "precioUnitario": 80.00 }`.
+- **Response 200:** igual que `PUT …/articulos/{detalleId}` (el pedido editado con el total recalculado, `ResponseGeneric<PedidoArticulosResponse>`).
+- **Qué hace:** cambia únicamente el precio de esa línea (el artículo y la cantidad no cambian), con o sin campaña. El total del pedido se recalcula y el estado/saldo se ajusta como en las demás ediciones (si lo pagado ya cubre el nuevo total, queda Pagado; en Apartado no hay dinero pagado, así que solo cambia el total). El precio puesto a mano **no lo vuelve a decidir** ni el precio por cantidad ni la campaña (se guarda con origen `MANUAL` en `detalle_pedido_precio_grupo`; no hace falta migración).
+- **400** (mensaje en `mensaje`): precio ≤ 0 o demasiado grande, mismo precio de ahora, línea de una promoción (combo), pedido Entregado/cancelado, o con cobro de tarjeta en proceso. **403** si no es administrador.
+- **Front:** en el detalle del pedido, botón «$» junto al ⇄ de cada artículo (solo administrador, no en combos ni pedidos cerrados).
+
+**2. Enviar el código de campaña desde el pedido — solo ROLE_ADMIN, solo con campaña vigente**
+- **Request:** `POST /mis-productos/v1/campanas/pedidos/{pedidoId}/enviar-codigo` con cuerpo **opcional** `{ "correo": "x@y.com", "nombre": "Ana", "telefono": "722…" }`.
+- **Con persona ya ligada al pedido:** se le manda su código al `correo` escrito (si no se manda, al suyo; si la persona no tenía correo, se le guarda el escrito).
+- **Sin persona:** se crea con `nombre` y `correo` (obligatorios), el pedido queda ligado a ella (cuenta para la meta mientras la campaña esté activa) y se le manda su QR. Si esos datos ya son de una persona con código, se usa la misma (nunca dos códigos).
+- **200** `Código enviado`. **409** no hay campaña vigente. **400** correo con formato inválido / falta correo / falta nombre. **502** el servidor de correo no aceptó el envío (antes el botón decía «enviado» aunque fallara). El formato del correo se valida en front y en back.
+- **Front:** el botón «🎁 Enviar código de campaña» del detalle ahora sale siempre que haya campaña vigente (antes solo si el pedido ya tenía código) y abre un formulario con el correo (precargado con el del cliente), y nombre y teléfono si hay que crear al persona.

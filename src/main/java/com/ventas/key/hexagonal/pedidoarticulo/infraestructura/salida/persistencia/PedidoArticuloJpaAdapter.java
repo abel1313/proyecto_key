@@ -73,6 +73,16 @@ public class PedidoArticuloJpaAdapter implements PedidoArticuloPort {
     }
 
     @Override
+    public double cambiarPrecio(Integer detalleId, double precioUnitario) {
+        DetallePedido linea = linea(detalleId);
+        double antes = linea.getPrecioUnitario() == null ? 0.0 : linea.getPrecioUnitario();
+        linea.setPrecioUnitario(precioUnitario);
+        linea.setSubTotal(precioUnitario * linea.getCantidad());
+        detalleRepository.save(linea);
+        return antes;
+    }
+
+    @Override
     public void cambiarArticulo(Integer detalleId, Integer varianteNuevaId, double precioUnitario) {
         DetallePedido linea = linea(detalleId);
         Variantes variante = varianteRepository.findById(varianteNuevaId)

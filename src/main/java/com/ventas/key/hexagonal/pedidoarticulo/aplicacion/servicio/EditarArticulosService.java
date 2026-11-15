@@ -239,6 +239,42 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
         return recalcular(pedido.pedidoId());
     }
 
+    // ─────────────────────── Cambiar solo el precio ───────────────────────
+
+    /** Techo de cordura para un precio escrito a mano (evita un cero de mas). */
+    private static final double PRECIO_MAXIMO = 1_000_000d;
+
+    @Override
+    @Transactional
+    public PedidoEditable cambiarPrecio(Integer pedidoId, Integer detalleId, double precioUnitario) {
+        PedidoEditable pedido = pedidoAbierto(pedidoId);
+        ArticuloDePedido linea = pedido.linea(detalleId)
+                .orElseThrow(() -> ArticuloNoEncontradoException.lineaDePedido(pedidoId, detalleId));
+        if (Double.isNaN(precioUnitario) || precioUnitario <= 0) {
+            throw new EdicionPedidoException("El precio tiene que ser mayor a 0");
+        }
+        if (precioUnitario > PRECIO_MAXIMO) {
+            throw new EdicionPedidoException("Ese precio es demasiado grande. Revisa que no tenga un cero de mas");
+        }
+        if (linea.esDePromocion()) {
+            throw new EdicionPedidoException("'" + linea.nombre() + "' es parte de una promocion (combo): su precio lo da el combo. "
+                    + "Para cambiarlo hay que quitar la promocion del pedido");
+        }
+        double precio = Math.round(precioUnitario * 100.0) / 100.0;
+        if (Math.abs(precio - linea.precioUnitario()) < 0.005) {
+            throw new EdicionPedidoException("La linea ya tiene ese precio");
+        }
+
+        double antes = pedidos.cambiarPrecio(detalleId, precio);
+        // El precio quedo fijo: ni el precio por cantidad ni la campana lo vuelven a decidir. Se recuerda el de antes por si hiciera falta.
+        if (preciosPorCantidad != null) {
+            preciosPorCantidad.fijarPrecioManual(detalleId, antes);
+        }
+
+        log.info("Pedido {}: el administrador cambio el precio de la linea {} de ${} a ${}", pedidoId, detalleId, antes, precio);
+        return recalcular(pedidoId);
+    }
+
     // ────────────────────── Quitar promocion ──────────────────────
 
     @Override
