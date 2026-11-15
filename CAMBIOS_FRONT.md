@@ -23662,3 +23662,8 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 ## Campañas: stock de cada juguete + Fletes: piezas = stock al agregar (2026-11-12)
 - **`GET /mis-productos/v1/campanas` y demás respuestas de campaña:** cada elemento de `productos[]` trae ahora `stock` (entero, piezas que hay HOY del producto; solo para mostrar, no se guarda ni reserva nada). Los demás campos no cambian. El front lo pinta como «Stock: N» (rojo y «agotado» si es 0).
 - **Fletes (solo front, sin cambio de contrato):** al agregar productos a un viaje por categoría o importando una campaña, cada producto entra con **su stock actual como piezas** (antes entraba con 1). Los de stock 0 **no** entran automático (aviso con el número omitido); se agregan uno por uno con el buscador y se escribe cuántas piezas fueron. Las piezas del viaje **no cambian el stock**.
+
+## Rifa por boletos: sumar un boleto a la persona elegida (2026-11-15)
+- **Request:** `POST /mis-productos/v1/rifas/{rifaId}/boletos-agrupados/participaciones?plataforma=…&urlPerfil=…&concursanteId=12` con el cuerpo de siempre (`urlParticipacion`, `motivo`, `modo`). **Nuevo parámetro opcional `concursanteId`.**
+- **Qué cambia:** antes el grupo se buscaba solo por red + perfil y, si dos participantes de la rifa habían cargado el mismo perfil, el boleto se sumaba a la primera persona que se encontraba. Con `concursanteId` se suma al grupo de esa persona. Sin el parámetro todo funciona igual que antes (compatibilidad).
+- **404** (mensaje en `mensaje`) si esa persona no tiene boletos cargados de ese perfil en la rifa.
