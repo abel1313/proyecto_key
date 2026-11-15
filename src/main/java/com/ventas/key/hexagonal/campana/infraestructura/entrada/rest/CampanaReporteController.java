@@ -58,6 +58,8 @@ public class CampanaReporteController {
             case CORREO_INVALIDO -> error(HttpStatus.BAD_REQUEST, "El correo no es válido. Revisa que tenga la forma nombre@dominio.com");
             case FALTA_CORREO -> error(HttpStatus.BAD_REQUEST, "Escribe el correo al que se manda el código.");
             case FALTA_NOMBRE -> error(HttpStatus.BAD_REQUEST, "Escribe el nombre de la persona para crear su código.");
+            case TELEFONO_DE_OTRA_PERSONA -> error(HttpStatus.CONFLICT, "Ese teléfono ya pertenece a otra persona con código y otro correo. Usa el correo de esa persona o quita el teléfono.");
+            case PEDIDO_NO_ENCONTRADO -> error(HttpStatus.NOT_FOUND, "No se encontró el pedido para ligarle el código.");
             case NO_SE_PUDO_ENVIAR -> error(HttpStatus.BAD_GATEWAY, "No se pudo enviar el correo (el servidor de correo no lo aceptó). El código quedó guardado: reintenta en un momento o revisa el correo escrito.");
         };
     }
