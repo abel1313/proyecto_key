@@ -943,6 +943,9 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (campanas != null && AuthenticationUtils.isAdminContext() && campanas.pedidoTieneCodigo(pedido.getId())) {
             resp.setTieneCodigoDeCampana(true);
         }
+        if (AuthenticationUtils.isAdminContext() && !"cancelado".equalsIgnoreCase(pedido.getEstadoPedido()) && PedidoDatosClienteService.sinDatosDelCliente(pedido)) {
+            resp.setSinDatosDelCliente(true);
+        }
         resp.setEntregado(pedido.isEntregado());
         resp.setFechaPedido(pedido.getFechaPedido());
         resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null

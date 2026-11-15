@@ -469,6 +469,8 @@ public class SecurityConfig {
                         // catch-all de abajo, que si no se los comen.
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/articulos")
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "agregar-articulo"))
+                        // Agregar los datos del cliente a un pedido que no los tiene: solo el administrador.
+                        .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/datos-cliente").hasRole("ADMIN")
                         // Cambiar SOLO el precio de una linea del pedido: decision de dinero, solo el administrador.
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/articulos/*/precio").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/articulos/*")
