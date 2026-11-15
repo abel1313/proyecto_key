@@ -28,6 +28,15 @@ public interface GestionarBoletosCasoUso {
             NuevaParticipacion participacion);
 
     /**
+     * Igual que la anterior, pero para el grupo de ESE concursante: si dos personas cargaron el mismo perfil en la rifa, la participacion se suma a la
+     * que se eligio y no a la primera que se encuentre. Con {@code concursanteId} nulo se comporta como la anterior.
+     */
+    default GrupoDeBoletos agregarParticipacion(Integer rifaId, Plataforma plataforma, String urlPerfil,
+            NuevaParticipacion participacion, Integer concursanteId) {
+        return agregarParticipacion(rifaId, plataforma, urlPerfil, participacion);
+    }
+
+    /**
      * Corrige la URL o lo que hizo en una participacion ya cargada. Sigue siendo un boleto:
      * no cambia el total. La URL nueva se valida con {@code modo} solo si cambio.
      */

@@ -83,12 +83,16 @@ public class BoletoAgrupadoController {
             @PathVariable Integer rifaId,
             @RequestParam Plataforma plataforma,
             @RequestParam String urlPerfil,
+            // Opcional: el participante al que se le suma. Si dos personas cargaron el mismo perfil, sin esto se sumaba a la primera que se encontraba.
+            @RequestParam(required = false) Integer concursanteId,
             @RequestBody CargarBoletosRequest.ParticipacionRequest request) {
-        return ejecutar(() -> gestionarBoletos.agregarParticipacion(rifaId, plataforma, urlPerfil,
-                new GestionarBoletosCasoUso.NuevaParticipacion(
-                        request.getUrlParticipacion(),
-                        request.getMotivo(),
-                        ModoDeCarga.oPorDefecto(request.getModo()))));
+        var nueva = new GestionarBoletosCasoUso.NuevaParticipacion(
+                request.getUrlParticipacion(),
+                request.getMotivo(),
+                ModoDeCarga.oPorDefecto(request.getModo()));
+        return ejecutar(() -> concursanteId == null
+                ? gestionarBoletos.agregarParticipacion(rifaId, plataforma, urlPerfil, nueva)
+                : gestionarBoletos.agregarParticipacion(rifaId, plataforma, urlPerfil, nueva, concursanteId));
     }
 
     /**
