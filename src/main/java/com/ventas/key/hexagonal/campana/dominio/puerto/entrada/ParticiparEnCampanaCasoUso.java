@@ -57,5 +57,5 @@ public interface ParticiparEnCampanaCasoUso {
      */
     ResultadoEnvio enviarCodigoDePedido(int pedidoId, String correo, String nombre, String telefono);
 
-    enum ResultadoEnvio { ENVIADO, SIN_CAMPANA, CORREO_INVALIDO, FALTA_CORREO, FALTA_NOMBRE, NO_SE_PUDO_ENVIAR }
+    enum ResultadoEnvio { ENVIADO, SIN_CAMPANA, CORREO_INVALIDO, FALTA_CORREO, FALTA_NOMBRE, TELEFONO_DE_OTRA_PERSONA, PEDIDO_NO_ENCONTRADO, NO_SE_PUDO_ENVIAR }
 }

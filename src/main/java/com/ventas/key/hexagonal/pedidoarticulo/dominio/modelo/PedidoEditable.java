@@ -31,6 +31,14 @@ public record PedidoEditable(
         return ENTREGADO.equals(estado) || CANCELADO.equals(estado);
     }
 
+    /**
+     * El precio de una linea solo se cambia mientras el pedido sigue en Apartado o Ir pagando (sin liquidar). Un pedido Pagado (cobrado de contado, o
+     * liquidado con sus abonos) ya no admite cambio de precio.
+     */
+    public boolean admiteCambioDePrecio() {
+        return estado != null && ("APARTADO".equalsIgnoreCase(estado) || "FIADO".equalsIgnoreCase(estado));
+    }
+
     /** Por que esta cerrado, para poder decirselo a quien lo intento. */
     public String motivoDelCierre() {
         if (ENTREGADO.equals(estado)) {

@@ -17,13 +17,13 @@ public record ContactoCliente(String nombre, String correo, String telefono, Int
         telefono = ultimos10(telefono);
     }
 
-    /** Formato de un correo: algo@dominio.ext, sin espacios, de hasta 254 caracteres. No comprueba que el buzon exista. */
+    /** Formato de un correo: algo@dominio.ext, sin espacios, de hasta 150 caracteres (lo que cabe en la base). No comprueba que el buzon exista. */
     public static boolean correoValido(String correo) {
         if (correo == null) {
             return false;
         }
         String c = correo.trim();
-        return c.length() <= 254 && c.matches("^[A-Za-z0-9._%+'\\-]+@[A-Za-z0-9](?:[A-Za-z0-9\\-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9\\-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$");
+        return c.length() <= 150 && c.matches("^[A-Za-z0-9._%+'\\-]+@[A-Za-z0-9](?:[A-Za-z0-9\\-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9\\-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$");
     }
 
     public boolean tieneDatos() {
