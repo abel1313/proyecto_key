@@ -44,6 +44,10 @@ public interface ParticiparEnCampanaCasoUso {
     /** ¿Este pedido está ligado a una persona con código? (el botón «Enviar código de campaña» de Mis pedidos). */
     boolean pedidoTieneCodigo(int pedidoId);
 
+    /** Si el pedido ya tiene una persona con codigo y esa persona no tenia cliente, queda ligada a este cliente sin registro. Por defecto no hace nada. */
+    default void ligarClienteSinRegistroALaPersonaDelPedido(int pedidoId, int clienteSinRegistroId) {
+    }
+
     /** Vuelve a mandar por correo el código de la persona de este pedido. */
     ResultadoReenvio reenviarCodigo(int pedidoId);
 
