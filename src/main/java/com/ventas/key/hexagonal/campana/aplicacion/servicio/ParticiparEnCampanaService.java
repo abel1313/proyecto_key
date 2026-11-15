@@ -257,6 +257,14 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
     }
 
     @Override
+    public void ligarClienteSinRegistroALaPersonaDelPedido(int pedidoId, int clienteSinRegistroId) {
+        if (!personas.disponible()) {
+            return;
+        }
+        personas.dePedido(pedidoId).ifPresent(p -> personas.completarCliente(p.id(), null, clienteSinRegistroId));
+    }
+
+    @Override
     public ResultadoEnvio enviarCodigoDePedido(int pedidoId, String correo, String nombre, String telefono) {
         Optional<Campana> vigente = personas.disponible() ? activa.vigente() : Optional.empty();
         if (vigente.isEmpty()) {

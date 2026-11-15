@@ -5,6 +5,7 @@ import com.ventas.key.mis.productos.models.PageableDto;
 import com.ventas.key.mis.productos.models.PginaDto;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.models.pedidos.CambiarTipoPedidoRequest;
+import com.ventas.key.mis.productos.models.pedidos.DatosClientePedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.EditarEntregaPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.NotificarPedidoRequest;
 import com.ventas.key.mis.productos.models.pedidos.PedidoDetalleResponse;

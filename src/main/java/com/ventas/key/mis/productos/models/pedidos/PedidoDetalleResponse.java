@@ -21,6 +21,8 @@ public class PedidoDetalleResponse {
     private Boolean tieneJuguetesConPrecioDeCampana;
     /** Solo para el administrador y solo en true: el pedido está ligado a una persona con código de campaña (se le puede reenviar). */
     private Boolean tieneCodigoDeCampana;
+    /** Solo para el administrador y solo en true: el pedido no tiene los datos de un cliente (se le pueden agregar desde el detalle). */
+    private Boolean sinDatosDelCliente;
     /** Ya se lo llevo (aparte del pago, dominio entrega 2026-10-06). */
     private Boolean entregado;
 
