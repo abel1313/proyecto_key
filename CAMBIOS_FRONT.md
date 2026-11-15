@@ -23689,3 +23689,12 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 - **Qué hace:** crea un cliente sin registro con esos datos, lo liga al pedido (y a su venta, si ya la tiene) y quita la cuenta del administrador como cliente del pedido. Si el pedido ya tenía una persona con código de campaña sin cliente, queda ligada al cliente nuevo.
 - **Venta directa:** al escribir o escanear un QR cuya persona todavía no tiene cliente (por ejemplo, se mandó desde un pedido), el front abre la ventana «Cliente sin registro» con sus datos. Si se guardan, se aplica el código; si no se registran, el código no se usa y la venta va a precios normales. No hay endpoint nuevo: se usa el mismo flujo de siempre.
 - **Ticket de abono:** el front ya no imprime `NaN/NaN/NaN` en la fecha (la fecha llegaba como texto `dd/MM/aaaa, hh:mm` y se leía mal). Solo front.
+
+## Rifa por boletos: sumar un boleto a la persona elegida (2026-11-15)
+- **Request:** `POST /mis-productos/v1/rifas/{rifaId}/boletos-agrupados/participaciones?plataforma=…&urlPerfil=…&concursanteId=12` con el cuerpo de siempre (`urlParticipacion`, `motivo`, `modo`). **Nuevo parámetro opcional `concursanteId`.**
+- **Qué cambia:** antes el grupo se buscaba solo por red + perfil y, si dos participantes de la rifa habían cargado el mismo perfil, el boleto se sumaba a la primera persona que se encontraba. Con `concursanteId` se suma al grupo de esa persona. Sin el parámetro todo funciona igual que antes (compatibilidad).
+- **404** (mensaje en `mensaje`) si esa persona no tiene boletos cargados de ese perfil en la rifa. El front ya manda `concursanteId` en el ✔ de «agregar boleto» de un perfil.
+
+## Datos del cliente en un pedido: también cuando el cliente solo tiene nombre (2026-11-15) — ajuste
+- `sinDatosDelCliente: true` en el detalle del pedido ahora también sale cuando el pedido tiene un **cliente sin registro que solo tiene nombre** (sin correo ni teléfono), además de los pedidos sin cliente o a nombre de la cuenta de un administrador.
+- `POST /mis-productos/v1/pedidos/{pedidoId}/datos-cliente`: si el pedido ya tiene ese cliente sin registro, **no se crea otro**: se le completan el correo y/o el teléfono (se exige al menos uno) y su nombre se respeta tal cual. Si no tenía cliente, se crea como antes (nombre obligatorio). El correo se valida (formato) y el teléfono debe tener 10 dígitos. Un cliente registrado con cuenta propia no se toca.
